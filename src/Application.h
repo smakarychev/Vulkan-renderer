@@ -1,5 +1,7 @@
 ﻿#pragma once
 
+#include <optional>
+
 #include "types.h"
 
 #include <string_view>
@@ -15,6 +17,12 @@ struct WindowProps
     std::string_view Name{"VulkanApp"};
 };
 
+struct QueueFamilyIndices
+{
+    std::optional<u32> GraphicsFamily;
+    bool IsComplete() const { return GraphicsFamily.has_value(); }
+};
+
 class Application
 {
 public:
@@ -26,14 +34,25 @@ private:
     void MainLoop();
     void CleanUp();
 
+    void CreateInstance();
+    void PickPhysicalDevice();
+    void CreateLogicalDevice();
+
     std::vector<const char*> GetRequiredExtensions();
     bool CheckExtensions(const std::vector<const char*>& requiredExtensions);
 
     std::vector<const char*> GetRequiredValidationLayers();
     bool CheckValidationLayers(const std::vector<const char*>& requiredLayers);
+
+    bool IsDeviceSuitable(VkPhysicalDevice device);
+
+    QueueFamilyIndices GetQueueFamilies(VkPhysicalDevice device);
 private:
     GLFWwindow* m_Window{nullptr};
     WindowProps m_WindowProps{};
 
-    VkInstance m_Instance;
+    VkInstance m_Instance{VK_NULL_HANDLE};
+    VkPhysicalDevice m_PhysicalDevice{VK_NULL_HANDLE};
+    VkDevice m_Device{VK_NULL_HANDLE};
+    VkQueue m_GraphicsQueue{VK_NULL_HANDLE};
 };
