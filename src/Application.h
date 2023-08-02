@@ -25,8 +25,12 @@ private:
     void InitVulkan();
     void MainLoop();
     void CleanUp();
-    
-    bool CheckExtensions(u32 reqExCount, const char** reqEx);
+
+    std::vector<const char*> GetRequiredExtensions();
+    bool CheckExtensions(const std::vector<const char*>& requiredExtensions);
+
+    std::vector<const char*> GetRequiredValidationLayers();
+    bool CheckValidationLayers(const std::vector<const char*>& requiredLayers);
 private:
     GLFWwindow* m_Window{nullptr};
     WindowProps m_WindowProps{};

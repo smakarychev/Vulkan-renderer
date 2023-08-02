@@ -41,18 +41,27 @@ void Application::InitVulkan()
     
     // tells the driver about extensions and validation layers
     VkInstanceCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     createInfo.pNext = nullptr;
     createInfo.pApplicationInfo = &appInfo;
 
-    // get all the required extensions from glfw
-    u32 extensionCount = 0;
-    const char** extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
-    ASSERT(CheckExtensions(extensionCount, extensions), "Not all of the required extensions are supported")
+    // specify used extensions
+    std::vector<const char*> requiredExtensions = GetRequiredExtensions();
+    ASSERT(CheckExtensions(requiredExtensions), "Not all of the required extensions are supported")
+    createInfo.enabledExtensionCount = (u32)requiredExtensions.size();
+    createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+
+    // specify used validation layers
+#ifdef VULKAN_VAL_LAYERS
+    std::vector<const char*> requiredValidationLayers = GetRequiredValidationLayers();
+    ASSERT(CheckValidationLayers(requiredValidationLayers), "Not all of the required validation layers are supported")
+    createInfo.enabledLayerCount = (u32)requiredValidationLayers.size();
+    createInfo.ppEnabledLayerNames = requiredValidationLayers.data();
+#else
+    createInfo.enabledLayerCount = 0;
+#endif
     
-    createInfo.enabledExtensionCount = extensionCount;
-    createInfo.ppEnabledExtensionNames = extensions;
-    createInfo.enabledLayerCount = 0; // disable val layers for now
+    
     VkResult res = vkCreateInstance(&createInfo, nullptr, &m_Instance);
     ASSERT(res == VK_SUCCESS, "Failed to initialize vulkan instance")
 }
@@ -74,22 +83,60 @@ void Application::CleanUp()
     glfwTerminate();
 }
 
-bool Application::CheckExtensions(u32 reqExCount, const char** reqEx)
+std::vector<const char*> Application::GetRequiredExtensions()
+{
+    // get all the required extensions from glfw
+    u32 extensionCount = 0;
+    const char** extensionNames = glfwGetRequiredInstanceExtensions(&extensionCount);
+    std::vector<const char*> extensions(extensionNames + 0, extensionNames + extensionCount);
+#ifdef VULKAN_VAL_LAYERS
+    extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+    return extensions;
+}
+
+bool Application::CheckExtensions(const std::vector<const char*>& requiredExtensions)
 {
     // get all available extension from vulkan
-    u32 availExCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &availExCount, nullptr);
-    std::vector<VkExtensionProperties> availEx(availExCount);
-    vkEnumerateInstanceExtensionProperties(nullptr, &availExCount, availEx.data());
+    u32 availableExtensionCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, nullptr);
+    std::vector<VkExtensionProperties> availExtension(availableExtensionCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, availExtension.data());
 
     bool success = true;    
-
-    for (u32 i = 0; i < reqExCount; i++)
+    for (auto& req : requiredExtensions)
     {
-        const char* req = reqEx[i];
-        if (std::ranges::none_of(availEx, [req](auto& ex){ return std::strcmp(req, ex.extensionName); }))
+        if (std::ranges::none_of(availExtension, [req](auto& ex){ return std::strcmp(req, ex.extensionName); }))
         {
             LOG("Unsopported extension: {}", req);
+            success = false;
+        }
+    }
+
+    return success;
+}
+
+std::vector<const char*> Application::GetRequiredValidationLayers()
+{
+    return {
+        "VK_LAYER_KHRONOS_validation",
+    };
+}
+
+bool Application::CheckValidationLayers(const std::vector<const char*>& requiredLayers)
+{
+    // get all available layers from vulkan
+    u32 availableLayerCount = 0;
+    vkEnumerateInstanceLayerProperties(&availableLayerCount, nullptr);
+    std::vector<VkLayerProperties> availableLayers(availableLayerCount);
+    vkEnumerateInstanceLayerProperties(&availableLayerCount, availableLayers.data());
+
+    bool success = true;
+    for (auto& req : requiredLayers)
+    {
+        if (std::ranges::none_of(availableLayers, [req](auto& layer){ return std::strcmp(req, layer.layerName); }))
+        {
+            LOG("Unsopported validation layer: {}", req);
             success = false;
         }
     }

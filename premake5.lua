@@ -55,6 +55,7 @@ project "VulkanApp"
 	filter "configurations:Debug"
 		runtime "Debug"
 		symbols "on"
+		defines { "VULKAN_VAL_LAYERS" }
 
 	filter "configurations:Release"
 		runtime "Release"
