@@ -1,9 +1,9 @@
 ﻿#include "Application.h"
 
+#include "core.h"
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
-
-#include "core.h"
 
 void Application::Run()
 {
@@ -45,10 +45,11 @@ void Application::InitVulkan()
     createInfo.pNext = nullptr;
     createInfo.pApplicationInfo = &appInfo;
 
-    // get all extensions from glfw
+    // get all the required extensions from glfw
     u32 extensionCount = 0;
     const char** extensions = glfwGetRequiredInstanceExtensions(&extensionCount);
-
+    ASSERT(CheckExtensions(extensionCount, extensions), "Not all of the required extensions are supported")
+    
     createInfo.enabledExtensionCount = extensionCount;
     createInfo.ppEnabledExtensionNames = extensions;
     createInfo.enabledLayerCount = 0; // disable val layers for now
@@ -71,4 +72,27 @@ void Application::CleanUp()
     glfwDestroyWindow(m_Window);
     
     glfwTerminate();
+}
+
+bool Application::CheckExtensions(u32 reqExCount, const char** reqEx)
+{
+    // get all available extension from vulkan
+    u32 availExCount = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &availExCount, nullptr);
+    std::vector<VkExtensionProperties> availEx(availExCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &availExCount, availEx.data());
+
+    bool success = true;    
+
+    for (u32 i = 0; i < reqExCount; i++)
+    {
+        const char* req = reqEx[i];
+        if (std::ranges::none_of(availEx, [req](auto& ex){ return std::strcmp(req, ex.extensionName); }))
+        {
+            LOG("Unsopported extension: {}", req);
+            success = false;
+        }
+    }
+
+    return success;
 }

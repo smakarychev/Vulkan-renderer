@@ -3,6 +3,7 @@
 #include "types.h"
 
 #include <string_view>
+#include <vector>
 #include <vulkan/vulkan_core.h>
 
 struct GLFWwindow;
@@ -24,6 +25,8 @@ private:
     void InitVulkan();
     void MainLoop();
     void CleanUp();
+    
+    bool CheckExtensions(u32 reqExCount, const char** reqEx);
 private:
     GLFWwindow* m_Window{nullptr};
     WindowProps m_WindowProps{};
