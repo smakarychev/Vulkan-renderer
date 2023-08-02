@@ -8,7 +8,7 @@ workspace "vulkan-tutorial"
 	}
     startproject "VulkanApp"
 
-    linkoptions { "/nodefaultlib:libcmt.lib" }
+    linkoptions { "/NODEFAULTLIB:LIBCMTD.LIB" }
 
 include "vendor/glfw"
 include "vendor/glm"
