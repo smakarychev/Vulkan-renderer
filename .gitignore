@@ -1,0 +1,6 @@
+﻿.idea
+/bin
+/bin-int
+*.vcxproj
+*.user
+*.sln
