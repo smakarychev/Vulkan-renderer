@@ -38,6 +38,7 @@ void Application::InitVulkan()
     PickPhysicalDevice(); // we do not need to destroy it (it's basically a gpu)
     CreateLogicalDevice();
     CreateSwapchain();
+    CreateSwapchainImageViews();
 }
 
 void Application::CreateInstance()
@@ -151,38 +152,38 @@ void Application::CreateSwapchain()
     VkExtent2D extent =  ChooseSwapchainExtent(swapchainDetails.Capabilities);
     u32 imageCount = ChooseSwapchainImageCount(swapchainDetails.Capabilities);
 
-    VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
-    swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCreateInfo.pNext = nullptr;
-    swapchainCreateInfo.surface = m_Surface;
-    swapchainCreateInfo.imageFormat = format.format;
-    swapchainCreateInfo.imageColorSpace = format.colorSpace;
-    swapchainCreateInfo.imageExtent = extent;
-    swapchainCreateInfo.imageArrayLayers = 1;
-    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // use swap chain as color attachment
-    swapchainCreateInfo.minImageCount = imageCount;
-    swapchainCreateInfo.presentMode = presentMode;
+    VkSwapchainCreateInfoKHR createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    createInfo.pNext = nullptr;
+    createInfo.surface = m_Surface;
+    createInfo.imageFormat = format.format;
+    createInfo.imageColorSpace = format.colorSpace;
+    createInfo.imageExtent = extent;
+    createInfo.imageArrayLayers = 1;
+    createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT; // use swap chain as color attachment
+    createInfo.minImageCount = imageCount;
+    createInfo.presentMode = presentMode;
     
     // pick sharing mode based on queue families
     std::array<u32, 2> queueFamilies = GetQueueFamilies(m_PhysicalDevice).AsArray();
     if (queueFamilies[0] == queueFamilies[1])
     {
-        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        swapchainCreateInfo.queueFamilyIndexCount = 0;
-        swapchainCreateInfo.pQueueFamilyIndices = nullptr;
+        createInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        createInfo.queueFamilyIndexCount = 0;
+        createInfo.pQueueFamilyIndices = nullptr;
     }
     else
     {
-        swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-        swapchainCreateInfo.queueFamilyIndexCount = queueFamilies.size();
-        swapchainCreateInfo.pQueueFamilyIndices = queueFamilies.data();
+        createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        createInfo.queueFamilyIndexCount = queueFamilies.size();
+        createInfo.pQueueFamilyIndices = queueFamilies.data();
     }
-    swapchainCreateInfo.preTransform = swapchainDetails.Capabilities.currentTransform;
-    swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-    swapchainCreateInfo.clipped = VK_TRUE;
-    swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+    createInfo.preTransform = swapchainDetails.Capabilities.currentTransform;
+    createInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    createInfo.clipped = VK_TRUE;
+    createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    VkResult res = vkCreateSwapchainKHR(m_Device, &swapchainCreateInfo, nullptr, &m_Swapchain);
+    VkResult res = vkCreateSwapchainKHR(m_Device, &createInfo, nullptr, &m_Swapchain);
     ASSERT(res == VK_SUCCESS, "Failed to create swap chain")
 
     // retrieve swapchain images
@@ -192,6 +193,37 @@ void Application::CreateSwapchain()
 
     m_SwapchainFormat = format;
     m_SwapchainExtent = extent;
+}
+
+void Application::CreateSwapchainImageViews()
+{
+    m_SwapchainImageViews.reserve(m_SwapchainImages.size());
+    for (auto image : m_SwapchainImages)
+    {
+        VkImageViewCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.pNext = nullptr;
+        createInfo.image = image;
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.format = m_SwapchainFormat.format;
+
+        // leave color as is
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        createInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = 1;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
+
+        VkImageView imageView;
+        VkResult res = vkCreateImageView(m_Device, &createInfo, nullptr, &imageView);
+        ASSERT(res == VK_SUCCESS, "Failed to create image view")
+        m_SwapchainImageViews.push_back(imageView);
+    }
 }
 
 
@@ -205,6 +237,8 @@ void Application::MainLoop()
 
 void Application::CleanUp()
 {
+    for (auto imageView : m_SwapchainImageViews)
+        vkDestroyImageView(m_Device, imageView, nullptr);
     vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
     vkDestroyDevice(m_Device, nullptr);
     vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);

@@ -49,6 +49,7 @@ private:
     void PickPhysicalDevice();
     void CreateLogicalDevice();
     void CreateSwapchain();
+    void CreateSwapchainImageViews();
 
     std::vector<const char*> GetRequiredInstanceExtensions();
     bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
@@ -83,4 +84,6 @@ private:
     std::vector<VkImage> m_SwapchainImages;
     VkSurfaceFormatKHR m_SwapchainFormat{};
     VkExtent2D m_SwapchainExtent{};
+
+    std::vector<VkImageView> m_SwapchainImageViews;
 };
