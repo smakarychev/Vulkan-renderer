@@ -20,7 +20,8 @@ struct WindowProps
 struct QueueFamilyIndices
 {
     std::optional<u32> GraphicsFamily;
-    bool IsComplete() const { return GraphicsFamily.has_value(); }
+    std::optional<u32> PresentationFamily;
+    bool IsComplete() const { return GraphicsFamily.has_value() && PresentationFamily.has_value(); }
 };
 
 class Application
@@ -35,6 +36,7 @@ private:
     void CleanUp();
 
     void CreateInstance();
+    void CreateSurface();
     void PickPhysicalDevice();
     void CreateLogicalDevice();
 
@@ -52,7 +54,9 @@ private:
     WindowProps m_WindowProps{};
 
     VkInstance m_Instance{VK_NULL_HANDLE};
+    VkSurfaceKHR m_Surface{VK_NULL_HANDLE};
     VkPhysicalDevice m_PhysicalDevice{VK_NULL_HANDLE};
     VkDevice m_Device{VK_NULL_HANDLE};
     VkQueue m_GraphicsQueue{VK_NULL_HANDLE};
+    VkQueue m_PresentationQueue{VK_NULL_HANDLE};
 };
