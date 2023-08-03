@@ -1,12 +1,13 @@
 ﻿#pragma once
 
-#include <optional>
-
 #include "types.h"
-
-#include <string_view>
-#include <vector>
 #include <vulkan/vulkan_core.h>
+
+#include <array>
+#include <vector>
+#include <optional>
+#include <string_view>
+
 
 struct GLFWwindow;
 
@@ -22,6 +23,14 @@ struct QueueFamilyIndices
     std::optional<u32> GraphicsFamily;
     std::optional<u32> PresentationFamily;
     bool IsComplete() const { return GraphicsFamily.has_value() && PresentationFamily.has_value(); }
+    std::array<u32, 2> AsArray() const { return { *GraphicsFamily, *PresentationFamily }; }
+};
+
+struct SwapchainDetails
+{
+    VkSurfaceCapabilitiesKHR Capabilities;
+    std::vector<VkSurfaceFormatKHR> Formats;
+    std::vector<VkPresentModeKHR> PresentModes;
 };
 
 class Application
@@ -39,6 +48,7 @@ private:
     void CreateSurface();
     void PickPhysicalDevice();
     void CreateLogicalDevice();
+    void CreateSwapchain();
 
     std::vector<const char*> GetRequiredInstanceExtensions();
     bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
@@ -52,7 +62,12 @@ private:
     bool IsDeviceSuitable(VkPhysicalDevice device);
 
     QueueFamilyIndices GetQueueFamilies(VkPhysicalDevice device);
+    SwapchainDetails GetSwapchainDetails(VkPhysicalDevice device);
 
+    VkSurfaceFormatKHR ChooseSwapchainFormat(const std::vector<VkSurfaceFormatKHR>& formats);
+    VkPresentModeKHR ChooseSwapchainPresentMode(const std::vector<VkPresentModeKHR>& presentModes);
+    VkExtent2D ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities);
+    u32 ChooseSwapchainImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
     
 private:
     GLFWwindow* m_Window{nullptr};
@@ -64,4 +79,8 @@ private:
     VkDevice m_Device{VK_NULL_HANDLE};
     VkQueue m_GraphicsQueue{VK_NULL_HANDLE};
     VkQueue m_PresentationQueue{VK_NULL_HANDLE};
+    VkSwapchainKHR m_Swapchain{VK_NULL_HANDLE};
+    std::vector<VkImage> m_SwapchainImages;
+    VkSurfaceFormatKHR m_SwapchainFormat{};
+    VkExtent2D m_SwapchainExtent{};
 };
