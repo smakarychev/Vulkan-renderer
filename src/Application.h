@@ -40,15 +40,20 @@ private:
     void PickPhysicalDevice();
     void CreateLogicalDevice();
 
-    std::vector<const char*> GetRequiredExtensions();
-    bool CheckExtensions(const std::vector<const char*>& requiredExtensions);
+    std::vector<const char*> GetRequiredInstanceExtensions();
+    bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
 
     std::vector<const char*> GetRequiredValidationLayers();
     bool CheckValidationLayers(const std::vector<const char*>& requiredLayers);
 
+    std::vector<const char*> GetRequiredDeviceExtensions();
+    bool CheckDeviceExtensions(VkPhysicalDevice device, const std::vector<const char*>& requiredExtensions);
+
     bool IsDeviceSuitable(VkPhysicalDevice device);
 
     QueueFamilyIndices GetQueueFamilies(VkPhysicalDevice device);
+
+    
 private:
     GLFWwindow* m_Window{nullptr};
     WindowProps m_WindowProps{};

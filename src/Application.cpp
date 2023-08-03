@@ -6,6 +6,8 @@
 #include <set>
 #include <GLFW/glfw3.h>
 
+#include "utils.h"
+
 void Application::Run()
 {
     Init();
@@ -55,8 +57,8 @@ void Application::CreateInstance()
     createInfo.pApplicationInfo = &appInfo;
 
     // specify used extensions
-    std::vector<const char*> requiredExtensions = GetRequiredExtensions();
-    ASSERT(CheckExtensions(requiredExtensions), "Not all of the required extensions are supported")
+    std::vector<const char*> requiredExtensions = GetRequiredInstanceExtensions();
+    ASSERT(CheckInstanceExtensions(requiredExtensions), "Not all of the required extensions are supported")
     createInfo.enabledExtensionCount = (u32)requiredExtensions.size();
     createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
@@ -156,7 +158,7 @@ void Application::CleanUp()
     glfwTerminate();
 }
 
-std::vector<const char*> Application::GetRequiredExtensions()
+std::vector<const char*> Application::GetRequiredInstanceExtensions()
 {
     // get all the required extensions from glfw
     u32 extensionCount = 0;
@@ -168,25 +170,18 @@ std::vector<const char*> Application::GetRequiredExtensions()
     return extensions;
 }
 
-bool Application::CheckExtensions(const std::vector<const char*>& requiredExtensions)
+bool Application::CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions)
 {
     // get all available extension from vulkan
     u32 availableExtensionCount = 0;
     vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, nullptr);
-    std::vector<VkExtensionProperties> availExtension(availableExtensionCount);
-    vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, availExtension.data());
+    std::vector<VkExtensionProperties> availableExtensions(availableExtensionCount);
+    vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, availableExtensions.data());
 
-    bool success = true;    
-    for (auto& req : requiredExtensions)
-    {
-        if (std::ranges::none_of(availExtension, [req](auto& ex){ return std::strcmp(req, ex.extensionName); }))
-        {
-            LOG("Unsopported extension: {}", req);
-            success = false;
-        }
-    }
-
-    return success;
+    return utils::checkArrayContainsSubArray(requiredExtensions, availableExtensions,
+        [](const char* req, const VkExtensionProperties& avail) { return std::strcmp(req, avail.extensionName); },
+        [](const char* req) { LOG("Unsopported instance extension: {}", req); }
+    );
 }
 
 std::vector<const char*> Application::GetRequiredValidationLayers()
@@ -204,23 +199,38 @@ bool Application::CheckValidationLayers(const std::vector<const char*>& required
     std::vector<VkLayerProperties> availableLayers(availableLayerCount);
     vkEnumerateInstanceLayerProperties(&availableLayerCount, availableLayers.data());
 
-    bool success = true;
-    for (auto& req : requiredLayers)
-    {
-        if (std::ranges::none_of(availableLayers, [req](auto& layer){ return std::strcmp(req, layer.layerName); }))
-        {
-            LOG("Unsopported validation layer: {}", req);
-            success = false;
-        }
-    }
+    return utils::checkArrayContainsSubArray(requiredLayers, availableLayers,
+        [](const char* req, const VkLayerProperties& avail) { return std::strcmp(req, avail.layerName); },
+        [](const char* req) { LOG("Unsopported validation layer: {}", req); }
+    );
+}
 
-    return success;
+std::vector<const char*> Application::GetRequiredDeviceExtensions()
+{
+    return {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME
+    };
+}
+
+bool Application::CheckDeviceExtensions(VkPhysicalDevice device, const std::vector<const char*>& requiredExtensions)
+{
+    u32 availableExtensionCount = 0;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &availableExtensionCount, nullptr);
+    std::vector<VkExtensionProperties> availableExtensions(availableExtensionCount);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &availableExtensionCount, availableExtensions.data());
+
+    return utils::checkArrayContainsSubArray(requiredExtensions, availableExtensions,
+        [](const char* req, const VkExtensionProperties& avail) { return std::strcmp(req, avail.extensionName); },
+        [](const char* req) { LOG("Unsopported device extension: {}", req); }
+    );
 }
 
 bool Application::IsDeviceSuitable(VkPhysicalDevice device)
 {
     QueueFamilyIndices queueFamilyIndices = GetQueueFamilies(device);
-    return queueFamilyIndices.IsComplete();
+    std::vector<const char*> requiredExtensions = GetRequiredDeviceExtensions();
+    bool extensionsSupported = CheckDeviceExtensions(device, requiredExtensions);
+    return queueFamilyIndices.IsComplete() && extensionsSupported;
 }
 
 QueueFamilyIndices Application::GetQueueFamilies(VkPhysicalDevice device)
