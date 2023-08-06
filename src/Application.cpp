@@ -41,6 +41,7 @@ void Application::InitVulkan()
     CreateSwapchainImageViews();
     CreateRenderPass();
     CreateGraphicsPipeline();
+    CreateFramebuffers();
 }
 
 void Application::CreateInstance()
@@ -391,6 +392,30 @@ void Application::CreateGraphicsPipeline()
     vkDestroyShaderModule(m_Device, fragmentShaderModule, nullptr);
 }
 
+void Application::CreateFramebuffers()
+{
+    m_Framebuffers.resize(m_SwapchainImageViews.size());
+    for (u32 i = 0; i < m_SwapchainImageViews.size(); i++)
+    {
+        std::array attachments = {
+            m_SwapchainImageViews[i]
+        };
+
+        VkFramebufferCreateInfo framebufferCreateInfo = {};
+        framebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebufferCreateInfo.pNext = nullptr;
+        framebufferCreateInfo.renderPass = m_RenderPass;
+        framebufferCreateInfo.attachmentCount = (u32)attachments.size();
+        framebufferCreateInfo.pAttachments = attachments.data();
+        framebufferCreateInfo.width = m_SwapchainExtent.width;
+        framebufferCreateInfo.height = m_SwapchainExtent.height;
+        framebufferCreateInfo.layers = 1;
+
+        VkResult res = vkCreateFramebuffer(m_Device, &framebufferCreateInfo, nullptr, &m_Framebuffers[i]);
+        ASSERT(res == VK_SUCCESS, "Failed to create framebuffer")
+    }
+}
+
 
 void Application::MainLoop()
 {
@@ -402,6 +427,8 @@ void Application::MainLoop()
 
 void Application::CleanUp()
 {
+    for (auto framebuffer : m_Framebuffers)
+        vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
     vkDestroyPipeline(m_Device, m_Pipeline, nullptr);
     vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
     vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);

@@ -52,6 +52,7 @@ private:
     void CreateSwapchainImageViews();
     void CreateRenderPass();
     void CreateGraphicsPipeline();
+    void CreateFramebuffers();
 
     std::vector<const char*> GetRequiredInstanceExtensions();
     bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
@@ -94,6 +95,8 @@ private:
     VkRenderPass m_RenderPass{VK_NULL_HANDLE};
     VkPipelineLayout m_PipelineLayout{VK_NULL_HANDLE};
     VkPipeline m_Pipeline{VK_NULL_HANDLE};
+
+    std::vector<VkFramebuffer> m_Framebuffers;
     
     std::vector<VkImageView> m_SwapchainImageViews;
 };
