@@ -10,9 +10,12 @@ workspace "vulkan-tutorial"
 
     linkoptions { "/NODEFAULTLIB:LIBCMTD.LIB" }
 
+    
+group "Dependencies"
 include "vendor/glfw"
 include "vendor/glm"
 
+group ""
 project "VulkanApp"
 	kind "ConsoleApp"
 	language "C++"
@@ -56,7 +59,19 @@ project "VulkanApp"
 		runtime "Debug"
 		symbols "on"
 		defines { "VULKAN_VAL_LAYERS" }
+        links {
+            "shadercd.lib",
+            "shaderc_combinedd.lib", 
+            "shaderc_sharedd.lib", 
+            "shaderc_utild.lib"
+        }
 
 	filter "configurations:Release"
 		runtime "Release"
 		optimize "on"
+        links {
+            "shaderc.lib",
+            "shaderc_combined.lib", 
+            "shaderc_shared.lib", 
+            "shaderc_util.lib"
+        }

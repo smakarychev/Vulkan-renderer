@@ -50,6 +50,8 @@ private:
     void CreateLogicalDevice();
     void CreateSwapchain();
     void CreateSwapchainImageViews();
+    void CreateRenderPass();
+    void CreateGraphicsPipeline();
 
     std::vector<const char*> GetRequiredInstanceExtensions();
     bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
@@ -69,6 +71,8 @@ private:
     VkPresentModeKHR ChooseSwapchainPresentMode(const std::vector<VkPresentModeKHR>& presentModes);
     VkExtent2D ChooseSwapchainExtent(const VkSurfaceCapabilitiesKHR& capabilities);
     u32 ChooseSwapchainImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
+
+    VkShaderModule CreateShaderModule(const std::vector<u32>& spirv);
     
 private:
     GLFWwindow* m_Window{nullptr};
@@ -76,14 +80,19 @@ private:
 
     VkInstance m_Instance{VK_NULL_HANDLE};
     VkSurfaceKHR m_Surface{VK_NULL_HANDLE};
+    
     VkPhysicalDevice m_PhysicalDevice{VK_NULL_HANDLE};
     VkDevice m_Device{VK_NULL_HANDLE};
     VkQueue m_GraphicsQueue{VK_NULL_HANDLE};
     VkQueue m_PresentationQueue{VK_NULL_HANDLE};
+    
     VkSwapchainKHR m_Swapchain{VK_NULL_HANDLE};
     std::vector<VkImage> m_SwapchainImages;
     VkSurfaceFormatKHR m_SwapchainFormat{};
     VkExtent2D m_SwapchainExtent{};
+
+    VkRenderPass m_RenderPass{VK_NULL_HANDLE};
+    VkPipelineLayout m_PipelineLayout{VK_NULL_HANDLE};
 
     std::vector<VkImageView> m_SwapchainImageViews;
 };

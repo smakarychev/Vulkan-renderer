@@ -13,6 +13,7 @@ using u32 = uint32_t;
 using u64 = uint64_t;
 
 using usize = size_t;
+using isize = i64;
 
 using f32 = float;
 using f64 = double;
