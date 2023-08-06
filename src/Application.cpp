@@ -362,6 +362,30 @@ void Application::CreateGraphicsPipeline()
 
     VkResult res = vkCreatePipelineLayout(m_Device, &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout);
     ASSERT(res == VK_SUCCESS, "Failed to create pipeline layout")
+
+    VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
+    graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    graphicsPipelineCreateInfo.pNext = nullptr;
+    graphicsPipelineCreateInfo.basePipelineHandle = VK_NULL_HANDLE;
+    graphicsPipelineCreateInfo.basePipelineIndex = -1;
+    graphicsPipelineCreateInfo.stageCount = 2;
+    graphicsPipelineCreateInfo.pStages = stageCreateInfos.data();
+    graphicsPipelineCreateInfo.pDynamicState = &dynamicStateCreateInfo;
+    graphicsPipelineCreateInfo.pMultisampleState = &multisampleStateCreateInfo;
+    graphicsPipelineCreateInfo.pRasterizationState = &rasterizationStateCreateInfo;
+    graphicsPipelineCreateInfo.pTessellationState = nullptr;
+    graphicsPipelineCreateInfo.pViewportState = &viewportStateCreateInfo;
+    graphicsPipelineCreateInfo.pColorBlendState = &colorBlendStateCreateInfo;
+    graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
+    graphicsPipelineCreateInfo.pInputAssemblyState = &assemblyStateCreateInfo;
+    graphicsPipelineCreateInfo.pVertexInputState = &vertexInputStateCreateInfo;
+    graphicsPipelineCreateInfo.layout = m_PipelineLayout;
+    graphicsPipelineCreateInfo.renderPass = m_RenderPass;
+    graphicsPipelineCreateInfo.subpass = 0;
+
+    VkPipelineCache pipelineCache = VK_NULL_HANDLE;
+    res = vkCreateGraphicsPipelines(m_Device, pipelineCache, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline);
+    ASSERT(res == VK_SUCCESS, "Failed to create pipeline")
     
     vkDestroyShaderModule(m_Device, vertexShaderModule, nullptr);
     vkDestroyShaderModule(m_Device, fragmentShaderModule, nullptr);
@@ -378,6 +402,7 @@ void Application::MainLoop()
 
 void Application::CleanUp()
 {
+    vkDestroyPipeline(m_Device, m_Pipeline, nullptr);
     vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
     vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
     for (auto imageView : m_SwapchainImageViews)
