@@ -53,6 +53,9 @@ private:
     void CreateRenderPass();
     void CreateGraphicsPipeline();
     void CreateFramebuffers();
+    void CreateCommandPool();
+    void CreateCommandBuffer();
+    void RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex);
 
     std::vector<const char*> GetRequiredInstanceExtensions();
     bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
@@ -99,4 +102,7 @@ private:
     std::vector<VkFramebuffer> m_Framebuffers;
     
     std::vector<VkImageView> m_SwapchainImageViews;
+
+    VkCommandPool m_CommandPool{VK_NULL_HANDLE};
+    VkCommandBuffer m_CommandBuffer{VK_NULL_HANDLE};
 };

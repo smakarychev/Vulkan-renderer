@@ -42,6 +42,8 @@ void Application::InitVulkan()
     CreateRenderPass();
     CreateGraphicsPipeline();
     CreateFramebuffers();
+    CreateCommandPool();
+    CreateCommandBuffer();
 }
 
 void Application::CreateInstance()
@@ -416,6 +418,73 @@ void Application::CreateFramebuffers()
     }
 }
 
+void Application::CreateCommandPool()
+{
+    QueueFamilyIndices queueFamilies = GetQueueFamilies(m_PhysicalDevice);
+    
+    VkCommandPoolCreateInfo poolCreateInfo = {};
+    poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolCreateInfo.pNext = nullptr;
+    poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    poolCreateInfo.queueFamilyIndex = *queueFamilies.GraphicsFamily;
+
+    VkResult res = vkCreateCommandPool(m_Device, &poolCreateInfo, nullptr, &m_CommandPool);
+    ASSERT(res == VK_SUCCESS, "Failed to create command pool")
+}
+
+void Application::CreateCommandBuffer()
+{
+    VkCommandBufferAllocateInfo bufferAllocateInfo = {};
+    bufferAllocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    bufferAllocateInfo.pNext = nullptr;
+    bufferAllocateInfo.commandPool = m_CommandPool;
+    bufferAllocateInfo.commandBufferCount = 1;
+    bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+    VkResult res = vkAllocateCommandBuffers(m_Device, &bufferAllocateInfo, &m_CommandBuffer);
+    ASSERT(res == VK_SUCCESS, "Failed to allocate command buffer")
+}
+
+void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
+{
+    VkCommandBufferBeginInfo bufferBeginInfo = {};
+    bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    bufferBeginInfo.pNext = nullptr;
+
+    VkResult res = vkBeginCommandBuffer(cmd, &bufferBeginInfo);
+    ASSERT(res == VK_SUCCESS, "Failed to begin command buffer")
+
+    VkRenderPassBeginInfo renderPassBeginInfo = {};
+    renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    renderPassBeginInfo.pNext = nullptr;
+    renderPassBeginInfo.renderPass = m_RenderPass; 
+    renderPassBeginInfo.framebuffer = m_Framebuffers[imageIndex];
+    renderPassBeginInfo.renderArea = VkRect2D{.offset = {0, 0}, .extent = m_SwapchainExtent};
+    VkClearValue clearValue = {{{0.0f, 0.0f, 0.0f, 0.0f}}};
+    renderPassBeginInfo.clearValueCount = 1;
+    renderPassBeginInfo.pClearValues = &clearValue;
+
+    // tell vulkan which operations to execute in the graphics pipeline and which attachment to use in the fragment shader
+    vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
+
+    // set dynamics
+    VkViewport viewport = {
+        .x = 0, .y = 0,
+        .width = (f32)m_SwapchainExtent.width, .height = (f32)m_SwapchainExtent.height,
+        .minDepth = 0.0f, .maxDepth = 1.0f
+    };
+    vkCmdSetViewport(cmd, 0, 1, &viewport);
+
+    VkRect2D scissor = {.offset = {0, 0}, .extent = m_SwapchainExtent};
+    vkCmdSetScissor(cmd, 0, 1, &scissor);
+
+    vkCmdDraw(cmd, 3, 1, 0, 0);
+    
+    vkCmdBeginRenderPass(cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    
+    res = vkEndCommandBuffer(cmd);
+    ASSERT(res == VK_SUCCESS, "Failed to record command buffer")
+}
 
 void Application::MainLoop()
 {
@@ -427,6 +496,7 @@ void Application::MainLoop()
 
 void Application::CleanUp()
 {
+    vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     for (auto framebuffer : m_Framebuffers)
         vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
     vkDestroyPipeline(m_Device, m_Pipeline, nullptr);

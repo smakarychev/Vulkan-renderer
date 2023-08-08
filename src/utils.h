@@ -48,5 +48,4 @@ namespace utils
 
         return {module.cbegin(), module.cend()};
     }
-    
 }
