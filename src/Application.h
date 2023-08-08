@@ -42,6 +42,7 @@ private:
     void InitWindow();
     void InitVulkan();
     void MainLoop();
+    void OnDraw();
     void CleanUp();
 
     void CreateInstance();
@@ -56,6 +57,7 @@ private:
     void CreateCommandPool();
     void CreateCommandBuffer();
     void RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex);
+    void CreateSynchronizationPrimitives();
 
     std::vector<const char*> GetRequiredInstanceExtensions();
     bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
@@ -105,4 +107,8 @@ private:
 
     VkCommandPool m_CommandPool{VK_NULL_HANDLE};
     VkCommandBuffer m_CommandBuffer{VK_NULL_HANDLE};
+
+    VkSemaphore m_ImageAvailableSemaphore{VK_NULL_HANDLE};
+    VkSemaphore m_ImageRenderedSemaphore{VK_NULL_HANDLE};
+    VkFence m_ImageAvailableFence{VK_NULL_HANDLE};
 };

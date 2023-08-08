@@ -44,6 +44,7 @@ void Application::InitVulkan()
     CreateFramebuffers();
     CreateCommandPool();
     CreateCommandBuffer();
+    CreateSynchronizationPrimitives();
 }
 
 void Application::CreateInstance()
@@ -79,15 +80,13 @@ void Application::CreateInstance()
 #else
     createInfo.enabledLayerCount = 0;
 #endif
-    
-    VkResult res = vkCreateInstance(&createInfo, nullptr, &m_Instance);
-    ASSERT(res == VK_SUCCESS, "Failed to initialize vulkan instance")
+
+    VulkanCheck(vkCreateInstance(&createInfo, nullptr, &m_Instance), "Failed to initialize vulkan instance");
 }
 
 void Application::CreateSurface()
 {
-    VkResult res = glfwCreateWindowSurface(m_Instance, m_Window, nullptr, &m_Surface);
-    ASSERT(res == VK_SUCCESS, "Failed to initialize surface")
+    VulkanCheck(glfwCreateWindowSurface(m_Instance, m_Window, nullptr, &m_Surface), "Failed to initialize surface");
 }
 
 void Application::PickPhysicalDevice()
@@ -140,8 +139,7 @@ void Application::CreateLogicalDevice()
     deviceCreateInfo.pQueueCreateInfos = deviceQueueCreateInfos.data();
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
-    VkResult res = vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &m_Device);
-    ASSERT(res == VK_SUCCESS, "Failed to create logical device")
+    VulkanCheck(vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &m_Device), "Failed to create logical device");
 
     // retrieve graphics queue from device, once it's created
     vkGetDeviceQueue(m_Device, *queueFamilies.GraphicsFamily, 0, &m_GraphicsQueue);
@@ -188,8 +186,7 @@ void Application::CreateSwapchain()
     createInfo.clipped = VK_TRUE;
     createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    VkResult res = vkCreateSwapchainKHR(m_Device, &createInfo, nullptr, &m_Swapchain);
-    ASSERT(res == VK_SUCCESS, "Failed to create swap chain")
+    VulkanCheck(vkCreateSwapchainKHR(m_Device, &createInfo, nullptr, &m_Swapchain), "Failed to create swap chain");
 
     // retrieve swapchain images
     vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, nullptr);
@@ -225,8 +222,8 @@ void Application::CreateSwapchainImageViews()
         createInfo.subresourceRange.layerCount = 1;
 
         VkImageView imageView;
-        VkResult res = vkCreateImageView(m_Device, &createInfo, nullptr, &imageView);
-        ASSERT(res == VK_SUCCESS, "Failed to create image view")
+
+        VulkanCheck(vkCreateImageView(m_Device, &createInfo, nullptr, &imageView), "Failed to create image view");
         m_SwapchainImageViews.push_back(imageView);
     }
 }
@@ -253,6 +250,14 @@ void Application::CreateRenderPass()
     subpassDescription.pColorAttachments = &colorAttachmentReference;
     // it is later referenced in shaders (layout(location = ...))
 
+    VkSubpassDependency subpassDependency = {};
+    subpassDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    subpassDependency.dstSubpass = 0;
+    subpassDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpassDependency.srcAccessMask = 0;
+    subpassDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    subpassDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    
     VkRenderPassCreateInfo renderPassCreateInfo = {};
     renderPassCreateInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderPassCreateInfo.pNext = nullptr;
@@ -260,9 +265,10 @@ void Application::CreateRenderPass()
     renderPassCreateInfo.pAttachments = &colorAttachment;
     renderPassCreateInfo.subpassCount = 1;
     renderPassCreateInfo.pSubpasses = &subpassDescription;
+    renderPassCreateInfo.dependencyCount = 1;
+    renderPassCreateInfo.pDependencies = &subpassDependency;
 
-    VkResult res = vkCreateRenderPass(m_Device, &renderPassCreateInfo, nullptr, &m_RenderPass);
-    ASSERT(res == VK_SUCCESS, "Failed to create render pass")
+    VulkanCheck(vkCreateRenderPass(m_Device, &renderPassCreateInfo, nullptr, &m_RenderPass), "Failed to create render pass");
 }
 
 void Application::CreateGraphicsPipeline()
@@ -325,7 +331,7 @@ void Application::CreateGraphicsPipeline()
     rasterizationStateCreateInfo.polygonMode = VK_POLYGON_MODE_FILL;
     rasterizationStateCreateInfo.lineWidth = 1.0f;
     rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
-    rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE; // todo: if something goes wrong, check me
+    rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
     // no multisampling for now
     VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
@@ -363,8 +369,7 @@ void Application::CreateGraphicsPipeline()
     pipelineLayoutCreateInfo.pushConstantRangeCount = 0;
     pipelineLayoutCreateInfo.setLayoutCount = 0;
 
-    VkResult res = vkCreatePipelineLayout(m_Device, &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout);
-    ASSERT(res == VK_SUCCESS, "Failed to create pipeline layout")
+    VulkanCheck(vkCreatePipelineLayout(m_Device, &pipelineLayoutCreateInfo, nullptr, &m_PipelineLayout), "Failed to create pipeline layout");
 
     VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {};
     graphicsPipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -387,8 +392,8 @@ void Application::CreateGraphicsPipeline()
     graphicsPipelineCreateInfo.subpass = 0;
 
     VkPipelineCache pipelineCache = VK_NULL_HANDLE;
-    res = vkCreateGraphicsPipelines(m_Device, pipelineCache, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline);
-    ASSERT(res == VK_SUCCESS, "Failed to create pipeline")
+
+    VulkanCheck(vkCreateGraphicsPipelines(m_Device, pipelineCache, 1, &graphicsPipelineCreateInfo, nullptr, &m_Pipeline), "Failed to create pipeline");
     
     vkDestroyShaderModule(m_Device, vertexShaderModule, nullptr);
     vkDestroyShaderModule(m_Device, fragmentShaderModule, nullptr);
@@ -413,8 +418,7 @@ void Application::CreateFramebuffers()
         framebufferCreateInfo.height = m_SwapchainExtent.height;
         framebufferCreateInfo.layers = 1;
 
-        VkResult res = vkCreateFramebuffer(m_Device, &framebufferCreateInfo, nullptr, &m_Framebuffers[i]);
-        ASSERT(res == VK_SUCCESS, "Failed to create framebuffer")
+        VulkanCheck(vkCreateFramebuffer(m_Device, &framebufferCreateInfo, nullptr, &m_Framebuffers[i]), "Failed to create framebuffer");
     }
 }
 
@@ -428,8 +432,7 @@ void Application::CreateCommandPool()
     poolCreateInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     poolCreateInfo.queueFamilyIndex = *queueFamilies.GraphicsFamily;
 
-    VkResult res = vkCreateCommandPool(m_Device, &poolCreateInfo, nullptr, &m_CommandPool);
-    ASSERT(res == VK_SUCCESS, "Failed to create command pool")
+    VulkanCheck(vkCreateCommandPool(m_Device, &poolCreateInfo, nullptr, &m_CommandPool), "Failed to create command pool");
 }
 
 void Application::CreateCommandBuffer()
@@ -441,8 +444,7 @@ void Application::CreateCommandBuffer()
     bufferAllocateInfo.commandBufferCount = 1;
     bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-    VkResult res = vkAllocateCommandBuffers(m_Device, &bufferAllocateInfo, &m_CommandBuffer);
-    ASSERT(res == VK_SUCCESS, "Failed to allocate command buffer")
+    VulkanCheck(vkAllocateCommandBuffers(m_Device, &bufferAllocateInfo, &m_CommandBuffer), "Failed to allocate command buffer");
 }
 
 void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
@@ -451,8 +453,7 @@ void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
     bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     bufferBeginInfo.pNext = nullptr;
 
-    VkResult res = vkBeginCommandBuffer(cmd, &bufferBeginInfo);
-    ASSERT(res == VK_SUCCESS, "Failed to begin command buffer")
+    VulkanCheck(vkBeginCommandBuffer(cmd, &bufferBeginInfo), "Failed to begin command buffer");
 
     VkRenderPassBeginInfo renderPassBeginInfo = {};
     renderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -464,6 +465,8 @@ void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
     renderPassBeginInfo.clearValueCount = 1;
     renderPassBeginInfo.pClearValues = &clearValue;
 
+    vkCmdBeginRenderPass(cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    
     // tell vulkan which operations to execute in the graphics pipeline and which attachment to use in the fragment shader
     vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS, m_Pipeline);
 
@@ -479,11 +482,27 @@ void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
     vkCmdDraw(cmd, 3, 1, 0, 0);
+
+    vkCmdEndRenderPass(cmd);
+
+    VulkanCheck(vkEndCommandBuffer(cmd), "Failed to record command buffer");
+}
+
+void Application::CreateSynchronizationPrimitives()
+{
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreCreateInfo.pNext = nullptr;
     
-    vkCmdBeginRenderPass(cmd, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    
-    res = vkEndCommandBuffer(cmd);
-    ASSERT(res == VK_SUCCESS, "Failed to record command buffer")
+    VulkanCheck(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore), "Failed to create present semaphore");
+    VulkanCheck(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_ImageRenderedSemaphore), "Failed to create render semaphore");
+
+    VkFenceCreateInfo fenceCreateInfo = {};
+    fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceCreateInfo.pNext = nullptr;
+    fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    VulkanCheck(vkCreateFence(m_Device, &fenceCreateInfo, nullptr, &m_ImageAvailableFence), "Failed to create render fence");
 }
 
 void Application::MainLoop()
@@ -491,11 +510,60 @@ void Application::MainLoop()
     while (!glfwWindowShouldClose(m_Window))
     {
         glfwPollEvents();
+        OnDraw();
     }
+
+    vkDeviceWaitIdle(m_Device);
+}
+
+void Application::OnDraw()
+{
+    vkWaitForFences(m_Device, 1, &m_ImageAvailableFence, VK_TRUE, std::numeric_limits<u64>::max());
+    vkResetFences(m_Device, 1, &m_ImageAvailableFence);
+
+    u32 imageIndex;
+    vkAcquireNextImageKHR(m_Device, m_Swapchain, std::numeric_limits<u64>::max(), m_ImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+
+    vkResetCommandBuffer(m_CommandBuffer, 0);
+    
+    RecordCommandBuffer(m_CommandBuffer, imageIndex);
+
+    std::array submitSemaphores = { m_ImageAvailableSemaphore };
+    // wait only on output stage, that means that theoretically the implementation can
+    // already start executing our vertex shader and such while the image is not yet available
+    std::array<VkPipelineStageFlags, 1> submitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    std::array presentSemaphores = { m_ImageRenderedSemaphore };
+    
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.pNext = nullptr;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &m_CommandBuffer;
+    submitInfo.waitSemaphoreCount = (u32)submitSemaphores.size();
+    submitInfo.pWaitSemaphores = submitSemaphores.data();
+    submitInfo.pWaitDstStageMask = submitStages.data();
+    submitInfo.signalSemaphoreCount = (u32)presentSemaphores.size();
+    submitInfo.pSignalSemaphores = presentSemaphores.data();
+
+    VulkanCheck(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, m_ImageAvailableFence), "Failed to submit draw command buffer");
+    
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.pNext = nullptr;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &m_Swapchain;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.waitSemaphoreCount = (u32)presentSemaphores.size();
+    presentInfo.pWaitSemaphores = presentSemaphores.data();
+
+    vkQueuePresentKHR(m_PresentationQueue, &presentInfo);
 }
 
 void Application::CleanUp()
 {
+    vkDestroySemaphore(m_Device, m_ImageAvailableSemaphore, nullptr);
+    vkDestroySemaphore(m_Device, m_ImageRenderedSemaphore, nullptr);
+    vkDestroyFence(m_Device, m_ImageAvailableFence, nullptr);
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     for (auto framebuffer : m_Framebuffers)
         vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
@@ -705,7 +773,7 @@ VkShaderModule Application::CreateShaderModule(const std::vector<u32>& spirv)
     createInfo.pCode = spirv.data();
 
     VkShaderModule shaderModule;
-    VkResult res = vkCreateShaderModule(m_Device, &createInfo, nullptr, &shaderModule);
-    ASSERT(res == VK_SUCCESS, "Failed to create shader module")
+    
+    VulkanCheck(vkCreateShaderModule(m_Device, &createInfo, nullptr, &shaderModule), "Failed to create shader module");
     return shaderModule;
 }
