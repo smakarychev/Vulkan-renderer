@@ -67,6 +67,9 @@ private:
     void RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex);
     void CreateSynchronizationPrimitives();
 
+    void RecreateSwapchain();
+    void CleanUpSwapchain();
+
     std::vector<const char*> GetRequiredInstanceExtensions();
     bool CheckInstanceExtensions(const std::vector<const char*>& requiredExtensions);
 
@@ -91,6 +94,8 @@ private:
 private:
     GLFWwindow* m_Window{nullptr};
     WindowProps m_WindowProps{};
+    bool m_WindowResized{false};
+
 
     VkInstance m_Instance{VK_NULL_HANDLE};
     VkSurfaceKHR m_Surface{VK_NULL_HANDLE};

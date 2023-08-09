@@ -27,8 +27,13 @@ void Application::InitWindow()
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not create opengl context
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);   // resizing in vulkan is not trivial
     m_Window = glfwCreateWindow(m_WindowProps.Width, m_WindowProps.Height, m_WindowProps.Name.data(), nullptr, nullptr);
+    glfwSetWindowUserPointer(m_Window, this);
+    glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, i32 width, i32 height)
+    {
+        Application* app = (Application*)glfwGetWindowUserPointer(window);
+        app->m_WindowResized = true;
+    });
 }
 
 void Application::InitVulkan()
@@ -511,6 +516,37 @@ void Application::CreateSynchronizationPrimitives()
     }
 }
 
+void Application::RecreateSwapchain()
+{
+    // handle minimization
+    i32 width, height;
+    glfwGetFramebufferSize(m_Window, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(m_Window, &width, &height);
+        glfwWaitEvents();
+    }
+    
+    vkDeviceWaitIdle(m_Device);
+
+    CleanUpSwapchain();
+    
+    CreateSwapchain();
+    CreateSwapchainImageViews();
+    CreateFramebuffers();
+}
+
+void Application::CleanUpSwapchain()
+{
+    for (auto framebuffer : m_Framebuffers)
+        vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
+    for (auto imageView : m_SwapchainImageViews)
+        vkDestroyImageView(m_Device, imageView, nullptr);
+    m_Framebuffers.clear();
+    m_SwapchainImageViews.clear();
+    vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
+}
+
 void Application::MainLoop()
 {
     while (!glfwWindowShouldClose(m_Window))
@@ -526,10 +562,16 @@ void Application::OnDraw()
 {
     FrameData& frame = m_BufferedFrames[m_CurrentFrameToRender];
     vkWaitForFences(m_Device, 1, &frame.m_ImageAvailableFence, VK_TRUE, std::numeric_limits<u64>::max());
-    vkResetFences(m_Device, 1, &frame.m_ImageAvailableFence);
 
     u32 imageIndex;
-    vkAcquireNextImageKHR(m_Device, m_Swapchain, std::numeric_limits<u64>::max(), frame.m_ImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    VkResult nextImageRes = vkAcquireNextImageKHR(m_Device, m_Swapchain, std::numeric_limits<u64>::max(), frame.m_ImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    if (nextImageRes == VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        RecreateSwapchain();
+        return;
+    }
+    
+    vkResetFences(m_Device, 1, &frame.m_ImageAvailableFence);
 
     vkResetCommandBuffer(frame.m_CommandBuffer, 0);
     
@@ -563,7 +605,13 @@ void Application::OnDraw()
     presentInfo.waitSemaphoreCount = (u32)presentSemaphores.size();
     presentInfo.pWaitSemaphores = presentSemaphores.data();
 
-    vkQueuePresentKHR(m_PresentationQueue, &presentInfo);
+    VkResult presentRes = vkQueuePresentKHR(m_PresentationQueue, &presentInfo);
+    if (presentRes == VK_ERROR_OUT_OF_DATE_KHR || presentRes == VK_SUBOPTIMAL_KHR || m_WindowResized)
+    {
+        RecreateSwapchain();
+        m_WindowResized = false;
+    }
+
     m_CurrentFrameToRender = (m_CurrentFrameToRender + 1) % BUFFERED_FRAMES_COUNT;
 }
 
@@ -576,14 +624,10 @@ void Application::CleanUp()
         vkDestroyFence(m_Device, frame.m_ImageAvailableFence, nullptr);
     }
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
-    for (auto framebuffer : m_Framebuffers)
-        vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
+    CleanUpSwapchain();
     vkDestroyPipeline(m_Device, m_Pipeline, nullptr);
     vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
     vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
-    for (auto imageView : m_SwapchainImageViews)
-        vkDestroyImageView(m_Device, imageView, nullptr);
-    vkDestroySwapchainKHR(m_Device, m_Swapchain, nullptr);
     vkDestroyDevice(m_Device, nullptr);
     vkDestroySurfaceKHR(m_Instance, m_Surface, nullptr);
     vkDestroyInstance(m_Instance, nullptr);
