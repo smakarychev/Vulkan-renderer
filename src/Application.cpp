@@ -26,7 +26,7 @@ void Application::InitWindow()
 {
     glfwInit();
 
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not crete opengl context
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not create opengl context
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);   // resizing in vulkan is not trivial
     m_Window = glfwCreateWindow(m_WindowProps.Width, m_WindowProps.Height, m_WindowProps.Name.data(), nullptr, nullptr);
 }
@@ -43,6 +43,7 @@ void Application::InitVulkan()
     CreateGraphicsPipeline();
     CreateFramebuffers();
     CreateCommandPool();
+    m_BufferedFrames.resize(BUFFERED_FRAMES_COUNT);
     CreateCommandBuffer();
     CreateSynchronizationPrimitives();
 }
@@ -444,7 +445,10 @@ void Application::CreateCommandBuffer()
     bufferAllocateInfo.commandBufferCount = 1;
     bufferAllocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-    VulkanCheck(vkAllocateCommandBuffers(m_Device, &bufferAllocateInfo, &m_CommandBuffer), "Failed to allocate command buffer");
+    for (auto& frame : m_BufferedFrames)
+    {
+        VulkanCheck(vkAllocateCommandBuffers(m_Device, &bufferAllocateInfo, &frame.m_CommandBuffer), "Failed to allocate command buffer");
+    }
 }
 
 void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
@@ -494,15 +498,17 @@ void Application::CreateSynchronizationPrimitives()
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     semaphoreCreateInfo.pNext = nullptr;
     
-    VulkanCheck(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_ImageAvailableSemaphore), "Failed to create present semaphore");
-    VulkanCheck(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &m_ImageRenderedSemaphore), "Failed to create render semaphore");
-
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fenceCreateInfo.pNext = nullptr;
     fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
 
-    VulkanCheck(vkCreateFence(m_Device, &fenceCreateInfo, nullptr, &m_ImageAvailableFence), "Failed to create render fence");
+    for (auto& frame : m_BufferedFrames)
+    {
+        VulkanCheck(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &frame.m_ImageAvailableSemaphore), "Failed to create present semaphore");
+        VulkanCheck(vkCreateSemaphore(m_Device, &semaphoreCreateInfo, nullptr, &frame.m_ImageRenderedSemaphore), "Failed to create render semaphore");
+        VulkanCheck(vkCreateFence(m_Device, &fenceCreateInfo, nullptr, &frame.m_ImageAvailableFence), "Failed to create render fence");
+    }
 }
 
 void Application::MainLoop()
@@ -518,34 +524,35 @@ void Application::MainLoop()
 
 void Application::OnDraw()
 {
-    vkWaitForFences(m_Device, 1, &m_ImageAvailableFence, VK_TRUE, std::numeric_limits<u64>::max());
-    vkResetFences(m_Device, 1, &m_ImageAvailableFence);
+    FrameData& frame = m_BufferedFrames[m_CurrentFrameToRender];
+    vkWaitForFences(m_Device, 1, &frame.m_ImageAvailableFence, VK_TRUE, std::numeric_limits<u64>::max());
+    vkResetFences(m_Device, 1, &frame.m_ImageAvailableFence);
 
     u32 imageIndex;
-    vkAcquireNextImageKHR(m_Device, m_Swapchain, std::numeric_limits<u64>::max(), m_ImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
+    vkAcquireNextImageKHR(m_Device, m_Swapchain, std::numeric_limits<u64>::max(), frame.m_ImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
 
-    vkResetCommandBuffer(m_CommandBuffer, 0);
+    vkResetCommandBuffer(frame.m_CommandBuffer, 0);
     
-    RecordCommandBuffer(m_CommandBuffer, imageIndex);
+    RecordCommandBuffer(frame.m_CommandBuffer, imageIndex);
 
-    std::array submitSemaphores = { m_ImageAvailableSemaphore };
+    std::array submitSemaphores = { frame.m_ImageAvailableSemaphore };
     // wait only on output stage, that means that theoretically the implementation can
     // already start executing our vertex shader and such while the image is not yet available
     std::array<VkPipelineStageFlags, 1> submitStages = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    std::array presentSemaphores = { m_ImageRenderedSemaphore };
+    std::array presentSemaphores = { frame.m_ImageRenderedSemaphore };
     
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.pNext = nullptr;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &m_CommandBuffer;
+    submitInfo.pCommandBuffers = &frame.m_CommandBuffer;
     submitInfo.waitSemaphoreCount = (u32)submitSemaphores.size();
     submitInfo.pWaitSemaphores = submitSemaphores.data();
     submitInfo.pWaitDstStageMask = submitStages.data();
     submitInfo.signalSemaphoreCount = (u32)presentSemaphores.size();
     submitInfo.pSignalSemaphores = presentSemaphores.data();
 
-    VulkanCheck(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, m_ImageAvailableFence), "Failed to submit draw command buffer");
+    VulkanCheck(vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, frame.m_ImageAvailableFence), "Failed to submit draw command buffer");
     
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -557,13 +564,17 @@ void Application::OnDraw()
     presentInfo.pWaitSemaphores = presentSemaphores.data();
 
     vkQueuePresentKHR(m_PresentationQueue, &presentInfo);
+    m_CurrentFrameToRender = (m_CurrentFrameToRender + 1) % BUFFERED_FRAMES_COUNT;
 }
 
 void Application::CleanUp()
 {
-    vkDestroySemaphore(m_Device, m_ImageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(m_Device, m_ImageRenderedSemaphore, nullptr);
-    vkDestroyFence(m_Device, m_ImageAvailableFence, nullptr);
+    for (auto& frame : m_BufferedFrames)
+    {
+        vkDestroySemaphore(m_Device, frame.m_ImageAvailableSemaphore, nullptr);
+        vkDestroySemaphore(m_Device, frame.m_ImageRenderedSemaphore, nullptr);
+        vkDestroyFence(m_Device, frame.m_ImageAvailableFence, nullptr);
+    }
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     for (auto framebuffer : m_Framebuffers)
         vkDestroyFramebuffer(m_Device, framebuffer, nullptr);

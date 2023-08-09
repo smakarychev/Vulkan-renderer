@@ -33,6 +33,14 @@ struct SwapchainDetails
     std::vector<VkPresentModeKHR> PresentModes;
 };
 
+struct FrameData
+{
+    VkCommandBuffer m_CommandBuffer{VK_NULL_HANDLE};
+    VkSemaphore m_ImageAvailableSemaphore{VK_NULL_HANDLE};
+    VkSemaphore m_ImageRenderedSemaphore{VK_NULL_HANDLE};
+    VkFence m_ImageAvailableFence{VK_NULL_HANDLE};
+};
+
 class Application
 {
 public:
@@ -106,9 +114,8 @@ private:
     std::vector<VkImageView> m_SwapchainImageViews;
 
     VkCommandPool m_CommandPool{VK_NULL_HANDLE};
-    VkCommandBuffer m_CommandBuffer{VK_NULL_HANDLE};
 
-    VkSemaphore m_ImageAvailableSemaphore{VK_NULL_HANDLE};
-    VkSemaphore m_ImageRenderedSemaphore{VK_NULL_HANDLE};
-    VkFence m_ImageAvailableFence{VK_NULL_HANDLE};
+    std::vector<FrameData> m_BufferedFrames;
+    u32 m_CurrentFrameToRender{0};
+    static constexpr u32 BUFFERED_FRAMES_COUNT{2};
 };
