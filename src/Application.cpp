@@ -430,9 +430,10 @@ void Application::CreateVertexBuffer()
 {
     // describe vertices
     m_Vertices = {
-        { { 0.0f, -0.5f}, { 1.0f, 0.0f, 0.0f } },
-        { { 0.5f,  0.5f}, { 0.0f, 1.0f, 0.0f } },
-        { {-0.5f,  0.5f}, { 0.0f, 0.0f, 1.0f } },
+        { {-0.5f, -0.5f}, { 0.5f, 0.5f, 0.0f } },
+        { { 0.5f, -0.5f}, { 0.0f, 0.5f, 0.5f } },
+        { { 0.5f,  0.5f}, { 0.5f, 0.0f, 0.5f } },
+        { {-0.5f,  0.5f}, { 0.5f, 0.5f, 0.5f } },
     };
 
     VkDeviceSize vertexBufferSizeBytes = sizeof(m_Vertices.front()) * m_Vertices.size();
@@ -467,7 +468,8 @@ void Application::CreateVertexBuffer()
 void Application::CreateIndexBuffer()
 {
     m_Indices = {
-        0, 1, 2
+        0, 1, 2,
+        2, 3, 0
     };
 
     VkDeviceSize indexBufferSizeBytes = sizeof(m_Indices.front()) * m_Indices.size();
