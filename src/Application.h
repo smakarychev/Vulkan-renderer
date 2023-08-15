@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include "types.h"
+#include "glm/glm.hpp"
+
 #include <vulkan/vulkan_core.h>
 
 #include <array>
@@ -41,6 +43,36 @@ struct FrameData
     VkFence m_ImageAvailableFence{VK_NULL_HANDLE};
 };
 
+struct Vertex
+{
+    glm::vec2 Position{};
+    glm::vec3 Color{};
+    static VkVertexInputBindingDescription GetBindingDescription()
+    {
+        VkVertexInputBindingDescription bindingDescription = {};
+        bindingDescription.binding = 0;
+        bindingDescription.stride = sizeof(Vertex);
+        bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        return bindingDescription;
+    }
+    static std::array<VkVertexInputAttributeDescription, 2> GetAttributesDescription()
+    {
+        VkVertexInputAttributeDescription positionDescription = {};
+        positionDescription.binding = 0;
+        positionDescription.format = VK_FORMAT_R32G32_SFLOAT;
+        positionDescription.location = 0;
+        positionDescription.offset = offsetof(Vertex, Position);
+
+        VkVertexInputAttributeDescription colorDescription = {};
+        colorDescription.binding = 0;
+        colorDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
+        colorDescription.location = 1;
+        colorDescription.offset = offsetof(Vertex, Color);
+
+        return { positionDescription, colorDescription };
+    }
+};
+
 class Application
 {
 public:
@@ -63,6 +95,7 @@ private:
     void CreateGraphicsPipeline();
     void CreateFramebuffers();
     void CreateCommandPool();
+    void CreateVertexBuffer();
     void CreateCommandBuffer();
     void RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex);
     void CreateSynchronizationPrimitives();
@@ -90,6 +123,8 @@ private:
     u32 ChooseSwapchainImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
 
     VkShaderModule CreateShaderModule(const std::vector<u32>& spirv);
+
+    u32 FindMemoryType(u32 filter, VkMemoryPropertyFlags properties);
     
 private:
     GLFWwindow* m_Window{nullptr};
@@ -123,4 +158,8 @@ private:
     std::vector<FrameData> m_BufferedFrames;
     u32 m_CurrentFrameToRender{0};
     static constexpr u32 BUFFERED_FRAMES_COUNT{2};
+
+    std::vector<Vertex> m_Vertices;
+    VkBuffer m_VertexBuffer{VK_NULL_HANDLE};
+    VkDeviceMemory m_VertexBufferMemory{VK_NULL_HANDLE};
 };
