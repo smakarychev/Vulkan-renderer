@@ -49,6 +49,7 @@ void Application::InitVulkan()
     CreateCommandPool();
     m_BufferedFrames.resize(BUFFERED_FRAMES_COUNT);
     CreateVertexBuffer();
+    CreateIndexBuffer();
     CreateCommandBuffer();
     CreateSynchronizationPrimitives();
 }
@@ -434,7 +435,7 @@ void Application::CreateVertexBuffer()
         { {-0.5f,  0.5f}, { 0.0f, 0.0f, 1.0f } },
     };
 
-    VkDeviceSize vertexBufferSizeBytes = sizeof(m_Vertices.begin()) * m_Vertices.size();
+    VkDeviceSize vertexBufferSizeBytes = sizeof(m_Vertices.front()) * m_Vertices.size();
     
     // mapping is possible only of memory allocated from a memory type that has `VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT` flag,
     // `VK_MEMORY_PROPERTY_HOST_COHERENT_BIT` ensures that the mapped memory always matches the contents of the allocated memory
@@ -458,6 +459,38 @@ void Application::CreateVertexBuffer()
     );
 
     CopyBuffer(stageBufferData.Buffer, m_VertexBuffer.Buffer, vertexBufferSizeBytes);
+    
+    vkDestroyBuffer(m_Device, stageBufferData.Buffer, nullptr);
+    vkFreeMemory(m_Device, stageBufferData.BufferMemory, nullptr);
+}
+
+void Application::CreateIndexBuffer()
+{
+    m_Indices = {
+        0, 1, 2
+    };
+
+    VkDeviceSize indexBufferSizeBytes = sizeof(m_Indices.front()) * m_Indices.size();
+
+    BufferData stageBufferData = CreateBuffer(
+        indexBufferSizeBytes,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+    // map memory
+    void* data;
+    vkMapMemory(m_Device, stageBufferData.BufferMemory, 0, indexBufferSizeBytes, 0, &data);
+    memcpy(data, m_Indices.data(), (usize)indexBufferSizeBytes);
+    vkUnmapMemory(m_Device, stageBufferData.BufferMemory);
+
+    m_IndexBuffer = CreateBuffer(
+        indexBufferSizeBytes,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    );
+
+    CopyBuffer(stageBufferData.Buffer, m_IndexBuffer.Buffer, indexBufferSizeBytes);
     
     vkDestroyBuffer(m_Device, stageBufferData.Buffer, nullptr);
     vkFreeMemory(m_Device, stageBufferData.BufferMemory, nullptr);
@@ -512,8 +545,10 @@ void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
     std::array vertexBuffers = { m_VertexBuffer.Buffer };
     std::array<VkDeviceSize, 1> offsets = { 0 };
     vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers.data(), offsets.data());
+
+    vkCmdBindIndexBuffer(cmd, m_IndexBuffer.Buffer, 0, VK_INDEX_TYPE_UINT32);
     
-    vkCmdDraw(cmd, (u32)m_Vertices.size(), 1, 0, 0);
+    vkCmdDrawIndexed(cmd, (u32)m_Indices.size(), 1, 0, 0, 0);
 
     vkCmdEndRenderPass(cmd);
 
@@ -646,6 +681,8 @@ void Application::CleanUp()
     CleanUpSwapchain();
     vkDestroyBuffer(m_Device, m_VertexBuffer.Buffer, nullptr);
     vkFreeMemory(m_Device, m_VertexBuffer.BufferMemory, nullptr);
+    vkDestroyBuffer(m_Device, m_IndexBuffer.Buffer, nullptr);
+    vkFreeMemory(m_Device, m_IndexBuffer.BufferMemory, nullptr);
     vkDestroyPipeline(m_Device, m_Pipeline, nullptr);
     vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
     vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);

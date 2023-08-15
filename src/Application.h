@@ -102,6 +102,7 @@ private:
     void CreateFramebuffers();
     void CreateCommandPool();
     void CreateVertexBuffer();
+    void CreateIndexBuffer();
     void CreateCommandBuffer();
     void RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex);
     void CreateSynchronizationPrimitives();
@@ -170,4 +171,6 @@ private:
 
     std::vector<Vertex> m_Vertices;
     BufferData m_VertexBuffer;
+    std::vector<u32> m_Indices;
+    BufferData m_IndexBuffer;
 };
