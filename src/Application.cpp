@@ -434,34 +434,33 @@ void Application::CreateVertexBuffer()
         { {-0.5f,  0.5f}, { 0.0f, 0.0f, 1.0f } },
     };
 
-    VkBufferCreateInfo bufferCreateInfo = {};
-    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    bufferCreateInfo.size = sizeof(m_Vertices.begin()) * m_Vertices.size();
-    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-    VulkanCheck(vkCreateBuffer(m_Device, &bufferCreateInfo, nullptr, &m_VertexBuffer), "Failed to create vertex buffer");
-
-    VkMemoryRequirements memoryRequirements = {};
-    vkGetBufferMemoryRequirements(m_Device, m_VertexBuffer, &memoryRequirements);
-
-    VkMemoryAllocateInfo allocateInfo = {};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    allocateInfo.allocationSize = memoryRequirements.size;
+    VkDeviceSize vertexBufferSizeBytes = sizeof(m_Vertices.begin()) * m_Vertices.size();
+    
     // mapping is possible only of memory allocated from a memory type that has `VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT` flag,
     // `VK_MEMORY_PROPERTY_HOST_COHERENT_BIT` ensures that the mapped memory always matches the contents of the allocated memory
-    allocateInfo.memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-    VulkanCheck(vkAllocateMemory(m_Device, &allocateInfo, nullptr, &m_VertexBufferMemory),
-        "Failed to allocate vertex buffer memory");
-
-    vkBindBufferMemory(m_Device, m_VertexBuffer, m_VertexBufferMemory, 0);
+    BufferData stageBufferData = CreateBuffer(
+        vertexBufferSizeBytes,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
 
     // map memory
     void* data;
-    vkMapMemory(m_Device, m_VertexBufferMemory, 0, bufferCreateInfo.size, 0, &data);
-    memcpy(data, m_Vertices.data(), (usize)bufferCreateInfo.size);
-    vkUnmapMemory(m_Device, m_VertexBufferMemory);
+    vkMapMemory(m_Device, stageBufferData.BufferMemory, 0, vertexBufferSizeBytes, 0, &data);
+    memcpy(data, m_Vertices.data(), (usize)vertexBufferSizeBytes);
+    vkUnmapMemory(m_Device, stageBufferData.BufferMemory);
+
+    // the most optimal memory has the VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT flag
+    m_VertexBuffer = CreateBuffer(
+        vertexBufferSizeBytes,
+        VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
+    );
+
+    CopyBuffer(stageBufferData.Buffer, m_VertexBuffer.Buffer, vertexBufferSizeBytes);
+    
+    vkDestroyBuffer(m_Device, stageBufferData.Buffer, nullptr);
+    vkFreeMemory(m_Device, stageBufferData.BufferMemory, nullptr);
 }
 
 void Application::CreateCommandBuffer()
@@ -510,7 +509,7 @@ void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
     VkRect2D scissor = {.offset = {0, 0}, .extent = m_SwapchainExtent};
     vkCmdSetScissor(cmd, 0, 1, &scissor);
 
-    std::array vertexBuffers = { m_VertexBuffer };
+    std::array vertexBuffers = { m_VertexBuffer.Buffer };
     std::array<VkDeviceSize, 1> offsets = { 0 };
     vkCmdBindVertexBuffers(cmd, 0, 1, vertexBuffers.data(), offsets.data());
     
@@ -645,8 +644,8 @@ void Application::CleanUp()
     }
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
     CleanUpSwapchain();
-    vkDestroyBuffer(m_Device, m_VertexBuffer, nullptr);
-    vkFreeMemory(m_Device, m_VertexBufferMemory, nullptr);
+    vkDestroyBuffer(m_Device, m_VertexBuffer.Buffer, nullptr);
+    vkFreeMemory(m_Device, m_VertexBuffer.BufferMemory, nullptr);
     vkDestroyPipeline(m_Device, m_Pipeline, nullptr);
     vkDestroyPipelineLayout(m_Device, m_PipelineLayout, nullptr);
     vkDestroyRenderPass(m_Device, m_RenderPass, nullptr);
@@ -852,6 +851,67 @@ VkShaderModule Application::CreateShaderModule(const std::vector<u32>& spirv)
     
     VulkanCheck(vkCreateShaderModule(m_Device, &createInfo, nullptr, &shaderModule), "Failed to create shader module");
     return shaderModule;
+}
+
+BufferData Application::CreateBuffer(VkDeviceSize sizeBytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
+{
+    BufferData bufferData = {};
+    
+    VkBufferCreateInfo bufferCreateInfo = {};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.usage = usage;
+    bufferCreateInfo.size = sizeBytes;
+    bufferCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    VulkanCheck(vkCreateBuffer(m_Device, &bufferCreateInfo, nullptr, &bufferData.Buffer), "Failed to create buffer");
+
+    VkMemoryRequirements memoryRequirements = {};
+    vkGetBufferMemoryRequirements(m_Device, bufferData.Buffer, &memoryRequirements);
+
+    VkMemoryAllocateInfo allocateInfo = {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocateInfo.allocationSize = memoryRequirements.size;
+    allocateInfo.memoryTypeIndex = FindMemoryType(memoryRequirements.memoryTypeBits, properties);
+    VulkanCheck(vkAllocateMemory(m_Device, &allocateInfo, nullptr, &bufferData.BufferMemory),
+        "Failed to allocate vertex buffer memory");
+
+    vkBindBufferMemory(m_Device, bufferData.Buffer, bufferData.BufferMemory, 0);
+
+    return bufferData;
+}
+
+void Application::CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize sizeBytes)
+{
+    VkCommandBufferAllocateInfo allocateInfo = {};
+    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocateInfo.commandPool = m_CommandPool;
+    allocateInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(m_Device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo bufferBeginInfo = {};
+    bufferBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    bufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(commandBuffer, &bufferBeginInfo);
+
+    VkBufferCopy copyRegion = {};
+    copyRegion.size = sizeBytes;
+    vkCmdCopyBuffer(commandBuffer, src, dst, 1, &copyRegion);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    vkQueueSubmit(m_GraphicsQueue, 1, &submitInfo, nullptr);
+    vkDeviceWaitIdle(m_Device);
+
+    vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &commandBuffer);   
 }
 
 u32 Application::FindMemoryType(u32 filter, VkMemoryPropertyFlags properties)

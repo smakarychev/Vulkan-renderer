@@ -43,6 +43,12 @@ struct FrameData
     VkFence m_ImageAvailableFence{VK_NULL_HANDLE};
 };
 
+struct BufferData
+{
+    VkBuffer Buffer{VK_NULL_HANDLE};
+    VkDeviceMemory BufferMemory{VK_NULL_HANDLE};
+};
+
 struct Vertex
 {
     glm::vec2 Position{};
@@ -124,7 +130,10 @@ private:
 
     VkShaderModule CreateShaderModule(const std::vector<u32>& spirv);
 
+    BufferData CreateBuffer(VkDeviceSize sizeBytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+    void CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize sizeBytes);
     u32 FindMemoryType(u32 filter, VkMemoryPropertyFlags properties);
+    
     
 private:
     GLFWwindow* m_Window{nullptr};
@@ -160,6 +169,5 @@ private:
     static constexpr u32 BUFFERED_FRAMES_COUNT{2};
 
     std::vector<Vertex> m_Vertices;
-    VkBuffer m_VertexBuffer{VK_NULL_HANDLE};
-    VkDeviceMemory m_VertexBufferMemory{VK_NULL_HANDLE};
+    BufferData m_VertexBuffer;
 };
