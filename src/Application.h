@@ -79,6 +79,13 @@ struct Vertex
     }
 };
 
+struct TransformUBO
+{
+    glm::mat4 Model{};
+    glm::mat4 View{};
+    glm::mat4 Projection{};
+};
+
 class Application
 {
 public:
@@ -89,6 +96,7 @@ private:
     void InitVulkan();
     void MainLoop();
     void OnDraw();
+    void OnUpdate();
     void CleanUp();
 
     void CreateInstance();
@@ -98,11 +106,15 @@ private:
     void CreateSwapchain();
     void CreateSwapchainImageViews();
     void CreateRenderPass();
+    void CreateDescriptorSetLayout();
     void CreateGraphicsPipeline();
     void CreateFramebuffers();
     void CreateCommandPool();
     void CreateVertexBuffer();
     void CreateIndexBuffer();
+    void CreateUniformBuffers();
+    void CreateDescriptorPool();
+    void CreateDescriptorSets();
     void CreateCommandBuffer();
     void RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex);
     void CreateSynchronizationPrimitives();
@@ -173,4 +185,11 @@ private:
     BufferData m_VertexBuffer;
     std::vector<u32> m_Indices;
     BufferData m_IndexBuffer;
+
+    VkDescriptorSetLayout m_DescriptorSetLayout{VK_NULL_HANDLE};
+    std::vector<BufferData> m_UniformBuffers;
+    std::vector<void*> m_UniformBuffersMapped;
+
+    VkDescriptorPool m_DescriptorPool{VK_NULL_HANDLE};
+    std::vector<VkDescriptorSet> m_DescriptorSets;
 };
