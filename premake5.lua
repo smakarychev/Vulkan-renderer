@@ -35,6 +35,7 @@ project "VulkanApp"
         "src",
         "vendor/glfw/include",
         "vendor/glm",
+        "vendor/stb",
     }
 
     libdirs

@@ -49,10 +49,19 @@ struct BufferData
     VkDeviceMemory BufferMemory{VK_NULL_HANDLE};
 };
 
+struct TextureData
+{
+    VkImage Texture{VK_NULL_HANDLE};
+    VkImageView View{VK_NULL_HANDLE};
+    VkSampler Sampler{VK_NULL_HANDLE};
+    VkDeviceMemory TextureMemory{VK_NULL_HANDLE};
+};
+
 struct Vertex
 {
     glm::vec2 Position{};
     glm::vec3 Color{};
+    glm::vec2 UV{};
     static VkVertexInputBindingDescription GetBindingDescription()
     {
         VkVertexInputBindingDescription bindingDescription = {};
@@ -61,7 +70,7 @@ struct Vertex
         bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
         return bindingDescription;
     }
-    static std::array<VkVertexInputAttributeDescription, 2> GetAttributesDescription()
+    static std::array<VkVertexInputAttributeDescription, 3> GetAttributesDescription()
     {
         VkVertexInputAttributeDescription positionDescription = {};
         positionDescription.binding = 0;
@@ -75,7 +84,13 @@ struct Vertex
         colorDescription.location = 1;
         colorDescription.offset = offsetof(Vertex, Color);
 
-        return { positionDescription, colorDescription };
+        VkVertexInputAttributeDescription uvDescription = {};
+        uvDescription.binding = 0;
+        uvDescription.format = VK_FORMAT_R32G32_SFLOAT;
+        uvDescription.location = 2;
+        uvDescription.offset = offsetof(Vertex, UV);
+
+        return { positionDescription, colorDescription, uvDescription };
     }
 };
 
@@ -84,6 +99,23 @@ struct TransformUBO
     glm::mat4 Model{};
     glm::mat4 View{};
     glm::mat4 Projection{};
+};
+
+struct BufferCreateData
+{
+    VkDeviceSize SizeBytes;
+    VkBufferUsageFlags Usage;
+    VkMemoryPropertyFlags Properties;
+};
+
+struct TextureCreateData
+{
+    u32 Width;
+    u32 Height;
+    VkFormat Format;
+    VkImageTiling Tiling;
+    VkImageUsageFlags Usage;
+    VkMemoryPropertyFlags Properties;
 };
 
 class Application
@@ -110,6 +142,9 @@ private:
     void CreateGraphicsPipeline();
     void CreateFramebuffers();
     void CreateCommandPool();
+    void CreateTextureImage();
+    void CreateTextureImageView();
+    void CreateTextureSampler();
     void CreateVertexBuffer();
     void CreateIndexBuffer();
     void CreateUniformBuffers();
@@ -143,16 +178,23 @@ private:
 
     VkShaderModule CreateShaderModule(const std::vector<u32>& spirv);
 
-    BufferData CreateBuffer(VkDeviceSize sizeBytes, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
+    BufferData CreateBuffer(const BufferCreateData& bufferCreateData);
     void CopyBuffer(VkBuffer src, VkBuffer dst, VkDeviceSize sizeBytes);
     u32 FindMemoryType(u32 filter, VkMemoryPropertyFlags properties);
+
+    TextureData CreateTexture(const TextureCreateData& textureCreateData);
+    void TransitionTextureLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+    void CopyBufferToImage(VkBuffer buffer, VkImage image, u32 width, u32 height);
+
+    VkImageView CreateImageView(VkImage image, VkFormat format);
     
+    VkCommandBuffer BeginSingleTimeCommands();
+    void EndSingleTimeCommands(VkCommandBuffer cmd);
     
 private:
     GLFWwindow* m_Window{nullptr};
     WindowProps m_WindowProps{};
     bool m_WindowResized{false};
-
 
     VkInstance m_Instance{VK_NULL_HANDLE};
     VkSurfaceKHR m_Surface{VK_NULL_HANDLE};
@@ -192,4 +234,6 @@ private:
 
     VkDescriptorPool m_DescriptorPool{VK_NULL_HANDLE};
     std::vector<VkDescriptorSet> m_DescriptorSets;
+
+    TextureData m_TextureImage;
 };
