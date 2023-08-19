@@ -6,7 +6,9 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
@@ -15,6 +17,14 @@
 #include <tiny_obj_loader.h>
 
 #include <set>
+#include <unordered_map>
+
+size_t std::hash<Vertex>::operator()(const Vertex& vertex) const
+{
+    return ((hash<glm::vec3>()(vertex.Position) ^
+            (hash<glm::vec3>()(vertex.Color) << 1) >> 1) ^
+             hash<glm::vec2>()(vertex.UV) << 1);
+}
 
 void Application::Run()
 {
@@ -584,6 +594,8 @@ void Application::LoadModel()
     if (!warnings.empty())
         LOG("Model load warnings ({}):\n{}", MODEL_PATH, warnings);
 
+    std::unordered_map<Vertex, u32> uniqueVertices;
+
     for (auto& shape : shapes)
     {
         for (auto& index : shape.mesh.indices)
@@ -599,11 +611,14 @@ void Application::LoadModel()
 
             vertex.Color = {1.0f, 1.0f, 1.0f};
 
-            m_Vertices.push_back(vertex);
-            m_Indices.push_back((u32)m_Indices.size());
+            if (!uniqueVertices.contains(vertex))
+            {
+                uniqueVertices[vertex] = (u32)m_Vertices.size();
+                m_Vertices.push_back(vertex);
+            }
+            m_Indices.push_back(uniqueVertices[vertex]);
         }
     }
-    
 }
 
 void Application::CreateVertexBuffer()

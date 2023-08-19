@@ -3,6 +3,7 @@
 #include "types.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
 #include "glm/glm.hpp"
 
 #include <vulkan/vulkan_core.h>
@@ -62,6 +63,10 @@ struct Vertex
     glm::vec3 Position{};
     glm::vec3 Color{};
     glm::vec2 UV{};
+    bool operator==(const Vertex& other) const
+    {
+        return Position == other.Position && Color == other.Color && UV == other.UV;
+    }
     static VkVertexInputBindingDescription GetBindingDescription()
     {
         VkVertexInputBindingDescription bindingDescription = {};
@@ -93,6 +98,14 @@ struct Vertex
         return { positionDescription, colorDescription, uvDescription };
     }
 };
+
+namespace std
+{
+    template<> struct hash<Vertex>
+    {
+        size_t operator()(const Vertex& vertex) const;
+    };
+}
 
 struct TransformUBO
 {
