@@ -36,6 +36,7 @@ project "VulkanApp"
         "vendor/glfw/include",
         "vendor/glm",
         "vendor/stb",
+        "vendor/tinyobjloader",
     }
 
     libdirs

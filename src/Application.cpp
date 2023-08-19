@@ -11,6 +11,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include <tiny_obj_loader.h>
+
 #include <set>
 
 void Application::Run()
@@ -59,6 +62,7 @@ void Application::InitVulkan()
     CreateTextureImageView();
     CreateTextureSampler();
     m_BufferedFrames.resize(BUFFERED_FRAMES_COUNT);
+    LoadModel();
     CreateVertexBuffer();
     CreateIndexBuffer();
     CreateUniformBuffers();
@@ -499,7 +503,7 @@ void Application::CreateDepthResources()
 
 void Application::CreateTextureImage()
 {
-    std::string_view texturePath = "assets/textures/texture.png"; 
+    std::string_view texturePath = TEXTURE_PATH; 
     i32 width, height, channels;
     
     u8* pixels = stbi_load(texturePath.data(), &width, &height, &channels, STBI_rgb_alpha);
@@ -567,21 +571,43 @@ void Application::CreateTextureSampler()
         "Failed to create image sampler");
 }
 
+void Application::LoadModel()
+{
+    tinyobj::attrib_t attributes;
+    std::vector<tinyobj::shape_t> shapes;
+    std::vector<tinyobj::material_t> materials;
+    std::string warnings, errors;
+
+    bool success = tinyobj::LoadObj(&attributes, &shapes, &materials, &warnings, &errors, MODEL_PATH.data());
+    ASSERT(success, "Failed to load model: {}\nErrors:\n{}\nWarnings:\n{}", MODEL_PATH, errors, warnings)
+
+    if (!warnings.empty())
+        LOG("Model load warnings ({}):\n{}", MODEL_PATH, warnings);
+
+    for (auto& shape : shapes)
+    {
+        for (auto& index : shape.mesh.indices)
+        {
+            Vertex vertex;
+            
+            vertex.Position[0] = attributes.vertices[3 * index.vertex_index + 0]; 
+            vertex.Position[1] = attributes.vertices[3 * index.vertex_index + 1]; 
+            vertex.Position[2] = attributes.vertices[3 * index.vertex_index + 2];
+
+            vertex.UV[0] = attributes.texcoords[2 * index.texcoord_index + 0];
+            vertex.UV[1] = attributes.texcoords[2 * index.texcoord_index + 1];
+
+            vertex.Color = {1.0f, 1.0f, 1.0f};
+
+            m_Vertices.push_back(vertex);
+            m_Indices.push_back((u32)m_Indices.size());
+        }
+    }
+    
+}
+
 void Application::CreateVertexBuffer()
 {
-    // describe vertices
-    m_Vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, 0.0f}, {0.0f, 0.5f, 0.5f}, {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, 0.0f}, {0.5f, 0.0f, 0.5f}, {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, 0.0f}, {0.5f, 0.5f, 0.5f}, {0.0f, 1.0f}},
-
-        {{-0.75f, -0.75f, 1.0f}, {0.5f, 0.5f, 0.0f}, {0.0f, 0.0f}},
-        {{ 0.25f, -0.75f, 1.0f}, {0.0f, 0.5f, 0.5f}, {1.0f, 0.0f}},
-        {{ 0.25f,  0.25f, 1.0f}, {0.5f, 0.0f, 0.5f}, {1.0f, 1.0f}},
-        {{-0.75f,  0.25f, 1.0f}, {0.5f, 0.5f, 0.5f}, {0.0f, 1.0f}},
-    };
-
     VkDeviceSize vertexBufferSizeBytes = sizeof(m_Vertices.front()) * m_Vertices.size();
     
     // mapping is possible only of memory allocated from a memory type that has `VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT` flag,
@@ -611,14 +637,6 @@ void Application::CreateVertexBuffer()
 
 void Application::CreateIndexBuffer()
 {
-    m_Indices = {
-        0, 1, 2,
-        2, 3, 0,
-
-        4, 5, 6,
-        6, 7, 4,
-    };
-
     VkDeviceSize indexBufferSizeBytes = sizeof(m_Indices.front()) * m_Indices.size();
 
     BufferData stageBufferData = CreateBuffer({
@@ -920,9 +938,11 @@ void Application::OnUpdate()
     f32 time = (f32)glfwGetTime();
 
     TransformUBO transformUbo = {};
-    transformUbo.Model = glm::rotate(glm::mat4(1.0), time * 0.1f, glm::vec3(0.0f, 0.0f, 1.0f));
-    transformUbo.View = glm::lookAt(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    transformUbo.Projection = glm::perspective(glm::radians(45.0f), (f32)m_SwapchainExtent.width / (f32)m_SwapchainExtent.height, 1e-3f, 100.0f);
+    transformUbo.Model = glm::translate(glm::mat4(1.0), glm::vec3(0.0f, 0.0f, 0.0f)) *
+        glm::rotate(glm::mat4(1.0), time * 0.1f, glm::vec3(0.0f, 1.0f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(2.0));
+    transformUbo.View = glm::lookAt(glm::vec3(0.0f, 1.0f, 3.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    transformUbo.Projection = glm::perspective(glm::radians(45.0f), (f32)m_SwapchainExtent.width / (f32)m_SwapchainExtent.height, 1e-3f, 1000.0f);
     // opengl to vulkan projection
     transformUbo.Projection[1][1] *= -1.0f;
 

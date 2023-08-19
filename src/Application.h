@@ -146,6 +146,7 @@ private:
     void CreateTextureImage();
     void CreateTextureImageView();
     void CreateTextureSampler();
+    void LoadModel();
     void CreateVertexBuffer();
     void CreateIndexBuffer();
     void CreateUniformBuffers();
@@ -244,4 +245,7 @@ private:
     VkSampler m_TextureImageSampler{VK_NULL_HANDLE};
 
     TextureData m_DepthTexture;
+
+    static constexpr std::string_view TEXTURE_PATH = "assets/models/vokselia_spawn/vokselia_spawn.png";
+    static constexpr std::string_view MODEL_PATH = "assets/models/vokselia_spawn/vokselia_spawn.obj";
 };
