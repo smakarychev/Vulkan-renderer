@@ -827,11 +827,16 @@ void Application::RecreateSwapchain()
     
     CreateSwapchain();
     CreateSwapchainImageViews();
+    CreateDepthResources();
     CreateFramebuffers();
 }
 
 void Application::CleanUpSwapchain()
 {
+    vkDestroyImageView(m_Device, m_DepthTexture.View, nullptr);
+    vkDestroyImage(m_Device, m_DepthTexture.Texture, nullptr);
+    vkFreeMemory(m_Device, m_DepthTexture.TextureMemory, nullptr);
+    
     for (auto framebuffer : m_Framebuffers)
         vkDestroyFramebuffer(m_Device, framebuffer, nullptr);
     for (auto imageView : m_SwapchainImageViews)
@@ -936,10 +941,6 @@ void Application::CleanUp()
     vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
 
     CleanUpSwapchain();
-
-    vkDestroyImageView(m_Device, m_DepthTexture.View, nullptr);
-    vkDestroyImage(m_Device, m_DepthTexture.Texture, nullptr);
-    vkFreeMemory(m_Device, m_DepthTexture.TextureMemory, nullptr);
     
     vkDestroySampler(m_Device, m_TextureImageSampler, nullptr);
     vkDestroyImageView(m_Device, m_TextureImage.View, nullptr);
