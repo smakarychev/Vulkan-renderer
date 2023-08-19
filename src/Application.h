@@ -1,6 +1,8 @@
 ﻿#pragma once
 
 #include "types.h"
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include "glm/glm.hpp"
 
 #include <vulkan/vulkan_core.h>
@@ -9,7 +11,6 @@
 #include <vector>
 #include <optional>
 #include <string_view>
-
 
 struct GLFWwindow;
 
@@ -53,13 +54,12 @@ struct TextureData
 {
     VkImage Texture{VK_NULL_HANDLE};
     VkImageView View{VK_NULL_HANDLE};
-    VkSampler Sampler{VK_NULL_HANDLE};
     VkDeviceMemory TextureMemory{VK_NULL_HANDLE};
 };
 
 struct Vertex
 {
-    glm::vec2 Position{};
+    glm::vec3 Position{};
     glm::vec3 Color{};
     glm::vec2 UV{};
     static VkVertexInputBindingDescription GetBindingDescription()
@@ -74,7 +74,7 @@ struct Vertex
     {
         VkVertexInputAttributeDescription positionDescription = {};
         positionDescription.binding = 0;
-        positionDescription.format = VK_FORMAT_R32G32_SFLOAT;
+        positionDescription.format = VK_FORMAT_R32G32B32_SFLOAT;
         positionDescription.location = 0;
         positionDescription.offset = offsetof(Vertex, Position);
 
@@ -142,6 +142,7 @@ private:
     void CreateGraphicsPipeline();
     void CreateFramebuffers();
     void CreateCommandPool();
+    void CreateDepthResources();
     void CreateTextureImage();
     void CreateTextureImageView();
     void CreateTextureSampler();
@@ -183,13 +184,17 @@ private:
     u32 FindMemoryType(u32 filter, VkMemoryPropertyFlags properties);
 
     TextureData CreateTexture(const TextureCreateData& textureCreateData);
-    void TransitionTextureLayout(VkImage image, VkImageLayout oldLayout, VkImageLayout newLayout);
+    void TransitionTextureLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
     void CopyBufferToImage(VkBuffer buffer, VkImage image, u32 width, u32 height);
 
-    VkImageView CreateImageView(VkImage image, VkFormat format);
+    VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
     
     VkCommandBuffer BeginSingleTimeCommands();
     void EndSingleTimeCommands(VkCommandBuffer cmd);
+
+    VkFormat GetDepthFormat();
+    VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
+    bool HasStencilComponent(VkFormat format);
     
 private:
     GLFWwindow* m_Window{nullptr};
@@ -236,4 +241,7 @@ private:
     std::vector<VkDescriptorSet> m_DescriptorSets;
 
     TextureData m_TextureImage;
+    VkSampler m_TextureImageSampler{VK_NULL_HANDLE};
+
+    TextureData m_DepthTexture;
 };
