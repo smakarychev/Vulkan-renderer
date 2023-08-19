@@ -129,6 +129,7 @@ struct TextureCreateData
     VkImageTiling Tiling;
     VkImageUsageFlags Usage;
     VkMemoryPropertyFlags Properties;
+    u32 MipmapLevels{1};
 };
 
 class Application
@@ -198,10 +199,11 @@ private:
     u32 FindMemoryType(u32 filter, VkMemoryPropertyFlags properties);
 
     TextureData CreateTexture(const TextureCreateData& textureCreateData);
-    void TransitionTextureLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+    void TransitionTextureLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, u32 mipmapLevels);
     void CopyBufferToImage(VkBuffer buffer, VkImage image, u32 width, u32 height);
+    void GenerateMipmaps(VkImage image, VkFormat format, u32 width, u32 height, u32 mipmapLevels);
 
-    VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+    VkImageView CreateImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 mipmapLevels);
     
     VkCommandBuffer BeginSingleTimeCommands();
     void EndSingleTimeCommands(VkCommandBuffer cmd);
@@ -256,6 +258,7 @@ private:
 
     TextureData m_TextureImage;
     VkSampler m_TextureImageSampler{VK_NULL_HANDLE};
+    u32 m_TextureImageMipmapLevels{1};
 
     TextureData m_DepthTexture;
 
