@@ -103,7 +103,7 @@ namespace std
 {
     template<> struct hash<Vertex>
     {
-        size_t operator()(const Vertex& vertex) const;
+        size_t operator()(const Vertex& vertex) const noexcept;
     };
 }
 
@@ -130,6 +130,7 @@ struct TextureCreateData
     VkImageUsageFlags Usage;
     VkMemoryPropertyFlags Properties;
     u32 MipmapLevels{1};
+    VkSampleCountFlagBits Samples{VK_SAMPLE_COUNT_1_BIT};
 };
 
 class Application
@@ -156,6 +157,7 @@ private:
     void CreateGraphicsPipeline();
     void CreateFramebuffers();
     void CreateCommandPool();
+    void CreateColorResources();
     void CreateDepthResources();
     void CreateTextureImage();
     void CreateTextureImageView();
@@ -211,6 +213,8 @@ private:
     VkFormat GetDepthFormat();
     VkFormat FindSupportedFormat(const std::vector<VkFormat>& candidates, VkImageTiling tiling, VkFormatFeatureFlags features);
     bool HasStencilComponent(VkFormat format);
+
+    VkSampleCountFlagBits GetMaxSamplesCount();
     
 private:
     GLFWwindow* m_Window{nullptr};
@@ -261,6 +265,10 @@ private:
     u32 m_TextureImageMipmapLevels{1};
 
     TextureData m_DepthTexture;
+
+    VkSampleCountFlagBits m_MSAASamples{VK_SAMPLE_COUNT_1_BIT};
+
+    TextureData m_ColorTexture;
 
     static constexpr std::string_view TEXTURE_PATH = "assets/models/vokselia_spawn/vokselia_spawn.png";
     static constexpr std::string_view MODEL_PATH = "assets/models/vokselia_spawn/vokselia_spawn.obj";
