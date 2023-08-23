@@ -6,7 +6,6 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 
@@ -92,7 +91,7 @@ void Application::CreateInstance()
     appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
     appInfo.pEngineName = "No engine";
     appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-    appInfo.apiVersion = VK_API_VERSION_1_0;
+    appInfo.apiVersion = VK_API_VERSION_1_3;
     
     // tells the driver about extensions and validation layers
     VkInstanceCreateInfo createInfo = {};
@@ -274,7 +273,7 @@ void Application::CreateRenderPass()
     colorAttachmentResolve.samples = VK_SAMPLE_COUNT_1_BIT;
     colorAttachmentResolve.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
     colorAttachmentResolve.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    colorAttachmentResolve.loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachmentResolve.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
     colorAttachmentResolve.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
     colorAttachmentResolve.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -538,7 +537,8 @@ void Application::CreateDepthResources()
         .Format = depthFormat,
         .Tiling = VK_IMAGE_TILING_OPTIMAL,
         .Usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        .Properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT});
+        .Properties = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        .Samples = m_MSAASamples});
 
     m_DepthTexture.View = CreateImageView(m_DepthTexture.Texture, depthFormat, VK_IMAGE_ASPECT_DEPTH_BIT, 1);
 
@@ -833,7 +833,7 @@ void Application::RecordCommandBuffer(VkCommandBuffer cmd, u32 imageIndex)
     renderPassBeginInfo.framebuffer = m_Framebuffers[imageIndex];
     renderPassBeginInfo.renderArea = VkRect2D{.offset = {0, 0}, .extent = m_SwapchainExtent};
     std::array<VkClearValue, 2> clearValues;
-    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
     clearValues[1].depthStencil = {1.0f, 0};
     renderPassBeginInfo.clearValueCount = (u32)clearValues.size();
     renderPassBeginInfo.pClearValues = clearValues.data();
