@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "types.h"
+#include "core.h"
 
 #include <algorithm>
 #include <fstream>
@@ -10,22 +11,34 @@
 
 namespace utils
 {
-    template <typename T, typename V, typename Fn, typename Pr>
-    bool checkArrayContainsSubArray(const std::vector<T>& required, const std::vector<V>& available, Fn comparator, Pr printer)
+    // Fn : (const char* req, T& avail) -> bool; Lg : (const char* req) -> void
+    template <typename T, typename V, typename Fn, typename Lg>
+    bool checkArrayContainsSubArray(const std::vector<T>& required, const std::vector<V>& available, Fn comparator, Lg logger)
     {
         bool success = true;    
         for (auto& req : required)
         {
             if (std::ranges::none_of(available, [req, comparator](auto& avail) { return comparator(req, avail); }))
             {
-                printer(req);
+                logger(req);
                 success = false;
             }
         }
         return success;
     }
 
-    inline std::vector<u32> compileShaderToSPIRV(std::string_view shaderPath)
+    // Fn : (const T& a, const T& b) -> bool
+    template <typename T, typename Fn>
+    T getIntersectionOrDefault(const std::vector<T>& desired, const std::vector<T>& available, Fn comparator)
+    {
+        for (auto& des : desired)
+            for (auto& avail : available)
+                if (comparator(des, avail))
+                    return des;
+        return available.front();
+    }
+    
+    inline std::vector<u32> compileShaderToSPIRV(std::string_view shaderPath, shaderc_shader_kind shaderKind)
     {
         // read shader glsl code as a string
         std::ifstream file(shaderPath.data(), std::ios::in | std::ios::binary);
@@ -39,7 +52,7 @@ namespace utils
         shaderc::Compiler compiler;
         shaderc::CompileOptions options;
         options.SetOptimizationLevel(shaderc_optimization_level_size);
-        shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderc_glsl_infer_from_source, shaderPath.data(), options);
+        shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind, shaderPath.data(), options);
         if (module.GetCompilationStatus() != shaderc_compilation_status_success)
         {
             LOG("Shader compilation error:\n {}", module.GetErrorMessage());

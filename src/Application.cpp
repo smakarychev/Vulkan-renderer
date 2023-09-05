@@ -348,8 +348,8 @@ void Application::CreateDescriptorSetLayout()
 
 void Application::CreateGraphicsPipeline()
 {
-    std::vector<u32> vertexShaderSrc = utils::compileShaderToSPIRV("assets/shaders/triangle.vert");
-    std::vector<u32> fragmentShaderSrc = utils::compileShaderToSPIRV("assets/shaders/triangle.frag");
+    std::vector<u32> vertexShaderSrc = utils::compileShaderToSPIRV("assets/shaders/triangle.vert", shaderc_glsl_infer_from_source);
+    std::vector<u32> fragmentShaderSrc = utils::compileShaderToSPIRV("assets/shaders/triangle.frag", shaderc_glsl_infer_from_source);
     
     VkShaderModule vertexShaderModule = CreateShaderModule(vertexShaderSrc);
     VkShaderModule fragmentShaderModule = CreateShaderModule(fragmentShaderSrc);
@@ -405,7 +405,6 @@ void Application::CreateGraphicsPipeline()
     rasterizationStateCreateInfo.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
-    // no multisampling for now
     VkPipelineMultisampleStateCreateInfo multisampleStateCreateInfo = {};
     multisampleStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
