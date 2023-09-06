@@ -11,6 +11,10 @@
 #include "Swapchain.h"
 #include "Syncronization.h"
 
+#include <vma/vk_mem_alloc.h>
+
+#include "Image.h"
+
 class DriverDeletionQueue
 {
 public:
@@ -31,6 +35,7 @@ public:
     static void Unpack(const Subpass& subpass, RenderPass::Builder::CreateInfo& renderPassCreateInfo);
 
     static void Unpack(const RenderPass& renderPass, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
+    static void Unpack(const PushConstantDescription& description, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
 
     static void Unpack(const Attachment& attachment, Framebuffer::Builder::CreateInfo& framebufferCreateInfo);
     static void Unpack(const RenderPass& renderPass, Framebuffer::Builder::CreateInfo& framebufferCreateInfo);
@@ -42,7 +47,12 @@ public:
     static void Unpack(const Device& device, Fence::Builder::CreateInfo& fenceCreateInfo);
     static void Unpack(const Device& device, Semaphore::Builder::CreateInfo& semaphoreCreateInfo);
 
+    static void Unpack(const Device& device, Image::Builder::CreateInfo& imageCreateInfo);
+    static void Unpack(const Swapchain& swapchain, Image::Builder::CreateInfo& imageCreateInfo);
+
+    static void Init(const Device& device);
     static void Shutdown(const Device device);
 public:
     static DriverDeletionQueue s_DeletionQueue;
+    static VmaAllocator s_Allocator;
 };

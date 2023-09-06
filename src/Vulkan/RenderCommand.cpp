@@ -1,5 +1,6 @@
 ﻿#include "RenderCommand.h"
 
+#include "Buffer.h"
 #include "CommandBuffer.h"
 #include "Pipeline.h"
 #include "RenderPass.h"
@@ -95,9 +96,17 @@ void RenderCommand::BindPipeline(const CommandBuffer& cmd, const Pipeline& pipel
     vkCmdBindPipeline(cmd.m_CommandBuffer, bindPoint, pipeline.m_Pipeline);
 }
 
-void RenderCommand::Draw(const CommandBuffer& cmd)
+void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount, const Buffer& buffer, u64 offset)
 {
-    vkCmdDraw(cmd.m_CommandBuffer, 3, 1, 0, 0);
+    VkDeviceSize bufferOffset = offset;
+    vkCmdBindVertexBuffers(cmd.m_CommandBuffer, 0, 1, &buffer.m_Buffer, &bufferOffset);
+    vkCmdDraw(cmd.m_CommandBuffer, vertexCount, 1, 0, 0);
+}
+
+void RenderCommand::PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
+    const PushConstantDescription& description)
+{
+    vkCmdPushConstants(cmd.m_CommandBuffer, pipeline.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
 }
 
 void RenderCommand::SetViewport(const CommandBuffer& cmd, const glm::vec2& size)

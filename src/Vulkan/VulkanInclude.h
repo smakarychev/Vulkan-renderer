@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "Buffer.h"
 #include "CommandBuffer.h"
 #include "Device.h"
 #include "Driver.h"

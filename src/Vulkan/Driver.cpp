@@ -2,6 +2,11 @@
 
 #include "core.h"
 
+#define VMA_IMPLEMENTATION
+#include <vma/vk_mem_alloc.h>
+
+#include "Buffer.h"
+
 void DriverDeletionQueue::AddDeleter(const std::function<void()>& deleter)
 {
     m_Deleters.push_back(deleter);
@@ -17,6 +22,7 @@ void DriverDeletionQueue::Flush()
 }
 
 DriverDeletionQueue Driver::s_DeletionQueue = DriverDeletionQueue{};
+VmaAllocator Driver::s_Allocator = VmaAllocator{};
 
 void Driver::Unpack(const Device& device, Swapchain::Builder::CreateInfo& swapchainCreateInfo)
 {
@@ -44,6 +50,7 @@ void Driver::Unpack(const AttachmentTemplate& attachment, Subpass::Builder::Crea
         break;
     case AttachmentType::DepthStencil:
         subpassCreateInfo.DepthStencilReference = attachmentReference;
+        break;
     default:
         ASSERT(false, "Unknown attachment type")
         std::unreachable();
@@ -76,6 +83,16 @@ void Driver::Unpack(const RenderPass& renderPass, Pipeline::Builder::CreateInfo&
 {
     pipelineCreateInfo.Device = renderPass.m_Device;
     pipelineCreateInfo.RenderPass = renderPass.m_RenderPass;
+}
+
+void Driver::Unpack(const PushConstantDescription& description, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
+{
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.offset = 0;
+    pushConstantRange.size = description.m_SizeBytes;
+    pushConstantRange.stageFlags = description.m_StageFlags;
+
+    pipelineCreateInfo.PushConstantRanges.push_back(pushConstantRange);
 }
 
 void Driver::Unpack(const Attachment& attachment, Framebuffer::Builder::CreateInfo& framebufferCreateInfo)
@@ -120,6 +137,28 @@ void Driver::Unpack(const Device& device, Fence::Builder::CreateInfo& fenceCreat
 void Driver::Unpack(const Device& device, Semaphore::Builder::CreateInfo& semaphoreCreateInfo)
 {
     semaphoreCreateInfo.Device = device.m_Device;
+}
+
+void Driver::Unpack(const Device& device, Image::Builder::CreateInfo& imageCreateInfo)
+{
+    imageCreateInfo.Device = device.m_Device;
+}
+
+void Driver::Unpack(const Swapchain& swapchain, Image::Builder::CreateInfo& imageCreateInfo)
+{
+    imageCreateInfo.Device = swapchain.m_Device;
+}
+
+void Driver::Init(const Device& device)
+{
+    VmaAllocatorCreateInfo createInfo = {};
+    createInfo.instance = device.m_Instance;
+    createInfo.physicalDevice = device.m_GPU;
+    createInfo.device = device.m_Device;
+    
+    vmaCreateAllocator(&createInfo, &s_Allocator);
+
+    s_DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_Allocator); });
 }
 
 void Driver::Shutdown(const Device device)

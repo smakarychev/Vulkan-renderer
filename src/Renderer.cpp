@@ -1,11 +1,15 @@
 ﻿#include "Renderer.h"
 
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/ext/matrix_transform.hpp>
+
 #include "GLFW/glfw3.h"
 #include "Vulkan/RenderCommand.h"
 
 Renderer::Renderer()
 {
     Init();
+    LoadModels();
 }
 
 Renderer::~Renderer()
@@ -18,6 +22,7 @@ void Renderer::Run()
     while(!glfwWindowShouldClose(m_Window))
     {
         glfwPollEvents();
+        OnUpdate();
         OnRender();
     }
 }
@@ -30,14 +35,16 @@ void Renderer::OnRender()
 
     f32 green = (std::sinf((f32)glfwGetTime()) + 1.0f) * 0.5f;
     VkClearValue colorClear = {.color = {{0.2f, green, 0.3f, 1.0f}}};
-    m_RenderPass.Begin(m_CommandBuffer, m_Framebuffers[imageIndex], {colorClear});
+    VkClearValue depthClear = {.depthStencil = {.depth = 1.0f}};
+    m_RenderPass.Begin(m_CommandBuffer, m_Framebuffers[imageIndex], {colorClear, depthClear});
 
     RenderCommand::SetViewport(m_CommandBuffer, m_Swapchain.GetSize());
     RenderCommand::SetScissors(m_CommandBuffer, {0, 0}, m_Swapchain.GetSize());
 
     m_Pipeline.Bind(m_CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
 
-    RenderCommand::Draw(m_CommandBuffer);
+    PushConstants(&m_MeshPushConstants.GetData(), m_MeshPushConstants.GetDescription());
+    Submit(*m_Mesh);
     
     m_RenderPass.End(m_CommandBuffer);
 
@@ -45,6 +52,27 @@ void Renderer::OnRender()
     m_CommandBuffer.Submit(m_Device.GetQueues().Graphics, m_Swapchain.GetFrameSync());
     
     m_Swapchain.PresentImage(m_Device.GetQueues().Presentation, imageIndex);
+}
+
+void Renderer::OnUpdate()
+{
+    f32 angle = (f32)glfwGetTime();
+    glm::mat4 model = glm::rotate(glm::mat4(1.0f), 10.0f * glm::radians(angle), glm::vec3(0.0f, 1.0f, 0.0f)) *
+        glm::scale(glm::mat4(1.0f), glm::vec3(0.1f));
+    glm::mat4 view = glm::lookAt(glm::vec3(0.0f, 0.1f, 1.0f), glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (f32)m_Swapchain.GetSize().x / (f32)m_Swapchain.GetSize().y, 1e-1f, 1e+3f);
+    projection[1][1] *= -1.0f;
+    m_MeshPushConstants.GetData().Transform = projection * view * model;
+}
+
+void Renderer::Submit(const Mesh& mesh)
+{
+    RenderCommand::Draw(m_CommandBuffer, mesh.GetVertexCount(), mesh.GetBuffer());
+}
+
+void Renderer::PushConstants(const void* pushConstants, const PushConstantDescription& description)
+{
+    RenderCommand::PushConstants(m_CommandBuffer, m_Pipeline, pushConstants, description);
 }
 
 void Renderer::Init()
@@ -59,6 +87,8 @@ void Renderer::Init()
         SetWindow(m_Window).
         Build();
 
+    Driver::Init(m_Device);
+    
     m_Swapchain = Swapchain::Builder().
         DefaultHints().
         FromDetails(m_Device.GetSurfaceDetails()).
@@ -83,6 +113,15 @@ void Renderer::Init()
                 .SourceAccessMask = 0,
                 .DestinationAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
             }).
+        AddSubpassDependency(
+            VK_SUBPASS_EXTERNAL,
+            subpass,
+            {
+                .SourceStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                .DestinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+                .SourceAccessMask = 0,
+                .DestinationAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+            }).
         SetDevice(m_Device).
         Build();
 
@@ -90,9 +129,11 @@ void Renderer::Init()
     
     m_Pipeline = Pipeline::Builder().
         SetRenderPass(m_RenderPass).
-        AddShader(ShaderKind::Vertex, "assets/shaders/triangle_smallest.vert").
-        AddShader(ShaderKind::Pixel, "assets/shaders/triangle_smallest.frag").
+        AddShader(ShaderKind::Vertex, "assets/shaders/triangle_big.vert").
+        AddShader(ShaderKind::Pixel, "assets/shaders/triangle_big.frag").
         FixedFunctionDefaults().
+        SetVertexDescription(Vertex3D::GetInputDescription()).
+        AddPushConstant(m_MeshPushConstants.GetDescription()).
         Build();
 
     m_CommandPool = CommandPool::Builder().
@@ -101,8 +142,6 @@ void Renderer::Init()
         Build();
 
     m_CommandBuffer = m_CommandPool.AllocateBuffer(CommandBufferKind::Primary);
-
-    
 }
 
 void Renderer::ShutDown()
@@ -110,4 +149,9 @@ void Renderer::ShutDown()
     Driver::Shutdown(m_Device);
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();
+}
+
+void Renderer::LoadModels()
+{
+    m_Mesh = std::make_unique<Mesh>(Mesh::LoadFromFile("assets/models/bugatti/bugatti.obj"));
 }

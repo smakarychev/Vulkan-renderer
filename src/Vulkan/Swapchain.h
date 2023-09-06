@@ -4,6 +4,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "Attachment.h"
+#include "Image.h"
 #include "Framebuffer.h"
 #include "Syncronization.h"
 #include "types.h"
@@ -34,7 +35,8 @@ public:
         struct CreateInfo
         {
             VkSurfaceCapabilitiesKHR Capabilities;
-            VkSurfaceFormatKHR Format;
+            VkSurfaceFormatKHR ColorFormat;
+            VkFormat DepthStencilFormat;
             VkPresentModeKHR PresentMode;
             VkExtent2D Extent;
             u32 ImageCount;
@@ -58,6 +60,7 @@ public:
     private:
         static VkExtent2D ChooseExtent(const VkSurfaceCapabilitiesKHR& capabilities);
         static u32 ChooseImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
+        static VkFormat ChooseDepthFormat();
         std::vector<SwapchainFrameSync> CreateSynchronizationStructures();
     private:
         CreateInfo m_CreateInfo;
@@ -80,15 +83,18 @@ public:
 
     glm::uvec2 GetSize() const { return glm::uvec2{m_Extent.width, m_Extent.height}; }
 private:
-    using CreateInfo = Builder::CreateInfo;
-    std::vector<ImageData> CreateColorImages(const CreateInfo& createInfo) const;
-    static VkExtent2D GetValidExtent(const CreateInfo& createInfo);
+    std::vector<Image> CreateColorImages() const;
+    Image CreateDepthImage();
+    VkExtent2D GetValidExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 private:
     VkSwapchainKHR m_Swapchain{VK_NULL_HANDLE};
     VkExtent2D m_Extent{};
     VkFormat m_ColorFormat{};
-    std::vector<ImageData> m_ColorImages;
-    u32 m_ImageCount{};
+    VkFormat m_DepthFormat{};
+    std::vector<Image> m_ColorImages;
+    Image m_DepthImage;
+    u32 m_ColorImageCount{};
     std::vector<SwapchainFrameSync> m_SwapchainFrameSync;
     VkDevice m_Device{VK_NULL_HANDLE};
+    GLFWwindow* m_Window{nullptr};
 };

@@ -37,6 +37,7 @@ project "VulkanApp"
         "vendor/glm",
         "vendor/stb",
         "vendor/tinyobjloader",
+        "vendor/vma",
     }
 
     libdirs

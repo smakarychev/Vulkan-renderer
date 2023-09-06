@@ -41,6 +41,7 @@ namespace
 Pipeline Pipeline::Builder::Build()
 {
     FinishShaders();
+    FinishFixedFunction();
     Pipeline pipeline = Pipeline::Create(m_CreateInfo);
     Driver::s_DeletionQueue.AddDeleter([pipeline](){ Pipeline::Destroy(pipeline); });
 
@@ -101,6 +102,13 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
     m_CreateInfo.MultisampleState.sampleShadingEnable = VK_FALSE;
     m_CreateInfo.MultisampleState.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
+    m_CreateInfo.DepthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    m_CreateInfo.DepthStencilState.depthTestEnable = VK_TRUE;
+    m_CreateInfo.DepthStencilState.depthWriteEnable = VK_TRUE;
+    m_CreateInfo.DepthStencilState.depthCompareOp = VK_COMPARE_OP_LESS;
+    m_CreateInfo.DepthStencilState.depthBoundsTestEnable = VK_FALSE;
+    m_CreateInfo.DepthStencilState.stencilTestEnable = VK_FALSE;
+
     m_CreateInfo.ColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
                                                             VK_COLOR_COMPONENT_G_BIT |
                                                             VK_COLOR_COMPONENT_B_BIT |
@@ -123,6 +131,20 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::SetVertexDescription(const VertexInputDescription& vertexDescription)
+{
+    m_VertexInputDescription = vertexDescription;
+
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::AddPushConstant(const PushConstantDescription& description)
+{
+    Driver::Unpack(description, m_CreateInfo);
+
+    return *this;
+}
+
 void Pipeline::Builder::FinishShaders()
 {
     ASSERT(!m_ShaderModules.empty(), "No shaders were set")
@@ -137,6 +159,17 @@ void Pipeline::Builder::FinishShaders()
         m_CreateInfo.Shaders.push_back(shaderStageCreateInfo);
         m_CreateInfo.ShaderModules.push_back(module.Module);
     }
+}
+
+void Pipeline::Builder::FinishFixedFunction()
+{
+    m_CreateInfo.VertexInputState.vertexBindingDescriptionCount = (u32)m_VertexInputDescription.Bindings.size();
+    m_CreateInfo.VertexInputState.pVertexBindingDescriptions = m_VertexInputDescription.Bindings.data();
+    m_CreateInfo.VertexInputState.vertexAttributeDescriptionCount = (u32)m_VertexInputDescription.Attributes.size();
+    m_CreateInfo.VertexInputState.pVertexAttributeDescriptions = m_VertexInputDescription.Attributes.data();
+
+    m_CreateInfo.PipelineLayout.pushConstantRangeCount = (u32)m_CreateInfo.PushConstantRanges.size();
+    m_CreateInfo.PipelineLayout.pPushConstantRanges = m_CreateInfo.PushConstantRanges.data();
 }
 
 VkShaderModule Pipeline::Builder::CreateShader(const std::vector<u32>& spirv) const
@@ -173,7 +206,7 @@ Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
     pipelineCreateInfo.pVertexInputState = &createInfo.VertexInputState;
     pipelineCreateInfo.pRasterizationState = &createInfo.RasterizationState;
     pipelineCreateInfo.pMultisampleState = &createInfo.MultisampleState;
-    pipelineCreateInfo.pDepthStencilState = nullptr;
+    pipelineCreateInfo.pDepthStencilState = &createInfo.DepthStencilState;
     pipelineCreateInfo.pColorBlendState = &createInfo.ColorBlendState;
     pipelineCreateInfo.layout = pipeline.m_Layout;
     pipelineCreateInfo.renderPass = createInfo.RenderPass;

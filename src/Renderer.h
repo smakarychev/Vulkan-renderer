@@ -1,5 +1,8 @@
 ﻿#pragma once
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_ENABLE_EXPERIMENTAL
+#include "Mesh.h"
 #include "Vulkan/VulkanInclude.h"
 
 class Renderer
@@ -10,10 +13,17 @@ public:
 
     void Run();
     void OnRender();
+    void OnUpdate();
+    
+    void Submit(const Mesh& mesh);
+    void PushConstants(const void* pushConstants, const PushConstantDescription& description);
     
 private:
     void Init();
     void ShutDown();
+
+    void LoadModels();
+    
 private:
     GLFWwindow* m_Window;
 
@@ -29,4 +39,8 @@ private:
     Fence m_RenderFence;
     Semaphore m_RenderSemaphore;
     Semaphore m_PresentSemaphore;
+
+    std::unique_ptr<Mesh> m_Mesh;
+    PushConstantBuffer m_MeshPushConstants;
 };
+

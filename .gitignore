@@ -5,3 +5,4 @@
 *.user
 *.sln
 guide.html
+VulkanApp.vcxproj.filters

@@ -8,6 +8,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+class PushConstantDescription;
 class CommandBuffer;
 class RenderPass;
 
@@ -37,9 +38,11 @@ public:
             VkPipelineVertexInputStateCreateInfo VertexInputState;
             VkPipelineRasterizationStateCreateInfo RasterizationState;
             VkPipelineMultisampleStateCreateInfo MultisampleState;
+            VkPipelineDepthStencilStateCreateInfo DepthStencilState;
             VkPipelineColorBlendAttachmentState ColorBlendAttachmentState;
             VkPipelineColorBlendStateCreateInfo ColorBlendState;
             VkPipelineLayoutCreateInfo PipelineLayout;
+            std::vector<VkPushConstantRange> PushConstantRanges;
         };
         struct ShaderModuleData
         {
@@ -51,12 +54,16 @@ public:
         Builder& SetRenderPass(const RenderPass& renderPass);
         Builder& AddShader(ShaderKind shaderKind, std::string_view shaderPath);
         Builder& FixedFunctionDefaults();
+        Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
+        Builder& AddPushConstant(const PushConstantDescription& description);
     private:
         void FinishShaders();
+        void FinishFixedFunction();
         VkShaderModule CreateShader(const std::vector<u32>& spirv) const;
     private:
         CreateInfo m_CreateInfo;
         std::vector<ShaderModuleData> m_ShaderModules;
+        VertexInputDescription m_VertexInputDescription;
     };
 public:
     static Pipeline Create(const Builder::CreateInfo& createInfo);

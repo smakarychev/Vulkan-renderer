@@ -410,7 +410,6 @@ void Application::CreateGraphicsPipeline()
     multisampleStateCreateInfo.sampleShadingEnable = VK_FALSE;
     multisampleStateCreateInfo.rasterizationSamples = m_MSAASamples;
 
-    // no depth buffer for now
     VkPipelineDepthStencilStateCreateInfo depthStencilStateCreateInfo = {};
     depthStencilStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencilStateCreateInfo.depthTestEnable = VK_TRUE;

@@ -10,6 +10,7 @@
 
 Swapchain Swapchain::Builder::Build()
 {
+    m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
     m_CreateInfo.FrameSyncs = CreateSynchronizationStructures();
     Swapchain swapchain = Swapchain::Create(m_CreateInfo);
     Driver::s_DeletionQueue.AddDeleter([swapchain](){ Swapchain::Destroy(swapchain); });
@@ -36,7 +37,7 @@ Swapchain::Builder& Swapchain::Builder::FromDetails(const SurfaceDetails& detail
 
     createInfo.Capabilities = details.Capabilities;
     
-    createInfo.Format = utils::getIntersectionOrDefault(m_CreateInfoHint.DesiredFormats, details.Formats,
+    createInfo.ColorFormat = utils::getIntersectionOrDefault(m_CreateInfoHint.DesiredFormats, details.Formats,
         [](VkSurfaceFormatKHR des, VkSurfaceFormatKHR avail) { return des.format == avail.format && des.colorSpace == avail.colorSpace; });
 
     createInfo.PresentMode = utils::getIntersectionOrDefault(m_CreateInfoHint.DesiredPresentModes, details.PresentModes,
@@ -80,6 +81,11 @@ u32 Swapchain::Builder::ChooseImageCount(const VkSurfaceCapabilitiesKHR& capabil
     return std::min(capabilities.minImageCount + 1, capabilities.maxImageCount); 
 }
 
+VkFormat Swapchain::Builder::ChooseDepthFormat()
+{
+    return VK_FORMAT_D32_SFLOAT;
+}
+
 std::vector<SwapchainFrameSync> Swapchain::Builder::CreateSynchronizationStructures()
 {
     ASSERT(m_BufferedFrames != 0, "Buffered frames count is unset")
@@ -111,13 +117,15 @@ std::vector<SwapchainFrameSync> Swapchain::Builder::CreateSynchronizationStructu
 Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
 {
     Swapchain swapchain = {};
+
+    swapchain.m_Window = createInfo.Window;
     
     VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
     swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchainCreateInfo.surface = createInfo.Surface;
-    swapchainCreateInfo.imageColorSpace = createInfo.Format.colorSpace;
-    swapchainCreateInfo.imageFormat = createInfo.Format.format;
-    VkExtent2D extent = GetValidExtent(createInfo);
+    swapchainCreateInfo.imageColorSpace = createInfo.ColorFormat.colorSpace;
+    swapchainCreateInfo.imageFormat = createInfo.ColorFormat.format;
+    VkExtent2D extent = swapchain.GetValidExtent(createInfo.Capabilities);
     swapchainCreateInfo.imageExtent = extent;
     swapchainCreateInfo.imageArrayLayers = 1;
     swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
@@ -144,10 +152,12 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
         "Failed to create swapchain");
     swapchain.m_Device = createInfo.Device;
     swapchain.m_Extent = extent;
-    swapchain.m_ColorFormat = createInfo.Format.format;
-    swapchain.m_ImageCount = createInfo.ImageCount;
+    swapchain.m_ColorFormat = createInfo.ColorFormat.format;
+    swapchain.m_DepthFormat = createInfo.DepthStencilFormat;
+    swapchain.m_ColorImageCount = createInfo.ImageCount;
     swapchain.m_SwapchainFrameSync = createInfo.FrameSyncs;
-    swapchain.m_ColorImages = swapchain.CreateColorImages(createInfo);
+    swapchain.m_ColorImages = swapchain.CreateColorImages();
+    swapchain.m_DepthImage = swapchain.CreateDepthImage();
 
     return swapchain;
 }
@@ -155,7 +165,7 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
 void Swapchain::Destroy(const Swapchain& swapchain)
 {
     for (u32 i = 0; i < swapchain.m_ColorImages.size(); i++)
-        vkDestroyImageView(swapchain.m_Device, swapchain.m_ColorImages[i].View, nullptr);
+        vkDestroyImageView(swapchain.m_Device, swapchain.m_ColorImages[i].GetImageData().View, nullptr);
     vkDestroySwapchainKHR(swapchain.m_Device, swapchain.m_Swapchain, nullptr);
 }
 
@@ -185,40 +195,56 @@ const SwapchainFrameSync& Swapchain::GetFrameSync() const
     return m_SwapchainFrameSync.front();
 }
 
-std::vector<ImageData> Swapchain::CreateColorImages(const CreateInfo& createInfo) const
+std::vector<Image> Swapchain::CreateColorImages() const
 {
     u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(createInfo.Device, m_Swapchain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, nullptr);
     std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(createInfo.Device, m_Swapchain, &imageCount, images.data());
+    vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, images.data());
 
     std::vector<VkImageView> imageViews(imageCount);
     for (u32 i = 0; i < imageCount; i++)
-        imageViews[i] = vkUtils::createImageView(createInfo.Device, images[i], createInfo.Format.format, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+        imageViews[i] = vkUtils::createImageView(m_Device, images[i], m_ColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
-    std::vector<ImageData> colorImages(imageCount);
+    std::vector<Image> colorImages(imageCount);
     for (u32 i = 0; i < imageCount; i++)
-        colorImages[i] = {
+    {
+        ImageData imageData = {
             .Image = images[i],
             .View = imageViews[i],
             .Width = m_Extent.width,
             .Height = m_Extent.height};
+    
+        colorImages[i] = Image::Builder().
+            FromImageData(imageData).
+            Build();
+    }
 
     return colorImages;
 }
 
-VkExtent2D Swapchain::GetValidExtent(const CreateInfo& createInfo)
+Image Swapchain::CreateDepthImage()
 {
-    VkExtent2D extent = createInfo.Extent;
+    Image depth = Image::Builder().
+        SetSwapchain(*this).
+        SetExtent(m_Extent).
+        SetFormat(m_DepthFormat).
+        SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT).
+        Build();
+
+    return depth;
+}
+
+VkExtent2D Swapchain::GetValidExtent(const VkSurfaceCapabilitiesKHR& capabilities)
+{
+    VkExtent2D extent = capabilities.currentExtent;
 
     if (extent.width != std::numeric_limits<u32>::max())
         return extent;
 
     // indication that extent might not be same as window size
     i32 windowWidth, windowHeight;
-    glfwGetFramebufferSize(createInfo.Window, &windowWidth, &windowHeight);
-
-    const VkSurfaceCapabilitiesKHR& capabilities = createInfo.Capabilities;
+    glfwGetFramebufferSize(m_Window, &windowWidth, &windowHeight);
     
     extent.width = std::clamp(windowWidth, (i32)capabilities.minImageExtent.width, (i32)capabilities.maxImageExtent.width);
     extent.height = std::clamp(windowHeight, (i32)capabilities.minImageExtent.height, (i32)capabilities.maxImageExtent.height);
@@ -233,25 +259,35 @@ std::vector<AttachmentTemplate> Swapchain::GetAttachmentTemplates() const
         SetFormat(m_ColorFormat).
         Build();
 
-    return {color};
+    AttachmentTemplate depth = AttachmentTemplate::Builder().
+        DepthDefaults().
+        SetFormat(m_DepthFormat).
+        Build();
+
+    return {color, depth};
 }
 
 std::vector<Attachment> Swapchain::GetAttachments(u32 imageIndex) const
 {
     Attachment color = Attachment::Builder().
         SetType(AttachmentType::Color).
-        FromImageData(m_ColorImages[imageIndex]).
+        FromImageData(m_ColorImages[imageIndex].GetImageData()).
         Build();
 
-    return {color};
+    Attachment depth = Attachment::Builder().
+        SetType(AttachmentType::DepthStencil).
+        FromImageData(m_DepthImage.GetImageData()).
+        Build();
+
+    return {color, depth};
 }
 
 std::vector<Framebuffer> Swapchain::GetFramebuffers(const RenderPass& renderPass) const
 {
     std::vector<Framebuffer> framebuffers;
-    framebuffers.reserve(m_ImageCount);
+    framebuffers.reserve(m_ColorImageCount);
 
-    for (u32 i = 0; i < m_ImageCount; i++)
+    for (u32 i = 0; i < m_ColorImageCount; i++)
     {
         std::vector<Attachment> attachments = GetAttachments(i);
         Framebuffer framebuffer = Framebuffer::Builder().

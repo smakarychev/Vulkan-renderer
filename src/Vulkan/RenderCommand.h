@@ -7,6 +7,8 @@
 #include "types.h"
 #include "VulkanCommon.h"
 
+class PushConstantDescription;
+class Buffer;
 class Pipeline;
 class Framebuffer;
 class RenderPass;
@@ -33,8 +35,10 @@ public:
 
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
 
-    // todo: actual implementation
-    static void Draw(const CommandBuffer& cmd);
+    static void Draw(const CommandBuffer& cmd, u32 vertexCount, const Buffer& buffer, u64 offset = 0);
+
+    static void PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
+        const PushConstantDescription& description);
     
     static void SetViewport(const CommandBuffer& cmd, const glm::vec2& size);
     static void SetScissors(const CommandBuffer& cmd, const glm::vec2& offset, const glm::vec2& size);

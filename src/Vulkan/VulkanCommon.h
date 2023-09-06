@@ -9,6 +9,12 @@
     friend class Driver; \
     friend class RenderCommand;
 
+struct VertexInputDescription
+{
+    std::vector<VkVertexInputBindingDescription> Bindings;
+    std::vector<VkVertexInputAttributeDescription> Attributes;
+};
+
 enum class QueueKind {Graphics, Presentation};
 
 struct QueueInfo
