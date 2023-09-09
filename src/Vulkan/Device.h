@@ -71,6 +71,7 @@ public:
 
     SurfaceDetails GetSurfaceDetails() const;
     const DeviceQueues& GetQueues() const { return m_Queues; }
+    
 private:
     using CreateInfo = Builder::CreateInfo;
     void CreateInstance(const CreateInfo& createInfo);
@@ -94,4 +95,6 @@ private:
     VkDevice m_Device{VK_NULL_HANDLE};
     DeviceQueues m_Queues;
     GLFWwindow* m_Window{nullptr};
+
+    VkPhysicalDeviceProperties m_GPUProperties;
 };

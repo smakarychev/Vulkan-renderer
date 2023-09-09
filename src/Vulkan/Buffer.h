@@ -6,7 +6,7 @@
 #include <vma/vk_mem_alloc.h>
 #include <vulkan/vulkan_core.h>
 
-enum class BufferKind{Vertex, Index};
+class CommandBuffer;
 
 class Buffer
 {
@@ -34,11 +34,15 @@ public:
     static Buffer Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Buffer& buffer);
 
+    void Bind(const CommandBuffer& commandBuffer, u64 offset = 0) const;
     void SetData(const void* data, u64 dataSizeBytes);
+    void SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes);
+    u64 GetSizeBytes() const { return m_SizeBytes; }
 private:
     VkBuffer m_Buffer{VK_NULL_HANDLE};
     VmaAllocation m_Allocation{VK_NULL_HANDLE};
     BufferKind m_Kind{};
+    u64 m_SizeBytes{};
 };
 
 class PushConstantDescription

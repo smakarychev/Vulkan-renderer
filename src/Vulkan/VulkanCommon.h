@@ -16,11 +16,12 @@ struct VertexInputDescription
 };
 
 enum class QueueKind {Graphics, Presentation};
+enum class BufferKind{Vertex, Index, Uniform, Storage};
 
 struct QueueInfo
 {
     // technically any family index is possible;
-    // practically GPUs have only a few (usually less than 5)
+    // practically GPUs have only a few
     static constexpr u32 UNSET_FAMILY = std::numeric_limits<u32>::max();
     VkQueue Queue{VK_NULL_HANDLE};
     u32 Family{UNSET_FAMILY};  
@@ -39,8 +40,6 @@ public:
     std::vector<VkPresentModeKHR> PresentModes;
 };
 
-// todo:
-// placeholder for actual texture class
 struct ImageData
 {
     VkImage Image;

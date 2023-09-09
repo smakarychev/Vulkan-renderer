@@ -42,7 +42,6 @@ public:
             u32 ImageCount;
             std::vector<SwapchainFrameSync> FrameSyncs;
             GLFWwindow* Window{nullptr};
-            VkDevice Device{VK_NULL_HANDLE};
             VkSurfaceKHR Surface{VK_NULL_HANDLE};
             const DeviceQueues* Queues{nullptr};
         };
@@ -66,16 +65,15 @@ public:
         CreateInfo m_CreateInfo;
         CreateInfoHint m_CreateInfoHint;
         u32 m_BufferedFrames;
-        const Device* m_Device;
     };
 public:
     static Swapchain Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Swapchain& swapchain);
 
-    u32 AcquireImage();
-    void PresentImage(const QueueInfo& queueInfo, u32 imageIndex);
+    u32 AcquireImage(u32 frameNumber);
+    void PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);
 
-    const SwapchainFrameSync& GetFrameSync() const;
+    const SwapchainFrameSync& GetFrameSync(u32 frameNumber) const;
 
     std::vector<AttachmentTemplate> GetAttachmentTemplates() const;
     std::vector<Attachment> GetAttachments(u32 imageIndex) const;
@@ -95,6 +93,5 @@ private:
     Image m_DepthImage;
     u32 m_ColorImageCount{};
     std::vector<SwapchainFrameSync> m_SwapchainFrameSync;
-    VkDevice m_Device{VK_NULL_HANDLE};
     GLFWwindow* m_Window{nullptr};
 };

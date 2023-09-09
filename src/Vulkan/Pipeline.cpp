@@ -43,7 +43,7 @@ Pipeline Pipeline::Builder::Build()
     FinishShaders();
     FinishFixedFunction();
     Pipeline pipeline = Pipeline::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([pipeline](){ Pipeline::Destroy(pipeline); });
+    Driver::DeletionQueue().AddDeleter([pipeline](){ Pipeline::Destroy(pipeline); });
 
     return pipeline;
 }
@@ -57,7 +57,6 @@ Pipeline::Builder& Pipeline::Builder::SetRenderPass(const RenderPass& renderPass
 
 Pipeline::Builder& Pipeline::Builder::AddShader(ShaderKind shaderKind, std::string_view shaderPath)
 {
-    ASSERT(m_CreateInfo.Device != VK_NULL_HANDLE, "Device is unset")
     ASSERT(std::ranges::find_if(m_ShaderModules,
         [shaderKind](auto& data) { return data.Kind == shaderKind; }) == m_ShaderModules.end(),
         "Shader of that kind is already set")
@@ -145,6 +144,13 @@ Pipeline::Builder& Pipeline::Builder::AddPushConstant(const PushConstantDescript
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::AddDescriptorLayout(const DescriptorSetLayout& layout)
+{
+    Driver::Unpack(layout, m_CreateInfo);
+
+    return *this;
+}
+
 void Pipeline::Builder::FinishShaders()
 {
     ASSERT(!m_ShaderModules.empty(), "No shaders were set")
@@ -170,6 +176,9 @@ void Pipeline::Builder::FinishFixedFunction()
 
     m_CreateInfo.PipelineLayout.pushConstantRangeCount = (u32)m_CreateInfo.PushConstantRanges.size();
     m_CreateInfo.PipelineLayout.pPushConstantRanges = m_CreateInfo.PushConstantRanges.data();
+
+    m_CreateInfo.PipelineLayout.setLayoutCount = (u32)m_CreateInfo.DescriptorSetLayouts.size();
+    m_CreateInfo.PipelineLayout.pSetLayouts = m_CreateInfo.DescriptorSetLayouts.data();
 }
 
 VkShaderModule Pipeline::Builder::CreateShader(const std::vector<u32>& spirv) const
@@ -181,7 +190,7 @@ VkShaderModule Pipeline::Builder::CreateShader(const std::vector<u32>& spirv) co
 
     VkShaderModule shaderModule;
 
-    VulkanCheck(vkCreateShaderModule(m_CreateInfo.Device, &shaderModuleCreateInfo, nullptr, &shaderModule),
+    VulkanCheck(vkCreateShaderModule(Driver::DeviceHandle(), &shaderModuleCreateInfo, nullptr, &shaderModule),
         "Failed to create shader module");
 
     return shaderModule;
@@ -191,10 +200,9 @@ Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
 {
     Pipeline pipeline = {};
     
-    pipeline.m_Device = createInfo.Device;
-
-    VulkanCheck(vkCreatePipelineLayout(createInfo.Device, &createInfo.PipelineLayout, nullptr, &pipeline.m_Layout),
+    VulkanCheck(vkCreatePipelineLayout(Driver::DeviceHandle(), &createInfo.PipelineLayout, nullptr, &pipeline.m_Layout),
         "Failed to create pipeline layout");
+    pipeline.m_DescriptorSetLayouts = createInfo.DescriptorSetLayouts;
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -212,22 +220,28 @@ Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
     pipelineCreateInfo.renderPass = createInfo.RenderPass;
     pipelineCreateInfo.subpass = 0;
 
-    VulkanCheck(vkCreateGraphicsPipelines(createInfo.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline.m_Pipeline),
+    VulkanCheck(vkCreateGraphicsPipelines(Driver::DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline.m_Pipeline),
         "Failed to create pipeline");
 
     for (auto& module : createInfo.ShaderModules)
-        vkDestroyShaderModule(createInfo.Device, module, nullptr);
+        vkDestroyShaderModule(Driver::DeviceHandle(), module, nullptr);
 
     return pipeline;
 }
 
 void Pipeline::Destroy(const Pipeline& pipeline)
 {
-    vkDestroyPipeline(pipeline.m_Device, pipeline.m_Pipeline, nullptr);
-    vkDestroyPipelineLayout(pipeline.m_Device, pipeline.m_Layout, nullptr);
+    vkDestroyPipeline(Driver::DeviceHandle(), pipeline.m_Pipeline, nullptr);
+    vkDestroyPipelineLayout(Driver::DeviceHandle(), pipeline.m_Layout, nullptr);
 }
 
 void Pipeline::Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint)
 {
     RenderCommand::BindPipeline(commandBuffer, *this, bindPoint);
+}
+
+u32 Pipeline::FindDescriptorSetLayout(VkDescriptorSetLayout layout) const
+{
+    auto it = std::ranges::find(m_DescriptorSetLayouts, layout);
+    return (u32)(it - m_DescriptorSetLayouts.begin());
 }

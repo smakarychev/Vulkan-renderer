@@ -7,7 +7,7 @@ Framebuffer Framebuffer::Builder::Build()
 {
     ASSERT(!m_CreateInfo.Attachments.empty(), "Have to provide at least one attachment")
     Framebuffer framebuffer = Framebuffer::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([framebuffer](){ Framebuffer::Destroy(framebuffer); });
+    Driver::DeletionQueue().AddDeleter([framebuffer](){ Framebuffer::Destroy(framebuffer); });
 
     return framebuffer;
 }
@@ -47,9 +47,8 @@ Framebuffer Framebuffer::Create(const Builder::CreateInfo& createInfo)
     framebufferCreateInfo.height = createInfo.Height;
     framebufferCreateInfo.layers = 1;
 
-    VulkanCheck(vkCreateFramebuffer(createInfo.Device, &framebufferCreateInfo, nullptr, &framebuffer.m_Framebuffer),
+    VulkanCheck(vkCreateFramebuffer(Driver::DeviceHandle(), &framebufferCreateInfo, nullptr, &framebuffer.m_Framebuffer),
         "Failed to create framebuffer");
-    framebuffer.m_Device = createInfo.Device;
     framebuffer.m_Extent = {.width = createInfo.Width, .height = createInfo.Height};
     
     return framebuffer;
@@ -57,5 +56,5 @@ Framebuffer Framebuffer::Create(const Builder::CreateInfo& createInfo)
 
 void Framebuffer::Destroy(const Framebuffer& framebuffer)
 {
-    vkDestroyFramebuffer(framebuffer.m_Device, framebuffer.m_Framebuffer, nullptr);
+    vkDestroyFramebuffer(Driver::DeviceHandle(), framebuffer.m_Framebuffer, nullptr);
 }

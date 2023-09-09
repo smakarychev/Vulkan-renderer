@@ -17,7 +17,6 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            VkDevice Device;
             VkCommandPool CommandPool;
             VkCommandBufferLevel Level;
         };
@@ -51,13 +50,12 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            VkDevice Device;
             u32 QueueFamily;
             VkCommandPoolCreateFlags Flags;
         };
     public:
         CommandPool Build();
-        Builder& SetQueue(const Device& device, QueueKind queueKind);
+        Builder& SetQueue(QueueKind queueKind);
         Builder& PerBufferReset(bool enabled);
     private:
         CreateInfo m_CreateInfo;
@@ -69,6 +67,5 @@ public:
     CommandBuffer AllocateBuffer(CommandBufferKind kind);
     
 private:
-    VkDevice m_Device{VK_NULL_HANDLE};
     VkCommandPool m_CommandPool{VK_NULL_HANDLE};
 };

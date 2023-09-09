@@ -19,7 +19,6 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            VkDevice Device;
             VkRenderPass RenderPass;
             std::vector<VkImageView> Attachments;
             u32 Width;
@@ -39,5 +38,4 @@ public:
 private:
     VkFramebuffer m_Framebuffer{VK_NULL_HANDLE};
     VkExtent2D m_Extent{};
-    VkDevice m_Device{VK_NULL_HANDLE};
 };

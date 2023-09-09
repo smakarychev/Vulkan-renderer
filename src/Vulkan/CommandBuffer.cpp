@@ -48,7 +48,7 @@ CommandBuffer CommandBuffer::Create(const Builder::CreateInfo& createInfo)
     allocateInfo.level = createInfo.Level;
     allocateInfo.commandBufferCount = 1;
 
-    VulkanCheck(vkAllocateCommandBuffers(createInfo.Device, &allocateInfo, &commandBuffer.m_CommandBuffer),
+    VulkanCheck(vkAllocateCommandBuffers(Driver::DeviceHandle(), &allocateInfo, &commandBuffer.m_CommandBuffer),
         "Failed to allocate command buffer");
 
     return commandBuffer;
@@ -74,15 +74,14 @@ void CommandBuffer::Submit(const QueueInfo& queueInfo, const SwapchainFrameSync&
 CommandPool CommandPool::Builder::Build()
 {
     CommandPool commandPool = CommandPool::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([commandPool](){ CommandPool::Destroy(commandPool); });
+    Driver::DeletionQueue().AddDeleter([commandPool](){ CommandPool::Destroy(commandPool); });
 
     return commandPool;
 }
 
-CommandPool::Builder& CommandPool::Builder::SetQueue(const Device& device, QueueKind queueKind)
+CommandPool::Builder& CommandPool::Builder::SetQueue(QueueKind queueKind)
 {
-    Driver::Unpack(device, m_CreateInfo);
-    const DeviceQueues& queues = device.GetQueues();
+    const DeviceQueues& queues = Driver::GetDevice().GetQueues();
     m_CreateInfo.QueueFamily = queues.GetFamilyByKind(queueKind);
     
     return *this;
@@ -107,16 +106,15 @@ CommandPool CommandPool::Create(const Builder::CreateInfo& createInfo)
     poolCreateInfo.flags = createInfo.Flags;
     poolCreateInfo.queueFamilyIndex = createInfo.QueueFamily;
 
-    VulkanCheck(vkCreateCommandPool(createInfo.Device, &poolCreateInfo, nullptr, &commandPool.m_CommandPool),
+    VulkanCheck(vkCreateCommandPool(Driver::DeviceHandle(), &poolCreateInfo, nullptr, &commandPool.m_CommandPool),
         "Failed to create command pool");
-    commandPool.m_Device = createInfo.Device;
     
     return commandPool;
 }
 
 void CommandPool::Destroy(const CommandPool& commandPool)
 {
-    vkDestroyCommandPool(commandPool.m_Device, commandPool.m_CommandPool, nullptr);
+    vkDestroyCommandPool(Driver::DeviceHandle(), commandPool.m_CommandPool, nullptr);
 }
 
 CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)

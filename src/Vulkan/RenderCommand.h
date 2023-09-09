@@ -7,6 +7,7 @@
 #include "types.h"
 #include "VulkanCommon.h"
 
+class DescriptorSet;
 class PushConstantDescription;
 class Buffer;
 class Pipeline;
@@ -22,8 +23,8 @@ class RenderCommand
 public:
     static VkResult WaitForFence(const Fence& fence);
     static VkResult ResetFence(const Fence& fence);
-    static VkResult AcquireNextImage(const Swapchain& swapchain, const Semaphore& semaphore, u32& imageIndex);
-    static VkResult Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const Semaphore& semaphore, u32 imageIndex);
+    static VkResult AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex);
+    static VkResult Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex);
     static VkResult ResetCommandBuffer(const CommandBuffer& cmd);
     static VkResult BeginCommandBuffer(const CommandBuffer& cmd);
     static VkResult EndCommandBuffer(const CommandBuffer& cmd);
@@ -33,9 +34,13 @@ public:
         const Framebuffer& framebuffer, const std::vector<VkClearValue>& clearValues);
     static void EndRenderPass(const CommandBuffer& cmd);
 
+    static void BindBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
-
-    static void Draw(const CommandBuffer& cmd, u32 vertexCount, const Buffer& buffer, u64 offset = 0);
+    static void BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+        const Pipeline& pipeline, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
+    
+    static void Draw(const CommandBuffer& cmd, u32 vertexCount);
+    static void Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance);
 
     static void PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
         const PushConstantDescription& description);

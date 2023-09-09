@@ -8,6 +8,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+class DescriptorSetLayout;
 class PushConstantDescription;
 class CommandBuffer;
 class RenderPass;
@@ -27,7 +28,6 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            VkDevice Device{VK_NULL_HANDLE};
             VkRenderPass RenderPass{VK_NULL_HANDLE};
             std::vector<VkPipelineShaderStageCreateInfo> Shaders;
             std::vector<VkShaderModule> ShaderModules;
@@ -43,6 +43,7 @@ public:
             VkPipelineColorBlendStateCreateInfo ColorBlendState;
             VkPipelineLayoutCreateInfo PipelineLayout;
             std::vector<VkPushConstantRange> PushConstantRanges;
+            std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
         };
         struct ShaderModuleData
         {
@@ -56,6 +57,7 @@ public:
         Builder& FixedFunctionDefaults();
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
         Builder& AddPushConstant(const PushConstantDescription& description);
+        Builder& AddDescriptorLayout(const DescriptorSetLayout& layout);
     private:
         void FinishShaders();
         void FinishFixedFunction();
@@ -70,7 +72,9 @@ public:
     static void Destroy(const Pipeline& pipeline);
     void Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint);
 private:
+    u32 FindDescriptorSetLayout(VkDescriptorSetLayout layout) const;
+private:
     VkPipeline m_Pipeline{VK_NULL_HANDLE};
     VkPipelineLayout m_Layout{VK_NULL_HANDLE};
-    VkDevice m_Device{VK_NULL_HANDLE};
+    std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
 };

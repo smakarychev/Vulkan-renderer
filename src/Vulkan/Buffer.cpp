@@ -1,33 +1,25 @@
 ﻿#include "Buffer.h"
 
 #include "Driver.h"
+#include "RenderCommand.h"
+#include "VulkanUtils.h"
 
 namespace
 {
-    VkBufferUsageFlags vkBufferUsageByKind(BufferKind kind)
-    {
-        switch (kind) {
-        case BufferKind::Vertex:    return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        case BufferKind::Index:     return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        default:
-            ASSERT(false, "Unrecognized buffer kind")
-            break;
-        }
-        std::unreachable();
-    }
+    
 }
 
 Buffer Buffer::Builder::Build()
 {
     Buffer buffer = Buffer::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([buffer](){ Buffer::Destroy(buffer); });
+    Driver::DeletionQueue().AddDeleter([buffer](){ Buffer::Destroy(buffer); });
 
     return buffer;
 }
 
 Buffer::Builder& Buffer::Builder::SetKind(BufferKind kind)
 {
-    m_CreateInfo.UsageFlags |= vkBufferUsageByKind(kind);
+    m_CreateInfo.UsageFlags |= vkUtils::vkBufferUsageByKind(kind);
     m_CreateInfo.Kind = kind;
     
     return *this;
@@ -59,25 +51,40 @@ Buffer Buffer::Create(const Builder::CreateInfo& createInfo)
     VmaAllocationCreateInfo allocationCreateInfo = {};
     allocationCreateInfo.usage = createInfo.MemoryUsage;
 
-    VulkanCheck(vmaCreateBuffer(Driver::s_Allocator, &bufferCreateInfo, &allocationCreateInfo, &buffer.m_Buffer, &buffer.m_Allocation, nullptr),
+    VulkanCheck(vmaCreateBuffer(Driver::Allocator(), &bufferCreateInfo, &allocationCreateInfo, &buffer.m_Buffer, &buffer.m_Allocation, nullptr),
         "Failed to create a buffer");
 
     buffer.m_Kind = createInfo.Kind;
+    buffer.m_SizeBytes = createInfo.SizeBytes;
 
     return buffer;
 }
 
 void Buffer::Destroy(const Buffer& buffer)
 {
-    vmaDestroyBuffer(Driver::s_Allocator, buffer.m_Buffer, buffer.m_Allocation);
+    vmaDestroyBuffer(Driver::Allocator(), buffer.m_Buffer, buffer.m_Allocation);
+}
+
+void Buffer::Bind(const CommandBuffer& commandBuffer, u64 offset) const
+{
+    RenderCommand::BindBuffer(commandBuffer, *this, offset);
 }
 
 void Buffer::SetData(const void* data, u64 dataSizeBytes)
 {
     void* mappedData = nullptr;
-    vmaMapMemory(Driver::s_Allocator, m_Allocation, &mappedData);
+    vmaMapMemory(Driver::Allocator(), m_Allocation, &mappedData);
     std::memcpy(mappedData, data, dataSizeBytes);
-    vmaUnmapMemory(Driver::s_Allocator, m_Allocation);
+    vmaUnmapMemory(Driver::Allocator(), m_Allocation);
+}
+
+void Buffer::SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes)
+{
+    void* mappedData = nullptr;
+    vmaMapMemory(Driver::Allocator(), m_Allocation, &mappedData);
+    mappedData = (void*)((u8*)mappedData + offsetBytes);
+    std::memcpy(mappedData, data, dataSizeBytes);
+    vmaUnmapMemory(Driver::Allocator(), m_Allocation);
 }
 
 PushConstantDescription PushConstantDescription::Builder::Build()

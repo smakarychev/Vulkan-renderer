@@ -9,7 +9,7 @@ Device Device::Builder::Build()
 {
     ASSERT(m_CreateInfo.Window, "Window is unset")
     Device device = Device::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([device](){ Device::Destroy(device); });
+    Driver::DeletionQueue().AddDeleter([device](){ Device::Destroy(device); });
 
     return device;
 }
@@ -92,7 +92,7 @@ void Device::CreateInstance(const CreateInfo& createInfo)
     instanceCreateInfo.ppEnabledLayerNames = createInfo.InstanceValidationLayers.data();
 #else
     bool isEveryValidationLayerSupported = true;
-    instancecreateInfo.Base->enabledLayerCount = 0;
+    instanceCreateInfo.enabledLayerCount = 0;
 #endif
     ASSERT(isEveryExtensionSupported && isEveryValidationLayerSupported,
         "Failed to create instance")
@@ -124,8 +124,9 @@ void Device::ChooseGPU(const CreateInfo& createInfo)
             break;
         }
     }
-
+    
     ASSERT(m_GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
+    vkGetPhysicalDeviceProperties(m_GPU, &m_GPUProperties);
 }
 
 void Device::CreateDevice(const CreateInfo& createInfo)
@@ -141,11 +142,15 @@ void Device::CreateDevice(const CreateInfo& createInfo)
         queueCreateInfos[i].pQueuePriorities = &queuePriority; 
     }
 
+    VkPhysicalDeviceVulkan11Features vulkan11Features = {};
+    vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    vulkan11Features.shaderDrawParameters = VK_TRUE;
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.pNext = &vulkan11Features;
     deviceCreateInfo.queueCreateInfoCount = (u32)queueCreateInfos.size();
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
     deviceCreateInfo.enabledExtensionCount = (u32)createInfo.DeviceExtensions.size();
@@ -218,10 +223,16 @@ SurfaceDetails Device::GetSurfaceDetails(VkPhysicalDevice gpu) const
 
 bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
 {
-    VkPhysicalDeviceFeatures features = {};
-    vkGetPhysicalDeviceFeatures(gpu, &features);
-
-    return features.samplerAnisotropy == VK_TRUE;
+    VkPhysicalDeviceShaderDrawParametersFeatures shaderFeatures = {};
+    shaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES;
+    
+    VkPhysicalDeviceFeatures2 features = {};
+    features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+    features.pNext = &shaderFeatures;
+    
+    vkGetPhysicalDeviceFeatures2(gpu, &features);
+    
+    return features.features.samplerAnisotropy == VK_TRUE && shaderFeatures.shaderDrawParameters == VK_TRUE;
 }
 
 bool Device::CheckInstanceExtensions(const CreateInfo& createInfo) const

@@ -16,7 +16,6 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            VkDevice Device;
             ImageData ImageData;
             VkFormat Format;
             VkExtent2D Extent;
@@ -27,8 +26,6 @@ public:
     public:
         Image Build();
         Builder& FromImageData(const ImageData& imageData);
-        Builder& SetDevice(const Device& device);
-        Builder& SetSwapchain(const Swapchain& swapchain);
         Builder& SetFormat(VkFormat format);
         Builder& SetExtent(VkExtent2D extent);
         Builder& SetUsage(VkImageUsageFlagBits imageUsage, VkImageAspectFlagBits imageAspect);
@@ -48,5 +45,4 @@ private:
 private:
     ImageData m_ImageData{};
     VmaAllocation m_Allocation{VK_NULL_HANDLE};
-    VkDevice m_Device{VK_NULL_HANDLE};
 };

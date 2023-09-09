@@ -7,7 +7,7 @@
 
 #include "Buffer.h"
 
-void DriverDeletionQueue::AddDeleter(const std::function<void()>& deleter)
+void DriverDeletionQueue::AddDeleter(std::function<void()>&& deleter)
 {
     m_Deleters.push_back(deleter);
 }
@@ -21,13 +21,11 @@ void DriverDeletionQueue::Flush()
     }
 }
 
-DriverDeletionQueue Driver::s_DeletionQueue = DriverDeletionQueue{};
-VmaAllocator Driver::s_Allocator = VmaAllocator{};
+DriverState Driver::s_State = DriverState{};
 
 void Driver::Unpack(const Device& device, Swapchain::Builder::CreateInfo& swapchainCreateInfo)
 {
     swapchainCreateInfo.Window = device.m_Window;
-    swapchainCreateInfo.Device = device.m_Device;
     swapchainCreateInfo.Surface = device.m_Surface;
     swapchainCreateInfo.Queues = &device.m_Queues;
 }
@@ -58,11 +56,6 @@ void Driver::Unpack(const AttachmentTemplate& attachment, Subpass::Builder::Crea
     
 }
 
-void Driver::Unpack(const Device& device, RenderPass::Builder::CreateInfo& renderPassCreateInfo)
-{
-    renderPassCreateInfo.Device = device.m_Device;
-}
-
 void Driver::Unpack(const Subpass& subpass, RenderPass::Builder::CreateInfo& renderPassCreateInfo)
 {
     VkSubpassDescription subpassDescription = {};
@@ -81,7 +74,6 @@ void Driver::Unpack(const Subpass& subpass, RenderPass::Builder::CreateInfo& ren
 
 void Driver::Unpack(const RenderPass& renderPass, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
 {
-    pipelineCreateInfo.Device = renderPass.m_Device;
     pipelineCreateInfo.RenderPass = renderPass.m_RenderPass;
 }
 
@@ -93,6 +85,11 @@ void Driver::Unpack(const PushConstantDescription& description, Pipeline::Builde
     pushConstantRange.stageFlags = description.m_StageFlags;
 
     pipelineCreateInfo.PushConstantRanges.push_back(pushConstantRange);
+}
+
+void Driver::Unpack(const DescriptorSetLayout& layout, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
+{
+    pipelineCreateInfo.DescriptorSetLayouts.push_back(layout.m_Layout);
 }
 
 void Driver::Unpack(const Attachment& attachment, Framebuffer::Builder::CreateInfo& framebufferCreateInfo)
@@ -115,54 +112,57 @@ void Driver::Unpack(const Attachment& attachment, Framebuffer::Builder::CreateIn
 void Driver::Unpack(const RenderPass& renderPass, Framebuffer::Builder::CreateInfo& framebufferCreateInfo)
 {
     framebufferCreateInfo.RenderPass = renderPass.m_RenderPass;
-    framebufferCreateInfo.Device = renderPass.m_Device;
-}
-
-void Driver::Unpack(const Device& device, CommandPool::Builder::CreateInfo& commandPoolCreateInfo)
-{
-    commandPoolCreateInfo.Device = device.m_Device;
 }
 
 void Driver::Unpack(const CommandPool& commandPool, CommandBuffer::Builder::CreateInfo& commandBufferCreateInfo)
 {
     commandBufferCreateInfo.CommandPool = commandPool.m_CommandPool;
-    commandBufferCreateInfo.Device = commandPool.m_Device;
 }
 
-void Driver::Unpack(const Device& device, Fence::Builder::CreateInfo& fenceCreateInfo)
+void Driver::Unpack(const DescriptorPool& pool, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    fenceCreateInfo.Device = device.m_Device;
+    descriptorSetCreateInfo.Pool = pool.m_Pool;
 }
 
-void Driver::Unpack(const Device& device, Semaphore::Builder::CreateInfo& semaphoreCreateInfo)
+void Driver::Unpack(const DescriptorSetLayout& layout, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    semaphoreCreateInfo.Device = device.m_Device;
+    descriptorSetCreateInfo.LayoutHandle = layout.m_Layout;
 }
 
-void Driver::Unpack(const Device& device, Image::Builder::CreateInfo& imageCreateInfo)
+void Driver::DescriptorSetBindBuffer(const DescriptorSet& descriptorSet, u32 slot, const Buffer& buffer, u64 sizeBytes, u64 offset)
 {
-    imageCreateInfo.Device = device.m_Device;
-}
+    VkDescriptorBufferInfo descriptorBufferInfo = {};
+    descriptorBufferInfo.buffer = buffer.m_Buffer;
+    descriptorBufferInfo.offset = offset;
+    descriptorBufferInfo.range = sizeBytes;
 
-void Driver::Unpack(const Swapchain& swapchain, Image::Builder::CreateInfo& imageCreateInfo)
-{
-    imageCreateInfo.Device = swapchain.m_Device;
+    VkWriteDescriptorSet writeDescriptors = {};
+    writeDescriptors.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptors.descriptorCount = 1;   
+    writeDescriptors.descriptorType = descriptorSet.GetLayout()->m_Descriptors[slot];
+    writeDescriptors.dstBinding = slot;
+    writeDescriptors.dstSet = descriptorSet.m_DescriptorSet;
+    writeDescriptors.pBufferInfo = &descriptorBufferInfo;
+
+    // suboptimal: better to delay until Bind()
+    vkUpdateDescriptorSets(DeviceHandle(), 1, &writeDescriptors, 0, nullptr);
 }
 
 void Driver::Init(const Device& device)
 {
+    s_State.Device = &device;
+    
     VmaAllocatorCreateInfo createInfo = {};
     createInfo.instance = device.m_Instance;
     createInfo.physicalDevice = device.m_GPU;
     createInfo.device = device.m_Device;
     
-    vmaCreateAllocator(&createInfo, &s_Allocator);
-
-    s_DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_Allocator); });
+    vmaCreateAllocator(&createInfo, &s_State.Allocator);
+    s_State.DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_State.Allocator); });
 }
 
-void Driver::Shutdown(const Device device)
+void Driver::Shutdown()
 {
-    vkDeviceWaitIdle(device.m_Device);
-    s_DeletionQueue.Flush();
+    vkDeviceWaitIdle(DeviceHandle());
+    s_State.DeletionQueue.Flush();
 }

@@ -50,4 +50,28 @@ namespace vkUtils
 
         return imageView;
     }
+
+    inline VkBufferUsageFlags vkBufferUsageByKind(BufferKind kind)
+    {
+        switch (kind)
+        {
+        case BufferKind::Vertex:    return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        case BufferKind::Index:     return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        case BufferKind::Uniform:   return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        case BufferKind::Storage:   return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        default:
+            ASSERT(false, "Unrecognized buffer kind")
+            break;
+        }
+        std::unreachable();
+    }
+
+    inline u64 alignUniformBufferSizeBytes(u64 sizeBytes)
+    {
+        u64 alignment = Driver::GetUniformBufferAlignment();
+        u64 mask = alignment - 1;
+        if (alignment != 0) // intel gpu has 0 alignment
+            return (sizeBytes + mask) & ~mask;
+        return sizeBytes;
+    }
 }

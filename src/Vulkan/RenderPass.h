@@ -62,11 +62,9 @@ public:
             std::vector<VkSubpassDescription> Subpasses;
             std::vector<VkSubpassDependency> SubpassDependencies;
             std::vector<VkAttachmentDescription> Attachments;
-            VkDevice Device;
         };
     public:
         RenderPass Build();
-        Builder& SetDevice(const Device& device);
         Builder& AddSubpass(const Subpass& subpass);
         Builder& AddSubpassDependency(u32 source, const Subpass& destination, const SubpassDependencyInfo& dependencyInfo);
     private:
@@ -83,5 +81,4 @@ public:
     void End(const CommandBuffer& commandBuffer);
 private:
     VkRenderPass m_RenderPass{VK_NULL_HANDLE};
-    VkDevice m_Device{VK_NULL_HANDLE};
 };

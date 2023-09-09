@@ -9,7 +9,7 @@ Image Image::Builder::Build()
     ASSERT(!m_RequiresAllocation || !m_IsImageDataSet, "Image created from exisiting `ImageData` is immutable")
     m_CreateInfo.IsFromImageData = m_IsImageDataSet;
     Image image = Image::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([image](){ Image::Destroy(image); });
+    Driver::DeletionQueue().AddDeleter([image](){ Image::Destroy(image); });
 
     return image;
 }
@@ -19,20 +19,6 @@ Image::Builder& Image::Builder::FromImageData(const ImageData& imageData)
     m_CreateInfo.ImageData = imageData;
     m_RequiresAllocation = false;
     m_IsImageDataSet = true;
-
-    return *this;
-}
-
-Image::Builder& Image::Builder::SetDevice(const Device& device)
-{
-    Driver::Unpack(device, m_CreateInfo);
-
-    return *this;
-}
-
-Image::Builder& Image::Builder::SetSwapchain(const Swapchain& swapchain)
-{
-    Driver::Unpack(swapchain, m_CreateInfo);
 
     return *this;
 }
@@ -78,8 +64,8 @@ void Image::Destroy(const Image& image)
 {
     if (image.m_Allocation != VK_NULL_HANDLE)
     {
-        vkDestroyImageView(image.m_Device, image.m_ImageData.View, nullptr);
-        vmaDestroyImage(Driver::s_Allocator, image.m_ImageData.Image, image.m_Allocation);
+        vkDestroyImageView(Driver::DeviceHandle(), image.m_ImageData.View, nullptr);
+        vmaDestroyImage(Driver::Allocator(), image.m_ImageData.Image, image.m_Allocation);
     }
 }
 
@@ -89,7 +75,6 @@ Image Image::AllocateImage(const CreateInfo& createInfo)
 
     image.m_ImageData.Width = createInfo.Extent.width;
     image.m_ImageData.Height = createInfo.Extent.height;
-    image.m_Device = createInfo.Device;
     
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -106,10 +91,10 @@ Image Image::AllocateImage(const CreateInfo& createInfo)
     allocationInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     allocationInfo.requiredFlags = (VkMemoryPropertyFlags)VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
-    VulkanCheck(vmaCreateImage(Driver::s_Allocator, &imageCreateInfo, &allocationInfo, &image.m_ImageData.Image, &image.m_Allocation, nullptr),
+    VulkanCheck(vmaCreateImage(Driver::Allocator(), &imageCreateInfo, &allocationInfo, &image.m_ImageData.Image, &image.m_Allocation, nullptr),
         "Failed to create image");
 
-    image.m_ImageData.View = vkUtils::createImageView(createInfo.Device, image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, 1);
+    image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, 1);
 
     return image;
 }

@@ -2,6 +2,7 @@
 
 #include "Buffer.h"
 #include "CommandBuffer.h"
+#include "Driver.h"
 #include "Pipeline.h"
 #include "RenderPass.h"
 #include "Swapchain.h"
@@ -9,20 +10,20 @@
 
 VkResult RenderCommand::WaitForFence(const Fence& fence)
 {
-    return vkWaitForFences(fence.m_Device, 1, &fence.m_Fence, true, 1'000'000'000);
+    return vkWaitForFences(Driver::DeviceHandle(), 1, &fence.m_Fence, true, 1'000'000'000);
 }
 
 VkResult RenderCommand::ResetFence(const Fence& fence)
 {
-    return vkResetFences(fence.m_Device, 1, &fence.m_Fence);
+    return vkResetFences(Driver::DeviceHandle(), 1, &fence.m_Fence);
 }
 
-VkResult RenderCommand::AcquireNextImage(const Swapchain& swapchain, const Semaphore& semaphore, u32& imageIndex)
+VkResult RenderCommand::AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex)
 {
-    return vkAcquireNextImageKHR(swapchain.m_Device, swapchain.m_Swapchain, 1'000'000'000, semaphore.m_Semaphore, VK_NULL_HANDLE, &imageIndex);
+    return vkAcquireNextImageKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, 1'000'000'000, swapchainFrameSync.PresentSemaphore.m_Semaphore, VK_NULL_HANDLE, &imageIndex);
 }
 
-VkResult RenderCommand::Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const Semaphore& semaphore, u32 imageIndex)
+VkResult RenderCommand::Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex)
 {
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -30,7 +31,7 @@ VkResult RenderCommand::Present(const Swapchain& swapchain, const QueueInfo& que
     presentInfo.pSwapchains = &swapchain.m_Swapchain;
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &semaphore.m_Semaphore;
+    presentInfo.pWaitSemaphores = &swapchainFrameSync.RenderSemaphore.m_Semaphore;
 
     return vkQueuePresentKHR(queueInfo.Queue, &presentInfo);
 }
@@ -91,20 +92,39 @@ void RenderCommand::EndRenderPass(const CommandBuffer& cmd)
     vkCmdEndRenderPass(cmd.m_CommandBuffer);
 }
 
+void RenderCommand::BindBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+{
+    VkDeviceSize bufferOffset = offset;
+    vkCmdBindVertexBuffers(cmd.m_CommandBuffer, 0, 1, &buffer.m_Buffer, &bufferOffset);
+}
+
 void RenderCommand::BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint)
 {
     vkCmdBindPipeline(cmd.m_CommandBuffer, bindPoint, pipeline.m_Pipeline);
 }
 
-void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount, const Buffer& buffer, u64 offset)
+void RenderCommand::BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+    const Pipeline& pipeline, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets)
 {
-    VkDeviceSize bufferOffset = offset;
-    vkCmdBindVertexBuffers(cmd.m_CommandBuffer, 0, 1, &buffer.m_Buffer, &bufferOffset);
+    vkCmdBindDescriptorSets(cmd.m_CommandBuffer,
+        bindPoint, pipeline.m_Layout,
+        pipeline.FindDescriptorSetLayout(descriptorSet.m_Layout->m_Layout), 1,
+        &descriptorSet.m_DescriptorSet,
+        (u32)dynamicOffsets.size(), dynamicOffsets.data());
+}
+
+void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount)
+{
     vkCmdDraw(cmd.m_CommandBuffer, vertexCount, 1, 0, 0);
 }
 
+void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance)
+{
+    vkCmdDraw(cmd.m_CommandBuffer, vertexCount, 1, 0, baseInstance);
+}
+
 void RenderCommand::PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
-    const PushConstantDescription& description)
+                                  const PushConstantDescription& description)
 {
     vkCmdPushConstants(cmd.m_CommandBuffer, pipeline.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
 }

@@ -13,7 +13,7 @@ Swapchain Swapchain::Builder::Build()
     m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
     m_CreateInfo.FrameSyncs = CreateSynchronizationStructures();
     Swapchain swapchain = Swapchain::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([swapchain](){ Swapchain::Destroy(swapchain); });
+    Driver::DeletionQueue().AddDeleter([swapchain](){ Swapchain::Destroy(swapchain); });
 
     return swapchain;
 }
@@ -42,7 +42,6 @@ Swapchain::Builder& Swapchain::Builder::FromDetails(const SurfaceDetails& detail
 
     createInfo.PresentMode = utils::getIntersectionOrDefault(m_CreateInfoHint.DesiredPresentModes, details.PresentModes,
         [](VkPresentModeKHR des, VkPresentModeKHR avail) { return des == avail; });
-
     
     createInfo.Extent = ChooseExtent(details.Capabilities);
 
@@ -56,7 +55,6 @@ Swapchain::Builder& Swapchain::Builder::FromDetails(const SurfaceDetails& detail
 Swapchain::Builder& Swapchain::Builder::SetDevice(const Device& device)
 {
     Driver::Unpack(device, m_CreateInfo);
-    m_Device = &device;
     
     return *this;
 }
@@ -94,15 +92,9 @@ std::vector<SwapchainFrameSync> Swapchain::Builder::CreateSynchronizationStructu
     for (u32 i = 0; i < m_BufferedFrames; i++)
     {
         Fence renderFence = Fence::Builder().
-            SetDevice(*m_Device).
-            StartSignaled(true).
-            Build();
-        Semaphore renderSemaphore = Semaphore::Builder().
-            SetDevice(*m_Device).
-            Build();
-        Semaphore presentSemaphore = Semaphore::Builder().
-            SetDevice(*m_Device).
-            Build();
+            StartSignaled(true).Build();
+        Semaphore renderSemaphore = Semaphore::Builder().Build();
+        Semaphore presentSemaphore = Semaphore::Builder().Build();
 
         swapchainFrameSyncs.push_back({
             .RenderFence = renderFence,
@@ -148,9 +140,8 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
     swapchainCreateInfo.clipped = VK_TRUE;
     swapchainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
 
-    VulkanCheck(vkCreateSwapchainKHR(createInfo.Device, &swapchainCreateInfo, nullptr, &swapchain.m_Swapchain),
+    VulkanCheck(vkCreateSwapchainKHR(Driver::DeviceHandle(), &swapchainCreateInfo, nullptr, &swapchain.m_Swapchain),
         "Failed to create swapchain");
-    swapchain.m_Device = createInfo.Device;
     swapchain.m_Extent = extent;
     swapchain.m_ColorFormat = createInfo.ColorFormat.format;
     swapchain.m_DepthFormat = createInfo.DepthStencilFormat;
@@ -165,46 +156,44 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
 void Swapchain::Destroy(const Swapchain& swapchain)
 {
     for (u32 i = 0; i < swapchain.m_ColorImages.size(); i++)
-        vkDestroyImageView(swapchain.m_Device, swapchain.m_ColorImages[i].GetImageData().View, nullptr);
-    vkDestroySwapchainKHR(swapchain.m_Device, swapchain.m_Swapchain, nullptr);
+        vkDestroyImageView(Driver::DeviceHandle(), swapchain.m_ColorImages[i].GetImageData().View, nullptr);
+    vkDestroySwapchainKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, nullptr);
 }
 
-u32 Swapchain::AcquireImage()
+u32 Swapchain::AcquireImage(u32 frameNumber)
 {
-    // todo: fix for multiple buffered frames
-    VulkanCheck(RenderCommand::WaitForFence(m_SwapchainFrameSync.front().RenderFence),
+    VulkanCheck(RenderCommand::WaitForFence(m_SwapchainFrameSync[frameNumber].RenderFence),
         "Error while waiting for fences");
-    VulkanCheck(RenderCommand::ResetFence(m_SwapchainFrameSync.front().RenderFence),
+    VulkanCheck(RenderCommand::ResetFence(m_SwapchainFrameSync[frameNumber].RenderFence),
         "Error while resetting fences");
     u32 imageIndex;
-    VulkanCheck(RenderCommand::AcquireNextImage(*this, m_SwapchainFrameSync.front().PresentSemaphore, imageIndex),
+    VulkanCheck(RenderCommand::AcquireNextImage(*this, m_SwapchainFrameSync[frameNumber], imageIndex),
         "Failed to acquire new swapchain image");
 
     return imageIndex;
 }
 
-void Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex)
+void Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber)
 {
-    VulkanCheck(RenderCommand::Present(*this, queueInfo, m_SwapchainFrameSync.front().RenderSemaphore, imageIndex),
+    VulkanCheck(RenderCommand::Present(*this, queueInfo, m_SwapchainFrameSync[frameNumber], imageIndex),
         "Failed to present image");
 }
 
-const SwapchainFrameSync& Swapchain::GetFrameSync() const
+const SwapchainFrameSync& Swapchain::GetFrameSync(u32 frameNumber) const
 {
-    // todo: fix for multiple buffered frames
-    return m_SwapchainFrameSync.front();
+    return m_SwapchainFrameSync[frameNumber];
 }
 
 std::vector<Image> Swapchain::CreateColorImages() const
 {
     u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(Driver::DeviceHandle(), m_Swapchain, &imageCount, nullptr);
     std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(m_Device, m_Swapchain, &imageCount, images.data());
+    vkGetSwapchainImagesKHR(Driver::DeviceHandle(), m_Swapchain, &imageCount, images.data());
 
     std::vector<VkImageView> imageViews(imageCount);
     for (u32 i = 0; i < imageCount; i++)
-        imageViews[i] = vkUtils::createImageView(m_Device, images[i], m_ColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
+        imageViews[i] = vkUtils::createImageView(Driver::DeviceHandle(), images[i], m_ColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
 
     std::vector<Image> colorImages(imageCount);
     for (u32 i = 0; i < imageCount; i++)
@@ -226,7 +215,6 @@ std::vector<Image> Swapchain::CreateColorImages() const
 Image Swapchain::CreateDepthImage()
 {
     Image depth = Image::Builder().
-        SetSwapchain(*this).
         SetExtent(m_Extent).
         SetFormat(m_DepthFormat).
         SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT).

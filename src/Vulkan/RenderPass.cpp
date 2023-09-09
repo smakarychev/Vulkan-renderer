@@ -44,16 +44,9 @@ RenderPass RenderPass::Builder::Build()
 {
     FinishSubpasses();
     RenderPass renderPass =  RenderPass::Create(m_CreateInfo);
-    Driver::s_DeletionQueue.AddDeleter([renderPass](){ RenderPass::Destroy(renderPass); });
+    Driver::DeletionQueue().AddDeleter([renderPass](){ RenderPass::Destroy(renderPass); });
 
     return renderPass;
-}
-
-RenderPass::Builder& RenderPass::Builder::SetDevice(const Device& device)
-{
-    Driver::Unpack(device, m_CreateInfo);
-    
-    return *this;
 }
 
 RenderPass::Builder& RenderPass::Builder::AddSubpass(const Subpass& subpass)
@@ -101,17 +94,15 @@ RenderPass RenderPass::Create(const Builder::CreateInfo& createInfo)
     renderPassCreateInfo.dependencyCount = (u32)createInfo.SubpassDependencies.size();
     renderPassCreateInfo.pDependencies = createInfo.SubpassDependencies.data();
 
-    VulkanCheck(vkCreateRenderPass(createInfo.Device, &renderPassCreateInfo, nullptr, &renderPass.m_RenderPass),
+    VulkanCheck(vkCreateRenderPass(Driver::DeviceHandle(), &renderPassCreateInfo, nullptr, &renderPass.m_RenderPass),
         "Failed to create render pass");
-
-    renderPass.m_Device = createInfo.Device;
     
     return renderPass;
 }
 
 void RenderPass::Destroy(const RenderPass& renderPass)
 {
-    vkDestroyRenderPass(renderPass.m_Device, renderPass.m_RenderPass, nullptr);
+    vkDestroyRenderPass(Driver::DeviceHandle(), renderPass.m_RenderPass, nullptr);
 }
 
 void RenderPass::Begin(const CommandBuffer& commandBuffer, const Framebuffer& framebuffer, const std::vector<VkClearValue>& clearValues)
