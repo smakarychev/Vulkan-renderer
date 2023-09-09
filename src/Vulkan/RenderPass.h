@@ -65,6 +65,7 @@ public:
         };
     public:
         RenderPass Build();
+        RenderPass BuildManualLifetime();
         Builder& AddSubpass(const Subpass& subpass);
         Builder& AddSubpassDependency(u32 source, const Subpass& destination, const SubpassDependencyInfo& dependencyInfo);
     private:

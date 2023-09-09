@@ -10,7 +10,7 @@
 
 VkResult RenderCommand::WaitForFence(const Fence& fence)
 {
-    return vkWaitForFences(Driver::DeviceHandle(), 1, &fence.m_Fence, true, 1'000'000'000);
+    return vkWaitForFences(Driver::DeviceHandle(), 1, &fence.m_Fence, true, 10'000'000'000);
 }
 
 VkResult RenderCommand::ResetFence(const Fence& fence)
@@ -20,7 +20,7 @@ VkResult RenderCommand::ResetFence(const Fence& fence)
 
 VkResult RenderCommand::AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex)
 {
-    return vkAcquireNextImageKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, 1'000'000'000, swapchainFrameSync.PresentSemaphore.m_Semaphore, VK_NULL_HANDLE, &imageIndex);
+    return vkAcquireNextImageKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, 10'000'000'000, swapchainFrameSync.PresentSemaphore.m_Semaphore, VK_NULL_HANDLE, &imageIndex);
 }
 
 VkResult RenderCommand::Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex)
@@ -34,6 +34,11 @@ VkResult RenderCommand::Present(const Swapchain& swapchain, const QueueInfo& que
     presentInfo.pWaitSemaphores = &swapchainFrameSync.RenderSemaphore.m_Semaphore;
 
     return vkQueuePresentKHR(queueInfo.Queue, &presentInfo);
+}
+
+VkResult RenderCommand::ResetPool(const CommandPool& pool)
+{
+    return vkResetCommandPool(Driver::DeviceHandle(), pool.m_CommandPool, 0);
 }
 
 VkResult RenderCommand::ResetCommandBuffer(const CommandBuffer& cmd)
@@ -73,6 +78,18 @@ VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const Queu
     return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, swapchainFrameSync.RenderFence.m_Fence);
 }
 
+VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence)
+{
+    VkSubmitInfo  submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd.m_CommandBuffer;
+    submitInfo.waitSemaphoreCount = 0;
+    submitInfo.signalSemaphoreCount = 0;
+
+    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, fence.m_Fence);
+}
+
 void RenderCommand::BeginRenderPass(const CommandBuffer& cmd, const RenderPass& renderPass,
                                     const Framebuffer& framebuffer, const std::vector<VkClearValue>& clearValues)
 {
@@ -90,6 +107,16 @@ void RenderCommand::BeginRenderPass(const CommandBuffer& cmd, const RenderPass& 
 void RenderCommand::EndRenderPass(const CommandBuffer& cmd)
 {
     vkCmdEndRenderPass(cmd.m_CommandBuffer);
+}
+
+void RenderCommand::CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination)
+{
+    VkBufferCopy copy = {};
+    copy.size = source.GetSizeBytes();
+    copy.srcOffset = 0;
+    copy.dstOffset = 0;
+
+    vkCmdCopyBuffer(cmd.m_CommandBuffer, source.m_Buffer, destination.m_Buffer, 1, &copy);
 }
 
 void RenderCommand::BindBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)

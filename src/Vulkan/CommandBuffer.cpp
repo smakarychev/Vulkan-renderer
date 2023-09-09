@@ -54,20 +54,30 @@ CommandBuffer CommandBuffer::Create(const Builder::CreateInfo& createInfo)
     return commandBuffer;
 }
 
-void CommandBuffer::Begin()
+void CommandBuffer::Reset() const
 {
     VulkanCheck(RenderCommand::ResetCommandBuffer(*this), "Failed to reset command buffer");
+}
+
+void CommandBuffer::Begin() const
+{
     VulkanCheck(RenderCommand::BeginCommandBuffer(*this), "Failed to begin command buffer");
 }
 
-void CommandBuffer::End()
+void CommandBuffer::End() const
 {
     VulkanCheck(RenderCommand::EndCommandBuffer(*this), "Failed to end command buffer");
 }
 
-void CommandBuffer::Submit(const QueueInfo& queueInfo, const SwapchainFrameSync& frameSync)
+void CommandBuffer::Submit(const QueueInfo& queueInfo, const SwapchainFrameSync& frameSync) const
 {
     VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, frameSync),
+        "Failed while submitting command buffer");
+}
+
+void CommandBuffer::Submit(const QueueInfo& queueInfo, const Fence& fence) const
+{
+    VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, fence),
         "Failed while submitting command buffer");
 }
 
@@ -77,6 +87,11 @@ CommandPool CommandPool::Builder::Build()
     Driver::DeletionQueue().AddDeleter([commandPool](){ CommandPool::Destroy(commandPool); });
 
     return commandPool;
+}
+
+CommandPool CommandPool::Builder::BuildManualLifetime()
+{
+    return CommandPool::Create(m_CreateInfo);
 }
 
 CommandPool::Builder& CommandPool::Builder::SetQueue(QueueKind queueKind)
@@ -125,4 +140,9 @@ CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
         Build();
 
     return buffer;
+}
+
+void CommandPool::Reset() const
+{
+    VulkanCheck(RenderCommand::ResetPool(*this), "Failed to reset command pool");
 }

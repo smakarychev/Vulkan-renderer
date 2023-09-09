@@ -55,10 +55,12 @@ namespace vkUtils
     {
         switch (kind)
         {
-        case BufferKind::Vertex:    return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        case BufferKind::Index:     return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        case BufferKind::Uniform:   return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        case BufferKind::Storage:   return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        case BufferKind::Vertex:        return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        case BufferKind::Index:         return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        case BufferKind::Uniform:       return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        case BufferKind::Storage:       return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        case BufferKind::Source:        return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        case BufferKind::Destination:   return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         default:
             ASSERT(false, "Unrecognized buffer kind")
             break;

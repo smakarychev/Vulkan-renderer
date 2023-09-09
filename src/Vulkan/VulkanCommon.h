@@ -16,7 +16,7 @@ struct VertexInputDescription
 };
 
 enum class QueueKind {Graphics, Presentation};
-enum class BufferKind{Vertex, Index, Uniform, Storage};
+enum class BufferKind{Vertex, Index, Uniform, Storage, Source, Destination};
 
 struct QueueInfo
 {

@@ -20,6 +20,7 @@ public:
     public:
         Builder& StartSignaled(bool isSignaled);
         Fence Build();
+        Fence BuildManualLifetime();
     private:
         CreateInfo m_CreateInfo;
     };
@@ -40,6 +41,7 @@ public:
         struct CreateInfo{};
     public:
         Semaphore Build();
+        Semaphore BuildManualLifetime();
     };
 public:
     static Semaphore Create(const Builder::CreateInfo& createInfo);

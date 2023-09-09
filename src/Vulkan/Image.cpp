@@ -14,6 +14,13 @@ Image Image::Builder::Build()
     return image;
 }
 
+Image Image::Builder::BuildManualLifetime()
+{
+    ASSERT(!m_RequiresAllocation || !m_IsImageDataSet, "Image created from exisiting `ImageData` is immutable")
+    m_CreateInfo.IsFromImageData = m_IsImageDataSet;
+    return Image::Create(m_CreateInfo);
+}
+
 Image::Builder& Image::Builder::FromImageData(const ImageData& imageData)
 {
     m_CreateInfo.ImageData = imageData;

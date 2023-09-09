@@ -63,6 +63,7 @@ public:
         };
     public:
         DescriptorPool Build();
+        DescriptorPool BuildManualLifetime();
         Builder& Defaults();
     private:
         CreateInfo m_CreateInfo;
@@ -90,6 +91,7 @@ public:
         };
     public:
         DescriptorSetLayout Build();
+        DescriptorSetLayout BuildManualLifetime();
         Builder& AddBinding(VkDescriptorType type, VkShaderStageFlags stage);
     private:
         CreateInfo m_CreateInfo;

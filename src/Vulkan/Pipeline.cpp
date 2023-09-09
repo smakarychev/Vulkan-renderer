@@ -48,6 +48,13 @@ Pipeline Pipeline::Builder::Build()
     return pipeline;
 }
 
+Pipeline Pipeline::Builder::BuildManualLifetime()
+{
+    FinishShaders();
+    FinishFixedFunction();
+    return Pipeline::Create(m_CreateInfo);
+}
+
 Pipeline::Builder& Pipeline::Builder::SetRenderPass(const RenderPass& renderPass)
 {
     Driver::Unpack(renderPass, m_CreateInfo);

@@ -87,6 +87,7 @@ void Renderer::BeginFrame()
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     m_SwapchainImageIndex = m_Swapchain.AcquireImage(frameNumber);
 
+    cmd.Reset();
     cmd.Begin();
     
     VkClearValue colorClear = {.color = {{0.1f, 0.1f, 0.1f, 1.0f}}};
@@ -172,6 +173,24 @@ void Renderer::PushConstants(const Pipeline& pipeline,const void* pushConstants,
     RenderCommand::PushConstants(cmd, pipeline, pushConstants, description);
 }
 
+void Renderer::UploadMesh(const Mesh& mesh)
+{
+    Buffer stageBuffer = Buffer::Builder().
+        SetKind(BufferKind::Source).
+        SetSizeBytes(mesh.GetBuffer().GetSizeBytes()).
+        SetMemoryUsage(VMA_MEMORY_USAGE_CPU_ONLY).
+        BuildManualLifetime();
+
+    stageBuffer.SetData(mesh.GetVertices().data(), mesh.GetVertices().size() * sizeof(Vertex3D));
+
+    Renderer::ImmediateUpload(m_Device.GetQueues().Graphics, m_UploadContext, [&](const CommandBuffer& cmd)
+    {
+        RenderCommand::CopyBuffer(cmd, stageBuffer, mesh.GetBuffer());
+    });
+    
+    Buffer::Destroy(stageBuffer);
+}
+
 void Renderer::Init()
 {
     glfwInit();
@@ -185,6 +204,12 @@ void Renderer::Init()
         Build();
 
     Driver::Init(m_Device);
+
+    m_UploadContext.CommandPool = CommandPool::Builder().
+        SetQueue(QueueKind::Graphics).
+        Build();
+    m_UploadContext.CommandBuffer = m_UploadContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
+    m_UploadContext.Fence = Fence::Builder().Build();
     
     m_Swapchain = Swapchain::Builder().
         DefaultHints().
@@ -320,6 +345,9 @@ void Renderer::LoadScene()
     Mesh bugatti = Mesh::LoadFromFile("assets/models/bugatti/bugatti.obj");
     Mesh mori = Mesh::LoadFromFile("assets/models/mori/mori.obj");
     Mesh viking_room = Mesh::LoadFromFile("assets/models/viking_room/viking_room.obj");
+    UploadMesh(bugatti);
+    UploadMesh(mori);
+    UploadMesh(viking_room);
     
     m_Scene.AddMaterial(defaultMaterial, "default");
     m_Scene.AddMaterial(greyMaterial, "grey");

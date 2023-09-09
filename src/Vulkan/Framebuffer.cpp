@@ -12,6 +12,12 @@ Framebuffer Framebuffer::Builder::Build()
     return framebuffer;
 }
 
+Framebuffer Framebuffer::Builder::BuildManualLifetime()
+{
+    ASSERT(!m_CreateInfo.Attachments.empty(), "Have to provide at least one attachment")
+    return Framebuffer::Create(m_CreateInfo);
+}
+
 Framebuffer::Builder& Framebuffer::Builder::SetRenderPass(const RenderPass& renderPass)
 {
     Driver::Unpack(renderPass, m_CreateInfo);

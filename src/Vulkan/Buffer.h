@@ -24,7 +24,9 @@ public:
         };
     public:
         Buffer Build();
+        Buffer BuildManualLifetime();
         Builder& SetKind(BufferKind kind); // all my buffers are kind
+        Builder& SetKinds(const std::vector<BufferKind>& kinds);
         Builder& SetMemoryUsage(VmaMemoryUsage usage);
         Builder& SetSizeBytes(u64 sizeBytes);
     private:

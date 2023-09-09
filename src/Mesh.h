@@ -42,6 +42,7 @@ public:
     void Upload();
     const Buffer& GetBuffer() const { return m_Buffer; }
     u32 GetVertexCount() const { return (u32)m_Vertices.size(); }
+    const std::vector<Vertex3D>& GetVertices() const { return m_Vertices; }
 private:
     std::vector<Vertex3D> m_Vertices;
     Buffer m_Buffer;

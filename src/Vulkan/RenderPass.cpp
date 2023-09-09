@@ -43,10 +43,16 @@ Subpass Subpass::Create(const Builder::CreateInfo& createInfo)
 RenderPass RenderPass::Builder::Build()
 {
     FinishSubpasses();
-    RenderPass renderPass =  RenderPass::Create(m_CreateInfo);
+    RenderPass renderPass = RenderPass::Create(m_CreateInfo);
     Driver::DeletionQueue().AddDeleter([renderPass](){ RenderPass::Destroy(renderPass); });
 
     return renderPass;
+}
+
+RenderPass RenderPass::Builder::BuildManualLifetime()
+{
+    FinishSubpasses();
+    return RenderPass::Create(m_CreateInfo);
 }
 
 RenderPass::Builder& RenderPass::Builder::AddSubpass(const Subpass& subpass)

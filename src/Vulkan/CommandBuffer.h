@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "VulkanCommon.h"
 
+class Fence;
 struct SwapchainFrameSync;
 class CommandPool;
 class Device;
@@ -30,10 +31,12 @@ public:
 public:
     static CommandBuffer Create(const Builder::CreateInfo& createInfo);
 
-    void Begin();
-    void End();
+    void Reset() const;
+    void Begin() const;
+    void End() const;
 
-    void Submit(const QueueInfo& queueInfo, const SwapchainFrameSync& frameSync);
+    void Submit(const QueueInfo& queueInfo, const SwapchainFrameSync& frameSync) const;
+    void Submit(const QueueInfo& queueInfo, const Fence& fence) const;
     
 private:
     VkCommandBuffer m_CommandBuffer{VK_NULL_HANDLE};
@@ -55,6 +58,7 @@ public:
         };
     public:
         CommandPool Build();
+        CommandPool BuildManualLifetime();
         Builder& SetQueue(QueueKind queueKind);
         Builder& PerBufferReset(bool enabled);
     private:
@@ -65,7 +69,7 @@ public:
     static void Destroy(const CommandPool& commandPool);
 
     CommandBuffer AllocateBuffer(CommandBufferKind kind);
-    
+    void Reset() const;
 private:
     VkCommandPool m_CommandPool{VK_NULL_HANDLE};
 };

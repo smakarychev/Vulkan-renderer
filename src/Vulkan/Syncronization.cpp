@@ -10,6 +10,11 @@ Fence Fence::Builder::Build()
     return fence;
 }
 
+Fence Fence::Builder::BuildManualLifetime()
+{
+    return Fence::Create(m_CreateInfo);
+}
+
 Fence::Builder& Fence::Builder::StartSignaled(bool isSignaled)
 {
     if (isSignaled)
@@ -19,7 +24,6 @@ Fence::Builder& Fence::Builder::StartSignaled(bool isSignaled)
 
     return *this;
 }
-
 
 Fence Fence::Create(const Builder::CreateInfo& createInfo)
 {
@@ -46,6 +50,11 @@ Semaphore Semaphore::Builder::Build()
     Driver::DeletionQueue().AddDeleter([semaphore](){ Semaphore::Destroy(semaphore); });
 
     return semaphore;
+}
+
+Semaphore Semaphore::Builder::BuildManualLifetime()
+{
+    return Semaphore::Create({});
 }
 
 Semaphore Semaphore::Create(const Builder::CreateInfo& createInfo)

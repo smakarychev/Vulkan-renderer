@@ -25,6 +25,7 @@ public:
         };
     public:
         Image Build();
+        Image BuildManualLifetime();
         Builder& FromImageData(const ImageData& imageData);
         Builder& SetFormat(VkFormat format);
         Builder& SetExtent(VkExtent2D extent);

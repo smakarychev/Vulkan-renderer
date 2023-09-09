@@ -26,6 +26,7 @@ public:
         };
     public:
         Framebuffer Build();
+        Framebuffer BuildManualLifetime();
         Builder& SetRenderPass(const RenderPass& renderPass);
         Builder& AddAttachment(const Attachment& attachment);
         Builder& SetAttachments(const std::vector<Attachment>& attachments);

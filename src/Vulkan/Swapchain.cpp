@@ -18,6 +18,13 @@ Swapchain Swapchain::Builder::Build()
     return swapchain;
 }
 
+Swapchain Swapchain::Builder::BuildManualLifetime()
+{
+    m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
+    m_CreateInfo.FrameSyncs = CreateSynchronizationStructures();
+    return Swapchain::Create(m_CreateInfo);
+}
+
 Swapchain::Builder& Swapchain::Builder::DefaultHints()
 {
     CreateInfoHint createInfoHint = {};
@@ -155,8 +162,8 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
 
 void Swapchain::Destroy(const Swapchain& swapchain)
 {
-    for (u32 i = 0; i < swapchain.m_ColorImages.size(); i++)
-        vkDestroyImageView(Driver::DeviceHandle(), swapchain.m_ColorImages[i].GetImageData().View, nullptr);
+    for (const auto& colorImage : swapchain.m_ColorImages)
+        vkDestroyImageView(Driver::DeviceHandle(), colorImage.GetImageData().View, nullptr);
     vkDestroySwapchainKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, nullptr);
 }
 

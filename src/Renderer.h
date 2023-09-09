@@ -8,6 +8,8 @@
 
 #include <array>
 
+#include "Vulkan/RenderCommand.h"
+
 // todo: should not be here obv
 struct CameraData
 {
@@ -50,6 +52,13 @@ struct ObjectDataSSBO
     std::array<ObjectData, MAX_OBJECTS> Objects;
 };
 
+struct UploadContext
+{
+    CommandPool CommandPool;
+    CommandBuffer CommandBuffer;
+    Fence Fence;
+};
+
 struct FrameContext
 {
     CommandPool CommandPool;
@@ -79,6 +88,11 @@ public:
     void SortScene(Scene& scene);
     void Submit(const Mesh& mesh);
     void PushConstants(const Pipeline& pipeline, const void* pushConstants, const PushConstantDescription& description);
+
+    void UploadMesh(const Mesh& mesh);
+    
+    template <typename Fn>
+    static void ImmediateUpload(const QueueInfo& queue, const UploadContext& uploadContext, Fn&& uploadFunction);
     
 private:
     void Init();
@@ -95,10 +109,12 @@ private:
     GLFWwindow* m_Window;
 
     Device m_Device;
+    UploadContext m_UploadContext;
     Swapchain m_Swapchain;
     RenderPass m_RenderPass;
     std::vector<Framebuffer> m_Framebuffers;
 
+    
     static constexpr u32 BUFFERED_FRAMES{2};
     u32 m_FrameNumber{0};
     u32 m_SwapchainImageIndex{0};
@@ -113,5 +129,26 @@ private:
     DescriptorPool m_DescriptorPool;
     DescriptorSetLayout m_GlobalDescriptorSetLayout;
     DescriptorSetLayout m_ObjectDescriptorSetLayout;
+
 };
+
+template <typename Fn>
+void Renderer::ImmediateUpload(const QueueInfo& queue, const UploadContext& uploadContext, Fn&& uploadFunction)
+{
+    const CommandBuffer& cmd = uploadContext.CommandBuffer;
+    cmd.Begin();
+
+    
+    uploadFunction(cmd);
+
+    
+    cmd.End();
+    
+    const Fence& fence = uploadContext.Fence;
+    cmd.Submit(queue, fence);
+    RenderCommand::WaitForFence(fence);
+    RenderCommand::ResetFence(fence);
+
+    uploadContext.CommandPool.Reset();
+}
 

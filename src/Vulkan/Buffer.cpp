@@ -17,11 +17,24 @@ Buffer Buffer::Builder::Build()
     return buffer;
 }
 
+Buffer Buffer::Builder::BuildManualLifetime()
+{
+    return Buffer::Create(m_CreateInfo);
+}
+
 Buffer::Builder& Buffer::Builder::SetKind(BufferKind kind)
 {
     m_CreateInfo.UsageFlags |= vkUtils::vkBufferUsageByKind(kind);
     m_CreateInfo.Kind = kind;
     
+    return *this;
+}
+
+Buffer::Builder& Buffer::Builder::SetKinds(const std::vector<BufferKind>& kinds)
+{
+    for (auto& kind : kinds)
+        SetKind(kind);
+
     return *this;
 }
 

@@ -52,6 +52,7 @@ public:
         };
     public:
         Swapchain Build();
+        Swapchain BuildManualLifetime();
         Builder& DefaultHints();
         Builder& FromDetails(const SurfaceDetails& details);
         Builder& SetDevice(const Device& device);

@@ -52,6 +52,7 @@ public:
         };
     public:
         Pipeline Build();
+        Pipeline BuildManualLifetime();
         Builder& SetRenderPass(const RenderPass& renderPass);
         Builder& AddShader(ShaderKind shaderKind, std::string_view shaderPath);
         Builder& FixedFunctionDefaults();

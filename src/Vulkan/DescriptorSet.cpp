@@ -11,6 +11,11 @@ DescriptorPool DescriptorPool::Builder::Build()
     return pool;
 }
 
+DescriptorPool DescriptorPool::Builder::BuildManualLifetime()
+{
+    return DescriptorPool::Create(m_CreateInfo);
+}
+
 DescriptorPool::Builder& DescriptorPool::Builder::Defaults()
 {
     m_CreateInfo.Sizes = {
@@ -60,6 +65,11 @@ DescriptorSetLayout DescriptorSetLayout::Builder::Build()
     Driver::DeletionQueue().AddDeleter([layout](){ DescriptorSetLayout::Destroy(layout); });
 
     return layout;
+}
+
+DescriptorSetLayout DescriptorSetLayout::Builder::BuildManualLifetime()
+{
+    return DescriptorSetLayout::Create(m_CreateInfo);
 }
 
 DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::AddBinding(VkDescriptorType type, VkShaderStageFlags stage)

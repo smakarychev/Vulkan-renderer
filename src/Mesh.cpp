@@ -2,6 +2,8 @@
 
 #include <tiny_obj_loader.h>
 
+#include "Renderer.h"
+
 VertexInputDescription Vertex3D::GetInputDescription()
 {
     VertexInputDescription inputDescription = {};
@@ -53,12 +55,10 @@ Mesh::Mesh(const std::vector<Vertex3D>& vertices)
     u64 sizeBytes = vertices.size() * sizeof(Vertex3D);
 
     m_Buffer = Buffer::Builder().
-        SetKind(BufferKind::Vertex).
+        SetKinds({BufferKind::Vertex, BufferKind::Destination}).
         SetSizeBytes(sizeBytes).
-        SetMemoryUsage(VMA_MEMORY_USAGE_CPU_TO_GPU).
+        SetMemoryUsage(VMA_MEMORY_USAGE_GPU_ONLY).
         Build();
-
-    m_Buffer.SetData(vertices.data(), sizeBytes);
 }
 
 Mesh Mesh::LoadFromFile(std::string_view filePath)
@@ -101,5 +101,5 @@ Mesh Mesh::LoadFromFile(std::string_view filePath)
 
 void Mesh::Upload()
 {
-    m_Buffer.SetData(m_Vertices.data(), m_Vertices.size() * sizeof(Vertex3D));
+    
 }

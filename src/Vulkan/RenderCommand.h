@@ -3,10 +3,11 @@
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan_core.h>
 
-#include "CommandBuffer.h"
 #include "types.h"
 #include "VulkanCommon.h"
 
+class CommandPool;
+struct SwapchainFrameSync;
 class DescriptorSet;
 class PushConstantDescription;
 class Buffer;
@@ -25,15 +26,19 @@ public:
     static VkResult ResetFence(const Fence& fence);
     static VkResult AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex);
     static VkResult Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex);
+    static VkResult ResetPool(const CommandPool& pool);
     static VkResult ResetCommandBuffer(const CommandBuffer& cmd);
     static VkResult BeginCommandBuffer(const CommandBuffer& cmd);
     static VkResult EndCommandBuffer(const CommandBuffer& cmd);
     static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync);
-    // todo: state for clear color?
+    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
+
     static void BeginRenderPass(const CommandBuffer& cmd, const RenderPass& renderPass,
         const Framebuffer& framebuffer, const std::vector<VkClearValue>& clearValues);
     static void EndRenderPass(const CommandBuffer& cmd);
 
+    static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination);
+    
     static void BindBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
     static void BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
