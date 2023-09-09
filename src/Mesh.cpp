@@ -57,7 +57,6 @@ Mesh::Mesh(const std::vector<Vertex3D>& vertices)
     m_Buffer = Buffer::Builder().
         SetKinds({BufferKind::Vertex, BufferKind::Destination}).
         SetSizeBytes(sizeBytes).
-        SetMemoryUsage(VMA_MEMORY_USAGE_GPU_ONLY).
         Build();
 }
 

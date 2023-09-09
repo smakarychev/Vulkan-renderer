@@ -178,7 +178,7 @@ void Renderer::UploadMesh(const Mesh& mesh)
     Buffer stageBuffer = Buffer::Builder().
         SetKind(BufferKind::Source).
         SetSizeBytes(mesh.GetBuffer().GetSizeBytes()).
-        SetMemoryUsage(VMA_MEMORY_USAGE_CPU_ONLY).
+        SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
         BuildManualLifetime();
 
     stageBuffer.SetData(mesh.GetVertices().data(), mesh.GetVertices().size() * sizeof(Vertex3D));
@@ -280,7 +280,7 @@ void Renderer::Init()
     m_SceneDataUBO.Buffer = Buffer::Builder().
             SetKind(BufferKind::Uniform).
             SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES).
-            SetMemoryUsage(VMA_MEMORY_USAGE_CPU_TO_GPU).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
             Build();
         
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
@@ -289,7 +289,7 @@ void Renderer::Init()
         context.CameraDataUBO.Buffer = Buffer::Builder().
             SetKind(BufferKind::Uniform).
             SetSizeBytes(sizeof(CameraData)).
-            SetMemoryUsage(VMA_MEMORY_USAGE_CPU_TO_GPU).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
             Build();
 
         context.GlobalDescriptorSet = m_DescriptorPool.Allocate(m_GlobalDescriptorSetLayout);
@@ -299,7 +299,7 @@ void Renderer::Init()
         context.ObjectDataSSBO.Buffer = Buffer::Builder().
             SetKind(BufferKind::Storage).
             SetSizeBytes(context.ObjectDataSSBO.Objects.size() * sizeof(ObjectData)).
-            SetMemoryUsage(VMA_MEMORY_USAGE_CPU_TO_GPU).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
             Build();
 
         context.ObjectDescriptorSet = m_DescriptorPool.Allocate(m_ObjectDescriptorSetLayout);

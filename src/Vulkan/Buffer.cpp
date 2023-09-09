@@ -38,9 +38,9 @@ Buffer::Builder& Buffer::Builder::SetKinds(const std::vector<BufferKind>& kinds)
     return *this;
 }
 
-Buffer::Builder& Buffer::Builder::SetMemoryUsage(VmaMemoryUsage usage)
+Buffer::Builder& Buffer::Builder::SetMemoryFlags(VmaAllocationCreateFlags flags)
 {
-    m_CreateInfo.MemoryUsage = usage;
+    m_CreateInfo.MemoryUsage |= flags;
 
     return *this;
 }
@@ -62,7 +62,8 @@ Buffer Buffer::Create(const Builder::CreateInfo& createInfo)
     bufferCreateInfo.size = createInfo.SizeBytes;
 
     VmaAllocationCreateInfo allocationCreateInfo = {};
-    allocationCreateInfo.usage = createInfo.MemoryUsage;
+    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocationCreateInfo.flags = createInfo.MemoryUsage;
 
     VulkanCheck(vmaCreateBuffer(Driver::Allocator(), &bufferCreateInfo, &allocationCreateInfo, &buffer.m_Buffer, &buffer.m_Allocation, nullptr),
         "Failed to create a buffer");

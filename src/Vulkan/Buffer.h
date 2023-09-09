@@ -18,7 +18,7 @@ public:
         struct CreateInfo
         {
             VkBufferUsageFlags UsageFlags;
-            VmaMemoryUsage MemoryUsage;
+            VmaAllocationCreateFlags MemoryUsage;
             u64 SizeBytes;
             BufferKind Kind;
         };
@@ -27,7 +27,7 @@ public:
         Buffer BuildManualLifetime();
         Builder& SetKind(BufferKind kind); // all my buffers are kind
         Builder& SetKinds(const std::vector<BufferKind>& kinds);
-        Builder& SetMemoryUsage(VmaMemoryUsage usage);
+        Builder& SetMemoryFlags(VmaAllocationCreateFlags flags);
         Builder& SetSizeBytes(u64 sizeBytes);
     private:
         CreateInfo m_CreateInfo;
