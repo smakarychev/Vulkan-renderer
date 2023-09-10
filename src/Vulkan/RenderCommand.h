@@ -41,13 +41,17 @@ public:
     static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination);
     static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination);
     
-    static void BindBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
+    static void BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
+    static void BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
     static void BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
         const Pipeline& pipeline, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
     
     static void Draw(const CommandBuffer& cmd, u32 vertexCount);
     static void Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance);
+
+    static void DrawIndexed(const CommandBuffer& cmd, u32 indexCount);
+    static void DrawIndexed(const CommandBuffer& cmd, u32 indexCount, u32 baseInstance);
 
     static void PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
         const PushConstantDescription& description);

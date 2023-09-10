@@ -35,6 +35,15 @@ Buffer::Builder& Buffer::Builder::SetKinds(const std::vector<BufferKind>& kinds)
     for (auto& kind : kinds)
         SetKind(kind);
 
+    for (auto& kind : kinds)
+    {
+        if (kind != BufferKind::Source && kind != BufferKind::Destination)
+        {
+            m_CreateInfo.Kind = kind;
+            break;
+        }
+    }
+
     return *this;
 }
 
@@ -81,7 +90,23 @@ void Buffer::Destroy(const Buffer& buffer)
 
 void Buffer::Bind(const CommandBuffer& commandBuffer, u64 offset) const
 {
-    RenderCommand::BindBuffer(commandBuffer, *this, offset);
+    switch (m_Kind)
+    {
+    case BufferKind::Vertex:
+        RenderCommand::BindVertexBuffer(commandBuffer, *this, offset);
+        break;
+    case BufferKind::Index:
+        RenderCommand::BindIndexBuffer(commandBuffer, *this, offset);
+        break;
+    case BufferKind::Uniform:
+    case BufferKind::Storage:
+    case BufferKind::Source:
+    case BufferKind::Destination:
+        break;
+    default:
+        ASSERT(false, "Unrecognized buffer kind")
+        std::unreachable();
+    }
 }
 
 void Buffer::SetData(const void* data, u64 dataSizeBytes)

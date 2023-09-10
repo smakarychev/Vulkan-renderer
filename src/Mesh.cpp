@@ -1,8 +1,21 @@
 ﻿#include "Mesh.h"
 
 #include <tiny_obj_loader.h>
+#include <glm/gtx/hash.hpp>
 
 #include "Renderer.h"
+#include "utils.h"
+
+size_t std::hash<Vertex3D>::operator()(const Vertex3D& vertex) const noexcept
+{
+    auto&& [p, n, c, uv] = vertex;
+    u64 hash = 0;
+    utils::hashCombine(hash, vertex.Position);
+    utils::hashCombine(hash, vertex.Normal);
+    utils::hashCombine(hash, vertex.Color);
+    utils::hashCombine(hash, vertex.UV);
+    return hash;
+}
 
 VertexInputDescription Vertex3D::GetInputDescription()
 {
@@ -56,32 +69,41 @@ PushConstantBuffer::PushConstantBuffer()
         Build();
 }
 
-Mesh::Mesh(const std::vector<Vertex3D>& vertices)
-    : m_Vertices(vertices)
+Mesh::Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indices)
+    : m_Vertices(vertices), m_Indices(indices)
 {
-    u64 sizeBytes = vertices.size() * sizeof(Vertex3D);
+    u64 verticesSizeBytes = vertices.size() * sizeof(Vertex3D);
+    u64 indicesSizeBytes = indices.size() * sizeof(u32);
 
-    m_Buffer = Buffer::Builder().
+    m_VertexBuffer = Buffer::Builder().
         SetKinds({BufferKind::Vertex, BufferKind::Destination}).
-        SetSizeBytes(sizeBytes).
+        SetSizeBytes(verticesSizeBytes).
+        SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
+        Build();
+
+    m_IndexBuffer = Buffer::Builder().
+        SetKinds({BufferKind::Index, BufferKind::Destination}).
+        SetSizeBytes(indicesSizeBytes).
         SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
         Build();
 }
 
-Mesh Mesh::LoadFromFile(std::string_view filePath)
+Mesh Mesh::LoadFromFile(std::string_view filePath, std::string_view mtlDir)
 {
     tinyobj::attrib_t attributes;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> materials;
     std::string warnings, errors;
 
-    bool success = tinyobj::LoadObj(&attributes, &shapes, &materials, &warnings, &errors, filePath.data());
+    bool success = tinyobj::LoadObj(&attributes, &shapes, &materials, &warnings, &errors, filePath.data(), mtlDir.data());
     ASSERT(success, "Failed to load model: {}\nErrors:\n{}\nWarnings:\n{}", filePath, errors, warnings)
 
     if (!warnings.empty())
         LOG("Model load warnings ({}):\n{}", filePath, warnings);
 
+    std::unordered_map<Vertex3D, u32> uniqueVertices;
     std::vector<Vertex3D> vertices;
+    std::vector<u32> indices;
     
     for (auto& shape : shapes)
     {
@@ -101,28 +123,52 @@ Mesh Mesh::LoadFromFile(std::string_view filePath)
             vertex.UV[1] = attributes.texcoords[2 * index.texcoord_index + 1];
 
             vertex.Color = vertex.Normal;
-            
-            vertices.push_back(vertex);
+
+            if (!uniqueVertices.contains(vertex))
+            {
+                uniqueVertices[vertex] = (u32)vertices.size();
+                vertices.push_back(vertex);
+            }
+            indices.push_back(uniqueVertices[vertex]);
         }
     }
     
-    return Mesh(vertices);
+    return Mesh(vertices, indices);
 }
 
 void Mesh::Upload(const Renderer& renderer)
 {
-    Buffer stageBuffer = Buffer::Builder().
+    {
+        Buffer stageBuffer = Buffer::Builder().
         SetKind(BufferKind::Source).
-        SetSizeBytes(m_Buffer.GetSizeBytes()).
+        SetSizeBytes(m_VertexBuffer.GetSizeBytes()).
         SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
         BuildManualLifetime();
 
-    stageBuffer.SetData(m_Vertices.data(), m_Buffer.GetSizeBytes());
+        stageBuffer.SetData(m_Vertices.data(), m_VertexBuffer.GetSizeBytes());
 
-    renderer.ImmediateUpload([&](const CommandBuffer& cmd)
-    {
-        RenderCommand::CopyBuffer(cmd, stageBuffer, m_Buffer);
-    });
+        renderer.ImmediateUpload([&](const CommandBuffer& cmd)
+        {
+            RenderCommand::CopyBuffer(cmd, stageBuffer, m_VertexBuffer);
+        });
     
-    Buffer::Destroy(stageBuffer);
+        Buffer::Destroy(stageBuffer);
+    }
+
+    {
+        Buffer stageBuffer = Buffer::Builder().
+        SetKind(BufferKind::Source).
+        SetSizeBytes(m_IndexBuffer.GetSizeBytes()).
+        SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
+        BuildManualLifetime();
+
+        stageBuffer.SetData(m_Indices.data(), m_IndexBuffer.GetSizeBytes());
+
+        renderer.ImmediateUpload([&](const CommandBuffer& cmd)
+        {
+            RenderCommand::CopyBuffer(cmd, stageBuffer, m_IndexBuffer);
+        });
+    
+        Buffer::Destroy(stageBuffer);
+    }
 }

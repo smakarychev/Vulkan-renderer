@@ -142,11 +142,12 @@ void Renderer::Submit(const Scene& scene)
 
         if (object.Mesh != boundMesh)
         {
-            object.Mesh->GetBuffer().Bind(cmd);
+            object.Mesh->GetVertexBuffer().Bind(cmd);
+            object.Mesh->GetIndexBuffer().Bind(cmd);
             boundMesh = object.Mesh;
         }
 
-        RenderCommand::Draw(cmd, object.Mesh->GetVertexCount(), i);
+        RenderCommand::DrawIndexed(cmd, object.Mesh->GetIndexCount(), i);
     }
 }
 
@@ -165,7 +166,7 @@ void Renderer::Submit(const Mesh& mesh)
 {
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     
-    mesh.GetBuffer().Bind(cmd);
+    mesh.GetVertexBuffer().Bind(cmd);
     RenderCommand::Draw(cmd, mesh.GetVertexCount());
 }
 
@@ -343,9 +344,9 @@ void Renderer::LoadScene()
         Build();
     textured.TextureSet->BindTexture(0, texture);
 
-    Mesh bugatti = Mesh::LoadFromFile("assets/models/bugatti/bugatti.obj");
-    Mesh mori = Mesh::LoadFromFile("assets/models/mori/mori.obj");
-    Mesh viking_room = Mesh::LoadFromFile("assets/models/viking_room/viking_room.obj");
+    Mesh bugatti = Mesh::LoadFromFile("assets/models/bugatti/bugatti.obj", "assets/models/bugatti");
+    Mesh mori = Mesh::LoadFromFile("assets/models/mori/mori.obj", "assets/models/mori");
+    Mesh viking_room = Mesh::LoadFromFile("assets/models/viking_room/viking_room.obj", "assets/models/viking_room");
     bugatti.Upload(*this);
     mori.Upload(*this);
     viking_room.Upload(*this);

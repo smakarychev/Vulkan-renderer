@@ -61,4 +61,11 @@ namespace utils
 
         return {module.cbegin(), module.cend()};
     }
+
+    template <typename T>
+    void hashCombine(u64& seed, const T& val)
+    {
+        std::hash<T> hasher;
+        seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
 }

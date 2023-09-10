@@ -2,8 +2,6 @@
 
 #include "Vulkan/VulkanInclude.h"
 
-#include <glm/glm.hpp>
-
 class Renderer;
 
 // todo: rename
@@ -15,7 +13,19 @@ struct Vertex3D
     glm::vec2 UV;
 
     static VertexInputDescription GetInputDescription();
+    bool operator==(const Vertex3D& other) const
+    {
+        return Position == other.Position && Normal == other.Normal && Color == other.Color && UV == other.UV;
+    }
 };
+
+namespace std
+{
+    template<> struct hash<Vertex3D>
+    {
+        size_t operator()(const Vertex3D& vertex) const noexcept;
+    };
+}
 
 struct MeshPushConstants
 {
@@ -40,13 +50,17 @@ private:
 class Mesh
 {
 public:
-    Mesh(const std::vector<Vertex3D>& vertices);
-    static Mesh LoadFromFile(std::string_view filePath);
+    Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indices);
+    static Mesh LoadFromFile(std::string_view filePath, std::string_view mtlDir);
     void Upload(const Renderer& renderer);
-    const Buffer& GetBuffer() const { return m_Buffer; }
+    const Buffer& GetVertexBuffer() const { return m_VertexBuffer; }
+    const Buffer& GetIndexBuffer() const { return m_IndexBuffer; }
     u32 GetVertexCount() const { return (u32)m_Vertices.size(); }
+    u32 GetIndexCount() const { return (u32)m_Indices.size(); }
     const std::vector<Vertex3D>& GetVertices() const { return m_Vertices; }
 private:
     std::vector<Vertex3D> m_Vertices;
-    Buffer m_Buffer;
+    std::vector<u32> m_Indices;
+    Buffer m_VertexBuffer;
+    Buffer m_IndexBuffer;
 };

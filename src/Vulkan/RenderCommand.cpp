@@ -156,10 +156,16 @@ void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd, const Buffer& so
     vkCmdPipelineBarrier(cmd.m_CommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
 }
 
-void RenderCommand::BindBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
 {
     VkDeviceSize bufferOffset = offset;
     vkCmdBindVertexBuffers(cmd.m_CommandBuffer, 0, 1, &buffer.m_Buffer, &bufferOffset);
+}
+
+void RenderCommand::BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+{
+    VkDeviceSize bufferOffset = offset;
+    vkCmdBindIndexBuffer(cmd.m_CommandBuffer, buffer.m_Buffer, offset, VK_INDEX_TYPE_UINT32);
 }
 
 void RenderCommand::BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint)
@@ -185,6 +191,16 @@ void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount)
 void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance)
 {
     vkCmdDraw(cmd.m_CommandBuffer, vertexCount, 1, 0, baseInstance);
+}
+
+void RenderCommand::DrawIndexed(const CommandBuffer& cmd, u32 indexCount)
+{
+    vkCmdDrawIndexed(cmd.m_CommandBuffer, indexCount, 1, 0, 0, 0);
+}
+
+void RenderCommand::DrawIndexed(const CommandBuffer& cmd, u32 indexCount, u32 baseInstance)
+{
+    vkCmdDrawIndexed(cmd.m_CommandBuffer, indexCount, 1, 0, 0, baseInstance);
 }
 
 void RenderCommand::PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
