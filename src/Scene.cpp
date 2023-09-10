@@ -29,6 +29,11 @@ void Scene::AddMesh(const Mesh& mesh, const std::string& name)
     m_Meshes.emplace(std::make_pair(name, mesh));
 }
 
+void Scene::AddTexture(const Texture& texture, const std::string& name)
+{
+    m_Textures.emplace(std::make_pair(name, texture));
+}
+
 void Scene::AddRenderObject(const RenderObject& renderObject)
 {
     m_RenderObjects.push_back(renderObject);

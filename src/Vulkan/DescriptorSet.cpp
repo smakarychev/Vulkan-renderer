@@ -22,6 +22,7 @@ DescriptorPool::Builder& DescriptorPool::Builder::Defaults()
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
         { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
         { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
+        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 },
     };
     m_CreateInfo.MaxSets = 10;
 
@@ -154,6 +155,11 @@ void DescriptorSet::BindBuffer(u32 slot, const Buffer& buffer, u64 sizeBytes)
 void DescriptorSet::BindBuffer(u32 slot, const Buffer& buffer, u64 sizeBytes, u64 offsetBytes)
 {
     Driver::DescriptorSetBindBuffer(*this, slot, buffer, sizeBytes, offsetBytes);
+}
+
+void DescriptorSet::BindTexture(u32 slot, const Texture& texture)
+{
+    Driver::DescriptorSetBindTexture(*this, slot, texture);
 }
 
 void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const Pipeline& pipeline, VkPipelineBindPoint bindPoint)

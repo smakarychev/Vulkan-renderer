@@ -34,9 +34,16 @@ VertexInputDescription Vertex3D::GetInputDescription()
     color.format = VK_FORMAT_R32G32B32_SFLOAT;
     color.offset = offsetof(Vertex3D, Color);
 
+    VkVertexInputAttributeDescription uv = {};
+    uv.binding = 0;
+    uv.location = 3;
+    uv.format = VK_FORMAT_R32G32_SFLOAT;
+    uv.offset = offsetof(Vertex3D, UV);
+
     inputDescription.Attributes.push_back(position);
     inputDescription.Attributes.push_back(normal);
     inputDescription.Attributes.push_back(color);
+    inputDescription.Attributes.push_back(uv);
 
     return inputDescription;
 }
@@ -57,6 +64,7 @@ Mesh::Mesh(const std::vector<Vertex3D>& vertices)
     m_Buffer = Buffer::Builder().
         SetKinds({BufferKind::Vertex, BufferKind::Destination}).
         SetSizeBytes(sizeBytes).
+        SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
         Build();
 }
 
@@ -89,6 +97,9 @@ Mesh Mesh::LoadFromFile(std::string_view filePath)
             vertex.Normal[1] = attributes.normals[3 * index.normal_index + 1]; 
             vertex.Normal[2] = attributes.normals[3 * index.normal_index + 2];
 
+            vertex.UV[0] = attributes.texcoords[2 * index.texcoord_index + 0];
+            vertex.UV[1] = attributes.texcoords[2 * index.texcoord_index + 1];
+
             vertex.Color = vertex.Normal;
             
             vertices.push_back(vertex);
@@ -98,7 +109,20 @@ Mesh Mesh::LoadFromFile(std::string_view filePath)
     return Mesh(vertices);
 }
 
-void Mesh::Upload()
+void Mesh::Upload(const Renderer& renderer)
 {
+    Buffer stageBuffer = Buffer::Builder().
+        SetKind(BufferKind::Source).
+        SetSizeBytes(m_Buffer.GetSizeBytes()).
+        SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
+        BuildManualLifetime();
+
+    stageBuffer.SetData(m_Vertices.data(), m_Buffer.GetSizeBytes());
+
+    renderer.ImmediateUpload([&](const CommandBuffer& cmd)
+    {
+        RenderCommand::CopyBuffer(cmd, stageBuffer, m_Buffer);
+    });
     
+    Buffer::Destroy(stageBuffer);
 }

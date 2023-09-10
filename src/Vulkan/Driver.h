@@ -9,10 +9,12 @@
 #include "Pipeline.h"
 #include "RenderPass.h"
 #include "Swapchain.h"
+#include "Syncronization.h"
 
 #include <vma/vk_mem_alloc.h>
 
 #include "DescriptorSet.h"
+#include "UploadContext.h"
 
 
 class DriverDeletionQueue
@@ -29,6 +31,7 @@ struct DriverState
     const Device* Device; 
     VmaAllocator Allocator;
     DriverDeletionQueue DeletionQueue;
+    UploadContext UploadContext;
 };
 
 class Driver
@@ -53,6 +56,10 @@ public:
     static void Unpack(const DescriptorSetLayout& layout, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
 
     static void DescriptorSetBindBuffer(const DescriptorSet& descriptorSet, u32 slot, const Buffer& buffer, u64 sizeBytes, u64 offset);
+    static void DescriptorSetBindTexture(const DescriptorSet& descriptorSet, u32 slot, const Texture& texture);
+
+    template <typename Fn>
+    static void ImmediateUpload(Fn&& uploadFunction);
     
     static void Init(const Device& device);
     static void Shutdown();
@@ -62,6 +69,25 @@ public:
     static DriverDeletionQueue& DeletionQueue() { return s_State.DeletionQueue; }
     static VmaAllocator& Allocator() { return s_State.Allocator; }
     static u64 GetUniformBufferAlignment() { return s_State.Device->m_GPUProperties.limits.minUniformBufferOffsetAlignment; }
+    static UploadContext* UploadContext() { return &s_State.UploadContext; }
 public:
     static DriverState s_State;
 };
+
+template <typename Fn>
+void Driver::ImmediateUpload(Fn&& uploadFunction)
+{
+    auto&& [pool, cmd, fence, queue] = *UploadContext();
+    
+    cmd.Begin();
+
+    
+    uploadFunction(cmd);
+
+    
+    cmd.End();
+    cmd.Submit(queue, fence);
+    fence.Wait();
+    fence.Reset();
+    pool.Reset();
+}

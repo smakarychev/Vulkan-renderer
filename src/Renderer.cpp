@@ -134,6 +134,8 @@ void Renderer::Submit(const Scene& scene)
             u32 uniformOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
             GetFrameContext().GlobalDescriptorSet.Bind(cmd, object.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS, {uniformOffset});
             GetFrameContext().ObjectDescriptorSet.Bind(cmd, object.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+            if (object.Material->TextureSet.has_value())
+                object.Material->TextureSet->Bind(cmd, object.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
         }
 
         //PushConstants(boundMaterial->Pipeline, &meshPushConstants.GetData(), meshPushConstants.GetDescription());
@@ -173,24 +175,6 @@ void Renderer::PushConstants(const Pipeline& pipeline,const void* pushConstants,
     RenderCommand::PushConstants(cmd, pipeline, pushConstants, description);
 }
 
-void Renderer::UploadMesh(const Mesh& mesh)
-{
-    Buffer stageBuffer = Buffer::Builder().
-        SetKind(BufferKind::Source).
-        SetSizeBytes(mesh.GetBuffer().GetSizeBytes()).
-        SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-        BuildManualLifetime();
-
-    stageBuffer.SetData(mesh.GetVertices().data(), mesh.GetVertices().size() * sizeof(Vertex3D));
-
-    Renderer::ImmediateUpload(m_Device.GetQueues().Graphics, m_UploadContext, [&](const CommandBuffer& cmd)
-    {
-        RenderCommand::CopyBuffer(cmd, stageBuffer, mesh.GetBuffer());
-    });
-    
-    Buffer::Destroy(stageBuffer);
-}
-
 void Renderer::Init()
 {
     glfwInit();
@@ -204,12 +188,6 @@ void Renderer::Init()
         Build();
 
     Driver::Init(m_Device);
-
-    m_UploadContext.CommandPool = CommandPool::Builder().
-        SetQueue(QueueKind::Graphics).
-        Build();
-    m_UploadContext.CommandBuffer = m_UploadContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
-    m_UploadContext.Fence = Fence::Builder().Build();
     
     m_Swapchain = Swapchain::Builder().
         DefaultHints().
@@ -277,6 +255,10 @@ void Renderer::Init()
         AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT).
         Build();
 
+    m_SingleTextureDescriptorSetLayout = DescriptorSetLayout::Builder().
+        AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT).
+        Build();
+
     m_SceneDataUBO.Buffer = Buffer::Builder().
             SetKind(BufferKind::Uniform).
             SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES).
@@ -342,20 +324,41 @@ void Renderer::LoadScene()
         AddDescriptorLayout(m_ObjectDescriptorSetLayout).
         Build();
 
+    Material textured;
+    textured.Pipeline = Pipeline::Builder().
+        SetRenderPass(m_RenderPass).
+        AddShader(ShaderKind::Vertex, "assets/shaders/textured.vert").
+        AddShader(ShaderKind::Pixel, "assets/shaders/textured.frag").
+        FixedFunctionDefaults().
+        SetVertexDescription(Vertex3D::GetInputDescription()).
+        AddPushConstant(PushConstantBuffer().GetDescription()).
+        AddDescriptorLayout(m_GlobalDescriptorSetLayout).
+        AddDescriptorLayout(m_ObjectDescriptorSetLayout).
+        AddDescriptorLayout(m_SingleTextureDescriptorSetLayout).
+        Build();
+    textured.TextureSet = m_DescriptorPool.Allocate(m_SingleTextureDescriptorSetLayout);
+    Image texture = Image::Builder().
+        FromFile("assets/textures/texture.png").
+        SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT).
+        Build();
+    textured.TextureSet->BindTexture(0, texture);
+
     Mesh bugatti = Mesh::LoadFromFile("assets/models/bugatti/bugatti.obj");
     Mesh mori = Mesh::LoadFromFile("assets/models/mori/mori.obj");
     Mesh viking_room = Mesh::LoadFromFile("assets/models/viking_room/viking_room.obj");
-    UploadMesh(bugatti);
-    UploadMesh(mori);
-    UploadMesh(viking_room);
+    bugatti.Upload(*this);
+    mori.Upload(*this);
+    viking_room.Upload(*this);
     
     m_Scene.AddMaterial(defaultMaterial, "default");
     m_Scene.AddMaterial(greyMaterial, "grey");
+    m_Scene.AddMaterial(textured, "textured");
     m_Scene.AddMesh(bugatti, "bugatti");
     m_Scene.AddMesh(mori, "mori");
     m_Scene.AddMesh(viking_room, "viking_room");
+    m_Scene.AddTexture(texture, "Texture");
 
-    std::vector materials = {"default", "grey"};
+    std::vector materials = {"default", "grey", "textured"};
     std::vector meshes = {"bugatti", "mori", "viking_room"};
 
     for (i32 x = -10; x <= 10; x++)

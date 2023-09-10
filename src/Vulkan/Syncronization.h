@@ -27,6 +27,9 @@ public:
 public:
     static Fence Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Fence& semaphore);
+
+    void Reset() const;
+    void Wait() const;
 private:
     VkFence m_Fence{VK_NULL_HANDLE};
 };

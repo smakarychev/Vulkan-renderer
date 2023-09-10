@@ -148,6 +148,25 @@ void Driver::DescriptorSetBindBuffer(const DescriptorSet& descriptorSet, u32 slo
     vkUpdateDescriptorSets(DeviceHandle(), 1, &writeDescriptors, 0, nullptr);
 }
 
+void Driver::DescriptorSetBindTexture(const DescriptorSet& descriptorSet, u32 slot, const Texture& texture)
+{
+    VkDescriptorImageInfo descriptorImageInfo = {};
+    descriptorImageInfo.sampler = Texture::CreateSampler(VK_FILTER_LINEAR); // todo: find a better place for it
+    descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptorImageInfo.imageView = texture.m_ImageData.View;
+
+    VkWriteDescriptorSet writeDescriptors = {};
+    writeDescriptors.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeDescriptors.descriptorCount = 1;
+    writeDescriptors.descriptorType = descriptorSet.GetLayout()->m_Descriptors[slot];
+    writeDescriptors.dstBinding = slot;
+    writeDescriptors.dstSet = descriptorSet.m_DescriptorSet;
+    writeDescriptors.pImageInfo = &descriptorImageInfo;
+
+    // suboptimal: better to delay until Bind()
+    vkUpdateDescriptorSets(DeviceHandle(), 1, &writeDescriptors, 0, nullptr);
+}
+
 void Driver::Init(const Device& device)
 {
     s_State.Device = &device;
@@ -156,9 +175,15 @@ void Driver::Init(const Device& device)
     createInfo.instance = device.m_Instance;
     createInfo.physicalDevice = device.m_GPU;
     createInfo.device = device.m_Device;
-    
     vmaCreateAllocator(&createInfo, &s_State.Allocator);
     s_State.DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_State.Allocator); });
+
+    s_State.UploadContext.CommandPool = CommandPool::Builder().
+        SetQueue(QueueKind::Graphics).
+        Build();
+    s_State.UploadContext.CommandBuffer = s_State.UploadContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
+    s_State.UploadContext.Fence = Fence::Builder().Build();
+    s_State.UploadContext.QueueInfo = s_State.Device->GetQueues().Graphics;
 }
 
 void Driver::Shutdown()

@@ -1,6 +1,7 @@
 ﻿#include "Syncronization.h"
 
 #include "Driver.h"
+#include "RenderCommand.h"
 
 Fence Fence::Builder::Build()
 {
@@ -42,6 +43,16 @@ Fence Fence::Create(const Builder::CreateInfo& createInfo)
 void Fence::Destroy(const Fence& semaphore)
 {
     vkDestroyFence(Driver::DeviceHandle(), semaphore.m_Fence, nullptr);
+}
+
+void Fence::Reset() const
+{
+    RenderCommand::ResetFence(*this);
+}
+
+void Fence::Wait() const
+{
+    RenderCommand::WaitForFence(*this);
 }
 
 Semaphore Semaphore::Builder::Build()

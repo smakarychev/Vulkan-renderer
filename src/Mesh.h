@@ -4,12 +4,15 @@
 
 #include <glm/glm.hpp>
 
+class Renderer;
+
 // todo: rename
 struct Vertex3D
 {
     glm::vec3 Position;
     glm::vec3 Normal;
     glm::vec3 Color;
+    glm::vec2 UV;
 
     static VertexInputDescription GetInputDescription();
 };
@@ -39,7 +42,7 @@ class Mesh
 public:
     Mesh(const std::vector<Vertex3D>& vertices);
     static Mesh LoadFromFile(std::string_view filePath);
-    void Upload();
+    void Upload(const Renderer& renderer);
     const Buffer& GetBuffer() const { return m_Buffer; }
     u32 GetVertexCount() const { return (u32)m_Vertices.size(); }
     const std::vector<Vertex3D>& GetVertices() const { return m_Vertices; }

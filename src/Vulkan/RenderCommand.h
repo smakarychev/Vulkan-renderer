@@ -6,6 +6,7 @@
 #include "types.h"
 #include "VulkanCommon.h"
 
+class Image;
 class CommandPool;
 struct SwapchainFrameSync;
 class DescriptorSet;
@@ -38,6 +39,7 @@ public:
     static void EndRenderPass(const CommandBuffer& cmd);
 
     static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination);
+    static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination);
     
     static void BindBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);

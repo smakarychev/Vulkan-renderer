@@ -6,6 +6,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+class Image;
 class CommandBuffer;
 class Pipeline;
 class Buffer;
@@ -15,6 +16,7 @@ class Device;
 
 class DescriptorSet
 {
+    using Texture = Image;
     FRIEND_INTERNAL
 public:
     class Builder
@@ -38,6 +40,7 @@ public:
     static DescriptorSet Create(const Builder::CreateInfo& createInfo);
     void BindBuffer(u32 slot, const Buffer& buffer, u64 sizeBytes);
     void BindBuffer(u32 slot, const Buffer& buffer, u64 sizeBytes, u64 offsetBytes);
+    void BindTexture(u32 slot, const Texture& texture);
     void Bind(const CommandBuffer& commandBuffer, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
     void Bind(const CommandBuffer& commandBuffer, const Pipeline& pipeline, VkPipelineBindPoint bindPoint,
         const std::vector<u32>& dynamicOffsets);
