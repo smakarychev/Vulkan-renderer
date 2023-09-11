@@ -13,6 +13,7 @@ Renderer::Renderer()
 {
     Init();
     LoadScene();
+    SortScene(m_Scene);
     UpdateCamera();
 }
 
@@ -35,7 +36,6 @@ void Renderer::OnRender()
 {
     BeginFrame();
 
-    SortScene(m_Scene);
     Submit(m_Scene);
     
     EndFrame();

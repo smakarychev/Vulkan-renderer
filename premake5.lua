@@ -1,4 +1,4 @@
-workspace "vulkan-tutorial"
+workspace "VulkanRenderer"
     outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
     configurations { "Debug", "Release"}
     architecture "x86_64"
