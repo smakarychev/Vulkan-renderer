@@ -6,3 +6,9 @@
 *.sln
 guide.html
 VulkanApp.vcxproj.filters
+*.filters
+VulkanRenderer/bin
+VulkanRenderer/bin-int
+vendor/*/bin-int
+tools/*/bin
+tools/*/bin-int

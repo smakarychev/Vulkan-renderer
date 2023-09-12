@@ -1,0 +1,83 @@
+﻿#pragma once
+#include "VulkanCommon.h"
+
+namespace vkUtils
+{
+    inline SurfaceDetails getSurfaceDetails(VkPhysicalDevice gpu, VkSurfaceKHR surface)
+    {
+        SurfaceDetails details = {};
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &details.Capabilities);
+
+        u32 formatCount = 0;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, nullptr);
+        if (formatCount != 0)
+        {
+            details.Formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, details.Formats.data());
+        }
+
+        u32 presentModeCount = 0;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, nullptr);
+        if (presentModeCount != 0)
+        {
+            details.PresentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, details.PresentModes.data());
+        }
+        return details;
+    }
+
+    inline VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 mipmapLevels)
+    {
+        VkImageViewCreateInfo createInfo = {};
+        createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        createInfo.image = image;
+        createInfo.format = format;
+        createInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        createInfo.subresourceRange.aspectMask = aspectFlags;
+        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.levelCount = mipmapLevels;
+        createInfo.subresourceRange.baseArrayLayer = 0;
+        createInfo.subresourceRange.layerCount = 1;
+
+        VkImageView imageView;
+
+        VulkanCheck(vkCreateImageView(device, &createInfo, nullptr, &imageView), "Failed to create image view");
+
+        return imageView;
+    }
+
+    inline VkBufferUsageFlags vkBufferUsageByKind(BufferKind kind)
+    {
+        switch (kind.Kind)
+        {
+        case BufferKind::Vertex:        return VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        case BufferKind::Index:         return VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        case BufferKind::Uniform:       return VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        case BufferKind::Storage:       return VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+        case BufferKind::Indirect:      return VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
+        case BufferKind::Source:        return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+        case BufferKind::Destination:   return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        case BufferKind::None:
+            ASSERT(false, "Buffer kind is unset")
+            break;
+        default:
+            ASSERT(false, "Unrecognized buffer kind")
+            break;
+        }
+        std::unreachable();
+    }
+
+    inline u64 alignUniformBufferSizeBytes(u64 sizeBytes)
+    {
+        u64 alignment = Driver::GetUniformBufferAlignment();
+        u64 mask = alignment - 1;
+        if (alignment != 0) // intel gpu has 0 alignment
+            return (sizeBytes + mask) & ~mask;
+        return sizeBytes;
+    }
+}
