@@ -14,7 +14,7 @@ project "AssetConverter"
     includedirs
     {
         "src",
-        "C:/VulkanSDK/1.3.236.0/Include",
+        "C:/VulkanSDK/1.3.261.1/Include",
         "%{wks.location}/tools/AssetLib/src",
         IncludeDir["stb"],		    
         IncludeDir["tinyobjloader"],	
@@ -23,7 +23,7 @@ project "AssetConverter"
 
     libdirs
 	{
-		"C:/VulkanSDK/1.3.236.0/Lib"
+		"C:/VulkanSDK/1.3.261.1/Lib"
 	}
 
     links

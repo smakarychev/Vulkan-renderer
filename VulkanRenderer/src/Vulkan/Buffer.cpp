@@ -4,11 +4,6 @@
 #include "RenderCommand.h"
 #include "VulkanUtils.h"
 
-namespace
-{
-    
-}
-
 Buffer Buffer::Builder::Build()
 {
     Buffer buffer = Buffer::Create(m_CreateInfo);
@@ -128,7 +123,14 @@ PushConstantDescription::Builder& PushConstantDescription::Builder::SetSizeBytes
     return *this;
 }
 
-PushConstantDescription::Builder& PushConstantDescription::Builder::SetStages(VkShaderStageFlagBits stages)
+PushConstantDescription::Builder& PushConstantDescription::Builder::SetOffset(u32 offset)
+{
+    m_CreateInfo.Offset = offset;
+
+    return *this;
+}
+
+PushConstantDescription::Builder& PushConstantDescription::Builder::SetStages(VkShaderStageFlags stages)
 {
     m_CreateInfo.Stages = stages;
 
@@ -140,6 +142,7 @@ PushConstantDescription PushConstantDescription::Create(const Builder::CreateInf
     PushConstantDescription pushConstantDescription = {};
 
     pushConstantDescription.m_SizeBytes = createInfo.SizeBytes;
+    pushConstantDescription.m_Offset = createInfo.Offset;
     pushConstantDescription.m_StageFlags = createInfo.Stages;
 
     return  pushConstantDescription;

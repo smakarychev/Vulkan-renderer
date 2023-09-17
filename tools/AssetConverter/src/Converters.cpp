@@ -14,6 +14,7 @@
 
 #include <shaderc/shaderc.h>
 #include <shaderc/shaderc.hpp>
+#include <spirv-tools/optimizer.hpp>
 
 #include <format>
 
@@ -156,10 +157,11 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
 
     std::ifstream file(path.string(), std::ios::in | std::ios::binary);
     std::string shaderSource((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-        
+
+    
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
-    options.SetOptimizationLevel(shaderc_optimization_level_performance);
+    options.SetOptimizationLevel(shaderc_optimization_level_zero);
     shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind, path.string().c_str(), options);
     if (module.GetCompilationStatus() != shaderc_compilation_status_success)
     {
@@ -168,12 +170,19 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     }
 
     std::vector<u32> spirv = {module.cbegin(), module.cend()};
+    std::vector<u32> spirvOptimized;
+    spirvOptimized.reserve(spirv.size());
+    spvtools::Optimizer optimizer(SPV_ENV_UNIVERSAL_1_3);
+    optimizer.RegisterPerformancePasses(true);
+
+    if (optimizer.Run(spirv.data(), spirv.size(), &spirvOptimized))
+        spirv = spirvOptimized;
 
     std::filesystem::path outPath = path;
     outPath.replace_filename(outPath.stem().string() + "-" + outPath.extension().string().substr(1));
     outPath.replace_extension(POST_CONVERT_EXTENSION);
     std::ofstream out(outPath, std::ios::binary | std::ios::out);
-    out.write((const char*)spirv.data(), (i64)spirv.size() * sizeof(u32));
+    out.write((const char*)spirv.data(), (i64)(spirv.size() * sizeof(u32)));
 
     std::cout << std::format("Shader file {} converted to {}\n", path.string(), outPath.string());
 }

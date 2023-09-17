@@ -6,6 +6,7 @@
 #include "types.h"
 #include "VulkanCommon.h"
 
+class PipelineLayout;
 class Image;
 class CommandPool;
 struct SwapchainFrameSync;
@@ -45,7 +46,7 @@ public:
     static void BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
     static void BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
-        const Pipeline& pipeline, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
+        const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
     
     static void Draw(const CommandBuffer& cmd, u32 vertexCount);
     static void Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance);
@@ -55,7 +56,7 @@ public:
 
     static void DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset, u32 count, u32 stride);
 
-    static void PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
+    static void PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
         const PushConstantDescription& description);
     
     static void SetViewport(const CommandBuffer& cmd, const glm::vec2& size);

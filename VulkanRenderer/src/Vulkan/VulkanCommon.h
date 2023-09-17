@@ -17,6 +17,17 @@ struct VertexInputDescription
     std::vector<VkVertexInputAttributeDescription> Attributes;
 };
 
+enum class ShaderKind
+{
+    Vertex, Pixel
+};
+
+struct ShaderModuleData
+{
+    VkShaderModule Module;
+    ShaderKind Kind;
+};
+
 enum class QueueKind {Graphics, Presentation};
 struct BufferKind
 {

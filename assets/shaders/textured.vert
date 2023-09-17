@@ -1,5 +1,4 @@
 #version 460
-#pragma shader_stage(vertex)
 
 layout(location = 0) in vec3 a_position;
 layout(location = 1) in vec3 a_normal;
@@ -26,11 +25,13 @@ layout(std140,set = 1, binding = 0) readonly buffer object_buffer{
 } u_object_buffer;
 
 
-layout(location = 0) out vec3 frag_color;
-layout(location = 1) out vec2 frag_uv;
+layout(location = 0) out vec3 vert_color;
+layout(location = 1) out vec3 vert_normal;
+layout(location = 2) out vec2 vert_uv;
 
 void main() {
     gl_Position = u_camera_buffer.view_projection * u_object_buffer.objects[gl_BaseInstance].model * vec4(a_position, 1.0);
-    frag_color = a_color;
-    frag_uv = a_uv;
+    vert_color = a_color;
+    vert_normal = a_normal;
+    vert_uv = a_uv;
 }

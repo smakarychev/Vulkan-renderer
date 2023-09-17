@@ -4,7 +4,6 @@
 
 #include "VulkanCommon.h"
 
-#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -13,9 +12,31 @@ class PushConstantDescription;
 class CommandBuffer;
 class RenderPass;
 
-enum class ShaderKind
+class PipelineLayout
 {
-    Vertex, Pixel
+    FRIEND_INTERNAL
+public:
+    class Builder
+    {
+        friend class PipelineLayout;
+        FRIEND_INTERNAL
+        struct CreateInfo
+        {
+            std::vector<VkPushConstantRange> PushConstantRanges;
+            std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
+        };
+    public:
+        PipelineLayout Build();
+        Builder& SetPushConstants(const std::vector<PushConstantDescription>& pushConstants);
+        Builder& SetDescriptorLayouts(const std::vector<DescriptorSetLayout*>& layouts);
+    private:
+        CreateInfo m_CreateInfo;
+    };
+public:
+    static PipelineLayout Create(const Builder::CreateInfo& createInfo);
+    static void Destroy(const PipelineLayout& pipelineLayout);
+private:
+    VkPipelineLayout m_Layout{VK_NULL_HANDLE};
 };
 
 class Pipeline
@@ -30,7 +51,6 @@ public:
         {
             VkRenderPass RenderPass{VK_NULL_HANDLE};
             std::vector<VkPipelineShaderStageCreateInfo> Shaders;
-            std::vector<VkShaderModule> ShaderModules;
             std::vector<VkDynamicState> DynamicStates;
             VkPipelineDynamicStateCreateInfo DynamicStateInfo;
             VkPipelineViewportStateCreateInfo ViewportState;
@@ -41,31 +61,20 @@ public:
             VkPipelineDepthStencilStateCreateInfo DepthStencilState;
             VkPipelineColorBlendAttachmentState ColorBlendAttachmentState;
             VkPipelineColorBlendStateCreateInfo ColorBlendState;
-            VkPipelineLayoutCreateInfo PipelineLayout;
-            std::vector<VkPushConstantRange> PushConstantRanges;
-            std::vector<VkDescriptorSetLayout> DescriptorSetLayouts;
-        };
-        struct ShaderModuleData
-        {
-            VkShaderModule Module;
-            ShaderKind Kind;
+            VkPipelineLayout Layout;
         };
     public:
         Pipeline Build();
         Pipeline BuildManualLifetime();
+        Builder& SetLayout(const PipelineLayout& layout);
         Builder& SetRenderPass(const RenderPass& renderPass);
-        Builder& AddShader(ShaderKind shaderKind, std::string_view shaderPath);
+        Builder& AddShader(const ShaderModuleData& shaderModuleData);
         Builder& FixedFunctionDefaults();
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
-        Builder& AddPushConstant(const PushConstantDescription& description);
-        Builder& AddDescriptorLayout(const DescriptorSetLayout& layout);
     private:
-        void FinishShaders();
-        void FinishFixedFunction();
-        VkShaderModule CreateShader(const std::vector<u8>& spirv) const;
+        void PreBuild();
     private:
         CreateInfo m_CreateInfo;
-        std::vector<ShaderModuleData> m_ShaderModules;
         VertexInputDescription m_VertexInputDescription;
     };
 public:
@@ -73,9 +82,5 @@ public:
     static void Destroy(const Pipeline& pipeline);
     void Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint);
 private:
-    u32 FindDescriptorSetLayout(VkDescriptorSetLayout layout) const;
-private:
     VkPipeline m_Pipeline{VK_NULL_HANDLE};
-    VkPipelineLayout m_Layout{VK_NULL_HANDLE};
-    std::vector<VkDescriptorSetLayout> m_DescriptorSetLayouts;
 };

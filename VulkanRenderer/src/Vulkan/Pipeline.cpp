@@ -24,10 +24,57 @@ namespace
     }
 }
 
+PipelineLayout PipelineLayout::Builder::Build()
+{
+    PipelineLayout layout = PipelineLayout::Create(m_CreateInfo);
+    Driver::DeletionQueue().AddDeleter([layout]() { PipelineLayout::Destroy(layout); });
+
+    return layout;
+}
+
+PipelineLayout::Builder& PipelineLayout::Builder::SetPushConstants(const std::vector<PushConstantDescription>& pushConstants)
+{
+    for (auto& pushConstant : pushConstants)
+        Driver::Unpack(pushConstant, m_CreateInfo);
+
+    return *this;
+}
+
+PipelineLayout::Builder& PipelineLayout::Builder::SetDescriptorLayouts(const std::vector<DescriptorSetLayout*>& layouts)
+{
+    for (auto& layout : layouts)
+        Driver::Unpack(*layout, m_CreateInfo);
+
+    return *this;
+}
+
+PipelineLayout PipelineLayout::Create(const Builder::CreateInfo& createInfo)
+{
+    PipelineLayout layout = {};
+
+    VkPipelineLayoutCreateInfo layoutCreateInfo = {};
+    
+    layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    layoutCreateInfo.pushConstantRangeCount = (u32)createInfo.PushConstantRanges.size();
+    layoutCreateInfo.pPushConstantRanges = createInfo.PushConstantRanges.data();
+    layoutCreateInfo.setLayoutCount = (u32)createInfo.DescriptorSetLayouts.size();
+    layoutCreateInfo.pSetLayouts = createInfo.DescriptorSetLayouts.data();
+
+    VulkanCheck(vkCreatePipelineLayout(Driver::DeviceHandle(), &layoutCreateInfo, nullptr, &layout.m_Layout),
+        "Failed to create pipeline layout");
+
+    return layout;
+}
+
+void PipelineLayout::Destroy(const PipelineLayout& pipelineLayout)
+{
+    vkDestroyPipelineLayout(Driver::DeviceHandle(), pipelineLayout.m_Layout, nullptr);
+}
+
 Pipeline Pipeline::Builder::Build()
 {
-    FinishShaders();
-    FinishFixedFunction();
+    PreBuild();
+    
     Pipeline pipeline = Pipeline::Create(m_CreateInfo);
     Driver::DeletionQueue().AddDeleter([pipeline](){ Pipeline::Destroy(pipeline); });
 
@@ -36,9 +83,16 @@ Pipeline Pipeline::Builder::Build()
 
 Pipeline Pipeline::Builder::BuildManualLifetime()
 {
-    FinishShaders();
-    FinishFixedFunction();
+    PreBuild();
+    
     return Pipeline::Create(m_CreateInfo);
+}
+
+Pipeline::Builder& Pipeline::Builder::SetLayout(const PipelineLayout& layout)
+{
+    Driver::Unpack(layout, m_CreateInfo);
+    
+    return *this;
 }
 
 Pipeline::Builder& Pipeline::Builder::SetRenderPass(const RenderPass& renderPass)
@@ -48,21 +102,15 @@ Pipeline::Builder& Pipeline::Builder::SetRenderPass(const RenderPass& renderPass
     return *this;
 }
 
-Pipeline::Builder& Pipeline::Builder::AddShader(ShaderKind shaderKind, std::string_view shaderPath)
+Pipeline::Builder& Pipeline::Builder::AddShader(const ShaderModuleData& shaderModuleData)
 {
-    ASSERT(std::ranges::find_if(m_ShaderModules,
-        [shaderKind](auto& data) { return data.Kind == shaderKind; }) == m_ShaderModules.end(),
-        "Shader of that kind is already set")
+    VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
+    shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    shaderStageCreateInfo.module = shaderModuleData.Module;
+    shaderStageCreateInfo.stage = kindToVkStage(shaderModuleData.Kind);
+    shaderStageCreateInfo.pName = "main";
 
-    std::ifstream in(shaderPath.data(), std::ios::ate | std::ios::binary);
-
-    usize sizeBytes = in.tellg();
-    std::vector<u8> shaderSrc(sizeBytes);
-
-    in.seekg(0);
-    in.read((char*)shaderSrc.data(), (i64)sizeBytes);    
-
-    m_ShaderModules.push_back({CreateShader(shaderSrc), shaderKind});    
+    m_CreateInfo.Shaders.push_back(shaderStageCreateInfo);
 
     return *this;
 }
@@ -74,8 +122,6 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
         VK_DYNAMIC_STATE_SCISSOR
     };
     m_CreateInfo.DynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    m_CreateInfo.DynamicStateInfo.dynamicStateCount = (u32)m_CreateInfo.DynamicStates.size();
-    m_CreateInfo.DynamicStateInfo.pDynamicStates = m_CreateInfo.DynamicStates.data();
 
     m_CreateInfo.ViewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     m_CreateInfo.ViewportState.viewportCount = 1;
@@ -120,12 +166,8 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
     m_CreateInfo.ColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
 
     m_CreateInfo.ColorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    m_CreateInfo.ColorBlendState.attachmentCount = 1;
-    m_CreateInfo.ColorBlendState.pAttachments = &m_CreateInfo.ColorBlendAttachmentState;
     m_CreateInfo.ColorBlendState.logicOpEnable = VK_FALSE;
 
-    m_CreateInfo.PipelineLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    
     return *this;
 }
 
@@ -136,72 +178,23 @@ Pipeline::Builder& Pipeline::Builder::SetVertexDescription(const VertexInputDesc
     return *this;
 }
 
-Pipeline::Builder& Pipeline::Builder::AddPushConstant(const PushConstantDescription& description)
+void Pipeline::Builder::PreBuild()
 {
-    Driver::Unpack(description, m_CreateInfo);
-
-    return *this;
-}
-
-Pipeline::Builder& Pipeline::Builder::AddDescriptorLayout(const DescriptorSetLayout& layout)
-{
-    Driver::Unpack(layout, m_CreateInfo);
-
-    return *this;
-}
-
-void Pipeline::Builder::FinishShaders()
-{
-    ASSERT(!m_ShaderModules.empty(), "No shaders were set")
-    for (auto& module : m_ShaderModules)
-    {
-        VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
-        shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageCreateInfo.module = module.Module;
-        shaderStageCreateInfo.stage = kindToVkStage(module.Kind);
-        shaderStageCreateInfo.pName = "main";
-
-        m_CreateInfo.Shaders.push_back(shaderStageCreateInfo);
-        m_CreateInfo.ShaderModules.push_back(module.Module);
-    }
-}
-
-void Pipeline::Builder::FinishFixedFunction()
-{
+    m_CreateInfo.DynamicStateInfo.dynamicStateCount = (u32)m_CreateInfo.DynamicStates.size();
+    m_CreateInfo.DynamicStateInfo.pDynamicStates = m_CreateInfo.DynamicStates.data();
+    
     m_CreateInfo.VertexInputState.vertexBindingDescriptionCount = (u32)m_VertexInputDescription.Bindings.size();
     m_CreateInfo.VertexInputState.pVertexBindingDescriptions = m_VertexInputDescription.Bindings.data();
     m_CreateInfo.VertexInputState.vertexAttributeDescriptionCount = (u32)m_VertexInputDescription.Attributes.size();
     m_CreateInfo.VertexInputState.pVertexAttributeDescriptions = m_VertexInputDescription.Attributes.data();
 
-    m_CreateInfo.PipelineLayout.pushConstantRangeCount = (u32)m_CreateInfo.PushConstantRanges.size();
-    m_CreateInfo.PipelineLayout.pPushConstantRanges = m_CreateInfo.PushConstantRanges.data();
-
-    m_CreateInfo.PipelineLayout.setLayoutCount = (u32)m_CreateInfo.DescriptorSetLayouts.size();
-    m_CreateInfo.PipelineLayout.pSetLayouts = m_CreateInfo.DescriptorSetLayouts.data();
-}
-
-VkShaderModule Pipeline::Builder::CreateShader(const std::vector<u8>& spirv) const
-{
-    VkShaderModuleCreateInfo shaderModuleCreateInfo = {};
-    shaderModuleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    shaderModuleCreateInfo.codeSize = spirv.size();
-    shaderModuleCreateInfo.pCode = reinterpret_cast<const u32*>(spirv.data());
-
-    VkShaderModule shaderModule;
-
-    VulkanCheck(vkCreateShaderModule(Driver::DeviceHandle(), &shaderModuleCreateInfo, nullptr, &shaderModule),
-        "Failed to create shader module");
-
-    return shaderModule;
+    m_CreateInfo.ColorBlendState.attachmentCount = 1;
+    m_CreateInfo.ColorBlendState.pAttachments = &m_CreateInfo.ColorBlendAttachmentState;
 }
 
 Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
 {
     Pipeline pipeline = {};
-    
-    VulkanCheck(vkCreatePipelineLayout(Driver::DeviceHandle(), &createInfo.PipelineLayout, nullptr, &pipeline.m_Layout),
-        "Failed to create pipeline layout");
-    pipeline.m_DescriptorSetLayouts = createInfo.DescriptorSetLayouts;
 
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -215,15 +208,12 @@ Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
     pipelineCreateInfo.pMultisampleState = &createInfo.MultisampleState;
     pipelineCreateInfo.pDepthStencilState = &createInfo.DepthStencilState;
     pipelineCreateInfo.pColorBlendState = &createInfo.ColorBlendState;
-    pipelineCreateInfo.layout = pipeline.m_Layout;
+    pipelineCreateInfo.layout = createInfo.Layout;
     pipelineCreateInfo.renderPass = createInfo.RenderPass;
     pipelineCreateInfo.subpass = 0;
 
     VulkanCheck(vkCreateGraphicsPipelines(Driver::DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline.m_Pipeline),
         "Failed to create pipeline");
-
-    for (auto& module : createInfo.ShaderModules)
-        vkDestroyShaderModule(Driver::DeviceHandle(), module, nullptr);
 
     return pipeline;
 }
@@ -231,16 +221,9 @@ Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
 void Pipeline::Destroy(const Pipeline& pipeline)
 {
     vkDestroyPipeline(Driver::DeviceHandle(), pipeline.m_Pipeline, nullptr);
-    vkDestroyPipelineLayout(Driver::DeviceHandle(), pipeline.m_Layout, nullptr);
 }
 
 void Pipeline::Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint)
 {
     RenderCommand::BindPipeline(commandBuffer, *this, bindPoint);
-}
-
-u32 Pipeline::FindDescriptorSetLayout(VkDescriptorSetLayout layout) const
-{
-    auto it = std::ranges::find(m_DescriptorSetLayouts, layout);
-    return (u32)(it - m_DescriptorSetLayouts.begin());
 }

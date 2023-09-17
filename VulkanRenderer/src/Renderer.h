@@ -56,10 +56,9 @@ struct FrameContext
     CommandBuffer CommandBuffer;
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
-    DescriptorSet GlobalDescriptorSet;
     CameraDataUBO CameraDataUBO;
-    DescriptorSet ObjectDescriptorSet;
     ObjectDataSSBO ObjectDataSSBO;
+    ShaderDescriptorSet GlobalObjectSet;
     Buffer DrawIndirectBuffer;
     bool IsDrawIndirectBufferDirty{false};
 };
@@ -80,7 +79,7 @@ public:
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
     void Submit(const Mesh& mesh);
-    void PushConstants(const Pipeline& pipeline, const void* pushConstants, const PushConstantDescription& description);
+    void PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description);
 
     template <typename Fn>
     void ImmediateUpload(Fn&& uploadFunction) const;
@@ -114,11 +113,9 @@ private:
     
     Scene m_Scene;
 
-    DescriptorPool m_DescriptorPool;
-    DescriptorSetLayout m_GlobalDescriptorSetLayout;
-    DescriptorSetLayout m_ObjectDescriptorSetLayout;
-    DescriptorSetLayout m_SingleTextureDescriptorSetLayout;
-
+    DescriptorAllocator m_PersistentDescriptorAllocator;
+    DescriptorLayoutCache m_LayoutCache;
+    
     static constexpr u32 BUFFERED_FRAMES{2};
     static constexpr u32 MAX_DRAW_INDIRECT_CALLS{1000};
 };

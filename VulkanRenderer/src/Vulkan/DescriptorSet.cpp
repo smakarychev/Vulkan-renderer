@@ -3,68 +3,11 @@
 #include "Driver.h"
 #include "RenderCommand.h"
 
-DescriptorPool DescriptorPool::Builder::Build()
-{
-    DescriptorPool pool = DescriptorPool::Create(m_CreateInfo);
-    Driver::DeletionQueue().AddDeleter([pool](){ DescriptorPool::Destroy(pool); });
-
-    return pool;
-}
-
-DescriptorPool DescriptorPool::Builder::BuildManualLifetime()
-{
-    return DescriptorPool::Create(m_CreateInfo);
-}
-
-DescriptorPool::Builder& DescriptorPool::Builder::Defaults()
-{
-    m_CreateInfo.Sizes = {
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
-        { VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
-        { VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
-        { VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 },
-    };
-    m_CreateInfo.MaxSets = 10;
-
-    return *this;
-}
-
-DescriptorPool DescriptorPool::Create(const Builder::CreateInfo& createInfo)
-{
-    DescriptorPool descriptorPool = {};
-
-    VkDescriptorPoolCreateInfo poolCreateInfo = {};
-    poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolCreateInfo.maxSets = createInfo.MaxSets;
-    poolCreateInfo.poolSizeCount = (u32)createInfo.Sizes.size();
-    poolCreateInfo.pPoolSizes = createInfo.Sizes.data();
-
-    VulkanCheck(vkCreateDescriptorPool(Driver::DeviceHandle(), &poolCreateInfo, nullptr, &descriptorPool.m_Pool),
-        "Failed to create descriptor pool");
-
-    return descriptorPool;
-}
-
-void DescriptorPool::Destroy(const DescriptorPool& pool)
-{
-    vkDestroyDescriptorPool(Driver::DeviceHandle(), pool.m_Pool, nullptr);
-}
-
-DescriptorSet DescriptorPool::Allocate(const DescriptorSetLayout& layout)
-{
-    DescriptorSet descriptorSet = DescriptorSet::Builder().
-        SetPool(*this).
-        SetLayout(layout).
-        Build();
-
-    return descriptorSet;
-}
-
 DescriptorSetLayout DescriptorSetLayout::Builder::Build()
 {
     DescriptorSetLayout layout = DescriptorSetLayout::Create(m_CreateInfo);
     Driver::DeletionQueue().AddDeleter([layout](){ DescriptorSetLayout::Destroy(layout); });
-
+    
     return layout;
 }
 
@@ -73,15 +16,10 @@ DescriptorSetLayout DescriptorSetLayout::Builder::BuildManualLifetime()
     return DescriptorSetLayout::Create(m_CreateInfo);
 }
 
-DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::AddBinding(VkDescriptorType type, VkShaderStageFlags stage)
+DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::SetBindings(
+    const std::vector<VkDescriptorSetLayoutBinding>& bindings)
 {
-    VkDescriptorSetLayoutBinding binding = {};
-    binding.binding = (u32)m_CreateInfo.Bindings.size();
-    binding.descriptorCount = 1;
-    binding.descriptorType = type;
-    binding.stageFlags = stage;
-
-    m_CreateInfo.Bindings.push_back(binding);
+    m_CreateInfo.Bindings = bindings;
 
     return *this;
 }
@@ -112,20 +50,40 @@ void DescriptorSetLayout::Destroy(const DescriptorSetLayout& layout)
 
 DescriptorSet DescriptorSet::Builder::Build()
 {
-    return DescriptorSet::Create(m_CreateInfo);
+    DescriptorSet set = DescriptorSet::Create(m_CreateInfo);
+    m_CreateInfo.Bindings.clear();
+    m_CreateInfo.BoundBuffers.clear();
+    m_CreateInfo.BoundTextures.clear();
+    
+    return set;
 }
 
-DescriptorSet::Builder& DescriptorSet::Builder::SetPool(const DescriptorPool& pool)
+DescriptorSet::Builder& DescriptorSet::Builder::SetAllocator(DescriptorAllocator* allocator)
 {
-    Driver::Unpack(pool, m_CreateInfo);
+    m_CreateInfo.Allocator = allocator;
 
     return *this;
 }
 
-DescriptorSet::Builder& DescriptorSet::Builder::SetLayout(const DescriptorSetLayout& layout)
+DescriptorSet::Builder& DescriptorSet::Builder::SetLayoutCache(DescriptorLayoutCache* cache)
 {
-    Driver::Unpack(layout, m_CreateInfo);
-    m_CreateInfo.Layout = &layout;
+    m_CreateInfo.Cache = cache;
+
+    return *this;
+}
+
+DescriptorSet::Builder& DescriptorSet::Builder::AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo,
+    VkDescriptorType descriptor, VkShaderStageFlags stages)
+{
+    Driver::DescriptorSetBindBuffer(slot, bindingInfo, descriptor, stages, m_CreateInfo);
+
+    return *this;
+}
+
+DescriptorSet::Builder& DescriptorSet::Builder::AddTextureBinding(u32 slot, const Texture& texture,
+    VkDescriptorType descriptor, VkShaderStageFlags stages)
+{
+    Driver::DescriptorSetBindTexture(slot, texture, descriptor, stages, m_CreateInfo);
 
     return *this;
 }
@@ -133,42 +91,179 @@ DescriptorSet::Builder& DescriptorSet::Builder::SetLayout(const DescriptorSetLay
 DescriptorSet DescriptorSet::Create(const Builder::CreateInfo& createInfo)
 {
     DescriptorSet descriptorSet = {};
-    
-    VkDescriptorSetAllocateInfo setAllocateInfo = {};
-    setAllocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    setAllocateInfo.descriptorPool = createInfo.Pool;
-    setAllocateInfo.descriptorSetCount = 1;
-    setAllocateInfo.pSetLayouts = &createInfo.LayoutHandle;
 
-    VulkanCheck(vkAllocateDescriptorSets(Driver::DeviceHandle(), &setAllocateInfo, &descriptorSet.m_DescriptorSet),
-        "Failed to allocate descriptor set");
-    descriptorSet.m_Layout = createInfo.Layout;
+    descriptorSet.m_Layout = createInfo.Cache->CreateDescriptorSetLayout(createInfo.Bindings);
+
+    createInfo.Allocator->Allocate(descriptorSet);
+
+    std::vector<VkWriteDescriptorSet> writes(createInfo.BoundBuffers.size() + createInfo.BoundTextures.size());
+    for (auto& write : writes)
+    {
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorCount = 1;   
+        write.dstSet = descriptorSet.m_DescriptorSet;
+    }
+    for (auto& bufferInfo : createInfo.BoundBuffers)
+    {
+        auto&& [buffer, slot] = bufferInfo;
+        writes[slot].descriptorType = createInfo.Bindings[slot].descriptorType;
+        writes[slot].dstBinding = slot;
+        writes[slot].pBufferInfo = &buffer;
+    }
+    for (auto& textureInfo : createInfo.BoundTextures)
+    {
+        auto&& [texture, slot] = textureInfo;
+        writes[slot].descriptorType = createInfo.Bindings[slot].descriptorType;
+        writes[slot].dstBinding = slot;
+        writes[slot].pImageInfo = &texture;
+    }
+
+    vkUpdateDescriptorSets(Driver::DeviceHandle(), (u32)writes.size(), writes.data(), 0, nullptr);
 
     return descriptorSet;
 }
 
-void DescriptorSet::BindBuffer(u32 slot, const Buffer& buffer, u64 sizeBytes)
+void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint)
 {
-    Driver::DescriptorSetBindBuffer(*this, slot, buffer, sizeBytes, 0);
+    RenderCommand::BindDescriptorSet(commandBuffer, *this, pipelineLayout, setIndex, bindPoint, {});
 }
 
-void DescriptorSet::BindBuffer(u32 slot, const Buffer& buffer, u64 sizeBytes, u64 offsetBytes)
-{
-    Driver::DescriptorSetBindBuffer(*this, slot, buffer, sizeBytes, offsetBytes);
-}
-
-void DescriptorSet::BindTexture(u32 slot, const Texture& texture)
-{
-    Driver::DescriptorSetBindTexture(*this, slot, texture);
-}
-
-void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const Pipeline& pipeline, VkPipelineBindPoint bindPoint)
-{
-    RenderCommand::BindDescriptorSet(commandBuffer, *this, pipeline, bindPoint, {});
-}
-
-void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const Pipeline& pipeline, VkPipelineBindPoint bindPoint,
+void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint,
     const std::vector<u32>& dynamicOffsets)
 {
-    RenderCommand::BindDescriptorSet(commandBuffer, *this, pipeline, bindPoint, dynamicOffsets);
+    RenderCommand::BindDescriptorSet(commandBuffer, *this, pipelineLayout, setIndex, bindPoint, dynamicOffsets);
+}
+
+DescriptorAllocator DescriptorAllocator::Builder::Build()
+{
+    return DescriptorAllocator::Create(m_CreateInfo);
+}
+
+DescriptorAllocator DescriptorAllocator::Builder::BuildManualLifetime()
+{
+    return DescriptorAllocator::Create(m_CreateInfo);
+}
+
+DescriptorAllocator::Builder& DescriptorAllocator::Builder::SetMaxSetsPerPool(u32 maxSets)
+{
+    m_CreateInfo.MaxSets = maxSets;
+
+    return *this;
+}
+
+DescriptorAllocator DescriptorAllocator::Create(const Builder::CreateInfo& createInfo)
+{
+    DescriptorAllocator allocator = {};
+    allocator.m_MaxSetsPerPool = createInfo.MaxSets;
+
+    return allocator;
+}
+
+void DescriptorAllocator::Allocate(DescriptorSet& set)
+{
+    SetAllocateInfo allocateInfo = {};
+
+    Driver::Unpack(*this, *set.GetLayout(), allocateInfo);
+
+    vkAllocateDescriptorSets(Driver::DeviceHandle(), &allocateInfo.Info, &set.m_DescriptorSet);
+
+    if (!set.IsValid())
+    {
+        m_UsedPools.push_back(m_FreePools.back());
+        m_FreePools.pop_back();
+
+        Driver::Unpack(*this, *set.GetLayout(), allocateInfo);
+        VulkanCheck(vkAllocateDescriptorSets(Driver::DeviceHandle(), &allocateInfo.Info, &set.m_DescriptorSet),
+            "Failed to allocate descriptor set");
+    }
+}
+
+void DescriptorAllocator::ResetPools()
+{
+    for (auto pool : m_UsedPools)
+    {
+        vkResetDescriptorPool(Driver::DeviceHandle(), pool, 0);
+        m_FreePools.push_back(pool);
+    }
+
+    m_UsedPools.clear();
+}
+
+VkDescriptorPool DescriptorAllocator::GrabPool()
+{
+    if (m_FreePools.empty())
+        m_FreePools.push_back(CreatePool());
+
+    return m_FreePools.back();
+}
+
+VkDescriptorPool DescriptorAllocator::CreatePool()
+{
+    std::vector<VkDescriptorPoolSize> sizes(m_PoolSizes.size());
+    for (u32 i = 0; i < sizes.size(); i++)
+        sizes[i] = {.type = m_PoolSizes[i].DescriptorType, .descriptorCount = (u32)(m_PoolSizes[i].SetSizeMultiplier * (f32)m_MaxSetsPerPool) };
+
+    VkDescriptorPool pool = {};
+    
+    VkDescriptorPoolCreateInfo poolCreateInfo = {};
+    poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolCreateInfo.maxSets = m_MaxSetsPerPool;
+    poolCreateInfo.poolSizeCount = (u32)sizes.size();
+    poolCreateInfo.pPoolSizes = sizes.data();
+
+    VulkanCheck(vkCreateDescriptorPool(Driver::DeviceHandle(), &poolCreateInfo, nullptr, &pool),
+        "Failed to create descriptor pool");
+
+    Driver::DeletionQueue().AddDeleter([pool]() { vkDestroyDescriptorPool(Driver::DeviceHandle(), pool, nullptr); });
+    
+    return pool;
+}
+
+bool DescriptorLayoutCache::CacheKey::operator==(const CacheKey& other) const
+{
+    if (Bindings.size() != other.Bindings.size())
+        return false;
+
+    for (u32 i = 0; i < Bindings.size(); i++)
+    {
+        if (Bindings[i].binding != other.Bindings[i].binding)
+            return false;
+        if (Bindings[i].descriptorType != other.Bindings[i].descriptorType)
+            return false;
+        if (Bindings[i].descriptorCount != other.Bindings[i].descriptorCount)
+            return false;
+        if (Bindings[i].stageFlags != other.Bindings[i].stageFlags)
+            return false;
+    }
+    
+    return true;
+}
+
+DescriptorSetLayout* DescriptorLayoutCache::CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding>& bindings)
+{
+    CacheKey key = {.Bindings = bindings};
+    SortBindings(key);
+
+    if (m_LayoutCache.contains(key))
+        return &m_LayoutCache.at(key);
+
+    m_LayoutCache.emplace(key, DescriptorSetLayout::Builder().SetBindings(bindings).Build());
+    return &m_LayoutCache.at(key);
+}
+
+void DescriptorLayoutCache::SortBindings(CacheKey& cacheKey)
+{
+    std::sort(cacheKey.Bindings.begin(), cacheKey.Bindings.end(),
+        [](const auto& a, const auto& b) { return a.binding < b.binding; });
+}
+
+u64 DescriptorLayoutCache::DescriptorSetLayoutCreateInfoHash::operator()(const CacheKey& cacheKey) const
+{
+    u64 hash = 0;
+    for (auto& binding : cacheKey.Bindings)
+    {
+        u64 hashKey = binding.binding | binding.descriptorCount << 8 | binding.descriptorType << 16 | binding.stageFlags << 24;
+        hash ^= std::hash<u64>()(hashKey);
+    }
+    return hash;
 }

@@ -49,7 +49,7 @@ void Renderer::UpdateCamera()
 {
     f32 angle = (f32)glfwGetTime();
     glm::vec3 defaultPos = {0.0f, 0.1f, 1.0f};
-    glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(angle) * 5, glm::vec3(0.0f, 1.0f, 0.0f));
+    glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(angle) * 5.0f, glm::vec3(0.0f, 1.0f, 0.0f));
     glm::vec3 pos = glm::vec3(model * glm::vec4(defaultPos, 1.0f));
     glm::mat4 view = glm::lookAt(pos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
     glm::mat4 projection = glm::perspective(glm::radians(45.0f), (f32)m_Swapchain.GetSize().x / (f32)m_Swapchain.GetSize().y, 1e-1f, 1e+3f);
@@ -90,7 +90,13 @@ void Renderer::UpdateScene()
 
     if (GetFrameContext().IsDrawIndirectBufferDirty)
     {
-        VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)GetFrameContext().DrawIndirectBuffer.Map();
+        Buffer stageBuffer = Buffer::Builder().
+            SetKind(BufferKind::Source).
+            SetSizeBytes(GetFrameContext().DrawIndirectBuffer.GetSizeBytes()).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
+            BuildManualLifetime();
+        
+        VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)stageBuffer.Map();
 
         for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
         {
@@ -102,7 +108,15 @@ void Renderer::UpdateScene()
             commands[i].vertexOffset = 0;
         }
 
-        GetFrameContext().DrawIndirectBuffer.Unmap();
+        stageBuffer.Unmap();
+        
+        ImmediateUpload([&](const CommandBuffer& cmd)
+        {
+            RenderCommand::CopyBuffer(cmd, stageBuffer, GetFrameContext().DrawIndirectBuffer);
+        });
+
+        Buffer::Destroy(stageBuffer);
+        
         GetFrameContext().IsDrawIndirectBufferDirty = false;
     }
 }
@@ -148,10 +162,10 @@ void Renderer::Submit(const Scene& scene)
     {
         batch.Material->Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
         u32 uniformOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
-        GetFrameContext().GlobalDescriptorSet.Bind(cmd, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS, {uniformOffset});
-        GetFrameContext().ObjectDescriptorSet.Bind(cmd, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+        GetFrameContext().GlobalObjectSet.Bind(cmd, DescriptorKind::Global, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS, {uniformOffset});
+        GetFrameContext().GlobalObjectSet.Bind(cmd, DescriptorKind::Pass, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
         if (batch.Material->TextureSet.has_value())
-            batch.Material->TextureSet->Bind(cmd, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+            batch.Material->TextureSet->Bind(cmd, DescriptorKind::Material, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
         batch.Mesh->GetVertexBuffer().Bind(cmd);
         batch.Mesh->GetIndexBuffer().Bind(cmd);
 
@@ -175,10 +189,10 @@ void Renderer::Submit(const Mesh& mesh)
     RenderCommand::Draw(cmd, mesh.GetVertexCount());
 }
 
-void Renderer::PushConstants(const Pipeline& pipeline,const void* pushConstants, const PushConstantDescription& description)
+void Renderer::PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description)
 {
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-    RenderCommand::PushConstants(cmd, pipeline, pushConstants, description);
+    RenderCommand::PushConstants(cmd, pipelineLayout, pushConstants, description);
 }
 
 void Renderer::Init()
@@ -186,7 +200,7 @@ void Renderer::Init()
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not create opengl context
-    m_Window = glfwCreateWindow(1200, 720, "My window", nullptr, nullptr);
+    m_Window = glfwCreateWindow(1600, 900, "My window", nullptr, nullptr);
 
     m_Device = Device::Builder().
         Defaults().
@@ -248,21 +262,8 @@ void Renderer::Init()
     }
 
     // descriptors
-    m_DescriptorPool = DescriptorPool::Builder().
-        Defaults().
-        Build();
-
-    m_GlobalDescriptorSetLayout = DescriptorSetLayout::Builder().
-        AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, VK_SHADER_STAGE_VERTEX_BIT).
-        AddBinding(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT).
-        Build();
-
-    m_ObjectDescriptorSetLayout = DescriptorSetLayout::Builder().
-        AddBinding(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, VK_SHADER_STAGE_VERTEX_BIT).
-        Build();
-
-    m_SingleTextureDescriptorSetLayout = DescriptorSetLayout::Builder().
-        AddBinding(VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, VK_SHADER_STAGE_FRAGMENT_BIT).
+    m_PersistentDescriptorAllocator = DescriptorAllocator::Builder().
+        SetMaxSetsPerPool(1000).
         Build();
 
     m_SceneDataUBO.Buffer = Buffer::Builder().
@@ -270,29 +271,6 @@ void Renderer::Init()
             SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES).
             SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
             Build();
-        
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        FrameContext& context = m_FrameContexts[i];
-        context.CameraDataUBO.Buffer = Buffer::Builder().
-            SetKind(BufferKind::Uniform).
-            SetSizeBytes(sizeof(CameraData)).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-            Build();
-
-        context.GlobalDescriptorSet = m_DescriptorPool.Allocate(m_GlobalDescriptorSetLayout);
-        context.GlobalDescriptorSet.BindBuffer(0, context.CameraDataUBO.Buffer, sizeof(CameraData));
-        context.GlobalDescriptorSet.BindBuffer(1, m_SceneDataUBO.Buffer, sizeof(SceneData), 0);
-
-        context.ObjectDataSSBO.Buffer = Buffer::Builder().
-            SetKind(BufferKind::Storage).
-            SetSizeBytes(context.ObjectDataSSBO.Objects.size() * sizeof(ObjectData)).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-            Build();
-
-        context.ObjectDescriptorSet = m_DescriptorPool.Allocate(m_ObjectDescriptorSetLayout);
-        context.ObjectDescriptorSet.BindBuffer(0, context.ObjectDataSSBO.Buffer, context.ObjectDataSSBO.Buffer.GetSizeBytes());
-    }
 
     // indirect commands preparation
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
@@ -301,7 +279,7 @@ void Renderer::Init()
         context.DrawIndirectBuffer = Buffer::Builder().
             SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination}).
             SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
             Build();
     }
     
@@ -316,49 +294,89 @@ void Renderer::ShutDown()
 }
 
 void Renderer::LoadScene()
-{    
+{
+    ShaderReflection defaultShaderReflection = {};
+    defaultShaderReflection.ReflectFrom({"../assets/shaders/triangle_big-vert.spv", "../assets/shaders/triangle_big-frag.spv"});
+
+    ShaderReflection greyShaderReflection = {};
+    greyShaderReflection.ReflectFrom({"../assets/shaders/grey-vert.spv", "../assets/shaders/grey-frag.spv"});
+
+    ShaderReflection texturedShaderReflection = {};
+    texturedShaderReflection.ReflectFrom({"../assets/shaders/textured-vert.spv", "../assets/shaders/textured-frag.spv"});
+
+    ShaderPipelineTemplate::Builder templateBuilder = ShaderPipelineTemplate::Builder().
+        SetDescriptorAllocator(&m_PersistentDescriptorAllocator).
+        SetDescriptorLayoutCache(&m_LayoutCache);
+    
+    ShaderPipelineTemplate defaultTemplate = templateBuilder.
+        SetShaderReflection(&defaultShaderReflection).
+        Build();
+
+    ShaderPipelineTemplate greyTemplate = templateBuilder.
+        SetShaderReflection(&greyShaderReflection).
+        Build();
+
+    ShaderPipelineTemplate texturedTemplate = templateBuilder.
+        SetShaderReflection(&texturedShaderReflection).
+        Build();
+
+    m_Scene.AddShaderTemplate(defaultTemplate, "default");
+    m_Scene.AddShaderTemplate(greyTemplate, "grey");
+    m_Scene.AddShaderTemplate(texturedTemplate, "textured");
+    
     Material defaultMaterial;
-    defaultMaterial.Pipeline = Pipeline::Builder().
+    defaultMaterial.Pipeline = ShaderPipeline::Builder().
+        SetTemplate(m_Scene.GetShaderTemplate("default")).
+        CompatibleWithVertex(Vertex3D::GetInputDescription()).
         SetRenderPass(m_RenderPass).
-        AddShader(ShaderKind::Vertex, "../assets/shaders/triangle_big-vert.spv").
-        AddShader(ShaderKind::Pixel, "../assets/shaders/triangle_big-frag.spv").
-        FixedFunctionDefaults().
-        SetVertexDescription(Vertex3D::GetInputDescription()).
-        AddPushConstant(PushConstantBuffer().GetDescription()).
-        AddDescriptorLayout(m_GlobalDescriptorSetLayout).
-        AddDescriptorLayout(m_ObjectDescriptorSetLayout).
         Build();
 
     Material greyMaterial;
-    greyMaterial.Pipeline = Pipeline::Builder().
+    greyMaterial.Pipeline = ShaderPipeline::Builder().
+        SetTemplate(m_Scene.GetShaderTemplate("grey")).
+        CompatibleWithVertex(Vertex3D::GetInputDescription()).
         SetRenderPass(m_RenderPass).
-        AddShader(ShaderKind::Vertex, "../assets/shaders/grey-vert.spv").
-        AddShader(ShaderKind::Pixel, "../assets/shaders/grey-frag.spv").
-        FixedFunctionDefaults().
-        SetVertexDescription(Vertex3D::GetInputDescription()).
-        AddPushConstant(PushConstantBuffer().GetDescription()).
-        AddDescriptorLayout(m_GlobalDescriptorSetLayout).
-        AddDescriptorLayout(m_ObjectDescriptorSetLayout).
         Build();
 
     Material textured;
-    textured.Pipeline = Pipeline::Builder().
-        SetRenderPass(m_RenderPass).
-        AddShader(ShaderKind::Vertex, "../assets/shaders/textured-vert.spv").
-        AddShader(ShaderKind::Pixel, "../assets/shaders/textured-frag.spv").
-        FixedFunctionDefaults().
-        SetVertexDescription(Vertex3D::GetInputDescription()).
-        AddPushConstant(PushConstantBuffer().GetDescription()).
-        AddDescriptorLayout(m_GlobalDescriptorSetLayout).
-        AddDescriptorLayout(m_ObjectDescriptorSetLayout).
-        AddDescriptorLayout(m_SingleTextureDescriptorSetLayout).
-        Build();
-    textured.TextureSet = m_DescriptorPool.Allocate(m_SingleTextureDescriptorSetLayout);
     Image texture = Image::Builder().
         FormAssetFile("../assets/textures/texture.tx").
         SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT).
         Build();
-    textured.TextureSet->BindTexture(0, texture);
+    m_Scene.AddTexture(texture, "texture");
+    textured.TextureSet = ShaderDescriptorSet::Builder().
+        SetTemplate(m_Scene.GetShaderTemplate("textured")).
+        AddBinding("u_texture", *m_Scene.GetTexture("texture")).
+        Build();
+    textured.Pipeline = ShaderPipeline::Builder().
+        SetTemplate(m_Scene.GetShaderTemplate("textured")).
+        CompatibleWithVertex(Vertex3D::GetInputDescription()).
+        SetRenderPass(m_RenderPass).
+        Build();
+
+    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+    {
+        FrameContext& context = m_FrameContexts[i];
+
+        context.CameraDataUBO.Buffer = Buffer::Builder().
+            SetKind(BufferKind::Uniform).
+            SetSizeBytes(sizeof(CameraData)).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
+            Build();
+
+        context.ObjectDataSSBO.Buffer = Buffer::Builder().
+            SetKind(BufferKind::Storage).
+            SetSizeBytes(context.ObjectDataSSBO.Objects.size() * sizeof(ObjectData)).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
+            Build();
+        
+        context.GlobalObjectSet = ShaderDescriptorSet::Builder().
+            SetTemplate(m_Scene.GetShaderTemplate("default")).
+            AddBinding("u_camera_buffer", context.CameraDataUBO.Buffer, sizeof(CameraData), 0).
+            AddBinding("dyn_u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0).
+            AddBinding("u_object_buffer", context.ObjectDataSSBO.Buffer).
+            Build();
+    }
 
     Mesh bugatti = Mesh::LoadFromAsset("../assets/models/bugatti/bugatti.msh");
     Mesh mori = Mesh::LoadFromAsset("../assets/models/mori/mori.msh");
@@ -373,7 +391,6 @@ void Renderer::LoadScene()
     m_Scene.AddMesh(bugatti, "bugatti");
     m_Scene.AddMesh(mori, "mori");
     m_Scene.AddMesh(viking_room, "viking_room");
-    m_Scene.AddTexture(texture, "Texture");
 
     std::vector materials = {"default", "grey", "textured"};
     std::vector meshes = {"bugatti", "mori", "viking_room"};

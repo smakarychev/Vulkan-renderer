@@ -72,24 +72,29 @@ void Driver::Unpack(const Subpass& subpass, RenderPass::Builder::CreateInfo& ren
     renderPassCreateInfo.Attachments.append_range(subpass.m_Attachments);
 }
 
+void Driver::Unpack(const PushConstantDescription& description, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo)
+{
+    VkPushConstantRange pushConstantRange = {};
+    pushConstantRange.size = description.m_SizeBytes;
+    pushConstantRange.offset = description.m_Offset;
+    pushConstantRange.stageFlags = description.m_StageFlags;
+    
+    pipelineLayoutCreateInfo.PushConstantRanges.push_back(pushConstantRange);
+}
+
+void Driver::Unpack(const DescriptorSetLayout& layout, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo)
+{
+    pipelineLayoutCreateInfo.DescriptorSetLayouts.push_back(layout.m_Layout);
+}
+
+void Driver::Unpack(const PipelineLayout& pipelineLayout, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
+{
+    pipelineCreateInfo.Layout = pipelineLayout.m_Layout;
+}
+
 void Driver::Unpack(const RenderPass& renderPass, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
 {
     pipelineCreateInfo.RenderPass = renderPass.m_RenderPass;
-}
-
-void Driver::Unpack(const PushConstantDescription& description, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
-{
-    VkPushConstantRange pushConstantRange = {};
-    pushConstantRange.offset = 0;
-    pushConstantRange.size = description.m_SizeBytes;
-    pushConstantRange.stageFlags = description.m_StageFlags;
-
-    pipelineCreateInfo.PushConstantRanges.push_back(pushConstantRange);
-}
-
-void Driver::Unpack(const DescriptorSetLayout& layout, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
-{
-    pipelineCreateInfo.DescriptorSetLayouts.push_back(layout.m_Layout);
 }
 
 void Driver::Unpack(const Attachment& attachment, Framebuffer::Builder::CreateInfo& framebufferCreateInfo)
@@ -119,52 +124,52 @@ void Driver::Unpack(const CommandPool& commandPool, CommandBuffer::Builder::Crea
     commandBufferCreateInfo.CommandPool = commandPool.m_CommandPool;
 }
 
-void Driver::Unpack(const DescriptorPool& pool, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
+void Driver::Unpack(DescriptorAllocator& allocator, const DescriptorSetLayout& layout,
+    DescriptorAllocator::SetAllocateInfo& setAllocateInfo)
 {
-    descriptorSetCreateInfo.Pool = pool.m_Pool;
+    auto& info = setAllocateInfo.Info;
+    info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    info.descriptorPool = allocator.GrabPool();
+    info.descriptorSetCount = 1;
+    info.pSetLayouts = &layout.m_Layout;
 }
 
-void Driver::Unpack(const DescriptorSetLayout& layout, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
+void Driver::DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
+                                     VkDescriptorType descriptor, VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    descriptorSetCreateInfo.LayoutHandle = layout.m_Layout;
-}
-
-void Driver::DescriptorSetBindBuffer(const DescriptorSet& descriptorSet, u32 slot, const Buffer& buffer, u64 sizeBytes, u64 offset)
-{
+    DescriptorAddBinding(slot, descriptor, stages, descriptorSetCreateInfo);
+    
     VkDescriptorBufferInfo descriptorBufferInfo = {};
-    descriptorBufferInfo.buffer = buffer.m_Buffer;
-    descriptorBufferInfo.offset = offset;
-    descriptorBufferInfo.range = sizeBytes;
+    descriptorBufferInfo.buffer = bindingInfo.Buffer->m_Buffer;
+    descriptorBufferInfo.offset = bindingInfo.OffsetBytes;
+    descriptorBufferInfo.range = bindingInfo.SizeBytes;
 
-    VkWriteDescriptorSet writeDescriptors = {};
-    writeDescriptors.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptors.descriptorCount = 1;   
-    writeDescriptors.descriptorType = descriptorSet.GetLayout()->m_Descriptors[slot];
-    writeDescriptors.dstBinding = slot;
-    writeDescriptors.dstSet = descriptorSet.m_DescriptorSet;
-    writeDescriptors.pBufferInfo = &descriptorBufferInfo;
-
-    // suboptimal: better to delay until Bind()
-    vkUpdateDescriptorSets(DeviceHandle(), 1, &writeDescriptors, 0, nullptr);
+    descriptorSetCreateInfo.BoundBuffers.push_back({.ResourceInfo = descriptorBufferInfo, .Slot = slot});
 }
 
-void Driver::DescriptorSetBindTexture(const DescriptorSet& descriptorSet, u32 slot, const Texture& texture)
+void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor,
+    VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    VkDescriptorImageInfo descriptorImageInfo = {};
-    descriptorImageInfo.sampler = Texture::CreateSampler(VK_FILTER_LINEAR); // todo: find a better place for it
-    descriptorImageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    descriptorImageInfo.imageView = texture.m_ImageData.View;
+    DescriptorAddBinding(slot, descriptor, stages, descriptorSetCreateInfo);
+    
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.sampler = Texture::CreateSampler(VK_FILTER_LINEAR); // todo: find a better place for it
+    descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptorTextureInfo.imageView = texture.m_ImageData.View;
 
-    VkWriteDescriptorSet writeDescriptors = {};
-    writeDescriptors.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writeDescriptors.descriptorCount = 1;
-    writeDescriptors.descriptorType = descriptorSet.GetLayout()->m_Descriptors[slot];
-    writeDescriptors.dstBinding = slot;
-    writeDescriptors.dstSet = descriptorSet.m_DescriptorSet;
-    writeDescriptors.pImageInfo = &descriptorImageInfo;
+    descriptorSetCreateInfo.BoundTextures.push_back({.ResourceInfo = descriptorTextureInfo, .Slot = slot});
+}
 
-    // suboptimal: better to delay until Bind()
-    vkUpdateDescriptorSets(DeviceHandle(), 1, &writeDescriptors, 0, nullptr);
+void Driver::DescriptorAddBinding(u32 slot, VkDescriptorType descriptor, VkShaderStageFlags stages,
+    DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
+{
+    VkDescriptorSetLayoutBinding binding = {};
+    binding.binding = slot;
+    binding.descriptorType = descriptor;
+    binding.descriptorCount = 1;
+    binding.stageFlags = stages;
+
+    descriptorSetCreateInfo.Bindings.push_back(binding);
 }
 
 void Driver::Init(const Device& device)

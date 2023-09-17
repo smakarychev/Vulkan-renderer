@@ -14,8 +14,11 @@
 #include <vma/vk_mem_alloc.h>
 
 #include "DescriptorSet.h"
+#include "Shader.h"
 #include "UploadContext.h"
 
+
+class ShaderPipeline;
 
 class DriverDeletionQueue
 {
@@ -43,20 +46,23 @@ public:
 
     static void Unpack(const Subpass& subpass, RenderPass::Builder::CreateInfo& renderPassCreateInfo);
 
+    static void Unpack(const PushConstantDescription& description, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
+    static void Unpack(const DescriptorSetLayout& layout, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
+    
+    static void Unpack(const PipelineLayout& pipelineLayout, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
     static void Unpack(const RenderPass& renderPass, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
-    static void Unpack(const PushConstantDescription& description, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
-    static void Unpack(const DescriptorSetLayout& layout, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
 
     static void Unpack(const Attachment& attachment, Framebuffer::Builder::CreateInfo& framebufferCreateInfo);
     static void Unpack(const RenderPass& renderPass, Framebuffer::Builder::CreateInfo& framebufferCreateInfo);
 
     static void Unpack(const CommandPool& commandPool, CommandBuffer::Builder::CreateInfo& commandBufferCreateInfo);
 
-    static void Unpack(const DescriptorPool& pool, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
-    static void Unpack(const DescriptorSetLayout& layout, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
+    static void Unpack(DescriptorAllocator& allocator, const DescriptorSetLayout& layout, DescriptorAllocator::SetAllocateInfo& setAllocateInfo);
 
-    static void DescriptorSetBindBuffer(const DescriptorSet& descriptorSet, u32 slot, const Buffer& buffer, u64 sizeBytes, u64 offset);
-    static void DescriptorSetBindTexture(const DescriptorSet& descriptorSet, u32 slot, const Texture& texture);
+    static void DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
+        VkDescriptorType descriptor, VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
+    static void DescriptorSetBindTexture(u32 slot, const Texture& texture,
+        VkDescriptorType descriptor, VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
 
     template <typename Fn>
     static void ImmediateUpload(Fn&& uploadFunction);
@@ -70,6 +76,9 @@ public:
     static VmaAllocator& Allocator() { return s_State.Allocator; }
     static u64 GetUniformBufferAlignment() { return s_State.Device->m_GPUProperties.limits.minUniformBufferOffsetAlignment; }
     static UploadContext* UploadContext() { return &s_State.UploadContext; }
+private:
+    static void DescriptorAddBinding(u32 slot, VkDescriptorType descriptor, VkShaderStageFlags stages,
+        DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
 public:
     static DriverState s_State;
 };

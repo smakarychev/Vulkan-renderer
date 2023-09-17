@@ -174,11 +174,11 @@ void RenderCommand::BindPipeline(const CommandBuffer& cmd, const Pipeline& pipel
 }
 
 void RenderCommand::BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
-    const Pipeline& pipeline, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets)
+    const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets)
 {
     vkCmdBindDescriptorSets(cmd.m_CommandBuffer,
-        bindPoint, pipeline.m_Layout,
-        pipeline.FindDescriptorSetLayout(descriptorSet.m_Layout->m_Layout), 1,
+        bindPoint, pipelineLayout.m_Layout,
+        setIndex, 1,
         &descriptorSet.m_DescriptorSet,
         (u32)dynamicOffsets.size(), dynamicOffsets.data());
 }
@@ -209,10 +209,10 @@ void RenderCommand::DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& 
     vkCmdDrawIndexedIndirect(cmd.m_CommandBuffer, buffer.m_Buffer, offset, count, stride);    
 }
 
-void RenderCommand::PushConstants(const CommandBuffer& cmd, const Pipeline& pipeline, const void* pushConstants,
+void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
                                   const PushConstantDescription& description)
 {
-    vkCmdPushConstants(cmd.m_CommandBuffer, pipeline.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
+    vkCmdPushConstants(cmd.m_CommandBuffer, pipelineLayout.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
 }
 
 void RenderCommand::SetViewport(const CommandBuffer& cmd, const glm::vec2& size)

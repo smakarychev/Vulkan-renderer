@@ -58,19 +58,22 @@ public:
         friend class PushConstantDescription;
         struct CreateInfo
         {
-            VkShaderStageFlagBits Stages;
+            VkShaderStageFlags Stages;
             u32 SizeBytes;
+            u32 Offset{0};
         };
     public:
         PushConstantDescription Build();
         Builder& SetSizeBytes(u32 sizeBytes);
-        Builder& SetStages(VkShaderStageFlagBits stages);
+        Builder& SetOffset(u32 offset);
+        Builder& SetStages(VkShaderStageFlags stages);
     private:
         CreateInfo m_CreateInfo;
     };
 public:
     static PushConstantDescription Create(const Builder::CreateInfo& createInfo);
 private:
-    VkShaderStageFlags m_StageFlags{};
     u32 m_SizeBytes{};
+    u32 m_Offset{};
+    VkShaderStageFlags m_StageFlags{};
 };

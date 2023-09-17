@@ -13,17 +13,18 @@ project "VulkanRenderer"
 
     includedirs
     {
-        "C:/VulkanSDK/1.3.236.0/Include",
+        "C:/VulkanSDK/1.3.261.1/Include",
         "src",
         "%{wks.location}/tools/AssetLib/src",
         IncludeDir["GLFW"],			
         IncludeDir["glm"],			
-        IncludeDir["vma"],		    
+        IncludeDir["vma"],	
+        IncludeDir["spirv_reflect"],	    
     }
 
     libdirs
 	{
-		"C:/VulkanSDK/1.3.236.0/Lib"
+		"C:/VulkanSDK/1.3.261.1/Lib"
 	}
 
     links
@@ -48,7 +49,7 @@ project "VulkanRenderer"
             "shadercd.lib",
             "shaderc_combinedd.lib", 
             "shaderc_sharedd.lib", 
-            "shaderc_utild.lib"
+            "shaderc_utild.lib",
         }
 
 	filter "configurations:Release"
@@ -58,5 +59,5 @@ project "VulkanRenderer"
             "shaderc.lib",
             "shaderc_combined.lib", 
             "shaderc_shared.lib", 
-            "shaderc_util.lib"
+            "shaderc_util.lib",
         }

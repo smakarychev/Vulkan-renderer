@@ -3,6 +3,14 @@
 #include "Mesh.h"
 #include "RenderObject.h"
 
+ShaderPipelineTemplate* Scene::GetShaderTemplate(const std::string& name)
+{
+    auto it = m_ShaderTemplates.find(name);
+    if (it == m_ShaderTemplates.end())
+        return nullptr;
+    return &it->second;
+}
+
 Material* Scene::GetMaterial(const std::string& name)
 {
     auto it = m_Materials.find(name);
@@ -17,6 +25,19 @@ Mesh* Scene::GetMesh(const std::string& name)
     if (it == m_Meshes.end())
         return nullptr;
     return &it->second;
+}
+
+Texture* Scene::GetTexture(const std::string& name)
+{
+    auto it = m_Textures.find(name);
+    if (it == m_Textures.end())
+        return nullptr;
+    return &it->second;
+}
+
+void Scene::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name)
+{
+    m_ShaderTemplates[name] = shaderTemplate;
 }
 
 void Scene::AddMaterial(const Material& material, const std::string& name)

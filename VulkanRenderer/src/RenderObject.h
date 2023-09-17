@@ -3,8 +3,7 @@
 #include <optional>
 #include <glm/glm.hpp>
 
-#include "Vulkan/Pipeline.h"
-#include "Vulkan/DescriptorSet.h"
+#include "Vulkan/Shader.h"
 
 class DescriptorSet;
 class Mesh;
@@ -12,8 +11,8 @@ class Mesh;
 struct Material
 {
     // todo: find a better way?
-    std::optional<DescriptorSet> TextureSet;
-    Pipeline Pipeline;
+    std::optional<ShaderDescriptorSet> TextureSet;
+    ShaderPipeline Pipeline;
 };
 
 class RenderObject
