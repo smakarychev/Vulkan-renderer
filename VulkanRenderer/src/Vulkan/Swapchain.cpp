@@ -10,8 +10,8 @@
 
 Swapchain Swapchain::Builder::Build()
 {
-    m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
-    m_CreateInfo.FrameSyncs = CreateSynchronizationStructures();
+    PreBuild();
+    
     Swapchain swapchain = Swapchain::Create(m_CreateInfo);
     Driver::DeletionQueue().AddDeleter([swapchain](){ Swapchain::Destroy(swapchain); });
 
@@ -20,8 +20,8 @@ Swapchain Swapchain::Builder::Build()
 
 Swapchain Swapchain::Builder::BuildManualLifetime()
 {
-    m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
-    m_CreateInfo.FrameSyncs = CreateSynchronizationStructures();
+    PreBuild();
+    
     return Swapchain::Create(m_CreateInfo);
 }
 
@@ -73,6 +73,21 @@ Swapchain::Builder& Swapchain::Builder::BufferedFrames(u32 count)
     return *this;
 }
 
+Swapchain::Builder& Swapchain::Builder::SetSyncStructures(const std::vector<SwapchainFrameSync>& syncs)
+{
+    m_CreateInfo.FrameSyncs = syncs;
+
+    return *this;
+}
+
+void Swapchain::Builder::PreBuild()
+{
+    m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
+    
+    if (m_CreateInfo.FrameSyncs.empty())
+        m_CreateInfo.FrameSyncs = CreateSynchronizationStructures();
+}
+
 VkExtent2D Swapchain::Builder::ChooseExtent(const VkSurfaceCapabilitiesKHR& capabilities)
 {
     return capabilities.currentExtent;
@@ -99,7 +114,8 @@ std::vector<SwapchainFrameSync> Swapchain::Builder::CreateSynchronizationStructu
     for (u32 i = 0; i < m_BufferedFrames; i++)
     {
         Fence renderFence = Fence::Builder().
-            StartSignaled(true).Build();
+            StartSignaled(true).
+            Build();
         Semaphore renderSemaphore = Semaphore::Builder().Build();
         Semaphore presentSemaphore = Semaphore::Builder().Build();
 
@@ -164,6 +180,7 @@ void Swapchain::Destroy(const Swapchain& swapchain)
 {
     for (const auto& colorImage : swapchain.m_ColorImages)
         vkDestroyImageView(Driver::DeviceHandle(), colorImage.GetImageData().View, nullptr);
+    Image::Destroy(swapchain.m_DepthImage);
     vkDestroySwapchainKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, nullptr);
 }
 
@@ -171,24 +188,38 @@ u32 Swapchain::AcquireImage(u32 frameNumber)
 {
     VulkanCheck(RenderCommand::WaitForFence(m_SwapchainFrameSync[frameNumber].RenderFence),
         "Error while waiting for fences");
+
+    u32 imageIndex;
+    
+    VkResult res = RenderCommand::AcquireNextImage(*this, m_SwapchainFrameSync[frameNumber], imageIndex);
+    if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        return INVALID_SWAPCHAIN_IMAGE;
+    
+    ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
+
     VulkanCheck(RenderCommand::ResetFence(m_SwapchainFrameSync[frameNumber].RenderFence),
         "Error while resetting fences");
-    u32 imageIndex;
-    VulkanCheck(RenderCommand::AcquireNextImage(*this, m_SwapchainFrameSync[frameNumber], imageIndex),
-        "Failed to acquire new swapchain image");
-
+    
     return imageIndex;
 }
 
-void Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber)
+bool Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber)
 {
-    VulkanCheck(RenderCommand::Present(*this, queueInfo, m_SwapchainFrameSync[frameNumber], imageIndex),
-        "Failed to present image");
+    VkResult res = RenderCommand::Present(*this, queueInfo, m_SwapchainFrameSync[frameNumber], imageIndex);
+
+    ASSERT(res == VK_SUCCESS || res == VK_ERROR_OUT_OF_DATE_KHR || res == VK_SUBOPTIMAL_KHR, "Failed to present image")
+
+    return res == VK_SUCCESS;
 }
 
 const SwapchainFrameSync& Swapchain::GetFrameSync(u32 frameNumber) const
 {
     return m_SwapchainFrameSync[frameNumber];
+}
+
+const std::vector<SwapchainFrameSync>& Swapchain::GetFrameSync() const
+{
+    return m_SwapchainFrameSync;
 }
 
 std::vector<Image> Swapchain::CreateColorImages() const
@@ -225,7 +256,7 @@ Image Swapchain::CreateDepthImage()
         SetExtent(m_Extent).
         SetFormat(m_DepthFormat).
         SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT).
-        Build();
+        BuildManualLifetime();
 
     return depth;
 }
@@ -288,7 +319,7 @@ std::vector<Framebuffer> Swapchain::GetFramebuffers(const RenderPass& renderPass
         Framebuffer framebuffer = Framebuffer::Builder().
             SetRenderPass(renderPass).
             SetAttachments(attachments).
-            Build();
+            BuildManualLifetime();
 
         framebuffers.push_back(framebuffer);
     }

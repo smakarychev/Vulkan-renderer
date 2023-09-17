@@ -33,10 +33,15 @@ void Renderer::Run()
 void Renderer::OnRender()
 {
     BeginFrame();
-
-    Submit(m_Scene);
-    
-    EndFrame();
+    if (!m_FrameEarlyExit)
+    {
+        Submit(m_Scene);
+        EndFrame();
+    }
+    else
+    {
+        m_FrameEarlyExit = false;
+    }
 }
 
 void Renderer::OnUpdate()
@@ -126,6 +131,12 @@ void Renderer::BeginFrame()
     u32 frameNumber = GetFrameContext().FrameNumber;
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     m_SwapchainImageIndex = m_Swapchain.AcquireImage(frameNumber);
+    if (m_SwapchainImageIndex == INVALID_SWAPCHAIN_IMAGE)
+    {
+        m_FrameEarlyExit = true;
+        RecreateSwapchain();
+        return;
+    }
 
     cmd.Reset();
     cmd.Begin();
@@ -148,8 +159,12 @@ void Renderer::EndFrame()
 
     cmd.End();
     cmd.Submit(m_Device.GetQueues().Graphics, sync);
+
+    bool isFramePresentSuccessful = m_Swapchain.PresentImage(m_Device.GetQueues().Presentation, m_SwapchainImageIndex, frameNumber); 
+    bool shouldRecreateSwapchain = m_IsWindowResized || !isFramePresentSuccessful;
+    if (shouldRecreateSwapchain)
+        RecreateSwapchain();
     
-    m_Swapchain.PresentImage(m_Device.GetQueues().Presentation, m_SwapchainImageIndex, frameNumber);
     m_FrameNumber++;
     m_CurrentFrameContext = &m_FrameContexts[m_FrameNumber % BUFFERED_FRAMES];
 }
@@ -201,6 +216,12 @@ void Renderer::Init()
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not create opengl context
     m_Window = glfwCreateWindow(1600, 900, "My window", nullptr, nullptr);
+    glfwSetWindowUserPointer(m_Window, this);
+    glfwSetFramebufferSizeCallback(m_Window, [](GLFWwindow* window, i32 width, i32 height)
+    {
+        Renderer* renderer = (Renderer*)glfwGetWindowUserPointer(window);
+        renderer->OnWindowResize();
+    });
 
     m_Device = Device::Builder().
         Defaults().
@@ -214,7 +235,7 @@ void Renderer::Init()
         FromDetails(m_Device.GetSurfaceDetails()).
         SetDevice(m_Device).
         BufferedFrames(BUFFERED_FRAMES).
-        Build();
+        BuildManualLifetime();
 
     std::vector<AttachmentTemplate> attachmentTemplates = m_Swapchain.GetAttachmentTemplates();
     
@@ -288,9 +309,45 @@ void Renderer::Init()
 
 void Renderer::ShutDown()
 {
+    vkDeviceWaitIdle(Driver::DeviceHandle());
+    for (auto& framebuffer : m_Framebuffers)
+        Framebuffer::Destroy(framebuffer);
+    Swapchain::Destroy(m_Swapchain);
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();
+}
+
+void Renderer::OnWindowResize()
+{
+    m_IsWindowResized = true;
+}
+
+void Renderer::RecreateSwapchain()
+{
+    i32 width = 0, height = 0;
+    glfwGetFramebufferSize(m_Window, &width, &height);
+    while (width == 0 || height == 0)
+    {
+        glfwGetFramebufferSize(m_Window, &width, &height);
+        glfwWaitEvents();
+    }
+    
+    vkDeviceWaitIdle(Driver::DeviceHandle());
+    for (auto& framebuffer : m_Framebuffers)
+        Framebuffer::Destroy(framebuffer);
+
+    Swapchain::Builder newSwapchainBuilder = Swapchain::Builder().
+        DefaultHints().
+        FromDetails(m_Device.GetSurfaceDetails()).
+        SetDevice(m_Device).
+        BufferedFrames(BUFFERED_FRAMES).
+        SetSyncStructures(m_Swapchain.GetFrameSync());
+    
+    Swapchain::Destroy(m_Swapchain);
+    
+    m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
+    m_Framebuffers = m_Swapchain.GetFramebuffers(m_RenderPass);
 }
 
 void Renderer::LoadScene()
@@ -395,9 +452,9 @@ void Renderer::LoadScene()
     std::vector materials = {"default", "grey", "textured"};
     std::vector meshes = {"bugatti", "mori", "viking_room"};
 
-    for (i32 x = -10; x <= 10; x++)
+    for (i32 x = -5; x <= 5; x++)
     {
-        for (i32 z = -10; z <= 10; z++)
+        for (i32 z = -5; z <= 5; z++)
         {
             u32 meshIndex = rand() % meshes.size();
             u32 materialIndex = rand() % materials.size();

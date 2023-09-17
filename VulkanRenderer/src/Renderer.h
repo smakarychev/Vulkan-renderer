@@ -88,6 +88,9 @@ private:
     void Init();
     void ShutDown();
 
+    void OnWindowResize();
+    void RecreateSwapchain();
+    
     void UpdateCamera();
     void UpdateScene();
     void LoadScene();
@@ -118,6 +121,9 @@ private:
     
     static constexpr u32 BUFFERED_FRAMES{2};
     static constexpr u32 MAX_DRAW_INDIRECT_CALLS{1000};
+
+    bool m_IsWindowResized{false};
+    bool m_FrameEarlyExit{false};
 };
 
 template <typename Fn>

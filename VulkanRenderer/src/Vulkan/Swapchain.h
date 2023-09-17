@@ -24,6 +24,8 @@ struct SwapchainFrameSync
     Semaphore PresentSemaphore;
 };
 
+static constexpr u32 INVALID_SWAPCHAIN_IMAGE = std::numeric_limits<u32>::max();
+
 class Swapchain
 {
     FRIEND_INTERNAL
@@ -57,7 +59,9 @@ public:
         Builder& FromDetails(const SurfaceDetails& details);
         Builder& SetDevice(const Device& device);
         Builder& BufferedFrames(u32 count);
+        Builder& SetSyncStructures(const std::vector<SwapchainFrameSync>& syncs);
     private:
+        void PreBuild();
         static VkExtent2D ChooseExtent(const VkSurfaceCapabilitiesKHR& capabilities);
         static u32 ChooseImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
         static VkFormat ChooseDepthFormat();
@@ -72,9 +76,10 @@ public:
     static void Destroy(const Swapchain& swapchain);
 
     u32 AcquireImage(u32 frameNumber);
-    void PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);
+    bool PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);
 
     const SwapchainFrameSync& GetFrameSync(u32 frameNumber) const;
+    const std::vector<SwapchainFrameSync>& GetFrameSync() const;
 
     std::vector<AttachmentTemplate> GetAttachmentTemplates() const;
     std::vector<Attachment> GetAttachments(u32 imageIndex) const;
