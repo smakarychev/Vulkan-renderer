@@ -17,7 +17,6 @@ namespace utils
     void compressToBlob(std::vector<u8>& blob, const std::vector<const void*>& sources,
         const std::vector<u64>& sourceSizesBytes)
     {
-        
         u64 totalSize = std::accumulate(sourceSizesBytes.begin(), sourceSizesBytes.end(), 0llu);
         std::vector<u8> accumulated(totalSize);
         u64 offset = 0;

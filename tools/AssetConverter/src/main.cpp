@@ -24,8 +24,11 @@ i32 main(i32 argc, char** argv)
         {
             ConverterDispatcher dispatcher(file);
             dispatcher.Dispatch<TextureConverter>({".png", ".jpg", ".jpeg"});
-            dispatcher.Dispatch<MeshConverter>({".obj"});
+            dispatcher.Dispatch<ModelConverter>({".obj", ".fbx", ".blend", ".gltf"});
             dispatcher.Dispatch<ShaderConverter>({".vert", ".frag"});
         }
     }
 }
+
+// SPIV-reflect implementation
+#include "spirv_reflect.c"

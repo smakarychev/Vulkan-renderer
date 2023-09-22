@@ -30,6 +30,7 @@ layout(location = 1) out vec3 vert_normal;
 
 void main() {
     gl_Position = u_camera_buffer.view_projection * u_object_buffer.objects[gl_BaseInstance].model * vec4(a_position, 1.0);
-    vert_color = a_color;
+    //vert_color = a_color;
+    vert_color = a_normal;
     vert_normal = a_normal;
 }

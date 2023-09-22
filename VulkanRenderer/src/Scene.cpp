@@ -2,6 +2,7 @@
 
 #include "Mesh.h"
 #include "RenderObject.h"
+#include "Vulkan/Model.h"
 
 ShaderPipelineTemplate* Scene::GetShaderTemplate(const std::string& name)
 {
@@ -15,6 +16,14 @@ Material* Scene::GetMaterial(const std::string& name)
 {
     auto it = m_Materials.find(name);
     if (it == m_Materials.end())
+        return nullptr;
+    return &it->second;
+}
+
+Model* Scene::GetModel(const std::string& name)
+{
+    auto it = m_Models.find(name);
+    if (it == m_Models.end())
         return nullptr;
     return &it->second;
 }
@@ -48,6 +57,13 @@ void Scene::AddMaterial(const Material& material, const std::string& name)
 void Scene::AddMesh(const Mesh& mesh, const std::string& name)
 {
     m_Meshes.emplace(std::make_pair(name, mesh));
+}
+
+void Scene::AddModel(const Model& model, const std::string& name)
+{
+    for (u32 i = 0; i < model.GetMeshes().size(); i++)
+        AddMesh(model.GetMeshes()[i], name + std::to_string(i));
+    m_Models.emplace(std::make_pair(name, model));
 }
 
 void Scene::AddTexture(const Texture& texture, const std::string& name)

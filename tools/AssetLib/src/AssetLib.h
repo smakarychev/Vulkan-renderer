@@ -8,7 +8,7 @@ namespace assetLib
 {
     enum class FileType : u32
     {
-        Texture, Mesh
+        Texture, Model, Mesh, Shader
     };
     
     struct File

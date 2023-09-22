@@ -13,6 +13,7 @@ project "AssetLib"
 
     includedirs 
 	{
+        "C:/VulkanSDK/1.3.261.1/Include",
         "%{wks.location}/VulkanRenderer/src",
         IncludeDir["lz4"],
         IncludeDir["nlohmann-json"],

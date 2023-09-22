@@ -17,6 +17,6 @@ layout(set = 2, binding = 0) uniform sampler2D u_texture;
 layout(location = 0) out vec4 out_color;
 
 void main() {
-    out_color = texture(u_texture, vert_uv) * dot(normalize(vert_normal), normalize(dyn_u_scene_data.sunlight_direction.xyz));
+    out_color = texture(u_texture, vert_uv);
     out_color = vec4(out_color.xyz, 1.0);
 }

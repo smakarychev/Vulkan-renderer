@@ -13,19 +13,7 @@ struct Vertex3D
     glm::vec2 UV;
 
     static VertexInputDescription GetInputDescription();
-    bool operator==(const Vertex3D& other) const
-    {
-        return Position == other.Position && Normal == other.Normal && Color == other.Color && UV == other.UV;
-    }
 };
-
-namespace std
-{
-    template<> struct hash<Vertex3D>
-    {
-        size_t operator()(const Vertex3D& vertex) const noexcept;
-    };
-}
 
 struct MeshPushConstants
 {
@@ -51,7 +39,6 @@ class Mesh
 {
 public:
     Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indices);
-    static Mesh LoadFromAsset(std::string_view path);
     void Upload(const Renderer& renderer);
     const Buffer& GetVertexBuffer() const { return m_VertexBuffer; }
     const Buffer& GetIndexBuffer() const { return m_IndexBuffer; }

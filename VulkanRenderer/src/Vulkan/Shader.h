@@ -4,8 +4,10 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
+#include "AssetLib.h"
 #include "DescriptorSet.h"
 #include "Pipeline.h"
+#include "ShaderAsset.h"
 #include "types.h"
 #include "VulkanCommon.h"
 
@@ -27,59 +29,25 @@ enum class DescriptorKind : u32
 
 // todo: WIP, reflection testing
 // todo: name is pretty bad
-class ShaderReflection
+class Shader
 {
 public:
+    using ShaderReflection = assetLib::ShaderInfo;
     struct ShaderModule
     {
         std::vector<u8> Source;
         ShaderKind Kind;
     };
-    struct InputAttributeReflection
-    {
-        u32 Location;
-        std::string Name;
-        VkFormat Format;
-    };
-    struct PushConstantReflection
-    {
-        u32 SizeBytes;
-        u32 Offset;
-        VkShaderStageFlags ShaderStages;
-    };
-    
-    struct DescriptorSetReflection
-    {
-        struct DescriptorBindingReflection
-        {
-            u32 Binding;
-            std::string Name;
-            VkDescriptorType Descriptor;
-            VkShaderStageFlags ShaderStages;
-        };
-        u32 Set;
-        std::vector<DescriptorBindingReflection> Bindings;
-    };
-    struct ModuleReflectionData
-    {
-        VkShaderStageFlags ShaderStages;
-        std::vector<InputAttributeReflection> InputAttributeReflections;
-        std::vector<PushConstantReflection> PushConstantReflections;
-        std::vector<DescriptorSetReflection> DescriptorSetReflections;
-    };
-    using ReflectionData = ModuleReflectionData;
 public:
     void LoadFromAsset(std::string_view path);
     void ReflectFrom(const std::vector<std::string_view>& paths);
-    void Reflect();
-    const ReflectionData& GetReflectionData() const { return m_ReflectionData; }
+    const assetLib::ShaderInfo& GetReflectionData() const { return m_ReflectionData; }
     const std::vector<ShaderModule>& GetShaders() const { return m_Modules; }
 private:
-    static ModuleReflectionData ReflectModule(const ShaderModule& module);
-    static ReflectionData MergeReflections(const ModuleReflectionData& first, const ModuleReflectionData& second); 
+    static assetLib::ShaderInfo MergeReflections(const assetLib::ShaderInfo& first, const assetLib::ShaderInfo& second); 
 private:
     std::vector<ShaderModule> m_Modules;
-    ReflectionData m_ReflectionData{};
+    assetLib::ShaderInfo m_ReflectionData{};
 };
 
 class ShaderPipelineTemplate
@@ -92,14 +60,14 @@ public:
         friend class ShaderPipelineTemplate;
         struct CreateInfo
         {
-            ShaderReflection* ShaderReflection;
+            Shader* ShaderReflection;
             DescriptorAllocator* Allocator;
             DescriptorLayoutCache* LayoutCache;
         };
     public:
         ShaderPipelineTemplate Build();
         ShaderPipelineTemplate BuildManualLifetime();
-        Builder& SetShaderReflection(ShaderReflection* shaderReflection);
+        Builder& SetShaderReflection(Shader* shaderReflection);
         Builder& SetDescriptorAllocator(DescriptorAllocator* allocator);
         Builder& SetDescriptorLayoutCache(DescriptorLayoutCache* layoutCache);
     private:
@@ -123,11 +91,11 @@ public:
     const PipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
     
 private:
-    static std::vector<DescriptorSetLayout*> CreateDescriptorLayouts(const std::vector<ShaderReflection::DescriptorSetReflection>& descriptorSetReflections, DescriptorLayoutCache* layoutCache);
-    static VertexInputDescription CreateInputDescription(const std::vector<ShaderReflection::InputAttributeReflection>& inputAttributeReflections);
-    static std::vector<PushConstantDescription> CreatePushConstantDescriptions(const std::vector<ShaderReflection::PushConstantReflection>& pushConstantReflections);
-    static std::vector<ShaderModuleData> CreateShaderModules(const std::vector<ShaderReflection::ShaderModule>& shaders);
-    static std::vector<VkDescriptorSetLayoutBinding> ExtractBindings(const ShaderReflection::DescriptorSetReflection& descriptorSet);
+    static std::vector<DescriptorSetLayout*> CreateDescriptorLayouts(const std::vector<Shader::ShaderReflection::DescriptorSet>& descriptorSetReflections, DescriptorLayoutCache* layoutCache);
+    static VertexInputDescription CreateInputDescription(const std::vector<Shader::ShaderReflection::InputAttribute>& inputAttributeReflections);
+    static std::vector<PushConstantDescription> CreatePushConstantDescriptions(const std::vector<Shader::ShaderReflection::PushConstant>& pushConstantReflections);
+    static std::vector<ShaderModuleData> CreateShaderModules(const std::vector<Shader::ShaderModule>& shaders);
+    static std::vector<VkDescriptorSetLayoutBinding> ExtractBindings(const Shader::ShaderReflection::DescriptorSet& descriptorSet);
 private:
     DescriptorAllocator* m_Allocator{nullptr};
     DescriptorLayoutCache* m_LayoutCache{nullptr};

@@ -4,6 +4,7 @@
 
 #include <fstream>
 
+#include "AssetLib.h"
 #include "Buffer.h"
 #include "core.h"
 #include "DescriptorSet.h"
@@ -13,137 +14,43 @@
 #include "utils.h"
 #include "VulkanUtils.h"
 
-void ShaderReflection::LoadFromAsset(std::string_view path)
+void Shader::LoadFromAsset(std::string_view path)
 {
-    // load the spirv bytecode from file
-    std::ifstream in(path.data(), std::ios::ate | std::ios::binary);
-    usize sizeBytes = in.tellg();
-    std::vector<u8> shaderSrc(sizeBytes);
-    in.seekg(0);
-    in.read((char*)shaderSrc.data(), (i64)sizeBytes);
+    assetLib::File shaderFile;
+    assetLib::loadBinaryFile(path, shaderFile);
+    assetLib::ShaderInfo shaderInfo = assetLib::readShaderInfo(shaderFile);
 
-    m_Modules.push_back({.Source = shaderSrc});
+    m_ReflectionData = MergeReflections(m_ReflectionData, shaderInfo);
+    ShaderModule shaderModule = {};
+    shaderModule.Kind = vkUtils::shaderKindByStage(shaderInfo.ShaderStages);
+    shaderModule.Source.resize(shaderInfo.SourceSizeBytes);
+    assetLib::unpackShader(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), shaderModule.Source.data());
+    m_Modules.push_back(shaderModule);
+    
+    ASSERT(m_ReflectionData.DescriptorSets.size() <= MAX_PIPELINE_DESCRIPTOR_SETS,
+        "Can have only {} different descriptor sets, but have {}",
+        MAX_PIPELINE_DESCRIPTOR_SETS, m_ReflectionData.DescriptorSets.size())
 }
 
-void ShaderReflection::ReflectFrom(const std::vector<std::string_view>& paths)
+void Shader::ReflectFrom(const std::vector<std::string_view>& paths)
 {
     for (auto& path : paths)
         LoadFromAsset(path);
-    Reflect();
 }
 
-void ShaderReflection::Reflect()
-{
-    ReflectionData merged = {};
-    for (auto& module : m_Modules)
-    {
-        ModuleReflectionData reflectionData = ReflectModule(module);
-        module.Kind = vkUtils::shaderKindByStage(reflectionData.ShaderStages);
-        merged = MergeReflections(merged, reflectionData);
-    }
-    m_ReflectionData = merged;
-    ASSERT(m_ReflectionData.DescriptorSetReflections.size() <= MAX_PIPELINE_DESCRIPTOR_SETS,
-        "Can have only {} different descriptor sets, but have {}",
-        MAX_PIPELINE_DESCRIPTOR_SETS, m_ReflectionData.DescriptorSetReflections.size())
-}
-
-ShaderReflection::ModuleReflectionData ShaderReflection::ReflectModule(const ShaderModule& module)
-{
-    ModuleReflectionData moduleReflectionData = {};
-
-    static constexpr u32 SPV_INVALID_VAL = (u32)-1;
-    SpvReflectShaderModule reflectedModule = {};
-    spvReflectCreateShaderModule(module.Source.size(), module.Source.data(), &reflectedModule);
-
-    moduleReflectionData.ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage;
-
-    // extract input attributes
-    if (reflectedModule.shader_stage == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT)
-    {
-        u32 inputCount;
-        spvReflectEnumerateInputVariables(&reflectedModule, &inputCount, nullptr);
-        std::vector<SpvReflectInterfaceVariable*> inputs(inputCount);
-        spvReflectEnumerateInputVariables(&reflectedModule, &inputCount, inputs.data());
-
-        moduleReflectionData.InputAttributeReflections.reserve(inputCount);
-        for (auto& input : inputs)
-        {
-            if (input->location == SPV_INVALID_VAL)
-                continue;
-            moduleReflectionData.InputAttributeReflections.push_back({
-                .Location = input->location,
-                .Name = input->name,
-                .Format = (VkFormat)input->format
-            });
-        }
-        std::ranges::sort(moduleReflectionData.InputAttributeReflections,
-                          [](const auto& a, const auto& b) { return a.Location < b.Location; });
-    }
-
-    // extract push constants
-    u32 pushCount;
-    spvReflectEnumeratePushConstantBlocks(&reflectedModule, &pushCount, nullptr);
-    std::vector<SpvReflectBlockVariable*> pushConstants(pushCount);
-    spvReflectEnumeratePushConstantBlocks(&reflectedModule, &pushCount, pushConstants.data());
-
-    moduleReflectionData.PushConstantReflections.reserve(pushCount);
-    for (auto& push : pushConstants)
-        moduleReflectionData.PushConstantReflections.push_back({.SizeBytes = push->size, .Offset = push->offset, .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage});
-    std::ranges::sort(moduleReflectionData.PushConstantReflections,
-                      [](const auto& a, const auto& b) { return a.Offset < b.Offset; });
-
-    // extract descriptors
-    u32 setCount;
-    spvReflectEnumerateDescriptorSets(&reflectedModule, &setCount, nullptr);
-    std::vector<SpvReflectDescriptorSet*> sets(setCount);
-    spvReflectEnumerateDescriptorSets(&reflectedModule, &setCount, sets.data());
-
-    ASSERT(setCount <= MAX_PIPELINE_DESCRIPTOR_SETS, "Can have only {} different descriptor sets, but have {}", MAX_PIPELINE_DESCRIPTOR_SETS, setCount)
-    moduleReflectionData.DescriptorSetReflections.reserve(setCount);
-    for (auto& set : sets)
-    {
-        moduleReflectionData.DescriptorSetReflections.push_back({.Set = set->set});
-        DescriptorSetReflection& descriptorSet = moduleReflectionData.DescriptorSetReflections.back();
-        descriptorSet.Bindings.resize(set->binding_count);
-        for (u32 i = 0; i < set->binding_count; i++)
-        {
-            descriptorSet.Bindings[i] = {
-                .Binding = set->bindings[i]->binding,
-                .Name = set->bindings[i]->name,
-                .Descriptor = (VkDescriptorType)set->bindings[i]->descriptor_type,
-                .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage
-            };
-            if (descriptorSet.Bindings[i].Name.starts_with("dyn"))
-            {
-                if (descriptorSet.Bindings[i].Descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
-                    descriptorSet.Bindings[i].Descriptor = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                else if (descriptorSet.Bindings[i].Descriptor == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                    descriptorSet.Bindings[i].Descriptor = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
-            }
-        }
-        std::ranges::sort(descriptorSet.Bindings,
-                          [](const auto& a, const auto& b) { return a.Binding < b.Binding; });
-    }
-    std::ranges::sort(moduleReflectionData.DescriptorSetReflections,
-                      [](const auto& a, const auto& b) { return a.Set < b.Set; });
-
-    return moduleReflectionData;
-}
-
-ShaderReflection::ReflectionData ShaderReflection::MergeReflections(
-    const ModuleReflectionData& first, const ModuleReflectionData& second)
+assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first, const assetLib::ShaderInfo& second)
 {
     ASSERT(!(first.ShaderStages & second.ShaderStages), "Overlapping shader stages")
 
-    ReflectionData merged = first;
+    assetLib::ShaderInfo merged = first;
 
     merged.ShaderStages |= second.ShaderStages;
 
     // merge inputs (possibly nothing happens)
-    merged.InputAttributeReflections.append_range(second.InputAttributeReflections);
+    merged.InputAttributes.append_range(second.InputAttributes);
 
     // merge push constants
-    merged.PushConstantReflections = utils::mergeSets(merged.PushConstantReflections, second.PushConstantReflections,
+    merged.PushConstants = utils::mergeSets(merged.PushConstants, second.PushConstants,
         [](const auto& a, const auto& b)
         {
             if (a.Offset == b.Offset && a.SizeBytes == b.SizeBytes)
@@ -154,13 +61,13 @@ ShaderReflection::ReflectionData ShaderReflection::MergeReflections(
         },
         [](const auto& a, const auto& b)
         {
-            PushConstantReflection merged = a;
+            assetLib::ShaderInfo::PushConstant merged = a;
             merged.ShaderStages |= b.ShaderStages;
             return merged;
         });
 
     // merge descriptor sets
-    merged.DescriptorSetReflections = utils::mergeSets(merged.DescriptorSetReflections, second.DescriptorSetReflections,
+    merged.DescriptorSets = utils::mergeSets(merged.DescriptorSets, second.DescriptorSets,
         [](const auto& a, const auto& b)
         {
             if (a.Set == b.Set)
@@ -171,7 +78,7 @@ ShaderReflection::ReflectionData ShaderReflection::MergeReflections(
         },
         [](const auto& a, const auto& b)
         {
-            DescriptorSetReflection mergedSet = a;
+            assetLib::ShaderInfo::DescriptorSet mergedSet = a;
             mergedSet.Bindings = utils::mergeSets(
                mergedSet.Bindings, b.Bindings,
                 [](const auto& a, const auto& b)
@@ -185,7 +92,7 @@ ShaderReflection::ReflectionData ShaderReflection::MergeReflections(
                 [](const auto& a, const auto& b)
                 {
                     ASSERT(a.Name == b.Name, "Descriptors have same binding but different names")
-                    DescriptorSetReflection::DescriptorBindingReflection mergedDescriptor = a;
+                    assetLib::ShaderInfo::DescriptorSet::DescriptorBinding mergedDescriptor = a;
                     mergedDescriptor.ShaderStages |= b.ShaderStages;
 
                     return mergedDescriptor;
@@ -211,7 +118,7 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Builder::BuildManualLifetime()
     return ShaderPipelineTemplate::Create(m_CreateInfo);
 }
 
-ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetShaderReflection(ShaderReflection* shaderReflection)
+ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetShaderReflection(Shader* shaderReflection)
 {
     m_CreateInfo.ShaderReflection = shaderReflection;
 
@@ -239,11 +146,11 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     shaderPipelineTemplate.m_Allocator = createInfo.Allocator;
     shaderPipelineTemplate.m_LayoutCache = createInfo.LayoutCache;
     
-    const ShaderReflection::ReflectionData& reflectionData = createInfo.ShaderReflection->GetReflectionData();
+    const auto& reflectionData = createInfo.ShaderReflection->GetReflectionData();
     
-    std::vector<DescriptorSetLayout*> layouts = CreateDescriptorLayouts(reflectionData.DescriptorSetReflections, createInfo.LayoutCache);
-    shaderPipelineTemplate.m_VertexInputDescription = CreateInputDescription(reflectionData.InputAttributeReflections);
-    std::vector<PushConstantDescription> pushConstantDescriptions = CreatePushConstantDescriptions(reflectionData.PushConstantReflections);
+    std::vector<DescriptorSetLayout*> layouts = CreateDescriptorLayouts(reflectionData.DescriptorSets, createInfo.LayoutCache);
+    shaderPipelineTemplate.m_VertexInputDescription = CreateInputDescription(reflectionData.InputAttributes);
+    std::vector<PushConstantDescription> pushConstantDescriptions = CreatePushConstantDescriptions(reflectionData.PushConstants);
     std::vector<ShaderModuleData> shaderModules = CreateShaderModules(createInfo.ShaderReflection->GetShaders());
 
     shaderPipelineTemplate.m_PipelineLayout = PipelineLayout::Builder().
@@ -262,7 +169,7 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
         shaderPipelineTemplate.m_Shaders.push_back(shader);
     }
 
-    for (auto& set : reflectionData.DescriptorSetReflections)
+    for (auto& set : reflectionData.DescriptorSets)
         for (auto& descriptor : set.Bindings)
             shaderPipelineTemplate.m_DescriptorsInfo.push_back({
                 .Name = descriptor.Name,
@@ -271,7 +178,7 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
                 .Descriptor = descriptor.Descriptor,
                 .ShaderStages = descriptor.ShaderStages});
 
-    shaderPipelineTemplate.m_DescriptorSetCount = (u32)reflectionData.DescriptorSetReflections.size();
+    shaderPipelineTemplate.m_DescriptorSetCount = (u32)reflectionData.DescriptorSets.size();
     
     return shaderPipelineTemplate;
 }
@@ -283,7 +190,7 @@ void ShaderPipelineTemplate::Destroy(const ShaderPipelineTemplate& shaderPipelin
 }
 
 std::vector<DescriptorSetLayout*> ShaderPipelineTemplate::CreateDescriptorLayouts(
-    const std::vector<ShaderReflection::DescriptorSetReflection>& descriptorSetReflections,
+    const std::vector<Shader::ShaderReflection::DescriptorSet>& descriptorSetReflections,
     DescriptorLayoutCache* layoutCache)
 {
     std::vector<DescriptorSetLayout*> layouts;
@@ -294,8 +201,7 @@ std::vector<DescriptorSetLayout*> ShaderPipelineTemplate::CreateDescriptorLayout
     return layouts;
 }
 
-VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(
-    const std::vector<ShaderReflection::InputAttributeReflection>& inputAttributeReflections)
+VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(const std::vector<Shader::ShaderReflection::InputAttribute>&  inputAttributeReflections)
 {
     VertexInputDescription inputDescription = {};
     inputDescription.Bindings.reserve(1);
@@ -323,8 +229,7 @@ VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(
     return inputDescription;
 }
 
-std::vector<PushConstantDescription> ShaderPipelineTemplate::CreatePushConstantDescriptions(
-    const std::vector<ShaderReflection::PushConstantReflection>& pushConstantReflections)
+std::vector<PushConstantDescription> ShaderPipelineTemplate::CreatePushConstantDescriptions(const std::vector<Shader::ShaderReflection::PushConstant>& pushConstantReflections)
 {
     std::vector<PushConstantDescription> pushConstants;
     pushConstants.reserve(pushConstantReflections.size());
@@ -343,7 +248,7 @@ std::vector<PushConstantDescription> ShaderPipelineTemplate::CreatePushConstantD
     return pushConstants;
 }
 
-std::vector<ShaderModuleData> ShaderPipelineTemplate::CreateShaderModules(const std::vector<ShaderReflection::ShaderModule>& shaders)
+std::vector<ShaderModuleData> ShaderPipelineTemplate::CreateShaderModules(const std::vector<Shader::ShaderModule>& shaders)
 {
     std::vector<ShaderModuleData> shaderModules;
     shaderModules.reserve(shaders.size());
@@ -367,8 +272,7 @@ std::vector<ShaderModuleData> ShaderPipelineTemplate::CreateShaderModules(const 
     return shaderModules;
 }
 
-std::vector<VkDescriptorSetLayoutBinding> ShaderPipelineTemplate::ExtractBindings(
-    const ShaderReflection::DescriptorSetReflection& descriptorSet)
+std::vector<VkDescriptorSetLayoutBinding> ShaderPipelineTemplate::ExtractBindings(const Shader::ShaderReflection::DescriptorSet& descriptorSet)
 {
     std::vector<VkDescriptorSetLayoutBinding> bindings;
     bindings.reserve(descriptorSet.Bindings.size());

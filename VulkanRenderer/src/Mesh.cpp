@@ -2,21 +2,8 @@
 
 #include <glm/gtx/hash.hpp>
 
-#include "AssetLib.h"
-#include "MeshAsset.h"
 #include "Renderer.h"
 #include "utils.h"
-
-size_t std::hash<Vertex3D>::operator()(const Vertex3D& vertex) const noexcept
-{
-    auto&& [p, n, c, uv] = vertex;
-    u64 hash = 0;
-    utils::hashCombine(hash, vertex.Position);
-    utils::hashCombine(hash, vertex.Normal);
-    utils::hashCombine(hash, vertex.Color);
-    utils::hashCombine(hash, vertex.UV);
-    return hash;
-}
 
 VertexInputDescription Vertex3D::GetInputDescription()
 {
@@ -87,22 +74,6 @@ Mesh::Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indice
         SetSizeBytes(indicesSizeBytes).
         SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
         Build();
-}
-
-Mesh Mesh::LoadFromAsset(std::string_view path)
-{
-    assetLib::File meshFile;
-    assetLib::loadBinaryFile(path, meshFile);
-    assetLib::MeshInfo meshInfo = assetLib::readMeshInfo(meshFile);
-    ASSERT(meshInfo.VertexFormat == assetLib::VertexFormat::P3N3C3UV2, "Unsupported vertex format")
-
-    std::vector<Vertex3D> vertices(meshInfo.VerticesSizeBytes);
-    std::vector<u32> indices(meshInfo.IndicesSizeBytes);
-
-    //todo: very dangerous casts here
-    assetLib::unpackMesh(meshInfo, meshFile.Blob.data(), meshFile.Blob.size(), (u8*)vertices.data(), (u8*)indices.data());
-
-    return Mesh(vertices, indices);
 }
 
 void Mesh::Upload(const Renderer& renderer)

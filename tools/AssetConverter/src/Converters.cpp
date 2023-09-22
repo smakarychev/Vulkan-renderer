@@ -1,22 +1,26 @@
-﻿#include <iostream>
+﻿#include "Converters.h"
 
-#include "Converters.h"
 #include "types.h"
 #include "AssetLib.h"
-#include "MeshAsset.h"
 #include "TextureAsset.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
-#define TINYOBJLOADER_IMPLEMENTATION
-#include <tiny_obj_loader.h>
-#include <unordered_map>
 
 #include <shaderc/shaderc.h>
 #include <shaderc/shaderc.hpp>
 #include <spirv-tools/optimizer.hpp>
 
+#include <assimp/Importer.hpp>      
+#include <assimp/scene.h>        
+#include <assimp/postprocess.h>  
+
 #include <format>
+#include <spirv_reflect.h>
+#include <fstream>
+#include <iostream>
+
+#include "ModelAsset.h"
 
 namespace
 {
@@ -72,70 +76,137 @@ void TextureConverter::Convert(const std::filesystem::path& path)
     std::cout << std::format("Texture file {} converted to {}\n", path.string(), outPath.string());
 }
 
-bool MeshConverter::NeedsConversion(const std::filesystem::path& path)
+
+bool ModelConverter::NeedsConversion(const std::filesystem::path& path)
 {
     return needsConversion(path, [](std::filesystem::path& converted)
     {
-        converted.replace_extension(MeshConverter::POST_CONVERT_EXTENSION);
+        converted.replace_extension(ModelConverter::POST_CONVERT_EXTENSION);
     });
 }
 
-void MeshConverter::Convert(const std::filesystem::path& path)
+void ModelConverter::Convert(const std::filesystem::path& path)
 {
-    tinyobj::attrib_t attributes;
-    std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
-    std::string warnings, errors;
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(path.string(),
+       aiProcess_CalcTangentSpace       | 
+       aiProcess_Triangulate            |
+       aiProcess_JoinIdenticalVertices  |
+       aiProcess_SortByPType);
 
-    tinyobj::LoadObj(&attributes, &shapes, &materials, &warnings, &errors, path.string().data());
-
-    std::unordered_map<assetLib::VertexP3N3C3UV2, u32> uniqueVertices;
-    std::vector<assetLib::VertexP3N3C3UV2> vertices;
-    std::vector<u32> indices;
-    
-    for (auto& shape : shapes)
+    if (scene == nullptr)
     {
-        for (auto& index : shape.mesh.indices)
-        {
-            assetLib::VertexP3N3C3UV2 vertex;
-            
-            vertex.Position[0] = attributes.vertices[3 * index.vertex_index + 0]; 
-            vertex.Position[1] = attributes.vertices[3 * index.vertex_index + 1]; 
-            vertex.Position[2] = attributes.vertices[3 * index.vertex_index + 2];
-
-            vertex.Normal[0] = attributes.normals[3 * index.normal_index + 0]; 
-            vertex.Normal[1] = attributes.normals[3 * index.normal_index + 1]; 
-            vertex.Normal[2] = attributes.normals[3 * index.normal_index + 2];
-
-            vertex.UV[0] = attributes.texcoords[2 * index.texcoord_index + 0];
-            vertex.UV[1] = attributes.texcoords[2 * index.texcoord_index + 1];
-
-            vertex.Color = vertex.Normal;
-
-            if (!uniqueVertices.contains(vertex))
-            {
-                uniqueVertices[vertex] = (u32)vertices.size();
-                vertices.push_back(vertex);
-            }
-            indices.push_back(uniqueVertices[vertex]);
-        }
+        std::cout << std::format("Failed to load model: {}\n", path.string());
+        return;
     }
 
-    assetLib::MeshInfo meshInfo = {};
-    meshInfo.VertexFormat = assetLib::VertexFormat::P3N3C3UV2;
-    meshInfo.VerticesSizeBytes = vertices.size() * sizeof(assetLib::VertexP3N3C3UV2);
-    meshInfo.IndicesSizeBytes = indices.size() * sizeof(u32);
-    meshInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    meshInfo.OriginalFile = path.string();
+    using ModelData = MeshData;
+    ModelData modelData = {};
 
-    assetLib::File meshFile = assetLib::packMesh(meshInfo, vertices.data(), indices.data());
+    assetLib::ModelInfo modelInfo = {};
+    modelInfo.VertexFormat = assetLib::VertexFormat::P3N3C3UV2;
+    modelInfo.CompressionMode = assetLib::CompressionMode::LZ4;
+    modelInfo.OriginalFile = path.string();
+
+    std::vector<aiNode*> nodesToProcess;
+    nodesToProcess.push_back(scene->mRootNode);
+    while (!nodesToProcess.empty())
+    {
+        aiNode* currentNode = nodesToProcess.back(); nodesToProcess.pop_back();
+
+        for (u32 i = 0; i < currentNode->mNumMeshes; i++)
+        {
+            MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[i]]);
+
+            modelInfo.MeshInfos.push_back({
+                .VerticesSizeBytes = meshData.Vertices.size() * sizeof(assetLib::VertexP3N3C3UV2),
+                .IndicesSizeBytes = meshData.Indices.size() * sizeof(u32),
+                .TexturesSizeBytes = meshData.Textures.size() * sizeof(std::string)});
+
+            modelData.Vertices.append_range(meshData.Vertices);
+            modelData.Indices.append_range(meshData.Indices);
+            modelData.Textures.append_range(meshData.Textures);
+        }
+            
+        for (u32 i = 0; i < currentNode->mNumChildren; i++)
+            nodesToProcess.push_back(currentNode->mChildren[i]);
+    }
+
+    assetLib::File modelFile = assetLib::packModel(modelInfo, modelData.Vertices.data(), modelData.Indices.data(), modelData.Textures.data());
 
     std::filesystem::path outPath = path;
     outPath.replace_extension(POST_CONVERT_EXTENSION);
     
-    assetLib::saveBinaryFile(outPath.string(), meshFile);
+    assetLib::saveBinaryFile(outPath.string(), modelFile);
 
-    std::cout << std::format("Mesh file {} converted to {}\n", path.string(), outPath.string());
+    std::cout << std::format("Model file {} converted to {}\n", path.string(), outPath.string());
+}
+
+ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const aiMesh* mesh)
+{
+    std::vector<assetLib::VertexP3N3C3UV2> vertices = GetMeshVertices(mesh);
+
+    std::vector<u32> indices = GetMeshIndices(mesh);
+    
+    std::vector<std::string> diffuseTextures;
+    if (scene->HasMaterials())
+        diffuseTextures = GetMeshTextures(scene->mMaterials[mesh->mMaterialIndex], aiTextureType_DIFFUSE);
+
+    return {.Vertices = vertices, .Indices = indices, .Textures = diffuseTextures};
+}
+
+std::vector<assetLib::VertexP3N3C3UV2> ModelConverter::GetMeshVertices(const aiMesh* mesh)
+{
+    std::vector<assetLib::VertexP3N3C3UV2> vertices(mesh->mNumVertices);
+    for (u32 i = 0; i < mesh->mNumVertices; i++)
+    {
+        vertices[i].Position = glm::vec3{mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
+        vertices[i].Normal = glm::vec3{mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
+
+        if (mesh->HasVertexColors(0))
+            vertices[i].Color = glm::vec3(mesh->mColors[0][i].r, mesh->mColors[0][i].g, mesh->mColors[0][i].b);
+        else
+            vertices[i].Color = glm::vec3(1.0f);
+        
+        if (mesh->HasTextureCoords(0))
+            vertices[i].UV = glm::vec2{mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
+        else
+            vertices[i].UV = glm::vec2{0.0f, 0.0f};
+    }
+
+    return vertices;
+}
+
+std::vector<u32> ModelConverter::GetMeshIndices(const aiMesh* mesh)
+{
+    u32 indexCount = 0;
+    for (u32 i = 0; i < mesh->mNumFaces; i++)
+        indexCount += mesh->mFaces[i].mNumIndices;
+
+    std::vector<u32> indices;
+    indices.reserve(indexCount);
+    for (u32 i = 0; i < mesh->mNumFaces; i++)
+    {
+        const aiFace& face = mesh->mFaces[i];
+        for (u32 j = 0; j < face.mNumIndices; j++)
+            indices.push_back(face.mIndices[j]);    
+    }
+
+    return indices;
+}
+
+std::vector<std::string> ModelConverter::GetMeshTextures(const aiMaterial* material, aiTextureType textureType)
+{
+    u32 textureCount = material->GetTextureCount(textureType);
+    std::vector<std::string> textures(textureCount);
+    for (u32 i = 0; i < textureCount; i++)
+    {
+        aiString textureName;
+        material->GetTexture(textureType, i, &textureName);
+        textures[i] = textureName.C_Str();
+    }
+
+    return textures;
 }
 
 bool ShaderConverter::NeedsConversion(const std::filesystem::path& path)
@@ -157,7 +228,6 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
 
     std::ifstream file(path.string(), std::ios::in | std::ios::binary);
     std::string shaderSource((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-
     
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
@@ -168,8 +238,13 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
         std::cout << std::format("Shader compilation error:\n {}", module.GetErrorMessage());
         return;
     }
-
     std::vector<u32> spirv = {module.cbegin(), module.cend()};
+
+    // produce reflection on unoptimized code
+    assetLib::ShaderInfo shaderInfo = Reflect(spirv);
+    shaderInfo.OriginalFile = path.string();
+    shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
+
     std::vector<u32> spirvOptimized;
     spirvOptimized.reserve(spirv.size());
     spvtools::Optimizer optimizer(SPV_ENV_UNIVERSAL_1_3);
@@ -178,11 +253,106 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     if (optimizer.Run(spirv.data(), spirv.size(), &spirvOptimized))
         spirv = spirvOptimized;
 
+    shaderInfo.SourceSizeBytes = spirv.size() * sizeof(u32);
+    
+    assetLib::File shaderFile = assetLib::packShader(shaderInfo, spirv.data());
+
     std::filesystem::path outPath = path;
-    outPath.replace_filename(outPath.stem().string() + "-" + outPath.extension().string().substr(1));
+    outPath.replace_filename(path.stem().string() + "-" + path.extension().string().substr(1));
     outPath.replace_extension(POST_CONVERT_EXTENSION);
-    std::ofstream out(outPath, std::ios::binary | std::ios::out);
-    out.write((const char*)spirv.data(), (i64)(spirv.size() * sizeof(u32)));
+
+    assetLib::saveBinaryFile(outPath.string(), shaderFile);
 
     std::cout << std::format("Shader file {} converted to {}\n", path.string(), outPath.string());
+}
+
+assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV)
+{
+    static constexpr u32 SPV_INVALID_VAL = (u32)-1;
+
+    assetLib::ShaderInfo shaderInfo = {};
+    
+    SpvReflectShaderModule reflectedModule = {};
+    spvReflectCreateShaderModule(spirV.size() * sizeof(u32), spirV.data(), &reflectedModule);
+
+    shaderInfo.ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage;
+
+    // extract input attributes
+    if (reflectedModule.shader_stage == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT)
+    {
+        u32 inputCount;
+        spvReflectEnumerateInputVariables(&reflectedModule, &inputCount, nullptr);
+        std::vector<SpvReflectInterfaceVariable*> inputs(inputCount);
+        spvReflectEnumerateInputVariables(&reflectedModule, &inputCount, inputs.data());
+
+        shaderInfo.InputAttributes.reserve(inputCount);
+        for (auto& input : inputs)
+        {
+            if (input->location == SPV_INVALID_VAL)
+                continue;
+            shaderInfo.InputAttributes.push_back({
+                .Location = input->location,
+                .Name = input->name,
+                .Format = (VkFormat)input->format
+            });
+        }
+        std::ranges::sort(shaderInfo.InputAttributes,
+            [](const auto& a, const auto& b) { return a.Location < b.Location; });
+    }
+
+    // extract push constants
+    u32 pushCount;
+    spvReflectEnumeratePushConstantBlocks(&reflectedModule, &pushCount, nullptr);
+    std::vector<SpvReflectBlockVariable*> pushConstants(pushCount);
+    spvReflectEnumeratePushConstantBlocks(&reflectedModule, &pushCount, pushConstants.data());
+
+    shaderInfo.PushConstants.reserve(pushCount);
+    for (auto& push : pushConstants)
+        shaderInfo.PushConstants.push_back({.SizeBytes = push->size, .Offset = push->offset, .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage});
+    std::ranges::sort(shaderInfo.PushConstants,
+        [](const auto& a, const auto& b) { return a.Offset < b.Offset; });
+
+    // extract descriptors
+    u32 setCount;
+    spvReflectEnumerateDescriptorSets(&reflectedModule, &setCount, nullptr);
+    std::vector<SpvReflectDescriptorSet*> sets(setCount);
+    spvReflectEnumerateDescriptorSets(&reflectedModule, &setCount, sets.data());
+
+    if (setCount > MAX_PIPELINE_DESCRIPTOR_SETS)
+    {
+        std::cout << std::format("Can have only {} different descriptor sets, but have {}",
+            MAX_PIPELINE_DESCRIPTOR_SETS, setCount);
+        return shaderInfo;
+    }
+
+    shaderInfo.DescriptorSets.reserve(setCount);
+    for (auto& set : sets)
+    {
+        shaderInfo.DescriptorSets.push_back({.Set = set->set});
+        
+        assetLib::ShaderInfo::DescriptorSet& descriptorSet = shaderInfo.DescriptorSets.back();
+        descriptorSet.Bindings.resize(set->binding_count);
+        for (u32 i = 0; i < set->binding_count; i++)
+        {
+            descriptorSet.Bindings[i] = {
+                .Binding = set->bindings[i]->binding,
+                .Name = set->bindings[i]->name,
+                .Descriptor = (VkDescriptorType)set->bindings[i]->descriptor_type,
+                .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage
+            };
+            if (descriptorSet.Bindings[i].Name.starts_with("dyn"))
+            {
+                if (descriptorSet.Bindings[i].Descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                    descriptorSet.Bindings[i].Descriptor = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                else if (descriptorSet.Bindings[i].Descriptor == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    descriptorSet.Bindings[i].Descriptor = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+            }
+        }
+        std::ranges::sort(descriptorSet.Bindings,
+                          [](const auto& a, const auto& b) { return a.Binding < b.Binding; });
+    }
+    std::ranges::sort(shaderInfo.DescriptorSets,
+                      [](const auto& a, const auto& b) { return a.Set < b.Set; });
+
+    return shaderInfo;
 }

@@ -29,5 +29,5 @@ layout(location = 0) out vec3 frag_color;
 
 void main() {
     gl_Position = u_camera_buffer.view_projection * u_object_buffer.objects[gl_BaseInstance].model * vec4(a_position, 1.0);
-    frag_color = a_color;
+    frag_color = a_normal;
 }

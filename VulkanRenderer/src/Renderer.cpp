@@ -6,6 +6,7 @@
 #include "RenderObject.h"
 #include "Scene.h"
 #include "GLFW/glfw3.h"
+#include "Vulkan/Model.h"
 #include "Vulkan/RenderCommand.h"
 #include "Vulkan/VulkanUtils.h"
 
@@ -352,14 +353,14 @@ void Renderer::RecreateSwapchain()
 
 void Renderer::LoadScene()
 {
-    ShaderReflection defaultShaderReflection = {};
-    defaultShaderReflection.ReflectFrom({"../assets/shaders/triangle_big-vert.spv", "../assets/shaders/triangle_big-frag.spv"});
+    Shader defaultShaderReflection = {};
+    defaultShaderReflection.ReflectFrom({"../assets/shaders/triangle_big-vert.shader", "../assets/shaders/triangle_big-frag.shader"});
 
-    ShaderReflection greyShaderReflection = {};
-    greyShaderReflection.ReflectFrom({"../assets/shaders/grey-vert.spv", "../assets/shaders/grey-frag.spv"});
+    Shader greyShaderReflection = {};
+    greyShaderReflection.ReflectFrom({"../assets/shaders/grey-vert.shader", "../assets/shaders/grey-frag.shader"});
 
-    ShaderReflection texturedShaderReflection = {};
-    texturedShaderReflection.ReflectFrom({"../assets/shaders/textured-vert.spv", "../assets/shaders/textured-frag.spv"});
+    Shader texturedShaderReflection = {};
+    texturedShaderReflection.ReflectFrom({"../assets/shaders/textured-vert.shader", "../assets/shaders/textured-frag.shader"});
 
     ShaderPipelineTemplate::Builder templateBuilder = ShaderPipelineTemplate::Builder().
         SetDescriptorAllocator(&m_PersistentDescriptorAllocator).
@@ -435,37 +436,46 @@ void Renderer::LoadScene()
             Build();
     }
 
-    Mesh bugatti = Mesh::LoadFromAsset("../assets/models/bugatti/bugatti.msh");
-    Mesh mori = Mesh::LoadFromAsset("../assets/models/mori/mori.msh");
-    Mesh viking_room = Mesh::LoadFromAsset("../assets/models/viking_room/viking_room.msh");
-    bugatti.Upload(*this);
+    Model car = Model::LoadFromAsset("../assets/models/car/car.model");
+    Model mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
+    Model lion = Model::LoadFromAsset("../assets/models/lion/lion.model");
+    Model test = Model::LoadFromAsset("../assets/models/test/scene.model");
+    car.Upload(*this);
     mori.Upload(*this);
-    viking_room.Upload(*this);
+    lion.Upload(*this);
+    test.Upload(*this);
     
     m_Scene.AddMaterial(defaultMaterial, "default");
     m_Scene.AddMaterial(greyMaterial, "grey");
     m_Scene.AddMaterial(textured, "textured");
-    m_Scene.AddMesh(bugatti, "bugatti");
-    m_Scene.AddMesh(mori, "mori");
-    m_Scene.AddMesh(viking_room, "viking_room");
+    m_Scene.AddModel(car, "car");
+    m_Scene.AddModel(mori, "mori");
+    m_Scene.AddModel(lion, "lion");
+    m_Scene.AddModel(test, "test");
 
     std::vector materials = {"default", "grey", "textured"};
-    std::vector meshes = {"bugatti", "mori", "viking_room"};
+    std::vector models = {"test", "car", "lion", "mori"};
 
     for (i32 x = -5; x <= 5; x++)
     {
         for (i32 z = -5; z <= 5; z++)
         {
-            u32 meshIndex = rand() % meshes.size();
-            u32 materialIndex = rand() % materials.size();
+            u32 modelIndex = rand() % models.size();
             
             glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3((f32)x / 10, 0.0f, (f32)z / 10)) *
                 glm::scale(glm::mat4(1.0f), glm::vec3(0.02f));
+
             RenderObject newRenderObject;
             newRenderObject.Transform = transform;
-            newRenderObject.Mesh = m_Scene.GetMesh(meshes[meshIndex]);
-            newRenderObject.Material = m_Scene.GetMaterial(materials[materialIndex]);
-            m_Scene.AddRenderObject(newRenderObject);
+
+            Model* model = m_Scene.GetModel(models[modelIndex]);
+            for (u32 i = 0; i < model->GetMeshes().size(); i++)
+            {
+                u32 materialIndex = rand() % materials.size();
+                newRenderObject.Mesh = m_Scene.GetMesh(models[modelIndex] + std::to_string(i));
+                newRenderObject.Material = m_Scene.GetMaterial(materials[materialIndex]);
+                m_Scene.AddRenderObject(newRenderObject);
+            }
         }
     }
 }

@@ -120,7 +120,7 @@ private:
     DescriptorLayoutCache m_LayoutCache;
     
     static constexpr u32 BUFFERED_FRAMES{2};
-    static constexpr u32 MAX_DRAW_INDIRECT_CALLS{1000};
+    static constexpr u32 MAX_DRAW_INDIRECT_CALLS{10000};
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

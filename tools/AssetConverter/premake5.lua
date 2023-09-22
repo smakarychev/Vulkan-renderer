@@ -17,18 +17,21 @@ project "AssetConverter"
         "C:/VulkanSDK/1.3.261.1/Include",
         "%{wks.location}/tools/AssetLib/src",
         IncludeDir["stb"],		    
-        IncludeDir["tinyobjloader"],	
+        IncludeDir["assimp"],
         IncludeDir["glm"],
+        IncludeDir["spirv_reflect"],	
     }
 
     libdirs
 	{
-		"C:/VulkanSDK/1.3.261.1/Lib"
+		"C:/VulkanSDK/1.3.261.1/Lib",
+        "%{wks.location}/vendor/assimp/lib",
 	}
 
     links
     {
         "AssetLib",
+        "assimp-vc143-mt.lib",
     }
 
     filter "configurations:Debug"
