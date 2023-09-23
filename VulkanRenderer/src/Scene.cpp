@@ -61,8 +61,6 @@ void Scene::AddMesh(const Mesh& mesh, const std::string& name)
 
 void Scene::AddModel(const Model& model, const std::string& name)
 {
-    for (u32 i = 0; i < model.GetMeshes().size(); i++)
-        AddMesh(model.GetMeshes()[i], name + std::to_string(i));
     m_Models.emplace(std::make_pair(name, model));
 }
 

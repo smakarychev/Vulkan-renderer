@@ -29,21 +29,14 @@ VertexInputDescription Vertex3D::GetInputDescription()
     normal.format = VK_FORMAT_R32G32B32_SFLOAT;
     normal.offset = offsetof(Vertex3D, Normal);
     
-    VkVertexInputAttributeDescription color = {};
-    color.binding = 0;
-    color.location = 2;
-    color.format = VK_FORMAT_R32G32B32_SFLOAT;
-    color.offset = offsetof(Vertex3D, Color);
-
     VkVertexInputAttributeDescription uv = {};
     uv.binding = 0;
-    uv.location = 3;
+    uv.location = 2;
     uv.format = VK_FORMAT_R32G32_SFLOAT;
     uv.offset = offsetof(Vertex3D, UV);
 
     inputDescription.Attributes.push_back(position);
     inputDescription.Attributes.push_back(normal);
-    inputDescription.Attributes.push_back(color);
     inputDescription.Attributes.push_back(uv);
 
     return inputDescription;

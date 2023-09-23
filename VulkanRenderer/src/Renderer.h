@@ -8,6 +8,8 @@
 
 #include <array>
 
+#include "Settings.h"
+
 // todo: should not be here obv
 struct CameraData
 {
@@ -37,8 +39,6 @@ struct SceneDataUBO
     SceneData SceneData;
 };
 
-static constexpr u32 MAX_OBJECTS = 10'000;
-
 struct ObjectData
 {
     glm::mat4 Transform;
@@ -50,6 +50,17 @@ struct ObjectDataSSBO
     std::array<ObjectData, MAX_OBJECTS> Objects;
 };
 
+struct MaterialData
+{
+    glm::vec4 Albedo;
+};
+
+struct MaterialDataSSBO
+{
+    Buffer Buffer;
+    std::array<MaterialData, MAX_OBJECTS> Materials;
+};
+
 struct FrameContext
 {
     CommandPool CommandPool;
@@ -58,6 +69,7 @@ struct FrameContext
     u32 FrameNumber;
     CameraDataUBO CameraDataUBO;
     ObjectDataSSBO ObjectDataSSBO;
+    MaterialDataSSBO MaterialDataSSBO;
     ShaderDescriptorSet GlobalObjectSet;
     Buffer DrawIndirectBuffer;
     bool IsDrawIndirectBufferDirty{false};
@@ -118,9 +130,6 @@ private:
 
     DescriptorAllocator m_PersistentDescriptorAllocator;
     DescriptorLayoutCache m_LayoutCache;
-    
-    static constexpr u32 BUFFERED_FRAMES{2};
-    static constexpr u32 MAX_DRAW_INDIRECT_CALLS{10000};
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

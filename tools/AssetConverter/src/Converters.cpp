@@ -1,6 +1,5 @@
 ﻿#include "Converters.h"
 
-#include "types.h"
 #include "AssetLib.h"
 #include "TextureAsset.h"
 
@@ -19,8 +18,6 @@
 #include <spirv_reflect.h>
 #include <fstream>
 #include <iostream>
-
-#include "ModelAsset.h"
 
 namespace
 {
@@ -116,23 +113,22 @@ void ModelConverter::Convert(const std::filesystem::path& path)
 
         for (u32 i = 0; i < currentNode->mNumMeshes; i++)
         {
-            MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[i]]);
+            MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[i]], path);
 
             modelInfo.MeshInfos.push_back({
-                .VerticesSizeBytes = meshData.Vertices.size() * sizeof(assetLib::VertexP3N3C3UV2),
+                .VerticesSizeBytes = meshData.Vertices.size() * sizeof(assetLib::VertexP3N3UV2),
                 .IndicesSizeBytes = meshData.Indices.size() * sizeof(u32),
-                .TexturesSizeBytes = meshData.Textures.size() * sizeof(std::string)});
+                .Materials = meshData.MaterialInfos});
 
             modelData.Vertices.append_range(meshData.Vertices);
             modelData.Indices.append_range(meshData.Indices);
-            modelData.Textures.append_range(meshData.Textures);
         }
             
         for (u32 i = 0; i < currentNode->mNumChildren; i++)
             nodesToProcess.push_back(currentNode->mChildren[i]);
     }
 
-    assetLib::File modelFile = assetLib::packModel(modelInfo, modelData.Vertices.data(), modelData.Indices.data(), modelData.Textures.data());
+    assetLib::File modelFile = assetLib::packModel(modelInfo, modelData.Vertices.data(), modelData.Indices.data());
 
     std::filesystem::path outPath = path;
     outPath.replace_extension(POST_CONVERT_EXTENSION);
@@ -142,32 +138,28 @@ void ModelConverter::Convert(const std::filesystem::path& path)
     std::cout << std::format("Model file {} converted to {}\n", path.string(), outPath.string());
 }
 
-ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const aiMesh* mesh)
+ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const aiMesh* mesh, const std::filesystem::path& modelPath)
 {
-    std::vector<assetLib::VertexP3N3C3UV2> vertices = GetMeshVertices(mesh);
+    std::vector<assetLib::VertexP3N3UV2> vertices = GetMeshVertices(mesh);
 
     std::vector<u32> indices = GetMeshIndices(mesh);
-    
-    std::vector<std::string> diffuseTextures;
-    if (scene->HasMaterials())
-        diffuseTextures = GetMeshTextures(scene->mMaterials[mesh->mMaterialIndex], aiTextureType_DIFFUSE);
 
-    return {.Vertices = vertices, .Indices = indices, .Textures = diffuseTextures};
+    std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxTypeVal> materials;
+    if (scene->HasMaterials())
+        for (u32 i = 0; i < materials.size(); i++)
+            materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);
+
+    return {.Vertices = vertices, .Indices = indices, .MaterialInfos = materials};
 }
 
-std::vector<assetLib::VertexP3N3C3UV2> ModelConverter::GetMeshVertices(const aiMesh* mesh)
+std::vector<assetLib::VertexP3N3UV2> ModelConverter::GetMeshVertices(const aiMesh* mesh)
 {
-    std::vector<assetLib::VertexP3N3C3UV2> vertices(mesh->mNumVertices);
+    std::vector<assetLib::VertexP3N3UV2> vertices(mesh->mNumVertices);
     for (u32 i = 0; i < mesh->mNumVertices; i++)
     {
         vertices[i].Position = glm::vec3{mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
         vertices[i].Normal = glm::vec3{mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
 
-        if (mesh->HasVertexColors(0))
-            vertices[i].Color = glm::vec3(mesh->mColors[0][i].r, mesh->mColors[0][i].g, mesh->mColors[0][i].b);
-        else
-            vertices[i].Color = glm::vec3(1.0f);
-        
         if (mesh->HasTextureCoords(0))
             vertices[i].UV = glm::vec2{mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
         else
@@ -195,18 +187,34 @@ std::vector<u32> ModelConverter::GetMeshIndices(const aiMesh* mesh)
     return indices;
 }
 
-std::vector<std::string> ModelConverter::GetMeshTextures(const aiMaterial* material, aiTextureType textureType)
+assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMaterial* material, assetLib::ModelInfo::MaterialType type, const std::filesystem::path& modelPath)
 {
+    aiColor4D color;
+    aiReturn colorSuccess;
+    aiTextureType textureType;
+    switch (type)
+    {
+    case assetLib::ModelInfo::MaterialType::Albedo:
+        colorSuccess = material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+        textureType = aiTextureType_DIFFUSE;
+        break;
+    default:
+        std::cout << "Unsupported material type";
+        return {};
+    }
+    
     u32 textureCount = material->GetTextureCount(textureType);
     std::vector<std::string> textures(textureCount);
     for (u32 i = 0; i < textureCount; i++)
     {
         aiString textureName;
         material->GetTexture(textureType, i, &textureName);
-        textures[i] = textureName.C_Str();
+        std::filesystem::path texturePath = modelPath.parent_path() / std::filesystem::path(textureName.C_Str());
+        texturePath.replace_extension(TextureConverter::POST_CONVERT_EXTENSION);
+        textures[i] = texturePath.string();
     }
 
-    return textures;
+    return {.Color = {color.r, color.g, color.b, color.a}, .Textures = textures};
 }
 
 bool ShaderConverter::NeedsConversion(const std::filesystem::path& path)

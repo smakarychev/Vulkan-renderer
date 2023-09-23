@@ -1,0 +1,6 @@
+﻿#pragma once
+#include "types.h"
+
+static constexpr u32 BUFFERED_FRAMES{2};
+static constexpr u32 MAX_OBJECTS = 10'000;
+static constexpr u32 MAX_DRAW_INDIRECT_CALLS{10000};

@@ -3,6 +3,7 @@
 #include <optional>
 #include <glm/glm.hpp>
 
+#include "Settings.h"
 #include "Vulkan/Shader.h"
 
 class DescriptorSet;
@@ -11,7 +12,8 @@ class Mesh;
 struct Material
 {
     // todo: find a better way?
-    std::optional<ShaderDescriptorSet> TextureSet;
+    glm::vec4 Albedo;
+    std::array<ShaderDescriptorSet, BUFFERED_FRAMES> DescriptorSets;
     ShaderPipeline Pipeline;
 };
 

@@ -52,8 +52,7 @@ DescriptorSet DescriptorSet::Builder::Build()
 {
     DescriptorSet set = DescriptorSet::Create(m_CreateInfo);
     m_CreateInfo.Bindings.clear();
-    m_CreateInfo.BoundBuffers.clear();
-    m_CreateInfo.BoundTextures.clear();
+    m_CreateInfo.BoundResources.clear();
     
     return set;
 }
@@ -96,26 +95,24 @@ DescriptorSet DescriptorSet::Create(const Builder::CreateInfo& createInfo)
 
     createInfo.Allocator->Allocate(descriptorSet);
 
-    std::vector<VkWriteDescriptorSet> writes(createInfo.BoundBuffers.size() + createInfo.BoundTextures.size());
-    for (auto& write : writes)
+    std::vector<VkWriteDescriptorSet> writes;
+    writes.reserve(createInfo.BoundResources.size());
+    for (u32 i = 0; i < createInfo.BoundResources.size(); i++)
     {
+        auto& resource = createInfo.BoundResources[i];
+        VkWriteDescriptorSet write = {};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.descriptorCount = 1;   
         write.dstSet = descriptorSet.m_DescriptorSet;
-    }
-    for (auto& bufferInfo : createInfo.BoundBuffers)
-    {
-        auto&& [buffer, slot] = bufferInfo;
-        writes[slot].descriptorType = createInfo.Bindings[slot].descriptorType;
-        writes[slot].dstBinding = slot;
-        writes[slot].pBufferInfo = &buffer;
-    }
-    for (auto& textureInfo : createInfo.BoundTextures)
-    {
-        auto&& [texture, slot] = textureInfo;
-        writes[slot].descriptorType = createInfo.Bindings[slot].descriptorType;
-        writes[slot].dstBinding = slot;
-        writes[slot].pImageInfo = &texture;
+        write.descriptorType = createInfo.Bindings[i].descriptorType;
+        u32 slot = resource.Slot;
+        write.dstBinding = slot;
+        if (resource.Buffer.has_value())
+            write.pBufferInfo = resource.Buffer.operator->();
+        else
+            write.pImageInfo = resource.Texture.operator->();
+
+        writes.push_back(write);
     }
 
     vkUpdateDescriptorSets(Driver::DeviceHandle(), (u32)writes.size(), writes.data(), 0, nullptr);

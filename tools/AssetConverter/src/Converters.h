@@ -2,11 +2,12 @@
 #include <filesystem>
 
 #include "AssetLib.h"
+#include "ModelAsset.h"
 #include "ShaderAsset.h"
 
 namespace assetLib
 {
-    struct VertexP3N3C3UV2;
+    struct VertexP3N3UV2;
 }
 
 enum aiTextureType : int;
@@ -28,18 +29,18 @@ class ModelConverter
 public:
     struct MeshData
     {
-        std::vector<assetLib::VertexP3N3C3UV2> Vertices;
+        std::vector<assetLib::VertexP3N3UV2> Vertices;
         std::vector<u32> Indices;
-        std::vector<std::string> Textures;
+        std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxTypeVal> MaterialInfos;
     };
 public:
     static bool NeedsConversion(const std::filesystem::path& path);
     static void Convert(const std::filesystem::path& path);
 private:
-    static MeshData ProcessMesh(const aiScene* scene, const aiMesh* mesh);
-    static std::vector<assetLib::VertexP3N3C3UV2> GetMeshVertices(const aiMesh* mesh);
+    static MeshData ProcessMesh(const aiScene* scene, const aiMesh* mesh, const std::filesystem::path& modelPath);
+    static std::vector<assetLib::VertexP3N3UV2> GetMeshVertices(const aiMesh* mesh);
     static std::vector<u32> GetMeshIndices(const aiMesh* mesh);
-    static std::vector<std::string> GetMeshTextures(const aiMaterial* material, aiTextureType textureType);
+    static assetLib::ModelInfo::MaterialInfo GetMaterialInfo(const aiMaterial* material, assetLib::ModelInfo::MaterialType type, const std::filesystem::path& modelPath);
 public:
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".model";
 };

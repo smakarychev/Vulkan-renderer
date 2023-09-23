@@ -2,15 +2,33 @@
 #include <string_view>
 #include <vector>
 
+#include "Mesh.h"
+#include "Settings.h"
+
+class RenderPass;
+class Scene;
+class ShaderPipelineTemplate;
+class RenderObject;
 class Renderer;
-class Mesh;
+
 
 class Model
 {
+    struct MaterialInfo
+    {
+        glm::vec4 Color;
+        std::vector<std::string> Textures;
+    };
+    struct MeshInfo
+    {
+        Mesh Mesh;
+        MaterialInfo Albedo;
+    };
 public:
     static Model LoadFromAsset(std::string_view path);
     void Upload(const Renderer& renderer);
-    const std::vector<Mesh>& GetMeshes() const { return m_Meshes; }
+    void CreateRenderObjects(Scene* scene, const RenderPass& renderPass, const glm::mat4& transform, const std::array<Buffer, BUFFERED_FRAMES>& materialBuffer);
 private:
-    std::vector<Mesh> m_Meshes;
+    std::vector<MeshInfo> m_Meshes;
+    std::string m_ModelName;
 };

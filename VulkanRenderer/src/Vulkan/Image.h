@@ -33,7 +33,7 @@ public:
     public:
         Image Build();
         Image BuildManualLifetime();
-        Builder& FormAssetFile(std::string_view path);
+        Builder& FromAssetFile(std::string_view path);
         Builder& FromImageData(const ImageData& imageData);
         Builder& SetFormat(VkFormat format);
         Builder& SetExtent(VkExtent2D extent);

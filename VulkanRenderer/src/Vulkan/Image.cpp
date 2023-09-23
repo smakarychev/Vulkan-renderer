@@ -22,7 +22,7 @@ Image Image::Builder::BuildManualLifetime()
     return Image::Create(m_CreateInfo);
 }
 
-Image::Builder& Image::Builder::FormAssetFile(std::string_view path)
+Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
 {
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "`Asset` in `ImageData` options are incompatible")
     

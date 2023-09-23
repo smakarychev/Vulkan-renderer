@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <optional>
 #include <unordered_map>
 
 #include "VulkanCommon.h"
@@ -63,18 +64,15 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            template <typename T>
             struct BoundResource
             {
-                T ResourceInfo;
+                std::optional<VkDescriptorBufferInfo> Buffer;
+                std::optional<VkDescriptorImageInfo> Texture;
                 u32 Slot;
             };
-            using BoundBuffer = BoundResource<VkDescriptorBufferInfo>;
-            using BoundTexture = BoundResource<VkDescriptorImageInfo>;
 
             std::vector<VkDescriptorSetLayoutBinding> Bindings;
-            std::vector<BoundBuffer> BoundBuffers;
-            std::vector<BoundTexture> BoundTextures;
+            std::vector<BoundResource> BoundResources;
             DescriptorAllocator* Allocator;
             DescriptorLayoutCache* Cache;
         };

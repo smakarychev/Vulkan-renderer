@@ -54,11 +54,11 @@ void Renderer::OnUpdate()
 void Renderer::UpdateCamera()
 {
     f32 angle = (f32)glfwGetTime();
-    glm::vec3 defaultPos = {0.0f, 0.1f, 1.0f};
+    glm::vec3 defaultPos = {0.0f, 0.02f, 0.5f};
     glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(angle) * 5.0f, glm::vec3(0.0f, 1.0f, 0.0f));
     glm::vec3 pos = glm::vec3(model * glm::vec4(defaultPos, 1.0f));
     glm::mat4 view = glm::lookAt(pos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (f32)m_Swapchain.GetSize().x / (f32)m_Swapchain.GetSize().y, 1e-1f, 1e+3f);
+    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (f32)m_Swapchain.GetSize().x / (f32)m_Swapchain.GetSize().y, 1e-4f, 1e+3f);
     projection[1][1] *= -1.0f;
     GetFrameContext().CameraDataUBO.CameraData = {.View = view, .Projection = projection, .ViewProjection = projection * view};
     GetFrameContext().CameraDataUBO.Buffer.SetData(&GetFrameContext().CameraDataUBO.CameraData, sizeof(CameraData));
@@ -66,23 +66,6 @@ void Renderer::UpdateCamera()
 
 void Renderer::UpdateScene()
 {
-    f32 freq = (f32)glfwGetTime() / 10.0f;
-    f32 red = (sin(freq) + 1.0f) * 0.5f;
-    f32 green = (cos(freq) + 1.0f) * 0.5f;
-    f32 blue = (red + green) * 0.5f;
-    f32 sunFreq = (f32)glfwGetTime();
-    f32 sunPos = sin(sunFreq);
-    m_SceneDataUBO.SceneData.SunlightDirection = {sunPos * 2.0f,(sunPos + 1.0f) * 10.0f, sunPos * 8.0f, 1.0f};
-    m_SceneDataUBO.SceneData.AmbientColor = { red, green, blue, 1.0f};
-    u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber;
-    m_SceneDataUBO.Buffer.SetData(&m_SceneDataUBO.SceneData, sizeof(SceneData), offsetBytes);
-
-    // assuming that object transform can change
-    for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
-        GetFrameContext().ObjectDataSSBO.Objects[i].Transform = m_Scene.GetRenderObjects()[i].Transform;
-    
-    GetFrameContext().ObjectDataSSBO.Buffer.SetData(GetFrameContext().ObjectDataSSBO.Objects.data(),
-        GetFrameContext().ObjectDataSSBO.Objects.size() * sizeof(ObjectData));
 
     if (m_Scene.IsDirty())
     {
@@ -125,6 +108,30 @@ void Renderer::UpdateScene()
         
         GetFrameContext().IsDrawIndirectBufferDirty = false;
     }
+    
+    f32 freq = (f32)glfwGetTime() / 10.0f;
+    f32 red = (sin(freq) + 1.0f) * 0.5f;
+    f32 green = (cos(freq) + 1.0f) * 0.5f;
+    f32 blue = (red + green) * 0.5f;
+    f32 sunFreq = (f32)glfwGetTime();
+    f32 sunPos = sin(sunFreq);
+    m_SceneDataUBO.SceneData.SunlightDirection = {sunPos * 2.0f,(sunPos + 1.0f) * 10.0f, sunPos * 8.0f, 1.0f};
+    m_SceneDataUBO.SceneData.AmbientColor = { red, green, blue, 1.0f};
+    u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber;
+    m_SceneDataUBO.Buffer.SetData(&m_SceneDataUBO.SceneData, sizeof(SceneData), offsetBytes);
+
+    // assuming that object transform can change
+    for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
+    {
+        GetFrameContext().ObjectDataSSBO.Objects[i].Transform = m_Scene.GetRenderObjects()[i].Transform;
+        GetFrameContext().MaterialDataSSBO.Materials[i].Albedo = m_Scene.GetRenderObjects()[i].Material->Albedo;
+    }
+    
+    GetFrameContext().ObjectDataSSBO.Buffer.SetData(GetFrameContext().ObjectDataSSBO.Objects.data(),
+        GetFrameContext().ObjectDataSSBO.Objects.size() * sizeof(ObjectData));
+
+    GetFrameContext().MaterialDataSSBO.Buffer.SetData(GetFrameContext().MaterialDataSSBO.Materials.data(),
+        GetFrameContext().MaterialDataSSBO.Materials.size() * sizeof(MaterialData));
 }
 
 void Renderer::BeginFrame()
@@ -180,8 +187,7 @@ void Renderer::Submit(const Scene& scene)
         u32 uniformOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
         GetFrameContext().GlobalObjectSet.Bind(cmd, DescriptorKind::Global, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS, {uniformOffset});
         GetFrameContext().GlobalObjectSet.Bind(cmd, DescriptorKind::Pass, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
-        if (batch.Material->TextureSet.has_value())
-            batch.Material->TextureSet->Bind(cmd, DescriptorKind::Material, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+        batch.Material->DescriptorSets[GetFrameContext().FrameNumber].Bind(cmd, DescriptorKind::Material, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
         batch.Mesh->GetVertexBuffer().Bind(cmd);
         batch.Mesh->GetIndexBuffer().Bind(cmd);
 
@@ -381,36 +387,6 @@ void Renderer::LoadScene()
     m_Scene.AddShaderTemplate(defaultTemplate, "default");
     m_Scene.AddShaderTemplate(greyTemplate, "grey");
     m_Scene.AddShaderTemplate(texturedTemplate, "textured");
-    
-    Material defaultMaterial;
-    defaultMaterial.Pipeline = ShaderPipeline::Builder().
-        SetTemplate(m_Scene.GetShaderTemplate("default")).
-        CompatibleWithVertex(Vertex3D::GetInputDescription()).
-        SetRenderPass(m_RenderPass).
-        Build();
-
-    Material greyMaterial;
-    greyMaterial.Pipeline = ShaderPipeline::Builder().
-        SetTemplate(m_Scene.GetShaderTemplate("grey")).
-        CompatibleWithVertex(Vertex3D::GetInputDescription()).
-        SetRenderPass(m_RenderPass).
-        Build();
-
-    Material textured;
-    Image texture = Image::Builder().
-        FormAssetFile("../assets/textures/texture.tx").
-        SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT).
-        Build();
-    m_Scene.AddTexture(texture, "texture");
-    textured.TextureSet = ShaderDescriptorSet::Builder().
-        SetTemplate(m_Scene.GetShaderTemplate("textured")).
-        AddBinding("u_texture", *m_Scene.GetTexture("texture")).
-        Build();
-    textured.Pipeline = ShaderPipeline::Builder().
-        SetTemplate(m_Scene.GetShaderTemplate("textured")).
-        CompatibleWithVertex(Vertex3D::GetInputDescription()).
-        SetRenderPass(m_RenderPass).
-        Build();
 
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
@@ -427,6 +403,12 @@ void Renderer::LoadScene()
             SetSizeBytes(context.ObjectDataSSBO.Objects.size() * sizeof(ObjectData)).
             SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
             Build();
+
+        context.MaterialDataSSBO.Buffer = Buffer::Builder().
+            SetKind(BufferKind::Storage).
+            SetSizeBytes(context.MaterialDataSSBO.Materials.size() * sizeof(MaterialData)).
+            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
+            Build();
         
         context.GlobalObjectSet = ShaderDescriptorSet::Builder().
             SetTemplate(m_Scene.GetShaderTemplate("default")).
@@ -436,25 +418,24 @@ void Renderer::LoadScene()
             Build();
     }
 
-    Model car = Model::LoadFromAsset("../assets/models/car/car.model");
+    Model car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
-    Model lion = Model::LoadFromAsset("../assets/models/lion/lion.model");
-    Model test = Model::LoadFromAsset("../assets/models/test/scene.model");
+    Model gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
+    Model helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
+   //Model sponza = Model::LoadFromAsset("../assets/models/sponza/scene.model");
     car.Upload(*this);
     mori.Upload(*this);
-    lion.Upload(*this);
-    test.Upload(*this);
+    gun.Upload(*this);
+    helmet.Upload(*this);
+   // sponza.Upload(*this);
     
-    m_Scene.AddMaterial(defaultMaterial, "default");
-    m_Scene.AddMaterial(greyMaterial, "grey");
-    m_Scene.AddMaterial(textured, "textured");
     m_Scene.AddModel(car, "car");
     m_Scene.AddModel(mori, "mori");
-    m_Scene.AddModel(lion, "lion");
-    m_Scene.AddModel(test, "test");
+    m_Scene.AddModel(gun, "gun");
+    m_Scene.AddModel(helmet, "helmet");
+    //m_Scene.AddModel(sponza, "sponza");
 
-    std::vector materials = {"default", "grey", "textured"};
-    std::vector models = {"test", "car", "lion", "mori"};
+    std::vector models = {"helmet", "car", "gun"};
 
     for (i32 x = -5; x <= 5; x++)
     {
@@ -469,13 +450,10 @@ void Renderer::LoadScene()
             newRenderObject.Transform = transform;
 
             Model* model = m_Scene.GetModel(models[modelIndex]);
-            for (u32 i = 0; i < model->GetMeshes().size(); i++)
-            {
-                u32 materialIndex = rand() % materials.size();
-                newRenderObject.Mesh = m_Scene.GetMesh(models[modelIndex] + std::to_string(i));
-                newRenderObject.Material = m_Scene.GetMaterial(materials[materialIndex]);
-                m_Scene.AddRenderObject(newRenderObject);
-            }
+            std::array<Buffer, BUFFERED_FRAMES> materialBuffers = {};
+            for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+                materialBuffers[i] = m_FrameContexts[i].MaterialDataSSBO.Buffer;
+            model->CreateRenderObjects(&m_Scene, m_RenderPass, transform, materialBuffers);
         }
     }
 }

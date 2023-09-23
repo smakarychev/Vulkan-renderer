@@ -144,7 +144,7 @@ void Driver::DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindin
     descriptorBufferInfo.offset = bindingInfo.OffsetBytes;
     descriptorBufferInfo.range = bindingInfo.SizeBytes;
 
-    descriptorSetCreateInfo.BoundBuffers.push_back({.ResourceInfo = descriptorBufferInfo, .Slot = slot});
+    descriptorSetCreateInfo.BoundResources.push_back({.Buffer = descriptorBufferInfo, .Slot = slot});
 }
 
 void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor,
@@ -157,7 +157,7 @@ void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescri
     descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     descriptorTextureInfo.imageView = texture.m_ImageData.View;
 
-    descriptorSetCreateInfo.BoundTextures.push_back({.ResourceInfo = descriptorTextureInfo, .Slot = slot});
+    descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot});
 }
 
 void Driver::DescriptorAddBinding(u32 slot, VkDescriptorType descriptor, VkShaderStageFlags stages,
