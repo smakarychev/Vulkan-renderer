@@ -75,6 +75,7 @@ public:
     static DriverDeletionQueue& DeletionQueue() { return s_State.DeletionQueue; }
     static VmaAllocator& Allocator() { return s_State.Allocator; }
     static u64 GetUniformBufferAlignment() { return s_State.Device->m_GPUProperties.limits.minUniformBufferOffsetAlignment; }
+    static f32 GetAnisotropyLevel() { return s_State.Device->m_GPUProperties.limits.maxSamplerAnisotropy; }
     static UploadContext* UploadContext() { return &s_State.UploadContext; }
 private:
     static void DescriptorAddBinding(u32 slot, VkDescriptorType descriptor, VkShaderStageFlags stages,

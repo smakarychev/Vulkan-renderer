@@ -1,5 +1,7 @@
 ﻿#include "DescriptorSet.h"
 
+#include <algorithm>
+
 #include "Driver.h"
 #include "RenderCommand.h"
 

@@ -11,8 +11,8 @@
 #include "Driver.h"
 #include "Pipeline.h"
 #include "RenderCommand.h"
-#include "utils.h"
 #include "VulkanUtils.h"
+#include "utils/utils.h"
 
 void Shader::LoadFromAsset(std::string_view path)
 {
@@ -153,14 +153,14 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     std::vector<PushConstantDescription> pushConstantDescriptions = CreatePushConstantDescriptions(reflectionData.PushConstants);
     std::vector<ShaderModuleData> shaderModules = CreateShaderModules(createInfo.ShaderReflection->GetShaders());
 
-    shaderPipelineTemplate.m_PipelineLayout = PipelineLayout::Builder().
-       SetPushConstants(pushConstantDescriptions).
-       SetDescriptorLayouts(layouts).
-       Build();
+    shaderPipelineTemplate.m_PipelineLayout = PipelineLayout::Builder()
+       .SetPushConstants(pushConstantDescriptions)
+       .SetDescriptorLayouts(layouts)
+       .Build();
     
-    shaderPipelineTemplate.m_PipelineBuilder = Pipeline::Builder().
-        FixedFunctionDefaults().
-        SetLayout(shaderPipelineTemplate.m_PipelineLayout);
+    shaderPipelineTemplate.m_PipelineBuilder = Pipeline::Builder()
+        .FixedFunctionDefaults()
+        .SetLayout(shaderPipelineTemplate.m_PipelineLayout);
 
     shaderPipelineTemplate.m_Shaders.reserve(shaderModules.size());
     for (auto& shader : shaderModules)
@@ -236,11 +236,11 @@ std::vector<PushConstantDescription> ShaderPipelineTemplate::CreatePushConstantD
 
     for (auto& pushConstant : pushConstantReflections)
     {
-        PushConstantDescription description = PushConstantDescription::Builder().
-            SetSizeBytes(pushConstant.SizeBytes).
-            SetOffset(pushConstant.Offset).
-            SetStages(pushConstant.ShaderStages).
-            Build();
+        PushConstantDescription description = PushConstantDescription::Builder()
+            .SetSizeBytes(pushConstant.SizeBytes)
+            .SetOffset(pushConstant.Offset)
+            .SetStages(pushConstant.ShaderStages)
+            .Build();
 
         pushConstants.push_back(description);
     }
@@ -356,9 +356,9 @@ ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
     
     shaderPipeline.m_Template = createInfo.ShaderPipelineTemplate;
 
-    shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder.
-        SetRenderPass(*createInfo.RenderPass).
-        Build();
+    shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder
+        .SetRenderPass(*createInfo.RenderPass)
+        .Build();
 
     return shaderPipeline;
 }

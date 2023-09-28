@@ -109,6 +109,22 @@ void RenderCommand::EndRenderPass(const CommandBuffer& cmd)
     vkCmdEndRenderPass(cmd.m_CommandBuffer);
 }
 
+void RenderCommand::TransitionImage(const CommandBuffer& cmd, const Image& image,
+    const ImageTransitionInfo& transitionInfo)
+{
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer, transitionInfo.SourceStage, transitionInfo.DestinationStage, 0,
+        0, nullptr, 0, nullptr, 1, &transitionInfo.MemoryBarrier);
+}
+
+void RenderCommand::BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& imageBlitInfo)
+{
+    vkCmdBlitImage(cmd.m_CommandBuffer,
+        imageBlitInfo.SourceImage->m_ImageData.Image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        imageBlitInfo.DestinationImage->m_ImageData.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1, imageBlitInfo.ImageBlit,
+        imageBlitInfo.Filter);
+}
+
 void RenderCommand::CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination)
 {
     VkBufferCopy copy = {};
@@ -121,24 +137,6 @@ void RenderCommand::CopyBuffer(const CommandBuffer& cmd, const Buffer& source, c
 
 void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination)
 {
-    VkImageSubresourceRange range;
-    range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    range.baseMipLevel = 0;
-    range.levelCount = 1;
-    range.baseArrayLayer = 0;
-    range.layerCount = 1;
-
-    VkImageMemoryBarrier imageMemoryBarrier = {};
-    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    imageMemoryBarrier.image = destination.m_ImageData.Image;
-    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageMemoryBarrier.subresourceRange = range;
-    imageMemoryBarrier.srcAccessMask = 0;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-    vkCmdPipelineBarrier(cmd.m_CommandBuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
-
     VkBufferImageCopy bufferImageCopy = {};
     bufferImageCopy.imageExtent = { destination.m_ImageData.Width, destination.m_ImageData.Height, 1 };
     bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -147,13 +145,6 @@ void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd, const Buffer& so
     bufferImageCopy.imageSubresource.baseArrayLayer = 0;
 
     vkCmdCopyBufferToImage(cmd.m_CommandBuffer, source.m_Buffer, destination.m_ImageData.Image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bufferImageCopy);
-
-    imageMemoryBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageMemoryBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    imageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    imageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-    vkCmdPipelineBarrier(cmd.m_CommandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
 }
 
 void RenderCommand::BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)

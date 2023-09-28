@@ -134,10 +134,10 @@ void CommandPool::Destroy(const CommandPool& commandPool)
 
 CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
 {
-    CommandBuffer buffer = CommandBuffer::Builder().
-        SetPool(*this).
-        SetKind(kind).
-        Build();
+    CommandBuffer buffer = CommandBuffer::Builder()
+        .SetPool(*this)
+        .SetKind(kind)
+        .Build();
 
     return buffer;
 }

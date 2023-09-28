@@ -1,6 +1,5 @@
 ﻿#include "Renderer.h"
-#include "utils.h"
-#include "Vulkan\Shader.h"
+#include "utils\utils.h"
 
 int main()
 {

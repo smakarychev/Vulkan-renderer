@@ -153,7 +153,7 @@ void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescri
     DescriptorAddBinding(slot, descriptor, stages, descriptorSetCreateInfo);
     
     VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = Texture::CreateSampler(VK_FILTER_LINEAR); // todo: find a better place for it
+    descriptorTextureInfo.sampler = Texture::CreateSampler(VK_FILTER_LINEAR, texture.m_ImageData.MipMapCount); // todo: find a better place for it
     descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     descriptorTextureInfo.imageView = texture.m_ImageData.View;
 
@@ -183,9 +183,9 @@ void Driver::Init(const Device& device)
     vmaCreateAllocator(&createInfo, &s_State.Allocator);
     s_State.DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_State.Allocator); });
 
-    s_State.UploadContext.CommandPool = CommandPool::Builder().
-        SetQueue(QueueKind::Graphics).
-        Build();
+    s_State.UploadContext.CommandPool = CommandPool::Builder()
+        .SetQueue(QueueKind::Graphics)
+        .Build();
     s_State.UploadContext.CommandBuffer = s_State.UploadContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
     s_State.UploadContext.Fence = Fence::Builder().Build();
     s_State.UploadContext.QueueInfo = s_State.Device->GetQueues().Graphics;

@@ -1,9 +1,9 @@
 ﻿#include "Device.h"
 
 #include "Driver.h"
-#include "utils.h"
 #include "VulkanUtils.h"
 #include "GLFW/glfw3.h"
+#include "utils/utils.h"
 
 Device Device::Builder::Build()
 {

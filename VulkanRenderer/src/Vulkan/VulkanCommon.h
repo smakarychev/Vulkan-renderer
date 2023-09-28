@@ -11,6 +11,8 @@
     friend class Driver; \
     friend class RenderCommand;
 
+class Image;
+
 struct VertexInputDescription
 {
     std::vector<VkVertexInputBindingDescription> Bindings;
@@ -75,4 +77,25 @@ struct ImageData
     VkImageView View;
     u32 Width;
     u32 Height;
+    u32 MipMapCount{1};
+};
+
+struct ImageSubresource
+{
+    VkImageSubresourceRange Subresource;
+};
+
+struct ImageTransitionInfo
+{
+    VkImageMemoryBarrier MemoryBarrier;
+    VkPipelineStageFlags SourceStage;
+    VkPipelineStageFlags DestinationStage;
+};
+
+struct ImageBlitInfo
+{
+    const Image* SourceImage;
+    const Image* DestinationImage;
+    VkImageBlit* ImageBlit;
+    VkFilter Filter;
 };

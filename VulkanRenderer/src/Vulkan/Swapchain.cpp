@@ -4,7 +4,7 @@
 #include "Device.h"
 #include "Driver.h"
 #include "RenderCommand.h"
-#include "utils.h"
+#include "utils/utils.h"
 #include "VulkanUtils.h"
 #include "GLFW/glfw3.h"
 
@@ -113,9 +113,9 @@ std::vector<SwapchainFrameSync> Swapchain::Builder::CreateSynchronizationStructu
     swapchainFrameSyncs.reserve(m_BufferedFrames);
     for (u32 i = 0; i < m_BufferedFrames; i++)
     {
-        Fence renderFence = Fence::Builder().
-            StartSignaled(true).
-            Build();
+        Fence renderFence = Fence::Builder()
+            .StartSignaled(true)
+            .Build();
         Semaphore renderSemaphore = Semaphore::Builder().Build();
         Semaphore presentSemaphore = Semaphore::Builder().Build();
 
@@ -242,9 +242,9 @@ std::vector<Image> Swapchain::CreateColorImages() const
             .Width = m_Extent.width,
             .Height = m_Extent.height};
     
-        colorImages[i] = Image::Builder().
-            FromImageData(imageData).
-            Build();
+        colorImages[i] = Image::Builder()
+            .FromImageData(imageData)
+            .Build();
     }
 
     return colorImages;
@@ -252,11 +252,11 @@ std::vector<Image> Swapchain::CreateColorImages() const
 
 Image Swapchain::CreateDepthImage()
 {
-    Image depth = Image::Builder().
-        SetExtent(m_Extent).
-        SetFormat(m_DepthFormat).
-        SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT).
-        BuildManualLifetime();
+    Image depth = Image::Builder()
+        .SetExtent(m_Extent)
+        .SetFormat(m_DepthFormat)
+        .SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT)
+        .BuildManualLifetime();
 
     return depth;
 }
@@ -280,30 +280,30 @@ VkExtent2D Swapchain::GetValidExtent(const VkSurfaceCapabilitiesKHR& capabilitie
 
 std::vector<AttachmentTemplate> Swapchain::GetAttachmentTemplates() const
 {
-    AttachmentTemplate color = AttachmentTemplate::Builder().
-        PresentationDefaults().
-        SetFormat(m_ColorFormat).
-        Build();
+    AttachmentTemplate color = AttachmentTemplate::Builder()
+        .PresentationDefaults()
+        .SetFormat(m_ColorFormat)
+        .Build();
 
-    AttachmentTemplate depth = AttachmentTemplate::Builder().
-        DepthDefaults().
-        SetFormat(m_DepthFormat).
-        Build();
+    AttachmentTemplate depth = AttachmentTemplate::Builder()
+        .DepthDefaults()
+        .SetFormat(m_DepthFormat)
+        .Build();
 
     return {color, depth};
 }
 
 std::vector<Attachment> Swapchain::GetAttachments(u32 imageIndex) const
 {
-    Attachment color = Attachment::Builder().
-        SetType(AttachmentType::Color).
-        FromImageData(m_ColorImages[imageIndex].GetImageData()).
-        Build();
+    Attachment color = Attachment::Builder()
+        .SetType(AttachmentType::Color)
+        .FromImageData(m_ColorImages[imageIndex].GetImageData())
+        .Build();
 
-    Attachment depth = Attachment::Builder().
-        SetType(AttachmentType::DepthStencil).
-        FromImageData(m_DepthImage.GetImageData()).
-        Build();
+    Attachment depth = Attachment::Builder()
+        .SetType(AttachmentType::DepthStencil)
+        .FromImageData(m_DepthImage.GetImageData())
+        .Build();
 
     return {color, depth};
 }
@@ -316,10 +316,10 @@ std::vector<Framebuffer> Swapchain::GetFramebuffers(const RenderPass& renderPass
     for (u32 i = 0; i < m_ColorImageCount; i++)
     {
         std::vector<Attachment> attachments = GetAttachments(i);
-        Framebuffer framebuffer = Framebuffer::Builder().
-            SetRenderPass(renderPass).
-            SetAttachments(attachments).
-            BuildManualLifetime();
+        Framebuffer framebuffer = Framebuffer::Builder()
+            .SetRenderPass(renderPass)
+            .SetAttachments(attachments)
+            .BuildManualLifetime();
 
         framebuffers.push_back(framebuffer);
     }

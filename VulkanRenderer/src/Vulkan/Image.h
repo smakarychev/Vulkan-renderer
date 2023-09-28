@@ -27,6 +27,7 @@ public:
             VkExtent2D Extent;
             VkImageUsageFlags ImageUsage;
             VkImageAspectFlags ImageAspect;
+            u32 MipMapCount{1};
             SourceInfo SourceInfo{SourceInfo::None};
             Buffer AssetBuffer;
         };
@@ -37,9 +38,13 @@ public:
         Builder& FromImageData(const ImageData& imageData);
         Builder& SetFormat(VkFormat format);
         Builder& SetExtent(VkExtent2D extent);
+        Builder& CreateMipmaps(bool enable);
         Builder& SetUsage(VkImageUsageFlags imageUsage, VkImageAspectFlags imageAspect);
     private:
+        void PreBuild();
+    private:
         CreateInfo m_CreateInfo;
+        bool m_CreateMipmaps{false};
     };
 public:
     static Image Create(const Builder::CreateInfo& createInfo);
@@ -49,9 +54,17 @@ public:
 private:
     using CreateInfo = Builder::CreateInfo;
     static Image AllocateImage(const CreateInfo& createInfo);
-    static void CopyBufferToImage(const Buffer& buffer, const Image& image);
+    static void PrepareForTransfer(const Image& image, const ImageSubresource& imageSubresource);
+    static void PrepareForMipmap(const Image& image, const ImageSubresource& imageSubresource);
+    static void PrepareForShaderRead(const Image& image, const ImageSubresource& imageSubresource);
+    static void PrepareImageGeneral(const Image& image, const ImageSubresource& imageSubresource,
+        VkImageLayout current, VkImageLayout target,
+        VkAccessFlags srcAccess, VkAccessFlags dstAccess,
+        VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage);
+    static void CopyBufferToImage(const Buffer& buffer, const Image& image, VkImageAspectFlags imageAspect);
+    static void CreateMipMaps(const Image& image, const CreateInfo& createInfo);
 
-    static VkSampler CreateSampler(VkFilter scaleFilter);
+    static VkSampler CreateSampler(VkFilter scaleFilter, u32 mipmapCount);
     
 private:
     ImageData m_ImageData{};

@@ -44,10 +44,10 @@ VertexInputDescription Vertex3D::GetInputDescription()
 
 PushConstantBuffer::PushConstantBuffer()
 {
-    m_Description = PushConstantDescription::Builder().
-        SetStages(VK_SHADER_STAGE_VERTEX_BIT).
-        SetSizeBytes(sizeof(m_MeshPushConstants)).
-        Build();
+    m_Description = PushConstantDescription::Builder()
+        .SetStages(VK_SHADER_STAGE_VERTEX_BIT)
+        .SetSizeBytes(sizeof(m_MeshPushConstants))
+        .Build();
 }
 
 Mesh::Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indices)
@@ -56,27 +56,27 @@ Mesh::Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indice
     u64 verticesSizeBytes = vertices.size() * sizeof(Vertex3D);
     u64 indicesSizeBytes = indices.size() * sizeof(u32);
 
-    m_VertexBuffer = Buffer::Builder().
-        SetKinds({BufferKind::Vertex, BufferKind::Destination}).
-        SetSizeBytes(verticesSizeBytes).
-        SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
-        Build();
+    m_VertexBuffer = Buffer::Builder()
+        .SetKinds({BufferKind::Vertex, BufferKind::Destination})
+        .SetSizeBytes(verticesSizeBytes)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
 
-    m_IndexBuffer = Buffer::Builder().
-        SetKinds({BufferKind::Index, BufferKind::Destination}).
-        SetSizeBytes(indicesSizeBytes).
-        SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
-        Build();
+    m_IndexBuffer = Buffer::Builder()
+        .SetKinds({BufferKind::Index, BufferKind::Destination})
+        .SetSizeBytes(indicesSizeBytes)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
 }
 
 void Mesh::Upload(const Renderer& renderer)
 {
     {
-        Buffer stageBuffer = Buffer::Builder().
-        SetKind(BufferKind::Source).
-        SetSizeBytes(m_VertexBuffer.GetSizeBytes()).
-        SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-        BuildManualLifetime();
+        Buffer stageBuffer = Buffer::Builder()
+        .SetKind(BufferKind::Source)
+        .SetSizeBytes(m_VertexBuffer.GetSizeBytes())
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+        .BuildManualLifetime();
 
         stageBuffer.SetData(m_Vertices.data(), m_VertexBuffer.GetSizeBytes());
 
@@ -89,11 +89,11 @@ void Mesh::Upload(const Renderer& renderer)
     }
 
     {
-        Buffer stageBuffer = Buffer::Builder().
-        SetKind(BufferKind::Source).
-        SetSizeBytes(m_IndexBuffer.GetSizeBytes()).
-        SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-        BuildManualLifetime();
+        Buffer stageBuffer = Buffer::Builder()
+        .SetKind(BufferKind::Source)
+        .SetSizeBytes(m_IndexBuffer.GetSizeBytes())
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+        .BuildManualLifetime();
 
         stageBuffer.SetData(m_Indices.data(), m_IndexBuffer.GetSizeBytes());
 

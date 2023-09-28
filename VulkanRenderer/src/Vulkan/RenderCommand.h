@@ -3,6 +3,7 @@
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan_core.h>
 
+#include "CommandBuffer.h"
 #include "types.h"
 #include "VulkanCommon.h"
 
@@ -39,6 +40,9 @@ public:
         const Framebuffer& framebuffer, const std::vector<VkClearValue>& clearValues);
     static void EndRenderPass(const CommandBuffer& cmd);
 
+    static void TransitionImage(const CommandBuffer& cmd, const Image& image, const ImageTransitionInfo& transitionInfo);
+    static void BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& imageBlitInfo);
+    
     static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination);
     static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination);
     

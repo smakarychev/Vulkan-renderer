@@ -1,5 +1,6 @@
 ﻿#include "Renderer.h"
 
+#include <algorithm>
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
@@ -79,11 +80,11 @@ void Renderer::UpdateScene()
 
     if (GetFrameContext().IsDrawIndirectBufferDirty)
     {
-        Buffer stageBuffer = Buffer::Builder().
-            SetKind(BufferKind::Source).
-            SetSizeBytes(GetFrameContext().DrawIndirectBuffer.GetSizeBytes()).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-            BuildManualLifetime();
+        Buffer stageBuffer = Buffer::Builder()
+            .SetKind(BufferKind::Source)
+            .SetSizeBytes(GetFrameContext().DrawIndirectBuffer.GetSizeBytes())
+            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+            .BuildManualLifetime();
         
         VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)stageBuffer.Map();
 
@@ -115,8 +116,9 @@ void Renderer::UpdateScene()
     f32 blue = (red + green) * 0.5f;
     f32 sunFreq = (f32)glfwGetTime();
     f32 sunPos = sin(sunFreq);
-    m_SceneDataUBO.SceneData.SunlightDirection = {sunPos * 2.0f,(sunPos + 1.0f) * 10.0f, sunPos * 8.0f, 1.0f};
-    m_SceneDataUBO.SceneData.AmbientColor = { red, green, blue, 1.0f};
+    m_SceneDataUBO.SceneData.SunlightDirection = {sunPos * 2.0f, (sunPos + 2.0f) * 10.0f, sunPos * 8.0f, 1.0f};
+    m_SceneDataUBO.SceneData.SunlightColor = {0.8f, 0.1f, 0.1f, 1.0};
+    m_SceneDataUBO.SceneData.FogColor = {0.3f, 0.1f, 0.1f, 1.0f};
     u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber;
     m_SceneDataUBO.Buffer.SetData(&m_SceneDataUBO.SceneData, sizeof(SceneData), offsetBytes);
 
@@ -149,7 +151,7 @@ void Renderer::BeginFrame()
     cmd.Reset();
     cmd.Begin();
     
-    VkClearValue colorClear = {.color = {{0.1f, 0.1f, 0.1f, 1.0f}}};
+    VkClearValue colorClear = {.color = {{0.3f, 0.1f, 0.1f, 1.0f}}};
     VkClearValue depthClear = {.depthStencil = {.depth = 1.0f}};
     m_RenderPass.Begin(cmd, m_Framebuffers[m_SwapchainImageIndex], {colorClear, depthClear});
 
@@ -230,29 +232,29 @@ void Renderer::Init()
         renderer->OnWindowResize();
     });
 
-    m_Device = Device::Builder().
-        Defaults().
-        SetWindow(m_Window).
-        Build();
+    m_Device = Device::Builder()
+        .Defaults()
+        .SetWindow(m_Window)
+        .Build();
 
     Driver::Init(m_Device);
     
-    m_Swapchain = Swapchain::Builder().
-        DefaultHints().
-        FromDetails(m_Device.GetSurfaceDetails()).
-        SetDevice(m_Device).
-        BufferedFrames(BUFFERED_FRAMES).
-        BuildManualLifetime();
+    m_Swapchain = Swapchain::Builder()
+        .DefaultHints()
+        .FromDetails(m_Device.GetSurfaceDetails())
+        .SetDevice(m_Device)
+        .BufferedFrames(BUFFERED_FRAMES)
+        .BuildManualLifetime();
 
     std::vector<AttachmentTemplate> attachmentTemplates = m_Swapchain.GetAttachmentTemplates();
     
-    Subpass subpass = Subpass::Builder().
-        SetAttachments(attachmentTemplates).
-        Build();
+    Subpass subpass = Subpass::Builder()
+        .SetAttachments(attachmentTemplates)
+        .Build();
 
-    m_RenderPass = RenderPass::Builder().
-        AddSubpass(subpass).
-        AddSubpassDependency(
+    m_RenderPass = RenderPass::Builder()
+        .AddSubpass(subpass)
+        .AddSubpassDependency(
             VK_SUBPASS_EXTERNAL,
             subpass,
             {
@@ -260,8 +262,8 @@ void Renderer::Init()
                 .DestinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .SourceAccessMask = 0,
                 .DestinationAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT
-            }).
-        AddSubpassDependency(
+            })
+        .AddSubpassDependency(
             VK_SUBPASS_EXTERNAL,
             subpass,
             {
@@ -269,18 +271,18 @@ void Renderer::Init()
                 .DestinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
                 .SourceAccessMask = 0,
                 .DestinationAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-            }).
-        Build();
+            })
+        .Build();
 
     m_Framebuffers = m_Swapchain.GetFramebuffers(m_RenderPass);
 
     m_FrameContexts.resize(BUFFERED_FRAMES);
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
-        CommandPool pool = CommandPool::Builder().
-            SetQueue(QueueKind::Graphics).
-            PerBufferReset(true).
-            Build();
+        CommandPool pool = CommandPool::Builder()
+            .SetQueue(QueueKind::Graphics)
+            .PerBufferReset(true)
+            .Build();
         CommandBuffer buffer = pool.AllocateBuffer(CommandBufferKind::Primary);
 
         m_FrameContexts[i].CommandPool = pool;
@@ -290,25 +292,25 @@ void Renderer::Init()
     }
 
     // descriptors
-    m_PersistentDescriptorAllocator = DescriptorAllocator::Builder().
-        SetMaxSetsPerPool(1000).
-        Build();
+    m_PersistentDescriptorAllocator = DescriptorAllocator::Builder()
+        .SetMaxSetsPerPool(1000)
+        .Build();
 
-    m_SceneDataUBO.Buffer = Buffer::Builder().
-            SetKind(BufferKind::Uniform).
-            SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-            Build();
+    m_SceneDataUBO.Buffer = Buffer::Builder()
+            .SetKind(BufferKind::Uniform)
+            .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES)
+            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+            .Build();
 
     // indirect commands preparation
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
         FrameContext& context = m_FrameContexts[i];
-        context.DrawIndirectBuffer = Buffer::Builder().
-            SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination}).
-            SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT).
-            Build();
+        context.DrawIndirectBuffer = Buffer::Builder()
+            .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+            .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+            .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+            .Build();
     }
     
     m_CurrentFrameContext = &m_FrameContexts.front();
@@ -344,12 +346,12 @@ void Renderer::RecreateSwapchain()
     for (auto& framebuffer : m_Framebuffers)
         Framebuffer::Destroy(framebuffer);
 
-    Swapchain::Builder newSwapchainBuilder = Swapchain::Builder().
-        DefaultHints().
-        FromDetails(m_Device.GetSurfaceDetails()).
-        SetDevice(m_Device).
-        BufferedFrames(BUFFERED_FRAMES).
-        SetSyncStructures(m_Swapchain.GetFrameSync());
+    Swapchain::Builder newSwapchainBuilder = Swapchain::Builder()
+        .DefaultHints()
+        .FromDetails(m_Device.GetSurfaceDetails())
+        .SetDevice(m_Device)
+        .BufferedFrames(BUFFERED_FRAMES)
+        .SetSyncStructures(m_Swapchain.GetFrameSync());
     
     Swapchain::Destroy(m_Swapchain);
     
@@ -368,21 +370,21 @@ void Renderer::LoadScene()
     Shader texturedShaderReflection = {};
     texturedShaderReflection.ReflectFrom({"../assets/shaders/textured-vert.shader", "../assets/shaders/textured-frag.shader"});
 
-    ShaderPipelineTemplate::Builder templateBuilder = ShaderPipelineTemplate::Builder().
-        SetDescriptorAllocator(&m_PersistentDescriptorAllocator).
-        SetDescriptorLayoutCache(&m_LayoutCache);
+    ShaderPipelineTemplate::Builder templateBuilder = ShaderPipelineTemplate::Builder()
+        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
+        .SetDescriptorLayoutCache(&m_LayoutCache);
     
-    ShaderPipelineTemplate defaultTemplate = templateBuilder.
-        SetShaderReflection(&defaultShaderReflection).
-        Build();
+    ShaderPipelineTemplate defaultTemplate = templateBuilder
+        .SetShaderReflection(&defaultShaderReflection)
+        .Build();
 
-    ShaderPipelineTemplate greyTemplate = templateBuilder.
-        SetShaderReflection(&greyShaderReflection).
-        Build();
+    ShaderPipelineTemplate greyTemplate = templateBuilder
+        .SetShaderReflection(&greyShaderReflection)
+        .Build();
 
-    ShaderPipelineTemplate texturedTemplate = templateBuilder.
-        SetShaderReflection(&texturedShaderReflection).
-        Build();
+    ShaderPipelineTemplate texturedTemplate = templateBuilder
+        .SetShaderReflection(&texturedShaderReflection)
+        .Build();
 
     m_Scene.AddShaderTemplate(defaultTemplate, "default");
     m_Scene.AddShaderTemplate(greyTemplate, "grey");
@@ -392,50 +394,53 @@ void Renderer::LoadScene()
     {
         FrameContext& context = m_FrameContexts[i];
 
-        context.CameraDataUBO.Buffer = Buffer::Builder().
-            SetKind(BufferKind::Uniform).
-            SetSizeBytes(sizeof(CameraData)).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-            Build();
+        context.CameraDataUBO.Buffer = Buffer::Builder()
+            .SetKind(BufferKind::Uniform)
+            .SetSizeBytes(sizeof(CameraData))
+            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+            .Build();
 
-        context.ObjectDataSSBO.Buffer = Buffer::Builder().
-            SetKind(BufferKind::Storage).
-            SetSizeBytes(context.ObjectDataSSBO.Objects.size() * sizeof(ObjectData)).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-            Build();
+        context.ObjectDataSSBO.Buffer = Buffer::Builder()
+            .SetKind(BufferKind::Storage)
+            .SetSizeBytes(context.ObjectDataSSBO.Objects.size() * sizeof(ObjectData))
+            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+            .Build();
 
-        context.MaterialDataSSBO.Buffer = Buffer::Builder().
-            SetKind(BufferKind::Storage).
-            SetSizeBytes(context.MaterialDataSSBO.Materials.size() * sizeof(MaterialData)).
-            SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT).
-            Build();
+        context.MaterialDataSSBO.Buffer = Buffer::Builder()
+            .SetKind(BufferKind::Storage)
+            .SetSizeBytes(context.MaterialDataSSBO.Materials.size() * sizeof(MaterialData))
+            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+            .Build();
         
-        context.GlobalObjectSet = ShaderDescriptorSet::Builder().
-            SetTemplate(m_Scene.GetShaderTemplate("default")).
-            AddBinding("u_camera_buffer", context.CameraDataUBO.Buffer, sizeof(CameraData), 0).
-            AddBinding("dyn_u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0).
-            AddBinding("u_object_buffer", context.ObjectDataSSBO.Buffer).
-            Build();
+        context.GlobalObjectSet = ShaderDescriptorSet::Builder()
+            .SetTemplate(m_Scene.GetShaderTemplate("default"))
+            .AddBinding("u_camera_buffer", context.CameraDataUBO.Buffer, sizeof(CameraData), 0)
+            .AddBinding("dyn_u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
+            .AddBinding("u_object_buffer", context.ObjectDataSSBO.Buffer)
+            .Build();
     }
 
     Model car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
     Model gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
     Model helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
+    Model tree = Model::LoadFromAsset("../assets/models/tree/scene.model");
    //Model sponza = Model::LoadFromAsset("../assets/models/sponza/scene.model");
     car.Upload(*this);
     mori.Upload(*this);
     gun.Upload(*this);
     helmet.Upload(*this);
+    tree.Upload(*this);
    // sponza.Upload(*this);
     
     m_Scene.AddModel(car, "car");
     m_Scene.AddModel(mori, "mori");
     m_Scene.AddModel(gun, "gun");
     m_Scene.AddModel(helmet, "helmet");
+    m_Scene.AddModel(tree, "tree");
     //m_Scene.AddModel(sponza, "sponza");
 
-    std::vector models = {"helmet", "car", "gun"};
+    std::vector models = {"helmet", "car", "gun", "tree"};
 
     for (i32 x = -5; x <= 5; x++)
     {

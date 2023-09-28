@@ -8,7 +8,7 @@ class Logger
 {
 public:
     template <typename ... Types>
-    static void Log(const std::_Fmt_string<Types...> formatString, Types&&... args)
+    static void Log(const std::format_string<Types...> formatString, Types&&... args)
     {
         std::cout << std::format(formatString, std::forward<Types>(args)...);
         std::cout << "\n";

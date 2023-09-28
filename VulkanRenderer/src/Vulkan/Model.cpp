@@ -55,23 +55,23 @@ void Model::Upload(const Renderer& renderer)
 
 void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, const glm::mat4& transform, const std::array<Buffer, BUFFERED_FRAMES>& materialBuffer)
 {
-    ShaderDescriptorSet::Builder texturedDescriptor = ShaderDescriptorSet::Builder().
-        SetTemplate(scene->GetShaderTemplate("textured"));
+    ShaderDescriptorSet::Builder texturedDescriptor = ShaderDescriptorSet::Builder()
+        .SetTemplate(scene->GetShaderTemplate("textured"));
 
-    ShaderDescriptorSet::Builder defaultDescriptor = ShaderDescriptorSet::Builder().
-        SetTemplate(scene->GetShaderTemplate("default"));
+    ShaderDescriptorSet::Builder defaultDescriptor = ShaderDescriptorSet::Builder()
+        .SetTemplate(scene->GetShaderTemplate("default"));
 
-    ShaderPipeline texturedPipeline = ShaderPipeline::Builder().
-        SetTemplate(scene->GetShaderTemplate("textured")).
-        CompatibleWithVertex(Vertex3D::GetInputDescription()).
-        SetRenderPass(renderPass).
-        Build();
+    ShaderPipeline texturedPipeline = ShaderPipeline::Builder()
+        .SetTemplate(scene->GetShaderTemplate("textured"))
+        .CompatibleWithVertex(Vertex3D::GetInputDescription())
+        .SetRenderPass(renderPass)
+        .Build();
 
-    ShaderPipeline defaultPipeline = ShaderPipeline::Builder().
-        SetTemplate(scene->GetShaderTemplate("default")).
-        CompatibleWithVertex(Vertex3D::GetInputDescription()).
-        SetRenderPass(renderPass).
-        Build();
+    ShaderPipeline defaultPipeline = ShaderPipeline::Builder()
+        .SetTemplate(scene->GetShaderTemplate("default"))
+        .CompatibleWithVertex(Vertex3D::GetInputDescription())
+        .SetRenderPass(renderPass)
+        .Build();
 
     
     for (u32 i = 0; i < m_Meshes.size(); i++)
@@ -88,9 +88,9 @@ void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, cons
             material.Pipeline = defaultPipeline;
             for (u32 j = 0; j < material.DescriptorSets.size(); j++)
             {
-                material.DescriptorSets[j] = defaultDescriptor.
-                    AddBinding("u_material_buffer", materialBuffer[j]).
-                    Build(); 
+                material.DescriptorSets[j] = defaultDescriptor
+                    .AddBinding("u_material_buffer", materialBuffer[j])
+                    .Build(); 
             }
         }
         else
@@ -98,19 +98,20 @@ void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, cons
             material.Pipeline = texturedPipeline;
             if (scene->GetTexture(textureName) == nullptr)
             {
-                Image texture = Image::Builder().
-                    FromAssetFile(mesh.Albedo.Textures.front()).
-                    SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, VK_IMAGE_ASPECT_COLOR_BIT).
-                    Build();
+                Image texture = Image::Builder()
+                    .FromAssetFile(mesh.Albedo.Textures.front())
+                    .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
+                    .CreateMipmaps(true)
+                    .Build();
                 scene->AddTexture(texture, textureName);
             }
             
             for (u32 j = 0; j < material.DescriptorSets.size(); j++)
             {
-                material.DescriptorSets[j] = texturedDescriptor.
-                    AddBinding("u_material_buffer", materialBuffer[j]).
-                    AddBinding("u_texture", *scene->GetTexture(textureName)).
-                    Build(); 
+                material.DescriptorSets[j] = texturedDescriptor
+                    .AddBinding("u_material_buffer", materialBuffer[j])
+                    .AddBinding("u_texture", *scene->GetTexture(textureName))
+                    .Build(); 
             }
         }
 
