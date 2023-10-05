@@ -133,7 +133,7 @@ public:
         void Prebuild();
     private:
         CreateInfo m_CreateInfo;
-        VertexInputDescription m_ComaptibleVertexDescription;
+        VertexInputDescription m_CompatibleVertexDescription;
     };
 public:
     static ShaderPipeline Create(const Builder::CreateInfo& createInfo);
@@ -197,7 +197,5 @@ public:
     const DescriptorSetsInfo& GetDescriptorSetsInfo() const { return m_DescriptorSetsInfo; }
     const DescriptorSet& GetDescriptorSet(DescriptorKind kind) const { return m_DescriptorSetsInfo.DescriptorSets[(u32)kind].Set; }
 private:
-    ShaderPipelineTemplate* m_Template{nullptr};
-
     DescriptorSetsInfo m_DescriptorSetsInfo{};
 };

@@ -14,3 +14,4 @@ tools/*/bin
 tools/*/bin-int
 *.spv
 *.shader
+*.blob

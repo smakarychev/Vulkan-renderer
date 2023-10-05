@@ -6,15 +6,29 @@
 
 #include "RenderObject.h"
 #include "Scene.h"
+#include "Model.h"
+#include "Core/Camera.h"
+#include "Core/Input.h"
 #include "GLFW/glfw3.h"
-#include "Vulkan/Model.h"
 #include "Vulkan/RenderCommand.h"
 #include "Vulkan/VulkanUtils.h"
 
-Renderer::Renderer()
+Renderer::Renderer() = default;
+
+void Renderer::Init()
 {
-    Init();
+    InitRenderingStructures();
     LoadScene();
+
+    Input::s_MainViewportSize = m_Swapchain.GetSize();
+    m_Camera = std::make_shared<Camera>();
+    m_CameraController = std::make_unique<CameraController>(m_Camera);
+}
+
+Renderer* Renderer::Get()
+{
+    static Renderer renderer = {};
+    return &renderer;
 }
 
 Renderer::~Renderer()
@@ -48,45 +62,28 @@ void Renderer::OnRender()
 
 void Renderer::OnUpdate()
 {
-    UpdateCamera();
+    m_CameraController->OnUpdate(1.0f / 60.0f);
+    UpdateCameraBuffers();
     UpdateScene();
 }
 
-void Renderer::UpdateCamera()
+void Renderer::UpdateCameraBuffers()
 {
-    f32 angle = (f32)glfwGetTime();
-    glm::vec3 defaultPos = {0.0f, 0.02f, 0.5f};
-    glm::mat4 model = glm::rotate(glm::mat4(1.0f), glm::radians(angle) * 5.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::vec3 pos = glm::vec3(model * glm::vec4(defaultPos, 1.0f));
-    glm::mat4 view = glm::lookAt(pos, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    glm::mat4 projection = glm::perspective(glm::radians(45.0f), (f32)m_Swapchain.GetSize().x / (f32)m_Swapchain.GetSize().y, 1e-4f, 1e+3f);
-    projection[1][1] *= -1.0f;
-    GetFrameContext().CameraDataUBO.CameraData = {.View = view, .Projection = projection, .ViewProjection = projection * view};
-    GetFrameContext().CameraDataUBO.Buffer.SetData(&GetFrameContext().CameraDataUBO.CameraData, sizeof(CameraData));
+    m_CameraDataUBO.CameraData = {.View = m_Camera->GetView(), .Projection = m_Camera->GetProjection(), .ViewProjection = m_Camera->GetViewProjection()};
+    u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber;
+    m_CameraDataUBO.Buffer.SetData(&m_CameraDataUBO.CameraData, sizeof(CameraData), offsetBytes);
 }
 
 void Renderer::UpdateScene()
 {
-
     if (m_Scene.IsDirty())
     {
         SortScene(m_Scene);
         m_Scene.CreateIndirectBatches();
         m_Scene.ClearDirty();
 
-        for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-            m_FrameContexts[i].IsDrawIndirectBufferDirty = true;
-    }
-
-    if (GetFrameContext().IsDrawIndirectBufferDirty)
-    {
-        Buffer stageBuffer = Buffer::Builder()
-            .SetKind(BufferKind::Source)
-            .SetSizeBytes(GetFrameContext().DrawIndirectBuffer.GetSizeBytes())
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .BuildManualLifetime();
-        
-        VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)stageBuffer.Map();
+        u32 mappedBuffer = m_ResourceUploader.GetMappedBuffer(m_DrawIndirectBuffer.GetSizeBytes());
+        VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)m_ResourceUploader.GetMappedAddress(mappedBuffer);
 
         for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
         {
@@ -98,17 +95,10 @@ void Renderer::UpdateScene()
             commands[i].vertexOffset = 0;
         }
 
-        stageBuffer.Unmap();
-        
-        ImmediateUpload([&](const CommandBuffer& cmd)
-        {
-            RenderCommand::CopyBuffer(cmd, stageBuffer, GetFrameContext().DrawIndirectBuffer);
-        });
-
-        Buffer::Destroy(stageBuffer);
-        
-        GetFrameContext().IsDrawIndirectBufferDirty = false;
+        m_ResourceUploader.UpdateBuffer(m_DrawIndirectBuffer, mappedBuffer, 0);
     }
+
+    FrameContext& context = GetFrameContext();
     
     f32 freq = (f32)glfwGetTime() / 10.0f;
     f32 red = (sin(freq) + 1.0f) * 0.5f;
@@ -119,21 +109,18 @@ void Renderer::UpdateScene()
     m_SceneDataUBO.SceneData.SunlightDirection = {sunPos * 2.0f, (sunPos + 2.0f) * 10.0f, sunPos * 8.0f, 1.0f};
     m_SceneDataUBO.SceneData.SunlightColor = {0.8f, 0.1f, 0.1f, 1.0};
     m_SceneDataUBO.SceneData.FogColor = {0.3f, 0.1f, 0.1f, 1.0f};
-    u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber;
-    m_SceneDataUBO.Buffer.SetData(&m_SceneDataUBO.SceneData, sizeof(SceneData), offsetBytes);
+    u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * context.FrameNumber;
+    m_ResourceUploader.UpdateBuffer(m_SceneDataUBO.Buffer, &m_SceneDataUBO.SceneData, sizeof(SceneData), offsetBytes);
 
     // assuming that object transform can change
     for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
     {
-        GetFrameContext().ObjectDataSSBO.Objects[i].Transform = m_Scene.GetRenderObjects()[i].Transform;
-        GetFrameContext().MaterialDataSSBO.Materials[i].Albedo = m_Scene.GetRenderObjects()[i].Material->Albedo;
+        m_ObjectDataSSBO.Objects[i].Transform = m_Scene.GetRenderObjects()[i].Transform;
+        m_MaterialDataSSBO.Materials[i].Albedo = m_Scene.GetRenderObjects()[i].Material->Albedo;
     }
-    
-    GetFrameContext().ObjectDataSSBO.Buffer.SetData(GetFrameContext().ObjectDataSSBO.Objects.data(),
-        GetFrameContext().ObjectDataSSBO.Objects.size() * sizeof(ObjectData));
 
-    GetFrameContext().MaterialDataSSBO.Buffer.SetData(GetFrameContext().MaterialDataSSBO.Materials.data(),
-        GetFrameContext().MaterialDataSSBO.Materials.size() * sizeof(MaterialData));
+    m_ResourceUploader.UpdateBuffer(m_ObjectDataSSBO.Buffer, m_ObjectDataSSBO.Objects.data(), m_ObjectDataSSBO.Objects.size() * sizeof(ObjectData), 0);
+    m_ResourceUploader.UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialData), 0);
 }
 
 void Renderer::BeginFrame()
@@ -157,6 +144,9 @@ void Renderer::BeginFrame()
 
     RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
     RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
+
+    // todo: is this the best place for it?
+    m_ResourceUploader.SubmitUpload();
 }
 
 void Renderer::EndFrame()
@@ -177,6 +167,9 @@ void Renderer::EndFrame()
     
     m_FrameNumber++;
     m_CurrentFrameContext = &m_FrameContexts[m_FrameNumber % BUFFERED_FRAMES];
+    
+    // todo: is this the best place for it?
+    m_ResourceUploader.StartRecording();
 }
 
 void Renderer::Submit(const Scene& scene)
@@ -186,16 +179,17 @@ void Renderer::Submit(const Scene& scene)
     for (auto& batch : scene.GetIndirectBatches())
     {
         batch.Material->Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
-        u32 uniformOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
-        GetFrameContext().GlobalObjectSet.Bind(cmd, DescriptorKind::Global, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS, {uniformOffset});
-        GetFrameContext().GlobalObjectSet.Bind(cmd, DescriptorKind::Pass, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
-        batch.Material->DescriptorSets[GetFrameContext().FrameNumber].Bind(cmd, DescriptorKind::Material, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+        u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber);
+        u32 sceneDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
+        m_GlobalObjectSet.Bind(cmd, DescriptorKind::Global, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset, sceneDataOffset});
+        m_GlobalObjectSet.Bind(cmd, DescriptorKind::Pass, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
+        batch.Material->DescriptorSet.Bind(cmd, DescriptorKind::Material, batch.Material->Pipeline, VK_PIPELINE_BIND_POINT_GRAPHICS);
         batch.Mesh->GetVertexBuffer().Bind(cmd);
         batch.Mesh->GetIndexBuffer().Bind(cmd);
 
         u32 stride = sizeof(VkDrawIndexedIndirectCommand);
         u64 bufferOffset = (u64)batch.First * stride;
-        RenderCommand::DrawIndexedIndirect(cmd, GetFrameContext().DrawIndirectBuffer, bufferOffset, batch.Count, stride);
+        RenderCommand::DrawIndexedIndirect(cmd, m_DrawIndirectBuffer, bufferOffset, batch.Count, stride);
     }
 }
 
@@ -219,7 +213,7 @@ void Renderer::PushConstants(const PipelineLayout& pipelineLayout, const void* p
     RenderCommand::PushConstants(cmd, pipelineLayout, pushConstants, description);
 }
 
-void Renderer::Init()
+void Renderer::InitRenderingStructures()
 {
     glfwInit();
 
@@ -238,6 +232,8 @@ void Renderer::Init()
         .Build();
 
     Driver::Init(m_Device);
+
+    m_ResourceUploader.Init();
     
     m_Swapchain = Swapchain::Builder()
         .DefaultHints()
@@ -297,22 +293,24 @@ void Renderer::Init()
         .Build();
 
     m_SceneDataUBO.Buffer = Buffer::Builder()
-            .SetKind(BufferKind::Uniform)
-            .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES)
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .Build();
+        .SetKind(BufferKind::Uniform)
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+        .Build();
+
+    m_CameraDataUBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Uniform})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * BUFFERED_FRAMES)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+        .Build();
 
     // indirect commands preparation
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        FrameContext& context = m_FrameContexts[i];
-        context.DrawIndirectBuffer = Buffer::Builder()
-            .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-            .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-            .Build();
-    }
-    
+    m_DrawIndirectBuffer = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
     m_CurrentFrameContext = &m_FrameContexts.front();
 }
 
@@ -322,6 +320,7 @@ void Renderer::ShutDown()
     for (auto& framebuffer : m_Framebuffers)
         Framebuffer::Destroy(framebuffer);
     Swapchain::Destroy(m_Swapchain);
+    m_ResourceUploader.ShutDown();
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();
@@ -357,6 +356,8 @@ void Renderer::RecreateSwapchain()
     
     m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
     m_Framebuffers = m_Swapchain.GetFramebuffers(m_RenderPass);
+
+    Input::s_MainViewportSize = m_Swapchain.GetSize();
 }
 
 void Renderer::LoadScene()
@@ -390,35 +391,24 @@ void Renderer::LoadScene()
     m_Scene.AddShaderTemplate(greyTemplate, "grey");
     m_Scene.AddShaderTemplate(texturedTemplate, "textured");
 
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        FrameContext& context = m_FrameContexts[i];
+    m_MaterialDataSSBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(m_MaterialDataSSBO.Materials.size() * sizeof(MaterialData))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+    
+    m_ObjectDataSSBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(m_ObjectDataSSBO.Objects.size() * sizeof(ObjectData))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
 
-        context.CameraDataUBO.Buffer = Buffer::Builder()
-            .SetKind(BufferKind::Uniform)
-            .SetSizeBytes(sizeof(CameraData))
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .Build();
-
-        context.ObjectDataSSBO.Buffer = Buffer::Builder()
-            .SetKind(BufferKind::Storage)
-            .SetSizeBytes(context.ObjectDataSSBO.Objects.size() * sizeof(ObjectData))
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .Build();
-
-        context.MaterialDataSSBO.Buffer = Buffer::Builder()
-            .SetKind(BufferKind::Storage)
-            .SetSizeBytes(context.MaterialDataSSBO.Materials.size() * sizeof(MaterialData))
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .Build();
-        
-        context.GlobalObjectSet = ShaderDescriptorSet::Builder()
-            .SetTemplate(m_Scene.GetShaderTemplate("default"))
-            .AddBinding("u_camera_buffer", context.CameraDataUBO.Buffer, sizeof(CameraData), 0)
-            .AddBinding("dyn_u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
-            .AddBinding("u_object_buffer", context.ObjectDataSSBO.Buffer)
-            .Build();
-    }
+    m_GlobalObjectSet = ShaderDescriptorSet::Builder()
+       .SetTemplate(m_Scene.GetShaderTemplate("default"))
+       .AddBinding("dyn_u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
+       .AddBinding("dyn_u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
+       .AddBinding("u_object_buffer", m_ObjectDataSSBO.Buffer)
+       .Build();
 
     Model car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
@@ -448,17 +438,14 @@ void Renderer::LoadScene()
         {
             u32 modelIndex = rand() % models.size();
             
-            glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3((f32)x / 10, 0.0f, (f32)z / 10)) *
-                glm::scale(glm::mat4(1.0f), glm::vec3(0.02f));
+            glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 3.0f, 0.0f, z * 3.0f)) *
+                glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
             RenderObject newRenderObject;
             newRenderObject.Transform = transform;
 
             Model* model = m_Scene.GetModel(models[modelIndex]);
-            std::array<Buffer, BUFFERED_FRAMES> materialBuffers = {};
-            for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-                materialBuffers[i] = m_FrameContexts[i].MaterialDataSSBO.Buffer;
-            model->CreateRenderObjects(&m_Scene, m_RenderPass, transform, materialBuffers);
+            model->CreateRenderObjects(&m_Scene, m_RenderPass, transform, m_MaterialDataSSBO.Buffer);
         }
     }
 }

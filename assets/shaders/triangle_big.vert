@@ -13,7 +13,7 @@ layout(set = 0, binding = 0) uniform camera_buffer {
     mat4 view;
     mat4 projection;
     mat4 view_projection;
-} u_camera_buffer;
+} dyn_u_camera_buffer;
 
 struct object_data{
     mat4 model;
@@ -28,7 +28,7 @@ layout(location = 0) out vec3 vert_normal;
 layout(location = 1) out int vert_instance_id;
 
 void main() {
-    gl_Position = u_camera_buffer.view_projection * u_object_buffer.objects[gl_BaseInstance].model * vec4(a_position, 1.0);
+    gl_Position = dyn_u_camera_buffer.view_projection * u_object_buffer.objects[gl_BaseInstance].model * vec4(a_position, 1.0);
     vert_normal = a_normal;
     vert_instance_id = gl_BaseInstance;
 }

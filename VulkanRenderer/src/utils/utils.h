@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "types.h"
-#include "core.h"
+#include "Core/core.h"
 
 #include <algorithm>
 #include <fstream>

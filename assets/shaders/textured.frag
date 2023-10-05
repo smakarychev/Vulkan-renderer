@@ -23,7 +23,4 @@ layout(location = 0) out vec4 out_color;
 void main() {
     out_color = texture(u_texture, vert_uv);
     out_color = vec4(out_color.xyz * dot(normalize(vert_normal), normalize(vec3(dyn_u_scene_data.sunlight_direction))), out_color.w);
-    float depth = gl_FragCoord.z / gl_FragCoord.w;
-    out_color = mix(out_color, dyn_u_scene_data.fog_color, depth);
-    out_color = vec4(out_color.xyz, 1.0);
 }

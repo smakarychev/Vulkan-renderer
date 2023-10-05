@@ -99,6 +99,12 @@ void Buffer::SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes)
     vmaUnmapMemory(Driver::Allocator(), m_Allocation);
 }
 
+void Buffer::SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes)
+{
+    mapped = (void*)((u8*)mapped + offsetBytes);
+    std::memcpy(mapped, data, dataSizeBytes);
+}
+
 void* Buffer::Map()
 {
     void* mappedData;

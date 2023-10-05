@@ -1,6 +1,6 @@
 ﻿#include "Image.h"
 
-#include "core.h"
+#include "Core/core.h"
 #include "Driver.h"
 #include "VulkanUtils.h"
 
@@ -33,7 +33,7 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
     m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::Asset;
 
     assetLib::File textureFile;
-    assetLib::loadBinaryFile(path, textureFile);
+    assetLib::loadAssetFile(path, textureFile);
     assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
     ASSERT(textureInfo.Format == assetLib::TextureFormat::SRGBA8, "Unsopported image format")
     
@@ -43,8 +43,8 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT)
         .BuildManualLifetime();
     
-    void* dst = m_CreateInfo.AssetBuffer.Map();
-    assetLib::unpackTexture(textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)dst);
+    void* destination = m_CreateInfo.AssetBuffer.Map();
+    assetLib::unpackTexture(textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)destination);
     m_CreateInfo.AssetBuffer.Unmap();
 
     m_CreateInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;

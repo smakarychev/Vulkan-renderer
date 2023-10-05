@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include <optional>
 #include <glm/glm.hpp>
 
 #include "Settings.h"
@@ -13,7 +12,7 @@ struct Material
 {
     // todo: find a better way?
     glm::vec4 Albedo;
-    std::array<ShaderDescriptorSet, BUFFERED_FRAMES> DescriptorSets;
+    ShaderDescriptorSet DescriptorSet;
     ShaderPipeline Pipeline;
 };
 

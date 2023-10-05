@@ -5,7 +5,7 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-#include "core.h"
+#include "Core/core.h"
 
 #define FRIEND_INTERNAL \
     friend class Driver; \
@@ -47,6 +47,13 @@ struct BufferKind
     BufferKind() = default;
     BufferKind(Flags kind) : Kind(kind) {}
     Flags Kind{None};
+};
+
+struct BufferCopyInfo
+{
+    u64 SizeBytes;
+    u64 SourceOffset;
+    u64 DestinationOffset;
 };
 
 struct QueueInfo

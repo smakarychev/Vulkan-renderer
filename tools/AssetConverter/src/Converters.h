@@ -15,6 +15,8 @@ struct aiMaterial;
 struct aiMesh;
 struct aiScene;
 
+static constexpr std::string_view BLOB_EXTENSION = ".blob";
+
 class TextureConverter
 {
 public:
@@ -29,6 +31,7 @@ class ModelConverter
 public:
     struct MeshData
     {
+        std::string Name;
         std::vector<assetLib::VertexP3N3UV2> Vertices;
         std::vector<u32> Indices;
         std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxTypeVal> MaterialInfos;

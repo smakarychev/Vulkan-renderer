@@ -39,9 +39,11 @@ public:
     void Bind(const CommandBuffer& commandBuffer, u64 offset = 0) const;
     void SetData(const void* data, u64 dataSizeBytes);
     void SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes);
+    void SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes);
     void* Map();
     void Unmap();
     u64 GetSizeBytes() const { return m_SizeBytes; }
+    BufferKind GetKind() const { return m_Kind; }
 private:
     VkBuffer m_Buffer{VK_NULL_HANDLE};
     VmaAllocation m_Allocation{VK_NULL_HANDLE};

@@ -19,8 +19,8 @@ public:
 
     virtual CVarParameter* GetCVar(utils::StringHash stringHash) = 0;
     virtual CVarParameter* CreateFloatCVar(std::string_view name, std::string_view description, f32 initialVal, f32 val) = 0;
-    virtual f32* GetFloatCVar(utils::StringHash stringHash) = 0;
-    virtual void SetFloatCVar(utils::StringHash stringHash, f32 value) = 0;
+    virtual f32* GetF32CVar(utils::StringHash stringHash) = 0;
+    virtual void SetF32CVar(utils::StringHash stringHash, f32 value) = 0;
 };
 
 template <typename T>

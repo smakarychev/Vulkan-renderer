@@ -2,7 +2,7 @@
 
 #include "Mesh.h"
 #include "RenderObject.h"
-#include "Vulkan/Model.h"
+#include "Model.h"
 
 ShaderPipelineTemplate* Scene::GetShaderTemplate(const std::string& name)
 {

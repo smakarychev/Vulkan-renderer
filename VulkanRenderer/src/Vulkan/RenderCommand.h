@@ -43,7 +43,7 @@ public:
     static void TransitionImage(const CommandBuffer& cmd, const Image& image, const ImageTransitionInfo& transitionInfo);
     static void BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& imageBlitInfo);
     
-    static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination);
+    static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo);
     static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination);
     
     static void BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);

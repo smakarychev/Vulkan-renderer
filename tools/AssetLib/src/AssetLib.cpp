@@ -1,49 +1,67 @@
 ﻿#include "AssetLib.h"
 
+#include <filesystem>
 #include <fstream>
+#include <iostream>
+#include <nlm_json.hpp>
+
+#include "Vulkan/Image.h"
 
 namespace assetLib
 {
-    bool saveBinaryFile(std::string_view path, const File& file)
+    bool saveAssetFile(std::string_view assetPath, std::string_view blobPath, const File& file)
     {
-        std::ofstream out(path.data(), std::ios::binary | std::ios::out);
+        std::ofstream jsonOut(assetPath.data(), std::ios::out);
+        std::ofstream blobOut(blobPath.data(), std::ios::binary | std::ios::out);
 
-        out.write((const char*)&file.Type, sizeof file.Type);
+        jsonOut.write(file.JSON.data(), (isize)file.JSON.size());
+        blobOut.write((const char*)file.Blob.data(), (isize)file.Blob.size());
+        
+        return true;
+    }
 
-        out.write((const char*)&file.Version, sizeof file.Version);
+    bool loadAssetFile(std::string_view assetPath, File& file)
+    {
+        std::ifstream jsonIn(assetPath.data(), std::ios::ate);
 
-        isize jsonSize = (isize)file.JSON.size();
-        isize blobSize = (isize)file.Blob.size();
-        out.write((const char*)&jsonSize, sizeof jsonSize);
-        out.write((const char*)&blobSize, sizeof blobSize);
+        isize jsonSizeBytes = jsonIn.tellg();
+        jsonIn.seekg(0);
+        file.JSON.resize(jsonSizeBytes);
+        jsonIn.read(file.JSON.data(), jsonSizeBytes);
+        
+        nlohmann::json metadata = nlohmann::json::parse(file.JSON);
 
-        out.write(file.JSON.data(), jsonSize);
-        out.write((const char*)file.Blob.data(), blobSize);
+        isize blobSizeBytes = metadata["asset"]["blob_size_bytes"];
+        std::string blobPath = metadata["asset"]["blob_file"];
+        file.Blob.resize(blobSizeBytes);
+
+        std::ifstream blobIn(blobPath, std::ios::binary);
+        blobIn.read((char *)file.Blob.data(), blobSizeBytes);
 
         return true;
     }
 
-    bool loadBinaryFile(std::string_view path, File& file)
+    void packAssetInfo(const AssetInfoBase& assetInfo, void* metadata)
     {
-        std::ifstream in(path.data(), std::ios::binary);
-        if (!in.good())
-            return false;
-        in.seekg(0);
+        nlohmann::json assetMetadata;
+        assetMetadata["compression"] = "LZ4";
+        assetMetadata["original_file"] = assetInfo.OriginalFile;
+        assetMetadata["blob_file"] = assetInfo.BlobFile;
+        assetMetadata["version"] = 1;
+        (*(nlohmann::json*)metadata)["asset"] = assetMetadata; 
+    }
 
-        in.read((char*)&file.Type, sizeof file.Type);
-
-        in.read((char*)&file.Version, sizeof file.Version);
-
-        isize jsonSize, blobSize;
-        in.read((char*)&jsonSize, sizeof jsonSize);
-        in.read((char*)&blobSize, sizeof blobSize);
-
-        file.JSON.resize(jsonSize);
-        file.Blob.resize(blobSize);
-        in.read((char*)file.JSON.data(), jsonSize);
-        in.read((char*)file.Blob.data(), blobSize);
-
-        return true;
+    void unpackAssetInfo(AssetInfoBase& assetInfo, const void* metadata)
+    {
+        const nlohmann::json& assetMetadata = (*(const nlohmann::json*)metadata)["asset"];
+        std::string compressionString = assetMetadata["compression"];
+        assetInfo.CompressionMode = parseCompressionModeString(compressionString);
+        assetInfo.OriginalFile = assetMetadata["original_file"];
+        assetInfo.BlobFile = assetMetadata["blob_file"];
+        assetInfo.BlobSizeBytes = assetMetadata["blob_size_bytes"];
+        std::string assetTypeString = assetMetadata["type"];
+        assetInfo.Type = parseAssetTypeString(assetTypeString);
+        assetInfo.Version = assetMetadata["version"];
     }
 
     CompressionMode parseCompressionModeString(std::string_view modeString)
@@ -52,6 +70,34 @@ namespace assetLib
             return CompressionMode::LZ4;
         if (modeString == "None")
             return CompressionMode::None;
+        
+        std::unreachable();
+    }
+
+    AssetType parseAssetTypeString(std::string_view assetType)
+    {
+        if (assetType == "Texture")
+            return AssetType::Texture;
+        if (assetType == "Model")
+            return AssetType::Model;
+        if (assetType == "Shader")
+            return AssetType::Shader;
+        
+        std::cout << std::format("Unrecognized asset type: {}\n", assetType);
+        std::unreachable();
+    }
+
+    std::string_view assetTypeToString(AssetType assetType)
+    {
+        switch (assetType)
+        {
+        case AssetType::Texture:    return "Texture";
+        case AssetType::Model:      return "Model";
+        case AssetType::Shader:     return "Shader";
+        default:
+            std::cout << std::format("Unsupported asset type\n");
+            break;
+        }
         
         std::unreachable();
     }

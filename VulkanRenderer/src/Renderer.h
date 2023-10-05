@@ -8,7 +8,11 @@
 
 #include <array>
 
+#include "ResourceUploader.h"
 #include "Settings.h"
+
+class Camera;
+class CameraController;
 
 // todo: should not be here obv
 struct CameraData
@@ -67,18 +71,13 @@ struct FrameContext
     CommandBuffer CommandBuffer;
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
-    CameraDataUBO CameraDataUBO;
-    ObjectDataSSBO ObjectDataSSBO;
-    MaterialDataSSBO MaterialDataSSBO;
-    ShaderDescriptorSet GlobalObjectSet;
-    Buffer DrawIndirectBuffer;
-    bool IsDrawIndirectBufferDirty{false};
 };
 
 class Renderer
 {
 public:
-    Renderer();
+    void Init();
+    static Renderer* Get(); 
     ~Renderer();
 
     void Run();
@@ -95,15 +94,17 @@ public:
 
     template <typename Fn>
     void ImmediateUpload(Fn&& uploadFunction) const;
-    
+
+    GLFWwindow* GetWindow() { return m_Window; }
 private:
-    void Init();
+    Renderer();
+    void InitRenderingStructures();
     void ShutDown();
 
     void OnWindowResize();
     void RecreateSwapchain();
     
-    void UpdateCamera();
+    void UpdateCameraBuffers();
     void UpdateScene();
     void LoadScene();
 
@@ -112,6 +113,8 @@ private:
     
 private:
     GLFWwindow* m_Window;
+    std::unique_ptr<CameraController> m_CameraController;
+    std::shared_ptr<Camera> m_Camera;
 
     Device m_Device;
     Swapchain m_Swapchain;
@@ -123,16 +126,23 @@ private:
 
     std::vector<FrameContext> m_FrameContexts;
     FrameContext* m_CurrentFrameContext{nullptr};
-
+    
+    Buffer m_DrawIndirectBuffer;
+    ObjectDataSSBO m_ObjectDataSSBO;
+    CameraDataUBO m_CameraDataUBO;
     SceneDataUBO m_SceneDataUBO;
+    MaterialDataSSBO m_MaterialDataSSBO;
+    ShaderDescriptorSet m_GlobalObjectSet;
     
     Scene m_Scene;
 
     DescriptorAllocator m_PersistentDescriptorAllocator;
     DescriptorLayoutCache m_LayoutCache;
+    ResourceUploader m_ResourceUploader;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
+
 };
 
 template <typename Fn>

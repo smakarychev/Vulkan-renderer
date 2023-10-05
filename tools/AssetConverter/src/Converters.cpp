@@ -50,27 +50,30 @@ bool TextureConverter::NeedsConversion(const std::filesystem::path& path)
 
 void TextureConverter::Convert(const std::filesystem::path& path)
 {
+    std::filesystem::path assetPath, blobPath;
+    assetPath = blobPath = path;
+    assetPath.replace_extension(POST_CONVERT_EXTENSION);
+    blobPath.replace_extension(BLOB_EXTENSION);
+
     i32 width, height, channels;
     stbi_set_flip_vertically_on_load(true);
     u8* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
-
+    
     assetLib::TextureInfo textureInfo = {};
     textureInfo.Format = assetLib::TextureFormat::SRGBA8;
     textureInfo.Dimensions = {.Width = (u32)width, .Height = (u32)height, .Depth = 1};
     textureInfo.SizeBytes = 4llu * width * height; 
     textureInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     textureInfo.OriginalFile = path.string();
+    textureInfo.BlobFile = blobPath.string();
     
     assetLib::File textureFile = assetLib::packTexture(textureInfo, pixels);
-
-    std::filesystem::path outPath = path;
-    outPath.replace_extension(POST_CONVERT_EXTENSION);
-    
-    assetLib::saveBinaryFile(outPath.string(), textureFile);
+        
+    assetLib::saveAssetFile(assetPath.string(), blobPath.string(), textureFile);
 
     stbi_image_free(pixels);
 
-    std::cout << std::format("Texture file {} converted to {}\n", path.string(), outPath.string());
+    std::cout << std::format("Texture file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }
 
 
@@ -84,6 +87,11 @@ bool ModelConverter::NeedsConversion(const std::filesystem::path& path)
 
 void ModelConverter::Convert(const std::filesystem::path& path)
 {
+    std::filesystem::path assetPath, blobPath;
+    assetPath = blobPath = path;
+    assetPath.replace_extension(POST_CONVERT_EXTENSION);
+    blobPath.replace_extension(BLOB_EXTENSION);
+    
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(path.string(),
        aiProcess_CalcTangentSpace       | 
@@ -104,6 +112,7 @@ void ModelConverter::Convert(const std::filesystem::path& path)
     modelInfo.VertexFormat = assetLib::VertexFormat::P3N3C3UV2;
     modelInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     modelInfo.OriginalFile = path.string();
+    modelInfo.BlobFile = blobPath.string();
 
     std::vector<aiNode*> nodesToProcess;
     nodesToProcess.push_back(scene->mRootNode);
@@ -116,6 +125,7 @@ void ModelConverter::Convert(const std::filesystem::path& path)
             MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[i]], path);
 
             modelInfo.MeshInfos.push_back({
+                .Name = meshData.Name,
                 .VerticesSizeBytes = meshData.Vertices.size() * sizeof(assetLib::VertexP3N3UV2),
                 .IndicesSizeBytes = meshData.Indices.size() * sizeof(u32),
                 .Materials = meshData.MaterialInfos});
@@ -130,12 +140,9 @@ void ModelConverter::Convert(const std::filesystem::path& path)
 
     assetLib::File modelFile = assetLib::packModel(modelInfo, modelData.Vertices.data(), modelData.Indices.data());
 
-    std::filesystem::path outPath = path;
-    outPath.replace_extension(POST_CONVERT_EXTENSION);
-    
-    assetLib::saveBinaryFile(outPath.string(), modelFile);
+    assetLib::saveAssetFile(assetPath.string(), blobPath.string(), modelFile);
 
-    std::cout << std::format("Model file {} converted to {}\n", path.string(), outPath.string());
+    std::cout << std::format("Model file {} converted to {} (blob at {})\n\n", path.string(), assetPath.string(), blobPath.string());
 }
 
 ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const aiMesh* mesh, const std::filesystem::path& modelPath)
@@ -149,7 +156,7 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
         for (u32 i = 0; i < materials.size(); i++)
             materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);
 
-    return {.Vertices = vertices, .Indices = indices, .MaterialInfos = materials};
+    return {.Name = mesh->mName.C_Str(), .Vertices = vertices, .Indices = indices, .MaterialInfos = materials};
 }
 
 std::vector<assetLib::VertexP3N3UV2> ModelConverter::GetMeshVertices(const aiMesh* mesh)
@@ -228,6 +235,13 @@ bool ShaderConverter::NeedsConversion(const std::filesystem::path& path)
 
 void ShaderConverter::Convert(const std::filesystem::path& path)
 {
+    std::filesystem::path assetPath, blobPath;
+    assetPath = blobPath = path;
+    assetPath.replace_filename(path.stem().string() + "-" + path.extension().string().substr(1));
+    assetPath.replace_extension(POST_CONVERT_EXTENSION);
+    blobPath.replace_filename(path.stem().string() + "-" + path.extension().string().substr(1));
+    blobPath.replace_extension(BLOB_EXTENSION);
+    
     shaderc_shader_kind shaderKind = shaderc_glsl_infer_from_source;
     if (path.extension().string() == ".vert")
         shaderKind = shaderc_vertex_shader;
@@ -250,8 +264,9 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
 
     // produce reflection on unoptimized code
     assetLib::ShaderInfo shaderInfo = Reflect(spirv);
-    shaderInfo.OriginalFile = path.string();
     shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
+    shaderInfo.OriginalFile = assetPath.string();
+    shaderInfo.BlobFile = blobPath.string();
 
     std::vector<u32> spirvOptimized;
     spirvOptimized.reserve(spirv.size());
@@ -265,13 +280,9 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     
     assetLib::File shaderFile = assetLib::packShader(shaderInfo, spirv.data());
 
-    std::filesystem::path outPath = path;
-    outPath.replace_filename(path.stem().string() + "-" + path.extension().string().substr(1));
-    outPath.replace_extension(POST_CONVERT_EXTENSION);
+    assetLib::saveAssetFile(assetPath.string(), blobPath.string(), shaderFile);
 
-    assetLib::saveBinaryFile(outPath.string(), shaderFile);
-
-    std::cout << std::format("Shader file {} converted to {}\n", path.string(), outPath.string());
+    std::cout << std::format("Shader file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }
 
 assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV)

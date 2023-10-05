@@ -6,15 +6,14 @@
 
 namespace assetLib
 {
-    enum class FileType : u32
+    static constexpr u32 JSON_INDENT = 4;
+    enum class AssetType : u32
     {
-        Texture, Model, Mesh, Shader
+        Texture, Model, Shader
     };
     
     struct File
     {
-        FileType Type;
-        u32 Version;
         std::string JSON;
         std::vector<u8> Blob;
     };
@@ -29,12 +28,20 @@ namespace assetLib
     {
         CompressionMode CompressionMode;
         std::string OriginalFile;
+        std::string BlobFile;
+        u64 BlobSizeBytes;
+        AssetType Type;
+        u32 Version;
     };
     
+    bool saveAssetFile(std::string_view assetPath, std::string_view blobPath, const File& file);
+    bool loadAssetFile(std::string_view assetPath, File& file);
 
-    bool saveBinaryFile(std::string_view path, const File& file);
-    bool loadBinaryFile(std::string_view path, File& file);
-
+    void packAssetInfo(const AssetInfoBase& assetInfo, void* metadata);
+    void unpackAssetInfo(AssetInfoBase& assetInfo, const void* metadata);
+    
     CompressionMode parseCompressionModeString(std::string_view modeString);
+    AssetType parseAssetTypeString(std::string_view assetType);
+    std::string_view assetTypeToString(AssetType assetType);
 }
 

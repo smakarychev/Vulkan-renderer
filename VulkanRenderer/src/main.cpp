@@ -4,6 +4,7 @@
 int main()
 {
     utils::runSubProcess("../tools/AssetConverter/bin/Release-windows-x86_64/AssetConverter/AssetConverter.exe", {"../assets"});
-    Renderer renderer;
-    renderer.Run();
+    Renderer* renderer = Renderer::Get();
+    renderer->Init();
+    renderer->Run();
 }

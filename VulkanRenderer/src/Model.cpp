@@ -1,7 +1,7 @@
 ﻿#include "Model.h"
 
 #include "AssetLib.h"
-#include "core.h"
+#include "Core/core.h"
 #include "Mesh.h"
 #include "ModelAsset.h"
 #include "Scene.h"
@@ -12,7 +12,7 @@ Model Model::LoadFromAsset(std::string_view path)
     model.m_ModelName = path;
     
     assetLib::File modelFile;
-    assetLib::loadBinaryFile(path, modelFile);
+    assetLib::loadAssetFile(path, modelFile);
     assetLib::ModelInfo modelInfo = assetLib::readModelInfo(modelFile);
     ASSERT(modelInfo.VertexFormat == assetLib::VertexFormat::P3N3C3UV2, "Unsupported vertex format")
 
@@ -53,7 +53,7 @@ void Model::Upload(const Renderer& renderer)
         mesh.Mesh.Upload(renderer);
 }
 
-void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, const glm::mat4& transform, const std::array<Buffer, BUFFERED_FRAMES>& materialBuffer)
+void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, const glm::mat4& transform, const Buffer& materialBuffer)
 {
     ShaderDescriptorSet::Builder texturedDescriptor = ShaderDescriptorSet::Builder()
         .SetTemplate(scene->GetShaderTemplate("textured"));
@@ -86,12 +86,9 @@ void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, cons
         if (mesh.Albedo.Textures.empty())
         {
             material.Pipeline = defaultPipeline;
-            for (u32 j = 0; j < material.DescriptorSets.size(); j++)
-            {
-                material.DescriptorSets[j] = defaultDescriptor
-                    .AddBinding("u_material_buffer", materialBuffer[j])
-                    .Build(); 
-            }
+            material.DescriptorSet = defaultDescriptor
+                .AddBinding("u_material_buffer", materialBuffer)
+                .Build(); 
         }
         else
         {
@@ -106,13 +103,10 @@ void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, cons
                 scene->AddTexture(texture, textureName);
             }
             
-            for (u32 j = 0; j < material.DescriptorSets.size(); j++)
-            {
-                material.DescriptorSets[j] = texturedDescriptor
-                    .AddBinding("u_material_buffer", materialBuffer[j])
-                    .AddBinding("u_texture", *scene->GetTexture(textureName))
-                    .Build(); 
-            }
+            material.DescriptorSet = texturedDescriptor
+                .AddBinding("u_material_buffer", materialBuffer)
+                .AddBinding("u_texture", *scene->GetTexture(textureName))
+                .Build(); 
         }
 
         if (scene->GetMaterial(materialName) == nullptr)

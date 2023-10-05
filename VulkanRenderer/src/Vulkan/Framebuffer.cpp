@@ -1,6 +1,6 @@
 ﻿#include "Framebuffer.h"
 
-#include "core.h"
+#include "Core/core.h"
 #include "Driver.h"
 
 Framebuffer Framebuffer::Builder::Build()

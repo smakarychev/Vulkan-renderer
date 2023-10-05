@@ -82,7 +82,7 @@ void Mesh::Upload(const Renderer& renderer)
 
         renderer.ImmediateUpload([&](const CommandBuffer& cmd)
         {
-            RenderCommand::CopyBuffer(cmd, stageBuffer, m_VertexBuffer);
+            RenderCommand::CopyBuffer(cmd, stageBuffer, m_VertexBuffer, {stageBuffer.GetSizeBytes(), 0, 0});
         });
     
         Buffer::Destroy(stageBuffer);
@@ -99,7 +99,7 @@ void Mesh::Upload(const Renderer& renderer)
 
         renderer.ImmediateUpload([&](const CommandBuffer& cmd)
         {
-            RenderCommand::CopyBuffer(cmd, stageBuffer, m_IndexBuffer);
+            RenderCommand::CopyBuffer(cmd, stageBuffer, m_IndexBuffer, {stageBuffer.GetSizeBytes(), 0, 0});
         });
     
         Buffer::Destroy(stageBuffer);

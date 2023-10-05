@@ -36,6 +36,7 @@ namespace assetLib
         };
         struct MeshInfo
         {
+            std::string Name;
             u64 VerticesSizeBytes;
             u64 IndicesSizeBytes;
             std::array<MaterialInfo, (u32)MaterialType::MaxTypeVal> Materials;

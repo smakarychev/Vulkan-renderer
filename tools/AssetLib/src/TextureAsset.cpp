@@ -26,16 +26,13 @@ namespace assetLib
         std::string formatString = metadata["format"];
         info.Format = parseFormatString(formatString);
 
-
         info.Dimensions.Width = metadata["width"];
         info.Dimensions.Height = metadata["height"];
         info.Dimensions.Depth = metadata["depth"];
         info.SizeBytes = metadata["buffer_size"];
 
-        std::string compressionString = metadata["compression"];
-        info.CompressionMode = parseCompressionModeString(compressionString);
-        info.OriginalFile = metadata["original_file"];
-
+        unpackAssetInfo(info, &metadata);
+        
         return info;
     }
 
@@ -48,16 +45,17 @@ namespace assetLib
         metadata["height"] = info.Dimensions.Height;
         metadata["depth"] = info.Dimensions.Depth;
         metadata["buffer_size"] = info.SizeBytes;
-        metadata["compression"] = "LZ4";
-        metadata["original_file"] = info.OriginalFile;
 
+        packAssetInfo(info, &metadata);
+    
         assetLib::File assetFile = {};
-        assetFile.Type = FileType::Texture;
-        assetFile.Version = 1;
-        assetFile.JSON = metadata.dump();
 
-        utils::compressToBlob(assetFile.Blob, pixels, info.SizeBytes);
+        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, pixels, info.SizeBytes);
+        metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
+        metadata["asset"]["type"] = assetTypeToString(AssetType::Texture);
 
+        assetFile.JSON = metadata.dump(JSON_INDENT);
+        
         return assetFile;
     }
 

@@ -6,7 +6,7 @@
 
 #include "AssetLib.h"
 #include "Buffer.h"
-#include "core.h"
+#include "Core/core.h"
 #include "DescriptorSet.h"
 #include "Driver.h"
 #include "Pipeline.h"
@@ -17,7 +17,7 @@
 void Shader::LoadFromAsset(std::string_view path)
 {
     assetLib::File shaderFile;
-    assetLib::loadBinaryFile(path, shaderFile);
+    assetLib::loadAssetFile(path, shaderFile);
     assetLib::ShaderInfo shaderInfo = assetLib::readShaderInfo(shaderFile);
 
     m_ReflectionData = MergeReflections(m_ReflectionData, shaderInfo);
@@ -315,7 +315,7 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::SetTemplate(ShaderPipelineTemp
 ShaderPipeline::Builder& ShaderPipeline::Builder::CompatibleWithVertex(
     const VertexInputDescription& vertexInputDescription)
 {
-    m_ComaptibleVertexDescription = vertexInputDescription;
+    m_CompatibleVertexDescription = vertexInputDescription;
 
     return *this;
 }
@@ -324,7 +324,7 @@ void ShaderPipeline::Builder::Prebuild()
 {
     // adapt vertex input layout
     const VertexInputDescription& available = m_CreateInfo.ShaderPipelineTemplate->m_VertexInputDescription;
-    const VertexInputDescription& compatible = m_ComaptibleVertexDescription;
+    const VertexInputDescription& compatible = m_CompatibleVertexDescription;
     ASSERT(available.Bindings.size() == compatible.Bindings.size(), "Incompatible vertex inputs")
     
     VertexInputDescription adapted;
@@ -445,8 +445,6 @@ const ShaderDescriptorSet::Builder::BindingInfo& ShaderDescriptorSet::Builder::F
 ShaderDescriptorSet ShaderDescriptorSet::Create(const Builder::CreateInfo& createInfo)
 {
     ShaderDescriptorSet descriptorSet = {};
-
-    descriptorSet.m_Template = createInfo.ShaderPipelineTemplate;
 
     u32 setCount = 0;
     for (u32 i = 0; i < MAX_PIPELINE_DESCRIPTOR_SETS; i++)

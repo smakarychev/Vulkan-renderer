@@ -67,9 +67,7 @@ namespace assetLib
             info.DescriptorSets.push_back(descriptorSet);
         }
 
-        std::string compressionString = metadata["compression"];
-        info.CompressionMode = parseCompressionModeString(compressionString);
-        info.OriginalFile = metadata["original_file"];
+        unpackAssetInfo(info, &metadata);
         
         return info;
     }
@@ -123,15 +121,15 @@ namespace assetLib
             metadata["descriptor_sets"].push_back(setJson);
         }
 
-        metadata["compression"] = "LZ4";
-        metadata["original_file"] = info.OriginalFile;
+        packAssetInfo(info, &metadata);
         
         assetLib::File assetFile = {};
-        assetFile.Type = FileType::Shader;
-        assetFile.Version = 1;
-        assetFile.JSON = metadata.dump();
         
-        utils::compressToBlob(assetFile.Blob, source, info.SourceSizeBytes);
+        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, source, info.SourceSizeBytes);
+        metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
+        metadata["asset"]["type"] = assetTypeToString(AssetType::Shader);
+        
+        assetFile.JSON = metadata.dump(JSON_INDENT);
 
         return assetFile;
     }

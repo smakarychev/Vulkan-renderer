@@ -51,8 +51,6 @@ void utils::runSubProcess(const std::filesystem::path& executablePath, const std
     if (status != 0)
     {
         WaitForSingleObject(pi.hProcess, INFINITE);
-        DWORD exit_code;
-        GetExitCodeProcess(pi.hProcess, &exit_code);
 
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);

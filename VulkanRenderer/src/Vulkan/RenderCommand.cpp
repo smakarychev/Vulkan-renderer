@@ -125,12 +125,12 @@ void RenderCommand::BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& ima
         imageBlitInfo.Filter);
 }
 
-void RenderCommand::CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination)
+void RenderCommand::CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo)
 {
     VkBufferCopy copy = {};
-    copy.size = source.GetSizeBytes();
-    copy.srcOffset = 0;
-    copy.dstOffset = 0;
+    copy.size = bufferCopyInfo.SizeBytes;
+    copy.srcOffset = bufferCopyInfo.SourceOffset;
+    copy.dstOffset = bufferCopyInfo.DestinationOffset;
 
     vkCmdCopyBuffer(cmd.m_CommandBuffer, source.m_Buffer, destination.m_Buffer, 1, &copy);
 }

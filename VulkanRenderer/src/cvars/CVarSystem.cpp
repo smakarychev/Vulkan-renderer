@@ -114,8 +114,8 @@ public:
 
     CVarParameter* GetCVar(utils::StringHash stringHash) final;
     CVarParameter* CreateFloatCVar(std::string_view name, std::string_view description, f32 initialVal, f32 val) final;
-    f32* GetFloatCVar(utils::StringHash stringHash) final;
-    void SetFloatCVar(utils::StringHash stringHash, f32 value) final;
+    f32* GetF32CVar(utils::StringHash stringHash) final;
+    void SetF32CVar(utils::StringHash stringHash, f32 value) final;
 private:
     CVarParameter* InitCVar(std::string_view name, std::string_view description);
 
@@ -127,8 +127,6 @@ private:
 private:
     std::unordered_map<u64, CVarParameter> m_CVars; 
 };
-
-
 
 CVarParameter* CVarSystemImpl::GetCVar(utils::StringHash stringHash)
 {
@@ -149,12 +147,12 @@ CVarParameter* CVarSystemImpl::CreateFloatCVar(std::string_view name, std::strin
     return parameter;
 }
 
-f32* CVarSystemImpl::GetFloatCVar(utils::StringHash stringHash)
+f32* CVarSystemImpl::GetF32CVar(utils::StringHash stringHash)
 {
     return GetCVarValue<f32>(stringHash);
 }
 
-void CVarSystemImpl::SetFloatCVar(utils::StringHash stringHash, f32 value)
+void CVarSystemImpl::SetF32CVar(utils::StringHash stringHash, f32 value)
 {
     SetCVarValue(stringHash, value);
 }

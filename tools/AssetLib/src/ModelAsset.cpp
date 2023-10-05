@@ -81,6 +81,8 @@ namespace assetLib
         for (auto& mesh : meshes)
         {
             ModelInfo::MeshInfo meshInfo = {};
+
+            meshInfo.Name = mesh["name"];
             
             u64 verticesSizeBytes = mesh["vertices_size_bytes"];
             meshInfo.VerticesSizeBytes =  verticesSizeBytes;
@@ -107,9 +109,7 @@ namespace assetLib
             info.MeshInfos.push_back(meshInfo);
         }
 
-        std::string compressionString = metadata["compression"];
-        info.CompressionMode = parseCompressionModeString(compressionString);
-        info.OriginalFile = metadata["original_file"];
+        unpackAssetInfo(info, &metadata);
 
         return info;
     }
@@ -124,6 +124,7 @@ namespace assetLib
         for (auto& mesh : info.MeshInfos)
         {
             nlohmann::json meshJson;
+            meshJson["name"] = mesh.Name;
             meshJson["vertices_size_bytes"] = mesh.VerticesSizeBytes;
             meshJson["indices_size_bytes"] = mesh.IndicesSizeBytes;
 
@@ -145,18 +146,18 @@ namespace assetLib
             metadata["meshes_info"].push_back(meshJson);
         }
         
-        metadata["compression"] = "LZ4";
-        metadata["original_file"] = info.OriginalFile;
-
+        packAssetInfo(info, &metadata);
+        
         assetLib::File assetFile = {};
-        assetFile.Type = FileType::Model;
-        assetFile.Version = 1;
-        assetFile.JSON = metadata.dump();
 
         u64 verticesSizeTotal = info.VerticesSizeBytes();
         u64 indicesSizeTotal = info.IndicesSizeBytes();
 
-        utils::compressToBlob(assetFile.Blob, {vertices, indices}, {verticesSizeTotal, indicesSizeTotal});
+        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, {vertices, indices}, {verticesSizeTotal, indicesSizeTotal});
+        metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
+        metadata["asset"]["type"] = assetTypeToString(AssetType::Model);
+
+        assetFile.JSON = metadata.dump(JSON_INDENT);
 
         return assetFile;        
     }
