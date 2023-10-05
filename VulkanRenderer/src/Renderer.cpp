@@ -333,6 +333,7 @@ void Renderer::OnWindowResize()
 
 void Renderer::RecreateSwapchain()
 {
+    m_IsWindowResized = false;    
     i32 width = 0, height = 0;
     glfwGetFramebufferSize(m_Window, &width, &height);
     while (width == 0 || height == 0)
@@ -358,6 +359,7 @@ void Renderer::RecreateSwapchain()
     m_Framebuffers = m_Swapchain.GetFramebuffers(m_RenderPass);
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
+    m_Camera->SetViewport(m_Swapchain.GetSize().x, m_Swapchain.GetSize().y);
 }
 
 void Renderer::LoadScene()
