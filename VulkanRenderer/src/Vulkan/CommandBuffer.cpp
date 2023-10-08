@@ -69,9 +69,9 @@ void CommandBuffer::End() const
     VulkanCheck(RenderCommand::EndCommandBuffer(*this), "Failed to end command buffer");
 }
 
-void CommandBuffer::Submit(const QueueInfo& queueInfo, const SwapchainFrameSync& frameSync) const
+void CommandBuffer::Submit(const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync) const
 {
-    VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, frameSync),
+    VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, submitSync),
         "Failed while submitting command buffer");
 }
 

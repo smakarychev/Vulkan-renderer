@@ -7,12 +7,15 @@ void ResourceUploader::Init()
 {
     m_StageBuffers.reserve(1);
     m_StageBuffers.push_back(CreateStagingBuffer(STAGING_BUFFER_DEFAULT_SIZE_BYTES));
+
+    m_ImmediateUploadBuffer = CreateStagingBuffer(STAGING_BUFFER_DEFAULT_SIZE_BYTES).Buffer;
 }
 
 void ResourceUploader::ShutDown()
 {
     for (auto& buffer : m_StageBuffers)
         Buffer::Destroy(buffer.Buffer);
+    Buffer::Destroy(m_ImmediateUploadBuffer);
 }
 
 void ResourceUploader::StartRecording()
@@ -74,6 +77,20 @@ u32 ResourceUploader::GetMappedBuffer(u64 sizeBytes)
         .CopyInfo = {.SizeBytes = sizeBytes, .SourceOffset = stagingOffset}});
 
     return mappingIndex;
+}
+
+void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset)
+{
+    if (sizeBytes > m_ImmediateUploadBuffer.GetSizeBytes())
+        m_ImmediateUploadBuffer = CreateStagingBuffer(sizeBytes).Buffer;
+
+    m_ImmediateUploadBuffer.SetData(data, sizeBytes);
+    
+    Driver::ImmediateUpload([&](const CommandBuffer& cmd)
+    {
+        RenderCommand::CopyBuffer(cmd, m_ImmediateUploadBuffer, buffer,
+            {.SizeBytes = sizeBytes, .SourceOffset = 0, .DestinationOffset = bufferOffset});        
+    });
 }
 
 void* ResourceUploader::GetMappedAddress(u32 mappedBufferIndex)

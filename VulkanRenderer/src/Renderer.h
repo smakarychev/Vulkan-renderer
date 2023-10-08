@@ -65,12 +65,57 @@ struct MaterialDataSSBO
     std::array<MaterialData, MAX_OBJECTS> Materials;
 };
 
+struct ComputeDataSSBO
+{
+    Buffer* ReadSSBO;
+    Buffer* WriteSSBO;
+};
+
+struct ComputeDataUBO
+{
+    Buffer* Buffer;
+};
+
+struct ComputeParticle
+{
+    glm::vec2 Position;
+    glm::vec2 Velocity;
+    glm::vec4 Color;
+
+    static VertexInputDescription GetInputDescription();
+};
+
+struct ComputeBuffers
+{
+    std::array<Buffer, BUFFERED_FRAMES> SSBOs;
+    Buffer UBO;
+};
+
+struct ComputeSync
+{
+    Semaphore Semaphore;
+    Fence Fence;
+};
+
+struct ComputeDispatch
+{
+    ShaderPipeline* Pipeline;
+    ShaderDescriptorSet* DescriptorSet;
+    glm::uvec3 GroupSize;
+};
+
 struct FrameContext
 {
     CommandPool CommandPool;
     CommandBuffer CommandBuffer;
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
+
+    ::CommandBuffer ComputeCommandBuffer;
+    ComputeDataSSBO ComputeDataSSBO;
+    ComputeDataUBO ComputeDataUBO;
+    ShaderDescriptorSet ComputeDescriptorSet;
+    ShaderDescriptorSet ComputeGraphicsDescriptorSet;
 };
 
 class Renderer
@@ -86,6 +131,8 @@ public:
 
     void BeginFrame();
     void EndFrame();
+
+    void Dispatch(const ComputeDispatch& dispatch);
     
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
@@ -107,6 +154,10 @@ private:
     void UpdateCameraBuffers();
     void UpdateScene();
     void LoadScene();
+
+    void ComputeTestInit();
+    void ComputeTestRender();
+    void UpdateComputeBuffers();
 
     const FrameContext& GetFrameContext() const;
     FrameContext& GetFrameContext();
@@ -143,6 +194,10 @@ private:
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
 
+    ComputeBuffers m_ComputeBuffers;
+    ShaderPipeline m_ComputePipeline;
+    std::vector<ComputeSync> m_ComputeSyncs;
+    ShaderPipeline m_ComputeGraphicsPipeline;
 };
 
 template <typename Fn>

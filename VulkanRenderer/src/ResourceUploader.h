@@ -38,7 +38,8 @@ public:
     
     void UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
     void UpdateBuffer(Buffer& buffer, u32 mappedBufferIndex, u64 bufferOffset);
-    u32 GetMappedBuffer(u64 sizeBytes);
+        u32 GetMappedBuffer(u64 sizeBytes);
+    void UpdateBufferImmediately(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
     void* GetMappedAddress(u32 mappedBufferIndex);
 private:
     StagingBufferInfo CreateStagingBuffer(u64 sizeBytes);
@@ -55,4 +56,6 @@ private:
 
     // arrays of all mappings done on this frame
     std::vector<BufferMappingInfo> m_ActiveMappings;
+
+    Buffer m_ImmediateUploadBuffer;
 };

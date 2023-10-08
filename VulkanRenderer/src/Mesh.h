@@ -4,8 +4,7 @@
 
 class Renderer;
 
-// todo: rename
-struct Vertex3D
+struct VertexP3N3UV
 {
     glm::vec3 Position;
     glm::vec3 Normal;
@@ -37,15 +36,15 @@ private:
 class Mesh
 {
 public:
-    Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indices);
+    Mesh(const std::vector<VertexP3N3UV>& vertices, const std::vector<u32>& indices);
     void Upload(const Renderer& renderer);
     const Buffer& GetVertexBuffer() const { return m_VertexBuffer; }
     const Buffer& GetIndexBuffer() const { return m_IndexBuffer; }
     u32 GetVertexCount() const { return (u32)m_Vertices.size(); }
     u32 GetIndexCount() const { return (u32)m_Indices.size(); }
-    const std::vector<Vertex3D>& GetVertices() const { return m_Vertices; }
+    const std::vector<VertexP3N3UV>& GetVertices() const { return m_Vertices; }
 private:
-    std::vector<Vertex3D> m_Vertices;
+    std::vector<VertexP3N3UV> m_Vertices;
     std::vector<u32> m_Indices;
     Buffer m_VertexBuffer;
     Buffer m_IndexBuffer;

@@ -5,7 +5,7 @@
 #include "Renderer.h"
 #include "utils.h"
 
-VertexInputDescription Vertex3D::GetInputDescription()
+VertexInputDescription VertexP3N3UV::GetInputDescription()
 {
     VertexInputDescription inputDescription = {};
     inputDescription.Bindings.reserve(1);
@@ -13,7 +13,7 @@ VertexInputDescription Vertex3D::GetInputDescription()
 
     VkVertexInputBindingDescription binding = {};
     binding.binding = 0;
-    binding.stride = sizeof(Vertex3D);
+    binding.stride = sizeof(VertexP3N3UV);
     binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
     inputDescription.Bindings.push_back(binding);
 
@@ -21,19 +21,19 @@ VertexInputDescription Vertex3D::GetInputDescription()
     position.binding = 0;
     position.location = 0;
     position.format = VK_FORMAT_R32G32B32_SFLOAT;
-    position.offset = offsetof(Vertex3D, Position);
+    position.offset = offsetof(VertexP3N3UV, Position);
 
     VkVertexInputAttributeDescription normal = {};
     normal.binding = 0;
     normal.location = 1;
     normal.format = VK_FORMAT_R32G32B32_SFLOAT;
-    normal.offset = offsetof(Vertex3D, Normal);
+    normal.offset = offsetof(VertexP3N3UV, Normal);
     
     VkVertexInputAttributeDescription uv = {};
     uv.binding = 0;
     uv.location = 2;
     uv.format = VK_FORMAT_R32G32_SFLOAT;
-    uv.offset = offsetof(Vertex3D, UV);
+    uv.offset = offsetof(VertexP3N3UV, UV);
 
     inputDescription.Attributes.push_back(position);
     inputDescription.Attributes.push_back(normal);
@@ -50,10 +50,10 @@ PushConstantBuffer::PushConstantBuffer()
         .Build();
 }
 
-Mesh::Mesh(const std::vector<Vertex3D>& vertices, const std::vector<u32>& indices)
+Mesh::Mesh(const std::vector<VertexP3N3UV>& vertices, const std::vector<u32>& indices)
     : m_Vertices(vertices), m_Indices(indices)
 {
-    u64 verticesSizeBytes = vertices.size() * sizeof(Vertex3D);
+    u64 verticesSizeBytes = vertices.size() * sizeof(VertexP3N3UV);
     u64 indicesSizeBytes = indices.size() * sizeof(u32);
 
     m_VertexBuffer = Buffer::Builder()

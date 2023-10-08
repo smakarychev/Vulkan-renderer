@@ -166,6 +166,7 @@ void Device::RetrieveDeviceQueues()
 {
     vkGetDeviceQueue(m_Device, m_Queues.Graphics.Family, 0, &m_Queues.Graphics.Queue);
     vkGetDeviceQueue(m_Device, m_Queues.Presentation.Family, 0, &m_Queues.Presentation.Queue);
+    vkGetDeviceQueue(m_Device, m_Queues.Compute.Family, 0, &m_Queues.Compute.Queue);
 }
 
 bool Device::IsGPUSuitable(VkPhysicalDevice gpu, const CreateInfo& createInfo)
@@ -204,6 +205,9 @@ DeviceQueues Device::FindQueueFamilies(VkPhysicalDevice gpu) const
 
         if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
             queues.Graphics.Family = i;
+
+        if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
+            queues.Compute.Family = i;
         
         VkBool32 isPresentationSupported = VK_FALSE;
         vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, m_Surface, &isPresentationSupported);

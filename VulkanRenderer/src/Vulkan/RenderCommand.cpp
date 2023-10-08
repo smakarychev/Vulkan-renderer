@@ -1,5 +1,8 @@
 ﻿#include "RenderCommand.h"
 
+#include <algorithm>
+#include <ranges>
+
 #include "Buffer.h"
 #include "CommandBuffer.h"
 #include "Driver.h"
@@ -61,21 +64,27 @@ VkResult RenderCommand::EndCommandBuffer(const CommandBuffer& cmd)
     return vkEndCommandBuffer(cmd.m_CommandBuffer);
 }
 
-VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, 
-    const SwapchainFrameSync& swapchainFrameSync)
+VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync)
 {
+    auto semaphoreToVkSemaphore = [](const Semaphore* semaphore) { return semaphore->m_Semaphore; };
+    std::vector<VkSemaphore> waitSemaphores;
+    waitSemaphores.reserve(submitSync.WaitSemaphores.size());
+    std::vector<VkSemaphore> signalSemaphores;
+    signalSemaphores.reserve(submitSync.SignalSemaphores.size());
+    std::transform(submitSync.WaitSemaphores.begin(), submitSync.WaitSemaphores.end(), std::back_inserter(waitSemaphores), semaphoreToVkSemaphore);
+    std::transform(submitSync.SignalSemaphores.begin(), submitSync.SignalSemaphores.end(), std::back_inserter(signalSemaphores), semaphoreToVkSemaphore);
+    
     VkSubmitInfo  submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    VkPipelineStageFlags waitStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    submitInfo.pWaitDstStageMask = &waitStage;
+    submitInfo.pWaitDstStageMask = submitSync.WaitStages.data();
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmd.m_CommandBuffer;
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = &swapchainFrameSync.PresentSemaphore.m_Semaphore;
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = &swapchainFrameSync.RenderSemaphore.m_Semaphore;
+    submitInfo.waitSemaphoreCount = (u32)waitSemaphores.size();
+    submitInfo.pWaitSemaphores = waitSemaphores.data();
+    submitInfo.signalSemaphoreCount = (u32)signalSemaphores.size();
+    submitInfo.pSignalSemaphores = signalSemaphores.data();
 
-    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, swapchainFrameSync.RenderFence.m_Fence);
+    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, submitSync.Fence->m_Fence);
 }
 
 VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence)
@@ -198,6 +207,11 @@ void RenderCommand::DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& 
     u32 stride)
 {
     vkCmdDrawIndexedIndirect(cmd.m_CommandBuffer, buffer.m_Buffer, offset, count, stride);    
+}
+
+void RenderCommand::Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize)
+{
+    vkCmdDispatch(cmd.m_CommandBuffer, groupSize.x, groupSize.y, groupSize.z);
 }
 
 void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,

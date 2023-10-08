@@ -89,6 +89,8 @@ public:
 
     PipelineLayout& GetPipelineLayout() { return m_PipelineLayout; }
     const PipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+
+    bool IsComputeTemplate() const;
     
 private:
     static std::vector<DescriptorSetLayout*> CreateDescriptorLayouts(const std::vector<Shader::ShaderReflection::DescriptorSet>& descriptorSetReflections, DescriptorLayoutCache* layoutCache);
@@ -126,14 +128,17 @@ public:
         using BindingInfo = ShaderPipelineTemplate::DescriptorsInfo;
     public:
         ShaderPipeline Build();
+        Builder& PrimitiveKind(PrimitiveKind primitiveKind);
         Builder& SetRenderPass(const RenderPass& renderPass);
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
         Builder& CompatibleWithVertex(const VertexInputDescription& vertexInputDescription);
     private:
         void Prebuild();
+        void CreateCompatibleLayout();
     private:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_CompatibleVertexDescription;
+        ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
     };
 public:
     static ShaderPipeline Create(const Builder::CreateInfo& createInfo);
@@ -189,9 +194,9 @@ public:
 public:
     static ShaderDescriptorSet Create(const Builder::CreateInfo& createInfo);
 
-    void Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind, const ShaderPipeline& pipeline,
+    void Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
         VkPipelineBindPoint bindPoint);
-    void Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind, const ShaderPipeline& pipeline,
+    void Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
         VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
     
     const DescriptorSetsInfo& GetDescriptorSetsInfo() const { return m_DescriptorSetsInfo; }

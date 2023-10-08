@@ -247,6 +247,8 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
         shaderKind = shaderc_vertex_shader;
     else if (path.extension().string() == ".frag")
         shaderKind = shaderc_fragment_shader;
+    else if (path.extension().string() == ".compute")
+        shaderKind = shaderc_compute_shader;
 
     std::ifstream file(path.string(), std::ios::in | std::ios::binary);
     std::string shaderSource((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -265,7 +267,7 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     // produce reflection on unoptimized code
     assetLib::ShaderInfo shaderInfo = Reflect(spirv);
     shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    shaderInfo.OriginalFile = assetPath.string();
+    shaderInfo.OriginalFile = path.string();
     shaderInfo.BlobFile = blobPath.string();
 
     std::vector<u32> spirvOptimized;

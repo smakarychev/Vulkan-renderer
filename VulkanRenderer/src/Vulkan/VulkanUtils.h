@@ -59,6 +59,8 @@ namespace vkUtils
             return ShaderKind::Vertex;
         case VK_SHADER_STAGE_FRAGMENT_BIT:
             return ShaderKind::Pixel;
+        case VK_SHADER_STAGE_COMPUTE_BIT:
+            return ShaderKind::Compute;
         default:
             ASSERT(false, "Unsopported shader kind")
         }
@@ -81,6 +83,18 @@ namespace vkUtils
             break;
         default:
             ASSERT(false, "Unrecognized buffer kind")
+            break;
+        }
+        std::unreachable();
+    }
+
+    inline VkPrimitiveTopology vkTopologyByPrimitiveKind(PrimitiveKind kind)
+    {
+        switch (kind) {
+        case PrimitiveKind::Triangle: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        case PrimitiveKind::Point:    return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+        default:
+            ASSERT(false, "Unrecognized primitive kind")
             break;
         }
         std::unreachable();

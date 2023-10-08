@@ -25,7 +25,7 @@ i32 main(i32 argc, char** argv)
             ConverterDispatcher dispatcher(file);
             dispatcher.Dispatch<TextureConverter>({".png", ".jpg", ".jpeg"});
             dispatcher.Dispatch<ModelConverter>({".obj", ".fbx", ".blend", ".gltf"});
-            dispatcher.Dispatch<ShaderConverter>({".vert", ".frag"});
+            dispatcher.Dispatch<ShaderConverter>({".vert", ".frag", ".compute"});
         }
     }
 }

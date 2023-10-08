@@ -14,13 +14,19 @@ struct DeviceQueues
 public:
     bool IsComplete() const
     {
-        return Graphics.Family != QueueInfo::UNSET_FAMILY && Presentation.Family != QueueInfo::UNSET_FAMILY;
+        return Graphics.Family != QueueInfo::UNSET_FAMILY &&
+            Presentation.Family != QueueInfo::UNSET_FAMILY &&
+            Compute.Family != QueueInfo::UNSET_FAMILY;
     }
     std::vector<u32> AsFamilySet() const
     {
-        if (Graphics.Family != Presentation.Family)
-            return {Graphics.Family, Presentation.Family};
-        return {Graphics.Family};
+        std::vector<u32> familySet{Graphics.Family};
+        if (Presentation.Family != Graphics.Family)
+            familySet.push_back(Presentation.Family);
+        if (Compute.Family != Graphics.Family && Compute.Family != Presentation.Family)
+            familySet.push_back(Compute.Family);
+
+        return familySet;
     }
     u32 GetFamilyByKind(QueueKind queueKind) const
     {
@@ -28,6 +34,7 @@ public:
         {
         case QueueKind::Graphics:       return Graphics.Family;
         case QueueKind::Presentation:   return Presentation.Family;
+        case QueueKind::Compute:        return Compute.Family;
         default:
             ASSERT(false, "Unrecognized queue kind")
             break;
@@ -37,6 +44,8 @@ public:
 public:
     QueueInfo Graphics;
     QueueInfo Presentation;
+    // todo separate queue family for compute
+    QueueInfo Compute;
 };
 
 struct GLFWwindow;

@@ -49,6 +49,7 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
+            bool IsComputePipeline{false};
             VkRenderPass RenderPass{VK_NULL_HANDLE};
             std::vector<VkPipelineShaderStageCreateInfo> Shaders;
             std::vector<VkDynamicState> DynamicStates;
@@ -68,19 +69,25 @@ public:
         Pipeline BuildManualLifetime();
         Builder& SetLayout(const PipelineLayout& layout);
         Builder& SetRenderPass(const RenderPass& renderPass);
+        Builder& IsComputePipeline(bool isCompute);
         Builder& AddShader(const ShaderModuleData& shaderModuleData);
         Builder& FixedFunctionDefaults();
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
+        Builder& PrimitiveKind(PrimitiveKind primitiveKind);
     private:
         void PreBuild();
     private:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_VertexInputDescription;
+        ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
     };
 public:
     static Pipeline Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Pipeline& pipeline);
     void Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint);
+private:
+    static Pipeline CreateGraphicsPipeline(const Builder::CreateInfo& createInfo);
+    static Pipeline CreateComputePipeline(const Builder::CreateInfo& createInfo);
 private:
     VkPipeline m_Pipeline{VK_NULL_HANDLE};
 };

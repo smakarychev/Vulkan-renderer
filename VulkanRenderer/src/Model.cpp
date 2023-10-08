@@ -16,7 +16,7 @@ Model Model::LoadFromAsset(std::string_view path)
     assetLib::ModelInfo modelInfo = assetLib::readModelInfo(modelFile);
     ASSERT(modelInfo.VertexFormat == assetLib::VertexFormat::P3N3C3UV2, "Unsupported vertex format")
 
-    std::vector<Vertex3D> vertices(modelInfo.VerticesSizeBytes());
+    std::vector<VertexP3N3UV> vertices(modelInfo.VerticesSizeBytes());
     std::vector<u32> indices(modelInfo.IndicesSizeBytes());
 
     assetLib::unpackModel(modelInfo, modelFile.Blob.data(), modelFile.Blob.size(), (u8*)vertices.data(), (u8*)indices.data());
@@ -29,7 +29,7 @@ Model Model::LoadFromAsset(std::string_view path)
     for (auto& meshInfo : modelInfo.MeshInfos)
     {
         auto verticesBegin = vertices.begin() + verticesOffset;
-        verticesOffset += (u32)(meshInfo.VerticesSizeBytes / sizeof(Vertex3D));
+        verticesOffset += (u32)(meshInfo.VerticesSizeBytes / sizeof(VertexP3N3UV));
         auto verticesEnd = vertices.begin() + verticesOffset;
 
         auto indicesBegin = indices.begin() + indicesOffset;
@@ -63,13 +63,13 @@ void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, cons
 
     ShaderPipeline texturedPipeline = ShaderPipeline::Builder()
         .SetTemplate(scene->GetShaderTemplate("textured"))
-        .CompatibleWithVertex(Vertex3D::GetInputDescription())
+        .CompatibleWithVertex(VertexP3N3UV::GetInputDescription())
         .SetRenderPass(renderPass)
         .Build();
 
     ShaderPipeline defaultPipeline = ShaderPipeline::Builder()
         .SetTemplate(scene->GetShaderTemplate("default"))
-        .CompatibleWithVertex(Vertex3D::GetInputDescription())
+        .CompatibleWithVertex(VertexP3N3UV::GetInputDescription())
         .SetRenderPass(renderPass)
         .Build();
 

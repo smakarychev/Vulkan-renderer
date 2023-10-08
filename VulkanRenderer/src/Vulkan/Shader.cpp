@@ -41,6 +41,9 @@ void Shader::ReflectFrom(const std::vector<std::string_view>& paths)
 assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first, const assetLib::ShaderInfo& second)
 {
     ASSERT(!(first.ShaderStages & second.ShaderStages), "Overlapping shader stages")
+    ASSERT(((first.ShaderStages | second.ShaderStages) & VK_SHADER_STAGE_COMPUTE_BIT) == 0 ||
+           ((first.ShaderStages | second.ShaderStages) & VK_SHADER_STAGE_COMPUTE_BIT) == VK_SHADER_STAGE_COMPUTE_BIT,
+           "Compute shaders cannot be combined with others in pipeline")
 
     assetLib::ShaderInfo merged = first;
 
@@ -169,6 +172,9 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
         shaderPipelineTemplate.m_Shaders.push_back(shader);
     }
 
+    if (shaderModules.size() == 1 && shaderModules.front().Kind == ShaderKind::Compute)
+        shaderPipelineTemplate.m_PipelineBuilder.IsComputePipeline(true);
+    
     for (auto& set : reflectionData.DescriptorSets)
         for (auto& descriptor : set.Bindings)
             shaderPipelineTemplate.m_DescriptorsInfo.push_back({
@@ -187,6 +193,11 @@ void ShaderPipelineTemplate::Destroy(const ShaderPipelineTemplate& shaderPipelin
 {
     for (auto& shader : shaderPipelineTemplate.m_Shaders)
         vkDestroyShaderModule(Driver::DeviceHandle(), shader.Module, nullptr);
+}
+
+bool ShaderPipelineTemplate::IsComputeTemplate() const
+{
+    return m_Shaders.size() == 1 && m_Shaders.front().Kind == ShaderKind::Compute;
 }
 
 std::vector<DescriptorSetLayout*> ShaderPipelineTemplate::CreateDescriptorLayouts(
@@ -298,6 +309,13 @@ ShaderPipeline ShaderPipeline::Builder::Build()
     return ShaderPipeline::Create(m_CreateInfo);
 }
 
+ShaderPipeline::Builder& ShaderPipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
+{
+    m_PrimitiveKind = primitiveKind;
+
+    return *this;
+}
+
 ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderPass(const RenderPass& renderPass)
 {
     m_CreateInfo.RenderPass = &renderPass;
@@ -321,6 +339,17 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::CompatibleWithVertex(
 }
 
 void ShaderPipeline::Builder::Prebuild()
+{
+    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.PrimitiveKind(m_PrimitiveKind);
+    
+    if (!m_CompatibleVertexDescription.Bindings.empty())
+        CreateCompatibleLayout();
+
+    if (m_CreateInfo.ShaderPipelineTemplate->IsComputeTemplate())
+        ASSERT(m_CreateInfo.RenderPass == nullptr, "Compute shader pipeline does not need renderpass")
+}
+
+void ShaderPipeline::Builder::CreateCompatibleLayout()
 {
     // adapt vertex input layout
     const VertexInputDescription& available = m_CreateInfo.ShaderPipelineTemplate->m_VertexInputDescription;
@@ -356,9 +385,17 @@ ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
     
     shaderPipeline.m_Template = createInfo.ShaderPipelineTemplate;
 
-    shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder
-        .SetRenderPass(*createInfo.RenderPass)
-        .Build();
+    if (createInfo.ShaderPipelineTemplate->IsComputeTemplate())
+    {
+        shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder
+            .Build();
+    }
+    else
+    {
+        shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder
+            .SetRenderPass(*createInfo.RenderPass)
+            .Build();    
+    }
 
     return shaderPipeline;
 }
@@ -462,13 +499,13 @@ ShaderDescriptorSet ShaderDescriptorSet::Create(const Builder::CreateInfo& creat
 }
 
 void ShaderDescriptorSet::Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind,
-    const ShaderPipeline& pipeline, VkPipelineBindPoint bindPoint)
+    const PipelineLayout& pipelineLayout, VkPipelineBindPoint bindPoint)
 {
-    RenderCommand::BindDescriptorSet(commandBuffer, GetDescriptorSet(descriptorKind), pipeline.GetPipelineLayout(), (u32)descriptorKind, bindPoint, {});
+    RenderCommand::BindDescriptorSet(commandBuffer, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, bindPoint, {});
 }
 
 void ShaderDescriptorSet::Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind,
-    const ShaderPipeline& pipeline, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets)
+    const PipelineLayout& pipelineLayout, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets)
 {
-    RenderCommand::BindDescriptorSet(commandBuffer, GetDescriptorSet(descriptorKind), pipeline.GetPipelineLayout(), (u32)descriptorKind, bindPoint, dynamicOffsets);
+    RenderCommand::BindDescriptorSet(commandBuffer, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, bindPoint, dynamicOffsets);
 }

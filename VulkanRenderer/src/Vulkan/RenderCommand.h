@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 #include <vulkan/vulkan_core.h>
 
 #include "CommandBuffer.h"
@@ -33,7 +34,7 @@ public:
     static VkResult ResetCommandBuffer(const CommandBuffer& cmd);
     static VkResult BeginCommandBuffer(const CommandBuffer& cmd);
     static VkResult EndCommandBuffer(const CommandBuffer& cmd);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync);
+    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync);
     static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
 
     static void BeginRenderPass(const CommandBuffer& cmd, const RenderPass& renderPass,
@@ -59,6 +60,8 @@ public:
     static void DrawIndexed(const CommandBuffer& cmd, u32 indexCount, u32 baseInstance);
 
     static void DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset, u32 count, u32 stride);
+
+    static void Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize);
 
     static void PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
         const PushConstantDescription& description);

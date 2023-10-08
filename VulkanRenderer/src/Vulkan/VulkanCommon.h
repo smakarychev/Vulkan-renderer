@@ -19,9 +19,14 @@ struct VertexInputDescription
     std::vector<VkVertexInputAttributeDescription> Attributes;
 };
 
+enum class PrimitiveKind
+{
+    Triangle, Point
+};
+
 enum class ShaderKind
 {
-    Vertex, Pixel
+    Vertex, Pixel, Compute
 };
 
 struct ShaderModuleData
@@ -30,7 +35,8 @@ struct ShaderModuleData
     ShaderKind Kind;
 };
 
-enum class QueueKind {Graphics, Presentation};
+enum class QueueKind {Graphics, Presentation, Compute};
+
 struct BufferKind
 {
     enum Flags

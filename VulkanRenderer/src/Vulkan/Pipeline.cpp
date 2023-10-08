@@ -6,6 +6,7 @@
 #include "Driver.h"
 #include "RenderCommand.h"
 #include "utils.h"
+#include "VulkanUtils.h"
 
 namespace
 {
@@ -17,6 +18,8 @@ namespace
             return VK_SHADER_STAGE_VERTEX_BIT;
         case ShaderKind::Pixel:
             return VK_SHADER_STAGE_FRAGMENT_BIT;
+        case ShaderKind::Compute:
+            return VK_SHADER_STAGE_COMPUTE_BIT;
         default:
             ASSERT(false, "Unrecognized shader kind")
         }
@@ -97,8 +100,17 @@ Pipeline::Builder& Pipeline::Builder::SetLayout(const PipelineLayout& layout)
 
 Pipeline::Builder& Pipeline::Builder::SetRenderPass(const RenderPass& renderPass)
 {
+    ASSERT(!m_CreateInfo.IsComputePipeline || m_CreateInfo.RenderPass == VK_NULL_HANDLE, "Compute pipeline does not need renderpass")
     Driver::Unpack(renderPass, m_CreateInfo);
     
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::IsComputePipeline(bool isCompute)
+{
+    ASSERT(!isCompute || m_CreateInfo.RenderPass == VK_NULL_HANDLE, "Compute pipeline does not need renderpass")
+    m_CreateInfo.IsComputePipeline = isCompute;
+
     return *this;
 }
 
@@ -127,8 +139,8 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
     m_CreateInfo.ViewportState.viewportCount = 1;
     m_CreateInfo.ViewportState.scissorCount = 1;
 
+    // topology is set later
     m_CreateInfo.InputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    m_CreateInfo.InputAssemblyState.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     m_CreateInfo.InputAssemblyState.primitiveRestartEnable = VK_FALSE;
     
     m_CreateInfo.VertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -178,10 +190,19 @@ Pipeline::Builder& Pipeline::Builder::SetVertexDescription(const VertexInputDesc
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
+{
+    m_PrimitiveKind = primitiveKind;
+
+    return *this;
+}
+
 void Pipeline::Builder::PreBuild()
 {
     m_CreateInfo.DynamicStateInfo.dynamicStateCount = (u32)m_CreateInfo.DynamicStates.size();
     m_CreateInfo.DynamicStateInfo.pDynamicStates = m_CreateInfo.DynamicStates.data();
+
+    m_CreateInfo.InputAssemblyState.topology = vkUtils::vkTopologyByPrimitiveKind(m_PrimitiveKind);
     
     m_CreateInfo.VertexInputState.vertexBindingDescriptionCount = (u32)m_VertexInputDescription.Bindings.size();
     m_CreateInfo.VertexInputState.pVertexBindingDescriptions = m_VertexInputDescription.Bindings.data();
@@ -193,6 +214,23 @@ void Pipeline::Builder::PreBuild()
 }
 
 Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
+{
+    if (createInfo.IsComputePipeline)
+        return CreateComputePipeline(createInfo);
+    return CreateGraphicsPipeline(createInfo);
+}
+
+void Pipeline::Destroy(const Pipeline& pipeline)
+{
+    vkDestroyPipeline(Driver::DeviceHandle(), pipeline.m_Pipeline, nullptr);
+}
+
+void Pipeline::Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint)
+{
+    RenderCommand::BindPipeline(commandBuffer, *this, bindPoint);
+}
+
+Pipeline Pipeline::CreateGraphicsPipeline(const Builder::CreateInfo& createInfo)
 {
     Pipeline pipeline = {};
 
@@ -213,17 +251,22 @@ Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
     pipelineCreateInfo.subpass = 0;
 
     VulkanCheck(vkCreateGraphicsPipelines(Driver::DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline.m_Pipeline),
-        "Failed to create pipeline");
+        "Failed to create graphics pipeline");
 
     return pipeline;
 }
 
-void Pipeline::Destroy(const Pipeline& pipeline)
+Pipeline Pipeline::CreateComputePipeline(const Builder::CreateInfo& createInfo)
 {
-    vkDestroyPipeline(Driver::DeviceHandle(), pipeline.m_Pipeline, nullptr);
-}
+    Pipeline pipeline = {};
 
-void Pipeline::Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint)
-{
-    RenderCommand::BindPipeline(commandBuffer, *this, bindPoint);
+    VkComputePipelineCreateInfo pipelineCreateInfo = {};
+    pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineCreateInfo.stage = createInfo.Shaders.front();
+    pipelineCreateInfo.layout = createInfo.Layout;
+
+    VulkanCheck(vkCreateComputePipelines(Driver::DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline.m_Pipeline),
+        "Failed to create compute pipeline");
+
+    return pipeline;
 }

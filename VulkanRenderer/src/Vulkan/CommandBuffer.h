@@ -1,12 +1,21 @@
 ﻿#pragma once
 #include "VulkanCommon.h"
 
+class Semaphore;
 class Fence;
 struct SwapchainFrameSync;
 class CommandPool;
 class Device;
 
 enum class CommandBufferKind {Primary, Secondary};
+
+struct BufferSubmitSyncInfo
+{
+    std::vector<Semaphore*> WaitSemaphores;
+    std::vector<Semaphore*> SignalSemaphores;
+    std::vector<VkPipelineStageFlags> WaitStages;
+    Fence* Fence;
+};
 
 class CommandBuffer
 {
@@ -35,7 +44,7 @@ public:
     void Begin() const;
     void End() const;
 
-    void Submit(const QueueInfo& queueInfo, const SwapchainFrameSync& frameSync) const;
+    void Submit(const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync) const;
     void Submit(const QueueInfo& queueInfo, const Fence& fence) const;
     
 private:
