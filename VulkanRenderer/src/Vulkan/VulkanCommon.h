@@ -55,6 +55,9 @@ struct BufferKind
     Flags Kind{None};
 };
 
+
+CREATE_ENUM_FLAGS_OPERATORS(BufferKind::Flags)
+
 struct BufferCopyInfo
 {
     u64 SizeBytes;
@@ -111,4 +114,9 @@ struct ImageBlitInfo
     const Image* DestinationImage;
     VkImageBlit* ImageBlit;
     VkFilter Filter;
+};
+
+struct BindlessDescriptorsState
+{
+    u32 TextureIndex{0};
 };

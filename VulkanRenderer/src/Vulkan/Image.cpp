@@ -160,6 +160,16 @@ void Image::Destroy(const Image& image)
     }
 }
 
+ImageDescriptorInfo Image::CreateDescriptorInfo(VkFilter samplerFilter) const
+{
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.sampler = Texture::CreateSampler(samplerFilter, m_ImageData.MipMapCount); // todo: find a better place for it
+    descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptorTextureInfo.imageView = m_ImageData.View;
+
+    return descriptorTextureInfo;
+}
+
 Image Image::AllocateImage(const CreateInfo& createInfo)
 {
     Image image = {};

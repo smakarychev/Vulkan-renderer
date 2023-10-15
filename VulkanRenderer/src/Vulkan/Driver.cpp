@@ -124,52 +124,32 @@ void Driver::Unpack(const CommandPool& commandPool, CommandBuffer::Builder::Crea
     commandBufferCreateInfo.CommandPool = commandPool.m_CommandPool;
 }
 
-void Driver::Unpack(DescriptorAllocator& allocator, const DescriptorSetLayout& layout,
+void Driver::Unpack(DescriptorAllocator::PoolInfo pool, const DescriptorSetLayout& layout,
     DescriptorAllocator::SetAllocateInfo& setAllocateInfo)
 {
     auto& info = setAllocateInfo.Info;
     info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    info.descriptorPool = allocator.GrabPool();
+    info.descriptorPool = pool.Pool;
     info.descriptorSetCount = 1;
     info.pSetLayouts = &layout.m_Layout;
 }
 
 void Driver::DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
-                                     VkDescriptorType descriptor, VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
+                                     VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    DescriptorAddBinding(slot, descriptor, stages, descriptorSetCreateInfo);
-    
     VkDescriptorBufferInfo descriptorBufferInfo = {};
     descriptorBufferInfo.buffer = bindingInfo.Buffer->m_Buffer;
     descriptorBufferInfo.offset = bindingInfo.OffsetBytes;
     descriptorBufferInfo.range = bindingInfo.SizeBytes;
 
-    descriptorSetCreateInfo.BoundResources.push_back({.Buffer = descriptorBufferInfo, .Slot = slot});
+    descriptorSetCreateInfo.BoundResources.push_back({.Buffer = descriptorBufferInfo, .Slot = slot, .Type = descriptor});
 }
 
-void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor,
-    VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
+void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    DescriptorAddBinding(slot, descriptor, stages, descriptorSetCreateInfo);
-    
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = Texture::CreateSampler(VK_FILTER_LINEAR, texture.m_ImageData.MipMapCount); // todo: find a better place for it
-    descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    descriptorTextureInfo.imageView = texture.m_ImageData.View;
+    VkDescriptorImageInfo descriptorTextureInfo = texture.CreateDescriptorInfo(VK_FILTER_LINEAR);
 
-    descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot});
-}
-
-void Driver::DescriptorAddBinding(u32 slot, VkDescriptorType descriptor, VkShaderStageFlags stages,
-    DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
-{
-    VkDescriptorSetLayoutBinding binding = {};
-    binding.binding = slot;
-    binding.descriptorType = descriptor;
-    binding.descriptorCount = 1;
-    binding.stageFlags = stages;
-
-    descriptorSetCreateInfo.Bindings.push_back(binding);
+    descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot, .Type = descriptor});
 }
 
 void Driver::Init(const Device& device)

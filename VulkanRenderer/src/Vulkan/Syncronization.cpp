@@ -2,6 +2,7 @@
 
 #include "Driver.h"
 #include "RenderCommand.h"
+#include "VulkanCore.h"
 
 Fence Fence::Builder::Build()
 {

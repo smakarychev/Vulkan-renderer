@@ -16,6 +16,7 @@ project "AssetConverter"
         "src",
         "C:/VulkanSDK/1.3.261.1/Include",
         "%{wks.location}/tools/AssetLib/src",
+	
         IncludeDir["stb"],		    
         IncludeDir["assimp"],
         IncludeDir["glm"],

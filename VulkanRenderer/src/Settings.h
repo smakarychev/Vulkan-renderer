@@ -8,3 +8,5 @@ static constexpr u32 MAX_OBJECTS = 10'000;
 static constexpr u32 MAX_DRAW_INDIRECT_CALLS{10000};
 
 static constexpr u32 COMPUTE_PARTICLE_COUNT{256 * 16};
+
+static constexpr u32 BINDLESS_TEXTURES_COUNT{MAX_OBJECTS};

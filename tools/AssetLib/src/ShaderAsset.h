@@ -3,6 +3,7 @@
 #include "AssetLib.h"
 
 #include <vulkan/vulkan_core.h>
+#include "Core/core.h"
 
 namespace assetLib
 {
@@ -22,15 +23,23 @@ namespace assetLib
         };
         struct DescriptorSet
         {
+            enum DescriptorFlags
+            {
+                None = 0,
+                Dynamic = BIT(1),
+                Bindless = BIT(2)
+            };
+            
             struct DescriptorBinding
             {
                 u32 Binding;
                 std::string Name;
-                VkDescriptorType Descriptor;
+                VkDescriptorType Type;
                 VkShaderStageFlags ShaderStages;
+                DescriptorFlags Flags{None};
             };
             u32 Set;
-            std::vector<DescriptorBinding> Bindings;
+            std::vector<DescriptorBinding> Descriptors;
         };
 
         VkShaderStageFlags ShaderStages;
@@ -39,9 +48,12 @@ namespace assetLib
         std::vector<DescriptorSet> DescriptorSets;
         u64 SourceSizeBytes;
     };
+    CREATE_ENUM_FLAGS_OPERATORS(ShaderInfo::DescriptorSet::DescriptorFlags)
 
     ShaderInfo readShaderInfo(const assetLib::File& file);
 
     assetLib::File packShader(const ShaderInfo& info, void* source);
     void unpackShader(ShaderInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv);
+
+    std::string descriptorFlagToString(ShaderInfo::DescriptorSet::DescriptorFlags flag);
 }

@@ -3,6 +3,7 @@
 #include "Core/core.h"
 #include "Driver.h"
 #include "RenderCommand.h"
+#include "VulkanCore.h"
 
 namespace
 {

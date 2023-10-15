@@ -54,47 +54,10 @@ struct ObjectDataSSBO
     std::array<ObjectData, MAX_OBJECTS> Objects;
 };
 
-struct MaterialData
-{
-    glm::vec4 Albedo;
-};
-
 struct MaterialDataSSBO
 {
     Buffer Buffer;
-    std::array<MaterialData, MAX_OBJECTS> Materials;
-};
-
-struct ComputeDataSSBO
-{
-    Buffer* ReadSSBO;
-    Buffer* WriteSSBO;
-};
-
-struct ComputeDataUBO
-{
-    Buffer* Buffer;
-};
-
-struct ComputeParticle
-{
-    glm::vec2 Position;
-    glm::vec2 Velocity;
-    glm::vec4 Color;
-
-    static VertexInputDescription GetInputDescription();
-};
-
-struct ComputeBuffers
-{
-    std::array<Buffer, BUFFERED_FRAMES> SSBOs;
-    Buffer UBO;
-};
-
-struct ComputeSync
-{
-    Semaphore Semaphore;
-    Fence Fence;
+    std::array<MaterialBindless, MAX_OBJECTS> Materials;
 };
 
 struct ComputeDispatch
@@ -104,18 +67,19 @@ struct ComputeDispatch
     glm::uvec3 GroupSize;
 };
 
+struct BindlessData
+{
+    ShaderPipeline Pipeline;
+    ShaderDescriptorSet DescriptorSet;
+    BindlessDescriptorsState BindlessDescriptorsState;
+};
+
 struct FrameContext
 {
     CommandPool CommandPool;
     CommandBuffer CommandBuffer;
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
-
-    ::CommandBuffer ComputeCommandBuffer;
-    ComputeDataSSBO ComputeDataSSBO;
-    ComputeDataUBO ComputeDataUBO;
-    ShaderDescriptorSet ComputeDescriptorSet;
-    ShaderDescriptorSet ComputeGraphicsDescriptorSet;
 };
 
 class Renderer
@@ -155,10 +119,6 @@ private:
     void UpdateScene();
     void LoadScene();
 
-    void ComputeTestInit();
-    void ComputeTestRender();
-    void UpdateComputeBuffers();
-
     const FrameContext& GetFrameContext() const;
     FrameContext& GetFrameContext();
     
@@ -191,13 +151,10 @@ private:
     DescriptorLayoutCache m_LayoutCache;
     ResourceUploader m_ResourceUploader;
 
+    BindlessData m_BindlessData;
+
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
-
-    ComputeBuffers m_ComputeBuffers;
-    ShaderPipeline m_ComputePipeline;
-    std::vector<ComputeSync> m_ComputeSyncs;
-    ShaderPipeline m_ComputeGraphicsPipeline;
 };
 
 template <typename Fn>

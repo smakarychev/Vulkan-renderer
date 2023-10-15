@@ -252,6 +252,9 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
 
     std::ifstream file(path.string(), std::ios::in | std::ios::binary);
     std::string shaderSource((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    std::vector<DescriptorFlagInfo> descriptorFlags = ReadDescriptorsFlags(shaderSource);
+    RemoveMetaKeywords(shaderSource);
     
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
@@ -265,7 +268,7 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     std::vector<u32> spirv = {module.cbegin(), module.cend()};
 
     // produce reflection on unoptimized code
-    assetLib::ShaderInfo shaderInfo = Reflect(spirv);
+    assetLib::ShaderInfo shaderInfo = Reflect(spirv, descriptorFlags);
     shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     shaderInfo.OriginalFile = path.string();
     shaderInfo.BlobFile = blobPath.string();
@@ -287,7 +290,98 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     std::cout << std::format("Shader file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }
 
-assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV)
+std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptorsFlags(const std::string& shaderSource)
+{
+    std::string prefix = "@";
+    std::vector<ShaderConverter::DescriptorFlags> flags = {
+        DescriptorFlags::Dynamic,
+        DescriptorFlags::Bindless 
+    };
+
+    std::vector<DescriptorFlagInfo> descriptorFlagsUnmerged = {};
+    
+    for (auto flag : flags)
+    {
+        std::string keyword = prefix + assetLib::descriptorFlagToString(flag);
+            
+        usize offset = 0;
+        usize pos = shaderSource.find(keyword, offset);
+        while (pos != std::string::npos)
+        {
+            // find descriptor's name
+            offset = pos + keyword.length();
+            usize curlyPos, semicolonPos;
+            curlyPos = shaderSource.find("{", offset);
+            semicolonPos = shaderSource.find(";", offset);
+            if (semicolonPos == std::string::npos)
+                return {}; // error will be reported by shader compiler
+            usize endingSemicolon = semicolonPos;
+            if (curlyPos != std::string::npos && curlyPos < semicolonPos)
+            {
+                curlyPos = shaderSource.find("}", curlyPos);
+                endingSemicolon = shaderSource.find(";", curlyPos);
+            }
+
+            usize textEnd = shaderSource.find_last_not_of(" \t\r\n", endingSemicolon);
+            usize textStart = shaderSource.find_last_of(" \t\r\n", textEnd) + 1;
+
+            std::string name = shaderSource.substr(textStart, textEnd - textStart);
+            if (name.ends_with("[]"))
+                name = name.substr(0, name.size() - std::strlen("[]"));
+            descriptorFlagsUnmerged.push_back({.Flags = flag, .DescriptorName = name});
+
+            offset = textEnd;
+            pos = shaderSource.find(keyword, offset);
+        }
+    }
+
+    if (descriptorFlagsUnmerged.size() <= 1)
+        return descriptorFlagsUnmerged;
+    
+    std::ranges::sort(descriptorFlagsUnmerged,
+        [](const std::string& a, const std::string& b)
+        {
+            return a.compare(b);
+        },
+        [](const auto& a)
+        {
+            return a.DescriptorName;
+        });
+    
+    std::vector<DescriptorFlagInfo> descriptorFlags;
+    descriptorFlags.emplace_back(descriptorFlagsUnmerged.front());
+    for (u32 i = 1; i < descriptorFlagsUnmerged.size(); i++)
+    {
+        if (descriptorFlags.back().DescriptorName == descriptorFlagsUnmerged[i].DescriptorName)
+            descriptorFlags.back().Flags |= descriptorFlagsUnmerged[i].Flags;
+        else
+            descriptorFlags.emplace_back(descriptorFlagsUnmerged[i]);
+    }
+    
+    return descriptorFlags;
+}
+
+void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
+{
+    std::string prefix = "@";
+    std::vector<ShaderConverter::DescriptorFlags> flags = {
+        DescriptorFlags::Dynamic,
+        DescriptorFlags::Bindless 
+    };
+
+    for (auto flag : flags)
+    {
+        std::string keyword = prefix + assetLib::descriptorFlagToString(flag);
+        usize pos = shaderSource.find(keyword, 0);
+        while (pos != std::string::npos)
+        {
+            shaderSource.replace(pos, keyword.length(), "");
+            pos = shaderSource.find(keyword, pos);
+        }
+    }
+}
+
+assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV, const std::vector<DescriptorFlagInfo>& flags)
 {
     static constexpr u32 SPV_INVALID_VAL = (u32)-1;
 
@@ -352,24 +446,33 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV)
         shaderInfo.DescriptorSets.push_back({.Set = set->set});
         
         assetLib::ShaderInfo::DescriptorSet& descriptorSet = shaderInfo.DescriptorSets.back();
-        descriptorSet.Bindings.resize(set->binding_count);
+        descriptorSet.Descriptors.resize(set->binding_count);
         for (u32 i = 0; i < set->binding_count; i++)
         {
-            descriptorSet.Bindings[i] = {
+            descriptorSet.Descriptors[i] = {
                 .Binding = set->bindings[i]->binding,
                 .Name = set->bindings[i]->name,
-                .Descriptor = (VkDescriptorType)set->bindings[i]->descriptor_type,
+                .Type = (VkDescriptorType)set->bindings[i]->descriptor_type,
                 .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage
             };
-            if (descriptorSet.Bindings[i].Name.starts_with("dyn"))
+            auto it = std::find_if(flags.begin(), flags.end(),
+                [&descriptorSet, i](const auto& flag)
+                {
+                    return flag.DescriptorName == descriptorSet.Descriptors[i].Name;
+                });
+
+            if (it != flags.end())
+                descriptorSet.Descriptors[i].Flags = it->Flags;
+            
+            if (descriptorSet.Descriptors[i].Flags & DescriptorFlags::Dynamic)
             {
-                if (descriptorSet.Bindings[i].Descriptor == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
-                    descriptorSet.Bindings[i].Descriptor = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                else if (descriptorSet.Bindings[i].Descriptor == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                    descriptorSet.Bindings[i].Descriptor = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+                if (descriptorSet.Descriptors[i].Type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                    descriptorSet.Descriptors[i].Type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                else if (descriptorSet.Descriptors[i].Type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    descriptorSet.Descriptors[i].Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
             }
         }
-        std::ranges::sort(descriptorSet.Bindings,
+        std::ranges::sort(descriptorSet.Descriptors,
                           [](const auto& a, const auto& b) { return a.Binding < b.Binding; });
     }
     std::ranges::sort(shaderInfo.DescriptorSets,

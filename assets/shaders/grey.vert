@@ -9,11 +9,12 @@ layout(push_constant) uniform constants {
     mat4 transform;
 } u_constants;
 
+@dynamic
 layout(set = 0, binding = 0) uniform camera_buffer {
     mat4 view;
     mat4 projection;
     mat4 view_projection;
-} dyn_u_camera_buffer;
+} u_camera_buffer;
 
 struct object_data{
     mat4 model;
@@ -27,6 +28,6 @@ layout(std140,set = 1, binding = 0) readonly buffer object_buffer{
 layout(location = 0) out vec3 vert_normal;
 
 void main() {
-    gl_Position = dyn_u_camera_buffer.view_projection * u_object_buffer.objects[gl_BaseInstance].model * vec4(a_position, 1.0);
+    gl_Position = u_camera_buffer.view_projection * u_object_buffer.objects[gl_BaseInstance].model * vec4(a_position, 1.0);
     vert_normal = a_normal;
 }

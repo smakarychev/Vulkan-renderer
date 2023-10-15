@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "VulkanCommon.h"
+#include "VulkanCore.h"
 
 namespace vkUtils
 {

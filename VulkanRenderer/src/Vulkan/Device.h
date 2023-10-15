@@ -106,4 +106,5 @@ private:
     GLFWwindow* m_Window{nullptr};
 
     VkPhysicalDeviceProperties m_GPUProperties;
+    VkPhysicalDeviceDescriptorIndexingProperties m_GPUDescriptorIndexingProperties;
 };

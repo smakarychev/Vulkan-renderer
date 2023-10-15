@@ -2,6 +2,7 @@
 
 #include "Driver.h"
 #include "RenderCommand.h"
+#include "VulkanCore.h"
 #include "VulkanUtils.h"
 
 Buffer Buffer::Builder::Build()
@@ -20,7 +21,7 @@ Buffer Buffer::Builder::BuildManualLifetime()
 Buffer::Builder& Buffer::Builder::SetKind(BufferKind kind)
 {
     m_CreateInfo.UsageFlags |= vkUtils::vkBufferUsageByKind(kind);
-    m_CreateInfo.Kind = BufferKind::Flags((u32)m_CreateInfo.Kind.Kind | (u32)kind.Kind);
+    m_CreateInfo.Kind.Kind |=  kind.Kind;
     
     return *this;
 }

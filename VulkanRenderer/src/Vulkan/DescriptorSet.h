@@ -29,11 +29,17 @@ public:
         struct CreateInfo
         {
             std::vector<VkDescriptorSetLayoutBinding> Bindings;
+            std::vector<VkDescriptorBindingFlags> BindingFlags;
+            VkDescriptorSetLayoutCreateFlags Flags;
         };
     public:
         DescriptorSetLayout Build();
         DescriptorSetLayout BuildManualLifetime();
         Builder& SetBindings(const std::vector<VkDescriptorSetLayoutBinding>& bindings);
+        Builder& SetBindingFlags(const std::vector<VkDescriptorBindingFlags>& flags);
+        Builder& SetFlags(VkDescriptorSetLayoutCreateFlags flags);
+    private:
+        void PreBuild();
     private:
         CreateInfo m_CreateInfo;
     };
@@ -62,6 +68,11 @@ public:
         friend class DescriptorSet;
         friend class DescriptorLayoutCache;
         FRIEND_INTERNAL
+        struct VariableBindingInfo
+        {
+            u32 Slot;
+            u32 Count;
+        };
         struct CreateInfo
         {
             struct BoundResource
@@ -69,28 +80,39 @@ public:
                 std::optional<VkDescriptorBufferInfo> Buffer;
                 std::optional<VkDescriptorImageInfo> Texture;
                 u32 Slot;
+                VkDescriptorType Type;
             };
 
-            std::vector<VkDescriptorSetLayoutBinding> Bindings;
+            VkDescriptorPoolCreateFlags PoolFlags;
             std::vector<BoundResource> BoundResources;
             DescriptorAllocator* Allocator;
-            DescriptorLayoutCache* Cache;
+            const DescriptorSetLayout* Layout;
+            VkDescriptorSetVariableDescriptorCountAllocateInfo VariableDescriptorCounts;
         };
     public:
         DescriptorSet Build();
         Builder& SetAllocator(DescriptorAllocator* allocator);
-        Builder& SetLayoutCache(DescriptorLayoutCache* cache);
-        Builder& AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo, VkDescriptorType descriptor, VkShaderStageFlags stages);
-        Builder& AddTextureBinding(u32 slot, const Texture& texture, VkDescriptorType descriptor, VkShaderStageFlags stages);
+        Builder& SetLayout(const DescriptorSetLayout* layout);
+        Builder& SetPoolFlags(VkDescriptorPoolCreateFlags flags);
+        Builder& AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo, VkDescriptorType descriptor);
+        Builder& AddTextureBinding(u32 slot, const Texture& texture, VkDescriptorType descriptor);
+        Builder& AddVariableBinding(const VariableBindingInfo& variableBindingInfo);
+    private:
+        void PreBuild();
     private:
         CreateInfo m_CreateInfo;
+        std::vector<u32> m_VariableBindingSlots;
+        std::vector<u32> m_VariableBindingCounts;
     };
 public:
     static DescriptorSet Create(const Builder::CreateInfo& createInfo);
-    
+
     void Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint);
     void Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint,
         const std::vector<u32>& dynamicOffsets);
+
+    void SetTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor, u32 arrayIndex);
+    
     const DescriptorSetLayout* GetLayout() const { return m_Layout; }
     bool IsValid() const { return m_DescriptorSet != VK_NULL_HANDLE; }
 private:
@@ -112,6 +134,11 @@ class DescriptorAllocator
     {
         VkDescriptorSetAllocateInfo Info;
     };
+    struct PoolInfo
+    {
+        VkDescriptorPool Pool;
+        VkDescriptorPoolCreateFlags Flags;
+    };
 public:
     class Builder
     {
@@ -130,12 +157,13 @@ public:
 public:
     static DescriptorAllocator Create(const Builder::CreateInfo& createInfo);
 
-    void Allocate(DescriptorSet& set);
+    void Allocate(DescriptorSet& set, VkDescriptorPoolCreateFlags poolFlags,
+        const VkDescriptorSetVariableDescriptorCountAllocateInfo& variableDescriptorCounts);
 
     void ResetPools();
 private:
-    VkDescriptorPool GrabPool();
-    VkDescriptorPool CreatePool();
+    u32 GrabPool(VkDescriptorPoolCreateFlags poolFlags);
+    PoolInfo CreatePool(VkDescriptorPoolCreateFlags poolFlags);
     
 private:
     PoolSizes m_PoolSizes = {
@@ -153,8 +181,8 @@ private:
     };
 
     u32 m_MaxSetsPerPool{};
-    std::vector<VkDescriptorPool> m_FreePools;
-    std::vector<VkDescriptorPool> m_UsedPools;
+    std::vector<PoolInfo> m_FreePools;
+    std::vector<PoolInfo> m_UsedPools;
 };
 
 class DescriptorLayoutCache
@@ -162,10 +190,13 @@ class DescriptorLayoutCache
     struct CacheKey
     {
         std::vector<VkDescriptorSetLayoutBinding> Bindings;
+        std::vector<VkDescriptorBindingFlags> BindingFlags;
+        VkDescriptorSetLayoutCreateFlags Flags;
         bool operator==(const CacheKey& other) const;
     };
 public:
-    DescriptorSetLayout* CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding>& bindings);
+    DescriptorSetLayout* CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding>& bindings,
+        const std::vector<VkDescriptorBindingFlags>& bindingFlags, VkDescriptorSetLayoutCreateFlags layoutFlags);
 private:
     void SortBindings(CacheKey& cacheKey);
 private:

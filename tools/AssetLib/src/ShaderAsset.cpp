@@ -1,10 +1,43 @@
 ﻿#include "ShaderAsset.h"
 
 #include <nlm_json.hpp>
+#include <stdbool.h>
 
 #include "AssetLib.h"
 #include "lz4.h"
 #include "utils.h"
+
+namespace
+{
+    using DescriptorFlags = assetLib::ShaderInfo::DescriptorSet::DescriptorFlags;
+
+    DescriptorFlags flagsFromStringArray(const std::vector<std::string>& flagsStrings)
+    {
+        DescriptorFlags flags = DescriptorFlags::None;
+        for (auto& flagString : flagsStrings)
+        {
+            if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::Dynamic))
+                flags |= DescriptorFlags::Dynamic;
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::Bindless))
+                flags |= DescriptorFlags::Bindless;
+            else
+                ASSERT(false, "Unrecogrinzed flag {}", flagString)
+        }
+        
+        return flags;
+    }
+
+    std::vector<std::string> stringArrayFromFlags(DescriptorFlags flags)
+    {
+        std::vector<std::string> flagsStrings;
+        if (flags & DescriptorFlags::Dynamic)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::Dynamic));
+        if (flags & DescriptorFlags::Bindless)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::Bindless));
+
+        return flagsStrings;
+    }
+}
 
 namespace assetLib
 {
@@ -52,16 +85,22 @@ namespace assetLib
             descriptorSet.Set = set["set"];
             const nlohmann::json& bindings = set["bindings"];
             u32 bindingCount = (u32)bindings.size();
-            descriptorSet.Bindings.reserve(bindingCount);
+            descriptorSet.Descriptors.reserve(bindingCount);
             for (auto& binding : bindings)
             {
                 ShaderInfo::DescriptorSet::DescriptorBinding descriptorBinding = {};
                 descriptorBinding.Binding = binding["binding"];
                 descriptorBinding.Name = binding["name"];
-                descriptorBinding.Descriptor = (VkDescriptorType)binding["descriptor"];
+                descriptorBinding.Type = (VkDescriptorType)binding["descriptor"];
                 descriptorBinding.ShaderStages = (VkShaderStageFlags)binding["shader_stages"];
-
-                descriptorSet.Bindings.push_back(descriptorBinding);
+                const nlohmann::json& flags = binding["flags"];
+                std::vector<std::string> flagsStrings;
+                flagsStrings.reserve(flags.size());
+                for (auto& flag : flags)
+                    flagsStrings.push_back(flag);
+                descriptorBinding.Flags = flagsFromStringArray(flagsStrings);
+                
+                descriptorSet.Descriptors.push_back(descriptorBinding);
             }
 
             info.DescriptorSets.push_back(descriptorSet);
@@ -107,14 +146,17 @@ namespace assetLib
             nlohmann::json setJson;
             setJson["set"] = set.Set;
             setJson["bindings"] = nlohmann::json::array();
-            for (auto& binding : set.Bindings)
+            for (auto& binding : set.Descriptors)
             {
                 nlohmann::json bindingJson;
                 bindingJson["binding"] = binding.Binding;
                 bindingJson["name"] = binding.Name;
-                bindingJson["descriptor"] = (u32)binding.Descriptor;
+                bindingJson["descriptor"] = (u32)binding.Type;
                 bindingJson["shader_stages"] = (u32)binding.ShaderStages;
-
+                bindingJson["flags"] = nlohmann::json::array();
+                for (auto& flag : stringArrayFromFlags(binding.Flags))
+                    bindingJson["flags"].push_back(flag);
+                
                 setJson["bindings"].push_back(bindingJson);
             }
 
@@ -140,6 +182,18 @@ namespace assetLib
             LZ4_decompress_safe((const char*)source, (char*)spirv, (i32)sourceSizeBytes, (i32)info.SourceSizeBytes);
         else
             memcpy(spirv, source, info.SourceSizeBytes);
-    }    
+    }
+
+    std::string descriptorFlagToString(ShaderInfo::DescriptorSet::DescriptorFlags flag)
+    {
+        if (flag == DescriptorFlags::None)
+            return "none";
+        if (flag == DescriptorFlags::Dynamic)
+            return "dynamic";
+        if (flag == DescriptorFlags::Bindless)
+            return "bindless";
+        ASSERT(false, "Unsupported flag")
+        std::unreachable();
+    }
 }
 

@@ -53,68 +53,43 @@ void Model::Upload(const Renderer& renderer)
         mesh.Mesh.Upload(renderer);
 }
 
-void Model::CreateRenderObjects(Scene* scene, const RenderPass& renderPass, const glm::mat4& transform, const Buffer& materialBuffer)
+void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
 {
-    ShaderDescriptorSet::Builder texturedDescriptor = ShaderDescriptorSet::Builder()
-        .SetTemplate(scene->GetShaderTemplate("textured"));
-
-    ShaderDescriptorSet::Builder defaultDescriptor = ShaderDescriptorSet::Builder()
-        .SetTemplate(scene->GetShaderTemplate("default"));
-
-    ShaderPipeline texturedPipeline = ShaderPipeline::Builder()
-        .SetTemplate(scene->GetShaderTemplate("textured"))
-        .CompatibleWithVertex(VertexP3N3UV::GetInputDescription())
-        .SetRenderPass(renderPass)
-        .Build();
-
-    ShaderPipeline defaultPipeline = ShaderPipeline::Builder()
-        .SetTemplate(scene->GetShaderTemplate("default"))
-        .CompatibleWithVertex(VertexP3N3UV::GetInputDescription())
-        .SetRenderPass(renderPass)
-        .Build();
-
-    
     for (u32 i = 0; i < m_Meshes.size(); i++)
     {
         auto& mesh = m_Meshes[i];
         std::string textureName = "texture_" + m_ModelName + std::to_string(i);
         std::string meshName = "mesh_" + m_ModelName + std::to_string(i);
         std::string materialName = "mat_" + m_ModelName + std::to_string(i);
-        
-        Material material;
-        material.Albedo = mesh.Albedo.Color;
-        if (mesh.Albedo.Textures.empty())
-        {
-            material.Pipeline = defaultPipeline;
-            material.DescriptorSet = defaultDescriptor
-                .AddBinding("u_material_buffer", materialBuffer)
-                .Build(); 
-        }
-        else
-        {
-            material.Pipeline = texturedPipeline;
-            if (scene->GetTexture(textureName) == nullptr)
-            {
-                Image texture = Image::Builder()
-                    .FromAssetFile(mesh.Albedo.Textures.front())
-                    .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-                    .CreateMipmaps(true)
-                    .Build();
-                scene->AddTexture(texture, textureName);
-            }
-            
-            material.DescriptorSet = texturedDescriptor
-                .AddBinding("u_material_buffer", materialBuffer)
-                .AddBinding("u_texture", *scene->GetTexture(textureName))
-                .Build(); 
-        }
 
         if (scene->GetMaterial(materialName) == nullptr)
+        {
+            Material material;
+            material.Albedo = mesh.Albedo.Color;
+            if (!mesh.Albedo.Textures.empty())
+            {
+                material.AlbedoTexture = textureName;
+
+                if (scene->GetTexture(textureName) == nullptr)
+                {
+                    Image texture = Image::Builder()
+                        .FromAssetFile(mesh.Albedo.Textures.front())
+                        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
+                        .CreateMipmaps(true)
+                        .Build();
+                    scene->AddTexture(texture, textureName);
+                }
+            }
             scene->AddMaterial(material, materialName);
+            scene->AddMaterialBindless({.Albedo = material.Albedo}, materialName);
+        }
 
         if (scene->GetMesh(meshName) == nullptr)
             scene->AddMesh(mesh.Mesh, meshName);
         
-        scene->AddRenderObject({.Mesh = scene->GetMesh(meshName), .Material = scene->GetMaterial(materialName), .Transform = transform});
+        scene->AddRenderObject({.Mesh = scene->GetMesh(meshName),
+            .Material = scene->GetMaterial(materialName),
+            .MaterialBindless = scene->GetMaterialBindless(materialName),
+            .Transform = transform});
     }
 }

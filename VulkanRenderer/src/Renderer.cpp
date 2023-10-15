@@ -16,41 +16,10 @@
 
 Renderer::Renderer() = default;
 
-VertexInputDescription ComputeParticle::GetInputDescription()
-{
-    VertexInputDescription inputDescription = {};
-    inputDescription.Bindings.reserve(1);
-    inputDescription.Attributes.reserve(2);
-
-    VkVertexInputBindingDescription binding = {};
-    binding.binding = 0;
-    binding.stride = sizeof(ComputeParticle);
-    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    inputDescription.Bindings.push_back(binding);
-
-    VkVertexInputAttributeDescription position = {};
-    position.binding = 0;
-    position.location = 0;
-    position.format = VK_FORMAT_R32G32_SFLOAT;
-    position.offset = offsetof(ComputeParticle, Position);
-    
-    VkVertexInputAttributeDescription color = {};
-    color.binding = 0;
-    color.location = 1;
-    color.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-    color.offset = offsetof(ComputeParticle, Color);
-
-    inputDescription.Attributes.push_back(position);
-    inputDescription.Attributes.push_back(color);
-
-    return inputDescription;
-}
-
 void Renderer::Init()
 {
     InitRenderingStructures();
     LoadScene();
-    ComputeTestInit();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera = std::make_shared<Camera>();
@@ -83,7 +52,6 @@ void Renderer::OnRender()
     BeginFrame();
     if (!m_FrameEarlyExit)
     {
-        ComputeTestRender();
         Submit(m_Scene);
         EndFrame();
     }
@@ -111,6 +79,7 @@ void Renderer::UpdateScene()
 {
     if (m_Scene.IsDirty())
     {
+        m_Scene.UpdateRenderObject(m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
         SortScene(m_Scene);
         m_Scene.CreateIndirectBatches();
         m_Scene.ClearDirty();
@@ -149,11 +118,12 @@ void Renderer::UpdateScene()
     for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
     {
         m_ObjectDataSSBO.Objects[i].Transform = m_Scene.GetRenderObjects()[i].Transform;
-        m_MaterialDataSSBO.Materials[i].Albedo = m_Scene.GetRenderObjects()[i].Material->Albedo;
+        m_MaterialDataSSBO.Materials[i].Albedo = m_Scene.GetRenderObjects()[i].MaterialBindless->Albedo;
+        m_MaterialDataSSBO.Materials[i].AlbedoTextureIndex = m_Scene.GetRenderObjects()[i].MaterialBindless->AlbedoTextureIndex;
     }
 
     m_ResourceUploader.UpdateBuffer(m_ObjectDataSSBO.Buffer, m_ObjectDataSSBO.Objects.data(), m_ObjectDataSSBO.Objects.size() * sizeof(ObjectData), 0);
-    m_ResourceUploader.UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialData), 0);
+    m_ResourceUploader.UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialBindless), 0);
 }
 
 void Renderer::BeginFrame()
@@ -171,7 +141,7 @@ void Renderer::BeginFrame()
     cmd.Reset();
     cmd.Begin();
     
-    VkClearValue colorClear = {.color = {{0.3f, 0.1f, 0.1f, 1.0f}}};
+    VkClearValue colorClear = {.color = {{0.05f, 0.05f, 0.05f, 1.0f}}};
     VkClearValue depthClear = {.depthStencil = {.depth = 1.0f}};
     m_RenderPass.Begin(cmd, m_Framebuffers[m_SwapchainImageIndex], {colorClear, depthClear});
 
@@ -193,9 +163,9 @@ void Renderer::EndFrame()
     cmd.End();
     cmd.Submit(m_Device.GetQueues().Graphics,
         {
-            .WaitSemaphores = {&m_ComputeSyncs[GetFrameContext().FrameNumber].Semaphore, &sync.PresentSemaphore},
+            .WaitSemaphores = {&sync.PresentSemaphore},
             .SignalSemaphores = {&sync.RenderSemaphore},
-            .WaitStages = {VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
+            .WaitStages = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
             .Fence = &sync.RenderFence 
         });
 
@@ -213,27 +183,31 @@ void Renderer::EndFrame()
 
 void Renderer::Dispatch(const ComputeDispatch& dispatch)
 {
-    CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffer;
+    /*CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffer;
     
     dispatch.Pipeline->Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
     u32 computeUboOffset = (u32)(vkUtils::alignUniformBufferSizeBytes(sizeof(f32) * GetFrameContext().FrameNumber));
     dispatch.DescriptorSet->Bind(cmd, DescriptorKind::Global, dispatch.Pipeline->GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {computeUboOffset});
-    RenderCommand::Dispatch(cmd, dispatch.GroupSize);
+    RenderCommand::Dispatch(cmd, dispatch.GroupSize);*/
 }
 
 void Renderer::Submit(const Scene& scene)
 {
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+
+    ShaderPipeline lastPipeline;
+
+    m_BindlessData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    const PipelineLayout& layout = m_BindlessData.Pipeline.GetPipelineLayout();
+    
+    u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber);
+    u32 sceneDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
+    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset, sceneDataOffset});
+    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
     
     for (auto& batch : scene.GetIndirectBatches())
     {
-        batch.Material->Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
-        const PipelineLayout& layout = batch.Material->Pipeline.GetPipelineLayout();
-        u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber);
-        u32 sceneDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
-        m_GlobalObjectSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset, sceneDataOffset});
-        m_GlobalObjectSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-        batch.Material->DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
         batch.Mesh->GetVertexBuffer().Bind(cmd);
         batch.Mesh->GetIndexBuffer().Bind(cmd);
 
@@ -241,12 +215,17 @@ void Renderer::Submit(const Scene& scene)
         u64 bufferOffset = (u64)batch.First * stride;
         RenderCommand::DrawIndexedIndirect(cmd, m_DrawIndirectBuffer, bufferOffset, batch.Count, stride);
     }
+
+    m_BindlessData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, m_BindlessData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_BindlessData.DescriptorSet.SetTexture("u_textures", *m_Scene.GetTexture("texture_../assets/models/gun/scene.model6"), 0);
+    m_BindlessData.DescriptorSet.SetTexture("u_textures", *m_Scene.GetTexture("texture_../assets/models/gun/scene.model6"), 1);
 }
 
 void Renderer::SortScene(Scene& scene)
 {
     std::sort(scene.GetRenderObjects().begin(), scene.GetRenderObjects().end(),
-        [](const RenderObject& a, const RenderObject& b) { return a.Material < b.Material || a.Material == b.Material && a.Mesh < b.Mesh; });
+        [](const RenderObject& a, const RenderObject& b) { return a.Mesh < b.Mesh; });
 }
 
 void Renderer::Submit(const Mesh& mesh)
@@ -339,7 +318,7 @@ void Renderer::InitRenderingStructures()
 
     // descriptors
     m_PersistentDescriptorAllocator = DescriptorAllocator::Builder()
-        .SetMaxSetsPerPool(1000)
+        .SetMaxSetsPerPool(10000)
         .Build();
 
     m_SceneDataUBO.Buffer = Buffer::Builder()
@@ -445,7 +424,7 @@ void Renderer::LoadScene()
 
     m_MaterialDataSSBO.Buffer = Buffer::Builder()
         .SetKinds({BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(m_MaterialDataSSBO.Materials.size() * sizeof(MaterialData))
+        .SetSizeBytes(m_MaterialDataSSBO.Materials.size() * sizeof(MaterialBindless))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
     
@@ -457,8 +436,8 @@ void Renderer::LoadScene()
 
     m_GlobalObjectSet = ShaderDescriptorSet::Builder()
        .SetTemplate(m_Scene.GetShaderTemplate("default"))
-       .AddBinding("dyn_u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
-       .AddBinding("dyn_u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
+       .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
+       .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
        .AddBinding("u_object_buffer", m_ObjectDataSSBO.Buffer)
        .Build();
 
@@ -497,145 +476,33 @@ void Renderer::LoadScene()
             newRenderObject.Transform = transform;
 
             Model* model = m_Scene.GetModel(models[modelIndex]);
-            model->CreateRenderObjects(&m_Scene, m_RenderPass, transform, m_MaterialDataSSBO.Buffer);
+            model->CreateRenderObjects(&m_Scene, transform);
         }
     }
-}
 
-void Renderer::ComputeTestInit()
-{
-    m_ComputeBuffers.UBO = Buffer::Builder()
-        .SetKind(BufferKind::Uniform)
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(f32)) * BUFFERED_FRAMES)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+    Shader bindlessShaderReflection = {};
+    bindlessShaderReflection.ReflectFrom({"../assets/shaders/bindless-textures-test-vert.shader", "../assets/shaders/bindless-textures-test-frag.shader"});
+
+    ShaderPipelineTemplate bindlessTemplate = templateBuilder
+        .SetShaderReflection(&bindlessShaderReflection)
         .Build();
 
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        m_ComputeBuffers.SSBOs[i] = Buffer::Builder()
-            .SetKinds({BufferKind::Vertex, BufferKind::Storage, BufferKind::Destination})
-            .SetSizeBytes(sizeof(ComputeParticle) * COMPUTE_PARTICLE_COUNT)
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-            .Build();
-    }
+    m_Scene.AddShaderTemplate(bindlessTemplate, "bindless");
 
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        FrameContext& context = m_FrameContexts[i];
-        context.ComputeDataUBO.Buffer = &m_ComputeBuffers.UBO;
-        u32 readIndex = i;
-        u32 writeIndex = (i + 1) % BUFFERED_FRAMES;
-        context.ComputeDataSSBO.ReadSSBO = &m_ComputeBuffers.SSBOs[readIndex];
-        context.ComputeDataSSBO.WriteSSBO = &m_ComputeBuffers.SSBOs[writeIndex];
-    }
-
-    Shader computeShaderReflection = {};
-    computeShaderReflection.ReflectFrom({"../assets/shaders/compute-test-compute.shader"});
-
-    ShaderPipelineTemplate computeTemplate = ShaderPipelineTemplate::Builder()
-        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
-        .SetDescriptorLayoutCache(&m_LayoutCache)
-        .SetShaderReflection(&computeShaderReflection)
-        .Build();
-
-    m_Scene.AddShaderTemplate(computeTemplate, "compute");
-    
-    m_ComputePipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_Scene.GetShaderTemplate("compute"))
-        .Build();
-
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        FrameContext& context = m_FrameContexts[i];
-
-        context.ComputeDescriptorSet = ShaderDescriptorSet::Builder()
-            .SetTemplate(m_Scene.GetShaderTemplate("compute"))
-            .AddBinding("dyn_u_ubo", *context.ComputeDataUBO.Buffer, vkUtils::alignUniformBufferSizeBytes(sizeof(f32)), 0)
-            .AddBinding("u_particles_in", *context.ComputeDataSSBO.ReadSSBO, context.ComputeDataSSBO.ReadSSBO->GetSizeBytes(), 0)
-            .AddBinding("u_particles_out", *context.ComputeDataSSBO.WriteSSBO, context.ComputeDataSSBO.WriteSSBO->GetSizeBytes(), 0)
-            .Build();
-    }
-
-    UpdateComputeBuffers();
-
-    m_ComputeSyncs.reserve(BUFFERED_FRAMES);
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        Semaphore semaphore = Semaphore::Builder().Build();
-        Fence fence = Fence::Builder().StartSignaled(true).Build();
-        m_ComputeSyncs.push_back({.Semaphore = semaphore, .Fence = fence});
-
-        m_FrameContexts[i].ComputeCommandBuffer = m_FrameContexts[i].CommandPool.AllocateBuffer(CommandBufferKind::Primary);
-    }
-
-    Shader computeShaderGraphicsReflection = {};
-    computeShaderGraphicsReflection.ReflectFrom({"../assets/shaders/compute-test-vert.shader", "../assets/shaders/compute-test-frag.shader"});
-
-    ShaderPipelineTemplate computeGraphicsTemplate = ShaderPipelineTemplate::Builder()
-        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
-        .SetDescriptorLayoutCache(&m_LayoutCache)
-        .SetShaderReflection(&computeShaderGraphicsReflection)
-        .Build();
-
-    m_Scene.AddShaderTemplate(computeGraphicsTemplate, "compute-graphics");
-
-    m_ComputeGraphicsPipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_Scene.GetShaderTemplate("compute-graphics"))
-        .CompatibleWithVertex(ComputeParticle::GetInputDescription())
+    m_BindlessData.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("bindless"))
+        .CompatibleWithVertex(VertexP3N3UV::GetInputDescription())
         .SetRenderPass(m_RenderPass)
-        .PrimitiveKind(PrimitiveKind::Point)
         .Build();
 
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        FrameContext& context = m_FrameContexts[i];
-
-        context.ComputeGraphicsDescriptorSet = ShaderDescriptorSet::Builder()
-            .SetTemplate(m_Scene.GetShaderTemplate("compute-graphics"))
-            .Build();
-    }
-}
-
-void Renderer::ComputeTestRender()
-{
-    FrameContext& context = *m_CurrentFrameContext;
-    m_ComputeSyncs[context.FrameNumber].Fence.Wait();
-    m_ComputeSyncs[context.FrameNumber].Fence.Reset();
-    context.ComputeCommandBuffer.Reset();
-    context.ComputeCommandBuffer.Begin();
-    Dispatch({.Pipeline = &m_ComputePipeline, .DescriptorSet = &context.ComputeDescriptorSet, .GroupSize = {COMPUTE_PARTICLE_COUNT / 256, 1, 1}});
-    context.ComputeCommandBuffer.End();
-    context.ComputeCommandBuffer.Submit(m_Device.GetQueues().Graphics,
-        {
-            .SignalSemaphores = {&m_ComputeSyncs[context.FrameNumber].Semaphore},
-            .Fence = &m_ComputeSyncs[context.FrameNumber].Fence
-        });
-
-    m_ComputeGraphicsPipeline.Bind(context.CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    context.ComputeDataSSBO.ReadSSBO->Bind(context.CommandBuffer);
-    RenderCommand::Draw(context.CommandBuffer, COMPUTE_PARTICLE_COUNT);
-}
-
-void Renderer::UpdateComputeBuffers()
-{
-    f32 dt = 1.0f / 60.0f;
-    std::vector<ComputeParticle> particles(COMPUTE_PARTICLE_COUNT);
-    for (auto& particle : particles)
-    {
-        particle.Color = Random::Float4();
-        particle.Position = Random::Float2(-1.0f, 1.0f);
-        particle.Velocity = Random::Float2(-1e-0f, 1e-0f);
-    }
-    
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        FrameContext& context = m_FrameContexts[i];
-        u64 uboSizeBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(f32));
-        m_ResourceUploader.UpdateBuffer(*context.ComputeDataUBO.Buffer, &dt, uboSizeBytes, uboSizeBytes * context.FrameNumber);
-
-        m_ResourceUploader.UpdateBufferImmediately(*context.ComputeDataSSBO.ReadSSBO, particles.data(),
-            context.ComputeDataSSBO.ReadSSBO->GetSizeBytes(), 0);
-    }
+    m_BindlessData.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("bindless"))
+        .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
+        .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
+        .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
+        .AddBinding("u_object_buffer", m_ObjectDataSSBO.Buffer)
+        .AddBinding("u_material_buffer", m_MaterialDataSSBO.Buffer)
+        .Build();
 }
 
 const FrameContext& Renderer::GetFrameContext() const

@@ -2,6 +2,7 @@
 
 #include "Core/core.h"
 #include "Driver.h"
+#include "VulkanCore.h"
 
 Framebuffer Framebuffer::Builder::Build()
 {

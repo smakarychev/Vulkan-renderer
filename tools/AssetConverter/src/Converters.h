@@ -50,11 +50,19 @@ public:
 
 class ShaderConverter
 {
+    using DescriptorFlags = assetLib::ShaderInfo::DescriptorSet::DescriptorFlags;
+    struct DescriptorFlagInfo
+    {
+        DescriptorFlags Flags;
+        std::string DescriptorName;
+    };
 public:
     static bool NeedsConversion(const std::filesystem::path& path);
     static void Convert(const std::filesystem::path& path);
 private:
-    static assetLib::ShaderInfo Reflect(const std::vector<u32>& spirV);
+    static std::vector<DescriptorFlagInfo> ReadDescriptorsFlags(const std::string& shaderSource);
+    static void RemoveMetaKeywords(std::string& shaderSource);
+    static assetLib::ShaderInfo Reflect(const std::vector<u32>& spirV, const std::vector<DescriptorFlagInfo>& flags);
 public:
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".shader";
     static constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 3;

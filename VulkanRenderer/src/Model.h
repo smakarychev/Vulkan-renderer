@@ -27,7 +27,7 @@ class Model
 public:
     static Model LoadFromAsset(std::string_view path);
     void Upload(const Renderer& renderer);
-    void CreateRenderObjects(Scene* scene, const RenderPass& renderPass, const glm::mat4& transform, const Buffer& materialBuffer);
+    void CreateRenderObjects(Scene* scene, const glm::mat4& transform);
 private:
     std::vector<MeshInfo> m_Meshes;
     std::string m_ModelName;

@@ -1,8 +1,10 @@
 #version 460
-#pragma shader_stage(fragment)
+
+#extension GL_EXT_nonuniform_qualifier : require
 
 layout(location = 0) in vec3 vert_normal;
-layout(location = 1) in flat int vert_instance_id;
+layout(location = 1) in vec2 vert_uv;
+layout(location = 2) in flat int vert_instance_id;
 
 @dynamic
 layout(set = 0, binding = 1) uniform scene_data{
@@ -13,16 +15,29 @@ layout(set = 0, binding = 1) uniform scene_data{
     vec4 sunlight_color;
 } u_scene_data;
 
+@bindless
+layout(set = 1, binding = 1) uniform sampler2D u_textures[];
+
+struct Material {
+    vec4 albedo_color;
+    uint albedo_texture_index;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+};
 
 layout(std140, set = 2, binding = 1) readonly buffer material_buffer{
-    vec4 albedo_colors[];
+    Material materials[];
 } u_material_buffer;
 
 layout(location = 0) out vec4 out_color;
 
 void main() {
-    out_color = u_material_buffer.albedo_colors[vert_instance_id];
-    if (out_color.a < 0.5)
-        discard;
+    Material material = u_material_buffer.materials[vert_instance_id];
+    if (material.albedo_texture_index != -1)
+        out_color = texture(u_textures[nonuniformEXT(material.albedo_texture_index)], vert_uv);
+    else
+        out_color = material.albedo_color;
+
     out_color = vec4(out_color.xyz * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.w);
 }

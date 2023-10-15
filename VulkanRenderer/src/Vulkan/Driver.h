@@ -57,12 +57,13 @@ public:
 
     static void Unpack(const CommandPool& commandPool, CommandBuffer::Builder::CreateInfo& commandBufferCreateInfo);
 
-    static void Unpack(DescriptorAllocator& allocator, const DescriptorSetLayout& layout, DescriptorAllocator::SetAllocateInfo& setAllocateInfo);
+    static void Unpack(DescriptorAllocator::PoolInfo pool, const DescriptorSetLayout& layout,
+        DescriptorAllocator::SetAllocateInfo& setAllocateInfo);
 
     static void DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
-        VkDescriptorType descriptor, VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
+        VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
     static void DescriptorSetBindTexture(u32 slot, const Texture& texture,
-        VkDescriptorType descriptor, VkShaderStageFlags stages, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
+        VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
 
     template <typename Fn>
     static void ImmediateUpload(Fn&& uploadFunction);
@@ -76,10 +77,12 @@ public:
     static VmaAllocator& Allocator() { return s_State.Allocator; }
     static u64 GetUniformBufferAlignment() { return s_State.Device->m_GPUProperties.limits.minUniformBufferOffsetAlignment; }
     static f32 GetAnisotropyLevel() { return s_State.Device->m_GPUProperties.limits.maxSamplerAnisotropy; }
+    static u32 GetMaxIndexingImages() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindSampledImages; }
+    static u32 GetMaxIndexingUniformBuffers() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers; }
+    static u32 GetMaxIndexingUniformBuffersDynamic() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers; }
+    static u32 GetMaxIndexingStorageBuffers() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic; }
+    static u32 GetMaxIndexingStorageBuffersDynamic() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic; }
     static UploadContext* UploadContext() { return &s_State.UploadContext; }
-private:
-    static void DescriptorAddBinding(u32 slot, VkDescriptorType descriptor, VkShaderStageFlags stages,
-        DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
 public:
     static DriverState s_State;
 };

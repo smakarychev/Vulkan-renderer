@@ -29,6 +29,7 @@ Device::Builder& Device::Builder::Defaults()
     
     const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsCount);
     defaults.InstanceExtensions = std::vector(instanceExtensions + 0, instanceExtensions + instanceExtensionsCount);
+    defaults.InstanceExtensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
     
 #ifdef VULKAN_VAL_LAYERS
     defaults.InstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -42,6 +43,9 @@ Device::Builder& Device::Builder::Defaults()
     
     defaults.DeviceExtensions = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME
     };
     m_CreateInfo = defaults;
     return *this;
@@ -126,7 +130,13 @@ void Device::ChooseGPU(const CreateInfo& createInfo)
     }
     
     ASSERT(m_GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
-    vkGetPhysicalDeviceProperties(m_GPU, &m_GPUProperties);
+
+    m_GPUDescriptorIndexingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+    VkPhysicalDeviceProperties2 deviceProperties2 = {};
+    deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+    deviceProperties2.pNext = &m_GPUDescriptorIndexingProperties;
+    vkGetPhysicalDeviceProperties2(m_GPU, &deviceProperties2);
+    m_GPUProperties = deviceProperties2.properties;
 }
 
 void Device::CreateDevice(const CreateInfo& createInfo)
@@ -148,10 +158,22 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.multiDrawIndirect = VK_TRUE;
+    deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+
+    VkPhysicalDeviceVulkan12Features vulkan12Features = {};
+    vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    vulkan12Features.pNext = &vulkan11Features;
+    vulkan12Features.descriptorIndexing = VK_TRUE;
+    vulkan12Features.shaderSampledImageArrayNonUniformIndexing = VK_TRUE;
+    vulkan12Features.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
+    vulkan12Features.descriptorBindingPartiallyBound = VK_TRUE;
+    vulkan12Features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
+    vulkan12Features.descriptorBindingVariableDescriptorCount = VK_TRUE;
+    vulkan12Features.runtimeDescriptorArray = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = &vulkan11Features;
+    deviceCreateInfo.pNext = &vulkan12Features;
     deviceCreateInfo.queueCreateInfoCount = (u32)queueCreateInfos.size();
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
     deviceCreateInfo.enabledExtensionCount = (u32)createInfo.DeviceExtensions.size();
@@ -231,14 +253,25 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
     VkPhysicalDeviceShaderDrawParametersFeatures shaderFeatures = {};
     shaderFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_DRAW_PARAMETER_FEATURES;
     
+    VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures = {};
+    descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
+    descriptorIndexingFeatures.pNext = &shaderFeatures;
+    
     VkPhysicalDeviceFeatures2 features = {};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features.pNext = &shaderFeatures;
+    features.pNext = &descriptorIndexingFeatures;
     
     vkGetPhysicalDeviceFeatures2(gpu, &features);
     
     return features.features.samplerAnisotropy == VK_TRUE &&
         features.features.multiDrawIndirect == VK_TRUE &&
+        features.features.shaderSampledImageArrayDynamicIndexing == VK_TRUE &&
+        descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing == VK_TRUE &&
+        descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
+        descriptorIndexingFeatures.descriptorBindingPartiallyBound == VK_TRUE &&
+        descriptorIndexingFeatures.descriptorBindingUpdateUnusedWhilePending == VK_TRUE &&
+        descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE &&
+        descriptorIndexingFeatures.runtimeDescriptorArray == VK_TRUE &&
         shaderFeatures.shaderDrawParameters == VK_TRUE;
 }
 

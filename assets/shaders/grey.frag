@@ -3,13 +3,14 @@
 
 layout(location = 0) in vec3 vert_normal;
 
+@dynamic
 layout(set = 0, binding = 1) uniform scene_data{
     vec4 fog_color;          // w is for exponent
     vec4 fog_distances;      // x for min, y for max, zw unused.
     vec4 ambient_color;
     vec4 sunlight_direction; // w for sun power
     vec4 sunlight_color;
-} dyn_u_scene_data;
+} u_scene_data;
 
 layout(location = 0) out vec4 out_color;
 
@@ -18,6 +19,6 @@ layout(std140, set = 2, binding = 1) readonly buffer material_buffer{
 } u_material_buffer;
 
 void main() {
-    float intensity = dot(vert_normal, normalize(dyn_u_scene_data.sunlight_direction.xyz));
-    out_color = vec4(vec3(intensity) * dyn_u_scene_data.ambient_color.xyz, 1.0);
+    float intensity = dot(vert_normal, normalize(u_scene_data.sunlight_direction.xyz));
+    out_color = vec4(vec3(intensity) * u_scene_data.ambient_color.xyz, 1.0);
 }

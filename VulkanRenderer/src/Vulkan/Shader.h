@@ -32,22 +32,50 @@ enum class DescriptorKind : u32
 class Shader
 {
 public:
-    using ShaderReflection = assetLib::ShaderInfo;
+    struct ReflectionData
+    {
+        using InputAttribute = assetLib::ShaderInfo::InputAttribute;
+        using PushConstant = assetLib::ShaderInfo::PushConstant;
+        struct DescriptorSet
+        {
+            struct Descriptor
+            {
+                u32 Binding;
+                std::string Name;
+                VkDescriptorType Type;
+                u32 Count;
+                VkShaderStageFlags ShaderStages;
+                VkDescriptorBindingFlags Flags;
+            };
+            u32 Set;
+            VkDescriptorSetLayoutCreateFlags LayoutFlags;
+            VkDescriptorPoolCreateFlags PoolFlags;
+            std::vector<Descriptor> Descriptors;
+            std::vector<u32> VariableDescriptorCounts;
+        };
+
+        VkShaderStageFlags ShaderStages;
+        std::vector<InputAttribute> InputAttributes;
+        std::vector<PushConstant> PushConstants;
+        std::vector<DescriptorSet> DescriptorSets;
+    };
     struct ShaderModule
     {
         std::vector<u8> Source;
         ShaderKind Kind;
     };
 public:
-    void LoadFromAsset(std::string_view path);
     void ReflectFrom(const std::vector<std::string_view>& paths);
-    const assetLib::ShaderInfo& GetReflectionData() const { return m_ReflectionData; }
+    const ReflectionData& GetReflectionData() const { return m_ReflectionData; }
     const std::vector<ShaderModule>& GetShaders() const { return m_Modules; }
 private:
-    static assetLib::ShaderInfo MergeReflections(const assetLib::ShaderInfo& first, const assetLib::ShaderInfo& second); 
+    assetLib::ShaderInfo LoadFromAsset(std::string_view path);
+    static assetLib::ShaderInfo MergeReflections(const assetLib::ShaderInfo& first, const assetLib::ShaderInfo& second);
+    static std::vector<ReflectionData::DescriptorSet> ProcessDescriptorSets(const std::vector<assetLib::ShaderInfo::DescriptorSet>& sets);
+    static u32 GetBindlessDescriptorCount(VkDescriptorType type);
 private:
     std::vector<ShaderModule> m_Modules;
-    assetLib::ShaderInfo m_ReflectionData{};
+    ReflectionData m_ReflectionData{};
 };
 
 class ShaderPipelineTemplate
@@ -55,6 +83,7 @@ class ShaderPipelineTemplate
     friend class ShaderPipeline;
     friend class ShaderDescriptorSet;
 public:
+    using ReflectionData = Shader::ReflectionData;
     class Builder
     {
         friend class ShaderPipelineTemplate;
@@ -74,13 +103,20 @@ public:
         CreateInfo m_CreateInfo;
     };
 
-    struct DescriptorsInfo
+    struct DescriptorInfo
     {
         std::string Name;
         u32 Set;
         u32 Binding;
-        VkDescriptorType Descriptor;
+        VkDescriptorType Type;
         VkShaderStageFlags ShaderStages;
+        VkDescriptorBindingFlags Flags;
+    };
+
+    struct DescriptorsFlags
+    {
+        std::vector<VkDescriptorSetLayoutBinding> Descriptors;
+        std::vector<VkDescriptorBindingFlags> Flags;
     };
     
 public:
@@ -89,15 +125,18 @@ public:
 
     PipelineLayout& GetPipelineLayout() { return m_PipelineLayout; }
     const PipelineLayout& GetPipelineLayout() const { return m_PipelineLayout; }
+    const DescriptorSetLayout* GetDescriptorSetLayout(u32 index) const { return m_DescriptorSetLayouts[index]; }
 
+    const DescriptorInfo& GetDescriptorInfo(std::string_view name);
+    
     bool IsComputeTemplate() const;
     
 private:
-    static std::vector<DescriptorSetLayout*> CreateDescriptorLayouts(const std::vector<Shader::ShaderReflection::DescriptorSet>& descriptorSetReflections, DescriptorLayoutCache* layoutCache);
-    static VertexInputDescription CreateInputDescription(const std::vector<Shader::ShaderReflection::InputAttribute>& inputAttributeReflections);
-    static std::vector<PushConstantDescription> CreatePushConstantDescriptions(const std::vector<Shader::ShaderReflection::PushConstant>& pushConstantReflections);
+    static std::vector<DescriptorSetLayout*> CreateDescriptorLayouts(const std::vector<ReflectionData::DescriptorSet>& descriptorSetReflections, DescriptorLayoutCache* layoutCache);
+    static VertexInputDescription CreateInputDescription(const std::vector<ReflectionData::InputAttribute>& inputAttributeReflections);
+    static std::vector<PushConstantDescription> CreatePushConstantDescriptions(const std::vector<ReflectionData::PushConstant>& pushConstantReflections);
     static std::vector<ShaderModuleData> CreateShaderModules(const std::vector<Shader::ShaderModule>& shaders);
-    static std::vector<VkDescriptorSetLayoutBinding> ExtractBindings(const Shader::ShaderReflection::DescriptorSet& descriptorSet);
+    static DescriptorsFlags ExtractDescriptorsAndFlags(const ReflectionData::DescriptorSet& descriptorSet);
 private:
     DescriptorAllocator* m_Allocator{nullptr};
     DescriptorLayoutCache* m_LayoutCache{nullptr};
@@ -106,9 +145,12 @@ private:
     
     Pipeline::Builder m_PipelineBuilder{};
     PipelineLayout m_PipelineLayout;
+    std::vector<DescriptorSetLayout*> m_DescriptorSetLayouts;
 
     std::vector<ShaderModuleData> m_Shaders;
-    std::vector<DescriptorsInfo> m_DescriptorsInfo;
+    std::vector<DescriptorInfo> m_DescriptorsInfo;
+    std::vector<VkDescriptorSetLayoutCreateFlags> m_DescriptorSetFlags;
+    std::vector<VkDescriptorPoolCreateFlags> m_DescriptorPoolFlags;
     u32 m_DescriptorSetCount;
 };
 
@@ -125,7 +167,7 @@ public:
             const RenderPass* RenderPass;
             std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
         };
-        using BindingInfo = ShaderPipelineTemplate::DescriptorsInfo;
+        using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
         ShaderPipeline Build();
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
@@ -147,6 +189,9 @@ public:
     
     const Pipeline& GetPipeline() const { return m_Pipeline; }
     const PipelineLayout& GetPipelineLayout() const { return m_Template->GetPipelineLayout(); }
+
+    bool operator==(const ShaderPipeline& other) const { return m_Pipeline == other.m_Pipeline; }
+    bool operator!=(const ShaderPipeline& other) const { return !(*this == other); }
 private:
     ShaderPipelineTemplate* m_Template{nullptr};
 
@@ -167,16 +212,16 @@ public:
             std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
             std::array<u32, MAX_PIPELINE_DESCRIPTOR_SETS> UsedSets{0};
         };
-        using BindingInfo = ShaderPipelineTemplate::DescriptorsInfo;
+        using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
         ShaderDescriptorSet Build();
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
         Builder& AddBinding(std::string_view name, const Buffer& buffer);
         Builder& AddBinding(std::string_view name, const Buffer& buffer, u64 sizeBytes, u64 offset);
         Builder& AddBinding(std::string_view name, const Texture& texture);
+        Builder& AddBinding(std::string_view name, u32 variableBindingCount);
     private:
         void PreBuild();
-        const BindingInfo& FindDescriptorSet(std::string_view name) const;
     private:
         CreateInfo m_CreateInfo;
     };
@@ -198,9 +243,13 @@ public:
         VkPipelineBindPoint bindPoint);
     void Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
         VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
+
+    void SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex);
     
     const DescriptorSetsInfo& GetDescriptorSetsInfo() const { return m_DescriptorSetsInfo; }
     const DescriptorSet& GetDescriptorSet(DescriptorKind kind) const { return m_DescriptorSetsInfo.DescriptorSets[(u32)kind].Set; }
 private:
+    ShaderPipelineTemplate* m_Template{nullptr};
+    
     DescriptorSetsInfo m_DescriptorSetsInfo{};
 };

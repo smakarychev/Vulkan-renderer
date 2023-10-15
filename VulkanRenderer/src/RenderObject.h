@@ -10,10 +10,18 @@ class Mesh;
 
 struct Material
 {
-    // todo: find a better way?
     glm::vec4 Albedo;
-    ShaderDescriptorSet DescriptorSet;
-    ShaderPipeline Pipeline;
+    std::string AlbedoTexture{};
+};
+
+struct MaterialBindless
+{
+    static constexpr u32 NO_TEXTURE = std::numeric_limits<u32>::max();
+    glm::vec4 Albedo;
+    u32 AlbedoTextureIndex{NO_TEXTURE};
+    u32 Pad0{NO_TEXTURE};
+    u32 Pad1{NO_TEXTURE};
+    u32 Pad2{NO_TEXTURE};
 };
 
 class RenderObject
@@ -21,13 +29,14 @@ class RenderObject
 public:
     Mesh* Mesh{nullptr};
     Material* Material{nullptr};
+    MaterialBindless* MaterialBindless{nullptr};
     glm::mat4 Transform{};
 };
 
 struct BatchIndirect
 {
     Mesh* Mesh{nullptr};
-    Material* Material{nullptr};
+    MaterialBindless* MaterialBindless{nullptr};
     u32 First{0};
     u32 Count{0};
 };

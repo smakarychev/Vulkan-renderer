@@ -85,6 +85,9 @@ public:
     static Pipeline Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Pipeline& pipeline);
     void Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint);
+
+    bool operator==(const Pipeline& other) const { return m_Pipeline == other.m_Pipeline; }
+    bool operator!=(const Pipeline& other) const { return !(*this == other); }
 private:
     static Pipeline CreateGraphicsPipeline(const Builder::CreateInfo& createInfo);
     static Pipeline CreateComputePipeline(const Builder::CreateInfo& createInfo);
