@@ -95,7 +95,9 @@ void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const void* data,
 
 void* ResourceUploader::GetMappedAddress(u32 mappedBufferIndex)
 {
-    return m_StageBuffers[m_ActiveMappings[mappedBufferIndex].BufferIndex].MappedAddress;
+    u64 offset = m_BufferUploads[m_ActiveMappings[mappedBufferIndex].BufferUploadIndex].CopyInfo.SourceOffset;
+    u8* address = (u8*)m_StageBuffers[m_ActiveMappings[mappedBufferIndex].BufferIndex].MappedAddress;
+    return address + offset;
 }
 
 ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 sizeBytes)
@@ -127,10 +129,9 @@ u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
     {
         m_LastUsedBuffer++;
         if (m_LastUsedBuffer == m_StageBuffers.size())
-        {
             m_StageBuffers.push_back(CreateStagingBuffer(std::max(sizeBytes, STAGING_BUFFER_DEFAULT_SIZE_BYTES)));
-            m_StageBuffers[m_LastUsedBuffer].MappedAddress = m_StageBuffers[m_LastUsedBuffer].Buffer.Map();
-        }
+
+        m_StageBuffers[m_LastUsedBuffer].MappedAddress = m_StageBuffers[m_LastUsedBuffer].Buffer.Map();
         currentBufferOffset = 0;
     }
 

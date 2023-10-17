@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include "AssetLib.h"
+#include "AssetManager.h"
 #include "Buffer.h"
 #include "Core/core.h"
 #include "DescriptorSet.h"
@@ -15,23 +16,37 @@
 #include "utils/utils.h"
 
 
-void Shader::ReflectFrom(const std::vector<std::string_view>& paths)
+Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
 {
+    std::string combinedNames;
+    for (auto& path : paths)
+        combinedNames += std::string{path};
+
+    Shader* cachedShader = AssetManager::GetShader(combinedNames);  
+    if (cachedShader)
+        return cachedShader;
+
+    Shader shader;
+    
     assetLib::ShaderInfo mergedShaderInfo = {};
     
     for (auto& path : paths)
-        mergedShaderInfo = MergeReflections(mergedShaderInfo, LoadFromAsset(path));
+        mergedShaderInfo = MergeReflections(mergedShaderInfo, shader.LoadFromAsset(path));
 
     ASSERT(mergedShaderInfo.DescriptorSets.size() <= MAX_PIPELINE_DESCRIPTOR_SETS,
         "Can have only {} different descriptor sets, but have {}",
         MAX_PIPELINE_DESCRIPTOR_SETS, mergedShaderInfo.DescriptorSets.size())
 
-    m_ReflectionData = {
+    shader.m_ReflectionData = {
         .ShaderStages = mergedShaderInfo.ShaderStages,
         .InputAttributes = mergedShaderInfo.InputAttributes,
         .PushConstants = mergedShaderInfo.PushConstants,
         .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets),
     };
+
+    AssetManager::AddShader(combinedNames, shader);
+    
+    return AssetManager::GetShader(combinedNames);
 }
 
 assetLib::ShaderInfo Shader::LoadFromAsset(std::string_view path)

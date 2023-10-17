@@ -140,7 +140,7 @@ void ModelConverter::Convert(const std::filesystem::path& path)
             nodesToProcess.push_back(currentNode->mChildren[i]);
     }
 
-    assetLib::File modelFile = assetLib::packModel(modelInfo, modelData.VertexGroup.Elements(), modelData.Indices.data());
+    assetLib::File modelFile = assetLib::packModel(modelInfo, {modelData.VertexGroup.Elements().begin(), modelData.VertexGroup.Elements().end()}, modelData.Indices.data());
 
     assetLib::saveAssetFile(assetPath.string(), blobPath.string(), modelFile);
 
@@ -153,7 +153,7 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
 
     std::vector<u32> indices = GetMeshIndices(mesh);
 
-    std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxTypeVal> materials;
+    std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxVal> materials;
     if (scene->HasMaterials())
         for (u32 i = 0; i < materials.size(); i++)
             materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);

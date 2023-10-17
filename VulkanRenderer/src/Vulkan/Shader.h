@@ -66,7 +66,7 @@ public:
         ShaderKind Kind;
     };
 public:
-    void ReflectFrom(const std::vector<std::string_view>& paths);
+    static Shader* ReflectFrom(const std::vector<std::string_view>& paths);
     const ReflectionData& GetReflectionData() const { return m_ReflectionData; }
     const std::vector<ShaderModule>& GetShaders() const { return m_Modules; }
 private:

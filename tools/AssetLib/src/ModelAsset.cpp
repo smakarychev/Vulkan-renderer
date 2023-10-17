@@ -56,12 +56,12 @@ namespace glm {
 
 namespace assetLib
 {
-    std::vector<const void*> VertexGroup::Elements()
+    std::array<const void*, (u32)VertexElement::MaxVal> VertexGroup::Elements()
     {
         return {Positions.data(), Normals.data(), UVs.data()};
     }
 
-    std::vector<u64> VertexGroup::ElementsSizesBytes()
+    std::array<u64, (u32)VertexElement::MaxVal> VertexGroup::ElementsSizesBytes()
     {
         return {Positions.size() * sizeof(glm::vec3), Normals.size() * sizeof(glm::vec3), UVs.size() * sizeof(glm::vec2)};        
     }
@@ -103,9 +103,8 @@ namespace assetLib
             meshInfo.Name = mesh["name"];
 
             const nlohmann::json& vertexElementSizeBytes = mesh["vertex_elements_size_bytes"];
-            meshInfo.VertexElementsSizeBytes.reserve(vertexElementSizeBytes.size());
-            for (auto& elementSizeBytes : vertexElementSizeBytes)
-                meshInfo.VertexElementsSizeBytes.push_back(elementSizeBytes);
+            for (u32 vertexElementIndex = 0; vertexElementIndex < vertexElementSizeBytes.size(); vertexElementIndex++)
+                meshInfo.VertexElementsSizeBytes[vertexElementIndex] = vertexElementSizeBytes[vertexElementIndex];
 
             u64 indicesSizeBytes = mesh["indices_size_bytes"];
             meshInfo.IndicesSizeBytes = indicesSizeBytes;
@@ -134,7 +133,7 @@ namespace assetLib
         return info;
     }
 
-    assetLib::File packModel(const ModelInfo& info, std::vector<const void*> vertices, void* indices)
+    assetLib::File packModel(const ModelInfo& info, const std::vector<const void*>& vertices, void* indices)
     {
         nlohmann::json metadata;
 
@@ -188,7 +187,7 @@ namespace assetLib
         return assetFile;        
     }
 
-    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, std::vector<u8*> vertices, u8* indices)
+    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, const std::vector<u8*>& vertices, u8* indices)
     {
         std::vector<u64> vertexElementsSizeBytes = info.VertexElementsSizeBytes();
         u64 vertexElementsSizeBytesTotal = std::accumulate(vertexElementsSizeBytes.begin(), vertexElementsSizeBytes.end(), 0llu);

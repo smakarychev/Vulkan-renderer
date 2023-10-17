@@ -401,17 +401,17 @@ void Renderer::LoadScene()
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    Model car = Model::LoadFromAsset("../assets/models/car/scene.model");
-    Model mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
-    Model gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
-    Model helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
-    Model tree = Model::LoadFromAsset("../assets/models/tree/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
+    Model* mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
+    Model* gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
+    Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
+    Model* tree = Model::LoadFromAsset("../assets/models/tree/scene.model");
    //Model sponza = Model::LoadFromAsset("../assets/models/sponza/scene.model");
-    car.Upload(*this);
-    mori.Upload(*this);
-    gun.Upload(*this);
-    helmet.Upload(*this);
-    tree.Upload(*this);
+    car->Upload(m_ResourceUploader);
+    mori->Upload(m_ResourceUploader);
+    gun->Upload(m_ResourceUploader);
+    helmet->Upload(m_ResourceUploader);
+    tree->Upload(m_ResourceUploader);
    // sponza.Upload(*this);
     
     m_Scene.AddModel(car, "car");
@@ -419,6 +419,7 @@ void Renderer::LoadScene()
     m_Scene.AddModel(gun, "gun");
     m_Scene.AddModel(helmet, "helmet");
     m_Scene.AddModel(tree, "tree");
+
     //m_Scene.AddModel(sponza, "sponza");
 
     std::vector models = {"helmet", "car", "gun", "tree"};
@@ -437,11 +438,12 @@ void Renderer::LoadScene()
         }
     }
 
-    Shader bindlessShaderReflection = {};
-    bindlessShaderReflection.ReflectFrom({"../assets/shaders/bindless-textures-test-vert.shader", "../assets/shaders/bindless-textures-test-frag.shader"});
+    Shader* bindlessShaderReflection = Shader::ReflectFrom({
+        "../assets/shaders/bindless-textures-test-vert.shader",
+        "../assets/shaders/bindless-textures-test-frag.shader"});
 
     ShaderPipelineTemplate bindlessTemplate = templateBuilder
-        .SetShaderReflection(&bindlessShaderReflection)
+        .SetShaderReflection(bindlessShaderReflection)
         .Build();
 
     m_Scene.AddShaderTemplate(bindlessTemplate, "bindless");

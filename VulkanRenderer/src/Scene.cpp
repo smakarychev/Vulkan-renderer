@@ -26,7 +26,7 @@ Material* Scene::GetMaterial(const std::string& name)
 Model* Scene::GetModel(const std::string& name)
 {
     auto it = m_Models.find(name);
-    return it == m_Models.end() ? nullptr : &it->second;
+    return it == m_Models.end() ? nullptr : it->second;
 }
 
 Mesh* Scene::GetMesh(const std::string& name)
@@ -61,7 +61,7 @@ void Scene::AddMesh(const Mesh& mesh, const std::string& name)
     m_Meshes.emplace(std::make_pair(name, mesh));
 }
 
-void Scene::AddModel(const Model& model, const std::string& name)
+void Scene::AddModel(Model* model, const std::string& name)
 {
     m_Models.emplace(std::make_pair(name, model));
 }

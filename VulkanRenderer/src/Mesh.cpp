@@ -134,75 +134,12 @@ Mesh::Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>
         .Build();
 }
 
-void Mesh::Upload(const Renderer& renderer)
+void Mesh::Upload(ResourceUploader& uploader)
 {
-    {
-        Buffer stageBuffer = Buffer::Builder()
-            .SetKind(BufferKind::Source)
-            .SetSizeBytes(m_PositionsBuffer.GetSizeBytes())
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .BuildManualLifetime();
-
-        stageBuffer.SetData(m_Positions.data(), m_PositionsBuffer.GetSizeBytes());
-
-        renderer.ImmediateUpload([&](const CommandBuffer& cmd)
-        {
-            RenderCommand::CopyBuffer(cmd, stageBuffer, m_PositionsBuffer, {stageBuffer.GetSizeBytes(), 0, 0});
-        });
-    
-        Buffer::Destroy(stageBuffer);
-    }
-
-    {
-        Buffer stageBuffer = Buffer::Builder()
-            .SetKind(BufferKind::Source)
-            .SetSizeBytes(m_NormalsBuffer.GetSizeBytes())
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .BuildManualLifetime();
-
-        stageBuffer.SetData(m_Normals.data(), m_NormalsBuffer.GetSizeBytes());
-
-        renderer.ImmediateUpload([&](const CommandBuffer& cmd)
-        {
-            RenderCommand::CopyBuffer(cmd, stageBuffer, m_NormalsBuffer, {stageBuffer.GetSizeBytes(), 0, 0});
-        });
-    
-        Buffer::Destroy(stageBuffer);
-    }
-
-    {
-        Buffer stageBuffer = Buffer::Builder()
-            .SetKind(BufferKind::Source)
-            .SetSizeBytes(m_UVsBuffer.GetSizeBytes())
-            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-            .BuildManualLifetime();
-
-        stageBuffer.SetData(m_UVs.data(), m_UVsBuffer.GetSizeBytes());
-
-        renderer.ImmediateUpload([&](const CommandBuffer& cmd)
-        {
-            RenderCommand::CopyBuffer(cmd, stageBuffer, m_UVsBuffer, {stageBuffer.GetSizeBytes(), 0, 0});
-        });
-    
-        Buffer::Destroy(stageBuffer);
-    }
-
-    {
-        Buffer stageBuffer = Buffer::Builder()
-        .SetKind(BufferKind::Source)
-        .SetSizeBytes(m_IndexBuffer.GetSizeBytes())
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
-        .BuildManualLifetime();
-
-        stageBuffer.SetData(m_Indices.data(), m_IndexBuffer.GetSizeBytes());
-
-        renderer.ImmediateUpload([&](const CommandBuffer& cmd)
-        {
-            RenderCommand::CopyBuffer(cmd, stageBuffer, m_IndexBuffer, {stageBuffer.GetSizeBytes(), 0, 0});
-        });
-    
-        Buffer::Destroy(stageBuffer);
-    }
+    uploader.UpdateBuffer(m_PositionsBuffer, m_Positions.data(), m_PositionsBuffer.GetSizeBytes(), 0);
+    uploader.UpdateBuffer(m_NormalsBuffer, m_Normals.data(), m_NormalsBuffer.GetSizeBytes(), 0);
+    uploader.UpdateBuffer(m_UVsBuffer, m_UVs.data(), m_UVsBuffer.GetSizeBytes(), 0);
+    uploader.UpdateBuffer(m_IndexBuffer, m_Indices.data(), m_IndexBuffer.GetSizeBytes(), 0);
 }
 
 void Mesh::Bind(const CommandBuffer& cmd) const

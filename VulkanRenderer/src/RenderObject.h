@@ -24,9 +24,8 @@ struct MaterialGPU
     u32 Pad2{NO_TEXTURE};
 };
 
-class RenderObject
+struct RenderObject
 {
-public:
     Mesh* Mesh{nullptr};
     Material* Material{nullptr};
     MaterialGPU* MaterialBindless{nullptr};

@@ -34,7 +34,7 @@ public:
         std::string Name;
         assetLib::VertexGroup VertexGroup;
         std::vector<u32> Indices;
-        std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxTypeVal> MaterialInfos;
+        std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxVal> MaterialInfos;
     };
 public:
     static bool NeedsConversion(const std::filesystem::path& path);

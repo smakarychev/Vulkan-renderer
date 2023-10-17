@@ -8,7 +8,7 @@
 class ShaderDescriptorSet;
 class ShaderPipelineTemplate;
 class Model;
-class RenderObject;
+struct RenderObject;
 class Mesh;
 struct Material;
 
@@ -26,7 +26,7 @@ public:
     void AddMaterialGPU(const MaterialGPU& material, const std::string& name);
     void AddMaterial(const Material& material, const std::string& name);
     void AddMesh(const Mesh& mesh, const std::string& name);
-    void AddModel(const Model& model, const std::string& name);
+    void AddModel(Model* model, const std::string& name);
     void AddTexture(const Texture& texture, const std::string& name);
 
     const std::vector<RenderObject>& GetRenderObjects() const { return m_RenderObjects; }
@@ -44,7 +44,7 @@ private:
     std::unordered_map<std::string, ShaderPipelineTemplate> m_ShaderTemplates;
     std::unordered_map<std::string, Material> m_Materials;
     std::unordered_map<std::string, MaterialGPU> m_MaterialsGPU;
-    std::unordered_map<std::string, Model> m_Models;
+    std::unordered_map<std::string, Model*> m_Models;
     std::unordered_map<std::string, Mesh> m_Meshes;
     std::unordered_map<std::string, Texture> m_Textures;
 

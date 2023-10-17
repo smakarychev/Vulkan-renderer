@@ -2,6 +2,7 @@
 
 #include "Vulkan/VulkanInclude.h"
 
+class ResourceUploader;
 class Renderer;
 
 struct VertexP3N3UV2
@@ -38,7 +39,7 @@ class Mesh
 {
 public:
     Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals, const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices);
-    void Upload(const Renderer& renderer);
+    void Upload(ResourceUploader& uploader);
     u32 GetVertexCount() const { return (u32)m_Positions.size(); }
     u32 GetIndexCount() const { return (u32)m_Indices.size(); }
     void Bind(const CommandBuffer& cmd) const;

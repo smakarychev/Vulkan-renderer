@@ -11,7 +11,6 @@ class ShaderPipelineTemplate;
 class RenderObject;
 class Renderer;
 
-
 class Model
 {
     struct MaterialInfo
@@ -25,8 +24,8 @@ class Model
         MaterialInfo Albedo;
     };
 public:
-    static Model LoadFromAsset(std::string_view path);
-    void Upload(const Renderer& renderer);
+    static Model* LoadFromAsset(std::string_view path);
+    void Upload(ResourceUploader& uploader);
     void CreateRenderObjects(Scene* scene, const glm::mat4& transform);
 private:
     std::vector<MeshInfo> m_Meshes;

@@ -17,11 +17,16 @@ namespace assetLib
         P3N3UV2,
     };
 
+    enum class VertexElement : u32
+    {
+        Position = 0, Normal, UV,
+        MaxVal
+    };
+
     struct VertexGroup
     {
-        VertexFormat GetVertexFormat();
-        std::vector<const void*> Elements();
-        std::vector<u64> ElementsSizesBytes();
+        std::array<const void*, (u32)VertexElement::MaxVal> Elements();
+        std::array<u64, (u32)VertexElement::MaxVal> ElementsSizesBytes();
 
         std::vector<glm::vec3> Positions;
         std::vector<glm::vec3> Normals;
@@ -39,7 +44,7 @@ namespace assetLib
     {
         enum class MaterialType : u32
         {
-            Albedo = 0, MaxTypeVal
+            Albedo = 0, MaxVal
         };
         struct MaterialInfo
         {
@@ -49,9 +54,9 @@ namespace assetLib
         struct MeshInfo
         {
             std::string Name;
-            std::vector<u64> VertexElementsSizeBytes;
+            std::array<u64, (u32)VertexElement::MaxVal> VertexElementsSizeBytes;
             u64 IndicesSizeBytes;
-            std::array<MaterialInfo, (u32)MaterialType::MaxTypeVal> Materials;
+            std::array<MaterialInfo, (u32)MaterialType::MaxVal> Materials;
         };
         
         VertexFormat VertexFormat;
@@ -63,6 +68,6 @@ namespace assetLib
 
     ModelInfo readModelInfo(const assetLib::File& file);
 
-    assetLib::File packModel(const ModelInfo& info, std::vector<const void*> vertices, void* indices);
-    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, std::vector<u8*> vertices, u8* indices);
+    assetLib::File packModel(const ModelInfo& info, const std::vector<const void*>& vertices, void* indices);
+    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, const std::vector<u8*>& vertices, u8* indices);
 }
