@@ -5,6 +5,8 @@
 #include "RenderObject.h"
 #include "Vulkan/Image.h"
 
+class ShaderDescriptorSet;
+class ShaderPipelineTemplate;
 class Model;
 class RenderObject;
 class Mesh;
@@ -14,14 +16,14 @@ class Scene
 {
 public:
     ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
-    MaterialBindless* GetMaterialBindless(const std::string& name);
+    MaterialGPU* GetMaterialBindless(const std::string& name);
     Material* GetMaterial(const std::string& name);
     Model* GetModel(const std::string& name);
     Mesh* GetMesh(const std::string& name);
     Texture* GetTexture(const std::string& name);
 
     void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
-    void AddMaterialBindless(const MaterialBindless& material, const std::string& name);
+    void AddMaterialGPU(const MaterialGPU& material, const std::string& name);
     void AddMaterial(const Material& material, const std::string& name);
     void AddMesh(const Mesh& mesh, const std::string& name);
     void AddModel(const Model& model, const std::string& name);
@@ -41,7 +43,7 @@ public:
 private:
     std::unordered_map<std::string, ShaderPipelineTemplate> m_ShaderTemplates;
     std::unordered_map<std::string, Material> m_Materials;
-    std::unordered_map<std::string, MaterialBindless> m_MaterialsBindless;
+    std::unordered_map<std::string, MaterialGPU> m_MaterialsGPU;
     std::unordered_map<std::string, Model> m_Models;
     std::unordered_map<std::string, Mesh> m_Meshes;
     std::unordered_map<std::string, Texture> m_Textures;

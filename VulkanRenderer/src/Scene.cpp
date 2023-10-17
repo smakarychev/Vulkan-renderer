@@ -3,68 +3,57 @@
 #include "Mesh.h"
 #include "RenderObject.h"
 #include "Model.h"
+#include "Vulkan/Shader.h"
 
 ShaderPipelineTemplate* Scene::GetShaderTemplate(const std::string& name)
 {
     auto it = m_ShaderTemplates.find(name);
-    if (it == m_ShaderTemplates.end())
-        return nullptr;
-    return &it->second;
+    return it == m_ShaderTemplates.end() ? nullptr : &it->second;
 }
 
-MaterialBindless* Scene::GetMaterialBindless(const std::string& name)
+MaterialGPU* Scene::GetMaterialBindless(const std::string& name)
 {
-    auto it = m_MaterialsBindless.find(name);
-    if (it == m_MaterialsBindless.end())
-        return nullptr;
-    return &it->second;
+    auto it = m_MaterialsGPU.find(name);
+    return it == m_MaterialsGPU.end() ? nullptr : &it->second;
 }
 
 Material* Scene::GetMaterial(const std::string& name)
 {
     auto it = m_Materials.find(name);
-    if (it == m_Materials.end())
-        return nullptr;
-    return &it->second;
+    return it == m_Materials.end() ? nullptr : &it->second;
 }
 
 Model* Scene::GetModel(const std::string& name)
 {
     auto it = m_Models.find(name);
-    if (it == m_Models.end())
-        return nullptr;
-    return &it->second;
+    return it == m_Models.end() ? nullptr : &it->second;
 }
 
 Mesh* Scene::GetMesh(const std::string& name)
 {
     auto it = m_Meshes.find(name);
-    if (it == m_Meshes.end())
-        return nullptr;
-    return &it->second;
+    return it == m_Meshes.end() ? nullptr : &it->second;
 }
 
 Texture* Scene::GetTexture(const std::string& name)
 {
     auto it = m_Textures.find(name);
-    if (it == m_Textures.end())
-        return nullptr;
-    return &it->second;
+    return it == m_Textures.end() ? nullptr : &it->second;
 }
 
 void Scene::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name)
 {
-    m_ShaderTemplates[name] = shaderTemplate;
+    m_ShaderTemplates.emplace(std::make_pair(name, shaderTemplate));
 }
 
-void Scene::AddMaterialBindless(const MaterialBindless& material, const std::string& name)
+void Scene::AddMaterialGPU(const MaterialGPU& material, const std::string& name)
 {
-    m_MaterialsBindless[name] = material;
+    m_MaterialsGPU.emplace(std::make_pair(name, material));
 }
 
 void Scene::AddMaterial(const Material& material, const std::string& name)
 {
-    m_Materials[name] = material;
+    m_Materials.emplace(std::make_pair(name, material));
 }
 
 void Scene::AddMesh(const Mesh& mesh, const std::string& name)
@@ -88,9 +77,9 @@ void Scene::UpdateRenderObject(ShaderDescriptorSet& bindlessDescriptorSet, Bindl
     {
         RenderObject& object = m_RenderObjects[i];
         Material* material = object.Material;
-        MaterialBindless* materialBindless = object.MaterialBindless;
+        MaterialGPU* materialBindless = object.MaterialBindless;
         
-        if (material->AlbedoTexture.length() > 0 && materialBindless->AlbedoTextureIndex == MaterialBindless::NO_TEXTURE)
+        if (material->AlbedoTexture.length() > 0 && materialBindless->AlbedoTextureIndex == MaterialGPU::NO_TEXTURE)
         {
             materialBindless->AlbedoTextureIndex = bindlessDescriptorsState.TextureIndex;
             bindlessDescriptorSet.SetTexture("u_textures", *GetTexture(material->AlbedoTexture), materialBindless->AlbedoTextureIndex);

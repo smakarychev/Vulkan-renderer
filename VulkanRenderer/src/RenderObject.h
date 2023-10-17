@@ -1,9 +1,9 @@
 ﻿#pragma once
 
+#include <string>
 #include <glm/glm.hpp>
 
 #include "Settings.h"
-#include "Vulkan/Shader.h"
 
 class DescriptorSet;
 class Mesh;
@@ -14,7 +14,7 @@ struct Material
     std::string AlbedoTexture{};
 };
 
-struct MaterialBindless
+struct MaterialGPU
 {
     static constexpr u32 NO_TEXTURE = std::numeric_limits<u32>::max();
     glm::vec4 Albedo;
@@ -29,14 +29,14 @@ class RenderObject
 public:
     Mesh* Mesh{nullptr};
     Material* Material{nullptr};
-    MaterialBindless* MaterialBindless{nullptr};
+    MaterialGPU* MaterialBindless{nullptr};
     glm::mat4 Transform{};
 };
 
 struct BatchIndirect
 {
     Mesh* Mesh{nullptr};
-    MaterialBindless* MaterialBindless{nullptr};
+    MaterialGPU* MaterialBindless{nullptr};
     u32 First{0};
     u32 Count{0};
 };

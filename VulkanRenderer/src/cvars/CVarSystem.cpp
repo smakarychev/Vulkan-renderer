@@ -112,26 +112,26 @@ public:
     template<>
     CVarArray<std::string>& GetCVarArray() { return StringCVars; }
 
-    CVarParameter* GetCVar(utils::StringHash stringHash) final;
+    CVarParameter* GetCVar(std::string_view name) final;
     CVarParameter* CreateFloatCVar(std::string_view name, std::string_view description, f32 initialVal, f32 val) final;
-    f32* GetF32CVar(utils::StringHash stringHash) final;
-    void SetF32CVar(utils::StringHash stringHash, f32 value) final;
+    f32* GetF32CVar(std::string_view name) final;
+    void SetF32CVar(std::string_view name, f32 value) final;
 private:
     CVarParameter* InitCVar(std::string_view name, std::string_view description);
 
     template <typename T>
-    T* GetCVarValue(utils::StringHash stringHash);
+    T* GetCVarValue(std::string_view name);
 
     template <typename T>
-    void SetCVarValue(utils::StringHash stringHash, const T& val);
+    void SetCVarValue(std::string_view name, const T& val);
 private:
-    std::unordered_map<u64, CVarParameter> m_CVars; 
+    std::unordered_map<std::string, CVarParameter> m_CVars; 
 };
 
-CVarParameter* CVarSystemImpl::GetCVar(utils::StringHash stringHash)
+CVarParameter* CVarSystemImpl::GetCVar(std::string_view name)
 {
-    if (m_CVars.contains(stringHash))
-        return &m_CVars.at(stringHash);
+    if (m_CVars.contains(std::string{name}))
+        return &m_CVars.at(std::string{name});
     return nullptr;
 }
 
@@ -147,14 +147,14 @@ CVarParameter* CVarSystemImpl::CreateFloatCVar(std::string_view name, std::strin
     return parameter;
 }
 
-f32* CVarSystemImpl::GetF32CVar(utils::StringHash stringHash)
+f32* CVarSystemImpl::GetF32CVar(std::string_view name)
 {
-    return GetCVarValue<f32>(stringHash);
+    return GetCVarValue<f32>(name);
 }
 
-void CVarSystemImpl::SetF32CVar(utils::StringHash stringHash, f32 value)
+void CVarSystemImpl::SetF32CVar(std::string_view name, f32 value)
 {
-    SetCVarValue(stringHash, value);
+    SetCVarValue(name, value);
 }
 
 CVarParameter* CVarSystemImpl::InitCVar(std::string_view name, std::string_view description)
@@ -165,10 +165,9 @@ CVarParameter* CVarSystemImpl::InitCVar(std::string_view name, std::string_view 
     CVarParameter newCVar = {};
     newCVar.Name = name;
     newCVar.Description = description;
-    utils::StringHash namehash{name};
-    m_CVars.emplace(std::make_pair(namehash, newCVar));
+    m_CVars.emplace(std::make_pair(name, newCVar));
     
-    return &m_CVars.at(namehash);
+    return &m_CVars.at(std::string{name});
 }
 
 CVarSystem* CVarSystem::Get()
@@ -178,16 +177,16 @@ CVarSystem* CVarSystem::Get()
 }
 
 template <typename T>
-T* CVarSystemImpl::GetCVarValue(utils::StringHash stringHash)
+T* CVarSystemImpl::GetCVarValue(std::string_view name)
 {
-    CVarParameter* parameter = GetCVar(stringHash);
+    CVarParameter* parameter = GetCVar(name);
     return parameter ? GetCVarArray<T>().GetValuePtr(parameter->ArrayIndex) : nullptr; 
 }
 
 template <typename T>
-void CVarSystemImpl::SetCVarValue(utils::StringHash stringHash, const T& val)
+void CVarSystemImpl::SetCVarValue(std::string_view name, const T& val)
 {
-    CVarParameter* parameter = GetCVar(stringHash);
+    CVarParameter* parameter = GetCVar(name);
     if (parameter != nullptr)
         GetCVarArray<T>().SetValue(val, parameter->ArrayIndex);
 }

@@ -123,7 +123,7 @@ void Renderer::UpdateScene()
     }
 
     m_ResourceUploader.UpdateBuffer(m_ObjectDataSSBO.Buffer, m_ObjectDataSSBO.Objects.data(), m_ObjectDataSSBO.Objects.size() * sizeof(ObjectData), 0);
-    m_ResourceUploader.UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialBindless), 0);
+    m_ResourceUploader.UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU), 0);
 }
 
 void Renderer::BeginFrame()
@@ -391,7 +391,7 @@ void Renderer::LoadScene()
 
     m_MaterialDataSSBO.Buffer = Buffer::Builder()
         .SetKinds({BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(m_MaterialDataSSBO.Materials.size() * sizeof(MaterialBindless))
+        .SetSizeBytes(m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
     
@@ -431,9 +431,6 @@ void Renderer::LoadScene()
             
             glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 3.0f, 0.0f, z * 3.0f)) *
                 glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
-
-            RenderObject newRenderObject;
-            newRenderObject.Transform = transform;
 
             Model* model = m_Scene.GetModel(models[modelIndex]);
             model->CreateRenderObjects(&m_Scene, transform);

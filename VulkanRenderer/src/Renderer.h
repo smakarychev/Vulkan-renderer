@@ -57,7 +57,7 @@ struct ObjectDataSSBO
 struct MaterialDataSSBO
 {
     Buffer Buffer;
-    std::array<MaterialBindless, MAX_OBJECTS> Materials;
+    std::array<MaterialGPU, MAX_OBJECTS> Materials;
 };
 
 struct ComputeDispatch

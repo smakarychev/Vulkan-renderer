@@ -101,7 +101,7 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
                 }
             }
             scene->AddMaterial(material, materialName);
-            scene->AddMaterialBindless({.Albedo = material.Albedo}, materialName);
+            scene->AddMaterialGPU({.Albedo = material.Albedo}, materialName);
         }
 
         if (scene->GetMesh(meshName) == nullptr)
