@@ -163,7 +163,17 @@ void Image::Destroy(const Image& image)
 ImageDescriptorInfo Image::CreateDescriptorInfo(VkFilter samplerFilter) const
 {
     VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = Texture::CreateSampler(samplerFilter, m_ImageData.MipMapCount); // todo: find a better place for it
+    descriptorTextureInfo.sampler = Texture::CreateSampler(samplerFilter, (f32)m_ImageData.MipMapCount); // todo: find a better place for it
+    descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptorTextureInfo.imageView = m_ImageData.View;
+
+    return descriptorTextureInfo;
+}
+
+ImageDescriptorInfo Image::CreateDescriptorInfo() const
+{
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.sampler = VK_NULL_HANDLE;
     descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     descriptorTextureInfo.imageView = m_ImageData.View;
 
@@ -312,7 +322,7 @@ void Image::CreateMipMaps(const Image& image, const CreateInfo& createInfo)
     }
 }
 
-VkSampler Image::CreateSampler(VkFilter scaleFilter, u32 mipmapCount)
+VkSampler Image::CreateSampler(VkFilter scaleFilter, f32 maxLod)
 {
     VkSampler sampler;
     
@@ -330,7 +340,7 @@ VkSampler Image::CreateSampler(VkFilter scaleFilter, u32 mipmapCount)
     samplerCreateInfo.mipLodBias = 0.0f;
     samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
     samplerCreateInfo.minLod = 0.0f;
-    samplerCreateInfo.maxLod = (f32)mipmapCount;
+    samplerCreateInfo.maxLod = maxLod;
     samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
 
     vkCreateSampler(Driver::DeviceHandle(), &samplerCreateInfo, nullptr, &sampler);

@@ -83,6 +83,8 @@ public:
     static u32 GetMaxIndexingStorageBuffers() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic; }
     static u32 GetMaxIndexingStorageBuffersDynamic() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic; }
     static UploadContext* UploadContext() { return &s_State.UploadContext; }
+
+    static VkSampler* GetImmutableSampler();
 public:
     static DriverState s_State;
 };

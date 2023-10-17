@@ -48,6 +48,7 @@ public:
     static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination);
     
     static void BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
+    static void BindVertexBuffers(const CommandBuffer& cmd, const std::vector<Buffer>& buffers, const std::vector<u64>& offsets);
     static void BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
     static void BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,

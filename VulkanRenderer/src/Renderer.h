@@ -143,7 +143,6 @@ private:
     CameraDataUBO m_CameraDataUBO;
     SceneDataUBO m_SceneDataUBO;
     MaterialDataSSBO m_MaterialDataSSBO;
-    ShaderDescriptorSet m_GlobalObjectSet;
     
     Scene m_Scene;
 

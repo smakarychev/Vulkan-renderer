@@ -14,23 +14,37 @@ Model Model::LoadFromAsset(std::string_view path)
     assetLib::File modelFile;
     assetLib::loadAssetFile(path, modelFile);
     assetLib::ModelInfo modelInfo = assetLib::readModelInfo(modelFile);
-    ASSERT(modelInfo.VertexFormat == assetLib::VertexFormat::P3N3C3UV2, "Unsupported vertex format")
+    ASSERT(modelInfo.VertexFormat == assetLib::VertexFormat::P3N3UV2, "Unsupported vertex format")
 
-    std::vector<VertexP3N3UV> vertices(modelInfo.VerticesSizeBytes());
+    std::vector<u64> vertexElementsSizeBytes = modelInfo.VertexElementsSizeBytes();
+    std::vector<glm::vec3> positions(vertexElementsSizeBytes[0]);
+    std::vector<glm::vec3> normals(vertexElementsSizeBytes[1]);
+    std::vector<glm::vec2> uvs(vertexElementsSizeBytes[2]);
     std::vector<u32> indices(modelInfo.IndicesSizeBytes());
 
-    assetLib::unpackModel(modelInfo, modelFile.Blob.data(), modelFile.Blob.size(), (u8*)vertices.data(), (u8*)indices.data());
+    assetLib::unpackModel(modelInfo, modelFile.Blob.data(), modelFile.Blob.size(),
+        {(u8*)positions.data(), (u8*)normals.data(), (u8*)uvs.data()}, (u8*)indices.data());
 
-    u32 verticesOffset = 0;
+    u32 positionsOffset = 0;
+    u32 normalsOffset = 0;
+    u32 uvsOffset = 0;
     u32 indicesOffset = 0;
     
     std::vector<MeshInfo> meshes;
     meshes.reserve(modelInfo.MeshInfos.size());
     for (auto& meshInfo : modelInfo.MeshInfos)
     {
-        auto verticesBegin = vertices.begin() + verticesOffset;
-        verticesOffset += (u32)(meshInfo.VerticesSizeBytes / sizeof(VertexP3N3UV));
-        auto verticesEnd = vertices.begin() + verticesOffset;
+        auto positionsBegin = positions.begin() + positionsOffset;
+        positionsOffset += (u32)(meshInfo.VertexElementsSizeBytes[0] / sizeof(glm::vec3));
+        auto positionsEnd = positions.begin() + positionsOffset;
+
+        auto normalsBegin = normals.begin() + normalsOffset;
+        normalsOffset += (u32)(meshInfo.VertexElementsSizeBytes[1] / sizeof(glm::vec3));
+        auto normalsEnd = normals.begin() + normalsOffset;
+
+        auto uvsBegin = uvs.begin() + uvsOffset;
+        uvsOffset += (u32)(meshInfo.VertexElementsSizeBytes[2] / sizeof(glm::vec2));
+        auto uvsEnd = uvs.begin() + uvsOffset;
 
         auto indicesBegin = indices.begin() + indicesOffset;
         indicesOffset += (u32)(meshInfo.IndicesSizeBytes / sizeof(u32));
@@ -39,7 +53,13 @@ Model Model::LoadFromAsset(std::string_view path)
         assetLib::ModelInfo::MaterialInfo& albedo = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialType::Albedo];
         MaterialInfo albedoMaterial = {.Color = albedo.Color, .Textures = albedo.Textures};
         
-        meshes.push_back({Mesh(std::vector(verticesBegin, verticesEnd), std::vector(indicesBegin, indicesEnd)), albedoMaterial});
+        meshes.push_back(
+            {Mesh(
+                std::vector(positionsBegin, positionsEnd),
+                std::vector(normalsBegin, normalsEnd),
+                std::vector(uvsBegin, uvsEnd),
+                std::vector(indicesBegin, indicesEnd)),
+                albedoMaterial});
     }
 
     model.m_Meshes = meshes;

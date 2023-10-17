@@ -158,14 +158,22 @@ void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd, const Buffer& so
 
 void RenderCommand::BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
 {
-    VkDeviceSize bufferOffset = offset;
-    vkCmdBindVertexBuffers(cmd.m_CommandBuffer, 0, 1, &buffer.m_Buffer, &bufferOffset);
+    vkCmdBindVertexBuffers(cmd.m_CommandBuffer, 0, 1, &buffer.m_Buffer, &offset);
+}
+
+void RenderCommand::BindVertexBuffers(const CommandBuffer& cmd, const std::vector<Buffer>& buffers,
+    const std::vector<u64>& offsets)
+{
+    std::vector<VkBuffer> vkBuffers(buffers.size());
+    for (u32 i = 0; i < vkBuffers.size(); i++)
+        vkBuffers[i] = buffers[i].m_Buffer;
+    
+    vkCmdBindVertexBuffers(cmd.m_CommandBuffer, 0, (u32)vkBuffers.size(), vkBuffers.data(), offsets.data());
 }
 
 void RenderCommand::BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
 {
-    VkDeviceSize bufferOffset = offset;
-    vkCmdBindIndexBuffer(cmd.m_CommandBuffer, buffer.m_Buffer, bufferOffset, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(cmd.m_CommandBuffer, buffer.m_Buffer, offset, VK_INDEX_TYPE_UINT32);
 }
 
 void RenderCommand::BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint)

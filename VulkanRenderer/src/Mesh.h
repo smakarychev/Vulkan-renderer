@@ -4,13 +4,14 @@
 
 class Renderer;
 
-struct VertexP3N3UV
+struct VertexP3N3UV2
 {
     glm::vec3 Position;
     glm::vec3 Normal;
     glm::vec2 UV;
 
     static VertexInputDescription GetInputDescription();
+    static VertexInputDescription GetInputDescriptionDI();
 };
 
 struct MeshPushConstants
@@ -36,16 +37,18 @@ private:
 class Mesh
 {
 public:
-    Mesh(const std::vector<VertexP3N3UV>& vertices, const std::vector<u32>& indices);
+    Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals, const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices);
     void Upload(const Renderer& renderer);
-    const Buffer& GetVertexBuffer() const { return m_VertexBuffer; }
-    const Buffer& GetIndexBuffer() const { return m_IndexBuffer; }
-    u32 GetVertexCount() const { return (u32)m_Vertices.size(); }
+    u32 GetVertexCount() const { return (u32)m_Positions.size(); }
     u32 GetIndexCount() const { return (u32)m_Indices.size(); }
-    const std::vector<VertexP3N3UV>& GetVertices() const { return m_Vertices; }
+    void Bind(const CommandBuffer& cmd) const;
 private:
-    std::vector<VertexP3N3UV> m_Vertices;
+    std::vector<glm::vec3> m_Positions;
+    std::vector<glm::vec3> m_Normals;
+    std::vector<glm::vec2> m_UVs;
     std::vector<u32> m_Indices;
-    Buffer m_VertexBuffer;
+    Buffer m_PositionsBuffer;
+    Buffer m_NormalsBuffer;
+    Buffer m_UVsBuffer;
     Buffer m_IndexBuffer;
 };

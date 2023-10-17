@@ -36,7 +36,6 @@ public:
     static Buffer Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Buffer& buffer);
 
-    void Bind(const CommandBuffer& commandBuffer, u64 offset = 0) const;
     void SetData(const void* data, u64 dataSizeBytes);
     void SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes);
     void SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes);

@@ -195,8 +195,6 @@ void Renderer::Submit(const Scene& scene)
 {
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
 
-    ShaderPipeline lastPipeline;
-
     m_BindlessData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
     const PipelineLayout& layout = m_BindlessData.Pipeline.GetPipelineLayout();
     
@@ -208,18 +206,12 @@ void Renderer::Submit(const Scene& scene)
     
     for (auto& batch : scene.GetIndirectBatches())
     {
-        batch.Mesh->GetVertexBuffer().Bind(cmd);
-        batch.Mesh->GetIndexBuffer().Bind(cmd);
+        batch.Mesh->Bind(cmd);
 
         u32 stride = sizeof(VkDrawIndexedIndirectCommand);
         u64 bufferOffset = (u64)batch.First * stride;
         RenderCommand::DrawIndexedIndirect(cmd, m_DrawIndirectBuffer, bufferOffset, batch.Count, stride);
     }
-
-    m_BindlessData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, m_BindlessData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_BindlessData.DescriptorSet.SetTexture("u_textures", *m_Scene.GetTexture("texture_../assets/models/gun/scene.model6"), 0);
-    m_BindlessData.DescriptorSet.SetTexture("u_textures", *m_Scene.GetTexture("texture_../assets/models/gun/scene.model6"), 1);
 }
 
 void Renderer::SortScene(Scene& scene)
@@ -232,7 +224,7 @@ void Renderer::Submit(const Mesh& mesh)
 {
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     
-    mesh.GetVertexBuffer().Bind(cmd);
+    mesh.Bind(cmd);
     RenderCommand::Draw(cmd, mesh.GetVertexCount());
 }
 
@@ -393,34 +385,9 @@ void Renderer::RecreateSwapchain()
 
 void Renderer::LoadScene()
 {
-    Shader defaultShaderReflection = {};
-    defaultShaderReflection.ReflectFrom({"../assets/shaders/triangle_big-vert.shader", "../assets/shaders/triangle_big-frag.shader"});
-
-    Shader greyShaderReflection = {};
-    greyShaderReflection.ReflectFrom({"../assets/shaders/grey-vert.shader", "../assets/shaders/grey-frag.shader"});
-
-    Shader texturedShaderReflection = {};
-    texturedShaderReflection.ReflectFrom({"../assets/shaders/textured-vert.shader", "../assets/shaders/textured-frag.shader"});
-
     ShaderPipelineTemplate::Builder templateBuilder = ShaderPipelineTemplate::Builder()
         .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
         .SetDescriptorLayoutCache(&m_LayoutCache);
-    
-    ShaderPipelineTemplate defaultTemplate = templateBuilder
-        .SetShaderReflection(&defaultShaderReflection)
-        .Build();
-
-    ShaderPipelineTemplate greyTemplate = templateBuilder
-        .SetShaderReflection(&greyShaderReflection)
-        .Build();
-
-    ShaderPipelineTemplate texturedTemplate = templateBuilder
-        .SetShaderReflection(&texturedShaderReflection)
-        .Build();
-
-    m_Scene.AddShaderTemplate(defaultTemplate, "default");
-    m_Scene.AddShaderTemplate(greyTemplate, "grey");
-    m_Scene.AddShaderTemplate(texturedTemplate, "textured");
 
     m_MaterialDataSSBO.Buffer = Buffer::Builder()
         .SetKinds({BufferKind::Storage, BufferKind::Destination})
@@ -433,13 +400,6 @@ void Renderer::LoadScene()
         .SetSizeBytes(m_ObjectDataSSBO.Objects.size() * sizeof(ObjectData))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
-
-    m_GlobalObjectSet = ShaderDescriptorSet::Builder()
-       .SetTemplate(m_Scene.GetShaderTemplate("default"))
-       .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
-       .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
-       .AddBinding("u_object_buffer", m_ObjectDataSSBO.Buffer)
-       .Build();
 
     Model car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
@@ -467,7 +427,7 @@ void Renderer::LoadScene()
     {
         for (i32 z = -5; z <= 5; z++)
         {
-            u32 modelIndex = rand() % models.size();
+            u32 modelIndex = Random::UInt32(0, (u32)models.size() - 1);
             
             glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 3.0f, 0.0f, z * 3.0f)) *
                 glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
@@ -491,7 +451,7 @@ void Renderer::LoadScene()
 
     m_BindlessData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_Scene.GetShaderTemplate("bindless"))
-        .CompatibleWithVertex(VertexP3N3UV::GetInputDescription())
+        .CompatibleWithVertex(VertexP3N3UV2::GetInputDescriptionDI())
         .SetRenderPass(m_RenderPass)
         .Build();
 

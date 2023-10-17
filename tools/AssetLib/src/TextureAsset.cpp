@@ -36,7 +36,7 @@ namespace assetLib
         return info;
     }
 
-    assetLib::File packTexture(const TextureInfo& info, void* pixels)
+    assetLib::File packTexture(const TextureInfo& info, const void* pixels)
     {
         nlohmann::json metadata;
         

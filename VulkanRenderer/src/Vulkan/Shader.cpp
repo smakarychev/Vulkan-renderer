@@ -30,7 +30,7 @@ void Shader::ReflectFrom(const std::vector<std::string_view>& paths)
         .ShaderStages = mergedShaderInfo.ShaderStages,
         .InputAttributes = mergedShaderInfo.InputAttributes,
         .PushConstants = mergedShaderInfo.PushConstants,
-        .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets)
+        .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets),
     };
 }
 
@@ -148,6 +148,9 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
             {
                 descriptor.Count = 1;
             }
+            
+            descriptor.IsImmutableSampler = sets[setIndex].Descriptors[descriptorIndex].Flags &
+                assetLib::ShaderInfo::DescriptorSet::ImmutableSampler;
         }
         if (containsBindlessDescriptors)
         {
@@ -301,21 +304,44 @@ std::vector<DescriptorSetLayout*> ShaderPipelineTemplate::CreateDescriptorLayout
     return layouts;
 }
 
-VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(const std::vector<ReflectionData::InputAttribute>&  inputAttributeReflections)
+VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(const std::vector<ReflectionData::InputAttribute>& inputAttributeReflections)
 {
     VertexInputDescription inputDescription = {};
-    inputDescription.Bindings.reserve(1);
+
+    static constexpr u32 SPARSE_NONE = std::numeric_limits<u32>::max();
+    std::vector<u32> bindingsDense;
+    std::vector<u32> bindingsSparse;
+
+    for (auto& input : inputAttributeReflections)
+    {
+        if (input.Binding >= bindingsSparse.size())
+            bindingsSparse.resize(input.Binding + 1, SPARSE_NONE);
+
+        if (bindingsSparse[input.Binding] == SPARSE_NONE)
+        {
+            bindingsSparse[input.Binding] = (u32)bindingsDense.size();
+            bindingsDense.push_back(input.Binding);
+        }
+    }
+    
+    inputDescription.Bindings.reserve(bindingsDense.size());
     inputDescription.Attributes.reserve(inputAttributeReflections.size());
 
-    VkVertexInputBindingDescription binding = {};
-    binding.binding = 0;
-    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    binding.stride = 0;
+    for (u32 i = 0; i < bindingsDense.size(); i++)
+    {
+        VkVertexInputBindingDescription binding = {};
+        binding.binding = bindingsDense[i];
+        binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+        binding.stride = 0;
+        inputDescription.Bindings.push_back(binding);
+    }
     
     for (auto& input : inputAttributeReflections)
     {
+        u32 bindingIndex = bindingsDense[bindingsSparse[input.Binding]];
+        VkVertexInputBindingDescription& binding = inputDescription.Bindings[bindingIndex];
         VkVertexInputAttributeDescription attributeDescription = {};
-        attributeDescription.binding = 0;
+        attributeDescription.binding = bindingIndex;
         attributeDescription.format = input.Format;
         attributeDescription.location = input.Location;
         attributeDescription.offset = binding.stride;
@@ -323,7 +349,6 @@ VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(const std:
 
         inputDescription.Attributes.push_back(attributeDescription);
     }
-    inputDescription.Bindings.push_back(binding);
 
     return inputDescription;
 }
@@ -384,7 +409,8 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
         descriptorSetLayoutBinding.descriptorCount = descriptor.Count;
         descriptorSetLayoutBinding.descriptorType = descriptor.Type;
         descriptorSetLayoutBinding.stageFlags = descriptor.ShaderStages;
-
+        if (descriptor.IsImmutableSampler)
+            descriptorSetLayoutBinding.pImmutableSamplers = Driver::GetImmutableSampler();
         descriptorsFlags.Descriptors.push_back(descriptorSetLayoutBinding);
         descriptorsFlags.Flags.push_back(descriptor.Flags);
     }

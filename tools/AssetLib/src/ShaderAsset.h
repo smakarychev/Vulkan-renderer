@@ -11,6 +11,7 @@ namespace assetLib
     {
         struct InputAttribute
         {
+            u32 Binding;
             u32 Location;
             std::string Name;
             VkFormat Format;
@@ -27,7 +28,8 @@ namespace assetLib
             {
                 None = 0,
                 Dynamic = BIT(1),
-                Bindless = BIT(2)
+                Bindless = BIT(2),
+                ImmutableSampler = BIT(3)
             };
             
             struct DescriptorBinding
@@ -52,7 +54,7 @@ namespace assetLib
 
     ShaderInfo readShaderInfo(const assetLib::File& file);
 
-    assetLib::File packShader(const ShaderInfo& info, void* source);
+    assetLib::File packShader(const ShaderInfo& info, const void* source);
     void unpackShader(ShaderInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv);
 
     std::string descriptorFlagToString(ShaderInfo::DescriptorSet::DescriptorFlags flag);

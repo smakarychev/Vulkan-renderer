@@ -20,6 +20,8 @@ namespace
                 flags |= DescriptorFlags::Dynamic;
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::Bindless))
                 flags |= DescriptorFlags::Bindless;
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler))
+                flags |= DescriptorFlags::ImmutableSampler;
             else
                 ASSERT(false, "Unrecogrinzed flag {}", flagString)
         }
@@ -34,6 +36,8 @@ namespace
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::Dynamic));
         if (flags & DescriptorFlags::Bindless)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::Bindless));
+        if (flags & DescriptorFlags::ImmutableSampler)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler));
 
         return flagsStrings;
     }
@@ -56,6 +60,7 @@ namespace assetLib
         for (auto& input : inputAttributes)
         {
             ShaderInfo::InputAttribute inputAttribute = {};
+            inputAttribute.Binding = input["binding"];
             inputAttribute.Location = input["location"];
             inputAttribute.Name = input["name"];
             inputAttribute.Format = (VkFormat)input["format"];
@@ -111,7 +116,7 @@ namespace assetLib
         return info;
     }
 
-    assetLib::File packShader(const ShaderInfo& info, void* source)
+    assetLib::File packShader(const ShaderInfo& info, const void* source)
     {
         nlohmann::json metadata;
 
@@ -122,6 +127,7 @@ namespace assetLib
         for (auto& input : info.InputAttributes)
         {
             nlohmann::json inputJson;
+            inputJson["binding"] = input.Binding;
             inputJson["location"] = input.Location;
             inputJson["name"] = input.Name;
             inputJson["format"] = (u32)input.Format;
@@ -192,6 +198,8 @@ namespace assetLib
             return "dynamic";
         if (flag == DescriptorFlags::Bindless)
             return "bindless";
+        if (flag == DescriptorFlags::ImmutableSampler)
+            return "immutable_sampler";
         ASSERT(false, "Unsupported flag")
         std::unreachable();
     }

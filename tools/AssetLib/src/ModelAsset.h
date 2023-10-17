@@ -7,13 +7,25 @@
 #include <glm/vec4.hpp>
 
 #include <array>
+#include <memory>
 
 namespace assetLib
 {
     enum class VertexFormat : u32
     {
         Unknown,
-        P3N3C3UV2
+        P3N3UV2,
+    };
+
+    struct VertexGroup
+    {
+        VertexFormat GetVertexFormat();
+        std::vector<const void*> Elements();
+        std::vector<u64> ElementsSizesBytes();
+
+        std::vector<glm::vec3> Positions;
+        std::vector<glm::vec3> Normals;
+        std::vector<glm::vec2> UVs;
     };
 
     struct VertexP3N3UV2
@@ -22,7 +34,7 @@ namespace assetLib
         glm::vec3 Normal;
         glm::vec2 UV;
     };
-    
+
     struct ModelInfo : AssetInfoBase
     {
         enum class MaterialType : u32
@@ -37,20 +49,20 @@ namespace assetLib
         struct MeshInfo
         {
             std::string Name;
-            u64 VerticesSizeBytes;
+            std::vector<u64> VertexElementsSizeBytes;
             u64 IndicesSizeBytes;
             std::array<MaterialInfo, (u32)MaterialType::MaxTypeVal> Materials;
         };
+        
         VertexFormat VertexFormat;
         std::vector<MeshInfo> MeshInfos;
         
-
-        u64 VerticesSizeBytes() const;
+        std::vector<u64> VertexElementsSizeBytes() const;
         u64 IndicesSizeBytes() const;
     };
 
     ModelInfo readModelInfo(const assetLib::File& file);
 
-    assetLib::File packModel(const ModelInfo& info, void* vertices, void* indices);
-    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, u8* vertices, u8* indices);
+    assetLib::File packModel(const ModelInfo& info, std::vector<const void*> vertices, void* indices);
+    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, std::vector<u8*> vertices, u8* indices);
 }

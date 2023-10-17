@@ -75,14 +75,6 @@ void Buffer::Destroy(const Buffer& buffer)
     vmaDestroyBuffer(Driver::Allocator(), buffer.m_Buffer, buffer.m_Allocation);
 }
 
-void Buffer::Bind(const CommandBuffer& commandBuffer, u64 offset) const
-{
-    if (m_Kind.Kind & BufferKind::Vertex)
-        RenderCommand::BindVertexBuffer(commandBuffer, *this, offset);
-    else if (m_Kind.Kind & BufferKind::Index)
-        RenderCommand::BindIndexBuffer(commandBuffer, *this, offset);
-}
-
 void Buffer::SetData(const void* data, u64 dataSizeBytes)
 {
     void* mappedData = nullptr;

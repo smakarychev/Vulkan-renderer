@@ -18,6 +18,7 @@
 #include <spirv_reflect.h>
 #include <fstream>
 #include <iostream>
+#include <set>
 
 namespace
 {
@@ -76,7 +77,6 @@ void TextureConverter::Convert(const std::filesystem::path& path)
     std::cout << std::format("Texture file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }
 
-
 bool ModelConverter::NeedsConversion(const std::filesystem::path& path)
 {
     return needsConversion(path, [](std::filesystem::path& converted)
@@ -109,7 +109,7 @@ void ModelConverter::Convert(const std::filesystem::path& path)
     ModelData modelData = {};
 
     assetLib::ModelInfo modelInfo = {};
-    modelInfo.VertexFormat = assetLib::VertexFormat::P3N3C3UV2;
+    modelInfo.VertexFormat = assetLib::VertexFormat::P3N3UV2;
     modelInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     modelInfo.OriginalFile = path.string();
     modelInfo.BlobFile = blobPath.string();
@@ -126,11 +126,13 @@ void ModelConverter::Convert(const std::filesystem::path& path)
 
             modelInfo.MeshInfos.push_back({
                 .Name = meshData.Name,
-                .VerticesSizeBytes = meshData.Vertices.size() * sizeof(assetLib::VertexP3N3UV2),
+                .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
                 .IndicesSizeBytes = meshData.Indices.size() * sizeof(u32),
                 .Materials = meshData.MaterialInfos});
 
-            modelData.Vertices.append_range(meshData.Vertices);
+            modelData.VertexGroup.Positions.append_range(meshData.VertexGroup.Positions);
+            modelData.VertexGroup.Normals.append_range(meshData.VertexGroup.Normals);
+            modelData.VertexGroup.UVs.append_range(meshData.VertexGroup.UVs);
             modelData.Indices.append_range(meshData.Indices);
         }
             
@@ -138,16 +140,16 @@ void ModelConverter::Convert(const std::filesystem::path& path)
             nodesToProcess.push_back(currentNode->mChildren[i]);
     }
 
-    assetLib::File modelFile = assetLib::packModel(modelInfo, modelData.Vertices.data(), modelData.Indices.data());
+    assetLib::File modelFile = assetLib::packModel(modelInfo, modelData.VertexGroup.Elements(), modelData.Indices.data());
 
     assetLib::saveAssetFile(assetPath.string(), blobPath.string(), modelFile);
 
-    std::cout << std::format("Model file {} converted to {} (blob at {})\n\n", path.string(), assetPath.string(), blobPath.string());
+    std::cout << std::format("Model file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }
 
 ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const aiMesh* mesh, const std::filesystem::path& modelPath)
 {
-    std::vector<assetLib::VertexP3N3UV2> vertices = GetMeshVertices(mesh);
+    assetLib::VertexGroup vertexGroup = GetMeshVertices(mesh);
 
     std::vector<u32> indices = GetMeshIndices(mesh);
 
@@ -156,24 +158,27 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
         for (u32 i = 0; i < materials.size(); i++)
             materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);
 
-    return {.Name = mesh->mName.C_Str(), .Vertices = vertices, .Indices = indices, .MaterialInfos = materials};
+    return {.Name = mesh->mName.C_Str(), .VertexGroup = vertexGroup, .Indices = indices, .MaterialInfos = materials};
 }
 
-std::vector<assetLib::VertexP3N3UV2> ModelConverter::GetMeshVertices(const aiMesh* mesh)
+assetLib::VertexGroup ModelConverter::GetMeshVertices(const aiMesh* mesh)
 {
-    std::vector<assetLib::VertexP3N3UV2> vertices(mesh->mNumVertices);
+    assetLib::VertexGroup vertexGroup;
+    vertexGroup.Positions.resize(mesh->mNumVertices);
+    vertexGroup.Normals.resize(mesh->mNumVertices);
+    vertexGroup.UVs.resize(mesh->mNumVertices);
     for (u32 i = 0; i < mesh->mNumVertices; i++)
     {
-        vertices[i].Position = glm::vec3{mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
-        vertices[i].Normal = glm::vec3{mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
+        vertexGroup.Positions[i] = glm::vec3{mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
+        vertexGroup.Normals[i] = glm::vec3{mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
 
         if (mesh->HasTextureCoords(0))
-            vertices[i].UV = glm::vec2{mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
+            vertexGroup.UVs[i] = glm::vec2{mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
         else
-            vertices[i].UV = glm::vec2{0.0f, 0.0f};
+            vertexGroup.UVs[i] = glm::vec2{0.0f, 0.0f};
     }
 
-    return vertices;
+    return vertexGroup;
 }
 
 std::vector<u32> ModelConverter::GetMeshIndices(const aiMesh* mesh)
@@ -254,6 +259,7 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     std::string shaderSource((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
 
     std::vector<DescriptorFlagInfo> descriptorFlags = ReadDescriptorsFlags(shaderSource);
+    std::vector<InputAttributeBindingInfo> inputBindingsInfo = ReadInputBindings(shaderSource);
     RemoveMetaKeywords(shaderSource);
     
     shaderc::Compiler compiler;
@@ -268,7 +274,7 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     std::vector<u32> spirv = {module.cbegin(), module.cend()};
 
     // produce reflection on unoptimized code
-    assetLib::ShaderInfo shaderInfo = Reflect(spirv, descriptorFlags);
+    assetLib::ShaderInfo shaderInfo = Reflect(spirv, descriptorFlags, inputBindingsInfo);
     shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     shaderInfo.OriginalFile = path.string();
     shaderInfo.BlobFile = blobPath.string();
@@ -290,19 +296,19 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     std::cout << std::format("Shader file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }
 
-std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptorsFlags(const std::string& shaderSource)
+std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptorsFlags(std::string_view shaderSource)
 {
-    std::string prefix = "@";
     std::vector<ShaderConverter::DescriptorFlags> flags = {
         DescriptorFlags::Dynamic,
-        DescriptorFlags::Bindless 
+        DescriptorFlags::Bindless,
+        DescriptorFlags::ImmutableSampler
     };
 
     std::vector<DescriptorFlagInfo> descriptorFlagsUnmerged = {};
     
     for (auto flag : flags)
     {
-        std::string keyword = prefix + assetLib::descriptorFlagToString(flag);
+        std::string keyword = std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(flag);
             
         usize offset = 0;
         usize pos = shaderSource.find(keyword, offset);
@@ -325,7 +331,7 @@ std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptor
             usize textEnd = shaderSource.find_last_not_of(" \t\r\n", endingSemicolon);
             usize textStart = shaderSource.find_last_of(" \t\r\n", textEnd) + 1;
 
-            std::string name = shaderSource.substr(textStart, textEnd - textStart);
+            std::string name = std::string{shaderSource.substr(textStart, textEnd - textStart)};
             if (name.ends_with("[]"))
                 name = name.substr(0, name.size() - std::strlen("[]"));
             descriptorFlagsUnmerged.push_back({.Flags = flag, .DescriptorName = name});
@@ -361,30 +367,152 @@ std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptor
     return descriptorFlags;
 }
 
-void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
+std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInputBindings(std::string_view shaderSource)
 {
-    std::string prefix = "@";
-    std::vector<ShaderConverter::DescriptorFlags> flags = {
-        DescriptorFlags::Dynamic,
-        DescriptorFlags::Bindless 
+    struct AttributeInfo
+    {
+        usize TextPosition;
+        std::string Name;
     };
 
-    for (auto flag : flags)
+    struct BindingInfo
     {
-        std::string keyword = prefix + assetLib::descriptorFlagToString(flag);
+        usize TextPosition;
+        u32 Binding;
+    };
+    
+    auto findAttributes = [](std::string_view source) -> std::vector<AttributeInfo>
+    {
+        std::vector<AttributeInfo> attributes;
+
+        static std::string keyword = "layout";
+                
+        usize offset = 0;
+        usize startPos = source.find(keyword, offset);
+        while (startPos != std::string::npos)
+        {
+            offset = startPos + keyword.length();
+            usize endingSemicolon = source.find(";", offset);
+            if (endingSemicolon == std::string::npos)
+                return {}; // error will be reported by shader compiler
+            usize inputMark = source.find(" in ", offset);
+            if (inputMark != std::string::npos && inputMark < endingSemicolon)
+            {
+                // the attribute is input attribute
+                usize textEnd = source.find_last_not_of(" \t\r\n", endingSemicolon);
+                usize textStart = source.find_last_of(" \t\r\n", textEnd) + 1;
+
+                attributes.push_back({.TextPosition = textStart, .Name = std::string{source.substr(textStart, textEnd - textStart)}});
+            }
+
+            offset = endingSemicolon;
+            startPos = source.find(keyword, offset);
+        }
+
+        return attributes;
+    };
+
+    auto findBindings = [](std::string_view source) -> std::vector<BindingInfo>
+    {
+        std::vector<BindingInfo> bindings;
+
+        static std::string bindingKeyword = "binding";
+        std::string keyword = std::string{META_KEYWORD_PREFIX} + bindingKeyword;
+
+        usize offset = 0;
+        usize startPos = source.find(keyword, offset);
+        while (startPos != std::string::npos)
+        {
+            offset = startPos + keyword.length();
+            usize bindingNumberStringEnd = std::min(source.find("\r\n", offset), source.find("\n", offset));
+            usize bindingNumberStringStart = source.find_last_of(" \t", bindingNumberStringEnd) + 1;
+
+            u32 binding = std::stoul(std::string{source.substr(bindingNumberStringStart, bindingNumberStringEnd - bindingNumberStringStart)});
+            bindings.push_back({.TextPosition = bindingNumberStringStart, .Binding = binding});
+
+            offset = bindingNumberStringEnd;
+            startPos = source.find(keyword, offset);
+        }
+
+        return bindings;
+    };
+
+    std::vector<AttributeInfo> attributes = findAttributes(shaderSource);
+    std::vector<BindingInfo> bindings = findBindings(shaderSource);
+
+    if (attributes.empty())
+        return {};
+
+    if (bindings.empty())
+    {
+        std::vector<InputAttributeBindingInfo> inputAttributeBindingInfos;
+        inputAttributeBindingInfos.reserve(attributes.size());
+        for (auto& attribute : attributes)
+            inputAttributeBindingInfos.push_back({.Binding = 0, .Attribute = attribute.Name});
+
+        return inputAttributeBindingInfos;
+    }
+
+    if (attributes.front().TextPosition < bindings.front().TextPosition)
+    {
+        auto it = std::find_if(bindings.begin(), bindings.end(), [](auto& bindingInfo){ return bindingInfo.Binding == 0;});
+        if (it != bindings.end())
+            LOG("WARNING: dangerous implicit binding 0 for some input attributes");
+
+        bindings.insert(bindings.begin(), {.TextPosition = 0, .Binding = 0});
+    }
+
+    std::vector<InputAttributeBindingInfo> inputAttributeBindingInfos;
+    inputAttributeBindingInfos.reserve(attributes.size());
+    
+    u32 bindingIndexCurrent = 0;
+    u32 bindingIndexNext = bindingIndexCurrent + 1;
+
+    u32 attributeIndexCurrent = 0;
+
+    while (attributeIndexCurrent < attributes.size())
+    {
+        AttributeInfo& attribute = attributes[attributeIndexCurrent];
+        if (bindingIndexNext == bindings.size() || attribute.TextPosition < bindings[bindingIndexNext].TextPosition)
+        {
+            inputAttributeBindingInfos.push_back({.Binding = bindings[bindingIndexCurrent].Binding, .Attribute = attribute.Name});
+            attributeIndexCurrent++;
+        }
+        else
+        {
+            bindingIndexCurrent = bindingIndexNext;
+            bindingIndexNext++;
+        }
+    }
+
+    return inputAttributeBindingInfos;
+}
+
+void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
+{
+    std::vector<std::string> keywords = {
+        std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::Dynamic),
+        std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::Bindless),
+        std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler),
+        std::string{META_KEYWORD_PREFIX} + "binding",
+    };
+
+    for (auto keyword : keywords)
+    {
         usize pos = shaderSource.find(keyword, 0);
         while (pos != std::string::npos)
         {
-            shaderSource.replace(pos, keyword.length(), "");
+            shaderSource.replace(pos, 2, "//");
             pos = shaderSource.find(keyword, pos);
         }
     }
 }
 
-assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV, const std::vector<DescriptorFlagInfo>& flags)
+assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
+        const std::vector<DescriptorFlagInfo>& flags, const std::vector<InputAttributeBindingInfo>& inputBindings)
 {
     static constexpr u32 SPV_INVALID_VAL = (u32)-1;
-
+    
     assetLib::ShaderInfo shaderInfo = {};
     
     SpvReflectShaderModule reflectedModule = {};
@@ -410,9 +538,16 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV, con
                 .Name = input->name,
                 .Format = (VkFormat)input->format
             });
+            for (auto& inputBinding : inputBindings)
+                if (inputBinding.Attribute == input->name)
+                {
+                    shaderInfo.InputAttributes.back().Binding = inputBinding.Binding;
+                    break;
+                }
         }
         std::ranges::sort(shaderInfo.InputAttributes,
-            [](const auto& a, const auto& b) { return a.Location < b.Location; });
+            [](const auto& a, const auto& b) { return a.Binding < b.Binding ||
+                a.Binding == b.Binding && a.Location < b.Location; });
     }
 
     // extract push constants

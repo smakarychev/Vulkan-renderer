@@ -55,6 +55,7 @@ public:
 
     const ImageData& GetImageData() const { return m_ImageData; }
     ImageDescriptorInfo CreateDescriptorInfo(VkFilter samplerFilter) const;
+    ImageDescriptorInfo CreateDescriptorInfo() const;
 private:
     using CreateInfo = Builder::CreateInfo;
     static Image AllocateImage(const CreateInfo& createInfo);
@@ -68,7 +69,7 @@ private:
     static void CopyBufferToImage(const Buffer& buffer, const Image& image, VkImageAspectFlags imageAspect);
     static void CreateMipMaps(const Image& image, const CreateInfo& createInfo);
 
-    static VkSampler CreateSampler(VkFilter scaleFilter, u32 mipmapCount);
+    static VkSampler CreateSampler(VkFilter scaleFilter, f32 maxLod);
     
 private:
     ImageData m_ImageData{};

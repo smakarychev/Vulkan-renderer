@@ -46,6 +46,7 @@ public:
                 u32 Count;
                 VkShaderStageFlags ShaderStages;
                 VkDescriptorBindingFlags Flags;
+                bool IsImmutableSampler;
             };
             u32 Set;
             VkDescriptorSetLayoutCreateFlags LayoutFlags;

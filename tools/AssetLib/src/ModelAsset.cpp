@@ -5,13 +5,14 @@
 
 #include "lz4.h"
 #include "utils.h"
+#include "Core/core.h"
 
 namespace
 {
     assetLib::VertexFormat parseFormatString(std::string_view format)
     {
-        if (format == "P3N3C3UV2")
-            return assetLib::VertexFormat::P3N3C3UV2;
+        if (format == "P3N3UV2")
+            return assetLib::VertexFormat::P3N3UV2;
         return assetLib::VertexFormat::Unknown;
     }
 
@@ -55,10 +56,27 @@ namespace glm {
 
 namespace assetLib
 {
-    u64 ModelInfo::VerticesSizeBytes() const
+    std::vector<const void*> VertexGroup::Elements()
     {
-        return std::accumulate(MeshInfos.begin(), MeshInfos.end(),
-            0llu, [](u64 size, const auto& mesh){ return size + mesh.VerticesSizeBytes; });
+        return {Positions.data(), Normals.data(), UVs.data()};
+    }
+
+    std::vector<u64> VertexGroup::ElementsSizesBytes()
+    {
+        return {Positions.size() * sizeof(glm::vec3), Normals.size() * sizeof(glm::vec3), UVs.size() * sizeof(glm::vec2)};        
+    }
+
+    std::vector<u64> ModelInfo::VertexElementsSizeBytes() const
+    {
+        if (MeshInfos.empty())
+            return {};
+
+        std::vector<u64> sizeBytes(MeshInfos.front().VertexElementsSizeBytes.size());
+        for (auto& mesh : MeshInfos)
+            for (u32 subSize = 0; subSize < sizeBytes.size(); subSize++)
+                sizeBytes[subSize] += mesh.VertexElementsSizeBytes[subSize];
+
+        return sizeBytes;
     }
 
     u64 ModelInfo::IndicesSizeBytes() const
@@ -83,10 +101,12 @@ namespace assetLib
             ModelInfo::MeshInfo meshInfo = {};
 
             meshInfo.Name = mesh["name"];
-            
-            u64 verticesSizeBytes = mesh["vertices_size_bytes"];
-            meshInfo.VerticesSizeBytes =  verticesSizeBytes;
-            
+
+            const nlohmann::json& vertexElementSizeBytes = mesh["vertex_elements_size_bytes"];
+            meshInfo.VertexElementsSizeBytes.reserve(vertexElementSizeBytes.size());
+            for (auto& elementSizeBytes : vertexElementSizeBytes)
+                meshInfo.VertexElementsSizeBytes.push_back(elementSizeBytes);
+
             u64 indicesSizeBytes = mesh["indices_size_bytes"];
             meshInfo.IndicesSizeBytes = indicesSizeBytes;
 
@@ -114,18 +134,21 @@ namespace assetLib
         return info;
     }
 
-    assetLib::File packModel(const ModelInfo& info, void* vertices, void* indices)
+    assetLib::File packModel(const ModelInfo& info, std::vector<const void*> vertices, void* indices)
     {
         nlohmann::json metadata;
 
-        metadata["format"] = "P3N3C3UV2";
+        metadata["format"] = "P3N3UV2";
 
         metadata["meshes_info"] = nlohmann::json::array();
         for (auto& mesh : info.MeshInfos)
         {
             nlohmann::json meshJson;
             meshJson["name"] = mesh.Name;
-            meshJson["vertices_size_bytes"] = mesh.VerticesSizeBytes;
+            meshJson["vertex_elements_size_bytes"] = nlohmann::json::array();
+            for (auto elementSizeBytes : mesh.VertexElementsSizeBytes)
+                meshJson["vertex_elements_size_bytes"].push_back(elementSizeBytes);
+
             meshJson["indices_size_bytes"] = mesh.IndicesSizeBytes;
 
             meshJson["materials"] = nlohmann::json::array();
@@ -150,10 +173,13 @@ namespace assetLib
         
         assetLib::File assetFile = {};
 
-        u64 verticesSizeTotal = info.VerticesSizeBytes();
-        u64 indicesSizeTotal = info.IndicesSizeBytes();
+        std::vector<const void*> verticesIndices = vertices;
+        verticesIndices.push_back(indices);
 
-        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, {vertices, indices}, {verticesSizeTotal, indicesSizeTotal});
+        std::vector<u64> sizesBytes = info.VertexElementsSizeBytes();
+        sizesBytes.push_back(info.IndicesSizeBytes());
+        
+        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, verticesIndices, sizesBytes);
         metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
         metadata["asset"]["type"] = assetTypeToString(AssetType::Model);
 
@@ -162,24 +188,35 @@ namespace assetLib
         return assetFile;        
     }
 
-    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, u8* vertices, u8* indices)
+    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, std::vector<u8*> vertices, u8* indices)
     {
-        u64 verticesSizeTotal = info.VerticesSizeBytes();
+        std::vector<u64> vertexElementsSizeBytes = info.VertexElementsSizeBytes();
+        u64 vertexElementsSizeBytesTotal = std::accumulate(vertexElementsSizeBytes.begin(), vertexElementsSizeBytes.end(), 0llu);
         u64 indicesSizeTotal = info.IndicesSizeBytes();
 
-        u64 totalsize = verticesSizeTotal + indicesSizeTotal;
+        u64 totalsize = vertexElementsSizeBytesTotal + indicesSizeTotal;
         
-        if (info.CompressionMode == CompressionMode::LZ4 && sourceSizeBytes != verticesSizeTotal + indicesSizeTotal)
+        if (info.CompressionMode == CompressionMode::LZ4 && sourceSizeBytes != totalsize)
         {
             std::vector<u8> combined(totalsize);
             LZ4_decompress_safe((const char*)source, (char*)combined.data(), (i32)sourceSizeBytes, (i32)totalsize);
-            memcpy(vertices, combined.data(), verticesSizeTotal);
-            memcpy(indices, combined.data() + verticesSizeTotal, indicesSizeTotal);
+            u64 offset = 0;
+            for (u32 elementIndex = 0; elementIndex < vertexElementsSizeBytes.size(); elementIndex++)
+            {
+                memcpy(vertices[elementIndex], combined.data() + offset, vertexElementsSizeBytes[elementIndex]);
+                offset += vertexElementsSizeBytes[elementIndex];
+            }
+            memcpy(indices, combined.data() + vertexElementsSizeBytesTotal, indicesSizeTotal);
         }
         else
         {
-            memcpy(vertices, source, verticesSizeTotal);
-            memcpy(indices, source + verticesSizeTotal, indicesSizeTotal);
+            u64 offset = 0;
+            for (u32 elementIndex = 0; elementIndex < vertexElementsSizeBytes.size(); elementIndex++)
+            {
+                memcpy(vertices[elementIndex], source + offset, vertexElementsSizeBytes[elementIndex]);
+                offset += vertexElementsSizeBytes[elementIndex];
+            }
+            memcpy(indices, source + vertexElementsSizeBytesTotal, indicesSizeTotal);
         }
     }
 }

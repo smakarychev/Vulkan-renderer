@@ -16,7 +16,10 @@ layout(set = 0, binding = 1) uniform scene_data{
 } u_scene_data;
 
 @bindless
-layout(set = 1, binding = 1) uniform sampler2D u_textures[];
+layout(set = 1, binding = 1) uniform texture2D u_textures[];
+
+@immutable_sampler
+layout(set = 0, binding = 2) uniform sampler u_sampler;
 
 struct Material {
     vec4 albedo_color;
@@ -35,9 +38,12 @@ layout(location = 0) out vec4 out_color;
 void main() {
     Material material = u_material_buffer.materials[vert_instance_id];
     if (material.albedo_texture_index != -1)
-        out_color = texture(u_textures[nonuniformEXT(material.albedo_texture_index)], vert_uv);
+        out_color = texture(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), vert_uv);
     else
         out_color = material.albedo_color;
-
+    
+    if (out_color.a < 0.5)
+        discard;
+   
     out_color = vec4(out_color.xyz * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.w);
 }

@@ -176,3 +176,10 @@ void Driver::Shutdown()
     vkDeviceWaitIdle(DeviceHandle());
     s_State.DeletionQueue.Flush();
 }
+
+VkSampler* Driver::GetImmutableSampler()
+{
+    static VkSampler sampler = Texture::CreateSampler(VK_FILTER_LINEAR, VK_LOD_CLAMP_NONE);
+
+    return &sampler;
+}

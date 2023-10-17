@@ -203,7 +203,7 @@ void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const PipelineLayou
 
 void DescriptorSet::SetTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor, u32 arrayIndex)
 {
-    VkDescriptorImageInfo descriptorTextureInfo = texture.CreateDescriptorInfo(VK_FILTER_LINEAR);
+    VkDescriptorImageInfo descriptorTextureInfo = texture.CreateDescriptorInfo();
 
     VkWriteDescriptorSet write = {};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
