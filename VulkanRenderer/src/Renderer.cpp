@@ -79,7 +79,6 @@ void Renderer::UpdateScene()
 {
     if (m_Scene.IsDirty())
     {
-        m_Scene.UpdateRenderObject(m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
         SortScene(m_Scene);
         m_Scene.CreateIndirectBatches();
         m_Scene.ClearDirty();
@@ -90,8 +89,9 @@ void Renderer::UpdateScene()
         for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
         {
             const auto& object = m_Scene.GetRenderObjects()[i];
+            Mesh& mesh = m_Scene.GetMesh(object.Mesh);
             commands[i].firstIndex = 0;
-            commands[i].indexCount = object.Mesh->GetIndexCount();
+            commands[i].indexCount = mesh.GetIndexCount();
             commands[i].firstInstance = i;
             commands[i].instanceCount = 1;
             commands[i].vertexOffset = 0;
@@ -118,8 +118,9 @@ void Renderer::UpdateScene()
     for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
     {
         m_ObjectDataSSBO.Objects[i].Transform = m_Scene.GetRenderObjects()[i].Transform;
-        m_MaterialDataSSBO.Materials[i].Albedo = m_Scene.GetRenderObjects()[i].MaterialBindless->Albedo;
-        m_MaterialDataSSBO.Materials[i].AlbedoTextureIndex = m_Scene.GetRenderObjects()[i].MaterialBindless->AlbedoTextureIndex;
+        MaterialGPU& material = m_Scene.GetMaterialGPU(m_Scene.GetRenderObjects()[i].MaterialGPU);
+        m_MaterialDataSSBO.Materials[i].Albedo = material.Albedo;
+        m_MaterialDataSSBO.Materials[i].AlbedoTextureHandle = material.AlbedoTextureHandle;
     }
 
     m_ResourceUploader.UpdateBuffer(m_ObjectDataSSBO.Buffer, m_ObjectDataSSBO.Objects.data(), m_ObjectDataSSBO.Objects.size() * sizeof(ObjectData), 0);
@@ -206,11 +207,12 @@ void Renderer::Submit(const Scene& scene)
     
     for (auto& batch : scene.GetIndirectBatches())
     {
-        batch.Mesh->Bind(cmd);
+        Mesh& mesh = m_Scene.GetMesh(batch.Mesh);
+        mesh.Bind(cmd);
 
         u32 stride = sizeof(VkDrawIndexedIndirectCommand);
         u64 bufferOffset = (u64)batch.First * stride;
-        RenderCommand::DrawIndexedIndirect(cmd, m_DrawIndirectBuffer, bufferOffset, batch.Count, stride);
+        RenderCommand::DrawIndexedIndirect(cmd, m_DrawIndirectBuffer, bufferOffset, batch.InstanceCount, stride);
     }
 }
 
@@ -401,6 +403,33 @@ void Renderer::LoadScene()
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
+
+    Shader* bindlessShaderReflection = Shader::ReflectFrom({
+    "../assets/shaders/bindless-textures-test-vert.shader",
+    "../assets/shaders/bindless-textures-test-frag.shader"});
+
+    ShaderPipelineTemplate bindlessTemplate = templateBuilder
+        .SetShaderReflection(bindlessShaderReflection)
+        .Build();
+
+    m_Scene.AddShaderTemplate(bindlessTemplate, "bindless");
+
+    m_BindlessData.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("bindless"))
+        .CompatibleWithVertex(VertexP3N3UV2::GetInputDescriptionDI())
+        .SetRenderPass(m_RenderPass)
+        .Build();
+
+    m_BindlessData.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("bindless"))
+        .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
+        .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
+        .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
+        .AddBinding("u_object_buffer", m_ObjectDataSSBO.Buffer)
+        .AddBinding("u_material_buffer", m_MaterialDataSSBO.Buffer)
+        .Build();
+    
+
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model* mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
     Model* gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
@@ -434,34 +463,9 @@ void Renderer::LoadScene()
                 glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
             Model* model = m_Scene.GetModel(models[modelIndex]);
-            model->CreateRenderObjects(&m_Scene, transform);
+            model->CreateRenderObjects(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
         }
     }
-
-    Shader* bindlessShaderReflection = Shader::ReflectFrom({
-        "../assets/shaders/bindless-textures-test-vert.shader",
-        "../assets/shaders/bindless-textures-test-frag.shader"});
-
-    ShaderPipelineTemplate bindlessTemplate = templateBuilder
-        .SetShaderReflection(bindlessShaderReflection)
-        .Build();
-
-    m_Scene.AddShaderTemplate(bindlessTemplate, "bindless");
-
-    m_BindlessData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_Scene.GetShaderTemplate("bindless"))
-        .CompatibleWithVertex(VertexP3N3UV2::GetInputDescriptionDI())
-        .SetRenderPass(m_RenderPass)
-        .Build();
-
-    m_BindlessData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_Scene.GetShaderTemplate("bindless"))
-        .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
-        .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
-        .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
-        .AddBinding("u_object_buffer", m_ObjectDataSSBO.Buffer)
-        .AddBinding("u_material_buffer", m_MaterialDataSSBO.Buffer)
-        .Build();
 }
 
 const FrameContext& Renderer::GetFrameContext() const

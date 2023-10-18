@@ -79,43 +79,38 @@ void Model::Upload(ResourceUploader& uploader)
         mesh.Mesh.Upload(uploader);
 }
 
-void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
+void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform,
+    ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState)
 {
-    for (u32 i = 0; i < m_Meshes.size(); i++)
+    if (!m_IsInScene)
     {
-        auto& mesh = m_Meshes[i];
-        std::string textureName = "texture_" + m_ModelName + std::to_string(i);
-        std::string meshName = "mesh_" + m_ModelName + std::to_string(i);
-        std::string materialName = "mat_" + m_ModelName + std::to_string(i);
-
-        if (scene->GetMaterial(materialName) == nullptr)
+        m_IsInScene = true;
+        m_RenderObjects.reserve(m_Meshes.size());
+        for (auto& mesh : m_Meshes)
         {
-            Material material;
+            MaterialGPU material;
             material.Albedo = mesh.Albedo.Color;
             if (!mesh.Albedo.Textures.empty())
             {
-                material.AlbedoTexture = textureName;
+                Image texture = Image::Builder()
+                    .FromAssetFile(mesh.Albedo.Textures.front())
+                    .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
+                    .CreateMipmaps(true)
+                    .Build();
 
-                if (scene->GetTexture(textureName) == nullptr)
-                {
-                    Image texture = Image::Builder()
-                        .FromAssetFile(mesh.Albedo.Textures.front())
-                        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-                        .CreateMipmaps(true)
-                        .Build();
-                    scene->AddTexture(texture, textureName);
-                }
+                scene->SetMaterialTexture(material, texture, bindlessDescriptorSet, bindlessDescriptorsState);
             }
-            scene->AddMaterial(material, materialName);
-            scene->AddMaterialGPU({.Albedo = material.Albedo}, materialName);
-        }
 
-        if (scene->GetMesh(meshName) == nullptr)
-            scene->AddMesh(mesh.Mesh, meshName);
-        
-        scene->AddRenderObject({.Mesh = scene->GetMesh(meshName),
-            .Material = scene->GetMaterial(materialName),
-            .MaterialBindless = scene->GetMaterialBindless(materialName),
-            .Transform = transform});
+            RenderObject renderObject = {};
+            renderObject.Mesh = scene->AddMesh(mesh.Mesh);
+            renderObject.MaterialGPU = scene->AddMaterialGPU(material);
+            m_RenderObjects.push_back(renderObject);
+        }
+    }
+
+    for (auto& renderObject : m_RenderObjects)
+    {
+        renderObject.Transform = transform;
+        scene->AddRenderObject(renderObject);
     }
 }

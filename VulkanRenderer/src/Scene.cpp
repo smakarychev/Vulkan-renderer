@@ -11,34 +11,20 @@ ShaderPipelineTemplate* Scene::GetShaderTemplate(const std::string& name)
     return it == m_ShaderTemplates.end() ? nullptr : &it->second;
 }
 
-MaterialGPU* Scene::GetMaterialBindless(const std::string& name)
-{
-    auto it = m_MaterialsGPU.find(name);
-    return it == m_MaterialsGPU.end() ? nullptr : &it->second;
-}
-
-Material* Scene::GetMaterial(const std::string& name)
-{
-    auto it = m_Materials.find(name);
-    return it == m_Materials.end() ? nullptr : &it->second;
-}
-
 Model* Scene::GetModel(const std::string& name)
 {
     auto it = m_Models.find(name);
     return it == m_Models.end() ? nullptr : it->second;
 }
 
-Mesh* Scene::GetMesh(const std::string& name)
+MaterialGPU& Scene::GetMaterialGPU(RenderHandle<MaterialGPU> handle)
 {
-    auto it = m_Meshes.find(name);
-    return it == m_Meshes.end() ? nullptr : &it->second;
+    return m_MaterialsGPU[handle];
 }
 
-Texture* Scene::GetTexture(const std::string& name)
+Mesh& Scene::GetMesh(RenderHandle<Mesh> handle)
 {
-    auto it = m_Textures.find(name);
-    return it == m_Textures.end() ? nullptr : &it->second;
+    return m_Meshes[handle];
 }
 
 void Scene::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name)
@@ -46,46 +32,47 @@ void Scene::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, cons
     m_ShaderTemplates.emplace(std::make_pair(name, shaderTemplate));
 }
 
-void Scene::AddMaterialGPU(const MaterialGPU& material, const std::string& name)
-{
-    m_MaterialsGPU.emplace(std::make_pair(name, material));
-}
-
-void Scene::AddMaterial(const Material& material, const std::string& name)
-{
-    m_Materials.emplace(std::make_pair(name, material));
-}
-
-void Scene::AddMesh(const Mesh& mesh, const std::string& name)
-{
-    m_Meshes.emplace(std::make_pair(name, mesh));
-}
-
 void Scene::AddModel(Model* model, const std::string& name)
 {
     m_Models.emplace(std::make_pair(name, model));
 }
 
-void Scene::AddTexture(const Texture& texture, const std::string& name)
+RenderHandle<MaterialGPU> Scene::AddMaterialGPU(const MaterialGPU& material)
 {
-    m_Textures.emplace(std::make_pair(name, texture));
+    RenderHandle<MaterialGPU> handle = (u32)m_MaterialsGPU.size();
+    m_MaterialsGPU.push_back(material);
+    return handle;
 }
 
-void Scene::UpdateRenderObject(ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState)
+RenderHandle<Material> Scene::AddMaterial(const Material& material)
 {
-    for (u32 i = m_NewRenderObjectsIndex; i < m_RenderObjects.size(); i++)
-    {
-        RenderObject& object = m_RenderObjects[i];
-        Material* material = object.Material;
-        MaterialGPU* materialBindless = object.MaterialBindless;
-        
-        if (material->AlbedoTexture.length() > 0 && materialBindless->AlbedoTextureIndex == MaterialGPU::NO_TEXTURE)
-        {
-            materialBindless->AlbedoTextureIndex = bindlessDescriptorsState.TextureIndex;
-            bindlessDescriptorSet.SetTexture("u_textures", *GetTexture(material->AlbedoTexture), materialBindless->AlbedoTextureIndex);
-            bindlessDescriptorsState.TextureIndex++;
-        }
-    }
+    RenderHandle<Material> handle = (u32)m_Materials.size();
+    m_Materials.push_back(material);
+    return handle;
+}
+
+RenderHandle<Mesh> Scene::AddMesh(const Mesh& mesh)
+{
+    RenderHandle<Mesh> handle = (u32)m_Meshes.size();
+    m_Meshes.push_back(mesh);
+    return handle;
+}
+
+RenderHandle<Texture> Scene::AddTexture(const Texture& texture)
+{
+    RenderHandle<Texture> handle = (u32)m_Textures.size();
+    m_Textures.push_back(texture);
+    return handle;
+}
+
+void Scene::SetMaterialTexture(MaterialGPU& material, const Texture& texture,
+    ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState)
+{
+    RenderHandle<Texture> albedoHandle = AddTexture(texture);
+    Texture& albedoTexture = m_Textures[albedoHandle];
+    material.AlbedoTextureHandle = bindlessDescriptorsState.TextureIndex;
+    bindlessDescriptorSet.SetTexture("u_textures", albedoTexture, bindlessDescriptorsState.TextureIndex);
+    bindlessDescriptorsState.TextureIndex++;
 }
 
 void Scene::CreateIndirectBatches()
@@ -97,25 +84,22 @@ void Scene::CreateIndirectBatches()
 
     m_IndirectBatches.push_back(BatchIndirect{
         .Mesh = m_RenderObjects.front().Mesh,
-        .MaterialBindless = m_RenderObjects.front().MaterialBindless,
+        .MaterialGPU = m_RenderObjects.front().MaterialGPU,
         .First = 0,
-        .Count = 0});
+        .InstanceCount = 0});
 
     for (auto& object : m_RenderObjects)
     {
         auto& batch = m_IndirectBatches.back(); 
         if (object.Mesh == batch.Mesh)
-            batch.Count++;
+            batch.InstanceCount++;
         else
-            m_IndirectBatches.push_back({.Mesh = object.Mesh, .MaterialBindless = object.MaterialBindless, .First = batch.First + batch.Count, .Count = 1});
+            m_IndirectBatches.push_back({.Mesh = object.Mesh, .MaterialGPU = object.MaterialGPU, .First = batch.First + batch.InstanceCount, .InstanceCount = 1});
     }
 }
 
 void Scene::AddRenderObject(const RenderObject& renderObject)
 {
-    if (!m_IsDirty)
-        m_NewRenderObjectsIndex = (u32)m_RenderObjects.size();
-    
     m_RenderObjects.push_back(renderObject);
     m_IsDirty = true;
 }

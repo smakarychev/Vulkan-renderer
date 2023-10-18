@@ -1,14 +1,12 @@
 ﻿#pragma once
-#include <string_view>
 #include <vector>
 
 #include "Mesh.h"
-#include "Settings.h"
+#include "RenderObject.h"
 
 class RenderPass;
 class Scene;
 class ShaderPipelineTemplate;
-class RenderObject;
 class Renderer;
 
 class Model
@@ -26,8 +24,12 @@ class Model
 public:
     static Model* LoadFromAsset(std::string_view path);
     void Upload(ResourceUploader& uploader);
-    void CreateRenderObjects(Scene* scene, const glm::mat4& transform);
+    void CreateRenderObjects(Scene* scene, const glm::mat4& transform,
+        ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState);
 private:
     std::vector<MeshInfo> m_Meshes;
     std::string m_ModelName;
+
+    bool m_IsInScene{false};
+    std::vector<RenderObject> m_RenderObjects;
 };

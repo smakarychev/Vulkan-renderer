@@ -4,9 +4,11 @@
 #include <glm/glm.hpp>
 
 #include "Settings.h"
+#include "RenderHandle.h"
 
 class DescriptorSet;
 class Mesh;
+class Image;
 
 struct Material
 {
@@ -18,7 +20,7 @@ struct MaterialGPU
 {
     static constexpr u32 NO_TEXTURE = std::numeric_limits<u32>::max();
     glm::vec4 Albedo;
-    u32 AlbedoTextureIndex{NO_TEXTURE};
+    RenderHandle<Image> AlbedoTextureHandle{NO_TEXTURE};
     u32 Pad0{NO_TEXTURE};
     u32 Pad1{NO_TEXTURE};
     u32 Pad2{NO_TEXTURE};
@@ -26,16 +28,15 @@ struct MaterialGPU
 
 struct RenderObject
 {
-    Mesh* Mesh{nullptr};
-    Material* Material{nullptr};
-    MaterialGPU* MaterialBindless{nullptr};
+    RenderHandle<Mesh> Mesh{};
+    RenderHandle<MaterialGPU> MaterialGPU{};
     glm::mat4 Transform{};
 };
 
 struct BatchIndirect
 {
-    Mesh* Mesh{nullptr};
-    MaterialGPU* MaterialBindless{nullptr};
+    RenderHandle<Mesh> Mesh{};
+    RenderHandle<MaterialGPU> MaterialGPU{};
     u32 First{0};
-    u32 Count{0};
+    u32 InstanceCount{0};
 };

@@ -1,20 +1,31 @@
 #pragma once
+
+#include <limits>
+#include <compare>
+
 #include "types.h"
 
 template <typename T>
-class Handle
-{
-    Handle(u32 id)
-        : m_Id(id) {}
-    Handle(Handle& other) = default;
-    Handle(Handle&& other) = default;
-    Handle& operator=(const Handle& other) = default;
-    Handle& operator=(Handle&& other) = default;
-    ~Handle() = default;
+class HandleArray;
 
-    bool operator==(const Handle& other) const { return m_Id == other.m_Id; }
-    bool operator!=(const Handle& other) const { return !(*this == other); }
-    
+template <typename T>
+class RenderHandle
+{
+    friend class HandleArray<T>;
+public:
+    using UnderlyingType = u32;
+    static constexpr UnderlyingType NON_HANDLE = std::numeric_limits<UnderlyingType>::max();
+    RenderHandle()
+        : m_Id(NON_HANDLE) {}
+    RenderHandle(UnderlyingType id)
+        : m_Id(id) {}
+    RenderHandle(const RenderHandle& other) = default;
+    RenderHandle(RenderHandle&& other) = default;
+    RenderHandle& operator=(const RenderHandle& other) = default;
+    RenderHandle& operator=(RenderHandle&& other) = default;
+    ~RenderHandle() = default;
+
+    friend auto operator<=>(const RenderHandle<T>& a, const RenderHandle<T>& b) = default;
 private:
-    u32 m_Id;
+    UnderlyingType m_Id;
 };
