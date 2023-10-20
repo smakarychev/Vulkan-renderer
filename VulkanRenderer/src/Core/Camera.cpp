@@ -100,7 +100,7 @@ void Camera::UpdateViewMatrix()
 void Camera::UpdateProjectionMatrix()
 {
     m_Aspect = f32(m_ViewportWidth) / f32(m_ViewportHeight);
-    m_ProjectionMatrix = glm::perspective(m_FieldOfView, m_Aspect, m_NearClipPlane, m_FarClipPlane);
+    m_ProjectionMatrix = glm::perspectiveRH_ZO(m_FieldOfView, m_Aspect, m_FarClipPlane, m_NearClipPlane);
     m_ProjectionMatrix[1][1] *= -1.0f;
 }
 

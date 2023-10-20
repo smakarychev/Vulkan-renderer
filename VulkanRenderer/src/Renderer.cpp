@@ -149,7 +149,7 @@ void Renderer::BeginGraphics()
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     
     VkClearValue colorClear = {.color = {{0.05f, 0.05f, 0.05f, 1.0f}}};
-    VkClearValue depthClear = {.depthStencil = {.depth = 1.0f}};
+    VkClearValue depthClear = {.depthStencil = {.depth = 0.0f}};
     m_RenderPass.Begin(cmd, m_Framebuffers[m_SwapchainImageIndex], {colorClear, depthClear});
 
     RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
@@ -484,7 +484,7 @@ void Renderer::LoadScene()
 
     for (i32 x = -5; x <= 5; x++)
     {
-        for (i32 y = -2; y <= 2; y++)
+        for (i32 y = -3; y <= 3; y++)
         {
             for (i32 z = -5; z <= 5; z++)
             {

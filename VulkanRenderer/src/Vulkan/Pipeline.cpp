@@ -161,7 +161,7 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
     m_CreateInfo.DepthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     m_CreateInfo.DepthStencilState.depthTestEnable = VK_TRUE;
     m_CreateInfo.DepthStencilState.depthWriteEnable = VK_TRUE;
-    m_CreateInfo.DepthStencilState.depthCompareOp = VK_COMPARE_OP_LESS;
+    m_CreateInfo.DepthStencilState.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
     m_CreateInfo.DepthStencilState.depthBoundsTestEnable = VK_FALSE;
     m_CreateInfo.DepthStencilState.stencilTestEnable = VK_FALSE;
 
