@@ -1,5 +1,6 @@
 ﻿#include "Camera.h"
 
+#include "core.h"
 #include "Input.h"
 
 static constexpr glm::vec3 DEFAULT_POSITION		= glm::vec3(0.0f);
@@ -74,21 +75,17 @@ glm::vec3 Camera::GetRight() const
 
 FrustumPlanes Camera::GetFrustumPlanes()
 {
-    static glm::mat4 mat = GetViewProjection();
+    glm::mat4 mat = GetProjection();
     
     FrustumPlanes frustumPlanes = {};
-    for (i32 i = 0; i < 3; i++)
-    {
-        for (i32 j = 0; j < 4; j++)
-        {
-            frustumPlanes.Planes[2 * i + 0][j] = mat[j][3] - mat[j][i];
-            frustumPlanes.Planes[2 * i + 1][j] = mat[j][3] + mat[j][i];
-        }
-    }
+    frustumPlanes.Right = mat[0][0];
+    frustumPlanes.Top = mat[1][1];
+    frustumPlanes.Near = m_NearClipPlane;
+    frustumPlanes.Far  = m_FarClipPlane;
+    // normalization
+    frustumPlanes.Right /= 1.0f + frustumPlanes.Right;
+    frustumPlanes.Top /= 1.0f - frustumPlanes.Top;
 
-    for (auto& plane : frustumPlanes.Planes)
-        plane /= glm::length(glm::vec3(plane.x, plane.y, plane.z));
-    
     return frustumPlanes;
 }
 

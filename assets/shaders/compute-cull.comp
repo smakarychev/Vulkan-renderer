@@ -12,7 +12,11 @@ struct VkDrawIndexedIndirectCommand {
 
 @dynamic
 layout(set = 0, binding = 0) uniform scene_data {
-    vec4 frustum_planes[6];
+    mat4 view_matrix;
+    float frustum_top;
+    float frustum_right;
+    float frustum_near;
+    float frustum_far;
     uint mesh_count;
     uint pad0;
     uint pad1;
@@ -42,21 +46,19 @@ float extract_scale(mat4 matrix)
     return max(scales.x, max(scales.y, scales.z));
 }
 
-bool isVisible(uint id)
+bool is_visible(uint id)
 {
     object_data object = u_object_buffer.objects[id];
     
-    vec3 origin = vec3(object.model * vec4(object.x, object.y, object.z, 1.0f));
+    vec3 origin = vec3(u_scene_data.view_matrix * object.model * vec4(object.x, object.y, object.z, 1.0f));
     float radius = object.r * extract_scale(object.model);
     
-    for (uint i = 0; i < 6; i++)
-    {
-        vec4 plane = u_scene_data.frustum_planes[i];
-        if (dot(origin, plane.xyz) + plane.w + radius < 0)
-            return false;
-    }
+    bool visible = true;
+    visible = visible && abs(u_scene_data.frustum_right * origin.x) < -origin.z + radius;
+    visible = visible && abs(u_scene_data.frustum_top * origin.y) < -origin.z + radius;
+    visible = visible && origin.z - radius < -u_scene_data.frustum_near && origin.z + radius > -u_scene_data.frustum_far;
     
-    return true;
+    return visible;
 }
 
 void main()
@@ -65,5 +67,5 @@ void main()
     if (id >= u_scene_data.mesh_count)
         return;
     
-    u_command_buffer.commands[id].instanceCount = int(isVisible(id));
+    u_command_buffer.commands[id].instanceCount = int(is_visible(id));
 }

@@ -81,6 +81,7 @@ struct ComputeCullData
     {
         struct Data
         {
+            glm::mat4 ViewMatrix;
             FrustumPlanes FrustumPlanes;
             u32 TotalMeshCount;
             u32 Pad0;

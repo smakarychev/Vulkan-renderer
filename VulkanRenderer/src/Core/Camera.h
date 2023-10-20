@@ -10,7 +10,10 @@
 
 struct FrustumPlanes
 {
-    std::array<glm::vec4, 6> Planes; 
+    f32 Top;
+    f32 Right;
+    f32 Near;
+    f32 Far;
 };
 
 class Camera

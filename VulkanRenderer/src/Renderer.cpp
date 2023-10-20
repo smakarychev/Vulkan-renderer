@@ -81,8 +81,11 @@ void Renderer::UpdateCameraBuffers()
 
 void Renderer::UpdateComputeCullBuffers()
 {
+    static glm::mat4 view = m_Camera->GetView();
+    static FrustumPlanes planes = m_Camera->GetFrustumPlanes();
+    m_ComputeCullData.SceneDataUBO.SceneData.ViewMatrix = view;
+    m_ComputeCullData.SceneDataUBO.SceneData.FrustumPlanes = planes; 
     m_ComputeCullData.SceneDataUBO.SceneData.TotalMeshCount = (u32)m_Scene.GetRenderObjects().size(); 
-    m_ComputeCullData.SceneDataUBO.SceneData.FrustumPlanes = m_Camera->GetFrustumPlanes(); 
     u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
     m_ResourceUploader.UpdateBuffer(m_ComputeCullData.SceneDataUBO.Buffer, &m_ComputeCullData.SceneDataUBO.SceneData,
         sizeof(ComputeCullData::SceneDataUBO::Data), offset);
