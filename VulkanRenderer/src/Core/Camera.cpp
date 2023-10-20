@@ -72,6 +72,26 @@ glm::vec3 Camera::GetRight() const
     return glm::rotate(m_Orientation, glm::vec3(1.0f, 0.0f, 0.0f));
 }
 
+FrustumPlanes Camera::GetFrustumPlanes()
+{
+    static glm::mat4 mat = GetViewProjection();
+    
+    FrustumPlanes frustumPlanes = {};
+    for (i32 i = 0; i < 3; i++)
+    {
+        for (i32 j = 0; j < 4; j++)
+        {
+            frustumPlanes.Planes[2 * i + 0][j] = mat[j][3] - mat[j][i];
+            frustumPlanes.Planes[2 * i + 1][j] = mat[j][3] + mat[j][i];
+        }
+    }
+
+    for (auto& plane : frustumPlanes.Planes)
+        plane /= glm::length(glm::vec3(plane.x, plane.y, plane.z));
+    
+    return frustumPlanes;
+}
+
 void Camera::UpdateViewMatrix()
 {
     m_ViewMatrix = glm::toMat4(glm::inverse(m_Orientation)) * glm::translate(glm::mat4(1.0f), -m_Position);

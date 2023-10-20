@@ -1,10 +1,10 @@
 ﻿#include "Model.h"
 
-#include "AssetLib.h"
+#include <glm/ext/matrix_transform.hpp>
+
 #include "AssetManager.h"
 #include "Core/core.h"
 #include "Mesh.h"
-#include "ModelAsset.h"
 #include "Scene.h"
 
 Model* Model::LoadFromAsset(std::string_view path)
@@ -63,7 +63,8 @@ Model* Model::LoadFromAsset(std::string_view path)
                 std::vector(positionsBegin, positionsEnd),
                 std::vector(normalsBegin, normalsEnd),
                 std::vector(uvsBegin, uvsEnd),
-                std::vector(indicesBegin, indicesEnd)),
+                std::vector(indicesBegin, indicesEnd),
+                meshInfo.BoundingSphere),
                 albedoMaterial});
     }
 
@@ -71,12 +72,6 @@ Model* Model::LoadFromAsset(std::string_view path)
 
     AssetManager::AddModel(std::string{path}, model);
     return AssetManager::GetModel(std::string{path}); 
-}
-
-void Model::Upload(ResourceUploader& uploader)
-{
-    for (auto& mesh : m_Meshes)
-        mesh.Mesh.Upload(uploader);
 }
 
 void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform,
@@ -112,5 +107,25 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform,
     {
         renderObject.Transform = transform;
         scene->AddRenderObject(renderObject);
+    }
+}
+
+void Model::CreateDebugBoundingSpheres(Scene* scene, const glm::mat4& transform,
+    ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState)
+{
+    Model* sphere = scene->GetModel("sphere");
+    if (sphere == nullptr)
+    {
+        LOG("Debug 'sphere' model is absent");
+        return;
+    }
+
+    for (auto& mesh : m_Meshes)
+    {
+        glm::mat4 fullTransform = transform *
+            glm::translate(glm::mat4(1.0f), mesh.Mesh.GetBoundingSphere().Center) *
+            glm::scale(glm::mat4(1.0), glm::vec3(mesh.Mesh.GetBoundingSphere().Radius));
+
+        sphere->CreateRenderObjects(scene, fullTransform, bindlessDescriptorSet, bindlessDescriptorsState);
     }
 }

@@ -101,49 +101,7 @@ PushConstantBuffer::PushConstantBuffer()
 }
 
 Mesh::Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
-    const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices)
-    : m_Positions(positions), m_Normals(normals), m_UVs(uvs), m_Indices(indices)
-{
-    u64 positionsSizeBytes = positions.size() * sizeof(glm::vec3);
-    u64 normalsSizeBytes = normals.size() * sizeof(glm::vec3);
-    u64 uvsSizeBytes = uvs.size() * sizeof(glm::vec2);
-    u64 indicesSizeBytes = indices.size() * sizeof(u32);
-
-    m_PositionsBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Vertex, BufferKind::Destination})
-        .SetSizeBytes(positionsSizeBytes)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-
-    m_NormalsBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Vertex, BufferKind::Destination})
-        .SetSizeBytes(normalsSizeBytes)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-
-    m_UVsBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Vertex, BufferKind::Destination})
-        .SetSizeBytes(uvsSizeBytes)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-
-    m_IndexBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Index, BufferKind::Destination})
-        .SetSizeBytes(indicesSizeBytes)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-}
-
-void Mesh::Upload(ResourceUploader& uploader)
-{
-    uploader.UpdateBuffer(m_PositionsBuffer, m_Positions.data(), m_PositionsBuffer.GetSizeBytes(), 0);
-    uploader.UpdateBuffer(m_NormalsBuffer, m_Normals.data(), m_NormalsBuffer.GetSizeBytes(), 0);
-    uploader.UpdateBuffer(m_UVsBuffer, m_UVs.data(), m_UVsBuffer.GetSizeBytes(), 0);
-    uploader.UpdateBuffer(m_IndexBuffer, m_Indices.data(), m_IndexBuffer.GetSizeBytes(), 0);
-}
-
-void Mesh::Bind(const CommandBuffer& cmd) const
-{
-    RenderCommand::BindVertexBuffers(cmd, {m_PositionsBuffer, m_NormalsBuffer, m_UVsBuffer}, {0, 0, 0});
-    RenderCommand::BindIndexBuffer(cmd, m_IndexBuffer, 0);
-}
+        const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices,
+        const assetLib::BoundingSphere& boundingSphere)
+    : m_Positions(positions), m_Normals(normals), m_UVs(uvs), m_Indices(indices), m_BoundingSphere(boundingSphere)
+{}

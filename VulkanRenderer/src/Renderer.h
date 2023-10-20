@@ -10,6 +10,7 @@
 
 #include "ResourceUploader.h"
 #include "Settings.h"
+#include "Core/Camera.h"
 
 class Camera;
 class CameraController;
@@ -74,6 +75,26 @@ struct BindlessData
     BindlessDescriptorsState BindlessDescriptorsState;
 };
 
+struct ComputeCullData
+{
+    struct SceneDataUBO
+    {
+        struct Data
+        {
+            FrustumPlanes FrustumPlanes;
+            u32 TotalMeshCount;
+            u32 Pad0;
+            u32 Pad1;
+            u32 Pad2;
+        };
+        Data SceneData;
+        Buffer Buffer;
+    };
+    ShaderPipeline Pipeline;
+    ShaderDescriptorSet DescriptorSet;
+    SceneDataUBO SceneDataUBO;
+};
+
 struct FrameContext
 {
     CommandPool CommandPool;
@@ -94,13 +115,15 @@ public:
     void OnUpdate();
 
     void BeginFrame();
+    // todo: this is very bad, and I will change it later
+    void BeginGraphics();
     void EndFrame();
 
     void Dispatch(const ComputeDispatch& dispatch);
-    
+
+    void CullCompute(const Scene& scene);
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
-    void Submit(const Mesh& mesh);
     void PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description);
 
     template <typename Fn>
@@ -110,12 +133,14 @@ public:
 private:
     Renderer();
     void InitRenderingStructures();
+    void InitCullComputeStructures();
     void ShutDown();
 
     void OnWindowResize();
     void RecreateSwapchain();
     
     void UpdateCameraBuffers();
+    void UpdateComputeCullBuffers();
     void UpdateScene();
     void LoadScene();
 
@@ -138,7 +163,6 @@ private:
     std::vector<FrameContext> m_FrameContexts;
     FrameContext* m_CurrentFrameContext{nullptr};
     
-    Buffer m_DrawIndirectBuffer;
     ObjectDataSSBO m_ObjectDataSSBO;
     CameraDataUBO m_CameraDataUBO;
     SceneDataUBO m_SceneDataUBO;
@@ -151,6 +175,7 @@ private:
     ResourceUploader m_ResourceUploader;
 
     BindlessData m_BindlessData;
+    ComputeCullData m_ComputeCullData;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

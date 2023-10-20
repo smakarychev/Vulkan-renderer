@@ -228,6 +228,20 @@ void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout
     vkCmdPushConstants(cmd.m_CommandBuffer, pipelineLayout.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
 }
 
+void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBarrierInfo& pipelineBarrierInfo)
+{
+    VkBufferMemoryBarrier bufferMemoryBarrier = {};
+    bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    bufferMemoryBarrier.buffer = pipelineBarrierInfo.Buffer->m_Buffer;
+    bufferMemoryBarrier.size = VK_WHOLE_SIZE;
+    bufferMemoryBarrier.srcAccessMask = pipelineBarrierInfo.BufferSourceMask;
+    bufferMemoryBarrier.dstAccessMask = pipelineBarrierInfo.BufferDestinationMask;
+    bufferMemoryBarrier.srcQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
+    bufferMemoryBarrier.dstQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
+
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, 0, 0, nullptr, 1, &bufferMemoryBarrier, 0, nullptr);
+}
+
 void RenderCommand::SetViewport(const CommandBuffer& cmd, const glm::vec2& size)
 {
     VkViewport viewport = {

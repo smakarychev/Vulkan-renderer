@@ -7,7 +7,6 @@
 #include <glm/vec4.hpp>
 
 #include <array>
-#include <memory>
 
 namespace assetLib
 {
@@ -40,6 +39,14 @@ namespace assetLib
         glm::vec2 UV;
     };
 
+    struct BoundingSphere
+    {
+        glm::vec3 Center;
+        f32 Radius;
+    };
+
+    static_assert(sizeof(BoundingSphere) == sizeof(glm::vec4), "The size of bounding sphere must be equal to the size of 4 f32s");
+    
     struct ModelInfo : AssetInfoBase
     {
         enum class MaterialType : u32
@@ -57,6 +64,7 @@ namespace assetLib
             std::array<u64, (u32)VertexElement::MaxVal> VertexElementsSizeBytes;
             u64 IndicesSizeBytes;
             std::array<MaterialInfo, (u32)MaterialType::MaxVal> Materials;
+            BoundingSphere BoundingSphere;
         };
         
         VertexFormat VertexFormat;

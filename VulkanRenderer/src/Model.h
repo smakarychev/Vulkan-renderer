@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "Mesh.h"
+#include "ModelAsset.h"
 #include "RenderObject.h"
 
 class RenderPass;
@@ -23,8 +24,10 @@ class Model
     };
 public:
     static Model* LoadFromAsset(std::string_view path);
-    void Upload(ResourceUploader& uploader);
     void CreateRenderObjects(Scene* scene, const glm::mat4& transform,
+        ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState);
+
+    void CreateDebugBoundingSpheres(Scene* scene, const glm::mat4& transform,
         ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState);
 private:
     std::vector<MeshInfo> m_Meshes;

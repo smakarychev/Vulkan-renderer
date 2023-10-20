@@ -20,6 +20,8 @@
 #include <iostream>
 #include <set>
 
+#include "utils.h"
+
 namespace
 {
     template <typename Fn>
@@ -128,7 +130,8 @@ void ModelConverter::Convert(const std::filesystem::path& path)
                 .Name = meshData.Name,
                 .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
                 .IndicesSizeBytes = meshData.Indices.size() * sizeof(u32),
-                .Materials = meshData.MaterialInfos});
+                .Materials = meshData.MaterialInfos,
+                .BoundingSphere = utils::welzlSphere(meshData.VertexGroup.Positions)});
 
             modelData.VertexGroup.Positions.append_range(meshData.VertexGroup.Positions);
             modelData.VertexGroup.Normals.append_range(meshData.VertexGroup.Normals);
@@ -140,7 +143,8 @@ void ModelConverter::Convert(const std::filesystem::path& path)
             nodesToProcess.push_back(currentNode->mChildren[i]);
     }
 
-    assetLib::File modelFile = assetLib::packModel(modelInfo, {modelData.VertexGroup.Elements().begin(), modelData.VertexGroup.Elements().end()}, modelData.Indices.data());
+    std::array<const void*, (u32)assetLib::VertexElement::MaxVal> vertexElemets = modelData.VertexGroup.Elements();
+    assetLib::File modelFile = assetLib::packModel(modelInfo, {vertexElemets.begin(), vertexElemets.end()}, modelData.Indices.data());
 
     assetLib::saveAssetFile(assetPath.string(), blobPath.string(), modelFile);
 
@@ -252,7 +256,7 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
         shaderKind = shaderc_vertex_shader;
     else if (path.extension().string() == ".frag")
         shaderKind = shaderc_fragment_shader;
-    else if (path.extension().string() == ".compute")
+    else if (path.extension().string() == ".comp")
         shaderKind = shaderc_compute_shader;
 
     std::ifstream file(path.string(), std::ios::in | std::ios::binary);

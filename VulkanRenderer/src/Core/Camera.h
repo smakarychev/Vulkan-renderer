@@ -1,11 +1,17 @@
 ﻿#pragma once
 
+#include <array>
 #include <memory>
 
 #include "types.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
+
+struct FrustumPlanes
+{
+    std::array<glm::vec4, 6> Planes; 
+};
 
 class Camera
 {
@@ -31,6 +37,8 @@ public:
     glm::vec3 GetForward() const;
     glm::vec3 GetUp() const;
     glm::vec3 GetRight() const;
+
+    FrustumPlanes GetFrustumPlanes();
     
 private:
     void UpdateViewMatrix();

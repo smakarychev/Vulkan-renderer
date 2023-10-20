@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "ModelAsset.h"
 #include "Vulkan/VulkanInclude.h"
 
 class ResourceUploader;
@@ -38,18 +39,33 @@ private:
 class Mesh
 {
 public:
-    Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals, const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices);
-    void Upload(ResourceUploader& uploader);
+    Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
+        const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices,
+        const assetLib::BoundingSphere& boundingSphere);
+
     u32 GetVertexCount() const { return (u32)m_Positions.size(); }
     u32 GetIndexCount() const { return (u32)m_Indices.size(); }
-    void Bind(const CommandBuffer& cmd) const;
+
+    const std::vector<glm::vec3>& GetPositions() const { return m_Positions; }
+    const std::vector<glm::vec3>& GetNormals() const { return m_Normals; }
+    const std::vector<glm::vec2>& GetUVs() const { return m_UVs; }
+    const std::vector<u32>& GetIndices() const { return m_Indices; }
+
+    void SetVertexBufferOffset(i32 offset) { m_VertexBufferOffset = offset; }
+    void SetIndexBufferOffset(u32 offset) { m_IndexBufferOffset = offset; }
+    
+    i32 GetVertexBufferOffset() const { return m_VertexBufferOffset; }
+    u32 GetIndexBufferOffset() const { return m_IndexBufferOffset; }
+
+    const assetLib::BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
 private:
     std::vector<glm::vec3> m_Positions;
     std::vector<glm::vec3> m_Normals;
     std::vector<glm::vec2> m_UVs;
     std::vector<u32> m_Indices;
-    Buffer m_PositionsBuffer;
-    Buffer m_NormalsBuffer;
-    Buffer m_UVsBuffer;
-    Buffer m_IndexBuffer;
+
+    i32 m_VertexBufferOffset;
+    u32 m_IndexBufferOffset;
+
+    assetLib::BoundingSphere m_BoundingSphere;
 };

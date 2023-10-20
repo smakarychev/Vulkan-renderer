@@ -32,11 +32,3 @@ struct RenderObject
     RenderHandle<MaterialGPU> MaterialGPU{};
     glm::mat4 Transform{};
 };
-
-struct BatchIndirect
-{
-    RenderHandle<Mesh> Mesh{};
-    RenderHandle<MaterialGPU> MaterialGPU{};
-    u32 First{0};
-    u32 InstanceCount{0};
-};

@@ -51,6 +51,18 @@ namespace glm {
         vec.z = j.at("b").get<f32>();
         vec.w = j.at("a").get<f32>();
     }
+
+    void to_json(nlohmann::json& j, const glm::vec3& vec)
+    {
+        j = { { "x", vec.x }, { "y", vec.y }, { "z", vec.z } };
+    }
+    
+    void from_json(const nlohmann::json& j, glm::vec3& vec)
+    {
+        vec.x = j.at("x").get<f32>();
+        vec.y = j.at("y").get<f32>();
+        vec.z = j.at("z").get<f32>();
+    }
 }
 
 
@@ -124,6 +136,10 @@ namespace assetLib
 
                 meshInfo.Materials[(u32)materialType] = materialInfo;
             }
+
+            const nlohmann::json& boundingSphere = mesh["bounding_sphere"];
+            meshInfo.BoundingSphere.Center = boundingSphere["center"];
+            meshInfo.BoundingSphere.Radius = boundingSphere["radius"];
             
             info.MeshInfos.push_back(meshInfo);
         }
@@ -164,6 +180,11 @@ namespace assetLib
 
                 meshJson["materials"].push_back(materialJson);
             }
+
+            nlohmann::json boundingSphere;
+            boundingSphere["center"] = mesh.BoundingSphere.Center;
+            boundingSphere["radius"] = mesh.BoundingSphere.Radius;
+            meshJson["bounding_sphere"] = boundingSphere;
             
             metadata["meshes_info"].push_back(meshJson);
         }

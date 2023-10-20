@@ -11,6 +11,7 @@
     friend class Driver; \
     friend class RenderCommand;
 
+class Buffer;
 class Image;
 
 struct VertexInputDescription
@@ -119,4 +120,14 @@ struct ImageBlitInfo
 struct BindlessDescriptorsState
 {
     u32 TextureIndex{0};
+};
+
+struct PipelineBarrierInfo
+{
+    VkPipelineStageFlags PipelineSourceMask;
+    VkPipelineStageFlags PipelineDestinationMask;
+    const QueueInfo* Queue;
+    const Buffer* Buffer;
+    VkAccessFlags BufferSourceMask;
+    VkAccessFlags BufferDestinationMask;
 };

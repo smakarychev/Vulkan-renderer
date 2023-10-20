@@ -1,13 +1,11 @@
 ﻿#include "Renderer.h"
 
 #include <algorithm>
-#include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 
 #include "RenderObject.h"
 #include "Scene.h"
 #include "Model.h"
-#include "Core/Camera.h"
 #include "Core/Input.h"
 #include "Core/Random.h"
 #include "GLFW/glfw3.h"
@@ -20,6 +18,7 @@ void Renderer::Init()
 {
     InitRenderingStructures();
     LoadScene();
+    InitCullComputeStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera = std::make_shared<Camera>();
@@ -52,6 +51,10 @@ void Renderer::OnRender()
     BeginFrame();
     if (!m_FrameEarlyExit)
     {
+        CullCompute(m_Scene);
+
+        // todo: remove me, please
+        BeginGraphics();
         Submit(m_Scene);
         EndFrame();
     }
@@ -66,6 +69,7 @@ void Renderer::OnUpdate()
     m_CameraController->OnUpdate(1.0f / 60.0f);
     UpdateCameraBuffers();
     UpdateScene();
+    UpdateComputeCullBuffers();
 }
 
 void Renderer::UpdateCameraBuffers()
@@ -75,29 +79,23 @@ void Renderer::UpdateCameraBuffers()
     m_ResourceUploader.UpdateBuffer(m_CameraDataUBO.Buffer, &m_CameraDataUBO.CameraData, sizeof(CameraData), offsetBytes);
 }
 
+void Renderer::UpdateComputeCullBuffers()
+{
+    m_ComputeCullData.SceneDataUBO.SceneData.TotalMeshCount = (u32)m_Scene.GetRenderObjects().size(); 
+    m_ComputeCullData.SceneDataUBO.SceneData.FrustumPlanes = m_Camera->GetFrustumPlanes(); 
+    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
+    m_ResourceUploader.UpdateBuffer(m_ComputeCullData.SceneDataUBO.Buffer, &m_ComputeCullData.SceneDataUBO.SceneData,
+        sizeof(ComputeCullData::SceneDataUBO::Data), offset);
+}
+
 void Renderer::UpdateScene()
 {
+    // todo: this whole function is strange, and should most certainly be a part of `Scene` class
     if (m_Scene.IsDirty())
     {
         SortScene(m_Scene);
-        m_Scene.CreateIndirectBatches();
+        m_Scene.CreateSharedMeshContext(m_ResourceUploader);
         m_Scene.ClearDirty();
-
-        u32 mappedBuffer = m_ResourceUploader.GetMappedBuffer(m_DrawIndirectBuffer.GetSizeBytes());
-        VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)m_ResourceUploader.GetMappedAddress(mappedBuffer);
-
-        for (u32 i = 0; i < m_Scene.GetRenderObjects().size(); i++)
-        {
-            const auto& object = m_Scene.GetRenderObjects()[i];
-            Mesh& mesh = m_Scene.GetMesh(object.Mesh);
-            commands[i].firstIndex = 0;
-            commands[i].indexCount = mesh.GetIndexCount();
-            commands[i].firstInstance = i;
-            commands[i].instanceCount = 1;
-            commands[i].vertexOffset = 0;
-        }
-
-        m_ResourceUploader.UpdateBuffer(m_DrawIndirectBuffer, mappedBuffer, 0);
     }
 
     FrameContext& context = GetFrameContext();
@@ -142,15 +140,20 @@ void Renderer::BeginFrame()
     cmd.Reset();
     cmd.Begin();
     
+    // todo: is this the best place for it?
+    m_ResourceUploader.SubmitUpload();
+}
+
+void Renderer::BeginGraphics()
+{
+    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    
     VkClearValue colorClear = {.color = {{0.05f, 0.05f, 0.05f, 1.0f}}};
     VkClearValue depthClear = {.depthStencil = {.depth = 1.0f}};
     m_RenderPass.Begin(cmd, m_Framebuffers[m_SwapchainImageIndex], {colorClear, depthClear});
 
     RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
     RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
-
-    // todo: is this the best place for it?
-    m_ResourceUploader.SubmitUpload();
 }
 
 void Renderer::EndFrame()
@@ -192,6 +195,22 @@ void Renderer::Dispatch(const ComputeDispatch& dispatch)
     RenderCommand::Dispatch(cmd, dispatch.GroupSize);*/
 }
 
+void Renderer::CullCompute(const Scene& scene)
+{
+    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    u32 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
+    
+    m_ComputeCullData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    m_ComputeCullData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_ComputeCullData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {offset});
+    RenderCommand::Dispatch(cmd, {m_Scene.GetRenderObjects().size() / 64 + 1, 1, 1});
+    RenderCommand::CreateBarrier(cmd, {
+        .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        .Queue = &m_Device.GetQueues().Graphics,
+        .Buffer = &scene.GetIndirectBuffer(),
+        .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT});
+}
+
 void Renderer::Submit(const Scene& scene)
 {
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
@@ -204,30 +223,15 @@ void Renderer::Submit(const Scene& scene)
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset, sceneDataOffset});
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    
-    for (auto& batch : scene.GetIndirectBatches())
-    {
-        Mesh& mesh = m_Scene.GetMesh(batch.Mesh);
-        mesh.Bind(cmd);
 
-        u32 stride = sizeof(VkDrawIndexedIndirectCommand);
-        u64 bufferOffset = (u64)batch.First * stride;
-        RenderCommand::DrawIndexedIndirect(cmd, m_DrawIndirectBuffer, bufferOffset, batch.InstanceCount, stride);
-    }
+    scene.Bind(cmd);
+    RenderCommand::DrawIndexedIndirect(cmd, scene.GetIndirectBuffer(), 0, (u32)scene.GetRenderObjects().size(),  sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void Renderer::SortScene(Scene& scene)
 {
     std::sort(scene.GetRenderObjects().begin(), scene.GetRenderObjects().end(),
         [](const RenderObject& a, const RenderObject& b) { return a.Mesh < b.Mesh; });
-}
-
-void Renderer::Submit(const Mesh& mesh)
-{
-    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-    
-    mesh.Bind(cmd);
-    RenderCommand::Draw(cmd, mesh.GetVertexCount());
 }
 
 void Renderer::PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description)
@@ -327,19 +331,45 @@ void Renderer::InitRenderingStructures()
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .Build();
 
-    // indirect commands preparation
-    m_DrawIndirectBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+    m_CurrentFrameContext = &m_FrameContexts.front();
+}
+
+void Renderer::InitCullComputeStructures()
+{
+    m_ComputeCullData.SceneDataUBO.Buffer = Buffer::Builder()
+        .SetKind({BufferKind::Uniform})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)) * BUFFERED_FRAMES)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .Build();
 
-    m_CurrentFrameContext = &m_FrameContexts.front();
+    Shader* computeCull = Shader::ReflectFrom({"../assets/shaders/compute-cull-comp.shader"});
+
+    ShaderPipelineTemplate computeCullTemplate = ShaderPipelineTemplate::Builder()
+        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
+        .SetDescriptorLayoutCache(&m_LayoutCache)
+        .SetShaderReflection(computeCull)
+        .Build();
+
+    m_Scene.AddShaderTemplate(computeCullTemplate, "compute-cull-template");
+    
+    m_ComputeCullData.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("compute-cull-template"))
+        .Build();
+
+    m_ComputeCullData.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("compute-cull-template"))
+        .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer(), m_Scene.GetRenderObjectsBuffer().GetSizeBytes(), 0)
+        .AddBinding("u_command_buffer", m_Scene.GetIndirectBuffer(), m_Scene.GetIndirectBuffer().GetSizeBytes(), 0)
+        .AddBinding("u_scene_data", m_ComputeCullData.SceneDataUBO.Buffer, vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)), 0)
+        .Build();
 }
 
 void Renderer::ShutDown()
 {
     vkDeviceWaitIdle(Driver::DeviceHandle());
+
+    m_Scene.OnShutdown();
+    
     for (auto& framebuffer : m_Framebuffers)
         Framebuffer::Destroy(framebuffer);
     Swapchain::Destroy(m_Swapchain);
@@ -387,6 +417,8 @@ void Renderer::RecreateSwapchain()
 
 void Renderer::LoadScene()
 {
+    m_Scene.OnInit();
+    
     ShaderPipelineTemplate::Builder templateBuilder = ShaderPipelineTemplate::Builder()
         .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
         .SetDescriptorLayoutCache(&m_LayoutCache);
@@ -435,12 +467,8 @@ void Renderer::LoadScene()
     Model* gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
     Model* tree = Model::LoadFromAsset("../assets/models/tree/scene.model");
+    Model* sphere = Model::LoadFromAsset("../assets/models/sphere/scene.model");
    //Model sponza = Model::LoadFromAsset("../assets/models/sponza/scene.model");
-    car->Upload(m_ResourceUploader);
-    mori->Upload(m_ResourceUploader);
-    gun->Upload(m_ResourceUploader);
-    helmet->Upload(m_ResourceUploader);
-    tree->Upload(m_ResourceUploader);
    // sponza.Upload(*this);
     
     m_Scene.AddModel(car, "car");
@@ -448,10 +476,11 @@ void Renderer::LoadScene()
     m_Scene.AddModel(gun, "gun");
     m_Scene.AddModel(helmet, "helmet");
     m_Scene.AddModel(tree, "tree");
+    m_Scene.AddModel(sphere, "sphere");
 
     //m_Scene.AddModel(sponza, "sponza");
 
-    std::vector models = {"helmet", "car", "gun", "tree"};
+    std::vector models = {"car", "gun", "helmet"};
 
     for (i32 x = -5; x <= 5; x++)
     {
@@ -464,6 +493,8 @@ void Renderer::LoadScene()
 
             Model* model = m_Scene.GetModel(models[modelIndex]);
             model->CreateRenderObjects(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
+
+            //model->CreateDebugBoundingSpheres(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
         }
     }
 }
