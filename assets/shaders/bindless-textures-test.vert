@@ -7,11 +7,6 @@ layout(location = 1) in vec3 a_normal;
 @binding : 2
 layout(location = 2) in vec2 a_uv;
 
-layout(push_constant) uniform constants {
-    vec4 data;
-    mat4 transform;
-} u_constants;
-
 @dynamic
 layout(set = 0, binding = 0) uniform camera_buffer {
     mat4 view;
@@ -23,7 +18,7 @@ struct object_data{
     mat4 model;
 };
 
-layout(std140,set = 1, binding = 0) readonly buffer object_buffer{
+layout(std430, set = 1, binding = 0) readonly buffer object_buffer{
     object_data objects[];
 } u_object_buffer;
 

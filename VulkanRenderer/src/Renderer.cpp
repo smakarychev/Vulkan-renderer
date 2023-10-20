@@ -484,17 +484,20 @@ void Renderer::LoadScene()
 
     for (i32 x = -5; x <= 5; x++)
     {
-        for (i32 z = -5; z <= 5; z++)
+        for (i32 y = -2; y <= 2; y++)
         {
-            u32 modelIndex = Random::UInt32(0, (u32)models.size() - 1);
+            for (i32 z = -5; z <= 5; z++)
+            {
+                u32 modelIndex = Random::UInt32(0, (u32)models.size() - 1);
             
-            glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 3.0f, 0.0f, z * 3.0f)) *
-                glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
+                glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 3.0f, y * 1.5f, z * 3.0f)) *
+                    glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
-            Model* model = m_Scene.GetModel(models[modelIndex]);
-            model->CreateRenderObjects(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
+                Model* model = m_Scene.GetModel(models[modelIndex]);
+                model->CreateRenderObjects(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
 
-            //model->CreateDebugBoundingSpheres(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
+                //model->CreateDebugBoundingSpheres(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
+            }
         }
     }
 }

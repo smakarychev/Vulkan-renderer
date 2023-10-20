@@ -29,7 +29,7 @@ struct Material {
     uint pad2;
 };
 
-layout(std140, set = 2, binding = 1) readonly buffer material_buffer{
+layout(std430, set = 2, binding = 1) readonly buffer material_buffer{
     Material materials[];
 } u_material_buffer;
 
@@ -42,8 +42,8 @@ void main() {
     else
         out_color = material.albedo_color;
     
-    if (out_color.a < 0.5)
+    if (out_color.a < 1e-3f)
         discard;
    
-    out_color = vec4(out_color.xyz * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.w);
+    out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);
 }
