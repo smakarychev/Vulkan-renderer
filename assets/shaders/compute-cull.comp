@@ -63,7 +63,42 @@ bool is_visible(uint id)
     visible = visible && abs(u_scene_data.frustum_right_x * origin.x) < -origin.z * u_scene_data.frustum_right_z + radius;
     visible = visible && abs(u_scene_data.frustum_top_y * origin.y) < -origin.z * u_scene_data.frustum_top_z + radius;
     visible = visible && origin.z - radius < -u_scene_data.frustum_near && origin.z + radius > -u_scene_data.frustum_far;
-    
+
+    if (visible && origin.z + radius <  -u_scene_data.frustum_near)
+    {
+        vec4 aabb;
+        vec3 cr = origin * radius;
+        float czr2 = origin.z * origin.z - radius * radius;
+
+        float vx = sqrt(origin.x * origin.x + czr2);
+        float minx = (vx * origin.x - cr.z) / (vx * origin.z + cr.x);
+        float maxx = (vx * origin.x + cr.z) / (vx * origin.z - cr.x);
+
+        float vy = sqrt(origin.y * origin.y + czr2);
+        float miny = (vy * origin.y - cr.z) / (vy * origin.z + cr.y);
+        float maxy = (vy * origin.y + cr.z) / (vy * origin.z - cr.y);
+        aabb = vec4(minx * u_scene_data.projection_width, miny * u_scene_data.projection_height, maxx * u_scene_data.projection_width, maxy * u_scene_data.projection_height);
+        // clip space -> uv space
+        aabb = aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
+        aabb.x = 1 - aabb.x;
+        aabb.z = 1 - aabb.z;
+        aabb.y = 1 - aabb.y;
+        aabb.w = 1 - aabb.w;
+        float width =  (aabb.x - aabb.z) * u_scene_data.depth_pyramid_width;
+        float height = (aabb.y - aabb.w) * u_scene_data.depth_pyramid_height;
+
+        float level = floor(log2(max(width, height)));
+        
+        float depth = textureLod(u_depth_pyramid, (aabb.xy + aabb.zw) * 0.5, level).r;
+        
+        float coeff = 1.0f / (u_scene_data.frustum_far - u_scene_data.frustum_near);
+        float projected_depth = coeff *
+            (-u_scene_data.frustum_far * u_scene_data.frustum_near / (origin.z + radius) -
+              u_scene_data.frustum_near);
+        
+        visible = projected_depth >= depth;
+    }
+
     return visible;
 }
 

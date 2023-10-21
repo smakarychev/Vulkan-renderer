@@ -1,6 +1,7 @@
 ﻿#include "Renderer.h"
 
 #include <algorithm>
+#include <dinput.h>
 #include <glm/ext/matrix_transform.hpp>
 
 #include "RenderObject.h"
@@ -92,13 +93,19 @@ void Renderer::UpdateCameraBuffers()
 
 void Renderer::UpdateComputeCullBuffers()
 {
-    static glm::mat4 view = m_Camera->GetView();
-    static FrustumPlanes planes = m_Camera->GetFrustumPlanes();
-    static ProjectionData projectionData = m_Camera->GetProjectionData();
+    glm::mat4 view = m_Camera->GetView();
+    FrustumPlanes planes = m_Camera->GetFrustumPlanes();
+    ProjectionData projectionData = m_Camera->GetProjectionData();
     m_ComputeCullData.SceneDataUBO.SceneData.ViewMatrix = view;
     m_ComputeCullData.SceneDataUBO.SceneData.FrustumPlanes = planes; 
     m_ComputeCullData.SceneDataUBO.SceneData.ProjectionData = projectionData; 
-    m_ComputeCullData.SceneDataUBO.SceneData.TotalMeshCount = (u32)m_Scene.GetRenderObjects().size(); 
+    m_ComputeCullData.SceneDataUBO.SceneData.TotalMeshCount = (u32)m_Scene.GetRenderObjects().size();
+    if (m_ComputeDepthPyramidData.DepthPyramid)
+    {
+        m_ComputeCullData.SceneDataUBO.SceneData.PyramidWidth = (f32)m_ComputeDepthPyramidData.DepthPyramid->GetTexture().GetImageData().Width; 
+        m_ComputeCullData.SceneDataUBO.SceneData.PyramidHeight = (f32)m_ComputeDepthPyramidData.DepthPyramid->GetTexture().GetImageData().Height;
+    }
+    
     u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeFrustumCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
     m_ResourceUploader.UpdateBuffer(m_ComputeCullData.SceneDataUBO.Buffer, &m_ComputeCullData.SceneDataUBO.SceneData,
         sizeof(ComputeFrustumCullData::SceneDataUBO::Data), offset);
@@ -543,7 +550,7 @@ void Renderer::LoadScene()
 
     //m_Scene.AddModel(sponza, "sponza");
 
-    std::vector models = {"mori", "gun", "helmet"};
+    std::vector models = {"car", "helmet", "mori", "gun"};
 
     for (i32 x = -5; x <= 5; x++)
     {

@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include "types.h"
-#include "Core/core.h"
 
 #include <algorithm>
 #include <fstream>
@@ -76,6 +75,17 @@ namespace utils
     {
         std::hash<T> hasher;
         seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    }
+
+    inline u32 floorToPowerOf2(u32 number)
+    {
+        number |= number >> 1;
+        number |= number >> 2;
+        number |= number >> 4;
+        number |= number >> 8;
+        number |= number >> 16;
+ 
+        return number ^ (number >> 1);
     }
     
     void runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args);

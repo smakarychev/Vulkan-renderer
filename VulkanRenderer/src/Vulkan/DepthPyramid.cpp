@@ -4,6 +4,7 @@
 #include "RenderCommand.h"
 #include "VulkanCore.h"
 #include "VulkanUtils.h"
+#include "utils/utils.h"
 
 DepthPyramid::DepthPyramid(const Image& depthImage, const CommandBuffer& cmd,
         ShaderPipeline* depthPyramidPipeline, ShaderPipelineTemplate* depthPyramidTemplate)
@@ -60,8 +61,10 @@ VkSampler DepthPyramid::CreateSampler()
 
 Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Image& depthImage)
 {
+    u32 width = utils::floorToPowerOf2(depthImage.GetImageData().Width);
+    u32 height = utils::floorToPowerOf2(depthImage.GetImageData().Height);
     Image pyramidImage = Image::Builder()
-        .SetExtent({depthImage.GetImageData().Width, depthImage.GetImageData().Height})
+        .SetExtent({width, height})
         .SetFormat(VK_FORMAT_R32_SFLOAT)
         .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, 0)
         .CreateMipmaps(true)

@@ -2,6 +2,8 @@
 
 #include <Windows.h>
 
+#include "Core/core.h"
+
 void utils::runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args)
 {
     STARTUPINFO si;
