@@ -33,7 +33,7 @@ struct RenderObjectSSBO
         assetLib::BoundingSphere BoundingSphere;    
     };
 
-    std::array<Data, MAX_OBJECTS> Objects;
+    std::vector<Data> Objects{MAX_OBJECTS};
     Buffer Buffer;
 };
 

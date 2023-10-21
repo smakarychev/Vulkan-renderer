@@ -546,6 +546,18 @@ ShaderDescriptorSet ShaderDescriptorSet::Builder::Build()
     return descriptorSet;
 }
 
+ShaderDescriptorSet ShaderDescriptorSet::Builder::BuildManualLifetime()
+{
+    PreBuild();
+    for (auto& builder : m_CreateInfo.DescriptorBuilders)
+        builder.SetPoolFlags(VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT);
+    ShaderDescriptorSet descriptorSet = ShaderDescriptorSet::Create(m_CreateInfo);
+    m_CreateInfo.UsedSets = {};
+    m_CreateInfo.DescriptorBuilders = {};
+
+    return descriptorSet;
+}
+
 ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate)
 {
     m_CreateInfo.ShaderPipelineTemplate = shaderPipelineTemplate;
@@ -578,6 +590,20 @@ ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::stri
 }
 
 ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::string_view name, const Texture& texture)
+{
+    const DescriptorInfo& descriptorInfo = m_CreateInfo.ShaderPipelineTemplate->GetDescriptorInfo(name);
+    m_CreateInfo.UsedSets[descriptorInfo.Set]++;
+
+    m_CreateInfo.DescriptorBuilders[descriptorInfo.Set].AddTextureBinding(
+        descriptorInfo.Binding,
+        texture,
+        descriptorInfo.Type);
+
+    return *this;
+}
+
+ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::string_view name,
+    const DescriptorSet::TextureBindingInfo& texture)
 {
     const DescriptorInfo& descriptorInfo = m_CreateInfo.ShaderPipelineTemplate->GetDescriptorInfo(name);
     m_CreateInfo.UsedSets[descriptorInfo.Set]++;
@@ -636,8 +662,15 @@ ShaderDescriptorSet ShaderDescriptorSet::Create(const Builder::CreateInfo& creat
     return descriptorSet;
 }
 
+void ShaderDescriptorSet::Destroy(const ShaderDescriptorSet& descriptorSet)
+{
+    for (auto& set : descriptorSet.m_DescriptorSetsInfo.DescriptorSets)
+        if (set.IsPresent)
+            DescriptorSet::Destroy(set.Set);
+}
+
 void ShaderDescriptorSet::Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind,
-    const PipelineLayout& pipelineLayout, VkPipelineBindPoint bindPoint)
+                               const PipelineLayout& pipelineLayout, VkPipelineBindPoint bindPoint)
 {
     RenderCommand::BindDescriptorSet(commandBuffer, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, bindPoint, {});
 }

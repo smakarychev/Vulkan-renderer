@@ -110,7 +110,7 @@ DescriptorSet::Builder& DescriptorSet::Builder::SetLayout(const DescriptorSetLay
 
 DescriptorSet::Builder& DescriptorSet::Builder::SetPoolFlags(VkDescriptorPoolCreateFlags flags)
 {
-    m_CreateInfo.PoolFlags = flags;
+    m_CreateInfo.PoolFlags |= flags;
 
     return *this;
 }
@@ -123,6 +123,14 @@ DescriptorSet::Builder& DescriptorSet::Builder::AddBufferBinding(u32 slot, const
 }
 
 DescriptorSet::Builder& DescriptorSet::Builder::AddTextureBinding(u32 slot, const Texture& texture, VkDescriptorType descriptor)
+{
+    Driver::DescriptorSetBindTexture(slot, texture, descriptor, m_CreateInfo);
+    
+    return *this;
+}
+
+DescriptorSet::Builder& DescriptorSet::Builder::AddTextureBinding(u32 slot, const TextureBindingInfo& texture,
+    VkDescriptorType descriptor)
 {
     Driver::DescriptorSetBindTexture(slot, texture, descriptor, m_CreateInfo);
     
@@ -190,6 +198,11 @@ DescriptorSet DescriptorSet::Create(const Builder::CreateInfo& createInfo)
     return descriptorSet;
 }
 
+void DescriptorSet::Destroy(const DescriptorSet& descriptorSet)
+{
+    vkFreeDescriptorSets(Driver::DeviceHandle(), descriptorSet.m_Pool, 1, &descriptorSet.m_DescriptorSet);
+}
+
 void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint)
 {
     RenderCommand::BindDescriptorSet(commandBuffer, *this, pipelineLayout, setIndex, bindPoint, {});
@@ -253,6 +266,7 @@ void DescriptorAllocator::Allocate(DescriptorSet& set, VkDescriptorPoolCreateFla
     Driver::Unpack(pool, *set.GetLayout(), allocateInfo);
 
     vkAllocateDescriptorSets(Driver::DeviceHandle(), &allocateInfo.Info, &set.m_DescriptorSet);
+    set.m_Pool = pool.Pool;
 
     if (!set.IsValid())
     {
@@ -264,6 +278,7 @@ void DescriptorAllocator::Allocate(DescriptorSet& set, VkDescriptorPoolCreateFla
         Driver::Unpack(pool, *set.GetLayout(), allocateInfo);
         VulkanCheck(vkAllocateDescriptorSets(Driver::DeviceHandle(), &allocateInfo.Info, &set.m_DescriptorSet),
             "Failed to allocate descriptor set");
+        set.m_Pool = pool.Pool;
     }
 }
 

@@ -10,10 +10,18 @@
 
 struct FrustumPlanes
 {
-    f32 Top;
-    f32 Right;
+    f32 TopY;
+    f32 TopZ;
+    f32 RightX;
+    f32 RightZ;
     f32 Near;
     f32 Far;
+};
+
+struct ProjectionData
+{
+    f32 Width;
+    f32 Height;
 };
 
 class Camera
@@ -42,7 +50,7 @@ public:
     glm::vec3 GetRight() const;
 
     FrustumPlanes GetFrustumPlanes();
-    
+    ProjectionData GetProjectionData();
 private:
     void UpdateViewMatrix();
     void UpdateProjectionMatrix();

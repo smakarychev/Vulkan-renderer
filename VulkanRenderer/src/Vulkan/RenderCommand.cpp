@@ -228,7 +228,7 @@ void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout
     vkCmdPushConstants(cmd.m_CommandBuffer, pipelineLayout.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
 }
 
-void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBarrierInfo& pipelineBarrierInfo)
+void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBufferBarrierInfo& pipelineBarrierInfo)
 {
     VkBufferMemoryBarrier bufferMemoryBarrier = {};
     bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -239,7 +239,25 @@ void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBarrie
     bufferMemoryBarrier.srcQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
     bufferMemoryBarrier.dstQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
 
-    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, 0, 0, nullptr, 1, &bufferMemoryBarrier, 0, nullptr);
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, pipelineBarrierInfo.DependencyFlags, 0, nullptr, 1, &bufferMemoryBarrier, 0, nullptr);
+}
+
+void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineImageBarrierInfo& pipelineBarrierInfo)
+{
+    VkImageMemoryBarrier imageMemoryBarrier = {};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    imageMemoryBarrier.image = pipelineBarrierInfo.Image->m_ImageData.Image;
+    imageMemoryBarrier.oldLayout = pipelineBarrierInfo.ImageSourceLayout;
+    imageMemoryBarrier.newLayout = pipelineBarrierInfo.ImageDestinationLayout;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.srcAccessMask = pipelineBarrierInfo.ImageSourceMask;
+    imageMemoryBarrier.dstAccessMask = pipelineBarrierInfo.ImageDestinationMask;
+    imageMemoryBarrier.subresourceRange.aspectMask = pipelineBarrierInfo.ImageAspect;
+    imageMemoryBarrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+    imageMemoryBarrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
+
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, pipelineBarrierInfo.DependencyFlags, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
 }
 
 void RenderCommand::SetViewport(const CommandBuffer& cmd, const glm::vec2& size)

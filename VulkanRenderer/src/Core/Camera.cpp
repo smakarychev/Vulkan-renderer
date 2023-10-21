@@ -5,7 +5,7 @@
 
 static constexpr glm::vec3 DEFAULT_POSITION		= glm::vec3(0.0f);
 static const     glm::quat DEFAULT_ORIENTATION	= glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f));
-static constexpr f32  DEFAULT_FOV				= 45.0f;
+static constexpr f32  DEFAULT_FOV				= glm::radians(45.0f);
 static constexpr f32  DEFAULT_ASPECT			= 16.0f / 9.0f;
 static constexpr f32  DEFAULT_NEAR				= 0.003f;
 static constexpr f32  DEFAULT_FAR				= 1000.0f;
@@ -75,18 +75,30 @@ glm::vec3 Camera::GetRight() const
 
 FrustumPlanes Camera::GetFrustumPlanes()
 {
-    glm::mat4 mat = GetProjection();
+    const glm::mat4& mat = GetProjection();
+
+    f32 rightLengthInverse = 1.0f / std::sqrt(1.0f + mat[0][0] * mat[0][0]);
+    f32 topLengthInverse = 1.0f / std::sqrt(1.0f + mat[1][1] * mat[1][1]);
     
     FrustumPlanes frustumPlanes = {};
-    frustumPlanes.Right = mat[0][0];
-    frustumPlanes.Top = mat[1][1];
+    frustumPlanes.RightX = mat[0][0] * rightLengthInverse;
+    frustumPlanes.RightZ = rightLengthInverse;
+    frustumPlanes.TopY = -mat[1][1] * topLengthInverse;
+    frustumPlanes.TopZ = topLengthInverse;
     frustumPlanes.Near = m_NearClipPlane;
     frustumPlanes.Far  = m_FarClipPlane;
     // normalization
-    frustumPlanes.Right /= 1.0f + frustumPlanes.Right;
-    frustumPlanes.Top /= 1.0f - frustumPlanes.Top;
+    //frustumPlanes.Right /= 
+    //frustumPlanes.Top /= std::sqrt(1.0f + frustumPlanes.Top * frustumPlanes.Top);
 
     return frustumPlanes;
+}
+
+ProjectionData Camera::GetProjectionData()
+{
+    const glm::mat4& mat = GetProjection();
+    
+    return {mat[0][0], -mat[1][1]};
 }
 
 void Camera::UpdateViewMatrix()

@@ -12,16 +12,22 @@ struct VkDrawIndexedIndirectCommand {
 
 @dynamic
 layout(set = 0, binding = 0) uniform scene_data {
-    mat4 view_matrix;
-    float frustum_top;
-    float frustum_right;
+    mat4 view_matrix; // 4
+    float frustum_top_y;
+    float frustum_top_z;
+    float frustum_right_x;
+    float frustum_right_z; // 4
     float frustum_near;
     float frustum_far;
+    float projection_width;
+    float projection_height; // 4
+    float depth_pyramid_width;
+    float depth_pyramid_height;
     uint mesh_count;
-    uint pad0;
-    uint pad1;
-    uint pad2;
+    uint pad0; // 4
 } u_scene_data;
+
+layout(set = 0, binding = 1) uniform sampler2D u_depth_pyramid;
 
 struct object_data{
     mat4 model;
@@ -32,11 +38,11 @@ struct object_data{
     float r;
 };
 
-layout(std430, set = 0, binding = 1) buffer readonly object_buffer {
+layout(std430, set = 0, binding = 2) buffer readonly object_buffer {
     object_data objects[];
 } u_object_buffer;
 
-layout(std430, set = 0, binding = 2) buffer writeonly command_buffer {
+layout(std430, set = 0, binding = 3) buffer writeonly command_buffer {
     VkDrawIndexedIndirectCommand commands[];
 } u_command_buffer;
 
@@ -54,8 +60,8 @@ bool is_visible(uint id)
     float radius = object.r * extract_scale(object.model);
     
     bool visible = true;
-    visible = visible && abs(u_scene_data.frustum_right * origin.x) < -origin.z + radius;
-    visible = visible && abs(u_scene_data.frustum_top * origin.y) < -origin.z + radius;
+    visible = visible && abs(u_scene_data.frustum_right_x * origin.x) < -origin.z * u_scene_data.frustum_right_z + radius;
+    visible = visible && abs(u_scene_data.frustum_top_y * origin.y) < -origin.z * u_scene_data.frustum_top_z + radius;
     visible = visible && origin.z - radius < -u_scene_data.frustum_near && origin.z + radius > -u_scene_data.frustum_far;
     
     return visible;

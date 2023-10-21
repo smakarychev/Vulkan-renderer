@@ -1,15 +1,18 @@
 ﻿#pragma once
+#include <array>
 #include <vector>
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan_core.h>
 
 #include "Attachment.h"
+#include "DepthPyramid.h"
 #include "Image.h"
 #include "Framebuffer.h"
 #include "Syncronization.h"
 #include "types.h"
 #include "VulkanCommon.h"
 
+class ShaderPipelineTemplate;
 class Device;
 class RenderPass;
 struct DeviceQueues;
@@ -86,6 +89,9 @@ public:
     std::vector<Framebuffer> GetFramebuffers(const RenderPass& renderPass) const;
 
     glm::uvec2 GetSize() const { return glm::uvec2{m_Extent.width, m_Extent.height}; }
+    VkFormat GetDepthFormat() const { return m_DepthFormat; }
+    const Image& GetDepthImage() const { return m_DepthImage; }
+
 private:
     std::vector<Image> CreateColorImages() const;
     Image CreateDepthImage();

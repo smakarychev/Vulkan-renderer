@@ -67,7 +67,8 @@ public:
     static void PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
         const PushConstantDescription& description);
 
-    static void CreateBarrier(const CommandBuffer& cmd, const PipelineBarrierInfo& pipelineBarrierInfo);
+    static void CreateBarrier(const CommandBuffer& cmd, const PipelineBufferBarrierInfo& pipelineBarrierInfo);
+    static void CreateBarrier(const CommandBuffer& cmd, const PipelineImageBarrierInfo& pipelineBarrierInfo);
     
     static void SetViewport(const CommandBuffer& cmd, const glm::vec2& size);
     static void SetScissors(const CommandBuffer& cmd, const glm::vec2& offset, const glm::vec2& size);

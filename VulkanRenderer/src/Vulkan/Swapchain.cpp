@@ -255,7 +255,7 @@ Image Swapchain::CreateDepthImage()
     Image depth = Image::Builder()
         .SetExtent(m_Extent)
         .SetFormat(m_DepthFormat)
-        .SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_IMAGE_ASPECT_DEPTH_BIT)
+        .SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT)
         .BuildManualLifetime();
 
     return depth;

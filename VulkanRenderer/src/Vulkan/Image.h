@@ -33,6 +33,7 @@ public:
             u32 MipMapCount{1};
             SourceInfo SourceInfo{SourceInfo::None};
             Buffer AssetBuffer;
+            bool CreateView{true};
         };
     public:
         Image Build();
@@ -42,6 +43,7 @@ public:
         Builder& SetFormat(VkFormat format);
         Builder& SetExtent(VkExtent2D extent);
         Builder& CreateMipmaps(bool enable);
+        Builder& CreateView(bool enable);
         Builder& SetUsage(VkImageUsageFlags imageUsage, VkImageAspectFlags imageAspect);
     private:
         void PreBuild();
@@ -54,6 +56,7 @@ public:
     static void Destroy(const Image& image);
 
     const ImageData& GetImageData() const { return m_ImageData; }
+    ImageData& GetImageData() { return m_ImageData; }
     ImageDescriptorInfo CreateDescriptorInfo(VkFilter samplerFilter) const;
     ImageDescriptorInfo CreateDescriptorInfo() const;
 private:

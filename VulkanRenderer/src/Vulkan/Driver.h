@@ -64,6 +64,8 @@ public:
         VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
     static void DescriptorSetBindTexture(u32 slot, const Texture& texture,
         VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
+    static void DescriptorSetBindTexture(u32 slot, const DescriptorSet::TextureBindingInfo& texture,
+        VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
 
     template <typename Fn>
     static void ImmediateUpload(Fn&& uploadFunction);

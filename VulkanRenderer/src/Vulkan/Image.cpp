@@ -64,7 +64,7 @@ Image::Builder& Image::Builder::FromImageData(const ImageData& imageData)
 
 Image::Builder& Image::Builder::SetFormat(VkFormat format)
 {
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, " Images created using `ImageData` option are immutable")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "Images created using `ImageData` option are immutable")
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset || format == VK_FORMAT_R8G8B8A8_SRGB,
         "Cannot use custom format when loading from file")
     m_CreateInfo.Format = format;
@@ -74,7 +74,7 @@ Image::Builder& Image::Builder::SetFormat(VkFormat format)
 
 Image::Builder& Image::Builder::SetExtent(VkExtent2D extent)
 {
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, " Images created using `ImageData` option are immutable")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "Images created using `ImageData` option are immutable")
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset,
         "Cannot set extent when loading from file")
     m_CreateInfo.Extent = extent;
@@ -84,8 +84,16 @@ Image::Builder& Image::Builder::SetExtent(VkExtent2D extent)
 
 Image::Builder& Image::Builder::CreateMipmaps(bool enable)
 {
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, " Images created using `ImageData` option are immutable")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "Images created using `ImageData` option are immutable")
     m_CreateMipmaps = enable;
+
+    return *this;
+}
+
+Image::Builder& Image::Builder::CreateView(bool enable)
+{
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "Images created using `ImageData` option are immutable")
+    m_CreateInfo.CreateView = enable;
 
     return *this;
 }
@@ -119,7 +127,8 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     case CreateInfo::SourceInfo::None:
     {
         image = AllocateImage(createInfo);
-        image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, 1);
+        if (createInfo.CreateView)
+            image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, 1);
         break;
     }
     case CreateInfo::SourceInfo::ImageData:
@@ -130,17 +139,20 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     case CreateInfo::SourceInfo::Asset:
     {
         image = AllocateImage(createInfo);
-        ImageSubresource imageSubresource = {};
-        imageSubresource.Subresource.aspectMask = createInfo.ImageAspect;
-        imageSubresource.Subresource.layerCount = 1;
-        imageSubresource.Subresource.levelCount = 1;
+        if (createInfo.CreateView)
+        {
+            ImageSubresource imageSubresource = {};
+            imageSubresource.Subresource.aspectMask = createInfo.ImageAspect;
+            imageSubresource.Subresource.layerCount = 1;
+            imageSubresource.Subresource.levelCount = 1;
    
-        PrepareForTransfer(image, imageSubresource);
-        CopyBufferToImage(createInfo.AssetBuffer, image, createInfo.ImageAspect);
-        imageSubresource.Subresource.levelCount = createInfo.MipMapCount;
-        CreateMipMaps(image, createInfo);
-        PrepareForShaderRead(image, imageSubresource);
-        image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, createInfo.MipMapCount);
+            PrepareForTransfer(image, imageSubresource);
+            CopyBufferToImage(createInfo.AssetBuffer, image, createInfo.ImageAspect);
+            imageSubresource.Subresource.levelCount = createInfo.MipMapCount;
+            CreateMipMaps(image, createInfo);
+            PrepareForShaderRead(image, imageSubresource);
+            image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, createInfo.MipMapCount);
+        }
         break;
     }
     default:

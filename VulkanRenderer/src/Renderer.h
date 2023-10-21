@@ -7,6 +7,7 @@
 #include "Vulkan/VulkanInclude.h"
 
 #include <array>
+#include <vector>
 
 #include "ResourceUploader.h"
 #include "Settings.h"
@@ -52,13 +53,13 @@ struct ObjectData
 struct ObjectDataSSBO
 {
     Buffer Buffer;
-    std::array<ObjectData, MAX_OBJECTS> Objects;
+    std::vector<ObjectData> Objects{MAX_OBJECTS};
 };
 
 struct MaterialDataSSBO
 {
     Buffer Buffer;
-    std::array<MaterialGPU, MAX_OBJECTS> Materials;
+    std::vector<MaterialGPU> Materials{MAX_OBJECTS};
 };
 
 struct ComputeDispatch
@@ -75,7 +76,7 @@ struct BindlessData
     BindlessDescriptorsState BindlessDescriptorsState;
 };
 
-struct ComputeCullData
+struct ComputeFrustumCullData
 {
     struct SceneDataUBO
     {
@@ -83,10 +84,11 @@ struct ComputeCullData
         {
             glm::mat4 ViewMatrix;
             FrustumPlanes FrustumPlanes;
+            ProjectionData ProjectionData;
+            f32 PyramidWidth;
+            f32 PyramidHeight;
             u32 TotalMeshCount;
             u32 Pad0;
-            u32 Pad1;
-            u32 Pad2;
         };
         Data SceneData;
         Buffer Buffer;
@@ -94,6 +96,13 @@ struct ComputeCullData
     ShaderPipeline Pipeline;
     ShaderDescriptorSet DescriptorSet;
     SceneDataUBO SceneDataUBO;
+};
+
+struct ComputeDepthPyramidData
+{
+    ShaderPipeline Pipeline;
+    ShaderPipelineTemplate PipelineTemplate;
+    std::unique_ptr<DepthPyramid> DepthPyramid;
 };
 
 struct FrameContext
@@ -118,10 +127,14 @@ public:
     void BeginFrame();
     // todo: this is very bad, and I will change it later
     void BeginGraphics();
+    // todo: this is very bad, and I will change it later
+    void EndGraphics();
     void EndFrame();
 
     void Dispatch(const ComputeDispatch& dispatch);
 
+    void CreateDepthPyramid();
+    void ComputeDepthPyramid();
     void CullCompute(const Scene& scene);
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
@@ -135,6 +148,7 @@ private:
     Renderer();
     void InitRenderingStructures();
     void InitCullComputeStructures();
+    void InitDepthPyramidComputeStructures();
     void ShutDown();
 
     void OnWindowResize();
@@ -176,7 +190,8 @@ private:
     ResourceUploader m_ResourceUploader;
 
     BindlessData m_BindlessData;
-    ComputeCullData m_ComputeCullData;
+    ComputeFrustumCullData m_ComputeCullData;
+    ComputeDepthPyramidData m_ComputeDepthPyramidData;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

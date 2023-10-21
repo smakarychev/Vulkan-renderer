@@ -170,6 +170,7 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     vulkan12Features.descriptorBindingUpdateUnusedWhilePending = VK_TRUE;
     vulkan12Features.descriptorBindingVariableDescriptorCount = VK_TRUE;
     vulkan12Features.runtimeDescriptorArray = VK_TRUE;
+    vulkan12Features.samplerFilterMinmax = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -256,10 +257,14 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
     VkPhysicalDeviceDescriptorIndexingFeatures descriptorIndexingFeatures = {};
     descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
     descriptorIndexingFeatures.pNext = &shaderFeatures;
+
+    VkPhysicalDeviceVulkan12Features deviceVulkan12Features = {};
+    deviceVulkan12Features.sType  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+    deviceVulkan12Features.pNext = &descriptorIndexingFeatures;
     
     VkPhysicalDeviceFeatures2 features = {};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features.pNext = &descriptorIndexingFeatures;
+    features.pNext = &deviceVulkan12Features;
     
     vkGetPhysicalDeviceFeatures2(gpu, &features);
     
@@ -272,7 +277,8 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         descriptorIndexingFeatures.descriptorBindingUpdateUnusedWhilePending == VK_TRUE &&
         descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE &&
         descriptorIndexingFeatures.runtimeDescriptorArray == VK_TRUE &&
-        shaderFeatures.shaderDrawParameters == VK_TRUE;
+        shaderFeatures.shaderDrawParameters == VK_TRUE &&
+        deviceVulkan12Features.samplerFilterMinmax == VK_TRUE;
 }
 
 bool Device::CheckInstanceExtensions(const CreateInfo& createInfo) const

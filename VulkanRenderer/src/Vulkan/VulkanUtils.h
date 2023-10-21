@@ -27,7 +27,7 @@ namespace vkUtils
         return details;
     }
 
-    inline VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 mipmapLevels)
+    inline VkImageView createImageView(VkDevice device, VkImage image, VkFormat format, VkImageAspectFlags aspectFlags, u32 mipmapLevels, u32 baseMipLevel = 0)
     {
         VkImageViewCreateInfo createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -40,7 +40,7 @@ namespace vkUtils
         createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
         createInfo.subresourceRange.aspectMask = aspectFlags;
-        createInfo.subresourceRange.baseMipLevel = 0;
+        createInfo.subresourceRange.baseMipLevel = baseMipLevel;
         createInfo.subresourceRange.levelCount = mipmapLevels;
         createInfo.subresourceRange.baseArrayLayer = 0;
         createInfo.subresourceRange.layerCount = 1;

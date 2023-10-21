@@ -9,6 +9,7 @@
 #include "Core/Input.h"
 #include "Core/Random.h"
 #include "GLFW/glfw3.h"
+#include "Vulkan/DepthPyramid.h"
 #include "Vulkan/RenderCommand.h"
 #include "Vulkan/VulkanUtils.h"
 
@@ -19,6 +20,7 @@ void Renderer::Init()
     InitRenderingStructures();
     LoadScene();
     InitCullComputeStructures();
+    InitDepthPyramidComputeStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera = std::make_shared<Camera>();
@@ -51,11 +53,20 @@ void Renderer::OnRender()
     BeginFrame();
     if (!m_FrameEarlyExit)
     {
+        if (!m_ComputeDepthPyramidData.DepthPyramid)
+            CreateDepthPyramid();
         CullCompute(m_Scene);
 
         // todo: remove me, please
         BeginGraphics();
+        
         Submit(m_Scene);
+
+        // todo: remove me, please
+        EndGraphics();
+        
+        ComputeDepthPyramid();
+        
         EndFrame();
     }
     else
@@ -83,12 +94,14 @@ void Renderer::UpdateComputeCullBuffers()
 {
     static glm::mat4 view = m_Camera->GetView();
     static FrustumPlanes planes = m_Camera->GetFrustumPlanes();
+    static ProjectionData projectionData = m_Camera->GetProjectionData();
     m_ComputeCullData.SceneDataUBO.SceneData.ViewMatrix = view;
     m_ComputeCullData.SceneDataUBO.SceneData.FrustumPlanes = planes; 
+    m_ComputeCullData.SceneDataUBO.SceneData.ProjectionData = projectionData; 
     m_ComputeCullData.SceneDataUBO.SceneData.TotalMeshCount = (u32)m_Scene.GetRenderObjects().size(); 
-    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
+    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeFrustumCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
     m_ResourceUploader.UpdateBuffer(m_ComputeCullData.SceneDataUBO.Buffer, &m_ComputeCullData.SceneDataUBO.SceneData,
-        sizeof(ComputeCullData::SceneDataUBO::Data), offset);
+        sizeof(ComputeFrustumCullData::SceneDataUBO::Data), offset);
 }
 
 void Renderer::UpdateScene()
@@ -159,14 +172,18 @@ void Renderer::BeginGraphics()
     RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
 }
 
+void Renderer::EndGraphics()
+{
+    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    m_RenderPass.End(cmd);
+}
+
 void Renderer::EndFrame()
 {
     u32 frameNumber = GetFrameContext().FrameNumber;
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
     
-    m_RenderPass.End(cmd);
-
     cmd.End();
     cmd.Submit(m_Device.GetQueues().Graphics,
         {
@@ -198,20 +215,53 @@ void Renderer::Dispatch(const ComputeDispatch& dispatch)
     RenderCommand::Dispatch(cmd, dispatch.GroupSize);*/
 }
 
+void Renderer::CreateDepthPyramid()
+{
+    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    if (m_ComputeDepthPyramidData.DepthPyramid)
+    {
+        ShaderDescriptorSet::Destroy(m_ComputeCullData.DescriptorSet);
+        m_ComputeDepthPyramidData.DepthPyramid.reset();
+    }
+    
+    m_ComputeDepthPyramidData.DepthPyramid = std::make_unique<DepthPyramid>(m_Swapchain.GetDepthImage(), cmd,
+        &m_ComputeDepthPyramidData.Pipeline, &m_ComputeDepthPyramidData.PipelineTemplate);
+
+    const Texture& pyramid = m_ComputeDepthPyramidData.DepthPyramid->GetTexture();
+
+    m_ComputeCullData.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("compute-cull-template"))
+        .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer(), m_Scene.GetRenderObjectsBuffer().GetSizeBytes(), 0)
+        .AddBinding("u_command_buffer", m_Scene.GetIndirectBuffer(), m_Scene.GetIndirectBuffer().GetSizeBytes(), 0)
+        .AddBinding("u_scene_data", m_ComputeCullData.SceneDataUBO.Buffer, vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeFrustumCullData::SceneDataUBO::Data)), 0)
+        .AddBinding("u_depth_pyramid", {
+            .View = pyramid.GetImageData().View,
+            .Sampler = m_ComputeDepthPyramidData.DepthPyramid->GetSampler(),
+            .Layout = VK_IMAGE_LAYOUT_GENERAL})
+        .BuildManualLifetime();
+}
+
+void Renderer::ComputeDepthPyramid()
+{
+    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
+}
+
 void Renderer::CullCompute(const Scene& scene)
 {
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-    u32 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
+    u32 offset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeFrustumCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
     
     m_ComputeCullData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
     m_ComputeCullData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_ComputeCullData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {offset});
     RenderCommand::Dispatch(cmd, {m_Scene.GetRenderObjects().size() / 64 + 1, 1, 1});
-    RenderCommand::CreateBarrier(cmd, {
+    PipelineBufferBarrierInfo barrierInfo = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
         .Queue = &m_Device.GetQueues().Graphics,
         .Buffer = &scene.GetIndirectBuffer(),
-        .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT});
+        .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
+    RenderCommand::CreateBarrier(cmd, barrierInfo);
 }
 
 void Renderer::Submit(const Scene& scene)
@@ -341,7 +391,7 @@ void Renderer::InitCullComputeStructures()
 {
     m_ComputeCullData.SceneDataUBO.Buffer = Buffer::Builder()
         .SetKind({BufferKind::Uniform})
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)) * BUFFERED_FRAMES)
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeFrustumCullData::SceneDataUBO::Data)) * BUFFERED_FRAMES)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .Build();
 
@@ -354,16 +404,24 @@ void Renderer::InitCullComputeStructures()
         .Build();
 
     m_Scene.AddShaderTemplate(computeCullTemplate, "compute-cull-template");
-    
+
     m_ComputeCullData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_Scene.GetShaderTemplate("compute-cull-template"))
         .Build();
+}
 
-    m_ComputeCullData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_Scene.GetShaderTemplate("compute-cull-template"))
-        .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer(), m_Scene.GetRenderObjectsBuffer().GetSizeBytes(), 0)
-        .AddBinding("u_command_buffer", m_Scene.GetIndirectBuffer(), m_Scene.GetIndirectBuffer().GetSizeBytes(), 0)
-        .AddBinding("u_scene_data", m_ComputeCullData.SceneDataUBO.Buffer, vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCullData::SceneDataUBO::Data)), 0)
+void Renderer::InitDepthPyramidComputeStructures()
+{
+    Shader* computeDepthPyramid = Shader::ReflectFrom({"../assets/shaders/depth-pyramid-comp.shader"});
+
+    m_ComputeDepthPyramidData.PipelineTemplate = ShaderPipelineTemplate::Builder()
+        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
+        .SetDescriptorLayoutCache(&m_LayoutCache)
+        .SetShaderReflection(computeDepthPyramid)
+        .Build();
+
+    m_ComputeDepthPyramidData.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(&m_ComputeDepthPyramidData.PipelineTemplate)
         .Build();
 }
 
@@ -372,6 +430,7 @@ void Renderer::ShutDown()
     vkDeviceWaitIdle(Driver::DeviceHandle());
 
     m_Scene.OnShutdown();
+    m_ComputeDepthPyramidData.DepthPyramid.reset();
     
     for (auto& framebuffer : m_Framebuffers)
         Framebuffer::Destroy(framebuffer);
@@ -413,6 +472,7 @@ void Renderer::RecreateSwapchain()
     
     m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
     m_Framebuffers = m_Swapchain.GetFramebuffers(m_RenderPass);
+    m_ComputeDepthPyramidData.DepthPyramid.reset();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera->SetViewport(m_Swapchain.GetSize().x, m_Swapchain.GetSize().y);
@@ -483,7 +543,7 @@ void Renderer::LoadScene()
 
     //m_Scene.AddModel(sponza, "sponza");
 
-    std::vector models = {"car", "gun", "helmet"};
+    std::vector models = {"mori", "gun", "helmet"};
 
     for (i32 x = -5; x <= 5; x++)
     {

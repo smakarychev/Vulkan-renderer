@@ -63,6 +63,12 @@ public:
         u64 SizeBytes{0};
         u64 OffsetBytes{0};
     };
+    struct TextureBindingInfo
+    {
+        VkImageView View;
+        VkSampler Sampler;
+        VkImageLayout Layout;
+    };
     class Builder
     {
         friend class DescriptorSet;
@@ -83,7 +89,7 @@ public:
                 VkDescriptorType Type;
             };
 
-            VkDescriptorPoolCreateFlags PoolFlags;
+            VkDescriptorPoolCreateFlags PoolFlags{0};
             std::vector<BoundResource> BoundResources;
             DescriptorAllocator* Allocator;
             const DescriptorSetLayout* Layout;
@@ -96,6 +102,7 @@ public:
         Builder& SetPoolFlags(VkDescriptorPoolCreateFlags flags);
         Builder& AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo, VkDescriptorType descriptor);
         Builder& AddTextureBinding(u32 slot, const Texture& texture, VkDescriptorType descriptor);
+        Builder& AddTextureBinding(u32 slot, const TextureBindingInfo& texture, VkDescriptorType descriptor);
         Builder& AddVariableBinding(const VariableBindingInfo& variableBindingInfo);
     private:
         void PreBuild();
@@ -106,6 +113,7 @@ public:
     };
 public:
     static DescriptorSet Create(const Builder::CreateInfo& createInfo);
+    static void Destroy(const DescriptorSet& descriptorSet);
 
     void Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint);
     void Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint,
@@ -117,6 +125,7 @@ public:
     bool IsValid() const { return m_DescriptorSet != VK_NULL_HANDLE; }
 private:
     VkDescriptorSet m_DescriptorSet{VK_NULL_HANDLE};
+    VkDescriptorPool m_Pool{VK_NULL_HANDLE};
     const DescriptorSetLayout* m_Layout{nullptr};
 };
 

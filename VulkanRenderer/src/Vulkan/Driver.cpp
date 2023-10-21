@@ -152,6 +152,17 @@ void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescri
     descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot, .Type = descriptor});
 }
 
+void Driver::DescriptorSetBindTexture(u32 slot, const DescriptorSet::TextureBindingInfo& texture,
+    VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
+{
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.sampler = texture.Sampler;
+    descriptorTextureInfo.imageView = texture.View;
+    descriptorTextureInfo.imageLayout = texture.Layout;
+
+    descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot, .Type = descriptor});
+}
+
 void Driver::Init(const Device& device)
 {
     s_State.Device = &device;

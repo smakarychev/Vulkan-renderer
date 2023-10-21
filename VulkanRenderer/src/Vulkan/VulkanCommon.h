@@ -122,12 +122,28 @@ struct BindlessDescriptorsState
     u32 TextureIndex{0};
 };
 
-struct PipelineBarrierInfo
+struct PipelineBufferBarrierInfo
 {
     VkPipelineStageFlags PipelineSourceMask;
     VkPipelineStageFlags PipelineDestinationMask;
+    VkDependencyFlags DependencyFlags{0};
     const QueueInfo* Queue;
     const Buffer* Buffer;
     VkAccessFlags BufferSourceMask;
     VkAccessFlags BufferDestinationMask;
 };
+
+struct PipelineImageBarrierInfo
+{
+    VkPipelineStageFlags PipelineSourceMask;
+    VkPipelineStageFlags PipelineDestinationMask;
+    VkDependencyFlags DependencyFlags{0};
+    const Image* Image;
+    VkAccessFlags ImageSourceMask;
+    VkAccessFlags ImageDestinationMask;
+    VkImageLayout ImageSourceLayout;
+    VkImageLayout ImageDestinationLayout;
+    VkImageAspectFlags ImageAspect; 
+};
+
+using PipelineTextureBarrierInfo = PipelineImageBarrierInfo;
