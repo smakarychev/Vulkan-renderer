@@ -19,7 +19,8 @@ project "VulkanRenderer"
         IncludeDir["GLFW"],			
         IncludeDir["glm"],			
         IncludeDir["vma"],	
-        IncludeDir["spirv_reflect"],	    
+        IncludeDir["spirv_reflect"],	
+        IncludeDir["tracy"],    
     }
 
     libdirs
@@ -38,6 +39,7 @@ project "VulkanRenderer"
 	{
 		"_CRT_SECURE_NO_WARNINGS",
 		"GLFW_INCLUDE_NONE",
+        "TRACY_ENABLE",
 	}
 
 

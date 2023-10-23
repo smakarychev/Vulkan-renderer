@@ -12,6 +12,7 @@
 #include "ResourceUploader.h"
 #include "Settings.h"
 #include "Core/Camera.h"
+#include "Core/ProfilerContext.h"
 
 class Camera;
 class CameraController;
@@ -105,6 +106,31 @@ struct ComputeDepthPyramidData
     std::unique_ptr<DepthPyramid> DepthPyramid;
 };
 
+struct ComputeReprojectionData
+{
+    struct ReprojectionUBO
+    {
+        struct Data
+        {
+            glm::mat4 LastViewInverse;
+            glm::mat4 LastProjectionInverse;
+            glm::mat4 View;
+            glm::mat4 Projection;
+        };
+        Data ReprojectionData;
+        Buffer Buffer;
+    };
+    ShaderPipeline Pipeline;
+    ShaderPipelineTemplate PipelineTemplate;
+    ReprojectionUBO ReprojectionUBO;
+};
+
+struct ComputeDilateData
+{
+    ShaderPipeline Pipeline;
+    ShaderPipelineTemplate PipelineTemplate;
+};
+
 struct FrameContext
 {
     CommandPool CommandPool;
@@ -149,6 +175,8 @@ private:
     void InitRenderingStructures();
     void InitCullComputeStructures();
     void InitDepthPyramidComputeStructures();
+    void InitReprojectionComputeStructures();
+    void InitDilateComputeStructures();
     void ShutDown();
 
     void OnWindowResize();
@@ -156,6 +184,7 @@ private:
     
     void UpdateCameraBuffers();
     void UpdateComputeCullBuffers();
+    void UpdateComputeReprojectionBuffers();
     void UpdateScene();
     void LoadScene();
 
@@ -177,6 +206,8 @@ private:
 
     std::vector<FrameContext> m_FrameContexts;
     FrameContext* m_CurrentFrameContext{nullptr};
+
+    ProfilerContext m_ProfilerContext;
     
     ObjectDataSSBO m_ObjectDataSSBO;
     CameraDataUBO m_CameraDataUBO;
@@ -192,6 +223,8 @@ private:
     BindlessData m_BindlessData;
     ComputeFrustumCullData m_ComputeCullData;
     ComputeDepthPyramidData m_ComputeDepthPyramidData;
+    ComputeReprojectionData m_ComputeReprojectionData;
+    ComputeDilateData m_ComputeDilateData;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

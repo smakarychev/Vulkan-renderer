@@ -17,7 +17,10 @@
 #include "Shader.h"
 #include "UploadContext.h"
 
+#include <tracy/TracyVulkan.hpp>
 
+
+class ProfilerContext;
 class ShaderPipeline;
 
 class DriverDeletionQueue
@@ -86,7 +89,13 @@ public:
     static u32 GetMaxIndexingStorageBuffersDynamic() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic; }
     static UploadContext* UploadContext() { return &s_State.UploadContext; }
 
+    static TracyVkCtx CreateTracyGraphicsContext(const CommandBuffer& cmd);
+    static void DestroyTracyGraphicsContext(TracyVkCtx context);
+
     static VkSampler* GetImmutableSampler();
+
+    static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
+    
 public:
     static DriverState s_State;
 };

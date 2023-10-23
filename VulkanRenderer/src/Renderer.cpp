@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <dinput.h>
 #include <glm/ext/matrix_transform.hpp>
+#include <tracy/Tracy.hpp>
 
 #include "RenderObject.h"
 #include "Scene.h"
@@ -14,6 +15,7 @@
 #include "Vulkan/RenderCommand.h"
 #include "Vulkan/VulkanUtils.h"
 
+
 Renderer::Renderer() = default;
 
 void Renderer::Init()
@@ -22,6 +24,8 @@ void Renderer::Init()
     LoadScene();
     InitCullComputeStructures();
     InitDepthPyramidComputeStructures();
+    InitReprojectionComputeStructures();
+    InitDilateComputeStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera = std::make_shared<Camera>();
@@ -56,6 +60,9 @@ void Renderer::OnRender()
     {
         if (!m_ComputeDepthPyramidData.DepthPyramid)
             CreateDepthPyramid();
+        else
+            ComputeDepthPyramid();
+
         CullCompute(m_Scene);
 
         // todo: remove me, please
@@ -66,9 +73,10 @@ void Renderer::OnRender()
         // todo: remove me, please
         EndGraphics();
         
-        ComputeDepthPyramid();
         
         EndFrame();
+        
+        FrameMark; // tracy
     }
     else
     {
@@ -79,9 +87,13 @@ void Renderer::OnRender()
 void Renderer::OnUpdate()
 {
     m_CameraController->OnUpdate(1.0f / 60.0f);
+    glm::vec3 pos = m_Camera->GetPosition();
+    glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(2.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    m_Camera->SetPosition(rot * glm::vec4(m_Camera->GetPosition(), 1.0f));
     UpdateCameraBuffers();
     UpdateScene();
     UpdateComputeCullBuffers();
+    UpdateComputeReprojectionBuffers();
 }
 
 void Renderer::UpdateCameraBuffers()
@@ -96,19 +108,33 @@ void Renderer::UpdateComputeCullBuffers()
     glm::mat4 view = m_Camera->GetView();
     FrustumPlanes planes = m_Camera->GetFrustumPlanes();
     ProjectionData projectionData = m_Camera->GetProjectionData();
-    m_ComputeCullData.SceneDataUBO.SceneData.ViewMatrix = view;
-    m_ComputeCullData.SceneDataUBO.SceneData.FrustumPlanes = planes; 
-    m_ComputeCullData.SceneDataUBO.SceneData.ProjectionData = projectionData; 
-    m_ComputeCullData.SceneDataUBO.SceneData.TotalMeshCount = (u32)m_Scene.GetRenderObjects().size();
+    auto& sceneData = m_ComputeCullData.SceneDataUBO.SceneData; 
+    sceneData.ViewMatrix = view;
+    sceneData.FrustumPlanes = planes; 
+    sceneData.ProjectionData = projectionData; 
+    sceneData.TotalMeshCount = (u32)m_Scene.GetRenderObjects().size();
     if (m_ComputeDepthPyramidData.DepthPyramid)
     {
-        m_ComputeCullData.SceneDataUBO.SceneData.PyramidWidth = (f32)m_ComputeDepthPyramidData.DepthPyramid->GetTexture().GetImageData().Width; 
-        m_ComputeCullData.SceneDataUBO.SceneData.PyramidHeight = (f32)m_ComputeDepthPyramidData.DepthPyramid->GetTexture().GetImageData().Height;
+        sceneData.PyramidWidth = (f32)m_ComputeDepthPyramidData.DepthPyramid->GetTexture().GetImageData().Width; 
+        sceneData.PyramidHeight = (f32)m_ComputeDepthPyramidData.DepthPyramid->GetTexture().GetImageData().Height;
     }
     
-    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeFrustumCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
-    m_ResourceUploader.UpdateBuffer(m_ComputeCullData.SceneDataUBO.Buffer, &m_ComputeCullData.SceneDataUBO.SceneData,
-        sizeof(ComputeFrustumCullData::SceneDataUBO::Data), offset);
+    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(sceneData)) * GetFrameContext().FrameNumber;
+    m_ResourceUploader.UpdateBuffer(m_ComputeCullData.SceneDataUBO.Buffer, &sceneData,
+        sizeof(sceneData), offset);
+}
+
+void Renderer::UpdateComputeReprojectionBuffers()
+{
+    auto& reprojectionData = m_ComputeReprojectionData.ReprojectionUBO.ReprojectionData; 
+    reprojectionData.LastViewInverse = glm::inverse(reprojectionData.View);
+    reprojectionData.LastProjectionInverse = glm::inverse(reprojectionData.Projection);
+    reprojectionData.Projection = m_Camera->GetProjection();
+    reprojectionData.View = m_Camera->GetView();
+
+    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(reprojectionData)) * GetFrameContext().FrameNumber;
+    m_ResourceUploader.UpdateBuffer(m_ComputeReprojectionData.ReprojectionUBO.Buffer, &reprojectionData,
+        sizeof(reprojectionData), offset);
 }
 
 void Renderer::UpdateScene()
@@ -191,6 +217,8 @@ void Renderer::EndFrame()
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
     
+    TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()))
+    
     cmd.End();
     cmd.Submit(m_Device.GetQueues().Graphics,
         {
@@ -207,6 +235,7 @@ void Renderer::EndFrame()
     
     m_FrameNumber++;
     m_CurrentFrameContext = &m_FrameContexts[m_FrameNumber % BUFFERED_FRAMES];
+    ProfilerContext::Get()->NextFrame();
     
     // todo: is this the best place for it?
     m_ResourceUploader.StartRecording();
@@ -232,7 +261,7 @@ void Renderer::CreateDepthPyramid()
     }
     
     m_ComputeDepthPyramidData.DepthPyramid = std::make_unique<DepthPyramid>(m_Swapchain.GetDepthImage(), cmd,
-        &m_ComputeDepthPyramidData.Pipeline, &m_ComputeDepthPyramidData.PipelineTemplate);
+        &m_ComputeDepthPyramidData, &m_ComputeReprojectionData, &m_ComputeDilateData);
 
     const Texture& pyramid = m_ComputeDepthPyramidData.DepthPyramid->GetTexture();
 
@@ -250,12 +279,20 @@ void Renderer::CreateDepthPyramid()
 
 void Renderer::ComputeDepthPyramid()
 {
-    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-    m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
+    bool once = true;
+    if (once)
+    {
+        CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+        m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
+        once = false;
+    }
+    
 }
 
 void Renderer::CullCompute(const Scene& scene)
 {
+    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Compute cull")
+
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
     u32 offset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeFrustumCullData::SceneDataUBO::Data)) * GetFrameContext().FrameNumber;
     
@@ -273,6 +310,8 @@ void Renderer::CullCompute(const Scene& scene)
 
 void Renderer::Submit(const Scene& scene)
 {
+    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene render")
+
     CommandBuffer& cmd = GetFrameContext().CommandBuffer;
 
     m_BindlessData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
@@ -374,6 +413,11 @@ void Renderer::InitRenderingStructures()
         m_FrameContexts[i].FrameNumber = i;
     }
 
+    std::array<CommandBuffer*, BUFFERED_FRAMES> cmds;
+    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+        cmds[i] = &m_FrameContexts[i].CommandBuffer;
+    m_ProfilerContext.Get()->Init(cmds);
+
     // descriptors
     m_PersistentDescriptorAllocator = DescriptorAllocator::Builder()
         .SetMaxSetsPerPool(10000)
@@ -432,6 +476,42 @@ void Renderer::InitDepthPyramidComputeStructures()
         .Build();
 }
 
+void Renderer::InitReprojectionComputeStructures()
+{
+    Shader* computeReprojection = Shader::ReflectFrom({"../assets/shaders/depth-reprojection-comp.shader"});
+
+    m_ComputeReprojectionData.PipelineTemplate = ShaderPipelineTemplate::Builder()
+        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
+        .SetDescriptorLayoutCache(&m_LayoutCache)
+        .SetShaderReflection(computeReprojection)
+        .Build();
+
+    m_ComputeReprojectionData.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(&m_ComputeReprojectionData.PipelineTemplate)
+        .Build();
+
+    m_ComputeReprojectionData.ReprojectionUBO.Buffer = Buffer::Builder()
+        .SetKind({BufferKind::Uniform})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeReprojectionData::ReprojectionUBO::Data)) * BUFFERED_FRAMES)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+        .Build();
+}
+
+void Renderer::InitDilateComputeStructures()
+{
+    Shader* computeDilate = Shader::ReflectFrom({"../assets/shaders/depth-dilation-comp.shader"});
+
+    m_ComputeDilateData.PipelineTemplate = ShaderPipelineTemplate::Builder()
+        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
+        .SetDescriptorLayoutCache(&m_LayoutCache)
+        .SetShaderReflection(computeDilate)
+        .Build();
+
+    m_ComputeDilateData.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(&m_ComputeDilateData.PipelineTemplate)
+        .Build();
+}
+
 void Renderer::ShutDown()
 {
     vkDeviceWaitIdle(Driver::DeviceHandle());
@@ -443,6 +523,7 @@ void Renderer::ShutDown()
         Framebuffer::Destroy(framebuffer);
     Swapchain::Destroy(m_Swapchain);
     m_ResourceUploader.ShutDown();
+    m_ProfilerContext.ShutDown();
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();

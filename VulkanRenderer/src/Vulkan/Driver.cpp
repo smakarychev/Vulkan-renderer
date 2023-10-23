@@ -6,6 +6,7 @@
 #include <vma/vk_mem_alloc.h>
 
 #include "Buffer.h"
+#include "Core/ProfilerContext.h"
 
 void DriverDeletionQueue::AddDeleter(std::function<void()>&& deleter)
 {
@@ -188,9 +189,25 @@ void Driver::Shutdown()
     s_State.DeletionQueue.Flush();
 }
 
+TracyVkCtx Driver::CreateTracyGraphicsContext(const CommandBuffer& cmd)
+{
+    TracyVkCtx context = TracyVkContext(GetDevice().m_GPU, GetDevice().m_Device, GetDevice().GetQueues().Graphics.Queue, cmd.m_CommandBuffer)
+    return context;
+}
+
+void Driver::DestroyTracyGraphicsContext(TracyVkCtx context)
+{
+    TracyVkDestroy(context)
+}
+
 VkSampler* Driver::GetImmutableSampler()
 {
     static VkSampler sampler = Texture::CreateSampler(VK_FILTER_LINEAR, VK_LOD_CLAMP_NONE);
 
     return &sampler;
+}
+
+VkCommandBuffer Driver::GetProfilerCommandBuffer(ProfilerContext* context)
+{
+    return context->m_GraphicsCommandBuffers[context->m_CurrentFrame]->m_CommandBuffer;
 }
