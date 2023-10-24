@@ -63,6 +63,7 @@ public:
 
     void CreateSharedMeshContext(ResourceUploader& resourceUploader);
     const Buffer& GetIndirectBuffer() const { return m_IndirectBuffer; }
+    const Buffer& GetIndirectCompactBuffer() const { return m_IndirectCompactBuffer; }
     const Buffer& GetRenderObjectsBuffer() const { return m_RenderObjectSSBO.Buffer; }
     
     void AddRenderObject(const RenderObject& renderObject);
@@ -85,6 +86,7 @@ private:
 
     std::unique_ptr<SharedMeshContext> m_SharedMeshContext;
     Buffer m_IndirectBuffer;
+    Buffer m_IndirectCompactBuffer;
     RenderObjectSSBO m_RenderObjectSSBO{};
     
     bool m_IsDirty{false};

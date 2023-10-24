@@ -26,6 +26,7 @@ void Renderer::Init()
     InitDepthPyramidComputeStructures();
     InitReprojectionComputeStructures();
     InitDilateComputeStructures();
+    InitCompactComputeStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera = std::make_shared<Camera>();
@@ -64,6 +65,7 @@ void Renderer::OnRender()
             ComputeDepthPyramid();
 
         CullCompute(m_Scene);
+        CompactCompute(m_Scene);
 
         // todo: remove me, please
         BeginGraphics();
@@ -87,13 +89,14 @@ void Renderer::OnRender()
 void Renderer::OnUpdate()
 {
     m_CameraController->OnUpdate(1.0f / 60.0f);
-    glm::vec3 pos = m_Camera->GetPosition();
-    glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(2.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    m_Camera->SetPosition(rot * glm::vec4(m_Camera->GetPosition(), 1.0f));
+    //glm::vec3 pos = m_Camera->GetPosition();
+    //glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(2.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    //m_Camera->SetPosition(rot * glm::vec4(m_Camera->GetPosition(), 1.0f));
     UpdateCameraBuffers();
     UpdateScene();
     UpdateComputeCullBuffers();
     UpdateComputeReprojectionBuffers();
+    UpdateComputeCompactBuffers();
 }
 
 void Renderer::UpdateCameraBuffers()
@@ -135,6 +138,16 @@ void Renderer::UpdateComputeReprojectionBuffers()
     u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(reprojectionData)) * GetFrameContext().FrameNumber;
     m_ResourceUploader.UpdateBuffer(m_ComputeReprojectionData.ReprojectionUBO.Buffer, &reprojectionData,
         sizeof(reprojectionData), offset);
+}
+
+void Renderer::UpdateComputeCompactBuffers()
+{
+    auto& compactionData = m_ComputeCompactData.CompactUBO.CompactionData;
+    compactionData.DrawCount = 0;
+
+    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(compactionData)) * GetFrameContext().FrameNumber;
+    m_ResourceUploader.UpdateBuffer(m_ComputeCompactData.CompactUBO.Buffer, &compactionData,
+       sizeof(compactionData), offset);
 }
 
 void Renderer::UpdateScene()
@@ -301,9 +314,34 @@ void Renderer::CullCompute(const Scene& scene)
     RenderCommand::Dispatch(cmd, {m_Scene.GetRenderObjects().size() / 64 + 1, 1, 1});
     PipelineBufferBarrierInfo barrierInfo = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .Queue = &m_Device.GetQueues().Graphics,
         .Buffer = &scene.GetIndirectBuffer(),
+        .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_READ_BIT};
+    RenderCommand::CreateBarrier(cmd, barrierInfo);
+}
+
+void Renderer::CompactCompute(const Scene& scene)
+{
+    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Compact compute")
+
+    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    u32 offset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCompactData::CompactUBO::Data)) * GetFrameContext().FrameNumber;
+
+    PushConstantDescription pushConstantDescription = PushConstantDescription::Builder()
+        .SetStages(VK_SHADER_STAGE_COMPUTE_BIT)
+        .SetSizeBytes(sizeof(u32))
+        .Build();
+    m_ComputeCompactData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    m_ComputeCompactData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_ComputeCompactData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {offset});
+    u32 objectsCount = (u32)m_Scene.GetRenderObjects().size();
+    RenderCommand::PushConstants(cmd, m_ComputeCompactData.Pipeline.GetPipelineLayout(), &objectsCount, pushConstantDescription);
+    RenderCommand::Dispatch(cmd, {m_Scene.GetRenderObjects().size() / 64 + 1, 1, 1});
+    PipelineBufferBarrierInfo barrierInfo = {
+        .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        .Queue = &m_Device.GetQueues().Graphics,
+        .Buffer = &scene.GetIndirectCompactBuffer(),
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
     RenderCommand::CreateBarrier(cmd, barrierInfo);
 }
@@ -322,9 +360,13 @@ void Renderer::Submit(const Scene& scene)
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset, sceneDataOffset});
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-
+    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCompactData::CompactUBO::Data)) * GetFrameContext().FrameNumber;
     scene.Bind(cmd);
-    RenderCommand::DrawIndexedIndirect(cmd, scene.GetIndirectBuffer(), 0, (u32)scene.GetRenderObjects().size(),  sizeof(VkDrawIndexedIndirectCommand));
+    
+    RenderCommand::DrawIndexedIndirectCount(cmd,
+       scene.GetIndirectCompactBuffer(), 0,
+       m_ComputeCompactData.CompactUBO.Buffer, offset,
+       (u32)scene.GetRenderObjects().size(), sizeof(VkDrawIndexedIndirectCommand));
 }
 
 void Renderer::SortScene(Scene& scene)
@@ -416,7 +458,7 @@ void Renderer::InitRenderingStructures()
     std::array<CommandBuffer*, BUFFERED_FRAMES> cmds;
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
         cmds[i] = &m_FrameContexts[i].CommandBuffer;
-    m_ProfilerContext.Get()->Init(cmds);
+    ProfilerContext::Get()->Init(cmds);
 
     // descriptors
     m_PersistentDescriptorAllocator = DescriptorAllocator::Builder()
@@ -512,6 +554,36 @@ void Renderer::InitDilateComputeStructures()
         .Build();
 }
 
+void Renderer::InitCompactComputeStructures()
+{
+    m_ComputeCompactData.CompactUBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Indirect})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCompactData::CompactUBO::Data)) * BUFFERED_FRAMES)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+        .Build();
+    
+    Shader* computeCompact = Shader::ReflectFrom({"../assets/shaders/compute-compact-calls-comp.shader"});
+
+    ShaderPipelineTemplate compactTemplate = ShaderPipelineTemplate::Builder()
+        .SetDescriptorAllocator(&m_PersistentDescriptorAllocator)
+        .SetDescriptorLayoutCache(&m_LayoutCache)
+        .SetShaderReflection(computeCompact)
+        .Build();
+
+    m_Scene.AddShaderTemplate(compactTemplate, "compute-compact");
+    
+    m_ComputeCompactData.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("compute-compact"))
+        .Build();
+
+    m_ComputeCompactData.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_Scene.GetShaderTemplate("compute-compact"))
+        .AddBinding("u_command_buffer", m_Scene.GetIndirectBuffer(), m_Scene.GetIndirectBuffer().GetSizeBytes(), 0)
+        .AddBinding("u_compacted_command_buffer", m_Scene.GetIndirectCompactBuffer(), m_Scene.GetIndirectCompactBuffer().GetSizeBytes(), 0)
+        .AddBinding("u_count_buffer", m_ComputeCompactData.CompactUBO.Buffer, vkUtils::alignUniformBufferSizeBytes(sizeof(ComputeCompactData::CompactUBO::Data)), 0)
+        .Build();
+}
+
 void Renderer::ShutDown()
 {
     vkDeviceWaitIdle(Driver::DeviceHandle());
@@ -523,7 +595,7 @@ void Renderer::ShutDown()
         Framebuffer::Destroy(framebuffer);
     Swapchain::Destroy(m_Swapchain);
     m_ResourceUploader.ShutDown();
-    m_ProfilerContext.ShutDown();
+    ProfilerContext::Get()->ShutDown();
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();

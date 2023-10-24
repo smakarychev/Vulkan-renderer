@@ -268,6 +268,7 @@ void ShaderConverter::Convert(const std::filesystem::path& path)
     
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
+    options.SetTargetSpirv(shaderc_spirv_version_1_3);
     options.SetOptimizationLevel(shaderc_optimization_level_zero);
     shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind, path.string().c_str(), options);
     if (module.GetCompilationStatus() != shaderc_compilation_status_success)

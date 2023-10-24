@@ -217,6 +217,15 @@ void RenderCommand::DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& 
     vkCmdDrawIndexedIndirect(cmd.m_CommandBuffer, buffer.m_Buffer, offset, count, stride);    
 }
 
+void RenderCommand::DrawIndexedIndirectCount(const CommandBuffer& cmd, const Buffer& drawBuffer, u64 drawOffset,
+    const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride)
+{
+    vkCmdDrawIndexedIndirectCount(cmd.m_CommandBuffer,
+        drawBuffer.m_Buffer, drawOffset,
+        countBuffer.m_Buffer, countOffset,
+        maxCount, stride);
+}
+
 void RenderCommand::Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize)
 {
     vkCmdDispatch(cmd.m_CommandBuffer, groupSize.x, groupSize.y, groupSize.z);

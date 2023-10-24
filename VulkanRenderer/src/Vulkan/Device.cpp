@@ -45,7 +45,7 @@ Device::Builder& Device::Builder::Defaults()
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
         VK_KHR_MAINTENANCE3_EXTENSION_NAME,
-        VK_KHR_MAINTENANCE1_EXTENSION_NAME
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
     };
     m_CreateInfo = defaults;
     return *this;
@@ -171,6 +171,8 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     vulkan12Features.descriptorBindingVariableDescriptorCount = VK_TRUE;
     vulkan12Features.runtimeDescriptorArray = VK_TRUE;
     vulkan12Features.samplerFilterMinmax = VK_TRUE;
+    vulkan12Features.drawIndirectCount = VK_TRUE;
+    vulkan12Features.subgroupBroadcastDynamicId = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
@@ -278,7 +280,9 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE &&
         descriptorIndexingFeatures.runtimeDescriptorArray == VK_TRUE &&
         shaderFeatures.shaderDrawParameters == VK_TRUE &&
-        deviceVulkan12Features.samplerFilterMinmax == VK_TRUE;
+        deviceVulkan12Features.samplerFilterMinmax == VK_TRUE &&
+        deviceVulkan12Features.drawIndirectCount == VK_TRUE &&
+        deviceVulkan12Features.subgroupBroadcastDynamicId == VK_TRUE;
 }
 
 bool Device::CheckInstanceExtensions(const CreateInfo& createInfo) const

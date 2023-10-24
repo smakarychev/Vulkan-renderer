@@ -131,6 +131,22 @@ struct ComputeDilateData
     ShaderPipelineTemplate PipelineTemplate;
 };
 
+struct ComputeCompactData
+{
+    struct CompactUBO
+    {
+        struct Data
+        {
+            u32 DrawCount;
+        };
+        Data CompactionData;
+        Buffer Buffer;
+    };
+    ShaderPipeline Pipeline;
+    ShaderDescriptorSet DescriptorSet;
+    CompactUBO CompactUBO;
+};
+
 struct FrameContext
 {
     CommandPool CommandPool;
@@ -162,6 +178,7 @@ public:
     void CreateDepthPyramid();
     void ComputeDepthPyramid();
     void CullCompute(const Scene& scene);
+    void CompactCompute(const Scene& scene);
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
     void PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description);
@@ -177,6 +194,7 @@ private:
     void InitDepthPyramidComputeStructures();
     void InitReprojectionComputeStructures();
     void InitDilateComputeStructures();
+    void InitCompactComputeStructures();
     void ShutDown();
 
     void OnWindowResize();
@@ -185,6 +203,7 @@ private:
     void UpdateCameraBuffers();
     void UpdateComputeCullBuffers();
     void UpdateComputeReprojectionBuffers();
+    void UpdateComputeCompactBuffers();
     void UpdateScene();
     void LoadScene();
 
@@ -207,8 +226,6 @@ private:
     std::vector<FrameContext> m_FrameContexts;
     FrameContext* m_CurrentFrameContext{nullptr};
 
-    ProfilerContext m_ProfilerContext;
-    
     ObjectDataSSBO m_ObjectDataSSBO;
     CameraDataUBO m_CameraDataUBO;
     SceneDataUBO m_SceneDataUBO;
@@ -225,6 +242,7 @@ private:
     ComputeDepthPyramidData m_ComputeDepthPyramidData;
     ComputeReprojectionData m_ComputeReprojectionData;
     ComputeDilateData m_ComputeDilateData;
+    ComputeCompactData m_ComputeCompactData;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

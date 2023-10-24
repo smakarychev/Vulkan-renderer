@@ -64,7 +64,7 @@ bool is_visible(uint id)
     visible = visible && abs(u_scene_data.frustum_top_y * origin.y) < -origin.z * u_scene_data.frustum_top_z + radius;
     visible = visible && origin.z - radius < -u_scene_data.frustum_near && origin.z + radius > -u_scene_data.frustum_far;
 
-    if (visible && origin.z + radius <  -u_scene_data.frustum_near)
+    if (visible && origin.z + radius < -u_scene_data.frustum_near)
     {
         vec4 aabb;
         vec3 cr = origin * radius;
@@ -79,11 +79,8 @@ bool is_visible(uint id)
         float maxy = (vy * origin.y + cr.z) / (vy * origin.z - cr.y);
         aabb = vec4(minx * u_scene_data.projection_width, miny * u_scene_data.projection_height, maxx * u_scene_data.projection_width, maxy * u_scene_data.projection_height);
         // clip space -> uv space
-        aabb = aabb.xwzy * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
-        aabb.x = 1 - aabb.x;
-        aabb.z = 1 - aabb.z;
-        aabb.y = 1 - aabb.y;
-        aabb.w = 1 - aabb.w;
+        aabb = aabb.xwzy * vec4(-0.5f, 0.5f, -0.5f, 0.5f) + vec4(0.5f);
+        
         float width =  (aabb.x - aabb.z) * u_scene_data.depth_pyramid_width;
         float height = (aabb.y - aabb.w) * u_scene_data.depth_pyramid_height;
 
@@ -108,5 +105,6 @@ void main()
     if (id >= u_scene_data.mesh_count)
         return;
     
-    u_command_buffer.commands[id].instanceCount = int(is_visible(id));
+    bool visible = is_visible(id);
+    u_command_buffer.commands[id].instanceCount = int(visible);
 }

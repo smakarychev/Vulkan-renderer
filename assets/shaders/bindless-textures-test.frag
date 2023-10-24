@@ -42,7 +42,7 @@ void main() {
     else
         out_color = material.albedo_color;
     
-    if (out_color.a < 1e-3f)
+    if (out_color.a < 0.5f)
         discard;
    
     out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);

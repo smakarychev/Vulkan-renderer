@@ -9,11 +9,17 @@
 void Scene::OnInit()
 {
     m_IndirectBuffer = Buffer::Builder()
-       .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-       .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
-       .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-       .Build();
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
 
+    m_IndirectCompactBuffer = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+    
     m_RenderObjectSSBO.Buffer = Buffer::Builder()
         .SetKinds({BufferKind::Storage, BufferKind::Destination})
         .SetSizeBytes(m_RenderObjectSSBO.Objects.size() * sizeof(RenderObjectSSBO::Data))
