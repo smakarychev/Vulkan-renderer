@@ -5,6 +5,7 @@
 
 // todo: use cvars for that, but need to load config first
 static constexpr u64 STAGING_BUFFER_DEFAULT_SIZE_BYTES = 1llu * 1024 * 1024;
+static constexpr u32 STAGING_BUFFER_MAX_IDLE_LIFE_TIME_FRAMES = 300;
 
 // used for uploading data by staging buffers
 class ResourceUploader
@@ -15,6 +16,7 @@ class ResourceUploader
     {
         Buffer Buffer;
         void* MappedAddress{nullptr};
+        u32 LifeTime{0};
     };
     
     struct BufferUploadInfo
@@ -29,6 +31,12 @@ class ResourceUploader
         u32 BufferIndex;
         u32 BufferUploadIndex;
     };
+
+    struct BufferDirectUploadInfo
+    {
+        Buffer* Destination;
+        BufferCopyInfo CopyInfo;
+    };
 public:
     void Init();
     void ShutDown();
@@ -42,12 +50,13 @@ public:
     void UpdateBufferImmediately(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
     void* GetMappedAddress(u32 mappedBufferIndex);
 private:
+    void ManageLifeTime();
     StagingBufferInfo CreateStagingBuffer(u64 sizeBytes);
     u64 EnsureCapacity(u64 sizeBytes);
     bool MergeIsPossible(Buffer& buffer, u64 bufferOffset) const;
     bool ShouldBeUpdatedDirectly(Buffer& buffer);
 private:
-    // ever-growing array of used stage buffers
+    // array of used stage buffers
     std::vector<StagingBufferInfo> m_StageBuffers;
     // index of the last used stage buffer on this frame
     u32 m_LastUsedBuffer{INVALID_INDEX};
@@ -57,5 +66,9 @@ private:
     // arrays of all mappings done on this frame
     std::vector<BufferMappingInfo> m_ActiveMappings;
 
+    // info about every update on buffers that can be updated directly
+    std::vector<BufferDirectUploadInfo> m_BufferDirectUploads;
+    std::vector<u8> m_BufferDirectUploadData;
+    
     Buffer m_ImmediateUploadBuffer;
 };

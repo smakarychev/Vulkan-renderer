@@ -11,6 +11,7 @@ namespace assetLib
 {
     bool saveAssetFile(std::string_view assetPath, std::string_view blobPath, const File& file)
     {
+        std::filesystem::create_directories(std::filesystem::path(assetPath).parent_path());
         std::ofstream jsonOut(assetPath.data(), std::ios::out);
         std::ofstream blobOut(blobPath.data(), std::ios::binary | std::ios::out);
 

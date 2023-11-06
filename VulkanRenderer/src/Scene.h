@@ -37,11 +37,49 @@ struct RenderObjectSSBO
     Buffer Buffer;
 };
 
+struct RenderObjectVisibilitySSBO
+{
+    struct Data
+    {
+        u32 VisibilityFlags;
+    };
+    std::vector<Data> ObjectsVisibility{MAX_OBJECTS};
+    Buffer Buffer;
+};
+
+struct MaterialDataSSBO
+{
+    Buffer Buffer;
+    std::vector<MaterialGPU> Materials{MAX_OBJECTS};
+};
+
+struct MeshletsSSBO
+{
+    struct Data
+    {
+        assetLib::BoundingCone BoundingCone;
+        assetLib::BoundingSphere BoundingSphere;
+        RenderHandle<RenderObject> RenderObject;
+        // these 3 values actually serve as a padding, but might also be used as a debug meshlet shading
+        f32 R;
+        f32 G;
+        f32 B;
+        u32 IsOccluded;
+        u32 Pad0;
+        u32 Pad1;
+    };
+
+    std::vector<Data> Meshlets{MAX_OBJECTS};
+    Buffer Buffer;
+};
+
 class Scene
 {
 public:
-    void OnInit();
+    void OnInit(ResourceUploader* resourceUploader);
     void OnShutdown();
+
+    void OnUpdate(f32 dt);
     
     ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
     Model* GetModel(const std::string& name);
@@ -61,10 +99,16 @@ public:
     void SetMaterialTexture(MaterialGPU& material, const Texture& texture, ShaderDescriptorSet& bindlessDescriptorSet,
         BindlessDescriptorsState& bindlessDescriptorsState);
 
-    void CreateSharedMeshContext(ResourceUploader& resourceUploader);
-    const Buffer& GetIndirectBuffer() const { return m_IndirectBuffer; }
-    const Buffer& GetIndirectCompactBuffer() const { return m_IndirectCompactBuffer; }
+    void CreateSharedMeshContext();
     const Buffer& GetRenderObjectsBuffer() const { return m_RenderObjectSSBO.Buffer; }
+    const Buffer& GetRenderObjectsVisibilityBuffer() const { return m_RenderObjectVisibilitySSBO.Buffer; }
+    const Buffer& GetMaterialsBuffer() const { return m_MaterialDataSSBO.Buffer; }
+    
+    const Buffer& GetMeshletsIndirectBuffer() const { return m_MeshletsIndirectRawBuffer; }
+    const Buffer& GetMeshletsIndirectFinalBuffer() const { return m_MeshletsIndirectFinalBuffer; }
+    u32 GetMeshletCount() const { return m_MeshletCount; }
+
+    const Buffer& GetMeshletsBuffer() const { return m_MeshletsSSBO.Buffer; }
     
     void AddRenderObject(const RenderObject& renderObject);
     bool IsDirty() const { return m_IsDirty; }
@@ -75,6 +119,8 @@ public:
 private:
     void ReleaseMeshSharedContext();
 private:
+    ResourceUploader* m_ResourceUploader{nullptr};
+    
     std::unordered_map<std::string, ShaderPipelineTemplate> m_ShaderTemplates;
     std::unordered_map<std::string, Model*> m_Models;
     HandleArray<Material> m_Materials;
@@ -85,9 +131,16 @@ private:
     std::vector<RenderObject> m_RenderObjects;
 
     std::unique_ptr<SharedMeshContext> m_SharedMeshContext;
-    Buffer m_IndirectBuffer;
-    Buffer m_IndirectCompactBuffer;
+    
     RenderObjectSSBO m_RenderObjectSSBO{};
+    RenderObjectVisibilitySSBO m_RenderObjectVisibilitySSBO{};
+    MaterialDataSSBO m_MaterialDataSSBO;
+
+    Buffer m_MeshletsIndirectRawBuffer;
+    Buffer m_MeshletsIndirectFinalBuffer;
+    u32 m_MeshletCount{0};
+
+    MeshletsSSBO m_MeshletsSSBO;
     
     bool m_IsDirty{false};
 };

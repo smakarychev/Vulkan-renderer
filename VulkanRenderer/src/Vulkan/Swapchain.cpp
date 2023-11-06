@@ -1,6 +1,5 @@
 ﻿#include "Swapchain.h"
 
-#include "Attachment.h"
 #include "Device.h"
 #include "Driver.h"
 #include "RenderCommand.h"
@@ -212,6 +211,43 @@ bool Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 fra
     return res == VK_SUCCESS;
 }
 
+void Swapchain::PrepareRendering(const CommandBuffer& cmd, u32 imageIndex)
+{
+    PipelineImageBarrierInfo imageBarrierInfo = {
+        .PipelineSourceMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .Image = &m_ColorImages[imageIndex],
+        .ImageSourceMask = 0,
+        .ImageDestinationMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+        .ImageDestinationLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
+    };
+    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+
+    imageBarrierInfo.PipelineDestinationMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+    imageBarrierInfo.Image = &m_DepthImage;
+    imageBarrierInfo.ImageDestinationMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+    imageBarrierInfo.ImageDestinationLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
+    imageBarrierInfo.ImageAspect = VK_IMAGE_ASPECT_DEPTH_BIT;
+    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+}
+
+void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
+{
+    PipelineImageBarrierInfo imageBarrierInfo = {
+        .PipelineSourceMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        .Image = &m_ColorImages[imageIndex],
+        .ImageSourceMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .ImageDestinationMask = 0,
+        .ImageSourceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .ImageDestinationLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
+    };
+    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+}
+
 const SwapchainFrameSync& Swapchain::GetFrameSync(u32 frameNumber) const
 {
     return m_SwapchainFrameSync[frameNumber];
@@ -278,52 +314,8 @@ VkExtent2D Swapchain::GetValidExtent(const VkSurfaceCapabilitiesKHR& capabilitie
     return extent;
 }
 
-std::vector<AttachmentTemplate> Swapchain::GetAttachmentTemplates() const
+RenderingDetails Swapchain::GetRenderingDetails() const
 {
-    AttachmentTemplate color = AttachmentTemplate::Builder()
-        .PresentationDefaults()
-        .SetFormat(m_ColorFormat)
-        .Build();
-
-    AttachmentTemplate depth = AttachmentTemplate::Builder()
-        .DepthDefaults()
-        .SetFormat(m_DepthFormat)
-        .Build();
-
-    return {color, depth};
-}
-
-std::vector<Attachment> Swapchain::GetAttachments(u32 imageIndex) const
-{
-    Attachment color = Attachment::Builder()
-        .SetType(AttachmentType::Color)
-        .FromImageData(m_ColorImages[imageIndex].GetImageData())
-        .Build();
-
-    Attachment depth = Attachment::Builder()
-        .SetType(AttachmentType::DepthStencil)
-        .FromImageData(m_DepthImage.GetImageData())
-        .Build();
-
-    return {color, depth};
-}
-
-std::vector<Framebuffer> Swapchain::GetFramebuffers(const RenderPass& renderPass) const
-{
-    std::vector<Framebuffer> framebuffers;
-    framebuffers.reserve(m_ColorImageCount);
-
-    for (u32 i = 0; i < m_ColorImageCount; i++)
-    {
-        std::vector<Attachment> attachments = GetAttachments(i);
-        Framebuffer framebuffer = Framebuffer::Builder()
-            .SetRenderPass(renderPass)
-            .SetAttachments(attachments)
-            .BuildManualLifetime();
-
-        framebuffers.push_back(framebuffer);
-    }
-
-    return framebuffers;
+    return {{m_ColorFormat}, m_DepthFormat};
 }
 

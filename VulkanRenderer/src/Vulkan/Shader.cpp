@@ -37,6 +37,8 @@ Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
         "Can have only {} different descriptor sets, but have {}",
         MAX_PIPELINE_DESCRIPTOR_SETS, mergedShaderInfo.DescriptorSets.size())
 
+    ASSERT(mergedShaderInfo.PushConstants.size() <= 1, "Only one push constant is supported")
+    
     shader.m_ReflectionData = {
         .ShaderStages = mergedShaderInfo.ShaderStages,
         .InputAttributes = mergedShaderInfo.InputAttributes,
@@ -239,8 +241,10 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     shaderPipelineTemplate.m_DescriptorSetLayouts = CreateDescriptorLayouts(reflectionData.DescriptorSets, createInfo.LayoutCache);
     shaderPipelineTemplate.m_VertexInputDescription = CreateInputDescription(reflectionData.InputAttributes);
     std::vector<PushConstantDescription> pushConstantDescriptions = CreatePushConstantDescriptions(reflectionData.PushConstants);
+    if (!pushConstantDescriptions.empty())
+        shaderPipelineTemplate.m_PushConstantDescription = pushConstantDescriptions.front();
     std::vector<ShaderModuleData> shaderModules = CreateShaderModules(createInfo.ShaderReflection->GetShaders());
-
+    
     shaderPipelineTemplate.m_PipelineLayout = PipelineLayout::Builder()
        .SetPushConstants(pushConstantDescriptions)
        .SetDescriptorLayouts(shaderPipelineTemplate.m_DescriptorSetLayouts)
@@ -295,7 +299,7 @@ const ShaderPipelineTemplate::DescriptorInfo& ShaderPipelineTemplate::GetDescrip
         if (binding.Name == name)
             return binding;
     
-    ASSERT(false, "Unrecogrnized descriptor binding name")
+    ASSERT(false, "Unrecognized descriptor binding name")
     std::unreachable();
 }
 
@@ -447,9 +451,9 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::PrimitiveKind(::PrimitiveKind 
     return *this;
 }
 
-ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderPass(const RenderPass& renderPass)
+ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderingDetails(const RenderingDetails& renderingDetails)
 {
-    m_CreateInfo.RenderPass = &renderPass;
+    m_CreateInfo.RenderingDetails = renderingDetails;
     
     return *this;
 }
@@ -477,7 +481,7 @@ void ShaderPipeline::Builder::Prebuild()
         CreateCompatibleLayout();
 
     if (m_CreateInfo.ShaderPipelineTemplate->IsComputeTemplate())
-        ASSERT(m_CreateInfo.RenderPass == nullptr, "Compute shader pipeline does not need renderpass")
+        ASSERT(m_CreateInfo.RenderingDetails.ColorFormats.empty(), "Compute shader pipeline does not need rendering details")
 }
 
 void ShaderPipeline::Builder::CreateCompatibleLayout()
@@ -524,7 +528,7 @@ ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
     else
     {
         shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder
-            .SetRenderPass(*createInfo.RenderPass)
+            .SetRenderingDetails(createInfo.RenderingDetails)
             .Build();    
     }
 

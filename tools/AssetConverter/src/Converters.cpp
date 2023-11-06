@@ -24,11 +24,46 @@
 
 namespace
 {
-    template <typename Fn>
-    bool needsConversion(const std::filesystem::path& path, Fn&& transform)
+    struct AssetPaths
     {
-        std::filesystem::path convertedPath = path;
-        transform(convertedPath);
+        std::filesystem::path AssetPath;
+        std::filesystem::path BlobPath;
+    };
+    template <typename Fn>
+    AssetPaths getAssetsPath(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& rawFilePath, Fn&& transform)
+    {
+        std::filesystem::path processedPath = rawFilePath.filename();
+
+        std::filesystem::path currentPath = rawFilePath.parent_path();
+        while (currentPath != initialDirectoryPath)
+        {
+            if (currentPath.filename() == RAW_ASSETS_DIRECTORY_NAME)
+                break;
+            processedPath = currentPath.filename() / processedPath;
+            currentPath = currentPath.parent_path();
+        }
+
+        if (currentPath.filename() == RAW_ASSETS_DIRECTORY_NAME)
+            processedPath = currentPath.parent_path() / PROCESSED_ASSETS_DIRECTORY_NAME / processedPath;
+        else
+            processedPath = rawFilePath;
+
+        AssetPaths paths = transform(processedPath);
+
+        return paths;
+    }
+    
+    template <typename Fn>
+    bool needsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path, Fn&& transform)
+    {
+        std::filesystem::path convertedPath = getAssetsPath(initialDirectoryPath, path,
+            [&transform](std::filesystem::path& unprocessedPath)
+            {
+                AssetPaths paths;
+                paths.AssetPath = unprocessedPath;
+                transform(paths.AssetPath);
+                return paths;
+            }).AssetPath;
 
         if (!std::filesystem::exists(convertedPath))
             return true;
@@ -43,20 +78,26 @@ namespace
     }
 }
 
-bool TextureConverter::NeedsConversion(const std::filesystem::path& path)
+bool TextureConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    return needsConversion(path, [](std::filesystem::path& converted)
+    return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
     {
         converted.replace_extension(TextureConverter::POST_CONVERT_EXTENSION);
     });
 }
 
-void TextureConverter::Convert(const std::filesystem::path& path)
+void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    std::filesystem::path assetPath, blobPath;
-    assetPath = blobPath = path;
-    assetPath.replace_extension(POST_CONVERT_EXTENSION);
-    blobPath.replace_extension(BLOB_EXTENSION);
+    auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
+        [](const std::filesystem::path& processedPath)
+        {
+            AssetPaths paths;
+            paths.AssetPath = paths.BlobPath = processedPath;
+            paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
+            paths.BlobPath.replace_extension(BLOB_EXTENSION);
+
+            return paths;
+        });
 
     i32 width, height, channels;
     stbi_set_flip_vertically_on_load(true);
@@ -79,20 +120,26 @@ void TextureConverter::Convert(const std::filesystem::path& path)
     std::cout << std::format("Texture file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }
 
-bool ModelConverter::NeedsConversion(const std::filesystem::path& path)
+bool ModelConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    return needsConversion(path, [](std::filesystem::path& converted)
+    return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
     {
         converted.replace_extension(ModelConverter::POST_CONVERT_EXTENSION);
     });
 }
 
-void ModelConverter::Convert(const std::filesystem::path& path)
+void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    std::filesystem::path assetPath, blobPath;
-    assetPath = blobPath = path;
-    assetPath.replace_extension(POST_CONVERT_EXTENSION);
-    blobPath.replace_extension(BLOB_EXTENSION);
+    auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
+        [](const std::filesystem::path& processedPath)
+        {
+            AssetPaths paths;
+            paths.AssetPath = paths.BlobPath = processedPath;
+            paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
+            paths.BlobPath.replace_extension(BLOB_EXTENSION);
+
+            return paths;
+        });
     
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(path.string(),
@@ -125,11 +172,12 @@ void ModelConverter::Convert(const std::filesystem::path& path)
         for (u32 i = 0; i < currentNode->mNumMeshes; i++)
         {
             MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[i]], path);
-
+            
             modelInfo.MeshInfos.push_back({
                 .Name = meshData.Name,
                 .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
                 .IndicesSizeBytes = meshData.Indices.size() * sizeof(u32),
+                .MeshletsSizeBytes = meshData.Meshlets.size() * sizeof(assetLib::ModelInfo::Meshlet),
                 .Materials = meshData.MaterialInfos,
                 .BoundingSphere = utils::welzlSphere(meshData.VertexGroup.Positions)});
 
@@ -137,14 +185,15 @@ void ModelConverter::Convert(const std::filesystem::path& path)
             modelData.VertexGroup.Normals.append_range(meshData.VertexGroup.Normals);
             modelData.VertexGroup.UVs.append_range(meshData.VertexGroup.UVs);
             modelData.Indices.append_range(meshData.Indices);
+            modelData.Meshlets.append_range(meshData.Meshlets);
         }
             
         for (u32 i = 0; i < currentNode->mNumChildren; i++)
             nodesToProcess.push_back(currentNode->mChildren[i]);
     }
 
-    std::array<const void*, (u32)assetLib::VertexElement::MaxVal> vertexElemets = modelData.VertexGroup.Elements();
-    assetLib::File modelFile = assetLib::packModel(modelInfo, {vertexElemets.begin(), vertexElemets.end()}, modelData.Indices.data());
+    std::array<const void*, (u32)assetLib::VertexElement::MaxVal> vertexElements = modelData.VertexGroup.Elements();
+    assetLib::File modelFile = assetLib::packModel(modelInfo, {vertexElements.begin(), vertexElements.end()}, modelData.Indices.data(), modelData.Meshlets.data());
 
     assetLib::saveAssetFile(assetPath.string(), blobPath.string(), modelFile);
 
@@ -162,7 +211,11 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
         for (u32 i = 0; i < materials.size(); i++)
             materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);
 
-    return {.Name = mesh->mName.C_Str(), .VertexGroup = vertexGroup, .Indices = indices, .MaterialInfos = materials};
+    MeshData meshData = {.Name = mesh->mName.C_Str(), .VertexGroup = vertexGroup, .Indices = indices, .MaterialInfos = materials};
+    utils::remapMesh(meshData, assetLib::ModelInfo::TRIANGLES_PER_MESHLET);
+    meshData.Meshlets = utils::createMeshlets(meshData);
+    
+    return meshData;
 }
 
 assetLib::VertexGroup ModelConverter::GetMeshVertices(const aiMesh* mesh)
@@ -233,23 +286,29 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
     return {.Color = {color.r, color.g, color.b, color.a}, .Textures = textures};
 }
 
-bool ShaderConverter::NeedsConversion(const std::filesystem::path& path)
+bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    return needsConversion(path, [](std::filesystem::path& converted)
+    return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
     {
         converted.replace_filename(converted.stem().string() + "-" + converted.extension().string().substr(1));
         converted.replace_extension(ShaderConverter::POST_CONVERT_EXTENSION);
     });
 }
 
-void ShaderConverter::Convert(const std::filesystem::path& path)
+void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    std::filesystem::path assetPath, blobPath;
-    assetPath = blobPath = path;
-    assetPath.replace_filename(path.stem().string() + "-" + path.extension().string().substr(1));
-    assetPath.replace_extension(POST_CONVERT_EXTENSION);
-    blobPath.replace_filename(path.stem().string() + "-" + path.extension().string().substr(1));
-    blobPath.replace_extension(BLOB_EXTENSION);
+    auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
+        [](const std::filesystem::path& processedPath)
+        {
+            AssetPaths paths;
+            paths.AssetPath = paths.BlobPath = processedPath;
+            paths.AssetPath.replace_filename(processedPath.stem().string() + "-" + processedPath.extension().string().substr(1));
+            paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
+            paths.BlobPath.replace_filename(processedPath.stem().string() + "-" + processedPath.extension().string().substr(1));
+            paths.BlobPath.replace_extension(BLOB_EXTENSION);
+
+            return paths;
+        });
     
     shaderc_shader_kind shaderKind = shaderc_glsl_infer_from_source;
     if (path.extension().string() == ".vert")

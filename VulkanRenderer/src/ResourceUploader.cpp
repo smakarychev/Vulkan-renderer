@@ -23,10 +23,22 @@ void ResourceUploader::StartRecording()
     m_LastUsedBuffer = INVALID_INDEX;
     m_BufferUploads.clear();
     m_ActiveMappings.clear();
+    m_BufferDirectUploadData.clear();
+    m_BufferDirectUploads.clear();
 }
 
 void ResourceUploader::SubmitUpload()
 {
+    ZoneScopedN("Submit Upload");
+
+    for (auto& directUpload : m_BufferDirectUploads)
+        directUpload.Destination->SetData(
+            m_BufferDirectUploadData.data() + directUpload.CopyInfo.SourceOffset,
+            directUpload.CopyInfo.SizeBytes,
+            directUpload.CopyInfo.DestinationOffset);
+
+    ManageLifeTime();
+    
     if (m_LastUsedBuffer == INVALID_INDEX)
         return;
     
@@ -37,14 +49,20 @@ void ResourceUploader::SubmitUpload()
     });
     
     for (u32 i = 0; i <= m_LastUsedBuffer; i++)
-            m_StageBuffers[i].Buffer.Unmap();
+        m_StageBuffers[i].Buffer.Unmap();
 }
 
 void ResourceUploader::UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset)
 {
     if (ShouldBeUpdatedDirectly(buffer))
     {
-        buffer.SetData(data, sizeBytes, bufferOffset);
+        u64 sourceOffset = m_BufferDirectUploadData.size();
+        m_BufferDirectUploadData.resize(sourceOffset + sizeBytes);
+        std::memcpy(m_BufferDirectUploadData.data() + sourceOffset, data, sizeBytes);
+        m_BufferDirectUploads.push_back({
+            .Destination = &buffer,
+            .CopyInfo = {.SizeBytes = sizeBytes, .SourceOffset = sourceOffset, .DestinationOffset = bufferOffset}});
+
         return;
     }
     
@@ -81,6 +99,13 @@ u32 ResourceUploader::GetMappedBuffer(u64 sizeBytes)
 
 void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset)
 {
+    if (ShouldBeUpdatedDirectly(buffer))
+    {
+        buffer.SetData(data, sizeBytes, bufferOffset);
+        
+        return;
+    }
+    
     if (sizeBytes > m_ImmediateUploadBuffer.GetSizeBytes())
         m_ImmediateUploadBuffer = CreateStagingBuffer(sizeBytes).Buffer;
 
@@ -98,6 +123,31 @@ void* ResourceUploader::GetMappedAddress(u32 mappedBufferIndex)
     u64 offset = m_BufferUploads[m_ActiveMappings[mappedBufferIndex].BufferUploadIndex].CopyInfo.SourceOffset;
     u8* address = (u8*)m_StageBuffers[m_ActiveMappings[mappedBufferIndex].BufferIndex].MappedAddress;
     return address + offset;
+}
+
+void ResourceUploader::ManageLifeTime()
+{
+    if (m_LastUsedBuffer == INVALID_INDEX)
+    {
+        for (auto& stageBuffer : m_StageBuffers)
+            stageBuffer.LifeTime++;
+    }
+    else
+    {
+        for (u32 i = 0; i <= m_LastUsedBuffer; i++)
+            m_StageBuffers[i].LifeTime = 0;
+        
+        for (u32 i = m_LastUsedBuffer + 1; i < m_StageBuffers.size(); i++)
+            m_StageBuffers[i].LifeTime++;
+    }
+
+    auto it = std::ranges::remove_if(m_StageBuffers,
+        [](const auto& stageBufferInfo) { return stageBufferInfo.LifeTime > MAX_PIPELINE_DESCRIPTOR_SETS; }).begin();
+
+    for (auto toDelete = it; toDelete != m_StageBuffers.end(); toDelete++)
+        Buffer::Destroy(toDelete->Buffer);
+
+    m_StageBuffers.erase(it, m_StageBuffers.end());
 }
 
 ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 sizeBytes)

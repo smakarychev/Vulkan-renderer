@@ -97,6 +97,12 @@ namespace assetLib
             0llu, [](u64 size, const auto& mesh){ return size + mesh.IndicesSizeBytes; });
     }
 
+    u64 ModelInfo::MeshletsSizeBytes() const
+    {
+        return std::accumulate(MeshInfos.begin(), MeshInfos.end(),
+            0llu, [](u64 size, const auto& mesh){ return size + mesh.MeshletsSizeBytes; });
+    }
+
     ModelInfo readModelInfo(const assetLib::File& file)
     {
         ModelInfo info = {};
@@ -120,6 +126,9 @@ namespace assetLib
 
             u64 indicesSizeBytes = mesh["indices_size_bytes"];
             meshInfo.IndicesSizeBytes = indicesSizeBytes;
+
+            u64 meshletsSizeBytes = mesh["meshlets_size_bytes"];
+            meshInfo.MeshletsSizeBytes = meshletsSizeBytes;
 
             const nlohmann::json& materials = mesh["materials"];
             for (auto& material : materials)
@@ -149,7 +158,7 @@ namespace assetLib
         return info;
     }
 
-    assetLib::File packModel(const ModelInfo& info, const std::vector<const void*>& vertices, void* indices)
+    assetLib::File packModel(const ModelInfo& info, const std::vector<const void*>& vertices, void* indices, void* meshlets)
     {
         nlohmann::json metadata;
 
@@ -165,6 +174,8 @@ namespace assetLib
                 meshJson["vertex_elements_size_bytes"].push_back(elementSizeBytes);
 
             meshJson["indices_size_bytes"] = mesh.IndicesSizeBytes;
+
+            meshJson["meshlets_size_bytes"] = mesh.MeshletsSizeBytes;
 
             meshJson["materials"] = nlohmann::json::array();
             for (u32 i = 0; i < mesh.Materials.size(); i++)
@@ -193,13 +204,15 @@ namespace assetLib
         
         assetLib::File assetFile = {};
 
-        std::vector<const void*> verticesIndices = vertices;
-        verticesIndices.push_back(indices);
+        std::vector<const void*> meshData = vertices;
+        meshData.push_back(indices);
+        meshData.push_back(meshlets);
 
         std::vector<u64> sizesBytes = info.VertexElementsSizeBytes();
         sizesBytes.push_back(info.IndicesSizeBytes());
+        sizesBytes.push_back(info.MeshletsSizeBytes());
         
-        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, verticesIndices, sizesBytes);
+        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, meshData, sizesBytes);
         metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
         metadata["asset"]["type"] = assetTypeToString(AssetType::Model);
 
@@ -208,13 +221,14 @@ namespace assetLib
         return assetFile;        
     }
 
-    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, const std::vector<u8*>& vertices, u8* indices)
+    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, const std::vector<u8*>& vertices, u8* indices, u8* meshlets)
     {
         std::vector<u64> vertexElementsSizeBytes = info.VertexElementsSizeBytes();
         u64 vertexElementsSizeBytesTotal = std::accumulate(vertexElementsSizeBytes.begin(), vertexElementsSizeBytes.end(), 0llu);
         u64 indicesSizeTotal = info.IndicesSizeBytes();
+        u64 meshletsSizeTotal = info.MeshletsSizeBytes();
 
-        u64 totalsize = vertexElementsSizeBytesTotal + indicesSizeTotal;
+        u64 totalsize = vertexElementsSizeBytesTotal + indicesSizeTotal + meshletsSizeTotal;
         
         if (info.CompressionMode == CompressionMode::LZ4 && sourceSizeBytes != totalsize)
         {
@@ -227,6 +241,7 @@ namespace assetLib
                 offset += vertexElementsSizeBytes[elementIndex];
             }
             memcpy(indices, combined.data() + vertexElementsSizeBytesTotal, indicesSizeTotal);
+            memcpy(meshlets, combined.data() + vertexElementsSizeBytesTotal + indicesSizeTotal, meshletsSizeTotal);
         }
         else
         {
@@ -237,6 +252,7 @@ namespace assetLib
                 offset += vertexElementsSizeBytes[elementIndex];
             }
             memcpy(indices, source + vertexElementsSizeBytesTotal, indicesSizeTotal);
+            memcpy(indices, source + vertexElementsSizeBytesTotal + indicesSizeTotal, meshletsSizeTotal);
         }
     }
 }

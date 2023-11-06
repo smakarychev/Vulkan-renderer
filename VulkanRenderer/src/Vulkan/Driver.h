@@ -2,22 +2,20 @@
 
 #include <functional>
 
-#include "Attachment.h"
 #include "CommandBuffer.h"
 #include "Device.h"
-#include "Framebuffer.h"
 #include "Pipeline.h"
-#include "RenderPass.h"
 #include "Swapchain.h"
 #include "Syncronization.h"
 
 #include <vma/vk_mem_alloc.h>
 
 #include "DescriptorSet.h"
-#include "Shader.h"
 #include "UploadContext.h"
 
 #include <tracy/TracyVulkan.hpp>
+
+#include "RenderingInfo.h"
 
 
 class ProfilerContext;
@@ -45,18 +43,12 @@ class Driver
 public:
     static void Unpack(const Device& device, Swapchain::Builder::CreateInfo& swapchainCreateInfo);
 
-    static void Unpack(const AttachmentTemplate& attachment, Subpass::Builder::CreateInfo& subpassCreateInfo);
-
-    static void Unpack(const Subpass& subpass, RenderPass::Builder::CreateInfo& renderPassCreateInfo);
-
+    static void Unpack(const RenderingAttachment& attachment, RenderingInfo::Builder::CreateInfo& renderingInfoCreateInfo);
+    
     static void Unpack(const PushConstantDescription& description, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
     static void Unpack(const DescriptorSetLayout& layout, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
     
     static void Unpack(const PipelineLayout& pipelineLayout, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
-    static void Unpack(const RenderPass& renderPass, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
-
-    static void Unpack(const Attachment& attachment, Framebuffer::Builder::CreateInfo& framebufferCreateInfo);
-    static void Unpack(const RenderPass& renderPass, Framebuffer::Builder::CreateInfo& framebufferCreateInfo);
 
     static void Unpack(const CommandPool& commandPool, CommandBuffer::Builder::CreateInfo& commandBufferCreateInfo);
 

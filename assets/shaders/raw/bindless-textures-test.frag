@@ -1,0 +1,73 @@
+#version 460
+
+#extension GL_EXT_nonuniform_qualifier : require
+
+layout(location = 0) in vec3 vert_normal;
+layout(location = 1) in vec2 vert_uv;
+layout(location = 2) in flat int vert_instance_id;
+
+@dynamic
+layout(set = 0, binding = 1) uniform scene_data{
+    vec4 fog_color;          // w is for exponent
+    vec4 fog_distances;      // x for min, y for max, zw unused.
+    vec4 ambient_color;
+    vec4 sunlight_direction; // w for sun power
+    vec4 sunlight_color;
+} u_scene_data;
+
+@bindless
+layout(set = 1, binding = 1) uniform texture2D u_textures[];
+
+@immutable_sampler
+layout(set = 0, binding = 2) uniform sampler u_sampler;
+
+struct Material {
+    vec4 albedo_color;
+    uint albedo_texture_index;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+};
+
+layout(std430, set = 2, binding = 1) readonly buffer material_buffer{
+    Material materials[];
+} u_material_buffer;
+
+struct Meshlet
+{
+    uint bounding_cone;
+    // bounding sphere
+    float x;
+    float y;
+    float z;
+    float r;
+    uint render_object;
+    // these 3 values actually serve as a padding, but might also be used as a debug meshlet shading
+    float R;
+    float G;
+    float B;
+    uint pad0;
+    uint pad1;
+    uint pad2;
+};
+
+layout(std430, set = 2, binding = 2) readonly buffer meshlet_buffer {
+    Meshlet meshlets[];
+} u_meshlet_buffer;
+
+layout(location = 0) out vec4 out_color;
+
+void main() {
+    uint object_index = u_meshlet_buffer.meshlets[vert_instance_id].render_object;
+    Material material = u_material_buffer.materials[object_index];
+    if (material.albedo_texture_index != -1)
+        out_color = texture(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), vert_uv);
+    else
+        out_color = material.albedo_color;
+    
+    if (out_color.a < 0.5f)
+        discard;
+   
+    out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);
+    out_color = vec4(u_meshlet_buffer.meshlets[vert_instance_id].R, u_meshlet_buffer.meshlets[vert_instance_id].G, u_meshlet_buffer.meshlets[vert_instance_id].B, 1.0);
+}

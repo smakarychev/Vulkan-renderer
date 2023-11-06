@@ -1,0 +1,46 @@
+#version 460
+
+layout(local_size_x = 1) in;
+
+struct VkDispatchIndirectCommand {
+    uint x;
+    uint y;
+    uint z;
+};
+
+@dynamic
+layout(std430, set = 0, binding = 0) readonly buffer count_buffer {
+    uint count;
+} u_count_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 1) readonly buffer visible_buffer {
+    uint count;
+} u_visible_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 2) readonly buffer occluded_buffer {
+    uint count;
+} u_occluded_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 3) writeonly buffer indirect_dispatch_buffer {
+    VkDispatchIndirectCommand command;
+} u_indirect_dispatch_buffer;
+
+layout(push_constant) uniform parameters {
+    uint local_group_size;
+    uint buffer_index;
+};
+
+void main() {
+    u_indirect_dispatch_buffer.command.y = 1;
+    u_indirect_dispatch_buffer.command.z = 1;
+    
+    if (buffer_index == 0)
+        u_indirect_dispatch_buffer.command.x = (u_count_buffer.count / local_group_size) + 1;
+    else if (buffer_index == 1)
+        u_indirect_dispatch_buffer.command.x = (u_visible_buffer.count / local_group_size) + 1;
+    else
+        u_indirect_dispatch_buffer.command.x = (u_occluded_buffer.count / local_group_size) + 1;
+}

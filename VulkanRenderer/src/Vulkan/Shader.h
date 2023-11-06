@@ -7,6 +7,7 @@
 #include "AssetLib.h"
 #include "DescriptorSet.h"
 #include "Pipeline.h"
+#include "PushConstantDescription.h"
 #include "ShaderAsset.h"
 #include "types.h"
 #include "VulkanCommon.h"
@@ -143,6 +144,7 @@ private:
     DescriptorLayoutCache* m_LayoutCache{nullptr};
 
     VertexInputDescription m_VertexInputDescription;
+    PushConstantDescription m_PushConstantDescription;
     
     Pipeline::Builder m_PipelineBuilder{};
     PipelineLayout m_PipelineLayout;
@@ -165,14 +167,14 @@ public:
         struct CreateInfo
         {
             ShaderPipelineTemplate* ShaderPipelineTemplate;
-            const RenderPass* RenderPass;
+            RenderingDetails RenderingDetails;
             std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
         };
         using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
         ShaderPipeline Build();
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
-        Builder& SetRenderPass(const RenderPass& renderPass);
+        Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
         Builder& CompatibleWithVertex(const VertexInputDescription& vertexInputDescription);
     private:
@@ -190,6 +192,7 @@ public:
     
     const Pipeline& GetPipeline() const { return m_Pipeline; }
     const PipelineLayout& GetPipelineLayout() const { return m_Template->GetPipelineLayout(); }
+    const PushConstantDescription& GetPushConstantDescription() const { return m_Template->m_PushConstantDescription; }
 
     bool operator==(const ShaderPipeline& other) const { return m_Pipeline == other.m_Pipeline; }
     bool operator!=(const ShaderPipeline& other) const { return !(*this == other); }

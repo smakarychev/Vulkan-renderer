@@ -1,0 +1,112 @@
+#version 460
+
+layout(local_size_x = 64) in;
+
+struct object_data{
+    mat4 model;
+    // bounding sphere
+    float x;
+    float y;
+    float z;
+    float r;
+};
+
+struct object_visibility_data {
+    uint flags;
+};
+
+@dynamic
+layout(set = 0, binding = 0) uniform scene_data {
+    mat4 view_matrix; // 4
+    float frustum_top_y;
+    float frustum_top_z;
+    float frustum_right_x;
+    float frustum_right_z; // 4
+    float frustum_near;
+    float frustum_far;
+    float projection_width;
+    float projection_height; // 4
+    float depth_pyramid_width;
+    float depth_pyramid_height;
+    uint pad0;
+    uint pad1; // 4
+} u_scene_data;
+
+layout(set = 0, binding = 1) uniform sampler2D u_depth_pyramid;
+
+layout(std430, set = 0, binding = 2) buffer readonly object_buffer {
+    object_data objects[];
+} u_object_buffer;
+
+layout(std430, set = 0, binding = 3) buffer object_visibility_buffer{
+    object_visibility_data visibility[];
+} u_object_visibility_buffer;
+
+layout(push_constant) uniform push_constants {
+    uint meshes_count;
+};
+
+float extract_scale(mat4 matrix) {
+    vec3 scales = vec3(dot(matrix[0], matrix[0]), dot(matrix[1], matrix[1]), dot(matrix[2], matrix[2]));
+    return max(scales.x, max(scales.y, scales.z));
+}
+
+bool is_occlusion_visible(vec3 sphere_origin, float radius) {
+    if (sphere_origin.z + radius >= -u_scene_data.frustum_near)
+        return true;
+
+    vec4 aabb;
+    vec3 cr = sphere_origin * radius;
+    float czr2 = sphere_origin.z * sphere_origin.z - radius * radius;
+
+    float vx = sqrt(sphere_origin.x * sphere_origin.x + czr2);
+    float minx = (vx * sphere_origin.x - cr.z) / (vx * sphere_origin.z + cr.x);
+    float maxx = (vx * sphere_origin.x + cr.z) / (vx * sphere_origin.z - cr.x);
+
+    float vy = sqrt(sphere_origin.y * sphere_origin.y + czr2);
+    float miny = (vy * sphere_origin.y - cr.z) / (vy * sphere_origin.z + cr.y);
+    float maxy = (vy * sphere_origin.y + cr.z) / (vy * sphere_origin.z - cr.y);
+    aabb = vec4(minx * u_scene_data.projection_width, miny * u_scene_data.projection_height, maxx * u_scene_data.projection_width, maxy * u_scene_data.projection_height);
+    // clip space -> uv space
+    aabb = aabb.xwzy * vec4(-0.5f, 0.5f, -0.5f, 0.5f) + vec4(0.5f);
+
+    float width =  (aabb.x - aabb.z) * u_scene_data.depth_pyramid_width;
+    float height = (aabb.y - aabb.w) * u_scene_data.depth_pyramid_height;
+
+    float level = ceil(log2(max(width, height)));
+
+    float depth = textureLod(u_depth_pyramid, (aabb.xy + aabb.zw) * 0.5, level).r;
+
+    float coeff = 1.0f / (u_scene_data.frustum_far - u_scene_data.frustum_near);
+    float projected_depth = coeff *
+        (-u_scene_data.frustum_far * u_scene_data.frustum_near / (sphere_origin.z + radius) -
+        u_scene_data.frustum_near);
+
+    return projected_depth >= depth;
+}
+
+bool is_visible(uint id) {
+    object_visibility_data visibility = u_object_visibility_buffer.visibility[id];
+    bool is_occluded = ((visibility.flags >> 1) & 1u) == 1;
+    
+    // we are not intereseted in meshes that weren't occluded before
+    if (!is_occluded)
+        return false;
+    
+    object_data object = u_object_buffer.objects[id];
+
+    vec3 origin = vec3(u_scene_data.view_matrix * object.model * vec4(object.x, object.y, object.z, 1.0f));
+    float radius = object.r * extract_scale(object.model);
+
+    return is_occlusion_visible(origin, radius);
+}
+
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= meshes_count)
+        return;
+
+    bool visible = is_visible(id);
+    u_object_visibility_buffer.visibility[id].flags = (int(visible) << 0);
+}

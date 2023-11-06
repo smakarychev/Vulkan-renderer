@@ -31,46 +31,12 @@ void Driver::Unpack(const Device& device, Swapchain::Builder::CreateInfo& swapch
     swapchainCreateInfo.Queues = &device.m_Queues;
 }
 
-void Driver::Unpack(const AttachmentTemplate& attachment, Subpass::Builder::CreateInfo& subpassCreateInfo)
+void Driver::Unpack(const RenderingAttachment& attachment, RenderingInfo::Builder::CreateInfo& renderingInfoCreateInfo)
 {
-    u32 attachmentIndex = (u32)subpassCreateInfo.Attachments.size();
-
-    subpassCreateInfo.Attachments.push_back(attachment.m_AttachmentDescription);
-
-    VkAttachmentReference attachmentReference = {};
-    attachmentReference.attachment = attachmentIndex;
-    attachmentReference.layout = attachment.m_AttachmentReferenceLayout;
-
-    switch (attachment.m_Type)
-    {
-    case AttachmentType::Presentation:
-    case AttachmentType::Color:
-        subpassCreateInfo.ColorReferences.push_back(attachmentReference);
-        break;
-    case AttachmentType::DepthStencil:
-        subpassCreateInfo.DepthStencilReference = attachmentReference;
-        break;
-    default:
-        ASSERT(false, "Unknown attachment type")
-        std::unreachable();
-    }
-    
-}
-
-void Driver::Unpack(const Subpass& subpass, RenderPass::Builder::CreateInfo& renderPassCreateInfo)
-{
-    VkSubpassDescription subpassDescription = {};
-    subpassDescription.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    // todo: fix when resolve attachments will be implemented
-    subpassDescription.colorAttachmentCount = (u32)subpass.m_ColorReferences.size();
-    subpassDescription.pColorAttachments = subpass.m_ColorReferences.data();
-    
-    subpassDescription.pDepthStencilAttachment = subpass.m_DepthStencilReference.has_value() ?
-        subpass.m_DepthStencilReference.operator->() : nullptr; // thx committee
-    
-    renderPassCreateInfo.Subpasses.push_back(subpassDescription);
-
-    renderPassCreateInfo.Attachments.append_range(subpass.m_Attachments);
+    if (attachment.m_Type == RenderingAttachmentType::Color)
+        renderingInfoCreateInfo.ColorAttachments.push_back(attachment.m_AttachmentInfo);
+    else
+        renderingInfoCreateInfo.DepthAttachment = attachment.m_AttachmentInfo;
 }
 
 void Driver::Unpack(const PushConstantDescription& description, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo)
@@ -91,33 +57,6 @@ void Driver::Unpack(const DescriptorSetLayout& layout, PipelineLayout::Builder::
 void Driver::Unpack(const PipelineLayout& pipelineLayout, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
 {
     pipelineCreateInfo.Layout = pipelineLayout.m_Layout;
-}
-
-void Driver::Unpack(const RenderPass& renderPass, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
-{
-    pipelineCreateInfo.RenderPass = renderPass.m_RenderPass;
-}
-
-void Driver::Unpack(const Attachment& attachment, Framebuffer::Builder::CreateInfo& framebufferCreateInfo)
-{
-    if (framebufferCreateInfo.Attachments.empty())
-    {
-        framebufferCreateInfo.Width = attachment.m_ImageData.Width;
-        framebufferCreateInfo.Height = attachment.m_ImageData.Height;
-    }
-    else
-    {
-        ASSERT(framebufferCreateInfo.Width == attachment.m_ImageData.Width &&
-               framebufferCreateInfo.Height == attachment.m_ImageData.Height,
-               "All attachments must be of equal dimensions")
-    }
-    
-    framebufferCreateInfo.Attachments.push_back(attachment.m_ImageData.View);
-}
-
-void Driver::Unpack(const RenderPass& renderPass, Framebuffer::Builder::CreateInfo& framebufferCreateInfo)
-{
-    framebufferCreateInfo.RenderPass = renderPass.m_RenderPass;
 }
 
 void Driver::Unpack(const CommandPool& commandPool, CommandBuffer::Builder::CreateInfo& commandBufferCreateInfo)

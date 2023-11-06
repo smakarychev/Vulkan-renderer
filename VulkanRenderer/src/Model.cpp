@@ -26,14 +26,16 @@ Model* Model::LoadFromAsset(std::string_view path)
     std::vector<glm::vec3> normals(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Normal]);
     std::vector<glm::vec2> uvs(vertexElementsSizeBytes[(u32)assetLib::VertexElement::UV]);
     std::vector<u32> indices(modelInfo.IndicesSizeBytes());
+    std::vector<assetLib::ModelInfo::Meshlet> meshlets(modelInfo.MeshletsSizeBytes());
 
     assetLib::unpackModel(modelInfo, modelFile.Blob.data(), modelFile.Blob.size(),
-        {(u8*)positions.data(), (u8*)normals.data(), (u8*)uvs.data()}, (u8*)indices.data());
+        {(u8*)positions.data(), (u8*)normals.data(), (u8*)uvs.data()}, (u8*)indices.data(), (u8*)meshlets.data());
 
     u32 positionsOffset = 0;
     u32 normalsOffset = 0;
     u32 uvsOffset = 0;
     u32 indicesOffset = 0;
+    u32 meshletsOffset = 0;
     
     std::vector<MeshInfo> meshes;
     meshes.reserve(modelInfo.MeshInfos.size());
@@ -55,6 +57,10 @@ Model* Model::LoadFromAsset(std::string_view path)
         indicesOffset += (u32)(meshInfo.IndicesSizeBytes / sizeof(u32));
         auto indicesEnd = indices.begin() + indicesOffset;
 
+        auto meshletsBegin = meshlets.begin() + meshletsOffset;
+        meshletsOffset += (u32)(meshInfo.MeshletsSizeBytes / sizeof(assetLib::ModelInfo::Meshlet));
+        auto meshletsEnd = meshlets.begin() + meshletsOffset;
+        
         assetLib::ModelInfo::MaterialInfo& albedo = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialType::Albedo];
         MaterialInfo albedoMaterial = {.Color = albedo.Color, .Textures = albedo.Textures};
         
@@ -64,7 +70,8 @@ Model* Model::LoadFromAsset(std::string_view path)
                 std::vector(normalsBegin, normalsEnd),
                 std::vector(uvsBegin, uvsEnd),
                 std::vector(indicesBegin, indicesEnd),
-                meshInfo.BoundingSphere),
+                meshInfo.BoundingSphere,
+                std::vector(meshletsBegin, meshletsEnd)),
                 albedoMaterial});
     }
 
@@ -122,10 +129,13 @@ void Model::CreateDebugBoundingSpheres(Scene* scene, const glm::mat4& transform,
 
     for (auto& mesh : m_Meshes)
     {
-        glm::mat4 fullTransform = transform *
-            glm::translate(glm::mat4(1.0f), mesh.Mesh.GetBoundingSphere().Center) *
-            glm::scale(glm::mat4(1.0), glm::vec3(mesh.Mesh.GetBoundingSphere().Radius));
+        for (auto& meshlet : mesh.Mesh.GetMeshlets())
+        {
+            glm::mat4 fullTransform = transform *
+                glm::translate(glm::mat4(1.0f), meshlet.BoundingSphere.Center) *
+                glm::scale(glm::mat4(1.0), glm::vec3(meshlet.BoundingSphere.Radius));
 
-        sphere->CreateRenderObjects(scene, fullTransform, bindlessDescriptorSet, bindlessDescriptorsState);
+            sphere->CreateRenderObjects(scene, fullTransform, bindlessDescriptorSet, bindlessDescriptorsState);
+        }
     }
 }

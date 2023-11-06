@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "ResourceUploader.h"
+#include "SceneCull.h"
 #include "Settings.h"
 #include "Core/Camera.h"
 #include "Core/ProfilerContext.h"
@@ -46,23 +47,6 @@ struct SceneDataUBO
     SceneData SceneData;
 };
 
-struct ObjectData
-{
-    glm::mat4 Transform;
-};
-
-struct ObjectDataSSBO
-{
-    Buffer Buffer;
-    std::vector<ObjectData> Objects{MAX_OBJECTS};
-};
-
-struct MaterialDataSSBO
-{
-    Buffer Buffer;
-    std::vector<MaterialGPU> Materials{MAX_OBJECTS};
-};
-
 struct ComputeDispatch
 {
     ShaderPipeline* Pipeline;
@@ -77,28 +61,6 @@ struct BindlessData
     BindlessDescriptorsState BindlessDescriptorsState;
 };
 
-struct ComputeFrustumCullData
-{
-    struct SceneDataUBO
-    {
-        struct Data
-        {
-            glm::mat4 ViewMatrix;
-            FrustumPlanes FrustumPlanes;
-            ProjectionData ProjectionData;
-            f32 PyramidWidth;
-            f32 PyramidHeight;
-            u32 TotalMeshCount;
-            u32 Pad0;
-        };
-        Data SceneData;
-        Buffer Buffer;
-    };
-    ShaderPipeline Pipeline;
-    ShaderDescriptorSet DescriptorSet;
-    SceneDataUBO SceneDataUBO;
-};
-
 struct ComputeDepthPyramidData
 {
     ShaderPipeline Pipeline;
@@ -106,51 +68,11 @@ struct ComputeDepthPyramidData
     std::unique_ptr<DepthPyramid> DepthPyramid;
 };
 
-struct ComputeReprojectionData
-{
-    struct ReprojectionUBO
-    {
-        struct Data
-        {
-            glm::mat4 LastViewInverse;
-            glm::mat4 LastProjectionInverse;
-            glm::mat4 View;
-            glm::mat4 Projection;
-        };
-        Data ReprojectionData;
-        Buffer Buffer;
-    };
-    ShaderPipeline Pipeline;
-    ShaderPipelineTemplate PipelineTemplate;
-    ReprojectionUBO ReprojectionUBO;
-};
-
-struct ComputeDilateData
-{
-    ShaderPipeline Pipeline;
-    ShaderPipelineTemplate PipelineTemplate;
-};
-
-struct ComputeCompactData
-{
-    struct CompactUBO
-    {
-        struct Data
-        {
-            u32 DrawCount;
-        };
-        Data CompactionData;
-        Buffer Buffer;
-    };
-    ShaderPipeline Pipeline;
-    ShaderDescriptorSet DescriptorSet;
-    CompactUBO CompactUBO;
-};
-
 struct FrameContext
 {
     CommandPool CommandPool;
     CommandBuffer CommandBuffer;
+    
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
 };
@@ -167,10 +89,6 @@ public:
     void OnUpdate();
 
     void BeginFrame();
-    // todo: this is very bad, and I will change it later
-    void BeginGraphics();
-    // todo: this is very bad, and I will change it later
-    void EndGraphics();
     void EndFrame();
 
     void Dispatch(const ComputeDispatch& dispatch);
@@ -178,7 +96,7 @@ public:
     void CreateDepthPyramid();
     void ComputeDepthPyramid();
     void CullCompute(const Scene& scene);
-    void CompactCompute(const Scene& scene);
+    void SecondaryCullCompute(const Scene& scene);
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
     void PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description);
@@ -190,20 +108,17 @@ public:
 private:
     Renderer();
     void InitRenderingStructures();
-    void InitCullComputeStructures();
     void InitDepthPyramidComputeStructures();
-    void InitReprojectionComputeStructures();
-    void InitDilateComputeStructures();
-    void InitCompactComputeStructures();
     void ShutDown();
+
+    void PrimaryScenePass();
+    void SecondaryScenePass();
 
     void OnWindowResize();
     void RecreateSwapchain();
     
     void UpdateCameraBuffers();
     void UpdateComputeCullBuffers();
-    void UpdateComputeReprojectionBuffers();
-    void UpdateComputeCompactBuffers();
     void UpdateScene();
     void LoadScene();
 
@@ -217,8 +132,6 @@ private:
 
     Device m_Device;
     Swapchain m_Swapchain;
-    RenderPass m_RenderPass;
-    std::vector<Framebuffer> m_Framebuffers;
     
     u32 m_FrameNumber{0};
     u32 m_SwapchainImageIndex{0};
@@ -226,23 +139,22 @@ private:
     std::vector<FrameContext> m_FrameContexts;
     FrameContext* m_CurrentFrameContext{nullptr};
 
-    ObjectDataSSBO m_ObjectDataSSBO;
     CameraDataUBO m_CameraDataUBO;
     SceneDataUBO m_SceneDataUBO;
-    MaterialDataSSBO m_MaterialDataSSBO;
     
     Scene m_Scene;
 
     DescriptorAllocator m_PersistentDescriptorAllocator;
+    DescriptorAllocator m_CullDescriptorAllocator;
     DescriptorLayoutCache m_LayoutCache;
     ResourceUploader m_ResourceUploader;
 
     BindlessData m_BindlessData;
-    ComputeFrustumCullData m_ComputeCullData;
     ComputeDepthPyramidData m_ComputeDepthPyramidData;
-    ComputeReprojectionData m_ComputeReprojectionData;
-    ComputeDilateData m_ComputeDilateData;
-    ComputeCompactData m_ComputeCompactData;
+
+    bool m_DepthPyramidIsPresent{false};
+
+    SceneCull m_SceneCull;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

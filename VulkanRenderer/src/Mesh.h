@@ -36,12 +36,16 @@ private:
     PushConstantDescription m_Description;
 };
 
+using Meshlet = assetLib::ModelInfo::Meshlet;
+using BoundingSphere = assetLib::BoundingSphere;
+
 class Mesh
 {
 public:
     Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
         const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices,
-        const assetLib::BoundingSphere& boundingSphere);
+        const BoundingSphere& boundingSphere,
+        const std::vector<Meshlet> meshlets);
 
     u32 GetVertexCount() const { return (u32)m_Positions.size(); }
     u32 GetIndexCount() const { return (u32)m_Indices.size(); }
@@ -57,7 +61,8 @@ public:
     i32 GetVertexBufferOffset() const { return m_VertexBufferOffset; }
     u32 GetIndexBufferOffset() const { return m_IndexBufferOffset; }
 
-    const assetLib::BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
+    const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
+    const std::vector<Meshlet>& GetMeshlets() const { return m_Meshlets; }
 private:
     std::vector<glm::vec3> m_Positions;
     std::vector<glm::vec3> m_Normals;
@@ -67,5 +72,6 @@ private:
     i32 m_VertexBufferOffset;
     u32 m_IndexBufferOffset;
 
-    assetLib::BoundingSphere m_BoundingSphere;
+    BoundingSphere m_BoundingSphere;
+    std::vector<Meshlet> m_Meshlets;
 };

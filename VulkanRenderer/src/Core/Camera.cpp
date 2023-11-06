@@ -73,7 +73,7 @@ glm::vec3 Camera::GetRight() const
     return glm::rotate(m_Orientation, glm::vec3(1.0f, 0.0f, 0.0f));
 }
 
-FrustumPlanes Camera::GetFrustumPlanes()
+FrustumPlanes Camera::GetFrustumPlanes() const
 {
     const glm::mat4& mat = GetProjection();
 
@@ -87,14 +87,11 @@ FrustumPlanes Camera::GetFrustumPlanes()
     frustumPlanes.TopZ = topLengthInverse;
     frustumPlanes.Near = m_NearClipPlane;
     frustumPlanes.Far  = m_FarClipPlane;
-    // normalization
-    //frustumPlanes.Right /= 
-    //frustumPlanes.Top /= std::sqrt(1.0f + frustumPlanes.Top * frustumPlanes.Top);
 
     return frustumPlanes;
 }
 
-ProjectionData Camera::GetProjectionData()
+ProjectionData Camera::GetProjectionData() const
 {
     const glm::mat4& mat = GetProjection();
     
@@ -121,7 +118,7 @@ void Camera::UpdateViewProjection()
 
 static constexpr f32 DEFAULT_TRANSLATION_SPEED	         = 0.1f;
 static constexpr f32 DEFAULT_TRANSLATION_SPEED_FPS	     = 1.0f;
-static constexpr f32 DEFAULT_TRANSLATION_SPEED_BOOST_FPS = 2.0f;
+static constexpr f32 DEFAULT_TRANSLATION_SPEED_BOOST_FPS = 55.0f;
 static constexpr f32 DEFAULT_ROTATION_SPEED		         = 0.5f;
 static constexpr f32 DEFAULT_E_YAW				         = 0.0f;
 static constexpr f32 DEFAULT_E_PITCH			         = glm::radians(-15.0f);

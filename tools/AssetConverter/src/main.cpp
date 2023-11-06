@@ -18,12 +18,12 @@ i32 main(i32 argc, char** argv)
     }
 
     fs::path directory{argv[1]};
-
+    
     for (const auto& file : fs::recursive_directory_iterator(directory))
     {
         if (!file.is_directory())
         {
-            ConverterDispatcher dispatcher(file);
+            ConverterDispatcher dispatcher(argv[1], file);
             dispatcher.Dispatch<TextureConverter>({".png", ".jpg", ".jpeg"});
             dispatcher.Dispatch<ModelConverter>({".obj", ".fbx", ".blend", ".gltf"});
             dispatcher.Dispatch<ShaderConverter>({".vert", ".frag", ".comp"});

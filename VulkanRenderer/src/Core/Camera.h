@@ -37,9 +37,9 @@ public:
     const glm::vec3& GetPosition() const { return m_Position; }
     const glm::quat& GetOrientation() const { return m_Orientation; }
     
-    glm::mat4& GetViewProjection() { return m_ViewProjection; }
-    glm::mat4& GetView() { return m_ViewMatrix; }
-    glm::mat4& GetProjection() { return m_ProjectionMatrix; }
+    const glm::mat4& GetViewProjection() const { return m_ViewProjection; }
+    const glm::mat4& GetView() const { return m_ViewMatrix; }
+    const glm::mat4& GetProjection() const { return m_ProjectionMatrix; }
 
     void SetViewport(u32 width, u32 height);
     u32 GetViewportWidth() const { return m_ViewportWidth; }
@@ -49,8 +49,8 @@ public:
     glm::vec3 GetUp() const;
     glm::vec3 GetRight() const;
 
-    FrustumPlanes GetFrustumPlanes();
-    ProjectionData GetProjectionData();
+    FrustumPlanes GetFrustumPlanes() const;
+    ProjectionData GetProjectionData() const;
 private:
     void UpdateViewMatrix();
     void UpdateProjectionMatrix();

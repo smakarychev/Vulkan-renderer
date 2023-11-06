@@ -98,17 +98,16 @@ Pipeline::Builder& Pipeline::Builder::SetLayout(const PipelineLayout& layout)
     return *this;
 }
 
-Pipeline::Builder& Pipeline::Builder::SetRenderPass(const RenderPass& renderPass)
+Pipeline::Builder& Pipeline::Builder::SetRenderingDetails(const RenderingDetails& renderingDetails)
 {
-    ASSERT(!m_CreateInfo.IsComputePipeline || m_CreateInfo.RenderPass == VK_NULL_HANDLE, "Compute pipeline does not need renderpass")
-    Driver::Unpack(renderPass, m_CreateInfo);
+    ASSERT(!m_CreateInfo.IsComputePipeline, "Compute pipeline does not need rendering details")
+    m_CreateInfo.RenderingDetails = renderingDetails;
     
     return *this;
 }
 
 Pipeline::Builder& Pipeline::Builder::IsComputePipeline(bool isCompute)
 {
-    ASSERT(!isCompute || m_CreateInfo.RenderPass == VK_NULL_HANDLE, "Compute pipeline does not need renderpass")
     m_CreateInfo.IsComputePipeline = isCompute;
 
     return *this;
@@ -211,6 +210,9 @@ void Pipeline::Builder::PreBuild()
 
     m_CreateInfo.ColorBlendState.attachmentCount = 1;
     m_CreateInfo.ColorBlendState.pAttachments = &m_CreateInfo.ColorBlendAttachmentState;
+
+    if (!m_CreateInfo.IsComputePipeline)
+        ASSERT(!m_CreateInfo.RenderingDetails.ColorFormats.empty(), "No rendering details provided")
 }
 
 Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
@@ -234,6 +236,12 @@ Pipeline Pipeline::CreateGraphicsPipeline(const Builder::CreateInfo& createInfo)
 {
     Pipeline pipeline = {};
 
+    VkPipelineRenderingCreateInfo renderingCreateInfo = {};
+    renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    renderingCreateInfo.colorAttachmentCount = (u32)createInfo.RenderingDetails.ColorFormats.size();
+    renderingCreateInfo.pColorAttachmentFormats = createInfo.RenderingDetails.ColorFormats.data();
+    renderingCreateInfo.depthAttachmentFormat = createInfo.RenderingDetails.DepthFormat;
+    
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineCreateInfo.stageCount = (u32)createInfo.Shaders.size();
@@ -247,8 +255,10 @@ Pipeline Pipeline::CreateGraphicsPipeline(const Builder::CreateInfo& createInfo)
     pipelineCreateInfo.pDepthStencilState = &createInfo.DepthStencilState;
     pipelineCreateInfo.pColorBlendState = &createInfo.ColorBlendState;
     pipelineCreateInfo.layout = createInfo.Layout;
-    pipelineCreateInfo.renderPass = createInfo.RenderPass;
+    pipelineCreateInfo.renderPass = VK_NULL_HANDLE;
     pipelineCreateInfo.subpass = 0;
+
+    pipelineCreateInfo.pNext = &renderingCreateInfo;
 
     VulkanCheck(vkCreateGraphicsPipelines(Driver::DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline.m_Pipeline),
         "Failed to create graphics pipeline");

@@ -8,6 +8,7 @@
 #include "types.h"
 #include "VulkanCommon.h"
 
+class RenderingInfo;
 class PipelineLayout;
 class Image;
 class CommandPool;
@@ -16,8 +17,6 @@ class DescriptorSet;
 class PushConstantDescription;
 class Buffer;
 class Pipeline;
-class Framebuffer;
-class RenderPass;
 class CommandBuffer;
 class Semaphore;
 class Swapchain;
@@ -26,6 +25,10 @@ class Fence;
 class RenderCommand
 {
 public:
+    static void BeginRendering(const CommandBuffer& cmd, const RenderingInfo& renderingInfo);
+    static void EndRendering(const CommandBuffer& cmd);
+    
+    
     static VkResult WaitForFence(const Fence& fence);
     static VkResult ResetFence(const Fence& fence);
     static VkResult AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex);
@@ -36,10 +39,7 @@ public:
     static VkResult EndCommandBuffer(const CommandBuffer& cmd);
     static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync);
     static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
-
-    static void BeginRenderPass(const CommandBuffer& cmd, const RenderPass& renderPass,
-        const Framebuffer& framebuffer, const std::vector<VkClearValue>& clearValues);
-    static void EndRenderPass(const CommandBuffer& cmd);
+    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync);
 
     static void TransitionImage(const CommandBuffer& cmd, const Image& image, const ImageTransitionInfo& transitionInfo);
     static void BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& imageBlitInfo);
@@ -65,6 +65,7 @@ public:
         const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride);
 
     static void Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize);
+    static void DispatchIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
 
     static void PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
         const PushConstantDescription& description);

@@ -18,6 +18,7 @@ group "Dependencies"
 include "vendor/glfw"
 include "vendor/glm"
 include "vendor/lz4"
+include "vendor/meshoptimizer"
 
 group "Tools"
 include "tools/AssetLib"

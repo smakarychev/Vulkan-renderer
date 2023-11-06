@@ -147,3 +147,10 @@ struct PipelineImageBarrierInfo
 };
 
 using PipelineTextureBarrierInfo = PipelineImageBarrierInfo;
+
+// todo: not the best name
+struct RenderingDetails
+{
+    std::vector<VkFormat> ColorFormats;
+    VkFormat DepthFormat;
+};

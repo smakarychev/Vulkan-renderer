@@ -4,17 +4,14 @@
 #include <glm/vec2.hpp>
 #include <vulkan/vulkan_core.h>
 
-#include "Attachment.h"
 #include "DepthPyramid.h"
 #include "Image.h"
-#include "Framebuffer.h"
 #include "Syncronization.h"
 #include "types.h"
 #include "VulkanCommon.h"
 
 class ShaderPipelineTemplate;
 class Device;
-class RenderPass;
 struct DeviceQueues;
 struct SurfaceDetails;
 
@@ -77,19 +74,21 @@ public:
 public:
     static Swapchain Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Swapchain& swapchain);
-
+    
     u32 AcquireImage(u32 frameNumber);
     bool PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);
+
+    void PrepareRendering(const CommandBuffer& cmd, u32 imageIndex);
+    void PreparePresent(const CommandBuffer& cmd, u32 imageIndex);
 
     const SwapchainFrameSync& GetFrameSync(u32 frameNumber) const;
     const std::vector<SwapchainFrameSync>& GetFrameSync() const;
 
-    std::vector<AttachmentTemplate> GetAttachmentTemplates() const;
-    std::vector<Attachment> GetAttachments(u32 imageIndex) const;
-    std::vector<Framebuffer> GetFramebuffers(const RenderPass& renderPass) const;
-
     glm::uvec2 GetSize() const { return glm::uvec2{m_Extent.width, m_Extent.height}; }
-    VkFormat GetDepthFormat() const { return m_DepthFormat; }
+
+    RenderingDetails GetRenderingDetails() const;
+    
+    const Image& GetColorImage(u32 index) const { return m_ColorImages[index]; }
     const Image& GetDepthImage() const { return m_DepthImage; }
 
 private:

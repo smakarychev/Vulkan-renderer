@@ -4,25 +4,46 @@
 #include "RenderObject.h"
 #include "Model.h"
 #include "ResourceUploader.h"
+#include "Core/Random.h"
 #include "Vulkan/Shader.h"
 
-void Scene::OnInit()
+void Scene::OnInit(ResourceUploader* resourceUploader)
 {
-    m_IndirectBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-
-    m_IndirectCompactBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
+    m_ResourceUploader = resourceUploader;
     
     m_RenderObjectSSBO.Buffer = Buffer::Builder()
         .SetKinds({BufferKind::Storage, BufferKind::Destination})
         .SetSizeBytes(m_RenderObjectSSBO.Objects.size() * sizeof(RenderObjectSSBO::Data))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
+    m_RenderObjectVisibilitySSBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(m_RenderObjectVisibilitySSBO.ObjectsVisibility.size() * sizeof(RenderObjectVisibilitySSBO::Data))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
+    m_MaterialDataSSBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
+    m_MeshletsIndirectRawBuffer = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
+    m_MeshletsIndirectFinalBuffer = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
+    m_MeshletsSSBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(m_MeshletsSSBO.Meshlets.size() * sizeof(MeshletsSSBO::Data))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 }
@@ -31,6 +52,19 @@ void Scene::OnShutdown()
 {
     if (m_SharedMeshContext)
         ReleaseMeshSharedContext();
+}
+
+void Scene::OnUpdate(f32 dt)
+{
+    // assuming that object transform can change
+    for (u32 i = 0; i < m_RenderObjects.size(); i++)
+    {
+        MaterialGPU& material = GetMaterialGPU(m_RenderObjects[i].MaterialGPU);
+        m_MaterialDataSSBO.Materials[i].Albedo = material.Albedo;
+        m_MaterialDataSSBO.Materials[i].AlbedoTextureHandle = material.AlbedoTextureHandle;
+    }
+
+    m_ResourceUploader->UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU), 0);
 }
 
 ShaderPipelineTemplate* Scene::GetShaderTemplate(const std::string& name)
@@ -103,7 +137,7 @@ void Scene::SetMaterialTexture(MaterialGPU& material, const Texture& texture,
     bindlessDescriptorsState.TextureIndex++;
 }
 
-void Scene::CreateSharedMeshContext(ResourceUploader& resourceUploader)
+void Scene::CreateSharedMeshContext()
 {
     if (m_RenderObjects.empty())
         return;
@@ -155,10 +189,10 @@ void Scene::CreateSharedMeshContext(ResourceUploader& resourceUploader)
     {
         u64 verticesSize = mesh.GetPositions().size();
         u64 indicesSize = mesh.GetIndices().size();
-        resourceUploader.UpdateBuffer(m_SharedMeshContext->Positions, mesh.GetPositions().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(m_SharedMeshContext->Normals, mesh.GetNormals().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(m_SharedMeshContext->UVs, mesh.GetUVs().data(), verticesSize * sizeof(glm::vec2), verticesOffset * sizeof(glm::vec2));
-        resourceUploader.UpdateBuffer(m_SharedMeshContext->Indices, mesh.GetIndices().data(), indicesSize * sizeof(u32), indicesOffset * sizeof(u32));
+        m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Positions, mesh.GetPositions().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
+        m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Normals, mesh.GetNormals().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
+        m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->UVs, mesh.GetUVs().data(), verticesSize * sizeof(glm::vec2), verticesOffset * sizeof(glm::vec2));
+        m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Indices, mesh.GetIndices().data(), indicesSize * sizeof(u32), indicesOffset * sizeof(u32));
         
         mesh.SetVertexBufferOffset((i32)verticesOffset);
         mesh.SetIndexBufferOffset((u32)indicesOffset);
@@ -167,20 +201,6 @@ void Scene::CreateSharedMeshContext(ResourceUploader& resourceUploader)
         indicesOffset += indicesSize;
     }
 
-    u32 mappedBuffer = resourceUploader.GetMappedBuffer(m_IndirectBuffer.GetSizeBytes());
-    VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)resourceUploader.GetMappedAddress(mappedBuffer);
-    for (u32 i = 0; i < m_RenderObjects.size(); i++)
-    {
-        const auto& object = m_RenderObjects[i];
-        Mesh& mesh = GetMesh(object.Mesh);
-        commands[i].firstIndex = mesh.GetIndexBufferOffset();
-        commands[i].indexCount = mesh.GetIndexCount();
-        commands[i].firstInstance = i;
-        commands[i].instanceCount = 1;
-        commands[i].vertexOffset = mesh.GetVertexBufferOffset();
-    }
-    resourceUploader.UpdateBuffer(m_IndirectBuffer, mappedBuffer, 0);
-
     // todo: this is not an optimal way to update this buffer
     for (u32 i = 0; i < m_RenderObjects.size(); i++)
     {
@@ -188,8 +208,48 @@ void Scene::CreateSharedMeshContext(ResourceUploader& resourceUploader)
         m_RenderObjectSSBO.Objects[i].Transform = object.Transform;
         m_RenderObjectSSBO.Objects[i].BoundingSphere = m_Meshes[object.Mesh].GetBoundingSphere();
     }
-    resourceUploader.UpdateBuffer(m_RenderObjectSSBO.Buffer, m_RenderObjectSSBO.Objects.data(),
+    m_ResourceUploader->UpdateBuffer(m_RenderObjectSSBO.Buffer, m_RenderObjectSSBO.Objects.data(),
         m_RenderObjectSSBO.Objects.size() * sizeof(RenderObjectSSBO::Data), 0);
+
+    // meshlets *******************************************************************************
+
+    u32 mappedBuffer = m_ResourceUploader->GetMappedBuffer(m_MeshletsIndirectRawBuffer.GetSizeBytes());
+    VkDrawIndexedIndirectCommand* commands = (VkDrawIndexedIndirectCommand*)m_ResourceUploader->GetMappedAddress(mappedBuffer);
+    m_MeshletCount = 0;
+    for (u32 i = 0; i < m_RenderObjects.size(); i++)
+    {
+        const auto& object = m_RenderObjects[i];
+        Mesh& mesh = GetMesh(object.Mesh);
+        for (auto& meshlet : mesh.GetMeshlets())
+        {
+            commands[m_MeshletCount].firstIndex = mesh.GetIndexBufferOffset() + meshlet.FirstIndex;
+            commands[m_MeshletCount].indexCount = meshlet.IndexCount;
+            commands[m_MeshletCount].firstInstance = m_MeshletCount;
+            commands[m_MeshletCount].instanceCount = 1;
+            commands[m_MeshletCount].vertexOffset = mesh.GetVertexBufferOffset() + (i32)meshlet.FirstVertex;
+            m_MeshletCount++;
+        }
+    }
+    m_ResourceUploader->UpdateBuffer(m_MeshletsIndirectRawBuffer, mappedBuffer, 0);
+
+    m_MeshletCount = 0;
+    for (u32 i = 0; i < m_RenderObjects.size(); i++)
+    {
+        const auto& object = m_RenderObjects[i];
+        Mesh& mesh = GetMesh(object.Mesh);
+        for (auto& meshlet : mesh.GetMeshlets())
+        {
+            m_MeshletsSSBO.Meshlets[m_MeshletCount].RenderObject = i;
+            m_MeshletsSSBO.Meshlets[m_MeshletCount].BoundingCone = meshlet.BoundingCone;
+            m_MeshletsSSBO.Meshlets[m_MeshletCount].BoundingSphere = meshlet.BoundingSphere;
+            m_MeshletsSSBO.Meshlets[m_MeshletCount].R = Random::Float();
+            m_MeshletsSSBO.Meshlets[m_MeshletCount].G = Random::Float();
+            m_MeshletsSSBO.Meshlets[m_MeshletCount].B = Random::Float();
+            m_MeshletCount++;
+        }
+    }
+    m_ResourceUploader->UpdateBuffer(m_MeshletsSSBO.Buffer, m_MeshletsSSBO.Meshlets.data(),
+        m_MeshletsSSBO.Meshlets.size() * sizeof(MeshletsSSBO::Data), 0);
 }
 
 void Scene::AddRenderObject(const RenderObject& renderObject)

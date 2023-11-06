@@ -1,0 +1,37 @@
+#version 460
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(binding = 0, r32f) uniform writeonly image2D u_out_image;
+layout(binding = 1) uniform sampler2D u_in_image;
+
+layout(push_constant) uniform push_constants
+{
+    uvec2 texture_size;
+};
+
+float lowest_neighbour_depth(vec2 tex_coord_pixels)
+{
+    float lowest = 1.0f;
+    for (int i = -1; i <= 1; i++)
+    {
+        for (int j = -1; j <= 1; j++)
+        {
+            vec2 neigbour_coord = tex_coord_pixels + vec2(i, j);
+            if (neigbour_coord.x < 0 || neigbour_coord.y < 0 || neigbour_coord.x >= texture_size.x || neigbour_coord.y >= texture_size.y)
+                continue;
+            float depth = texture(u_in_image, (neigbour_coord + vec2(0.5f)) / texture_size).r;
+            lowest = min(lowest, depth);
+        }
+    }
+    
+    return lowest;
+}
+
+void main()
+{
+    vec2 uv = vec2(gl_GlobalInvocationID.xy);
+    //float depth = lowest_neighbour_depth(uv);
+    float depth = texture(u_in_image, (uv + vec2(0.5f)) / texture_size).r;
+    imageStore(u_out_image, ivec2(uv), vec4(depth, 0, 0, 0));
+}

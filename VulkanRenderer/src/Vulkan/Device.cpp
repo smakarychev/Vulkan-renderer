@@ -173,10 +173,18 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     vulkan12Features.samplerFilterMinmax = VK_TRUE;
     vulkan12Features.drawIndirectCount = VK_TRUE;
     vulkan12Features.subgroupBroadcastDynamicId = VK_TRUE;
+    vulkan12Features.shaderInt8 = VK_TRUE;
+    vulkan12Features.storageBuffer8BitAccess  = VK_TRUE;
+    vulkan12Features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
+
+    VkPhysicalDeviceVulkan13Features vulkan13Features = {};
+    vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    vulkan13Features.pNext = &vulkan12Features;
+    vulkan13Features.dynamicRendering = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = &vulkan12Features;
+    deviceCreateInfo.pNext = &vulkan13Features;
     deviceCreateInfo.queueCreateInfoCount = (u32)queueCreateInfos.size();
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
     deviceCreateInfo.enabledExtensionCount = (u32)createInfo.DeviceExtensions.size();
@@ -263,10 +271,14 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
     VkPhysicalDeviceVulkan12Features deviceVulkan12Features = {};
     deviceVulkan12Features.sType  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
     deviceVulkan12Features.pNext = &descriptorIndexingFeatures;
-    
+
+    VkPhysicalDeviceVulkan13Features deviceVulkan13Features = {};
+    deviceVulkan13Features.sType  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+    deviceVulkan13Features.pNext = &deviceVulkan12Features;
+
     VkPhysicalDeviceFeatures2 features = {};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features.pNext = &deviceVulkan12Features;
+    features.pNext = &deviceVulkan13Features;
     
     vkGetPhysicalDeviceFeatures2(gpu, &features);
     
@@ -282,7 +294,11 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         shaderFeatures.shaderDrawParameters == VK_TRUE &&
         deviceVulkan12Features.samplerFilterMinmax == VK_TRUE &&
         deviceVulkan12Features.drawIndirectCount == VK_TRUE &&
-        deviceVulkan12Features.subgroupBroadcastDynamicId == VK_TRUE;
+        deviceVulkan12Features.subgroupBroadcastDynamicId == VK_TRUE &&
+        deviceVulkan12Features.shaderInt8 == VK_TRUE &&
+        deviceVulkan12Features.storageBuffer8BitAccess  == VK_TRUE &&
+        deviceVulkan12Features.uniformAndStorageBuffer8BitAccess == VK_TRUE &&
+        deviceVulkan13Features.dynamicRendering == VK_TRUE;
 }
 
 bool Device::CheckInstanceExtensions(const CreateInfo& createInfo) const

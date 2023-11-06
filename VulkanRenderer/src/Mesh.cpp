@@ -102,6 +102,9 @@ PushConstantBuffer::PushConstantBuffer()
 
 Mesh::Mesh(const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
         const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices,
-        const assetLib::BoundingSphere& boundingSphere)
-    : m_Positions(positions), m_Normals(normals), m_UVs(uvs), m_Indices(indices), m_BoundingSphere(boundingSphere)
+        const BoundingSphere& boundingSphere,
+        const std::vector<Meshlet> meshlets)
+    : m_Positions(positions), m_Normals(normals), m_UVs(uvs), m_Indices(indices),
+    m_BoundingSphere(boundingSphere),
+    m_Meshlets(meshlets)
 {}

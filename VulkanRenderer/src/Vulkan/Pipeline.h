@@ -10,7 +10,6 @@
 class DescriptorSetLayout;
 class PushConstantDescription;
 class CommandBuffer;
-class RenderPass;
 
 class PipelineLayout
 {
@@ -50,7 +49,7 @@ public:
         struct CreateInfo
         {
             bool IsComputePipeline{false};
-            VkRenderPass RenderPass{VK_NULL_HANDLE};
+            RenderingDetails RenderingDetails;
             std::vector<VkPipelineShaderStageCreateInfo> Shaders;
             std::vector<VkDynamicState> DynamicStates;
             VkPipelineDynamicStateCreateInfo DynamicStateInfo;
@@ -68,7 +67,7 @@ public:
         Pipeline Build();
         Pipeline BuildManualLifetime();
         Builder& SetLayout(const PipelineLayout& layout);
-        Builder& SetRenderPass(const RenderPass& renderPass);
+        Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
         Builder& IsComputePipeline(bool isCompute);
         Builder& AddShader(const ShaderModuleData& shaderModuleData);
         Builder& FixedFunctionDefaults();

@@ -1,0 +1,118 @@
+#version 460
+
+#extension GL_KHR_shader_subgroup_ballot: enable
+
+layout(local_size_x = 64) in;
+
+struct VkDrawIndexedIndirectCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int  vertexOffset;
+    uint firstInstance;
+};
+
+struct Meshlet
+{
+    uint _unused_0;
+    float _unused_x;
+    float _unused_y;
+    float _unused_z;
+    float _unused_r;
+    uint _unused_1;
+    float _unused_R;
+    float _unused_G;
+    float _unused_B;
+    
+    uint is_occluded;
+    
+    uint pad0;
+    uint pad1;
+};
+
+layout(std430, set = 0, binding = 0) buffer readonly command_buffer {
+    VkDrawIndexedIndirectCommand commands[];
+} u_command_buffer;
+
+layout(std430, set = 0, binding = 1) buffer writeonly compacted_command_buffer {
+    VkDrawIndexedIndirectCommand commands[];
+} u_compacted_command_buffer;
+
+layout(std430, set = 0, binding = 2) buffer writeonly compacted_occluded_command_buffer {
+    VkDrawIndexedIndirectCommand commands[];
+} u_compacted_occluded_command_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 3) readonly buffer count_buffer {
+    uint count;
+} u_count_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 4) buffer visible_buffer {
+    uint count;
+} u_visible_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 5) buffer occluded_buffer {
+    uint count;
+} u_occluded_buffer;
+
+layout(std430, set = 0, binding = 6) readonly buffer meshlet_buffer {
+    Meshlet meshlets[];
+} u_meshlet_buffer;
+
+void write_compacted_visible(uint id) {
+    VkDrawIndexedIndirectCommand command = u_command_buffer.commands[id];
+
+    bool is_visible = command.instanceCount > 0;
+    uvec4 is_visible_ballot = subgroupBallot(is_visible);
+
+    // find subgroup total visible meshes count
+    uint total_visible_count = subgroupBallotBitCount(is_visible_ballot);
+
+    uint compacted_buffer_index_base;
+    if (subgroupElect())
+        compacted_buffer_index_base = atomicAdd(u_visible_buffer.count, total_visible_count);
+    compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
+
+    uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_visible_ballot);
+
+    uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
+
+    if (is_visible)
+        u_compacted_command_buffer.commands[compacted_buffer_index] = command;
+}
+
+void write_compacted_occluded(uint id) {
+    // repetition is the mother of learning
+    
+    uint meshlet_id = u_command_buffer.commands[id].firstInstance;
+    Meshlet meshlet = u_meshlet_buffer.meshlets[meshlet_id];
+
+    bool is_occluded = meshlet.is_occluded == 1;
+    uvec4 is_occluded_ballot = subgroupBallot(is_occluded);
+
+    // find subgroup total visible meshes count
+    uint total_occluded_count = subgroupBallotBitCount(is_occluded_ballot);
+
+    uint compacted_buffer_index_base;
+    if (subgroupElect())
+        compacted_buffer_index_base = atomicAdd(u_occluded_buffer.count, total_occluded_count);
+    compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
+
+    uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_occluded_ballot);
+
+    uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
+
+    if (is_occluded)
+        u_compacted_occluded_command_buffer.commands[compacted_buffer_index] = u_command_buffer.commands[id];
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= u_count_buffer.count)
+        return;
+    
+    write_compacted_visible(id);
+    write_compacted_occluded(id);
+}

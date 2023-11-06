@@ -5,13 +5,13 @@
 #include <random>
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
-#include <glm/gtc/matrix_access.hpp>
+#include <meshoptimizer.h>
 
 #include "Core/core.h"
 
+
 namespace
 {
-
     assetLib::BoundingSphere sphereBy2Points(const std::vector<glm::vec3>& boundaryPoints)
     {
         glm::vec3 center = (boundaryPoints[0] + boundaryPoints[1]) * 0.5f;
@@ -74,6 +74,7 @@ namespace
     {
         return glm::distance(point, sphere.Center) - sphere.Radius < 1e-7f;
     }
+
 }
 
 namespace utils
@@ -142,4 +143,126 @@ namespace utils
         return results.back();
     }
 
+    u32 nextPowerOf2(u32 number)
+    {
+        ASSERT(number != 0, "Number must be positive")
+        number--;
+
+        number |= number >> 1;
+        number |= number >> 2;
+        number |= number >> 4;
+        number |= number >> 8;
+        number |= number >> 16;
+
+        return number + 1;
+    }
+
+    void remapMesh(ModelConverter::MeshData& meshData, u32 maxTrianglesPerMeshlet)
+    {
+        static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
+
+        std::array<meshopt_Stream, 3> vertexElementsStreams = {{
+            {meshData.VertexGroup.Positions.data(), sizeof(glm::vec3), sizeof(glm::vec3)},
+            {meshData.VertexGroup.Normals.data(), sizeof(glm::vec3), sizeof(glm::vec3)},
+            {meshData.VertexGroup.UVs.data(), sizeof(glm::vec2), sizeof(glm::vec2)},
+        }};
+
+        u32 indexCountInitial = (u32)meshData.Indices.size();
+        u32 vertexCountInitial = (u32)meshData.VertexGroup.Positions.size();
+        
+        std::vector<u32> indexRemap(meshData.Indices.size());
+        u32 vertexCount = (u32)meshopt_generateVertexRemapMulti(indexRemap.data(),
+            meshData.Indices.data(),
+            indexCountInitial, vertexCountInitial,
+            vertexElementsStreams.data(), vertexElementsStreams.size());
+
+        ModelConverter::MeshData remappedMesh;
+        remappedMesh.Indices.resize(indexCountInitial);
+        remappedMesh.VertexGroup.Positions.resize(vertexCount);
+        remappedMesh.VertexGroup.Normals.resize(vertexCount);
+        remappedMesh.VertexGroup.UVs.resize(vertexCount);
+
+        meshopt_remapIndexBuffer(remappedMesh.Indices.data(), meshData.Indices.data(), meshData.Indices.size(), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), meshData.VertexGroup.Positions.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), meshData.VertexGroup.Normals.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), meshData.VertexGroup.UVs.data(), vertexCountInitial, sizeof(glm::vec2), indexRemap.data());
+
+        meshopt_optimizeVertexCache(remappedMesh.Indices.data(), remappedMesh.Indices.data(), indexCountInitial, vertexCount);
+        meshopt_optimizeVertexFetchRemap(indexRemap.data(), remappedMesh.Indices.data(), indexCountInitial, vertexCount);
+
+        meshopt_remapIndexBuffer(remappedMesh.Indices.data(), remappedMesh.Indices.data(), indexCountInitial, indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), remappedMesh.VertexGroup.Positions.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), remappedMesh.VertexGroup.Normals.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), remappedMesh.VertexGroup.UVs.data(), vertexCount, sizeof(glm::vec2), indexRemap.data());
+        
+        meshData.Indices = remappedMesh.Indices;
+        meshData.VertexGroup.Positions = remappedMesh.VertexGroup.Positions;
+        meshData.VertexGroup.Normals = remappedMesh.VertexGroup.Normals;
+        meshData.VertexGroup.UVs = remappedMesh.VertexGroup.UVs;
+    }
+
+    std::vector<assetLib::ModelInfo::Meshlet> createMeshlets(ModelConverter::MeshData& meshData)
+    {
+        f32 coneWeight = 0.5f;
+
+        std::vector<meshopt_Meshlet> meshoptMeshlets(meshopt_buildMeshletsBound(meshData.Indices.size(),
+            assetLib::ModelInfo::VERTICES_PER_MESHLET, assetLib::ModelInfo::TRIANGLES_PER_MESHLET));
+        std::vector<u32> meshletVertices(meshoptMeshlets.size() * assetLib::ModelInfo::VERTICES_PER_MESHLET);
+        std::vector<u8> meshletTriangles(meshoptMeshlets.size() * assetLib::ModelInfo::TRIANGLES_PER_MESHLET * 3);
+
+        meshoptMeshlets.resize(meshopt_buildMeshlets(meshoptMeshlets.data(), meshletVertices.data(), meshletTriangles.data(),
+            meshData.Indices.data(), meshData.Indices.size(),
+            (f32*)meshData.VertexGroup.Positions.data(), meshData.VertexGroup.Positions.size(), sizeof(glm::vec3),
+            assetLib::ModelInfo::VERTICES_PER_MESHLET, assetLib::ModelInfo::TRIANGLES_PER_MESHLET, coneWeight));
+
+        const meshopt_Meshlet& lastMeshlet = meshoptMeshlets.back();
+
+        meshletVertices.resize(lastMeshlet.vertex_offset + lastMeshlet.vertex_count);
+        meshletTriangles.resize(lastMeshlet.triangle_offset + ((lastMeshlet.triangle_count * 3 + 3) & ~3));
+
+        std::vector<assetLib::ModelInfo::Meshlet> meshlets;
+        
+        for (const auto& meshoptMeshlet : meshoptMeshlets)
+        {
+            assetLib::ModelInfo::Meshlet meshlet = {
+                .FirstIndex = meshoptMeshlet.triangle_offset,
+                .IndexCount = meshoptMeshlet.triangle_count * 3,
+                .FirstVertex = 0,
+                .VertexCount = meshoptMeshlet.vertex_count};
+
+            meshopt_Bounds meshoptBounds = meshopt_computeMeshletBounds(&meshletVertices[meshoptMeshlet.vertex_offset],
+                &meshletTriangles[meshoptMeshlet.triangle_offset], meshoptMeshlet.triangle_count,
+                (f32*)meshData.VertexGroup.Positions.data(), meshData.VertexGroup.Positions.size(), sizeof(glm::vec3));
+
+            meshlet.BoundingSphere = assetLib::BoundingSphere{
+                .Center = glm::vec3{meshoptBounds.center[0], meshoptBounds.center[1], meshoptBounds.center[2]},
+                .Radius = meshoptBounds.radius};
+
+            meshlet.BoundingCone = assetLib::BoundingCone{
+                .AxisX = meshoptBounds.cone_axis_s8[0],
+                .AxisY = meshoptBounds.cone_axis_s8[1],
+                .AxisZ = meshoptBounds.cone_axis_s8[2],
+                .Cutoff = meshoptBounds.cone_cutoff_s8};
+
+            meshlets.push_back(meshlet);
+        }
+
+        ModelConverter::MeshData finalMeshData = meshData;
+        finalMeshData.Indices.resize(meshletTriangles.size());
+        
+        for (auto& meshlet : meshoptMeshlets)
+        {
+            u32 vertexOffset = meshlet.vertex_offset;
+            u32 triangleOffset = meshlet.triangle_offset;
+            for (u32 i = 0; i < meshlet.triangle_count * 3; i++)
+            {
+                u32 vertexIndex = meshletTriangles[triangleOffset + i]; 
+                finalMeshData.Indices[triangleOffset + i] = meshletVertices[vertexOffset + vertexIndex];
+            }
+        }
+        
+        meshData.Indices = finalMeshData.Indices;
+
+        return meshlets;
+    }
 }

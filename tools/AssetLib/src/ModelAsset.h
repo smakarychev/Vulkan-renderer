@@ -45,10 +45,21 @@ namespace assetLib
         f32 Radius;
     };
 
+    struct BoundingCone
+    {
+        i8 AxisX;
+        i8 AxisY;
+        i8 AxisZ;
+        i8 Cutoff;
+    };
+
     static_assert(sizeof(BoundingSphere) == sizeof(glm::vec4), "The size of bounding sphere must be equal to the size of 4 f32s");
+    static_assert(sizeof(BoundingCone) == sizeof(u32), "The size of bounding cone must be equal to the size of u32");
     
     struct ModelInfo : AssetInfoBase
     {
+        static constexpr u32 TRIANGLES_PER_MESHLET = 256;
+        static constexpr u32 VERTICES_PER_MESHLET = 255; 
         enum class MaterialType : u32
         {
             Albedo = 0, MaxVal
@@ -58,11 +69,23 @@ namespace assetLib
             glm::vec4 Color;
             std::vector<std::string> Textures;
         };
+        struct Meshlet
+        {
+            u32 FirstIndex;
+            u32 IndexCount;
+
+            u32 FirstVertex;
+            u32 VertexCount;
+
+            BoundingSphere BoundingSphere;
+            BoundingCone BoundingCone;
+        };
         struct MeshInfo
         {
             std::string Name;
             std::array<u64, (u32)VertexElement::MaxVal> VertexElementsSizeBytes;
             u64 IndicesSizeBytes;
+            u64 MeshletsSizeBytes;
             std::array<MaterialInfo, (u32)MaterialType::MaxVal> Materials;
             BoundingSphere BoundingSphere;
         };
@@ -72,10 +95,11 @@ namespace assetLib
         
         std::vector<u64> VertexElementsSizeBytes() const;
         u64 IndicesSizeBytes() const;
+        u64 MeshletsSizeBytes() const;
     };
 
     ModelInfo readModelInfo(const assetLib::File& file);
 
-    assetLib::File packModel(const ModelInfo& info, const std::vector<const void*>& vertices, void* indices);
-    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, const std::vector<u8*>& vertices, u8* indices);
+    assetLib::File packModel(const ModelInfo& info, const std::vector<const void*>& vertices, void* indices, void* meshlets);
+    void unpackModel(ModelInfo& info, const u8* source, u64 sourceSizeBytes, const std::vector<u8*>& vertices, u8* indices, u8* meshlets);
 }
