@@ -1,3 +1,18 @@
 [submodule "vendor/assimp"]
 	path = vendor/assimp
 	url = https://github.com/smakarychev/assimp
+[submodule "vendor/glfw"]
+	path = vendor/glfw
+	url = https://github.com/smakarychev/glfw
+[submodule "vendor/lz4"]
+	path = vendor/lz4
+	url = https://github.com/smakarychev/lz4
+[submodule "vendor/meshoptimizer"]
+	path = vendor/meshoptimizer
+	url = https://github.com/smakarychev/meshoptimizer
+[submodule "vendor/nlohmann-json"]
+	path = vendor/nlohmann-json
+	url = https://github.com/smakarychev/json
+[submodule "vendor/tracy"]
+	path = vendor/tracy
+	url = https://github.com/smakarychev/tracy

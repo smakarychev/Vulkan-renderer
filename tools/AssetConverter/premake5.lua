@@ -21,6 +21,7 @@ project "AssetConverter"
         IncludeDir["assimp"],
         IncludeDir["glm"],
         IncludeDir["spirv_reflect"],	
+        IncludeDir["meshoptimizer"],    
     }
 
     libdirs
@@ -33,6 +34,7 @@ project "AssetConverter"
     {
         "AssetLib",
         "assimp-vc143-mt.lib",
+        "meshoptimizer"
     }
 
     filter "configurations:Debug"
