@@ -35,6 +35,12 @@ void Scene::OnInit(ResourceUploader* resourceUploader)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
+    m_MeshletsIndirectCompactBuffer = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+    
     m_MeshletsIndirectFinalBuffer = Buffer::Builder()
         .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
         .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
@@ -160,11 +166,11 @@ void Scene::CreateSharedMeshContext()
     }
 
     Buffer::Builder vertexBufferBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::Vertex, BufferKind::Destination})
+        .SetKinds({BufferKind::Vertex, BufferKind::Storage, BufferKind::Destination})
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
     
     Buffer::Builder indexBufferBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::Index, BufferKind::Destination})
+        .SetKinds({BufferKind::Index, BufferKind::Storage, BufferKind::Destination})
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
 
     m_SharedMeshContext->Positions = vertexBufferBuilder
@@ -181,6 +187,11 @@ void Scene::CreateSharedMeshContext()
 
     m_SharedMeshContext->Indices = indexBufferBuilder
         .SetSizeBytes(totalIndicesSizeBytes)
+        .BuildManualLifetime();
+
+    // todo: fix size to smaller number
+    m_SharedMeshContext->IndicesCompact = indexBufferBuilder
+        .SetSizeBytes(totalIndicesSizeBytes * 300)
         .BuildManualLifetime();
 
     u64 verticesOffset = 0;
@@ -228,6 +239,7 @@ void Scene::CreateSharedMeshContext()
             commands[m_MeshletCount].instanceCount = 1;
             commands[m_MeshletCount].vertexOffset = mesh.GetVertexBufferOffset() + (i32)meshlet.FirstVertex;
             m_MeshletCount++;
+            m_TotalTriangles += meshlet.IndexCount / 3;
         }
     }
     m_ResourceUploader->UpdateBuffer(m_MeshletsIndirectRawBuffer, mappedBuffer, 0);
@@ -261,7 +273,7 @@ void Scene::AddRenderObject(const RenderObject& renderObject)
 void Scene::Bind(const CommandBuffer& cmd) const
 {
     RenderCommand::BindVertexBuffers(cmd, {m_SharedMeshContext->Positions, m_SharedMeshContext->Normals, m_SharedMeshContext->UVs}, {0, 0, 0});
-    RenderCommand::BindIndexBuffer(cmd, m_SharedMeshContext->Indices, 0);
+    RenderCommand::BindIndexBuffer(cmd, m_SharedMeshContext->IndicesCompact, 0);
 }
 
 void Scene::ReleaseMeshSharedContext()
@@ -270,6 +282,8 @@ void Scene::ReleaseMeshSharedContext()
     Buffer::Destroy(m_SharedMeshContext->Normals);
     Buffer::Destroy(m_SharedMeshContext->UVs);
     Buffer::Destroy(m_SharedMeshContext->Indices);
+    
+    Buffer::Destroy(m_SharedMeshContext->IndicesCompact);
     
     m_SharedMeshContext.reset();
 }

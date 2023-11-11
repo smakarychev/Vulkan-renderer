@@ -489,7 +489,7 @@ void ShaderPipeline::Builder::CreateCompatibleLayout()
     // adapt vertex input layout
     const VertexInputDescription& available = m_CreateInfo.ShaderPipelineTemplate->m_VertexInputDescription;
     const VertexInputDescription& compatible = m_CompatibleVertexDescription;
-    ASSERT(available.Bindings.size() == compatible.Bindings.size(), "Incompatible vertex inputs")
+    ASSERT(available.Bindings.size() <= compatible.Bindings.size(), "Incompatible vertex inputs")
     
     VertexInputDescription adapted;
     adapted.Bindings = compatible.Bindings;

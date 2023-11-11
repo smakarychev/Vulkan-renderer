@@ -8,6 +8,7 @@
 #include "RenderObject.h"
 #include "Scene.h"
 #include "Model.h"
+#include "VisibilityPass.h"
 #include "Core/Input.h"
 #include "Core/Random.h"
 #include "GLFW/glfw3.h"
@@ -57,8 +58,23 @@ void Renderer::OnRender()
     BeginFrame();
     if (!m_FrameEarlyExit)
     {
-        PrimaryScenePass();
-        SecondaryScenePass();
+        if (!m_ComputeDepthPyramidData.DepthPyramid)
+        {
+            CreateDepthPyramid();
+            m_VisibilityPass.Init({
+                .Size = m_Swapchain.GetSize(),
+                .Cmd = &GetFrameContext().CommandBuffer,
+                .Scene = &m_Scene,
+                .DescriptorAllocator = &m_CullDescriptorAllocator,
+                .LayoutCache = &m_LayoutCache,
+                .RenderingDetails = m_Swapchain.GetRenderingDetails()});
+        }
+
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
+            PrimaryScenePass();
+            SecondaryScenePass();
+        }
 
         EndFrame();
         
@@ -150,12 +166,7 @@ void Renderer::PrimaryScenePass()
 {
     ZoneScopedN("Primary Scene Pass");
     const CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-
-    if (!m_ComputeDepthPyramidData.DepthPyramid)
-        CreateDepthPyramid();
-    else
-        m_DepthPyramidIsPresent = true;
-
+    
     CullCompute(m_Scene);
     
     VkClearValue colorClear = {.color = {{0.05f, 0.05f, 0.05f, 1.0f}}};
@@ -196,12 +207,7 @@ void Renderer::SecondaryScenePass()
     ZoneScopedN("Secondary Scene Pass");
     const CommandBuffer& cmd = GetFrameContext().CommandBuffer;
 
-     bool once = true;
-    if (once)
-    {
-        ComputeDepthPyramid();
-        once = false;
-    }
+    ComputeDepthPyramid();
     
     SecondaryCullCompute(m_Scene);
 
@@ -232,12 +238,7 @@ void Renderer::SecondaryScenePass()
 
     RenderCommand::EndRendering(cmd);
 
-     bool once2 = true;
-    if (once2)
-    {
-        ComputeDepthPyramid();
-        once2 = false;
-    }
+    ComputeDepthPyramid();
 }
 
 void Renderer::EndFrame()
@@ -294,8 +295,6 @@ void Renderer::CreateDepthPyramid()
     m_ComputeDepthPyramidData.DepthPyramid = std::make_unique<DepthPyramid>(m_Swapchain.GetDepthImage(), cmd,
         &m_ComputeDepthPyramidData);
 
-    const Texture& pyramid = m_ComputeDepthPyramidData.DepthPyramid->GetTexture();
-
     m_SceneCull.SetDepthPyramid(*m_ComputeDepthPyramidData.DepthPyramid);
 }
 
@@ -310,6 +309,11 @@ void Renderer::ComputeDepthPyramid()
         m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
         thrice--;
     }
+}
+
+void Renderer::SceneVisibilityPass()
+{
+    
 }
 
 void Renderer::CullCompute(const Scene& scene)
@@ -339,11 +343,49 @@ void Renderer::CullCompute(const Scene& scene)
         ZoneScopedN("Meshlet compact compute");
         m_SceneCull.PerformMeshletCompaction(GetFrameContext());
     }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
+        ZoneScopedN("Triangle cull clear command buffer compute");
+        m_SceneCull.ClearTriangleCullCommandBuffer(GetFrameContext());
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
+        ZoneScopedN("Triangle cull compact compute");
+        m_SceneCull.PerformTriangleCullingCompaction(GetFrameContext());
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
+        ZoneScopedN("Final compact compute");
+        m_SceneCull.PerformFinalCompaction(GetFrameContext());
+    }
 }
 
 void Renderer::SecondaryCullCompute(const Scene& scene)
 {
     TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Secondary compute cull")
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
+        m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 0);
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
+        ZoneScopedN("Triangle cull clear command buffer compute");
+        m_SceneCull.ClearTriangleCullCommandBufferSecondary(GetFrameContext());
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
+        ZoneScopedN("Triangle cull compact compute");
+        m_SceneCull.PerformSecondaryTriangleCullingCompaction(GetFrameContext());
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
+        ZoneScopedN("Final compact compute");
+        m_SceneCull.PerformFinalCompaction(GetFrameContext());
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
+        m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 1);
+    }
     {
         TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh cull compute")
         ZoneScopedN("Mesh cull compute");
@@ -363,6 +405,16 @@ void Renderer::SecondaryCullCompute(const Scene& scene)
         TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet compact compute")
         ZoneScopedN("Meshlet compact compute");
         m_SceneCull.PerformSecondaryMeshletCompaction(GetFrameContext());
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
+        ZoneScopedN("Triangle cull compact compute");
+        m_SceneCull.PerformTertiaryTriangleCullingCompaction(GetFrameContext());
+    }
+    {
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
+        ZoneScopedN("Final compact compute");
+        m_SceneCull.PerformFinalCompaction(GetFrameContext());
     }
 }
 
@@ -452,6 +504,7 @@ void Renderer::InitRenderingStructures()
         m_FrameContexts[i].CommandBuffer = buffer;
         m_FrameContexts[i].FrameSync = m_Swapchain.GetFrameSync(i);
         m_FrameContexts[i].FrameNumber = i;
+        m_FrameContexts[i].Resolution = m_Swapchain.GetSize();
     }
 
     std::array<CommandBuffer*, BUFFERED_FRAMES> cmds;
@@ -485,7 +538,7 @@ void Renderer::InitRenderingStructures()
 
 void Renderer::InitDepthPyramidComputeStructures()
 {
-    Shader* computeDepthPyramid = Shader::ReflectFrom({"../assets/shaders/processed/depth-pyramid-comp.shader"});
+    Shader* computeDepthPyramid = Shader::ReflectFrom({"../assets/shaders/processed/culling/depth-pyramid-comp.shader"});
 
     m_ComputeDepthPyramidData.PipelineTemplate = ShaderPipelineTemplate::Builder()
         .SetDescriptorAllocator(&m_CullDescriptorAllocator)
@@ -507,6 +560,7 @@ void Renderer::ShutDown()
     
     Swapchain::Destroy(m_Swapchain);
     
+    m_VisibilityPass.ShutDown();
     m_SceneCull.ShutDown();
     m_ResourceUploader.ShutDown();
     ProfilerContext::Get()->ShutDown();
@@ -544,9 +598,12 @@ void Renderer::RecreateSwapchain()
     
     m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
     m_ComputeDepthPyramidData.DepthPyramid.reset();
+    m_VisibilityPass.ShutDown();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera->SetViewport(m_Swapchain.GetSize().x, m_Swapchain.GetSize().y);
+    for (auto& frameContext : m_FrameContexts)
+        frameContext.Resolution = m_Swapchain.GetSize();
 }
 
 void Renderer::LoadScene()

@@ -1,0 +1,90 @@
+#version 460
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+struct VkDrawIndexedIndirectCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int  vertexOffset;
+    uint firstInstance;
+};
+
+struct Position {
+    float x;
+    float y;
+    float z;
+};
+
+struct Meshlet
+{
+    uint _unused_0;
+    float _unused_x;
+    float _unused_y;
+    float _unused_z;
+    float _unused_r;
+
+    uint object_id;
+
+    float _unused_R;
+    float _unused_G;
+    float _unused_B;
+
+    uint _unused_1;
+
+    uint pad0;
+    uint pad1;
+};
+
+struct Triangle {
+    vec4 a;
+    vec4 b;
+    vec4 c;
+};
+
+@dynamic
+layout(set = 0, binding = 0) uniform scene_data {
+    mat4 projection_matrix; // 4
+    mat4 view_matrix; // 4
+    float frustum_top_y;
+    float frustum_top_z;
+    float frustum_right_x;
+    float frustum_right_z; // 4
+    float frustum_near;
+    float frustum_far;
+    float projection_width;
+    float projection_height; // 4
+    float depth_pyramid_width;
+    float depth_pyramid_height;
+    uint mesh_count;
+    uint pad0; // 4
+} u_scene_data;
+
+layout(std430, set = 0, binding = 1) buffer command_buffer {
+    VkDrawIndexedIndirectCommand commands[];
+} u_command_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 2) buffer command_count_buffer {
+    uint count;
+} u_command_count_buffer;
+
+layout(std430, set = 0, binding = 3) readonly buffer meshlet_buffer {
+    Meshlet meshlets[];
+} u_meshlet_buffer;
+
+layout(std430, set = 0, binding = 4) readonly buffer positions_buffer {
+    Position positions[];
+} u_positions_buffer;
+
+layout(std430, set = 0, binding = 5) readonly buffer indices_buffer {
+    uint indices[];
+} u_indices_buffer;
+
+vec4 vec4FromPosition(Position position) {
+    return vec4(position.x, position.y, position.z, 1.0f);
+}
+
+void main() {
+    
+}

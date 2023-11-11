@@ -150,7 +150,7 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
     m_CreateInfo.RasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
     m_CreateInfo.RasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
     m_CreateInfo.RasterizationState.lineWidth = 1.0f;
-    m_CreateInfo.RasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+    m_CreateInfo.RasterizationState.cullMode = VK_CULL_MODE_NONE;
     m_CreateInfo.RasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 
     m_CreateInfo.MultisampleState.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;

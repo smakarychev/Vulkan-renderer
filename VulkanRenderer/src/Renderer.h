@@ -12,6 +12,7 @@
 #include "ResourceUploader.h"
 #include "SceneCull.h"
 #include "Settings.h"
+#include "VisibilityPass.h"
 #include "Core/Camera.h"
 #include "Core/ProfilerContext.h"
 
@@ -75,6 +76,8 @@ struct FrameContext
     
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
+
+    glm::uvec2 Resolution;
 };
 
 class Renderer
@@ -93,8 +96,6 @@ public:
 
     void Dispatch(const ComputeDispatch& dispatch);
 
-    void CreateDepthPyramid();
-    void ComputeDepthPyramid();
     void CullCompute(const Scene& scene);
     void SecondaryCullCompute(const Scene& scene);
     void Submit(const Scene& scene);
@@ -111,6 +112,10 @@ private:
     void InitDepthPyramidComputeStructures();
     void ShutDown();
 
+    void CreateDepthPyramid();
+    void ComputeDepthPyramid();
+
+    void SceneVisibilityPass();
     void PrimaryScenePass();
     void SecondaryScenePass();
 
@@ -152,7 +157,7 @@ private:
     BindlessData m_BindlessData;
     ComputeDepthPyramidData m_ComputeDepthPyramidData;
 
-    bool m_DepthPyramidIsPresent{false};
+    VisibilityPass m_VisibilityPass;
 
     SceneCull m_SceneCull;
 

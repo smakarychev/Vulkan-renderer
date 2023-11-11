@@ -5,7 +5,6 @@
 #include "ModelAsset.h"
 #include "RenderObject.h"
 
-class RenderPass;
 class Scene;
 class ShaderPipelineTemplate;
 class Renderer;

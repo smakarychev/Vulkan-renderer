@@ -23,6 +23,8 @@ struct SharedMeshContext
     Buffer Normals;
     Buffer UVs;
     Buffer Indices;
+
+    Buffer IndicesCompact;
 };
 
 struct RenderObjectSSBO
@@ -105,10 +107,15 @@ public:
     const Buffer& GetMaterialsBuffer() const { return m_MaterialDataSSBO.Buffer; }
     
     const Buffer& GetMeshletsIndirectBuffer() const { return m_MeshletsIndirectRawBuffer; }
+    const Buffer& GetMeshletsIndirectCompactBuffer() const { return m_MeshletsIndirectCompactBuffer; }
     const Buffer& GetMeshletsIndirectFinalBuffer() const { return m_MeshletsIndirectFinalBuffer; }
     u32 GetMeshletCount() const { return m_MeshletCount; }
 
     const Buffer& GetMeshletsBuffer() const { return m_MeshletsSSBO.Buffer; }
+
+    const Buffer& GetPositionsBuffer() const { return m_SharedMeshContext->Positions; }
+    const Buffer& GetIndicesBuffer() const { return m_SharedMeshContext->Indices; }
+    const Buffer& GetIndicesCompactBuffer() const { return m_SharedMeshContext->IndicesCompact; }
     
     void AddRenderObject(const RenderObject& renderObject);
     bool IsDirty() const { return m_IsDirty; }
@@ -137,10 +144,13 @@ private:
     MaterialDataSSBO m_MaterialDataSSBO;
 
     Buffer m_MeshletsIndirectRawBuffer;
+    Buffer m_MeshletsIndirectCompactBuffer;
     Buffer m_MeshletsIndirectFinalBuffer;
     u32 m_MeshletCount{0};
 
     MeshletsSSBO m_MeshletsSSBO;
+
+    u32 m_TotalTriangles{0};
     
     bool m_IsDirty{false};
 };
