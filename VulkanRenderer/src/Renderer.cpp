@@ -73,7 +73,8 @@ void Renderer::OnRender()
         {
             TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
             PrimaryScenePass();
-            SecondaryScenePass();
+            SecondaryScenePass(DisocclusionKind::Triangles);
+            SecondaryScenePass(DisocclusionKind::Meshlets);
         }
 
         EndFrame();
@@ -92,8 +93,8 @@ void Renderer::OnUpdate()
 
     m_CameraController->OnUpdate(1.0f / 60.0f);
     //glm::vec3 pos = m_Camera->GetPosition();
-    //glm::mat4 rot = glm::rotate(glm::mat4(1.0f), glm::radians(2.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    //m_Camera->SetPosition(rot * glm::vec4(m_Camera->GetPosition(), 1.0f));
+    //glm::mat4 translation = glm::translate(glm::mat4(1.0f), 2.0f * glm::vec3(sinf(glfwGetTime() * 2), cosf(glfwGetTime() * 3), sinf(5 * glfwGetTime())));
+    //m_Camera->SetPosition(translation * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f));
     UpdateCameraBuffers();
     UpdateScene();
     UpdateComputeCullBuffers();
@@ -200,16 +201,16 @@ void Renderer::PrimaryScenePass()
     Submit(m_Scene);
 
     RenderCommand::EndRendering(cmd);
+
+    ComputeDepthPyramid();
 }
 
-void Renderer::SecondaryScenePass()
+void Renderer::SecondaryScenePass(DisocclusionKind disocclusionKind)
 {
     ZoneScopedN("Secondary Scene Pass");
     const CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-
-    ComputeDepthPyramid();
     
-    SecondaryCullCompute(m_Scene);
+    SecondaryCullCompute(m_Scene, disocclusionKind);
 
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
@@ -360,61 +361,80 @@ void Renderer::CullCompute(const Scene& scene)
     }
 }
 
-void Renderer::SecondaryCullCompute(const Scene& scene)
+void Renderer::SecondaryCullCompute(const Scene& scene, DisocclusionKind disocclusionKind)
 {
-    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Secondary compute cull")
+    
+    if ((disocclusionKind & DisocclusionKind::Triangles) == DisocclusionKind::Triangles)
     {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
-        m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 0);
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Secondary compute cull triangles")
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
+            m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 0);
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
+            ZoneScopedN("Triangle cull clear command buffer compute");
+            m_SceneCull.ClearTriangleCullCommandBufferSecondary(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
+            ZoneScopedN("Triangle cull compact compute");
+            m_SceneCull.PerformSecondaryTriangleCullingCompaction(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
+            ZoneScopedN("Final compact compute");
+            m_SceneCull.PerformFinalCompaction(GetFrameContext());
+        }
     }
+    if ((disocclusionKind & DisocclusionKind::Meshlets) == DisocclusionKind::Meshlets)
     {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
-        ZoneScopedN("Triangle cull clear command buffer compute");
-        m_SceneCull.ClearTriangleCullCommandBufferSecondary(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
-        ZoneScopedN("Triangle cull compact compute");
-        m_SceneCull.PerformSecondaryTriangleCullingCompaction(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
-        ZoneScopedN("Final compact compute");
-        m_SceneCull.PerformFinalCompaction(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
-        m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 1);
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh cull compute")
-        ZoneScopedN("Mesh cull compute");
-        m_SceneCull.PerformSecondaryMeshCulling(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh compact compute")
-        ZoneScopedN("Mesh compact compute");
-        m_SceneCull.PerformSecondaryMeshCompaction(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet cull compute")
-        ZoneScopedN("Meshlet cull compute");
-        m_SceneCull.PerformSecondaryMeshletCulling(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet compact compute")
-        ZoneScopedN("Meshlet compact compute");
-        m_SceneCull.PerformSecondaryMeshletCompaction(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
-        ZoneScopedN("Triangle cull compact compute");
-        m_SceneCull.PerformTertiaryTriangleCullingCompaction(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
-        ZoneScopedN("Final compact compute");
-        m_SceneCull.PerformFinalCompaction(GetFrameContext());
+        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Secondary compute cull meshlets")
+        if ((disocclusionKind & DisocclusionKind::Triangles) == DisocclusionKind::Triangles)
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
+            m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 1);
+        }
+        else
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
+            m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 2);
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh cull compute")
+            ZoneScopedN("Mesh cull compute");
+            m_SceneCull.PerformSecondaryMeshCulling(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh compact compute")
+            ZoneScopedN("Mesh compact compute");
+            m_SceneCull.PerformSecondaryMeshCompaction(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet cull compute")
+            ZoneScopedN("Meshlet cull compute");
+            m_SceneCull.PerformSecondaryMeshletCulling(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet compact compute")
+            ZoneScopedN("Meshlet compact compute");
+            m_SceneCull.PerformSecondaryMeshletCompaction(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
+            ZoneScopedN("Triangle cull clear command buffer compute");
+            m_SceneCull.ClearTriangleCullCommandBuffer(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
+            ZoneScopedN("Triangle cull compact compute");
+            m_SceneCull.PerformTertiaryTriangleCullingCompaction(GetFrameContext());
+        }
+        {
+            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
+            ZoneScopedN("Final compact compute");
+            m_SceneCull.PerformFinalCompaction(GetFrameContext());
+        }
     }
 }
 

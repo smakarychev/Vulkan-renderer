@@ -80,6 +80,9 @@ struct FrameContext
     glm::uvec2 Resolution;
 };
 
+enum class DisocclusionKind { Triangles = BIT(1), Meshlets = BIT(2) };
+CREATE_ENUM_FLAGS_OPERATORS(DisocclusionKind)
+
 class Renderer
 {
 public:
@@ -97,7 +100,7 @@ public:
     void Dispatch(const ComputeDispatch& dispatch);
 
     void CullCompute(const Scene& scene);
-    void SecondaryCullCompute(const Scene& scene);
+    void SecondaryCullCompute(const Scene& scene, DisocclusionKind disocclusionKind);
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
     void PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description);
@@ -117,7 +120,7 @@ private:
 
     void SceneVisibilityPass();
     void PrimaryScenePass();
-    void SecondaryScenePass();
+    void SecondaryScenePass(DisocclusionKind disocclusionKind);
 
     void OnWindowResize();
     void RecreateSwapchain();

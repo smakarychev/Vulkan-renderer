@@ -25,8 +25,7 @@ public:
     };
     struct SceneCullDataExtended
     {
-        glm::mat4 ProjectionMatrix;
-        glm::mat4 ViewMatrix;
+        glm::mat4 ViewProjectionMatrix;
         FrustumPlanes FrustumPlanes;
         ProjectionData ProjectionData;
         f32 PyramidWidth;
@@ -35,27 +34,6 @@ public:
         u32 Pad1;
     };
 
-    struct CompactMeshletData
-    {
-        u32 DrawCount;
-    };
-    struct CompactTriangleData
-    {
-        u32 Count;
-    };
-    struct OccludeMeshletData
-    {
-        u32 Count;
-    };
-    struct OccludeRenderObjectData
-    {
-        u32 Count;
-    };
-    struct CompactRenderObjectData
-    {
-        // count of indirect commands after mesh culling and compaction
-        u32 DrawCount;
-    };
 public:
     void Init();
     void Update(const Camera& camera, const DepthPyramid* depthPyramid,  ResourceUploader& resourceUploader, const FrameContext& frameContext);
@@ -87,11 +65,6 @@ private:
     };
     struct CompactOccludeBuffers
     {
-        CompactMeshletData CompactMeshletSecondaryData;
-        CompactMeshletData CompactMeshletData;
-        CompactTriangleData CompactTriangleData;
-        OccludeMeshletData OccludeMeshletData;
-        OccludeRenderObjectData OccludeRenderObjectData;
         Buffer VisibleCountBuffer;
         Buffer OccludedCountBuffer;
         Buffer IndirectVisibleRenderObjectBuffer;
@@ -100,7 +73,6 @@ private:
     };
     struct CompactRenderObjectSSBO
     {
-        CompactRenderObjectData CompactData;
         Buffer Buffer;
     };
 
@@ -151,7 +123,7 @@ public:
 private:
     void DestroyDescriptors();
     
-    void PerformIndirectDispatchBufferPrepare(const FrameContext& frameContext, u32 localGroupSize, u32 bufferIndex);
+    void PerformIndirectDispatchBufferPrepare(const FrameContext& frameContext, u32 localGroupSize, u32 multiplier, u32 bufferIndex);
 
     void InitClearBuffers(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
     
