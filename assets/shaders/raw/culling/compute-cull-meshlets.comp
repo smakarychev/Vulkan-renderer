@@ -7,12 +7,14 @@ layout(local_size_x = 64) in;
 #extension GL_EXT_shader_explicit_arithmetic_types: require
 #extension GL_EXT_shader_explicit_arithmetic_types_int8: require
 
-struct VkDrawIndexedIndirectCommand {
+struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
     int  vertexOffset;
     uint firstInstance;
+
+    uint render_object;
 };
 
 @dynamic
@@ -63,14 +65,7 @@ struct Meshlet
     float y;
     float z;
     float r;
-    uint render_object;
-    // these 3 values actually serve as a padding, but might also be used as a debug meshlet shading
-    float R;
-    float G;
-    float B;
     uint is_occluded;
-    uint pad0;
-    uint pad1;
 };
 
 layout(std430, set = 0, binding = 4) buffer meshlet_buffer {
@@ -78,7 +73,7 @@ layout(std430, set = 0, binding = 4) buffer meshlet_buffer {
 } u_meshlet_buffer;
 
 layout(std430, set = 0, binding = 5) buffer command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_command_buffer;
 
 float extract_scale(mat4 matrix) {
@@ -133,10 +128,10 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius) {
     return projected_depth >= depth;
 }
 
-bool is_visible(uint id) {
+bool is_visible(uint command_id, uint id) {
     Meshlet meshlet = u_meshlet_buffer.meshlets[id];
     u_meshlet_buffer.meshlets[id].is_occluded = 0;
-    object_data object = u_object_buffer.objects[meshlet.render_object];
+    object_data object = u_object_buffer.objects[u_command_buffer.commands[command_id].render_object];
 
     vec3 origin = vec3(u_scene_data.view_matrix * object.model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f));
     float radius = meshlet.r * extract_scale(object.model);
@@ -162,7 +157,7 @@ void main() {
         return;
     
     uint meshlet_id = u_command_buffer.commands[id].firstInstance;
-    bool visible = is_visible(meshlet_id);
+    bool visible = is_visible(id, meshlet_id);
     
     u_command_buffer.commands[id].instanceCount = int(visible);
 }

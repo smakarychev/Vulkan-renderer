@@ -4,41 +4,26 @@
 
 layout(local_size_x = 64) in;
 
-struct VkDrawIndexedIndirectCommand {
+struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
     int  vertexOffset;
     uint firstInstance;
+
+    uint render_object;
 };
 
 struct object_visibility_data {
     uint flags;
 };
 
-struct Meshlet {
-    uint _unused_cone;
-    float _unused_x;
-    float _unused_y;
-    float _unused_z;
-    float _unused_r;
-
-    uint render_object;
-
-    float _unused_R;
-    float _unused_G;
-    float _unused_B;
-    uint pad0;
-    uint pad1;
-    uint pad2;
-};
-
 layout(std430, set = 0, binding = 0) buffer readonly command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_command_buffer;
 
 layout(std430, set = 0, binding = 1) buffer writeonly compacted_command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_compacted_command_buffer;
 
 @dynamic
@@ -50,17 +35,13 @@ layout(std430, set = 0, binding = 3) readonly buffer object_visibility_buffer{
     object_visibility_data visibility[];
 } u_object_visibility_buffer;
 
-layout(std430, set = 0, binding = 4) readonly buffer meshlet_buffer {
-    Meshlet meshlets[];
-} u_meshlet_buffer;
-
 layout(push_constant) uniform push_constants {
     uint meshlets_count;
 };
 
 void write_compacted_visible(uint id) {
-    Meshlet meshlet = u_meshlet_buffer.meshlets[id];
-    object_visibility_data visibility = u_object_visibility_buffer.visibility[meshlet.render_object];
+    IndirectCommand command = u_command_buffer.commands[id];
+    object_visibility_data visibility = u_object_visibility_buffer.visibility[command.render_object];
 
     bool is_visible = (visibility.flags & 1u) == 1;
     uvec4 is_visible_ballot = subgroupBallot(is_visible);

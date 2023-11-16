@@ -212,7 +212,7 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
             materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);
 
     MeshData meshData = {.Name = mesh->mName.C_Str(), .VertexGroup = vertexGroup, .Indices = indices, .MaterialInfos = materials};
-    utils::remapMesh(meshData, assetLib::ModelInfo::TRIANGLES_PER_MESHLET);
+    utils::remapMesh(meshData);
     meshData.Meshlets = utils::createMeshlets(meshData);
     
     return meshData;

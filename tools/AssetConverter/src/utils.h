@@ -8,6 +8,6 @@ namespace utils
 
     u32 nextPowerOf2(u32 number);
     
-    void remapMesh(ModelConverter::MeshData& meshData, u32 maxTrianglesPerMeshlet);
+    void remapMesh(ModelConverter::MeshData& meshData);
     std::vector<assetLib::ModelInfo::Meshlet> createMeshlets(ModelConverter::MeshData& meshData);
 }

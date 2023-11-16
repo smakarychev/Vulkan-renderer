@@ -1,0 +1,251 @@
+#version 460
+
+#extension GL_KHR_shader_subgroup_ballot: enable
+#extension GL_KHR_shader_subgroup_vote: enable
+
+layout(local_size_x = 64) in;
+
+const uint TRIANGLES_PER_MESHLET = 256;
+const uint TRIANGLES_PER_WORK_GROUP = TRIANGLES_PER_MESHLET / gl_WorkGroupSize.x;
+
+struct IndirectCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int  vertexOffset;
+    uint firstInstance;
+    
+    uint render_object;
+};
+
+struct Position {
+    float x;
+    float y;
+    float z;
+};
+
+struct object_data {
+    mat4 model;
+    // bounding sphere
+    float x;
+    float y;
+    float z;
+    float r;
+};
+
+struct Triangle {
+    vec4 a;
+    vec4 b;
+    vec4 c;
+};
+
+@dynamic
+layout(set = 0, binding = 0) uniform scene_data {
+    mat4 view_projection_matrix; // 4
+    float frustum_top_y;
+    float frustum_top_z;
+    float frustum_right_x;
+    float frustum_right_z; // 4
+    float frustum_near;
+    float frustum_far;
+    float projection_width;
+    float projection_height; // 4
+    float depth_pyramid_width;
+    float depth_pyramid_height;
+    uint mesh_count;
+    uint pad0; // 4
+} u_scene_data;
+
+layout(set = 0, binding = 1) uniform sampler2D u_depth_pyramid;
+
+layout(std430, set = 0, binding = 2) buffer command_buffer {
+    IndirectCommand commands[];
+} u_command_buffer;
+
+layout(std430, set = 0, binding = 3) buffer final_command_buffer {
+    IndirectCommand commands[];
+} u_final_command_buffer;
+
+@dynamic
+layout(std430, set = 0, binding = 4) buffer command_count_buffer {
+    uint count;
+} u_command_count_buffer;
+
+layout(std430, set = 0, binding = 5) readonly buffer object_buffer {
+    object_data objects[];
+} u_object_buffer;
+
+layout(std430, set = 0, binding = 6) readonly buffer positions_buffer {
+    Position positions[];
+} u_positions_buffer;
+
+layout(std430, set = 0, binding = 7) readonly buffer indices_buffer {
+    uint indices[];
+} u_indices_buffer;
+
+layout(std430, set = 0, binding = 8) writeonly buffer culled_indices_buffer {
+    uint indices[];
+} u_culled_indices_buffer;
+
+layout(std430, set = 0, binding = 9) buffer occluded_triangle_count_buffer {
+    uint counts[];
+} u_occluded_triangle_count_buffer;
+
+layout(std430, set = 0, binding = 10) buffer triangle_buffer {
+    uint triangles[];
+} u_triangle_buffer;
+
+layout(push_constant) uniform push_constants {
+    uint u_screen_width;
+    uint u_screen_height;
+    uint u_triangle_offset;
+};
+
+vec4 vec4FromPosition(Position position) {
+    return vec4(position.x, position.y, position.z, 1.0f);
+}
+
+bool is_backface_visible(Triangle triangle) {
+    return determinant(mat3(triangle.a.xyw, triangle.b.xyw, triangle.c.xyw)) <= 0;
+}
+
+bool is_screen_size_visible(vec4 aabb, float width, float height) {
+    aabb = aabb * vec4(width, height, width, height);
+    return round(aabb.x) != round(aabb.z) && round(aabb.y) != round(aabb.w);
+}
+
+bool is_frustum_visible(vec4 aabb) {
+    return aabb.z >= 0 && aabb.x <= 1 && aabb.y >= 0 && aabb.w <= 1;
+}
+
+bool is_occlusion_visible(vec4 aabb, float z) {
+
+    float width = (aabb.z - aabb.x) * u_scene_data.depth_pyramid_width;
+    float height = (aabb.y - aabb.w) * u_scene_data.depth_pyramid_height;
+    float level = ceil(log2(max(width, height)));
+
+    float depth = textureLod(u_depth_pyramid, (aabb.xy + aabb.zw) * 0.5, level).r;
+
+    return depth <= z;
+}
+
+void compact_visible(uint command_index, uint triangle_index, uint index_offset, bool visible) {
+    IndirectCommand command = u_command_buffer.commands[command_index];
+
+    uvec4 visible_ballot = subgroupBallot(visible);
+    uint total_visible_triangle_count = subgroupBallotBitCount(visible_ballot);
+    uint total_visible_count = total_visible_triangle_count * 3;
+
+    uint compacted_index_offset = 0;
+    if (subgroupElect()) {
+        u_final_command_buffer.commands[command_index].firstInstance = command.firstInstance;
+        u_final_command_buffer.commands[command_index].instanceCount = command.instanceCount;
+        u_final_command_buffer.commands[command_index].vertexOffset = command.vertexOffset;
+        u_final_command_buffer.commands[command_index].render_object = command.render_object;
+
+        compacted_index_offset = atomicAdd(u_final_command_buffer.commands[command_index].indexCount, total_visible_count);
+        u_final_command_buffer.commands[command_index].firstIndex = command_index * TRIANGLES_PER_MESHLET * 3;
+    }
+    compacted_index_offset = subgroupBroadcastFirst(compacted_index_offset);
+
+    if (visible) {
+        uint compacted_buffer_offset = compacted_index_offset + subgroupBallotExclusiveBitCount(visible_ballot) * 3;
+        uint compacted_buffer_index = u_final_command_buffer.commands[command_index].firstIndex + compacted_buffer_offset;
+        u_culled_indices_buffer.indices[compacted_buffer_index + 0] = u_indices_buffer.indices[command.firstIndex + index_offset + 0];
+        u_culled_indices_buffer.indices[compacted_buffer_index + 1] = u_indices_buffer.indices[command.firstIndex + index_offset + 1];
+        u_culled_indices_buffer.indices[compacted_buffer_index + 2] = u_indices_buffer.indices[command.firstIndex + index_offset + 2];
+
+        u_triangle_buffer.triangles[compacted_buffer_index / 3] = triangle_index;
+    }
+}
+
+void compact_occluded(uint command_index, uint triangle_index, uint index_offset, bool occluded) {
+    IndirectCommand command = u_command_buffer.commands[command_index];
+    
+    uvec4 occluded_ballot = subgroupBallot(true);
+    uint total_occluded_count = subgroupBallotBitCount(occluded_ballot) * 3;
+
+    uint compacted_index_offset = 0;
+    if (subgroupElect()) {
+        u_final_command_buffer.commands[command_index].firstInstance = command.firstInstance;
+        u_final_command_buffer.commands[command_index].instanceCount = command.instanceCount;
+        u_final_command_buffer.commands[command_index].vertexOffset = command.vertexOffset;
+        u_final_command_buffer.commands[command_index].render_object = command.render_object;
+        
+        compacted_index_offset = atomicAdd(u_occluded_triangle_count_buffer.counts[command_index], total_occluded_count);
+        u_final_command_buffer.commands[command_index].firstIndex = command_index * TRIANGLES_PER_MESHLET * 3;
+    }
+   
+    compacted_index_offset = subgroupBroadcastFirst(compacted_index_offset);
+
+    uint compacted_buffer_offset = compacted_index_offset + subgroupBallotExclusiveBitCount(occluded_ballot) * 3;
+    uint compacted_buffer_index = (u_final_command_buffer.commands[command_index].firstIndex + TRIANGLES_PER_MESHLET * 3) -
+        compacted_buffer_offset;
+    u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 0] = u_indices_buffer.indices[command.firstIndex + index_offset + 0];
+    u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 1] = u_indices_buffer.indices[command.firstIndex + index_offset + 1];
+    u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 2] = u_indices_buffer.indices[command.firstIndex + index_offset + 2];
+
+    u_triangle_buffer.triangles[(compacted_buffer_index - 3) / 3] = triangle_index;
+}
+
+void main() {
+    uint command_index = gl_GlobalInvocationID.x / 64;
+    if (command_index >= u_command_count_buffer.count)
+        return;
+
+    IndirectCommand command = u_command_buffer.commands[command_index];
+    
+   // uint triangle_index = gl_LocalInvocationID.x + gl_WorkGroupSize.x * ((gl_GlobalInvocationID.x / gl_WorkGroupSize.x) % TRIANGLES_PER_WORK_GROUP);
+    uint triangle_index = gl_LocalInvocationID.x + u_triangle_offset;
+    
+    uint index_offset = triangle_index * 3;
+    
+    bool is_in_bounds = command.indexCount > index_offset;
+    
+    if (!is_in_bounds)
+        return;
+    
+    object_data object = u_object_buffer.objects[command.render_object];
+
+    Triangle triangle;
+    triangle.a = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 0]]);
+    triangle.b = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 1]]);
+    triangle.c = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 2]]);
+    
+    triangle.a = u_scene_data.view_projection_matrix * object.model * triangle.a;
+    triangle.b = u_scene_data.view_projection_matrix * object.model * triangle.b;
+    triangle.c = u_scene_data.view_projection_matrix * object.model * triangle.c;
+    
+    bool visible = is_backface_visible(triangle);
+    
+    if (!visible) 
+        return;
+
+    triangle.a.xyz /= triangle.a.w;
+    triangle.b.xyz /= triangle.b.w;
+    triangle.c.xyz /= triangle.c.w;
+
+    float minx = min(triangle.a.x, min(triangle.b.x, triangle.c.x));
+    float maxx = max(triangle.a.x, max(triangle.b.x, triangle.c.x));
+    float miny = min(triangle.a.y, min(triangle.b.y, triangle.c.y));
+    float maxy = max(triangle.a.y, max(triangle.b.y, triangle.c.y));
+
+    vec4 aabb = vec4(minx, maxy, maxx, miny);
+    aabb = aabb.xyzw * 0.5f + vec4(0.5f);
+
+    float depth = max(triangle.a.z, max(triangle.b.z, triangle.c.z));
+    visible = is_occlusion_visible(aabb, depth);
+    bool occluded = !visible;
+    if (occluded) {
+        compact_occluded(command_index, triangle_index, index_offset, occluded);
+        return;
+    }
+
+    visible = is_screen_size_visible(aabb, u_screen_width, u_screen_height);
+    if (!visible)
+        return;
+    
+    visible = is_frustum_visible(aabb);
+
+    compact_visible(command_index, triangle_index, index_offset, visible);
+}

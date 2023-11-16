@@ -23,8 +23,18 @@ struct SharedMeshContext
     Buffer Normals;
     Buffer UVs;
     Buffer Indices;
+};
 
+struct IndirectCommand
+{
+    VkDrawIndexedIndirectCommand VulkanCommand;
+    RenderHandle<RenderObject> RenderObject;
+};
+
+struct MeshBatchBuffers
+{
     Buffer IndicesCompact;
+    Buffer TrianglesCompact;
 };
 
 struct RenderObjectSSBO
@@ -61,14 +71,7 @@ struct MeshletsSSBO
     {
         assetLib::BoundingCone BoundingCone;
         assetLib::BoundingSphere BoundingSphere;
-        RenderHandle<RenderObject> RenderObject;
-        // these 3 values actually serve as a padding, but might also be used as a debug meshlet shading
-        f32 R;
-        f32 G;
-        f32 B;
         u32 IsOccluded;
-        u32 Pad0;
-        u32 Pad1;
     };
 
     std::vector<Data> Meshlets{MAX_OBJECTS};
@@ -115,7 +118,8 @@ public:
 
     const Buffer& GetPositionsBuffer() const { return m_SharedMeshContext->Positions; }
     const Buffer& GetIndicesBuffer() const { return m_SharedMeshContext->Indices; }
-    const Buffer& GetIndicesCompactBuffer() const { return m_SharedMeshContext->IndicesCompact; }
+    const Buffer& GetIndicesCompactBuffer() const { return m_MeshBatchBuffers.IndicesCompact; }
+    const Buffer& GetTrianglesCompactBuffer() const { return m_MeshBatchBuffers.TrianglesCompact; }
     
     void AddRenderObject(const RenderObject& renderObject);
     bool IsDirty() const { return m_IsDirty; }
@@ -138,6 +142,7 @@ private:
     std::vector<RenderObject> m_RenderObjects;
 
     std::unique_ptr<SharedMeshContext> m_SharedMeshContext;
+    MeshBatchBuffers m_MeshBatchBuffers;
     
     RenderObjectSSBO m_RenderObjectSSBO{};
     RenderObjectVisibilitySSBO m_RenderObjectVisibilitySSBO{};

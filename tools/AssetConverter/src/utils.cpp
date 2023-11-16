@@ -157,7 +157,7 @@ namespace utils
         return number + 1;
     }
 
-    void remapMesh(ModelConverter::MeshData& meshData, u32 maxTrianglesPerMeshlet)
+    void remapMesh(ModelConverter::MeshData& meshData)
     {
         static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
 
@@ -227,7 +227,7 @@ namespace utils
             assetLib::ModelInfo::Meshlet meshlet = {
                 .FirstIndex = meshoptMeshlet.triangle_offset,
                 .IndexCount = meshoptMeshlet.triangle_count * 3,
-                .FirstVertex = 0,
+                .FirstVertex = meshoptMeshlet.vertex_offset,
                 .VertexCount = meshoptMeshlet.vertex_count};
 
             meshopt_Bounds meshoptBounds = meshopt_computeMeshletBounds(&meshletVertices[meshoptMeshlet.vertex_offset],
@@ -248,20 +248,29 @@ namespace utils
         }
 
         ModelConverter::MeshData finalMeshData = meshData;
-        finalMeshData.Indices.resize(meshletTriangles.size());
-        
+        finalMeshData.Indices.clear();
+        finalMeshData.Indices.reserve(meshletTriangles.size());
+        for (auto index : meshletTriangles)
+            finalMeshData.Indices.push_back(index);
+
+        finalMeshData.VertexGroup.Positions.resize(meshletVertices.size());
+        finalMeshData.VertexGroup.Normals.resize(meshletVertices.size());
+        finalMeshData.VertexGroup.UVs.resize(meshletVertices.size());
+
         for (auto& meshlet : meshoptMeshlets)
         {
             u32 vertexOffset = meshlet.vertex_offset;
-            u32 triangleOffset = meshlet.triangle_offset;
-            for (u32 i = 0; i < meshlet.triangle_count * 3; i++)
+            for (u32 localIndex = 0; localIndex < meshlet.vertex_count; localIndex++)
             {
-                u32 vertexIndex = meshletTriangles[triangleOffset + i]; 
-                finalMeshData.Indices[triangleOffset + i] = meshletVertices[vertexOffset + vertexIndex];
+                u32 vertexIndex = vertexOffset + localIndex;
+                finalMeshData.VertexGroup.Positions[vertexIndex] = meshData.VertexGroup.Positions[meshletVertices[vertexIndex]];
+                finalMeshData.VertexGroup.Normals[vertexIndex] = meshData.VertexGroup.Normals[meshletVertices[vertexIndex]];
+                finalMeshData.VertexGroup.UVs[vertexIndex] = meshData.VertexGroup.UVs[meshletVertices[vertexIndex]];
             }
         }
         
         meshData.Indices = finalMeshData.Indices;
+        meshData.VertexGroup = finalMeshData.VertexGroup;
 
         return meshlets;
     }

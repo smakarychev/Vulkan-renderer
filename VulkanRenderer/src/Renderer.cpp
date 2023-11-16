@@ -459,7 +459,7 @@ void Renderer::Submit(const Scene& scene)
     RenderCommand::DrawIndexedIndirectCount(cmd,
        scene.GetMeshletsIndirectFinalBuffer(), 0,
        m_SceneCull.GetVisibleMeshletsBuffer(), offset,
-       scene.GetMeshletCount(), sizeof(VkDrawIndexedIndirectCommand));
+       scene.GetMeshletCount(), sizeof(IndirectCommand));
 
     //RenderCommand::DrawIndexedIndirect(cmd, scene.GetMeshletsIndirectBuffer(), 0, scene.GetMeshletCount(), sizeof(VkDrawIndexedIndirectCommand));
 }
@@ -636,8 +636,8 @@ void Renderer::LoadScene()
         .SetDescriptorLayoutCache(&m_LayoutCache);
     
     Shader* bindlessShaderReflection = Shader::ReflectFrom({
-    "../assets/shaders/processed/bindless-textures-test-vert.shader",
-    "../assets/shaders/processed/bindless-textures-test-frag.shader"});
+        "../assets/shaders/processed/bindless-textures-test-vert.shader",
+        "../assets/shaders/processed/bindless-textures-test-frag.shader"});
 
     ShaderPipelineTemplate bindlessTemplate = templateBuilder
         .SetShaderReflection(bindlessShaderReflection)
@@ -657,10 +657,10 @@ void Renderer::LoadScene()
         .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
         .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
         .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer())
+        .AddBinding("u_triangle_buffer", m_Scene.GetTrianglesCompactBuffer())
         .AddBinding("u_material_buffer", m_Scene.GetMaterialsBuffer())
-        .AddBinding("u_meshlet_buffer", m_Scene.GetMeshletsBuffer())
+        .AddBinding("u_command_buffer", m_Scene.GetMeshletsIndirectFinalBuffer())
         .Build();
-    
 
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model* mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
@@ -669,6 +669,7 @@ void Renderer::LoadScene()
     Model* tree = Model::LoadFromAsset("../assets/models/tree/scene.model");
     Model* sphere = Model::LoadFromAsset("../assets/models/sphere/scene.model");
     Model* sphere_big = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
+    Model* cube = Model::LoadFromAsset("../assets/models/real_cube/scene.model");
    //Model* sponza = Model::LoadFromAsset("../assets/models/sponza/scene.model");
     
     m_Scene.AddModel(car, "car");
@@ -678,6 +679,7 @@ void Renderer::LoadScene()
     m_Scene.AddModel(tree, "tree");
     m_Scene.AddModel(sphere, "sphere");
     m_Scene.AddModel(sphere_big, "sphere_big");
+    m_Scene.AddModel(cube, "cube");
 
     //m_Scene.AddModel(sponza, "sponza");
 

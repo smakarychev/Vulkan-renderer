@@ -107,4 +107,5 @@ private:
 
     VkPhysicalDeviceProperties m_GPUProperties;
     VkPhysicalDeviceDescriptorIndexingProperties m_GPUDescriptorIndexingProperties;
+    VkPhysicalDeviceSubgroupProperties m_GPUSubgroupProperties;
 };

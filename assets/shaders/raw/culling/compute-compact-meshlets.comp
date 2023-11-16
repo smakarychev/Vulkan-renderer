@@ -4,12 +4,14 @@
 
 layout(local_size_x = 64) in;
 
-struct VkDrawIndexedIndirectCommand {
+struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
     int  vertexOffset;
     uint firstInstance;
+
+    uint render_object;
 };
 
 struct Meshlet
@@ -19,27 +21,19 @@ struct Meshlet
     float _unused_y;
     float _unused_z;
     float _unused_r;
-    uint _unused_1;
-    float _unused_R;
-    float _unused_G;
-    float _unused_B;
-    
     uint is_occluded;
-    
-    uint pad0;
-    uint pad1;
 };
 
 layout(std430, set = 0, binding = 0) buffer readonly command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_command_buffer;
 
 layout(std430, set = 0, binding = 1) buffer writeonly compacted_command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_compacted_command_buffer;
 
 layout(std430, set = 0, binding = 2) buffer writeonly compacted_occluded_command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_compacted_occluded_command_buffer;
 
 @dynamic
@@ -62,7 +56,7 @@ layout(std430, set = 0, binding = 6) readonly buffer meshlet_buffer {
 } u_meshlet_buffer;
 
 void write_compacted_visible(uint id) {
-    VkDrawIndexedIndirectCommand command = u_command_buffer.commands[id];
+    IndirectCommand command = u_command_buffer.commands[id];
 
     bool is_visible = command.instanceCount > 0;
     uvec4 is_visible_ballot = subgroupBallot(is_visible);

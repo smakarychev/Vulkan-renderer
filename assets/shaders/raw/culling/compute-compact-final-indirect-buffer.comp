@@ -5,20 +5,23 @@
 
 layout(local_size_x = 64) in;
 
-struct VkDrawIndexedIndirectCommand {
+
+struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
     int  vertexOffset;
     uint firstInstance;
+
+    uint render_object;
 };
 
 layout(std430, set = 0, binding = 0) readonly buffer final_command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_final_command_buffer;
 
 layout(std430, set = 0, binding = 1) writeonly buffer final_command_compact_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_final_command_compact_buffer;
 
 @dynamic
@@ -40,8 +43,8 @@ void main() {
     uint id = gl_GlobalInvocationID.x;
     if (id >= u_final_command_count_buffer.count)
         return;
-    
-    VkDrawIndexedIndirectCommand command = u_final_command_buffer.commands[id + u_final_commands_offset_buffer.offset];
+
+    IndirectCommand command = u_final_command_buffer.commands[id + u_final_commands_offset_buffer.offset];
     
     bool should_draw = command.indexCount > 0;
 

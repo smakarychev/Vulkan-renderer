@@ -4,20 +4,22 @@
 
 layout(local_size_x = 64) in;
 
-struct VkDrawIndexedIndirectCommand {
+struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
     int  vertexOffset;
     uint firstInstance;
+
+    uint render_object;
 };
 
 layout(std430, set = 0, binding = 0) buffer readonly command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_command_buffer;
 
 layout(std430, set = 0, binding = 1) buffer writeonly compacted_command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_compacted_command_buffer;
 
 @dynamic
@@ -31,7 +33,7 @@ layout(std430, set = 0, binding = 3) buffer visible_buffer {
 } u_visible_buffer;
 
 void write_compacted_visible(uint id) {
-    VkDrawIndexedIndirectCommand command = u_command_buffer.commands[id];
+    IndirectCommand command = u_command_buffer.commands[id];
 
     bool is_visible = command.instanceCount > 0;
     uvec4 is_visible_ballot = subgroupBallot(is_visible);

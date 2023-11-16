@@ -20,7 +20,7 @@ void SceneCullBuffers::Init()
 
     Buffer::Builder ssboIndirectBuilder = Buffer::Builder()
         .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(VkDrawIndexedIndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
+        .SetSizeBytes(sizeof(IndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
     
     m_CullDataUBO.Buffer = uboBuilder
@@ -211,12 +211,12 @@ void SceneCull::SetDepthPyramid(const DepthPyramid& depthPyramid)
         .AddBinding("u_command_buffer", m_Scene->GetMeshletsIndirectCompactBuffer())
         .AddBinding("u_final_command_buffer", m_SceneCullBuffers.GetIndirectUncompactedBuffer())
         .AddBinding("u_command_count_buffer", m_SceneCullBuffers.GetIndirectUncompactedCountBuffer(), sizeof(u32), 0)
-        .AddBinding("u_meshlet_buffer", m_Scene->GetMeshletsBuffer())
         .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
         .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
         .AddBinding("u_indices_buffer", m_Scene->GetIndicesBuffer())
         .AddBinding("u_culled_indices_buffer", m_Scene->GetIndicesCompactBuffer())
         .AddBinding("u_occluded_triangle_count_buffer", m_SceneCullBuffers.GetOccludedTriangleCountsBuffer())
+        .AddBinding("u_triangle_buffer", m_Scene->GetTrianglesCompactBuffer())
         .AddBinding("u_depth_pyramid", {
             .View = depthPyramid.GetTexture().GetImageData().View,
             .Sampler = depthPyramid.GetSampler(),
@@ -228,11 +228,11 @@ void SceneCull::SetDepthPyramid(const DepthPyramid& depthPyramid)
         .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullDataExtendedBuffer(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
         .AddBinding("u_final_command_buffer", m_SceneCullBuffers.GetIndirectUncompactedBuffer())
         .AddBinding("u_command_count_buffer", m_SceneCullBuffers.GetIndirectUncompactedCountBuffer(), sizeof(u32), 0)
-        .AddBinding("u_meshlet_buffer", m_Scene->GetMeshletsBuffer())
         .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
         .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
         .AddBinding("u_culled_indices_buffer", m_Scene->GetIndicesCompactBuffer())
         .AddBinding("u_occluded_triangle_count_buffer", m_SceneCullBuffers.GetOccludedTriangleCountsBuffer())
+        .AddBinding("u_triangle_buffer", m_Scene->GetTrianglesCompactBuffer())
         .AddBinding("u_depth_pyramid", {
             .View = depthPyramid.GetTexture().GetImageData().View,
             .Sampler = depthPyramid.GetSampler(),
@@ -246,11 +246,11 @@ void SceneCull::SetDepthPyramid(const DepthPyramid& depthPyramid)
         .AddBinding("u_final_command_buffer", m_SceneCullBuffers.GetIndirectUncompactedBuffer())
         .AddBinding("u_command_count_buffer", m_SceneCullBuffers.GetIndirectUncompactedCountBuffer(), sizeof(u32), 0)
         .AddBinding("u_final_commands_offset_buffer", m_SceneCullBuffers.GetIndirectUncompactedOffsetBuffer(), sizeof(u32), 0)
-        .AddBinding("u_meshlet_buffer", m_Scene->GetMeshletsBuffer())
         .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
         .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
         .AddBinding("u_indices_buffer", m_Scene->GetIndicesBuffer())
         .AddBinding("u_culled_indices_buffer", m_Scene->GetIndicesCompactBuffer())
+        .AddBinding("u_triangle_buffer", m_Scene->GetTrianglesCompactBuffer())
         .AddBinding("u_depth_pyramid", {
             .View = depthPyramid.GetTexture().GetImageData().View,
             .Sampler = depthPyramid.GetSampler(),
@@ -465,7 +465,7 @@ void SceneCull::ClearTriangleCullCommandBufferSecondary(const FrameContext& fram
 
 void SceneCull::PerformTriangleCullingCompaction(const FrameContext& frameContext)
 {
-    PerformIndirectDispatchBufferPrepare(frameContext, 1, 4, 1);
+    PerformIndirectDispatchBufferPrepare(frameContext, 1, 1, 1);
     
     const CommandBuffer& cmd = frameContext.CommandBuffer;
 
@@ -476,11 +476,17 @@ void SceneCull::PerformTriangleCullingCompaction(const FrameContext& frameContex
 
     glm::uvec2 resolution = frameContext.Resolution;
     PushConstantDescription pushConstantDescription = m_TriangleCullCompactData.Pipeline.GetPushConstantDescription();
-    
+
     m_TriangleCullCompactData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
     m_TriangleCullCompactData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_TriangleCullCompactData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneOffset, commandCountOffset});
-    RenderCommand::PushConstants(cmd, m_TriangleCullCompactData.Pipeline.GetPipelineLayout(), &frameContext.Resolution, pushConstantDescription);
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatchBuffer(), indirectDispatchOffset);
+
+    for (u32 i = 0; i < assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize(); i++)
+    {
+        glm::uvec3 pushConstants = {resolution.x, resolution.y, i * Driver::GetSubgroupSize()};
+        RenderCommand::PushConstants(cmd, m_TriangleCullCompactData.Pipeline.GetPipelineLayout(), &pushConstants, pushConstantDescription);
+        RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatchBuffer(), indirectDispatchOffset);
+    }
+    
     PipelineBufferBarrierInfo barrierInfo = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -508,16 +514,24 @@ void SceneCull::PerformSecondaryTriangleCullingCompaction(const FrameContext& fr
         .BufferSourceMask = VK_ACCESS_SHADER_READ_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_WRITE_BIT};
     RenderCommand::CreateBarrier(cmd, barrierInfo);
     
-    PerformIndirectDispatchBufferPrepare(frameContext, 1, 4, 1);
+    PerformIndirectDispatchBufferPrepare(frameContext, 1, 1, 1);
 
     u64 indirectDispatchOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
     
     u32 sceneOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullDataExtended)) * frameContext.FrameNumber;
     u32 commandCountOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
 
+    PushConstantDescription pushConstantDescription = m_TriangleCullCompactSecondaryData.Pipeline.GetPushConstantDescription();
     m_TriangleCullCompactSecondaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
     m_TriangleCullCompactSecondaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_TriangleCullCompactSecondaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneOffset, commandCountOffset});
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatchBuffer(), indirectDispatchOffset);
+
+    for (u32 i = 0; i < assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize(); i++)
+    {
+        u32 pushConstants = i * Driver::GetSubgroupSize();
+        RenderCommand::PushConstants(cmd, m_TriangleCullCompactSecondaryData.Pipeline.GetPipelineLayout(), &pushConstants, pushConstantDescription);
+        RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatchBuffer(), indirectDispatchOffset);
+    }
+    
     barrierInfo = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -532,7 +546,7 @@ void SceneCull::PerformSecondaryTriangleCullingCompaction(const FrameContext& fr
 
 void SceneCull::PerformTertiaryTriangleCullingCompaction(const FrameContext& frameContext)
 {
-    PerformIndirectDispatchBufferPrepare(frameContext, 1, 4, 1);
+    PerformIndirectDispatchBufferPrepare(frameContext, 1, 1, 1);
     
     const CommandBuffer& cmd = frameContext.CommandBuffer;
 
@@ -544,11 +558,17 @@ void SceneCull::PerformTertiaryTriangleCullingCompaction(const FrameContext& fra
 
     glm::uvec2 resolution = frameContext.Resolution;
     PushConstantDescription pushConstantDescription = m_TriangleCullCompactTertiaryData.Pipeline.GetPushConstantDescription();
-    
+
     m_TriangleCullCompactTertiaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
     m_TriangleCullCompactTertiaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_TriangleCullCompactTertiaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneOffset, commandCountOffset, commandOffsetOffset});
-    RenderCommand::PushConstants(cmd, m_TriangleCullCompactTertiaryData.Pipeline.GetPipelineLayout(), &frameContext.Resolution, pushConstantDescription);
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatchBuffer(), indirectDispatchOffset);
+
+    for (u32 i = 0; i < assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize(); i++)
+    {
+        glm::uvec3 pushConstants = {resolution.x, resolution.y, i * Driver::GetSubgroupSize()};
+        RenderCommand::PushConstants(cmd, m_TriangleCullCompactTertiaryData.Pipeline.GetPipelineLayout(), &pushConstants, pushConstantDescription);
+        RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatchBuffer(), indirectDispatchOffset);
+    }
+    
     PipelineBufferBarrierInfo barrierInfo = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
@@ -791,7 +811,6 @@ void SceneCull::InitMeshCompact(Scene& scene, DescriptorAllocator& allocator, De
         .SetTemplate(m_MeshCompactVisibleData.Template)
         .AddBinding("u_command_buffer", scene.GetMeshletsIndirectBuffer())
         .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers.GetIndirectVisibleRenderObjectBuffer())
-        .AddBinding("u_meshlet_buffer", scene.GetMeshletsBuffer())
         .AddBinding("u_object_visibility_buffer", scene.GetRenderObjectsVisibilityBuffer())
         .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleRenderObjectCountBuffer(), sizeof(u32), 0)
         .Build();
@@ -870,7 +889,6 @@ void SceneCull::InitMeshCompactSecondary(Scene& scene, DescriptorAllocator& allo
         .SetTemplate(m_MeshCompactVisibleSecondaryData.Template)
         .AddBinding("u_command_buffer", scene.GetMeshletsIndirectBuffer())
         .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers.GetIndirectOccludedMeshletBuffer())
-        .AddBinding("u_meshlet_buffer", scene.GetMeshletsBuffer())
         .AddBinding("u_object_visibility_buffer", scene.GetRenderObjectsVisibilityBuffer())
         .AddBinding("u_count_buffer", m_SceneCullBuffers.GetOccludedCountBuffer(), sizeof(u32), 0)
         .Build();
@@ -927,8 +945,11 @@ void SceneCull::InitTriangleClearCullCommands(Scene& scene, DescriptorAllocator&
 
 void SceneCull::InitTriangleCullCompact(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
+    std::string_view shaderPath = Driver::GetSubgroupSize() == 64 ?
+        "../assets/shaders/processed/culling/amd/compute-cull-compact-triangles-comp.shader" :
+        "../assets/shaders/processed/culling/nvidia/compute-cull-compact-triangles-comp.shader";
     m_TriangleCullCompactData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-cull-compact-triangles-comp.shader"}, "compute-cull-compact-triangles",
+        {shaderPath}, "compute-cull-compact-triangles",
         scene, allocator, layoutCache);
 
     m_TriangleCullCompactData.Pipeline = ShaderPipeline::Builder()
@@ -938,8 +959,11 @@ void SceneCull::InitTriangleCullCompact(Scene& scene, DescriptorAllocator& alloc
 
 void SceneCull::InitTriangleCullCompactSecondary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
+    std::string_view shaderPath = Driver::GetSubgroupSize() == 64 ?
+        "../assets/shaders/processed/culling/amd/compute-cull-compact-triangles-secondary-comp.shader" :
+        "../assets/shaders/processed/culling/nvidia/compute-cull-compact-triangles-secondary-comp.shader";
     m_TriangleCullCompactSecondaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-cull-compact-triangles-secondary-comp.shader"}, "compute-cull-compact-triangles-secondary",
+        {shaderPath}, "compute-cull-compact-triangles-secondary",
         scene, allocator, layoutCache);
 
     m_TriangleCullCompactSecondaryData.Pipeline = ShaderPipeline::Builder()
@@ -949,8 +973,11 @@ void SceneCull::InitTriangleCullCompactSecondary(Scene& scene, DescriptorAllocat
 
 void SceneCull::InitTriangleCullCompactTertiary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
+    std::string_view shaderPath = Driver::GetSubgroupSize() == 64 ?
+        "../assets/shaders/processed/culling/amd/compute-cull-compact-triangles-tertiary-comp.shader" :
+        "../assets/shaders/processed/culling/nvidia/compute-cull-compact-triangles-tertiary-comp.shader";
     m_TriangleCullCompactTertiaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-cull-compact-triangles-tertiary-comp.shader"}, "compute-cull-compact-triangles-tertiary",
+        {shaderPath}, "compute-cull-compact-triangles-tertiary",
         scene, allocator, layoutCache);
 
     m_TriangleCullCompactTertiaryData.Pipeline = ShaderPipeline::Builder()

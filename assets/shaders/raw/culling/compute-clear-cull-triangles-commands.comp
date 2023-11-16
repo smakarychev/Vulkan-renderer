@@ -2,16 +2,18 @@
 
 layout(local_size_x = 256) in;
 
-struct VkDrawIndexedIndirectCommand {
+struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
     int  vertexOffset;
     uint firstInstance;
+
+    uint render_object;
 };
 
 layout(std430, set = 0, binding = 0) writeonly buffer command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_command_buffer;
 
 layout(std430, set = 0, binding = 1) writeonly buffer occluded_triangle_count_buffer {
@@ -21,7 +23,6 @@ layout(std430, set = 0, binding = 1) writeonly buffer occluded_triangle_count_bu
 layout(push_constant) uniform push_constants {
     uint count;
 };
-
 
 void main() {
     uint command_index = gl_GlobalInvocationID.x;

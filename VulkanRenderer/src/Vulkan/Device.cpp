@@ -132,9 +132,12 @@ void Device::ChooseGPU(const CreateInfo& createInfo)
     ASSERT(m_GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
 
     m_GPUDescriptorIndexingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+    m_GPUSubgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+    m_GPUSubgroupProperties.pNext = &m_GPUDescriptorIndexingProperties;
+    
     VkPhysicalDeviceProperties2 deviceProperties2 = {};
     deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    deviceProperties2.pNext = &m_GPUDescriptorIndexingProperties;
+    deviceProperties2.pNext = &m_GPUSubgroupProperties;
     vkGetPhysicalDeviceProperties2(m_GPU, &deviceProperties2);
     m_GPUProperties = deviceProperties2.properties;
 }
@@ -158,6 +161,7 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.multiDrawIndirect = VK_TRUE;
+    deviceFeatures.geometryShader = VK_TRUE;
     deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
 
     VkPhysicalDeviceVulkan12Features vulkan12Features = {};
@@ -284,6 +288,7 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
     
     return features.features.samplerAnisotropy == VK_TRUE &&
         features.features.multiDrawIndirect == VK_TRUE &&
+        features.features.geometryShader == VK_TRUE &&
         features.features.shaderSampledImageArrayDynamicIndexing == VK_TRUE &&
         descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing == VK_TRUE &&
         descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&

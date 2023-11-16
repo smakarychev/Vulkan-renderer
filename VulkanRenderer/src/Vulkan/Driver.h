@@ -79,6 +79,7 @@ public:
     static u32 GetMaxIndexingUniformBuffersDynamic() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers; }
     static u32 GetMaxIndexingStorageBuffers() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic; }
     static u32 GetMaxIndexingStorageBuffersDynamic() { return s_State.Device->m_GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic; }
+    static u32 GetSubgroupSize() { return s_State.Device->m_GPUSubgroupProperties.subgroupSize; }
     static UploadContext* UploadContext() { return &s_State.UploadContext; }
 
     static TracyVkCtx CreateTracyGraphicsContext(const CommandBuffer& cmd);

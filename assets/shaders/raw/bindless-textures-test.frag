@@ -4,7 +4,8 @@
 
 layout(location = 0) in vec3 vert_normal;
 layout(location = 1) in vec2 vert_uv;
-layout(location = 2) in flat int vert_instance_id;
+layout(location = 2) in flat uint vert_command_id;
+layout(location = 3) in flat uint vert_triangle_offset;
 
 @dynamic
 layout(set = 0, binding = 1) uniform scene_data{
@@ -16,7 +17,7 @@ layout(set = 0, binding = 1) uniform scene_data{
 } u_scene_data;
 
 @bindless
-layout(set = 1, binding = 1) uniform texture2D u_textures[];
+layout(set = 1, binding = 2) uniform texture2D u_textures[];
 
 @immutable_sampler
 layout(set = 0, binding = 2) uniform sampler u_sampler;
@@ -29,36 +30,67 @@ struct Material {
     uint pad2;
 };
 
+layout(std430, set = 1, binding = 1) readonly buffer triangle_buffer {
+    uint triangles[];
+} u_triangle_buffer;
+
 layout(std430, set = 2, binding = 1) readonly buffer material_buffer{
     Material materials[];
 } u_material_buffer;
 
-struct Meshlet
-{
-    uint bounding_cone;
-    // bounding sphere
-    float x;
-    float y;
-    float z;
-    float r;
+struct IndirectCommand {
+    uint indexCount;
+    uint instanceCount;
+    uint firstIndex;
+    int  vertexOffset;
+    uint firstInstance;
+
     uint render_object;
-    // these 3 values actually serve as a padding, but might also be used as a debug meshlet shading
-    float R;
-    float G;
-    float B;
-    uint pad0;
-    uint pad1;
-    uint pad2;
 };
 
-layout(std430, set = 2, binding = 2) readonly buffer meshlet_buffer {
-    Meshlet meshlets[];
-} u_meshlet_buffer;
+layout(std430, set = 2, binding = 2) readonly buffer command_buffer {
+    IndirectCommand commands[];
+} u_command_buffer;
 
 layout(location = 0) out vec4 out_color;
 
+uint rotl(uint x, uint r) {
+    return (x << r) | (x >> (32u - r));
+}
+
+uint fmix(uint h)
+{
+    h ^= h >> 16;
+    h *= 0x85ebca6bu;
+    h ^= h >> 13;
+    h *= 0xc2b2ae35u;
+    h ^= h >> 16;
+    return h;
+}
+
+uint murmur3(uint seed) {
+    const uint c1 = 0xcc9e2d51u;
+    const uint c2 = 0x1b873593u;
+    
+    uint h = 0u;
+    uint k = seed;
+
+    k *= c1;
+    k = rotl(k,15u);
+    k *= c2;
+
+    h ^= k;
+    h = rotl(h,13u);
+    h = h*5u+0xe6546b64u;
+
+    h ^= 4u;
+
+    return fmix(h);
+}
+
 void main() {
-    uint object_index = u_meshlet_buffer.meshlets[vert_instance_id].render_object;
+    IndirectCommand command = u_command_buffer.commands[vert_command_id]; 
+    uint object_index = command.render_object;
     Material material = u_material_buffer.materials[object_index];
     if (material.albedo_texture_index != -1)
         out_color = texture(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), vert_uv);
@@ -69,5 +101,11 @@ void main() {
         discard;
    
     out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);
-    out_color = vec4(u_meshlet_buffer.meshlets[vert_instance_id].R, u_meshlet_buffer.meshlets[vert_instance_id].G, u_meshlet_buffer.meshlets[vert_instance_id].B, 1.0);
+    
+    uint triangle_id = u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID];
+    uint instance_id = command.firstInstance;
+    uint hash = murmur3(instance_id) ^ murmur3(triangle_id);
+    //hash = murmur3(vert_instance_id);
+    //hash = triangle_id;
+    out_color = vec4(hash & 255u, (hash >> 8) & 255u, (hash >> 16) & 255u, 255u) / 255;
 }
