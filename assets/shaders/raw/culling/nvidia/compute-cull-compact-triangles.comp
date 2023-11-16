@@ -2,18 +2,21 @@
 
 #extension GL_KHR_shader_subgroup_ballot: enable
 #extension GL_KHR_shader_subgroup_vote: enable
+#extension GL_EXT_shader_16bit_storage: require
 
 layout(local_size_x = 32) in;
 
 const uint TRIANGLES_PER_MESHLET = 256;
 const uint TRIANGLES_PER_WORK_GROUP = TRIANGLES_PER_MESHLET / gl_WorkGroupSize.x;
 
-struct VkDrawIndexedIndirectCommand {
+struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
     uint firstIndex;
     int  vertexOffset;
     uint firstInstance;
+    
+    uint render_object;
 };
 
 struct Position {
@@ -29,19 +32,6 @@ struct object_data {
     float y;
     float z;
     float r;
-};
-
-struct Meshlet
-{
-    uint _unused_0;
-    float _unused_x;
-    float _unused_y;
-    float _unused_z;
-    float _unused_r;
-    
-    uint object_id;
-    
-    uint _unused_1;
 };
 
 struct Triangle {
@@ -70,11 +60,11 @@ layout(set = 0, binding = 0) uniform scene_data {
 layout(set = 0, binding = 1) uniform sampler2D u_depth_pyramid;
 
 layout(std430, set = 0, binding = 2) buffer command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_command_buffer;
 
 layout(std430, set = 0, binding = 3) buffer final_command_buffer {
-    VkDrawIndexedIndirectCommand commands[];
+    IndirectCommand commands[];
 } u_final_command_buffer;
 
 @dynamic
@@ -82,31 +72,27 @@ layout(std430, set = 0, binding = 4) buffer command_count_buffer {
     uint count;
 } u_command_count_buffer;
 
-layout(std430, set = 0, binding = 5) readonly buffer meshlet_buffer {
-    Meshlet meshlets[];
-} u_meshlet_buffer;
-
-layout(std430, set = 0, binding = 6) readonly buffer object_buffer {
+layout(std430, set = 0, binding = 5) readonly buffer object_buffer {
     object_data objects[];
 } u_object_buffer;
 
-layout(std430, set = 0, binding = 7) readonly buffer positions_buffer {
+layout(std430, set = 0, binding = 6) readonly buffer positions_buffer {
     Position positions[];
 } u_positions_buffer;
 
-layout(std430, set = 0, binding = 8) readonly buffer indices_buffer {
-    uint indices[];
+layout(std430, set = 0, binding = 7) readonly buffer indices_buffer {
+    uint16_t indices[];
 } u_indices_buffer;
 
-layout(std430, set = 0, binding = 9) writeonly buffer culled_indices_buffer {
-    uint indices[];
+layout(std430, set = 0, binding = 8) writeonly buffer culled_indices_buffer {
+    uint16_t indices[];
 } u_culled_indices_buffer;
 
-layout(std430, set = 0, binding = 10) buffer occluded_triangle_count_buffer {
+layout(std430, set = 0, binding = 9) buffer occluded_triangle_count_buffer {
     uint counts[];
 } u_occluded_triangle_count_buffer;
 
-layout(std430, set = 0, binding = 11) buffer triangle_buffer {
+layout(std430, set = 0, binding = 10) buffer triangle_buffer {
     uint triangles[];
 } u_triangle_buffer;
 
@@ -145,21 +131,21 @@ bool is_occlusion_visible(vec4 aabb, float z) {
 }
 
 void compact_visible(uint command_index, uint triangle_index, uint index_offset, bool visible) {
-    VkDrawIndexedIndirectCommand command = u_command_buffer.commands[command_index];
+    IndirectCommand command = u_command_buffer.commands[command_index];
 
     uvec4 visible_ballot = subgroupBallot(visible);
     uint total_visible_triangle_count = subgroupBallotBitCount(visible_ballot);
     uint total_visible_count = total_visible_triangle_count * 3;
 
     uint compacted_index_offset = 0;
-    uint command_first_triangle = command_index * TRIANGLES_PER_MESHLET;
     if (subgroupElect()) {
         u_final_command_buffer.commands[command_index].firstInstance = command.firstInstance;
         u_final_command_buffer.commands[command_index].instanceCount = command.instanceCount;
         u_final_command_buffer.commands[command_index].vertexOffset = command.vertexOffset;
+        u_final_command_buffer.commands[command_index].render_object = command.render_object;
 
         compacted_index_offset = atomicAdd(u_final_command_buffer.commands[command_index].indexCount, total_visible_count);
-        u_final_command_buffer.commands[command_index].firstIndex = command_first_triangle * 3;
+        u_final_command_buffer.commands[command_index].firstIndex = command_index * TRIANGLES_PER_MESHLET * 3;
     }
     compacted_index_offset = subgroupBroadcastFirst(compacted_index_offset);
 
@@ -175,7 +161,7 @@ void compact_visible(uint command_index, uint triangle_index, uint index_offset,
 }
 
 void compact_occluded(uint command_index, uint triangle_index, uint index_offset, bool occluded) {
-    VkDrawIndexedIndirectCommand command = u_command_buffer.commands[command_index];
+    IndirectCommand command = u_command_buffer.commands[command_index];
     
     uvec4 occluded_ballot = subgroupBallot(true);
     uint total_occluded_count = subgroupBallotBitCount(occluded_ballot) * 3;
@@ -185,6 +171,7 @@ void compact_occluded(uint command_index, uint triangle_index, uint index_offset
         u_final_command_buffer.commands[command_index].firstInstance = command.firstInstance;
         u_final_command_buffer.commands[command_index].instanceCount = command.instanceCount;
         u_final_command_buffer.commands[command_index].vertexOffset = command.vertexOffset;
+        u_final_command_buffer.commands[command_index].render_object = command.render_object;
         
         compacted_index_offset = atomicAdd(u_occluded_triangle_count_buffer.counts[command_index], total_occluded_count);
         u_final_command_buffer.commands[command_index].firstIndex = command_index * TRIANGLES_PER_MESHLET * 3;
@@ -206,8 +193,8 @@ void main() {
     uint command_index = gl_GlobalInvocationID.x / 32;
     if (command_index >= u_command_count_buffer.count)
         return;
-    
-    VkDrawIndexedIndirectCommand command = u_command_buffer.commands[command_index];
+
+    IndirectCommand command = u_command_buffer.commands[command_index];
     
    // uint triangle_index = gl_LocalInvocationID.x + gl_WorkGroupSize.x * ((gl_GlobalInvocationID.x / gl_WorkGroupSize.x) % TRIANGLES_PER_WORK_GROUP);
     uint triangle_index = gl_LocalInvocationID.x + u_triangle_offset;
@@ -219,14 +206,12 @@ void main() {
     if (!is_in_bounds)
         return;
     
-    Meshlet meshlet = u_meshlet_buffer.meshlets[command.firstInstance];
-    
-    object_data object = u_object_buffer.objects[meshlet.object_id];
+    object_data object = u_object_buffer.objects[command.render_object];
 
     Triangle triangle;
-    triangle.a = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 0]]);
-    triangle.b = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 1]]);
-    triangle.c = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 2]]);
+    triangle.a = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 0])]);
+    triangle.b = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 1])]);
+    triangle.c = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 2])]);
     
     triangle.a = u_scene_data.view_projection_matrix * object.model * triangle.a;
     triangle.b = u_scene_data.view_projection_matrix * object.model * triangle.b;

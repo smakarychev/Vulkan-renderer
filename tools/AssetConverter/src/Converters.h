@@ -35,7 +35,7 @@ public:
     {
         std::string Name;
         assetLib::VertexGroup VertexGroup;
-        std::vector<u32> Indices;
+        std::vector<u16> Indices;
         std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
         std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxVal> MaterialInfos;
     };

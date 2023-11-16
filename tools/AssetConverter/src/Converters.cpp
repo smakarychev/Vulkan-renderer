@@ -176,7 +176,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
             modelInfo.MeshInfos.push_back({
                 .Name = meshData.Name,
                 .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
-                .IndicesSizeBytes = meshData.Indices.size() * sizeof(u32),
+                .IndicesSizeBytes = meshData.Indices.size() * sizeof(u16),
                 .MeshletsSizeBytes = meshData.Meshlets.size() * sizeof(assetLib::ModelInfo::Meshlet),
                 .Materials = meshData.MaterialInfos,
                 .BoundingSphere = utils::welzlSphere(meshData.VertexGroup.Positions)});
@@ -211,9 +211,9 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
         for (u32 i = 0; i < materials.size(); i++)
             materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);
 
-    MeshData meshData = {.Name = mesh->mName.C_Str(), .VertexGroup = vertexGroup, .Indices = indices, .MaterialInfos = materials};
-    utils::remapMesh(meshData);
-    meshData.Meshlets = utils::createMeshlets(meshData);
+    MeshData meshData = {.Name = mesh->mName.C_Str(), .VertexGroup = vertexGroup, .MaterialInfos = materials};
+    utils::remapMesh(meshData, indices);
+    meshData.Meshlets = utils::createMeshlets(meshData, indices);
     
     return meshData;
 }

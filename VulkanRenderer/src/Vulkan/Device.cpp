@@ -158,6 +158,8 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     VkPhysicalDeviceVulkan11Features vulkan11Features = {};
     vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
     vulkan11Features.shaderDrawParameters = VK_TRUE;
+    vulkan11Features.storageBuffer16BitAccess = VK_TRUE;
+    
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.multiDrawIndirect = VK_TRUE;
@@ -272,9 +274,13 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
     descriptorIndexingFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES;
     descriptorIndexingFeatures.pNext = &shaderFeatures;
 
+    VkPhysicalDeviceVulkan11Features deviceVulkan11Features = {};
+    deviceVulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+    deviceVulkan11Features.pNext = &descriptorIndexingFeatures;
+    
     VkPhysicalDeviceVulkan12Features deviceVulkan12Features = {};
     deviceVulkan12Features.sType  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-    deviceVulkan12Features.pNext = &descriptorIndexingFeatures;
+    deviceVulkan12Features.pNext = &deviceVulkan11Features;
 
     VkPhysicalDeviceVulkan13Features deviceVulkan13Features = {};
     deviceVulkan13Features.sType  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -297,6 +303,7 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         descriptorIndexingFeatures.descriptorBindingVariableDescriptorCount == VK_TRUE &&
         descriptorIndexingFeatures.runtimeDescriptorArray == VK_TRUE &&
         shaderFeatures.shaderDrawParameters == VK_TRUE &&
+        deviceVulkan11Features.storageBuffer16BitAccess == VK_TRUE &&
         deviceVulkan12Features.samplerFilterMinmax == VK_TRUE &&
         deviceVulkan12Features.drawIndirectCount == VK_TRUE &&
         deviceVulkan12Features.subgroupBroadcastDynamicId == VK_TRUE &&

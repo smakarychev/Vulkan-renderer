@@ -25,7 +25,7 @@ Model* Model::LoadFromAsset(std::string_view path)
     std::vector<glm::vec3> positions(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Position]);
     std::vector<glm::vec3> normals(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Normal]);
     std::vector<glm::vec2> uvs(vertexElementsSizeBytes[(u32)assetLib::VertexElement::UV]);
-    std::vector<u32> indices(modelInfo.IndicesSizeBytes());
+    std::vector<u16> indices(modelInfo.IndicesSizeBytes());
     std::vector<assetLib::ModelInfo::Meshlet> meshlets(modelInfo.MeshletsSizeBytes());
 
     assetLib::unpackModel(modelInfo, modelFile.Blob.data(), modelFile.Blob.size(),
@@ -54,7 +54,7 @@ Model* Model::LoadFromAsset(std::string_view path)
         auto uvsEnd = uvs.begin() + uvsOffset;
 
         auto indicesBegin = indices.begin() + indicesOffset;
-        indicesOffset += (u32)(meshInfo.IndicesSizeBytes / sizeof(u32));
+        indicesOffset += (u32)(meshInfo.IndicesSizeBytes / sizeof(u16));
         auto indicesEnd = indices.begin() + indicesOffset;
 
         auto meshletsBegin = meshlets.begin() + meshletsOffset;

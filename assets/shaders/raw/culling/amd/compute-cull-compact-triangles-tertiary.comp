@@ -2,6 +2,7 @@
 
 #extension GL_KHR_shader_subgroup_ballot: enable
 #extension GL_KHR_shader_subgroup_vote: enable
+#extension GL_EXT_shader_16bit_storage: require
 
 layout(local_size_x = 64) in;
 
@@ -85,11 +86,11 @@ layout(std430, set = 0, binding = 7) readonly buffer positions_buffer {
 } u_positions_buffer;
 
 layout(std430, set = 0, binding = 8) readonly buffer indices_buffer {
-    uint indices[];
+    uint16_t indices[];
 } u_indices_buffer;
 
 layout(std430, set = 0, binding = 9) buffer culled_indices_buffer {
-    uint indices[];
+    uint16_t indices[];
 } u_culled_indices_buffer;
 
 layout(std430, set = 0, binding = 10) buffer triangle_buffer {
@@ -180,9 +181,9 @@ void main() {
     object_data object = u_object_buffer.objects[command.render_object];
 
     Triangle triangle;
-    triangle.a = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 0]]);
-    triangle.b = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 1]]);
-    triangle.c = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + u_indices_buffer.indices[command.firstIndex + index_offset + 2]]);
+    triangle.a = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 0])]);
+    triangle.b = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 1])]);
+    triangle.c = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 2])]);
 
     triangle.a = u_scene_data.view_projection_matrix * object.model * triangle.a;
     triangle.b = u_scene_data.view_projection_matrix * object.model * triangle.b;

@@ -56,7 +56,7 @@ void Scene::OnInit(ResourceUploader* resourceUploader)
     // todo: fix size to smaller number
     m_MeshBatchBuffers.IndicesCompact = Buffer::Builder()
         .SetKinds({BufferKind::Index, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(4llu * 256llu * 3llu * MAX_DRAW_INDIRECT_CALLS)
+        .SetSizeBytes(2llu * 256llu * 3llu * MAX_DRAW_INDIRECT_CALLS)
         .BuildManualLifetime();
     
     // todo: fix size to smaller number
@@ -178,7 +178,7 @@ void Scene::CreateSharedMeshContext()
         totalPositionsSizeBytes += mesh.GetVertexCount() * sizeof(glm::vec3);
         totalNormalsSizeBytes += mesh.GetVertexCount() * sizeof(glm::vec3);
         totalUVsSizeBytes += mesh.GetVertexCount() * sizeof(glm::vec2);
-        totalIndicesSizeBytes += mesh.GetIndexCount() * sizeof(u32);
+        totalIndicesSizeBytes += mesh.GetIndexCount() * sizeof(u16);
     }
 
     Buffer::Builder vertexBufferBuilder = Buffer::Builder()
@@ -214,7 +214,7 @@ void Scene::CreateSharedMeshContext()
         m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Positions, mesh.GetPositions().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
         m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Normals, mesh.GetNormals().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
         m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->UVs, mesh.GetUVs().data(), verticesSize * sizeof(glm::vec2), verticesOffset * sizeof(glm::vec2));
-        m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Indices, mesh.GetIndices().data(), indicesSize * sizeof(u32), indicesOffset * sizeof(u32));
+        m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Indices, mesh.GetIndices().data(), indicesSize * sizeof(u16), indicesOffset * sizeof(u16));
         
         mesh.SetVertexBufferOffset((i32)verticesOffset);
         mesh.SetIndexBufferOffset((u32)indicesOffset);
