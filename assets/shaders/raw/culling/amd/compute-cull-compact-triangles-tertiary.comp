@@ -72,28 +72,23 @@ layout(std430, set = 0, binding = 4) buffer command_count_buffer {
     uint count;
 } u_command_count_buffer;
 
-@dynamic
-layout(std430, set = 0, binding = 5) readonly buffer final_commands_offset_buffer {
-    uint offset;
-} u_final_commands_offset_buffer;
-
-layout(std430, set = 0, binding = 6) readonly buffer object_buffer {
+layout(std430, set = 0, binding = 5) readonly buffer object_buffer {
     object_data objects[];
 } u_object_buffer;
 
-layout(std430, set = 0, binding = 7) readonly buffer positions_buffer {
+layout(std430, set = 0, binding = 6) readonly buffer positions_buffer {
     Position positions[];
 } u_positions_buffer;
 
-layout(std430, set = 0, binding = 8) readonly buffer indices_buffer {
+layout(std430, set = 0, binding = 7) readonly buffer indices_buffer {
     uint16_t indices[];
 } u_indices_buffer;
 
-layout(std430, set = 0, binding = 9) buffer culled_indices_buffer {
+layout(std430, set = 0, binding = 8) buffer culled_indices_buffer {
     uint16_t indices[];
 } u_culled_indices_buffer;
 
-layout(std430, set = 0, binding = 10) buffer triangle_buffer {
+layout(std430, set = 0, binding = 9) buffer triangle_buffer {
     uint triangles[];
 } u_triangle_buffer;
 
@@ -132,7 +127,6 @@ bool is_occlusion_visible(vec4 aabb, float z) {
 
 void compact_visible(uint command_index, uint triangle_index, uint index_offset, bool visible) {
     IndirectCommand command = u_command_buffer.commands[command_index];
-    command_index += u_final_commands_offset_buffer.offset;
     
     uvec4 visible_ballot = subgroupBallot(visible);
     uint total_visible_count = subgroupBallotBitCount(visible_ballot) * 3;

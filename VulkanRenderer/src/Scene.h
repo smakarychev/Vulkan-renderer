@@ -111,6 +111,7 @@ public:
     
     const Buffer& GetMeshletsIndirectBuffer() const { return m_MeshletsIndirectRawBuffer; }
     const Buffer& GetMeshletsIndirectFinalBuffer() const { return m_MeshletsIndirectFinalBuffer; }
+    
     u32 GetMeshletCount() const { return m_MeshletCount; }
 
     const Buffer& GetMeshletsBuffer() const { return m_MeshletsSSBO.Buffer; }

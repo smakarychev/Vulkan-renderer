@@ -33,17 +33,12 @@ layout(std430, set = 0, binding = 3) writeonly buffer final_compact_command_coun
     uint count;
 } u_final_compact_command_count_buffer;
 
-@dynamic
-layout(std430, set = 0, binding = 4) readonly buffer final_commands_offset_buffer {
-    uint offset;
-} u_final_commands_offset_buffer;
-
 void main() {
     uint id = gl_GlobalInvocationID.x;
     if (id >= u_final_command_count_buffer.count)
         return;
 
-    IndirectCommand command = u_final_command_buffer.commands[id + u_final_commands_offset_buffer.offset];
+    IndirectCommand command = u_final_command_buffer.commands[id];
     
     bool should_draw = command.indexCount > 0;
     if (!subgroupAny(should_draw))

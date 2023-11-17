@@ -8,12 +8,7 @@ layout(set = 0, binding = 0) buffer visible_uncompacted_meshlets {
 } u_visible_uncompacted_meshlets;
 
 @dynamic
-layout(set = 0, binding = 1) writeonly buffer visible_uncompacted_offset {
-    uint offset;
-} u_visible_uncompacted_offset;
-
-@dynamic
-layout(set = 0, binding = 2) writeonly buffer visible_meshlets {
+layout(set = 0, binding = 1) writeonly buffer visible_meshlets {
     uint count;
 } u_visible_meshlets;
 
@@ -23,15 +18,12 @@ layout(push_constant) uniform push_constants {
 
 void main() {
     if (u_index == 0) {
-        u_visible_uncompacted_offset.offset = 0;
         u_visible_meshlets.count = 0;
     }
     else if (u_index == 1) {
-        u_visible_uncompacted_offset.offset = u_visible_uncompacted_meshlets.count; 
         u_visible_uncompacted_meshlets.count = 0;
     } 
     else {
-        u_visible_uncompacted_offset.offset = 0;
         u_visible_uncompacted_meshlets.count = 0;
         u_visible_meshlets.count = 0;
     }

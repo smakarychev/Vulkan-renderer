@@ -38,18 +38,18 @@ public:
     void Init();
     void Update(const Camera& camera, const DepthPyramid* depthPyramid,  ResourceUploader& resourceUploader, const FrameContext& frameContext);
 
-    const Buffer& GetCullDataBuffer() const { return m_CullDataUBO.Buffer; }
-    const Buffer& GetCullDataExtendedBuffer() const { return m_CullDataUBOExtended.Buffer; }
-    const Buffer& GetVisibleRenderObjectCountBuffer() const { return m_CompactRenderObjectSSBO.Buffer; }
-    const Buffer& GetVisibleCountBuffer() const { return m_CompactOccludeBuffers.VisibleCountBuffer; }
-    const Buffer& GetOccludedTriangleCountsBuffer() const { return m_CompactOccludeBuffers.OccludeTriangleCountsBuffer; }
-    const Buffer& GetOccludedCountBuffer() const { return m_CompactOccludeBuffers.OccludedCountBuffer; }
-    const Buffer& GetIndirectDispatchBuffer() const { return m_IndirectDispatchBuffer; }
+    const Buffer& GetCullData() const { return m_CullDataUBO.Buffer; }
+    const Buffer& GetCullDataExtended() const { return m_CullDataUBOExtended.Buffer; }
+    
+    const Buffer& GetVisibleMeshCount() const { return m_CountBuffers.VisibleMeshes; }
+    const Buffer& GetVisibleMeshletCount() const { return m_CountBuffers.VisibleMeshlets; }
+    const Buffer& GetOccludedMeshletCount() const { return m_CountBuffers.OccludedMeshlets; }
+    const Buffer& GetOccludedTriangleCounts() const { return m_CountBuffers.OccludedTriangles; }
+    
+    const Buffer& GetIndirectDispatch() const { return m_IndirectDispatch; }
 
-    const Buffer& GetIndirectUncompactedBuffer() const { return m_IndirectUncompactedBuffer; }
-    const Buffer& GetIndirectUncompactedCountBuffer() const { return m_IndirectUncompactedCountBuffer; }
-    const Buffer& GetIndirectUncompactedOffsetBuffer() const { return m_IndirectUncompactedOffsetBuffer; }
-
+    const Buffer& GetUncompactedCommands() const { return m_UncompactedCommands; }
+    const Buffer& GetUncompactedCommandCount() const { return m_UncompactedCommandCount; }
 private:
     struct SceneCullDataUBO
     {
@@ -61,27 +61,22 @@ private:
         SceneCullDataExtended SceneData;
         Buffer Buffer;
     };
-    struct CompactOccludeBuffers
+    struct CountBuffers
     {
-        Buffer VisibleCountBuffer;
-        Buffer OccludedCountBuffer;
-        Buffer OccludeTriangleCountsBuffer;
-    };
-    struct CompactRenderObjectSSBO
-    {
-        Buffer Buffer;
+        Buffer VisibleMeshes;
+        Buffer VisibleMeshlets;
+        Buffer OccludedMeshlets;
+        Buffer OccludedTriangles;
     };
 
     SceneCullDataUBO m_CullDataUBO{};
     SceneCullDataUBOExtended m_CullDataUBOExtended{};
-    CompactRenderObjectSSBO m_CompactRenderObjectSSBO{};
-    CompactOccludeBuffers m_CompactOccludeBuffers{};
+    CountBuffers m_CountBuffers{};
 
-    Buffer m_IndirectUncompactedBuffer{};
-    Buffer m_IndirectUncompactedCountBuffer{};
-    Buffer m_IndirectUncompactedOffsetBuffer{};
-    
-    Buffer m_IndirectDispatchBuffer{};
+    Buffer m_UncompactedCommands{};
+    Buffer m_UncompactedCommandCount{};
+
+    Buffer m_IndirectDispatch{};
 };
 
 class SceneCull
@@ -113,7 +108,7 @@ public:
 
     void PerformFinalCompaction(const FrameContext& frameContext);
 
-    const Buffer& GetVisibleMeshletsBuffer() const;
+    const Buffer& GetVisibleCo  untBuffer() const;
 
     const SceneCullBuffers& GetSceneCullBuffers() const { return m_SceneCullBuffers; }
 private:

@@ -458,7 +458,7 @@ void Renderer::Submit(const Scene& scene)
     
     RenderCommand::DrawIndexedIndirectCount(cmd,
        scene.GetMeshletsIndirectFinalBuffer(), 0,
-       m_SceneCull.GetVisibleMeshletsBuffer(), offset,
+       m_SceneCull.GetVisibleCountBuffer(), offset,
        scene.GetMeshletCount(), sizeof(IndirectCommand));
 
     //RenderCommand::DrawIndexedIndirect(cmd, scene.GetMeshletsIndirectBuffer(), 0, scene.GetMeshletCount(), sizeof(VkDrawIndexedIndirectCommand));
