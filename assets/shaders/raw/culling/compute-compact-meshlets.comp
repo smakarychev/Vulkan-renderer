@@ -32,28 +32,28 @@ layout(std430, set = 0, binding = 1) buffer writeonly compacted_command_buffer {
     IndirectCommand commands[];
 } u_compacted_command_buffer;
 
-layout(std430, set = 0, binding = 2) buffer writeonly compacted_occluded_command_buffer {
-    IndirectCommand commands[];
-} u_compacted_occluded_command_buffer;
-
 @dynamic
-layout(std430, set = 0, binding = 3) readonly buffer count_buffer {
+layout(std430, set = 0, binding = 2) readonly buffer count_buffer {
     uint count;
 } u_count_buffer;
 
 @dynamic
-layout(std430, set = 0, binding = 4) buffer visible_buffer {
+layout(std430, set = 0, binding = 3) buffer visible_buffer {
     uint count;
 } u_visible_buffer;
 
 @dynamic
-layout(std430, set = 0, binding = 5) buffer occluded_buffer {
+layout(std430, set = 0, binding = 4) buffer occluded_buffer {
     uint count;
 } u_occluded_buffer;
 
-layout(std430, set = 0, binding = 6) readonly buffer meshlet_buffer {
+layout(std430, set = 0, binding = 5) readonly buffer meshlet_buffer {
     Meshlet meshlets[];
 } u_meshlet_buffer;
+
+layout(push_constant) uniform push_constants {
+    uint u_command_buffer_max_index;
+};
 
 void write_compacted_visible(uint id) {
     IndirectCommand command = u_command_buffer.commands[id];
@@ -99,7 +99,7 @@ void write_compacted_occluded(uint id) {
     uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
 
     if (is_occluded)
-        u_compacted_occluded_command_buffer.commands[compacted_buffer_index] = u_command_buffer.commands[id];
+        u_compacted_command_buffer.commands[u_command_buffer_max_index - compacted_buffer_index] = u_command_buffer.commands[id];
 }
 
 void main() {

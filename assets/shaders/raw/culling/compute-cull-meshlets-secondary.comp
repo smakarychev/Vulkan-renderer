@@ -76,6 +76,10 @@ layout(std430, set = 0, binding = 5) buffer command_buffer {
     IndirectCommand commands[];
 } u_command_buffer;
 
+layout(push_constant) uniform push_constants {
+    uint u_command_buffer_max_index;
+};
+
 float extract_scale(mat4 matrix) {
     vec3 scales = vec3(dot(matrix[0], matrix[0]), dot(matrix[1], matrix[1]), dot(matrix[2], matrix[2]));
     return max(scales.x, max(scales.y, scales.z));
@@ -115,9 +119,9 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius) {
     return projected_depth >= depth;
 }
 
-bool is_visible(uint id) {
+bool is_visible(uint command_index, uint id) {
     Meshlet meshlet = u_meshlet_buffer.meshlets[id];
-    object_data object = u_object_buffer.objects[u_command_buffer.commands[id].render_object];
+    object_data object = u_object_buffer.objects[u_command_buffer.commands[command_index].render_object];
 
     vec3 origin = vec3(u_scene_data.view_matrix * object.model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f));
     float radius = meshlet.r * extract_scale(object.model);
@@ -132,8 +136,10 @@ void main() {
     if (id >= u_count_buffer.count)
         return;
     
-    uint meshlet_id = u_command_buffer.commands[id].firstInstance;
-    bool visible = is_visible(meshlet_id);
+    uint command_index = u_command_buffer_max_index - id;
     
-    u_command_buffer.commands[id].instanceCount = int(visible);
+    uint meshlet_id = u_command_buffer.commands[command_index].firstInstance;
+    bool visible = is_visible(command_index, meshlet_id);
+    
+    u_command_buffer.commands[command_index].instanceCount = int(visible);
 }

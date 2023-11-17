@@ -44,8 +44,6 @@ public:
     const Buffer& GetVisibleCountBuffer() const { return m_CompactOccludeBuffers.VisibleCountBuffer; }
     const Buffer& GetOccludedTriangleCountsBuffer() const { return m_CompactOccludeBuffers.OccludeTriangleCountsBuffer; }
     const Buffer& GetOccludedCountBuffer() const { return m_CompactOccludeBuffers.OccludedCountBuffer; }
-    const Buffer& GetIndirectVisibleRenderObjectBuffer() const { return m_CompactOccludeBuffers.IndirectVisibleRenderObjectBuffer; }
-    const Buffer& GetIndirectOccludedMeshletBuffer() const { return m_CompactOccludeBuffers.IndirectOccludedMeshletBuffer; }
     const Buffer& GetIndirectDispatchBuffer() const { return m_IndirectDispatchBuffer; }
 
     const Buffer& GetIndirectUncompactedBuffer() const { return m_IndirectUncompactedBuffer; }
@@ -67,8 +65,6 @@ private:
     {
         Buffer VisibleCountBuffer;
         Buffer OccludedCountBuffer;
-        Buffer IndirectVisibleRenderObjectBuffer;
-        Buffer IndirectOccludedMeshletBuffer;
         Buffer OccludeTriangleCountsBuffer;
     };
     struct CompactRenderObjectSSBO

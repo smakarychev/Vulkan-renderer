@@ -120,7 +120,6 @@ bool is_frustum_visible(vec4 aabb) {
 }
 
 bool is_occlusion_visible(vec4 aabb, float z) {
-
     float width = (aabb.z - aabb.x) * u_scene_data.depth_pyramid_width;
     float height = (aabb.y - aabb.w) * u_scene_data.depth_pyramid_height;
     float level = ceil(log2(max(width, height)));
@@ -130,7 +129,7 @@ bool is_occlusion_visible(vec4 aabb, float z) {
     return depth <= z;
 }
 
-void compact_visible(uint command_index, uint triangle_index, uint index_offset, bool visible) {
+void compact_visible(uint command_index, uint triangle_index, uvec3 indices, bool visible) {
     IndirectCommand command = u_command_buffer.commands[command_index];
 
     uvec4 visible_ballot = subgroupBallot(visible);
@@ -152,18 +151,18 @@ void compact_visible(uint command_index, uint triangle_index, uint index_offset,
     if (visible) {
         uint compacted_buffer_offset = compacted_index_offset + subgroupBallotExclusiveBitCount(visible_ballot) * 3;
         uint compacted_buffer_index = u_final_command_buffer.commands[command_index].firstIndex + compacted_buffer_offset;
-        u_culled_indices_buffer.indices[compacted_buffer_index + 0] = u_indices_buffer.indices[command.firstIndex + index_offset + 0];
-        u_culled_indices_buffer.indices[compacted_buffer_index + 1] = u_indices_buffer.indices[command.firstIndex + index_offset + 1];
-        u_culled_indices_buffer.indices[compacted_buffer_index + 2] = u_indices_buffer.indices[command.firstIndex + index_offset + 2];
+        u_culled_indices_buffer.indices[compacted_buffer_index + 0] = uint16_t(indices.x);
+        u_culled_indices_buffer.indices[compacted_buffer_index + 1] = uint16_t(indices.y);
+        u_culled_indices_buffer.indices[compacted_buffer_index + 2] = uint16_t(indices.z);
 
         u_triangle_buffer.triangles[compacted_buffer_index / 3] = triangle_index;
     }
 }
 
-void compact_occluded(uint command_index, uint triangle_index, uint index_offset, bool occluded) {
+void compact_occluded(uint command_index, uint triangle_index, uvec3 indices, bool occluded) {
     IndirectCommand command = u_command_buffer.commands[command_index];
     
-    uvec4 occluded_ballot = subgroupBallot(true);
+    uvec4 occluded_ballot = subgroupBallot(occluded);
     uint total_occluded_count = subgroupBallotBitCount(occluded_ballot) * 3;
 
     uint compacted_index_offset = 0;
@@ -179,14 +178,16 @@ void compact_occluded(uint command_index, uint triangle_index, uint index_offset
    
     compacted_index_offset = subgroupBroadcastFirst(compacted_index_offset);
 
-    uint compacted_buffer_offset = compacted_index_offset + subgroupBallotExclusiveBitCount(occluded_ballot) * 3;
-    uint compacted_buffer_index = (u_final_command_buffer.commands[command_index].firstIndex + TRIANGLES_PER_MESHLET * 3) -
-        compacted_buffer_offset;
-    u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 0] = u_indices_buffer.indices[command.firstIndex + index_offset + 0];
-    u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 1] = u_indices_buffer.indices[command.firstIndex + index_offset + 1];
-    u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 2] = u_indices_buffer.indices[command.firstIndex + index_offset + 2];
+    if (occluded) {
+        uint compacted_buffer_offset = compacted_index_offset + subgroupBallotExclusiveBitCount(occluded_ballot) * 3;
+        uint compacted_buffer_index = (u_final_command_buffer.commands[command_index].firstIndex + TRIANGLES_PER_MESHLET * 3) -
+            compacted_buffer_offset;
+        u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 0] = uint16_t(indices.x);
+        u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 1] = uint16_t(indices.y);
+        u_culled_indices_buffer.indices[compacted_buffer_index - 3 + 2] = uint16_t(indices.z);
 
-    u_triangle_buffer.triangles[(compacted_buffer_index - 3) / 3] = triangle_index;
+        u_triangle_buffer.triangles[(compacted_buffer_index - 3) / 3] = triangle_index;
+    }
 }
 
 void main() {
@@ -208,10 +209,15 @@ void main() {
     
     object_data object = u_object_buffer.objects[command.render_object];
 
+    uvec3 indices = uvec3(
+        u_indices_buffer.indices[command.firstIndex + index_offset + 0],
+        u_indices_buffer.indices[command.firstIndex + index_offset + 1],
+        u_indices_buffer.indices[command.firstIndex + index_offset + 2]);
+    
     Triangle triangle;
-    triangle.a = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 0])]);
-    triangle.b = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 1])]);
-    triangle.c = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(u_indices_buffer.indices[command.firstIndex + index_offset + 2])]);
+    triangle.a = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(indices.x)]);
+    triangle.b = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(indices.y)]);
+    triangle.c = vec4FromPosition(u_positions_buffer.positions[command.vertexOffset + uint(indices.z)]);
     
     triangle.a = u_scene_data.view_projection_matrix * object.model * triangle.a;
     triangle.b = u_scene_data.view_projection_matrix * object.model * triangle.b;
@@ -237,10 +243,9 @@ void main() {
     float depth = max(triangle.a.z, max(triangle.b.z, triangle.c.z));
     visible = is_occlusion_visible(aabb, depth);
     bool occluded = !visible;
-    if (occluded) {
-        compact_occluded(command_index, triangle_index, index_offset, occluded);
+    compact_occluded(command_index, triangle_index, indices, occluded);
+    if (occluded) 
         return;
-    }
 
     visible = is_screen_size_visible(aabb, u_screen_width, u_screen_height);
     if (!visible)
@@ -248,5 +253,5 @@ void main() {
     
     visible = is_frustum_visible(aabb);
 
-    compact_visible(command_index, triangle_index, index_offset, visible);
+    compact_visible(command_index, triangle_index, indices, visible);
 }

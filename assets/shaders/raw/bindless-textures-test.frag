@@ -105,7 +105,7 @@ void main() {
     uint triangle_id = u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID];
     uint instance_id = command.firstInstance;
     uint hash = murmur3(instance_id) ^ murmur3(triangle_id);
-    //hash = murmur3(vert_instance_id);
+    //hash = murmur3(instance_id);
     //hash = triangle_id;
     out_color = vec4(hash & 255u, (hash >> 8) & 255u, (hash >> 16) & 255u, 255u) / 255;
 }

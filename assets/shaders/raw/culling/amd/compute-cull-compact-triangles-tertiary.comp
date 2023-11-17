@@ -121,7 +121,6 @@ bool is_frustum_visible(vec4 aabb) {
 }
 
 bool is_occlusion_visible(vec4 aabb, float z) {
-
     float width = (aabb.z - aabb.x) * u_scene_data.depth_pyramid_width;
     float height = (aabb.y - aabb.w) * u_scene_data.depth_pyramid_height;
     float level = ceil(log2(max(width, height)));

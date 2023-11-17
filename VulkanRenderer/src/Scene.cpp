@@ -35,12 +35,6 @@ void Scene::OnInit(ResourceUploader* resourceUploader)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    m_MeshletsIndirectCompactBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(IndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-    
     m_MeshletsIndirectFinalBuffer = Buffer::Builder()
         .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
         .SetSizeBytes(sizeof(IndirectCommand) * MAX_DRAW_INDIRECT_CALLS)

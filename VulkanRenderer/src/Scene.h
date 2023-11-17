@@ -110,7 +110,6 @@ public:
     const Buffer& GetMaterialsBuffer() const { return m_MaterialDataSSBO.Buffer; }
     
     const Buffer& GetMeshletsIndirectBuffer() const { return m_MeshletsIndirectRawBuffer; }
-    const Buffer& GetMeshletsIndirectCompactBuffer() const { return m_MeshletsIndirectCompactBuffer; }
     const Buffer& GetMeshletsIndirectFinalBuffer() const { return m_MeshletsIndirectFinalBuffer; }
     u32 GetMeshletCount() const { return m_MeshletCount; }
 
@@ -149,7 +148,6 @@ private:
     MaterialDataSSBO m_MaterialDataSSBO;
 
     Buffer m_MeshletsIndirectRawBuffer;
-    Buffer m_MeshletsIndirectCompactBuffer;
     Buffer m_MeshletsIndirectFinalBuffer;
     u32 m_MeshletCount{0};
 

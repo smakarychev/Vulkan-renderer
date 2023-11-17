@@ -14,28 +14,37 @@ struct IndirectCommand {
     uint render_object;
 };
 
-layout(std430, set = 0, binding = 0) buffer command_buffer {
+struct object_visibility_data {
+    uint flags;
+};
+
+layout(std430, set = 0, binding = 0) buffer readonly command_buffer {
     IndirectCommand commands[];
 } u_command_buffer;
 
+layout(std430, set = 0, binding = 1) buffer writeonly compacted_command_buffer {
+    IndirectCommand commands[];
+} u_compacted_command_buffer;
+
 @dynamic
-layout(std430, set = 0, binding = 1) readonly buffer count_buffer {
+layout(std430, set = 0, binding = 2) buffer count_buffer {
     uint count;
 } u_count_buffer;
 
-@dynamic
-layout(std430, set = 0, binding = 2) buffer visible_buffer {
-    uint count;
-} u_visible_buffer;
+layout(std430, set = 0, binding = 3) readonly buffer object_visibility_buffer{
+    object_visibility_data visibility[];
+} u_object_visibility_buffer;
 
 layout(push_constant) uniform push_constants {
+    uint meshlets_count;
     uint u_command_buffer_max_index;
 };
 
 void write_compacted_visible(uint id) {
-    IndirectCommand command = u_command_buffer.commands[u_command_buffer_max_index - u_count_buffer.count + id];
+    IndirectCommand command = u_command_buffer.commands[id];
+    object_visibility_data visibility = u_object_visibility_buffer.visibility[command.render_object];
 
-    bool is_visible = command.instanceCount > 0;
+    bool is_visible = (visibility.flags & 1u) == 1;
     uvec4 is_visible_ballot = subgroupBallot(is_visible);
 
     // find subgroup total visible meshes count
@@ -43,7 +52,7 @@ void write_compacted_visible(uint id) {
 
     uint compacted_buffer_index_base;
     if (subgroupElect())
-        compacted_buffer_index_base = atomicAdd(u_visible_buffer.count, total_visible_count);
+        compacted_buffer_index_base = atomicAdd(u_count_buffer.count, total_visible_count);
     compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
 
     uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_visible_ballot);
@@ -51,13 +60,13 @@ void write_compacted_visible(uint id) {
     uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
 
     if (is_visible)
-        u_command_buffer.commands[compacted_buffer_index] = command;
+        u_compacted_command_buffer.commands[u_command_buffer_max_index - compacted_buffer_index] = u_command_buffer.commands[id];
 }
 
 void main() {
     uint id = gl_GlobalInvocationID.x;
-    if (id >= u_count_buffer.count)
+    if (id >= meshlets_count)
         return;
-
+    
     write_compacted_visible(id);
 }
