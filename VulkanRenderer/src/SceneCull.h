@@ -90,25 +90,25 @@ public:
     void ResetCullBuffers(const FrameContext& frameContext);
     void ResetSecondaryCullBuffers(const FrameContext& frameContext, u32 clearIndex);
     
-    void PerformMeshCulling(const FrameContext& frameContext);
-    void PerformMeshletCulling(const FrameContext& frameContext);
-    void PerformMeshCompaction(const FrameContext& frameContext);
-    void PerformMeshletCompaction(const FrameContext& frameContext);
+    void CullMeshes(const FrameContext& frameContext);
+    void CullMeshlets(const FrameContext& frameContext);
+    void CompactMeshes(const FrameContext& frameContext);
+    void CompactMeshlets(const FrameContext& frameContext);
 
-    void ClearTriangleCullCommandBuffer(const FrameContext& frameContext);
-    void ClearTriangleCullCommandBufferSecondary(const FrameContext& frameContext);
-    void PerformTriangleCullingCompaction(const FrameContext& frameContext);
-    void PerformSecondaryTriangleCullingCompaction(const FrameContext& frameContext);
-    void PerformTertiaryTriangleCullingCompaction(const FrameContext& frameContext);
+    void CullMeshesSecondary(const FrameContext& frameContext);
+    void CullMeshletsSecondary(const FrameContext& frameContext);
+    void CompactMeshesSecondary(const FrameContext& frameContext);
+    void CompactMeshletsSecondary(const FrameContext& frameContext);
 
-    void PerformSecondaryMeshCulling(const FrameContext& frameContext);
-    void PerformSecondaryMeshletCulling(const FrameContext& frameContext);
-    void PerformSecondaryMeshCompaction(const FrameContext& frameContext);
-    void PerformSecondaryMeshletCompaction(const FrameContext& frameContext);
+    void ClearTriangleBuffers(const FrameContext& frameContext);
+    void ClearTriangleBuffersSecondary(const FrameContext& frameContext);
+    void CullCompactTriangles(const FrameContext& frameContext);
+    void CullCompactTrianglesSecondary(const FrameContext& frameContext);
+    void CullCompactTrianglesTertiary(const FrameContext& frameContext);
 
-    void PerformFinalCompaction(const FrameContext& frameContext);
+    void CompactCommands(const FrameContext& frameContext);
 
-    const Buffer& GetVisibleCo  untBuffer() const;
+    const Buffer& GetDrawCount() const;
 
     const SceneCullBuffers& GetSceneCullBuffers() const { return m_SceneCullBuffers; }
 private:
@@ -116,6 +116,8 @@ private:
     
     void PerformIndirectDispatchBufferPrepare(const FrameContext& frameContext, u32 localGroupSize, u32 multiplier, u32 bufferIndex);
 
+    void InitBarriers();
+    
     void InitClearBuffers(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
     
     void InitMeshCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
@@ -168,6 +170,9 @@ private:
     ComputePipelineData m_TriangleCullCompactTertiaryData{};
 
     ComputePipelineData m_CompactFinalIndirectBufferData{};
+
+    PipelineBufferBarrierInfo m_ComputeWRBarrierBase{};
+    PipelineBufferBarrierInfo m_IndirectWRBarrierBase{};
     
     const DepthPyramid* m_DepthPyramid{nullptr};
     bool m_CullIsInitialized{false};

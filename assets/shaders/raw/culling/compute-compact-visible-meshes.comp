@@ -18,11 +18,11 @@ struct object_visibility_data {
     uint flags;
 };
 
-layout(std430, set = 0, binding = 0) buffer readonly command_buffer {
+layout(std430, set = 0, binding = 0) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_command_buffer;
 
-layout(std430, set = 0, binding = 1) buffer writeonly compacted_command_buffer {
+layout(std430, set = 0, binding = 1) writeonly buffer compacted_command_buffer {
     IndirectCommand commands[];
 } u_compacted_command_buffer;
 
