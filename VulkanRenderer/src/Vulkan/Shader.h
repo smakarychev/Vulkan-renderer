@@ -4,7 +4,6 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-#include "AssetLib.h"
 #include "DescriptorSet.h"
 #include "Pipeline.h"
 #include "PushConstantDescription.h"
@@ -35,6 +34,7 @@ class Shader
 public:
     struct ReflectionData
     {
+        using SpecializationConstant = assetLib::ShaderInfo::SpecializationConstant;
         using InputAttribute = assetLib::ShaderInfo::InputAttribute;
         using PushConstant = assetLib::ShaderInfo::PushConstant;
         struct DescriptorSet
@@ -57,6 +57,7 @@ public:
         };
 
         VkShaderStageFlags ShaderStages;
+        std::vector<SpecializationConstant> SpecializationConstants;
         std::vector<InputAttribute> InputAttributes;
         std::vector<PushConstant> PushConstants;
         std::vector<DescriptorSet> DescriptorSets;
@@ -120,6 +121,8 @@ public:
         std::vector<VkDescriptorSetLayoutBinding> Descriptors;
         std::vector<VkDescriptorBindingFlags> Flags;
     };
+
+    using SpecializationConstant = Shader::ReflectionData::SpecializationConstant;
     
 public:
     static ShaderPipelineTemplate Create(const Builder::CreateInfo& createInfo);
@@ -151,6 +154,7 @@ private:
     std::vector<DescriptorSetLayout*> m_DescriptorSetLayouts;
 
     std::vector<ShaderModuleData> m_Shaders;
+    std::vector<SpecializationConstant> m_SpecializationConstants;
     std::vector<DescriptorInfo> m_DescriptorsInfo;
     std::vector<VkDescriptorSetLayoutCreateFlags> m_DescriptorSetFlags;
     std::vector<VkDescriptorPoolCreateFlags> m_DescriptorPoolFlags;

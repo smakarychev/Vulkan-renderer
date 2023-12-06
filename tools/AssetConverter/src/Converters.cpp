@@ -176,7 +176,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
             modelInfo.MeshInfos.push_back({
                 .Name = meshData.Name,
                 .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
-                .IndicesSizeBytes = meshData.Indices.size() * sizeof(u16),
+                .IndicesSizeBytes = meshData.Indices.size() * sizeof(IndexType),
                 .MeshletsSizeBytes = meshData.Meshlets.size() * sizeof(assetLib::ModelInfo::Meshlet),
                 .Materials = meshData.MaterialInfos,
                 .BoundingSphere = utils::welzlSphere(meshData.VertexGroup.Positions)});
@@ -583,6 +583,18 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
     spvReflectCreateShaderModule(spirV.size() * sizeof(u32), spirV.data(), &reflectedModule);
 
     shaderInfo.ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage;
+
+    // extract specialization constants
+    u32 specializationCount;
+    spvReflectEnumerateSpecializationConstants(&reflectedModule, &specializationCount, nullptr);
+    std::vector<SpvReflectSpecializationConstant*> specializationConstants(specializationCount);
+    spvReflectEnumerateSpecializationConstants(&reflectedModule, &specializationCount, specializationConstants.data());
+
+    shaderInfo.SpecializationConstants.reserve(specializationCount);
+    for (auto& constant : specializationConstants)
+        shaderInfo.SpecializationConstants.push_back({
+            .Id = constant->constant_id,
+            .Name = constant->name});
 
     // extract input attributes
     if (reflectedModule.shader_stage == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT)

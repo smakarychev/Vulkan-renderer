@@ -59,7 +59,8 @@ namespace assetLib
     struct ModelInfo : AssetInfoBase
     {
         static constexpr u32 TRIANGLES_PER_MESHLET = 256;
-        static constexpr u32 VERTICES_PER_MESHLET = 255; 
+        static constexpr u32 VERTICES_PER_MESHLET = 255;
+        using IndexType = u16;
         enum class MaterialType : u32
         {
             Albedo = 0, MaxVal

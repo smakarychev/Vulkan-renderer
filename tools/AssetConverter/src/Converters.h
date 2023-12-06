@@ -30,12 +30,13 @@ public:
 
 class ModelConverter
 {
+    using IndexType = assetLib::ModelInfo::IndexType;
 public:
     struct MeshData
     {
         std::string Name;
         assetLib::VertexGroup VertexGroup;
-        std::vector<u16> Indices;
+        std::vector<IndexType> Indices;
         std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
         std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxVal> MaterialInfos;
     };

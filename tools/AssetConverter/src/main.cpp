@@ -32,4 +32,4 @@ i32 main(i32 argc, char** argv)
 }
 
 // SPIV-reflect implementation
-#include "spirv_reflect.c"
+#include "spirv_reflect.cpp"

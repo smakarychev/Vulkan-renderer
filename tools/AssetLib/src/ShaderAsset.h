@@ -9,6 +9,11 @@ namespace assetLib
 {
     struct ShaderInfo : AssetInfoBase
     {
+        struct SpecializationConstant
+        {
+            u32 Id;
+            std::string Name;
+        };
         struct InputAttribute
         {
             u32 Binding;
@@ -45,6 +50,7 @@ namespace assetLib
         };
 
         VkShaderStageFlags ShaderStages;
+        std::vector<SpecializationConstant> SpecializationConstants;
         std::vector<InputAttribute> InputAttributes;
         std::vector<PushConstant> PushConstants;
         std::vector<DescriptorSet> DescriptorSets;

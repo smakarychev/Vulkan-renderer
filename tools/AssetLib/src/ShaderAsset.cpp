@@ -54,6 +54,18 @@ namespace assetLib
         info.SourceSizeBytes = metadata["source_size_bytes"];
         info.ShaderStages = VkShaderStageFlags(metadata["shader_stage"].get<u32>());
 
+        const nlohmann::json& specializationConstants = metadata["specialization_constants"];
+        u32 constantsCount = (u32)specializationConstants.size();
+        info.SpecializationConstants.reserve(constantsCount);
+        for (auto& constant : specializationConstants)
+        {
+            ShaderInfo::SpecializationConstant specializationConstant = {};
+            specializationConstant.Id = constant["id"];
+            specializationConstant.Name = constant["name"];
+
+            info.SpecializationConstants.push_back(specializationConstant);
+        }
+        
         const nlohmann::json& inputAttributes = metadata["input_attributes"];
         u32 inputAttributeCount = (u32)inputAttributes.size();
         info.InputAttributes.reserve(inputAttributeCount);
@@ -122,6 +134,16 @@ namespace assetLib
 
         metadata["source_size_bytes"] = info.SourceSizeBytes;
         metadata["shader_stage"] = (u32)info.ShaderStages;
+
+        metadata["specialization_constants"] = nlohmann::json::array();
+        for (auto& constant : info.SpecializationConstants)
+        {
+            nlohmann::json constantJson;
+            constantJson["id"] = constant.Id;
+            constantJson["name"] = constant.Name;
+
+            metadata["specialization_constants"].push_back(constantJson);
+        }
         
         metadata["input_attributes"] = nlohmann::json::array();
         for (auto& input : info.InputAttributes)

@@ -41,6 +41,7 @@ Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
     
     shader.m_ReflectionData = {
         .ShaderStages = mergedShaderInfo.ShaderStages,
+        .SpecializationConstants = mergedShaderInfo.SpecializationConstants,
         .InputAttributes = mergedShaderInfo.InputAttributes,
         .PushConstants = mergedShaderInfo.PushConstants,
         .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets),
@@ -77,6 +78,23 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
 
     merged.ShaderStages |= second.ShaderStages;
 
+    // merge specialization constants
+    merged.SpecializationConstants = utils::mergeSets(merged.SpecializationConstants, second.SpecializationConstants,
+        [](const auto& a, const auto& b)
+        {
+            if (a.Id == b.Id)
+                return 0;
+            if (a.Id < b.Id)
+                return -1;
+            return 1;
+        },
+        [](const auto& a, const auto& b)
+        {
+            ASSERT(a.Name == b.Name, "Specialization constants have same id but different name")
+
+            return a;
+        });
+    
     // merge inputs (possibly nothing happens)
     merged.InputAttributes.append_range(second.InputAttributes);
 
@@ -110,8 +128,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
         [](const auto& a, const auto& b)
         {
             assetLib::ShaderInfo::DescriptorSet mergedSet = a;
-            mergedSet.Descriptors = utils::mergeSets(
-               mergedSet.Descriptors, b.Descriptors,
+            mergedSet.Descriptors = utils::mergeSets(mergedSet.Descriptors, b.Descriptors,
                 [](const auto& a, const auto& b)
                 {
                     if (a.Binding == b.Binding)
@@ -263,6 +280,10 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
 
     if (shaderModules.size() == 1 && shaderModules.front().Kind == ShaderKind::Compute)
         shaderPipelineTemplate.m_PipelineBuilder.IsComputePipeline(true);
+
+    shaderPipelineTemplate.m_SpecializationConstants.reserve(reflectionData.SpecializationConstants.size());
+    for (auto& constant : reflectionData.SpecializationConstants)
+        shaderPipelineTemplate.m_SpecializationConstants.push_back(constant);
     
     for (auto& set : reflectionData.DescriptorSets)
     {

@@ -14,7 +14,7 @@ project "AssetConverter"
     includedirs
     {
         "src",
-        "C:/VulkanSDK/1.3.261.1/Include",
+        "C:/VulkanSDK/1.3.268.0/Include",
         "%{wks.location}/tools/AssetLib/src",
 	
         IncludeDir["stb"],		    
@@ -26,7 +26,7 @@ project "AssetConverter"
 
     libdirs
 	{
-		"C:/VulkanSDK/1.3.261.1/Lib",
+		"C:/VulkanSDK/1.3.268.0/Lib",
         "%{wks.location}/vendor/assimp/lib",
 	}
 
