@@ -50,23 +50,73 @@ void utils::runSubProcess(const std::filesystem::path& executablePath, const std
         &pi
     );
 
+    CloseHandle(childOutWrite);
+
     if (status != 0)
     {
+        std::string lineTail = {};
+        for (;;)
+        {
+            DWORD bytesRead; 
+            CHAR buffer[256];
+            
+            if (!ReadFile(childOutRead, buffer, sizeof(buffer), &bytesRead, nullptr) || bytesRead == 0)
+            {
+                DWORD exitCode;
+                if (GetExitCodeProcess(pi.hProcess, &exitCode) && exitCode != STILL_ACTIVE)
+                    break;
+            }
+
+            std::string bufferString = std::string{buffer + 0, buffer + bytesRead};
+            std::vector<std::string_view> lines = splitStringTransient(bufferString, "\r\n");
+
+            bool unfinishedLine = !bufferString.ends_with("\r\n");
+
+            if (!lineTail.empty() && (!unfinishedLine || lines.size() > 1))
+            {
+                LOG("{}: {}", executablePath.stem().string(), lineTail + std::string{lines.front()});
+                lineTail = {};
+                lines.erase(lines.begin());
+            }
+            
+            if (unfinishedLine)
+            {
+                lineTail += lines.back();
+                lines.pop_back();
+            }
+
+            for (auto& line : lines)
+                LOG("{}: {}", executablePath.stem().string(), line);
+        }
+
         WaitForSingleObject(pi.hProcess, INFINITE);
 
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
 
-        CloseHandle(childOutWrite);
-        
-        DWORD bytesRead; 
-        CHAR buffer[1024];
-        while (ReadFile(childOutRead, buffer, 1024, &bytesRead, nullptr) && bytesRead > 0) 
-        {
-            LOG("{}: {}", executablePath.stem().string(), std::string{buffer + 0, buffer + bytesRead});
-        }
-        
         CloseHandle(childOutRead);
     }
 
+}
+
+std::vector<std::string_view> utils::splitStringTransient(std::string_view string, std::string_view delimiter)
+{
+    std::vector<std::string_view> result;
+
+    u32 delimiterLength = (u32)delimiter.length();
+    u64 offset = 0;
+    u64 pos = string.find(delimiter);
+    while (pos != std::string::npos)
+    {
+        u64 count = pos - offset + 1 - delimiterLength;
+        result.push_back(string.substr(offset, count));
+
+        offset = pos + delimiterLength;
+        pos = string.find(delimiter, offset);
+    }
+
+    if (offset < string.length())
+        result.push_back(string.substr(offset));
+
+    return result;
 }
