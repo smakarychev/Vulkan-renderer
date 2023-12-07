@@ -91,8 +91,9 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
         [](const auto& a, const auto& b)
         {
             ASSERT(a.Name == b.Name, "Specialization constants have same id but different name")
-
-            return a;
+            ReflectionData::SpecializationConstant merged = a;
+            merged.ShaderStages |= b.ShaderStages;
+            return merged;
         });
     
     // merge inputs (possibly nothing happens)
@@ -503,6 +504,8 @@ void ShaderPipeline::Builder::Prebuild()
 
     if (m_CreateInfo.ShaderPipelineTemplate->IsComputeTemplate())
         ASSERT(m_CreateInfo.RenderingDetails.ColorFormats.empty(), "Compute shader pipeline does not need rendering details")
+
+    FinishSpecializationConstants();
 }
 
 void ShaderPipeline::Builder::CreateCompatibleLayout()
@@ -534,6 +537,20 @@ void ShaderPipeline::Builder::CreateCompatibleLayout()
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.SetVertexDescription(adapted);
 }
 
+void ShaderPipeline::Builder::FinishSpecializationConstants()
+{
+    for (u32 specializationIndex = 0; specializationIndex < m_SpecializationConstantNames.size(); specializationIndex++)
+    {
+        std::string_view name = m_SpecializationConstantNames[specializationIndex];
+        auto it = std::ranges::find(m_CreateInfo.ShaderPipelineTemplate->m_SpecializationConstants, name,
+            [](auto& constant) { return constant.Name; });
+        ASSERT(it != m_CreateInfo.ShaderPipelineTemplate->m_SpecializationConstants.end(), "Unrecognized specialization name")
+        m_PipelineSpecializationInfo.ShaderSpecializations[specializationIndex].SpecializationEntry.constantID = it->Id;
+        m_PipelineSpecializationInfo.ShaderSpecializations[specializationIndex].ShaderStages = it->ShaderStages;
+    }
+
+    m_CreateInfo.PipelineSpecializationInfo = m_PipelineSpecializationInfo;
+}
 
 ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
 {
@@ -541,17 +558,17 @@ ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
     
     shaderPipeline.m_Template = createInfo.ShaderPipelineTemplate;
 
+    // use local builder to not worry about state
+    Pipeline::Builder pipelineBuilder = shaderPipeline.m_Template->m_PipelineBuilder;
+    if (!createInfo.ShaderPipelineTemplate->IsComputeTemplate())
+        pipelineBuilder.SetRenderingDetails(createInfo.RenderingDetails);
+
+    pipelineBuilder.UseSpecialization(createInfo.PipelineSpecializationInfo);
+        
     if (createInfo.ShaderPipelineTemplate->IsComputeTemplate())
-    {
-        shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder
-            .Build();
-    }
+        shaderPipeline.m_Pipeline = pipelineBuilder.Build();
     else
-    {
-        shaderPipeline.m_Pipeline = shaderPipeline.m_Template->m_PipelineBuilder
-            .SetRenderingDetails(createInfo.RenderingDetails)
-            .Build();    
-    }
+        shaderPipeline.m_Pipeline = pipelineBuilder.SetRenderingDetails(createInfo.RenderingDetails).Build();    
 
     return shaderPipeline;
 }

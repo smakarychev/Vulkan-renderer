@@ -13,6 +13,7 @@ namespace assetLib
         {
             u32 Id;
             std::string Name;
+            VkShaderStageFlags ShaderStages;
         };
         struct InputAttribute
         {

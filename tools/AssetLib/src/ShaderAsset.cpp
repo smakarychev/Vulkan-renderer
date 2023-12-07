@@ -62,6 +62,7 @@ namespace assetLib
             ShaderInfo::SpecializationConstant specializationConstant = {};
             specializationConstant.Id = constant["id"];
             specializationConstant.Name = constant["name"];
+            specializationConstant.ShaderStages = (VkShaderStageFlags)constant["shader_stages"];
 
             info.SpecializationConstants.push_back(specializationConstant);
         }
@@ -141,6 +142,7 @@ namespace assetLib
             nlohmann::json constantJson;
             constantJson["id"] = constant.Id;
             constantJson["name"] = constant.Name;
+            constantJson["shader_stages"] = (u32)constant.ShaderStages;
 
             metadata["specialization_constants"].push_back(constantJson);
         }

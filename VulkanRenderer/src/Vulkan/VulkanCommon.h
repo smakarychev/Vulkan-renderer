@@ -154,3 +154,14 @@ struct RenderingDetails
     std::vector<VkFormat> ColorFormats;
     VkFormat DepthFormat;
 };
+
+struct PipelineSpecializationInfo
+{
+    struct ShaderSpecialization
+    {
+        VkSpecializationMapEntry SpecializationEntry;
+        VkShaderStageFlags ShaderStages;
+    };
+    std::vector<ShaderSpecialization> ShaderSpecializations;
+    std::vector<u8> Buffer;
+};

@@ -594,7 +594,8 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
     for (auto& constant : specializationConstants)
         shaderInfo.SpecializationConstants.push_back({
             .Id = constant->constant_id,
-            .Name = constant->name});
+            .Name = constant->name,
+            .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage});
 
     // extract input attributes
     if (reflectedModule.shader_stage == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT)

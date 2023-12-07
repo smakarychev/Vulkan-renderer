@@ -62,6 +62,9 @@ public:
             VkPipelineColorBlendAttachmentState ColorBlendAttachmentState;
             VkPipelineColorBlendStateCreateInfo ColorBlendState;
             VkPipelineLayout Layout;
+
+            std::vector<VkSpecializationMapEntry> ShaderSpecializationEntries;
+            std::vector<VkSpecializationInfo> ShaderSpecializationInfos;
         };
     public:
         Pipeline Build();
@@ -73,12 +76,14 @@ public:
         Builder& FixedFunctionDefaults();
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
+        Builder& UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo);
     private:
         void PreBuild();
     private:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_VertexInputDescription;
         ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
+        PipelineSpecializationInfo m_PipelineSpecializationInfo;
     };
 public:
     static Pipeline Create(const Builder::CreateInfo& createInfo);

@@ -1,6 +1,5 @@
 ﻿#pragma once
 #include <array>
-#include <string_view>
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
@@ -27,8 +26,6 @@ enum class DescriptorKind : u32
     Material = 2
 };
 
-// todo: WIP, reflection testing
-// todo: name is pretty bad
 class Shader
 {
 public:
@@ -173,6 +170,7 @@ public:
             ShaderPipelineTemplate* ShaderPipelineTemplate;
             RenderingDetails RenderingDetails;
             std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
+            PipelineSpecializationInfo PipelineSpecializationInfo;
         };
         using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
@@ -181,13 +179,18 @@ public:
         Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
         Builder& CompatibleWithVertex(const VertexInputDescription& vertexInputDescription);
+        template <typename T>
+        Builder& AddSpecialization(std::string_view name, const T& specializationData);
     private:
         void Prebuild();
         void CreateCompatibleLayout();
+        void FinishSpecializationConstants();
     private:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_CompatibleVertexDescription;
         ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
+        PipelineSpecializationInfo m_PipelineSpecializationInfo;
+        std::vector<std::string> m_SpecializationConstantNames;
     };
 public:
     static ShaderPipeline Create(const Builder::CreateInfo& createInfo);
@@ -205,6 +208,29 @@ private:
 
     Pipeline m_Pipeline;
 };
+
+template <typename T>
+ShaderPipeline::Builder& ShaderPipeline::Builder::AddSpecialization(std::string_view name, const T& specializationData)
+{
+    u32 dataSizeBytes;
+    // vulkan spec says that bool specialization constant must have the size of VkBool32
+    if constexpr (std::is_same_v<T, bool>)
+        dataSizeBytes = sizeof(u32);
+    else
+        dataSizeBytes = sizeof(specializationData);
+    
+    // template might not be set yet, so we have to delay it until the very end
+    m_SpecializationConstantNames.push_back(std::string{name});
+    u32 bufferStart = (u32)m_PipelineSpecializationInfo.Buffer.size();
+    m_PipelineSpecializationInfo.Buffer.resize(bufferStart + dataSizeBytes);
+    std::memcpy(m_PipelineSpecializationInfo.Buffer.data() + bufferStart, &specializationData, dataSizeBytes);
+    m_PipelineSpecializationInfo.ShaderSpecializations.push_back({
+        .SpecializationEntry = {
+            .offset = bufferStart,
+            .size = dataSizeBytes}});
+
+    return *this;
+}
 
 class ShaderDescriptorSet
 {

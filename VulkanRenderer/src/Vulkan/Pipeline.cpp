@@ -196,6 +196,13 @@ Pipeline::Builder& Pipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKin
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo)
+{
+    m_PipelineSpecializationInfo = pipelineSpecializationInfo;
+        
+    return *this;
+}
+
 void Pipeline::Builder::PreBuild()
 {
     m_CreateInfo.DynamicStateInfo.dynamicStateCount = (u32)m_CreateInfo.DynamicStates.size();
@@ -210,6 +217,27 @@ void Pipeline::Builder::PreBuild()
 
     m_CreateInfo.ColorBlendState.attachmentCount = 1;
     m_CreateInfo.ColorBlendState.pAttachments = &m_CreateInfo.ColorBlendAttachmentState;
+
+    m_CreateInfo.ShaderSpecializationInfos.reserve(m_CreateInfo.Shaders.size());
+
+    u32 entriesOffset = 0;
+    for (auto& shader : m_CreateInfo.Shaders)
+    {
+        VkSpecializationInfo shaderSpecializationInfo = {};
+        for (const auto& specialization : m_PipelineSpecializationInfo.ShaderSpecializations)
+            if ((shader.stage & specialization.ShaderStages) != 0)
+                m_CreateInfo.ShaderSpecializationEntries.push_back(specialization.SpecializationEntry);
+
+        shaderSpecializationInfo.dataSize = m_PipelineSpecializationInfo.Buffer.size();
+        shaderSpecializationInfo.pData = m_PipelineSpecializationInfo.Buffer.data();
+        shaderSpecializationInfo.mapEntryCount = (u32)m_CreateInfo.ShaderSpecializationEntries.size() - entriesOffset;
+        shaderSpecializationInfo.pMapEntries = m_CreateInfo.ShaderSpecializationEntries.data() + entriesOffset;
+
+        m_CreateInfo.ShaderSpecializationInfos.push_back(shaderSpecializationInfo);
+        shader.pSpecializationInfo = &m_CreateInfo.ShaderSpecializationInfos.back();
+
+        entriesOffset = (u32)m_CreateInfo.ShaderSpecializationEntries.size();
+    }
 
     if (!m_CreateInfo.IsComputePipeline)
         ASSERT(!m_CreateInfo.RenderingDetails.ColorFormats.empty(), "No rendering details provided")
