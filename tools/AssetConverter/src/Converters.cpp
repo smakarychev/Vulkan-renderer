@@ -18,7 +18,6 @@
 #include <spirv_reflect.h>
 #include <fstream>
 #include <iostream>
-#include <set>
 
 #include "utils.h"
 
@@ -324,9 +323,58 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     std::vector<DescriptorFlagInfo> descriptorFlags = ReadDescriptorsFlags(shaderSource);
     std::vector<InputAttributeBindingInfo> inputBindingsInfo = ReadInputBindings(shaderSource);
     RemoveMetaKeywords(shaderSource);
+
+    class FileIncluder : public shaderc::CompileOptions::IncluderInterface
+    {
+        struct FileInfo
+        {
+            std::string FileName;
+            std::string FileContent;
+        };
+    public:
+        shaderc_include_result* GetInclude(const char* requestedSource, shaderc_include_type type,
+            const char* requestingSource, size_t includeDepth) override
+        {
+            if (type != shaderc_include_type_relative)
+                return new shaderc_include_result{"", 0,
+                    "only relative #include (with '...') is supported",
+                    std::string{"only relative #include (with '...') is supported"}.length(), nullptr};
+
+            std::filesystem::path requestedPath = std::filesystem::path{requestingSource}.parent_path() /
+                std::filesystem::path{requestedSource};
+
+            std::string fileName = requestedPath.string();
+            std::ifstream fileIn(fileName.data(), std::ios::ate | std::ios::binary);
+            if (!fileIn.is_open())
+                return new shaderc_include_result{"", 0,
+                    "#include file not found",
+                    std::string{"#include file not found"}.length(), nullptr};
+            isize fileSizeBytes = fileIn.tellg();
+            fileIn.seekg(0);
+            std::string fileContent;
+            fileContent.resize(fileSizeBytes);
+            fileIn.read(fileContent.data(), fileSizeBytes);
+
+            FileInfo* fileInfo = new FileInfo{
+                .FileName = fileName,
+                .FileContent = fileContent};
+
+            return new shaderc_include_result{
+                fileInfo->FileName.data(), fileInfo->FileName.length(),
+                fileInfo->FileContent.data(), fileInfo->FileContent.length(),
+                fileInfo};
+        }
+        void ReleaseInclude(shaderc_include_result* data) override
+        {
+            FileInfo* fileInfo = (FileInfo*)(data->user_data);
+            delete fileInfo;
+            delete data;
+        }
+    };
     
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
+    options.SetIncluder(std::make_unique<FileIncluder>());
     options.SetTargetSpirv(shaderc_spirv_version_1_3);
     options.SetOptimizationLevel(shaderc_optimization_level_zero);
     shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind, path.string().c_str(), options);
