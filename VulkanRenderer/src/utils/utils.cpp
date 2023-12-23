@@ -108,9 +108,7 @@ std::vector<std::string_view> utils::splitStringTransient(std::string_view strin
     u64 pos = string.find(delimiter);
     while (pos != std::string::npos)
     {
-        u64 count = pos - offset + 1 - delimiterLength;
-        result.push_back(string.substr(offset, count));
-
+        result.push_back(string.substr(offset, pos - offset));
         offset = pos + delimiterLength;
         pos = string.find(delimiter, offset);
     }
