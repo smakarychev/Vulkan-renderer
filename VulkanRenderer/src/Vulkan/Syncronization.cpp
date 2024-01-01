@@ -56,6 +56,11 @@ void Fence::Wait() const
     RenderCommand::WaitForFence(*this);
 }
 
+bool Fence::Check() const
+{
+    return RenderCommand::CheckFence(*this) == VK_SUCCESS;
+}
+
 Semaphore Semaphore::Builder::Build()
 {
     Semaphore semaphore = Semaphore::Create({});
@@ -86,4 +91,72 @@ Semaphore Semaphore::Create(const Builder::CreateInfo& createInfo)
 void Semaphore::Destroy(const Semaphore& semaphore)
 {
     vkDestroySemaphore(Driver::DeviceHandle(), semaphore.m_Semaphore, nullptr);
+}
+
+TimelineSemaphore TimelineSemaphore::Builder::Build()
+{
+    TimelineSemaphore semaphore = TimelineSemaphore::Create(m_CreateInfo);
+    Driver::DeletionQueue().AddDeleter([semaphore](){ TimelineSemaphore::Destroy(semaphore); });
+
+    return semaphore;
+}
+
+TimelineSemaphore TimelineSemaphore::Builder::BuildManualLifetime()
+{
+    return TimelineSemaphore::Create(m_CreateInfo);
+}
+
+TimelineSemaphore::Builder& TimelineSemaphore::Builder::InitialValue(u64 value)
+{
+    m_CreateInfo.InitialValue = value;
+
+    return *this;
+}
+
+TimelineSemaphore TimelineSemaphore::Create(const Builder::CreateInfo& createInfo)
+{
+    TimelineSemaphore semaphore = {};
+
+    VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
+    timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+    timelineCreateInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+    timelineCreateInfo.initialValue = createInfo.InitialValue;
+
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {};
+    semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphoreCreateInfo.pNext = &timelineCreateInfo;
+
+    vkCreateSemaphore(Driver::DeviceHandle(), &semaphoreCreateInfo, nullptr, &semaphore.m_Semaphore);
+
+    return semaphore;
+}
+
+void TimelineSemaphore::Destroy(const TimelineSemaphore& semaphore)
+{
+    vkDestroySemaphore(Driver::DeviceHandle(), semaphore.m_Semaphore, nullptr);
+}
+
+void TimelineSemaphore::WaitCPU(u64 value)
+{
+    VkSemaphoreWaitInfo waitInfo = {};
+    waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+    waitInfo.semaphoreCount = 1;
+    waitInfo.pSemaphores = &m_Semaphore;
+    waitInfo.pValues = &value;
+    
+    VulkanCheck(vkWaitSemaphores(Driver::DeviceHandle(), &waitInfo, UINT64_MAX),
+        "Failed to wait for timeline semaphore");
+}
+
+void TimelineSemaphore::SignalCPU(u64 value)
+{
+    VkSemaphoreSignalInfo signalInfo = {};
+    signalInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO;
+    signalInfo.semaphore = m_Semaphore;
+    signalInfo.value = value;
+
+    VulkanCheck(vkSignalSemaphore(Driver::DeviceHandle(), &signalInfo),
+        "Failed to signal semaphore");
+
+    m_Timeline = value;
 }

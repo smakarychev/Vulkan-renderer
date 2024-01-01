@@ -13,7 +13,6 @@ project "VulkanRenderer"
 
     includedirs
     {
-        "C:/VulkanSDK/1.3.261.1/Include",
         "src",
         "%{wks.location}/tools/AssetLib/src",
         IncludeDir["GLFW"],			
@@ -21,16 +20,16 @@ project "VulkanRenderer"
         IncludeDir["vma"],	
         IncludeDir["spirv_reflect"],	
         IncludeDir["tracy"],    
+        IncludeDir["volk"],
+        "C:/VulkanSDK/1.3.268.0/Include",
     }
 
     libdirs
 	{
-		"C:/VulkanSDK/1.3.261.1/Lib"
 	}
 
     links
     {
-        "vulkan-1.lib",
         "glfw",
         "AssetLib",
     }
@@ -40,6 +39,7 @@ project "VulkanRenderer"
 		"_CRT_SECURE_NO_WARNINGS",
 		"GLFW_INCLUDE_NONE",
         "TRACY_ENABLE",
+        "VK_NO_PROTOTYPES",
 	}
 
 
@@ -48,18 +48,10 @@ project "VulkanRenderer"
 		symbols "on"
 		defines { "VULKAN_VAL_LAYERS" }
         links {
-            "shadercd.lib",
-            "shaderc_combinedd.lib", 
-            "shaderc_sharedd.lib", 
-            "shaderc_utild.lib",
         }
 
 	filter "configurations:Release"
 		runtime "Release"
 		optimize "on"
         links {
-            "shaderc.lib",
-            "shaderc_combined.lib", 
-            "shaderc_shared.lib", 
-            "shaderc_util.lib",
         }

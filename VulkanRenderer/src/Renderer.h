@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
@@ -69,15 +69,32 @@ struct ComputeDepthPyramidData
     std::unique_ptr<DepthPyramid> DepthPyramid;
 };
 
-struct FrameContext
+struct AsyncCullContext
 {
     CommandPool CommandPool;
     CommandBuffer CommandBuffer;
+
+    TimelineSemaphore CulledSemaphore;
+    TimelineSemaphore RenderedSemaphore;
+};
+
+struct FrameContext
+{
+    AsyncCullContext AsyncCullContext;
+
+    CommandBufferArray GraphicsCommandBuffers{QueueKind::Graphics, false};
+    CommandBufferArray ComputeCommandBuffers{QueueKind::Compute, false};
+    
+    CommandPool CommandPool;
+    std::vector<CommandBuffer> CommandBuffers;
+    u32 CommandBufferIndex{0};
     
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
 
     glm::uvec2 Resolution;
+    
+    CommandBuffer TracyProfilerBuffer;
 };
 
 enum class DisocclusionKind { Triangles = BIT(1), Meshlets = BIT(2) };
@@ -99,11 +116,8 @@ public:
 
     void Dispatch(const ComputeDispatch& dispatch);
 
-    void CullCompute(const Scene& scene);
-    void SecondaryCullCompute(const Scene& scene, DisocclusionKind disocclusionKind);
     void Submit(const Scene& scene);
     void SortScene(Scene& scene);
-    void PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description);
 
     template <typename Fn>
     void ImmediateUpload(Fn&& uploadFunction) const;
@@ -119,8 +133,10 @@ private:
     void ComputeDepthPyramid();
 
     void SceneVisibilityPass();
-    void PrimaryScenePass();
-    void SecondaryScenePass(DisocclusionKind disocclusionKind);
+    void PrimaryScenePassNew();
+
+    RenderingInfo GetClearRenderingInfo();
+    RenderingInfo GetLoadRenderingInfo();
 
     void OnWindowResize();
     void RecreateSwapchain();
@@ -163,6 +179,7 @@ private:
     VisibilityPass m_VisibilityPass;
 
     SceneCull m_SceneCull;
+    u32 m_CullBatchCount{0};
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

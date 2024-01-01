@@ -1,0 +1,11 @@
+#version 460
+
+layout(local_size_x = 1) in;
+
+layout(set = 0, binding = 0) writeonly buffer count_buffer {
+    uint count;
+} u_count_buffer;
+
+void main() {
+    u_count_buffer.count = 0;
+}

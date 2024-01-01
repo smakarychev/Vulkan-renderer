@@ -30,14 +30,6 @@ struct Material {
     uint pad2;
 };
 
-layout(std430, set = 1, binding = 1) readonly buffer triangle_buffer {
-    uint triangles[];
-} u_triangle_buffer;
-
-layout(std430, set = 2, binding = 1) readonly buffer material_buffer{
-    Material materials[];
-} u_material_buffer;
-
 struct IndirectCommand {
     uint indexCount;
     uint instanceCount;
@@ -48,9 +40,20 @@ struct IndirectCommand {
     uint render_object;
 };
 
+layout(std430, set = 2, binding = 1) readonly buffer material_buffer{
+    Material materials[];
+} u_material_buffer;
+
+@dynamic
 layout(std430, set = 2, binding = 2) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_command_buffer;
+
+@dynamic
+layout(std430, set = 2, binding = 3) readonly buffer triangle_buffer {
+    uint triangles[];
+} u_triangle_buffer;
+
 
 layout(location = 0) out vec4 out_color;
 
@@ -100,12 +103,12 @@ void main() {
     if (out_color.a < 0.5f)
         discard;
    
-    out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);
     
+    //out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);
     uint triangle_id = u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID];
     uint instance_id = command.firstInstance;
     uint hash = murmur3(instance_id) ^ murmur3(triangle_id);
-    //hash = murmur3(instance_id);
+    //uint hash = murmur3(instance_id);
     //hash = triangle_id;
-    out_color = vec4(hash & 255u, (hash >> 8) & 255u, (hash >> 16) & 255u, 255u) / 255;
+    //out_color = vec4(hash & 255u, (hash >> 8) & 255u, (hash >> 16) & 255u, 255u) / 255;
 }

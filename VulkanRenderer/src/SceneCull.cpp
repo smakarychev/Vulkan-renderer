@@ -1,4 +1,4 @@
-﻿#include "SceneCull.h"
+#include "SceneCull.h"
 
 #include "Renderer.h"
 #include "ResourceUploader.h"
@@ -20,7 +20,6 @@ void SceneCullBuffers::Init()
 
     Buffer::Builder ssboIndirectBuilder = Buffer::Builder()
         .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(IndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
     
     m_CullDataUBO.Buffer = uboBuilder
@@ -30,40 +29,65 @@ void SceneCullBuffers::Init()
         .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<SceneCullDataExtended>(BUFFERED_FRAMES))
         .Build();
     
-    m_CountBuffers.VisibleMeshlets = ssboBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<u32>(BUFFERED_FRAMES))
-        .Build();
-    m_CountBuffers.OccludedMeshlets = ssboBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<u32>(BUFFERED_FRAMES))
-        .Build();
-    m_CountBuffers.VisibleMeshes = ssboBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<u32>(BUFFERED_FRAMES))
+
+    u32 maxBatchDispatches = MAX_DRAW_INDIRECT_CALLS / (CullDrawBatch::MAX_COMMANDS * SUB_BATCH_COUNT);
+    
+    m_BatchIndirectDispatches = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(maxBatchDispatches * BUFFERED_FRAMES))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    m_CountBuffers.OccludedTriangles = Buffer::Builder()
+    m_BatchClearIndirectDispatches = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(maxBatchDispatches * BUFFERED_FRAMES))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
+    m_CompactedCommands = ssboIndirectBuilder
+        .SetSizeBytes(sizeof(IndirectCommand) * MAX_COMMAND_COUNT)
+        .Build();
+
+    m_CompactedBatchCommands = ssboIndirectBuilder
+        .SetSizeBytes(sizeof(IndirectCommand) *  CullDrawBatch::MAX_COMMANDS * SUB_BATCH_COUNT * CULL_DRAW_BATCH_OVERLAP)
+        .Build();
+
+    m_CountBuffers.VisibleMeshlets = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<u32>(BUFFERED_FRAMES))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT)
+        .Build();
+    m_VisibleMeshletCountBufferMappedAddress = m_CountBuffers.VisibleMeshlets.Map();
+
+    m_VisibilityBuffers.MeshVisibility = Buffer::Builder()
         .SetKinds({BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(u32) * MAX_DRAW_INDIRECT_CALLS)
+        .SetSizeBytes(MAX_OBJECTS * sizeof(u16))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    m_IndirectDispatch = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(BUFFERED_FRAMES))
+    m_VisibilityBuffers.MeshletVisibility = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(MAX_DRAW_INDIRECT_CALLS * sizeof(u16))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
-
-    m_UncompactedCommands = ssboIndirectBuilder.Build();
-
-    m_UncompactedCommandCount = ssboBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<u32>(BUFFERED_FRAMES))
+    
+    m_VisibilityBuffers.TriangleVisibility = Buffer::Builder()
+        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetSizeBytes(sizeof(u64) * MAX_DRAW_INDIRECT_CALLS)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
+}
+
+void SceneCullBuffers::Shutdown()
+{
+    m_CountBuffers.VisibleMeshlets.Unmap();
 }
 
 void SceneCullBuffers::Update(const Camera& camera, const DepthPyramid* depthPyramid,  ResourceUploader& resourceUploader, const FrameContext& frameContext)
 {
     auto& sceneCullData = m_CullDataUBO.SceneData;
     auto& sceneCullDataExtended = m_CullDataUBOExtended.SceneData;
-     bool once = true;
+    bool once = true;
     if (once)
     {
         sceneCullData.FrustumPlanes = camera.GetFrustumPlanes();
@@ -90,161 +114,489 @@ void SceneCullBuffers::Update(const Camera& camera, const DepthPyramid* depthPyr
         sizeof(sceneCullDataExtended), vkUtils::alignUniformBufferSizeBytes(sizeof(sceneCullDataExtended)) * frameContext.FrameNumber);
 }
 
+u32 SceneCullBuffers::GetVisibleMeshletsCountValue(u32 frameNumber) const
+{
+    u8* byteAddress = (u8*)(m_VisibleMeshletCountBufferMappedAddress);
+    byteAddress += vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameNumber;
+    return *(u32*)byteAddress;
+}
+
+
+CullDrawBatch::CullDrawBatch()
+{
+    m_Count = Buffer::Builder()
+        .SetKinds({BufferKind::Indirect, BufferKind::Storage})
+        .SetSizeBytes(sizeof(u32))
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .BuildManualLifetime();
+
+    m_Indices = Buffer::Builder()
+        .SetKinds({BufferKind::Index, BufferKind::Storage})
+        .SetSizeBytes(MAX_INDICES * sizeof(assetLib::ModelInfo::IndexType) * m_SubBatchCount)
+        .BuildManualLifetime();
+}
+
+CullDrawBatch::~CullDrawBatch()
+{
+    Buffer::Destroy(m_Count);
+    Buffer::Destroy(m_Indices);
+}
+
+SceneBatchCull::SceneBatchCull(Scene& scene, SceneCullBuffers& sceneCullBuffers)
+{
+    m_Scene = &scene;
+    m_SceneCullBuffers = &sceneCullBuffers;
+
+    m_ComputeWRBarrierBase = {
+        .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_READ_BIT};
+
+    m_IndirectWRBarrierBase = {
+        .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
+
+    for (auto& batch : m_CullDrawBatches)
+        batch = std::make_unique<CullDrawBatch>();
+
+    m_MaxBatchDispatches = MAX_DRAW_INDIRECT_CALLS / m_CullDrawBatches.front()->GetCommandCount() + 1;
+}
+
+void SceneBatchCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+{
+    InitBatchCull(scene, allocator, layoutCache);
+}
+
+void SceneBatchCull::Shutdown()
+{
+    if (m_CullIsInitialized)
+        DestroyDescriptors();
+
+    for (auto& batch : m_CullDrawBatches)
+        batch.reset();
+}
+
+void SceneBatchCull::SetDepthPyramid(const DepthPyramid& depthPyramid, const Buffer& triangles, u64 trianglesSizeBytes, u64 trianglesOffset)
+{
+    if (m_CullIsInitialized)
+        DestroyDescriptors();
+    else
+        m_CullIsInitialized = true;
+
+    for (u32 i = 0; i < CULL_DRAW_BATCH_OVERLAP; i++)
+    {
+        auto& batchData = m_CullDrawBatchData[i];
+
+        batchData.TriangleCull.DescriptorSet = ShaderDescriptorSet::Builder()
+            .SetTemplate(batchData.TriangleCull.Template)
+            .AddBinding("u_scene_data", m_SceneCullBuffers->GetCullDataExtended(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
+            .AddBinding("u_depth_pyramid", {
+                .View = depthPyramid.GetTexture().GetImageData().View,
+                .Sampler = depthPyramid.GetSampler(),
+                .Layout = VK_IMAGE_LAYOUT_GENERAL})
+            .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
+            .AddBinding("u_meshlet_visibility_buffer", m_SceneCullBuffers->GetMeshletVisibility())
+            .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
+            .AddBinding("u_indices_buffer", m_Scene->GetIndicesBuffer())
+            .AddBinding("u_culled_indices_buffer", m_CullDrawBatches[i]->GetIndices())
+            .AddBinding("u_visible_triangles_buffer", m_SceneCullBuffers->GetTriangleVisibility())
+            .AddBinding("u_triangle_buffer", triangles, trianglesSizeBytes, trianglesOffset)
+            .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
+            .AddBinding("u_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
+            .BuildManualLifetime();
+
+        batchData.TriangleCullReocclusion.DescriptorSet = ShaderDescriptorSet::Builder()
+            .SetTemplate(batchData.TriangleCullReocclusion.Template)
+            .AddBinding("u_scene_data", m_SceneCullBuffers->GetCullDataExtended(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
+            .AddBinding("u_depth_pyramid", {
+                .View = depthPyramid.GetTexture().GetImageData().View,
+                .Sampler = depthPyramid.GetSampler(),
+                .Layout = VK_IMAGE_LAYOUT_GENERAL})
+            .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
+            .AddBinding("u_meshlet_visibility_buffer", m_SceneCullBuffers->GetMeshletVisibility())
+            .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
+            .AddBinding("u_indices_buffer", m_Scene->GetIndicesBuffer())
+            .AddBinding("u_culled_indices_buffer", m_CullDrawBatches[i]->GetIndices())
+            .AddBinding("u_visible_triangles_buffer", m_SceneCullBuffers->GetTriangleVisibility())
+            .AddBinding("u_triangle_buffer", triangles, trianglesSizeBytes, trianglesOffset)
+            .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
+            .AddBinding("u_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
+            .BuildManualLifetime();
+    }
+}
+
+void SceneBatchCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext)
+{
+    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
+    
+    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
+    u32 dispatchIndirectOffset = (u32)vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(m_MaxBatchDispatches) * frameContext.FrameNumber;
+
+    std::vector<u32> pushConstants = {
+        m_CullDrawBatches[m_CurrentBatch]->GetCommandCount(),
+        assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
+        Driver::GetSubgroupSize(),
+        m_MaxBatchDispatches};
+    PushConstantDescription pushConstantDescription = m_PrepareIndirectDispatches.Pipeline.GetPushConstantDescription();
+    
+    m_PrepareIndirectDispatches.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    m_PrepareIndirectDispatches.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_PrepareIndirectDispatches.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, dispatchIndirectOffset});
+    RenderCommand::PushConstants(cmd, m_PrepareIndirectDispatches.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
+    RenderCommand::Dispatch(cmd, {m_MaxBatchDispatches / 64 + 1, 1, 1});
+
+    pushConstants = {
+        m_CullDrawBatches[m_CurrentBatch]->GetCommandCount(),
+        1,
+        Driver::GetSubgroupSize(),
+        m_MaxBatchDispatches};
+    pushConstantDescription = m_PrepareCompactIndirectDispatches.Pipeline.GetPushConstantDescription();
+    m_PrepareCompactIndirectDispatches.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    m_PrepareCompactIndirectDispatches.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_PrepareCompactIndirectDispatches.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, dispatchIndirectOffset});
+    RenderCommand::PushConstants(cmd, m_PrepareCompactIndirectDispatches.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
+    RenderCommand::Dispatch(cmd, {m_MaxBatchDispatches / 64 + 1, 1, 1});
+
+    m_IndirectWRBarrierBase.Buffer = &m_SceneCullBuffers->GetBatchIndirectDispatches();
+    RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
+
+    m_IndirectWRBarrierBase.Buffer = &m_SceneCullBuffers->GetBatchCompactIndirectDispatches();
+    RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
+}
+
+void SceneBatchCull::CullTriangles(const FrameContext& frameContext, const CullSettings& cullSettings)
+{
+    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
+
+    ComputeBatchData& batchData = m_CullDrawBatchData[m_CurrentBatch];
+    CullDrawBatch& batch = *m_CullDrawBatches[m_CurrentBatch];
+    u32 commandCount = batch.GetCommandCount();
+
+    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(m_MaxBatchDispatches) * frameContext.FrameNumber;
+    dispatchIndirectOffset += sizeof(VkDispatchIndirectCommand) * m_CurrentBatchFlat;
+    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
+    u32 commandOffset = commandCount * m_CurrentBatchFlat;
+    u32 compactedCommandsOffsetBytes = (u32)GetDrawCommandsSizeBytes() * m_CurrentBatch;
+    
+    std::vector<u32> pushConstants {commandCount, commandOffset, SceneCullBuffers::MAX_COMMAND_COUNT};
+    
+    ComputePipelineData& batchClearCommands = batchData.ClearCommands;
+
+    PushConstantDescription pushConstantDescription = batchClearCommands.Pipeline.GetPushConstantDescription();
+    batchClearCommands.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    batchClearCommands.DescriptorSet.Bind(cmd, DescriptorKind::Global, batchClearCommands.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {compactedCommandsOffsetBytes, countOffset});
+    RenderCommand::PushConstants(cmd, batchClearCommands.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
+    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers->GetBatchCompactIndirectDispatches(), dispatchIndirectOffset);
+
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers->GetCompactedCommands();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+
+    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullDataExtended)) * frameContext.FrameNumber;
+    u32 triangleOffset = (u32)batch.GetTrianglesSizeBytes() * m_CurrentBatch;
+    
+    ComputePipelineData& pipelineData = cullSettings.Reocclusion ? batchData.TriangleCullReocclusion : batchData.TriangleCull;
+    
+    glm::uvec2 resolution = frameContext.Resolution;
+    pushConstantDescription = pipelineData.Pipeline.GetPushConstantDescription();
+
+    pipelineData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    pipelineData.DescriptorSet.Bind(cmd, DescriptorKind::Global, pipelineData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset, triangleOffset, countOffset});
+
+    // assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize()
+    for (u32 i = 0; i < assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize(); i++)
+    {
+        std::vector<u32> pushConstantsCull(pushConstantDescription.GetSizeBytes() / sizeof(u32));
+        pushConstantsCull[0] = resolution.x; 
+        pushConstantsCull[1] = resolution.y; 
+        pushConstantsCull[2] = i * Driver::GetSubgroupSize(); 
+        pushConstantsCull[3] = commandOffset;   
+        pushConstantsCull[4] = commandCount; 
+        pushConstantsCull[5] = SceneCullBuffers::MAX_COMMAND_COUNT; 
+        RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), pushConstantsCull.data(), pushConstantDescription);
+        RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers->GetBatchIndirectDispatches(), dispatchIndirectOffset);
+    }
+
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers->GetCompactedCommands();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+
+    m_ComputeWRBarrierBase.Buffer = &batch.GetIndices();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+
+    ComputePipelineData& batchClear = batchData.ClearCount;
+    batchClear.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    batchClear.DescriptorSet.Bind(cmd, DescriptorKind::Global, batchClear.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {0});
+    RenderCommand::Dispatch(cmd, {1, 1, 1});
+        
+    m_ComputeWRBarrierBase.Buffer = &batch.GetCountBuffer();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    
+    ComputePipelineData& batchCompact = batchData.CompactCommands;
+    
+    pushConstantDescription = batchCompact.Pipeline.GetPushConstantDescription();
+    pushConstants = {commandCount, commandOffset, SceneCullBuffers::MAX_COMMAND_COUNT};
+
+    batchCompact.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    batchCompact.DescriptorSet.Bind(cmd, DescriptorKind::Global, batchCompact.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {compactedCommandsOffsetBytes, countOffset});
+    RenderCommand::PushConstants(cmd, batchCompact.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
+    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers->GetBatchCompactIndirectDispatches(), dispatchIndirectOffset);
+    
+    m_ComputeWRBarrierBase.Buffer = &batch.GetCountBuffer();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers->GetCompactedBatchCommands();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+}
+
+void SceneBatchCull::NextSubBatch()
+{
+    m_CurrentBatchFlat++;
+    m_CurrentBatch = (m_CurrentBatchFlat) % CULL_DRAW_BATCH_OVERLAP;
+}
+
+void SceneBatchCull::ResetSubBatches()
+{
+    m_CurrentBatchFlat = 0;
+    m_CurrentBatch = 0;
+}
+
+const Buffer& SceneBatchCull::GetDrawCount() const
+{
+    return m_CullDrawBatches[m_CurrentBatch]->GetCountBuffer();
+}
+
+u32 SceneBatchCull::ReadBackBatchCount(const FrameContext& frameContext) const
+{
+    return (u32)std::ceil(
+        (f32)m_SceneCullBuffers->GetVisibleMeshletsCountValue(frameContext.FrameNumber) /
+        (f32)m_CullDrawBatches[m_CurrentBatch]->GetCommandCount());    
+}
+
+void SceneBatchCull::DestroyDescriptors()
+{
+    for (u32 i = 0; i < CULL_DRAW_BATCH_OVERLAP; i++)
+    {
+        auto& batchData = m_CullDrawBatchData[i];
+        ShaderDescriptorSet::Destroy(batchData.TriangleCull.DescriptorSet);
+        ShaderDescriptorSet::Destroy(batchData.TriangleCullReocclusion.DescriptorSet);
+    }
+}
+
+void SceneBatchCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+{
+    auto& firstBatchData = m_CullDrawBatchData.front();
+
+    firstBatchData.TriangleCull.Template = sceneUtils::loadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling2/triangle-cull-amd-comp.shader"}, "triangle-cull-amd",
+        scene, allocator, layoutCache);
+
+    firstBatchData.TriangleCull.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(firstBatchData.TriangleCull.Template)
+        .Build();
+
+    firstBatchData.TriangleCullReocclusion.Template = firstBatchData.TriangleCull.Template;
+
+    firstBatchData.TriangleCullReocclusion.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(firstBatchData.TriangleCull.Template)
+        .AddSpecialization("REOCCLUSION", true)
+        .Build();
+
+    firstBatchData.CompactCommands.Template = sceneUtils::loadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling2/compact-commands-comp.shader"}, "compact-commands",
+        scene, allocator, layoutCache);
+
+    firstBatchData.CompactCommands.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(firstBatchData.CompactCommands.Template)
+        .Build();
+
+    firstBatchData.ClearCommands.Template = firstBatchData.CompactCommands.Template;
+
+    firstBatchData.ClearCommands.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(firstBatchData.ClearCommands.Template)
+        .AddSpecialization("CLEAR", true)
+        .Build();
+    
+    firstBatchData.ClearCount.Template = sceneUtils::loadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling2/clear-buffers-comp.shader"}, "clear-buffers-cull",
+        scene, allocator, layoutCache);
+
+    firstBatchData.ClearCount.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(firstBatchData.ClearCount.Template)
+        .Build();
+    
+    for (u32 i = 1; i < CULL_DRAW_BATCH_OVERLAP; i++)
+    {
+        m_CullDrawBatchData[i].TriangleCull.Template = firstBatchData.TriangleCull.Template;
+        m_CullDrawBatchData[i].TriangleCull.Pipeline = firstBatchData.TriangleCull.Pipeline;
+        
+        m_CullDrawBatchData[i].TriangleCullReocclusion.Template = firstBatchData.TriangleCullReocclusion.Template;
+        m_CullDrawBatchData[i].TriangleCullReocclusion.Pipeline = firstBatchData.TriangleCullReocclusion.Pipeline;
+        
+        m_CullDrawBatchData[i].CompactCommands.Template = firstBatchData.CompactCommands.Template;
+        m_CullDrawBatchData[i].CompactCommands.Pipeline = firstBatchData.CompactCommands.Pipeline;
+        
+        m_CullDrawBatchData[i].ClearCommands.Template = firstBatchData.ClearCommands.Template;
+        m_CullDrawBatchData[i].ClearCommands.Pipeline = firstBatchData.ClearCommands.Pipeline;
+
+        m_CullDrawBatchData[i].ClearCount.Template = firstBatchData.ClearCount.Template;
+        m_CullDrawBatchData[i].ClearCount.Pipeline = firstBatchData.ClearCount.Pipeline;
+    }
+    
+    for (u32 i = 0; i < CULL_DRAW_BATCH_OVERLAP; i++)
+    {
+        auto& batchData = m_CullDrawBatchData[i];
+
+        batchData.CompactCommands.DescriptorSet = ShaderDescriptorSet::Builder()
+            .SetTemplate(batchData.CompactCommands.Template)
+            .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
+            .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers->GetCompactedBatchCommands(),
+                GetDrawCommandsSizeBytes(), 0)
+            .AddBinding("u_command_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
+            .AddBinding("u_compacted_command_count_buffer", m_CullDrawBatches[i]->GetCountBuffer())
+            .Build();
+
+        batchData.ClearCommands.DescriptorSet = ShaderDescriptorSet::Builder()
+            .SetTemplate(batchData.CompactCommands.Template)
+            .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
+            .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers->GetCompactedBatchCommands(),
+                GetDrawCommandsSizeBytes(), 0)
+            .AddBinding("u_command_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
+            .AddBinding("u_compacted_command_count_buffer", m_CullDrawBatches[i]->GetCountBuffer())
+            .Build();
+
+        batchData.ClearCount.DescriptorSet = ShaderDescriptorSet::Builder()
+            .SetTemplate(batchData.ClearCount.Template)
+            .AddBinding("u_count_buffer", m_CullDrawBatches[i]->GetCountBuffer())
+            .Build();
+    }
+
+    m_PrepareIndirectDispatches.Template = sceneUtils::loadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling2/prepare-indirect-dispatches-comp.shader"}, "prepare-batch-indirect-dispatch",
+        scene, allocator, layoutCache);
+
+    m_PrepareIndirectDispatches.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_PrepareIndirectDispatches.Template)
+        .Build();
+
+    m_PrepareIndirectDispatches.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_PrepareIndirectDispatches.Template)
+        .AddBinding("u_command_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
+        .AddBinding("u_indirect_dispatch_buffer", m_SceneCullBuffers->GetBatchIndirectDispatches(), m_MaxBatchDispatches * sizeof(VkDispatchIndirectCommand), 0)
+        .Build();
+
+    m_PrepareCompactIndirectDispatches.Template = m_PrepareIndirectDispatches.Template;
+
+    m_PrepareCompactIndirectDispatches.Pipeline = m_PrepareIndirectDispatches.Pipeline;
+
+    m_PrepareCompactIndirectDispatches.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_PrepareCompactIndirectDispatches.Template)
+        .AddBinding("u_command_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
+        .AddBinding("u_indirect_dispatch_buffer", m_SceneCullBuffers->GetBatchCompactIndirectDispatches(), m_MaxBatchDispatches * sizeof(VkDispatchIndirectCommand), 0)
+        .Build();
+}
+
 void SceneCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
     m_Scene = &scene;
     m_SceneCullBuffers.Init();
 
+    m_SceneBatchCull = std::make_unique<SceneBatchCull>(scene, m_SceneCullBuffers);
+
+    m_TrianglesOffsetBase = vkUtils::alignUniformBufferSizeBytes(GetBatchCull().GetCullDrawBatch().GetTrianglesSizeBytes());
+    m_Triangles = Buffer::Builder()
+        .SetKinds({BufferKind::Storage})
+        .SetSizeBytes(m_TrianglesOffsetBase * CULL_DRAW_BATCH_OVERLAP)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .Build();
+
+    m_SceneBatchCull->Init(scene, allocator, layoutCache);
+
     InitBarriers();
     
-    InitClearBuffers(scene, allocator, layoutCache);
-
     InitMeshCull(scene, allocator, layoutCache);
     InitMeshletCull(scene, allocator, layoutCache);
-    InitMeshCompact(scene, allocator, layoutCache);
-    InitMeshletCompact(scene, allocator, layoutCache);
-    InitPrepareIndirectDispatch(scene, allocator, layoutCache);
-
-    InitMeshCullSecondary(scene, allocator, layoutCache);
-    InitMeshletCullSecondary(scene, allocator, layoutCache);
-    InitMeshCompactSecondary(scene, allocator, layoutCache);
-    InitMeshletCompactSecondary(scene, allocator, layoutCache);
-    
-    InitTriangleClearCullCommands(scene, allocator, layoutCache);
-    InitTriangleCullCompact(scene, allocator, layoutCache);
-    InitTriangleCullCompactSecondary(scene, allocator, layoutCache);
-    InitTriangleCullCompactTertiary(scene, allocator, layoutCache);
-
-    InitFinalIndirectBufferCompact(scene, allocator, layoutCache);
 }
 
-void SceneCull::ShutDown()
+void SceneCull::Shutdown()
 {
+    m_SceneCullBuffers.Shutdown();
     if (m_CullIsInitialized)
-    {
         DestroyDescriptors();
-    }
+
+    m_SceneBatchCull->Shutdown();
 }
 
 void SceneCull::DestroyDescriptors()
 {
-    ShaderDescriptorSet::Destroy(m_MeshletCullData.DescriptorSet);
-    ShaderDescriptorSet::Destroy(m_MeshCullData.DescriptorSet);
-
-    ShaderDescriptorSet::Destroy(m_MeshCullSecondaryData.DescriptorSet);
-    ShaderDescriptorSet::Destroy(m_MeshletCullSecondaryData.DescriptorSet);
-
-    ShaderDescriptorSet::Destroy(m_TriangleCullCompactData.DescriptorSet);
-    ShaderDescriptorSet::Destroy(m_TriangleCullCompactSecondaryData.DescriptorSet);
-    ShaderDescriptorSet::Destroy(m_TriangleCullCompactTertiaryData.DescriptorSet);
+    ShaderDescriptorSet::Destroy(m_MeshCull.DescriptorSet);
+    ShaderDescriptorSet::Destroy(m_MeshCullReocclusion.DescriptorSet);
+    ShaderDescriptorSet::Destroy(m_MeshletCull.DescriptorSet);
+    ShaderDescriptorSet::Destroy(m_MeshletCullReocclusion.DescriptorSet);
 }
 
 void SceneCull::SetDepthPyramid(const DepthPyramid& depthPyramid)
 {
     m_DepthPyramid = &depthPyramid;
 
+    m_SceneBatchCull->SetDepthPyramid(depthPyramid, m_Triangles, m_TrianglesOffsetBase, 0);
+
     if (m_CullIsInitialized)
         DestroyDescriptors();
     else
         m_CullIsInitialized = true;
     
-    m_MeshCullData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshCullData.Template)
-        .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
-        .AddBinding("u_object_visibility_buffer", m_Scene->GetRenderObjectsVisibilityBuffer())
+    m_MeshCull.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_MeshCull.Template)
         .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullData(), sizeof(SceneCullBuffers::SceneCullData), 0)
         .AddBinding("u_depth_pyramid", {
             .View = depthPyramid.GetTexture().GetImageData().View,
             .Sampler = depthPyramid.GetSampler(),
             .Layout = VK_IMAGE_LAYOUT_GENERAL})
-        .BuildManualLifetime();
-    
-    m_MeshletCullData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshletCullData.Template)
-        .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullData(), sizeof(SceneCullBuffers::SceneCullData), 0)
         .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
+        .AddBinding("u_object_visibility_buffer", m_SceneCullBuffers.GetMeshVisibility())
+        .BuildManualLifetime();
+
+    m_MeshCullReocclusion.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_MeshCullReocclusion.Template)
+        .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullData(), sizeof(SceneCullBuffers::SceneCullData), 0)
+        .AddBinding("u_depth_pyramid", {
+            .View = depthPyramid.GetTexture().GetImageData().View,
+            .Sampler = depthPyramid.GetSampler(),
+            .Layout = VK_IMAGE_LAYOUT_GENERAL})
+        .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
+        .AddBinding("u_object_visibility_buffer", m_SceneCullBuffers.GetMeshVisibility())
+        .BuildManualLifetime();
+
+    m_MeshletCull.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_MeshletCull.Template)
+        .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullData(), sizeof(SceneCullBuffers::SceneCullData), 0)
+        .AddBinding("u_depth_pyramid", {
+            .View = depthPyramid.GetTexture().GetImageData().View,
+            .Sampler = depthPyramid.GetSampler(),
+            .Layout = VK_IMAGE_LAYOUT_GENERAL})
+        .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
+        .AddBinding("u_object_visibility_buffer", m_SceneCullBuffers.GetMeshVisibility())
         .AddBinding("u_meshlet_buffer", m_Scene->GetMeshletsBuffer())
-        .AddBinding("u_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleMeshCount(), sizeof(u32), 0)
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
-        .BuildManualLifetime();
-    
-    m_MeshCullSecondaryData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshCullData.Template)
-        .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullData(), sizeof(SceneCullBuffers::SceneCullData), 0)
-        .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
-        .AddBinding("u_object_visibility_buffer", m_Scene->GetRenderObjectsVisibilityBuffer())
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
+        .AddBinding("u_meshlet_visibility_buffer", m_SceneCullBuffers.GetMeshletVisibility())
+        .AddBinding("u_command_buffer", m_Scene->GetMeshletsIndirectBuffer())
+        .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers.GetCompactedCommands())
+        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleMeshletCount(), sizeof(u32), 0)
         .BuildManualLifetime();
 
-    m_MeshletCullSecondaryData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshletCullSecondaryData.Template)
+    m_MeshletCullReocclusion.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_MeshletCullReocclusion.Template)
         .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullData(), sizeof(SceneCullBuffers::SceneCullData), 0)
+        .AddBinding("u_depth_pyramid", {
+            .View = depthPyramid.GetTexture().GetImageData().View,
+            .Sampler = depthPyramid.GetSampler(),
+            .Layout = VK_IMAGE_LAYOUT_GENERAL})
         .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
+        .AddBinding("u_object_visibility_buffer", m_SceneCullBuffers.GetMeshVisibility())
         .AddBinding("u_meshlet_buffer", m_Scene->GetMeshletsBuffer())
-        .AddBinding("u_command_buffer", m_Scene->GetMeshletsIndirectFinalBuffer())
-        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetOccludedMeshletCount(), sizeof(u32), 0)
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
-        .BuildManualLifetime();
-
-    m_TriangleCullCompactData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_TriangleCullCompactData.Template)
-        .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullDataExtended(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
-        .AddBinding("u_command_buffer", m_Scene->GetMeshletsIndirectFinalBuffer())
-        .AddBinding("u_final_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_command_count_buffer", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
-        .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
-        .AddBinding("u_indices_buffer", m_Scene->GetIndicesBuffer())
-        .AddBinding("u_culled_indices_buffer", m_Scene->GetIndicesCompactBuffer())
-        .AddBinding("u_occluded_triangle_count_buffer", m_SceneCullBuffers.GetOccludedTriangleCounts())
-        .AddBinding("u_triangle_buffer", m_Scene->GetTrianglesCompactBuffer())
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
-        .BuildManualLifetime();
-
-    m_TriangleCullCompactSecondaryData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_TriangleCullCompactSecondaryData.Template)
-        .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullDataExtended(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
-        .AddBinding("u_final_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_command_count_buffer", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
-        .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
-        .AddBinding("u_culled_indices_buffer", m_Scene->GetIndicesCompactBuffer())
-        .AddBinding("u_occluded_triangle_count_buffer", m_SceneCullBuffers.GetOccludedTriangleCounts())
-        .AddBinding("u_triangle_buffer", m_Scene->GetTrianglesCompactBuffer())
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
-        .BuildManualLifetime();
-
-    m_TriangleCullCompactTertiaryData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_TriangleCullCompactTertiaryData.Template)
-        .AddBinding("u_scene_data", m_SceneCullBuffers.GetCullDataExtended(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
-        .AddBinding("u_command_buffer", m_Scene->GetMeshletsIndirectFinalBuffer())
-        .AddBinding("u_final_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_command_count_buffer", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
-        .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
-        .AddBinding("u_indices_buffer", m_Scene->GetIndicesBuffer())
-        .AddBinding("u_culled_indices_buffer", m_Scene->GetIndicesCompactBuffer())
-        .AddBinding("u_triangle_buffer", m_Scene->GetTrianglesCompactBuffer())
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
+        .AddBinding("u_meshlet_visibility_buffer", m_SceneCullBuffers.GetMeshletVisibility())
+        .AddBinding("u_command_buffer", m_Scene->GetMeshletsIndirectBuffer())
+        .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers.GetCompactedCommands())
+        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleMeshletCount(), sizeof(u32), 0)
         .BuildManualLifetime();
 }
 
@@ -253,395 +605,146 @@ void SceneCull::UpdateBuffers(const Camera& camera, ResourceUploader& resourceUp
     m_SceneCullBuffers.Update(camera, m_DepthPyramid, resourceUploader, frameContext);
 }
 
-void SceneCull::ResetCullBuffers(const FrameContext& frameContext)
+void SceneCull::CullMeshesNew(const FrameContext& frameContext, bool reocclusion)
 {
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-
-    m_ClearBuffersData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_ClearBuffersData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_ClearBuffersData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, countOffset, countOffset, countOffset});
-    RenderCommand::Dispatch(cmd, {1, 1, 1});
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommandCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-    
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshletCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetOccludedMeshletCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-}
-
-void SceneCull::ResetSecondaryCullBuffers(const FrameContext& frameContext, u32 clearIndex)
-{
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-
-    PushConstantDescription pushConstantDescription = m_ClearSecondaryBufferData.Pipeline.GetPushConstantDescription();
-    
-    m_ClearSecondaryBufferData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_ClearSecondaryBufferData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_ClearSecondaryBufferData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, countOffset});
-    RenderCommand::PushConstants(cmd, m_ClearSecondaryBufferData.Pipeline.GetPipelineLayout(), &clearIndex, pushConstantDescription);
-    RenderCommand::Dispatch(cmd, {1, 1, 1});
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshletCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommandCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-}
-
-void SceneCull::CullMeshes(const FrameContext& frameContext)
-{
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
+    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
 
     u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * frameContext.FrameNumber;
 
     u32 count = (u32)m_Scene->GetRenderObjects().size();
-    PushConstantDescription pushConstantDescription = m_MeshCullData.Pipeline.GetPushConstantDescription();
-    
-    m_MeshCullData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshCullData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshCullData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset});
-    RenderCommand::PushConstants(cmd, m_MeshCullData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
+
+    ComputePipelineData& pipelineData = reocclusion ? m_MeshCullReocclusion : m_MeshCull;
+
+    PushConstantDescription pushConstantDescription = pipelineData.Pipeline.GetPushConstantDescription();
+    pipelineData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    pipelineData.DescriptorSet.Bind(cmd, DescriptorKind::Global, pipelineData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset});
+    RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
     RenderCommand::Dispatch(cmd, {count / 64 + 1, 1, 1});
 
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetRenderObjectsVisibilityBuffer();
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetMeshVisibility();
     RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
 }
 
-void SceneCull::CullMeshlets(const FrameContext& frameContext)
+void SceneCull::CullMeshletsNew(const FrameContext& frameContext, bool reocclusion)
 {
-    PerformIndirectDispatchBufferPrepare(frameContext, 64, 1, 0);
+    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
     
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-    
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * frameContext.FrameNumber;
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
-    
-    m_MeshletCullData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshletCullData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshletCullData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset, countOffset});
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetMeshletsBuffer();
+    u32 countBufferOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
+    m_MeshletCullClear.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    m_MeshletCullClear.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshletCullClear.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countBufferOffset});
+    RenderCommand::Dispatch(cmd, {1, 1, 1});
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshletCount();
     RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-    
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-}
-
-void SceneCull::CompactMeshes(const FrameContext& frameContext)
-{
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-    
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    
-    u32 objectsCount = m_Scene->GetMeshletCount();
-    PushConstantDescription pushConstantDescription = m_MeshCompactVisibleData.Pipeline.GetPushConstantDescription();
-
-    m_MeshCompactVisibleData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshCompactVisibleData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshCompactVisibleData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset});
-    RenderCommand::PushConstants(cmd, m_MeshCompactVisibleData.Pipeline.GetPipelineLayout(), &objectsCount, pushConstantDescription);
-    RenderCommand::Dispatch(cmd, {objectsCount / 64 + 1, 1, 1});
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-}
-
-void SceneCull::CompactMeshlets(const FrameContext& frameContext)
-{
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
-    
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-
-    u32 maxCommandBufferIndex = MAX_DRAW_INDIRECT_CALLS - 1;
-    PushConstantDescription pushConstantDescription = m_MeshletCompactData.Pipeline.GetPushConstantDescription();
-    
-    m_MeshletCompactData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshletCompactData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshletCompactData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, countOffset, countOffset});
-    RenderCommand::PushConstants(cmd, m_MeshletCompactData.Pipeline.GetPipelineLayout(), &maxCommandBufferIndex, pushConstantDescription);
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetMeshletsIndirectFinalBuffer();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommandCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetOccludedMeshletCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-}
-
-void SceneCull::CullMeshesSecondary(const FrameContext& frameContext)
-{
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
 
     u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * frameContext.FrameNumber;
+    u32 count = m_Scene->GetMeshletCount();
 
-    u32 count = (u32)m_Scene->GetRenderObjects().size();
-    PushConstantDescription pushConstantDescription = m_MeshCullSecondaryData.Pipeline.GetPushConstantDescription();
-    
-    m_MeshCullSecondaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshCullSecondaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshCullSecondaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset});
-    RenderCommand::PushConstants(cmd, m_MeshCullSecondaryData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
+    ComputePipelineData& pipelineData = reocclusion ? m_MeshletCullReocclusion : m_MeshletCull;
+
+    PushConstantDescription pushConstantDescription = pipelineData.Pipeline.GetPushConstantDescription();
+    pipelineData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    pipelineData.DescriptorSet.Bind(cmd, DescriptorKind::Global, pipelineData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset, countBufferOffset});
+    RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
     RenderCommand::Dispatch(cmd, {count / 64 + 1, 1, 1});
 
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetRenderObjectsVisibilityBuffer();
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetMeshVisibility();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetCompactedCommands();
+    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+
+    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshletCount();
     RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
 }
 
-void SceneCull::CullMeshletsSecondary(const FrameContext& frameContext)
+const SceneCullBuffers& SceneCull::GetSceneCullBuffers() const
 {
-    PerformIndirectDispatchBufferPrepare(frameContext, 64, 1, 2);
-    
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-    
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * frameContext.FrameNumber;
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-        
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
-
-    u32 maxCommandBufferIndex = MAX_DRAW_INDIRECT_CALLS - 1;
-    PushConstantDescription pushConstantDescription = m_MeshletCullSecondaryData.Pipeline.GetPushConstantDescription();
-
-    m_MeshletCullSecondaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshletCullSecondaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshletCullSecondaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset, countOffset});
-    RenderCommand::PushConstants(cmd, m_MeshletCullSecondaryData.Pipeline.GetPipelineLayout(), &maxCommandBufferIndex, pushConstantDescription);
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetMeshletsIndirectFinalBuffer();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    return m_SceneCullBuffers;
 }
 
-void SceneCull::CompactMeshesSecondary(const FrameContext& frameContext)
+void SceneCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext)
 {
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    
-    u32 objectsCount = m_Scene->GetMeshletCount();
-    u32 maxCommandBufferIndex = MAX_DRAW_INDIRECT_CALLS - 1;
-    std::array<u32, 2> pushConstants = {objectsCount, maxCommandBufferIndex};
-    PushConstantDescription pushConstantDescription = m_MeshCompactVisibleSecondaryData.Pipeline.GetPushConstantDescription();
-
-    m_MeshCompactVisibleSecondaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshCompactVisibleSecondaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshCompactVisibleSecondaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset});
-    RenderCommand::PushConstants(cmd, m_MeshCompactVisibleSecondaryData.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
-    RenderCommand::Dispatch(cmd, {objectsCount / 64 + 1, 1, 1});
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetMeshletsIndirectFinalBuffer();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetOccludedMeshletCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    GetBatchCull().BatchIndirectDispatchesBuffersPrepare(frameContext);
 }
 
-void SceneCull::CompactMeshletsSecondary(const FrameContext& frameContext)
+const CullDrawBatch& SceneCull::GetCullDrawBatch() const
 {
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
-
-    u32 maxCommandBufferIndex = MAX_DRAW_INDIRECT_CALLS - 1;
-    PushConstantDescription pushConstantDescription = m_MeshletCompactSecondaryData.Pipeline.GetPushConstantDescription();
-    
-    m_MeshletCompactSecondaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_MeshletCompactSecondaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_MeshletCompactSecondaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, countOffset});
-    RenderCommand::PushConstants(cmd, m_MeshletCompactSecondaryData.Pipeline.GetPipelineLayout(), &maxCommandBufferIndex, pushConstantDescription);
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetMeshletsIndirectFinalBuffer();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommandCount();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    return GetBatchCull().GetCullDrawBatch();
 }
 
-void SceneCull::ClearTriangleBuffers(const FrameContext& frameContext)
+void SceneCull::NextSubBatch()
 {
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 count = m_Scene->GetMeshletCount();
-    PushConstantDescription pushConstantDescription = m_ClearTriangleCullCommandsData.Pipeline.GetPushConstantDescription();
-
-    m_ClearTriangleCullCommandsData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_ClearTriangleCullCommandsData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_ClearTriangleCullCommandsData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE);
-    RenderCommand::PushConstants(cmd, m_ClearTriangleCullCommandsData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
-    RenderCommand::Dispatch(cmd, {count / 256 + 1, 1, 1});
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetOccludedTriangleCounts();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    GetBatchCull().NextSubBatch();
 }
 
-void SceneCull::ClearTriangleBuffersSecondary(const FrameContext& frameContext)
+void SceneCull::ResetSubBatches()
 {
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 count = m_Scene->GetMeshletCount();
-    PushConstantDescription pushConstantDescription = m_ClearTriangleCullCommandsSecondaryData.Pipeline.GetPushConstantDescription();
-    
-    m_ClearTriangleCullCommandsSecondaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_ClearTriangleCullCommandsSecondaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_ClearTriangleCullCommandsSecondaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE);
-    RenderCommand::PushConstants(cmd, m_ClearTriangleCullCommandsSecondaryData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
-    RenderCommand::Dispatch(cmd, {count / 256 + 1, 1, 1});
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    GetBatchCull().ResetSubBatches();
 }
 
-void SceneCull::CullCompactTriangles(const FrameContext& frameContext)
+const Buffer& SceneCull::GetDrawCommands() const
 {
-    PerformIndirectDispatchBufferPrepare(frameContext, 1, 1, 1);
-    
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullDataExtended)) * frameContext.FrameNumber;
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
-
-    glm::uvec2 resolution = frameContext.Resolution;
-    PushConstantDescription pushConstantDescription = m_TriangleCullCompactData.Pipeline.GetPushConstantDescription();
-
-    m_TriangleCullCompactData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_TriangleCullCompactData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_TriangleCullCompactData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset, countOffset});
-
-    for (u32 i = 0; i < assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize(); i++)
-    {
-        glm::uvec3 pushConstants = {resolution.x, resolution.y, i * Driver::GetSubgroupSize()};
-        RenderCommand::PushConstants(cmd, m_TriangleCullCompactData.Pipeline.GetPipelineLayout(), &pushConstants, pushConstantDescription);
-        RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-    }
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetIndicesCompactBuffer();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetOccludedTriangleCounts();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    return m_SceneCullBuffers.GetCompactedBatchCommands();
 }
 
-void SceneCull::CullCompactTrianglesSecondary(const FrameContext& frameContext)
+const Buffer& SceneCull::GetTriangles() const
 {
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    PerformIndirectDispatchBufferPrepare(frameContext, 1, 1, 1);
-
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullDataExtended)) * frameContext.FrameNumber;
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
-
-    PushConstantDescription pushConstantDescription = m_TriangleCullCompactSecondaryData.Pipeline.GetPushConstantDescription();
-    m_TriangleCullCompactSecondaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_TriangleCullCompactSecondaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_TriangleCullCompactSecondaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset, countOffset});
-
-    for (u32 i = 0; i < assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize(); i++)
-    {
-        u32 pushConstants = i * Driver::GetSubgroupSize();
-        RenderCommand::PushConstants(cmd, m_TriangleCullCompactSecondaryData.Pipeline.GetPipelineLayout(), &pushConstants, pushConstantDescription);
-        RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-    }
-    
-    m_ComputeWRBarrierBase.Buffer =  &m_SceneCullBuffers.GetUncompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetIndicesCompactBuffer();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    return m_Triangles;
 }
 
-void SceneCull::CullCompactTrianglesTertiary(const FrameContext& frameContext)
+u64 SceneCull::GetTrianglesSizeBytes() const
 {
-    PerformIndirectDispatchBufferPrepare(frameContext, 1, 1, 1);
-    
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullDataExtended)) * frameContext.FrameNumber;
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
-
-    glm::uvec2 resolution = frameContext.Resolution;
-    PushConstantDescription pushConstantDescription = m_TriangleCullCompactTertiaryData.Pipeline.GetPushConstantDescription();
-
-    m_TriangleCullCompactTertiaryData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_TriangleCullCompactTertiaryData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_TriangleCullCompactTertiaryData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {sceneCullOffset, countOffset});
-
-    for (u32 i = 0; i < assetLib::ModelInfo::TRIANGLES_PER_MESHLET / Driver::GetSubgroupSize(); i++)
-    {
-        glm::uvec3 pushConstants = {resolution.x, resolution.y, i * Driver::GetSubgroupSize()};
-        RenderCommand::PushConstants(cmd, m_TriangleCullCompactTertiaryData.Pipeline.GetPipelineLayout(), &pushConstants, pushConstantDescription);
-        RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-    }
-    
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetUncompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_Scene->GetIndicesCompactBuffer();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    return GetBatchCull().GetTrianglesSizeBytes();
 }
 
-void SceneCull::CompactCommands(const FrameContext& frameContext)
+u64 SceneCull::GetDrawCommandsSizeBytes() const
 {
-    PerformIndirectDispatchBufferPrepare(frameContext, 64, 1, 1);
+    return GetBatchCull().GetDrawCommandsSizeBytes();
+}
 
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
+u32 SceneCull::GetMaxDrawCommandCount() const
+{
+    return GetBatchCull().GetMaxDrawCommandCount();
+}
 
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    
-    u64 dispatchIndirectOffset = vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
+u64 SceneCull::GetDrawCommandsOffset() const
+{
+    return GetBatchCull().GetDrawCommandsOffset();
+}
 
-    m_CompactFinalIndirectBufferData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_CompactFinalIndirectBufferData.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_CompactFinalIndirectBufferData.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, countOffset});
-    RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers.GetIndirectDispatch(), dispatchIndirectOffset);
-
-    m_IndirectWRBarrierBase.Buffer = &m_Scene->GetMeshletsIndirectFinalBuffer();
-    RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
-
-    m_IndirectWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshletCount();
-    RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
+u64 SceneCull::GetDrawTrianglesOffset() const
+{
+    return GetBatchCull().GetTrianglesOffset();
 }
 
 const Buffer& SceneCull::GetDrawCount() const
 {
-    return m_SceneCullBuffers.GetVisibleMeshletCount();
+    return GetBatchCull().GetDrawCount();
 }
 
-void SceneCull::PerformIndirectDispatchBufferPrepare(const FrameContext& frameContext, u32 localGroupSize, u32 multiplier, u32 bufferIndex)
+u32 SceneCull::GetMaxBatchCount() const
 {
-    const CommandBuffer& cmd = frameContext.CommandBuffer;
-    
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    u32 dispatchIndirectOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(VkDispatchIndirectCommand)) * frameContext.FrameNumber;
+    return GetBatchCull().GetMaxBatchCount();
+}
 
-    std::vector<u32> pushConstants = {localGroupSize, multiplier, bufferIndex};
-    PushConstantDescription pushConstantDescription = m_PrepareIndirectDispatch.Pipeline.GetPushConstantDescription();
-    
-    m_PrepareIndirectDispatch.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-    m_PrepareIndirectDispatch.DescriptorSet.Bind(cmd, DescriptorKind::Global, m_PrepareIndirectDispatch.Pipeline.GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE, {countOffset, countOffset, countOffset, dispatchIndirectOffset});
-    RenderCommand::PushConstants(cmd, m_PrepareIndirectDispatch.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
-    RenderCommand::Dispatch(cmd, {1, 1, 1});
+u32 SceneCull::ReadBackBatchCount(const FrameContext& frameContext) const
+{
+    return GetBatchCull().ReadBackBatchCount(frameContext);
+}
 
-    m_IndirectWRBarrierBase.Buffer = &m_SceneCullBuffers.GetIndirectDispatch();
-    RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
+SceneBatchCull& SceneCull::GetBatchCull()
+{
+    return *m_SceneBatchCull;
+}
+
+const SceneBatchCull& SceneCull::GetBatchCull() const
+{
+    return *m_SceneBatchCull;
+}
+
+void SceneCull::CullCompactTrianglesBatch(const FrameContext& frameContext, const CullSettings& cullSettings)
+{
+    GetBatchCull().CullTriangles(frameContext, cullSettings);
 }
 
 void SceneCull::InitBarriers()
@@ -649,276 +752,66 @@ void SceneCull::InitBarriers()
     m_ComputeWRBarrierBase = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .Queue = &Driver::GetDevice().GetQueues().Graphics,
+        .Queue = &Driver::GetDevice().GetQueues().Compute,
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_READ_BIT};
+
+    m_ComputeRWBarrierBase = {
+        .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .BufferSourceMask = VK_ACCESS_SHADER_READ_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_WRITE_BIT};
 
     m_IndirectWRBarrierBase = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        .Queue = &Driver::GetDevice().GetQueues().Graphics,
+        .Queue = &Driver::GetDevice().GetQueues().Compute,
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
-}
-
-void SceneCull::InitClearBuffers(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_ClearBuffersData.Template = sceneUtils::loadShaderPipelineTemplate(
-       {"../assets/shaders/processed/culling/compute-clear-cull-buffers-comp.shader"}, "compute-clear-cull-buffers",
-       scene, allocator, layoutCache);
-    
-    m_ClearBuffersData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_ClearBuffersData.Template)
-        .Build();
-
-    m_ClearBuffersData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_ClearBuffersData.Template)
-        .AddBinding("u_compact_meshlets", m_SceneCullBuffers.GetVisibleMeshCount(), sizeof(u32), 0)
-        .AddBinding("u_visible_uncompacted_meshlets", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .AddBinding("u_visible_meshlets", m_SceneCullBuffers.GetVisibleMeshletCount(), sizeof(u32), 0)
-        .AddBinding("u_occluded_meshlets", m_SceneCullBuffers.GetOccludedMeshletCount(), sizeof(u32), 0)
-        .Build();
-
-    m_ClearSecondaryBufferData.Template = sceneUtils::loadShaderPipelineTemplate(
-       {"../assets/shaders/processed/culling/compute-clear-cull-secondary-buffers-comp.shader"}, "compute-clear-cull-secondary-buffers",
-       scene, allocator, layoutCache);
-    
-    m_ClearSecondaryBufferData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_ClearSecondaryBufferData.Template)
-        .Build();
-
-    m_ClearSecondaryBufferData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_ClearSecondaryBufferData.Template)
-        .AddBinding("u_visible_uncompacted_meshlets", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .AddBinding("u_visible_meshlets", m_SceneCullBuffers.GetVisibleMeshletCount(), sizeof(u32), 0)
-        .Build();
 }
 
 void SceneCull::InitMeshCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
-    m_MeshCullData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-cull-meshes-comp.shader"}, "compute-mesh-cull",
+    m_MeshCull.Template = sceneUtils::loadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling2/mesh-cull-comp.shader"}, "mesh-cull",
         scene, allocator, layoutCache);
-    
-    m_MeshCullData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshCullData.Template)
+
+    m_MeshCull.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_MeshCull.Template)
+        .Build();
+
+    m_MeshCullReocclusion.Template = m_MeshCull.Template;
+    m_MeshCullReocclusion.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_MeshCull.Template)
+        .AddSpecialization("REOCCLUSION", true)
         .Build();
 }
 
 void SceneCull::InitMeshletCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
-    m_MeshletCullData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-cull-meshlets-comp.shader"}, "compute-meshlet-cull",
-        scene, allocator, layoutCache);
-   
-    m_MeshletCullData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshletCullData.Template)
-        .Build();
-}
-
-void SceneCull::InitMeshCompact(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_MeshCompactVisibleData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-compact-visible-meshes-comp.shader"}, "compute-compact-visible-meshes",
-        scene, allocator, layoutCache);
-    
-    m_MeshCompactVisibleData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshCompactVisibleData.Template)
-        .Build();
-
-    m_MeshCompactVisibleData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshCompactVisibleData.Template)
-        .AddBinding("u_command_buffer", scene.GetMeshletsIndirectBuffer())
-        .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_object_visibility_buffer", scene.GetRenderObjectsVisibilityBuffer())
-        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleMeshCount(), sizeof(u32), 0)
-        .Build();
-}
-
-void SceneCull::InitMeshletCompact(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_MeshletCompactData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-compact-meshlets-comp.shader"}, "compute-compact-meshlets",
-        scene, allocator, layoutCache);
-    
-    m_MeshletCompactData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshletCompactData.Template)
-        .Build();
-
-    m_MeshletCompactData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshletCompactData.Template)
-        .AddBinding("u_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_compacted_command_buffer", scene.GetMeshletsIndirectFinalBuffer())
-        .AddBinding("u_meshlet_buffer", scene.GetMeshletsBuffer())
-        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleMeshCount(), sizeof(u32), 0)
-        .AddBinding("u_occluded_buffer", m_SceneCullBuffers.GetOccludedMeshletCount(), sizeof(u32), 0)
-        .AddBinding("u_visible_buffer", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .Build();
-}
-
-void SceneCull::InitPrepareIndirectDispatch(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_PrepareIndirectDispatch.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-prepare-dispatch-indirect-comp.shader"}, "compute-prepare-dispatch-indirect",
+    m_MeshletCull.Template = sceneUtils::loadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling2/meshlet-cull-comp.shader"}, "meshlet-cull",
         scene, allocator, layoutCache);
 
-    m_PrepareIndirectDispatch.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_PrepareIndirectDispatch.Template)
+    m_MeshletCull.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_MeshletCull.Template)
         .Build();
 
-    m_PrepareIndirectDispatch.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_PrepareIndirectDispatch.Template)
-        .AddBinding("u_occluded_buffer", m_SceneCullBuffers.GetOccludedMeshletCount(), sizeof(u32), 0)
-        .AddBinding("u_visible_buffer", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleMeshCount(), sizeof(u32), 0)
-        .AddBinding("u_indirect_dispatch_buffer", m_SceneCullBuffers.GetIndirectDispatch(), sizeof(VkDispatchIndirectCommand), 0)
-        .Build();
-}
+    m_MeshletCullReocclusion.Template = m_MeshletCull.Template;
 
-void SceneCull::InitMeshCullSecondary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_MeshCullSecondaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-cull-meshes-secondary-comp.shader"}, "compute-mesh-cull-secondary",
+    m_MeshletCullReocclusion.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_MeshletCullReocclusion.Template)
+        .AddSpecialization("REOCCLUSION", true)
+        .Build();
+
+    m_MeshletCullClear.Template = sceneUtils::loadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling2/clear-buffers-comp.shader"}, "clear-buffers-cull",
         scene, allocator, layoutCache);
 
-    m_MeshCullSecondaryData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshCullSecondaryData.Template)
-        .Build();
-}
-
-void SceneCull::InitMeshletCullSecondary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_MeshletCullSecondaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-cull-meshlets-secondary-comp.shader"}, "compute-meshlet-cull-secondary",
-        scene, allocator, layoutCache);
-
-    m_MeshletCullSecondaryData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshletCullSecondaryData.Template)
-        .Build();
-}
-
-void SceneCull::InitMeshCompactSecondary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_MeshCompactVisibleSecondaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-compact-visible-meshes-secondary-comp.shader"}, "compute-compact-visible-meshes-secondary",
-        scene, allocator, layoutCache);
-    
-    m_MeshCompactVisibleSecondaryData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshCompactVisibleSecondaryData.Template)
+    m_MeshletCullClear.Pipeline = ShaderPipeline::Builder()
+        .SetTemplate(m_MeshletCullClear.Template)
         .Build();
 
-    m_MeshCompactVisibleSecondaryData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshCompactVisibleSecondaryData.Template)
-        .AddBinding("u_command_buffer", scene.GetMeshletsIndirectBuffer())
-        .AddBinding("u_compacted_command_buffer", scene.GetMeshletsIndirectFinalBuffer())
-        .AddBinding("u_object_visibility_buffer", scene.GetRenderObjectsVisibilityBuffer())
-        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetOccludedMeshletCount(), sizeof(u32), 0)
-        .Build();
-}
-
-void SceneCull::InitMeshletCompactSecondary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_MeshletCompactSecondaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-compact-meshlets-secondary-comp.shader"}, "compute-compact-meshlets-secondary",
-        scene, allocator, layoutCache);
-    
-    m_MeshletCompactSecondaryData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_MeshletCompactSecondaryData.Template)
-        .Build();
-
-    m_MeshletCompactSecondaryData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_MeshletCompactSecondaryData.Template)
-        .AddBinding("u_command_buffer", m_Scene->GetMeshletsIndirectFinalBuffer())
-        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetOccludedMeshletCount(), sizeof(u32), 0)
-        .AddBinding("u_visible_buffer", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .Build();
-}
-
-void SceneCull::InitTriangleClearCullCommands(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_ClearTriangleCullCommandsData.Template = sceneUtils::loadShaderPipelineTemplate(
-       {"../assets/shaders/processed/culling/compute-clear-cull-triangles-commands-comp.shader"}, "compute-clear-triangle-cull-commands",
-       scene, allocator, layoutCache);
-    
-    m_ClearTriangleCullCommandsData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_ClearTriangleCullCommandsData.Template)
-        .Build();
-
-    m_ClearTriangleCullCommandsData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_ClearTriangleCullCommandsData.Template)
-        .AddBinding("u_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_occluded_triangle_count_buffer", m_SceneCullBuffers.GetOccludedTriangleCounts())
-        .Build();
-    
-    m_ClearTriangleCullCommandsSecondaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-clear-cull-triangles-commands-secondary-comp.shader"}, "compute-clear-triangle-cull-commands-secondary",
-        scene, allocator, layoutCache);
-    
-    m_ClearTriangleCullCommandsSecondaryData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_ClearTriangleCullCommandsSecondaryData.Template)
-        .Build();
-
-    m_ClearTriangleCullCommandsSecondaryData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_ClearTriangleCullCommandsSecondaryData.Template)
-        .AddBinding("u_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .Build();
-}
-
-void SceneCull::InitTriangleCullCompact(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    std::string_view shaderPath = Driver::GetSubgroupSize() == 64 ?
-        "../assets/shaders/processed/culling/amd/compute-cull-compact-triangles-comp.shader" :
-        "../assets/shaders/processed/culling/nvidia/compute-cull-compact-triangles-comp.shader";
-    m_TriangleCullCompactData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {shaderPath}, "compute-cull-compact-triangles",
-        scene, allocator, layoutCache);
-
-    m_TriangleCullCompactData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_TriangleCullCompactData.Template)
-        .Build();
-}
-
-void SceneCull::InitTriangleCullCompactSecondary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    std::string_view shaderPath = Driver::GetSubgroupSize() == 64 ?
-        "../assets/shaders/processed/culling/amd/compute-cull-compact-triangles-secondary-comp.shader" :
-        "../assets/shaders/processed/culling/nvidia/compute-cull-compact-triangles-secondary-comp.shader";
-    m_TriangleCullCompactSecondaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {shaderPath}, "compute-cull-compact-triangles-secondary",
-        scene, allocator, layoutCache);
-
-    m_TriangleCullCompactSecondaryData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_TriangleCullCompactSecondaryData.Template)
-        .Build();
-}
-
-void SceneCull::InitTriangleCullCompactTertiary(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    std::string_view shaderPath = Driver::GetSubgroupSize() == 64 ?
-        "../assets/shaders/processed/culling/amd/compute-cull-compact-triangles-tertiary-comp.shader" :
-        "../assets/shaders/processed/culling/nvidia/compute-cull-compact-triangles-tertiary-comp.shader";
-    m_TriangleCullCompactTertiaryData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {shaderPath}, "compute-cull-compact-triangles-tertiary",
-        scene, allocator, layoutCache);
-
-    m_TriangleCullCompactTertiaryData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_TriangleCullCompactTertiaryData.Template)
-        .Build();
-}
-
-void SceneCull::InitFinalIndirectBufferCompact(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
-{
-    m_CompactFinalIndirectBufferData.Template = sceneUtils::loadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/compute-compact-final-indirect-buffer-comp.shader"}, "compute-compact-final-indirect-buffer",
-        scene, allocator, layoutCache);
-
-    m_CompactFinalIndirectBufferData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(m_CompactFinalIndirectBufferData.Template)
-        .Build();
-
-    m_CompactFinalIndirectBufferData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_CompactFinalIndirectBufferData.Template)
-        .AddBinding("u_final_command_buffer", m_SceneCullBuffers.GetUncompactedCommands())
-        .AddBinding("u_final_command_compact_buffer", m_Scene->GetMeshletsIndirectFinalBuffer())
-        .AddBinding("u_final_command_count_buffer", m_SceneCullBuffers.GetUncompactedCommandCount(), sizeof(u32), 0)
-        .AddBinding("u_final_compact_command_count_buffer", m_SceneCullBuffers.GetVisibleMeshletCount(), sizeof(u32), 0)
+    m_MeshletCullClear.DescriptorSet = ShaderDescriptorSet::Builder()
+        .SetTemplate(m_MeshletCullClear.Template)
+        .AddBinding("u_count_buffer", m_SceneCullBuffers.GetVisibleMeshletCount(), sizeof(u32), 0)
         .Build();
 }

@@ -3,6 +3,7 @@
 #include "Core/core.h"
 
 #define VMA_IMPLEMENTATION
+#define VMA_STATIC_VULKAN_FUNCTIONS 0
 #include <vma/vk_mem_alloc.h>
 
 #include "Buffer.h"
@@ -106,11 +107,36 @@ void Driver::DescriptorSetBindTexture(u32 slot, const DescriptorSet::TextureBind
 void Driver::Init(const Device& device)
 {
     s_State.Device = &device;
-    
+
+    VmaVulkanFunctions vulkanFunctions;
+    vulkanFunctions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
+    vulkanFunctions.vkGetPhysicalDeviceMemoryProperties = vkGetPhysicalDeviceMemoryProperties;
+    vulkanFunctions.vkAllocateMemory = vkAllocateMemory;
+    vulkanFunctions.vkFreeMemory = vkFreeMemory;
+    vulkanFunctions.vkMapMemory = vkMapMemory;
+    vulkanFunctions.vkUnmapMemory = vkUnmapMemory;
+    vulkanFunctions.vkFlushMappedMemoryRanges = vkFlushMappedMemoryRanges;
+    vulkanFunctions.vkInvalidateMappedMemoryRanges = vkInvalidateMappedMemoryRanges;
+    vulkanFunctions.vkBindBufferMemory = vkBindBufferMemory;
+    vulkanFunctions.vkBindImageMemory = vkBindImageMemory;
+    vulkanFunctions.vkGetBufferMemoryRequirements = vkGetBufferMemoryRequirements;
+    vulkanFunctions.vkGetImageMemoryRequirements = vkGetImageMemoryRequirements;
+    vulkanFunctions.vkCreateBuffer = vkCreateBuffer;
+    vulkanFunctions.vkDestroyBuffer = vkDestroyBuffer;
+    vulkanFunctions.vkCreateImage = vkCreateImage;
+    vulkanFunctions.vkDestroyImage = vkDestroyImage;
+    vulkanFunctions.vkCmdCopyBuffer = vkCmdCopyBuffer;
+    vulkanFunctions.vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR;
+    vulkanFunctions.vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR;
+    vulkanFunctions.vkBindBufferMemory2KHR = vkBindBufferMemory2KHR;
+    vulkanFunctions.vkBindImageMemory2KHR = vkBindImageMemory2KHR;
+    vulkanFunctions.vkGetPhysicalDeviceMemoryProperties2KHR = vkGetPhysicalDeviceMemoryProperties2KHR;
     VmaAllocatorCreateInfo createInfo = {};
     createInfo.instance = device.m_Instance;
     createInfo.physicalDevice = device.m_GPU;
     createInfo.device = device.m_Device;
+    createInfo.pVulkanFunctions = (const VmaVulkanFunctions*)&vulkanFunctions;
+    
     vmaCreateAllocator(&createInfo, &s_State.Allocator);
     s_State.DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_State.Allocator); });
 

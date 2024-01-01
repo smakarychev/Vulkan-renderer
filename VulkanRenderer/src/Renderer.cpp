@@ -1,7 +1,7 @@
-﻿#include "Renderer.h"
+#include "Renderer.h"
 
 #include <algorithm>
-#include <dinput.h>
+#include <volk.h>
 #include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
 
@@ -11,6 +11,7 @@
 #include "VisibilityPass.h"
 #include "Core/Input.h"
 #include "Core/Random.h"
+
 #include "GLFW/glfw3.h"
 #include "Vulkan/DepthPyramid.h"
 #include "Vulkan/RenderCommand.h"
@@ -63,7 +64,7 @@ void Renderer::OnRender()
             CreateDepthPyramid();
             m_VisibilityPass.Init({
                 .Size = m_Swapchain.GetSize(),
-                .Cmd = &GetFrameContext().CommandBuffer,
+                .Cmd = &GetFrameContext().ComputeCommandBuffers.GetBuffer(),
                 .Scene = &m_Scene,
                 .DescriptorAllocator = &m_CullDescriptorAllocator,
                 .LayoutCache = &m_LayoutCache,
@@ -72,9 +73,9 @@ void Renderer::OnRender()
 
         {
             TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
-            PrimaryScenePass();
-            SecondaryScenePass(DisocclusionKind::Triangles);
-            SecondaryScenePass(DisocclusionKind::Meshlets);
+            PrimaryScenePassNew();
+            //SecondaryScenePass(DisocclusionKind::Triangles);
+            //SecondaryScenePass(DisocclusionKind::Meshlets);
         }
 
         EndFrame();
@@ -153,9 +154,19 @@ void Renderer::BeginFrame()
         return;
     }
 
-    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-    cmd.Reset();
+    GetFrameContext().CommandPool.Reset();
+    GetFrameContext().GraphicsCommandBuffers.ResetBuffers();
+    GetFrameContext().GraphicsCommandBuffers.SetIndex(0);
+    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
     cmd.Begin();
+
+    GetFrameContext().ComputeCommandBuffers.ResetBuffers();
+    GetFrameContext().ComputeCommandBuffers.SetIndex(0);
+    CommandBuffer& computeCmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
+    computeCmd.Begin();
+
+    GetFrameContext().TracyProfilerBuffer.Reset();
+    GetFrameContext().TracyProfilerBuffer.Begin();
 
     m_Swapchain.PrepareRendering(cmd, m_SwapchainImageIndex);
     
@@ -163,13 +174,143 @@ void Renderer::BeginFrame()
     m_ResourceUploader.SubmitUpload();
 }
 
-void Renderer::PrimaryScenePass()
+void Renderer::PrimaryScenePassNew()
 {
-    ZoneScopedN("Primary Scene Pass");
-    const CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Primary Scene Pass NEW")
+    ZoneScopedN("Primary Scene Pass NEW");
+
+    TimelineSemaphore* renderSemaphore = &m_FrameContexts[0].AsyncCullContext.RenderedSemaphore;
+    TimelineSemaphore* cullSemaphore = &m_FrameContexts[0].AsyncCullContext.CulledSemaphore;
+    u64 renderTimeline = renderSemaphore->GetTimeline();
+    u64 cullTimeline = cullSemaphore->GetTimeline();
+
+    Fence preTriangleFence = Fence::Builder().BuildManualLifetime();
+    auto preTriangleCull = [&](u64 waitValue, bool reocclusion, Fence fence)
+    {
+        ZoneScopedN("Culling");
+        const CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
+
+        m_SceneCull.CullMeshesNew(GetFrameContext(), reocclusion);
+        m_SceneCull.CullMeshletsNew(GetFrameContext(), reocclusion);
+        
+        PipelineBarrierInfo barrierInfo = {
+            .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            .PipelineDestinationMask = VK_PIPELINE_STAGE_HOST_BIT,
+            .AccessSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
+            .AccessDestinationMask = VK_ACCESS_HOST_READ_BIT
+        };
+        RenderCommand::CreateBarrier(cmd, barrierInfo);
+        
+        cmd.End();
+        cmd.Submit(m_Device.GetQueues().Compute,
+            BufferSubmitTimelineSyncInfo{
+                .WaitStages = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT}, 
+                .WaitSemaphores = {renderSemaphore},
+                .WaitValues = {waitValue},
+                .Fence = &fence});
+
+    };
+    auto preTriangleWaitCPU = [&](Fence fence)
+    {
+        fence.Wait();
+        fence.Reset();
+        m_CullBatchCount = m_SceneCull.ReadBackBatchCount(GetFrameContext());
+        
+        GetFrameContext().ComputeCommandBuffers.NextIndex();
+        GetFrameContext().ComputeCommandBuffers.GetBuffer().Begin();
+    };
     
-    CullCompute(m_Scene);
-    
+    auto cull = [&](u64 waitValue, bool reocclusion, bool trianglesOnly)
+    {
+        ZoneScopedN("Culling");
+        const CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
+
+        m_SceneCull.CullCompactTrianglesBatch(GetFrameContext(), {reocclusion, trianglesOnly});
+        
+        cullTimeline++;
+        cmd.End();
+        cmd.Submit(m_Device.GetQueues().Compute,
+            BufferSubmitTimelineSyncInfo{
+                .WaitStages = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT}, 
+                .WaitSemaphores = {renderSemaphore},
+                .WaitValues = {waitValue},
+                .SignalSemaphores = {cullSemaphore},
+                .SignalValues = {cullTimeline}});
+
+        GetFrameContext().ComputeCommandBuffers.NextIndex();
+        GetFrameContext().ComputeCommandBuffers.GetBuffer().Begin();
+    };
+    auto render = [&](u64 waitValue, u32 iteration, bool computeDepthPyramid, bool shouldClear)
+    {
+        ZoneScopedN("Rendering");
+        const CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+
+        RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
+        RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
+        RenderCommand::BeginRendering(cmd, iteration == 0 && shouldClear ? GetClearRenderingInfo() : GetLoadRenderingInfo());
+
+        RenderCommand::BindIndexBuffer(cmd, m_SceneCull.GetCullDrawBatch().GetIndices(), 0);
+        Submit(m_Scene);
+
+        RenderCommand::EndRendering(cmd);
+
+        if (computeDepthPyramid)
+            ComputeDepthPyramid();
+        
+        renderTimeline++;
+        cmd.End();
+        cmd.Submit(m_Device.GetQueues().Graphics,
+            BufferSubmitTimelineSyncInfo{
+                .WaitStages = {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT}, 
+                .WaitSemaphores = {cullSemaphore},
+                .WaitValues = {waitValue},
+                .SignalSemaphores = {renderSemaphore},
+                .SignalValues = {renderTimeline}});
+
+        GetFrameContext().GraphicsCommandBuffers.NextIndex();
+        GetFrameContext().GraphicsCommandBuffers.GetBuffer().Begin();
+    };
+
+    preTriangleCull(renderTimeline, false, preTriangleFence);
+    preTriangleWaitCPU(preTriangleFence);
+    m_SceneCull.BatchIndirectDispatchesBuffersPrepare(GetFrameContext());
+    m_SceneCull.ResetSubBatches();
+    cull(renderTimeline, false, false);
+    for (u32 i = 0; i < std::max(1u, m_CullBatchCount); i++)
+    {
+        render(cullTimeline, i, i == m_CullBatchCount - 1, true);
+        m_SceneCull.NextSubBatch();
+        cull(renderTimeline - 1, false, false);
+    }
+
+    // triangle-only reocclusion
+    m_SceneCull.ResetSubBatches();
+    cull(renderTimeline, true, true);
+    for (u32 i = 0; i < m_CullBatchCount; i++)
+    {
+        render(cullTimeline, i, i == m_CullBatchCount - 1, false);
+        m_SceneCull.NextSubBatch();
+        cull(renderTimeline - 1, true, true);
+    }
+
+    // meshlet reocclusion
+    preTriangleCull(renderTimeline, true, preTriangleFence);
+    preTriangleWaitCPU(preTriangleFence);
+    m_SceneCull.BatchIndirectDispatchesBuffersPrepare(GetFrameContext());
+    m_SceneCull.ResetSubBatches();
+    cull(renderTimeline, true, false);
+    for (u32 i = 0; i < m_CullBatchCount; i++)
+    {
+        render(cullTimeline, i, false, false);
+        m_SceneCull.NextSubBatch();
+        cull(renderTimeline - 1, true, false);
+    }
+
+    Fence::Destroy(preTriangleFence);
+}
+
+RenderingInfo Renderer::GetClearRenderingInfo()
+{
     VkClearValue colorClear = {.color = {{0.05f, 0.05f, 0.05f, 1.0f}}};
     VkClearValue depthClear = {.depthStencil = {.depth = 0.0f}};
     
@@ -193,25 +334,11 @@ void Renderer::PrimaryScenePass()
         .SetRenderArea(m_Swapchain.GetSize())
         .Build();
 
-    RenderCommand::BeginRendering(cmd, renderingInfo);
-    
-    RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
-    RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
-
-    Submit(m_Scene);
-
-    RenderCommand::EndRendering(cmd);
-
-    ComputeDepthPyramid();
+    return renderingInfo;
 }
 
-void Renderer::SecondaryScenePass(DisocclusionKind disocclusionKind)
+RenderingInfo Renderer::GetLoadRenderingInfo()
 {
-    ZoneScopedN("Secondary Scene Pass");
-    const CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-    
-    SecondaryCullCompute(m_Scene, disocclusionKind);
-
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
         .FromImage(m_Swapchain.GetColorImage(m_SwapchainImageIndex).GetImageData(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
@@ -230,37 +357,32 @@ void Renderer::SecondaryScenePass(DisocclusionKind disocclusionKind)
         .SetRenderArea(m_Swapchain.GetSize())
         .Build();
 
-    RenderCommand::BeginRendering(cmd, renderingInfo);
-    
-    RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
-    RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
-
-    Submit(m_Scene);
-
-    RenderCommand::EndRendering(cmd);
-
-    ComputeDepthPyramid();
+    return renderingInfo;
 }
 
 void Renderer::EndFrame()
 {
-    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
     m_Swapchain.PreparePresent(cmd, m_SwapchainImageIndex);
     
     u32 frameNumber = GetFrameContext().FrameNumber;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
-    
+
     TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()))
+
+    GetFrameContext().TracyProfilerBuffer.End();
+    GetFrameContext().TracyProfilerBuffer.Submit(m_Device.GetQueues().Graphics, nullptr);
     
     cmd.End();
 
-    RenderCommand::SubmitCommandBuffer(cmd, m_Device.GetQueues().Graphics,
-        {
+    cmd.Submit(m_Device.GetQueues().Graphics,
+        BufferSubmitMixedSyncInfo{
+            .WaitStages = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
             .WaitSemaphores = {&sync.PresentSemaphore},
+            .WaitTimelineSemaphores = {&GetFrameContext().AsyncCullContext.RenderedSemaphore},
+            .WaitValues = {GetFrameContext().AsyncCullContext.RenderedSemaphore.GetTimeline()},
             .SignalSemaphores = {&sync.RenderSemaphore},
-            .WaitStages = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
-            .Fence = &sync.RenderFence 
-        });
+            .Fence = &sync.RenderFence});
     
     bool isFramePresentSuccessful = m_Swapchain.PresentImage(m_Device.GetQueues().Presentation, m_SwapchainImageIndex, frameNumber); 
     bool shouldRecreateSwapchain = m_IsWindowResized || !isFramePresentSuccessful;
@@ -270,7 +392,7 @@ void Renderer::EndFrame()
     m_FrameNumber++;
     m_CurrentFrameContext = &m_FrameContexts[m_FrameNumber % BUFFERED_FRAMES];
     ProfilerContext::Get()->NextFrame();
-    
+
     // todo: is this the best place for it?
     m_ResourceUploader.StartRecording();
 }
@@ -289,7 +411,7 @@ void Renderer::CreateDepthPyramid()
 {
     ZoneScopedN("Create depth pyramid");
 
-    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
     if (m_ComputeDepthPyramidData.DepthPyramid)
         m_ComputeDepthPyramidData.DepthPyramid.reset();
     
@@ -303,12 +425,12 @@ void Renderer::ComputeDepthPyramid()
 {
     ZoneScopedN("Compute depth pyramid");
     
-     u32 thrice = 3;
-    if (thrice)
+    u32 fiveTimes = 5;
+    if (fiveTimes)
     {
-        CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+        CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
         m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
-        thrice--;
+        fiveTimes--;
     }
 }
 
@@ -317,151 +439,38 @@ void Renderer::SceneVisibilityPass()
     
 }
 
-void Renderer::CullCompute(const Scene& scene)
-{
-    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Compute cull")
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset cull buffers")
-        m_SceneCull.ResetCullBuffers(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh cull compute")
-        ZoneScopedN("Mesh cull compute");
-        m_SceneCull.CullMeshes(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh compact compute")
-        ZoneScopedN("Mesh compact compute");
-        m_SceneCull.CompactMeshes(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet cull compute")
-        ZoneScopedN("Meshlet cull compute");
-        m_SceneCull.CullMeshlets(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet compact compute")
-        ZoneScopedN("Meshlet compact compute");
-        m_SceneCull.CompactMeshlets(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
-        ZoneScopedN("Triangle cull clear command buffer compute");
-        m_SceneCull.ClearTriangleBuffers(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
-        ZoneScopedN("Triangle cull compact compute");
-        m_SceneCull.CullCompactTriangles(GetFrameContext());
-    }
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
-        ZoneScopedN("Final compact compute");
-        m_SceneCull.CompactCommands(GetFrameContext());
-    }
-}
-
-void Renderer::SecondaryCullCompute(const Scene& scene, DisocclusionKind disocclusionKind)
-{
-    
-    if ((disocclusionKind & DisocclusionKind::Triangles) == DisocclusionKind::Triangles)
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Secondary compute cull triangles")
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
-            m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 0);
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
-            ZoneScopedN("Triangle cull clear command buffer compute");
-            m_SceneCull.ClearTriangleBuffersSecondary(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
-            ZoneScopedN("Triangle cull compact compute");
-            m_SceneCull.CullCompactTrianglesSecondary(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
-            ZoneScopedN("Final compact compute");
-            m_SceneCull.CompactCommands(GetFrameContext());
-        }
-    }
-    if ((disocclusionKind & DisocclusionKind::Meshlets) == DisocclusionKind::Meshlets)
-    {
-        TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Secondary compute cull meshlets")
-        if ((disocclusionKind & DisocclusionKind::Triangles) == DisocclusionKind::Triangles)
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
-            m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 1);
-        }
-        else
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Reset secondary cull buffers")
-            m_SceneCull.ResetSecondaryCullBuffers(GetFrameContext(), 2);
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh cull compute")
-            ZoneScopedN("Mesh cull compute");
-            m_SceneCull.CullMeshesSecondary(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Mesh compact compute")
-            ZoneScopedN("Mesh compact compute");
-            m_SceneCull.CompactMeshesSecondary(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet cull compute")
-            ZoneScopedN("Meshlet cull compute");
-            m_SceneCull.CullMeshletsSecondary(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Meshlet compact compute")
-            ZoneScopedN("Meshlet compact compute");
-            m_SceneCull.CompactMeshletsSecondary(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull clear command buffer compute")
-            ZoneScopedN("Triangle cull clear command buffer compute");
-            m_SceneCull.ClearTriangleBuffers(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Triangle cull compact compute")
-            ZoneScopedN("Triangle cull compact compute");
-            m_SceneCull.CullCompactTrianglesTertiary(GetFrameContext());
-        }
-        {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Final compact compute")
-            ZoneScopedN("Final compact compute");
-            m_SceneCull.CompactCommands(GetFrameContext());
-        }
-    }
-}
-
 void Renderer::Submit(const Scene& scene)
 {
-    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene render")
+    //TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene render")
     ZoneScopedN("Scene render");
 
-    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
+    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
 
     m_BindlessData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
     const PipelineLayout& layout = m_BindlessData.Pipeline.GetPipelineLayout();
     
     u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber);
     u32 sceneDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
+    // TRIANGLE BATCH
+    u32 commandsOffset = (u32)m_SceneCull.GetDrawCommandsOffset();  
+    //u32 commandsOffset = 0; 
+    u32 trianglesOffset = (u32)m_SceneCull.GetDrawTrianglesOffset(); 
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset, sceneDataOffset});
     m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    u64 offset = vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * GetFrameContext().FrameNumber;
+    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {commandsOffset, trianglesOffset});
     scene.Bind(cmd);
     
+    // TRIANGLE BATCH
     RenderCommand::DrawIndexedIndirectCount(cmd,
-       scene.GetMeshletsIndirectFinalBuffer(), 0,
-       m_SceneCull.GetDrawCount(), offset,
-       scene.GetMeshletCount(), sizeof(IndirectCommand));
+       m_SceneCull.GetDrawCommands(), commandsOffset,
+       m_SceneCull.GetDrawCount(), 0,
+       m_SceneCull.GetMaxDrawCommandCount(), sizeof(IndirectCommand));
 
-    //RenderCommand::DrawIndexedIndirect(cmd, scene.GetMeshletsIndirectBuffer(), 0, scene.GetMeshletCount(), sizeof(VkDrawIndexedIndirectCommand));
+    /*u32 countOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * GetFrameContext().FrameNumber);
+    RenderCommand::DrawIndexedIndirectCount(cmd,
+       m_SceneCull.GetSceneCullBuffers().GetCompactedCommands(), commandsOffset,
+       m_SceneCull.GetSceneCullBuffers().GetVisibleMeshletCount(), countOffset,
+       m_Scene.GetMeshletCount(), sizeof(IndirectCommand));*/
 }
 
 void Renderer::SortScene(Scene& scene)
@@ -470,14 +479,9 @@ void Renderer::SortScene(Scene& scene)
         [](const RenderObject& a, const RenderObject& b) { return a.Mesh < b.Mesh; });
 }
 
-void Renderer::PushConstants(const PipelineLayout& pipelineLayout, const void* pushConstants, const PushConstantDescription& description)
-{
-    CommandBuffer& cmd = GetFrameContext().CommandBuffer;
-    RenderCommand::PushConstants(cmd, pipelineLayout, pushConstants, description);
-}
-
 void Renderer::InitRenderingStructures()
 {
+    VulkanCheck(volkInitialize(), "Failed to initialize volk");
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not create opengl context
@@ -492,6 +496,7 @@ void Renderer::InitRenderingStructures()
     m_Device = Device::Builder()
         .Defaults()
         .SetWindow(m_Window)
+        .AsyncCompute()
         .Build();
 
     Driver::Init(m_Device);
@@ -515,21 +520,28 @@ void Renderer::InitRenderingStructures()
         CommandBuffer buffer = pool.AllocateBuffer(CommandBufferKind::Primary);
 
         CommandPool computePool = CommandPool::Builder()
-            .SetQueue(QueueKind::Graphics)
+            .SetQueue(QueueKind::Compute)
             .PerBufferReset(true)
             .Build();
         CommandBuffer computeBuffer = computePool.AllocateBuffer(CommandBufferKind::Primary);
 
+        m_FrameContexts[i].AsyncCullContext.CommandPool = computePool;
+        m_FrameContexts[i].AsyncCullContext.CommandBuffer = computeBuffer;
+        m_FrameContexts[i].AsyncCullContext.CulledSemaphore = TimelineSemaphore::Builder().Build();
+        m_FrameContexts[i].AsyncCullContext.RenderedSemaphore = TimelineSemaphore::Builder().Build();
+
         m_FrameContexts[i].CommandPool = pool;
-        m_FrameContexts[i].CommandBuffer = buffer;
+        m_FrameContexts[i].CommandBuffers.push_back(buffer);
         m_FrameContexts[i].FrameSync = m_Swapchain.GetFrameSync(i);
         m_FrameContexts[i].FrameNumber = i;
         m_FrameContexts[i].Resolution = m_Swapchain.GetSize();
+
+        m_FrameContexts[i].TracyProfilerBuffer = pool.AllocateBuffer(CommandBufferKind::Primary);
     }
 
     std::array<CommandBuffer*, BUFFERED_FRAMES> cmds;
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        cmds[i] = &m_FrameContexts[i].CommandBuffer;
+        cmds[i] = &m_FrameContexts[i].TracyProfilerBuffer;
     ProfilerContext::Get()->Init(cmds);
 
     // descriptors
@@ -581,7 +593,7 @@ void Renderer::ShutDown()
     Swapchain::Destroy(m_Swapchain);
     
     m_VisibilityPass.ShutDown();
-    m_SceneCull.ShutDown();
+    m_SceneCull.Shutdown();
     m_ResourceUploader.ShutDown();
     ProfilerContext::Get()->ShutDown();
     Driver::Shutdown();
@@ -657,9 +669,10 @@ void Renderer::LoadScene()
         .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
         .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
         .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer())
-        .AddBinding("u_triangle_buffer", m_Scene.GetTrianglesCompactBuffer())
+        .AddBinding("u_triangle_buffer", m_SceneCull.GetTriangles(), m_SceneCull.GetTrianglesSizeBytes(), 0)
         .AddBinding("u_material_buffer", m_Scene.GetMaterialsBuffer())
-        .AddBinding("u_command_buffer", m_Scene.GetMeshletsIndirectFinalBuffer())
+        // BATCH CULL
+        .AddBinding("u_command_buffer", m_SceneCull.GetSceneCullBuffers().GetCompactedBatchCommands(), m_SceneCull.GetDrawCommandsSizeBytes(), 0)
         .Build();
 
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
@@ -670,6 +683,7 @@ void Renderer::LoadScene()
     Model* sphere = Model::LoadFromAsset("../assets/models/sphere/scene.model");
     Model* sphere_big = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
     Model* cube = Model::LoadFromAsset("../assets/models/real_cube/scene.model");
+    Model* kitten = Model::LoadFromAsset("../assets/models/kitten/kitten.model");
    //Model* sponza = Model::LoadFromAsset("../assets/models/sponza/scene.model");
     
     m_Scene.AddModel(car, "car");
@@ -680,6 +694,7 @@ void Renderer::LoadScene()
     m_Scene.AddModel(sphere, "sphere");
     m_Scene.AddModel(sphere_big, "sphere_big");
     m_Scene.AddModel(cube, "cube");
+    m_Scene.AddModel(kitten, "kitten");
 
     //m_Scene.AddModel(sponza, "sponza");
 

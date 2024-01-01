@@ -1,0 +1,78 @@
+#version 460
+
+#include "common.shader_header"
+#include "culling_functions.shader_header"
+
+#extension GL_KHR_shader_subgroup_ballot: enable
+
+layout(local_size_x = 64) in;
+
+layout(constant_id = 0) const bool REOCCLUSION = false;
+
+@dynamic
+layout(set = 0, binding = 0) uniform scene_data_buffer {
+    scene_data scene;
+} u_scene_data;
+
+layout(set = 0, binding = 1) uniform sampler2D u_depth_pyramid;
+
+layout(std430, set = 0, binding = 2) readonly buffer object_buffer{
+    object_data objects[];
+} u_object_buffer;
+
+layout(std430, set = 0, binding = 3) writeonly buffer object_visibility_buffer{
+    uint16_t visibility[];
+} u_object_visibility_buffer;
+
+layout(push_constant) uniform push_constants {
+    uint meshes_count;
+};
+
+bool is_visible(vec3 origin, float radius) {
+    bool visible = true;
+    visible = visible && is_frustum_visible(origin, radius, u_scene_data.scene);
+    
+    return visible;
+}
+
+bool is_reocclusion_visible(vec3 origin, float radius) {
+    bool visible = true;
+    visible = visible && is_frustum_visible(origin, radius, u_scene_data.scene);
+    visible = visible && is_occlusion_visible(origin, radius, u_scene_data.scene, u_depth_pyramid);
+
+    return visible;
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= meshes_count)
+        return;
+
+    object_data object = u_object_buffer.objects[id];
+
+    vec3 origin = vec3(u_scene_data.scene.view_matrix * object.model * vec4(object.x, object.y, object.z, 1.0f));
+    float radius = object.r * extract_scale(object.model);
+
+    bool is_last_frame_visible = flags_visible(u_object_visibility_buffer.visibility[id]);
+
+    bool should_be_drawn = false;
+    bool visible = false;
+    if (!REOCCLUSION) {
+        visible = is_last_frame_visible && is_visible(origin, radius);
+        should_be_drawn = visible;
+    } else {
+        visible = is_reocclusion_visible(origin, radius);
+
+        if (visible)
+            flags_set_visible(u_object_visibility_buffer.visibility[id]);
+        else
+            flags_unset_visible(u_object_visibility_buffer.visibility[id]);
+        
+        should_be_drawn = !is_last_frame_visible && visible;
+    }
+
+    if (should_be_drawn)
+        set_flags_set_should_draw(u_object_visibility_buffer.visibility[id]);
+    else
+        set_flags_unset_should_draw(u_object_visibility_buffer.visibility[id]);
+}

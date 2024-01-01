@@ -18,6 +18,18 @@ namespace
         }
         std::unreachable();
     }
+
+    VkCommandBufferUsageFlags VkCommandBufferUsageByUsage(CommandBufferUsage usage)
+    {
+        switch (usage) {
+        case CommandBufferUsage::SingleSubmit:    return VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        case CommandBufferUsage::MultipleSubmit:  return 0;
+        default:
+            ASSERT(false, "Unrecognized command buffer usage")
+            break;
+        }
+        std::unreachable();
+    }
 }
 
 CommandBuffer CommandBuffer::Builder::Build()
@@ -34,6 +46,7 @@ CommandBuffer::Builder& CommandBuffer::Builder::SetPool(const CommandPool& pool)
 
 CommandBuffer::Builder& CommandBuffer::Builder::SetKind(CommandBufferKind kind)
 {
+    m_CreateInfo.Kind = kind;
     m_CreateInfo.Level = vkBufferLevelByKind(kind);
 
     return *this;
@@ -42,6 +55,8 @@ CommandBuffer::Builder& CommandBuffer::Builder::SetKind(CommandBufferKind kind)
 CommandBuffer CommandBuffer::Create(const Builder::CreateInfo& createInfo)
 {
     CommandBuffer commandBuffer = {};
+
+    commandBuffer.m_Kind = createInfo.Kind;
     
     VkCommandBufferAllocateInfo allocateInfo = {};
     allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -62,7 +77,21 @@ void CommandBuffer::Reset() const
 
 void CommandBuffer::Begin() const
 {
-    VulkanCheck(RenderCommand::BeginCommandBuffer(*this), "Failed to begin command buffer");
+    Begin(CommandBufferUsage::SingleSubmit);
+}
+
+void CommandBuffer::Begin(CommandBufferUsage commandBufferUsage) const
+{
+    if (m_Kind == CommandBufferKind::Secondary)
+    {
+        VkCommandBufferInheritanceInfo inheritanceInfo = {};
+        inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+        VulkanCheck(RenderCommand::BeginCommandBuffer(*this, VkCommandBufferUsageByUsage(commandBufferUsage), &inheritanceInfo), "Failed to begin command buffer");
+    }
+    else
+    {
+        VulkanCheck(RenderCommand::BeginCommandBuffer(*this, VkCommandBufferUsageByUsage(commandBufferUsage), nullptr), "Failed to begin command buffer");
+    }
 }
 
 void CommandBuffer::End() const
@@ -76,11 +105,31 @@ void CommandBuffer::Submit(const QueueInfo& queueInfo, const BufferSubmitSyncInf
         "Failed while submitting command buffer");
 }
 
+void CommandBuffer::Submit(const QueueInfo& queueInfo, const BufferSubmitTimelineSyncInfo& submitSync) const
+{
+    VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, submitSync),
+        "Failed while submitting command buffer");
+}
+
+void CommandBuffer::Submit(const QueueInfo& queueInfo, const BufferSubmitMixedSyncInfo& submitSync) const
+{
+    VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, submitSync),
+        "Failed while submitting command buffer");
+}
+
 void CommandBuffer::Submit(const QueueInfo& queueInfo, const Fence& fence) const
 {
     VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, fence),
         "Failed while submitting command buffer");
 }
+
+void CommandBuffer::Submit(const QueueInfo& queueInfo, const Fence* fence) const
+{
+    VulkanCheck(RenderCommand::SubmitCommandBuffer(*this, queueInfo, fence),
+        "Failed while submitting command buffer");
+}
+
+
 
 CommandPool CommandPool::Builder::Build()
 {
@@ -146,4 +195,22 @@ CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
 void CommandPool::Reset() const
 {
     VulkanCheck(RenderCommand::ResetPool(*this), "Failed to reset command pool");
+}
+
+
+
+CommandBufferArray::CommandBufferArray(QueueKind queueKind, bool individualReset)
+{
+    m_Pool = CommandPool::Builder()
+        .SetQueue(queueKind)
+        .PerBufferReset(individualReset)
+        .Build();
+
+    m_Buffers.push_back(m_Pool.AllocateBuffer(CommandBufferKind::Primary));
+}
+
+void CommandBufferArray::EnsureCapacity(u32 index)
+{
+    while (index >= m_Buffers.size())
+        m_Buffers.push_back(m_Pool.AllocateBuffer(CommandBufferKind::Primary));
 }

@@ -25,6 +25,8 @@ public:
     };
 public:
     static PushConstantDescription Create(const Builder::CreateInfo& createInfo);
+
+    u32 GetSizeBytes() const { return m_SizeBytes; }
 private:
     u32 m_SizeBytes{};
     u32 m_Offset{};

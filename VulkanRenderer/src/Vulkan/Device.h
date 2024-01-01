@@ -66,11 +66,13 @@ public:
             std::vector<const char*> InstanceValidationLayers;
             std::vector<const char*> DeviceExtensions;
             GLFWwindow* Window;
+            bool AsyncCompute{false};
         };
     public:
         Device Build();
         Builder& SetWindow(GLFWwindow* window);
         Builder& Defaults();
+        Builder& AsyncCompute(bool isEnabled = true);
     private:
         CreateInfo m_CreateInfo;
     };
@@ -90,7 +92,7 @@ private:
     void RetrieveDeviceQueues();
 
     bool IsGPUSuitable(VkPhysicalDevice gpu, const CreateInfo& createInfo);
-    DeviceQueues FindQueueFamilies(VkPhysicalDevice gpu) const;
+    DeviceQueues FindQueueFamilies(VkPhysicalDevice gpu, bool dedicatedCompute) const;
     SurfaceDetails GetSurfaceDetails(VkPhysicalDevice gpu) const;
     bool CheckGPUFeatures(VkPhysicalDevice gpu) const;
 

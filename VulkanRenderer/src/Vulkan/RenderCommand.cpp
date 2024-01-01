@@ -25,6 +25,11 @@ VkResult RenderCommand::WaitForFence(const Fence& fence)
     return vkWaitForFences(Driver::DeviceHandle(), 1, &fence.m_Fence, true, 10'000'000'000);
 }
 
+VkResult RenderCommand::CheckFence(const Fence fence)
+{
+    return vkGetFenceStatus(Driver::DeviceHandle(), fence.m_Fence);
+}
+
 VkResult RenderCommand::ResetFence(const Fence& fence)
 {
     return vkResetFences(Driver::DeviceHandle(), 1, &fence.m_Fence);
@@ -58,12 +63,12 @@ VkResult RenderCommand::ResetCommandBuffer(const CommandBuffer& cmd)
     return vkResetCommandBuffer(cmd.m_CommandBuffer, 0);
 }
 
-VkResult RenderCommand::BeginCommandBuffer(const CommandBuffer& cmd)
+VkResult RenderCommand::BeginCommandBuffer(const CommandBuffer& cmd, VkCommandBufferUsageFlags flags, VkCommandBufferInheritanceInfo* inheritanceInfo)
 {
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.pInheritanceInfo = nullptr;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    beginInfo.pInheritanceInfo = inheritanceInfo;
+    beginInfo.flags = flags;
 
     return vkBeginCommandBuffer(cmd.m_CommandBuffer, &beginInfo);
 }
@@ -78,7 +83,24 @@ VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const Queu
     return SubmitCommandBuffers({cmd}, queueInfo, submitSync);
 }
 
+VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+    const BufferSubmitTimelineSyncInfo& submitSync)
+{
+    return SubmitCommandBuffers({cmd}, queueInfo, submitSync);
+}
+
+VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+    const BufferSubmitMixedSyncInfo& submitSync)
+{
+    return SubmitCommandBuffers({cmd}, queueInfo, submitSync);
+}
+
 VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence)
+{
+    return  SubmitCommandBuffer(cmd, queueInfo, &fence);
+}
+
+VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence)
 {
     VkSubmitInfo  submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -87,11 +109,11 @@ VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const Queu
     submitInfo.waitSemaphoreCount = 0;
     submitInfo.signalSemaphoreCount = 0;
 
-    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, fence.m_Fence);
+    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, fence ? fence->m_Fence : VK_NULL_HANDLE);
 }
 
 VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
-    const BufferSubmitSyncInfo& submitSync)
+                                             const BufferSubmitSyncInfo& submitSync)
 {
     auto semaphoreToVkSemaphore = [](const Semaphore* semaphore) { return semaphore->m_Semaphore; };
     auto bufferToVkBuffer = [](const CommandBuffer& buffer) { return buffer.m_CommandBuffer; };
@@ -115,11 +137,107 @@ VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& c
     submitInfo.signalSemaphoreCount = (u32)signalSemaphores.size();
     submitInfo.pSignalSemaphores = signalSemaphores.data();
 
-    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, submitSync.Fence->m_Fence);
+    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ? submitSync.Fence->m_Fence : VK_NULL_HANDLE);
+}
+
+VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+    const BufferSubmitTimelineSyncInfo& submitSync)
+{
+    for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
+        submitSync.SignalSemaphores[i]->SetTimeline(submitSync.SignalValues[i]);
+    
+    auto semaphoreToVkSemaphore = [](const TimelineSemaphore* semaphore) { return semaphore->m_Semaphore; };
+    auto bufferToVkBuffer = [](const CommandBuffer& buffer) { return buffer.m_CommandBuffer; };
+    std::vector<VkSemaphore> waitSemaphores;
+    waitSemaphores.reserve(submitSync.WaitSemaphores.size());
+    std::vector<VkSemaphore> signalSemaphores;
+    signalSemaphores.reserve(submitSync.SignalSemaphores.size());
+    std::vector<VkCommandBuffer> buffers;
+    buffers.reserve(cmds.size());
+    std::transform(submitSync.WaitSemaphores.begin(), submitSync.WaitSemaphores.end(), std::back_inserter(waitSemaphores), semaphoreToVkSemaphore);
+    std::transform(submitSync.SignalSemaphores.begin(), submitSync.SignalSemaphores.end(), std::back_inserter(signalSemaphores), semaphoreToVkSemaphore);
+    std::transform(cmds.begin(), cmds.end(), std::back_inserter(buffers), bufferToVkBuffer);
+
+    VkTimelineSemaphoreSubmitInfo timelineSemaphoreSubmitInfo = {};
+    timelineSemaphoreSubmitInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO_KHR;
+    timelineSemaphoreSubmitInfo.waitSemaphoreValueCount = (u32)submitSync.WaitValues.size();
+    timelineSemaphoreSubmitInfo.pWaitSemaphoreValues = submitSync.WaitValues.data();
+    timelineSemaphoreSubmitInfo.signalSemaphoreValueCount = (u32)submitSync.SignalValues.size();
+    timelineSemaphoreSubmitInfo.pSignalSemaphoreValues = submitSync.SignalValues.data();
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.pWaitDstStageMask = submitSync.WaitStages.data();
+    submitInfo.commandBufferCount = (u32)buffers.size();
+    submitInfo.pCommandBuffers = buffers.data();
+    submitInfo.waitSemaphoreCount = (u32)waitSemaphores.size();
+    submitInfo.pWaitSemaphores = waitSemaphores.data();
+    submitInfo.signalSemaphoreCount = (u32)signalSemaphores.size();
+    submitInfo.pSignalSemaphores = signalSemaphores.data();
+    
+    submitInfo.pNext = &timelineSemaphoreSubmitInfo;
+
+    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ? submitSync.Fence->m_Fence : VK_NULL_HANDLE);
+}
+
+VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+    const BufferSubmitMixedSyncInfo& submitSync)
+{
+    for (u32 i = 0; i < submitSync.SignalTimelineSemaphores.size(); i++)
+        submitSync.SignalTimelineSemaphores[i]->SetTimeline(submitSync.SignalValues[i]);
+    
+    auto timelineSemaphoreToVkSemaphore = [](const TimelineSemaphore* semaphore) { return semaphore->m_Semaphore; };
+    auto semaphoreToVkSemaphore = [](const Semaphore* semaphore) { return semaphore->m_Semaphore; };
+    auto bufferToVkBuffer = [](const CommandBuffer& buffer) { return buffer.m_CommandBuffer; };
+    std::vector<VkSemaphore> waitSemaphores;
+    waitSemaphores.reserve(submitSync.WaitSemaphores.size() + submitSync.WaitTimelineSemaphores.size());
+    std::vector<VkSemaphore> signalSemaphores;
+    signalSemaphores.reserve(submitSync.SignalSemaphores.size() + submitSync.SignalTimelineSemaphores.size());
+    std::vector<VkCommandBuffer> buffers;
+    buffers.reserve(cmds.size());
+    std::transform(submitSync.WaitSemaphores.begin(), submitSync.WaitSemaphores.end(), std::back_inserter(waitSemaphores), semaphoreToVkSemaphore);
+    std::transform(submitSync.WaitTimelineSemaphores.begin(), submitSync.WaitTimelineSemaphores.end(), std::back_inserter(waitSemaphores), timelineSemaphoreToVkSemaphore);
+    std::transform(submitSync.SignalSemaphores.begin(), submitSync.SignalSemaphores.end(), std::back_inserter(signalSemaphores), semaphoreToVkSemaphore);
+    std::transform(submitSync.SignalTimelineSemaphores.begin(), submitSync.SignalTimelineSemaphores.end(), std::back_inserter(signalSemaphores), timelineSemaphoreToVkSemaphore);
+    std::transform(cmds.begin(), cmds.end(), std::back_inserter(buffers), bufferToVkBuffer);
+
+    std::vector<u64> waitValues, signalValues;
+    waitValues.reserve(waitSemaphores.size());
+    signalValues.reserve(signalSemaphores.size());
+    for (u32 i = 0; i < waitSemaphores.size(); i++)
+        waitValues.push_back(i < submitSync.WaitSemaphores.size() ? 0 : submitSync.WaitValues[i - submitSync.WaitSemaphores.size()]);
+    for (u32 i = 0; i < signalSemaphores.size(); i++)
+        signalValues.push_back(i < submitSync.SignalSemaphores.size() ? 0 : submitSync.SignalValues[i - submitSync.SignalSemaphores.size()]);
+
+    VkTimelineSemaphoreSubmitInfo timelineSemaphoreSubmitInfo = {};
+    timelineSemaphoreSubmitInfo.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO_KHR;
+    timelineSemaphoreSubmitInfo.waitSemaphoreValueCount = (u32)waitValues.size();
+    timelineSemaphoreSubmitInfo.pWaitSemaphoreValues = waitValues.data();
+    timelineSemaphoreSubmitInfo.signalSemaphoreValueCount = (u32)signalValues.size();
+    timelineSemaphoreSubmitInfo.pSignalSemaphoreValues = signalValues.data();
+
+    VkSubmitInfo submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.pWaitDstStageMask = submitSync.WaitStages.data();
+    submitInfo.commandBufferCount = (u32)buffers.size();
+    submitInfo.pCommandBuffers = buffers.data();
+    submitInfo.waitSemaphoreCount = (u32)waitSemaphores.size();
+    submitInfo.pWaitSemaphores = waitSemaphores.data();
+    submitInfo.signalSemaphoreCount = (u32)signalSemaphores.size();
+    submitInfo.pSignalSemaphores = signalSemaphores.data();
+    
+    submitInfo.pNext = &timelineSemaphoreSubmitInfo;
+
+    return vkQueueSubmit(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ? submitSync.Fence->m_Fence : VK_NULL_HANDLE);
+}
+
+void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary)
+{
+    vkCmdExecuteCommands(cmd.m_CommandBuffer, 1, &secondary.m_CommandBuffer);
 }
 
 void RenderCommand::TransitionImage(const CommandBuffer& cmd, const Image& image,
-    const ImageTransitionInfo& transitionInfo)
+                                    const ImageTransitionInfo& transitionInfo)
 {
     vkCmdPipelineBarrier(cmd.m_CommandBuffer, transitionInfo.SourceStage, transitionInfo.DestinationStage, 0,
         0, nullptr, 0, nullptr, 1, &transitionInfo.MemoryBarrier);
@@ -242,6 +360,16 @@ void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout
     vkCmdPushConstants(cmd.m_CommandBuffer, pipelineLayout.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
 }
 
+void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBarrierInfo& pipelineBarrierInfo)
+{
+    VkMemoryBarrier memoryBarrier = {};
+    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+    memoryBarrier.srcAccessMask = pipelineBarrierInfo.AccessSourceMask;
+    memoryBarrier.dstAccessMask = pipelineBarrierInfo.AccessDestinationMask;
+
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, 0, 1, &memoryBarrier, 0, nullptr, 0, nullptr);
+}
+
 void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBufferBarrierInfo& pipelineBarrierInfo)
 {
     VkBufferMemoryBarrier bufferMemoryBarrier = {};
@@ -272,6 +400,21 @@ void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineImageB
     imageMemoryBarrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
     vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, pipelineBarrierInfo.DependencyFlags, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+}
+
+void RenderCommand::BeginConditionalRendering(const CommandBuffer& cmd, const Buffer& conditionalBuffer, u64 offset)
+{
+    VkConditionalRenderingBeginInfoEXT beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;
+    beginInfo.buffer = conditionalBuffer.m_Buffer;
+    beginInfo.offset = offset;
+
+    vkCmdBeginConditionalRenderingEXT(cmd.m_CommandBuffer, &beginInfo);
+}
+
+void RenderCommand::EndConditionalRendering(const CommandBuffer& cmd)
+{
+    vkCmdEndConditionalRenderingEXT(cmd.m_CommandBuffer);
 }
 
 void RenderCommand::SetViewport(const CommandBuffer& cmd, const glm::vec2& size)

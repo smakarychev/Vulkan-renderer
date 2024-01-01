@@ -3,6 +3,8 @@
 #include "VulkanCore.h"
 #include "Driver.h"
 
+#include <volk.h>
+
 namespace vkUtils
 {
     inline SurfaceDetails getSurfaceDetails(VkPhysicalDevice gpu, VkSurfaceKHR surface)
@@ -80,6 +82,7 @@ namespace vkUtils
         case BufferKind::Indirect:      return VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT;
         case BufferKind::Source:        return VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
         case BufferKind::Destination:   return VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        case BufferKind::Conditional:   return VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT;
         case BufferKind::None:
             ASSERT(false, "Buffer kind is unset")
             break;

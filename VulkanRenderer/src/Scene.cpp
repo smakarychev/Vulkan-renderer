@@ -17,25 +17,13 @@ void Scene::OnInit(ResourceUploader* resourceUploader)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    m_RenderObjectVisibilitySSBO.Buffer = Buffer::Builder()
-        .SetKinds({BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(m_RenderObjectVisibilitySSBO.ObjectsVisibility.size() * sizeof(RenderObjectVisibilitySSBO::Data))
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-
     m_MaterialDataSSBO.Buffer = Buffer::Builder()
         .SetKinds({BufferKind::Storage, BufferKind::Destination})
         .SetSizeBytes(m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    m_MeshletsIndirectRawBuffer = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(sizeof(IndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .Build();
-
-    m_MeshletsIndirectFinalBuffer = Buffer::Builder()
+    m_MeshletsIndirectBuffer = Buffer::Builder()
         .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
         .SetSizeBytes(sizeof(IndirectCommand) * MAX_DRAW_INDIRECT_CALLS)
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
@@ -46,28 +34,12 @@ void Scene::OnInit(ResourceUploader* resourceUploader)
         .SetSizeBytes(m_MeshletsSSBO.Meshlets.size() * sizeof(MeshletsSSBO::Data))
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
-
-    // todo: fix size to smaller number
-    m_MeshBatchBuffers.IndicesCompact = Buffer::Builder()
-        .SetKinds({BufferKind::Index, BufferKind::Storage, BufferKind::Destination})
-        .SetSizeBytes(2llu * 256llu * 3llu * MAX_DRAW_INDIRECT_CALLS)
-        .BuildManualLifetime();
-    
-    // todo: fix size to smaller number
-    m_MeshBatchBuffers.TrianglesCompact =  Buffer::Builder()
-        .SetKinds({BufferKind::Storage, BufferKind::Destination})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
-        .SetSizeBytes(4llu * 256llu * MAX_DRAW_INDIRECT_CALLS)
-        .BuildManualLifetime();
 }
 
 void Scene::OnShutdown()
 {
     if (m_SharedMeshContext)
         ReleaseMeshSharedContext();
-
-    Buffer::Destroy(m_MeshBatchBuffers.IndicesCompact);
-    Buffer::Destroy(m_MeshBatchBuffers.TrianglesCompact);
 }
 
 void Scene::OnUpdate(f32 dt)
@@ -229,7 +201,7 @@ void Scene::CreateSharedMeshContext()
 
     // meshlets *******************************************************************************
 
-    u32 mappedBuffer = m_ResourceUploader->GetMappedBuffer(m_MeshletsIndirectRawBuffer.GetSizeBytes());
+    u32 mappedBuffer = m_ResourceUploader->GetMappedBuffer(m_MeshletsIndirectBuffer.GetSizeBytes());
     IndirectCommand* commands = (IndirectCommand*)m_ResourceUploader->GetMappedAddress(mappedBuffer);
     m_MeshletCount = 0;
     for (u32 i = 0; i < m_RenderObjects.size(); i++)
@@ -248,7 +220,7 @@ void Scene::CreateSharedMeshContext()
             m_TotalTriangles += meshlet.IndexCount / 3;
         }
     }
-    m_ResourceUploader->UpdateBuffer(m_MeshletsIndirectRawBuffer, mappedBuffer, 0);
+    m_ResourceUploader->UpdateBuffer(m_MeshletsIndirectBuffer, mappedBuffer, 0);
 
     m_MeshletCount = 0;
     for (u32 i = 0; i < m_RenderObjects.size(); i++)
@@ -275,7 +247,6 @@ void Scene::AddRenderObject(const RenderObject& renderObject)
 void Scene::Bind(const CommandBuffer& cmd) const
 {
     RenderCommand::BindVertexBuffers(cmd, {m_SharedMeshContext->Positions, m_SharedMeshContext->Normals, m_SharedMeshContext->UVs}, {0, 0, 0});
-    RenderCommand::BindIndexBuffer(cmd, m_MeshBatchBuffers.IndicesCompact, 0);
 }
 
 void Scene::ReleaseMeshSharedContext()

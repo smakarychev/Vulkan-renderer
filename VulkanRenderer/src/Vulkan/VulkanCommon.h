@@ -4,7 +4,10 @@
 
 #include <vector>
 #include <vulkan/vulkan_core.h>
+#include <volk.h>
 
+#include "RenderHandle.h"
+#include "RenderObject.h"
 #include "Core/core.h"
 
 #define FRIEND_INTERNAL \
@@ -13,6 +16,12 @@
 
 class Buffer;
 class Image;
+
+struct IndirectCommand
+{
+    VkDrawIndexedIndirectCommand VulkanCommand;
+    RenderHandle<RenderObject> RenderObject;
+};
 
 struct VertexInputDescription
 {
@@ -49,7 +58,8 @@ struct BufferKind
         Storage = BIT(4),
         Indirect = BIT(5),
         Source = BIT(6),
-        Destination = BIT(7)
+        Destination = BIT(7),
+        Conditional = BIT(8),
     };
     BufferKind() = default;
     BufferKind(Flags kind) : Kind(kind) {}
@@ -120,6 +130,14 @@ struct ImageBlitInfo
 struct BindlessDescriptorsState
 {
     u32 TextureIndex{0};
+};
+
+struct PipelineBarrierInfo
+{
+    VkPipelineStageFlags PipelineSourceMask;
+    VkPipelineStageFlags PipelineDestinationMask;
+    VkAccessFlags AccessSourceMask;
+    VkAccessFlags AccessDestinationMask;
 };
 
 struct PipelineBufferBarrierInfo

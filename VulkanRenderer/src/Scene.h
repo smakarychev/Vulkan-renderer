@@ -25,18 +25,6 @@ struct SharedMeshContext
     Buffer Indices;
 };
 
-struct IndirectCommand
-{
-    VkDrawIndexedIndirectCommand VulkanCommand;
-    RenderHandle<RenderObject> RenderObject;
-};
-
-struct MeshBatchBuffers
-{
-    Buffer IndicesCompact;
-    Buffer TrianglesCompact;
-};
-
 struct RenderObjectSSBO
 {
     struct Data
@@ -46,16 +34,6 @@ struct RenderObjectSSBO
     };
 
     std::vector<Data> Objects{MAX_OBJECTS};
-    Buffer Buffer;
-};
-
-struct RenderObjectVisibilitySSBO
-{
-    struct Data
-    {
-        u32 VisibilityFlags;
-    };
-    std::vector<Data> ObjectsVisibility{MAX_OBJECTS};
     Buffer Buffer;
 };
 
@@ -71,7 +49,6 @@ struct MeshletsSSBO
     {
         assetLib::BoundingCone BoundingCone;
         assetLib::BoundingSphere BoundingSphere;
-        u32 IsOccluded;
     };
 
     std::vector<Data> Meshlets{MAX_OBJECTS};
@@ -106,11 +83,9 @@ public:
 
     void CreateSharedMeshContext();
     const Buffer& GetRenderObjectsBuffer() const { return m_RenderObjectSSBO.Buffer; }
-    const Buffer& GetRenderObjectsVisibilityBuffer() const { return m_RenderObjectVisibilitySSBO.Buffer; }
     const Buffer& GetMaterialsBuffer() const { return m_MaterialDataSSBO.Buffer; }
     
-    const Buffer& GetMeshletsIndirectBuffer() const { return m_MeshletsIndirectRawBuffer; }
-    const Buffer& GetMeshletsIndirectFinalBuffer() const { return m_MeshletsIndirectFinalBuffer; }
+    const Buffer& GetMeshletsIndirectBuffer() const { return m_MeshletsIndirectBuffer; }
     
     u32 GetMeshletCount() const { return m_MeshletCount; }
 
@@ -118,8 +93,6 @@ public:
 
     const Buffer& GetPositionsBuffer() const { return m_SharedMeshContext->Positions; }
     const Buffer& GetIndicesBuffer() const { return m_SharedMeshContext->Indices; }
-    const Buffer& GetIndicesCompactBuffer() const { return m_MeshBatchBuffers.IndicesCompact; }
-    const Buffer& GetTrianglesCompactBuffer() const { return m_MeshBatchBuffers.TrianglesCompact; }
     
     void AddRenderObject(const RenderObject& renderObject);
     bool IsDirty() const { return m_IsDirty; }
@@ -142,14 +115,11 @@ private:
     std::vector<RenderObject> m_RenderObjects;
 
     std::unique_ptr<SharedMeshContext> m_SharedMeshContext;
-    MeshBatchBuffers m_MeshBatchBuffers;
     
     RenderObjectSSBO m_RenderObjectSSBO{};
-    RenderObjectVisibilitySSBO m_RenderObjectVisibilitySSBO{};
     MaterialDataSSBO m_MaterialDataSSBO;
 
-    Buffer m_MeshletsIndirectRawBuffer;
-    Buffer m_MeshletsIndirectFinalBuffer;
+    Buffer m_MeshletsIndirectBuffer;
     u32 m_MeshletCount{0};
 
     MeshletsSSBO m_MeshletsSSBO;

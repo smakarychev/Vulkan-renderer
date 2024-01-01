@@ -1,4 +1,6 @@
-﻿#include "Device.h"
+#include "Device.h"
+
+#include <volk.h>
 
 #include "Driver.h"
 #include "VulkanUtils.h"
@@ -46,8 +48,16 @@ Device::Builder& Device::Builder::Defaults()
         VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
         VK_KHR_MAINTENANCE3_EXTENSION_NAME,
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
     };
     m_CreateInfo = defaults;
+    return *this;
+}
+
+Device::Builder& Device::Builder::AsyncCompute(bool isEnabled)
+{
+    m_CreateInfo.AsyncCompute = isEnabled;
+
     return *this;
 }
 
@@ -102,6 +112,8 @@ void Device::CreateInstance(const CreateInfo& createInfo)
         "Failed to create instance")
     VulkanCheck(vkCreateInstance(&instanceCreateInfo, nullptr, &m_Instance),
         "Failed to create instance\n");
+
+    volkLoadInstance(m_Instance);
 }
 
 void Device::CreateSurface(const CreateInfo& createInfo)
@@ -124,7 +136,7 @@ void Device::ChooseGPU(const CreateInfo& createInfo)
         if (IsGPUSuitable(candidate, createInfo))
         {
             m_GPU = candidate;
-            m_Queues = FindQueueFamilies(candidate);
+            m_Queues = FindQueueFamilies(candidate, createInfo.AsyncCompute);
             break;
         }
     }
@@ -182,15 +194,21 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     vulkan12Features.shaderInt8 = VK_TRUE;
     vulkan12Features.storageBuffer8BitAccess  = VK_TRUE;
     vulkan12Features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
+    vulkan12Features.timelineSemaphore = VK_TRUE;
 
     VkPhysicalDeviceVulkan13Features vulkan13Features = {};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.pNext = &vulkan12Features;
     vulkan13Features.dynamicRendering = VK_TRUE;
+
+    VkPhysicalDeviceConditionalRenderingFeaturesEXT conditionalRenderingFeaturesExt = {};
+    conditionalRenderingFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT;
+    conditionalRenderingFeaturesExt.pNext = &vulkan13Features;
+    conditionalRenderingFeaturesExt.conditionalRendering = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = &vulkan13Features;
+    deviceCreateInfo.pNext = &conditionalRenderingFeaturesExt;
     deviceCreateInfo.queueCreateInfoCount = (u32)queueCreateInfos.size();
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
     deviceCreateInfo.enabledExtensionCount = (u32)createInfo.DeviceExtensions.size();
@@ -199,6 +217,8 @@ void Device::CreateDevice(const CreateInfo& createInfo)
 
     VulkanCheck(vkCreateDevice(m_GPU, &deviceCreateInfo, nullptr, &m_Device),
         "Failed to create device\n");
+
+    volkLoadDevice(m_Device);
 }
 
 void Device::RetrieveDeviceQueues()
@@ -210,7 +230,7 @@ void Device::RetrieveDeviceQueues()
 
 bool Device::IsGPUSuitable(VkPhysicalDevice gpu, const CreateInfo& createInfo)
 {
-    DeviceQueues deviceQueues = FindQueueFamilies(gpu);
+    DeviceQueues deviceQueues = FindQueueFamilies(gpu, createInfo.AsyncCompute);
     if (!deviceQueues.IsComplete())
         return false;
 
@@ -229,7 +249,7 @@ bool Device::IsGPUSuitable(VkPhysicalDevice gpu, const CreateInfo& createInfo)
     return true;
 }
 
-DeviceQueues Device::FindQueueFamilies(VkPhysicalDevice gpu) const
+DeviceQueues Device::FindQueueFamilies(VkPhysicalDevice gpu, bool dedicatedCompute) const
 {
     u32 queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queueFamilyCount, nullptr);
@@ -242,15 +262,16 @@ DeviceQueues Device::FindQueueFamilies(VkPhysicalDevice gpu) const
     {
         const VkQueueFamilyProperties& queueFamily = queueFamilies[i];
 
-        if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if ((queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) && queues.Graphics.Family == QueueInfo::UNSET_FAMILY)
             queues.Graphics.Family = i;
 
-        if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
-            queues.Compute.Family = i;
+        if ((queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) && queues.Compute.Family == QueueInfo::UNSET_FAMILY)
+            if (!dedicatedCompute || !(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT))
+                queues.Compute.Family = i;
         
         VkBool32 isPresentationSupported = VK_FALSE;
         vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, m_Surface, &isPresentationSupported);
-        if (isPresentationSupported)
+        if (isPresentationSupported && queues.Presentation.Family == QueueInfo::UNSET_FAMILY)
             queues.Presentation.Family = i;
 
         if (queues.IsComplete())
@@ -286,9 +307,13 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
     deviceVulkan13Features.sType  = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     deviceVulkan13Features.pNext = &deviceVulkan12Features;
 
+    VkPhysicalDeviceConditionalRenderingFeaturesEXT conditionalRenderingFeaturesExt = {};
+    conditionalRenderingFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT;
+    conditionalRenderingFeaturesExt.pNext = &deviceVulkan13Features;
+
     VkPhysicalDeviceFeatures2 features = {};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features.pNext = &deviceVulkan13Features;
+    features.pNext = &conditionalRenderingFeaturesExt;
     
     vkGetPhysicalDeviceFeatures2(gpu, &features);
     
@@ -310,7 +335,9 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         deviceVulkan12Features.shaderInt8 == VK_TRUE &&
         deviceVulkan12Features.storageBuffer8BitAccess  == VK_TRUE &&
         deviceVulkan12Features.uniformAndStorageBuffer8BitAccess == VK_TRUE &&
-        deviceVulkan13Features.dynamicRendering == VK_TRUE;
+        deviceVulkan12Features.timelineSemaphore == VK_TRUE &&
+        deviceVulkan13Features.dynamicRendering == VK_TRUE &&
+        conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE;
 }
 
 bool Device::CheckInstanceExtensions(const CreateInfo& createInfo) const

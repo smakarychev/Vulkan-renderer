@@ -41,6 +41,7 @@ layout(std430, set = 1, binding = 0) readonly buffer object_buffer {
     object_data objects[];
 } u_object_buffer;
 
+@dynamic
 layout(std430, set = 2, binding = 2) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_command_buffer;

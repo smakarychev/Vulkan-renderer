@@ -1,5 +1,8 @@
 ﻿#include "ResourceUploader.h"
 
+#include <algorithm>
+#include <tracy/Tracy.hpp>
+
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 
