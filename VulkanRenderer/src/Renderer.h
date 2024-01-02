@@ -80,8 +80,6 @@ struct AsyncCullContext
 
 struct FrameContext
 {
-    AsyncCullContext AsyncCullContext;
-
     CommandBufferArray GraphicsCommandBuffers{QueueKind::Graphics, false};
     CommandBufferArray ComputeCommandBuffers{QueueKind::Compute, false};
     
@@ -162,7 +160,8 @@ private:
 
     std::vector<FrameContext> m_FrameContexts;
     FrameContext* m_CurrentFrameContext{nullptr};
-
+    AsyncCullContext m_AsyncCullContext;
+    
     CameraDataUBO m_CameraDataUBO;
     SceneDataUBO m_SceneDataUBO;
     

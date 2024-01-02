@@ -177,6 +177,8 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     deviceFeatures.multiDrawIndirect = VK_TRUE;
     deviceFeatures.geometryShader = VK_TRUE;
     deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
+    deviceFeatures.shaderInt16 = VK_TRUE;
+    deviceFeatures.shaderInt64 = VK_TRUE;
 
     VkPhysicalDeviceVulkan12Features vulkan12Features = {};
     vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
@@ -193,6 +195,7 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     vulkan12Features.subgroupBroadcastDynamicId = VK_TRUE;
     vulkan12Features.shaderInt8 = VK_TRUE;
     vulkan12Features.storageBuffer8BitAccess  = VK_TRUE;
+    vulkan12Features.shaderBufferInt64Atomics = VK_TRUE;
     vulkan12Features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vulkan12Features.timelineSemaphore = VK_TRUE;
 
@@ -321,6 +324,8 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         features.features.multiDrawIndirect == VK_TRUE &&
         features.features.geometryShader == VK_TRUE &&
         features.features.shaderSampledImageArrayDynamicIndexing == VK_TRUE &&
+        features.features.shaderInt16 == VK_TRUE &&
+        features.features.shaderInt64 == VK_TRUE &&
         descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing == VK_TRUE &&
         descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
         descriptorIndexingFeatures.descriptorBindingPartiallyBound == VK_TRUE &&
@@ -335,6 +340,7 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         deviceVulkan12Features.shaderInt8 == VK_TRUE &&
         deviceVulkan12Features.storageBuffer8BitAccess  == VK_TRUE &&
         deviceVulkan12Features.uniformAndStorageBuffer8BitAccess == VK_TRUE &&
+        deviceVulkan12Features.shaderBufferInt64Atomics == VK_TRUE &&
         deviceVulkan12Features.timelineSemaphore == VK_TRUE &&
         deviceVulkan13Features.dynamicRendering == VK_TRUE &&
         conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE;

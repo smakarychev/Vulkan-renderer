@@ -5,6 +5,7 @@
 #include "Shader.h"
 #include "types.h"
 
+struct BufferSubmitTimelineSyncInfo;
 struct ComputeDilateData;
 struct ComputeReprojectionData;
 struct ComputeDepthPyramidData;
@@ -20,6 +21,9 @@ public:
         ComputeDepthPyramidData* computeDepthPyramidData);
     ~DepthPyramid();
 
+    bool IsPendingTransition() const { return m_IsPendingTransition; }
+    void SubmitLayoutTransition(const CommandBuffer& cmd, const BufferSubmitTimelineSyncInfo& syncInfo);
+    
     void ComputePyramid(const Image& depthImage, const CommandBuffer& cmd);
 
     const Image& GetTexture() const { return m_PyramidDepth; }
@@ -33,6 +37,8 @@ private:
     void FillPyramid(const CommandBuffer& cmd, const Image& depthImage);
 private:
     Image m_PyramidDepth;
+    bool m_IsPendingTransition{true};
+    
     VkSampler m_Sampler{VK_NULL_HANDLE};
     
     std::array<VkImageView, MAX_DEPTH> m_MipMapViews{VK_NULL_HANDLE};

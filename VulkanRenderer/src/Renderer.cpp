@@ -73,6 +73,18 @@ void Renderer::OnRender()
 
         {
             TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
+            if (m_ComputeDepthPyramidData.DepthPyramid->IsPendingTransition())
+            {
+                TimelineSemaphore& renderSemaphore = m_AsyncCullContext.RenderedSemaphore;
+                m_ComputeDepthPyramidData.DepthPyramid->SubmitLayoutTransition(
+                    GetFrameContext().GraphicsCommandBuffers.GetBuffer(), BufferSubmitTimelineSyncInfo{
+                        .SignalSemaphores ={&renderSemaphore},
+                        .SignalValues = {renderSemaphore.GetTimeline() + 1}});
+
+                GetFrameContext().GraphicsCommandBuffers.NextIndex();
+                GetFrameContext().GraphicsCommandBuffers.GetBuffer().Begin();
+            }
+            
             PrimaryScenePass();
         }
 
@@ -177,8 +189,8 @@ void Renderer::PrimaryScenePass()
     TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Primary Scene Pass NEW")
     ZoneScopedN("Primary Scene Pass NEW");
 
-    TimelineSemaphore* renderSemaphore = &m_FrameContexts[0].AsyncCullContext.RenderedSemaphore;
-    TimelineSemaphore* cullSemaphore = &m_FrameContexts[0].AsyncCullContext.CulledSemaphore;
+    TimelineSemaphore* renderSemaphore = &m_AsyncCullContext.RenderedSemaphore;
+    TimelineSemaphore* cullSemaphore = &m_AsyncCullContext.CulledSemaphore;
     u64 renderTimeline = renderSemaphore->GetTimeline();
     u64 cullTimeline = cullSemaphore->GetTimeline();
 
@@ -374,11 +386,9 @@ void Renderer::EndFrame()
     cmd.End();
 
     cmd.Submit(m_Device.GetQueues().Graphics,
-        BufferSubmitMixedSyncInfo{
-            .WaitStages = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
+        BufferSubmitSyncInfo{
+            .WaitStages = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
             .WaitSemaphores = {&sync.PresentSemaphore},
-            .WaitTimelineSemaphores = {&GetFrameContext().AsyncCullContext.RenderedSemaphore},
-            .WaitValues = {GetFrameContext().AsyncCullContext.RenderedSemaphore.GetTimeline()},
             .SignalSemaphores = {&sync.RenderSemaphore},
             .Fence = &sync.RenderFence});
     
@@ -423,13 +433,8 @@ void Renderer::ComputeDepthPyramid()
 {
     ZoneScopedN("Compute depth pyramid");
     
-    u32 fiveTimes = 5;
-    if (fiveTimes)
-    {
-        CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
-        m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
-        fiveTimes--;
-    }
+    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+    m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
 }
 
 void Renderer::SceneVisibilityPass()
@@ -523,10 +528,10 @@ void Renderer::InitRenderingStructures()
             .Build();
         CommandBuffer computeBuffer = computePool.AllocateBuffer(CommandBufferKind::Primary);
 
-        m_FrameContexts[i].AsyncCullContext.CommandPool = computePool;
-        m_FrameContexts[i].AsyncCullContext.CommandBuffer = computeBuffer;
-        m_FrameContexts[i].AsyncCullContext.CulledSemaphore = TimelineSemaphore::Builder().Build();
-        m_FrameContexts[i].AsyncCullContext.RenderedSemaphore = TimelineSemaphore::Builder().Build();
+        m_AsyncCullContext.CommandPool = computePool;
+        m_AsyncCullContext.CommandBuffer = computeBuffer;
+        m_AsyncCullContext.CulledSemaphore = TimelineSemaphore::Builder().Build();
+        m_AsyncCullContext.RenderedSemaphore = TimelineSemaphore::Builder().Build();
 
         m_FrameContexts[i].CommandPool = pool;
         m_FrameContexts[i].CommandBuffers.push_back(buffer);
