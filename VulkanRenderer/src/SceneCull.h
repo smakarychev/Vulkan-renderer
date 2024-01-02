@@ -32,11 +32,11 @@ public:
     const Buffer& GetIndices() const { return m_Indices; }
     u32 GetCommandCount() const { return MAX_COMMANDS * m_SubBatchCount; }
 
-    u64 GetCommandsSizeBytes() const
+    static u64 GetCommandsSizeBytes()
     {
         return vkUtils::alignUniformBufferSizeBytes(MAX_COMMANDS * sizeof(IndirectCommand) * SUB_BATCH_COUNT);
     }
-    u64 GetTrianglesSizeBytes() const
+    static u64 GetTrianglesSizeBytes()
     {
         return vkUtils::alignUniformBufferSizeBytes(MAX_TRIANGLES * sizeof(u32) * SUB_BATCH_COUNT);
     }
@@ -151,11 +151,11 @@ public:
     void NextSubBatch();
     void ResetSubBatches();
 
-    u64 GetTrianglesSizeBytes() const { return  m_CullDrawBatches.front()->GetTrianglesSizeBytes(); }
-    u64 GetTrianglesOffset() const { return m_CullDrawBatches.front()->GetTrianglesSizeBytes() * m_CurrentBatch; }
+    u64 GetTrianglesSizeBytes() const { return  CullDrawBatch::GetTrianglesSizeBytes(); }
+    u64 GetTrianglesOffset() const { return CullDrawBatch::GetTrianglesSizeBytes() * m_CurrentBatch; }
 
-    u64 GetDrawCommandsSizeBytes() const { return m_CullDrawBatches.front()->GetCommandsSizeBytes(); }
-    u64 GetDrawCommandsOffset() const { return m_CullDrawBatches.front()->GetCommandsSizeBytes() * m_CurrentBatch; }
+    u64 GetDrawCommandsSizeBytes() const { return CullDrawBatch::GetCommandsSizeBytes(); }
+    u64 GetDrawCommandsOffset() const { return CullDrawBatch::GetCommandsSizeBytes() * m_CurrentBatch; }
     u32 GetMaxDrawCommandCount() const { return m_CullDrawBatches.front()->GetCommandCount(); }
     
     const Buffer& GetDrawCount() const;
@@ -209,11 +209,11 @@ public:
     void SetDepthPyramid(const DepthPyramid& depthPyramid);
     void UpdateBuffers(const Camera& camera, ResourceUploader& resourceUploader, const FrameContext& frameContext);
 
-    void CullMeshesNew(const FrameContext& frameContext, bool reocclusion);
-    void CullMeshletsNew(const FrameContext& frameContext, bool reocclusion);
-    
     const SceneCullBuffers& GetSceneCullBuffers() const;
 
+    void CullMeshes(const FrameContext& frameContext, bool reocclusion);
+    void CullMeshlets(const FrameContext& frameContext, bool reocclusion);
+    
     void BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext);
     void CullCompactTrianglesBatch(const FrameContext& frameContext, const CullSettings& cullSettings);
     const CullDrawBatch& GetCullDrawBatch() const;

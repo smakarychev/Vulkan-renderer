@@ -133,7 +133,7 @@ private:
     void ComputeDepthPyramid();
 
     void SceneVisibilityPass();
-    void PrimaryScenePassNew();
+    void PrimaryScenePass();
 
     RenderingInfo GetClearRenderingInfo();
     RenderingInfo GetLoadRenderingInfo();

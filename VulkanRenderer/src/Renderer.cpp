@@ -73,9 +73,7 @@ void Renderer::OnRender()
 
         {
             TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
-            PrimaryScenePassNew();
-            //SecondaryScenePass(DisocclusionKind::Triangles);
-            //SecondaryScenePass(DisocclusionKind::Meshlets);
+            PrimaryScenePass();
         }
 
         EndFrame();
@@ -174,7 +172,7 @@ void Renderer::BeginFrame()
     m_ResourceUploader.SubmitUpload();
 }
 
-void Renderer::PrimaryScenePassNew()
+void Renderer::PrimaryScenePass()
 {
     TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Primary Scene Pass NEW")
     ZoneScopedN("Primary Scene Pass NEW");
@@ -190,8 +188,8 @@ void Renderer::PrimaryScenePassNew()
         ZoneScopedN("Culling");
         const CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
 
-        m_SceneCull.CullMeshesNew(GetFrameContext(), reocclusion);
-        m_SceneCull.CullMeshletsNew(GetFrameContext(), reocclusion);
+        m_SceneCull.CullMeshes(GetFrameContext(), reocclusion);
+        m_SceneCull.CullMeshlets(GetFrameContext(), reocclusion);
         
         PipelineBarrierInfo barrierInfo = {
             .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
