@@ -132,14 +132,14 @@ private:
 struct CullSettings
 {
     bool Reocclusion{false};
-    bool TrianglePassOnly{false};
 };
 
-class SceneBatchCull
+class SceneBatchedCull
 {
     struct ComputePipelineData;
+    static constexpr u32 MICRO_CLUSTER_SIZE = 4;
 public:
-    SceneBatchCull(Scene& scene, SceneCullBuffers& sceneCullBuffers);
+    SceneBatchedCull(Scene& scene, SceneCullBuffers& sceneCullBuffers);
     void Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
     void Shutdown();
 
@@ -234,8 +234,8 @@ public:
     u32 GetMaxBatchCount() const;
     u32 ReadBackBatchCount(const FrameContext& frameContext) const;
 
-    SceneBatchCull& GetBatchCull();
-    const SceneBatchCull& GetBatchCull() const;
+    SceneBatchedCull& GetBatchCull();
+    const SceneBatchedCull& GetBatchCull() const;
 
 private:
     void DestroyDescriptors();
@@ -248,7 +248,7 @@ private:
 private:
     Scene* m_Scene{nullptr};
     SceneCullBuffers m_SceneCullBuffers{};
-    std::unique_ptr<SceneBatchCull> m_SceneBatchCull;
+    std::unique_ptr<SceneBatchedCull> m_SceneBatchedCull;
 
     Buffer m_Triangles{};
     u64 m_TrianglesOffsetBase{0};

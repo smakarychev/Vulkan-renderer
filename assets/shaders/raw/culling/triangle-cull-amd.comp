@@ -10,7 +10,7 @@
 #extension GL_EXT_shader_atomic_int64: require
 
 const uint TRIANGLES_PER_MESHLET = 256;
-const uint MICRO_CLUSTER_SIZE = 8;
+const uint MICRO_CLUSTER_SIZE = 4;
 
 layout(local_size_x = 64) in;
 
@@ -176,7 +176,7 @@ void main() {
     uint bitslot = triangle_index / MICRO_CLUSTER_SIZE;
     bool is_meshlet_drawn = flags_should_draw(u_meshlet_visibility_buffer.visibility[meshlet_index]);
     bool is_meshlet_visible = flags_visible(u_meshlet_visibility_buffer.visibility[meshlet_index]);
-    bool is_last_frame_visible = (u_visible_triangles_buffer.visibility[meshlet_index] & (1 << bitslot)) != 0;
+    bool is_last_frame_visible = (u_visible_triangles_buffer.visibility[meshlet_index] & (uint64_t(1) << bitslot)) != 0;
     bool should_be_drawn = false;
     bool visible = false;
     if (!REOCCLUSION) {
@@ -188,9 +188,9 @@ void main() {
         if ((triangle_index & MICRO_CLUSTER_SIZE - 1) == 0)
         {
             if (has_visible)
-                atomicOr(u_visible_triangles_buffer.visibility[meshlet_index], (1 << bitslot));
+                atomicOr(u_visible_triangles_buffer.visibility[meshlet_index], (uint64_t(1) << bitslot));
             else
-                atomicAnd(u_visible_triangles_buffer.visibility[meshlet_index], ~(1 << bitslot));
+                atomicAnd(u_visible_triangles_buffer.visibility[meshlet_index], ~(uint64_t(1) << bitslot));
         }
         
         // determine based on 'visible' or 'has_visible'?

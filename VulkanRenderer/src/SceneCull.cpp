@@ -4,6 +4,7 @@
 #include "ResourceUploader.h"
 #include "Scene.h"
 #include "Settings.h"
+#include "utils/MathUtils.h"
 #include "utils/SceneUtils.h"
 #include "Vulkan/DepthPyramid.h"
 #include "Vulkan/VulkanUtils.h"
@@ -83,13 +84,19 @@ void SceneCullBuffers::Update(const Camera& camera, const DepthPyramid* depthPyr
     auto& sceneCullData = m_CullDataUBO.SceneData;
     auto& sceneCullDataExtended = m_CullDataUBOExtended.SceneData;
 
-    sceneCullData.FrustumPlanes = camera.GetFrustumPlanes();
-    sceneCullData.ProjectionData = camera.GetProjectionData();
-    sceneCullData.ViewMatrix = camera.GetView();
+    static bool once = true;
+    if (once)
+    {
+        sceneCullData.FrustumPlanes = camera.GetFrustumPlanes();
+        sceneCullData.ProjectionData = camera.GetProjectionData();
+        sceneCullData.ViewMatrix = camera.GetView();
 
-    sceneCullDataExtended.FrustumPlanes = sceneCullData.FrustumPlanes;
-    sceneCullDataExtended.ProjectionData = sceneCullData.ProjectionData;
-    sceneCullDataExtended.ViewProjectionMatrix = camera.GetViewProjection();
+        sceneCullDataExtended.FrustumPlanes = sceneCullData.FrustumPlanes;
+        sceneCullDataExtended.ProjectionData = sceneCullData.ProjectionData;
+        sceneCullDataExtended.ViewProjectionMatrix = camera.GetViewProjection();
+        once = false;
+    }
+
 
     if (depthPyramid)
     {
@@ -133,7 +140,7 @@ CullDrawBatch::~CullDrawBatch()
     Buffer::Destroy(m_Indices);
 }
 
-SceneBatchCull::SceneBatchCull(Scene& scene, SceneCullBuffers& sceneCullBuffers)
+SceneBatchedCull::SceneBatchedCull(Scene& scene, SceneCullBuffers& sceneCullBuffers)
 {
     m_Scene = &scene;
     m_SceneCullBuffers = &sceneCullBuffers;
@@ -156,12 +163,12 @@ SceneBatchCull::SceneBatchCull(Scene& scene, SceneCullBuffers& sceneCullBuffers)
     m_MaxBatchDispatches = MAX_DRAW_INDIRECT_CALLS / m_CullDrawBatches.front()->GetCommandCount() + 1;
 }
 
-void SceneBatchCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+void SceneBatchedCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
     InitBatchCull(scene, allocator, layoutCache);
 }
 
-void SceneBatchCull::Shutdown()
+void SceneBatchedCull::Shutdown()
 {
     if (m_CullIsInitialized)
         DestroyDescriptors();
@@ -170,7 +177,7 @@ void SceneBatchCull::Shutdown()
         batch.reset();
 }
 
-void SceneBatchCull::SetDepthPyramid(const DepthPyramid& depthPyramid, const Buffer& triangles, u64 trianglesSizeBytes, u64 trianglesOffset)
+void SceneBatchedCull::SetDepthPyramid(const DepthPyramid& depthPyramid, const Buffer& triangles, u64 trianglesSizeBytes, u64 trianglesOffset)
 {
     if (m_CullIsInitialized)
         DestroyDescriptors();
@@ -219,7 +226,7 @@ void SceneBatchCull::SetDepthPyramid(const DepthPyramid& depthPyramid, const Buf
     }
 }
 
-void SceneBatchCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext)
+void SceneBatchedCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext)
 {
     const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
     
@@ -256,7 +263,7 @@ void SceneBatchCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext& f
     RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
 }
 
-void SceneBatchCull::CullTriangles(const FrameContext& frameContext, const CullSettings& cullSettings)
+void SceneBatchedCull::CullTriangles(const FrameContext& frameContext, const CullSettings& cullSettings)
 {
     const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
 
@@ -333,24 +340,24 @@ void SceneBatchCull::CullTriangles(const FrameContext& frameContext, const CullS
     RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers->GetBatchCompactIndirectDispatches(), dispatchIndirectOffset);
 }
 
-void SceneBatchCull::NextSubBatch()
+void SceneBatchedCull::NextSubBatch()
 {
     m_CurrentBatchFlat++;
     m_CurrentBatch = (m_CurrentBatchFlat) % CULL_DRAW_BATCH_OVERLAP;
 }
 
-void SceneBatchCull::ResetSubBatches()
+void SceneBatchedCull::ResetSubBatches()
 {
     m_CurrentBatchFlat = 0;
     m_CurrentBatch = 0;
 }
 
-const Buffer& SceneBatchCull::GetDrawCount() const
+const Buffer& SceneBatchedCull::GetDrawCount() const
 {
     return m_CullDrawBatches[m_CurrentBatch]->GetCountBuffer();
 }
 
-u32 SceneBatchCull::ReadBackBatchCount(const FrameContext& frameContext) const
+u32 SceneBatchedCull::ReadBackBatchCount(const FrameContext& frameContext) const
 {
     u32 visibleMeshletsValue = m_SceneCullBuffers->GetVisibleMeshletsCountValue(frameContext.FrameNumber);
     u32 commandCount = m_CullDrawBatches[m_CurrentBatch]->GetCommandCount();
@@ -358,7 +365,7 @@ u32 SceneBatchCull::ReadBackBatchCount(const FrameContext& frameContext) const
     return visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0); 
 }
 
-void SceneBatchCull::DestroyDescriptors()
+void SceneBatchedCull::DestroyDescriptors()
 {
     for (u32 i = 0; i < CULL_DRAW_BATCH_OVERLAP; i++)
     {
@@ -368,7 +375,7 @@ void SceneBatchCull::DestroyDescriptors()
     }
 }
 
-void SceneBatchCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+void SceneBatchedCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
     auto& firstBatchData = m_CullDrawBatchData.front();
 
@@ -486,7 +493,7 @@ void SceneCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLay
     m_Scene = &scene;
     m_SceneCullBuffers.Init();
 
-    m_SceneBatchCull = std::make_unique<SceneBatchCull>(scene, m_SceneCullBuffers);
+    m_SceneBatchedCull = std::make_unique<SceneBatchedCull>(scene, m_SceneCullBuffers);
 
     m_TrianglesOffsetBase = vkUtils::alignUniformBufferSizeBytes(GetBatchCull().GetCullDrawBatch().GetTrianglesSizeBytes());
     m_Triangles = Buffer::Builder()
@@ -495,7 +502,7 @@ void SceneCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLay
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    m_SceneBatchCull->Init(scene, allocator, layoutCache);
+    m_SceneBatchedCull->Init(scene, allocator, layoutCache);
 
     InitBarriers();
     
@@ -509,7 +516,7 @@ void SceneCull::Shutdown()
     if (m_CullIsInitialized)
         DestroyDescriptors();
 
-    m_SceneBatchCull->Shutdown();
+    m_SceneBatchedCull->Shutdown();
 }
 
 void SceneCull::DestroyDescriptors()
@@ -524,7 +531,7 @@ void SceneCull::SetDepthPyramid(const DepthPyramid& depthPyramid)
 {
     m_DepthPyramid = &depthPyramid;
 
-    m_SceneBatchCull->SetDepthPyramid(depthPyramid, m_Triangles, m_TrianglesOffsetBase, 0);
+    m_SceneBatchedCull->SetDepthPyramid(depthPyramid, m_Triangles, m_TrianglesOffsetBase, 0);
 
     if (m_CullIsInitialized)
         DestroyDescriptors();
@@ -718,14 +725,14 @@ u32 SceneCull::ReadBackBatchCount(const FrameContext& frameContext) const
     return GetBatchCull().ReadBackBatchCount(frameContext);
 }
 
-SceneBatchCull& SceneCull::GetBatchCull()
+SceneBatchedCull& SceneCull::GetBatchCull()
 {
-    return *m_SceneBatchCull;
+    return *m_SceneBatchedCull;
 }
 
-const SceneBatchCull& SceneCull::GetBatchCull() const
+const SceneBatchedCull& SceneCull::GetBatchCull() const
 {
-    return *m_SceneBatchCull;
+    return *m_SceneBatchedCull;
 }
 
 void SceneCull::CullCompactTrianglesBatch(const FrameContext& frameContext, const CullSettings& cullSettings)

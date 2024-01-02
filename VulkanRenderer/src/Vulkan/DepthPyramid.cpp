@@ -7,6 +7,7 @@
 #include "Renderer.h"
 #include "VulkanCore.h"
 #include "VulkanUtils.h"
+#include "utils/MathUtils.h"
 #include "utils/utils.h"
 
 

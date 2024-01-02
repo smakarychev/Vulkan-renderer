@@ -230,12 +230,12 @@ void Renderer::PrimaryScenePass()
         GetFrameContext().ComputeCommandBuffers.GetBuffer().Begin();
     };
     
-    auto cull = [&](u64 waitValue, bool reocclusion, bool trianglesOnly)
+    auto cull = [&](u64 waitValue, bool reocclusion)
     {
         ZoneScopedN("Culling");
         const CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
 
-        m_SceneCull.CullCompactTrianglesBatch(GetFrameContext(), {reocclusion, trianglesOnly});
+        m_SceneCull.CullCompactTrianglesBatch(GetFrameContext(), {reocclusion});
         
         cullTimeline++;
         cmd.End();
@@ -280,41 +280,33 @@ void Renderer::PrimaryScenePass()
         GetFrameContext().GraphicsCommandBuffers.NextIndex();
         GetFrameContext().GraphicsCommandBuffers.GetBuffer().Begin();
     };
+    auto triangleCullRenderLoop = [&](bool reocclusion, bool computeDepthPyramid, bool shouldClear)
+    {
+        m_SceneCull.ResetSubBatches();
+        cull(renderTimeline, reocclusion);
+        u32 iterations = std::max(1u, m_CullBatchCount);
+        for (u32 i = 0; i < iterations; i++)
+        {
+            render(cullTimeline, i, computeDepthPyramid && i == iterations - 1, shouldClear);
+            m_SceneCull.NextSubBatch();
+            if (i != iterations - 1)
+                cull(renderTimeline - 1, reocclusion);
+        }
+    };
 
     preTriangleCull(renderTimeline, false, preTriangleFence);
     preTriangleWaitCPU(preTriangleFence);
     m_SceneCull.BatchIndirectDispatchesBuffersPrepare(GetFrameContext());
-    m_SceneCull.ResetSubBatches();
-    cull(renderTimeline, false, false);
-    for (u32 i = 0; i < std::max(1u, m_CullBatchCount); i++)
-    {
-        render(cullTimeline, i, i == m_CullBatchCount - 1, true);
-        m_SceneCull.NextSubBatch();
-        cull(renderTimeline - 1, false, false);
-    }
+    triangleCullRenderLoop(false, true, true);
 
     // triangle-only reocclusion
-    m_SceneCull.ResetSubBatches();
-    cull(renderTimeline, true, true);
-    for (u32 i = 0; i < m_CullBatchCount; i++)
-    {
-        render(cullTimeline, i, i == m_CullBatchCount - 1, false);
-        m_SceneCull.NextSubBatch();
-        cull(renderTimeline - 1, true, true);
-    }
+    triangleCullRenderLoop(true, true, false);
 
     // meshlet reocclusion
     preTriangleCull(renderTimeline, true, preTriangleFence);
     preTriangleWaitCPU(preTriangleFence);
     m_SceneCull.BatchIndirectDispatchesBuffersPrepare(GetFrameContext());
-    m_SceneCull.ResetSubBatches();
-    cull(renderTimeline, true, false);
-    for (u32 i = 0; i < m_CullBatchCount; i++)
-    {
-        render(cullTimeline, i, false, false);
-        m_SceneCull.NextSubBatch();
-        cull(renderTimeline - 1, true, false);
-    }
+    triangleCullRenderLoop(true, false, false);
 
     Fence::Destroy(preTriangleFence);
 }
@@ -432,9 +424,14 @@ void Renderer::CreateDepthPyramid()
 void Renderer::ComputeDepthPyramid()
 {
     ZoneScopedN("Compute depth pyramid");
-    
-    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
-    m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
+
+    static u32 five = 5;
+    if (five)
+    {
+        CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+        m_ComputeDepthPyramidData.DepthPyramid->ComputePyramid(m_Swapchain.GetDepthImage(), cmd);
+        five--;    
+    }
 }
 
 void Renderer::SceneVisibilityPass()
