@@ -1,7 +1,6 @@
 ﻿#include "ShaderAsset.h"
 
 #include <nlm_json.hpp>
-#include <stdbool.h>
 
 #include "AssetLib.h"
 #include "lz4.h"
@@ -53,6 +52,12 @@ namespace assetLib
 
         info.SourceSizeBytes = metadata["source_size_bytes"];
         info.ShaderStages = VkShaderStageFlags(metadata["shader_stage"].get<u32>());
+
+        const nlohmann::json& includedFiles = metadata["included_files"];
+        u32 includedFilesCount = (u32)includedFiles.size();
+        info.IncludedFiles.reserve(includedFilesCount);
+        for (auto& includedFile : includedFiles)
+            info.IncludedFiles.push_back(includedFile);
 
         const nlohmann::json& specializationConstants = metadata["specialization_constants"];
         u32 constantsCount = (u32)specializationConstants.size();
@@ -135,6 +140,10 @@ namespace assetLib
 
         metadata["source_size_bytes"] = info.SourceSizeBytes;
         metadata["shader_stage"] = (u32)info.ShaderStages;
+
+        metadata["included_files"] = nlohmann::json::array();
+        for (auto& includedFile : info.IncludedFiles)
+            metadata["included_files"].push_back(includedFile);
 
         metadata["specialization_constants"] = nlohmann::json::array();
         for (auto& constant : info.SpecializationConstants)

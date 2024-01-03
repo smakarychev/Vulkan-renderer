@@ -287,11 +287,32 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
 
 bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
+    std::filesystem::path convertedPath = {};
+    
+    bool requiresConversion = needsConversion(initialDirectoryPath, path, [&](std::filesystem::path& converted)
     {
         converted.replace_filename(converted.stem().string() + "-" + converted.extension().string().substr(1));
         converted.replace_extension(ShaderConverter::POST_CONVERT_EXTENSION);
+        convertedPath = converted;
     });
+
+    if (requiresConversion)
+        return true;
+
+    assetLib::File shaderFile;
+    assetLib::loadAssetFile(convertedPath.string(), shaderFile);
+    assetLib::ShaderInfo shaderInfo = assetLib::readShaderInfo(shaderFile);
+
+    for (auto& includedFile : shaderInfo.IncludedFiles)
+    {
+        auto originalTime = std::filesystem::last_write_time(includedFile);
+        auto convertedTime = std::filesystem::last_write_time(convertedPath);
+
+        if (convertedTime < originalTime)
+            return true;
+    }
+
+    return false;
 }
 
 void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
@@ -332,6 +353,9 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             std::string FileContent;
         };
     public:
+        FileIncluder (std::vector<std::string>* includedFiles)
+            : IncluderInterface(), IncludedFiles(includedFiles) {}
+        
         shaderc_include_result* GetInclude(const char* requestedSource, shaderc_include_type type,
             const char* requestingSource, size_t includeDepth) override
         {
@@ -355,6 +379,8 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             fileContent.resize(fileSizeBytes);
             fileIn.read(fileContent.data(), fileSizeBytes);
 
+            IncludedFiles->push_back(fileName);
+            
             FileInfo* fileInfo = new FileInfo{
                 .FileName = fileName,
                 .FileContent = fileContent};
@@ -370,11 +396,14 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             delete fileInfo;
             delete data;
         }
+
+        std::vector<std::string>* IncludedFiles;
     };
     
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
-    options.SetIncluder(std::make_unique<FileIncluder>());
+    std::vector<std::string> includedFiles;
+    options.SetIncluder(std::make_unique<FileIncluder>(&includedFiles));
     options.SetTargetSpirv(shaderc_spirv_version_1_3);
     options.SetOptimizationLevel(shaderc_optimization_level_zero);
     shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind, path.string().c_str(), options);
@@ -387,6 +416,7 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
 
     // produce reflection on unoptimized code
     assetLib::ShaderInfo shaderInfo = Reflect(spirv, descriptorFlags, inputBindingsInfo);
+    shaderInfo.IncludedFiles = includedFiles;
     shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     shaderInfo.OriginalFile = path.string();
     shaderInfo.BlobFile = blobPath.string();

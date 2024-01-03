@@ -50,6 +50,8 @@ namespace assetLib
             std::vector<DescriptorBinding> Descriptors;
         };
 
+        std::vector<std::string> IncludedFiles;
+        
         VkShaderStageFlags ShaderStages;
         std::vector<SpecializationConstant> SpecializationConstants;
         std::vector<InputAttribute> InputAttributes;
