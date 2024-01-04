@@ -174,20 +174,25 @@ void Image::Destroy(const Image& image)
 
 ImageDescriptorInfo Image::CreateDescriptorInfo(VkFilter samplerFilter) const
 {
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = Texture::CreateSampler(samplerFilter, (f32)m_ImageData.MipMapCount); // todo: find a better place for it
-    descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    descriptorTextureInfo.imageView = m_ImageData.View;
+    return CreateDescriptorInfo(samplerFilter, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+}
+
+ImageDescriptorInfo Image::CreateDescriptorInfo(VkFilter samplerFilter, VkImageLayout imageLayout) const
+{
+    ImageDescriptorInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.Sampler = Texture::CreateSampler(samplerFilter, (f32)m_ImageData.MipMapCount); // todo: find a better place for it
+    descriptorTextureInfo.Layout = imageLayout;
+    descriptorTextureInfo.View = m_ImageData.View;
 
     return descriptorTextureInfo;
 }
 
 ImageDescriptorInfo Image::CreateDescriptorInfo() const
 {
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = VK_NULL_HANDLE;
-    descriptorTextureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    descriptorTextureInfo.imageView = m_ImageData.View;
+    ImageDescriptorInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.Sampler = VK_NULL_HANDLE;
+    descriptorTextureInfo.Layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    descriptorTextureInfo.View = m_ImageData.View;
 
     return descriptorTextureInfo;
 }
@@ -343,7 +348,7 @@ VkSampler Image::CreateSampler(VkFilter scaleFilter, f32 maxLod)
     samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerCreateInfo.magFilter = scaleFilter;
     samplerCreateInfo.minFilter = scaleFilter;
-    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerCreateInfo.mipmapMode = vkUtils::mipmapModeFromSamplerFilter(scaleFilter);
     samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
     samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;

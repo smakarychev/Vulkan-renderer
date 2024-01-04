@@ -24,7 +24,7 @@ public:
     bool IsPendingTransition() const { return m_IsPendingTransition; }
     void SubmitLayoutTransition(const CommandBuffer& cmd, const BufferSubmitTimelineSyncInfo& syncInfo);
     
-    void ComputePyramid(const Image& depthImage, const CommandBuffer& cmd);
+    void Compute(const Image& depthImage, const CommandBuffer& cmd);
 
     const Image& GetTexture() const { return m_PyramidDepth; }
     VkSampler GetSampler() const { return m_Sampler; }
@@ -34,7 +34,7 @@ private:
     static std::array<VkImageView, MAX_DEPTH> CreateViews(const Image& pyramidImage);
     
     void CreateDescriptorSets(const Image& depthImage);
-    void FillPyramid(const CommandBuffer& cmd, const Image& depthImage);
+    void Fill(const CommandBuffer& cmd, const Image& depthImage);
 private:
     Image m_PyramidDepth;
     bool m_IsPendingTransition{true};

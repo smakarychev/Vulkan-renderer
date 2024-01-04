@@ -62,6 +62,13 @@ struct BindlessData
     BindlessDescriptorsState BindlessDescriptorsState;
 };
 
+struct VisibilityBufferVisualizeData
+{
+    ShaderPipelineTemplate* Template;
+    ShaderPipeline Pipeline;
+    ShaderDescriptorSet DescriptorSet;
+};
+
 struct ComputeDepthPyramidData
 {
     ShaderPipeline Pipeline;
@@ -82,9 +89,7 @@ struct FrameContext
 {
     CommandBufferArray GraphicsCommandBuffers{QueueKind::Graphics, false};
     CommandBufferArray ComputeCommandBuffers{QueueKind::Compute, false};
-    
-    CommandPool CommandPool;
-    std::vector<CommandBuffer> CommandBuffers;
+
     u32 CommandBufferIndex{0};
     
     SwapchainFrameSync FrameSync;
@@ -125,7 +130,11 @@ private:
     Renderer();
     void InitRenderingStructures();
     void InitDepthPyramidComputeStructures();
+    void InitVisibilityPass();
+    void InitVisibilityBufferVisualizationStructures();
+
     void ShutDown();
+    void ShutDownVisibilityPass();
 
     void CreateDepthPyramid();
     void ComputeDepthPyramid();
@@ -135,6 +144,7 @@ private:
 
     RenderingInfo GetClearRenderingInfo();
     RenderingInfo GetLoadRenderingInfo();
+    RenderingInfo GetColorRenderingInfo();
 
     void OnWindowResize();
     void RecreateSwapchain();
@@ -176,6 +186,8 @@ private:
     ComputeDepthPyramidData m_ComputeDepthPyramidData;
 
     VisibilityPass m_VisibilityPass;
+    // todo: temp object to visualize the visibility buffer
+    VisibilityBufferVisualizeData m_VisibilityBufferVisualizeData;
 
     SceneCull m_SceneCull;
     u32 m_CullBatchCount{0};

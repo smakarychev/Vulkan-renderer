@@ -267,4 +267,19 @@ namespace vkUtils
         }
         std::unreachable();
     }
+
+    inline VkSamplerMipmapMode mipmapModeFromSamplerFilter(VkFilter filter)
+    {
+        switch (filter)
+        {
+        case VK_FILTER_NEAREST:
+            return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+        case VK_FILTER_LINEAR:
+        case VK_FILTER_CUBIC_IMG:
+            return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        default:
+            ASSERT(false, "Unsupported filter format");
+        }
+        std::unreachable();
+    }
 }

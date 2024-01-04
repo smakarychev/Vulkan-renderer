@@ -175,8 +175,9 @@ public:
         using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
         ShaderPipeline Build();
-        Builder& PrimitiveKind(PrimitiveKind primitiveKind);
         Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
+        Builder& PrimitiveKind(PrimitiveKind primitiveKind);
+        Builder& AlphaBlending(AlphaBlending alphaBlending);
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
         Builder& CompatibleWithVertex(const VertexInputDescription& vertexInputDescription);
         template <typename T>
@@ -189,6 +190,7 @@ public:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_CompatibleVertexDescription;
         ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
+        ::AlphaBlending m_AlphaBlending{AlphaBlending::Over};
         PipelineSpecializationInfo m_PipelineSpecializationInfo;
         std::vector<std::string> m_SpecializationConstantNames;
     };
@@ -289,4 +291,18 @@ private:
     ShaderPipelineTemplate* m_Template{nullptr};
     
     DescriptorSetsInfo m_DescriptorSetsInfo{};
+};
+
+class ShaderTemplateLibrary
+{
+public:
+    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+        std::string_view templateName,
+        DescriptorAllocator& allocator,
+        DescriptorLayoutCache& layoutCache);
+    static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
+private:
+    static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
+private:
+    static std::unordered_map<std::string, ShaderPipelineTemplate> m_Templates;
 };

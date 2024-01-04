@@ -466,6 +466,13 @@ ShaderPipeline ShaderPipeline::Builder::Build()
     return ShaderPipeline::Create(m_CreateInfo);
 }
 
+ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderingDetails(const RenderingDetails& renderingDetails)
+{
+    m_CreateInfo.RenderingDetails = renderingDetails;
+    
+    return *this;
+}
+
 ShaderPipeline::Builder& ShaderPipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
 {
     m_PrimitiveKind = primitiveKind;
@@ -473,10 +480,10 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::PrimitiveKind(::PrimitiveKind 
     return *this;
 }
 
-ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderingDetails(const RenderingDetails& renderingDetails)
+ShaderPipeline::Builder& ShaderPipeline::Builder::AlphaBlending(::AlphaBlending alphaBlending)
 {
-    m_CreateInfo.RenderingDetails = renderingDetails;
-    
+    m_AlphaBlending = alphaBlending;
+
     return *this;
 }
 
@@ -498,6 +505,7 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::CompatibleWithVertex(
 void ShaderPipeline::Builder::Prebuild()
 {
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.PrimitiveKind(m_PrimitiveKind);
+    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.AlphaBlending(m_AlphaBlending);
     
     if (!m_CompatibleVertexDescription.Bindings.empty())
         CreateCompatibleLayout();
@@ -733,4 +741,36 @@ void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& textu
         texture,
         descriptorInfo.Type,
         arrayIndex);
+}
+
+std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::m_Templates = {};
+
+ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+    std::string_view templateName, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+{
+    if (!GetShaderTemplate(std::string{templateName}))
+    {
+        Shader* shaderReflection = Shader::ReflectFrom(paths);
+
+        ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
+            .SetDescriptorAllocator(&allocator)
+            .SetDescriptorLayoutCache(&layoutCache)
+            .SetShaderReflection(shaderReflection)
+            .Build();
+        
+        AddShaderTemplate(shaderTemplate, std::string{templateName});
+    }
+    
+    return GetShaderTemplate(std::string{templateName});
+}
+
+ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::string& name)
+{
+    auto it = m_Templates.find(name);
+    return it == m_Templates.end() ? nullptr : &it->second;
+}
+
+void ShaderTemplateLibrary::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name)
+{
+    m_Templates.emplace(std::make_pair(name, shaderTemplate));
 }

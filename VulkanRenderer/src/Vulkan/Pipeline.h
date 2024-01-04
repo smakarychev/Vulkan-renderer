@@ -76,13 +76,16 @@ public:
         Builder& FixedFunctionDefaults();
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
+        Builder& AlphaBlending(AlphaBlending alphaBlending);
         Builder& UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo);
     private:
         void PreBuild();
+        void ChooseBlendingMode();
     private:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_VertexInputDescription;
         ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
+        ::AlphaBlending m_AlphaBlending{AlphaBlending::Over};
         PipelineSpecializationInfo m_PipelineSpecializationInfo;
     };
 public:

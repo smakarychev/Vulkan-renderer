@@ -10,8 +10,4 @@ class ShaderPipelineTemplate;
 
 namespace sceneUtils
 {
-    ShaderPipelineTemplate* loadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
-        std::string_view templateName,
-        Scene& scene, DescriptorAllocator& allocator,
-        DescriptorLayoutCache& layoutCache);
 }

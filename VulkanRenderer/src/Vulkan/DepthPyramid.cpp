@@ -41,10 +41,10 @@ void DepthPyramid::SubmitLayoutTransition(const CommandBuffer& cmd, const Buffer
     cmd.Submit(Driver::GetDevice().GetQueues().Graphics, syncInfo);
 }
 
-void DepthPyramid::ComputePyramid(const Image& depthImage, const CommandBuffer& cmd)
+void DepthPyramid::Compute(const Image& depthImage, const CommandBuffer& cmd)
 {
     TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Depth pyramid")
-    FillPyramid(cmd, depthImage);
+    Fill(cmd, depthImage);
 }
 
 VkSampler DepthPyramid::CreateSampler()
@@ -143,7 +143,7 @@ void DepthPyramid::CreateDescriptorSets(const Image& depthImage)
     }
 }
 
-void DepthPyramid::FillPyramid(const CommandBuffer& cmd, const Image& depthImage)
+void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
 {
     TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Fill depth pyramid")
 
@@ -188,7 +188,9 @@ void DepthPyramid::FillPyramid(const CommandBuffer& cmd, const Image& depthImage
             .ImageDestinationMask = VK_ACCESS_SHADER_READ_BIT,
             .ImageSourceLayout = VK_IMAGE_LAYOUT_GENERAL,
             .ImageDestinationLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT};
+            .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT,
+            .BaseMipLevel = i,
+            .MipLevelCount = 1};
         RenderCommand::CreateBarrier(cmd, barrierInfo);
     }
 

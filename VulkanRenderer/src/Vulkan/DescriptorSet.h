@@ -63,12 +63,7 @@ public:
         u64 SizeBytes{0};
         u64 OffsetBytes{0};
     };
-    struct TextureBindingInfo
-    {
-        VkImageView View;
-        VkSampler Sampler;
-        VkImageLayout Layout;
-    };
+    using TextureBindingInfo = TextureDescriptorInfo;
     class Builder
     {
         friend class DescriptorSet;

@@ -55,12 +55,6 @@ void Scene::OnUpdate(f32 dt)
     m_ResourceUploader->UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU), 0);
 }
 
-ShaderPipelineTemplate* Scene::GetShaderTemplate(const std::string& name)
-{
-    auto it = m_ShaderTemplates.find(name);
-    return it == m_ShaderTemplates.end() ? nullptr : &it->second;
-}
-
 Model* Scene::GetModel(const std::string& name)
 {
     auto it = m_Models.find(name);
@@ -75,11 +69,6 @@ MaterialGPU& Scene::GetMaterialGPU(RenderHandle<MaterialGPU> handle)
 Mesh& Scene::GetMesh(RenderHandle<Mesh> handle)
 {
     return m_Meshes[handle];
-}
-
-void Scene::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name)
-{
-    m_ShaderTemplates.emplace(std::make_pair(name, shaderTemplate));
 }
 
 void Scene::AddModel(Model* model, const std::string& name)

@@ -84,19 +84,13 @@ void SceneCullBuffers::Update(const Camera& camera, const DepthPyramid* depthPyr
     auto& sceneCullData = m_CullDataUBO.SceneData;
     auto& sceneCullDataExtended = m_CullDataUBOExtended.SceneData;
 
-    static bool once = true;
-    if (once)
-    {
-        sceneCullData.FrustumPlanes = camera.GetFrustumPlanes();
-        sceneCullData.ProjectionData = camera.GetProjectionData();
-        sceneCullData.ViewMatrix = camera.GetView();
+    sceneCullData.FrustumPlanes = camera.GetFrustumPlanes();
+    sceneCullData.ProjectionData = camera.GetProjectionData();
+    sceneCullData.ViewMatrix = camera.GetView();
 
-        sceneCullDataExtended.FrustumPlanes = sceneCullData.FrustumPlanes;
-        sceneCullDataExtended.ProjectionData = sceneCullData.ProjectionData;
-        sceneCullDataExtended.ViewProjectionMatrix = camera.GetViewProjection();
-        once = false;
-    }
-
+    sceneCullDataExtended.FrustumPlanes = sceneCullData.FrustumPlanes;
+    sceneCullDataExtended.ProjectionData = sceneCullData.ProjectionData;
+    sceneCullDataExtended.ViewProjectionMatrix = camera.GetViewProjection();
 
     if (depthPyramid)
     {
@@ -130,7 +124,7 @@ CullDrawBatch::CullDrawBatch()
 
     m_Indices = Buffer::Builder()
         .SetKinds({BufferKind::Index, BufferKind::Storage})
-        .SetSizeBytes(MAX_INDICES * sizeof(assetLib::ModelInfo::IndexType) * m_SubBatchCount)
+        .SetSizeBytes(MAX_INDICES * sizeof(assetLib::ModelInfo::IndexType) * SUB_BATCH_COUNT)
         .BuildManualLifetime();
 }
 
@@ -163,9 +157,9 @@ SceneBatchedCull::SceneBatchedCull(Scene& scene, SceneCullBuffers& sceneCullBuff
     m_MaxBatchDispatches = MAX_DRAW_INDIRECT_CALLS / m_CullDrawBatches.front()->GetCommandCount() + 1;
 }
 
-void SceneBatchedCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+void SceneBatchedCull::Init(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
-    InitBatchCull(scene, allocator, layoutCache);
+    InitBatchCull(allocator, layoutCache);
 }
 
 void SceneBatchedCull::Shutdown()
@@ -275,7 +269,7 @@ void SceneBatchedCull::CullTriangles(const FrameContext& frameContext, const Cul
     dispatchIndirectOffset += sizeof(VkDispatchIndirectCommand) * m_CurrentBatchFlat;
     u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
     u32 commandOffset = commandCount * m_CurrentBatchFlat;
-    u32 compactedCommandsOffsetBytes = (u32)GetDrawCommandsSizeBytes() * m_CurrentBatch;
+    u32 compactedCommandsOffsetBytes = (u32)CullDrawBatch::GetCommandsSizeBytes() * m_CurrentBatch;
     
     std::vector<u32> pushConstants {commandCount, commandOffset, SceneCullBuffers::MAX_COMMAND_COUNT};
     
@@ -375,13 +369,13 @@ void SceneBatchedCull::DestroyDescriptors()
     }
 }
 
-void SceneBatchedCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+void SceneBatchedCull::InitBatchCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
     auto& firstBatchData = m_CullDrawBatchData.front();
 
-    firstBatchData.TriangleCull.Template = sceneUtils::loadShaderPipelineTemplate(
+    firstBatchData.TriangleCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/triangle-cull-amd-comp.shader"}, "triangle-cull-amd",
-        scene, allocator, layoutCache);
+        allocator, layoutCache);
 
     firstBatchData.TriangleCull.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(firstBatchData.TriangleCull.Template)
@@ -394,9 +388,9 @@ void SceneBatchedCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocato
         .AddSpecialization("REOCCLUSION", true)
         .Build();
 
-    firstBatchData.CompactCommands.Template = sceneUtils::loadShaderPipelineTemplate(
+    firstBatchData.CompactCommands.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/compact-commands-comp.shader"}, "compact-commands",
-        scene, allocator, layoutCache);
+        allocator, layoutCache);
 
     firstBatchData.CompactCommands.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(firstBatchData.CompactCommands.Template)
@@ -409,9 +403,9 @@ void SceneBatchedCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocato
         .AddSpecialization("CLEAR", true)
         .Build();
     
-    firstBatchData.ClearCount.Template = sceneUtils::loadShaderPipelineTemplate(
+    firstBatchData.ClearCount.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/clear-buffers-comp.shader"}, "clear-buffers-cull",
-        scene, allocator, layoutCache);
+        allocator, layoutCache);
 
     firstBatchData.ClearCount.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(firstBatchData.ClearCount.Template)
@@ -443,7 +437,7 @@ void SceneBatchedCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocato
             .SetTemplate(batchData.CompactCommands.Template)
             .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
             .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers->GetCompactedBatchCommands(),
-                GetDrawCommandsSizeBytes(), 0)
+                CullDrawBatch::GetCommandsSizeBytes(), 0)
             .AddBinding("u_command_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
             .AddBinding("u_compacted_command_count_buffer", m_CullDrawBatches[i]->GetCountBuffer())
             .Build();
@@ -452,7 +446,7 @@ void SceneBatchedCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocato
             .SetTemplate(batchData.CompactCommands.Template)
             .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
             .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers->GetCompactedBatchCommands(),
-                GetDrawCommandsSizeBytes(), 0)
+                CullDrawBatch::GetCommandsSizeBytes(), 0)
             .AddBinding("u_command_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
             .AddBinding("u_compacted_command_count_buffer", m_CullDrawBatches[i]->GetCountBuffer())
             .Build();
@@ -463,9 +457,9 @@ void SceneBatchedCull::InitBatchCull(Scene& scene, DescriptorAllocator& allocato
             .Build();
     }
 
-    m_PrepareIndirectDispatches.Template = sceneUtils::loadShaderPipelineTemplate(
+    m_PrepareIndirectDispatches.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/prepare-indirect-dispatches-comp.shader"}, "prepare-batch-indirect-dispatch",
-        scene, allocator, layoutCache);
+        allocator, layoutCache);
 
     m_PrepareIndirectDispatches.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_PrepareIndirectDispatches.Template)
@@ -502,12 +496,12 @@ void SceneCull::Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLay
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
-    m_SceneBatchedCull->Init(scene, allocator, layoutCache);
+    m_SceneBatchedCull->Init(allocator, layoutCache);
 
     InitBarriers();
     
-    InitMeshCull(scene, allocator, layoutCache);
-    InitMeshletCull(scene, allocator, layoutCache);
+    InitMeshCull(allocator, layoutCache);
+    InitMeshletCull(allocator, layoutCache);
 }
 
 void SceneCull::Shutdown()
@@ -685,21 +679,6 @@ const Buffer& SceneCull::GetTriangles() const
     return m_Triangles;
 }
 
-u64 SceneCull::GetTrianglesSizeBytes() const
-{
-    return GetBatchCull().GetTrianglesSizeBytes();
-}
-
-u64 SceneCull::GetDrawCommandsSizeBytes() const
-{
-    return GetBatchCull().GetDrawCommandsSizeBytes();
-}
-
-u32 SceneCull::GetMaxDrawCommandCount() const
-{
-    return GetBatchCull().GetMaxDrawCommandCount();
-}
-
 u64 SceneCull::GetDrawCommandsOffset() const
 {
     return GetBatchCull().GetDrawCommandsOffset();
@@ -761,11 +740,11 @@ void SceneCull::InitBarriers()
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
 }
 
-void SceneCull::InitMeshCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+void SceneCull::InitMeshCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
-    m_MeshCull.Template = sceneUtils::loadShaderPipelineTemplate(
+    m_MeshCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/mesh-cull-comp.shader"}, "mesh-cull",
-        scene, allocator, layoutCache);
+        allocator, layoutCache);
 
     m_MeshCull.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_MeshCull.Template)
@@ -778,11 +757,11 @@ void SceneCull::InitMeshCull(Scene& scene, DescriptorAllocator& allocator, Descr
         .Build();
 }
 
-void SceneCull::InitMeshletCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
+void SceneCull::InitMeshletCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
-    m_MeshletCull.Template = sceneUtils::loadShaderPipelineTemplate(
+    m_MeshletCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/meshlet-cull-comp.shader"}, "meshlet-cull",
-        scene, allocator, layoutCache);
+        allocator, layoutCache);
 
     m_MeshletCull.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_MeshletCull.Template)
@@ -795,9 +774,9 @@ void SceneCull::InitMeshletCull(Scene& scene, DescriptorAllocator& allocator, De
         .AddSpecialization("REOCCLUSION", true)
         .Build();
 
-    m_MeshletCullClear.Template = sceneUtils::loadShaderPipelineTemplate(
+    m_MeshletCullClear.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/clear-buffers-comp.shader"}, "clear-buffers-cull",
-        scene, allocator, layoutCache);
+        allocator, layoutCache);
 
     m_MeshletCullClear.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_MeshletCullClear.Template)

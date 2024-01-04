@@ -11,9 +11,6 @@ class Buffer;
 class Swapchain;
 class Device;
 
-using ImageDescriptorInfo = VkDescriptorImageInfo;
-using TextureDescriptorInfo = ImageDescriptorInfo;
-
 class Image
 {
     FRIEND_INTERNAL
@@ -58,6 +55,7 @@ public:
     const ImageData& GetImageData() const { return m_ImageData; }
     ImageData& GetImageData() { return m_ImageData; }
     ImageDescriptorInfo CreateDescriptorInfo(VkFilter samplerFilter) const;
+    ImageDescriptorInfo CreateDescriptorInfo(VkFilter samplerFilter, VkImageLayout imageLayout) const;
     ImageDescriptorInfo CreateDescriptorInfo() const;
 private:
     using CreateInfo = Builder::CreateInfo;

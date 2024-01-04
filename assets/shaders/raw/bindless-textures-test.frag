@@ -102,7 +102,6 @@ void main() {
     
     if (out_color.a < 0.5f)
         discard;
-   
     
     //out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);
     uint triangle_id = u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID];

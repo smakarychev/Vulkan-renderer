@@ -168,13 +168,6 @@ Pipeline::Builder& Pipeline::Builder::FixedFunctionDefaults()
                                                             VK_COLOR_COMPONENT_G_BIT |
                                                             VK_COLOR_COMPONENT_B_BIT |
                                                             VK_COLOR_COMPONENT_A_BIT;
-    m_CreateInfo.ColorBlendAttachmentState.blendEnable = VK_TRUE;
-    m_CreateInfo.ColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-    m_CreateInfo.ColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-    m_CreateInfo.ColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-    m_CreateInfo.ColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-    m_CreateInfo.ColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-    m_CreateInfo.ColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
 
     m_CreateInfo.ColorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     m_CreateInfo.ColorBlendState.logicOpEnable = VK_FALSE;
@@ -192,6 +185,13 @@ Pipeline::Builder& Pipeline::Builder::SetVertexDescription(const VertexInputDesc
 Pipeline::Builder& Pipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
 {
     m_PrimitiveKind = primitiveKind;
+
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::AlphaBlending(::AlphaBlending alphaBlending)
+{
+    m_AlphaBlending = alphaBlending;
 
     return *this;
 }
@@ -218,6 +218,8 @@ void Pipeline::Builder::PreBuild()
     m_CreateInfo.ColorBlendState.attachmentCount = 1;
     m_CreateInfo.ColorBlendState.pAttachments = &m_CreateInfo.ColorBlendAttachmentState;
 
+    ChooseBlendingMode();
+
     m_CreateInfo.ShaderSpecializationInfos.reserve(m_CreateInfo.Shaders.size());
 
     u32 entriesOffset = 0;
@@ -241,6 +243,27 @@ void Pipeline::Builder::PreBuild()
 
     if (!m_CreateInfo.IsComputePipeline)
         ASSERT(!m_CreateInfo.RenderingDetails.ColorFormats.empty(), "No rendering details provided")
+}
+
+void Pipeline::Builder::ChooseBlendingMode()
+{
+    switch (m_AlphaBlending)
+    {
+    case AlphaBlending::None:
+        m_CreateInfo.ColorBlendAttachmentState.blendEnable = VK_FALSE;
+        break;
+    case AlphaBlending::Over:
+        m_CreateInfo.ColorBlendAttachmentState.blendEnable = VK_TRUE;
+        m_CreateInfo.ColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+        m_CreateInfo.ColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        m_CreateInfo.ColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
+        m_CreateInfo.ColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+        m_CreateInfo.ColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+        m_CreateInfo.ColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
+        break;
+    default:
+        ASSERT(false, "Unsupported blending mode")
+    }
 }
 
 Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)

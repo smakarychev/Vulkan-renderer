@@ -88,7 +88,11 @@ void Driver::DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindin
 
 void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    VkDescriptorImageInfo descriptorTextureInfo = texture.CreateDescriptorInfo(VK_FILTER_LINEAR);
+    TextureDescriptorInfo descriptorInfo = texture.CreateDescriptorInfo(VK_FILTER_LINEAR);
+    VkDescriptorImageInfo descriptorTextureInfo = {};
+    descriptorTextureInfo.sampler = descriptorInfo.Sampler;
+    descriptorTextureInfo.imageLayout = descriptorInfo.Layout;
+    descriptorTextureInfo.imageView = descriptorInfo.View;
 
     descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot, .Type = descriptor});
 }

@@ -37,6 +37,14 @@ Swapchain::Builder& Swapchain::Builder::DefaultHints()
     return *this;
 }
 
+Swapchain::Builder& Swapchain::Builder::SetDrawResolution(const glm::uvec2& resolution)
+{
+    ASSERT(resolution.x != 0 && resolution.y != 0, "Draw resolution must be greater than zero")
+    m_CreateInfo.DrawExtent = {resolution.x, resolution.y};
+
+    return *this;
+}
+
 Swapchain::Builder& Swapchain::Builder::FromDetails(const SurfaceDetails& details)
 {
     CreateInfo createInfo = {};
@@ -49,8 +57,6 @@ Swapchain::Builder& Swapchain::Builder::FromDetails(const SurfaceDetails& detail
     createInfo.PresentMode = utils::getIntersectionOrDefault(m_CreateInfoHint.DesiredPresentModes, details.PresentModes,
         [](VkPresentModeKHR des, VkPresentModeKHR avail) { return des == avail; });
     
-    createInfo.Extent = ChooseExtent(details.Capabilities);
-
     createInfo.ImageCount = ChooseImageCount(details.Capabilities);
 
     m_CreateInfo = createInfo;
@@ -81,6 +87,7 @@ Swapchain::Builder& Swapchain::Builder::SetSyncStructures(const std::vector<Swap
 
 void Swapchain::Builder::PreBuild()
 {
+    m_CreateInfo.DrawFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
     m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
     
     if (m_CreateInfo.FrameSyncs.empty())
@@ -142,7 +149,7 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
     VkExtent2D extent = swapchain.GetValidExtent(createInfo.Capabilities);
     swapchainCreateInfo.imageExtent = extent;
     swapchainCreateInfo.imageArrayLayers = 1;
-    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     swapchainCreateInfo.minImageCount = createInfo.ImageCount;
     swapchainCreateInfo.presentMode = createInfo.PresentMode;
 
@@ -165,11 +172,14 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
     VulkanCheck(vkCreateSwapchainKHR(Driver::DeviceHandle(), &swapchainCreateInfo, nullptr, &swapchain.m_Swapchain),
         "Failed to create swapchain");
     swapchain.m_Extent = extent;
+    swapchain.m_DrawExtent = createInfo.DrawExtent.width != 0 ? createInfo.DrawExtent : extent;
     swapchain.m_ColorFormat = createInfo.ColorFormat.format;
+    swapchain.m_DrawFormat = createInfo.DrawFormat;
     swapchain.m_DepthFormat = createInfo.DepthStencilFormat;
     swapchain.m_ColorImageCount = createInfo.ImageCount;
     swapchain.m_SwapchainFrameSync = createInfo.FrameSyncs;
     swapchain.m_ColorImages = swapchain.CreateColorImages();
+    swapchain.m_DrawImage = swapchain.CreateDrawImage();
     swapchain.m_DepthImage = swapchain.CreateDepthImage();
 
     return swapchain;
@@ -179,6 +189,7 @@ void Swapchain::Destroy(const Swapchain& swapchain)
 {
     for (const auto& colorImage : swapchain.m_ColorImages)
         vkDestroyImageView(Driver::DeviceHandle(), colorImage.GetImageData().View, nullptr);
+    Image::Destroy(swapchain.m_DrawImage);
     Image::Destroy(swapchain.m_DepthImage);
     vkDestroySwapchainKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, nullptr);
 }
@@ -211,16 +222,16 @@ bool Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 fra
     return res == VK_SUCCESS;
 }
 
-void Swapchain::PrepareRendering(const CommandBuffer& cmd, u32 imageIndex)
+void Swapchain::PrepareRendering(const CommandBuffer& cmd)
 {
     PipelineImageBarrierInfo imageBarrierInfo = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .Image = &m_ColorImages[imageIndex],
+        .Image = &m_DrawImage,
         .ImageSourceMask = 0,
         .ImageDestinationMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .ImageDestinationLayout = VK_IMAGE_LAYOUT_GENERAL,
         .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
     };
     RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
@@ -238,13 +249,45 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     PipelineImageBarrierInfo imageBarrierInfo = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        .Image = &m_ColorImages[imageIndex],
+        .Image = &m_DrawImage,
         .ImageSourceMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .ImageDestinationMask = 0,
-        .ImageSourceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        .ImageSourceLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .ImageDestinationLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
     };
+    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+
+    imageBarrierInfo.Image = &m_ColorImages[imageIndex];
+    imageBarrierInfo.ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    imageBarrierInfo.ImageDestinationLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+
+    VkImageBlit imageBlit = {};
+    imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageBlit.srcSubresource.layerCount = 1;
+    imageBlit.srcSubresource.mipLevel = 0;
+    imageBlit.srcOffsets[1] = VkOffset3D{
+        (i32)m_DrawImage.GetImageData().Width,
+        (i32)m_DrawImage.GetImageData().Height,
+        1};
+    imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageBlit.dstSubresource.layerCount = 1;
+    imageBlit.dstSubresource.mipLevel = 0;
+    imageBlit.dstOffsets[1] = VkOffset3D{
+        (i32)m_ColorImages[imageIndex].GetImageData().Width,
+        (i32)m_ColorImages[imageIndex].GetImageData().Height,
+        1};
+    
+    RenderCommand::BlitImage(cmd, {
+        .SourceImage = &m_DrawImage,
+        .DestinationImage = &m_ColorImages[imageIndex],
+        .ImageBlit = &imageBlit,
+        .Filter = VK_FILTER_LINEAR});
+
+    imageBarrierInfo.Image = &m_ColorImages[imageIndex];
+    imageBarrierInfo.ImageSourceLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    imageBarrierInfo.ImageDestinationLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
 }
 
@@ -286,6 +329,22 @@ std::vector<Image> Swapchain::CreateColorImages() const
     return colorImages;
 }
 
+Image Swapchain::CreateDrawImage()
+{
+    m_DrawImage = Image::Builder()
+        .SetExtent(m_DrawExtent)
+        .SetFormat(m_DrawFormat)
+        .SetUsage(
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+            VK_IMAGE_USAGE_STORAGE_BIT |
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            VK_IMAGE_ASPECT_COLOR_BIT)
+        .BuildManualLifetime();
+
+    return m_DrawImage;
+}
+
 Image Swapchain::CreateDepthImage()
 {
     Image depth = Image::Builder()
@@ -316,6 +375,6 @@ VkExtent2D Swapchain::GetValidExtent(const VkSurfaceCapabilitiesKHR& capabilitie
 
 RenderingDetails Swapchain::GetRenderingDetails() const
 {
-    return {{m_ColorFormat}, m_DepthFormat};
+    return {{m_DrawFormat}, m_DepthFormat};
 }
 

@@ -38,9 +38,10 @@ public:
         {
             VkSurfaceCapabilitiesKHR Capabilities;
             VkSurfaceFormatKHR ColorFormat;
+            VkFormat DrawFormat;
             VkFormat DepthStencilFormat;
             VkPresentModeKHR PresentMode;
-            VkExtent2D Extent;
+            VkExtent2D DrawExtent{0, 0};
             u32 ImageCount;
             std::vector<SwapchainFrameSync> FrameSyncs;
             GLFWwindow* Window{nullptr};
@@ -56,6 +57,7 @@ public:
         Swapchain Build();
         Swapchain BuildManualLifetime();
         Builder& DefaultHints();
+        Builder& SetDrawResolution(const glm::uvec2& resolution);
         Builder& FromDetails(const SurfaceDetails& details);
         Builder& SetDevice(const Device& device);
         Builder& BufferedFrames(u32 count);
@@ -78,7 +80,7 @@ public:
     u32 AcquireImage(u32 frameNumber);
     bool PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);
 
-    void PrepareRendering(const CommandBuffer& cmd, u32 imageIndex);
+    void PrepareRendering(const CommandBuffer& cmd);
     void PreparePresent(const CommandBuffer& cmd, u32 imageIndex);
 
     const SwapchainFrameSync& GetFrameSync(u32 frameNumber) const;
@@ -88,19 +90,23 @@ public:
 
     RenderingDetails GetRenderingDetails() const;
     
-    const Image& GetColorImage(u32 index) const { return m_ColorImages[index]; }
+    const Image& GetDrawImage() const { return m_DrawImage; }
     const Image& GetDepthImage() const { return m_DepthImage; }
 
 private:
     std::vector<Image> CreateColorImages() const;
+    Image CreateDrawImage();
     Image CreateDepthImage();
     VkExtent2D GetValidExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 private:
     VkSwapchainKHR m_Swapchain{VK_NULL_HANDLE};
     VkExtent2D m_Extent{};
+    VkExtent2D m_DrawExtent{};
     VkFormat m_ColorFormat{};
+    VkFormat m_DrawFormat{};
     VkFormat m_DepthFormat{};
     std::vector<Image> m_ColorImages;
+    Image m_DrawImage;
     Image m_DepthImage;
     u32 m_ColorImageCount{};
     std::vector<SwapchainFrameSync> m_SwapchainFrameSync;

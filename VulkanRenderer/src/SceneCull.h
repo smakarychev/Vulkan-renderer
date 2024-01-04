@@ -30,7 +30,11 @@ public:
 
     const Buffer& GetCountBuffer() const { return m_Count; }
     const Buffer& GetIndices() const { return m_Indices; }
-    u32 GetCommandCount() const { return MAX_COMMANDS * m_SubBatchCount; }
+
+    static u32 GetCommandCount()
+    {
+        return MAX_COMMANDS * SUB_BATCH_COUNT;
+    }
 
     static u64 GetCommandsSizeBytes()
     {
@@ -42,7 +46,6 @@ public:
     }
     
 private:
-    u32 m_SubBatchCount{SUB_BATCH_COUNT};
     Buffer m_Count;
     Buffer m_Indices;
 };
@@ -140,7 +143,7 @@ class SceneBatchedCull
     static constexpr u32 MICRO_CLUSTER_SIZE = 4;
 public:
     SceneBatchedCull(Scene& scene, SceneCullBuffers& sceneCullBuffers);
-    void Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
+    void Init(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
     void Shutdown();
 
     void SetDepthPyramid(const DepthPyramid& depthPyramid, const Buffer& triangles, u64 trianglesSizeBytes, u64 trianglesOffset);
@@ -151,12 +154,8 @@ public:
     void NextSubBatch();
     void ResetSubBatches();
 
-    u64 GetTrianglesSizeBytes() const { return  CullDrawBatch::GetTrianglesSizeBytes(); }
     u64 GetTrianglesOffset() const { return CullDrawBatch::GetTrianglesSizeBytes() * m_CurrentBatch; }
-
-    u64 GetDrawCommandsSizeBytes() const { return CullDrawBatch::GetCommandsSizeBytes(); }
     u64 GetDrawCommandsOffset() const { return CullDrawBatch::GetCommandsSizeBytes() * m_CurrentBatch; }
-    u32 GetMaxDrawCommandCount() const { return m_CullDrawBatches.front()->GetCommandCount(); }
     
     const Buffer& GetDrawCount() const;
     u32 GetMaxBatchCount() const { return m_MaxBatchDispatches; }
@@ -164,7 +163,7 @@ public:
 private:
     void DestroyDescriptors();
     
-    void InitBatchCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
+    void InitBatchCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
 private:
     Scene* m_Scene{nullptr};
     SceneCull* m_SceneCull{nullptr};
@@ -222,10 +221,6 @@ public:
 
     const Buffer& GetDrawCommands() const;
     const Buffer& GetTriangles() const;
-    u64 GetTrianglesSizeBytes() const;
-
-    u64 GetDrawCommandsSizeBytes() const;
-    u32 GetMaxDrawCommandCount() const;
 
     u64 GetDrawCommandsOffset() const;
     u64 GetDrawTrianglesOffset() const;
@@ -242,8 +237,8 @@ private:
     
     void InitBarriers();
     
-    void InitMeshCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
-    void InitMeshletCull(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
+    void InitMeshCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
+    void InitMeshletCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
 
 private:
     Scene* m_Scene{nullptr};

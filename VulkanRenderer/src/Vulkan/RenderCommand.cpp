@@ -396,7 +396,8 @@ void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineImageB
     imageMemoryBarrier.srcAccessMask = pipelineBarrierInfo.ImageSourceMask;
     imageMemoryBarrier.dstAccessMask = pipelineBarrierInfo.ImageDestinationMask;
     imageMemoryBarrier.subresourceRange.aspectMask = pipelineBarrierInfo.ImageAspect;
-    imageMemoryBarrier.subresourceRange.levelCount = VK_REMAINING_MIP_LEVELS;
+    imageMemoryBarrier.subresourceRange.baseMipLevel = pipelineBarrierInfo.BaseMipLevel;
+    imageMemoryBarrier.subresourceRange.levelCount = pipelineBarrierInfo.MipLevelCount;
     imageMemoryBarrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
     vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, pipelineBarrierInfo.DependencyFlags, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);

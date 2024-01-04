@@ -63,12 +63,10 @@ public:
 
     void OnUpdate(f32 dt);
     
-    ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
     Model* GetModel(const std::string& name);
     MaterialGPU& GetMaterialGPU(RenderHandle<MaterialGPU> handle);
     Mesh& GetMesh(RenderHandle<Mesh> handle);
 
-    void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
     void AddModel(Model* model, const std::string& name);
     RenderHandle<MaterialGPU> AddMaterialGPU(const MaterialGPU& material);
     RenderHandle<Material> AddMaterial(const Material& material);

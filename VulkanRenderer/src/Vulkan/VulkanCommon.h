@@ -17,6 +17,14 @@
 class Buffer;
 class Image;
 
+struct ImageDescriptorInfo
+{
+    VkImageView View;
+    VkSampler Sampler;
+    VkImageLayout Layout;
+};
+using TextureDescriptorInfo = ImageDescriptorInfo;
+
 struct IndirectCommand
 {
     VkDrawIndexedIndirectCommand VulkanCommand;
@@ -66,8 +74,9 @@ struct BufferKind
     Flags Kind{None};
 };
 
-
 CREATE_ENUM_FLAGS_OPERATORS(BufferKind::Flags)
+
+enum class AlphaBlending {None, Over};
 
 struct BufferCopyInfo
 {
@@ -161,7 +170,9 @@ struct PipelineImageBarrierInfo
     VkAccessFlags ImageDestinationMask;
     VkImageLayout ImageSourceLayout;
     VkImageLayout ImageDestinationLayout;
-    VkImageAspectFlags ImageAspect; 
+    VkImageAspectFlags ImageAspect;
+    u32 BaseMipLevel{0};
+    u32 MipLevelCount{VK_REMAINING_MIP_LEVELS};
 };
 
 using PipelineTextureBarrierInfo = PipelineImageBarrierInfo;
@@ -170,6 +181,7 @@ using PipelineTextureBarrierInfo = PipelineImageBarrierInfo;
 struct RenderingDetails
 {
     std::vector<VkFormat> ColorFormats;
+    // todo: make it an std::optional?
     VkFormat DepthFormat;
 };
 
