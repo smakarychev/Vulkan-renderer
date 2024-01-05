@@ -50,10 +50,6 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, scene_data scene, sa
     return projected_depth >= depth;
 }
 
-vec4 vec4_from_position(Position position) {
-    return vec4(position.x, position.y, position.z, 1.0f);
-}
-
 bool is_backface_triangle_visible(Triangle triangle) {
     return determinant(mat3(triangle.a.xyw, triangle.b.xyw, triangle.c.xyw)) <= 0;
 }

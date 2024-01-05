@@ -136,11 +136,6 @@ struct ImageBlitInfo
     VkFilter Filter;
 };
 
-struct BindlessDescriptorsState
-{
-    u32 TextureIndex{0};
-};
-
 struct PipelineBarrierInfo
 {
     VkPipelineStageFlags PipelineSourceMask;

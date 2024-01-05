@@ -1,4 +1,5 @@
 #extension GL_EXT_shader_8bit_storage: require
+#extension GL_EXT_shader_16bit_storage: require
 
 struct IndirectCommand {
     uint indexCount;
@@ -36,3 +37,19 @@ struct Meshlet {
     float z;
     float r;
 };
+
+struct Position {
+    float x;
+    float y;
+    float z;
+};
+
+struct Triangle {
+    vec4 a;
+    vec4 b;
+    vec4 c;
+};
+
+vec4 vec4_from_position(Position position) {
+    return vec4(position.x, position.y, position.z, 1.0f);
+}

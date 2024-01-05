@@ -50,6 +50,7 @@ layout(location = 0) out vec3 vert_normal;
 layout(location = 1) out vec2 vert_uv;
 layout(location = 2) out uint vert_command_id;  
 layout(location = 3) out uint vert_triangle_offset;
+layout(location = 4) out vec3 vert_pos;
 
 void main() {
     IndirectCommand command = u_command_buffer.commands[gl_DrawIDARB];
@@ -60,4 +61,5 @@ void main() {
 
     vert_command_id = gl_DrawIDARB;
     vert_triangle_offset = command.firstIndex / 3;
+    vert_pos = gl_Position.xyz;
 }

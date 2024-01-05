@@ -76,8 +76,8 @@ public:
     const std::vector<RenderObject>& GetRenderObjects() const { return m_RenderObjects; }
     std::vector<RenderObject>& GetRenderObjects() { return m_RenderObjects; }
 
-    void SetMaterialTexture(MaterialGPU& material, const Texture& texture, ShaderDescriptorSet& bindlessDescriptorSet,
-        BindlessDescriptorsState& bindlessDescriptorsState);
+    void SetMaterialAlbedoTexture(MaterialGPU& material, const Texture& texture);
+    void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet);
 
     void CreateSharedMeshContext();
     const Buffer& GetRenderObjectsBuffer() const { return m_RenderObjectSSBO.Buffer; }
@@ -90,6 +90,7 @@ public:
     const Buffer& GetMeshletsBuffer() const { return m_MeshletsSSBO.Buffer; }
 
     const Buffer& GetPositionsBuffer() const { return m_SharedMeshContext->Positions; }
+    const Buffer& GetUVBuffer() const { return m_SharedMeshContext->UVs; }
     const Buffer& GetIndicesBuffer() const { return m_SharedMeshContext->Indices; }
     
     void AddRenderObject(const RenderObject& renderObject);
@@ -111,6 +112,7 @@ private:
     HandleArray<Texture> m_Textures;
 
     std::vector<RenderObject> m_RenderObjects;
+    std::vector<RenderHandle<Texture>> m_AlbedoBindlessTextures;
 
     std::unique_ptr<SharedMeshContext> m_SharedMeshContext;
     

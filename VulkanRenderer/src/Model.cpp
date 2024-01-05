@@ -81,8 +81,7 @@ Model* Model::LoadFromAsset(std::string_view path)
     return AssetManager::GetModel(std::string{path}); 
 }
 
-void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform,
-    ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState)
+void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
 {
     if (!m_IsInScene)
     {
@@ -100,7 +99,7 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform,
                     .CreateMipmaps(true)
                     .Build();
 
-                scene->SetMaterialTexture(material, texture, bindlessDescriptorSet, bindlessDescriptorsState);
+                scene->SetMaterialAlbedoTexture(material, texture);
             }
 
             RenderObject renderObject = {};
@@ -117,8 +116,7 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform,
     }
 }
 
-void Model::CreateDebugBoundingSpheres(Scene* scene, const glm::mat4& transform,
-    ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState)
+void Model::CreateDebugBoundingSpheres(Scene* scene, const glm::mat4& transform)
 {
     Model* sphere = scene->GetModel("sphere");
     if (sphere == nullptr)
@@ -135,7 +133,7 @@ void Model::CreateDebugBoundingSpheres(Scene* scene, const glm::mat4& transform,
                 glm::translate(glm::mat4(1.0f), meshlet.BoundingSphere.Center) *
                 glm::scale(glm::mat4(1.0), glm::vec3(meshlet.BoundingSphere.Radius));
 
-            sphere->CreateRenderObjects(scene, fullTransform, bindlessDescriptorSet, bindlessDescriptorsState);
+            sphere->CreateRenderObjects(scene, fullTransform);
         }
     }
 }

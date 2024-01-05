@@ -33,6 +33,23 @@ struct CameraDataUBO
     CameraData CameraData;
 };
 
+struct CameraDataExtended
+{
+    glm::mat4 View;
+    glm::mat4 Projection;
+    glm::mat4 ViewProjection;
+    glm::mat4 ViewProjectionInverse;
+    glm::vec2 WindowSize;
+    f32 FrustumNear;
+    f32 FrustumFar;
+};
+
+struct CameraDataExtendedUBO
+{
+    Buffer Buffer;
+    CameraDataExtended CameraData;
+};
+
 struct SceneData
 {
     glm::vec4 FogColor;             // w is for exponent
@@ -59,7 +76,6 @@ struct BindlessData
 {
     ShaderPipeline Pipeline;
     ShaderDescriptorSet DescriptorSet;
-    BindlessDescriptorsState BindlessDescriptorsState;
 };
 
 struct VisibilityBufferVisualizeData
@@ -173,6 +189,7 @@ private:
     AsyncCullContext m_AsyncCullContext;
     
     CameraDataUBO m_CameraDataUBO;
+    CameraDataExtendedUBO m_CameraDataExtendedUBO;
     SceneDataUBO m_SceneDataUBO;
     
     Scene m_Scene;

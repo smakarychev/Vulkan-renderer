@@ -78,8 +78,16 @@ void Renderer::OnRender()
                 GetFrameContext().GraphicsCommandBuffers.NextIndex();
                 GetFrameContext().GraphicsCommandBuffers.GetBuffer().Begin();
             }
-            SceneVisibilityPass();
-            //PrimaryScenePass();
+            static bool visibility = true;
+            if (Input::GetKey(Key::V) && m_FrameNumber % 100 == 0)
+            {
+                visibility = !visibility;
+                LOG("{}", visibility);
+            }
+            if (visibility)
+                SceneVisibilityPass();
+            else
+                PrimaryScenePass();
         }
 
         EndFrame();
@@ -107,9 +115,27 @@ void Renderer::OnUpdate()
 
 void Renderer::UpdateCameraBuffers()
 {
-    m_CameraDataUBO.CameraData = {.View = m_Camera->GetView(), .Projection = m_Camera->GetProjection(), .ViewProjection = m_Camera->GetViewProjection()};
+    m_CameraDataUBO.CameraData = {
+        .View = m_Camera->GetView(),
+        .Projection = m_Camera->GetProjection(),
+        .ViewProjection = m_Camera->GetViewProjection()};
     u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber;
-    m_ResourceUploader.UpdateBuffer(m_CameraDataUBO.Buffer, &m_CameraDataUBO.CameraData, sizeof(CameraData), offsetBytes);
+    m_ResourceUploader.UpdateBuffer(
+        m_CameraDataUBO.Buffer, &m_CameraDataUBO.CameraData, sizeof(CameraData), offsetBytes);
+
+    FrustumPlanes frustumPlanes = m_Camera->GetFrustumPlanes();
+    
+    m_CameraDataExtendedUBO.CameraData = {
+        .View = m_Camera->GetView(),
+        .Projection = m_Camera->GetProjection(),
+        .ViewProjection = m_Camera->GetViewProjection(),
+        .ViewProjectionInverse = glm::inverse(m_Camera->GetViewProjection()),
+        .WindowSize = {(f32)m_Swapchain.GetSize().x, (f32)m_Swapchain.GetSize().y},
+        .FrustumNear = frustumPlanes.Near,
+        .FrustumFar = frustumPlanes.Far};
+    offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber;
+    m_ResourceUploader.UpdateBuffer(
+        m_CameraDataExtendedUBO.Buffer, &m_CameraDataExtendedUBO.CameraData, sizeof(CameraDataExtended), offsetBytes);
 }
 
 void Renderer::UpdateComputeCullBuffers()
@@ -451,6 +477,8 @@ void Renderer::SceneVisibilityPass()
 
 
     // todo: temp solution, draw visibility image
+    u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber);
+
     CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
     RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
     RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
@@ -459,7 +487,8 @@ void Renderer::SceneVisibilityPass()
 
     m_VisibilityBufferVisualizeData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
     const PipelineLayout& layout = m_VisibilityBufferVisualizeData.Pipeline.GetPipelineLayout();
-    m_VisibilityBufferVisualizeData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_VisibilityBufferVisualizeData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset});
+    m_VisibilityBufferVisualizeData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
     RenderCommand::Draw(cmd, 3);
 
     RenderCommand::EndRendering(cmd);
@@ -579,6 +608,12 @@ void Renderer::InitRenderingStructures()
         .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .Build();
 
+    m_CameraDataExtendedUBO.Buffer = Buffer::Builder()
+        .SetKinds({BufferKind::Uniform})
+        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * BUFFERED_FRAMES)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
+        .Build();
+
     m_CurrentFrameContext = &m_FrameContexts.front();
 }
 
@@ -614,7 +649,17 @@ void Renderer::InitVisibilityPass()
         .SetTemplate(m_VisibilityBufferVisualizeData.Template)
         .AddBinding("u_visibility_texture", m_VisibilityPass.GetVisibilityImage().CreateDescriptorInfo(
             VK_FILTER_NEAREST, VK_IMAGE_LAYOUT_GENERAL))
+        .AddBinding("u_camera_buffer", m_CameraDataExtendedUBO.Buffer, sizeof(CameraDataExtended), 0)
+        .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer())
+        .AddBinding("u_positions_buffer", m_Scene.GetPositionsBuffer())
+        .AddBinding("u_uv_buffer", m_Scene.GetUVBuffer())
+        .AddBinding("u_indices_buffer", m_Scene.GetIndicesBuffer())
+        .AddBinding("u_command_buffer", m_Scene.GetMeshletsIndirectBuffer())
+        .AddBinding("u_material_buffer", m_Scene.GetMaterialsBuffer())
+        .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
         .BuildManualLifetime();
+
+    m_Scene.ApplyMaterialTextures(m_VisibilityBufferVisualizeData.DescriptorSet);
 }
 
 void Renderer::InitVisibilityBufferVisualizationStructures()
@@ -760,7 +805,7 @@ void Renderer::LoadScene()
                     glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
                 Model* model = m_Scene.GetModel(models[modelIndex]);
-                model->CreateRenderObjects(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
+                model->CreateRenderObjects(&m_Scene, transform);
 
                 //model->CreateDebugBoundingSpheres(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
             }

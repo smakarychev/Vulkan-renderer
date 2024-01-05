@@ -104,14 +104,21 @@ RenderHandle<Texture> Scene::AddTexture(const Texture& texture)
     return handle;
 }
 
-void Scene::SetMaterialTexture(MaterialGPU& material, const Texture& texture,
-    ShaderDescriptorSet& bindlessDescriptorSet, BindlessDescriptorsState& bindlessDescriptorsState)
+void Scene::SetMaterialAlbedoTexture(MaterialGPU& material, const Texture& texture)
 {
     RenderHandle<Texture> albedoHandle = AddTexture(texture);
-    Texture& albedoTexture = m_Textures[albedoHandle];
-    material.AlbedoTextureHandle = bindlessDescriptorsState.TextureIndex;
-    bindlessDescriptorSet.SetTexture("u_textures", albedoTexture, bindlessDescriptorsState.TextureIndex);
-    bindlessDescriptorsState.TextureIndex++;
+    material.AlbedoTextureHandle = (u32)m_AlbedoBindlessTextures.size();
+    m_AlbedoBindlessTextures.push_back(albedoHandle);
+}
+
+void Scene::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet)
+{
+    for (u32 albedoIndex = 0; albedoIndex < m_AlbedoBindlessTextures.size(); albedoIndex++)
+    {
+        RenderHandle<Texture> albedoHandle = m_AlbedoBindlessTextures[albedoIndex];
+        Texture& albedoTexture = m_Textures[albedoHandle];
+        bindlessDescriptorSet.SetTexture("u_textures", albedoTexture, albedoIndex);
+    }
 }
 
 void Scene::CreateSharedMeshContext()

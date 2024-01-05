@@ -6,6 +6,7 @@ layout(location = 0) in vec3 vert_normal;
 layout(location = 1) in vec2 vert_uv;
 layout(location = 2) in flat uint vert_command_id;
 layout(location = 3) in flat uint vert_triangle_offset;
+layout(location = 4) in vec3 vert_pos;
 
 @dynamic
 layout(set = 0, binding = 1) uniform scene_data{
@@ -95,13 +96,13 @@ void main() {
     IndirectCommand command = u_command_buffer.commands[vert_command_id]; 
     uint object_index = command.render_object;
     Material material = u_material_buffer.materials[object_index];
-    if (material.albedo_texture_index != -1)
-        out_color = texture(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), vert_uv);
-    else
-        out_color = material.albedo_color;
-    
-    if (out_color.a < 0.5f)
-        discard;
+    //if (material.albedo_texture_index != -1)
+    //    out_color = texture(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), vert_uv);
+    //else
+    //    out_color = material.albedo_color;
+    //
+    //if (out_color.a < 0.5f)
+    //    discard;
     
     //out_color = vec4(out_color.rgb * dot(normalize(vert_normal), normalize(vec3(u_scene_data.sunlight_direction))), out_color.a);
     uint triangle_id = u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID];
@@ -110,4 +111,6 @@ void main() {
     //uint hash = murmur3(instance_id);
     //hash = triangle_id;
     //out_color = vec4(hash & 255u, (hash >> 8) & 255u, (hash >> 16) & 255u, 255u) / 255;
+    out_color = vec4(dFdy(vert_uv.x), dFdy(vert_uv.y), 0.0, 1.0);
+    //out_color = vec4(vert_uv.x, vert_uv.y, 0.0, 1.0);
 }

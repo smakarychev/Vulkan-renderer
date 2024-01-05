@@ -3,9 +3,11 @@
 // https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 
 layout (location = 0) out vec2 vert_uv;
+layout (location = 1) out vec2 vert_position;
 
 void main()
 {
     vert_uv = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-    gl_Position = vec4(vert_uv * 2.0f + -1.0f, 0.0f, 1.0f);
+    vert_position = vert_uv * 2.0f + -1.0f;
+    gl_Position = vec4(vert_position, 0.0f, 1.0f);
 }
