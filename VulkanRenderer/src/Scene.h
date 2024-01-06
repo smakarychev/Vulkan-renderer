@@ -21,6 +21,7 @@ struct SharedMeshContext
 {
     Buffer Positions;
     Buffer Normals;
+    Buffer Tangents;
     Buffer UVs;
     Buffer Indices;
 };
@@ -77,6 +78,7 @@ public:
     std::vector<RenderObject>& GetRenderObjects() { return m_RenderObjects; }
 
     void SetMaterialAlbedoTexture(MaterialGPU& material, const Texture& texture);
+    void SetMaterialNormalTexture(MaterialGPU& material, const Texture& texture);
     void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const;
 
     void CreateSharedMeshContext();
@@ -112,12 +114,12 @@ private:
     HandleArray<Texture> m_Textures;
 
     std::vector<RenderObject> m_RenderObjects;
-    std::vector<RenderHandle<Texture>> m_AlbedoBindlessTextures;
+    std::vector<RenderHandle<Texture>> m_BindlessTextures;
 
     std::unique_ptr<SharedMeshContext> m_SharedMeshContext;
     
     RenderObjectSSBO m_RenderObjectSSBO{};
-    MaterialDataSSBO m_MaterialDataSSBO;
+    MaterialDataSSBO m_MaterialDataSSBO{};
 
     Buffer m_MeshletsIndirectBuffer;
     u32 m_MeshletCount{0};

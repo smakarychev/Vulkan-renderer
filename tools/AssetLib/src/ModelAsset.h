@@ -13,12 +13,12 @@ namespace assetLib
     enum class VertexFormat : u32
     {
         Unknown,
-        P3N3UV2,
+        P3N3T3UV2,
     };
 
     enum class VertexElement : u32
     {
-        Position = 0, Normal, UV,
+        Position = 0, Normal, Tangent, UV,
         MaxVal
     };
 
@@ -29,6 +29,7 @@ namespace assetLib
 
         std::vector<glm::vec3> Positions;
         std::vector<glm::vec3> Normals;
+        std::vector<glm::vec3> Tangents;
         std::vector<glm::vec2> UVs;
     };
 
@@ -36,6 +37,7 @@ namespace assetLib
     {
         glm::vec3 Position;
         glm::vec3 Normal;
+        glm::vec3 Tangent;
         glm::vec2 UV;
     };
 
@@ -63,7 +65,8 @@ namespace assetLib
         using IndexType = u8;
         enum class MaterialType : u32
         {
-            Albedo = 0, MaxVal
+            Albedo = 0, Normal,
+            MaxVal
         };
         struct MaterialInfo
         {

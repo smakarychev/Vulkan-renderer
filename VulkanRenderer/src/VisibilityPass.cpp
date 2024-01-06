@@ -62,7 +62,7 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
             .SetTemplate(m_Template)
             .SetRenderingDetails(details)
             .AlphaBlending(AlphaBlending::None)
-            .CompatibleWithVertex(VertexP3N3UV2::GetInputDescriptionDI())
+            .CompatibleWithVertex(VertexP3N3T3UV2::GetInputDescriptionDI())
             .Build();
 
         m_CullSemaphore = TimelineSemaphore::Builder().Build();

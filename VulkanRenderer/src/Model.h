@@ -13,13 +13,14 @@ class Model
 {
     struct MaterialInfo
     {
-        glm::vec4 Color;
-        std::vector<std::string> Textures;
+        glm::vec4 AlbedoColor;
+        std::vector<std::string> AlbedoTextures;
+        std::vector<std::string> NormalTextures;
     };
     struct MeshInfo
     {
         Mesh Mesh;
-        MaterialInfo Albedo;
+        MaterialInfo Material;
     };
 public:
     static Model* LoadFromAsset(std::string_view path);

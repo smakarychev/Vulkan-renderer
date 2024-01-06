@@ -21,7 +21,7 @@ struct MaterialGPU
     static constexpr u32 NO_TEXTURE = std::numeric_limits<u32>::max();
     glm::vec4 Albedo;
     RenderHandle<Image> AlbedoTextureHandle{NO_TEXTURE};
-    u32 Pad0{NO_TEXTURE};
+    RenderHandle<Image> NormalTextureHandle{NO_TEXTURE};
     u32 Pad1{NO_TEXTURE};
     u32 Pad2{NO_TEXTURE};
 };

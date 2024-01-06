@@ -27,7 +27,7 @@ struct UV {
 struct Material {
     vec4 albedo_color;
     uint albedo_texture_index;
-    uint pad0;
+    uint normal_texture_index;
     uint pad1;
     uint pad2;
 };

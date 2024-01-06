@@ -157,7 +157,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
     ModelData modelData = {};
 
     assetLib::ModelInfo modelInfo = {};
-    modelInfo.VertexFormat = assetLib::VertexFormat::P3N3UV2;
+    modelInfo.VertexFormat = assetLib::VertexFormat::P3N3T3UV2;
     modelInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     modelInfo.OriginalFile = path.string();
     modelInfo.BlobFile = blobPath.string();
@@ -182,6 +182,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
 
             modelData.VertexGroup.Positions.append_range(meshData.VertexGroup.Positions);
             modelData.VertexGroup.Normals.append_range(meshData.VertexGroup.Normals);
+            modelData.VertexGroup.Tangents.append_range(meshData.VertexGroup.Tangents);
             modelData.VertexGroup.UVs.append_range(meshData.VertexGroup.UVs);
             modelData.Indices.append_range(meshData.Indices);
             modelData.Meshlets.append_range(meshData.Meshlets);
@@ -222,12 +223,22 @@ assetLib::VertexGroup ModelConverter::GetMeshVertices(const aiMesh* mesh)
     assetLib::VertexGroup vertexGroup;
     vertexGroup.Positions.resize(mesh->mNumVertices);
     vertexGroup.Normals.resize(mesh->mNumVertices);
+    vertexGroup.Tangents.resize(mesh->mNumVertices);
     vertexGroup.UVs.resize(mesh->mNumVertices);
     for (u32 i = 0; i < mesh->mNumVertices; i++)
     {
         vertexGroup.Positions[i] = glm::vec3{mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z};
-        vertexGroup.Normals[i] = glm::vec3{mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
 
+        if (mesh->HasNormals())
+            vertexGroup.Normals[i] = glm::vec3{mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z};
+        else
+            vertexGroup.Normals[i] = glm::vec3{0.0f, 0.0f, 0.0f};
+
+        if (mesh->HasTangentsAndBitangents())
+            vertexGroup.Tangents[i] = glm::vec3{mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z};
+        else
+            vertexGroup.Tangents[i] = glm::vec3{0.0f, 0.0f, 0.0f};
+        
         if (mesh->HasTextureCoords(0))
             vertexGroup.UVs[i] = glm::vec2{mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
         else
@@ -257,14 +268,16 @@ std::vector<u32> ModelConverter::GetMeshIndices(const aiMesh* mesh)
 
 assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMaterial* material, assetLib::ModelInfo::MaterialType type, const std::filesystem::path& modelPath)
 {
-    aiColor4D color;
-    aiReturn colorSuccess;
+    aiColor4D color = {};
     aiTextureType textureType;
     switch (type)
     {
     case assetLib::ModelInfo::MaterialType::Albedo:
-        colorSuccess = material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
-        textureType = aiTextureType_DIFFUSE;
+        material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
+        textureType = aiTextureType_BASE_COLOR;
+        break;
+    case assetLib::ModelInfo::MaterialType::Normal:
+        textureType = aiTextureType_NORMALS;
         break;
     default:
         std::cout << "Unsupported material type";

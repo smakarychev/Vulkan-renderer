@@ -380,7 +380,7 @@ VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(const std:
     for (auto& input : inputAttributeReflections)
     {
         u32 bindingIndex = bindingsDense[bindingsSparse[input.Binding]];
-        VkVertexInputBindingDescription& binding = inputDescription.Bindings[bindingIndex];
+        VkVertexInputBindingDescription& binding = inputDescription.Bindings[bindingsSparse[input.Binding]];
         VkVertexInputAttributeDescription attributeDescription = {};
         attributeDescription.binding = bindingIndex;
         attributeDescription.format = input.Format;
@@ -527,19 +527,34 @@ void ShaderPipeline::Builder::CreateCompatibleLayout()
     adapted.Bindings = compatible.Bindings;
     adapted.Attributes.reserve(compatible.Attributes.size());
 
-    for (u32 availI = 0; availI < available.Attributes.size(); availI++)
+    for (u32 availableIndex = 0; availableIndex < available.Attributes.size(); availableIndex++)
     {
-        const auto& avail = available.Attributes[availI];
-        for (u32 compI = availI; compI < compatible.Attributes.size(); compI++)
+        const auto& avail = available.Attributes[availableIndex];
+        std::vector<VkVertexInputAttributeDescription> canditates;
+        canditates.reserve(compatible.Attributes.size());
+        for (u32 compatibleIndex = availableIndex; compatibleIndex < compatible.Attributes.size(); compatibleIndex++)
         {
-            const auto& comp = compatible.Attributes[compI];
+            const auto& comp = compatible.Attributes[compatibleIndex];
             if (comp.location == avail.location && comp.format == avail.format)
+                canditates.push_back(comp);
+        }
+        for (u32 candidateIndex = 0; candidateIndex < canditates.size(); candidateIndex++)
+        {
+            const auto& candidate = canditates[candidateIndex];
+            if (candidate.binding == avail.binding)
             {
-                adapted.Attributes.push_back(comp);
+                adapted.Attributes.push_back(candidate);
+                break;
+            }
+            if (candidateIndex == canditates.size() - 1)
+            {
+                LOG("WARNING: compatible attribute found, but binding mismatch detected: expected {} but got {}",
+                    avail.binding, candidate.binding);
+                adapted.Attributes.push_back(candidate);
                 break;
             }
         }
-        ASSERT(adapted.Attributes.size() == availI + 1, "Incompatible vertex inputs")
+        ASSERT(adapted.Attributes.size() == availableIndex + 1, "Incompatible vertex inputs")
     }
 
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.SetVertexDescription(adapted);

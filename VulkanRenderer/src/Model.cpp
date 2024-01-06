@@ -19,20 +19,23 @@ Model* Model::LoadFromAsset(std::string_view path)
     assetLib::File modelFile;
     assetLib::loadAssetFile(path, modelFile);
     assetLib::ModelInfo modelInfo = assetLib::readModelInfo(modelFile);
-    ASSERT(modelInfo.VertexFormat == assetLib::VertexFormat::P3N3UV2, "Unsupported vertex format")
+    ASSERT(modelInfo.VertexFormat == assetLib::VertexFormat::P3N3T3UV2, "Unsupported vertex format")
 
     std::vector<u64> vertexElementsSizeBytes = modelInfo.VertexElementsSizeBytes();
     std::vector<glm::vec3> positions(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Position]);
     std::vector<glm::vec3> normals(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Normal]);
+    std::vector<glm::vec3> tangents(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Tangent]);
     std::vector<glm::vec2> uvs(vertexElementsSizeBytes[(u32)assetLib::VertexElement::UV]);
     std::vector<assetLib::ModelInfo::IndexType> indices(modelInfo.IndicesSizeBytes());
     std::vector<assetLib::ModelInfo::Meshlet> meshlets(modelInfo.MeshletsSizeBytes());
 
     assetLib::unpackModel(modelInfo, modelFile.Blob.data(), modelFile.Blob.size(),
-        {(u8*)positions.data(), (u8*)normals.data(), (u8*)uvs.data()}, (u8*)indices.data(), (u8*)meshlets.data());
+        {(u8*)positions.data(), (u8*)normals.data(), (u8*)tangents.data(), (u8*)uvs.data()},
+        (u8*)indices.data(), (u8*)meshlets.data());
 
     u32 positionsOffset = 0;
     u32 normalsOffset = 0;
+    u32 tangentsOffset = 0;
     u32 uvsOffset = 0;
     u32 indicesOffset = 0;
     u32 meshletsOffset = 0;
@@ -48,6 +51,10 @@ Model* Model::LoadFromAsset(std::string_view path)
         auto normalsBegin = normals.begin() + normalsOffset;
         normalsOffset += (u32)(meshInfo.VertexElementsSizeBytes[(u32)assetLib::VertexElement::Normal] / sizeof(glm::vec3));
         auto normalsEnd = normals.begin() + normalsOffset;
+        
+        auto tangentsBegin = tangents.begin() + tangentsOffset;
+        tangentsOffset += (u32)(meshInfo.VertexElementsSizeBytes[(u32)assetLib::VertexElement::Tangent] / sizeof(glm::vec3));
+        auto tangentsEnd = tangents.begin() + tangentsOffset;
 
         auto uvsBegin = uvs.begin() + uvsOffset;
         uvsOffset += (u32)(meshInfo.VertexElementsSizeBytes[(u32)assetLib::VertexElement::UV] / sizeof(glm::vec2));
@@ -62,17 +69,19 @@ Model* Model::LoadFromAsset(std::string_view path)
         auto meshletsEnd = meshlets.begin() + meshletsOffset;
         
         assetLib::ModelInfo::MaterialInfo& albedo = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialType::Albedo];
-        MaterialInfo albedoMaterial = {.Color = albedo.Color, .Textures = albedo.Textures};
-        
+        assetLib::ModelInfo::MaterialInfo& normal = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialType::Normal];
+        MaterialInfo material = {.AlbedoColor = albedo.Color, .AlbedoTextures = albedo.Textures, .NormalTextures = normal.Textures};
+
         meshes.push_back(
             {Mesh(
                 std::vector(positionsBegin, positionsEnd),
                 std::vector(normalsBegin, normalsEnd),
+                std::vector(tangentsBegin, tangentsEnd),
                 std::vector(uvsBegin, uvsEnd),
                 std::vector(indicesBegin, indicesEnd),
                 meshInfo.BoundingSphere,
                 std::vector(meshletsBegin, meshletsEnd)),
-                albedoMaterial});
+                material});
     }
 
     model.m_Meshes = meshes;
@@ -90,18 +99,33 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
         for (auto& mesh : m_Meshes)
         {
             MaterialGPU material;
-            material.Albedo = mesh.Albedo.Color;
-            if (!mesh.Albedo.Textures.empty())
+            material.Albedo = mesh.Material.AlbedoColor;
+            auto addTexture = [](MaterialGPU& materialGPU, const std::vector<std::string>& textures, auto&& fn)
             {
-                Image texture = Image::Builder()
-                    .FromAssetFile(mesh.Albedo.Textures.front())
-                    .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-                    .CreateMipmaps(true)
-                    .Build();
+                if (!textures.empty())
+                {
+                    Image texture = Image::Builder()
+                        .FromAssetFile(textures.front())
+                        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
+                        .CreateMipmaps(true)
+                        .Build();
 
-                scene->SetMaterialAlbedoTexture(material, texture);
-            }
+                    fn(materialGPU, texture);
+                }
+            };
 
+            addTexture(material, mesh.Material.AlbedoTextures,
+                [&scene](MaterialGPU& materialGPU, const Image& texture)
+                {
+                    scene->SetMaterialAlbedoTexture(materialGPU, texture);
+                });
+
+            addTexture(material, mesh.Material.NormalTextures,
+                [&scene](MaterialGPU& materialGPU, const Image& texture)
+                {
+                    scene->SetMaterialNormalTexture(materialGPU, texture);
+                });
+            
             RenderObject renderObject = {};
             renderObject.Mesh = scene->AddMesh(mesh.Mesh);
             renderObject.MaterialGPU = scene->AddMaterialGPU(material);

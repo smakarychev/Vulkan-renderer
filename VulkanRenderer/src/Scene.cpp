@@ -50,6 +50,7 @@ void Scene::OnUpdate(f32 dt)
         MaterialGPU& material = GetMaterialGPU(m_RenderObjects[i].MaterialGPU);
         m_MaterialDataSSBO.Materials[i].Albedo = material.Albedo;
         m_MaterialDataSSBO.Materials[i].AlbedoTextureHandle = material.AlbedoTextureHandle;
+        m_MaterialDataSSBO.Materials[i].NormalTextureHandle = material.NormalTextureHandle;
     }
 
     m_ResourceUploader->UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU), 0);
@@ -107,17 +108,24 @@ RenderHandle<Texture> Scene::AddTexture(const Texture& texture)
 void Scene::SetMaterialAlbedoTexture(MaterialGPU& material, const Texture& texture)
 {
     RenderHandle<Texture> albedoHandle = AddTexture(texture);
-    material.AlbedoTextureHandle = (u32)m_AlbedoBindlessTextures.size();
-    m_AlbedoBindlessTextures.push_back(albedoHandle);
+    material.AlbedoTextureHandle = (u32)m_BindlessTextures.size();
+    m_BindlessTextures.push_back(albedoHandle);
+}
+
+void Scene::SetMaterialNormalTexture(MaterialGPU& material, const Texture& texture)
+{
+    RenderHandle<Texture> normalHandle = AddTexture(texture);
+    material.NormalTextureHandle = (u32)m_BindlessTextures.size();
+    m_BindlessTextures.push_back(normalHandle);
 }
 
 void Scene::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const
 {
-    for (u32 albedoIndex = 0; albedoIndex < m_AlbedoBindlessTextures.size(); albedoIndex++)
+    for (u32 textureIndex = 0; textureIndex < m_BindlessTextures.size(); textureIndex++)
     {
-        RenderHandle<Texture> albedoHandle = m_AlbedoBindlessTextures[albedoIndex];
-        const Texture& albedoTexture = m_Textures[albedoHandle];
-        bindlessDescriptorSet.SetTexture("u_textures", albedoTexture, albedoIndex);
+        RenderHandle<Texture> textureHandle = m_BindlessTextures[textureIndex];
+        const Texture& texture = m_Textures[textureHandle];
+        bindlessDescriptorSet.SetTexture("u_textures", texture, textureIndex);
     }
 }
 
@@ -133,12 +141,14 @@ void Scene::CreateSharedMeshContext()
 
     u64 totalPositionsSizeBytes = 0;
     u64 totalNormalsSizeBytes = 0;
+    u64 totalTangentsSizeBytes = 0;
     u64 totalUVsSizeBytes = 0;
     u64 totalIndicesSizeBytes = 0;
     for (auto& mesh : m_Meshes)
     {
         totalPositionsSizeBytes += mesh.GetVertexCount() * sizeof(glm::vec3);
         totalNormalsSizeBytes += mesh.GetVertexCount() * sizeof(glm::vec3);
+        totalTangentsSizeBytes += mesh.GetVertexCount() * sizeof(glm::vec3);
         totalUVsSizeBytes += mesh.GetVertexCount() * sizeof(glm::vec2);
         totalIndicesSizeBytes += mesh.GetIndexCount() * sizeof(assetLib::ModelInfo::IndexType);
     }
@@ -159,6 +169,10 @@ void Scene::CreateSharedMeshContext()
         .SetSizeBytes(totalNormalsSizeBytes)
         .BuildManualLifetime();
 
+    m_SharedMeshContext->Tangents = vertexBufferBuilder
+        .SetSizeBytes(totalNormalsSizeBytes)
+        .BuildManualLifetime();
+
     m_SharedMeshContext->UVs = vertexBufferBuilder
         .SetSizeBytes(totalUVsSizeBytes)
         .BuildManualLifetime();
@@ -175,6 +189,7 @@ void Scene::CreateSharedMeshContext()
         u64 indicesSize = mesh.GetIndices().size();
         m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Positions, mesh.GetPositions().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
         m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Normals, mesh.GetNormals().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
+        m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Tangents, mesh.GetTangents().data(), verticesSize * sizeof(glm::vec3), verticesOffset * sizeof(glm::vec3));
         m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->UVs, mesh.GetUVs().data(), verticesSize * sizeof(glm::vec2), verticesOffset * sizeof(glm::vec2));
         m_ResourceUploader->UpdateBuffer(m_SharedMeshContext->Indices, mesh.GetIndices().data(), indicesSize * sizeof(assetLib::ModelInfo::IndexType), indicesOffset * sizeof(assetLib::ModelInfo::IndexType));
         
@@ -242,13 +257,19 @@ void Scene::AddRenderObject(const RenderObject& renderObject)
 
 void Scene::Bind(const CommandBuffer& cmd) const
 {
-    RenderCommand::BindVertexBuffers(cmd, {m_SharedMeshContext->Positions, m_SharedMeshContext->Normals, m_SharedMeshContext->UVs}, {0, 0, 0});
+    RenderCommand::BindVertexBuffers(cmd, {
+        m_SharedMeshContext->Positions,
+        m_SharedMeshContext->Normals,
+        m_SharedMeshContext->Tangents,
+        m_SharedMeshContext->UVs},
+        {0, 0, 0, 0});
 }
 
 void Scene::ReleaseMeshSharedContext()
 {
     Buffer::Destroy(m_SharedMeshContext->Positions);
     Buffer::Destroy(m_SharedMeshContext->Normals);
+    Buffer::Destroy(m_SharedMeshContext->Tangents);
     Buffer::Destroy(m_SharedMeshContext->UVs);
     Buffer::Destroy(m_SharedMeshContext->Indices);
     

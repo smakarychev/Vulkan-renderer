@@ -36,7 +36,7 @@ void main() {
     Material material = u_material_buffer.materials[object_index];
 
     float alpha;
-    if (material.albedo_texture_index != -1)
+    if (material.albedo_texture_index != ~0)
         alpha = texture(nonuniformEXT(
             sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), vert_uv).a;
     else

@@ -161,9 +161,10 @@ namespace utils
     {
         static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
 
-        std::array<meshopt_Stream, 3> vertexElementsStreams = {{
+        std::array<meshopt_Stream, (u32)assetLib::VertexElement::MaxVal> vertexElementsStreams = {{
             {meshData.VertexGroup.Positions.data(), sizeof(glm::vec3), sizeof(glm::vec3)},
             {meshData.VertexGroup.Normals.data(), sizeof(glm::vec3), sizeof(glm::vec3)},
+            {meshData.VertexGroup.Tangents.data(), sizeof(glm::vec3), sizeof(glm::vec3)},
             {meshData.VertexGroup.UVs.data(), sizeof(glm::vec2), sizeof(glm::vec2)},
         }};
 
@@ -181,11 +182,13 @@ namespace utils
         remappedIndices.resize(indexCountInitial);
         remappedMesh.VertexGroup.Positions.resize(vertexCount);
         remappedMesh.VertexGroup.Normals.resize(vertexCount);
+        remappedMesh.VertexGroup.Tangents.resize(vertexCount);
         remappedMesh.VertexGroup.UVs.resize(vertexCount);
 
         meshopt_remapIndexBuffer(remappedIndices.data(), indices.data(), indices.size(), indexRemap.data());
         meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), meshData.VertexGroup.Positions.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
         meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), meshData.VertexGroup.Normals.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Tangents.data(), meshData.VertexGroup.Tangents.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
         meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), meshData.VertexGroup.UVs.data(), vertexCountInitial, sizeof(glm::vec2), indexRemap.data());
 
         meshopt_optimizeVertexCache(remappedIndices.data(), remappedIndices.data(), indexCountInitial, vertexCount);
@@ -194,6 +197,7 @@ namespace utils
         meshopt_remapIndexBuffer(remappedIndices.data(), remappedIndices.data(), indexCountInitial, indexRemap.data());
         meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), remappedMesh.VertexGroup.Positions.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
         meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), remappedMesh.VertexGroup.Normals.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Tangents.data(), remappedMesh.VertexGroup.Tangents.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
         meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), remappedMesh.VertexGroup.UVs.data(), vertexCount, sizeof(glm::vec2), indexRemap.data());
 
         indices.clear();
@@ -202,6 +206,7 @@ namespace utils
             indices.push_back(index);
         meshData.VertexGroup.Positions = remappedMesh.VertexGroup.Positions;
         meshData.VertexGroup.Normals = remappedMesh.VertexGroup.Normals;
+        meshData.VertexGroup.Tangents = remappedMesh.VertexGroup.Tangents;
         meshData.VertexGroup.UVs = remappedMesh.VertexGroup.UVs;
     }
 
@@ -259,6 +264,7 @@ namespace utils
 
         finalMeshData.VertexGroup.Positions.resize(meshletVertices.size());
         finalMeshData.VertexGroup.Normals.resize(meshletVertices.size());
+        finalMeshData.VertexGroup.Tangents.resize(meshletVertices.size());
         finalMeshData.VertexGroup.UVs.resize(meshletVertices.size());
 
         for (auto& meshlet : meshoptMeshlets)
@@ -269,6 +275,7 @@ namespace utils
                 u32 vertexIndex = vertexOffset + localIndex;
                 finalMeshData.VertexGroup.Positions[vertexIndex] = meshData.VertexGroup.Positions[meshletVertices[vertexIndex]];
                 finalMeshData.VertexGroup.Normals[vertexIndex] = meshData.VertexGroup.Normals[meshletVertices[vertexIndex]];
+                finalMeshData.VertexGroup.Tangents[vertexIndex] = meshData.VertexGroup.Tangents[meshletVertices[vertexIndex]];
                 finalMeshData.VertexGroup.UVs[vertexIndex] = meshData.VertexGroup.UVs[meshletVertices[vertexIndex]];
             }
         }

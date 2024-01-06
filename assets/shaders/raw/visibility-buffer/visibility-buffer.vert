@@ -6,8 +6,8 @@
 
 @binding : 0
 layout(location = 0) in vec3 a_position;
-@binding : 1
-layout(location = 2) in vec2 a_uv;
+@binding : 3
+layout(location = 3) in vec2 a_uv;
 
 @dynamic
 layout(set = 0, binding = 0) uniform camera_buffer {

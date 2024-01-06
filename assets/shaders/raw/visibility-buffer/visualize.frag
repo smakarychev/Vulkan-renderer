@@ -210,8 +210,8 @@ void main() {
     vec2 uv_dy = vec2(uvs_interpolated[2][0], uvs_interpolated[2][1]);
 
     Material material = get_material(visibility_info);
-    if (material.albedo_texture_index != -1)
-        out_color = textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), uv, uv_dx, uv_dy);
+    if (material.normal_texture_index != -1)
+        out_color = textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.normal_texture_index)], u_sampler)), uv, uv_dx, uv_dy);
     else
         out_color = material.albedo_color;
 }

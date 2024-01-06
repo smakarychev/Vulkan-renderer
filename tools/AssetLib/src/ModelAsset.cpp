@@ -11,15 +11,30 @@ namespace
 {
     assetLib::VertexFormat parseFormatString(std::string_view format)
     {
-        if (format == "P3N3UV2")
-            return assetLib::VertexFormat::P3N3UV2;
+        if (format == "P3N3T3UV2")
+            return assetLib::VertexFormat::P3N3T3UV2;
         return assetLib::VertexFormat::Unknown;
+    }
+
+    std::string vertexFormatToString(assetLib::VertexFormat format)
+    {
+        switch (format)
+        {
+        case assetLib::VertexFormat::P3N3T3UV2:
+            return "P3N3T3UV2";
+        default:
+            std::cout << "Unsupported vertex format\n";
+            break;
+        }
+        std::unreachable();
     }
 
     assetLib::ModelInfo::MaterialType parseMaterialString(std::string_view materialString)
     {
         if (materialString == "albedo")
             return assetLib::ModelInfo::MaterialType::Albedo;
+        if (materialString == "normal")
+            return assetLib::ModelInfo::MaterialType::Normal;
         std::cout << "Unrecognized material string\n";
         std::unreachable();
     }
@@ -30,6 +45,8 @@ namespace
         {
         case assetLib::ModelInfo::MaterialType::Albedo:
             return "albedo";
+        case assetLib::ModelInfo::MaterialType::Normal:
+            return "normal";
         default:
             std::cout << "Unsupported material type\n";
             break;
@@ -38,7 +55,8 @@ namespace
     }
 }
 
-namespace glm {
+namespace glm
+{
     void to_json(nlohmann::json& j, const glm::vec4& vec)
     {
         j = { { "r", vec.x }, { "g", vec.y }, { "b", vec.z }, { "a", vec.w } };
@@ -70,12 +88,16 @@ namespace assetLib
 {
     std::array<const void*, (u32)VertexElement::MaxVal> VertexGroup::Elements()
     {
-        return {Positions.data(), Normals.data(), UVs.data()};
+        return {Positions.data(), Normals.data(), Tangents.data(), UVs.data()};
     }
 
     std::array<u64, (u32)VertexElement::MaxVal> VertexGroup::ElementsSizesBytes()
     {
-        return {Positions.size() * sizeof(glm::vec3), Normals.size() * sizeof(glm::vec3), UVs.size() * sizeof(glm::vec2)};        
+        return {
+            Positions.size() * sizeof(glm::vec3),
+            Normals.size() * sizeof(glm::vec3),
+            Tangents.size() * sizeof(glm::vec3),
+            UVs.size() * sizeof(glm::vec2)};        
     }
 
     std::vector<u64> ModelInfo::VertexElementsSizeBytes() const
@@ -162,7 +184,7 @@ namespace assetLib
     {
         nlohmann::json metadata;
 
-        metadata["format"] = "P3N3UV2";
+        metadata["format"] = vertexFormatToString(VertexFormat::P3N3T3UV2);
 
         metadata["meshes_info"] = nlohmann::json::array();
         for (auto& mesh : info.MeshInfos)
