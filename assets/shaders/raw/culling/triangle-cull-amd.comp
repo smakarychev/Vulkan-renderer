@@ -34,11 +34,11 @@ layout(std430, set = 0, binding = 4) readonly buffer positions_buffer {
 } u_positions_buffer;
 
 layout(std430, set = 0, binding = 5) readonly buffer indices_buffer {
-    uint16_t indices[];
+    uint8_t indices[];
 } u_indices_buffer;
 
 layout(std430, set = 0, binding = 6) writeonly buffer culled_indices_buffer {
-    uint16_t indices[];
+    uint8_t indices[];
 } u_culled_indices_buffer;
 
 layout(std430, set = 0, binding = 7) buffer visible_triangles_buffer {
@@ -47,7 +47,7 @@ layout(std430, set = 0, binding = 7) buffer visible_triangles_buffer {
 
 @dynamic
 layout(std430, set = 0, binding = 8) buffer triangle_buffer {
-    uint triangles[];
+    uint8_t triangles[];
 } u_triangle_buffer;
 
 layout(std430, set = 0, binding = 9) buffer command_buffer {
@@ -106,7 +106,7 @@ bool is_reocclusion_visible(Triangle triangle) {
     return visible;
 }
 
-void compact(uint id, uint triangle_index, uvec3 indices, bool should_draw) {
+void compact(uint id, uint8_t triangle_index, uvec3 indices, bool should_draw) {
     IndirectCommand command = u_command_buffer.commands[id];
 
     uint command_write_index = u_max_draw_calls - id - 1;
@@ -131,9 +131,9 @@ void compact(uint id, uint triangle_index, uvec3 indices, bool should_draw) {
     if (should_draw) {
         uint compacted_buffer_offset = compacted_index_offset + subgroupBallotExclusiveBitCount(visible_ballot) * 3;
         uint compacted_buffer_index = u_command_buffer.commands[command_write_index].firstIndex + compacted_buffer_offset;
-        u_culled_indices_buffer.indices[compacted_buffer_index + 0] = uint16_t(indices.x);
-        u_culled_indices_buffer.indices[compacted_buffer_index + 1] = uint16_t(indices.y);
-        u_culled_indices_buffer.indices[compacted_buffer_index + 2] = uint16_t(indices.z);
+        u_culled_indices_buffer.indices[compacted_buffer_index + 0] = uint8_t(indices.x);
+        u_culled_indices_buffer.indices[compacted_buffer_index + 1] = uint8_t(indices.y);
+        u_culled_indices_buffer.indices[compacted_buffer_index + 2] = uint8_t(indices.z);
 
         u_triangle_buffer.triangles[compacted_buffer_index / 3] = triangle_index;
     }
@@ -195,5 +195,5 @@ void main() {
         should_be_drawn = !is_last_frame_visible && visible;
     }
     
-    compact(id, triangle_index, indices, should_be_drawn);
+    compact(id, uint8_t(triangle_index), indices, should_be_drawn);
 }

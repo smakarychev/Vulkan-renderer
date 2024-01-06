@@ -15,7 +15,7 @@ layout(std430, set = 1, binding = 1) readonly buffer command_buffer {
 
 @dynamic
 layout(std430, set = 1, binding = 2) readonly buffer triangle_buffer {
-    uint triangles[];
+    uint8_t triangles[];
 } u_triangle_buffer;
 
 layout(std430, set = 1, binding = 3) readonly buffer material_buffer{
@@ -46,7 +46,7 @@ void main() {
         discard;
 
     uint instance_id = command.firstInstance;
-    uint triangle_id = u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID];
+    uint triangle_id = uint(u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID]);
     
     VisibilityInfo info;
     info.instance_id = instance_id;

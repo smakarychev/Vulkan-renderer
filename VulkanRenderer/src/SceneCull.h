@@ -42,7 +42,7 @@ public:
     }
     static u64 GetTrianglesSizeBytes()
     {
-        return vkUtils::alignUniformBufferSizeBytes(MAX_TRIANGLES * sizeof(u32) * SUB_BATCH_COUNT);
+        return vkUtils::alignUniformBufferSizeBytes(MAX_TRIANGLES * sizeof(u8) * SUB_BATCH_COUNT);
     }
     
 private:

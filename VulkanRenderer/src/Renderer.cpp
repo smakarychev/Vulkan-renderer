@@ -338,8 +338,6 @@ void Renderer::SceneVisibilityPass()
         .DepthPyramid = m_ComputeDepthPyramidData.DepthPyramid.get(),
         .DepthBuffer = &m_Swapchain.GetDepthImage()});
 
-
-    // todo: temp solution, draw visibility image
     u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber);
 
     CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();

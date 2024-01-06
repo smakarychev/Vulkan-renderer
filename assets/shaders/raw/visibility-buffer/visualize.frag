@@ -34,7 +34,7 @@ layout(std430, set = 0, binding = 5) readonly buffer uv_buffer {
 } u_uv_buffer;
 
 layout(std430, set = 0, binding = 6) readonly buffer indices_buffer {
-    uint16_t indices[];
+    uint8_t indices[];
 } u_indices_buffer;
 
 layout(std430, set = 0, binding = 7) readonly buffer material_buffer{
@@ -214,8 +214,4 @@ void main() {
         out_color = textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), uv, uv_dx, uv_dy);
     else
         out_color = material.albedo_color;
-    if (out_color.a < 0.5f) {
-        out_color = vec4(0.05f, 0.05f, 0.05f, 1.0f);
-        return;
-    }
 }

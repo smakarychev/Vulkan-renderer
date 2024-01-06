@@ -49,6 +49,7 @@ Device::Builder& Device::Builder::Defaults()
         VK_KHR_MAINTENANCE3_EXTENSION_NAME,
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
         VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
+        VK_EXT_INDEX_TYPE_UINT8_EXTENSION_NAME,
     };
     m_CreateInfo = defaults;
     return *this;
@@ -208,10 +209,15 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     conditionalRenderingFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT;
     conditionalRenderingFeaturesExt.pNext = &vulkan13Features;
     conditionalRenderingFeaturesExt.conditionalRendering = VK_TRUE;
+
+    VkPhysicalDeviceIndexTypeUint8FeaturesEXT physicalDeviceIndexTypeUint8FeaturesExt = {};
+    physicalDeviceIndexTypeUint8FeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INDEX_TYPE_UINT8_FEATURES_EXT;
+    physicalDeviceIndexTypeUint8FeaturesExt.pNext = &conditionalRenderingFeaturesExt;
+    physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = &conditionalRenderingFeaturesExt;
+    deviceCreateInfo.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
     deviceCreateInfo.queueCreateInfoCount = (u32)queueCreateInfos.size();
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
     deviceCreateInfo.enabledExtensionCount = (u32)createInfo.DeviceExtensions.size();
@@ -314,9 +320,13 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
     conditionalRenderingFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT;
     conditionalRenderingFeaturesExt.pNext = &deviceVulkan13Features;
 
+    VkPhysicalDeviceIndexTypeUint8FeaturesEXT physicalDeviceIndexTypeUint8FeaturesExt = {};
+    physicalDeviceIndexTypeUint8FeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INDEX_TYPE_UINT8_FEATURES_EXT;
+    physicalDeviceIndexTypeUint8FeaturesExt.pNext = &conditionalRenderingFeaturesExt;
+    
     VkPhysicalDeviceFeatures2 features = {};
     features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-    features.pNext = &conditionalRenderingFeaturesExt;
+    features.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
     
     vkGetPhysicalDeviceFeatures2(gpu, &features);
     
@@ -343,7 +353,8 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         deviceVulkan12Features.shaderBufferInt64Atomics == VK_TRUE &&
         deviceVulkan12Features.timelineSemaphore == VK_TRUE &&
         deviceVulkan13Features.dynamicRendering == VK_TRUE &&
-        conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE;
+        conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE &&
+        physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE;
 }
 
 bool Device::CheckInstanceExtensions(const CreateInfo& createInfo) const
