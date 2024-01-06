@@ -169,6 +169,7 @@ DescriptorSet DescriptorSet::Create(const Builder::CreateInfo& createInfo)
 {
     DescriptorSet descriptorSet = {};
 
+    descriptorSet.m_Allocator = createInfo.Allocator;
     descriptorSet.m_Layout = createInfo.Layout;
 
     createInfo.Allocator->Allocate(descriptorSet, createInfo.PoolFlags, createInfo.VariableDescriptorCounts);
@@ -200,7 +201,7 @@ DescriptorSet DescriptorSet::Create(const Builder::CreateInfo& createInfo)
 
 void DescriptorSet::Destroy(const DescriptorSet& descriptorSet)
 {
-    vkFreeDescriptorSets(Driver::DeviceHandle(), descriptorSet.m_Pool, 1, &descriptorSet.m_DescriptorSet);
+    descriptorSet.m_Allocator->Deallocate(descriptorSet);
 }
 
 void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint)
@@ -284,6 +285,25 @@ void DescriptorAllocator::Allocate(DescriptorSet& set, VkDescriptorPoolCreateFla
             "Failed to allocate descriptor set");
         set.m_Pool = pool.Pool;
     }
+
+    m_FreePools[poolIndex].AllocationCount++;
+}
+
+void DescriptorAllocator::Deallocate(const DescriptorSet& set)
+{
+    VkDescriptorPool pool = set.m_Pool;
+
+    auto it = std::ranges::find(m_FreePools, pool, [](const PoolInfo& info) { return info.Pool; });
+    if (it == m_FreePools.end())
+    {
+        it = std::ranges::find(m_UsedPools, pool, [](const PoolInfo& info) { return info.Pool; });
+        ASSERT(it != m_UsedPools.end(), "Descriptor set wasn't allocated with this allocator")
+        it->AllocationCount--;
+        m_FreePools.push_back(*it);
+        m_UsedPools.erase(it);
+    }
+    
+    vkFreeDescriptorSets(Driver::DeviceHandle(), pool, 1, &set.m_DescriptorSet);
 }
 
 void DescriptorAllocator::ResetPools()

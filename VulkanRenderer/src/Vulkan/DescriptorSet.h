@@ -120,6 +120,7 @@ public:
     bool IsValid() const { return m_DescriptorSet != VK_NULL_HANDLE; }
 private:
     VkDescriptorSet m_DescriptorSet{VK_NULL_HANDLE};
+    DescriptorAllocator* m_Allocator{nullptr};
     VkDescriptorPool m_Pool{VK_NULL_HANDLE};
     const DescriptorSetLayout* m_Layout{nullptr};
 };
@@ -142,6 +143,7 @@ class DescriptorAllocator
     {
         VkDescriptorPool Pool;
         VkDescriptorPoolCreateFlags Flags;
+        u32 AllocationCount{0};
     };
 public:
     class Builder
@@ -163,6 +165,7 @@ public:
 
     void Allocate(DescriptorSet& set, VkDescriptorPoolCreateFlags poolFlags,
         const VkDescriptorSetVariableDescriptorCountAllocateInfo& variableDescriptorCounts);
+    void Deallocate(const DescriptorSet& set);
 
     void ResetPools();
 private:
