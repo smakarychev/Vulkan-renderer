@@ -373,10 +373,15 @@ void SceneBatchedCull::InitBatchCull(DescriptorAllocator& allocator, DescriptorL
 {
     auto& firstBatchData = m_CullDrawBatchData.front();
 
-    firstBatchData.TriangleCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
-        {"../assets/shaders/processed/culling/triangle-cull-amd-comp.shader"}, "triangle-cull-amd",
-        allocator, layoutCache);
-
+    if (Driver::GetSubgroupSize() == 64)
+        firstBatchData.TriangleCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
+            {"../assets/shaders/processed/culling/triangle-cull-amd-comp.shader"}, "triangle-cull-amd",
+            allocator, layoutCache);
+    else
+        firstBatchData.TriangleCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
+            {"../assets/shaders/processed/culling/triangle-cull-nvidia-comp.shader"}, "triangle-cull-nvidia",
+            allocator, layoutCache);
+        
     firstBatchData.TriangleCull.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(firstBatchData.TriangleCull.Template)
         .Build();

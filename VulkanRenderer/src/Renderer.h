@@ -156,7 +156,6 @@ private:
     void ComputeDepthPyramid();
 
     void SceneVisibilityPass();
-    void PrimaryScenePass();
 
     RenderingInfo GetClearRenderingInfo();
     RenderingInfo GetLoadRenderingInfo();
@@ -199,7 +198,6 @@ private:
     DescriptorLayoutCache m_LayoutCache;
     ResourceUploader m_ResourceUploader;
 
-    BindlessData m_BindlessData;
     ComputeDepthPyramidData m_ComputeDepthPyramidData;
 
     VisibilityPass m_VisibilityPass;

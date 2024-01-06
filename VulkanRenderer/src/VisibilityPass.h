@@ -36,6 +36,8 @@ struct VisibilityPassInitInfo
     const Buffer* CommandsBuffer;
     const Buffer* ObjectsBuffer;
     const Buffer* TrianglesBuffer;
+    const Buffer* MaterialsBuffer;
+    const Scene* Scene;
 };
 
 struct VisibilityRenderInfo
@@ -50,7 +52,7 @@ struct VisibilityRenderInfo
 class VisibilityPass
 {
 public:
-    void Init(const VisibilityPassInitInfo& initInfo);
+    bool Init(const VisibilityPassInitInfo& initInfo);
     void ShutDown();
 
     void RenderVisibility(const VisibilityRenderInfo& renderInfo);

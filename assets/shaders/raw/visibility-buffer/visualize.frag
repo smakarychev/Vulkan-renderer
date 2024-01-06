@@ -52,40 +52,6 @@ layout (location = 1) in vec2 vert_position;
 
 layout(location = 0) out vec4 out_color;
 
-uint rotl(uint x, uint r) {
-    return (x << r) | (x >> (32u - r));
-}
-
-uint fmix(uint h)
-{
-    h ^= h >> 16;
-    h *= 0x85ebca6bu;
-    h ^= h >> 13;
-    h *= 0xc2b2ae35u;
-    h ^= h >> 16;
-    return h;
-}
-
-uint murmur3(uint seed) {
-    const uint c1 = 0xcc9e2d51u;
-    const uint c2 = 0x1b873593u;
-
-    uint h = 0u;
-    uint k = seed;
-
-    k *= c1;
-    k = rotl(k, 15u);
-    k *= c2;
-
-    h ^= k;
-    h = rotl(h, 13u);
-    h = h * 5u + 0xe6546b64u;
-
-    h ^= 4u;
-
-    return fmix(h);
-}
-
 uvec3 get_indices(VisibilityInfo visibility_info) {
     IndirectCommand command = u_command_buffer.commands[visibility_info.instance_id];
     uvec3 indices = uvec3(
@@ -136,21 +102,21 @@ struct InterpolationData {
 };
 
 InterpolationData get_interpolation_data(Triangle triangle, vec2 screen_pos, vec2 window_size) {
-    vec3 one_over_w = 1.0 / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
+    vec3 one_over_w = 1.0f / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
     
     vec2 ndc_a = triangle.a.xy * one_over_w.x;
     vec2 ndc_b = triangle.b.xy * one_over_w.y;
     vec2 ndc_c = triangle.c.xy * one_over_w.z;
     
-    float inverse_det = 1.0 / determinant(mat2(ndc_c - ndc_b, ndc_a - ndc_b));
+    float inverse_det = 1.0f / determinant(mat2(ndc_c - ndc_b, ndc_a - ndc_b));
     vec3 ddx = vec3(ndc_b.y - ndc_c.y, ndc_c.y - ndc_a.y, ndc_a.y - ndc_b.y) * inverse_det * one_over_w;
     vec3 ddy = vec3(ndc_c.x - ndc_b.x, ndc_a.x - ndc_c.x, ndc_b.x - ndc_a.x) * inverse_det * one_over_w;
-    float ddx_sum = dot(ddx, vec3(1.0, 1.0, 1.0));
-    float ddy_sum = dot(ddy, vec3(1.0, 1.0, 1.0));
+    float ddx_sum = dot(ddx, vec3(1.0f, 1.0f, 1.0f));
+    float ddy_sum = dot(ddy, vec3(1.0f, 1.0f, 1.0f));
 
     vec2 delta_vec = screen_pos - ndc_a;
     float interpolated_inv_w = one_over_w.x + delta_vec.x * ddx_sum + delta_vec.y * ddy_sum;
-    float interpolated_w = 1.0 / interpolated_inv_w;
+    float interpolated_w = 1.0f / interpolated_inv_w;
     
     vec3 lambda;
     lambda.x = interpolated_w * (one_over_w.x + delta_vec.x * ddx.x + delta_vec.y * ddy.x);
@@ -218,7 +184,7 @@ mat3x2 interpolate_2d(InterpolationData interpolation, mat3x2 attributes)
 void main() {
     uint visibility_packed = textureLod(u_visibility_texture, vert_uv, 0).r;
     if (visibility_packed == (~0)) {
-        out_color = vec4(0.05, 0.05, 0.05, 1.0);
+        out_color = vec4(0.05f, 0.05f, 0.05f, 1.0f);
         return;
     }
     
@@ -231,7 +197,7 @@ void main() {
 
     InterpolationData interpolation_data = get_interpolation_data(triangle, vert_position, u_camera_buffer.window_size);
 
-    vec3 one_over_w = 1.0 / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
+    vec3 one_over_w = 1.0f / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
     float w = 1.0f / dot(one_over_w, interpolation_data.barycentric);
     float z = -w * u_camera_buffer.projection[2][2] + u_camera_buffer.projection[3][2];
     vec3 position = (u_camera_buffer.view_projection_inverse * vec4(vert_position * w, z, w)).xyz;
@@ -249,7 +215,7 @@ void main() {
     else
         out_color = material.albedo_color;
     if (out_color.a < 0.5f) {
-        out_color = vec4(0.05, 0.05, 0.05, 1.0);
+        out_color = vec4(0.05f, 0.05f, 0.05f, 1.0f);
         return;
     }
 }

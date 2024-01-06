@@ -38,12 +38,14 @@ VisibilityBuffer::~VisibilityBuffer()
     Image::Destroy(m_VisibilityImage);
 }
 
-void VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
+bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
 {
+    bool recreated = false;
     if (m_VisibilityBuffer)
     {
         m_VisibilityBuffer.reset();
         ShaderDescriptorSet::Destroy(m_DescriptorSet);
+        recreated = true;
     }
     else
     {
@@ -75,13 +77,22 @@ void VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
         .AddBinding("u_object_buffer", *initInfo.ObjectsBuffer)
         .AddBinding("u_triangle_buffer", *initInfo.TrianglesBuffer, CullDrawBatch::GetTrianglesSizeBytes(), 0)
         .AddBinding("u_command_buffer", *initInfo.CommandsBuffer, CullDrawBatch::GetCommandsSizeBytes(), 0)
+        .AddBinding("u_material_buffer", *initInfo.MaterialsBuffer)
+        .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
         .BuildManualLifetime();
+
+    initInfo.Scene->ApplyMaterialTextures(m_DescriptorSet);
+
+    return recreated;
 }
 
 void VisibilityPass::ShutDown()
 {
     if (m_VisibilityBuffer)
+    {
         m_VisibilityBuffer.reset();
+        ShaderDescriptorSet::Destroy(m_DescriptorSet);
+    }
 }
 
 void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
@@ -294,8 +305,8 @@ void VisibilityPass::RenderScene(const CommandBuffer& cmd, const Scene& scene, c
     u32 trianglesOffset = (u32)sceneCull.GetDrawTrianglesOffset(); 
     u32 commandsOffset = (u32)sceneCull.GetDrawCommandsOffset();  
     m_DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset});
-    m_DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {commandsOffset, trianglesOffset});
+    m_DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {commandsOffset, trianglesOffset});
+    m_DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
     scene.Bind(cmd);
     
     RenderCommand::DrawIndexedIndirectCount(cmd,

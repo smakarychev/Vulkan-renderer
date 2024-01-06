@@ -77,7 +77,7 @@ public:
     std::vector<RenderObject>& GetRenderObjects() { return m_RenderObjects; }
 
     void SetMaterialAlbedoTexture(MaterialGPU& material, const Texture& texture);
-    void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet);
+    void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const;
 
     void CreateSharedMeshContext();
     const Buffer& GetRenderObjectsBuffer() const { return m_RenderObjectSSBO.Buffer; }

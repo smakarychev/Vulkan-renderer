@@ -78,16 +78,7 @@ void Renderer::OnRender()
                 GetFrameContext().GraphicsCommandBuffers.NextIndex();
                 GetFrameContext().GraphicsCommandBuffers.GetBuffer().Begin();
             }
-            static bool visibility = true;
-            if (Input::GetKey(Key::V) && m_FrameNumber % 100 == 0)
-            {
-                visibility = !visibility;
-                LOG("{}", visibility);
-            }
-            if (visibility)
-                SceneVisibilityPass();
-            else
-                PrimaryScenePass();
+            SceneVisibilityPass();
         }
 
         EndFrame();
@@ -201,134 +192,6 @@ void Renderer::BeginFrame()
     
     // todo: is this the best place for it?
     m_ResourceUploader.SubmitUpload();
-}
-
-void Renderer::PrimaryScenePass()
-{
-    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Primary Scene Pass NEW")
-    ZoneScopedN("Primary Scene Pass NEW");
-
-    TimelineSemaphore* renderSemaphore = &m_AsyncCullContext.RenderedSemaphore;
-    TimelineSemaphore* cullSemaphore = &m_AsyncCullContext.CulledSemaphore;
-    u64 renderTimeline = renderSemaphore->GetTimeline();
-    u64 cullTimeline = cullSemaphore->GetTimeline();
-
-    Fence preTriangleFence = Fence::Builder().BuildManualLifetime();
-    auto preTriangleCull = [&](u64 waitValue, bool reocclusion, Fence fence)
-    {
-        ZoneScopedN("Culling");
-        const CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
-
-        m_SceneCull.CullMeshes(GetFrameContext(), reocclusion);
-        m_SceneCull.CullMeshlets(GetFrameContext(), reocclusion);
-        
-        PipelineBarrierInfo barrierInfo = {
-            .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .PipelineDestinationMask = VK_PIPELINE_STAGE_HOST_BIT,
-            .AccessSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .AccessDestinationMask = VK_ACCESS_HOST_READ_BIT
-        };
-        RenderCommand::CreateBarrier(cmd, barrierInfo);
-        
-        cmd.End();
-        cmd.Submit(m_Device.GetQueues().Compute,
-            BufferSubmitTimelineSyncInfo{
-                .WaitStages = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT}, 
-                .WaitSemaphores = {renderSemaphore},
-                .WaitValues = {waitValue},
-                .Fence = &fence});
-
-    };
-    auto preTriangleWaitCPU = [&](Fence fence)
-    {
-        ZoneScopedN("Fence wait");
-        fence.Wait();
-        fence.Reset();
-        m_CullBatchCount = m_SceneCull.ReadBackBatchCount(GetFrameContext());
-        
-        GetFrameContext().ComputeCommandBuffers.NextIndex();
-        GetFrameContext().ComputeCommandBuffers.GetBuffer().Begin();
-    };
-    
-    auto cull = [&](u64 waitValue, bool reocclusion)
-    {
-        ZoneScopedN("Culling");
-        const CommandBuffer& cmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
-        
-        m_SceneCull.CullCompactTrianglesBatch(GetFrameContext(), {reocclusion});
-        
-        cullTimeline++;
-        cmd.End();
-        cmd.Submit(m_Device.GetQueues().Compute,
-            BufferSubmitTimelineSyncInfo{
-                .WaitStages = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT}, 
-                .WaitSemaphores = {renderSemaphore},
-                .WaitValues = {waitValue},
-                .SignalSemaphores = {cullSemaphore},
-                .SignalValues = {cullTimeline}});
-
-        GetFrameContext().ComputeCommandBuffers.NextIndex();
-        GetFrameContext().ComputeCommandBuffers.GetBuffer().Begin();
-    };
-    auto render = [&](u64 waitValue, u32 iteration, bool computeDepthPyramid, bool shouldClear)
-    {
-        ZoneScopedN("Rendering");
-        const CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
-
-        RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
-        RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
-        RenderCommand::BeginRendering(cmd, iteration == 0 && shouldClear ? GetClearRenderingInfo() : GetLoadRenderingInfo());
-
-        RenderCommand::BindIndexBuffer(cmd, m_SceneCull.GetCullDrawBatch().GetIndices(), 0);
-        Submit(m_Scene);
-
-        RenderCommand::EndRendering(cmd);
-
-        if (computeDepthPyramid)
-            ComputeDepthPyramid();
-        
-        renderTimeline++;
-        cmd.End();
-        cmd.Submit(m_Device.GetQueues().Graphics,
-            BufferSubmitTimelineSyncInfo{
-                .WaitStages = {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT}, 
-                .WaitSemaphores = {cullSemaphore},
-                .WaitValues = {waitValue},
-                .SignalSemaphores = {renderSemaphore},
-                .SignalValues = {renderTimeline}});
-
-        GetFrameContext().GraphicsCommandBuffers.NextIndex();
-        GetFrameContext().GraphicsCommandBuffers.GetBuffer().Begin();
-    };
-    auto triangleCullRenderLoop = [&](bool reocclusion, bool computeDepthPyramid, bool shouldClear)
-    {
-        m_SceneCull.ResetSubBatches();
-        cull(renderTimeline, reocclusion);
-        u32 iterations = std::max(1u, m_CullBatchCount);
-        for (u32 i = 0; i < iterations; i++)
-        {
-            render(cullTimeline, i, computeDepthPyramid && i == iterations - 1, shouldClear);
-            m_SceneCull.NextSubBatch();
-            if (i != iterations - 1)
-                cull(renderTimeline - 1, reocclusion);
-        }
-    };
-
-    preTriangleCull(renderTimeline, false, preTriangleFence);
-    preTriangleWaitCPU(preTriangleFence);
-    m_SceneCull.BatchIndirectDispatchesBuffersPrepare(GetFrameContext());
-    triangleCullRenderLoop(false, true, true);
-
-    // triangle-only reocclusion
-    triangleCullRenderLoop(true, true, false);
-
-    // meshlet reocclusion
-    preTriangleCull(renderTimeline, true, preTriangleFence);
-    preTriangleWaitCPU(preTriangleFence);
-    m_SceneCull.BatchIndirectDispatchesBuffersPrepare(GetFrameContext());
-    triangleCullRenderLoop(true, false, false);
-
-    Fence::Destroy(preTriangleFence);
 }
 
 RenderingInfo Renderer::GetClearRenderingInfo()
@@ -496,27 +359,7 @@ void Renderer::SceneVisibilityPass()
 
 void Renderer::Submit(const Scene& scene)
 {
-    //TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene render")
-    ZoneScopedN("Scene render");
-
-    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
-
-    m_BindlessData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    const PipelineLayout& layout = m_BindlessData.Pipeline.GetPipelineLayout();
     
-    u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber);
-    u32 sceneDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * GetFrameContext().FrameNumber);
-    u32 trianglesOffset = (u32)m_SceneCull.GetDrawTrianglesOffset(); 
-    u32 commandsOffset = (u32)m_SceneCull.GetDrawCommandsOffset();  
-    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset, sceneDataOffset});
-    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
-    m_BindlessData.DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {commandsOffset, trianglesOffset});
-    scene.Bind(cmd);
-    
-    RenderCommand::DrawIndexedIndirectCount(cmd,
-       m_SceneCull.GetDrawCommands(), commandsOffset,
-       m_SceneCull.GetDrawCount(), 0,
-       CullDrawBatch::GetCommandCount(), sizeof(IndirectCommand));
 }
 
 void Renderer::SortScene(Scene& scene)
@@ -634,17 +477,22 @@ void Renderer::InitDepthPyramidComputeStructures()
 
 void Renderer::InitVisibilityPass()
 {
-    m_VisibilityPass.Init({
+    bool recreated = m_VisibilityPass.Init({
         .Size = m_Swapchain.GetSize(),
         .Cmd = &GetFrameContext().ComputeCommandBuffers.GetBuffer(),
-        .DescriptorAllocator = &m_CullDescriptorAllocator,
+        .DescriptorAllocator = &m_PersistentDescriptorAllocator,
         .LayoutCache = &m_LayoutCache,
         .RenderingDetails = m_Swapchain.GetRenderingDetails(),
         .CameraBuffer = &m_CameraDataUBO.Buffer,
         .CommandsBuffer = &m_SceneCull.GetDrawCommands(),
         .ObjectsBuffer = &m_Scene.GetRenderObjectsBuffer(),
-        .TrianglesBuffer = &m_SceneCull.GetTriangles()});
+        .TrianglesBuffer = &m_SceneCull.GetTriangles(),
+        .MaterialsBuffer = &m_Scene.GetMaterialsBuffer(),
+        .Scene = &m_Scene});
 
+    if (recreated)
+        ShaderDescriptorSet::Destroy(m_VisibilityBufferVisualizeData.DescriptorSet);
+    
     m_VisibilityBufferVisualizeData.DescriptorSet = ShaderDescriptorSet::Builder()
         .SetTemplate(m_VisibilityBufferVisualizeData.Template)
         .AddBinding("u_visibility_texture", m_VisibilityPass.GetVisibilityImage().CreateDescriptorInfo(
@@ -732,7 +580,6 @@ void Renderer::RecreateSwapchain()
     
     m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
     m_ComputeDepthPyramidData.DepthPyramid.reset();
-    ShutDownVisibilityPass();
 
     Input::s_MainViewportSize = m_Swapchain.GetSize();
     m_Camera->SetViewport(m_Swapchain.GetSize().x, m_Swapchain.GetSize().y);
@@ -744,29 +591,6 @@ void Renderer::LoadScene()
 {
     m_Scene.OnInit(&m_ResourceUploader);
     m_SceneCull.Init(m_Scene, m_CullDescriptorAllocator, m_LayoutCache);
-
-    ShaderPipelineTemplate* bindlessTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/bindless-textures-test-vert.shader",
-        "../assets/shaders/processed/bindless-textures-test-frag.shader"},
-        "bindless", m_PersistentDescriptorAllocator, m_LayoutCache);
-
-    m_BindlessData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(bindlessTemplate)
-        .CompatibleWithVertex(VertexP3N3UV2::GetInputDescriptionDI())
-        .SetRenderingDetails(m_Swapchain.GetRenderingDetails())
-        .Build();
-
-    m_BindlessData.DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(bindlessTemplate)
-        .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
-        .AddBinding("u_camera_buffer", m_CameraDataUBO.Buffer, sizeof(CameraData), 0)
-        .AddBinding("u_scene_data", m_SceneDataUBO.Buffer, sizeof(SceneData), 0)
-        .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer())
-        .AddBinding("u_triangle_buffer", m_SceneCull.GetTriangles(), CullDrawBatch::GetTrianglesSizeBytes(), 0)
-        .AddBinding("u_material_buffer", m_Scene.GetMaterialsBuffer())
-        // BATCH CULL
-        .AddBinding("u_command_buffer", m_SceneCull.GetDrawCommands(), CullDrawBatch::GetCommandsSizeBytes(), 0)
-        .Build();
 
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model* mori = Model::LoadFromAsset("../assets/models/mori/mori.model");

@@ -6,6 +6,8 @@
 
 @binding : 0
 layout(location = 0) in vec3 a_position;
+@binding : 1
+layout(location = 2) in vec2 a_uv;
 
 @dynamic
 layout(set = 0, binding = 0) uniform camera_buffer {
@@ -19,12 +21,13 @@ layout(std430, set = 1, binding = 0) readonly buffer object_buffer {
 } u_object_buffer;
 
 @dynamic
-layout(std430, set = 2, binding = 0) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 1) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_command_buffer;
 
 layout(location = 0) out uint vert_command_id;
 layout(location = 1) out uint vert_triangle_offset;
+layout(location = 2) out vec2 vert_uv;
 
 void main() {
     IndirectCommand command = u_command_buffer.commands[gl_DrawIDARB];

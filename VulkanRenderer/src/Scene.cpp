@@ -111,12 +111,12 @@ void Scene::SetMaterialAlbedoTexture(MaterialGPU& material, const Texture& textu
     m_AlbedoBindlessTextures.push_back(albedoHandle);
 }
 
-void Scene::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet)
+void Scene::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const
 {
     for (u32 albedoIndex = 0; albedoIndex < m_AlbedoBindlessTextures.size(); albedoIndex++)
     {
         RenderHandle<Texture> albedoHandle = m_AlbedoBindlessTextures[albedoIndex];
-        Texture& albedoTexture = m_Textures[albedoHandle];
+        const Texture& albedoTexture = m_Textures[albedoHandle];
         bindlessDescriptorSet.SetTexture("u_textures", albedoTexture, albedoIndex);
     }
 }
