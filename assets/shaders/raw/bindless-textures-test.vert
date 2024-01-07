@@ -7,7 +7,9 @@ layout(location = 0) in vec3 a_position;
 @binding : 1
 layout(location = 1) in vec3 a_normal;
 @binding : 2
-layout(location = 2) in vec2 a_uv;
+layout(location = 2) in vec3 a_tangent;
+@binding : 3
+layout(location = 3) in vec2 a_uv;
 
 struct IndirectCommand {
     uint indexCount;
@@ -47,16 +49,18 @@ layout(std430, set = 2, binding = 2) readonly buffer command_buffer {
 } u_command_buffer;
 
 layout(location = 0) out vec3 vert_normal;
-layout(location = 1) out vec2 vert_uv;
-layout(location = 2) out uint vert_command_id;  
-layout(location = 3) out uint vert_triangle_offset;
-layout(location = 4) out vec3 vert_pos;
+layout(location = 1) out vec3 vert_tangent;
+layout(location = 2) out vec2 vert_uv;
+layout(location = 3) out uint vert_command_id;  
+layout(location = 4) out uint vert_triangle_offset;
+layout(location = 5) out vec3 vert_pos;
 
 void main() {
     IndirectCommand command = u_command_buffer.commands[gl_DrawIDARB];
     uint object_index = command.render_object;
     gl_Position = u_camera_buffer.view_projection * u_object_buffer.objects[object_index].model * vec4(a_position, 1.0);
     vert_normal = a_normal;
+    vert_tangent = a_tangent;
     vert_uv = a_uv;
 
     vert_command_id = gl_DrawIDARB;

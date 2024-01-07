@@ -92,7 +92,9 @@ public:
     const Buffer& GetMeshletsBuffer() const { return m_MeshletsSSBO.Buffer; }
 
     const Buffer& GetPositionsBuffer() const { return m_SharedMeshContext->Positions; }
-    const Buffer& GetUVBuffer() const { return m_SharedMeshContext->UVs; }
+    const Buffer& GetNormalsBuffer() const { return m_SharedMeshContext->Normals; }
+    const Buffer& GetTangentsBuffer() const { return m_SharedMeshContext->Tangents; }
+    const Buffer& GetUVsBuffer() const { return m_SharedMeshContext->UVs; }
     const Buffer& GetIndicesBuffer() const { return m_SharedMeshContext->Indices; }
     
     void AddRenderObject(const RenderObject& renderObject);

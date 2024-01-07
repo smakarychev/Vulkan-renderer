@@ -121,6 +121,7 @@ void Renderer::UpdateCameraBuffers()
         .Projection = m_Camera->GetProjection(),
         .ViewProjection = m_Camera->GetViewProjection(),
         .ViewProjectionInverse = glm::inverse(m_Camera->GetViewProjection()),
+        .CameraPosition = glm::vec4(m_Camera->GetPosition(), 0.0),
         .WindowSize = {(f32)m_Swapchain.GetSize().x, (f32)m_Swapchain.GetSize().y},
         .FrustumNear = frustumPlanes.Near,
         .FrustumFar = frustumPlanes.Far};
@@ -498,7 +499,9 @@ void Renderer::InitVisibilityPass()
         .AddBinding("u_camera_buffer", m_CameraDataExtendedUBO.Buffer, sizeof(CameraDataExtended), 0)
         .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer())
         .AddBinding("u_positions_buffer", m_Scene.GetPositionsBuffer())
-        .AddBinding("u_uv_buffer", m_Scene.GetUVBuffer())
+        .AddBinding("u_normals_buffer", m_Scene.GetNormalsBuffer())
+        .AddBinding("u_tangents_buffer", m_Scene.GetTangentsBuffer())
+        .AddBinding("u_uvs_buffer", m_Scene.GetUVsBuffer())
         .AddBinding("u_indices_buffer", m_Scene.GetIndicesBuffer())
         .AddBinding("u_command_buffer", m_Scene.GetMeshletsIndirectBuffer())
         .AddBinding("u_material_buffer", m_Scene.GetMaterialsBuffer())

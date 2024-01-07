@@ -39,6 +39,7 @@ struct CameraDataExtended
     glm::mat4 Projection;
     glm::mat4 ViewProjection;
     glm::mat4 ViewProjectionInverse;
+    glm::vec4 CameraPosition;;
     glm::vec2 WindowSize;
     f32 FrustumNear;
     f32 FrustumFar;

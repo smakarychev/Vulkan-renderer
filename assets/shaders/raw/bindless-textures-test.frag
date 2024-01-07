@@ -2,11 +2,12 @@
 
 #extension GL_EXT_nonuniform_qualifier : require
 
-layout(location = 0) in vec3 vert_normal;
-layout(location = 1) in vec2 vert_uv;
-layout(location = 2) in flat uint vert_command_id;
-layout(location = 3) in flat uint vert_triangle_offset;
-layout(location = 4) in vec3 vert_pos;
+layout(location = 0) in  vec3 vert_normal;
+layout(location = 1) in  vec3 vert_tangent;
+layout(location = 2) in  vec2 vert_uv;
+layout(location = 3) in flat uint vert_command_id;
+layout(location = 4) in flat uint vert_triangle_offset;
+layout(location = 5) in vec3 vert_pos;
 
 @dynamic
 layout(set = 0, binding = 1) uniform scene_data{
@@ -111,6 +112,6 @@ void main() {
     //uint hash = murmur3(instance_id);
     //hash = triangle_id;
     //out_color = vec4(hash & 255u, (hash >> 8) & 255u, (hash >> 16) & 255u, 255u) / 255;
-    out_color = vec4(dFdy(vert_uv.x), dFdy(vert_uv.y), 0.0, 1.0);
+    out_color = vec4(normalize(vert_pos), 1.0);
     //out_color = vec4(vert_uv.x, vert_uv.y, 0.0, 1.0);
 }
