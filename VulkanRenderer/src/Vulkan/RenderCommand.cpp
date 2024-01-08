@@ -35,12 +35,15 @@ VkResult RenderCommand::ResetFence(const Fence& fence)
     return vkResetFences(Driver::DeviceHandle(), 1, &fence.m_Fence);
 }
 
-VkResult RenderCommand::AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex)
+VkResult RenderCommand::AcquireNextImage(const Swapchain& swapchain,
+    const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex)
 {
-    return vkAcquireNextImageKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, 10'000'000'000, swapchainFrameSync.PresentSemaphore.m_Semaphore, VK_NULL_HANDLE, &imageIndex);
+    return vkAcquireNextImageKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, 10'000'000'000,
+        swapchainFrameSync.PresentSemaphore.m_Semaphore, VK_NULL_HANDLE, &imageIndex);
 }
 
-VkResult RenderCommand::Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex)
+VkResult RenderCommand::Present(const Swapchain& swapchain, const QueueInfo& queueInfo,
+    const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex)
 {
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -63,7 +66,8 @@ VkResult RenderCommand::ResetCommandBuffer(const CommandBuffer& cmd)
     return vkResetCommandBuffer(cmd.m_CommandBuffer, 0);
 }
 
-VkResult RenderCommand::BeginCommandBuffer(const CommandBuffer& cmd, VkCommandBufferUsageFlags flags, VkCommandBufferInheritanceInfo* inheritanceInfo)
+VkResult RenderCommand::BeginCommandBuffer(const CommandBuffer& cmd, VkCommandBufferUsageFlags flags,
+    VkCommandBufferInheritanceInfo* inheritanceInfo)
 {
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -78,7 +82,8 @@ VkResult RenderCommand::EndCommandBuffer(const CommandBuffer& cmd)
     return vkEndCommandBuffer(cmd.m_CommandBuffer);
 }
 
-VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync)
+VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+    const BufferSubmitSyncInfo& submitSync)
 {
     return SubmitCommandBuffers({cmd}, queueInfo, submitSync);
 }
@@ -113,7 +118,7 @@ VkResult RenderCommand::SubmitCommandBuffer(const CommandBuffer& cmd, const Queu
 }
 
 VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
-                                             const BufferSubmitSyncInfo& submitSync)
+    const BufferSubmitSyncInfo& submitSync)
 {
     auto semaphoreToVkSemaphore = [](const Semaphore* semaphore) { return semaphore->m_Semaphore; };
     auto bufferToVkBuffer = [](const CommandBuffer& buffer) { return buffer.m_CommandBuffer; };
@@ -237,7 +242,7 @@ void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, cons
 }
 
 void RenderCommand::TransitionImage(const CommandBuffer& cmd, const Image& image,
-                                    const ImageTransitionInfo& transitionInfo)
+    const ImageTransitionInfo& transitionInfo)
 {
     vkCmdPipelineBarrier(cmd.m_CommandBuffer, transitionInfo.SourceStage, transitionInfo.DestinationStage, 0,
         0, nullptr, 0, nullptr, 1, &transitionInfo.MemoryBarrier);
@@ -355,7 +360,7 @@ void RenderCommand::DispatchIndirect(const CommandBuffer& cmd, const Buffer& buf
 }
 
 void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
-                                  const PushConstantDescription& description)
+    const PushConstantDescription& description)
 {
     vkCmdPushConstants(cmd.m_CommandBuffer, pipelineLayout.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
 }

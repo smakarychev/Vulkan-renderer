@@ -347,10 +347,10 @@ void Renderer::SceneVisibilityPass()
 
     RenderCommand::BeginRendering(cmd, GetColorRenderingInfo());
 
-    m_VisibilityBufferVisualizeData.Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_VisibilityBufferVisualizeData.Pipeline.BindGraphics(cmd);
     const PipelineLayout& layout = m_VisibilityBufferVisualizeData.Pipeline.GetPipelineLayout();
-    m_VisibilityBufferVisualizeData.DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset});
-    m_VisibilityBufferVisualizeData.DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_VisibilityBufferVisualizeData.DescriptorSet.BindGraphics(cmd, DescriptorKind::Global, layout, {cameraDataOffset});
+    m_VisibilityBufferVisualizeData.DescriptorSet.BindGraphics(cmd, DescriptorKind::Pass, layout);
     RenderCommand::Draw(cmd, 3);
 
     RenderCommand::EndRendering(cmd);

@@ -243,7 +243,7 @@ struct ShadeInfo {
 
 vec3 shade(ShadeInfo shade_info) {
     // todo: remove upon adding actual lights support
-    const vec3 sun_dir = -normalize(vec3(-2.0f, -6.0f, -4.0f));
+    const vec3 sun_dir = -normalize(vec3(-1.0f, -6.0f, -4.0f));
     
     vec3 view_dir = normalize(u_camera_buffer.camera_position.xyz - shade_info.position);
     vec3 halfway_dir = normalize(sun_dir + view_dir);
@@ -288,12 +288,10 @@ void main() {
     vec2 uv_dy = vec2(uvs_interpolated[2][0], uvs_interpolated[2][1]);
     
     Material material = get_material(visibility_info);
-    vec3 albedo;
+    vec3 albedo = material.albedo_color.rgb;
     if (material.albedo_texture_index != -1)
-        albedo = textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(
+        albedo *= textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(
             material.albedo_texture_index)], u_sampler)), uv, uv_dx, uv_dy).rgb;
-    else
-        albedo = material.albedo_color.rgb;
 
     mat3 normals = get_normals(indices);
     vec3 normal = interpolate_3d(interpolation_data, normals);
@@ -321,4 +319,5 @@ void main() {
     vec3 color = shade(shade_info);
     
     out_color = vec4(color, 1.0);
+
 }

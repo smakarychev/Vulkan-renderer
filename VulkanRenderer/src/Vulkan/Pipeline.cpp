@@ -278,9 +278,14 @@ void Pipeline::Destroy(const Pipeline& pipeline)
     vkDestroyPipeline(Driver::DeviceHandle(), pipeline.m_Pipeline, nullptr);
 }
 
-void Pipeline::Bind(const CommandBuffer& commandBuffer, VkPipelineBindPoint bindPoint)
+void Pipeline::BindGraphics(const CommandBuffer& commandBuffer)
 {
-    RenderCommand::BindPipeline(commandBuffer, *this, bindPoint);
+    RenderCommand::BindPipeline(commandBuffer, *this, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void Pipeline::BindCompute(const CommandBuffer& commandBuffer)
+{
+    RenderCommand::BindPipeline(commandBuffer, *this, VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
 Pipeline Pipeline::CreateGraphicsPipeline(const Builder::CreateInfo& createInfo)

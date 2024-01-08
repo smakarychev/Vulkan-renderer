@@ -197,7 +197,8 @@ public:
 public:
     static ShaderPipeline Create(const Builder::CreateInfo& createInfo);
 
-    void Bind(const CommandBuffer& cmd, VkPipelineBindPoint bindPoint);
+    void BindGraphics(const CommandBuffer& cmd);
+    void BindCompute(const CommandBuffer& cmd);
     
     const Pipeline& GetPipeline() const { return m_Pipeline; }
     const PipelineLayout& GetPipelineLayout() const { return m_Template->GetPipelineLayout(); }
@@ -278,10 +279,13 @@ public:
     static ShaderDescriptorSet Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const ShaderDescriptorSet& descriptorSet);
     
-    void Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
-        VkPipelineBindPoint bindPoint);
-    void Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
-        VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
+    void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout);
+    void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
+        const std::vector<u32>& dynamicOffsets);
+
+    void BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout);
+    void BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
+        const std::vector<u32>& dynamicOffsets);
 
     void SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex);
     

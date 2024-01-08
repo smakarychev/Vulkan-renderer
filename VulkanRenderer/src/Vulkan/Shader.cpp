@@ -596,9 +596,14 @@ ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
     return shaderPipeline;
 }
 
-void ShaderPipeline::Bind(const CommandBuffer& cmd, VkPipelineBindPoint bindPoint)
+void ShaderPipeline::BindGraphics(const CommandBuffer& cmd)
 {
-    m_Pipeline.Bind(cmd, bindPoint);
+    m_Pipeline.BindGraphics(cmd);
+}
+
+void ShaderPipeline::BindCompute(const CommandBuffer& cmd)
+{
+    m_Pipeline.BindCompute(cmd);
 }
 
 ShaderDescriptorSet ShaderDescriptorSet::Builder::Build()
@@ -734,16 +739,28 @@ void ShaderDescriptorSet::Destroy(const ShaderDescriptorSet& descriptorSet)
             DescriptorSet::Destroy(set.Set);
 }
 
-void ShaderDescriptorSet::Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind,
-                               const PipelineLayout& pipelineLayout, VkPipelineBindPoint bindPoint)
+void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+    const PipelineLayout& pipelineLayout)
 {
-    RenderCommand::BindDescriptorSet(commandBuffer, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, bindPoint, {});
+    RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_GRAPHICS, {});
 }
 
-void ShaderDescriptorSet::Bind(const CommandBuffer& commandBuffer, DescriptorKind descriptorKind,
-    const PipelineLayout& pipelineLayout, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets)
+void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+    const PipelineLayout& pipelineLayout, const std::vector<u32>& dynamicOffsets)
 {
-    RenderCommand::BindDescriptorSet(commandBuffer, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, bindPoint, dynamicOffsets);
+    RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_GRAPHICS, dynamicOffsets);
+}
+
+void ShaderDescriptorSet::BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+    const PipelineLayout& pipelineLayout)
+{
+    RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_COMPUTE, {});
+}
+
+void ShaderDescriptorSet::BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+    const PipelineLayout& pipelineLayout, const std::vector<u32>& dynamicOffsets)
+{
+    RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_COMPUTE, dynamicOffsets);
 }
 
 void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex)

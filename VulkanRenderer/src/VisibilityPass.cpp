@@ -298,15 +298,15 @@ void VisibilityPass::RenderScene(const CommandBuffer& cmd, const Scene& scene, c
 {
     ZoneScopedN("Scene render");
 
-    m_Pipeline.Bind(cmd, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_Pipeline.BindGraphics(cmd);
     const PipelineLayout& layout = m_Pipeline.GetPipelineLayout();
     
     u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * frameNumber);
     u32 trianglesOffset = (u32)sceneCull.GetDrawTrianglesOffset(); 
     u32 commandsOffset = (u32)sceneCull.GetDrawCommandsOffset();  
-    m_DescriptorSet.Bind(cmd, DescriptorKind::Global, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {cameraDataOffset});
-    m_DescriptorSet.Bind(cmd, DescriptorKind::Pass, layout, VK_PIPELINE_BIND_POINT_GRAPHICS, {commandsOffset, trianglesOffset});
-    m_DescriptorSet.Bind(cmd, DescriptorKind::Material, layout, VK_PIPELINE_BIND_POINT_GRAPHICS);
+    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Global, layout, {cameraDataOffset});
+    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Pass, layout, {commandsOffset, trianglesOffset});
+    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Material, layout);
     scene.Bind(cmd);
     
     RenderCommand::DrawIndexedIndirectCount(cmd,

@@ -160,7 +160,7 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
     RenderCommand::CreateBarrier(cmd, depthImageBarrier);
 
     auto* pipeline = &m_ComputeDepthPyramidData->Pipeline;
-    pipeline->Bind(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
+    pipeline->BindCompute(cmd);
     u32 mipMapCount = m_PyramidDepth.GetImageData().MipMapCount;
     u32 width = m_PyramidDepth.GetImageData().Width;  
     u32 height = m_PyramidDepth.GetImageData().Height;  
@@ -176,7 +176,7 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
             .SetSizeBytes(sizeof(glm::uvec2))
             .Build();
 
-        descriptorSet.Bind(cmd, DescriptorKind::Global, pipeline->GetPipelineLayout(), VK_PIPELINE_BIND_POINT_COMPUTE);
+        descriptorSet.BindCompute(cmd, DescriptorKind::Global, pipeline->GetPipelineLayout());
         RenderCommand::PushConstants(cmd, pipeline->GetPipelineLayout(), &levels, pushConstantDescription);
         RenderCommand::Dispatch(cmd, {(levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1});
         PipelineImageBarrierInfo barrierInfo = {

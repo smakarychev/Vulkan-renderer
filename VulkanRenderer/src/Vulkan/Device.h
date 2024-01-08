@@ -44,7 +44,6 @@ public:
 public:
     QueueInfo Graphics;
     QueueInfo Presentation;
-    // todo separate queue family for compute
     QueueInfo Compute;
 };
 

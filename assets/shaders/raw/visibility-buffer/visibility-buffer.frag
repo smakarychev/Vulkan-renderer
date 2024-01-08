@@ -35,12 +35,10 @@ void main() {
     uint object_index = command.render_object;
     Material material = u_material_buffer.materials[object_index];
 
-    float alpha;
+    float alpha = material.albedo_color.a;
     if (material.albedo_texture_index != ~0)
-        alpha = texture(nonuniformEXT(
+        alpha *= texture(nonuniformEXT(
             sampler2D(u_textures[nonuniformEXT(material.albedo_texture_index)], u_sampler)), vert_uv).a;
-    else
-        alpha = material.albedo_color.a;
 
     if (alpha < 0.9)
         discard;
