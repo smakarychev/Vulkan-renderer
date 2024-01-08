@@ -52,7 +52,7 @@ struct MeshletsSSBO
         assetLib::BoundingSphere BoundingSphere;
     };
 
-    std::vector<Data> Meshlets{MAX_OBJECTS};
+    std::vector<Data> Meshlets{MAX_DRAW_INDIRECT_CALLS};
     Buffer Buffer;
 };
 

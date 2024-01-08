@@ -68,9 +68,12 @@ Model* Model::LoadFromAsset(std::string_view path)
         meshletsOffset += (u32)(meshInfo.MeshletsSizeBytes / sizeof(assetLib::ModelInfo::Meshlet));
         auto meshletsEnd = meshlets.begin() + meshletsOffset;
         
-        assetLib::ModelInfo::MaterialInfo& albedo = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialType::Albedo];
-        assetLib::ModelInfo::MaterialInfo& normal = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialType::Normal];
-        MaterialInfo material = {.AlbedoColor = albedo.Color, .AlbedoTextures = albedo.Textures, .NormalTextures = normal.Textures};
+        assetLib::ModelInfo::MaterialInfo& albedo = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::Albedo];
+        assetLib::ModelInfo::MaterialInfo& normal = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::Normal];
+        MaterialInfo material = {
+            .Type = meshInfo.MaterialType,
+            .AlbedoColor = albedo.Color,
+            .AlbedoTextures = albedo.Textures, .NormalTextures = normal.Textures};
 
         meshes.push_back(
             {Mesh(

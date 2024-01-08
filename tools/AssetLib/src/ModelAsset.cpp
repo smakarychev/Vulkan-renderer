@@ -29,12 +29,37 @@ namespace
         std::unreachable();
     }
 
-    assetLib::ModelInfo::MaterialType parseMaterialString(std::string_view materialString)
+    assetLib::ModelInfo::MaterialAspect parseMaterialAspectString(std::string_view materialString)
     {
         if (materialString == "albedo")
-            return assetLib::ModelInfo::MaterialType::Albedo;
+            return assetLib::ModelInfo::MaterialAspect::Albedo;
         if (materialString == "normal")
-            return assetLib::ModelInfo::MaterialType::Normal;
+            return assetLib::ModelInfo::MaterialAspect::Normal;
+        std::cout << "Unrecognized material string\n";
+        std::unreachable();
+    }
+
+    std::string materialAspectToString(assetLib::ModelInfo::MaterialAspect aspect)
+    {
+        switch (aspect)
+        {
+        case assetLib::ModelInfo::MaterialAspect::Albedo:
+            return "albedo";
+        case assetLib::ModelInfo::MaterialAspect::Normal:
+            return "normal";
+        default:
+            std::cout << "Unsupported material type\n";
+            break;
+        }
+        std::unreachable();
+    }
+
+    assetLib::ModelInfo::MaterialType parseMaterialTypeString(std::string_view materialString)
+    {
+        if (materialString == "opaque")
+            return assetLib::ModelInfo::MaterialType::Opaque;
+        if (materialString == "translucent")
+            return assetLib::ModelInfo::MaterialType::Translucent;
         std::cout << "Unrecognized material string\n";
         std::unreachable();
     }
@@ -43,10 +68,10 @@ namespace
     {
         switch (type)
         {
-        case assetLib::ModelInfo::MaterialType::Albedo:
-            return "albedo";
-        case assetLib::ModelInfo::MaterialType::Normal:
-            return "normal";
+        case assetLib::ModelInfo::MaterialType::Opaque:
+            return "opaque";
+        case assetLib::ModelInfo::MaterialType::Translucent:
+            return "translucent";
         default:
             std::cout << "Unsupported material type\n";
             break;
@@ -152,11 +177,15 @@ namespace assetLib
             u64 meshletsSizeBytes = mesh["meshlets_size_bytes"];
             meshInfo.MeshletsSizeBytes = meshletsSizeBytes;
 
+            std::string materialTypeString = mesh["material_type"];
+            ModelInfo::MaterialType materialType = parseMaterialTypeString(materialTypeString);
+            meshInfo.MaterialType = materialType;
+
             const nlohmann::json& materials = mesh["materials"];
             for (auto& material : materials)
             {
-                std::string materialTypeString = material["type"];
-                ModelInfo::MaterialType materialType = parseMaterialString(materialTypeString);
+                std::string materialAspectString = material["aspect"];
+                ModelInfo::MaterialAspect materialAspect = parseMaterialAspectString(materialAspectString);
                 ModelInfo::MaterialInfo materialInfo = {};
 
                 materialInfo.Color = material["color"];
@@ -165,7 +194,7 @@ namespace assetLib
                 for (auto& texture : textures)
                     materialInfo.Textures.push_back(texture);
 
-                meshInfo.Materials[(u32)materialType] = materialInfo;
+                meshInfo.Materials[(u32)materialAspect] = materialInfo;
             }
 
             const nlohmann::json& boundingSphere = mesh["bounding_sphere"];
@@ -199,12 +228,14 @@ namespace assetLib
 
             meshJson["meshlets_size_bytes"] = mesh.MeshletsSizeBytes;
 
+            meshJson["material_type"] = materialTypeToString(mesh.MaterialType);
+            
             meshJson["materials"] = nlohmann::json::array();
             for (u32 i = 0; i < mesh.Materials.size(); i++)
             {
                 auto& material = mesh.Materials[i];
                 nlohmann::json materialJson;
-                materialJson["type"] = materialTypeToString((ModelInfo::MaterialType)i);
+                materialJson["aspect"] = materialAspectToString((ModelInfo::MaterialAspect)i);
                 materialJson["color"] = material.Color;
 
                 materialJson["textures"] = nlohmann::json::array();

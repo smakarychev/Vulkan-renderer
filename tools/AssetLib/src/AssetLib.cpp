@@ -24,6 +24,11 @@ namespace assetLib
     bool loadAssetFile(std::string_view assetPath, File& file)
     {
         std::ifstream jsonIn(assetPath.data(), std::ios::ate);
+        if (!jsonIn.is_open())
+        {
+            LOG("AssetLib error: failed to open file {}", assetPath);
+            return false;
+        }
 
         isize jsonSizeBytes = jsonIn.tellg();
         jsonIn.seekg(0);

@@ -13,6 +13,8 @@ class Model
 {
     struct MaterialInfo
     {
+        using MaterialType = assetLib::ModelInfo::MaterialType;
+        MaterialType Type;
         glm::vec4 AlbedoColor;
         std::vector<std::string> AlbedoTextures;
         std::vector<std::string> NormalTextures;

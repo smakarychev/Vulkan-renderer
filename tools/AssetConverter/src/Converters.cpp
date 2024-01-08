@@ -142,6 +142,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
     
     Assimp::Importer importer;
     const aiScene* scene = importer.ReadFile(path.string(),
+       aiProcess_GenUVCoords            |
        aiProcess_CalcTangentSpace       | 
        aiProcess_Triangulate            |
        aiProcess_JoinIdenticalVertices  |
@@ -177,6 +178,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
                 .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
                 .IndicesSizeBytes = meshData.Indices.size() * sizeof(IndexType),
                 .MeshletsSizeBytes = meshData.Meshlets.size() * sizeof(assetLib::ModelInfo::Meshlet),
+                .MaterialType = meshData.MaterialType,
                 .Materials = meshData.MaterialInfos,
                 .BoundingSphere = utils::welzlSphere(meshData.VertexGroup.Positions)});
 
@@ -206,12 +208,20 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
 
     std::vector<u32> indices = GetMeshIndices(mesh);
 
-    std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxVal> materials;
+    assetLib::ModelInfo::MaterialType materialType = assetLib::ModelInfo::MaterialType::Opaque;
+    std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialAspect::MaxVal> materials;
     if (scene->HasMaterials())
+    {
+        materialType = GetMaterialType(scene->mMaterials[mesh->mMaterialIndex]);
         for (u32 i = 0; i < materials.size(); i++)
-            materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialType)i, modelPath);
+            materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialAspect)i, modelPath);
+    }
 
-    MeshData meshData = {.Name = mesh->mName.C_Str(), .VertexGroup = vertexGroup, .MaterialInfos = materials};
+    MeshData meshData = {
+        .Name = mesh->mName.C_Str(),
+        .VertexGroup = vertexGroup,
+        .MaterialType = materialType,
+        .MaterialInfos = materials};
     utils::remapMesh(meshData, indices);
     meshData.Meshlets = utils::createMeshlets(meshData, indices);
     
@@ -266,17 +276,18 @@ std::vector<u32> ModelConverter::GetMeshIndices(const aiMesh* mesh)
     return indices;
 }
 
-assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMaterial* material, assetLib::ModelInfo::MaterialType type, const std::filesystem::path& modelPath)
+assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMaterial* material,
+    assetLib::ModelInfo::MaterialAspect type, const std::filesystem::path& modelPath)
 {
     aiColor4D color = {};
     aiTextureType textureType;
     switch (type)
     {
-    case assetLib::ModelInfo::MaterialType::Albedo:
+    case assetLib::ModelInfo::MaterialAspect::Albedo:
         material->Get(AI_MATKEY_COLOR_DIFFUSE, color);
         textureType = aiTextureType_BASE_COLOR;
         break;
-    case assetLib::ModelInfo::MaterialType::Normal:
+    case assetLib::ModelInfo::MaterialAspect::Normal:
         textureType = aiTextureType_NORMALS;
         break;
     default:
@@ -296,6 +307,15 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
     }
 
     return {.Color = {color.r, color.g, color.b, color.a}, .Textures = textures};
+}
+
+assetLib::ModelInfo::MaterialType ModelConverter::GetMaterialType(const aiMaterial* material)
+{
+    aiColor4D opacityColor = {};
+    material->Get(AI_MATKEY_COLOR_DIFFUSE, opacityColor);
+
+    return opacityColor.a < 1.0f ?
+        assetLib::ModelInfo::MaterialType::Translucent : assetLib::ModelInfo::MaterialType::Opaque;
 }
 
 bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)

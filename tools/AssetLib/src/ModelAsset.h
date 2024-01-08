@@ -65,6 +65,10 @@ namespace assetLib
         using IndexType = u8;
         enum class MaterialType : u32
         {
+            Opaque = 0, Translucent 
+        };
+        enum class MaterialAspect : u32
+        {
             Albedo = 0, Normal,
             MaxVal
         };
@@ -90,7 +94,8 @@ namespace assetLib
             std::array<u64, (u32)VertexElement::MaxVal> VertexElementsSizeBytes;
             u64 IndicesSizeBytes;
             u64 MeshletsSizeBytes;
-            std::array<MaterialInfo, (u32)MaterialType::MaxVal> Materials;
+            MaterialType MaterialType;
+            std::array<MaterialInfo, (u32)MaterialAspect::MaxVal> Materials;
             BoundingSphere BoundingSphere;
         };
         

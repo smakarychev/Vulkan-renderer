@@ -406,14 +406,6 @@ void Renderer::InitRenderingStructures()
             .PerBufferReset(true)
             .Build();
 
-        CommandPool computePool = CommandPool::Builder()
-            .SetQueue(QueueKind::Compute)
-            .PerBufferReset(true)
-            .Build();
-        CommandBuffer computeBuffer = computePool.AllocateBuffer(CommandBufferKind::Primary);
-
-        m_AsyncCullContext.CommandPool = computePool;
-        m_AsyncCullContext.CommandBuffer = computeBuffer;
         m_AsyncCullContext.CulledSemaphore = TimelineSemaphore::Builder().Build();
         m_AsyncCullContext.RenderedSemaphore = TimelineSemaphore::Builder().Build();
 
@@ -594,7 +586,7 @@ void Renderer::LoadScene()
     m_SceneCull.Init(m_Scene, m_CullDescriptorAllocator, m_LayoutCache);
 
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
-    Model* mori = Model::LoadFromAsset("../assets/models/mori/mori.model");
+    Model* mori = Model::LoadFromAsset("../assets/models/mori/scene.model");
     Model* gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
     Model* tree = Model::LoadFromAsset("../assets/models/tree/scene.model");

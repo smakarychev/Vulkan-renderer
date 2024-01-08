@@ -38,7 +38,8 @@ public:
         assetLib::VertexGroup VertexGroup;
         std::vector<IndexType> Indices;
         std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
-        std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialType::MaxVal> MaterialInfos;
+        assetLib::ModelInfo::MaterialType MaterialType;
+        std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialAspect::MaxVal> MaterialInfos;
     };
 public:
     static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
@@ -47,7 +48,9 @@ private:
     static MeshData ProcessMesh(const aiScene* scene, const aiMesh* mesh, const std::filesystem::path& modelPath);
     static assetLib::VertexGroup GetMeshVertices(const aiMesh* mesh);
     static std::vector<u32> GetMeshIndices(const aiMesh* mesh);
-    static assetLib::ModelInfo::MaterialInfo GetMaterialInfo(const aiMaterial* material, assetLib::ModelInfo::MaterialType type, const std::filesystem::path& modelPath);
+    static assetLib::ModelInfo::MaterialInfo GetMaterialInfo(const aiMaterial* material,
+        assetLib::ModelInfo::MaterialAspect type, const std::filesystem::path& modelPath);
+    static assetLib::ModelInfo::MaterialType GetMaterialType(const aiMaterial* material);
 public:
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".model";
 };
