@@ -22,6 +22,13 @@ public:
         struct CreateInfo
         {
             enum class SourceInfo {None, ImageData, Asset};
+            struct AssetInfo
+            {
+                enum class AssetStatus {Loaded, Reused};
+                Buffer Buffer;
+                std::string AssetPath;
+                AssetStatus Status;
+            };
             ImageData ImageData;
             VkFormat Format;
             VkExtent2D Extent;
@@ -29,7 +36,7 @@ public:
             VkImageAspectFlags ImageAspect;
             u32 MipMapCount{1};
             SourceInfo SourceInfo{SourceInfo::None};
-            Buffer AssetBuffer;
+            AssetInfo AssetInfo;
             bool CreateView{true};
         };
     public:
@@ -59,6 +66,7 @@ public:
     ImageDescriptorInfo CreateDescriptorInfo() const;
 private:
     using CreateInfo = Builder::CreateInfo;
+    static Image CreateImageFromAsset(const CreateInfo& createInfo);
     static Image AllocateImage(const CreateInfo& createInfo);
     static void PrepareForTransfer(const Image& image, const ImageSubresource& imageSubresource);
     static void PrepareForMipmap(const Image& image, const ImageSubresource& imageSubresource);

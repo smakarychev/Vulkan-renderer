@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include <vector>
 
+#include "HandleArray.h"
 #include "Mesh.h"
 #include "ModelAsset.h"
 #include "RenderObject.h"
@@ -35,4 +36,21 @@ private:
 
     bool m_IsInScene{false};
     std::vector<RenderObject> m_RenderObjects;
+};
+
+class ModelCollection
+{
+    void AddModel(Model* model);
+    
+private:
+    struct ModelInfo
+    {
+        Model* Model;
+        std::vector<RenderObject> RenderObjects;
+    };
+    std::vector<ModelInfo> m_Models;
+    HandleArray<Mesh> m_Meshes;
+    HandleArray<Texture> m_Textures;
+    HandleArray<MaterialGPU> m_MaterialsGPU;
+    std::vector<RenderHandle<Texture>> m_BindlessTextures;
 };

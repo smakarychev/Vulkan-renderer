@@ -199,6 +199,7 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     vulkan12Features.shaderBufferInt64Atomics = VK_TRUE;
     vulkan12Features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vulkan12Features.timelineSemaphore = VK_TRUE;
+    vulkan12Features.bufferDeviceAddress = VK_TRUE;
 
     VkPhysicalDeviceVulkan13Features vulkan13Features = {};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -352,6 +353,7 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         deviceVulkan12Features.uniformAndStorageBuffer8BitAccess == VK_TRUE &&
         deviceVulkan12Features.shaderBufferInt64Atomics == VK_TRUE &&
         deviceVulkan12Features.timelineSemaphore == VK_TRUE &&
+        deviceVulkan12Features.bufferDeviceAddress == VK_TRUE &&
         deviceVulkan13Features.dynamicRendering == VK_TRUE &&
         conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE &&
         physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE;

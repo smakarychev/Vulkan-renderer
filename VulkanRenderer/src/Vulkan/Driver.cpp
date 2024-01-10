@@ -140,6 +140,7 @@ void Driver::Init(const Device& device)
     createInfo.physicalDevice = device.m_GPU;
     createInfo.device = device.m_Device;
     createInfo.pVulkanFunctions = (const VmaVulkanFunctions*)&vulkanFunctions;
+    createInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     
     vmaCreateAllocator(&createInfo, &s_State.Allocator);
     s_State.DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_State.Allocator); });

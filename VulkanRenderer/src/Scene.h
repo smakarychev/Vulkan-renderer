@@ -14,7 +14,6 @@ class ShaderPipelineTemplate;
 class Model;
 struct RenderObject;
 class Mesh;
-struct Material;
 
 // todo: WIP, name is temporary
 struct SharedMeshContext
@@ -70,7 +69,6 @@ public:
 
     void AddModel(Model* model, const std::string& name);
     RenderHandle<MaterialGPU> AddMaterialGPU(const MaterialGPU& material);
-    RenderHandle<Material> AddMaterial(const Material& material);
     RenderHandle<Mesh> AddMesh(const Mesh& mesh);
     RenderHandle<Texture> AddTexture(const Texture& texture);
 
@@ -108,9 +106,7 @@ private:
 private:
     ResourceUploader* m_ResourceUploader{nullptr};
     
-    std::unordered_map<std::string, ShaderPipelineTemplate> m_ShaderTemplates;
     std::unordered_map<std::string, Model*> m_Models;
-    HandleArray<Material> m_Materials;
     HandleArray<MaterialGPU> m_MaterialsGPU;
     HandleArray<Mesh> m_Meshes;
     HandleArray<Texture> m_Textures;

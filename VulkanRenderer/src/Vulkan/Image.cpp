@@ -7,6 +7,7 @@
 #include "Buffer.h"
 #include "RenderCommand.h"
 #include "AssetLib.h"
+#include "AssetManager.h"
 #include "TextureAsset.h"
 
 Image Image::Builder::Build()
@@ -31,25 +32,36 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "`Asset` in `ImageData` options are incompatible")
     
     m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::Asset;
+    m_CreateInfo.AssetInfo.AssetPath = path;
 
-    assetLib::File textureFile;
-    assetLib::loadAssetFile(path, textureFile);
-    assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
-    ASSERT(textureInfo.Format == assetLib::TextureFormat::SRGBA8, "Unsopported image format")
-    
-    m_CreateInfo.AssetBuffer = Buffer::Builder()
-        .SetKind(BufferKind::Source)
-        .SetSizeBytes(textureInfo.SizeBytes)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT)
-        .BuildManualLifetime();
-    
-    void* destination = m_CreateInfo.AssetBuffer.Map();
-    assetLib::unpackTexture(textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)destination);
-    m_CreateInfo.AssetBuffer.Unmap();
+    Image* image = AssetManager::GetImage(m_CreateInfo.AssetInfo.AssetPath);
+    if (image != nullptr)
+    {
+        m_CreateInfo.AssetInfo.Status = CreateInfo::AssetInfo::AssetStatus::Reused;
+    }
+    else
+    {
+        m_CreateInfo.AssetInfo.Status = CreateInfo::AssetInfo::AssetStatus::Loaded;
 
-    m_CreateInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
-    m_CreateInfo.Extent = {textureInfo.Dimensions.Width, textureInfo.Dimensions.Height};
+        assetLib::File textureFile;
+        assetLib::loadAssetFile(path, textureFile);
+        assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
+        ASSERT(textureInfo.Format == assetLib::TextureFormat::SRGBA8, "Unsopported image format")
     
+        m_CreateInfo.AssetInfo.Buffer = Buffer::Builder()
+            .SetKind(BufferKind::Source)
+            .SetSizeBytes(textureInfo.SizeBytes)
+            .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT)
+            .BuildManualLifetime();
+    
+        void* destination = m_CreateInfo.AssetInfo.Buffer.Map();
+        assetLib::unpackTexture(textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)destination);
+        m_CreateInfo.AssetInfo.Buffer.Unmap();
+
+        m_CreateInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
+        m_CreateInfo.Extent = {textureInfo.Dimensions.Width, textureInfo.Dimensions.Height};
+    }
+
     return *this;
 }
 
@@ -138,21 +150,7 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     }
     case CreateInfo::SourceInfo::Asset:
     {
-        image = AllocateImage(createInfo);
-        if (createInfo.CreateView)
-        {
-            ImageSubresource imageSubresource = {};
-            imageSubresource.Subresource.aspectMask = createInfo.ImageAspect;
-            imageSubresource.Subresource.layerCount = 1;
-            imageSubresource.Subresource.levelCount = 1;
-   
-            PrepareForTransfer(image, imageSubresource);
-            CopyBufferToImage(createInfo.AssetBuffer, image, createInfo.ImageAspect);
-            imageSubresource.Subresource.levelCount = createInfo.MipMapCount;
-            CreateMipMaps(image, createInfo);
-            PrepareForShaderRead(image, imageSubresource);
-            image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, createInfo.MipMapCount);
-        }
+        image = CreateImageFromAsset(createInfo);
         break;
     }
     default:
@@ -195,6 +193,39 @@ ImageDescriptorInfo Image::CreateDescriptorInfo() const
     descriptorTextureInfo.View = m_ImageData.View;
 
     return descriptorTextureInfo;
+}
+
+Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
+{
+    Image image = {};
+    
+    if (createInfo.AssetInfo.Status == CreateInfo::AssetInfo::AssetStatus::Reused)
+    {
+        image = *AssetManager::GetImage(createInfo.AssetInfo.AssetPath);
+        image.m_Allocation = VK_NULL_HANDLE; // to avoid multiple deletions of the same texture
+    }
+    else
+    {
+        image = AllocateImage(createInfo);
+        if (createInfo.CreateView)
+        {
+            ImageSubresource imageSubresource = {};
+            imageSubresource.Subresource.aspectMask = createInfo.ImageAspect;
+            imageSubresource.Subresource.layerCount = 1;
+            imageSubresource.Subresource.levelCount = 1;
+   
+            PrepareForTransfer(image, imageSubresource);
+            CopyBufferToImage(createInfo.AssetInfo.Buffer, image, createInfo.ImageAspect);
+            imageSubresource.Subresource.levelCount = createInfo.MipMapCount;
+            CreateMipMaps(image, createInfo);
+            PrepareForShaderRead(image, imageSubresource);
+            image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, createInfo.MipMapCount);
+        }
+
+        AssetManager::AddImage(createInfo.AssetInfo.AssetPath, image);
+    }
+
+    return image;
 }
 
 Image Image::AllocateImage(const CreateInfo& createInfo)

@@ -231,7 +231,7 @@ void Swapchain::PrepareRendering(const CommandBuffer& cmd)
         .ImageSourceMask = 0,
         .ImageDestinationMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .ImageDestinationLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
     };
     RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
@@ -252,7 +252,7 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
         .Image = &m_DrawImage,
         .ImageSourceMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
         .ImageDestinationMask = 0,
-        .ImageSourceLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .ImageSourceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         .ImageDestinationLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
     };

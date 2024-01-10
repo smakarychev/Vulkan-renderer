@@ -10,12 +10,6 @@ class DescriptorSet;
 class Mesh;
 class Image;
 
-struct Material
-{
-    glm::vec4 Albedo;
-    std::string AlbedoTexture{};
-};
-
 struct MaterialGPU
 {
     static constexpr u32 NO_TEXTURE = std::numeric_limits<u32>::max();

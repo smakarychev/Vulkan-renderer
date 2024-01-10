@@ -319,7 +319,7 @@ void Renderer::CreateDepthPyramid()
     m_ComputeDepthPyramidData.DepthPyramid = std::make_unique<DepthPyramid>(m_Swapchain.GetDepthImage(), cmd,
         &m_ComputeDepthPyramidData);
 
-    m_SceneCull.SetDepthPyramid(*m_ComputeDepthPyramidData.DepthPyramid);
+    m_SceneCull.SetDepthPyramid(*m_ComputeDepthPyramidData.DepthPyramid, GetFrameContext().Resolution);
 }
 
 void Renderer::ComputeDepthPyramid()

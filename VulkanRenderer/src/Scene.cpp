@@ -84,13 +84,6 @@ RenderHandle<MaterialGPU> Scene::AddMaterialGPU(const MaterialGPU& material)
     return handle;
 }
 
-RenderHandle<Material> Scene::AddMaterial(const Material& material)
-{
-    RenderHandle<Material> handle = (u32)m_Materials.size();
-    m_Materials.push_back(material);
-    return handle;
-}
-
 RenderHandle<Mesh> Scene::AddMesh(const Mesh& mesh)
 {
     RenderHandle<Mesh> handle = (u32)m_Meshes.size();

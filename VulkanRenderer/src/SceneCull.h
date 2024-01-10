@@ -146,7 +146,8 @@ public:
     void Init(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
     void Shutdown();
 
-    void SetDepthPyramid(const DepthPyramid& depthPyramid, const Buffer& triangles, u64 trianglesSizeBytes, u64 trianglesOffset);
+    void SetDepthPyramid(const DepthPyramid& depthPyramid, const glm::uvec2& renderResolution,
+        const Buffer& triangles, u64 trianglesSizeBytes, u64 trianglesOffset);
     
     void BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext);
     void CullTriangles(const FrameContext& frameContext, const CullSettings& cullSettings);
@@ -161,9 +162,12 @@ public:
     u32 GetMaxBatchCount() const { return m_MaxBatchDispatches; }
     u32 ReadBackBatchCount(const FrameContext& frameContext) const;
 private:
-    void DestroyDescriptors();
+    void FreeResolutionDependentResources();
     
     void InitBatchCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
+
+    void RecordCommandBuffers(const glm::uvec2& resolution);
+    
 private:
     Scene* m_Scene{nullptr};
     SceneCull* m_SceneCull{nullptr};
@@ -197,6 +201,10 @@ private:
 
     PipelineBufferBarrierInfo m_ComputeWRBarrierBase{};
     PipelineBufferBarrierInfo m_IndirectWRBarrierBase{};
+
+    CommandPool m_CommandPool;
+    std::array<std::vector<CommandBuffer>, BUFFERED_FRAMES> m_TriangleCullCmds;
+    std::array<std::vector<CommandBuffer>, BUFFERED_FRAMES> m_TriangleReocclusionCullCmds;
 };
 
 class SceneCull
@@ -205,7 +213,7 @@ public:
     void Init(Scene& scene, DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
     void Shutdown();
 
-    void SetDepthPyramid(const DepthPyramid& depthPyramid);
+    void SetDepthPyramid(const DepthPyramid& depthPyramid, const glm::uvec2& renderResolution);
     void UpdateBuffers(const Camera& camera, ResourceUploader& resourceUploader, const FrameContext& frameContext);
 
     const SceneCullBuffers& GetSceneCullBuffers() const;
