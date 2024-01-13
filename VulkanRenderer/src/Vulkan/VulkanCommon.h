@@ -150,7 +150,7 @@ struct PipelineBufferBarrierInfo
     VkPipelineStageFlags PipelineDestinationMask;
     VkDependencyFlags DependencyFlags{0};
     const QueueInfo* Queue;
-    const Buffer* Buffer;
+    std::vector<const Buffer*> Buffers;
     VkAccessFlags BufferSourceMask;
     VkAccessFlags BufferDestinationMask;
 };

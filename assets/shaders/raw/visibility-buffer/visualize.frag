@@ -1,3 +1,5 @@
+// http://filmicworlds.com/blog/visibility-buffer-rendering-with-material-graphs/
+
 #version 460
 
 #include "common.shader_header"
@@ -319,5 +321,4 @@ void main() {
     vec3 color = shade(shade_info);
     
     out_color = vec4(color, 1.0);
-
 }

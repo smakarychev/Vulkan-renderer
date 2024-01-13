@@ -132,9 +132,11 @@ private:
     Buffer m_BatchClearIndirectDispatches{};
 };
 
-struct CullSettings
+struct CullContext
 {
     bool Reocclusion{false};
+    CommandBuffer* Cmd{nullptr};
+    u32 FrameNumber{0};
 };
 
 class SceneBatchedCull
@@ -149,8 +151,8 @@ public:
     void SetDepthPyramid(const DepthPyramid& depthPyramid, const glm::uvec2& renderResolution,
         const Buffer& triangles, u64 trianglesSizeBytes, u64 trianglesOffset);
     
-    void BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext);
-    void CullTriangles(const FrameContext& frameContext, const CullSettings& cullSettings);
+    void BatchIndirectDispatchesBuffersPrepare(const CullContext& cullContext);
+    void CullTriangles(const CullContext& cullContext);
     const CullDrawBatch& GetCullDrawBatch() const { return *m_CullDrawBatches[m_CurrentBatch]; }
     void NextSubBatch();
     void ResetSubBatches();
@@ -160,7 +162,7 @@ public:
     
     const Buffer& GetDrawCount() const;
     u32 GetMaxBatchCount() const { return m_MaxBatchDispatches; }
-    u32 ReadBackBatchCount(const FrameContext& frameContext) const;
+    u32 ReadBackBatchCount(u32 frameNumber) const;
 private:
     void FreeResolutionDependentResources();
     
@@ -170,7 +172,6 @@ private:
     
 private:
     Scene* m_Scene{nullptr};
-    SceneCull* m_SceneCull{nullptr};
     SceneCullBuffers* m_SceneCullBuffers{nullptr};
     bool m_CullIsInitialized{false};
     
@@ -218,11 +219,11 @@ public:
 
     const SceneCullBuffers& GetSceneCullBuffers() const;
 
-    void CullMeshes(const FrameContext& frameContext, bool reocclusion);
-    void CullMeshlets(const FrameContext& frameContext, bool reocclusion);
+    void CullMeshes(const CullContext& cullContext);
+    void CullMeshlets(const CullContext& cullContext);
     
-    void BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext);
-    void CullCompactTrianglesBatch(const FrameContext& frameContext, const CullSettings& cullSettings);
+    void BatchIndirectDispatchesBuffersPrepare(const CullContext& cullContext);
+    void CullCompactTrianglesBatch(const CullContext& cullContext);
     const CullDrawBatch& GetCullDrawBatch() const;
     void NextSubBatch();
     void ResetSubBatches();
@@ -235,7 +236,7 @@ public:
 
     const Buffer& GetDrawCount() const;
     u32 GetMaxBatchCount() const;
-    u32 ReadBackBatchCount(const FrameContext& frameContext) const;
+    u32 ReadBackBatchCount(u32 frameNumber) const;
 
     SceneBatchedCull& GetBatchCull();
     const SceneBatchedCull& GetBatchCull() const;

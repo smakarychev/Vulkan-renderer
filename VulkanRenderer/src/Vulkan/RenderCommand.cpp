@@ -372,21 +372,38 @@ void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBarrie
     memoryBarrier.srcAccessMask = pipelineBarrierInfo.AccessSourceMask;
     memoryBarrier.dstAccessMask = pipelineBarrierInfo.AccessDestinationMask;
 
-    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, 0, 1, &memoryBarrier, 0, nullptr, 0, nullptr);
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer,
+        pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask,
+        0,
+        1, &memoryBarrier,
+        0, nullptr,
+        0, nullptr);
 }
 
 void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineBufferBarrierInfo& pipelineBarrierInfo)
 {
-    VkBufferMemoryBarrier bufferMemoryBarrier = {};
-    bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
-    bufferMemoryBarrier.buffer = pipelineBarrierInfo.Buffer->m_Buffer;
-    bufferMemoryBarrier.size = VK_WHOLE_SIZE;
-    bufferMemoryBarrier.srcAccessMask = pipelineBarrierInfo.BufferSourceMask;
-    bufferMemoryBarrier.dstAccessMask = pipelineBarrierInfo.BufferDestinationMask;
-    bufferMemoryBarrier.srcQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
-    bufferMemoryBarrier.dstQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
+    std::vector<VkBufferMemoryBarrier> bufferMemoryBarriers;
+    bufferMemoryBarriers.reserve(pipelineBarrierInfo.Buffers.size());
+    for (auto& buffer : pipelineBarrierInfo.Buffers)
+    {
+        VkBufferMemoryBarrier bufferMemoryBarrier = {};
+        bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        bufferMemoryBarrier.buffer = buffer->m_Buffer;
+        bufferMemoryBarrier.size = VK_WHOLE_SIZE;
+        bufferMemoryBarrier.srcAccessMask = pipelineBarrierInfo.BufferSourceMask;
+        bufferMemoryBarrier.dstAccessMask = pipelineBarrierInfo.BufferDestinationMask;
+        bufferMemoryBarrier.srcQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
+        bufferMemoryBarrier.dstQueueFamilyIndex = pipelineBarrierInfo.Queue->Family;
 
-    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, pipelineBarrierInfo.DependencyFlags, 0, nullptr, 1, &bufferMemoryBarrier, 0, nullptr);
+        bufferMemoryBarriers.push_back(bufferMemoryBarrier);
+    }
+
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer,
+        pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask,
+        pipelineBarrierInfo.DependencyFlags,
+        0, nullptr,
+        (u32)bufferMemoryBarriers.size(), bufferMemoryBarriers.data(),
+        0, nullptr);
 }
 
 void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineImageBarrierInfo& pipelineBarrierInfo)
@@ -405,7 +422,12 @@ void RenderCommand::CreateBarrier(const CommandBuffer& cmd, const PipelineImageB
     imageMemoryBarrier.subresourceRange.levelCount = pipelineBarrierInfo.MipLevelCount;
     imageMemoryBarrier.subresourceRange.layerCount = VK_REMAINING_ARRAY_LAYERS;
 
-    vkCmdPipelineBarrier(cmd.m_CommandBuffer, pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask, pipelineBarrierInfo.DependencyFlags, 0, nullptr, 0, nullptr, 1, &imageMemoryBarrier);
+    vkCmdPipelineBarrier(cmd.m_CommandBuffer,
+        pipelineBarrierInfo.PipelineSourceMask, pipelineBarrierInfo.PipelineDestinationMask,
+        pipelineBarrierInfo.DependencyFlags,
+        0, nullptr,
+        0, nullptr,
+        1, &imageMemoryBarrier);
 }
 
 void RenderCommand::BeginConditionalRendering(const CommandBuffer& cmd, const Buffer& conditionalBuffer, u64 offset)

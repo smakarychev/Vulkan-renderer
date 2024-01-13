@@ -142,13 +142,13 @@ SceneBatchedCull::SceneBatchedCull(Scene& scene, SceneCullBuffers& sceneCullBuff
     m_ComputeWRBarrierBase = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .Queue = &Driver::GetDevice().GetQueues().Graphics,
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_READ_BIT};
 
     m_IndirectWRBarrierBase = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .Queue = &Driver::GetDevice().GetQueues().Graphics,
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
 
     for (auto& batch : m_CullDrawBatches)
@@ -205,18 +205,18 @@ void SceneBatchedCull::SetDepthPyramid(const DepthPyramid& depthPyramid, const g
     }
 
     m_CommandPool = CommandPool::Builder()
-        .SetQueue(QueueKind::Compute)
+        .SetQueue(QueueKind::Graphics)
         .BuildManualLifetime();
 
     RecordCommandBuffers(renderResolution);
 }
 
-void SceneBatchedCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext)
+void SceneBatchedCull::BatchIndirectDispatchesBuffersPrepare(const CullContext& cullContext)
 {
-    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
+    const CommandBuffer& cmd = *cullContext.Cmd;
     
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
-    u32 dispatchIndirectOffset = (u32)vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(m_MaxBatchDispatches) * frameContext.FrameNumber;
+    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
+    u32 dispatchIndirectOffset = (u32)vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(m_MaxBatchDispatches) * cullContext.FrameNumber;
 
     std::vector<u32> pushConstants = {
         CullDrawBatch::GetCommandCount(),
@@ -241,20 +241,19 @@ void SceneBatchedCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext&
     RenderCommand::PushConstants(cmd, m_PrepareCompactIndirectDispatches.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
     RenderCommand::Dispatch(cmd, {m_MaxBatchDispatches / 64 + 1, 1, 1});
 
-    m_IndirectWRBarrierBase.Buffer = &m_SceneCullBuffers->GetBatchIndirectDispatches();
-    RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
-
-    m_IndirectWRBarrierBase.Buffer = &m_SceneCullBuffers->GetBatchCompactIndirectDispatches();
+    m_IndirectWRBarrierBase.Buffers = {
+        &m_SceneCullBuffers->GetBatchIndirectDispatches(),
+        &m_SceneCullBuffers->GetBatchCompactIndirectDispatches()};
     RenderCommand::CreateBarrier(cmd, m_IndirectWRBarrierBase);
 }
 
-void SceneBatchedCull::CullTriangles(const FrameContext& frameContext, const CullSettings& cullSettings)
+void SceneBatchedCull::CullTriangles(const CullContext& cullContext)
 {
-    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
+    const CommandBuffer& cmd = *cullContext.Cmd;
 
-    RenderCommand::ExecuteSecondaryCommandBuffer(cmd, cullSettings.Reocclusion ?
-        m_TriangleReocclusionCullCmds[frameContext.FrameNumber][m_CurrentBatchFlat] :
-        m_TriangleCullCmds[frameContext.FrameNumber][m_CurrentBatchFlat]);
+    RenderCommand::ExecuteSecondaryCommandBuffer(cmd, cullContext.Reocclusion ?
+        m_TriangleReocclusionCullCmds[cullContext.FrameNumber][m_CurrentBatchFlat] :
+        m_TriangleCullCmds[cullContext.FrameNumber][m_CurrentBatchFlat]);
 }
 
 void SceneBatchedCull::NextSubBatch()
@@ -274,9 +273,9 @@ const Buffer& SceneBatchedCull::GetDrawCount() const
     return m_CullDrawBatches[m_CurrentBatch]->GetCountBuffer();
 }
 
-u32 SceneBatchedCull::ReadBackBatchCount(const FrameContext& frameContext) const
+u32 SceneBatchedCull::ReadBackBatchCount(u32 frameNumber) const
 {
-    u32 visibleMeshletsValue = m_SceneCullBuffers->GetVisibleMeshletsCountValue(frameContext.FrameNumber);
+    u32 visibleMeshletsValue = m_SceneCullBuffers->GetVisibleMeshletsCountValue(frameNumber);
     u32 commandCount = CullDrawBatch::GetCommandCount();
 
     return visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0); 
@@ -371,14 +370,7 @@ void SceneBatchedCull::InitBatchCull(DescriptorAllocator& allocator, DescriptorL
             .AddBinding("u_compacted_command_count_buffer", m_CullDrawBatches[i]->GetCountBuffer())
             .Build();
 
-        batchData.ClearCommands.DescriptorSet = ShaderDescriptorSet::Builder()
-            .SetTemplate(batchData.CompactCommands.Template)
-            .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
-            .AddBinding("u_compacted_command_buffer", m_SceneCullBuffers->GetCompactedBatchCommands(),
-                CullDrawBatch::GetCommandsSizeBytes(), 0)
-            .AddBinding("u_command_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
-            .AddBinding("u_compacted_command_count_buffer", m_CullDrawBatches[i]->GetCountBuffer())
-            .Build();
+        batchData.ClearCommands.DescriptorSet = batchData.CompactCommands.DescriptorSet;
 
         batchData.ClearCount.DescriptorSet = ShaderDescriptorSet::Builder()
             .SetTemplate(batchData.ClearCount.Template)
@@ -426,7 +418,7 @@ void SceneBatchedCull::RecordCommandBuffers(const glm::uvec2& resolution)
                 u32 batchIndex = dispatchIndex % CULL_DRAW_BATCH_OVERLAP;
                 
                 CommandBuffer cmd = m_CommandPool.AllocateBuffer(CommandBufferKind::Secondary);
-                cmd.Begin(CommandBufferUsage::MultipleSubmit);
+                cmd.Begin(CommandBufferUsage::MultipleSubmit | CommandBufferUsage::SimultaneousUse);
 
                 ComputeBatchData& batchData = m_CullDrawBatchData[batchIndex];
                 CullDrawBatch& batch = *m_CullDrawBatches[batchIndex];
@@ -449,9 +441,8 @@ void SceneBatchedCull::RecordCommandBuffers(const glm::uvec2& resolution)
                 RenderCommand::PushConstants(cmd, batchClearCommands.Pipeline.GetPipelineLayout(), pushConstants.data(), pushConstantDescription);
                 RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers->GetBatchCompactIndirectDispatches(), dispatchIndirectOffset);
 
-                m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers->GetCompactedCommands();
+                m_ComputeWRBarrierBase.Buffers = {&m_SceneCullBuffers->GetCompactedCommands()};
                 RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
                 
                 u32 sceneCullOffset =
                     (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullDataExtended)) * frameIndex;
@@ -475,23 +466,17 @@ void SceneBatchedCull::RecordCommandBuffers(const glm::uvec2& resolution)
                     RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), pushConstantsCull.data(), pushConstantDescription);
                     RenderCommand::DispatchIndirect(cmd, m_SceneCullBuffers->GetBatchIndirectDispatches(), dispatchIndirectOffset);
                 }
-
-                m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers->GetCompactedCommands();
-                RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-                m_ComputeWRBarrierBase.Buffer = &batch.GetIndices();
-                RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
                 
                 ComputePipelineData& batchClear = batchData.ClearCount;
                 batchClear.Pipeline.BindCompute(cmd);
                 batchClear.DescriptorSet.BindCompute(cmd, DescriptorKind::Global, batchClear.Pipeline.GetPipelineLayout(), {0});
                 RenderCommand::Dispatch(cmd, {1, 1, 1});
-            
-                m_ComputeWRBarrierBase.Buffer = &batch.GetCountBuffer();
+                
+                m_ComputeWRBarrierBase.Buffers = {
+                    &m_SceneCullBuffers->GetCompactedCommands(),
+                    &batch.GetCountBuffer()};
                 RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-
+                
                 ComputePipelineData& batchCompact = batchData.CompactCommands;
         
                 pushConstantDescription = batchCompact.Pipeline.GetPushConstantDescription();
@@ -599,15 +584,15 @@ void SceneCull::UpdateBuffers(const Camera& camera, ResourceUploader& resourceUp
     m_SceneCullBuffers.Update(camera, m_DepthPyramid, resourceUploader, frameContext);
 }
 
-void SceneCull::CullMeshes(const FrameContext& frameContext, bool reocclusion)
+void SceneCull::CullMeshes(const CullContext& cullContext)
 {
-    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
+    const CommandBuffer& cmd = *cullContext.Cmd;
 
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * frameContext.FrameNumber;
+    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * cullContext.FrameNumber;
 
     u32 count = (u32)m_Scene->GetRenderObjects().size();
 
-    ComputePipelineData& pipelineData = reocclusion ? m_MeshCullReocclusion : m_MeshCull;
+    ComputePipelineData& pipelineData = cullContext.Reocclusion ? m_MeshCullReocclusion : m_MeshCull;
 
     PushConstantDescription pushConstantDescription = pipelineData.Pipeline.GetPushConstantDescription();
     pipelineData.Pipeline.BindCompute(cmd);
@@ -615,25 +600,25 @@ void SceneCull::CullMeshes(const FrameContext& frameContext, bool reocclusion)
     RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
     RenderCommand::Dispatch(cmd, {count / 64 + 1, 1, 1});
 
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetMeshVisibility();
+    m_ComputeWRBarrierBase.Buffers = {&m_SceneCullBuffers.GetMeshVisibility()};
     RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
 }
 
-void SceneCull::CullMeshlets(const FrameContext& frameContext, bool reocclusion)
+void SceneCull::CullMeshlets(const CullContext& cullContext)
 {
-    const CommandBuffer& cmd = frameContext.ComputeCommandBuffers.GetBuffer();
+    const CommandBuffer& cmd = *cullContext.Cmd;
     
-    u32 countBufferOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameContext.FrameNumber;
+    u32 countBufferOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
     m_MeshletCullClear.Pipeline.BindCompute(cmd);
     m_MeshletCullClear.DescriptorSet.BindCompute(cmd, DescriptorKind::Global, m_MeshletCullClear.Pipeline.GetPipelineLayout(), {countBufferOffset});
     RenderCommand::Dispatch(cmd, {1, 1, 1});
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshletCount();
+    m_ComputeWRBarrierBase.Buffers = {&m_SceneCullBuffers.GetVisibleMeshletCount()};
     RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
 
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * frameContext.FrameNumber;
+    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullData)) * cullContext.FrameNumber;
     u32 count = m_Scene->GetMeshletCount();
 
-    ComputePipelineData& pipelineData = reocclusion ? m_MeshletCullReocclusion : m_MeshletCull;
+    ComputePipelineData& pipelineData = cullContext.Reocclusion ? m_MeshletCullReocclusion : m_MeshletCull;
 
     PushConstantDescription pushConstantDescription = pipelineData.Pipeline.GetPushConstantDescription();
     pipelineData.Pipeline.BindCompute(cmd);
@@ -641,13 +626,11 @@ void SceneCull::CullMeshlets(const FrameContext& frameContext, bool reocclusion)
     RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), &count, pushConstantDescription);
     RenderCommand::Dispatch(cmd, {count / 64 + 1, 1, 1});
 
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetMeshVisibility();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
+    m_ComputeWRBarrierBase.Buffers = {
+        &m_SceneCullBuffers.GetMeshVisibility(),
+        &m_SceneCullBuffers.GetCompactedCommands(),
+        &m_SceneCullBuffers.GetVisibleMeshletCount()};
 
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetCompactedCommands();
-    RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
-
-    m_ComputeWRBarrierBase.Buffer = &m_SceneCullBuffers.GetVisibleMeshletCount();
     RenderCommand::CreateBarrier(cmd, m_ComputeWRBarrierBase);
 }
 
@@ -656,9 +639,9 @@ const SceneCullBuffers& SceneCull::GetSceneCullBuffers() const
     return m_SceneCullBuffers;
 }
 
-void SceneCull::BatchIndirectDispatchesBuffersPrepare(const FrameContext& frameContext)
+void SceneCull::BatchIndirectDispatchesBuffersPrepare(const CullContext& cullContext)
 {
-    GetBatchCull().BatchIndirectDispatchesBuffersPrepare(frameContext);
+    GetBatchCull().BatchIndirectDispatchesBuffersPrepare(cullContext);
 }
 
 const CullDrawBatch& SceneCull::GetCullDrawBatch() const
@@ -706,9 +689,9 @@ u32 SceneCull::GetMaxBatchCount() const
     return GetBatchCull().GetMaxBatchCount();
 }
 
-u32 SceneCull::ReadBackBatchCount(const FrameContext& frameContext) const
+u32 SceneCull::ReadBackBatchCount(u32 frameNumber) const
 {
-    return GetBatchCull().ReadBackBatchCount(frameContext);
+    return GetBatchCull().ReadBackBatchCount(frameNumber);
 }
 
 SceneBatchedCull& SceneCull::GetBatchCull()
@@ -721,9 +704,9 @@ const SceneBatchedCull& SceneCull::GetBatchCull() const
     return *m_SceneBatchedCull;
 }
 
-void SceneCull::CullCompactTrianglesBatch(const FrameContext& frameContext, const CullSettings& cullSettings)
+void SceneCull::CullCompactTrianglesBatch(const CullContext& cullContext)
 {
-    GetBatchCull().CullTriangles(frameContext, cullSettings);
+    GetBatchCull().CullTriangles(cullContext);
 }
 
 void SceneCull::InitBarriers()
@@ -731,19 +714,19 @@ void SceneCull::InitBarriers()
     m_ComputeWRBarrierBase = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .Queue = &Driver::GetDevice().GetQueues().Graphics,
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_READ_BIT};
 
     m_ComputeRWBarrierBase = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .Queue = &Driver::GetDevice().GetQueues().Graphics,
         .BufferSourceMask = VK_ACCESS_SHADER_READ_BIT, .BufferDestinationMask = VK_ACCESS_SHADER_WRITE_BIT};
 
     m_IndirectWRBarrierBase = {
         .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-        .Queue = &Driver::GetDevice().GetQueues().Compute,
+        .Queue = &Driver::GetDevice().GetQueues().Graphics,
         .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT, .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
 }
 

@@ -9,7 +9,13 @@ class CommandPool;
 class Device;
 
 enum class CommandBufferKind {Primary, Secondary};
-enum class CommandBufferUsage {SingleSubmit, MultipleSubmit};
+enum class CommandBufferUsage
+{
+    SingleSubmit = BIT(1),
+    MultipleSubmit = BIT(2),
+    SimultaneousUse = BIT(3),
+};
+CREATE_ENUM_FLAGS_OPERATORS(CommandBufferUsage)
 
 struct BufferSubmitSyncInfo
 {

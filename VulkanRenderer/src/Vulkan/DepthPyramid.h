@@ -21,9 +21,6 @@ public:
         ComputeDepthPyramidData* computeDepthPyramidData);
     ~DepthPyramid();
 
-    bool IsPendingTransition() const { return m_IsPendingTransition; }
-    void SubmitLayoutTransition(const CommandBuffer& cmd, const BufferSubmitTimelineSyncInfo& syncInfo);
-    
     void Compute(const Image& depthImage, const CommandBuffer& cmd);
 
     const Image& GetTexture() const { return m_PyramidDepth; }
@@ -37,7 +34,6 @@ private:
     void Fill(const CommandBuffer& cmd, const Image& depthImage);
 private:
     Image m_PyramidDepth;
-    bool m_IsPendingTransition{true};
     
     VkSampler m_Sampler{VK_NULL_HANDLE};
     

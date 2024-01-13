@@ -9,7 +9,8 @@ namespace
 {
     VkCommandBufferLevel vkBufferLevelByKind(CommandBufferKind kind)
     {
-        switch (kind) {
+        switch (kind)
+        {
         case CommandBufferKind::Primary:    return VK_COMMAND_BUFFER_LEVEL_PRIMARY;
         case CommandBufferKind::Secondary:  return VK_COMMAND_BUFFER_LEVEL_SECONDARY;
         default:
@@ -21,14 +22,13 @@ namespace
 
     VkCommandBufferUsageFlags VkCommandBufferUsageByUsage(CommandBufferUsage usage)
     {
-        switch (usage) {
-        case CommandBufferUsage::SingleSubmit:    return VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-        case CommandBufferUsage::MultipleSubmit:  return 0;
-        default:
-            ASSERT(false, "Unrecognized command buffer usage")
-            break;
-        }
-        std::unreachable();
+        VkCommandBufferUsageFlags flags = 0;
+        if ((usage & CommandBufferUsage::SingleSubmit) == CommandBufferUsage::SingleSubmit)
+            flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        if ((usage & CommandBufferUsage::SimultaneousUse) == CommandBufferUsage::SimultaneousUse)
+            flags |= VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+        return flags;
     }
 }
 

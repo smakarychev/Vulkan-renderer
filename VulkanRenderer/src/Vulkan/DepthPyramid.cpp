@@ -33,14 +33,6 @@ DepthPyramid::~DepthPyramid()
     Image::Destroy(m_PyramidDepth);
 }
 
-void DepthPyramid::SubmitLayoutTransition(const CommandBuffer& cmd, const BufferSubmitTimelineSyncInfo& syncInfo)
-{
-    m_IsPendingTransition = false;
-
-    cmd.End();
-    cmd.Submit(Driver::GetDevice().GetQueues().Graphics, syncInfo);
-}
-
 void DepthPyramid::Compute(const Image& depthImage, const CommandBuffer& cmd)
 {
     TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Depth pyramid")

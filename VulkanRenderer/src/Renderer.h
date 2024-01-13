@@ -73,12 +73,6 @@ struct ComputeDispatch
     glm::uvec3 GroupSize;
 };
 
-struct BindlessData
-{
-    ShaderPipeline Pipeline;
-    ShaderDescriptorSet DescriptorSet;
-};
-
 struct VisibilityBufferVisualizeData
 {
     ShaderPipelineTemplate* Template;
@@ -93,17 +87,8 @@ struct ComputeDepthPyramidData
     std::unique_ptr<DepthPyramid> DepthPyramid;
 };
 
-struct AsyncCullContext
-{
-    TimelineSemaphore CulledSemaphore;
-    TimelineSemaphore RenderedSemaphore;
-};
-
 struct FrameContext
 {
-    CommandBufferArray GraphicsCommandBuffers{QueueKind::Graphics, false};
-    CommandBufferArray ComputeCommandBuffers{QueueKind::Compute, false};
-
     u32 CommandBufferIndex{0};
     
     SwapchainFrameSync FrameSync;
@@ -111,11 +96,8 @@ struct FrameContext
 
     glm::uvec2 Resolution;
     
-    CommandBuffer TracyProfilerBuffer;
+    CommandBuffer Cmd;
 };
-
-enum class DisocclusionKind { Triangles = BIT(1), Meshlets = BIT(2) };
-CREATE_ENUM_FLAGS_OPERATORS(DisocclusionKind)
 
 class Renderer
 {
@@ -183,7 +165,6 @@ private:
 
     std::vector<FrameContext> m_FrameContexts;
     FrameContext* m_CurrentFrameContext{nullptr};
-    AsyncCullContext m_AsyncCullContext;
     
     CameraDataUBO m_CameraDataUBO;
     CameraDataExtendedUBO m_CameraDataExtendedUBO;

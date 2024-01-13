@@ -67,17 +67,6 @@ void Renderer::OnRender()
 
         {
             TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
-            if (m_ComputeDepthPyramidData.DepthPyramid->IsPendingTransition())
-            {
-                TimelineSemaphore& renderSemaphore = m_AsyncCullContext.RenderedSemaphore;
-                m_ComputeDepthPyramidData.DepthPyramid->SubmitLayoutTransition(
-                    GetFrameContext().GraphicsCommandBuffers.GetBuffer(), BufferSubmitTimelineSyncInfo{
-                        .SignalSemaphores ={&renderSemaphore},
-                        .SignalValues = {renderSemaphore.GetTimeline() + 1}});
-
-                GetFrameContext().GraphicsCommandBuffers.NextIndex();
-                GetFrameContext().GraphicsCommandBuffers.GetBuffer().Begin();
-            }
             SceneVisibilityPass();
         }
 
@@ -176,18 +165,9 @@ void Renderer::BeginFrame()
         return;
     }
 
-    GetFrameContext().GraphicsCommandBuffers.ResetBuffers();
-    GetFrameContext().GraphicsCommandBuffers.SetIndex(0);
-    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+    CommandBuffer& cmd = GetFrameContext().Cmd;
+    cmd.Reset();
     cmd.Begin();
-
-    GetFrameContext().ComputeCommandBuffers.ResetBuffers();
-    GetFrameContext().ComputeCommandBuffers.SetIndex(0);
-    CommandBuffer& computeCmd = GetFrameContext().ComputeCommandBuffers.GetBuffer();
-    computeCmd.Begin();
-
-    GetFrameContext().TracyProfilerBuffer.Reset();
-    GetFrameContext().TracyProfilerBuffer.Begin();
 
     m_Swapchain.PrepareRendering(cmd);
     
@@ -265,16 +245,13 @@ RenderingInfo Renderer::GetColorRenderingInfo()
 
 void Renderer::EndFrame()
 {
-    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+    CommandBuffer& cmd = GetFrameContext().Cmd;
     m_Swapchain.PreparePresent(cmd, m_SwapchainImageIndex);
     
     u32 frameNumber = GetFrameContext().FrameNumber;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
 
     TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()))
-
-    GetFrameContext().TracyProfilerBuffer.End();
-    GetFrameContext().TracyProfilerBuffer.Submit(m_Device.GetQueues().Graphics, nullptr);
     
     cmd.End();
 
@@ -312,7 +289,7 @@ void Renderer::CreateDepthPyramid()
 {
     ZoneScopedN("Create depth pyramid");
 
-    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+    CommandBuffer& cmd = GetFrameContext().Cmd;
     if (m_ComputeDepthPyramidData.DepthPyramid)
         m_ComputeDepthPyramidData.DepthPyramid.reset();
     
@@ -326,7 +303,7 @@ void Renderer::ComputeDepthPyramid()
 {
     ZoneScopedN("Compute depth pyramid");
 
-    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+    CommandBuffer& cmd = GetFrameContext().Cmd;
     m_ComputeDepthPyramidData.DepthPyramid->Compute(m_Swapchain.GetDepthImage(), cmd);
 }
 
@@ -341,7 +318,7 @@ void Renderer::SceneVisibilityPass()
 
     u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber);
 
-    CommandBuffer& cmd = GetFrameContext().GraphicsCommandBuffers.GetBuffer();
+    CommandBuffer& cmd = GetFrameContext().Cmd;
     RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
     RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
 
@@ -406,19 +383,16 @@ void Renderer::InitRenderingStructures()
             .PerBufferReset(true)
             .Build();
 
-        m_AsyncCullContext.CulledSemaphore = TimelineSemaphore::Builder().Build();
-        m_AsyncCullContext.RenderedSemaphore = TimelineSemaphore::Builder().Build();
-
         m_FrameContexts[i].FrameSync = m_Swapchain.GetFrameSync(i);
         m_FrameContexts[i].FrameNumber = i;
         m_FrameContexts[i].Resolution = m_Swapchain.GetSize();
 
-        m_FrameContexts[i].TracyProfilerBuffer = pool.AllocateBuffer(CommandBufferKind::Primary);
+        m_FrameContexts[i].Cmd = pool.AllocateBuffer(CommandBufferKind::Primary);
     }
 
     std::array<CommandBuffer*, BUFFERED_FRAMES> cmds;
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        cmds[i] = &m_FrameContexts[i].TracyProfilerBuffer;
+        cmds[i] = &m_FrameContexts[i].Cmd;
     ProfilerContext::Get()->Init(cmds);
 
     // descriptors
@@ -470,7 +444,7 @@ void Renderer::InitVisibilityPass()
 {
     bool recreated = m_VisibilityPass.Init({
         .Size = m_Swapchain.GetSize(),
-        .Cmd = &GetFrameContext().ComputeCommandBuffers.GetBuffer(),
+        .Cmd = &GetFrameContext().Cmd,
         .DescriptorAllocator = &m_PersistentDescriptorAllocator,
         .LayoutCache = &m_LayoutCache,
         .RenderingDetails = m_Swapchain.GetRenderingDetails(),

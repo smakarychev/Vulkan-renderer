@@ -97,23 +97,20 @@ void VisibilityPass::ShutDown()
 
 void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
 {
-    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Visiblity pass")
-    ZoneScopedN("Visiblity pass");
-
-    u64 renderTimeline = m_RenderSemaphore.GetTimeline();
-    u64 cullTimeline = m_CullSemaphore.GetTimeline();
-
     u32 batchCount = 0;
-
-    Fence preTriangleFence = Fence::Builder().BuildManualLifetime();
-    auto preTriangleCull = [&](u64 waitValue, bool reocclusion, Fence fence)
+    
+    auto preTriangleCull = [&](CommandBuffer& cmd, bool reocclusion, Fence fence)
     {
         ZoneScopedN("Culling");
-        const CommandBuffer& cmd = renderInfo.FrameContext->ComputeCommandBuffers.GetBuffer();
 
-        renderInfo.SceneCull->CullMeshes(*renderInfo.FrameContext, reocclusion);
-        renderInfo.SceneCull->CullMeshlets(*renderInfo.FrameContext, reocclusion);
-        
+        CullContext cullContext = {
+            .Reocclusion = reocclusion,
+            .Cmd = &cmd,
+            .FrameNumber = renderInfo.FrameContext->FrameNumber};
+    
+        renderInfo.SceneCull->CullMeshes(cullContext);
+        renderInfo.SceneCull->CullMeshlets(cullContext);
+    
         PipelineBarrierInfo barrierInfo = {
             .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             .PipelineDestinationMask = VK_PIPELINE_STAGE_HOST_BIT,
@@ -121,50 +118,44 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
             .AccessDestinationMask = VK_ACCESS_HOST_READ_BIT
         };
         RenderCommand::CreateBarrier(cmd, barrierInfo);
-        
+
         cmd.End();
-        cmd.Submit(Driver::GetDevice().GetQueues().Compute,
-            BufferSubmitTimelineSyncInfo{
-                .WaitStages = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT}, 
-                .WaitSemaphores = {&m_RenderSemaphore},
-                .WaitValues = {waitValue},
-                .Fence = &fence});
+        cmd.Submit(Driver::GetDevice().GetQueues().Graphics, fence);
     };
-    auto preTriangleWaitCPU = [&](Fence fence)
+    auto preTriangleWaitCPU = [&](CommandBuffer& cmd, Fence fence)
     {
         ZoneScopedN("Fence wait");
         fence.Wait();
         fence.Reset();
-        batchCount = renderInfo.SceneCull->ReadBackBatchCount(*renderInfo.FrameContext);
-        
-        renderInfo.FrameContext->ComputeCommandBuffers.NextIndex();
-        renderInfo.FrameContext->ComputeCommandBuffers.GetBuffer().Begin();
+        batchCount = renderInfo.SceneCull->ReadBackBatchCount(renderInfo.FrameContext->FrameNumber);
+        cmd.Begin();
     };
-    
-    auto cull = [&](u64 waitValue, bool reocclusion)
+    auto cull = [&](CommandBuffer& cmd, bool reocclusion)
     {
         ZoneScopedN("Culling");
-        const CommandBuffer& cmd = renderInfo.FrameContext->ComputeCommandBuffers.GetBuffer();
-        
-        renderInfo.SceneCull->CullCompactTrianglesBatch(*renderInfo.FrameContext, {reocclusion});
-        
-        cullTimeline++;
-        cmd.End();
-        cmd.Submit(Driver::GetDevice().GetQueues().Compute,
-            BufferSubmitTimelineSyncInfo{
-                .WaitStages = {VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT}, 
-                .WaitSemaphores = {&m_RenderSemaphore},
-                .WaitValues = {waitValue},
-                .SignalSemaphores = {&m_CullSemaphore},
-                .SignalValues = {cullTimeline}});
-
-        renderInfo.FrameContext->ComputeCommandBuffers.NextIndex();
-        renderInfo.FrameContext->ComputeCommandBuffers.GetBuffer().Begin();
+        CullContext cullContext = {
+            .Reocclusion = reocclusion,
+            .Cmd = &cmd,
+            .FrameNumber = renderInfo.FrameContext->FrameNumber};
+    
+        renderInfo.SceneCull->CullCompactTrianglesBatch(cullContext);
     };
-    auto render = [&](u64 waitValue, u32 iteration, bool computeDepthPyramid, bool shouldClear)
+    auto postCullBatchBarriers = [&](CommandBuffer& cmd)
+    {
+        PipelineBufferBarrierInfo barrierInfo = {
+            .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
+            .Queue = &Driver::GetDevice().GetQueues().Graphics,
+            .Buffers = {
+                &renderInfo.SceneCull->GetCullDrawBatch().GetIndices(),
+                &renderInfo.SceneCull->GetDrawCommands()},
+            .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
+            .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
+        RenderCommand::CreateBarrier(cmd, barrierInfo);
+    };
+    auto render = [&](CommandBuffer& cmd, u32 iteration, bool computeDepthPyramid, bool shouldClear)
     {
         ZoneScopedN("Rendering");
-        const CommandBuffer& cmd = renderInfo.FrameContext->GraphicsCommandBuffers.GetBuffer();
 
         RenderCommand::SetViewport(cmd, renderInfo.FrameContext->Resolution);
         RenderCommand::SetScissors(cmd, {0, 0}, renderInfo.FrameContext->Resolution);
@@ -179,59 +170,67 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
 
         if (computeDepthPyramid)
             ComputeDepthPyramid(cmd, *renderInfo.DepthPyramid, *renderInfo.DepthBuffer);
-        
-        renderTimeline++;
-        cmd.End();
-        cmd.Submit(Driver::GetDevice().GetQueues().Graphics,
-            BufferSubmitTimelineSyncInfo{
-                .WaitStages = {VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT}, 
-                .WaitSemaphores = {&m_CullSemaphore},
-                .WaitValues = {waitValue},
-                .SignalSemaphores = {&m_RenderSemaphore},
-                .SignalValues = {renderTimeline}});
-
-        renderInfo.FrameContext->GraphicsCommandBuffers.NextIndex();
-        renderInfo.FrameContext->GraphicsCommandBuffers.GetBuffer().Begin();
     };
-    auto triangleCullRenderLoop = [&](bool reocclusion, bool computeDepthPyramid, bool shouldClear)
+    auto postRenderBatchBarriers = [&](CommandBuffer& cmd)
+    {
+        PipelineBufferBarrierInfo barrierInfo = {
+            .PipelineSourceMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            .Queue = &Driver::GetDevice().GetQueues().Graphics,
+            .Buffers = {
+                &renderInfo.SceneCull->GetCullDrawBatch().GetIndices(),
+                &renderInfo.SceneCull->GetDrawCommands()},
+            .BufferSourceMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .BufferDestinationMask = VK_ACCESS_SHADER_READ_BIT};
+        RenderCommand::CreateBarrier(cmd, barrierInfo);
+    };
+    auto triangleCullRenderLoop = [&](CommandBuffer& cmd, bool reocclusion, bool computeDepthPyramid, bool shouldClear)
     {
         renderInfo.SceneCull->ResetSubBatches();
-        cull(renderTimeline, reocclusion);
-        u32 iterations = std::max(1u, batchCount);
+        u32 iterations = std::max(batchCount, 1u);
         for (u32 i = 0; i < iterations; i++)
         {
-            render(cullTimeline, i, computeDepthPyramid && i == iterations - 1, shouldClear);
+            cull(cmd, reocclusion);
+            postCullBatchBarriers(cmd);
+            render(cmd, i, computeDepthPyramid && i == iterations - 1, shouldClear);
+            postRenderBatchBarriers(cmd);
             renderInfo.SceneCull->NextSubBatch();
-            if (i != iterations - 1)
-                cull(renderTimeline - 1, reocclusion);
         }
     };
-    auto postRenderBarriers = [&]()
+    auto postRenderBarriers = [&](CommandBuffer& cmd)
     {
         PipelineBarrierInfo barrierInfo = {
             .PipelineSourceMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             .PipelineDestinationMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             .AccessSourceMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .AccessDestinationMask = VK_ACCESS_SHADER_READ_BIT};
-        RenderCommand::CreateBarrier(renderInfo.FrameContext->GraphicsCommandBuffers.GetBuffer(), barrierInfo);
+        RenderCommand::CreateBarrier(cmd, barrierInfo);
     };
 
-    preTriangleCull(renderTimeline, false, preTriangleFence);
-    preTriangleWaitCPU(preTriangleFence);
-    renderInfo.SceneCull->BatchIndirectDispatchesBuffersPrepare(*renderInfo.FrameContext);
-    triangleCullRenderLoop(false, true, true);
+    Fence fence = Fence::Builder().BuildManualLifetime();
+    
+    CommandBuffer& cmd = renderInfo.FrameContext->Cmd;
+    preTriangleCull(cmd, false, fence);
+    preTriangleWaitCPU(cmd, fence);
+
+    renderInfo.SceneCull->BatchIndirectDispatchesBuffersPrepare({
+        .Cmd = &cmd,
+        .FrameNumber = renderInfo.FrameContext->FrameNumber});
+    triangleCullRenderLoop(cmd, false, true, true);
 
     // triangle-only reocclusion
-    triangleCullRenderLoop(true, true, false);
+    triangleCullRenderLoop(cmd, true, true, false);
 
     // meshlet reocclusion
-    preTriangleCull(renderTimeline, true, preTriangleFence);
-    preTriangleWaitCPU(preTriangleFence);
-    renderInfo.SceneCull->BatchIndirectDispatchesBuffersPrepare(*renderInfo.FrameContext);
-    triangleCullRenderLoop(true, false, false);
-    postRenderBarriers();
-   
-    Fence::Destroy(preTriangleFence);
+    preTriangleCull(cmd, true, fence);
+    preTriangleWaitCPU(cmd, fence);
+    renderInfo.SceneCull->BatchIndirectDispatchesBuffersPrepare({
+        .Cmd = &cmd,
+        .FrameNumber = renderInfo.FrameContext->FrameNumber});
+    triangleCullRenderLoop(cmd, true, false, false);
+    postRenderBarriers(cmd);
+
+    Fence::Destroy(fence);
 }
 
 RenderingInfo VisibilityPass::GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const
