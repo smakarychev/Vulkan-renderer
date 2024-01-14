@@ -171,19 +171,6 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
         if (computeDepthPyramid)
             ComputeDepthPyramid(cmd, *renderInfo.DepthPyramid, *renderInfo.DepthBuffer);
     };
-    auto postRenderBatchBarriers = [&](CommandBuffer& cmd)
-    {
-        PipelineBufferBarrierInfo barrierInfo = {
-            .PipelineSourceMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .Queue = &Driver::GetDevice().GetQueues().Graphics,
-            .Buffers = {
-                &renderInfo.SceneCull->GetCullDrawBatch().GetIndices(),
-                &renderInfo.SceneCull->GetDrawCommands()},
-            .BufferSourceMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .BufferDestinationMask = VK_ACCESS_SHADER_READ_BIT};
-        RenderCommand::CreateBarrier(cmd, barrierInfo);
-    };
     auto triangleCullRenderLoop = [&](CommandBuffer& cmd, bool reocclusion, bool computeDepthPyramid, bool shouldClear)
     {
         renderInfo.SceneCull->ResetSubBatches();
@@ -193,7 +180,6 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
             cull(cmd, reocclusion);
             postCullBatchBarriers(cmd);
             render(cmd, i, computeDepthPyramid && i == iterations - 1, shouldClear);
-            postRenderBatchBarriers(cmd);
             renderInfo.SceneCull->NextSubBatch();
         }
     };
