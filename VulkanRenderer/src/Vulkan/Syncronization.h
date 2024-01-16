@@ -2,7 +2,7 @@
 
 #include "VulkanCommon.h"
 
-#include <vulkan/vulkan_core.h>
+#include <Vulkan/vulkan_core.h>
 
 class CommandBuffer;
 class Device;

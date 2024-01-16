@@ -35,6 +35,10 @@ namespace
             return assetLib::ModelInfo::MaterialAspect::Albedo;
         if (materialString == "normal")
             return assetLib::ModelInfo::MaterialAspect::Normal;
+        if (materialString == "metallic_roughness")
+            return assetLib::ModelInfo::MaterialAspect::MetallicRoughness;
+        if (materialString == "ambient_occlusion")
+            return assetLib::ModelInfo::MaterialAspect::AmbientOcclusion;
         std::cout << "Unrecognized material string\n";
         std::unreachable();
     }
@@ -47,6 +51,10 @@ namespace
             return "albedo";
         case assetLib::ModelInfo::MaterialAspect::Normal:
             return "normal";
+        case assetLib::ModelInfo::MaterialAspect::MetallicRoughness:
+            return "metallic_roughness";
+        case assetLib::ModelInfo::MaterialAspect::AmbientOcclusion:
+            return "ambient_occlusion";
         default:
             std::cout << "Unsupported material type\n";
             break;
@@ -181,6 +189,13 @@ namespace assetLib
             ModelInfo::MaterialType materialType = parseMaterialTypeString(materialTypeString);
             meshInfo.MaterialType = materialType;
 
+            const nlohmann::json& materialPBR = mesh["pbr_info"];
+            ModelInfo::MaterialPropertiesPBR propertiesPBR = {};
+            propertiesPBR.Albedo = materialPBR["color"];
+            propertiesPBR.Metallic = materialPBR["metallic"];
+            propertiesPBR.Roughness = materialPBR["roughness"];
+            meshInfo.MaterialPropertiesPBR = propertiesPBR;
+
             const nlohmann::json& materials = mesh["materials"];
             for (auto& material : materials)
             {
@@ -188,7 +203,6 @@ namespace assetLib
                 ModelInfo::MaterialAspect materialAspect = parseMaterialAspectString(materialAspectString);
                 ModelInfo::MaterialInfo materialInfo = {};
 
-                materialInfo.Color = material["color"];
                 const nlohmann::json& textures = material["textures"];
                 materialInfo.Textures.reserve(textures.size());
                 for (auto& texture : textures)
@@ -229,6 +243,12 @@ namespace assetLib
             meshJson["meshlets_size_bytes"] = mesh.MeshletsSizeBytes;
 
             meshJson["material_type"] = materialTypeToString(mesh.MaterialType);
+
+            nlohmann::json materialPBRJson;
+            materialPBRJson["color"] = mesh.MaterialPropertiesPBR.Albedo;
+            materialPBRJson["metallic"] = mesh.MaterialPropertiesPBR.Metallic;
+            materialPBRJson["roughness"] = mesh.MaterialPropertiesPBR.Roughness;
+            meshJson["pbr_info"] = materialPBRJson;
             
             meshJson["materials"] = nlohmann::json::array();
             for (u32 i = 0; i < mesh.Materials.size(); i++)
@@ -236,7 +256,6 @@ namespace assetLib
                 auto& material = mesh.Materials[i];
                 nlohmann::json materialJson;
                 materialJson["aspect"] = materialAspectToString((ModelInfo::MaterialAspect)i);
-                materialJson["color"] = material.Color;
 
                 materialJson["textures"] = nlohmann::json::array();
                 for (auto& texture : material.Textures)

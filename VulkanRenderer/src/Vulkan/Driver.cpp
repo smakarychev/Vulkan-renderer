@@ -135,6 +135,8 @@ void Driver::Init(const Device& device)
     vulkanFunctions.vkBindBufferMemory2KHR = vkBindBufferMemory2KHR;
     vulkanFunctions.vkBindImageMemory2KHR = vkBindImageMemory2KHR;
     vulkanFunctions.vkGetPhysicalDeviceMemoryProperties2KHR = vkGetPhysicalDeviceMemoryProperties2KHR;
+    vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
+    vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
     VmaAllocatorCreateInfo createInfo = {};
     createInfo.instance = device.m_Instance;
     createInfo.physicalDevice = device.m_GPU;

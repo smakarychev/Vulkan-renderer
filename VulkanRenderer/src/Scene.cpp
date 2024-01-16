@@ -49,8 +49,12 @@ void Scene::OnUpdate(f32 dt)
     {
         MaterialGPU& material = GetMaterialGPU(m_RenderObjects[i].MaterialGPU);
         m_MaterialDataSSBO.Materials[i].Albedo = material.Albedo;
+        m_MaterialDataSSBO.Materials[i].Metallic = material.Metallic;
+        m_MaterialDataSSBO.Materials[i].Roughness = material.Roughness;
         m_MaterialDataSSBO.Materials[i].AlbedoTextureHandle = material.AlbedoTextureHandle;
         m_MaterialDataSSBO.Materials[i].NormalTextureHandle = material.NormalTextureHandle;
+        m_MaterialDataSSBO.Materials[i].MetallicRoughnessTextureHandle = material.MetallicRoughnessTextureHandle;
+        m_MaterialDataSSBO.Materials[i].AmbientOcclusionTextureHandle = material.AmbientOcclusionTextureHandle;
     }
 
     m_ResourceUploader->UpdateBuffer(m_MaterialDataSSBO.Buffer, m_MaterialDataSSBO.Materials.data(), m_MaterialDataSSBO.Materials.size() * sizeof(MaterialGPU), 0);
@@ -109,6 +113,20 @@ void Scene::SetMaterialNormalTexture(MaterialGPU& material, const Texture& textu
 {
     RenderHandle<Texture> normalHandle = AddTexture(texture);
     material.NormalTextureHandle = (u32)m_BindlessTextures.size();
+    m_BindlessTextures.push_back(normalHandle);
+}
+
+void Scene::SetMaterialMetallicRoughnessTexture(MaterialGPU& material, const Texture& texture)
+{
+    RenderHandle<Texture> normalHandle = AddTexture(texture);
+    material.MetallicRoughnessTextureHandle = (u32)m_BindlessTextures.size();
+    m_BindlessTextures.push_back(normalHandle);
+}
+
+void Scene::SetMaterialAmbientOcclusionTexture(MaterialGPU& material, const Texture& texture)
+{
+    RenderHandle<Texture> normalHandle = AddTexture(texture);
+    material.AmbientOcclusionTextureHandle = (u32)m_BindlessTextures.size();
     m_BindlessTextures.push_back(normalHandle);
 }
 

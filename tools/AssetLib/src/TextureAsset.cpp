@@ -1,5 +1,6 @@
 ﻿#include "TextureAsset.h"
 
+#include <iostream>
 #include <nlm_json.hpp>
 #include <lz4.h>
 
@@ -11,7 +12,29 @@ namespace
     {
         if (format == "SRGBA8")
             return assetLib::TextureFormat::SRGBA8;
-        return assetLib::TextureFormat::Unknown;
+        if (format == "RGBA8")
+            return assetLib::TextureFormat::RGBA8;
+        if (format == "unknown")
+            return assetLib::TextureFormat::Unknown;
+        std::cout << "Unrecognized texture format string\n";
+        std::unreachable();
+    }
+
+    std::string textureFormatToString(assetLib::TextureFormat format)
+    {
+        switch (format)
+        {
+        case assetLib::TextureFormat::SRGBA8:
+            return "SRGBA8";
+        case assetLib::TextureFormat::RGBA8:
+            return "RGBA8";
+        case assetLib::TextureFormat::Unknown:
+            return "unknown";
+        default:
+            std::cout << "Unsupported texture format\n";
+            break;
+        }
+        std::unreachable();
     }
 }
 
@@ -40,7 +63,7 @@ namespace assetLib
     {
         nlohmann::json metadata;
         
-        metadata["format"] = "SRGBA8";
+        metadata["format"] =  textureFormatToString(info.Format);
         metadata["width"] = info.Dimensions.Width;
         metadata["height"] = info.Dimensions.Height;
         metadata["depth"] = info.Dimensions.Depth;

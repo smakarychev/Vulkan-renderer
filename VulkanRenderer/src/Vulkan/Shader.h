@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <array>
 #include <vector>
-#include <vulkan/vulkan_core.h>
+#include <Vulkan/vulkan_core.h>
 
 #include "DescriptorSet.h"
 #include "Pipeline.h"

@@ -5,6 +5,8 @@
 
 #include <volk.h>
 
+#include "TextureAsset.h"
+
 namespace vkUtils
 {
     inline SurfaceDetails getSurfaceDetails(VkPhysicalDevice gpu, VkSurfaceKHR surface)
@@ -278,7 +280,23 @@ namespace vkUtils
         case VK_FILTER_CUBIC_IMG:
             return VK_SAMPLER_MIPMAP_MODE_LINEAR;
         default:
-            ASSERT(false, "Unsupported filter format");
+            ASSERT(false, "Unsupported filter format")
+        }
+        std::unreachable();
+    }
+
+    inline VkFormat vkFormatByTextureAssetFormat(assetLib::TextureFormat format)
+    {
+        switch (format)
+        {
+        case assetLib::TextureFormat::Unknown:
+            return VK_FORMAT_UNDEFINED;
+        case assetLib::TextureFormat::SRGBA8:
+            return VK_FORMAT_R8G8B8A8_SRGB;
+        case assetLib::TextureFormat::RGBA8:
+            return VK_FORMAT_R8G8B8A8_UNORM;
+        default:
+            ASSERT(false, "Unsupported asset texture format")
         }
         std::unreachable();
     }

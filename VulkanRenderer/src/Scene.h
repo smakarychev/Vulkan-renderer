@@ -77,6 +77,8 @@ public:
 
     void SetMaterialAlbedoTexture(MaterialGPU& material, const Texture& texture);
     void SetMaterialNormalTexture(MaterialGPU& material, const Texture& texture);
+    void SetMaterialMetallicRoughnessTexture(MaterialGPU& material, const Texture& texture);
+    void SetMaterialAmbientOcclusionTexture(MaterialGPU& material, const Texture& texture);
     void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const;
 
     void CreateSharedMeshContext();

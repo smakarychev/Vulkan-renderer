@@ -18,7 +18,7 @@ project "AssetLib"
         IncludeDir["nlohmann-json"],
         IncludeDir["glm"],
         IncludeDir["volk"],
-        "C:/VulkanSDK/1.3.268.0/Include",
+        "$(VULKAN_SDK)/Include",
     }
 
     defines 

@@ -561,38 +561,31 @@ void Renderer::LoadScene()
 
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model* mori = Model::LoadFromAsset("../assets/models/mori/scene.model");
-    Model* gun = Model::LoadFromAsset("../assets/models/gun/scene.model");
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
-    Model* tree = Model::LoadFromAsset("../assets/models/tree/scene.model");
-    Model* sphere = Model::LoadFromAsset("../assets/models/sphere/scene.model");
-    Model* sphere_big = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
-    Model* cube = Model::LoadFromAsset("../assets/models/real_cube/scene.model");
-    Model* kitten = Model::LoadFromAsset("../assets/models/kitten/kitten.model");
-   //Model* sponza = Model::LoadFromAsset("../assets/models/sponza/scene.model");
+    Model* armor = Model::LoadFromAsset("../assets/models/armor/scene.model");
+    Model* mask = Model::LoadFromAsset("../assets/models/mask/scene.model");
+    Model* sphere = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
     
     m_Scene.AddModel(car, "car");
     m_Scene.AddModel(mori, "mori");
-    m_Scene.AddModel(gun, "gun");
     m_Scene.AddModel(helmet, "helmet");
-    m_Scene.AddModel(tree, "tree");
+    m_Scene.AddModel(armor, "armor");
+    m_Scene.AddModel(mask, "mask");
     m_Scene.AddModel(sphere, "sphere");
-    m_Scene.AddModel(sphere_big, "sphere_big");
-    m_Scene.AddModel(cube, "cube");
-    m_Scene.AddModel(kitten, "kitten");
 
     //m_Scene.AddModel(sponza, "sponza");
 
-    std::vector models = {"car", "helmet", "mori", "gun", "sphere_big"};
+    std::vector models = {"car", "armor", "helmet", "mori", "mask"};
 
     for (i32 x = -6; x <= 6; x++)
     {
-        for (i32 y = -3; y <= 3; y++)
+        for (i32 y = 0; y <= 0; y++)
         {
             for (i32 z = -6; z <= 6; z++)
             {
                 u32 modelIndex = Random::UInt32(0, (u32)models.size() - 1);
             
-                glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 3.0f, y * 1.5f, z * 3.0f)) *
+                glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 2.0f, y * 1.5f, z * 2.0f)) *
                     glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
                 Model* model = m_Scene.GetModel(models[modelIndex]);

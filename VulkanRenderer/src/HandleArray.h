@@ -38,8 +38,8 @@ public:
     void Pop() { m_Elements.pop_back(); }
     void pop_back() { m_Elements.pop_back(); }
 
-    u32 Size() { return (u32)m_Elements.size(); }
-    u32 size() { return (u32)m_Elements.size(); }
+    u32 Size() const { return (u32)m_Elements.size(); }
+    u32 size() const { return (u32)m_Elements.size(); }
 
     void Reserve(u32 size) { m_Elements.reserve(size); }
     void reserve(u32 size) { m_Elements.reserve(size); }

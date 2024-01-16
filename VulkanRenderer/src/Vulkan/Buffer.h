@@ -4,7 +4,7 @@
 #include "VulkanCommon.h"
 
 #include <vma/vk_mem_alloc.h>
-#include <vulkan/vulkan_core.h>
+#include <Vulkan/vulkan_core.h>
 
 class CommandBuffer;
 

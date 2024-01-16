@@ -46,7 +46,6 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
         assetLib::File textureFile;
         assetLib::loadAssetFile(path, textureFile);
         assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
-        ASSERT(textureInfo.Format == assetLib::TextureFormat::SRGBA8, "Unsopported image format")
     
         m_CreateInfo.AssetInfo.Buffer = Buffer::Builder()
             .SetKind(BufferKind::Source)
@@ -58,7 +57,7 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
         assetLib::unpackTexture(textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)destination);
         m_CreateInfo.AssetInfo.Buffer.Unmap();
 
-        m_CreateInfo.Format = VK_FORMAT_R8G8B8A8_SRGB;
+        m_CreateInfo.Format = vkUtils::vkFormatByTextureAssetFormat(textureInfo.Format);
         m_CreateInfo.Extent = {textureInfo.Dimensions.Width, textureInfo.Dimensions.Height};
     }
 

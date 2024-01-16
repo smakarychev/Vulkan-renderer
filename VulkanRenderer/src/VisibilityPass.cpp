@@ -3,7 +3,6 @@
 #include "Mesh.h"
 #include "Renderer.h"
 #include "Scene.h"
-#include "Core/ProfilerContext.h"
 #include "Vulkan/RenderCommand.h"
 
 namespace

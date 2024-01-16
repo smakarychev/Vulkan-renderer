@@ -2,7 +2,7 @@
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
-#include <vulkan/vulkan_core.h>
+#include <Vulkan/vulkan_core.h>
 
 #include "CommandBuffer.h"
 #include "types.h"

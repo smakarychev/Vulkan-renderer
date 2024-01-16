@@ -1,7 +1,7 @@
 ﻿#include "Random.h"
 
 std::random_device Random::m_Device;
-std::mt19937 Random::m_Mt(13);
+std::mt19937 Random::m_Mt(m_Device());
 std::uniform_real_distribution<> Random::m_UniformNormalizedReal(0.0f, 1.0f);
 
 f32 Random::Float()

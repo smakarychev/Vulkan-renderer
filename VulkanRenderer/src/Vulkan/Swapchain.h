@@ -2,7 +2,7 @@
 #include <array>
 #include <vector>
 #include <glm/vec2.hpp>
-#include <vulkan/vulkan_core.h>
+#include <Vulkan/vulkan_core.h>
 
 #include "DepthPyramid.h"
 #include "Image.h"

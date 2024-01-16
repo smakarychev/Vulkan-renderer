@@ -3,6 +3,7 @@
 #version 460
 
 #include "common.shader_header"
+#include "pbr.shader_header"
 
 #extension GL_EXT_nonuniform_qualifier : require
 
@@ -241,31 +242,65 @@ struct ShadeInfo {
     vec3 position;
     vec3 normal;
     vec3 albedo;
+    float metallic;
+    float roughness;
+    float ambient_occlusion;
 };
 
 vec3 shade(ShadeInfo shade_info) {
     // todo: remove upon adding actual lights support
-    const vec3 sun_dir = -normalize(vec3(-1.0f, -6.0f, -4.0f));
+    const vec3 light_pos = vec3(0.0, 2.0, 2.0);
+    vec3 light_dir = normalize(light_pos - shade_info.position);
     
     vec3 view_dir = normalize(u_camera_buffer.camera_position.xyz - shade_info.position);
-    vec3 halfway_dir = normalize(sun_dir + view_dir);
+    vec3 halfway_dir = normalize(light_dir + view_dir);
     
     float ambient_power = 0.05f;
     vec3 ambient = shade_info.albedo * ambient_power;
     
-    float diffuse_power = max(0.0f, dot(shade_info.normal, sun_dir));
+    float diffuse_power = max(0.0f, dot(shade_info.normal, light_dir));
     vec3 diffuse = shade_info.albedo * diffuse_power;
     
-    float specular_power = pow(max(0.0f, dot(shade_info.normal, halfway_dir)), 64.0);
+    float specular_power = pow(max(0.0f, dot(shade_info.normal, halfway_dir)), 128.0);
     vec3 specular = vec3(0.3) * specular_power;
     
     return ambient + diffuse + specular;
 }
 
+vec3 shade_pbr(ShadeInfo shade_info) {
+    const vec3 light_dir = normalize(vec3(1.5, 1.5, 1.0));
+    vec3 radiance = vec3(15.0, 14.0, 14.0);
+        
+    vec3 F0 = vec3(0.04);
+    F0 = mix(F0, shade_info.albedo, shade_info.metallic);
+    
+    vec3 view_dir = normalize(u_camera_buffer.camera_position.xyz - shade_info.position);
+    vec3 halfway_dir = normalize(light_dir + view_dir);
+
+    float NDF = d_ggx(shade_info.normal, halfway_dir, shade_info.roughness);
+    float G = g_smith(shade_info.normal, view_dir, light_dir, shade_info.roughness);
+    vec3 F = fresnel_schlick(max(dot(halfway_dir, view_dir), 0.0), F0);
+
+    vec3 numerator = NDF * G * F;
+    float denominator = 4.0 * max(dot(shade_info.normal, view_dir), 0.0) * max(dot(shade_info.normal, light_dir), 0.0) + 0.0001;
+    vec3 specular = numerator / denominator;
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - shade_info.metallic;
+    float n_dot_l = max(dot(shade_info.normal, light_dir), 0.0);
+
+    vec3 Lo = (kD * shade_info.albedo / PI + specular) * radiance * n_dot_l;
+    
+    vec3 ambient = shade_info.albedo * shade_info.ambient_occlusion;
+    
+    return ambient + Lo;
+}
+
 void main() {
     uint visibility_packed = textureLod(u_visibility_texture, vert_uv, 0).r;
     if (visibility_packed == (~0)) {
-        out_color = vec4(0.01f, 0.01f, 0.01f, 1.0f);
+        //out_color = vec4(0.01f, 0.01f, 0.01f, 1.0f);
+        out_color = vec4(0.215f, 0.22f, 0.22f, 1.0f);
         return;
     }
     
@@ -312,13 +347,33 @@ void main() {
         convert_to_world_space_normal(normal, visibility_info);
     }
     
+    float metallic = material.metallic;
+    float roughness = material.roughness;
+    if (material.metallic_roughness_texture_index != -1) {
+        vec3 metallic_roughness = textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(
+            material.metallic_roughness_texture_index)], u_sampler)), uv, uv_dx, uv_dy).rgb;
+        
+        metallic *= metallic_roughness.b;
+        roughness *= metallic_roughness.g;
+    }
+    
+    float ambient_occlusion = 0.1;
+    if (material.ambient_occlusion_texture_index != -1) {
+        ambient_occlusion *= textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(
+            material.ambient_occlusion_texture_index)], u_sampler)), uv, uv_dx, uv_dy).r;
+    }
+    
     
     ShadeInfo shade_info;
     shade_info.albedo = albedo;
     shade_info.position = position;
     shade_info.normal = normal;
+    shade_info.metallic = metallic;
+    shade_info.roughness = roughness;
+    shade_info.ambient_occlusion = ambient_occlusion;
 
-    vec3 color = shade(shade_info);
-    
+    vec3 color = shade_pbr(shade_info);
+    float exposure = 1.0;
+    color *= exposure / (1.0 + color / exposure);
     out_color = vec4(color, 1.0);
 }

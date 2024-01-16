@@ -1,0 +1,35 @@
+const float PI = 3.14159265359;
+
+float d_ggx(vec3 normal, vec3 half_vector, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float n_dot_h = max(dot(normal, half_vector), 0.0);
+    float n_dot_h2 = n_dot_h * n_dot_h;
+
+    float denominator = (n_dot_h2 * (a2 - 1.0) + 1.0);
+    denominator = PI * denominator * denominator;
+
+    return a2 / denominator;
+}
+
+float g_schlick_ggx(float n_dot_v, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+
+    float denominator = n_dot_v * (1.0 - k) + k;
+
+    return n_dot_v / denominator;
+}
+
+float g_smith(vec3 normal, vec3 view_dir, vec3 light_dir, float roughness) {
+  float n_dot_v = max(dot(normal, view_dir), 0.0);
+  float n_dot_l = max(dot(normal, light_dir), 0.0);
+  float ggx2 = g_schlick_ggx(n_dot_v, roughness);
+  float ggx1 = g_schlick_ggx(n_dot_l, roughness);
+
+  return ggx1 * ggx2;
+}
+
+vec3 fresnel_schlick(float cos_theta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cos_theta, 0.0, 1.0), 5.0);
+}

@@ -39,6 +39,7 @@ public:
         std::vector<IndexType> Indices;
         std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
         assetLib::ModelInfo::MaterialType MaterialType;
+        assetLib::ModelInfo::MaterialPropertiesPBR MaterialPropertiesPBR;
         std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialAspect::MaxVal> MaterialInfos;
     };
 public:
@@ -51,6 +52,8 @@ private:
     static assetLib::ModelInfo::MaterialInfo GetMaterialInfo(const aiMaterial* material,
         assetLib::ModelInfo::MaterialAspect type, const std::filesystem::path& modelPath);
     static assetLib::ModelInfo::MaterialType GetMaterialType(const aiMaterial* material);
+    static assetLib::ModelInfo::MaterialPropertiesPBR GetMaterialPropertiesPBR(const aiMaterial* material);
+    
 public:
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".model";
 };

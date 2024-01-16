@@ -70,10 +70,17 @@ Model* Model::LoadFromAsset(std::string_view path)
         
         assetLib::ModelInfo::MaterialInfo& albedo = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::Albedo];
         assetLib::ModelInfo::MaterialInfo& normal = meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::Normal];
+        assetLib::ModelInfo::MaterialInfo& metallicRoughness =
+            meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::MetallicRoughness];
+        assetLib::ModelInfo::MaterialInfo& ambientOcclusion =
+            meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::AmbientOcclusion];
         MaterialInfo material = {
             .Type = meshInfo.MaterialType,
-            .AlbedoColor = albedo.Color,
-            .AlbedoTextures = albedo.Textures, .NormalTextures = normal.Textures};
+            .PropertiesPBR = meshInfo.MaterialPropertiesPBR,
+            .AlbedoTextures = albedo.Textures,
+            .NormalTextures = normal.Textures,
+            .MetallicRoughnessTextures = metallicRoughness.Textures,
+            .AmbientOcclusionTextures = ambientOcclusion.Textures};
 
         meshes.push_back(
             {Mesh(
@@ -102,7 +109,10 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
         for (auto& mesh : m_Meshes)
         {
             MaterialGPU material;
-            material.Albedo = mesh.Material.AlbedoColor;
+            material.Albedo = mesh.Material.PropertiesPBR.Albedo;
+            material.Metallic = mesh.Material.PropertiesPBR.Metallic;
+            material.Roughness = mesh.Material.PropertiesPBR.Roughness;
+
             auto addTexture = [](MaterialGPU& materialGPU, const std::vector<std::string>& textures, auto&& fn)
             {
                 if (!textures.empty())
@@ -127,6 +137,18 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
                 [&scene](MaterialGPU& materialGPU, const Image& texture)
                 {
                     scene->SetMaterialNormalTexture(materialGPU, texture);
+                });
+
+            addTexture(material, mesh.Material.MetallicRoughnessTextures,
+                [&scene](MaterialGPU& materialGPU, const Image& texture)
+                {
+                    scene->SetMaterialMetallicRoughnessTexture(materialGPU, texture);
+                });
+            
+            addTexture(material, mesh.Material.AmbientOcclusionTextures,
+                [&scene](MaterialGPU& materialGPU, const Image& texture)
+                {
+                    scene->SetMaterialAmbientOcclusionTexture(materialGPU, texture);
                 });
             
             RenderObject renderObject = {};
@@ -163,4 +185,101 @@ void Model::CreateDebugBoundingSpheres(Scene* scene, const glm::mat4& transform)
             sphere->CreateRenderObjects(scene, fullTransform);
         }
     }
+}
+
+void ModelCollection::AddModel(Model* model, const std::string& name)
+{
+    if (m_Models.contains(name))
+    {
+        if (m_Models.at(name).Model != model)
+            LOG("WARNING: overwriting the model {} ({}) with {}",
+                name, (void*)m_Models.at(name).Model, (void*)model);
+        else
+            return;
+    }
+
+    m_Models.emplace(name, ModelInfo{
+        .Model = model,
+        .RenderObjects = CreateRenderObjects(model)});
+}
+
+void ModelCollection::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const
+{
+    for (u32 textureIndex = 0; textureIndex < m_Textures.size(); textureIndex++)
+    {
+        const Texture& texture = m_Textures[textureIndex];
+        bindlessDescriptorSet.SetTexture("u_textures", texture, textureIndex);
+    }
+}
+
+std::vector<RenderObject> ModelCollection::CreateRenderObjects(Model* model)
+{
+    std::vector<RenderObject> renderObjects;
+    renderObjects.reserve(m_Meshes.size());
+    for (auto& mesh : model->m_Meshes)
+    {
+        MaterialGPU material;
+        material.Albedo = mesh.Material.PropertiesPBR.Albedo;
+        material.Metallic = mesh.Material.PropertiesPBR.Metallic;
+        material.Roughness = mesh.Material.PropertiesPBR.Roughness;
+        auto addTexture = [](MaterialGPU& materialGPU, const std::vector<std::string>& textures, auto&& fn)
+        {
+            if (!textures.empty())
+            {
+                Image texture = Image::Builder()
+                    .FromAssetFile(textures.front())
+                    .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
+                    .CreateMipmaps(true)
+                    .Build();
+
+                fn(materialGPU, texture);
+            }
+        };
+
+        addTexture(material, mesh.Material.AlbedoTextures,
+            [this](MaterialGPU& materialGPU, const Image& texture)
+            {
+                materialGPU.AlbedoTextureHandle = AddTexture(texture);
+            });
+
+        addTexture(material, mesh.Material.NormalTextures,
+            [this](MaterialGPU& materialGPU, const Image& texture)
+            {
+                materialGPU.NormalTextureHandle = AddTexture(texture);
+            });
+
+        addTexture(material, mesh.Material.MetallicRoughnessTextures,
+            [this](MaterialGPU& materialGPU, const Image& texture)
+            {
+                materialGPU.MetallicRoughnessTextureHandle = AddTexture(texture);
+            });
+
+        addTexture(material, mesh.Material.AmbientOcclusionTextures,
+            [this](MaterialGPU& materialGPU, const Image& texture)
+            {
+                materialGPU.AmbientOcclusionTextureHandle = AddTexture(texture);
+            });
+            
+        RenderObject renderObject = {};
+        renderObject.Mesh = AddMesh(mesh.Mesh);
+        renderObject.MaterialGPU = AddMaterialGPU(material);
+        renderObjects.push_back(renderObject);
+    }
+
+    return renderObjects;
+}
+
+RenderHandle<MaterialGPU> ModelCollection::AddMaterialGPU(const MaterialGPU& material)
+{
+    return AddRenderHandle(material, m_MaterialsGPU);
+}
+
+RenderHandle<Mesh> ModelCollection::AddMesh(const Mesh& mesh)
+{
+    return AddRenderHandle(mesh, m_Meshes);
+}
+
+RenderHandle<Texture> ModelCollection::AddTexture(const Texture& texture)
+{
+    return AddRenderHandle(texture, m_Textures);
 }

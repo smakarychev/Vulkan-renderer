@@ -21,7 +21,7 @@ project "VulkanRenderer"
         IncludeDir["spirv_reflect"],	
         IncludeDir["tracy"],    
         IncludeDir["volk"],
-        "C:/VulkanSDK/1.3.268.0/Include",
+        "$(VULKAN_SDK)/Include",
     }
 
     libdirs

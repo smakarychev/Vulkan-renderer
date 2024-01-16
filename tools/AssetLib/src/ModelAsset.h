@@ -69,12 +69,17 @@ namespace assetLib
         };
         enum class MaterialAspect : u32
         {
-            Albedo = 0, Normal,
+            Albedo = 0, Normal, MetallicRoughness, AmbientOcclusion,
             MaxVal
+        };
+        struct MaterialPropertiesPBR
+        {
+            glm::vec4 Albedo;
+            f32 Metallic;
+            f32 Roughness;
         };
         struct MaterialInfo
         {
-            glm::vec4 Color;
             std::vector<std::string> Textures;
         };
         struct Meshlet
@@ -95,6 +100,7 @@ namespace assetLib
             u64 IndicesSizeBytes;
             u64 MeshletsSizeBytes;
             MaterialType MaterialType;
+            MaterialPropertiesPBR MaterialPropertiesPBR;
             std::array<MaterialInfo, (u32)MaterialAspect::MaxVal> Materials;
             BoundingSphere BoundingSphere;
         };
