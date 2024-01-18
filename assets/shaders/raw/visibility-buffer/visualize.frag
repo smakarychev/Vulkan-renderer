@@ -249,8 +249,7 @@ struct ShadeInfo {
 
 vec3 shade(ShadeInfo shade_info) {
     // todo: remove upon adding actual lights support
-    const vec3 light_pos = vec3(0.0, 2.0, 2.0);
-    vec3 light_dir = normalize(light_pos - shade_info.position);
+    const vec3 light_dir = normalize(vec3(1.5, 1.5, 1.0));
     
     vec3 view_dir = normalize(u_camera_buffer.camera_position.xyz - shade_info.position);
     vec3 halfway_dir = normalize(light_dir + view_dir);
@@ -270,26 +269,28 @@ vec3 shade(ShadeInfo shade_info) {
 vec3 shade_pbr(ShadeInfo shade_info) {
     const vec3 light_dir = normalize(vec3(1.5, 1.5, 1.0));
     vec3 radiance = vec3(15.0, 14.0, 14.0);
+    
+    vec3 view_dir = normalize(u_camera_buffer.camera_position.xyz - shade_info.position);
+    vec3 halfway_dir = normalize(light_dir + view_dir);
+    
+    // remapping of perceptual roughness
+    float roughness = shade_info.roughness * shade_info.roughness;
+    float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0, 1.0);
+    float n_dot_v = clamp(dot(shade_info.normal, view_dir), 0.0, 1.0);
+    float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0, 1.0);
+    float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0, 1.0);
         
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, shade_info.albedo, shade_info.metallic);
     
-    vec3 view_dir = normalize(u_camera_buffer.camera_position.xyz - shade_info.position);
-    vec3 halfway_dir = normalize(light_dir + view_dir);
+    float D = d_ggx(n_dot_h, roughness);
+    float V = v_smith_correlated(n_dot_v, n_dot_l, shade_info.roughness);
+    vec3 F = fresnel_schlick(h_dot_l, F0);
 
-    float NDF = d_ggx(shade_info.normal, halfway_dir, shade_info.roughness);
-    float G = g_smith(shade_info.normal, view_dir, light_dir, shade_info.roughness);
-    vec3 F = fresnel_schlick(max(dot(halfway_dir, view_dir), 0.0), F0);
-
-    vec3 numerator = NDF * G * F;
-    float denominator = 4.0 * max(dot(shade_info.normal, view_dir), 0.0) * max(dot(shade_info.normal, light_dir), 0.0) + 0.0001;
-    vec3 specular = numerator / denominator;
-    vec3 kS = F;
-    vec3 kD = vec3(1.0) - kS;
-    kD *= 1.0 - shade_info.metallic;
-    float n_dot_l = max(dot(shade_info.normal, light_dir), 0.0);
-
-    vec3 Lo = (kD * shade_info.albedo / PI + specular) * radiance * n_dot_l;
+    vec3 Fr = D * V * F;
+    vec3 Fd = (vec3(1.0) - F) * (1.0 - shade_info.metallic) * shade_info.albedo / PI;
+    
+    vec3 Lo = (Fd + Fr) * radiance * n_dot_l;
     
     vec3 ambient = shade_info.albedo * shade_info.ambient_occlusion;
     

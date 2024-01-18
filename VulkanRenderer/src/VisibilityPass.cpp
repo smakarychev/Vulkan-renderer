@@ -61,7 +61,6 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
             .SetTemplate(m_Template)
             .SetRenderingDetails(details)
             .AlphaBlending(AlphaBlending::None)
-            .CompatibleWithVertex(VertexP3N3T3UV2::GetInputDescriptionDI())
             .Build();
 
         m_CullSemaphore = TimelineSemaphore::Builder().Build();
@@ -73,6 +72,8 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
     m_DescriptorSet = ShaderDescriptorSet::Builder()
         .SetTemplate(m_Template)
         .AddBinding("u_camera_buffer", *initInfo.CameraBuffer, sizeof(CameraData), 0)
+        .AddBinding("u_position_buffer", initInfo.Scene->GetPositionsBuffer())
+        .AddBinding("u_uv_buffer", initInfo.Scene->GetUVsBuffer())
         .AddBinding("u_object_buffer", *initInfo.ObjectsBuffer)
         .AddBinding("u_triangle_buffer", *initInfo.TrianglesBuffer, CullDrawBatch::GetTrianglesSizeBytes(), 0)
         .AddBinding("u_command_buffer", *initInfo.CommandsBuffer, CullDrawBatch::GetCommandsSizeBytes(), 0)
@@ -291,7 +292,7 @@ void VisibilityPass::RenderScene(const CommandBuffer& cmd, const Scene& scene, c
     m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Global, layout, {cameraDataOffset});
     m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Pass, layout, {commandsOffset, trianglesOffset});
     m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Material, layout);
-    scene.Bind(cmd);
+    //scene.Bind(cmd);
     
     RenderCommand::DrawIndexedIndirectCount(cmd,
        sceneCull.GetDrawCommands(), commandsOffset,

@@ -573,8 +573,6 @@ void Renderer::LoadScene()
     m_Scene.AddModel(mask, "mask");
     m_Scene.AddModel(sphere, "sphere");
 
-    //m_Scene.AddModel(sponza, "sponza");
-
     std::vector models = {"car", "armor", "helmet", "mori", "mask"};
 
     for (i32 x = -6; x <= 6; x++)
