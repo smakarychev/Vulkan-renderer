@@ -122,7 +122,11 @@ void convert_to_world_space_normal(inout vec3 normal, VisibilityInfo visibility_
     normal = normalize((transpose(inverse(object.model)) * vec4(normal, 0.0f)).xyz);
 }
 
-void convert_to_world_space_normal_tangents(inout vec3 normal, inout vec3 tangent, inout vec3 bitangent, VisibilityInfo visibility_info) {
+void convert_to_world_space_normal_tangents(
+    inout vec3 normal, vec3 normal_dx, vec3 normal_dy,
+    inout vec3 tangent, vec3 tangent_dx, vec3 tangent_dy,
+    inout vec3 bitangent, inout vec3 bitangent_dx, inout vec3 bitangent_dy,
+    VisibilityInfo visibility_info) {
     IndirectCommand command = u_command_buffer.commands[visibility_info.instance_id];
     object_data object = u_object_buffer.objects[command.render_object];
     
@@ -130,7 +134,10 @@ void convert_to_world_space_normal_tangents(inout vec3 normal, inout vec3 tangen
     normal = normalize((transpose(inverse(object.model)) * vec4(normal, 0.0f)).xyz);
     // re-orthogonalize
     tangent = normalize(tangent - dot(tangent, normal) * normal);
-    bitangent = cross(normal, tangent);
+    bitangent = normalize(cross(normal, tangent));
+    
+    bitangent_dx = cross(normal_dx, tangent) - cross(tangent_dx, normal);
+    bitangent_dy = cross(normal_dy, tangent) - cross(tangent_dy, normal);
 }
 
 Material get_material(VisibilityInfo visibility_info) {
@@ -214,16 +221,16 @@ mat3x2 interpolate_with_derivatives_2d(InterpolationData interpolation, mat3x2 a
     vec3 attribute_x_interpolated = interpolate_with_derivatives(interpolation, attribute_x);
     vec3 attribute_y_interpolated = interpolate_with_derivatives(interpolation, attribute_y);
     
-    float ux = attribute_x_interpolated[0];
-    float uy = attribute_y_interpolated[0];
+    float ax = attribute_x_interpolated[0];
+    float ay = attribute_y_interpolated[0];
     
-    float uddxx = attribute_x_interpolated[1];
-    float uddxy = attribute_y_interpolated[1];
+    float addxx = attribute_x_interpolated[1];
+    float addxy = attribute_y_interpolated[1];
     
-    float uddyx = attribute_x_interpolated[2];
-    float uddyy = attribute_y_interpolated[2];
+    float addyx = attribute_x_interpolated[2];
+    float addyy = attribute_y_interpolated[2];
     
-    return mat3x2(vec2(ux, uy), vec2(uddxx, uddxy), vec2(uddyx, uddyy));    
+    return mat3x2(vec2(ax, ay), vec2(addxx, addxy), vec2(addyx, addyy));    
 }
 
 vec3 interpolate_3d(InterpolationData interpolation, mat3 attributes) {
@@ -238,13 +245,42 @@ vec3 interpolate_3d(InterpolationData interpolation, mat3 attributes) {
     return vec3(attribute_x_interpolated, attribute_y_interpolated, attribute_z_interpolated);
 }
 
+mat3 interpolate_with_derivatives_3d(InterpolationData interpolation, mat3 attributes) {
+    vec3 attribute_x = vec3(attributes[0].x, attributes[1].x, attributes[2].x);
+    vec3 attribute_y = vec3(attributes[0].y, attributes[1].y, attributes[2].y);
+    vec3 attribute_z = vec3(attributes[0].z, attributes[1].z, attributes[2].z);
+
+    vec3 attribute_x_interpolated = interpolate_with_derivatives(interpolation, attribute_x);
+    vec3 attribute_y_interpolated = interpolate_with_derivatives(interpolation, attribute_y);
+    vec3 attribute_z_interpolated = interpolate_with_derivatives(interpolation, attribute_z);
+
+    float ax = attribute_x_interpolated[0];
+    float ay = attribute_y_interpolated[0];
+    float az = attribute_z_interpolated[0];
+
+    float addxx = attribute_x_interpolated[1];
+    float addxy = attribute_y_interpolated[1];
+    float addxz = attribute_z_interpolated[1];
+
+    float addyx = attribute_x_interpolated[2];
+    float addyy = attribute_y_interpolated[2];
+    float addyz = attribute_z_interpolated[2];
+    
+    return mat3(vec3(ax, ay, az), vec3(addxx, addxy, addxz), vec3(addyx, addyy, addyz));
+}
+
 struct ShadeInfo {
     vec3 position;
     vec3 normal;
+    vec3 normal_dx;
+    vec3 normal_dy;
     vec3 albedo;
     float metallic;
     float roughness;
     float ambient_occlusion;
+    mat3 tbn_dx;
+    mat3 tbn_dy;
+    mat3 tbn;
 };
 
 vec3 shade(ShadeInfo shade_info) {
@@ -275,6 +311,14 @@ vec3 shade_pbr(ShadeInfo shade_info) {
     
     // remapping of perceptual roughness
     float roughness = shade_info.roughness * shade_info.roughness;
+
+    vec2 delta_u = (transpose(shade_info.tbn_dx) * halfway_dir).xy;
+    vec2 delta_v = (transpose(shade_info.tbn_dy) * halfway_dir).xy;
+    vec2 bound = abs(delta_u) + abs(delta_v);
+    vec2 variance = 0.25 * bound * bound;
+    vec2 kernelRoughness2 = min(variance * 2, 0.18);
+    roughness = clamp(roughness + kernelRoughness2.x, 0.0, 1.0);
+    
     float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0, 1.0);
     float n_dot_v = clamp(dot(shade_info.normal, view_dir), 0.0, 1.0);
     float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0, 1.0);
@@ -293,6 +337,11 @@ vec3 shade_pbr(ShadeInfo shade_info) {
     vec3 Lo = (Fd + Fr) * radiance * n_dot_l;
     
     vec3 ambient = shade_info.albedo * shade_info.ambient_occlusion;
+    
+    //if (vert_position.x < 0.0)
+    //    return vec3(roughness);
+    //else 
+    //    return vec3(shade_info.roughness * shade_info.roughness);
     
     return ambient + Lo;
 }
@@ -332,21 +381,31 @@ void main() {
             material.albedo_texture_index)], u_sampler)), uv, uv_dx, uv_dy).rgb;
 
     mat3 normals = get_normals(indices);
-    vec3 normal = interpolate_3d(interpolation_data, normals);
+    mat3 normals_interpolated = interpolate_with_derivatives_3d(interpolation_data, normals);
+    vec3 normal = vec3(normals_interpolated[0][0], normals_interpolated[0][1], normals_interpolated[0][2]);
+    vec3 normal_dx = vec3(normals_interpolated[1][0], normals_interpolated[1][1], normals_interpolated[1][2]);
+    vec3 normal_dy = vec3(normals_interpolated[2][0], normals_interpolated[2][1], normals_interpolated[2][2]);
 
+    mat3 tangents = get_tangents(indices);
+    mat3 tangents_interpolated = interpolate_with_derivatives_3d(interpolation_data, tangents);
+    vec3 tangent = vec3(tangents_interpolated[0][0], tangents_interpolated[0][1], tangents_interpolated[0][2]);
+    vec3 tangent_dx = vec3(tangents_interpolated[1][0], tangents_interpolated[1][1], tangents_interpolated[1][2]);
+    vec3 tangent_dy = vec3(tangents_interpolated[2][0], tangents_interpolated[2][1], tangents_interpolated[2][2]);
+    vec3 bi_tangent;
+    vec3 bi_tangent_dx;
+    vec3 bi_tangent_dy;
+    convert_to_world_space_normal_tangents(
+        normal, normal_dx, normal_dy,
+        tangent, tangent_dx, tangent_dy,
+        bi_tangent, bi_tangent_dx, bi_tangent_dy,
+        visibility_info);
+    
     if (material.normal_texture_index != -1) {
-        mat3 tangents = get_tangents(indices);
-        vec3 tangent = interpolate_3d(interpolation_data, tangents);
-        vec3 bi_tangent;
-        convert_to_world_space_normal_tangents(normal, tangent, bi_tangent, visibility_info);
-        
         vec3 normal_from_map = textureGrad(nonuniformEXT(sampler2D(u_textures[nonuniformEXT(
             material.normal_texture_index)], u_sampler)), uv, uv_dx, uv_dy).rgb;
         normal_from_map = normalize(normal_from_map * 2.0f - 1.0f);
-        normal = tangent * normal_from_map.x + bi_tangent * normal_from_map.y + normal * normal_from_map.z; 
-    } else {
-        convert_to_world_space_normal(normal, visibility_info);
-    }
+        normal = tangent * normal_from_map.x + bi_tangent * normal_from_map.y + normal * normal_from_map.z;
+    } 
     
     float metallic = material.metallic;
     float roughness = material.roughness;
@@ -369,12 +428,19 @@ void main() {
     shade_info.albedo = albedo;
     shade_info.position = position;
     shade_info.normal = normal;
+    shade_info.normal_dx = normal_dx;
+    shade_info.normal_dy = normal_dy;
     shade_info.metallic = metallic;
     shade_info.roughness = roughness;
     shade_info.ambient_occlusion = ambient_occlusion;
+    shade_info.tbn_dx = mat3(tangent_dx, bi_tangent_dx, normal_dx);
+    shade_info.tbn_dy = mat3(tangent_dy, bi_tangent_dy, normal_dy);
+    shade_info.tbn = mat3(tangent, bi_tangent, normal);
 
-    vec3 color = shade_pbr(shade_info);
+    vec3 color;
+    color = shade_pbr(shade_info);
     float exposure = 1.0;
     color *= exposure / (1.0 + color / exposure);
+
     out_color = vec4(color, 1.0);
 }
