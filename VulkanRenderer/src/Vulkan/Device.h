@@ -98,6 +98,9 @@ private:
     bool CheckInstanceExtensions(const CreateInfo& createInfo) const;
     bool CheckInstanceValidationLayers(const CreateInfo& createInfo) const;
     bool CheckGPUExtensions(VkPhysicalDevice gpu, const CreateInfo& createInfo) const;
+
+    void CreateDebugUtilsMessenger();
+    void DestroyDebugUtilsMessenger() const;
 private:
     VkInstance m_Instance{VK_NULL_HANDLE};
     VkSurfaceKHR m_Surface{VK_NULL_HANDLE};
@@ -109,4 +112,6 @@ private:
     VkPhysicalDeviceProperties m_GPUProperties;
     VkPhysicalDeviceDescriptorIndexingProperties m_GPUDescriptorIndexingProperties;
     VkPhysicalDeviceSubgroupProperties m_GPUSubgroupProperties;
+
+    VkDebugUtilsMessengerEXT m_DebugUtilsMessenger;
 };

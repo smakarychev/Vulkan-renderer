@@ -11,5 +11,5 @@
 #include "Pipeline.h"
 #include "RenderCommand.h"
 #include "Swapchain.h"
-#include "Syncronization.h"
+#include "Synchronization.h"
 

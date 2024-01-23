@@ -8,6 +8,8 @@
 #include "types.h"
 #include "VulkanCommon.h"
 
+class SplitBarrier;
+class DependencyInfo;
 class TimelineSemaphore;
 class RenderingInfo;
 class PipelineLayout;
@@ -51,7 +53,6 @@ public:
 
     static void ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary);
 
-    static void TransitionImage(const CommandBuffer& cmd, const Image& image, const ImageTransitionInfo& transitionInfo);
     static void BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& imageBlitInfo);
     
     static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo);
@@ -80,10 +81,14 @@ public:
     static void PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
         const PushConstantDescription& description);
 
-    static void CreateBarrier(const CommandBuffer& cmd, const PipelineBarrierInfo& pipelineBarrierInfo);
-    static void CreateBarrier(const CommandBuffer& cmd, const PipelineBufferBarrierInfo& pipelineBarrierInfo);
-    static void CreateBarrier(const CommandBuffer& cmd, const PipelineImageBarrierInfo& pipelineBarrierInfo);
-
+    static void WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo);
+    static void SignalSplitBarrier(const CommandBuffer& cmd, const SplitBarrier& splitBarrier,
+        const DependencyInfo& dependencyInfo);
+    static void WaitOnSplitBarrier(const CommandBuffer& cmd, const SplitBarrier& splitBarrier,
+        const DependencyInfo& dependencyInfo);
+    static void ResetSplitBarrier(const CommandBuffer& cmd, const SplitBarrier& splitBarrier,
+        const DependencyInfo& dependencyInfo);
+    
     static void BeginConditionalRendering(const CommandBuffer& cmd, const Buffer& conditionalBuffer, u64 offset);
     static void EndConditionalRendering(const CommandBuffer& cmd);
     

@@ -257,7 +257,7 @@ void Renderer::EndFrame()
 
     cmd.Submit(m_Device.GetQueues().Graphics,
         BufferSubmitSyncInfo{
-            .WaitStages = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
+            .WaitStages = {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT},
             .WaitSemaphores = {&sync.PresentSemaphore},
             .SignalSemaphores = {&sync.RenderSemaphore},
             .Fence = &sync.RenderFence});
@@ -565,6 +565,7 @@ void Renderer::LoadScene()
     Model* armor = Model::LoadFromAsset("../assets/models/armor/scene.model");
     Model* mask = Model::LoadFromAsset("../assets/models/mask/scene.model");
     Model* sphere = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
+    Model* cube = Model::LoadFromAsset("../assets/models/real_cube/scene.model");
     
     m_Scene.AddModel(car, "car");
     m_Scene.AddModel(mori, "mori");
@@ -572,6 +573,7 @@ void Renderer::LoadScene()
     m_Scene.AddModel(armor, "armor");
     m_Scene.AddModel(mask, "mask");
     m_Scene.AddModel(sphere, "sphere");
+    m_Scene.AddModel(cube, "cube");
 
     std::vector models = {"car", "armor", "helmet", "mori", "mask"};
 

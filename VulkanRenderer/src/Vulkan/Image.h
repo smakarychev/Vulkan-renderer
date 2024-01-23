@@ -11,6 +11,17 @@ class Buffer;
 class Swapchain;
 class Device;
 
+struct ImageSubresource
+{
+    const Image* Image;
+    // TODO: FIX ME: DIRECT VKAPI USAGE
+    VkImageAspectFlags Aspect;
+    u32 MipMapBase;
+    u32 MipMapCount{VK_REMAINING_MIP_LEVELS};
+    u32 LayerBase;
+    u32 LayerCount{VK_REMAINING_ARRAY_LAYERS};
+};
+
 class Image
 {
     FRIEND_INTERNAL
@@ -64,20 +75,26 @@ public:
     ImageDescriptorInfo CreateDescriptorInfo(VkFilter samplerFilter) const;
     ImageDescriptorInfo CreateDescriptorInfo(VkFilter samplerFilter, VkImageLayout imageLayout) const;
     ImageDescriptorInfo CreateDescriptorInfo() const;
+
+    ImageSubresource CreateSubresource() const;
+    ImageSubresource CreateSubresource(u32 mipCount, u32 layerCount) const;
+    ImageSubresource CreateSubresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const;
+    
 private:
     using CreateInfo = Builder::CreateInfo;
     static Image CreateImageFromAsset(const CreateInfo& createInfo);
     static Image AllocateImage(const CreateInfo& createInfo);
-    static void PrepareForTransfer(const Image& image, const ImageSubresource& imageSubresource);
-    static void PrepareForMipmap(const Image& image, const ImageSubresource& imageSubresource);
-    static void PrepareForShaderRead(const Image& image, const ImageSubresource& imageSubresource);
-    static void PrepareImageGeneral(const Image& image, const ImageSubresource& imageSubresource,
+    static void PrepareForTransfer(const ImageSubresource& imageSubresource);
+    static void PrepareForMipmap(const ImageSubresource& imageSubresource);
+    static void PrepareForShaderRead(const ImageSubresource& imageSubresource);
+    static void PrepareImageGeneral(const ImageSubresource& imageSubresource,
         VkImageLayout current, VkImageLayout target,
         VkAccessFlags srcAccess, VkAccessFlags dstAccess,
         VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage);
     static void CopyBufferToImage(const Buffer& buffer, const Image& image, VkImageAspectFlags imageAspect);
     static void CreateMipMaps(const Image& image, const CreateInfo& createInfo);
 
+    // TODO: FIX ME: DIRECT VKAPI USAGE
     static VkSampler CreateSampler(VkFilter scaleFilter, f32 maxLod);
     
 private:

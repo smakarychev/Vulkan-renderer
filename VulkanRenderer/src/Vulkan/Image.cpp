@@ -69,6 +69,7 @@ Image::Builder& Image::Builder::FromImageData(const ImageData& imageData)
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "`Asset` in `ImageData` options are incompatible")
     m_CreateInfo.ImageData = imageData;
     m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::ImageData;
+    m_CreateInfo.ImageAspect = imageData.Aspect;
 
     return *this;
 }
@@ -132,7 +133,7 @@ void Image::Builder::PreBuild()
 Image Image::Create(const Builder::CreateInfo& createInfo)
 {
     Image image = {};
-
+    
     switch (createInfo.SourceInfo)
     {
     case CreateInfo::SourceInfo::None:
@@ -157,6 +158,8 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
         std::unreachable();
     }
 
+    image.m_ImageData.Aspect = createInfo.ImageAspect;
+    
     return image;
 }
 
@@ -194,6 +197,33 @@ ImageDescriptorInfo Image::CreateDescriptorInfo() const
     return descriptorTextureInfo;
 }
 
+ImageSubresource Image::CreateSubresource() const
+{
+    ImageSubresource imageSubresource = {
+        .Image = this,
+        .Aspect = m_ImageData.Aspect};
+    
+    return imageSubresource;
+}
+
+ImageSubresource Image::CreateSubresource(u32 mipCount, u32 layerCount) const
+{
+    return CreateSubresource(0, mipCount, 0, layerCount);
+}
+
+ImageSubresource Image::CreateSubresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const
+{
+    ImageSubresource imageSubresource = {
+        .Image = this,
+        .Aspect = m_ImageData.Aspect,
+        .MipMapBase = mipBase,
+        .MipMapCount = mipCount,
+        .LayerBase = layerBase,
+        .LayerCount = layerCount};
+
+    return imageSubresource;
+}
+
 Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
 {
     Image image = {};
@@ -208,16 +238,12 @@ Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
         image = AllocateImage(createInfo);
         if (createInfo.CreateView)
         {
-            ImageSubresource imageSubresource = {};
-            imageSubresource.Subresource.aspectMask = createInfo.ImageAspect;
-            imageSubresource.Subresource.layerCount = 1;
-            imageSubresource.Subresource.levelCount = 1;
-   
-            PrepareForTransfer(image, imageSubresource);
+            ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, 1);
+            PrepareForTransfer(imageSubresource);
             CopyBufferToImage(createInfo.AssetInfo.Buffer, image, createInfo.ImageAspect);
-            imageSubresource.Subresource.levelCount = createInfo.MipMapCount;
+            imageSubresource.MipMapCount = createInfo.MipMapCount;
             CreateMipMaps(image, createInfo);
-            PrepareForShaderRead(image, imageSubresource);
+            PrepareForShaderRead(imageSubresource);
             image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, createInfo.MipMapCount);
         }
 
@@ -234,6 +260,7 @@ Image Image::AllocateImage(const CreateInfo& createInfo)
     image.m_ImageData.Width = createInfo.Extent.width;
     image.m_ImageData.Height = createInfo.Extent.height;
     image.m_ImageData.MipMapCount = createInfo.MipMapCount;
+    image.m_ImageData.Aspect = createInfo.ImageAspect;
     
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -256,53 +283,50 @@ Image Image::AllocateImage(const CreateInfo& createInfo)
     return image;
 }
 
-void Image::PrepareForTransfer(const Image& image, const ImageSubresource& imageSubresource)
+void Image::PrepareForTransfer(const ImageSubresource& imageSubresource)
 {
-    PrepareImageGeneral(image, imageSubresource,
+    PrepareImageGeneral(imageSubresource,
         VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
         0, VK_ACCESS_TRANSFER_WRITE_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 }
 
-void Image::PrepareForMipmap(const Image& image, const ImageSubresource& imageSubresource)
+void Image::PrepareForMipmap(const ImageSubresource& imageSubresource)
 {
-    PrepareImageGeneral(image, imageSubresource,
+    PrepareImageGeneral(imageSubresource,
         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
         VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
         VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
 }
 
-void Image::PrepareForShaderRead(const Image& image, const ImageSubresource& imageSubresource)
+void Image::PrepareForShaderRead(const ImageSubresource& imageSubresource)
 {
-    VkImageLayout current = imageSubresource.Subresource.levelCount > 1 ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    PrepareImageGeneral(image, imageSubresource,
+    VkImageLayout current = imageSubresource.MipMapCount > 1 ? VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    PrepareImageGeneral(imageSubresource,
        current, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
        VK_ACCESS_TRANSFER_READ_BIT, VK_ACCESS_SHADER_READ_BIT,
        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
 }
 
-void Image::PrepareImageGeneral(const Image& image, const ImageSubresource& imageSubresource,
+void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
         VkImageLayout current, VkImageLayout target,
         VkAccessFlags srcAccess, VkAccessFlags dstAccess,
         VkPipelineStageFlags srcStage, VkPipelineStageFlags dstStage)
 {
-    VkImageMemoryBarrier imageMemoryBarrier = {};
-    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    imageMemoryBarrier.image = image.m_ImageData.Image;
-    imageMemoryBarrier.oldLayout = current;
-    imageMemoryBarrier.newLayout = target;
-    imageMemoryBarrier.subresourceRange = imageSubresource.Subresource;
-    imageMemoryBarrier.srcAccessMask = srcAccess;
-    imageMemoryBarrier.dstAccessMask = dstAccess;
-
-    ImageTransitionInfo imageTransitionInfo = {
-        .MemoryBarrier = imageMemoryBarrier,
-        .SourceStage = srcStage,
-        .DestinationStage = dstStage};
+    DependencyInfo layoutTransition = DependencyInfo::Builder()
+        .LayoutTransition({
+            .ImageSubresource = &imageSubresource,
+            .SourceStage = srcStage,
+            .DestinationStage = dstStage,
+            .SourceAccess = srcAccess,
+            .DestinationAccess = dstAccess,
+            .OldLayout = current,
+            .NewLayout = target})
+        .Build();
     
-    Driver::ImmediateUpload([&image, &imageTransitionInfo](const CommandBuffer& cmd)
+    Driver::ImmediateUpload([&layoutTransition](const CommandBuffer& cmd)
     {
-       RenderCommand::TransitionImage(cmd, image, imageTransitionInfo);
+       RenderCommand::WaitOnBarrier(cmd, layoutTransition);
     });
 }
 
@@ -321,16 +345,17 @@ void Image::CreateMipMaps(const Image& image, const CreateInfo& createInfo)
     if (createInfo.MipMapCount == 1)
         return;
 
-    ImageSubresource imageSubresource = {};
-    imageSubresource.Subresource.aspectMask = createInfo.ImageAspect;
-    imageSubresource.Subresource.layerCount = 1;
-    imageSubresource.Subresource.levelCount = 1;
+    ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, 1);
+    imageSubresource.Aspect = createInfo.ImageAspect;
+    imageSubresource.LayerCount = 1;
+    imageSubresource.MipMapCount = 1;
     
-    PrepareForMipmap(image, imageSubresource);
+    PrepareForMipmap(imageSubresource);
 
     for (u32 i = 1; i < createInfo.MipMapCount; i++)
     {
-        VkImageBlit imageBlit = {};
+        VkImageBlit2 imageBlit = {};
+        imageBlit.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
         imageBlit.srcSubresource.aspectMask = createInfo.ImageAspect;
         imageBlit.srcSubresource.layerCount = 1;
         imageBlit.srcSubresource.mipLevel = i - 1;
@@ -347,13 +372,9 @@ void Image::CreateMipMaps(const Image& image, const CreateInfo& createInfo)
             (i32)createInfo.Extent.height >> i,
             1};
 
-        ImageSubresource mipmapSubresource = {};
-        mipmapSubresource.Subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        mipmapSubresource.Subresource.baseMipLevel = i;
-        mipmapSubresource.Subresource.levelCount = 1;
-        mipmapSubresource.Subresource.layerCount = 1;
+        ImageSubresource mipmapSubresource = image.CreateSubresource(i, 1, 0, 1);
 
-        PrepareForTransfer(image, mipmapSubresource);
+        PrepareForTransfer(mipmapSubresource);
     
         Driver::ImmediateUpload([&image, &imageBlit](const CommandBuffer& cmd)
         {
@@ -365,7 +386,7 @@ void Image::CreateMipMaps(const Image& image, const CreateInfo& createInfo)
 
                 RenderCommand::BlitImage(cmd, blitInfo);
         });
-        PrepareForMipmap(image, mipmapSubresource);
+        PrepareForMipmap(mipmapSubresource);
     }
 }
 

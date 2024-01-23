@@ -6,7 +6,7 @@
 #include "Device.h"
 #include "Pipeline.h"
 #include "Swapchain.h"
-#include "Syncronization.h"
+#include "Synchronization.h"
 
 #include <vma/vk_mem_alloc.h>
 
@@ -55,6 +55,8 @@ public:
     static void Unpack(DescriptorAllocator::PoolInfo pool, const DescriptorSetLayout& layout,
         DescriptorAllocator::SetAllocateInfo& setAllocateInfo);
 
+    static void Unpack(const LayoutTransitionInfo& layoutTransitionInfo, DependencyInfo::Builder::CreateInfo& createInfo);
+    
     static void DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
         VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
     static void DescriptorSetBindTexture(u32 slot, const Texture& texture,

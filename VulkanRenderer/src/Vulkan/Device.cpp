@@ -70,11 +70,21 @@ Device Device::Create(const Builder::CreateInfo& createInfo)
     device.ChooseGPU(createInfo);
     device.CreateDevice(createInfo);
     device.RetrieveDeviceQueues();
+
+#ifdef VULKAN_VAL_LAYERS
+    device.CreateDebugUtilsMessenger();
+#endif
+    
     return device;
 }
 
 void Device::Destroy(const Device& device)
 {
+    
+#ifdef VULKAN_VAL_LAYERS
+    device.DestroyDebugUtilsMessenger();
+#endif
+    
     vkDestroyDevice(device.m_Device, nullptr);
     vkDestroySurfaceKHR(device.m_Instance, device.m_Surface, nullptr);
     vkDestroyInstance(device.m_Instance, nullptr);
@@ -205,6 +215,7 @@ void Device::CreateDevice(const CreateInfo& createInfo)
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
     vulkan13Features.pNext = &vulkan12Features;
     vulkan13Features.dynamicRendering = VK_TRUE;
+    vulkan13Features.synchronization2 = VK_TRUE;
 
     VkPhysicalDeviceConditionalRenderingFeaturesEXT conditionalRenderingFeaturesExt = {};
     conditionalRenderingFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT;
@@ -355,6 +366,7 @@ bool Device::CheckGPUFeatures(VkPhysicalDevice gpu) const
         deviceVulkan12Features.timelineSemaphore == VK_TRUE &&
         deviceVulkan12Features.bufferDeviceAddress == VK_TRUE &&
         deviceVulkan13Features.dynamicRendering == VK_TRUE &&
+        deviceVulkan13Features.synchronization2 == VK_TRUE &&
         conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE &&
         physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE;
 }
@@ -393,4 +405,33 @@ bool Device::CheckGPUExtensions(VkPhysicalDevice gpu, const CreateInfo& createIn
     return utils::checkArrayContainsSubArray(createInfo.DeviceExtensions, availableExtensions,
         [](const char* req, const VkExtensionProperties& avail) { return std::strcmp(req, avail.extensionName); },
         [this](const char* req) { LOG("Unsupported device extension: {}\n", req); });
+}
+
+namespace
+{
+    VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void* pUserData)
+    {
+        LOG("VALIDATION LAYER: {}", pCallbackData->pMessage);
+        return VK_FALSE;
+    }
+}
+
+void Device::CreateDebugUtilsMessenger()
+{
+    VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo = {};
+    debugUtilsMessengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    debugUtilsMessengerCreateInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    debugUtilsMessengerCreateInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
+    vkCreateDebugUtilsMessengerEXT(
+        m_Instance, &debugUtilsMessengerCreateInfo, nullptr, &m_DebugUtilsMessenger);
+}
+
+void Device::DestroyDebugUtilsMessenger() const
+{
+    vkDestroyDebugUtilsMessengerEXT(m_Instance, m_DebugUtilsMessenger, nullptr);
 }

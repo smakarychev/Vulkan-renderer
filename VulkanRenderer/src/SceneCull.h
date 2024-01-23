@@ -30,6 +30,9 @@ public:
 
     const Buffer& GetCountBuffer() const { return m_Count; }
     const Buffer& GetIndices() const { return m_Indices; }
+    const Buffer& GetIndicesSingular() const { return m_IndicesSingular; }
+    const Buffer& GetCountSingularBuffer() const { return m_CountSingular; }
+    const Buffer& GetDrawSingularBuffer() const { return m_DrawSingular; }
 
     static u32 GetCommandCount()
     {
@@ -48,6 +51,9 @@ public:
 private:
     Buffer m_Count;
     Buffer m_Indices;
+    Buffer m_IndicesSingular;
+    Buffer m_CountSingular;
+    Buffer m_DrawSingular;
 };
 
 class SceneCullBuffers
@@ -159,6 +165,8 @@ public:
 
     u64 GetTrianglesOffset() const { return CullDrawBatch::GetTrianglesSizeBytes() * m_CurrentBatch; }
     u64 GetDrawCommandsOffset() const { return CullDrawBatch::GetCommandsSizeBytes() * m_CurrentBatch; }
+
+    u32 GetBatchIndex() const { return m_CurrentBatch; }
     
     const Buffer& GetDrawCount() const;
     u32 GetMaxBatchCount() const { return m_MaxBatchDispatches; }
@@ -191,6 +199,10 @@ private:
         ComputePipelineData TriangleCullReocclusion{};
         ComputePipelineData CompactCommands{};
         ComputePipelineData ClearCommands{};
+
+        ComputePipelineData TriangleCullSingular{};
+        ComputePipelineData TriangleCullReocclusionSingular{};
+        ComputePipelineData PrepareDrawSingular{};
     };
     std::array<ComputeBatchData, CULL_DRAW_BATCH_OVERLAP> m_CullDrawBatchData{};
     ComputePipelineData m_PrepareIndirectDispatches{};
@@ -200,8 +212,9 @@ private:
     u32 m_CurrentBatchFlat{0};
     u32 m_MaxBatchDispatches{0};
 
-    PipelineBufferBarrierInfo m_ComputeWRBarrierBase{};
-    PipelineBufferBarrierInfo m_IndirectWRBarrierBase{};
+    DependencyInfo m_ComputeWRDependency{};
+    DependencyInfo m_IndirectWRDependency{};
+    Barrier m_Barrier{};
 
     CommandPool m_CommandPool;
     std::array<std::vector<CommandBuffer>, BUFFERED_FRAMES> m_TriangleCullCmds;
@@ -229,6 +242,7 @@ public:
     void ResetSubBatches();
 
     const Buffer& GetDrawCommands() const;
+    const Buffer& GetDrawCommandsSingular() const;
     const Buffer& GetTriangles() const;
 
     u64 GetDrawCommandsOffset() const;
@@ -269,10 +283,11 @@ private:
     ComputePipelineData m_MeshletCull{};
     ComputePipelineData m_MeshletCullReocclusion{};
     ComputePipelineData m_MeshletCullClear{};
+
     
-    PipelineBufferBarrierInfo m_ComputeWRBarrierBase{};
-    PipelineBufferBarrierInfo m_ComputeRWBarrierBase{};
-    PipelineBufferBarrierInfo m_IndirectWRBarrierBase{};
+    DependencyInfo m_ComputeWRDependency{};
+    DependencyInfo m_IndirectWRDependency{};
+    Barrier m_Barrier{};
     
     const DepthPyramid* m_DepthPyramid{nullptr};
     bool m_CullIsInitialized{false};

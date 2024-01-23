@@ -6,7 +6,7 @@
 #include <glm/glm.hpp>
 
 #include "Vulkan/RenderingInfo.h"
-#include "Vulkan/Syncronization.h"
+#include "Vulkan/Synchronization.h"
 
 class DepthPyramid;
 struct FrameContext;
@@ -69,8 +69,8 @@ private:
     ShaderPipeline m_Pipeline{};
     ShaderDescriptorSet m_DescriptorSet{};
 
-    TimelineSemaphore m_CullSemaphore;
-    TimelineSemaphore m_RenderSemaphore;
-
     std::unique_ptr<VisibilityBuffer> m_VisibilityBuffer{};
+
+    DependencyInfo m_SplitBarrierDependency{};
+    std::array<SplitBarrier, CULL_DRAW_BATCH_OVERLAP> m_SplitBarriers{};
 };

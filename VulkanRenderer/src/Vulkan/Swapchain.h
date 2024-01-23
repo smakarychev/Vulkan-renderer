@@ -6,7 +6,7 @@
 
 #include "DepthPyramid.h"
 #include "Image.h"
-#include "Syncronization.h"
+#include "Synchronization.h"
 #include "types.h"
 #include "VulkanCommon.h"
 

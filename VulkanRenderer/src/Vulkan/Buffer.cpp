@@ -109,3 +109,12 @@ void Buffer::Unmap()
 {
     vmaUnmapMemory(Driver::Allocator(), m_Allocation);
 }
+
+BufferSubresource Buffer::CreateSubresource(u64 sizeBytes, u64 offset) const
+{
+    ASSERT(offset + sizeBytes < m_SizeBytes, "Invalid subresource range")
+    return {
+        .Buffer = this,
+        .SizeBytes = sizeBytes,
+        .Offset = offset};
+}

@@ -1,0 +1,24 @@
+#version 460
+
+#include "common.shader_header"
+
+layout(local_size_x = 1) in;
+
+layout(std430, set = 0, binding = 0) buffer singular_index_count_buffer {
+    uint count;
+} u_singular_index_count_buffer;
+
+layout(std430, set = 0, binding = 1) writeonly buffer indirect_draw_buffer {
+    IndirectCommand command;
+} u_indirect_draw_buffer;
+
+void main() {
+    u_indirect_draw_buffer.command.firstIndex = 0;
+    u_indirect_draw_buffer.command.indexCount = u_singular_index_count_buffer.count;
+    u_indirect_draw_buffer.command.instanceCount = 1;
+    u_indirect_draw_buffer.command.vertexOffset = 0;
+    u_indirect_draw_buffer.command.firstInstance = 0;
+    u_indirect_draw_buffer.command.render_object = 0;
+
+    u_singular_index_count_buffer.count = 0;
+}

@@ -1,4 +1,4 @@
-﻿#include "Syncronization.h"
+﻿#include "Synchronization.h"
 
 #include "Driver.h"
 #include "RenderCommand.h"
@@ -159,4 +159,118 @@ void TimelineSemaphore::SignalCPU(u64 value)
         "Failed to signal semaphore");
 
     m_Timeline = value;
+}
+
+DependencyInfo DependencyInfo::Builder::Build()
+{
+    return DependencyInfo::Create(m_CreateInfo);
+}
+
+DependencyInfo::Builder& DependencyInfo::Builder::SetFlags(VkDependencyFlags flags)
+{
+    m_CreateInfo.DependencyFlags = flags;
+
+    return *this;
+}
+
+DependencyInfo::Builder& DependencyInfo::Builder::ExecutionDependency(
+    const ExecutionDependencyInfo& executionDependencyInfo)
+{
+    VkMemoryBarrier2 memoryBarrier = {};
+    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+    memoryBarrier.srcStageMask = executionDependencyInfo.SourceStage;
+    memoryBarrier.dstStageMask = executionDependencyInfo.DestinationStage;
+    m_CreateInfo.ExecutionDependencyInfo = memoryBarrier;
+
+    return *this;
+}
+
+DependencyInfo::Builder& DependencyInfo::Builder::MemoryDependency(const MemoryDependencyInfo& memoryDependencyInfo)
+{
+    VkMemoryBarrier2 memoryBarrier = {};
+    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+    memoryBarrier.srcStageMask = memoryDependencyInfo.SourceStage;
+    memoryBarrier.dstStageMask = memoryDependencyInfo.DestinationStage;
+    memoryBarrier.srcAccessMask = memoryDependencyInfo.SourceAccess;
+    memoryBarrier.dstAccessMask = memoryDependencyInfo.DestinationAccess;
+    m_CreateInfo.MemoryDependencyInfo = memoryBarrier;
+
+    return *this;
+}
+
+DependencyInfo::Builder& DependencyInfo::Builder::LayoutTransition(const LayoutTransitionInfo& layoutTransitionInfo)
+{
+    Driver::Unpack(layoutTransitionInfo, m_CreateInfo);
+
+    return *this;
+}
+
+DependencyInfo DependencyInfo::Create(const Builder::CreateInfo& createInfo)
+{
+    DependencyInfo dependencyInfo = {};
+
+    if (createInfo.ExecutionDependencyInfo.has_value())
+        dependencyInfo.m_ExecutionMemoryDependenciesInfo.push_back(*createInfo.ExecutionDependencyInfo);
+    if (createInfo.MemoryDependencyInfo.has_value())
+        dependencyInfo.m_ExecutionMemoryDependenciesInfo.push_back(*createInfo.MemoryDependencyInfo);
+    if (createInfo.LayoutTransitionInfo.has_value())
+        dependencyInfo.m_LayoutTransitionInfo.push_back(*createInfo.LayoutTransitionInfo);
+
+    dependencyInfo.m_DependencyInfo = {};
+    dependencyInfo.m_DependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependencyInfo.m_DependencyInfo.dependencyFlags = createInfo.DependencyFlags;
+
+    return dependencyInfo;
+}
+
+
+void Barrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo)
+{
+    RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
+}
+
+SplitBarrier SplitBarrier::Builder::Build()
+{
+    SplitBarrier splitBarrier = SplitBarrier::Create({});
+    Driver::DeletionQueue().AddDeleter([splitBarrier](){ SplitBarrier::Destroy(splitBarrier); });
+
+    return splitBarrier;
+}
+
+SplitBarrier SplitBarrier::Builder::BuildManualLifetime()
+{
+    return SplitBarrier::Create({});
+}
+
+SplitBarrier SplitBarrier::Create(const Builder::CreateInfo& createInfo)
+{
+    SplitBarrier splitBarrier = {};
+    
+    VkEventCreateInfo eventCreateInfo = {};
+    eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+
+    VulkanCheck(vkCreateEvent(Driver::DeviceHandle(), &eventCreateInfo, nullptr, &splitBarrier.m_Event),
+        "Failed to create split barrier");
+
+    return splitBarrier;
+}
+
+void SplitBarrier::Destroy(const SplitBarrier& splitBarrier)
+{
+    vkDestroyEvent(Driver::DeviceHandle(), splitBarrier.m_Event, nullptr);
+}
+
+void SplitBarrier::Signal(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const
+{
+    RenderCommand::SignalSplitBarrier(cmd, *this, dependencyInfo);
+}
+
+void SplitBarrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const
+{
+    RenderCommand::WaitOnSplitBarrier(cmd, *this, dependencyInfo);
+}
+
+void SplitBarrier::Reset(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const
+{
+    RenderCommand::ResetSplitBarrier(cmd, *this, dependencyInfo);
 }

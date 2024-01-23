@@ -75,6 +75,29 @@ void Driver::Unpack(DescriptorAllocator::PoolInfo pool, const DescriptorSetLayou
     info.pSetLayouts = &layout.m_Layout;
 }
 
+void Driver::Unpack(const LayoutTransitionInfo& layoutTransitionInfo, DependencyInfo::Builder::CreateInfo& createInfo)
+{
+    VkImageMemoryBarrier2 imageMemoryBarrier = {};
+    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+    imageMemoryBarrier.srcStageMask = layoutTransitionInfo.SourceStage;
+    imageMemoryBarrier.dstStageMask = layoutTransitionInfo.DestinationStage;
+    imageMemoryBarrier.srcAccessMask = layoutTransitionInfo.SourceAccess;
+    imageMemoryBarrier.dstAccessMask = layoutTransitionInfo.DestinationAccess;
+    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    imageMemoryBarrier.oldLayout = layoutTransitionInfo.OldLayout;
+    imageMemoryBarrier.newLayout = layoutTransitionInfo.NewLayout;
+    imageMemoryBarrier.image = layoutTransitionInfo.ImageSubresource->Image->m_ImageData.Image;
+    imageMemoryBarrier.subresourceRange = {
+        .aspectMask = layoutTransitionInfo.ImageSubresource->Aspect,
+        .baseMipLevel = layoutTransitionInfo.ImageSubresource->MipMapBase,
+        .levelCount = layoutTransitionInfo.ImageSubresource->MipMapCount,
+        .baseArrayLayer = layoutTransitionInfo.ImageSubresource->LayerBase,
+        .layerCount = layoutTransitionInfo.ImageSubresource->LayerCount};
+
+    createInfo.LayoutTransitionInfo = imageMemoryBarrier;
+}
+
 void Driver::DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
                                      VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {

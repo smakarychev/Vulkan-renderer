@@ -111,66 +111,20 @@ struct ImageData
 {
     VkImage Image;
     VkImageView View;
+    VkImageAspectFlags Aspect;
     u32 Width;
     u32 Height;
     u32 MipMapCount{1};
-};
-
-struct ImageSubresource
-{
-    VkImageSubresourceRange Subresource;
-};
-
-struct ImageTransitionInfo
-{
-    VkImageMemoryBarrier MemoryBarrier;
-    VkPipelineStageFlags SourceStage;
-    VkPipelineStageFlags DestinationStage;
 };
 
 struct ImageBlitInfo
 {
     const Image* SourceImage;
     const Image* DestinationImage;
-    VkImageBlit* ImageBlit;
+    VkImageBlit2* ImageBlit;
     VkFilter Filter;
 };
 
-struct PipelineBarrierInfo
-{
-    VkPipelineStageFlags PipelineSourceMask;
-    VkPipelineStageFlags PipelineDestinationMask;
-    VkAccessFlags AccessSourceMask;
-    VkAccessFlags AccessDestinationMask;
-};
-
-struct PipelineBufferBarrierInfo
-{
-    VkPipelineStageFlags PipelineSourceMask;
-    VkPipelineStageFlags PipelineDestinationMask;
-    VkDependencyFlags DependencyFlags{0};
-    const QueueInfo* Queue;
-    std::vector<const Buffer*> Buffers;
-    VkAccessFlags BufferSourceMask;
-    VkAccessFlags BufferDestinationMask;
-};
-
-struct PipelineImageBarrierInfo
-{
-    VkPipelineStageFlags PipelineSourceMask;
-    VkPipelineStageFlags PipelineDestinationMask;
-    VkDependencyFlags DependencyFlags{0};
-    const Image* Image;
-    VkAccessFlags ImageSourceMask;
-    VkAccessFlags ImageDestinationMask;
-    VkImageLayout ImageSourceLayout;
-    VkImageLayout ImageDestinationLayout;
-    VkImageAspectFlags ImageAspect;
-    u32 BaseMipLevel{0};
-    u32 MipLevelCount{VK_REMAINING_MIP_LEVELS};
-};
-
-using PipelineTextureBarrierInfo = PipelineImageBarrierInfo;
 
 // todo: not the best name
 struct RenderingDetails

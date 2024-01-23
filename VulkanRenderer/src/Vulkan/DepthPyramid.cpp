@@ -72,7 +72,7 @@ Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Imag
     Image pyramidImage = Image::Builder()
         .SetExtent({width, height})
         .SetFormat(VK_FORMAT_R32_SFLOAT)
-        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, 0)
+        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
         .CreateMipmaps(true)
         .CreateView(false)
         .BuildManualLifetime();
@@ -80,18 +80,23 @@ Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Imag
     pyramidImage.GetImageData().View = vkUtils::createImageView(Driver::DeviceHandle(),
         pyramidImage.GetImageData().Image, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT,
         pyramidImage.GetImageData().MipMapCount);
+
+    ImageSubresource imageSubresource = pyramidImage.CreateSubresource();
+    Barrier barrier = {};
+
+    DependencyInfo layoutTransition = DependencyInfo::Builder()
+        .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+        .LayoutTransition({
+            .ImageSubresource = &imageSubresource,
+            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+            .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
+            .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
+            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .NewLayout = VK_IMAGE_LAYOUT_GENERAL})
+        .Build();
     
-    PipelineImageBarrierInfo barrierInfo = {
-        .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .DependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        .Image = &pyramidImage,
-        .ImageSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .ImageDestinationMask = VK_ACCESS_SHADER_READ_BIT,
-        .ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT};
-    RenderCommand::CreateBarrier(cmd, barrierInfo);
+    barrier.Wait(cmd, layoutTransition);
     
     return pyramidImage;
 }
@@ -139,17 +144,21 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
 {
     TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Fill depth pyramid")
 
-    PipelineImageBarrierInfo depthImageBarrier = {
-        .PipelineSourceMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
-        .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .DependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        .Image = &depthImage,
-        .ImageSourceMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .ImageDestinationMask = VK_ACCESS_SHADER_READ_BIT,
-        .ImageSourceLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .ImageAspect = VK_IMAGE_ASPECT_DEPTH_BIT};
-    RenderCommand::CreateBarrier(cmd, depthImageBarrier);
+    ImageSubresource depthSubresource = depthImage.CreateSubresource();
+    Barrier barrier = {};
+
+    DependencyInfo depthToReadTransition = DependencyInfo::Builder()
+        .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+        .LayoutTransition({
+            .ImageSubresource = &depthSubresource,
+            .SourceStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+            .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+            .SourceAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
+            .OldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+            .NewLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL})
+        .Build();
+    barrier.Wait(cmd, depthToReadTransition);
 
     auto* pipeline = &m_ComputeDepthPyramidData->Pipeline;
     pipeline->BindCompute(cmd);
@@ -158,6 +167,7 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
     u32 height = m_PyramidDepth.GetImageData().Height;  
     for (u32 i = 0; i < mipMapCount; i++)
     {
+
         ShaderDescriptorSet& descriptorSet = m_DepthPyramidDescriptors[i];
 
         u32 levelWidth = std::max(1u, width >> i);
@@ -171,26 +181,37 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
         descriptorSet.BindCompute(cmd, DescriptorKind::Global, pipeline->GetPipelineLayout());
         RenderCommand::PushConstants(cmd, pipeline->GetPipelineLayout(), &levels, pushConstantDescription);
         RenderCommand::Dispatch(cmd, {(levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1});
-        PipelineImageBarrierInfo barrierInfo = {
-            .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .DependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-            .Image = &m_PyramidDepth,
-            .ImageSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .ImageDestinationMask = VK_ACCESS_SHADER_READ_BIT,
-            .ImageSourceLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .ImageDestinationLayout = VK_IMAGE_LAYOUT_GENERAL,
-            .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT,
-            .BaseMipLevel = i,
-            .MipLevelCount = 1};
-        RenderCommand::CreateBarrier(cmd, barrierInfo);
+
+        ImageSubresource pyramidSubresource = m_PyramidDepth.CreateSubresource();
+        pyramidSubresource.MipMapBase = i;
+        pyramidSubresource.MipMapCount = 1;
+
+        DependencyInfo pyramidTransition = DependencyInfo::Builder()
+            .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+            .LayoutTransition({
+                .ImageSubresource = &pyramidSubresource,
+                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
+                .OldLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .NewLayout = VK_IMAGE_LAYOUT_GENERAL})
+            .Build();
+        barrier.Wait(cmd, pyramidTransition);
     }
 
-    depthImageBarrier.PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-    depthImageBarrier.PipelineDestinationMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    depthImageBarrier.ImageSourceLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    depthImageBarrier.ImageDestinationLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    depthImageBarrier.ImageSourceMask = VK_ACCESS_SHADER_READ_BIT;
-    depthImageBarrier.ImageDestinationMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    RenderCommand::CreateBarrier(cmd, depthImageBarrier);
+    DependencyInfo readToDepthTransition = DependencyInfo::Builder()
+       .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+       .LayoutTransition({
+           .ImageSubresource = &depthSubresource,
+           .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+           .DestinationStage =  VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+               VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+           .SourceAccess = VK_ACCESS_2_SHADER_READ_BIT,
+           .DestinationAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+           .OldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+           .NewLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL})
+       .Build();
+    barrier.Wait(cmd, readToDepthTransition);
 }

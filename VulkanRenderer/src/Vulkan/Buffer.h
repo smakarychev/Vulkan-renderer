@@ -8,6 +8,15 @@
 
 class CommandBuffer;
 
+class Buffer;
+
+struct BufferSubresource
+{
+    const Buffer* Buffer;
+    u64 SizeBytes;
+    u64 Offset;
+};
+
 class Buffer
 {
     FRIEND_INTERNAL
@@ -43,6 +52,9 @@ public:
     void Unmap();
     u64 GetSizeBytes() const { return m_SizeBytes; }
     BufferKind GetKind() const { return m_Kind; }
+
+    BufferSubresource CreateSubresource(u64 sizeBytes, u64 offset) const;
+    
 private:
     VkBuffer m_Buffer{VK_NULL_HANDLE};
     VmaAllocation m_Allocation{VK_NULL_HANDLE};

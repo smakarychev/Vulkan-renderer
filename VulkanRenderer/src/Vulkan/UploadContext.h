@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include "CommandBuffer.h"
-#include "Syncronization.h"
+#include "Synchronization.h"
 
 struct UploadContext
 {

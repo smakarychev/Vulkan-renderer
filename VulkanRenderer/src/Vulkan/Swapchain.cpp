@@ -224,56 +224,93 @@ bool Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 fra
 
 void Swapchain::PrepareRendering(const CommandBuffer& cmd)
 {
-    PipelineImageBarrierInfo imageBarrierInfo = {
-        .PipelineSourceMask = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        .PipelineDestinationMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .Image = &m_DrawImage,
-        .ImageSourceMask = 0,
-        .ImageDestinationMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
-    };
-    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+    ImageSubresource drawSubresource = m_DrawImage.CreateSubresource();
+    ImageSubresource depthSubresource = m_DepthImage.CreateSubresource();
+    Barrier barrier = {};
+    
+    DependencyInfo drawTransition = DependencyInfo::Builder()
+        .LayoutTransition({
+            .ImageSubresource = &drawSubresource,
+            .SourceStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            .DestinationStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .SourceAccess = 0,
+            .DestinationAccess = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .NewLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL})
+        .Build();
+    
+    DependencyInfo depthTransition = DependencyInfo::Builder()
+        .LayoutTransition({
+            .ImageSubresource = &depthSubresource,
+            .SourceStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
+            .DestinationStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
+                VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
+            .SourceAccess = 0,
+            .DestinationAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
+            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .NewLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL})
+        .Build();
 
-    imageBarrierInfo.PipelineDestinationMask = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
-    imageBarrierInfo.Image = &m_DepthImage;
-    imageBarrierInfo.ImageDestinationMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-    imageBarrierInfo.ImageDestinationLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
-    imageBarrierInfo.ImageAspect = VK_IMAGE_ASPECT_DEPTH_BIT;
-    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+    barrier.Wait(cmd, drawTransition);
+    barrier.Wait(cmd, depthTransition);
 }
 
 void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
 {
-    PipelineImageBarrierInfo imageBarrierInfo = {
-        .PipelineSourceMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .PipelineDestinationMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        .Image = &m_DrawImage,
-        .ImageSourceMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .ImageDestinationMask = 0,
-        .ImageSourceLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-        .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT 
-    };
-    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+    ImageSubresource drawSubresource = m_DrawImage.CreateSubresource(0, 1, 0, 1);
+    ImageSubresource presentSubresource = m_ColorImages[imageIndex].CreateSubresource(0, 1, 0, 1);
+    Barrier barrier = {};
 
-    imageBarrierInfo.Image = &m_ColorImages[imageIndex];
-    imageBarrierInfo.ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    imageBarrierInfo.ImageDestinationLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+    LayoutTransitionInfo drawToSourceTransitionInfo = {
+        .ImageSubresource = &drawSubresource,
+        .SourceStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .DestinationStage = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
+        .SourceAccess = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+        .DestinationAccess = 0,
+        .OldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        .NewLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL};
+    
+    LayoutTransitionInfo presentToDestinationTransitionInfo = drawToSourceTransitionInfo;
+    presentToDestinationTransitionInfo.ImageSubresource = &presentSubresource;
+    presentToDestinationTransitionInfo.OldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    presentToDestinationTransitionInfo.NewLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 
-    VkImageBlit imageBlit = {};
-    imageBlit.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageBlit.srcSubresource.layerCount = 1;
-    imageBlit.srcSubresource.mipLevel = 0;
+    LayoutTransitionInfo destinationToPresentTransitionInfo = presentToDestinationTransitionInfo;
+    destinationToPresentTransitionInfo.OldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    destinationToPresentTransitionInfo.NewLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    
+    DependencyInfo drawToSourceTransition = DependencyInfo::Builder()
+        .LayoutTransition(drawToSourceTransitionInfo)
+        .Build();
+    DependencyInfo presentToDestinationTransition = DependencyInfo::Builder()
+        .LayoutTransition(presentToDestinationTransitionInfo)
+        .Build();
+    DependencyInfo destinationToPresentTransition = DependencyInfo::Builder()
+        .LayoutTransition(destinationToPresentTransitionInfo)
+        .Build();
+
+    barrier.Wait(cmd, drawToSourceTransition);
+    barrier.Wait(cmd, presentToDestinationTransition);
+    
+    VkImageBlit2 imageBlit = {};
+    imageBlit.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
+    // TODO: create transform functions for this
+    imageBlit.srcSubresource = {
+        .aspectMask = drawSubresource.Aspect,
+        .mipLevel = drawSubresource.MipMapBase,
+        .baseArrayLayer = drawSubresource.LayerBase,
+        .layerCount = drawSubresource.LayerCount};
     imageBlit.srcOffsets[1] = VkOffset3D{
         (i32)m_DrawImage.GetImageData().Width,
         (i32)m_DrawImage.GetImageData().Height,
         1};
-    imageBlit.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageBlit.dstSubresource.layerCount = 1;
-    imageBlit.dstSubresource.mipLevel = 0;
+    imageBlit.dstSubresource = {
+        .aspectMask = presentSubresource.Aspect,
+        .mipLevel = presentSubresource.MipMapBase,
+        .baseArrayLayer = presentSubresource.LayerBase,
+        .layerCount = presentSubresource.LayerCount};
     imageBlit.dstOffsets[1] = VkOffset3D{
         (i32)m_ColorImages[imageIndex].GetImageData().Width,
         (i32)m_ColorImages[imageIndex].GetImageData().Height,
@@ -285,10 +322,7 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
         .ImageBlit = &imageBlit,
         .Filter = VK_FILTER_LINEAR});
 
-    imageBarrierInfo.Image = &m_ColorImages[imageIndex];
-    imageBarrierInfo.ImageSourceLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    imageBarrierInfo.ImageDestinationLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    RenderCommand::CreateBarrier(cmd, imageBarrierInfo);
+    barrier.Wait(cmd, destinationToPresentTransition);
 }
 
 const SwapchainFrameSync& Swapchain::GetFrameSync(u32 frameNumber) const
@@ -318,6 +352,7 @@ std::vector<Image> Swapchain::CreateColorImages() const
         ImageData imageData = {
             .Image = images[i],
             .View = imageViews[i],
+            .Aspect = VK_IMAGE_ASPECT_COLOR_BIT,
             .Width = m_Extent.width,
             .Height = m_Extent.height};
     

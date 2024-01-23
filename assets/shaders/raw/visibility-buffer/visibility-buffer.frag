@@ -5,10 +5,8 @@
 #extension GL_EXT_nonuniform_qualifier : require
 
 layout(location = 0) in flat uint vert_command_id;
-layout(location = 1) in flat uint vert_triangle_offset;
-layout(location = 2) in vec2 vert_uv;
+layout(location = 1) in vec2 vert_uv;
 
-@dynamic
 layout(std430, set = 1, binding = 1) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_command_buffer;
@@ -43,8 +41,8 @@ void main() {
     if (alpha < 0.9)
         discard;
 
-    uint instance_id = command.firstInstance;
-    uint triangle_id = uint(u_triangle_buffer.triangles[vert_triangle_offset + gl_PrimitiveID]);
+    uint instance_id = vert_command_id;
+    uint triangle_id = uint(u_triangle_buffer.triangles[gl_PrimitiveID]);
     
     VisibilityInfo info;
     info.instance_id = instance_id;

@@ -19,17 +19,21 @@ VisibilityBuffer::VisibilityBuffer(const glm::uvec2& size, const CommandBuffer& 
         .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
         .BuildManualLifetime();
 
-    PipelineImageBarrierInfo barrierInfo = {
-        .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .PipelineDestinationMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        .DependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        .Image = &m_VisibilityImage,
-        .ImageSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .ImageDestinationMask = VK_ACCESS_SHADER_READ_BIT,
-        .ImageSourceLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-        .ImageDestinationLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .ImageAspect = VK_IMAGE_ASPECT_COLOR_BIT};
-    RenderCommand::CreateBarrier(cmd, barrierInfo);    
+    ImageSubresource imageSubresource = m_VisibilityImage.CreateSubresource(1, 1);
+    
+    DependencyInfo layoutTransition = DependencyInfo::Builder()
+        .LayoutTransition({
+            .ImageSubresource = &imageSubresource,
+            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+            .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
+            .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
+            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .NewLayout = VK_IMAGE_LAYOUT_GENERAL})
+        .Build();
+
+    Barrier barrier = {};
+    barrier.Wait(cmd, layoutTransition);
 }
 
 VisibilityBuffer::~VisibilityBuffer()
@@ -63,8 +67,19 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
             .AlphaBlending(AlphaBlending::None)
             .Build();
 
-        m_CullSemaphore = TimelineSemaphore::Builder().Build();
-        m_RenderSemaphore = TimelineSemaphore::Builder().Build();
+        m_SplitBarrierDependency = DependencyInfo::Builder()
+            .MemoryDependency({
+                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .DestinationStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .DestinationAccess = VK_ACCESS_2_SHADER_STORAGE_READ_BIT})
+            .Build();
+        
+        for (auto& barrier : m_SplitBarriers)
+        {
+            barrier = SplitBarrier::Builder().Build();
+            barrier.Signal(*initInfo.Cmd, m_SplitBarrierDependency);
+        }
     }
     
     m_VisibilityBuffer = std::make_unique<VisibilityBuffer>(initInfo.Size, *initInfo.Cmd);
@@ -76,7 +91,7 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
         .AddBinding("u_uv_buffer", initInfo.Scene->GetUVsBuffer())
         .AddBinding("u_object_buffer", *initInfo.ObjectsBuffer)
         .AddBinding("u_triangle_buffer", *initInfo.TrianglesBuffer, CullDrawBatch::GetTrianglesSizeBytes(), 0)
-        .AddBinding("u_command_buffer", *initInfo.CommandsBuffer, CullDrawBatch::GetCommandsSizeBytes(), 0)
+        .AddBinding("u_command_buffer", initInfo.Scene->GetMeshletsIndirectBuffer())
         .AddBinding("u_material_buffer", *initInfo.MaterialsBuffer)
         .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
         .BuildManualLifetime();
@@ -97,6 +112,7 @@ void VisibilityPass::ShutDown()
 
 void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
 {
+    Barrier barrier = {};
     u32 batchCount = 0;
     
     auto preTriangleCull = [&](CommandBuffer& cmd, bool reocclusion, Fence fence)
@@ -110,14 +126,15 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
     
         renderInfo.SceneCull->CullMeshes(cullContext);
         renderInfo.SceneCull->CullMeshlets(cullContext);
-    
-        PipelineBarrierInfo barrierInfo = {
-            .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .PipelineDestinationMask = VK_PIPELINE_STAGE_HOST_BIT,
-            .AccessSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .AccessDestinationMask = VK_ACCESS_HOST_READ_BIT
-        };
-        RenderCommand::CreateBarrier(cmd, barrierInfo);
+
+        DependencyInfo dependencyInfo = DependencyInfo::Builder()
+            .MemoryDependency({
+                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .DestinationStage = VK_PIPELINE_STAGE_2_HOST_BIT,
+                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .DestinationAccess = VK_ACCESS_2_HOST_READ_BIT})
+            .Build();
+        barrier.Wait(cmd, dependencyInfo);
 
         cmd.End();
         cmd.Submit(Driver::GetDevice().GetQueues().Graphics, fence);
@@ -142,16 +159,14 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
     };
     auto postCullBatchBarriers = [&](CommandBuffer& cmd)
     {
-        PipelineBufferBarrierInfo barrierInfo = {
-            .PipelineSourceMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            .PipelineDestinationMask = VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT,
-            .Queue = &Driver::GetDevice().GetQueues().Graphics,
-            .Buffers = {
-                &renderInfo.SceneCull->GetCullDrawBatch().GetIndices(),
-                &renderInfo.SceneCull->GetDrawCommands()},
-            .BufferSourceMask = VK_ACCESS_SHADER_WRITE_BIT,
-            .BufferDestinationMask = VK_ACCESS_INDIRECT_COMMAND_READ_BIT};
-        RenderCommand::CreateBarrier(cmd, barrierInfo);
+        DependencyInfo dependencyInfo = DependencyInfo::Builder()
+            .MemoryDependency({
+                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
+                .DestinationStage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
+                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
+                .DestinationAccess = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT})
+            .Build();
+        barrier.Wait(cmd, dependencyInfo);
     };
     auto render = [&](CommandBuffer& cmd, u32 iteration, bool computeDepthPyramid, bool shouldClear)
     {
@@ -163,7 +178,7 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
             GetClearRenderingInfo(*renderInfo.DepthBuffer, renderInfo.FrameContext->Resolution) :
             GetLoadRenderingInfo(*renderInfo.DepthBuffer, renderInfo.FrameContext->Resolution));
 
-        RenderCommand::BindIndexBuffer(cmd, renderInfo.SceneCull->GetCullDrawBatch().GetIndices(), 0);
+        RenderCommand::BindIndexBuffer(cmd, renderInfo.SceneCull->GetCullDrawBatch().GetIndicesSingular(), 0);
         RenderScene(cmd, *renderInfo.Scene, *renderInfo.SceneCull, renderInfo.FrameContext->FrameNumber);
 
         RenderCommand::EndRendering(cmd);
@@ -177,20 +192,25 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
         u32 iterations = std::max(batchCount, 1u);
         for (u32 i = 0; i < iterations; i++)
         {
+            m_SplitBarriers[renderInfo.SceneCull->GetBatchCull().GetBatchIndex()].Wait(cmd, m_SplitBarrierDependency);
+            m_SplitBarriers[renderInfo.SceneCull->GetBatchCull().GetBatchIndex()].Reset(cmd, m_SplitBarrierDependency);
             cull(cmd, reocclusion);
             postCullBatchBarriers(cmd);
             render(cmd, i, computeDepthPyramid && i == iterations - 1, shouldClear);
+            m_SplitBarriers[renderInfo.SceneCull->GetBatchCull().GetBatchIndex()].Signal(cmd, m_SplitBarrierDependency);
             renderInfo.SceneCull->NextSubBatch();
         }
     };
     auto postRenderBarriers = [&](CommandBuffer& cmd)
     {
-        PipelineBarrierInfo barrierInfo = {
-            .PipelineSourceMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .PipelineDestinationMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .AccessSourceMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .AccessDestinationMask = VK_ACCESS_SHADER_READ_BIT};
-        RenderCommand::CreateBarrier(cmd, barrierInfo);
+        DependencyInfo dependencyInfo = DependencyInfo::Builder()
+            .MemoryDependency({
+                .SourceStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .DestinationStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                .SourceAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
+                .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT})
+            .Build();
+        barrier.Wait(cmd, dependencyInfo);
     };
 
     Fence fence = Fence::Builder().BuildManualLifetime();
@@ -288,14 +308,17 @@ void VisibilityPass::RenderScene(const CommandBuffer& cmd, const Scene& scene, c
     
     u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * frameNumber);
     u32 trianglesOffset = (u32)sceneCull.GetDrawTrianglesOffset(); 
-    u32 commandsOffset = (u32)sceneCull.GetDrawCommandsOffset();  
     m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Global, layout, {cameraDataOffset});
-    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Pass, layout, {commandsOffset, trianglesOffset});
+    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Pass, layout, {trianglesOffset});
     m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Material, layout);
     //scene.Bind(cmd);
+
+    RenderCommand::DrawIndexedIndirect(cmd,
+        sceneCull.GetDrawCommandsSingular(),
+        0, 1, sizeof(IndirectCommand));
     
-    RenderCommand::DrawIndexedIndirectCount(cmd,
-       sceneCull.GetDrawCommands(), commandsOffset,
-       sceneCull.GetDrawCount(), 0,
-       CullDrawBatch::GetCommandCount(), sizeof(IndirectCommand));
+    //RenderCommand::DrawIndexedIndirectCount(cmd,
+    //   sceneCull.GetDrawCommands(), commandsOffset,
+    //   sceneCull.GetDrawCount(), 0,
+    //   CullDrawBatch::GetCommandCount(), sizeof(IndirectCommand));
 }
