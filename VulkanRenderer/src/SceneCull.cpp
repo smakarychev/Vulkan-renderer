@@ -207,28 +207,6 @@ void SceneBatchedCull::SetDepthPyramid(const DepthPyramid& depthPyramid, const g
     {
         auto& batchData = m_CullDrawBatchData[i];
 
-        batchData.TriangleCull.DescriptorSet = ShaderDescriptorSet::Builder()
-            .SetTemplate(batchData.TriangleCull.Template)
-            .AddBinding("u_scene_data", m_SceneCullBuffers->GetCullDataExtended(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
-            .AddBinding("u_depth_pyramid", {
-                .View = depthPyramid.GetTexture().GetImageData().View,
-                .Sampler = depthPyramid.GetSampler(),
-                .Layout = VK_IMAGE_LAYOUT_GENERAL})
-            .AddBinding("u_object_buffer", m_Scene->GetRenderObjectsBuffer())
-            .AddBinding("u_meshlet_visibility_buffer", m_SceneCullBuffers->GetMeshletVisibility())
-            .AddBinding("u_positions_buffer", m_Scene->GetPositionsBuffer())
-            .AddBinding("u_indices_buffer", m_Scene->GetIndicesBuffer())
-            .AddBinding("u_culled_indices_buffer", m_CullDrawBatches[i]->GetIndices())
-            .AddBinding("u_visible_triangles_buffer", m_SceneCullBuffers->GetTriangleVisibility())
-            .AddBinding("u_triangle_buffer", triangles, trianglesSizeBytes, trianglesOffset)
-            .AddBinding("u_command_buffer", m_SceneCullBuffers->GetCompactedCommands())
-            .AddBinding("u_count_buffer", m_SceneCullBuffers->GetVisibleMeshletCount(), sizeof(u32), 0)
-            .BuildManualLifetime();
-
-        batchData.TriangleCullReocclusion.DescriptorSet = batchData.TriangleCull.DescriptorSet;
-
-
-
         batchData.TriangleCullSingular.DescriptorSet = ShaderDescriptorSet::Builder()
             .SetTemplate(batchData.TriangleCullSingular.Template)
             .AddBinding("u_scene_data", m_SceneCullBuffers->GetCullDataExtended(), sizeof(SceneCullBuffers::SceneCullDataExtended), 0)
@@ -268,7 +246,7 @@ void SceneBatchedCull::BatchIndirectDispatchesBuffersPrepare(const CullContext& 
     std::vector<u32> pushConstants = {
         CullDrawBatch::GetCommandCount(),
         assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
-        Driver::GetSubgroupSize(),
+        assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
         m_MaxBatchDispatches};
     PushConstantDescription pushConstantDescription = m_PrepareIndirectDispatches.Pipeline.GetPushConstantDescription();
     
@@ -280,7 +258,7 @@ void SceneBatchedCull::BatchIndirectDispatchesBuffersPrepare(const CullContext& 
     pushConstants = {
         CullDrawBatch::GetCommandCount(),
         1,
-        Driver::GetSubgroupSize(),
+        assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
         m_MaxBatchDispatches};
     pushConstantDescription = m_PrepareCompactIndirectDispatches.Pipeline.GetPushConstantDescription();
     m_PrepareCompactIndirectDispatches.Pipeline.BindCompute(cmd);
@@ -330,7 +308,6 @@ void SceneBatchedCull::FreeResolutionDependentResources()
     for (u32 i = 0; i < CULL_DRAW_BATCH_OVERLAP; i++)
     {
         auto& batchData = m_CullDrawBatchData[i];
-        ShaderDescriptorSet::Destroy(batchData.TriangleCull.DescriptorSet);
         ShaderDescriptorSet::Destroy(batchData.TriangleCullSingular.DescriptorSet);
     }
 
@@ -340,26 +317,6 @@ void SceneBatchedCull::FreeResolutionDependentResources()
 void SceneBatchedCull::InitBatchCull(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache)
 {
     auto& firstBatchData = m_CullDrawBatchData.front();
-
-    if (Driver::GetSubgroupSize() == 64)
-        firstBatchData.TriangleCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
-            {"../assets/shaders/processed/culling/triangle-cull-amd-comp.shader"}, "triangle-cull-amd",
-            allocator, layoutCache);
-    else
-        firstBatchData.TriangleCull.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
-            {"../assets/shaders/processed/culling/triangle-cull-nvidia-comp.shader"}, "triangle-cull-nvidia",
-            allocator, layoutCache);
-        
-    firstBatchData.TriangleCull.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(firstBatchData.TriangleCull.Template)
-        .Build();
-
-    firstBatchData.TriangleCullReocclusion.Template = firstBatchData.TriangleCull.Template;
-
-    firstBatchData.TriangleCullReocclusion.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(firstBatchData.TriangleCull.Template)
-        .AddSpecialization("REOCCLUSION", true)
-        .Build();
 
     firstBatchData.CompactCommands.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/compact-commands-comp.shader"}, "compact-commands",
@@ -384,9 +341,6 @@ void SceneBatchedCull::InitBatchCull(DescriptorAllocator& allocator, DescriptorL
         .SetTemplate(firstBatchData.ClearCount.Template)
         .Build();
 
-
-
-    
     firstBatchData.TriangleCullSingular.Template = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/triangle-cull-singular-comp.shader"}, "triangle-cull-singular",
         allocator, layoutCache);
@@ -410,16 +364,8 @@ void SceneBatchedCull::InitBatchCull(DescriptorAllocator& allocator, DescriptorL
         .SetTemplate(firstBatchData.PrepareDrawSingular.Template)
         .Build();
 
-    
-    
     for (u32 i = 1; i < CULL_DRAW_BATCH_OVERLAP; i++)
     {
-        m_CullDrawBatchData[i].TriangleCull.Template = firstBatchData.TriangleCull.Template;
-        m_CullDrawBatchData[i].TriangleCull.Pipeline = firstBatchData.TriangleCull.Pipeline;
-        
-        m_CullDrawBatchData[i].TriangleCullReocclusion.Template = firstBatchData.TriangleCullReocclusion.Template;
-        m_CullDrawBatchData[i].TriangleCullReocclusion.Pipeline = firstBatchData.TriangleCullReocclusion.Pipeline;
-        
         m_CullDrawBatchData[i].CompactCommands.Template = firstBatchData.CompactCommands.Template;
         m_CullDrawBatchData[i].CompactCommands.Pipeline = firstBatchData.CompactCommands.Pipeline;
         
@@ -520,9 +466,7 @@ void SceneBatchedCull::RecordCommandBuffers(const glm::uvec2& resolution)
                 dispatchIndirectOffset += sizeof(VkDispatchIndirectCommand) * dispatchIndex;
                 u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameIndex;
                 u32 commandOffset = commandCount * dispatchIndex;
-                u32 compactedCommandsOffsetBytes = (u32)CullDrawBatch::GetCommandsSizeBytes() * batchIndex;
 
-                std::vector<u32> pushConstants {commandCount, commandOffset, SceneCullBuffers::MAX_COMMAND_COUNT};
                 u32 sceneCullOffset =
                     (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(SceneCullBuffers::SceneCullDataExtended)) * frameIndex;
                 u32 triangleOffset = (u32)batch.GetTrianglesSizeBytes() * batchIndex;

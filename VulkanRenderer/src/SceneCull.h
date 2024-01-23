@@ -195,8 +195,6 @@ private:
     struct ComputeBatchData
     {
         ComputePipelineData ClearCount{};
-        ComputePipelineData TriangleCull{};
-        ComputePipelineData TriangleCullReocclusion{};
         ComputePipelineData CompactCommands{};
         ComputePipelineData ClearCommands{};
 
