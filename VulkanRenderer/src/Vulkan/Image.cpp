@@ -29,8 +29,9 @@ Image Image::Builder::BuildManualLifetime()
 
 Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
 {
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "`Asset` in `ImageData` options are incompatible")
-    
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "`Asset` and `ImageData` options are incompatible")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::PixelData, "`PixelData` and `Asset` options are incompatible")
+
     m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::Asset;
     m_CreateInfo.AssetInfo.AssetPath = path;
 
@@ -47,15 +48,15 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
         assetLib::loadAssetFile(path, textureFile);
         assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
     
-        m_CreateInfo.AssetInfo.Buffer = Buffer::Builder()
+        m_CreateInfo.DataBuffer = Buffer::Builder()
             .SetKind(BufferKind::Source)
             .SetSizeBytes(textureInfo.SizeBytes)
             .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT)
             .BuildManualLifetime();
     
-        void* destination = m_CreateInfo.AssetInfo.Buffer.Map();
+        void* destination = m_CreateInfo.DataBuffer.Map();
         assetLib::unpackTexture(textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)destination);
-        m_CreateInfo.AssetInfo.Buffer.Unmap();
+        m_CreateInfo.DataBuffer.Unmap();
 
         m_CreateInfo.Format = vkUtils::vkFormatByTextureAssetFormat(textureInfo.Format);
         m_CreateInfo.Extent = {textureInfo.Dimensions.Width, textureInfo.Dimensions.Height};
@@ -64,9 +65,33 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
     return *this;
 }
 
+Image::Builder& Image::Builder::FromPixelData(const ImagePixelData& data)
+{
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "`PixelData` and `ImageData` options are incompatible")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "`Asset` and `ImageData` options are incompatible")
+    m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::PixelData;
+
+    u32 pixelsSize = vkUtils::formatSizeBytes(vkUtils::vkFormatByTextureAssetFormat(data.Format)) *
+        data.Width * data.Height;
+    
+    m_CreateInfo.DataBuffer = Buffer::Builder()
+        .SetKind(BufferKind::Source)
+        .SetSizeBytes(pixelsSize)
+        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT)
+        .BuildManualLifetime();
+
+    m_CreateInfo.DataBuffer.SetData(data.Pixels, pixelsSize);
+    m_CreateInfo.Format = vkUtils::vkFormatByTextureAssetFormat(data.Format);
+    m_CreateInfo.Extent = {data.Width, data.Height};
+
+    return *this;
+}
+
 Image::Builder& Image::Builder::FromImageData(const ImageData& imageData)
 {
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "`Asset` in `ImageData` options are incompatible")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "`Asset` and `ImageData` options are incompatible")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::PixelData, "`PixelData` and `ImageData` options are incompatible")
+
     m_CreateInfo.ImageData = imageData;
     m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::ImageData;
     m_CreateInfo.ImageAspect = imageData.Aspect;
@@ -77,8 +102,8 @@ Image::Builder& Image::Builder::FromImageData(const ImageData& imageData)
 Image::Builder& Image::Builder::SetFormat(VkFormat format)
 {
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "Images created using `ImageData` option are immutable")
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset || format == VK_FORMAT_R8G8B8A8_SRGB,
-        "Cannot use custom format when loading from file")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot use custom format when loading from file")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::PixelData, "Cannot use custom format when loading from pixel data")
     m_CreateInfo.Format = format;
     
     return *this;
@@ -87,18 +112,20 @@ Image::Builder& Image::Builder::SetFormat(VkFormat format)
 Image::Builder& Image::Builder::SetExtent(VkExtent2D extent)
 {
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "Images created using `ImageData` option are immutable")
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset,
-        "Cannot set extent when loading from file")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot set extent when loading from file")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::PixelData, "Cannot set extent when loading from pixel data")
+
     m_CreateInfo.Extent = extent;
 
     return *this;
 }
 
-Image::Builder& Image::Builder::CreateMipmaps(bool enable)
+Image::Builder& Image::Builder::CreateMipmaps(bool enable, VkFilter filter)
 {
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::ImageData, "Images created using `ImageData` option are immutable")
     m_CreateMipmaps = enable;
-
+    m_CreateInfo.MipMapFilter = filter;
+    
     return *this;
 }
 
@@ -140,7 +167,8 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     {
         image = AllocateImage(createInfo);
         if (createInfo.CreateView)
-            image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, 1);
+            image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image,
+                createInfo.Format, createInfo.ImageAspect, 1);
         break;
     }
     case CreateInfo::SourceInfo::ImageData:
@@ -151,6 +179,11 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     case CreateInfo::SourceInfo::Asset:
     {
         image = CreateImageFromAsset(createInfo);
+        break;
+    }
+    case CreateInfo::SourceInfo::PixelData:
+    {
+        image = CreateImageFromPixelData(createInfo);
         break;
     }
     default:
@@ -235,19 +268,34 @@ Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
     }
     else
     {
-        image = AllocateImage(createInfo);
-        if (createInfo.CreateView)
-        {
-            ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, 1);
-            PrepareForTransfer(imageSubresource);
-            CopyBufferToImage(createInfo.AssetInfo.Buffer, image, createInfo.ImageAspect);
-            imageSubresource.MipMapCount = createInfo.MipMapCount;
-            CreateMipMaps(image, createInfo);
-            PrepareForShaderRead(imageSubresource);
-            image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image, createInfo.Format, createInfo.ImageAspect, createInfo.MipMapCount);
-        }
-
+        image = CreateImageFromBuffer(createInfo);
         AssetManager::AddImage(createInfo.AssetInfo.AssetPath, image);
+    }
+
+    return image;
+}
+
+Image Image::CreateImageFromPixelData(const CreateInfo& createInfo)
+{
+    return CreateImageFromBuffer(createInfo);
+}
+
+Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
+{
+    Image image = {};
+    
+    image = AllocateImage(createInfo);
+    if (createInfo.CreateView)
+    {
+        ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, 1);
+        PrepareForTransfer(imageSubresource);
+        CopyBufferToImage(createInfo.DataBuffer, image);
+        imageSubresource.MipMapCount = createInfo.MipMapCount;
+        CreateMipMaps(image, createInfo);
+        PrepareForShaderRead(imageSubresource);
+    
+        image.m_ImageData.View = vkUtils::createImageView(Driver::DeviceHandle(), image.m_ImageData.Image,
+            createInfo.Format, createInfo.ImageAspect, createInfo.MipMapCount);
     }
 
     return image;
@@ -330,7 +378,7 @@ void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
     });
 }
 
-void Image::CopyBufferToImage(const Buffer& buffer, const Image& image, VkImageAspectFlags imageAspect)
+void Image::CopyBufferToImage(const Buffer& buffer, const Image& image)
 {
     Driver::ImmediateUpload([&buffer, &image](const CommandBuffer& cmd)
     {
@@ -376,13 +424,13 @@ void Image::CreateMipMaps(const Image& image, const CreateInfo& createInfo)
 
         PrepareForTransfer(mipmapSubresource);
     
-        Driver::ImmediateUpload([&image, &imageBlit](const CommandBuffer& cmd)
+        Driver::ImmediateUpload([&image, &imageBlit, &createInfo](const CommandBuffer& cmd)
         {
                 ImageBlitInfo blitInfo = {};
                 blitInfo.SourceImage = &image;
                 blitInfo.DestinationImage = &image;
                 blitInfo.ImageBlit = &imageBlit;
-                blitInfo.Filter = VK_FILTER_LINEAR;
+                blitInfo.Filter = createInfo.MipMapFilter;
 
                 RenderCommand::BlitImage(cmd, blitInfo);
         });

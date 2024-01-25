@@ -73,7 +73,7 @@ Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Imag
         .SetExtent({width, height})
         .SetFormat(VK_FORMAT_R32_SFLOAT)
         .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-        .CreateMipmaps(true)
+        .CreateMipmaps(true, VK_FILTER_LINEAR)
         .CreateView(false)
         .BuildManualLifetime();
 

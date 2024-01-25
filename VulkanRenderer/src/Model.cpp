@@ -6,6 +6,8 @@
 #include "Core/core.h"
 #include "Mesh.h"
 #include "Scene.h"
+#include "TextureAsset.h"
+#include "Core/Random.h"
 
 Model* Model::LoadFromAsset(std::string_view path)
 {
@@ -118,10 +120,10 @@ void Model::CreateRenderObjects(Scene* scene, const glm::mat4& transform)
                 if (!textures.empty())
                 {
                     Image texture = Image::Builder()
-                        .FromAssetFile(textures.front())
-                        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-                        .CreateMipmaps(true)
-                        .Build();
+                            .FromAssetFile(textures.front())
+                            .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
+                            .CreateMipmaps(true, VK_FILTER_LINEAR)
+                            .Build();
 
                     fn(materialGPU, texture);
                 }
@@ -229,7 +231,7 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(Model* model)
                 Image texture = Image::Builder()
                     .FromAssetFile(textures.front())
                     .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-                    .CreateMipmaps(true)
+                    .CreateMipmaps(true, VK_FILTER_LINEAR)
                     .Build();
 
                 fn(materialGPU, texture);
