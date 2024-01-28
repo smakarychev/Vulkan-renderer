@@ -2,19 +2,18 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
-#include "Mesh.h"
-#include "Scene.h"
 #include "Vulkan/VulkanInclude.h"
 
 #include <array>
 #include <vector>
 
 #include "ResourceUploader.h"
-#include "SceneCull.h"
 #include "Settings.h"
 #include "VisibilityPass.h"
 #include "Core/Camera.h"
 #include "Core/ProfilerContext.h"
+#include "RenderPasses/RenderPassGeometry.h"
+#include "RenderPasses/RenderPassGeometryCull.h"
 
 class Camera;
 class CameraController;
@@ -115,9 +114,6 @@ public:
 
     void Dispatch(const ComputeDispatch& dispatch);
 
-    void Submit(const Scene& scene);
-    void SortScene(Scene& scene);
-
     template <typename Fn>
     void ImmediateUpload(Fn&& uploadFunction) const;
 
@@ -129,8 +125,8 @@ private:
     void InitVisibilityPass();
     void InitVisibilityBufferVisualizationStructures();
 
-    void ShutDown();
-    void ShutDownVisibilityPass();
+    void Shutdown();
+    void ShutdownVisibilityPass();
 
     void CreateDepthPyramid();
     void ComputeDepthPyramid();
@@ -170,7 +166,10 @@ private:
     CameraDataExtendedUBO m_CameraDataExtendedUBO;
     SceneDataUBO m_SceneDataUBO;
     
-    Scene m_Scene;
+    ModelCollection m_ModelCollection;
+    RenderPassGeometry m_OpaqueGeometry;
+    RenderPassGeometryCull m_OpaqueGeometryCull;
+    
 
     DescriptorAllocator m_PersistentDescriptorAllocator;
     DescriptorAllocator m_CullDescriptorAllocator;
@@ -182,9 +181,6 @@ private:
     VisibilityPass m_VisibilityPass;
     // todo: temp object to visualize the visibility buffer
     VisibilityBufferVisualizeData m_VisibilityBufferVisualizeData;
-
-    SceneCull m_SceneCull;
-    u32 m_CullBatchCount{0};
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

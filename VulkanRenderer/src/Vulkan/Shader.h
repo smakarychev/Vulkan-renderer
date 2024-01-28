@@ -197,12 +197,15 @@ public:
 public:
     static ShaderPipeline Create(const Builder::CreateInfo& createInfo);
 
-    void BindGraphics(const CommandBuffer& cmd);
-    void BindCompute(const CommandBuffer& cmd);
+    void BindGraphics(const CommandBuffer& cmd) const;
+    void BindCompute(const CommandBuffer& cmd) const;
     
     const Pipeline& GetPipeline() const { return m_Pipeline; }
     const PipelineLayout& GetPipelineLayout() const { return m_Template->GetPipelineLayout(); }
     const PushConstantDescription& GetPushConstantDescription() const { return m_Template->m_PushConstantDescription; }
+
+    const ShaderPipelineTemplate* GetTemplate() const { return m_Template; }
+    ShaderPipelineTemplate* GetTemplate() { return m_Template; }
 
     bool operator==(const ShaderPipeline& other) const { return m_Pipeline == other.m_Pipeline; }
     bool operator!=(const ShaderPipeline& other) const { return !(*this == other); }
@@ -279,13 +282,15 @@ public:
     static ShaderDescriptorSet Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const ShaderDescriptorSet& descriptorSet);
     
-    void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout);
+    void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout)
+        const;
     void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
-        const std::vector<u32>& dynamicOffsets);
+        const std::vector<u32>& dynamicOffsets) const;
 
-    void BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout);
+    void BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout)
+        const;
     void BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind, const PipelineLayout& pipelineLayout,
-        const std::vector<u32>& dynamicOffsets);
+        const std::vector<u32>& dynamicOffsets) const;
 
     void SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex);
     

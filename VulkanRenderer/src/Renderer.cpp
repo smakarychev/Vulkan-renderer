@@ -6,13 +6,16 @@
 #include <tracy/Tracy.hpp>
 
 #include "RenderObject.h"
-#include "Scene.h"
 #include "Model.h"
 #include "VisibilityPass.h"
 #include "Core/Input.h"
 #include "Core/Random.h"
 
 #include "GLFW/glfw3.h"
+#include "RenderPasses/ModelCollection.h"
+#include "RenderPasses/RenderPass.h"
+#include "RenderPasses/RenderPassGeometry.h"
+#include "RenderPasses/RenderPassGeometryCull.h"
 #include "Vulkan/DepthPyramid.h"
 #include "Vulkan/RenderCommand.h"
 #include "Vulkan/VulkanUtils.h"
@@ -39,7 +42,7 @@ Renderer* Renderer::Get()
 
 Renderer::~Renderer()
 {
-    ShutDown();
+    Shutdown();
 }
 
 void Renderer::Run()
@@ -121,22 +124,11 @@ void Renderer::UpdateCameraBuffers()
 
 void Renderer::UpdateComputeCullBuffers()
 {
-    m_SceneCull.UpdateBuffers(*m_Camera, m_ResourceUploader, GetFrameContext());
+    m_OpaqueGeometryCull.Prepare(*m_Camera, m_ResourceUploader, GetFrameContext());
 }
 
 void Renderer::UpdateScene()
 {
-    // todo: this whole function is strange, and should most certainly be a part of `Scene` class
-    if (m_Scene.IsDirty())
-    {
-        SortScene(m_Scene);
-        m_Scene.CreateSharedMeshContext();
-        
-        m_Scene.OnUpdate(1.0f / 60.0f);
-        m_Scene.ClearDirty();
-    }
-    
-
     FrameContext& context = GetFrameContext();
     
     f32 freq = (f32)glfwGetTime() / 10.0f;
@@ -296,7 +288,7 @@ void Renderer::CreateDepthPyramid()
     m_ComputeDepthPyramidData.DepthPyramid = std::make_unique<DepthPyramid>(m_Swapchain.GetDepthImage(), cmd,
         &m_ComputeDepthPyramidData);
 
-    m_SceneCull.SetDepthPyramid(*m_ComputeDepthPyramidData.DepthPyramid, GetFrameContext().Resolution);
+    m_OpaqueGeometryCull.SetDepthPyramid(*m_ComputeDepthPyramidData.DepthPyramid, GetFrameContext().Resolution);
 }
 
 void Renderer::ComputeDepthPyramid()
@@ -310,8 +302,6 @@ void Renderer::ComputeDepthPyramid()
 void Renderer::SceneVisibilityPass()
 {
     m_VisibilityPass.RenderVisibility({
-        .Scene = &m_Scene,
-        .SceneCull = &m_SceneCull,
         .FrameContext = &GetFrameContext(),
         .DepthPyramid = m_ComputeDepthPyramidData.DepthPyramid.get(),
         .DepthBuffer = &m_Swapchain.GetDepthImage()});
@@ -331,17 +321,6 @@ void Renderer::SceneVisibilityPass()
     RenderCommand::Draw(cmd, 3);
 
     RenderCommand::EndRendering(cmd);
-}
-
-void Renderer::Submit(const Scene& scene)
-{
-    
-}
-
-void Renderer::SortScene(Scene& scene)
-{
-    std::sort(scene.GetRenderObjects().begin(), scene.GetRenderObjects().end(),
-        [](const RenderObject& a, const RenderObject& b) { return a.Mesh < b.Mesh; });
 }
 
 void Renderer::InitRenderingStructures()
@@ -449,11 +428,8 @@ void Renderer::InitVisibilityPass()
         .LayoutCache = &m_LayoutCache,
         .RenderingDetails = m_Swapchain.GetRenderingDetails(),
         .CameraBuffer = &m_CameraDataUBO.Buffer,
-        .CommandsBuffer = &m_SceneCull.GetDrawCommands(),
-        .ObjectsBuffer = &m_Scene.GetRenderObjectsBuffer(),
-        .TrianglesBuffer = &m_SceneCull.GetTriangles(),
-        .MaterialsBuffer = &m_Scene.GetMaterialsBuffer(),
-        .Scene = &m_Scene});
+        .RenderPassGeometry = &m_OpaqueGeometry,
+        .RenderPassGeometryCull = &m_OpaqueGeometryCull});
 
     if (recreated)
         ShaderDescriptorSet::Destroy(m_VisibilityBufferVisualizeData.DescriptorSet);
@@ -463,18 +439,18 @@ void Renderer::InitVisibilityPass()
         .AddBinding("u_visibility_texture", m_VisibilityPass.GetVisibilityImage().CreateDescriptorInfo(
             VK_FILTER_NEAREST, VK_IMAGE_LAYOUT_GENERAL))
         .AddBinding("u_camera_buffer", m_CameraDataExtendedUBO.Buffer, sizeof(CameraDataExtended), 0)
-        .AddBinding("u_object_buffer", m_Scene.GetRenderObjectsBuffer())
-        .AddBinding("u_positions_buffer", m_Scene.GetPositionsBuffer())
-        .AddBinding("u_normals_buffer", m_Scene.GetNormalsBuffer())
-        .AddBinding("u_tangents_buffer", m_Scene.GetTangentsBuffer())
-        .AddBinding("u_uvs_buffer", m_Scene.GetUVsBuffer())
-        .AddBinding("u_indices_buffer", m_Scene.GetIndicesBuffer())
-        .AddBinding("u_command_buffer", m_Scene.GetMeshletsIndirectBuffer())
-        .AddBinding("u_material_buffer", m_Scene.GetMaterialsBuffer())
+        .AddBinding("u_object_buffer", m_OpaqueGeometry.GetRenderObjectsBuffer())
+        .AddBinding("u_positions_buffer", m_OpaqueGeometry.GetAttributeBuffers().Positions)
+        .AddBinding("u_normals_buffer", m_OpaqueGeometry.GetAttributeBuffers().Normals)
+        .AddBinding("u_tangents_buffer", m_OpaqueGeometry.GetAttributeBuffers().Tangents)
+        .AddBinding("u_uvs_buffer", m_OpaqueGeometry.GetAttributeBuffers().UVs)
+        .AddBinding("u_indices_buffer", m_OpaqueGeometry.GetAttributeBuffers().Indices)
+        .AddBinding("u_command_buffer", m_OpaqueGeometry.GetCommandsBuffer())
+        .AddBinding("u_material_buffer", m_OpaqueGeometry.GetMaterialsBuffer())
         .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
         .BuildManualLifetime();
 
-    m_Scene.ApplyMaterialTextures(m_VisibilityBufferVisualizeData.DescriptorSet);
+    m_ModelCollection.ApplyMaterialTextures(m_VisibilityBufferVisualizeData.DescriptorSet);
 }
 
 void Renderer::InitVisibilityBufferVisualizationStructures()
@@ -494,27 +470,26 @@ void Renderer::InitVisibilityBufferVisualizationStructures()
         .Build();
 }
 
-void Renderer::ShutDown()
+void Renderer::Shutdown()
 {
     vkDeviceWaitIdle(Driver::DeviceHandle());
 
-    m_Scene.OnShutdown();
     m_ComputeDepthPyramidData.DepthPyramid.reset();
     
     Swapchain::Destroy(m_Swapchain);
     
-    ShutDownVisibilityPass();
-    m_SceneCull.Shutdown();
-    m_ResourceUploader.ShutDown();
-    ProfilerContext::Get()->ShutDown();
+    ShutdownVisibilityPass();
+    RenderPassGeometryCull::Shutdown(m_OpaqueGeometryCull);
+    m_ResourceUploader.Shutdown();
+    ProfilerContext::Get()->Shutdown();
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();
 }
 
-void Renderer::ShutDownVisibilityPass()
+void Renderer::ShutdownVisibilityPass()
 {
-    m_VisibilityPass.ShutDown();
+    m_VisibilityPass.Shutdown();
     ShaderDescriptorSet::Destroy(m_VisibilityBufferVisualizeData.DescriptorSet);
 }
 
@@ -556,9 +531,6 @@ void Renderer::RecreateSwapchain()
 
 void Renderer::LoadScene()
 {
-    m_Scene.OnInit(&m_ResourceUploader);
-    m_SceneCull.Init(m_Scene, m_CullDescriptorAllocator, m_LayoutCache);
-
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     Model* mori = Model::LoadFromAsset("../assets/models/mori/scene.model");
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/FlightHelmet.model");
@@ -567,13 +539,27 @@ void Renderer::LoadScene()
     Model* sphere = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
     Model* cube = Model::LoadFromAsset("../assets/models/real_cube/scene.model");
     
-    m_Scene.AddModel(car, "car");
-    m_Scene.AddModel(mori, "mori");
-    m_Scene.AddModel(helmet, "helmet");
-    m_Scene.AddModel(armor, "armor");
-    m_Scene.AddModel(mask, "mask");
-    m_Scene.AddModel(sphere, "sphere");
-    m_Scene.AddModel(cube, "cube");
+    m_ModelCollection.RegisterModel(car, "car");
+    m_ModelCollection.RegisterModel(mori, "mori");
+    m_ModelCollection.RegisterModel(helmet, "helmet");
+    m_ModelCollection.RegisterModel(armor, "armor");
+    m_ModelCollection.RegisterModel(mask, "mask");
+    m_ModelCollection.RegisterModel(sphere, "sphere");
+    m_ModelCollection.RegisterModel(cube, "cube");
+
+    for (u32 i = 0; i < 10; i++)
+    {
+        std::vector models = {"car", "armor", "helmet", "mori", "mask"};
+        u32 modelIndex = Random::UInt32(0, (u32)models.size() - 1);
+        glm::mat4 rotate = glm::rotate(glm::mat4(1.0), Random::Float(0.0f, glm::two_pi<f32>()),
+            glm::normalize(Random::Float3()));
+        glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(i * 2.0f, 0.0f, 0.0f)) *
+            rotate *
+            glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
+
+        m_ModelCollection.AddModelInstance(models[modelIndex], {
+            .Transform = transform});
+    }
 
     std::vector models = {"car", "armor", "helmet", "mori", "mask"};
 
@@ -584,17 +570,29 @@ void Renderer::LoadScene()
             for (i32 z = -6; z <= 6; z++)
             {
                 u32 modelIndex = Random::UInt32(0, (u32)models.size() - 1);
-            
+                glm::mat4 rotate = glm::rotate(glm::mat4(1.0), Random::Float(0.0f, glm::two_pi<f32>()),
+                    glm::normalize(Random::Float3()));
                 glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(x * 2.0f, y * 1.5f, z * 2.0f)) *
+                    rotate *
                     glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
 
-                Model* model = m_Scene.GetModel(models[modelIndex]);
-                model->CreateRenderObjects(&m_Scene, transform);
-
-                //model->CreateDebugBoundingSpheres(&m_Scene, transform, m_BindlessData.DescriptorSet, m_BindlessData.BindlessDescriptorsState);
+                m_ModelCollection.AddModelInstance(models[modelIndex], {
+                    .Transform = transform});
             }
         }
     }
+
+    m_OpaqueGeometry = RenderPassGeometry::FromModelCollectionFiltered(
+    m_ModelCollection,
+    m_ResourceUploader,
+    [this](const RenderObject& renderObject)
+    {
+        return m_ModelCollection.GetMaterials()[renderObject.Material].Type ==
+            assetLib::ModelInfo::MaterialType::Opaque;
+    });
+
+    m_OpaqueGeometryCull = RenderPassGeometryCull::ForGeometry(m_OpaqueGeometry,
+        m_CullDescriptorAllocator, m_LayoutCache);
 }
 
 const FrameContext& Renderer::GetFrameContext() const

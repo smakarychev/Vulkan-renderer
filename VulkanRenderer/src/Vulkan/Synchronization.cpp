@@ -224,7 +224,7 @@ DependencyInfo DependencyInfo::Create(const Builder::CreateInfo& createInfo)
 }
 
 
-void Barrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo)
+void Barrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const
 {
     RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
 }

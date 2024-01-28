@@ -22,7 +22,7 @@ class ResourceUploader
     struct BufferUploadInfo
     {
         u32 SourceIndex;
-        const Buffer* Destination;
+        Buffer Destination;
         BufferCopyInfo CopyInfo;
     };
 
@@ -34,16 +34,17 @@ class ResourceUploader
 
     struct BufferDirectUploadInfo
     {
-        Buffer* Destination;
+        Buffer Destination;
         BufferCopyInfo CopyInfo;
     };
 public:
     void Init();
-    void ShutDown();
+    void Shutdown();
     
     void StartRecording();
     void SubmitUpload();
     
+    void UpdateBuffer(Buffer& buffer, const void* data);
     void UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
     void UpdateBuffer(Buffer& buffer, u32 mappedBufferIndex, u64 bufferOffset);
         u32 GetMappedBuffer(u64 sizeBytes);

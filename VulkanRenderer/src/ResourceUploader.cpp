@@ -14,7 +14,7 @@ void ResourceUploader::Init()
     m_ImmediateUploadBuffer = CreateStagingBuffer(STAGING_BUFFER_DEFAULT_SIZE_BYTES).Buffer;
 }
 
-void ResourceUploader::ShutDown()
+void ResourceUploader::Shutdown()
 {
     for (auto& buffer : m_StageBuffers)
         Buffer::Destroy(buffer.Buffer);
@@ -35,7 +35,7 @@ void ResourceUploader::SubmitUpload()
     ZoneScopedN("Submit Upload");
 
     for (auto& directUpload : m_BufferDirectUploads)
-        directUpload.Destination->SetData(
+        directUpload.Destination.SetData(
             m_BufferDirectUploadData.data() + directUpload.CopyInfo.SourceOffset,
             directUpload.CopyInfo.SizeBytes,
             directUpload.CopyInfo.DestinationOffset);
@@ -48,11 +48,16 @@ void ResourceUploader::SubmitUpload()
     Driver::ImmediateUpload([this](const CommandBuffer& cmd)
     {
         for (auto& upload : m_BufferUploads)
-            RenderCommand::CopyBuffer(cmd, m_StageBuffers[upload.SourceIndex].Buffer, *upload.Destination, upload.CopyInfo);
+            RenderCommand::CopyBuffer(cmd, m_StageBuffers[upload.SourceIndex].Buffer, upload.Destination, upload.CopyInfo);
     });
     
     for (u32 i = 0; i <= m_LastUsedBuffer; i++)
         m_StageBuffers[i].Buffer.Unmap();
+}
+
+void ResourceUploader::UpdateBuffer(Buffer& buffer, const void* data)
+{
+    UpdateBuffer(buffer, data, buffer.GetSizeBytes(), 0);
 }
 
 void ResourceUploader::UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset)
@@ -63,7 +68,7 @@ void ResourceUploader::UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBy
         m_BufferDirectUploadData.resize(sourceOffset + sizeBytes);
         std::memcpy(m_BufferDirectUploadData.data() + sourceOffset, data, sizeBytes);
         m_BufferDirectUploads.push_back({
-            .Destination = &buffer,
+            .Destination = buffer,
             .CopyInfo = {.SizeBytes = sizeBytes, .SourceOffset = sourceOffset, .DestinationOffset = bufferOffset}});
 
         return;
@@ -76,13 +81,13 @@ void ResourceUploader::UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBy
     else
         m_BufferUploads.push_back({
             .SourceIndex = m_LastUsedBuffer,
-            .Destination = &buffer,
+            .Destination = buffer,
             .CopyInfo = {.SizeBytes = sizeBytes, .SourceOffset = stagingOffset, .DestinationOffset = bufferOffset}});
 }
 
 void ResourceUploader::UpdateBuffer(Buffer& buffer, u32 mappedBufferIndex, u64 bufferOffset)
 {
-    m_BufferUploads[m_ActiveMappings[mappedBufferIndex].BufferUploadIndex].Destination = &buffer;
+    m_BufferUploads[m_ActiveMappings[mappedBufferIndex].BufferUploadIndex].Destination = buffer;
     m_BufferUploads[m_ActiveMappings[mappedBufferIndex].BufferUploadIndex].CopyInfo.DestinationOffset = bufferOffset;
 }
 
@@ -205,7 +210,7 @@ bool ResourceUploader::MergeIsPossible(Buffer& buffer, u64 bufferOffset) const
     const BufferUploadInfo& upload = m_BufferUploads.back();
     
     return upload.SourceIndex == m_LastUsedBuffer &&
-           upload.Destination == &buffer &&
+           upload.Destination == buffer &&
            upload.CopyInfo.DestinationOffset + upload.CopyInfo.SizeBytes == bufferOffset;
 }
 

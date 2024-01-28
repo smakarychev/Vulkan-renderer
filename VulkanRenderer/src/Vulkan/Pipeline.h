@@ -91,8 +91,8 @@ public:
 public:
     static Pipeline Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Pipeline& pipeline);
-    void BindGraphics(const CommandBuffer& commandBuffer);
-    void BindCompute(const CommandBuffer& commandBuffer);
+    void BindGraphics(const CommandBuffer& commandBuffer) const;
+    void BindCompute(const CommandBuffer& commandBuffer) const;
 
     bool operator==(const Pipeline& other) const { return m_Pipeline == other.m_Pipeline; }
     bool operator!=(const Pipeline& other) const { return !(*this == other); }

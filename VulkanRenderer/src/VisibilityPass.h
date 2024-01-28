@@ -8,11 +8,10 @@
 #include "Vulkan/RenderingInfo.h"
 #include "Vulkan/Synchronization.h"
 
+class RenderPassGeometry;
+class RenderPassGeometryCull;
 class DepthPyramid;
 struct FrameContext;
-class SceneCull;
-class SceneCullBuffers;
-class Scene;
 
 class VisibilityBuffer
 {
@@ -33,17 +32,12 @@ struct VisibilityPassInitInfo
     DescriptorLayoutCache* LayoutCache;
     RenderingDetails RenderingDetails;
     const Buffer* CameraBuffer;
-    const Buffer* CommandsBuffer;
-    const Buffer* ObjectsBuffer;
-    const Buffer* TrianglesBuffer;
-    const Buffer* MaterialsBuffer;
-    const Scene* Scene;
+    RenderPassGeometry* RenderPassGeometry;
+    RenderPassGeometryCull* RenderPassGeometryCull;
 };
 
 struct VisibilityRenderInfo
 {
-    const Scene* Scene;
-    SceneCull* SceneCull;
     FrameContext* FrameContext;
     DepthPyramid* DepthPyramid;
     const Image* DepthBuffer;
@@ -53,7 +47,7 @@ class VisibilityPass
 {
 public:
     bool Init(const VisibilityPassInitInfo& initInfo);
-    void ShutDown();
+    void Shutdown();
 
     void RenderVisibility(const VisibilityRenderInfo& renderInfo);
 
@@ -62,8 +56,6 @@ public:
 private:
     RenderingInfo GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const;
     RenderingInfo GetLoadRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const;
-    void ComputeDepthPyramid(const CommandBuffer& cmd, DepthPyramid& depthPyramid, const Image& depthBuffer);
-    void RenderScene(const CommandBuffer& cmd, const Scene& scene, const SceneCull& sceneCull, u32 frameNumber);
 private:
     ShaderPipelineTemplate* m_Template{};
     ShaderPipeline m_Pipeline{};
@@ -71,6 +63,6 @@ private:
 
     std::unique_ptr<VisibilityBuffer> m_VisibilityBuffer{};
 
-    DependencyInfo m_SplitBarrierDependency{};
-    std::array<SplitBarrier, CULL_DRAW_BATCH_OVERLAP> m_SplitBarriers{};
+    RenderPassGeometry* m_RenderPassGeometry{nullptr};
+    RenderPassGeometryCull* m_RenderPassGeometryCull{nullptr};
 };

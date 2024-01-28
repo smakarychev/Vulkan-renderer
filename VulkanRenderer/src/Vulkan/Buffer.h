@@ -48,12 +48,15 @@ public:
     void SetData(const void* data, u64 dataSizeBytes);
     void SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes);
     void SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes);
-    void* Map();
-    void Unmap();
+    void* Map() const;
+    void Unmap() const;
     u64 GetSizeBytes() const { return m_SizeBytes; }
     BufferKind GetKind() const { return m_Kind; }
 
     BufferSubresource CreateSubresource(u64 sizeBytes, u64 offset) const;
+
+    bool operator==(const Buffer& other) const { return m_Buffer == other.m_Buffer; }
+    bool operator!=(const Buffer& other) const { return !(*this == other); }
     
 private:
     VkBuffer m_Buffer{VK_NULL_HANDLE};

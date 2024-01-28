@@ -118,7 +118,7 @@ void Camera::UpdateViewProjection()
 
 static constexpr f32 DEFAULT_TRANSLATION_SPEED	         = 0.1f;
 static constexpr f32 DEFAULT_TRANSLATION_SPEED_FPS	     = 1.0f;
-static constexpr f32 DEFAULT_TRANSLATION_SPEED_BOOST_FPS = 55.0f;
+static constexpr f32 DEFAULT_TRANSLATION_SPEED_BOOST_FPS = 5.0f;
 static constexpr f32 DEFAULT_ROTATION_SPEED		         = 0.5f;
 static constexpr f32 DEFAULT_E_YAW				         = 0.0f;
 static constexpr f32 DEFAULT_E_PITCH			         = glm::radians(-15.0f);

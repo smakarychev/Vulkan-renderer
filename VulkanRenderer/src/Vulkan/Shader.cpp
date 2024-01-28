@@ -596,12 +596,12 @@ ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
     return shaderPipeline;
 }
 
-void ShaderPipeline::BindGraphics(const CommandBuffer& cmd)
+void ShaderPipeline::BindGraphics(const CommandBuffer& cmd) const
 {
     m_Pipeline.BindGraphics(cmd);
 }
 
-void ShaderPipeline::BindCompute(const CommandBuffer& cmd)
+void ShaderPipeline::BindCompute(const CommandBuffer& cmd) const
 {
     m_Pipeline.BindCompute(cmd);
 }
@@ -740,25 +740,25 @@ void ShaderDescriptorSet::Destroy(const ShaderDescriptorSet& descriptorSet)
 }
 
 void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,
-    const PipelineLayout& pipelineLayout)
+    const PipelineLayout& pipelineLayout) const
 {
     RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_GRAPHICS, {});
 }
 
 void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,
-    const PipelineLayout& pipelineLayout, const std::vector<u32>& dynamicOffsets)
+    const PipelineLayout& pipelineLayout, const std::vector<u32>& dynamicOffsets) const
 {
     RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_GRAPHICS, dynamicOffsets);
 }
 
 void ShaderDescriptorSet::BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind,
-    const PipelineLayout& pipelineLayout)
+    const PipelineLayout& pipelineLayout) const
 {
     RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_COMPUTE, {});
 }
 
 void ShaderDescriptorSet::BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind,
-    const PipelineLayout& pipelineLayout, const std::vector<u32>& dynamicOffsets)
+    const PipelineLayout& pipelineLayout, const std::vector<u32>& dynamicOffsets) const
 {
     RenderCommand::BindDescriptorSet(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, VK_PIPELINE_BIND_POINT_COMPUTE, dynamicOffsets);
 }

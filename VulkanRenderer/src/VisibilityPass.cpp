@@ -2,8 +2,8 @@
 
 #include "Mesh.h"
 #include "Renderer.h"
-#include "Scene.h"
 #include "Vulkan/RenderCommand.h"
+#include "Vulkan/VulkanUtils.h"
 
 namespace
 {
@@ -67,19 +67,8 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
             .AlphaBlending(AlphaBlending::None)
             .Build();
 
-        m_SplitBarrierDependency = DependencyInfo::Builder()
-            .MemoryDependency({
-                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_SHADER_STORAGE_READ_BIT})
-            .Build();
-        
-        for (auto& barrier : m_SplitBarriers)
-        {
-            barrier = SplitBarrier::Builder().Build();
-            barrier.Signal(*initInfo.Cmd, m_SplitBarrierDependency);
-        }
+        m_RenderPassGeometry = initInfo.RenderPassGeometry;
+        m_RenderPassGeometryCull = initInfo.RenderPassGeometryCull;
     }
     
     m_VisibilityBuffer = std::make_unique<VisibilityBuffer>(initInfo.Size, *initInfo.Cmd);
@@ -87,21 +76,22 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
     m_DescriptorSet = ShaderDescriptorSet::Builder()
         .SetTemplate(m_Template)
         .AddBinding("u_camera_buffer", *initInfo.CameraBuffer, sizeof(CameraData), 0)
-        .AddBinding("u_position_buffer", initInfo.Scene->GetPositionsBuffer())
-        .AddBinding("u_uv_buffer", initInfo.Scene->GetUVsBuffer())
-        .AddBinding("u_object_buffer", *initInfo.ObjectsBuffer)
-        .AddBinding("u_triangle_buffer", *initInfo.TrianglesBuffer, CullDrawBatch::GetTrianglesSizeBytes(), 0)
-        .AddBinding("u_command_buffer", initInfo.Scene->GetMeshletsIndirectBuffer())
-        .AddBinding("u_material_buffer", *initInfo.MaterialsBuffer)
+        .AddBinding("u_position_buffer", initInfo.RenderPassGeometry->GetAttributeBuffers().Positions)
+        .AddBinding("u_uv_buffer", initInfo.RenderPassGeometry->GetAttributeBuffers().UVs)
+        .AddBinding("u_object_buffer", initInfo.RenderPassGeometry->GetRenderObjectsBuffer())
+        .AddBinding("u_triangle_buffer", initInfo.RenderPassGeometryCull->GetTriangleBuffer(),
+            initInfo.RenderPassGeometryCull->GetTriangleBufferSizeBytes(), 0)
+        .AddBinding("u_command_buffer", initInfo.RenderPassGeometry->GetCommandsBuffer())
+        .AddBinding("u_material_buffer", initInfo.RenderPassGeometry->GetMaterialsBuffer())
         .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
         .BuildManualLifetime();
 
-    initInfo.Scene->ApplyMaterialTextures(m_DescriptorSet);
+    initInfo.RenderPassGeometry->GetModelCollection().ApplyMaterialTextures(m_DescriptorSet);
 
     return recreated;
 }
 
-void VisibilityPass::ShutDown()
+void VisibilityPass::Shutdown()
 {
     if (m_VisibilityBuffer)
     {
@@ -112,131 +102,33 @@ void VisibilityPass::ShutDown()
 
 void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
 {
-    Barrier barrier = {};
-    u32 batchCount = 0;
+    RenderPassPipelineData renderPassPipelineData{
+        .Pipeline = m_Pipeline,
+        .Descriptors = m_DescriptorSet};
+
+    u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) *
+        renderInfo.FrameContext->FrameNumber);
+    u32 trianglesOffset = RenderPassGeometryCull::TRIANGLE_OFFSET; 
+    DescriptorsOffsets descriptorsOffsets = {};
+    descriptorsOffsets[(u32)DescriptorKind::Global] = {cameraDataOffset};
+    descriptorsOffsets[(u32)DescriptorKind::Pass] = {trianglesOffset};
+
+    RenderingInfo clearRenderingInfo = GetClearRenderingInfo(*renderInfo.DepthBuffer,
+        renderInfo.FrameContext->Resolution);
+    RenderingInfo loadRenderingInfo = GetLoadRenderingInfo(*renderInfo.DepthBuffer,
+        renderInfo.FrameContext->Resolution);
     
-    auto preTriangleCull = [&](CommandBuffer& cmd, bool reocclusion, Fence fence)
-    {
-        ZoneScopedN("Culling");
+    m_RenderPassGeometryCull->CullRender({
+        .Cmd = &renderInfo.FrameContext->Cmd,
+        .FrameNumber = renderInfo.FrameContext->FrameNumber,
+        .Resolution = renderInfo.FrameContext->Resolution,
+        .RenderingPipeline = &renderPassPipelineData,
+        .DescriptorsOffsets = descriptorsOffsets,
+        .ClearRenderingInfo = &clearRenderingInfo,
+        .CopyRenderingInfo = &loadRenderingInfo,
+        .DepthBuffer = renderInfo.DepthBuffer});
 
-        CullContext cullContext = {
-            .Reocclusion = reocclusion,
-            .Cmd = &cmd,
-            .FrameNumber = renderInfo.FrameContext->FrameNumber};
-    
-        renderInfo.SceneCull->CullMeshes(cullContext);
-        renderInfo.SceneCull->CullMeshlets(cullContext);
-
-        DependencyInfo dependencyInfo = DependencyInfo::Builder()
-            .MemoryDependency({
-                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_HOST_BIT,
-                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_HOST_READ_BIT})
-            .Build();
-        barrier.Wait(cmd, dependencyInfo);
-
-        cmd.End();
-        cmd.Submit(Driver::GetDevice().GetQueues().Graphics, fence);
-    };
-    auto preTriangleWaitCPU = [&](CommandBuffer& cmd, Fence fence)
-    {
-        ZoneScopedN("Fence wait");
-        fence.Wait();
-        fence.Reset();
-        batchCount = renderInfo.SceneCull->ReadBackBatchCount(renderInfo.FrameContext->FrameNumber);
-        cmd.Begin();
-    };
-    auto cull = [&](CommandBuffer& cmd, bool reocclusion)
-    {
-        ZoneScopedN("Culling");
-        CullContext cullContext = {
-            .Reocclusion = reocclusion,
-            .Cmd = &cmd,
-            .FrameNumber = renderInfo.FrameContext->FrameNumber};
-    
-        renderInfo.SceneCull->CullCompactTrianglesBatch(cullContext);
-    };
-    auto postCullBatchBarriers = [&](CommandBuffer& cmd)
-    {
-        DependencyInfo dependencyInfo = DependencyInfo::Builder()
-            .MemoryDependency({
-                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT})
-            .Build();
-        barrier.Wait(cmd, dependencyInfo);
-    };
-    auto render = [&](CommandBuffer& cmd, u32 iteration, bool computeDepthPyramid, bool shouldClear)
-    {
-        ZoneScopedN("Rendering");
-
-        RenderCommand::SetViewport(cmd, renderInfo.FrameContext->Resolution);
-        RenderCommand::SetScissors(cmd, {0, 0}, renderInfo.FrameContext->Resolution);
-        RenderCommand::BeginRendering(cmd, iteration == 0 && shouldClear ?
-            GetClearRenderingInfo(*renderInfo.DepthBuffer, renderInfo.FrameContext->Resolution) :
-            GetLoadRenderingInfo(*renderInfo.DepthBuffer, renderInfo.FrameContext->Resolution));
-
-        RenderCommand::BindIndexBuffer(cmd, renderInfo.SceneCull->GetCullDrawBatch().GetIndicesSingular(), 0);
-        RenderScene(cmd, *renderInfo.Scene, *renderInfo.SceneCull, renderInfo.FrameContext->FrameNumber);
-
-        RenderCommand::EndRendering(cmd);
-
-        if (computeDepthPyramid)
-            ComputeDepthPyramid(cmd, *renderInfo.DepthPyramid, *renderInfo.DepthBuffer);
-    };
-    auto triangleCullRenderLoop = [&](CommandBuffer& cmd, bool reocclusion, bool computeDepthPyramid, bool shouldClear)
-    {
-        renderInfo.SceneCull->ResetSubBatches();
-        u32 iterations = std::max(batchCount, 1u);
-        for (u32 i = 0; i < iterations; i++)
-        {
-            m_SplitBarriers[renderInfo.SceneCull->GetBatchCull().GetBatchIndex()].Wait(cmd, m_SplitBarrierDependency);
-            m_SplitBarriers[renderInfo.SceneCull->GetBatchCull().GetBatchIndex()].Reset(cmd, m_SplitBarrierDependency);
-            cull(cmd, reocclusion);
-            postCullBatchBarriers(cmd);
-            render(cmd, i, computeDepthPyramid && i == iterations - 1, shouldClear);
-            m_SplitBarriers[renderInfo.SceneCull->GetBatchCull().GetBatchIndex()].Signal(cmd, m_SplitBarrierDependency);
-            renderInfo.SceneCull->NextSubBatch();
-        }
-    };
-    auto postRenderBarriers = [&](CommandBuffer& cmd)
-    {
-        DependencyInfo dependencyInfo = DependencyInfo::Builder()
-            .MemoryDependency({
-                .SourceStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                .SourceAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT})
-            .Build();
-        barrier.Wait(cmd, dependencyInfo);
-    };
-
-    Fence fence = Fence::Builder().BuildManualLifetime();
-    
-    CommandBuffer& cmd = renderInfo.FrameContext->Cmd;
-    preTriangleCull(cmd, false, fence);
-    preTriangleWaitCPU(cmd, fence);
-
-    renderInfo.SceneCull->BatchIndirectDispatchesBuffersPrepare({
-        .Cmd = &cmd,
-        .FrameNumber = renderInfo.FrameContext->FrameNumber});
-    triangleCullRenderLoop(cmd, false, true, true);
-
-    // triangle-only reocclusion
-    triangleCullRenderLoop(cmd, true, true, false);
-
-    // meshlet reocclusion
-    preTriangleCull(cmd, true, fence);
-    preTriangleWaitCPU(cmd, fence);
-    renderInfo.SceneCull->BatchIndirectDispatchesBuffersPrepare({
-        .Cmd = &cmd,
-        .FrameNumber = renderInfo.FrameContext->FrameNumber});
-    triangleCullRenderLoop(cmd, true, false, false);
-    postRenderBarriers(cmd);
-
-    Fence::Destroy(fence);
+    return;
 }
 
 RenderingInfo VisibilityPass::GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const
@@ -290,35 +182,4 @@ RenderingInfo VisibilityPass::GetLoadRenderingInfo(const Image& depthBuffer, con
         .Build();
 
     return renderingInfo;
-}
-
-void VisibilityPass::ComputeDepthPyramid(const CommandBuffer& cmd, DepthPyramid& depthPyramid, const Image& depthBuffer)
-{
-    ZoneScopedN("Compute depth pyramid");
-    depthPyramid.Compute(depthBuffer, cmd);
-}
-
-void VisibilityPass::RenderScene(const CommandBuffer& cmd, const Scene& scene, const SceneCull& sceneCull,
-    u32 frameNumber)
-{
-    ZoneScopedN("Scene render");
-
-    m_Pipeline.BindGraphics(cmd);
-    const PipelineLayout& layout = m_Pipeline.GetPipelineLayout();
-    
-    u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * frameNumber);
-    u32 trianglesOffset = (u32)sceneCull.GetDrawTrianglesOffset(); 
-    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Global, layout, {cameraDataOffset});
-    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Pass, layout, {trianglesOffset});
-    m_DescriptorSet.BindGraphics(cmd, DescriptorKind::Material, layout);
-    //scene.Bind(cmd);
-
-    RenderCommand::DrawIndexedIndirect(cmd,
-        sceneCull.GetDrawCommandsSingular(),
-        0, 1, sizeof(IndirectCommand));
-    
-    //RenderCommand::DrawIndexedIndirectCount(cmd,
-    //   sceneCull.GetDrawCommands(), commandsOffset,
-    //   sceneCull.GetDrawCount(), 0,
-    //   CullDrawBatch::GetCommandCount(), sizeof(IndirectCommand));
 }

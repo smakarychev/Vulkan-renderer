@@ -98,14 +98,14 @@ void Buffer::SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offs
     std::memcpy(mapped, data, dataSizeBytes);
 }
 
-void* Buffer::Map()
+void* Buffer::Map() const
 {
     void* mappedData;
     vmaMapMemory(Driver::Allocator(), m_Allocation, &mappedData);
     return mappedData;
 }
 
-void Buffer::Unmap()
+void Buffer::Unmap() const
 {
     vmaUnmapMemory(Driver::Allocator(), m_Allocation);
 }

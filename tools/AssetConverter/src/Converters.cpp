@@ -304,6 +304,12 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
     }
     
     u32 textureCount = material->GetTextureCount(textureType);
+    if (textureCount == 0 && textureType == aiTextureType_BASE_COLOR)
+    {
+        textureType = aiTextureType_DIFFUSE;
+        textureCount = material->GetTextureCount(aiTextureType_DIFFUSE);
+    }
+        
     std::vector<std::string> textures(textureCount);
     for (u32 i = 0; i < textureCount; i++)
     {

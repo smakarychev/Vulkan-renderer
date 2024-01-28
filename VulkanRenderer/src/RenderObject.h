@@ -10,6 +10,18 @@ class DescriptorSet;
 class Mesh;
 class Image;
 
+struct Material
+{
+    using MaterialType = assetLib::ModelInfo::MaterialType;
+    using MaterialPropertiesPBR = assetLib::ModelInfo::MaterialPropertiesPBR;
+    MaterialType Type;
+    MaterialPropertiesPBR PropertiesPBR;
+    std::vector<std::string> AlbedoTextures;
+    std::vector<std::string> NormalTextures;
+    std::vector<std::string> MetallicRoughnessTextures;
+    std::vector<std::string> AmbientOcclusionTextures;   
+};
+
 struct MaterialGPU
 {
     static constexpr u32 NO_TEXTURE = std::numeric_limits<u32>::max();
@@ -28,11 +40,18 @@ struct RenderObject
 {
     RenderHandle<Mesh> Mesh{};
     RenderHandle<MaterialGPU> MaterialGPU{};
+    RenderHandle<Material> Material{};
     glm::mat4 Transform{};
 };
 
 struct RenderObjectGPU
 {
     glm::mat4 Transform;
+    assetLib::BoundingSphere BoundingSphere;
+};
+
+struct MeshletGPU
+{
+    assetLib::BoundingCone BoundingCone;
     assetLib::BoundingSphere BoundingSphere;
 };

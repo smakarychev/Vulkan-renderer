@@ -68,7 +68,6 @@ layout(push_constant) uniform push_constants {
     uint u_screen_height;
     uint u_command_offset;
     uint u_max_command_index;
-    uint u_max_draw_calls;
 };
 
 vec4 transform_to_NDC_and_get_aabb(inout Triangle triangle) {

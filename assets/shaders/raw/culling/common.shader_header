@@ -16,6 +16,7 @@ struct scene_data {
     float projection_height;
     float depth_pyramid_width;
     float depth_pyramid_height;
+    
     uint pad0;
     uint pad1;
 };

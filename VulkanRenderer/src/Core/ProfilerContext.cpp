@@ -16,7 +16,7 @@ void ProfilerContext::Init(const std::array<CommandBuffer*, BUFFERED_FRAMES>& cm
     m_GraphicsCommandBuffers = cmds;
 }
 
-void ProfilerContext::ShutDown()
+void ProfilerContext::Shutdown()
 {
     for (auto ctx : m_GraphicsContexts)
         Driver::DestroyTracyGraphicsContext(ctx);

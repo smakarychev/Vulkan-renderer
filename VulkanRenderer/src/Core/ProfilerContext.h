@@ -18,7 +18,7 @@ class ProfilerContext
 public:
     static ProfilerContext* Get();
     void Init(const std::array<CommandBuffer*, BUFFERED_FRAMES>& cmds);
-    void ShutDown();
+    void Shutdown();
 
     TracyVkCtx GraphicsContext();
     

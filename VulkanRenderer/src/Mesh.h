@@ -48,6 +48,7 @@ public:
 
     const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
     const std::vector<Meshlet>& GetMeshlets() const { return m_Meshlets; }
+    u32 GetMeshletCount() const { return (u32)m_Meshlets.size(); }
 private:
     std::vector<glm::vec3> m_Positions;
     std::vector<glm::vec3> m_Normals;
