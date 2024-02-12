@@ -32,6 +32,42 @@ void Driver::Unpack(const Device& device, Swapchain::Builder::CreateInfo& swapch
     swapchainCreateInfo.Queues = &device.m_Queues;
 }
 
+std::vector<Image> Driver::CreateSwapchainImages(const Swapchain& swapchain)
+{
+    u32 imageCount = 0;
+    vkGetSwapchainImagesKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, &imageCount, nullptr);
+    std::vector<VkImage> images(imageCount);
+    vkGetSwapchainImagesKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, &imageCount, images.data());
+
+    ImageDescription description = {
+        .Width = swapchain.m_Extent.width,
+        .Height = swapchain.m_Extent.height,
+        .Layers = 1,
+        .Mipmaps = 1,
+        .Kind = ImageKind::Image2d,
+        .Usage = ImageUsage::Destination};
+    std::vector<Image> colorImages(imageCount);
+    for (auto& image : colorImages)
+        image.m_Description = description;
+    
+    
+    std::vector<VkImageView> imageViews(imageCount);
+    for (u32 i = 0; i < imageCount; i++)
+    {
+        colorImages[i].m_Image = images[i];
+        colorImages[i].m_View = Image::CreateVulkanImageView(
+            colorImages[i].CreateSubresource(0, 1, 0, 1), swapchain.m_ColorFormat);
+    }
+
+    return colorImages;
+}
+
+void Driver::DestroySwapchainImages(const Swapchain& swapchain)
+{
+    for (const auto& colorImage : swapchain.m_ColorImages)
+        vkDestroyImageView(Driver::DeviceHandle(), colorImage.m_View, nullptr);
+}
+
 void Driver::Unpack(const RenderingAttachment& attachment, RenderingInfo::Builder::CreateInfo& renderingInfoCreateInfo)
 {
     if (attachment.m_Type == RenderingAttachmentType::Color)
@@ -40,7 +76,16 @@ void Driver::Unpack(const RenderingAttachment& attachment, RenderingInfo::Builde
         renderingInfoCreateInfo.DepthAttachment = attachment.m_AttachmentInfo;
 }
 
-void Driver::Unpack(const PushConstantDescription& description, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo)
+void Driver::Unpack(const Image& image, ImageLayout layout,
+    RenderingAttachment::Builder::CreateInfo& renderAttachmentCreateInfo)
+{
+    VkRenderingAttachmentInfo renderingAttachmentInfo = Image::CreateVulkanRenderingAttachment(image, layout);
+    renderAttachmentCreateInfo.AttachmentInfo.imageView = renderingAttachmentInfo.imageView;
+    renderAttachmentCreateInfo.AttachmentInfo.imageLayout = renderingAttachmentInfo.imageLayout;
+}
+
+void Driver::Unpack(const PushConstantDescription& description,
+                    PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo)
 {
     VkPushConstantRange pushConstantRange = {};
     pushConstantRange.size = description.m_SizeBytes;
@@ -60,6 +105,13 @@ void Driver::Unpack(const PipelineLayout& pipelineLayout, Pipeline::Builder::Cre
     pipelineCreateInfo.Layout = pipelineLayout.m_Layout;
 }
 
+void Driver::Unpack(const RenderingDetails& renderingDetails, Pipeline::Builder::CreateInfo& pipelineCreateInfo)
+{
+    pipelineCreateInfo.ColorFormats.resize(renderingDetails.ColorFormats.size());
+    pipelineCreateInfo.PipelineRenderingCreateInfo = Image::CreateVulkanRenderingInfo(
+        renderingDetails, pipelineCreateInfo.ColorFormats);
+}
+
 void Driver::Unpack(const CommandPool& commandPool, CommandBuffer::Builder::CreateInfo& commandBufferCreateInfo)
 {
     commandBufferCreateInfo.CommandPool = commandPool.m_CommandPool;
@@ -77,58 +129,46 @@ void Driver::Unpack(DescriptorAllocator::PoolInfo pool, const DescriptorSetLayou
 
 void Driver::Unpack(const LayoutTransitionInfo& layoutTransitionInfo, DependencyInfo::Builder::CreateInfo& createInfo)
 {
-    VkImageMemoryBarrier2 imageMemoryBarrier = {};
-    imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-    imageMemoryBarrier.srcStageMask = layoutTransitionInfo.SourceStage;
-    imageMemoryBarrier.dstStageMask = layoutTransitionInfo.DestinationStage;
-    imageMemoryBarrier.srcAccessMask = layoutTransitionInfo.SourceAccess;
-    imageMemoryBarrier.dstAccessMask = layoutTransitionInfo.DestinationAccess;
-    imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    imageMemoryBarrier.oldLayout = layoutTransitionInfo.OldLayout;
-    imageMemoryBarrier.newLayout = layoutTransitionInfo.NewLayout;
-    imageMemoryBarrier.image = layoutTransitionInfo.ImageSubresource->Image->m_ImageData.Image;
-    imageMemoryBarrier.subresourceRange = {
-        .aspectMask = layoutTransitionInfo.ImageSubresource->Aspect,
-        .baseMipLevel = layoutTransitionInfo.ImageSubresource->MipMapBase,
-        .levelCount = layoutTransitionInfo.ImageSubresource->MipMapCount,
-        .baseArrayLayer = layoutTransitionInfo.ImageSubresource->LayerBase,
-        .layerCount = layoutTransitionInfo.ImageSubresource->LayerCount};
-
-    createInfo.LayoutTransitionInfo = imageMemoryBarrier;
+    Image::FillVulkanLayoutTransitionBarrier(layoutTransitionInfo, *createInfo.LayoutTransitionInfo); 
 }
 
 void Driver::DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
-                                     VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
+    VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
     VkDescriptorBufferInfo descriptorBufferInfo = {};
     descriptorBufferInfo.buffer = bindingInfo.Buffer->m_Buffer;
-    descriptorBufferInfo.offset = bindingInfo.OffsetBytes;
+    descriptorBufferInfo.offset = bindingInfo.Offset;
     descriptorBufferInfo.range = bindingInfo.SizeBytes;
 
-    descriptorSetCreateInfo.BoundResources.push_back({.Buffer = descriptorBufferInfo, .Slot = slot, .Type = descriptor});
-}
-
-void Driver::DescriptorSetBindTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
-{
-    TextureDescriptorInfo descriptorInfo = texture.CreateDescriptorInfo(VK_FILTER_LINEAR);
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = descriptorInfo.Sampler;
-    descriptorTextureInfo.imageLayout = descriptorInfo.Layout;
-    descriptorTextureInfo.imageView = descriptorInfo.View;
-
-    descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot, .Type = descriptor});
+    descriptorSetCreateInfo.BoundResources.push_back({
+        .Buffer = descriptorBufferInfo, .Slot = slot, .Type = descriptor});
 }
 
 void Driver::DescriptorSetBindTexture(u32 slot, const DescriptorSet::TextureBindingInfo& texture,
     VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo)
 {
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = texture.Sampler;
-    descriptorTextureInfo.imageView = texture.View;
-    descriptorTextureInfo.imageLayout = texture.Layout;
+    VkDescriptorImageInfo descriptorTextureInfo = Image::CreateVulkanImageDescriptor(texture);
 
-    descriptorSetCreateInfo.BoundResources.push_back({.Texture = descriptorTextureInfo, .Slot = slot, .Type = descriptor});
+    descriptorSetCreateInfo.BoundResources.push_back({
+        .Texture = descriptorTextureInfo, .Slot = slot, .Type = descriptor});
+}
+
+void Driver::UpdateDescriptorSet(DescriptorSet& descriptorSet,
+    u32 slot, const Texture& texture, VkDescriptorType descriptor, u32 arrayIndex)
+{
+    ImageBindingInfo bindingInfo = texture.CreateBindingInfo({}, ImageLayout::ReadOnly);
+    VkDescriptorImageInfo descriptorTextureInfo = Image::CreateVulkanImageDescriptor(bindingInfo);
+
+    VkWriteDescriptorSet write = {};
+    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    write.descriptorCount = 1;   
+    write.dstSet = descriptorSet.m_DescriptorSet;
+    write.descriptorType = descriptor;
+    write.dstBinding = slot;
+    write.pImageInfo = &descriptorTextureInfo;
+    write.dstArrayElement = arrayIndex;
+
+    vkUpdateDescriptorSets(DeviceHandle(), 1, &write, 0, nullptr);
 }
 
 void Driver::Init(const Device& device)
@@ -186,7 +226,8 @@ void Driver::Shutdown()
 
 TracyVkCtx Driver::CreateTracyGraphicsContext(const CommandBuffer& cmd)
 {
-    TracyVkCtx context = TracyVkContext(GetDevice().m_GPU, GetDevice().m_Device, GetDevice().GetQueues().Graphics.Queue, cmd.m_CommandBuffer)
+    TracyVkCtx context = TracyVkContext(GetDevice().m_GPU, GetDevice().m_Device,
+        GetDevice().GetQueues().Graphics.Queue, cmd.m_CommandBuffer)
     return context;
 }
 
@@ -195,11 +236,13 @@ void Driver::DestroyTracyGraphicsContext(TracyVkCtx context)
     TracyVkDestroy(context)
 }
 
-VkSampler* Driver::GetImmutableSampler()
+void Driver::AddImmutableSampler(ShaderPipelineTemplate::DescriptorsFlags& descriptorsFlags)
 {
-    static VkSampler sampler = Texture::CreateSampler(VK_FILTER_LINEAR, VK_LOD_CLAMP_NONE);
+    static Sampler sampler = Sampler::Builder()
+        .Filters(ImageFilter::Linear, ImageFilter::Linear)
+        .Build();
 
-    return &sampler;
+    descriptorsFlags.Descriptors.back().pImmutableSamplers = &sampler.m_Sampler;
 }
 
 VkCommandBuffer Driver::GetProfilerCommandBuffer(ProfilerContext* context)

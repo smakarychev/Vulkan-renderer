@@ -5,9 +5,12 @@
 #include <Vulkan/vulkan_core.h>
 
 #include "CommandBuffer.h"
+#include "ImageTraits.h"
 #include "types.h"
 #include "VulkanCommon.h"
 
+struct ImageSubresource;
+struct ImageBlitInfo;
 class SplitBarrier;
 class DependencyInfo;
 class TimelineSemaphore;
@@ -35,35 +38,48 @@ public:
     static VkResult WaitForFence(const Fence& fence);
     static VkResult CheckFence(const Fence fence);
     static VkResult ResetFence(const Fence& fence);
-    static VkResult AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex);
-    static VkResult Present(const Swapchain& swapchain, const QueueInfo& queueInfo, const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex);
+    static VkResult AcquireNextImage(const Swapchain& swapchain,
+        const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex);
+    static VkResult Present(const Swapchain& swapchain, const QueueInfo& queueInfo,
+        const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex);
     static VkResult ResetPool(const CommandPool& pool);
     static VkResult ResetCommandBuffer(const CommandBuffer& cmd);
-    static VkResult BeginCommandBuffer(const CommandBuffer& cmd, VkCommandBufferUsageFlags flags, VkCommandBufferInheritanceInfo* inheritanceInfo);
+    static VkResult BeginCommandBuffer(const CommandBuffer& cmd, VkCommandBufferUsageFlags flags,
+        VkCommandBufferInheritanceInfo* inheritanceInfo);
     static VkResult EndCommandBuffer(const CommandBuffer& cmd);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const BufferSubmitTimelineSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const BufferSubmitMixedSyncInfo& submitSync);
+    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+        const BufferSubmitSyncInfo& submitSync);
+    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+        const BufferSubmitTimelineSyncInfo& submitSync);
+    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+        const BufferSubmitMixedSyncInfo& submitSync);
     static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
     static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence);
-    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo, const BufferSubmitTimelineSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo, const BufferSubmitMixedSyncInfo& submitSync);
+    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+        const BufferSubmitSyncInfo& submitSync);
+    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+        const BufferSubmitTimelineSyncInfo& submitSync);
+    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+        const BufferSubmitMixedSyncInfo& submitSync);
 
 
     static void ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary);
 
-    static void BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& imageBlitInfo);
+    static void BlitImage(const CommandBuffer& cmd,
+        const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter);
     
-    static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo);
-    static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination);
+    static void CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination,
+        const BufferCopyInfo& bufferCopyInfo);
+    static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const ImageSubresource& destination);
     
     static void BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
-    static void BindVertexBuffers(const CommandBuffer& cmd, const std::vector<Buffer>& buffers, const std::vector<u64>& offsets);
+    static void BindVertexBuffers(const CommandBuffer& cmd, const std::vector<Buffer>& buffers,
+        const std::vector<u64>& offsets);
     static void BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
     static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
     static void BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
-        const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets);
+        const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint,
+        const std::vector<u32>& dynamicOffsets);
     
     static void Draw(const CommandBuffer& cmd, u32 vertexCount);
     static void Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance);

@@ -753,8 +753,8 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
             shaderInfo.InputAttributes.push_back({
                 .Location = input->location,
                 .Name = input->name,
-                .Format = (VkFormat)input->format
-            });
+                .Format = (VkFormat)input->format,
+                .SizeBytes = input->numeric.scalar.width * std::max(1u, input->numeric.vector.component_count) / 8});
             for (auto& inputBinding : inputBindings)
                 if (inputBinding.Attribute == input->name)
                 {

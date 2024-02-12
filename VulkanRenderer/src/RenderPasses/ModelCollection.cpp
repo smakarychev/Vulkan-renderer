@@ -69,8 +69,8 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(Model* model)
             {
                 Image texture = Image::Builder()
                     .FromAssetFile(textures.front())
-                    .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-                    .CreateMipmaps(true, VK_FILTER_LINEAR)
+                    .SetUsage(ImageUsage::Sampled)
+                    .CreateMipmaps(true, ImageFilter::Linear)
                     .Build();
 
                 fn(materialGPU, texture);

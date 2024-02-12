@@ -138,19 +138,17 @@ private:
 CullBatch::CullBatch()
 {
     Indices = Buffer::Builder()
-        .SetKinds({BufferKind::Index, BufferKind::Storage})
+        .SetUsage(BufferUsage::Index | BufferUsage::Storage)
         .SetSizeBytes(MAX_INDICES * sizeof(u32) * SUB_BATCH_COUNT)
         .Build();
 
     Count = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage})
+        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage)
         .SetSizeBytes(sizeof(u32))
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 
     Draw = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
+        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination)
         .SetSizeBytes(sizeof(IndirectCommand))
         .Build();
 }
@@ -189,10 +187,8 @@ void RenderPassGeometryCull::BatchedCull::SetDepthPyramid(const DepthPyramid& de
         batchData.TriangleCullSingular.Descriptors = ShaderDescriptorSet::Builder()
             .SetTemplate(batchData.TriangleCullSingular.Pipeline.GetTemplate())
             .AddBinding("u_scene_data", cullBuffers.CameraDataUBOExtended.Buffer, sizeof(CameraCullData), 0)
-            .AddBinding("u_depth_pyramid", {
-                .View = depthPyramid.GetTexture().GetImageData().View,
-                .Sampler = depthPyramid.GetSampler(),
-                .Layout = VK_IMAGE_LAYOUT_GENERAL})
+            .AddBinding("u_depth_pyramid",  depthPyramid.GetTexture().CreateBindingInfo(
+                depthPyramid.GetSampler(), ImageLayout::General))
             .AddBinding("u_object_buffer", renderPassGeometry.GetRenderObjectsBuffer())
             .AddBinding("u_meshlet_visibility_buffer", cullBuffers.VisibilityBuffers.MeshletVisibility)
             .AddBinding("u_positions_buffer", renderPassGeometry.GetAttributeBuffers().Positions)
@@ -252,10 +248,10 @@ void RenderPassGeometryCull::BatchedCull::BatchIndirectDispatchesBuffersPrepare(
 
     DependencyInfo indirectDependency = DependencyInfo::Builder()
         .MemoryDependency({
-            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-            .DestinationAccess = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT})
+            .SourceStage = PipelineStage::ComputeShader,
+            .DestinationStage = PipelineStage::Indirect,
+            .SourceAccess = PipelineAccess::WriteShader,
+            .DestinationAccess = PipelineAccess::ReadIndirect})
         .Build();
     RenderCommand::WaitOnBarrier(cmd, indirectDependency);
 }
@@ -417,10 +413,10 @@ void RenderPassGeometryCull::BatchedCull::RecordCommandBuffers(const CullBuffers
 
                 DependencyInfo computeDependency = DependencyInfo::Builder()
                     .MemoryDependency({
-                        .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                        .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-                        .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT})
+                        .SourceStage = PipelineStage::ComputeShader,
+                        .DestinationStage = PipelineStage::ComputeShader,
+                        .SourceAccess = PipelineAccess::WriteShader,
+                        .DestinationAccess = PipelineAccess::ReadShader})
                     .Build();
                 RenderCommand::WaitOnBarrier(cmd, computeDependency);
 
@@ -445,26 +441,21 @@ void RenderPassGeometryCull::BatchedCull::RecordCommandBuffers(const CullBuffers
 void RenderPassGeometryCull::CullBuffers::Init(const RenderPassGeometry& renderPassGeometry)
 {
     Buffer::Builder uboBuilder = Buffer::Builder()
-        .SetKind({BufferKind::Uniform})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+        .SetUsage(BufferUsage::Uniform | BufferUsage::Upload);
 
     Buffer::Builder ssboReadBackBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::BufferKind::Storage})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT);
+        .SetUsage(BufferUsage::Storage | BufferUsage::Readback);
     
     Buffer::Builder ssboBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::Storage})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        .SetUsage(BufferUsage::Storage);
     
     Buffer::Builder ssboIndirectBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination);
     
     u32 maxBatchDispatches = renderPassGeometry.GetCommandCount() / CullBatch::GetCommandCount() + 1;
 
     Buffer::Builder indirectDispatchBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage);
     
     CameraDataUBO.Buffer = uboBuilder
         .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<CameraCullData>(BUFFERED_FRAMES))
@@ -552,10 +543,8 @@ void RenderPassGeometryCull::SetDepthPyramid(DepthPyramid& depthPyramid, const g
     m_MeshCull.Descriptors = ShaderDescriptorSet::Builder()
         .SetTemplate(m_MeshCull.Pipeline.GetTemplate())
         .AddBinding("u_scene_data", m_CullBuffers->CameraDataUBO.Buffer, sizeof(CameraCullData), 0)
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
+        .AddBinding("u_depth_pyramid", depthPyramid.GetTexture().CreateBindingInfo(
+            depthPyramid.GetSampler(), ImageLayout::General))
         .AddBinding("u_object_buffer", m_RenderPassGeometry->GetRenderObjectsBuffer())
         .AddBinding("u_object_visibility_buffer", m_CullBuffers->VisibilityBuffers.MeshVisibility)
         .BuildManualLifetime();
@@ -565,10 +554,8 @@ void RenderPassGeometryCull::SetDepthPyramid(DepthPyramid& depthPyramid, const g
     m_MeshletCull.Descriptors = ShaderDescriptorSet::Builder()
         .SetTemplate(m_MeshletCull.Pipeline.GetTemplate())
         .AddBinding("u_scene_data", m_CullBuffers->CameraDataUBO.Buffer, sizeof(CameraCullData), 0)
-        .AddBinding("u_depth_pyramid", {
-            .View = depthPyramid.GetTexture().GetImageData().View,
-            .Sampler = depthPyramid.GetSampler(),
-            .Layout = VK_IMAGE_LAYOUT_GENERAL})
+        .AddBinding("u_depth_pyramid", depthPyramid.GetTexture().CreateBindingInfo(
+            depthPyramid.GetSampler(), ImageLayout::General))
         .AddBinding("u_object_buffer", m_RenderPassGeometry->GetRenderObjectsBuffer())
         .AddBinding("u_object_visibility_buffer", m_CullBuffers->VisibilityBuffers.MeshVisibility)
         .AddBinding("u_meshlet_buffer", m_RenderPassGeometry->GetMeshletsBuffer())
@@ -598,11 +585,11 @@ void RenderPassGeometryCull::Prepare(const Camera& camera,
 
     if (m_DepthPyramid != nullptr)
     {
-        sceneCullData.PyramidWidth = (f32)m_DepthPyramid->GetTexture().GetImageData().Width;
-        sceneCullData.PyramidHeight = (f32)m_DepthPyramid->GetTexture().GetImageData().Height;
+        sceneCullData.PyramidWidth = (f32)m_DepthPyramid->GetTexture().GetDescription().Width;
+        sceneCullData.PyramidHeight = (f32)m_DepthPyramid->GetTexture().GetDescription().Height;
 
-        sceneCullDataExtended.PyramidWidth = (f32)m_DepthPyramid->GetTexture().GetImageData().Width;
-        sceneCullDataExtended.PyramidHeight = (f32)m_DepthPyramid->GetTexture().GetImageData().Height;
+        sceneCullDataExtended.PyramidWidth = (f32)m_DepthPyramid->GetTexture().GetDescription().Width;
+        sceneCullDataExtended.PyramidHeight = (f32)m_DepthPyramid->GetTexture().GetDescription().Height;
     }
     resourceUploader.UpdateBuffer(m_CullBuffers->CameraDataUBO.Buffer, &sceneCullData,
         sizeof(sceneCullData), vkUtils::alignUniformBufferSizeBytes(sizeof(sceneCullData)) * frameContext.FrameNumber);
@@ -630,10 +617,10 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
 
         DependencyInfo dependencyInfo = DependencyInfo::Builder()
             .MemoryDependency({
-                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_HOST_BIT,
-                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_HOST_READ_BIT})
+                .SourceStage = PipelineStage::ComputeShader,
+                .DestinationStage = PipelineStage::Host,
+                .SourceAccess = PipelineAccess::WriteShader,
+                .DestinationAccess = PipelineAccess::ReadHost})
             .Build();
         barrier.Wait(cmd, dependencyInfo);
 
@@ -662,10 +649,10 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
     {
         DependencyInfo dependencyInfo = DependencyInfo::Builder()
             .MemoryDependency({
-                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT})
+                .SourceStage = PipelineStage::ComputeShader,
+                .DestinationStage = PipelineStage::Indirect,
+                .SourceAccess = PipelineAccess::WriteShader,
+                .DestinationAccess = PipelineAccess::ReadIndirect})
             .Build();
         barrier.Wait(cmd, dependencyInfo);
     };
@@ -721,10 +708,10 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
     {
         DependencyInfo dependencyInfo = DependencyInfo::Builder()
             .MemoryDependency({
-                .SourceStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-                .SourceAccess = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT})
+                .SourceStage = PipelineStage::ColorOutput,
+                .DestinationStage = PipelineStage::FragmentShader,
+                .SourceAccess = PipelineAccess::WriteColorAttachment,
+                .DestinationAccess = PipelineAccess::ReadShader})
             .Build();
         barrier.Wait(cmd, dependencyInfo);
     };
@@ -824,26 +811,26 @@ void RenderPassGeometryCull::InitSynchronization()
 {
     m_ComputeWRDependency = DependencyInfo::Builder()
         .MemoryDependency({
-            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-            .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT})
+            .SourceStage = PipelineStage::ComputeShader,
+            .DestinationStage = PipelineStage::ComputeShader,
+            .SourceAccess = PipelineAccess::WriteShader,
+            .DestinationAccess = PipelineAccess::ReadSampled})
         .Build();
 
     m_IndirectWRDependency = DependencyInfo::Builder()
         .MemoryDependency({
-            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT,
-            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-            .DestinationAccess = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT})
+            .SourceStage = PipelineStage::ComputeShader,
+            .DestinationStage = PipelineStage::Indirect,
+            .SourceAccess = PipelineAccess::WriteShader,
+            .DestinationAccess = PipelineAccess::ReadIndirect})
         .Build();
 
     m_SplitBarrierDependency = DependencyInfo::Builder()
         .MemoryDependency({
-            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
-            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-            .DestinationAccess = VK_ACCESS_2_SHADER_STORAGE_READ_BIT})
+            .SourceStage = PipelineStage::ComputeShader,
+            .DestinationStage = PipelineStage::FragmentShader,
+            .SourceAccess = PipelineAccess::WriteShader,
+            .DestinationAccess = PipelineAccess::ReadStorage})
         .Build();
 }
 

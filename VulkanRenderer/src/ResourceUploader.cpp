@@ -161,9 +161,8 @@ void ResourceUploader::ManageLifeTime()
 ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 sizeBytes)
 {
     Buffer stagingBuffer = Buffer::Builder()
-        .SetKind(BufferKind::Source)
+        .SetUsage(BufferUsage::Source | BufferUsage::Upload)
         .SetSizeBytes(sizeBytes)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .BuildManualLifetime();
 
     return {.Buffer = stagingBuffer, .MappedAddress = nullptr};
@@ -216,5 +215,5 @@ bool ResourceUploader::MergeIsPossible(Buffer& buffer, u64 bufferOffset) const
 
 bool ResourceUploader::ShouldBeUpdatedDirectly(Buffer& buffer)
 {
-    return (buffer.GetKind().Kind & BufferKind::Destination) == 0;
+    return !enumHasAll(buffer.GetKind(), BufferUsage::Destination);
 }

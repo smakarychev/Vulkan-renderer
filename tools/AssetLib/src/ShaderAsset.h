@@ -21,6 +21,7 @@ namespace assetLib
             u32 Location;
             std::string Name;
             VkFormat Format;
+            u32 SizeBytes;
         };
         struct PushConstant
         {

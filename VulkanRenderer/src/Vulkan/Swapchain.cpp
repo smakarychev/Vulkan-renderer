@@ -87,7 +87,7 @@ Swapchain::Builder& Swapchain::Builder::SetSyncStructures(const std::vector<Swap
 
 void Swapchain::Builder::PreBuild()
 {
-    m_CreateInfo.DrawFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
+    m_CreateInfo.DrawFormat = ImageFormat::RGBA16_FLOAT;
     m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
     
     if (m_CreateInfo.FrameSyncs.empty())
@@ -107,9 +107,9 @@ u32 Swapchain::Builder::ChooseImageCount(const VkSurfaceCapabilitiesKHR& capabil
     return std::min(capabilities.minImageCount + 1, capabilities.maxImageCount); 
 }
 
-VkFormat Swapchain::Builder::ChooseDepthFormat()
+ImageFormat Swapchain::Builder::ChooseDepthFormat()
 {
-    return VK_FORMAT_D32_SFLOAT;
+    return ImageFormat::D32_FLOAT;
 }
 
 std::vector<SwapchainFrameSync> Swapchain::Builder::CreateSynchronizationStructures()
@@ -187,8 +187,7 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
 
 void Swapchain::Destroy(const Swapchain& swapchain)
 {
-    for (const auto& colorImage : swapchain.m_ColorImages)
-        vkDestroyImageView(Driver::DeviceHandle(), colorImage.GetImageData().View, nullptr);
+    Driver::DestroySwapchainImages(swapchain);
     Image::Destroy(swapchain.m_DrawImage);
     Image::Destroy(swapchain.m_DepthImage);
     vkDestroySwapchainKHR(Driver::DeviceHandle(), swapchain.m_Swapchain, nullptr);
@@ -231,25 +230,23 @@ void Swapchain::PrepareRendering(const CommandBuffer& cmd)
     DependencyInfo drawTransition = DependencyInfo::Builder()
         .LayoutTransition({
             .ImageSubresource = &drawSubresource,
-            .SourceStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .SourceAccess = 0,
-            .DestinationAccess = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .NewLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL})
+            .SourceStage = PipelineStage::Top,
+            .DestinationStage = PipelineStage::ColorOutput,
+            .SourceAccess = PipelineAccess::None,
+            .DestinationAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,
+            .OldLayout = ImageLayout::Undefined,
+            .NewLayout = ImageLayout::ColorAttachment})
         .Build();
     
     DependencyInfo depthTransition = DependencyInfo::Builder()
         .LayoutTransition({
             .ImageSubresource = &depthSubresource,
-            .SourceStage = VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
-                VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-            .SourceAccess = 0,
-            .DestinationAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .NewLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL})
+            .SourceStage = PipelineStage::Top,
+            .DestinationStage = PipelineStage::DepthEarly | PipelineStage::DepthLate,
+            .SourceAccess = PipelineAccess::None,
+            .DestinationAccess = PipelineAccess::ReadDepthStencilAttachment | PipelineAccess::WriteDepthStencilAttachment,
+            .OldLayout = ImageLayout::Undefined,
+            .NewLayout = ImageLayout::DepthAttachment})
         .Build();
 
     barrier.Wait(cmd, drawTransition);
@@ -264,21 +261,21 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
 
     LayoutTransitionInfo drawToSourceTransitionInfo = {
         .ImageSubresource = &drawSubresource,
-        .SourceStage = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .DestinationStage = VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT,
-        .SourceAccess = VK_ACCESS_2_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT,
-        .DestinationAccess = 0,
-        .OldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        .NewLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL};
+        .SourceStage = PipelineStage::ColorOutput,
+        .DestinationStage = PipelineStage::Bottom,
+        .SourceAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,
+        .DestinationAccess = PipelineAccess::None,
+        .OldLayout = ImageLayout::ColorAttachment,
+        .NewLayout = ImageLayout::Source};
     
     LayoutTransitionInfo presentToDestinationTransitionInfo = drawToSourceTransitionInfo;
     presentToDestinationTransitionInfo.ImageSubresource = &presentSubresource;
-    presentToDestinationTransitionInfo.OldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    presentToDestinationTransitionInfo.NewLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    presentToDestinationTransitionInfo.OldLayout = ImageLayout::Undefined;
+    presentToDestinationTransitionInfo.NewLayout = ImageLayout::Destination;
 
     LayoutTransitionInfo destinationToPresentTransitionInfo = presentToDestinationTransitionInfo;
-    destinationToPresentTransitionInfo.OldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    destinationToPresentTransitionInfo.NewLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
+    destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
 
     
     DependencyInfo drawToSourceTransition = DependencyInfo::Builder()
@@ -293,34 +290,13 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
 
     barrier.Wait(cmd, drawToSourceTransition);
     barrier.Wait(cmd, presentToDestinationTransition);
+
+    ImageBlitInfo source = m_DrawImage.CreateImageBlitInfo(
+        drawSubresource.MipmapBase, drawSubresource.LayerBase, drawSubresource.Layers);
+    ImageBlitInfo destination = m_ColorImages[imageIndex].CreateImageBlitInfo(
+        presentSubresource.MipmapBase, presentSubresource.LayerBase, presentSubresource.Layers);
     
-    VkImageBlit2 imageBlit = {};
-    imageBlit.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
-    // TODO: create transform functions for this
-    imageBlit.srcSubresource = {
-        .aspectMask = drawSubresource.Aspect,
-        .mipLevel = drawSubresource.MipMapBase,
-        .baseArrayLayer = drawSubresource.LayerBase,
-        .layerCount = drawSubresource.LayerCount};
-    imageBlit.srcOffsets[1] = VkOffset3D{
-        (i32)m_DrawImage.GetImageData().Width,
-        (i32)m_DrawImage.GetImageData().Height,
-        1};
-    imageBlit.dstSubresource = {
-        .aspectMask = presentSubresource.Aspect,
-        .mipLevel = presentSubresource.MipMapBase,
-        .baseArrayLayer = presentSubresource.LayerBase,
-        .layerCount = presentSubresource.LayerCount};
-    imageBlit.dstOffsets[1] = VkOffset3D{
-        (i32)m_ColorImages[imageIndex].GetImageData().Width,
-        (i32)m_ColorImages[imageIndex].GetImageData().Height,
-        1};
-    
-    RenderCommand::BlitImage(cmd, {
-        .SourceImage = &m_DrawImage,
-        .DestinationImage = &m_ColorImages[imageIndex],
-        .ImageBlit = &imageBlit,
-        .Filter = VK_FILTER_LINEAR});
+    RenderCommand::BlitImage(cmd, source, destination, ImageFilter::Linear);
 
     barrier.Wait(cmd, destinationToPresentTransition);
 }
@@ -337,44 +313,15 @@ const std::vector<SwapchainFrameSync>& Swapchain::GetFrameSync() const
 
 std::vector<Image> Swapchain::CreateColorImages() const
 {
-    u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(Driver::DeviceHandle(), m_Swapchain, &imageCount, nullptr);
-    std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(Driver::DeviceHandle(), m_Swapchain, &imageCount, images.data());
-
-    std::vector<VkImageView> imageViews(imageCount);
-    for (u32 i = 0; i < imageCount; i++)
-        imageViews[i] = vkUtils::createImageView(Driver::DeviceHandle(), images[i], m_ColorFormat, VK_IMAGE_ASPECT_COLOR_BIT, 1);
-
-    std::vector<Image> colorImages(imageCount);
-    for (u32 i = 0; i < imageCount; i++)
-    {
-        ImageData imageData = {
-            .Image = images[i],
-            .View = imageViews[i],
-            .Aspect = VK_IMAGE_ASPECT_COLOR_BIT,
-            .Width = m_Extent.width,
-            .Height = m_Extent.height};
-    
-        colorImages[i] = Image::Builder()
-            .FromImageData(imageData)
-            .Build();
-    }
-
-    return colorImages;
+    return Driver::CreateSwapchainImages(*this);
 }
 
 Image Swapchain::CreateDrawImage()
 {
     m_DrawImage = Image::Builder()
-        .SetExtent(m_DrawExtent)
+        .SetExtent(glm::uvec2{m_DrawExtent.width, m_DrawExtent.height})
         .SetFormat(m_DrawFormat)
-        .SetUsage(
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-            VK_IMAGE_USAGE_STORAGE_BIT |
-            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            VK_IMAGE_ASPECT_COLOR_BIT)
+        .SetUsage(ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color)
         .BuildManualLifetime();
 
     return m_DrawImage;
@@ -383,9 +330,9 @@ Image Swapchain::CreateDrawImage()
 Image Swapchain::CreateDepthImage()
 {
     Image depth = Image::Builder()
-        .SetExtent(m_Extent)
+        .SetExtent(glm::uvec2{m_Extent.width, m_Extent.height})
         .SetFormat(m_DepthFormat)
-        .SetUsage(VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_IMAGE_ASPECT_DEPTH_BIT)
+        .SetUsage(ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled)
         .BuildManualLifetime();
 
     return depth;

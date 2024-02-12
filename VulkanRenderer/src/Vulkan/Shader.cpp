@@ -15,6 +15,24 @@
 #include "VulkanUtils.h"
 #include "utils/utils.h"
 
+namespace
+{
+    ShaderKind shaderKindFromVulkanStage(VkShaderStageFlags stage)
+    {
+        switch ((VkShaderStageFlagBits)stage)
+        {
+        case VK_SHADER_STAGE_VERTEX_BIT:
+            return ShaderKind::Vertex;
+        case VK_SHADER_STAGE_FRAGMENT_BIT:
+            return ShaderKind::Pixel;
+        case VK_SHADER_STAGE_COMPUTE_BIT:
+            return ShaderKind::Compute;
+        default:
+            ASSERT(false, "Unsopported shader kind")
+        }
+        std::unreachable();
+    }
+}
 
 Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
 {
@@ -59,7 +77,7 @@ assetLib::ShaderInfo Shader::LoadFromAsset(std::string_view path)
     assetLib::ShaderInfo shaderInfo = assetLib::readShaderInfo(shaderFile);
     
     ShaderModule shaderModule = {};
-    shaderModule.Kind = vkUtils::shaderKindByStage(shaderInfo.ShaderStages);
+    shaderModule.Kind = shaderKindFromVulkanStage(shaderInfo.ShaderStages);
     shaderModule.Source.resize(shaderInfo.SourceSizeBytes);
     assetLib::unpackShader(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), shaderModule.Source.data());
     m_Modules.push_back(shaderModule);
@@ -339,7 +357,8 @@ std::vector<DescriptorSetLayout*> ShaderPipelineTemplate::CreateDescriptorLayout
     for (auto& set : descriptorSetReflections)
     {
         DescriptorsFlags descriptorsFlags = ExtractDescriptorsAndFlags(set);
-        layouts.push_back(layoutCache->CreateDescriptorSetLayout(descriptorsFlags.Descriptors, descriptorsFlags.Flags, set.LayoutFlags));
+        layouts.push_back(layoutCache->CreateDescriptorSetLayout(descriptorsFlags.Descriptors,
+            descriptorsFlags.Flags, set.LayoutFlags));
     }
 
     return layouts;
@@ -386,7 +405,7 @@ VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(const std:
         attributeDescription.format = input.Format;
         attributeDescription.location = input.Location;
         attributeDescription.offset = binding.stride;
-        binding.stride += vkUtils::formatSizeBytes(input.Format);
+        binding.stride += input.SizeBytes;
 
         inputDescription.Attributes.push_back(attributeDescription);
     }
@@ -450,9 +469,9 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
         descriptorSetLayoutBinding.descriptorCount = descriptor.Count;
         descriptorSetLayoutBinding.descriptorType = descriptor.Type;
         descriptorSetLayoutBinding.stageFlags = descriptor.ShaderStages;
-        if (descriptor.IsImmutableSampler)
-            descriptorSetLayoutBinding.pImmutableSamplers = Driver::GetImmutableSampler();
         descriptorsFlags.Descriptors.push_back(descriptorSetLayoutBinding);
+        if (descriptor.IsImmutableSampler)
+            Driver::AddImmutableSampler(descriptorsFlags);
         descriptorsFlags.Flags.push_back(descriptor.Flags);
     }
 
@@ -652,21 +671,8 @@ ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::stri
         {
             .Buffer = &buffer,
             .SizeBytes = sizeBytes,
-            .OffsetBytes = offset
+            .Offset = offset
         },
-        descriptorInfo.Type);
-
-    return *this;
-}
-
-ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::string_view name, const Texture& texture)
-{
-    const DescriptorInfo& descriptorInfo = m_CreateInfo.ShaderPipelineTemplate->GetDescriptorInfo(name);
-    m_CreateInfo.UsedSets[descriptorInfo.Set]++;
-
-    m_CreateInfo.DescriptorBuilders[descriptorInfo.Set].AddTextureBinding(
-        descriptorInfo.Binding,
-        texture,
         descriptorInfo.Type);
 
     return *this;

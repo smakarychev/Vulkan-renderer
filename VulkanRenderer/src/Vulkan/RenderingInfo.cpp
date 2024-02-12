@@ -14,11 +14,9 @@ RenderingAttachment::Builder& RenderingAttachment::Builder::SetType(RenderingAtt
     return *this;
 }
 
-RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const ImageData& imageData,
-    VkImageLayout imageLayout)
+RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const Image& image, ImageLayout imageLayout)
 {
-    m_CreateInfo.AttachmentInfo.imageView = imageData.View;
-    m_CreateInfo.AttachmentInfo.imageLayout = imageLayout;
+    Driver::Unpack(image, imageLayout, m_CreateInfo);
 
     return *this;
 }

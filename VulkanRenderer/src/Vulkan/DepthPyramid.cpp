@@ -6,7 +6,6 @@
 #include "RenderCommand.h"
 #include "Renderer.h"
 #include "VulkanCore.h"
-#include "VulkanUtils.h"
 #include "utils/MathUtils.h"
 #include "utils/utils.h"
 
@@ -18,18 +17,16 @@ DepthPyramid::DepthPyramid(const Image& depthImage, const CommandBuffer& cmd,
     m_Sampler = CreateSampler();
 
     m_PyramidDepth = CreatePyramidDepthImage(cmd, depthImage);
-    m_MipMapViews = CreateViews(m_PyramidDepth);
+    m_MipmapViews = CreateViews(m_PyramidDepth);
     CreateDescriptorSets(depthImage);
 }
 
 DepthPyramid::~DepthPyramid()
 {
-    vkDestroySampler(Driver::DeviceHandle(), m_Sampler, nullptr);
-    for (u32 i = 0; i < m_PyramidDepth.GetImageData().MipMapCount; i++)
-    {
-        vkDestroyImageView(Driver::DeviceHandle(), m_MipMapViews[i], nullptr);
+    for (u32 i = 0; i < m_PyramidDepth.GetDescription().Mipmaps; i++)
         ShaderDescriptorSet::Destroy(m_DepthPyramidDescriptors[i]);
-    }
+    
+    ImageViewList::Destroy(m_MipmapViews);
     Image::Destroy(m_PyramidDepth);
 }
 
@@ -39,61 +36,42 @@ void DepthPyramid::Compute(const Image& depthImage, const CommandBuffer& cmd)
     Fill(cmd, depthImage);
 }
 
-VkSampler DepthPyramid::CreateSampler()
+Sampler DepthPyramid::CreateSampler()
 {
-    VkSamplerCreateInfo samplerCreateInfo = {};
-    samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerCreateInfo.magFilter = VK_FILTER_LINEAR;
-    samplerCreateInfo.minFilter = VK_FILTER_LINEAR;
-    samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    samplerCreateInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerCreateInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerCreateInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    samplerCreateInfo.minLod = 0;
-    samplerCreateInfo.maxLod = (f32)DepthPyramid::MAX_DEPTH;
-
-    VkSamplerReductionModeCreateInfo reductionModeCreateInfo = {};
-    reductionModeCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO;
-    reductionModeCreateInfo.reductionMode = VK_SAMPLER_REDUCTION_MODE_MIN;
-    samplerCreateInfo.pNext = &reductionModeCreateInfo;
-
-    VkSampler sampler;
+    Sampler sampler = Sampler::Builder()
+        .Filters(ImageFilter::Linear, ImageFilter::Linear)
+        .MaxLod((f32)DepthPyramid::MAX_MIPMAP_COUNT)
+        .WithAnisotropy(false)
+        .ReductionMode(SamplerReductionMode::Min)
+        .Build();
     
-    VulkanCheck(vkCreateSampler(Driver::DeviceHandle(), &samplerCreateInfo, nullptr, &sampler),
-        "Failed to create depth pyramid sampler");
-
     return sampler;
 }
 
 Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Image& depthImage)
 {
-    u32 width = utils::floorToPowerOf2(depthImage.GetImageData().Width);
-    u32 height = utils::floorToPowerOf2(depthImage.GetImageData().Height);
+    u32 width = utils::floorToPowerOf2(depthImage.GetDescription().Width);
+    u32 height = utils::floorToPowerOf2(depthImage.GetDescription().Height);
     Image pyramidImage = Image::Builder()
         .SetExtent({width, height})
-        .SetFormat(VK_FORMAT_R32_SFLOAT)
-        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
-        .CreateMipmaps(true, VK_FILTER_LINEAR)
-        .CreateView(false)
+        .SetFormat(ImageFormat::R32_FLOAT)
+        .SetUsage(ImageUsage::Sampled | ImageUsage::Storage)
+        .CreateMipmaps(true, ImageFilter::Linear)
         .BuildManualLifetime();
-
-    pyramidImage.GetImageData().View = vkUtils::createImageView(Driver::DeviceHandle(),
-        pyramidImage.GetImageData().Image, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT,
-        pyramidImage.GetImageData().MipMapCount);
 
     ImageSubresource imageSubresource = pyramidImage.CreateSubresource();
     Barrier barrier = {};
 
     DependencyInfo layoutTransition = DependencyInfo::Builder()
-        .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+        .SetFlags(PipelineDependencyFlags::ByRegion)
         .LayoutTransition({
             .ImageSubresource = &imageSubresource,
-            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-            .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
-            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .NewLayout = VK_IMAGE_LAYOUT_GENERAL})
+            .SourceStage = PipelineStage::ComputeShader,
+            .DestinationStage = PipelineStage::ComputeShader,
+            .SourceAccess = PipelineAccess::WriteShader,
+            .DestinationAccess = PipelineAccess::ReadShader,
+            .OldLayout = ImageLayout::Undefined,
+            .NewLayout = ImageLayout::General})
         .Build();
     
     barrier.Wait(cmd, layoutTransition);
@@ -101,36 +79,29 @@ Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Imag
     return pyramidImage;
 }
 
-std::array<VkImageView, DepthPyramid::MAX_DEPTH> DepthPyramid::CreateViews(const Image& pyramidImage)
+ImageViewList DepthPyramid::CreateViews(const Image& pyramidImage)
 {
-    std::array<VkImageView, DepthPyramid::MAX_DEPTH> views;
+    ImageViewList::Builder viewBuilder = ImageViewList::Builder()
+        .ForImage(pyramidImage);
+
+    for (u32 i = 0; i < pyramidImage.GetDescription().Mipmaps; i++)
+        viewBuilder.Add(pyramidImage.CreateSubresource(i, 1, 0, 1), m_MipmapViewHandles[i]);
     
-    for (u32 i = 0; i < pyramidImage.GetImageData().MipMapCount; i++)
-    {
-        VkImageView view = vkUtils::createImageView(Driver::DeviceHandle(),
-            pyramidImage.GetImageData().Image, VK_FORMAT_R32_SFLOAT, VK_IMAGE_ASPECT_COLOR_BIT,
-            1, i);
-
-        views[i] = view;
-    }
-
-    return views;
+    return viewBuilder.BuildManualLifetime();
 }
 
 void DepthPyramid::CreateDescriptorSets(const Image& depthImage)
 {
-    u32 mipMapCount = m_PyramidDepth.GetImageData().MipMapCount;
+    u32 mipMapCount = m_PyramidDepth.GetDescription().Mipmaps;
     for (u32 i = 0; i < mipMapCount; i++)
     {
-        DescriptorSet::TextureBindingInfo destination = {
-            .View = m_MipMapViews[i],
-            .Sampler = m_Sampler,
-            .Layout = VK_IMAGE_LAYOUT_GENERAL};
-
-        DescriptorSet::TextureBindingInfo source = {
-            .View = i > 0 ? m_MipMapViews[i - 1] : depthImage.GetImageData().View,
-            .Sampler = m_Sampler,
-            .Layout = i > 0 ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
+        ImageBindingInfo source = i > 0 ?
+            m_PyramidDepth.CreateBindingInfo(
+                m_Sampler, ImageLayout::General, m_MipmapViews, m_MipmapViewHandles[i - 1]) :
+            depthImage.CreateBindingInfo(m_Sampler, ImageLayout::DepthReadonly);
+        
+        ImageBindingInfo destination = m_PyramidDepth.CreateBindingInfo(
+            m_Sampler, ImageLayout::General, m_MipmapViews, m_MipmapViewHandles[i]);
         
         m_DepthPyramidDescriptors[i] = ShaderDescriptorSet::Builder()
             .SetTemplate(&m_ComputeDepthPyramidData->PipelineTemplate)
@@ -148,23 +119,23 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
     Barrier barrier = {};
 
     DependencyInfo depthToReadTransition = DependencyInfo::Builder()
-        .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+        .SetFlags(PipelineDependencyFlags::ByRegion)
         .LayoutTransition({
             .ImageSubresource = &depthSubresource,
-            .SourceStage = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .SourceAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-            .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
-            .OldLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
-            .NewLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL})
+            .SourceStage = PipelineStage::DepthEarly | PipelineStage::DepthLate,
+            .DestinationStage = PipelineStage::ComputeShader,
+            .SourceAccess = PipelineAccess::WriteDepthStencilAttachment,
+            .DestinationAccess = PipelineAccess::ReadShader,
+            .OldLayout = ImageLayout::DepthAttachment,
+            .NewLayout = ImageLayout::DepthReadonly})
         .Build();
     barrier.Wait(cmd, depthToReadTransition);
 
     auto* pipeline = &m_ComputeDepthPyramidData->Pipeline;
     pipeline->BindCompute(cmd);
-    u32 mipMapCount = m_PyramidDepth.GetImageData().MipMapCount;
-    u32 width = m_PyramidDepth.GetImageData().Width;  
-    u32 height = m_PyramidDepth.GetImageData().Height;  
+    u32 mipMapCount = m_PyramidDepth.GetDescription().Mipmaps;
+    u32 width = m_PyramidDepth.GetDescription().Width;  
+    u32 height = m_PyramidDepth.GetDescription().Height;  
     for (u32 i = 0; i < mipMapCount; i++)
     {
 
@@ -183,35 +154,34 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage)
         RenderCommand::Dispatch(cmd, {(levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1});
 
         ImageSubresource pyramidSubresource = m_PyramidDepth.CreateSubresource();
-        pyramidSubresource.MipMapBase = i;
-        pyramidSubresource.MipMapCount = 1;
+        pyramidSubresource.MipmapBase = i;
+        pyramidSubresource.Mipmaps = 1;
 
         DependencyInfo pyramidTransition = DependencyInfo::Builder()
-            .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+            .SetFlags(PipelineDependencyFlags::ByRegion)
             .LayoutTransition({
                 .ImageSubresource = &pyramidSubresource,
-                .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-                .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-                .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
-                .OldLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .NewLayout = VK_IMAGE_LAYOUT_GENERAL})
+                .SourceStage = PipelineStage::ComputeShader,
+                .DestinationStage = PipelineStage::ComputeShader,
+                .SourceAccess = PipelineAccess::WriteShader,
+                .DestinationAccess = PipelineAccess::ReadShader,
+                .OldLayout = ImageLayout::General,
+                .NewLayout = ImageLayout::General})
             .Build();
         barrier.Wait(cmd, pyramidTransition);
     }
 
     DependencyInfo readToDepthTransition = DependencyInfo::Builder()
-       .SetFlags(VK_DEPENDENCY_BY_REGION_BIT)
+       .SetFlags(PipelineDependencyFlags::ByRegion)
        .LayoutTransition({
            .ImageSubresource = &depthSubresource,
-           .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-           .DestinationStage =  VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT |
-               VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT,
-           .SourceAccess = VK_ACCESS_2_SHADER_READ_BIT,
-           .DestinationAccess = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-               VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-           .OldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-           .NewLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL})
+           .SourceStage = PipelineStage::ComputeShader,
+           .DestinationStage =  PipelineStage::DepthEarly | PipelineStage::DepthLate,
+           .SourceAccess = PipelineAccess::ReadShader,
+           .DestinationAccess =
+               PipelineAccess::ReadDepthStencilAttachment | PipelineAccess::WriteDepthStencilAttachment,
+           .OldLayout = ImageLayout::DepthReadonly,
+           .NewLayout = ImageLayout::DepthAttachment})
        .Build();
     barrier.Wait(cmd, readToDepthTransition);
 }

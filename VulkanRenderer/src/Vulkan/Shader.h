@@ -26,6 +26,18 @@ enum class DescriptorKind : u32
     Material = 2
 };
 
+enum class ShaderKind
+{
+    Vertex, Pixel, Compute
+};
+
+struct ShaderModuleData
+{
+    // TODO: FIXME: direct VKAPI usage
+    VkShaderModule Module;
+    ShaderKind Kind;
+};
+
 class Shader
 {
 public:
@@ -259,7 +271,6 @@ public:
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
         Builder& AddBinding(std::string_view name, const Buffer& buffer);
         Builder& AddBinding(std::string_view name, const Buffer& buffer, u64 sizeBytes, u64 offset);
-        Builder& AddBinding(std::string_view name, const Texture& texture);
         Builder& AddBinding(std::string_view name, const DescriptorSet::TextureBindingInfo& texture);
         Builder& AddBinding(std::string_view name, u32 variableBindingCount);
     private:

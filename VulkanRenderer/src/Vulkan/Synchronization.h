@@ -6,6 +6,8 @@
 
 #include <Vulkan/vulkan_core.h>
 
+#include "SynchronizationTraits.h"
+
 struct ImageSubresource;
 struct BufferSubresource;
 class CommandBuffer;
@@ -93,30 +95,29 @@ private:
 };
 
 // todo: add queue transfer somewhere
-// TODO: FIX ME: DIRECT VKAPI USAGE
 struct ExecutionDependencyInfo
 {
-    VkPipelineStageFlags2 SourceStage;
-    VkPipelineStageFlags2 DestinationStage;
+    PipelineStage SourceStage;
+    PipelineStage DestinationStage;
 };
 
 struct MemoryDependencyInfo
 {
-    VkPipelineStageFlags2 SourceStage;
-    VkPipelineStageFlags2 DestinationStage;
-    VkAccessFlags2 SourceAccess;   
-    VkAccessFlags2 DestinationAccess;
+    PipelineStage SourceStage;
+    PipelineStage DestinationStage;
+    PipelineAccess SourceAccess;   
+    PipelineAccess DestinationAccess;
 };
 
 struct LayoutTransitionInfo
 {
     const ImageSubresource* ImageSubresource;
-    VkPipelineStageFlags2 SourceStage;
-    VkPipelineStageFlags2 DestinationStage;
-    VkAccessFlags2 SourceAccess;   
-    VkAccessFlags2 DestinationAccess;
-    VkImageLayout OldLayout;
-    VkImageLayout NewLayout;
+    PipelineStage SourceStage;
+    PipelineStage DestinationStage;
+    PipelineAccess SourceAccess;   
+    PipelineAccess DestinationAccess;
+    ImageLayout OldLayout;
+    ImageLayout NewLayout;
 };
 
 class DependencyInfo
@@ -136,8 +137,7 @@ public:
         };
     public:
         DependencyInfo Build();
-        // TODO: FIX ME: DIRECT VKAPI USAGE
-        Builder& SetFlags(VkDependencyFlags flags);
+        Builder& SetFlags(PipelineDependencyFlags flags);
         Builder& ExecutionDependency(const ExecutionDependencyInfo& executionDependencyInfo);
         Builder& MemoryDependency(const MemoryDependencyInfo& memoryDependencyInfo);
         Builder& LayoutTransition(const LayoutTransitionInfo& layoutTransitionInfo);

@@ -122,13 +122,6 @@ DescriptorSet::Builder& DescriptorSet::Builder::AddBufferBinding(u32 slot, const
     return *this;
 }
 
-DescriptorSet::Builder& DescriptorSet::Builder::AddTextureBinding(u32 slot, const Texture& texture, VkDescriptorType descriptor)
-{
-    Driver::DescriptorSetBindTexture(slot, texture, descriptor, m_CreateInfo);
-    
-    return *this;
-}
-
 DescriptorSet::Builder& DescriptorSet::Builder::AddTextureBinding(u32 slot, const TextureBindingInfo& texture,
     VkDescriptorType descriptor)
 {
@@ -217,22 +210,7 @@ void DescriptorSet::Bind(const CommandBuffer& commandBuffer, const PipelineLayou
 
 void DescriptorSet::SetTexture(u32 slot, const Texture& texture, VkDescriptorType descriptor, u32 arrayIndex)
 {
-    TextureDescriptorInfo descriptorInfo = texture.CreateDescriptorInfo();
-    VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = descriptorInfo.Sampler;
-    descriptorTextureInfo.imageLayout = descriptorInfo.Layout;
-    descriptorTextureInfo.imageView = descriptorInfo.View;
-
-    VkWriteDescriptorSet write = {};
-    write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    write.descriptorCount = 1;   
-    write.dstSet = m_DescriptorSet;
-    write.descriptorType = descriptor;
-    write.dstBinding = slot;
-    write.pImageInfo = &descriptorTextureInfo;
-    write.dstArrayElement = arrayIndex;
-
-    vkUpdateDescriptorSets(Driver::DeviceHandle(), 1, &write, 0, nullptr);
+    Driver::UpdateDescriptorSet(*this, slot, texture, descriptor, arrayIndex);
 }
 
 DescriptorAllocator DescriptorAllocator::Builder::Build()
@@ -401,7 +379,7 @@ void DescriptorLayoutCache::SortBindings(CacheKey& cacheKey)
         [](const auto& a, const auto& b) { return a.binding < b.binding; });
 }
 
-u64 DescriptorLayoutCache::DescriptorSetLayoutCreateInfoHash::operator()(const CacheKey& cacheKey) const
+u64 DescriptorLayoutCache::DescriptorSetLayoutKeyHash::operator()(const CacheKey& cacheKey) const
 {
     u64 hash = 0;
     for (auto& binding : cacheKey.Bindings)

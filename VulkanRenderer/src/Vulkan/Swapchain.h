@@ -38,8 +38,8 @@ public:
         {
             VkSurfaceCapabilitiesKHR Capabilities;
             VkSurfaceFormatKHR ColorFormat;
-            VkFormat DrawFormat;
-            VkFormat DepthStencilFormat;
+            ImageFormat DrawFormat;
+            ImageFormat DepthStencilFormat;
             VkPresentModeKHR PresentMode;
             VkExtent2D DrawExtent{0, 0};
             u32 ImageCount;
@@ -66,7 +66,7 @@ public:
         void PreBuild();
         static VkExtent2D ChooseExtent(const VkSurfaceCapabilitiesKHR& capabilities);
         static u32 ChooseImageCount(const VkSurfaceCapabilitiesKHR& capabilities);
-        static VkFormat ChooseDepthFormat();
+        static ImageFormat ChooseDepthFormat();
         std::vector<SwapchainFrameSync> CreateSynchronizationStructures();
     private:
         CreateInfo m_CreateInfo;
@@ -103,8 +103,8 @@ private:
     VkExtent2D m_Extent{};
     VkExtent2D m_DrawExtent{};
     VkFormat m_ColorFormat{};
-    VkFormat m_DrawFormat{};
-    VkFormat m_DepthFormat{};
+    ImageFormat m_DrawFormat{};
+    ImageFormat m_DepthFormat{};
     std::vector<Image> m_ColorImages;
     Image m_DrawImage;
     Image m_DepthImage;

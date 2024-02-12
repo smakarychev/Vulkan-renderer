@@ -13,6 +13,7 @@
 #include "DescriptorSet.h"
 #include "UploadContext.h"
 
+#include <volk.h>
 #include <tracy/TracyVulkan.hpp>
 
 #include "RenderingInfo.h"
@@ -42,27 +43,36 @@ class Driver
 {
 public:
     static void Unpack(const Device& device, Swapchain::Builder::CreateInfo& swapchainCreateInfo);
+    static std::vector<Image> CreateSwapchainImages(const Swapchain& swapchain);
+    static void DestroySwapchainImages(const Swapchain& swapchain);
 
-    static void Unpack(const RenderingAttachment& attachment, RenderingInfo::Builder::CreateInfo& renderingInfoCreateInfo);
+    static void Unpack(const RenderingAttachment& attachment,
+        RenderingInfo::Builder::CreateInfo& renderingInfoCreateInfo);
+    static void Unpack(const Image& image, ImageLayout layout,
+        RenderingAttachment::Builder::CreateInfo& renderAttachmentCreateInfo);
     
-    static void Unpack(const PushConstantDescription& description, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
-    static void Unpack(const DescriptorSetLayout& layout, PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
+    static void Unpack(const PushConstantDescription& description,
+        PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
+    static void Unpack(const DescriptorSetLayout& layout,
+        PipelineLayout::Builder::CreateInfo& pipelineLayoutCreateInfo);
     
     static void Unpack(const PipelineLayout& pipelineLayout, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
+    static void Unpack(const RenderingDetails& renderingDetails, Pipeline::Builder::CreateInfo& pipelineCreateInfo);
 
     static void Unpack(const CommandPool& commandPool, CommandBuffer::Builder::CreateInfo& commandBufferCreateInfo);
 
     static void Unpack(DescriptorAllocator::PoolInfo pool, const DescriptorSetLayout& layout,
         DescriptorAllocator::SetAllocateInfo& setAllocateInfo);
 
-    static void Unpack(const LayoutTransitionInfo& layoutTransitionInfo, DependencyInfo::Builder::CreateInfo& createInfo);
+    static void Unpack(const LayoutTransitionInfo& layoutTransitionInfo,
+        DependencyInfo::Builder::CreateInfo& createInfo);
     
     static void DescriptorSetBindBuffer(u32 slot, const DescriptorSet::BufferBindingInfo& bindingInfo,
         VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
-    static void DescriptorSetBindTexture(u32 slot, const Texture& texture,
-        VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
     static void DescriptorSetBindTexture(u32 slot, const DescriptorSet::TextureBindingInfo& texture,
         VkDescriptorType descriptor, DescriptorSet::Builder::CreateInfo& descriptorSetCreateInfo);
+    static void UpdateDescriptorSet(DescriptorSet& descriptorSet, u32 slot, const Texture& texture,
+        VkDescriptorType descriptor, u32 arrayIndex);
 
     template <typename Fn>
     static void ImmediateUpload(Fn&& uploadFunction);
@@ -87,7 +97,7 @@ public:
     static TracyVkCtx CreateTracyGraphicsContext(const CommandBuffer& cmd);
     static void DestroyTracyGraphicsContext(TracyVkCtx context);
 
-    static VkSampler* GetImmutableSampler();
+    static void AddImmutableSampler(ShaderPipelineTemplate::DescriptorsFlags& descriptorsFlags);
 
     static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
     

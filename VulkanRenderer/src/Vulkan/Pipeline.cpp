@@ -10,7 +10,7 @@
 
 namespace
 {
-    VkShaderStageFlagBits kindToVkStage(ShaderKind kind)
+    VkShaderStageFlagBits vulkanStageFromShaderKind(ShaderKind kind)
     {
         switch (kind)
         {
@@ -22,6 +22,19 @@ namespace
             return VK_SHADER_STAGE_COMPUTE_BIT;
         default:
             ASSERT(false, "Unrecognized shader kind")
+        }
+        std::unreachable();
+    }
+
+    VkPrimitiveTopology vulkanTopologyFromPrimitiveKind(PrimitiveKind kind)
+    {
+        switch (kind)
+        {
+        case PrimitiveKind::Triangle: return VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        case PrimitiveKind::Point:    return VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+        default:
+            ASSERT(false, "Unrecognized primitive kind")
+            break;
         }
         std::unreachable();
     }
@@ -118,7 +131,7 @@ Pipeline::Builder& Pipeline::Builder::AddShader(const ShaderModuleData& shaderMo
     VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
     shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     shaderStageCreateInfo.module = shaderModuleData.Module;
-    shaderStageCreateInfo.stage = kindToVkStage(shaderModuleData.Kind);
+    shaderStageCreateInfo.stage = vulkanStageFromShaderKind(shaderModuleData.Kind);
     shaderStageCreateInfo.pName = "main";
 
     m_CreateInfo.Shaders.push_back(shaderStageCreateInfo);
@@ -208,7 +221,7 @@ void Pipeline::Builder::PreBuild()
     m_CreateInfo.DynamicStateInfo.dynamicStateCount = (u32)m_CreateInfo.DynamicStates.size();
     m_CreateInfo.DynamicStateInfo.pDynamicStates = m_CreateInfo.DynamicStates.data();
 
-    m_CreateInfo.InputAssemblyState.topology = vkUtils::vkTopologyByPrimitiveKind(m_PrimitiveKind);
+    m_CreateInfo.InputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(m_PrimitiveKind);
     
     m_CreateInfo.VertexInputState.vertexBindingDescriptionCount = (u32)m_VertexInputDescription.Bindings.size();
     m_CreateInfo.VertexInputState.pVertexBindingDescriptions = m_VertexInputDescription.Bindings.data();
@@ -242,7 +255,10 @@ void Pipeline::Builder::PreBuild()
     }
 
     if (!m_CreateInfo.IsComputePipeline)
+    {
         ASSERT(!m_CreateInfo.RenderingDetails.ColorFormats.empty(), "No rendering details provided")
+        Driver::Unpack(m_CreateInfo.RenderingDetails, m_CreateInfo);
+    }
 }
 
 void Pipeline::Builder::ChooseBlendingMode()
@@ -292,12 +308,6 @@ Pipeline Pipeline::CreateGraphicsPipeline(const Builder::CreateInfo& createInfo)
 {
     Pipeline pipeline = {};
 
-    VkPipelineRenderingCreateInfo renderingCreateInfo = {};
-    renderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    renderingCreateInfo.colorAttachmentCount = (u32)createInfo.RenderingDetails.ColorFormats.size();
-    renderingCreateInfo.pColorAttachmentFormats = createInfo.RenderingDetails.ColorFormats.data();
-    renderingCreateInfo.depthAttachmentFormat = createInfo.RenderingDetails.DepthFormat;
-    
     VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
     pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipelineCreateInfo.stageCount = (u32)createInfo.Shaders.size();
@@ -314,7 +324,7 @@ Pipeline Pipeline::CreateGraphicsPipeline(const Builder::CreateInfo& createInfo)
     pipelineCreateInfo.renderPass = VK_NULL_HANDLE;
     pipelineCreateInfo.subpass = 0;
 
-    pipelineCreateInfo.pNext = &renderingCreateInfo;
+    pipelineCreateInfo.pNext = &createInfo.PipelineRenderingCreateInfo;
 
     VulkanCheck(vkCreateGraphicsPipelines(Driver::DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr, &pipeline.m_Pipeline),
         "Failed to create graphics pipeline");

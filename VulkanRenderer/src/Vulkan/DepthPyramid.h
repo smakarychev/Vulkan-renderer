@@ -15,7 +15,7 @@ class CommandBuffer;
 
 class DepthPyramid
 {
-    static constexpr u32 MAX_DEPTH = 16;
+    static constexpr u32 MAX_MIPMAP_COUNT = 16;
 public:
     DepthPyramid(const Image& depthImage, const CommandBuffer& cmd,
         ComputeDepthPyramidData* computeDepthPyramidData);
@@ -24,20 +24,20 @@ public:
     void Compute(const Image& depthImage, const CommandBuffer& cmd);
 
     const Image& GetTexture() const { return m_PyramidDepth; }
-    VkSampler GetSampler() const { return m_Sampler; }
+    Sampler GetSampler() const { return m_Sampler; }
 private:
-    static VkSampler CreateSampler();
+    static Sampler CreateSampler();
     static Image CreatePyramidDepthImage(const CommandBuffer& cmd, const Image& depthImage);
-    static std::array<VkImageView, MAX_DEPTH> CreateViews(const Image& pyramidImage);
     
+    ImageViewList CreateViews(const Image& pyramidImage);
     void CreateDescriptorSets(const Image& depthImage);
     void Fill(const CommandBuffer& cmd, const Image& depthImage);
 private:
     Image m_PyramidDepth;
+    Sampler m_Sampler;
+    ImageViewList m_MipmapViews;
+    std::array<ImageViewHandle, DepthPyramid::MAX_MIPMAP_COUNT> m_MipmapViewHandles;
     
-    VkSampler m_Sampler{VK_NULL_HANDLE};
-    
-    std::array<VkImageView, MAX_DEPTH> m_MipMapViews{VK_NULL_HANDLE};
     ComputeDepthPyramidData* m_ComputeDepthPyramidData;
-    std::array<ShaderDescriptorSet, MAX_DEPTH> m_DepthPyramidDescriptors;
+    std::array<ShaderDescriptorSet, MAX_MIPMAP_COUNT> m_DepthPyramidDescriptors;
 };

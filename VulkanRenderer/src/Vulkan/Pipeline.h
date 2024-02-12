@@ -7,6 +7,7 @@
 #include <vector>
 #include <Vulkan/vulkan_core.h>
 
+struct ShaderModuleData;
 class DescriptorSetLayout;
 class PushConstantDescription;
 class CommandBuffer;
@@ -65,6 +66,9 @@ public:
 
             std::vector<VkSpecializationMapEntry> ShaderSpecializationEntries;
             std::vector<VkSpecializationInfo> ShaderSpecializationInfos;
+            
+            std::vector<VkFormat> ColorFormats;
+            VkPipelineRenderingCreateInfo PipelineRenderingCreateInfo{};
         };
     public:
         Pipeline Build();

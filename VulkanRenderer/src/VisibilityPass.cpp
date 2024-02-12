@@ -1,13 +1,12 @@
 ﻿#include "VisibilityPass.h"
 
-#include "Mesh.h"
 #include "Renderer.h"
 #include "Vulkan/RenderCommand.h"
 #include "Vulkan/VulkanUtils.h"
 
 namespace
 {
-    constexpr VkFormat VISIBILITY_BUFFER_FORMAT = VK_FORMAT_R32_UINT;
+    constexpr ImageFormat VISIBILITY_BUFFER_FORMAT = ImageFormat::R32_UINT;
     constexpr u32 VISIBILITY_BUFFER_CLEAR_VALUE = std::numeric_limits<u32>::max();
 }
 
@@ -16,7 +15,7 @@ VisibilityBuffer::VisibilityBuffer(const glm::uvec2& size, const CommandBuffer& 
     m_VisibilityImage = Image::Builder()
         .SetExtent({size.x, size.y})
         .SetFormat(VISIBILITY_BUFFER_FORMAT)
-        .SetUsage(VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, VK_IMAGE_ASPECT_COLOR_BIT)
+        .SetUsage(ImageUsage::Sampled | ImageUsage::Storage | ImageUsage::Color)
         .BuildManualLifetime();
 
     ImageSubresource imageSubresource = m_VisibilityImage.CreateSubresource(1, 1);
@@ -24,12 +23,12 @@ VisibilityBuffer::VisibilityBuffer(const glm::uvec2& size, const CommandBuffer& 
     DependencyInfo layoutTransition = DependencyInfo::Builder()
         .LayoutTransition({
             .ImageSubresource = &imageSubresource,
-            .SourceStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .DestinationStage = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
-            .SourceAccess = VK_ACCESS_2_SHADER_WRITE_BIT,
-            .DestinationAccess = VK_ACCESS_2_SHADER_READ_BIT,
-            .OldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .NewLayout = VK_IMAGE_LAYOUT_GENERAL})
+            .SourceStage = PipelineStage::ComputeShader,
+            .DestinationStage = PipelineStage::ComputeShader,
+            .SourceAccess = PipelineAccess::WriteShader,
+            .DestinationAccess = PipelineAccess::ReadShader,
+            .OldLayout = ImageLayout::Undefined,
+            .NewLayout = ImageLayout::General})
         .Build();
 
     Barrier barrier = {};
@@ -127,8 +126,6 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
         .ClearRenderingInfo = &clearRenderingInfo,
         .CopyRenderingInfo = &loadRenderingInfo,
         .DepthBuffer = renderInfo.DepthBuffer});
-
-    return;
 }
 
 RenderingInfo VisibilityPass::GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const
@@ -140,14 +137,14 @@ RenderingInfo VisibilityPass::GetClearRenderingInfo(const Image& depthBuffer, co
     
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
-        .FromImage(m_VisibilityBuffer->GetVisibilityImage().GetImageData(), VK_IMAGE_LAYOUT_GENERAL)
+        .FromImage(m_VisibilityBuffer->GetVisibilityImage(), ImageLayout::General)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
         .ClearValue(colorClear)
         .Build();
 
     RenderingAttachment depth = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Depth)
-        .FromImage(depthBuffer.GetImageData(), VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+        .FromImage(depthBuffer, ImageLayout::DepthAttachment)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
         .ClearValue(depthClear)
         .Build();
@@ -165,13 +162,13 @@ RenderingInfo VisibilityPass::GetLoadRenderingInfo(const Image& depthBuffer, con
 {
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
-        .FromImage(m_VisibilityBuffer->GetVisibilityImage().GetImageData(), VK_IMAGE_LAYOUT_GENERAL)
+        .FromImage(m_VisibilityBuffer->GetVisibilityImage(), ImageLayout::General)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
         .Build();
 
     RenderingAttachment depth = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Depth)
-        .FromImage(depthBuffer.GetImageData(), VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+        .FromImage(depthBuffer, ImageLayout::DepthAttachment)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
         .Build();
 

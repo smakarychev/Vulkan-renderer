@@ -4,8 +4,8 @@
 
 #include <vector>
 #include <vulkan/vulkan_core.h>
-#include <volk.h>
 
+#include "ImageTraits.h"
 #include "RenderHandle.h"
 #include "RenderObject.h"
 #include "Core/core.h"
@@ -16,14 +16,6 @@
 
 class Buffer;
 class Image;
-
-struct ImageDescriptorInfo
-{
-    VkImageView View;
-    VkSampler Sampler;
-    VkImageLayout Layout;
-};
-using TextureDescriptorInfo = ImageDescriptorInfo;
 
 struct IndirectCommand
 {
@@ -42,39 +34,7 @@ enum class PrimitiveKind
     Triangle, Point
 };
 
-enum class ShaderKind
-{
-    Vertex, Pixel, Compute
-};
-
-struct ShaderModuleData
-{
-    VkShaderModule Module;
-    ShaderKind Kind;
-};
-
 enum class QueueKind {Graphics, Presentation, Compute};
-
-struct BufferKind
-{
-    enum Flags
-    {
-        None = 0,
-        Vertex = BIT(1),
-        Index = BIT(2),
-        Uniform = BIT(3),
-        Storage = BIT(4),
-        Indirect = BIT(5),
-        Source = BIT(6),
-        Destination = BIT(7),
-        Conditional = BIT(8),
-    };
-    BufferKind() = default;
-    BufferKind(Flags kind) : Kind(kind) {}
-    Flags Kind{None};
-};
-
-CREATE_ENUM_FLAGS_OPERATORS(BufferKind::Flags)
 
 enum class AlphaBlending {None, Over};
 
@@ -107,31 +67,12 @@ public:
     std::vector<VkPresentModeKHR> PresentModes;
 };
 
-struct ImageData
-{
-    VkImage Image;
-    VkImageView View;
-    VkImageAspectFlags Aspect;
-    u32 Width;
-    u32 Height;
-    u32 MipMapCount{1};
-};
-
-struct ImageBlitInfo
-{
-    const Image* SourceImage;
-    const Image* DestinationImage;
-    VkImageBlit2* ImageBlit;
-    VkFilter Filter;
-};
-
-
 // todo: not the best name
 struct RenderingDetails
 {
-    std::vector<VkFormat> ColorFormats;
+    std::vector<ImageFormat> ColorFormats;
     // todo: make it an std::optional?
-    VkFormat DepthFormat;
+    ImageFormat DepthFormat;
 };
 
 struct PipelineSpecializationInfo

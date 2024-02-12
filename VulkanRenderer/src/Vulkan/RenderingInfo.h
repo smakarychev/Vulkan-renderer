@@ -11,6 +11,7 @@ class RenderingAttachment
 public:
     class Builder
     {
+        FRIEND_INTERNAL
         friend class RenderingAttachment;
         struct CreateInfo
         {
@@ -20,7 +21,7 @@ public:
     public:
         RenderingAttachment Build();
         Builder& SetType(RenderingAttachmentType type);
-        Builder& FromImage(const ImageData& imageData, VkImageLayout imageLayout);
+        Builder& FromImage(const Image& image, ImageLayout imageLayout);
         Builder& LoadStoreOperations(VkAttachmentLoadOp onLoad, VkAttachmentStoreOp onStore);
         Builder& ClearValue(VkClearValue clearValue);
     private:

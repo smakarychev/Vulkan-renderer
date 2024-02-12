@@ -9,6 +9,8 @@
 #include <vector>
 #include <Vulkan/vulkan_core.h>
 
+struct ImageBindingInfo;
+struct BufferSubresource;
 class PipelineLayout;
 class Image;
 class CommandBuffer;
@@ -57,13 +59,8 @@ class DescriptorSet
     FRIEND_INTERNAL
     friend class DescriptorAllocator;
 public:
-    struct BufferBindingInfo
-    {
-        const Buffer* Buffer{nullptr};
-        u64 SizeBytes{0};
-        u64 OffsetBytes{0};
-    };
-    using TextureBindingInfo = TextureDescriptorInfo;
+    using BufferBindingInfo = BufferSubresource;
+    using TextureBindingInfo = ImageBindingInfo;
     class Builder
     {
         friend class DescriptorSet;
@@ -96,7 +93,6 @@ public:
         Builder& SetLayout(const DescriptorSetLayout* layout);
         Builder& SetPoolFlags(VkDescriptorPoolCreateFlags flags);
         Builder& AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo, VkDescriptorType descriptor);
-        Builder& AddTextureBinding(u32 slot, const Texture& texture, VkDescriptorType descriptor);
         Builder& AddTextureBinding(u32 slot, const TextureBindingInfo& texture, VkDescriptorType descriptor);
         Builder& AddVariableBinding(const VariableBindingInfo& variableBindingInfo);
     private:
@@ -192,8 +188,10 @@ private:
     std::vector<PoolInfo> m_UsedPools;
 };
 
+// todo: make me static
 class DescriptorLayoutCache
 {
+    friend class ShaderPipelineTemplate;
     struct CacheKey
     {
         std::vector<VkDescriptorSetLayoutBinding> Bindings;
@@ -201,16 +199,15 @@ class DescriptorLayoutCache
         VkDescriptorSetLayoutCreateFlags Flags;
         bool operator==(const CacheKey& other) const;
     };
-public:
+private:
     DescriptorSetLayout* CreateDescriptorSetLayout(const std::vector<VkDescriptorSetLayoutBinding>& bindings,
         const std::vector<VkDescriptorBindingFlags>& bindingFlags, VkDescriptorSetLayoutCreateFlags layoutFlags);
-private:
     void SortBindings(CacheKey& cacheKey);
 private:
-    struct DescriptorSetLayoutCreateInfoHash
+    struct DescriptorSetLayoutKeyHash
     {
         u64 operator()(const CacheKey& cacheKey) const;
     };
     
-    std::unordered_map<CacheKey, DescriptorSetLayout, DescriptorSetLayoutCreateInfoHash> m_LayoutCache;
+    std::unordered_map<CacheKey, DescriptorSetLayout, DescriptorSetLayoutKeyHash> m_LayoutCache;
 };

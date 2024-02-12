@@ -175,14 +175,14 @@ RenderingInfo Renderer::GetClearRenderingInfo()
     
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
-        .FromImage(m_Swapchain.GetDrawImage().GetImageData(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::ColorAttachment)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
         .ClearValue(colorClear)
         .Build();
 
     RenderingAttachment depth = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Depth)
-        .FromImage(m_Swapchain.GetDepthImage().GetImageData(), VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+        .FromImage(m_Swapchain.GetDepthImage(), ImageLayout::DepthAttachment)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
         .ClearValue(depthClear)
         .Build();
@@ -200,13 +200,13 @@ RenderingInfo Renderer::GetLoadRenderingInfo()
 {
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
-        .FromImage(m_Swapchain.GetDrawImage().GetImageData(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::ColorAttachment)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
         .Build();
 
     RenderingAttachment depth = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Depth)
-        .FromImage(m_Swapchain.GetDepthImage().GetImageData(), VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL)
+        .FromImage(m_Swapchain.GetDepthImage(), ImageLayout::DepthAttachment)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
         .Build();
 
@@ -223,7 +223,7 @@ RenderingInfo Renderer::GetColorRenderingInfo()
 {
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
-        .FromImage(m_Swapchain.GetDrawImage().GetImageData(), VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL)
+        .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::ColorAttachment)
         .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
         .Build();
 
@@ -303,7 +303,6 @@ void Renderer::SceneVisibilityPass()
 {
     m_VisibilityPass.RenderVisibility({
         .FrameContext = &GetFrameContext(),
-        .DepthPyramid = m_ComputeDepthPyramidData.DepthPyramid.get(),
         .DepthBuffer = &m_Swapchain.GetDepthImage()});
 
     u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber);
@@ -384,21 +383,18 @@ void Renderer::InitRenderingStructures()
         .Build();
 
     m_SceneDataUBO.Buffer = Buffer::Builder()
-        .SetKind(BufferKind::Uniform)
+        .SetUsage(BufferUsage::Uniform | BufferUsage::Upload)
         .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .Build();
 
     m_CameraDataUBO.Buffer = Buffer::Builder()
-        .SetKinds({BufferKind::Uniform})
+        .SetUsage(BufferUsage::Uniform | BufferUsage::Upload)
         .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * BUFFERED_FRAMES)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .Build();
 
     m_CameraDataExtendedUBO.Buffer = Buffer::Builder()
-        .SetKinds({BufferKind::Uniform})
+        .SetUsage(BufferUsage::Uniform | BufferUsage::Upload)
         .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * BUFFERED_FRAMES)
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT)
         .Build();
 
     m_CurrentFrameContext = &m_FrameContexts.front();
@@ -436,8 +432,8 @@ void Renderer::InitVisibilityPass()
     
     m_VisibilityBufferVisualizeData.DescriptorSet = ShaderDescriptorSet::Builder()
         .SetTemplate(m_VisibilityBufferVisualizeData.Template)
-        .AddBinding("u_visibility_texture", m_VisibilityPass.GetVisibilityImage().CreateDescriptorInfo(
-            VK_FILTER_NEAREST, VK_IMAGE_LAYOUT_GENERAL))
+        .AddBinding("u_visibility_texture", m_VisibilityPass.GetVisibilityImage().CreateBindingInfo(
+            ImageFilter::Nearest, ImageLayout::General))
         .AddBinding("u_camera_buffer", m_CameraDataExtendedUBO.Buffer, sizeof(CameraDataExtended), 0)
         .AddBinding("u_object_buffer", m_OpaqueGeometry.GetRenderObjectsBuffer())
         .AddBinding("u_positions_buffer", m_OpaqueGeometry.GetAttributeBuffers().Positions)
@@ -462,7 +458,7 @@ void Renderer::InitVisibilityBufferVisualizationStructures()
         m_PersistentDescriptorAllocator, m_LayoutCache);
 
     RenderingDetails renderingDetails = m_Swapchain.GetRenderingDetails();
-    renderingDetails.DepthFormat = VK_FORMAT_UNDEFINED;
+    renderingDetails.DepthFormat = ImageFormat::Undefined;
     
     m_VisibilityBufferVisualizeData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_VisibilityBufferVisualizeData.Template)
@@ -547,20 +543,6 @@ void Renderer::LoadScene()
     m_ModelCollection.RegisterModel(sphere, "sphere");
     m_ModelCollection.RegisterModel(cube, "cube");
 
-    for (u32 i = 0; i < 10; i++)
-    {
-        std::vector models = {"car", "armor", "helmet", "mori", "mask"};
-        u32 modelIndex = Random::UInt32(0, (u32)models.size() - 1);
-        glm::mat4 rotate = glm::rotate(glm::mat4(1.0), Random::Float(0.0f, glm::two_pi<f32>()),
-            glm::normalize(Random::Float3()));
-        glm::mat4 transform = glm::translate(glm::mat4(1.0f), glm::vec3(i * 2.0f, 0.0f, 0.0f)) *
-            rotate *
-            glm::scale(glm::mat4(1.0f), glm::vec3(1.0f));
-
-        m_ModelCollection.AddModelInstance(models[modelIndex], {
-            .Transform = transform});
-    }
-
     std::vector models = {"car", "armor", "helmet", "mori", "mask"};
 
     for (i32 x = -6; x <= 6; x++)
@@ -583,13 +565,13 @@ void Renderer::LoadScene()
     }
 
     m_OpaqueGeometry = RenderPassGeometry::FromModelCollectionFiltered(
-    m_ModelCollection,
-    m_ResourceUploader,
-    [this](const RenderObject& renderObject)
-    {
-        return m_ModelCollection.GetMaterials()[renderObject.Material].Type ==
-            assetLib::ModelInfo::MaterialType::Opaque;
-    });
+        m_ModelCollection,
+        m_ResourceUploader,
+        [this](const RenderObject& renderObject)
+        {
+            return m_ModelCollection.GetMaterials()[renderObject.Material].Type ==
+                assetLib::ModelInfo::MaterialType::Opaque;
+        });
 
     m_OpaqueGeometryCull = RenderPassGeometryCull::ForGeometry(m_OpaqueGeometry,
         m_CullDescriptorAllocator, m_LayoutCache);

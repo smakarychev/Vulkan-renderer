@@ -82,6 +82,7 @@ namespace assetLib
             inputAttribute.Location = input["location"];
             inputAttribute.Name = input["name"];
             inputAttribute.Format = (VkFormat)input["format"];
+            inputAttribute.SizeBytes = input["size_bytes"];
 
             info.InputAttributes.push_back(inputAttribute);
         }
@@ -164,6 +165,7 @@ namespace assetLib
             inputJson["location"] = input.Location;
             inputJson["name"] = input.Name;
             inputJson["format"] = (u32)input.Format;
+            inputJson["size_bytes"] = input.SizeBytes;
 
             metadata["input_attributes"].push_back(inputJson);
         }

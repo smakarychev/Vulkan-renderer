@@ -180,12 +180,10 @@ inline RenderPassGeometry::AttributeBuffers RenderPassGeometry::InitAttributeBuf
     u64 totalIndicesSizeBytes = countsInfo.IndexCount * sizeof(assetLib::ModelInfo::IndexType);
 
     Buffer::Builder vertexBufferBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::Vertex, BufferKind::Storage, BufferKind::Destination})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        .SetUsage(BufferUsage::Vertex | BufferUsage::Storage | BufferUsage::Destination);
     
     Buffer::Builder indexBufferBuilder = Buffer::Builder()
-        .SetKinds({BufferKind::Index, BufferKind::Storage, BufferKind::Destination})
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT);
+        .SetUsage(BufferUsage::Index | BufferUsage::Storage | BufferUsage::Destination);
 
     AttributeBuffers attributeBuffers = {};
 
@@ -213,23 +211,19 @@ inline void RenderPassGeometry::InitBuffers(RenderPassGeometry& renderPassGeomet
     renderPassGeometry.m_CommandCount = countsInfo.CommandCount;
     renderPassGeometry.m_RenderObjectCount = countsInfo.RenderObjectCount;
     renderPassGeometry.m_Commands = Buffer::Builder()
-        .SetKinds({BufferKind::Indirect, BufferKind::Storage, BufferKind::Destination})
+        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination)
         .SetSizeBytes(countsInfo.CommandCount * sizeof(IndirectCommand))
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
     renderPassGeometry.m_RenderObjects = Buffer::Builder()
-        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetUsage(BufferUsage::Storage | BufferUsage::Destination)
         .SetSizeBytes(countsInfo.RenderObjectCount * sizeof(RenderObjectGPU))
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
     renderPassGeometry.m_Materials = Buffer::Builder()
-       .SetKinds({BufferKind::Storage, BufferKind::Destination})
+       .SetUsage(BufferUsage::Storage | BufferUsage::Destination)
        .SetSizeBytes(countsInfo.RenderObjectCount * sizeof(MaterialGPU))
-       .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
        .Build();
     renderPassGeometry.m_Meshlets = Buffer::Builder()
-        .SetKinds({BufferKind::Storage, BufferKind::Destination})
+        .SetUsage(BufferUsage::Storage | BufferUsage::Destination)
         .SetSizeBytes(countsInfo.CommandCount * sizeof(MeshletGPU))
-        .SetMemoryFlags(VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT)
         .Build();
 }

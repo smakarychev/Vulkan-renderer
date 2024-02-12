@@ -1,6 +1,5 @@
 #pragma once
 
-#include "HandleArray.h"
 #include "Vulkan/Image.h"
 #include "Vulkan/Shader.h"
 
@@ -21,8 +20,3 @@ struct RenderPassExecutionContext
     RenderPassGeometry* Geometry;
 };
 
-struct RenderPassResources
-{
-    HandleArray<Texture> Textures;
-    HandleArray<RenderPassPipelineData> Pipelines;
-};

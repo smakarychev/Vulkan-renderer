@@ -39,7 +39,6 @@ struct VisibilityPassInitInfo
 struct VisibilityRenderInfo
 {
     FrameContext* FrameContext;
-    DepthPyramid* DepthPyramid;
     const Image* DepthBuffer;
 };
 

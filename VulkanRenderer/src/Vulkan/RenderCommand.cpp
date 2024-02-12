@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <ranges>
+#include <volk.h>
 
 #include "Buffer.h"
 #include "CommandBuffer.h"
@@ -153,7 +154,8 @@ VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& c
     submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
-    return vkQueueSubmit2(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ? submitSync.Fence->m_Fence : VK_NULL_HANDLE);
+    return vkQueueSubmit2(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ?
+        submitSync.Fence->m_Fence : VK_NULL_HANDLE);
 }
 
 VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
@@ -195,7 +197,8 @@ VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& c
     submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
-    return vkQueueSubmit2(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ? submitSync.Fence->m_Fence : VK_NULL_HANDLE);
+    return vkQueueSubmit2(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ?
+        submitSync.Fence->m_Fence : VK_NULL_HANDLE);
 }
 
 VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
@@ -239,7 +242,8 @@ VkResult RenderCommand::SubmitCommandBuffers(const std::vector<CommandBuffer>& c
     submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
-    return vkQueueSubmit2(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ? submitSync.Fence->m_Fence : VK_NULL_HANDLE);
+    return vkQueueSubmit2(queueInfo.Queue, 1, &submitInfo, submitSync.Fence ?
+        submitSync.Fence->m_Fence : VK_NULL_HANDLE);
 }
 
 void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary)
@@ -247,21 +251,17 @@ void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, cons
     vkCmdExecuteCommands(cmd.m_CommandBuffer, 1, &secondary.m_CommandBuffer);
 }
 
-void RenderCommand::BlitImage(const CommandBuffer& cmd, const ImageBlitInfo& imageBlitInfo)
+void RenderCommand::BlitImage(const CommandBuffer& cmd,
+    const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter)
 {
-    VkBlitImageInfo2 blitImageInfo = {};
-    blitImageInfo.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
-    blitImageInfo.srcImage = imageBlitInfo.SourceImage->m_ImageData.Image;
-    blitImageInfo.dstImage = imageBlitInfo.DestinationImage->m_ImageData.Image;
-    blitImageInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    blitImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    blitImageInfo.regionCount = 1;
-    blitImageInfo.pRegions = imageBlitInfo.ImageBlit;
-    blitImageInfo.filter = imageBlitInfo.Filter;
+    auto&& [blitImageInfo, imageBlit] = Image::CreateVulkanBlitInfo(source, destination, filter);
+    blitImageInfo.pRegions = &imageBlit;
+    
     vkCmdBlitImage2(cmd.m_CommandBuffer, &blitImageInfo);
 }
 
-void RenderCommand::CopyBuffer(const CommandBuffer& cmd, const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo)
+void RenderCommand::CopyBuffer(const CommandBuffer& cmd,
+    const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo)
 {
     VkBufferCopy2 copy = {};
     copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
@@ -279,20 +279,15 @@ void RenderCommand::CopyBuffer(const CommandBuffer& cmd, const Buffer& source, c
     vkCmdCopyBuffer2(cmd.m_CommandBuffer, &copyBufferInfo);
 }
 
-void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd, const Buffer& source, const Image& destination)
+void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd,
+    const Buffer& source, const ImageSubresource& destination)
 {
-    VkBufferImageCopy2 bufferImageCopy = {};
-    bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
-    bufferImageCopy.imageExtent = { destination.m_ImageData.Width, destination.m_ImageData.Height, 1 };
-    bufferImageCopy.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    bufferImageCopy.imageSubresource.mipLevel = 0;
-    bufferImageCopy.imageSubresource.layerCount = 1;
-    bufferImageCopy.imageSubresource.baseArrayLayer = 0;
+    VkBufferImageCopy2 bufferImageCopy = Image::CreateVulkanImageCopyInfo(destination);
 
     VkCopyBufferToImageInfo2 copyBufferToImageInfo = {};
     copyBufferToImageInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
     copyBufferToImageInfo.srcBuffer = source.m_Buffer;
-    copyBufferToImageInfo.dstImage = destination.m_ImageData.Image;
+    copyBufferToImageInfo.dstImage = destination.Image->m_Image;
     copyBufferToImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     copyBufferToImageInfo.regionCount = 1;
     copyBufferToImageInfo.pRegions = &bufferImageCopy;
@@ -327,7 +322,8 @@ void RenderCommand::BindPipeline(const CommandBuffer& cmd, const Pipeline& pipel
 }
 
 void RenderCommand::BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
-    const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint, const std::vector<u32>& dynamicOffsets)
+    const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint,
+    const std::vector<u32>& dynamicOffsets)
 {
     vkCmdBindDescriptorSets(cmd.m_CommandBuffer,
         bindPoint, pipelineLayout.m_Layout,
@@ -381,10 +377,11 @@ void RenderCommand::DispatchIndirect(const CommandBuffer& cmd, const Buffer& buf
     vkCmdDispatchIndirect(cmd.m_CommandBuffer, buffer.m_Buffer, offset);
 }
 
-void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
-    const PushConstantDescription& description)
+void RenderCommand::PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout,
+    const void* pushConstants, const PushConstantDescription& description)
 {
-    vkCmdPushConstants(cmd.m_CommandBuffer, pipelineLayout.m_Layout, description.m_StageFlags, 0, description.m_SizeBytes, pushConstants);
+    vkCmdPushConstants(cmd.m_CommandBuffer, pipelineLayout.m_Layout, description.m_StageFlags, 0,
+        description.m_SizeBytes, pushConstants);
 }
 
 void RenderCommand::WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo)
