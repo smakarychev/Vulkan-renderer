@@ -1,0 +1,143 @@
+﻿#include "Pipeline.h"
+
+#include "Core/core.h"
+#include "Vulkan/Driver.h"
+#include "Vulkan/RenderCommand.h"
+
+PipelineLayout PipelineLayout::Builder::Build()
+{
+    PipelineLayout layout = PipelineLayout::Create(m_CreateInfo);
+    Driver::DeletionQueue().AddDeleter([layout]() { PipelineLayout::Destroy(layout); });
+
+    return layout;
+}
+
+PipelineLayout::Builder& PipelineLayout::Builder::SetPushConstants(
+    const std::vector<ShaderPushConstantDescription>& pushConstants)
+{
+    m_CreateInfo.PushConstants = pushConstants;
+
+    return *this;
+}
+
+PipelineLayout::Builder& PipelineLayout::Builder::SetDescriptorLayouts(const std::vector<DescriptorSetLayout>& layouts)
+{
+    m_CreateInfo.DescriptorSetLayouts = layouts;
+    
+    return *this;
+}
+
+PipelineLayout PipelineLayout::Create(const Builder::CreateInfo& createInfo)
+{
+    return Driver::Create(createInfo);
+}
+
+void PipelineLayout::Destroy(const PipelineLayout& pipelineLayout)
+{
+    Driver::Destroy(pipelineLayout);
+}
+
+Pipeline Pipeline::Builder::Build()
+{
+    return Build(Driver::DeletionQueue());
+}
+
+Pipeline Pipeline::Builder::Build(DeletionQueue& deletionQueue)
+{
+    PreBuild();
+    
+    Pipeline pipeline = Pipeline::Create(m_CreateInfo);
+    deletionQueue.AddDeleter([pipeline](){ Pipeline::Destroy(pipeline); });
+
+    return pipeline;
+}
+
+Pipeline Pipeline::Builder::BuildManualLifetime()
+{
+    PreBuild();
+    
+    return Pipeline::Create(m_CreateInfo);
+}
+
+Pipeline::Builder& Pipeline::Builder::SetLayout(PipelineLayout layout)
+{
+    m_CreateInfo.PipelineLayout = layout;
+    
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::SetRenderingDetails(const RenderingDetails& renderingDetails)
+{
+    ASSERT(!m_CreateInfo.IsComputePipeline, "Compute pipeline does not need rendering details")
+    m_CreateInfo.RenderingDetails = renderingDetails;
+    
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::IsComputePipeline(bool isCompute)
+{
+    m_CreateInfo.IsComputePipeline = isCompute;
+
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::AddShader(const ShaderModule& shaderModule)
+{
+    m_CreateInfo.Shaders.push_back(shaderModule);
+
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::SetVertexDescription(const VertexInputDescription& vertexDescription)
+{
+    m_CreateInfo.VertexDescription = vertexDescription;
+
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
+{
+    m_CreateInfo.PrimitiveKind = primitiveKind;
+
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::AlphaBlending(::AlphaBlending alphaBlending)
+{
+    m_CreateInfo.AlphaBlending = alphaBlending;
+
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo)
+{
+    m_CreateInfo.ShaderSpecialization = pipelineSpecializationInfo;
+        
+    return *this;
+}
+
+void Pipeline::Builder::PreBuild()
+{
+    if (!m_CreateInfo.IsComputePipeline)
+        ASSERT(!m_CreateInfo.RenderingDetails.ColorFormats.empty(), "No rendering details provided")
+}
+
+Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
+{
+    return Driver::Create(createInfo);
+}
+
+void Pipeline::Destroy(const Pipeline& pipeline)
+{
+    Driver::Destroy(pipeline);
+}
+
+void Pipeline::BindGraphics(const CommandBuffer& commandBuffer) const
+{
+    RenderCommand::BindGraphics(commandBuffer, *this);
+}
+
+void Pipeline::BindCompute(const CommandBuffer& commandBuffer) const
+{
+    RenderCommand::BindCompute(commandBuffer, *this);
+}

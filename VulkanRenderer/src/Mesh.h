@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "ModelAsset.h"
-#include "Vulkan/VulkanInclude.h"
+#include "Rendering/RenderingCommon.h"
 
 class ResourceUploader;
 class Renderer;

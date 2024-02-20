@@ -2,8 +2,8 @@
 
 #include "Model.h"
 #include "RenderObject.h"
-#include "Vulkan/Image.h"
-#include "Vulkan/Shader.h"
+#include "Rendering/Image.h"
+#include "Rendering/Shader.h"
 
 void ModelCollection::RegisterModel(Model* model, const std::string& name)
 {

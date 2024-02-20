@@ -1,6 +1,5 @@
 #include "Renderer.h"
 
-#include <algorithm>
 #include <volk.h>
 #include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
@@ -12,13 +11,12 @@
 #include "Core/Random.h"
 
 #include "GLFW/glfw3.h"
+#include "Vulkan/RenderCommand.h"
+#include "Rendering/RenderingUtils.h"
 #include "RenderPasses/ModelCollection.h"
-#include "RenderPasses/RenderPass.h"
 #include "RenderPasses/RenderPassGeometry.h"
 #include "RenderPasses/RenderPassGeometryCull.h"
-#include "Vulkan/DepthPyramid.h"
-#include "Vulkan/RenderCommand.h"
-#include "Vulkan/VulkanUtils.h"
+#include "Rendering//DepthPyramid.h"
 
 Renderer::Renderer() = default;
 
@@ -29,7 +27,7 @@ void Renderer::Init()
     InitDepthPyramidComputeStructures();
     InitVisibilityBufferVisualizationStructures();
 
-    Input::s_MainViewportSize = m_Swapchain.GetSize();
+    Input::s_MainViewportSize = m_Swapchain.GetResolution();
     m_Camera = std::make_shared<Camera>();
     m_CameraController = std::make_unique<CameraController>(m_Camera);
 }
@@ -114,7 +112,7 @@ void Renderer::UpdateCameraBuffers()
         .ViewProjection = m_Camera->GetViewProjection(),
         .ViewProjectionInverse = glm::inverse(m_Camera->GetViewProjection()),
         .CameraPosition = glm::vec4(m_Camera->GetPosition(), 0.0),
-        .WindowSize = {(f32)m_Swapchain.GetSize().x, (f32)m_Swapchain.GetSize().y},
+        .WindowSize = {(f32)m_Swapchain.GetResolution().x, (f32)m_Swapchain.GetResolution().y},
         .FrustumNear = frustumPlanes.Near,
         .FrustumFar = frustumPlanes.Far};
     offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber;
@@ -167,70 +165,18 @@ void Renderer::BeginFrame()
     m_ResourceUploader.SubmitUpload();
 }
 
-RenderingInfo Renderer::GetClearRenderingInfo()
-{
-    // todo: fix: direct VKAPI Usage
-    VkClearValue colorClear = {.color = {{0.05f, 0.05f, 0.05f, 1.0f}}};
-    VkClearValue depthClear = {.depthStencil = {.depth = 0.0f}};
-    
-    RenderingAttachment color = RenderingAttachment::Builder()
-        .SetType(RenderingAttachmentType::Color)
-        .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::ColorAttachment)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
-        .ClearValue(colorClear)
-        .Build();
-
-    RenderingAttachment depth = RenderingAttachment::Builder()
-        .SetType(RenderingAttachmentType::Depth)
-        .FromImage(m_Swapchain.GetDepthImage(), ImageLayout::DepthAttachment)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
-        .ClearValue(depthClear)
-        .Build();
-
-    RenderingInfo renderingInfo = RenderingInfo::Builder()
-        .AddAttachment(color)
-        .AddAttachment(depth)
-        .SetRenderArea(m_Swapchain.GetSize())
-        .Build();
-
-    return renderingInfo;
-}
-
-RenderingInfo Renderer::GetLoadRenderingInfo()
-{
-    RenderingAttachment color = RenderingAttachment::Builder()
-        .SetType(RenderingAttachmentType::Color)
-        .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::ColorAttachment)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
-        .Build();
-
-    RenderingAttachment depth = RenderingAttachment::Builder()
-        .SetType(RenderingAttachmentType::Depth)
-        .FromImage(m_Swapchain.GetDepthImage(), ImageLayout::DepthAttachment)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
-        .Build();
-
-    RenderingInfo renderingInfo = RenderingInfo::Builder()
-        .AddAttachment(color)
-        .AddAttachment(depth)
-        .SetRenderArea(m_Swapchain.GetSize())
-        .Build();
-
-    return renderingInfo;
-}
-
 RenderingInfo Renderer::GetColorRenderingInfo()
 {
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
         .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::ColorAttachment)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
-        .Build();
+        .LoadStoreOperations(AttachmentLoad::Load, AttachmentStore::Store)
+        .Build(GetFrameContext().DeletionQueue);
 
     RenderingInfo renderingInfo = RenderingInfo::Builder()
         .AddAttachment(color)
-        .SetRenderArea(m_Swapchain.GetSize())
-        .Build();
+        .SetRenderArea(m_Swapchain.GetResolution())
+        .Build(GetFrameContext().DeletionQueue);
 
     return renderingInfo;
 }
@@ -249,7 +195,7 @@ void Renderer::EndFrame()
 
     cmd.Submit(m_Device.GetQueues().Graphics,
         BufferSubmitSyncInfo{
-            .WaitStages = {VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT},
+            .WaitStages = {PipelineStage::ColorOutput},
             .WaitSemaphores = {&sync.PresentSemaphore},
             .SignalSemaphores = {&sync.RenderSemaphore},
             .Fence = &sync.RenderFence});
@@ -261,6 +207,8 @@ void Renderer::EndFrame()
     
     m_FrameNumber++;
     m_CurrentFrameContext = &m_FrameContexts[m_FrameNumber % BUFFERED_FRAMES];
+    m_CurrentFrameContext->DeletionQueue.Flush();
+    
     ProfilerContext::Get()->NextFrame();
 
     // todo: is this the best place for it?
@@ -296,7 +244,7 @@ void Renderer::ComputeDepthPyramid()
     ZoneScopedN("Compute depth pyramid");
 
     CommandBuffer& cmd = GetFrameContext().Cmd;
-    m_ComputeDepthPyramidData.DepthPyramid->Compute(m_Swapchain.GetDepthImage(), cmd);
+    m_ComputeDepthPyramidData.DepthPyramid->Compute(m_Swapchain.GetDepthImage(), cmd, GetFrameContext().DeletionQueue);
 }
 
 void Renderer::SceneVisibilityPass()
@@ -308,8 +256,8 @@ void Renderer::SceneVisibilityPass()
     u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber);
 
     CommandBuffer& cmd = GetFrameContext().Cmd;
-    RenderCommand::SetViewport(cmd, m_Swapchain.GetSize());
-    RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetSize());
+    RenderCommand::SetViewport(cmd, m_Swapchain.GetResolution());
+    RenderCommand::SetScissors(cmd, {0, 0}, m_Swapchain.GetResolution());
 
     RenderCommand::BeginRendering(cmd, GetColorRenderingInfo());
 
@@ -324,7 +272,6 @@ void Renderer::SceneVisibilityPass()
 
 void Renderer::InitRenderingStructures()
 {
-    VulkanCheck(volkInitialize(), "Failed to initialize volk");
     glfwInit();
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API); // do not create opengl context
@@ -347,8 +294,6 @@ void Renderer::InitRenderingStructures()
     m_ResourceUploader.Init();
     
     m_Swapchain = Swapchain::Builder()
-        .DefaultHints()
-        .FromDetails(m_Device.GetSurfaceDetails())
         .SetDevice(m_Device)
         .BufferedFrames(BUFFERED_FRAMES)
         .BuildManualLifetime();
@@ -363,7 +308,7 @@ void Renderer::InitRenderingStructures()
 
         m_FrameContexts[i].FrameSync = m_Swapchain.GetFrameSync(i);
         m_FrameContexts[i].FrameNumber = i;
-        m_FrameContexts[i].Resolution = m_Swapchain.GetSize();
+        m_FrameContexts[i].Resolution = m_Swapchain.GetResolution();
 
         m_FrameContexts[i].Cmd = pool.AllocateBuffer(CommandBufferKind::Primary);
     }
@@ -406,7 +351,6 @@ void Renderer::InitDepthPyramidComputeStructures()
 
     m_ComputeDepthPyramidData.PipelineTemplate = ShaderPipelineTemplate::Builder()
         .SetDescriptorAllocator(&m_CullDescriptorAllocator)
-        .SetDescriptorLayoutCache(&m_LayoutCache)
         .SetShaderReflection(computeDepthPyramid)
         .Build();
 
@@ -418,10 +362,9 @@ void Renderer::InitDepthPyramidComputeStructures()
 void Renderer::InitVisibilityPass()
 {
     bool recreated = m_VisibilityPass.Init({
-        .Size = m_Swapchain.GetSize(),
+        .Size = m_Swapchain.GetResolution(),
         .Cmd = &GetFrameContext().Cmd,
         .DescriptorAllocator = &m_PersistentDescriptorAllocator,
-        .LayoutCache = &m_LayoutCache,
         .RenderingDetails = m_Swapchain.GetRenderingDetails(),
         .CameraBuffer = &m_CameraDataUBO.Buffer,
         .RenderPassGeometry = &m_OpaqueGeometry,
@@ -455,10 +398,10 @@ void Renderer::InitVisibilityBufferVisualizationStructures()
         {"../assets/shaders/processed/visibility-buffer/visualize-vert.shader",
         "../assets/shaders/processed/visibility-buffer/visualize-frag.shader"},
         "visualize-visibility-pipeline",
-        m_PersistentDescriptorAllocator, m_LayoutCache);
+        m_PersistentDescriptorAllocator);
 
     RenderingDetails renderingDetails = m_Swapchain.GetRenderingDetails();
-    renderingDetails.DepthFormat = ImageFormat::Undefined;
+    renderingDetails.DepthFormat = Format::Undefined;
     
     m_VisibilityBufferVisualizeData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(m_VisibilityBufferVisualizeData.Template)
@@ -468,7 +411,7 @@ void Renderer::InitVisibilityBufferVisualizationStructures()
 
 void Renderer::Shutdown()
 {
-    vkDeviceWaitIdle(Driver::DeviceHandle());
+    m_Device.WaitIdle();
 
     m_ComputeDepthPyramidData.DepthPyramid.reset();
     
@@ -477,6 +420,8 @@ void Renderer::Shutdown()
     ShutdownVisibilityPass();
     RenderPassGeometryCull::Shutdown(m_OpaqueGeometryCull);
     m_ResourceUploader.Shutdown();
+    for (auto& ctx : m_FrameContexts)
+        ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
@@ -505,11 +450,9 @@ void Renderer::RecreateSwapchain()
         glfwWaitEvents();
     }
     
-    vkDeviceWaitIdle(Driver::DeviceHandle());
+    m_Device.WaitIdle();
 
     Swapchain::Builder newSwapchainBuilder = Swapchain::Builder()
-        .DefaultHints()
-        .FromDetails(m_Device.GetSurfaceDetails())
         .SetDevice(m_Device)
         .BufferedFrames(BUFFERED_FRAMES)
         .SetSyncStructures(m_Swapchain.GetFrameSync());
@@ -519,10 +462,10 @@ void Renderer::RecreateSwapchain()
     m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
     m_ComputeDepthPyramidData.DepthPyramid.reset();
 
-    Input::s_MainViewportSize = m_Swapchain.GetSize();
-    m_Camera->SetViewport(m_Swapchain.GetSize().x, m_Swapchain.GetSize().y);
+    Input::s_MainViewportSize = m_Swapchain.GetResolution();
+    m_Camera->SetViewport(m_Swapchain.GetResolution().x, m_Swapchain.GetResolution().y);
     for (auto& frameContext : m_FrameContexts)
-        frameContext.Resolution = m_Swapchain.GetSize();
+        frameContext.Resolution = m_Swapchain.GetResolution();
 }
 
 void Renderer::LoadScene()
@@ -574,7 +517,7 @@ void Renderer::LoadScene()
         });
 
     m_OpaqueGeometryCull = RenderPassGeometryCull::ForGeometry(m_OpaqueGeometry,
-        m_CullDescriptorAllocator, m_LayoutCache);
+        m_CullDescriptorAllocator);
 }
 
 const FrameContext& Renderer::GetFrameContext() const

@@ -1,13 +1,11 @@
 #pragma once
 
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
 #include <Vulkan/vulkan_core.h>
 
-#include "CommandBuffer.h"
-#include "ImageTraits.h"
+#include "Rendering/CommandBuffer.h"
+#include "Rendering/ImageTraits.h"
 #include "types.h"
-#include "VulkanCommon.h"
+#include "Rendering/RenderingCommon.h"
 
 struct ImageSubresource;
 struct ImageBlitInfo;
@@ -20,7 +18,7 @@ class Image;
 class CommandPool;
 struct SwapchainFrameSync;
 class DescriptorSet;
-class PushConstantDescription;
+struct ShaderPushConstantDescription;
 class Buffer;
 class Pipeline;
 class CommandBuffer;
@@ -35,32 +33,27 @@ public:
     static void EndRendering(const CommandBuffer& cmd);
     
     
-    static VkResult WaitForFence(const Fence& fence);
-    static VkResult CheckFence(const Fence fence);
-    static VkResult ResetFence(const Fence& fence);
-    static VkResult AcquireNextImage(const Swapchain& swapchain,
-        const SwapchainFrameSync& swapchainFrameSync, u32& imageIndex);
-    static VkResult Present(const Swapchain& swapchain, const QueueInfo& queueInfo,
+    static void WaitForFence(const Fence& fence);
+    static bool CheckFence(const Fence& fence);
+    static void ResetFence(const Fence& fence);
+    static u32 AcquireNextImage(const Swapchain& swapchain,
+        const SwapchainFrameSync& swapchainFrameSync);
+    static bool Present(const Swapchain& swapchain, const QueueInfo& queueInfo,
         const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex);
-    static VkResult ResetPool(const CommandPool& pool);
-    static VkResult ResetCommandBuffer(const CommandBuffer& cmd);
-    static VkResult BeginCommandBuffer(const CommandBuffer& cmd, VkCommandBufferUsageFlags flags,
-        VkCommandBufferInheritanceInfo* inheritanceInfo);
-    static VkResult EndCommandBuffer(const CommandBuffer& cmd);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+    static void ResetPool(const CommandPool& pool);
+    static void ResetCommandBuffer(const CommandBuffer& cmd);
+    static void BeginCommandBuffer(const CommandBuffer& cmd, CommandBufferUsage usage);
+    static void EndCommandBuffer(const CommandBuffer& cmd);
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
         const BufferSubmitSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
         const BufferSubmitTimelineSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
-        const BufferSubmitMixedSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
-    static VkResult SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence);
-    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence);
+    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
         const BufferSubmitSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
         const BufferSubmitTimelineSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
-        const BufferSubmitMixedSyncInfo& submitSync);
 
 
     static void ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary);
@@ -76,10 +69,13 @@ public:
     static void BindVertexBuffers(const CommandBuffer& cmd, const std::vector<Buffer>& buffers,
         const std::vector<u64>& offsets);
     static void BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
-    static void BindPipeline(const CommandBuffer& cmd, const Pipeline& pipeline, VkPipelineBindPoint bindPoint);
-    static void BindDescriptorSet(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
-        const PipelineLayout& pipelineLayout, u32 setIndex, VkPipelineBindPoint bindPoint,
-        const std::vector<u32>& dynamicOffsets);
+    
+    static void BindGraphics(const CommandBuffer& cmd, Pipeline pipeline);
+    static void BindCompute(const CommandBuffer& cmd, Pipeline pipeline);
+    static void BindGraphics(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+        PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets);
+    static void BindCompute(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+        PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets);
     
     static void Draw(const CommandBuffer& cmd, u32 vertexCount);
     static void Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance);
@@ -94,8 +90,7 @@ public:
     static void Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize);
     static void DispatchIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
 
-    static void PushConstants(const CommandBuffer& cmd, const PipelineLayout& pipelineLayout, const void* pushConstants,
-        const PushConstantDescription& description);
+    static void PushConstants(const CommandBuffer& cmd, PipelineLayout pipelineLayout, const void* pushConstants);
 
     static void WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo);
     static void SignalSplitBarrier(const CommandBuffer& cmd, const SplitBarrier& splitBarrier,
@@ -110,4 +105,23 @@ public:
     
     static void SetViewport(const CommandBuffer& cmd, const glm::vec2& size);
     static void SetScissors(const CommandBuffer& cmd, const glm::vec2& offset, const glm::vec2& size);
+private:
+    static VkResult WaitForFenceStatus(const Fence& fence);
+    static VkResult CheckFenceStatus(const Fence& fence);
+    static VkResult ResetFenceStatus(const Fence& fence);
+
+    static VkResult ResetPoolStatus(const CommandPool& pool);
+    static VkResult ResetCommandBufferStatus(const CommandBuffer& cmd);
+    static VkResult BeginCommandBufferStatus(const CommandBuffer& cmd, CommandBufferUsage usage);
+    static VkResult EndCommandBufferStatus(const CommandBuffer& cmd);
+    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+        const BufferSubmitSyncInfo& submitSync);
+    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+        const BufferSubmitTimelineSyncInfo& submitSync);
+    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
+    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence);
+    static VkResult SubmitCommandBuffersStatus(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+        const BufferSubmitSyncInfo& submitSync);
+    static VkResult SubmitCommandBuffersStatus(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
+        const BufferSubmitTimelineSyncInfo& submitSync);
 };

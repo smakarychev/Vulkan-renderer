@@ -114,12 +114,11 @@ RenderPassGeometry RenderPassGeometry::FromModelCollectionFiltered(const ModelCo
         
         for (auto& meshlet : mesh.GetMeshlets())
         {
-            commands[meshletIndex].VulkanCommand.firstIndex = (u32)indicesOffset + meshlet.FirstIndex;
-            commands[meshletIndex].VulkanCommand.indexCount = meshlet.IndexCount;
-            commands[meshletIndex].VulkanCommand.firstInstance = meshletIndex;
-            commands[meshletIndex].VulkanCommand.instanceCount = 1;
-            commands[meshletIndex].VulkanCommand.vertexOffset = (i32)verticesOffset +
-                (i32)meshlet.FirstVertex;
+            commands[meshletIndex].FirstIndex = (u32)indicesOffset + meshlet.FirstIndex;
+            commands[meshletIndex].IndexCount = meshlet.IndexCount;
+            commands[meshletIndex].FirstInstance = meshletIndex;
+            commands[meshletIndex].InstanceCount = 1;
+            commands[meshletIndex].VertexOffset = (i32)verticesOffset + (i32)meshlet.FirstVertex;
             commands[meshletIndex].RenderObject = renderObjectIndex;
 
             meshletsGPU[meshletIndex] = {

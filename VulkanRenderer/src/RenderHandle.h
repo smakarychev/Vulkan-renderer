@@ -1,9 +1,9 @@
 #pragma once
 
+#include "types.h"
+
 #include <limits>
 #include <compare>
-
-#include "types.h"
 
 template <typename T>
 class HandleArray;
@@ -25,7 +25,7 @@ public:
     RenderHandle& operator=(RenderHandle&& other) = default;
     ~RenderHandle() = default;
 
-    friend auto operator<=>(const RenderHandle<T>& a, const RenderHandle<T>& b) = default;
+    friend auto operator<=>(const RenderHandle& a, const RenderHandle& b) = default;
 private:
     UnderlyingType m_Id;
 };

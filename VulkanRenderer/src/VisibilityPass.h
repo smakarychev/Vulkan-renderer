@@ -1,12 +1,12 @@
 ﻿#pragma once
 
-#include "Vulkan/Image.h"
-#include "Vulkan/Shader.h"
+#include "Rendering/Image.h"
+#include "Rendering/Shader.h"
 
 #include <glm/glm.hpp>
 
-#include "Vulkan/RenderingInfo.h"
-#include "Vulkan/Synchronization.h"
+#include "Rendering/RenderingInfo.h"
+#include "Rendering/Synchronization.h"
 
 class RenderPassGeometry;
 class RenderPassGeometryCull;
@@ -29,7 +29,6 @@ struct VisibilityPassInitInfo
     glm::vec2 Size;
     const CommandBuffer* Cmd;
     DescriptorAllocator* DescriptorAllocator;
-    DescriptorLayoutCache* LayoutCache;
     RenderingDetails RenderingDetails;
     const Buffer* CameraBuffer;
     RenderPassGeometry* RenderPassGeometry;
@@ -53,8 +52,10 @@ public:
     const Texture& GetVisibilityImage() const { return m_VisibilityBuffer->GetVisibilityImage(); }
     
 private:
-    RenderingInfo GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const;
-    RenderingInfo GetLoadRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const;
+    RenderingInfo GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution,
+        FrameContext* frameContext) const;
+    RenderingInfo GetLoadRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution,
+        FrameContext* frameContext) const;
 private:
     ShaderPipelineTemplate* m_Template{};
     ShaderPipeline m_Pipeline{};

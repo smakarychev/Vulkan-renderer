@@ -4,7 +4,6 @@
 #include <vector>
 
 class DescriptorAllocator;
-class DescriptorLayoutCache;
 class Scene;
 class ShaderPipelineTemplate;
 

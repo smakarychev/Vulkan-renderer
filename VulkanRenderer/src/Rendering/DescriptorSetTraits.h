@@ -1,0 +1,61 @@
+#pragma once
+#include "Core/core.h"
+
+enum class DescriptorType
+{
+    Sampler = 0,
+    Image,
+    ImageSampler,
+    ImageStorage,
+    TexelUniform,
+    TexelStorage,
+    UniformBuffer,
+    StorageBuffer,
+    UniformBufferDynamic,
+    StorageBufferDynamic,
+    Input
+};
+
+enum class DescriptorFlags
+{
+    None = 0,
+    
+    UpdateAfterBind     = BIT(1),
+    UpdateUnusedPending = BIT(2),
+    PartiallyBound      = BIT(3),
+    VariableCount       = BIT(4)
+};
+
+CREATE_ENUM_FLAGS_OPERATORS(DescriptorFlags)
+
+enum class DescriptorSetFlags
+{
+    None = 0,
+
+    UpdateAfterBind = BIT(1)
+};
+
+CREATE_ENUM_FLAGS_OPERATORS(DescriptorSetFlags)
+
+enum class DescriptorPoolFlags
+{
+    None = 0,
+    
+    FreeSet         = BIT(1),
+    UpdateAfterBind = BIT(2),
+    HostOnly        = BIT(3)
+};
+
+CREATE_ENUM_FLAGS_OPERATORS(DescriptorPoolFlags)
+
+
+enum class ShaderStage
+{
+    None = 0,
+    
+    Vertex  = BIT(1),
+    Pixel   = BIT(2),
+    Compute = BIT(3)
+};
+
+CREATE_ENUM_FLAGS_OPERATORS(ShaderStage)

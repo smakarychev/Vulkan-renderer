@@ -1,10 +1,10 @@
 ﻿#pragma once
 #include <vector>
 
-#include "Vulkan/Buffer.h"
+#include "Rendering/Buffer.h"
 
 // todo: use cvars for that, but need to load config first
-static constexpr u64 STAGING_BUFFER_DEFAULT_SIZE_BYTES = 1llu * 1024 * 1024;
+static constexpr u64 STAGING_BUFFER_DEFAULT_SIZE_BYTES = 16llu * 1024 * 1024;
 static constexpr u32 STAGING_BUFFER_MAX_IDLE_LIFE_TIME_FRAMES = 300;
 
 // used for uploading data by staging buffers

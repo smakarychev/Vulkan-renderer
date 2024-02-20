@@ -3,7 +3,6 @@
 #include <glm/gtx/hash.hpp>
 
 #include "Renderer.h"
-#include "utils.h"
 
 VertexInputDescription VertexP3N3T3UV2::GetInputDescription()
 {
@@ -11,35 +10,36 @@ VertexInputDescription VertexP3N3T3UV2::GetInputDescription()
     inputDescription.Bindings.reserve(1);
     inputDescription.Attributes.reserve(3);
 
-    VkVertexInputBindingDescription binding = {};
-    binding.binding = 0;
-    binding.stride = sizeof(VertexP3N3T3UV2);
-    binding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    VertexInputDescription::Binding binding = {
+        .Index = 0,
+        .StrideBytes = sizeof(VertexP3N3T3UV2)};
+    
+    
     inputDescription.Bindings.push_back(binding);
 
-    VkVertexInputAttributeDescription position = {};
-    position.binding = 0;
-    position.location = 0;
-    position.format = VK_FORMAT_R32G32B32_SFLOAT;
-    position.offset = offsetof(VertexP3N3T3UV2, Position);
+    VertexInputDescription::Attribute position = {};
+    position.BindingIndex = 0;
+    position.Index = 0;
+    position.Format = Format::RGB32_FLOAT;
+    position.OffsetBytes = offsetof(VertexP3N3T3UV2, Position);
 
-    VkVertexInputAttributeDescription normal = {};
-    normal.binding = 0;
-    normal.location = 1;
-    normal.format = VK_FORMAT_R32G32B32_SFLOAT;
-    normal.offset = offsetof(VertexP3N3T3UV2, Normal);
+    VertexInputDescription::Attribute normal = {};
+    normal.BindingIndex = 0;
+    normal.Index = 1;
+    normal.Format = Format::RGB32_FLOAT;
+    normal.OffsetBytes = offsetof(VertexP3N3T3UV2, Normal);
     
-    VkVertexInputAttributeDescription tangent = {};
-    normal.binding = 0;
-    normal.location = 2;
-    normal.format = VK_FORMAT_R32G32B32_SFLOAT;
-    normal.offset = offsetof(VertexP3N3T3UV2, Tangent);
+    VertexInputDescription::Attribute tangent = {};
+    tangent.BindingIndex = 0;
+    tangent.Index = 2;
+    tangent.Format = Format::RGB32_FLOAT;
+    tangent.OffsetBytes = offsetof(VertexP3N3T3UV2, Tangent);
     
-    VkVertexInputAttributeDescription uv = {};
-    uv.binding = 0;
-    uv.location = 3;
-    uv.format = VK_FORMAT_R32G32_SFLOAT;
-    uv.offset = offsetof(VertexP3N3T3UV2, UV);
+    VertexInputDescription::Attribute uv = {};
+    uv.BindingIndex = 0;
+    uv.Index = 3;
+    uv.Format = Format::RG32_FLOAT;
+    uv.OffsetBytes = offsetof(VertexP3N3T3UV2, UV);
 
     inputDescription.Attributes.push_back(position);
     inputDescription.Attributes.push_back(normal);
@@ -55,49 +55,45 @@ VertexInputDescription VertexP3N3T3UV2::GetInputDescriptionDI()
     inputDescription.Bindings.reserve(3);
     inputDescription.Attributes.reserve(3);
 
-    VkVertexInputBindingDescription positionBinding = {};
-    positionBinding.binding = 0;
-    positionBinding.stride = sizeof(glm::vec3);
-    positionBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    VertexInputDescription::Binding positionBinding = {};
+    positionBinding.Index = 0;
+    positionBinding.StrideBytes = sizeof(glm::vec3);
 
-    VkVertexInputBindingDescription normalBinding = {};
-    normalBinding.binding = 1;
-    normalBinding.stride = sizeof(glm::vec3);
-    normalBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    VertexInputDescription::Binding normalBinding = {};
+    normalBinding.Index = 1;
+    normalBinding.StrideBytes = sizeof(glm::vec3);
     
-    VkVertexInputBindingDescription tangentBinding = {};
-    tangentBinding.binding = 2;
-    tangentBinding.stride = sizeof(glm::vec3);
-    tangentBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    VertexInputDescription::Binding tangentBinding = {};
+    tangentBinding.Index = 2;
+    tangentBinding.StrideBytes = sizeof(glm::vec3);
 
-    VkVertexInputBindingDescription uvBinding = {};
-    uvBinding.binding = 3;
-    uvBinding.stride = sizeof(glm::vec2);
-    uvBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    VertexInputDescription::Binding uvBinding = {};
+    uvBinding.Index = 3;
+    uvBinding.StrideBytes = sizeof(glm::vec2);
 
-    VkVertexInputAttributeDescription position = {};
-    position.binding = positionBinding.binding;
-    position.location = positionBinding.binding;
-    position.format = VK_FORMAT_R32G32B32_SFLOAT;
-    position.offset = 0;
+    VertexInputDescription::Attribute position = {};
+    position.BindingIndex = positionBinding.Index;
+    position.Index = 0;
+    position.Format = Format::RGB32_FLOAT;
+    position.OffsetBytes = 0;
 
-    VkVertexInputAttributeDescription normal = {};
-    normal.binding = normalBinding.binding;
-    normal.location = normalBinding.binding;
-    normal.format = VK_FORMAT_R32G32B32_SFLOAT;
-    normal.offset = 0;
+    VertexInputDescription::Attribute normal = {};
+    normal.BindingIndex = normalBinding.Index;
+    normal.Index = 0;
+    normal.Format = Format::RGB32_FLOAT;
+    normal.OffsetBytes = 0;
 
-    VkVertexInputAttributeDescription tangent = {};
-    tangent.binding = tangentBinding.binding;
-    tangent.location = tangentBinding.binding;
-    tangent.format = VK_FORMAT_R32G32B32_SFLOAT;
-    tangent.offset = 0;
+    VertexInputDescription::Attribute tangent = {};
+    tangent.BindingIndex = tangentBinding.Index;
+    tangent.Index = 0;
+    tangent.Format = Format::RGB32_FLOAT;
+    tangent.OffsetBytes = 0;
     
-    VkVertexInputAttributeDescription uv = {};
-    uv.binding = uvBinding.binding;
-    uv.location = uvBinding.binding;
-    uv.format = VK_FORMAT_R32G32_SFLOAT;
-    uv.offset = 0;
+    VertexInputDescription::Attribute uv = {};
+    uv.BindingIndex = uvBinding.Index;
+    uv.Index = 0;
+    uv.Format = Format::RG32_FLOAT;
+    uv.OffsetBytes = 0;
 
     inputDescription.Bindings.push_back(positionBinding);
     inputDescription.Bindings.push_back(normalBinding);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RenderPassCommon.h"
-#include "Vulkan/Synchronization.h"
+#include "Rendering/Synchronization.h"
 
 #include <memory>
 
@@ -23,6 +23,7 @@ using DescriptorsOffsets = std::array<std::vector<u32>, MAX_PIPELINE_DESCRIPTOR_
 struct RenderPassGeometryCullRenderingContext
 {
     CommandBuffer* Cmd{nullptr};
+    DeletionQueue* DeletionQueue{nullptr};
     u32 FrameNumber{0};
     glm::vec2 Resolution; 
     RenderPassPipelineData* RenderingPipeline;
@@ -39,10 +40,11 @@ class RenderPassGeometryCull
         bool Reocclusion{false};
         CommandBuffer* Cmd{nullptr};
         u32 FrameNumber{0};
+        DeletionQueue* DeletionQueue{nullptr};
     };
 public:
     static RenderPassGeometryCull ForGeometry(const RenderPassGeometry& renderPassGeometry,
-        DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
+        DescriptorAllocator& allocator);
     // todo: to delegate
     static void Shutdown(const RenderPassGeometryCull& renderPassGeometryCull);
     // todo: to delegate
@@ -58,7 +60,7 @@ public:
     static constexpr u32 TRIANGLE_OFFSET = std::numeric_limits<u32>::max(); 
     
 private:
-    void InitPipelines(DescriptorAllocator& allocator, DescriptorLayoutCache& layoutCache);
+    void InitPipelines(DescriptorAllocator& allocator);
     void InitSynchronization();
     void FreeResolutionDependentResources() const;
 

@@ -1,8 +1,9 @@
 ﻿#pragma once
-#include <memory>
-#include <vector>
 
 #include "RenderHandle.h"
+
+#include <vector>
+#include <memory>
 
 template <typename T>
 class HandleArray

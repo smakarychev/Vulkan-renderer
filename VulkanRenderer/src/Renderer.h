@@ -2,18 +2,17 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_ENABLE_EXPERIMENTAL
-#include "Vulkan/VulkanInclude.h"
 
-#include <array>
 #include <vector>
 
 #include "ResourceUploader.h"
-#include "Settings.h"
 #include "VisibilityPass.h"
 #include "Core/Camera.h"
-#include "Core/ProfilerContext.h"
 #include "RenderPasses/RenderPassGeometry.h"
 #include "RenderPasses/RenderPassGeometryCull.h"
+#include "Rendering/CommandBuffer.h"
+#include "Vulkan/Driver.h"
+#include "Rendering/Swapchain.h"
 
 class Camera;
 class CameraController;
@@ -96,6 +95,7 @@ struct FrameContext
     glm::uvec2 Resolution;
     
     CommandBuffer Cmd;
+    DeletionQueue DeletionQueue;
 };
 
 class Renderer
@@ -133,8 +133,6 @@ private:
 
     void SceneVisibilityPass();
 
-    RenderingInfo GetClearRenderingInfo();
-    RenderingInfo GetLoadRenderingInfo();
     RenderingInfo GetColorRenderingInfo();
 
     void OnWindowResize();
@@ -173,7 +171,6 @@ private:
 
     DescriptorAllocator m_PersistentDescriptorAllocator;
     DescriptorAllocator m_CullDescriptorAllocator;
-    DescriptorLayoutCache m_LayoutCache;
     ResourceUploader m_ResourceUploader;
 
     ComputeDepthPyramidData m_ComputeDepthPyramidData;

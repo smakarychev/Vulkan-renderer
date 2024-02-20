@@ -18,6 +18,7 @@
 #include <spirv_reflect.h>
 #include <fstream>
 #include <iostream>
+#include <vulkan/vulkan_core.h>
 
 #include "utils.h"
 
@@ -29,7 +30,8 @@ namespace
         std::filesystem::path BlobPath;
     };
     template <typename Fn>
-    AssetPaths getAssetsPath(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& rawFilePath, Fn&& transform)
+    AssetPaths getAssetsPath(const std::filesystem::path& initialDirectoryPath,
+        const std::filesystem::path& rawFilePath, Fn&& transform)
     {
         std::filesystem::path processedPath = rawFilePath.filename();
 
@@ -53,7 +55,8 @@ namespace
     }
     
     template <typename Fn>
-    bool needsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path, Fn&& transform)
+    bool needsConversion(const std::filesystem::path& initialDirectoryPath,
+        const std::filesystem::path& path, Fn&& transform)
     {
         std::filesystem::path convertedPath = getAssetsPath(initialDirectoryPath, path,
             [&transform](std::filesystem::path& unprocessedPath)
@@ -77,7 +80,8 @@ namespace
     }
 }
 
-bool TextureConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
+bool TextureConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
+    const std::filesystem::path& path)
 {
     return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
     {
@@ -85,7 +89,8 @@ bool TextureConverter::NeedsConversion(const std::filesystem::path& initialDirec
     });
 }
 
-void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
+void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath,
+    const std::filesystem::path& path)
 {
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
@@ -116,10 +121,12 @@ void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath
 
     stbi_image_free(pixels);
 
-    std::cout << std::format("Texture file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
+    std::cout << std::format("Texture file {} converted to {} (blob at {})\n",
+        path.string(), assetPath.string(), blobPath.string());
 }
 
-bool ModelConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
+bool ModelConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
+    const std::filesystem::path& path)
 {
     return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
     {
@@ -127,7 +134,8 @@ bool ModelConverter::NeedsConversion(const std::filesystem::path& initialDirecto
     });
 }
 
-void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
+void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
+    const std::filesystem::path& path)
 {
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
@@ -196,14 +204,17 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
     }
 
     std::array<const void*, (u32)assetLib::VertexElement::MaxVal> vertexElements = modelData.VertexGroup.Elements();
-    assetLib::File modelFile = assetLib::packModel(modelInfo, {vertexElements.begin(), vertexElements.end()}, modelData.Indices.data(), modelData.Meshlets.data());
+    assetLib::File modelFile = assetLib::packModel(modelInfo, {vertexElements.begin(), vertexElements.end()},
+        modelData.Indices.data(), modelData.Meshlets.data());
 
     assetLib::saveAssetFile(assetPath.string(), blobPath.string(), modelFile);
 
-    std::cout << std::format("Model file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
+    std::cout << std::format("Model file {} converted to {} (blob at {})\n",
+        path.string(), assetPath.string(), blobPath.string());
 }
 
-ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const aiMesh* mesh, const std::filesystem::path& modelPath)
+ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const aiMesh* mesh,
+    const std::filesystem::path& modelPath)
 {
     assetLib::VertexGroup vertexGroup = GetMeshVertices(mesh);
 
@@ -217,7 +228,8 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
         materialType = GetMaterialType(scene->mMaterials[mesh->mMaterialIndex]);
         materialPropertiesPBR = GetMaterialPropertiesPBR(scene->mMaterials[mesh->mMaterialIndex]);
         for (u32 i = 0; i < materials.size(); i++)
-            materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex], (assetLib::ModelInfo::MaterialAspect)i, modelPath);
+            materials[i] = GetMaterialInfo(scene->mMaterials[mesh->mMaterialIndex],
+                (assetLib::ModelInfo::MaterialAspect)i, modelPath);
     }
 
     MeshData meshData = {
@@ -347,7 +359,8 @@ assetLib::ModelInfo::MaterialPropertiesPBR ModelConverter::GetMaterialProperties
         .Roughness = (f32)roughness};
 }
 
-bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
+bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
+    const std::filesystem::path& path)
 {
     std::filesystem::path convertedPath = {};
     
@@ -384,9 +397,11 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
         {
             AssetPaths paths;
             paths.AssetPath = paths.BlobPath = processedPath;
-            paths.AssetPath.replace_filename(processedPath.stem().string() + "-" + processedPath.extension().string().substr(1));
+            paths.AssetPath.replace_filename(processedPath.stem().string() + "-" +
+                processedPath.extension().string().substr(1));
             paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
-            paths.BlobPath.replace_filename(processedPath.stem().string() + "-" + processedPath.extension().string().substr(1));
+            paths.BlobPath.replace_filename(processedPath.stem().string() + "-" +
+                processedPath.extension().string().substr(1));
             paths.BlobPath.replace_extension(BLOB_EXTENSION);
 
             return paths;
@@ -468,7 +483,8 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     options.SetIncluder(std::make_unique<FileIncluder>(&includedFiles));
     options.SetTargetSpirv(shaderc_spirv_version_1_3);
     options.SetOptimizationLevel(shaderc_optimization_level_zero);
-    shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind, path.string().c_str(), options);
+    shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind,
+        path.string().c_str(), options);
     if (module.GetCompilationStatus() != shaderc_compilation_status_success)
     {
         std::cout << std::format("Shader compilation error:\n {}", module.GetErrorMessage());
@@ -497,7 +513,8 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
 
     assetLib::saveAssetFile(assetPath.string(), blobPath.string(), shaderFile);
 
-    std::cout << std::format("Shader file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
+    std::cout << std::format("Shader file {} converted to {} (blob at {})\n",
+        path.string(), assetPath.string(), blobPath.string());
 }
 
 std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptorsFlags(std::string_view shaderSource)
@@ -571,7 +588,8 @@ std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptor
     return descriptorFlags;
 }
 
-std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInputBindings(std::string_view shaderSource)
+std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInputBindings(
+    std::string_view shaderSource)
 {
     struct AttributeInfo
     {
@@ -606,7 +624,9 @@ std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInp
                 usize textEnd = source.find_last_not_of(" \t\r\n", endingSemicolon);
                 usize textStart = source.find_last_of(" \t\r\n", textEnd) + 1;
 
-                attributes.push_back({.TextPosition = textStart, .Name = std::string{source.substr(textStart, textEnd - textStart)}});
+                attributes.push_back({
+                    .TextPosition = textStart,
+                    .Name = std::string{source.substr(textStart, textEnd - textStart)}});
             }
 
             offset = endingSemicolon;
@@ -631,7 +651,8 @@ std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInp
             usize bindingNumberStringEnd = std::min(source.find("\r\n", offset), source.find("\n", offset));
             usize bindingNumberStringStart = source.find_last_of(" \t", bindingNumberStringEnd) + 1;
 
-            u32 binding = std::stoul(std::string{source.substr(bindingNumberStringStart, bindingNumberStringEnd - bindingNumberStringStart)});
+            u32 binding = std::stoul(std::string{source.substr(bindingNumberStringStart,
+                bindingNumberStringEnd - bindingNumberStringStart)});
             bindings.push_back({.TextPosition = bindingNumberStringStart, .Binding = binding});
 
             offset = bindingNumberStringEnd;
@@ -659,7 +680,8 @@ std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInp
 
     if (attributes.front().TextPosition < bindings.front().TextPosition)
     {
-        auto it = std::find_if(bindings.begin(), bindings.end(), [](auto& bindingInfo){ return bindingInfo.Binding == 0;});
+        auto it = std::find_if(bindings.begin(), bindings.end(),
+            [](auto& bindingInfo){ return bindingInfo.Binding == 0;});
         if (it != bindings.end())
             LOG("WARNING: dangerous implicit binding 0 for some input attributes");
 
@@ -679,7 +701,9 @@ std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInp
         AttributeInfo& attribute = attributes[attributeIndexCurrent];
         if (bindingIndexNext == bindings.size() || attribute.TextPosition < bindings[bindingIndexNext].TextPosition)
         {
-            inputAttributeBindingInfos.push_back({.Binding = bindings[bindingIndexCurrent].Binding, .Attribute = attribute.Name});
+            inputAttributeBindingInfos.push_back({
+                .Binding = bindings[bindingIndexCurrent].Binding,
+                .Attribute = attribute.Name});
             attributeIndexCurrent++;
         }
         else
@@ -722,7 +746,7 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
     SpvReflectShaderModule reflectedModule = {};
     spvReflectCreateShaderModule(spirV.size() * sizeof(u32), spirV.data(), &reflectedModule);
 
-    shaderInfo.ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage;
+    shaderInfo.ShaderStages = (u32)reflectedModule.shader_stage;
 
     // extract specialization constants
     u32 specializationCount;
@@ -735,7 +759,7 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
         shaderInfo.SpecializationConstants.push_back({
             .Id = constant->constant_id,
             .Name = constant->name,
-            .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage});
+            .ShaderStages = (u32)reflectedModule.shader_stage});
 
     // extract input attributes
     if (reflectedModule.shader_stage == SPV_REFLECT_SHADER_STAGE_VERTEX_BIT)
@@ -753,7 +777,7 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
             shaderInfo.InputAttributes.push_back({
                 .Location = input->location,
                 .Name = input->name,
-                .Format = (VkFormat)input->format,
+                .Format = (u32)input->format,
                 .SizeBytes = input->numeric.scalar.width * std::max(1u, input->numeric.vector.component_count) / 8});
             for (auto& inputBinding : inputBindings)
                 if (inputBinding.Attribute == input->name)
@@ -775,7 +799,10 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
 
     shaderInfo.PushConstants.reserve(pushCount);
     for (auto& push : pushConstants)
-        shaderInfo.PushConstants.push_back({.SizeBytes = push->size, .Offset = push->offset, .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage});
+        shaderInfo.PushConstants.push_back({
+            .SizeBytes = push->size,
+            .Offset = push->offset,
+            .ShaderStages = (u32)reflectedModule.shader_stage});
     std::ranges::sort(shaderInfo.PushConstants,
         [](const auto& a, const auto& b) { return a.Offset < b.Offset; });
 
@@ -804,8 +831,8 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
             descriptorSet.Descriptors[i] = {
                 .Binding = set->bindings[i]->binding,
                 .Name = set->bindings[i]->name,
-                .Type = (VkDescriptorType)set->bindings[i]->descriptor_type,
-                .ShaderStages = (VkShaderStageFlags)reflectedModule.shader_stage
+                .Type = (u32)set->bindings[i]->descriptor_type,
+                .ShaderStages = (u32)reflectedModule.shader_stage
             };
             auto it = std::find_if(flags.begin(), flags.end(),
                 [&descriptorSet, i](const auto& flag)
@@ -818,10 +845,10 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
             
             if (descriptorSet.Descriptors[i].Flags & DescriptorFlags::Dynamic)
             {
-                if (descriptorSet.Descriptors[i].Type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
-                    descriptorSet.Descriptors[i].Type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-                else if (descriptorSet.Descriptors[i].Type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
-                    descriptorSet.Descriptors[i].Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+                if (descriptorSet.Descriptors[i].Type == (u32)VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                    descriptorSet.Descriptors[i].Type = (u32)VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+                else if (descriptorSet.Descriptors[i].Type == (u32)VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                    descriptorSet.Descriptors[i].Type = (u32)VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
             }
         }
         std::ranges::sort(descriptorSet.Descriptors,

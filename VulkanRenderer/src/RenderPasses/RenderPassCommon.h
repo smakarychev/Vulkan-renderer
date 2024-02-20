@@ -1,7 +1,6 @@
 #pragma once
 
-#include "Vulkan/Image.h"
-#include "Vulkan/Shader.h"
+#include "Rendering/Shader.h"
 
 class RenderPassGeometry;
 class CommandBuffer;

@@ -1,7 +1,7 @@
 ﻿#include "AssetManager.h"
 
 #include "Model.h"
-#include "Vulkan/Shader.h"
+#include "Rendering/Shader.h"
 
 std::unordered_map<std::string, Shader> AssetManager::s_Shaders = {};
 std::unordered_map<std::string, Model> AssetManager::s_Models = {};

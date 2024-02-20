@@ -2,7 +2,6 @@
 
 #include "AssetLib.h"
 
-#include <vulkan/vulkan_core.h>
 #include "Core/core.h"
 
 namespace assetLib
@@ -13,21 +12,21 @@ namespace assetLib
         {
             u32 Id;
             std::string Name;
-            VkShaderStageFlags ShaderStages;
+            u32 ShaderStages;
         };
         struct InputAttribute
         {
             u32 Binding;
             u32 Location;
             std::string Name;
-            VkFormat Format;
+            u32 Format;
             u32 SizeBytes;
         };
         struct PushConstant
         {
             u32 SizeBytes;
             u32 Offset;
-            VkShaderStageFlags ShaderStages;
+            u32 ShaderStages;
         };
         struct DescriptorSet
         {
@@ -43,8 +42,8 @@ namespace assetLib
             {
                 u32 Binding;
                 std::string Name;
-                VkDescriptorType Type;
-                VkShaderStageFlags ShaderStages;
+                u32 Type;
+                u32 ShaderStages;
                 DescriptorFlags Flags{None};
             };
             u32 Set;
@@ -53,7 +52,7 @@ namespace assetLib
 
         std::vector<std::string> IncludedFiles;
         
-        VkShaderStageFlags ShaderStages;
+        u32 ShaderStages;
         std::vector<SpecializationConstant> SpecializationConstants;
         std::vector<InputAttribute> InputAttributes;
         std::vector<PushConstant> PushConstants;

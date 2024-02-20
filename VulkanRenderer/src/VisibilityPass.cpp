@@ -1,12 +1,11 @@
 ﻿#include "VisibilityPass.h"
 
 #include "Renderer.h"
-#include "Vulkan/RenderCommand.h"
-#include "Vulkan/VulkanUtils.h"
+#include "Rendering/RenderingUtils.h"
 
 namespace
 {
-    constexpr ImageFormat VISIBILITY_BUFFER_FORMAT = ImageFormat::R32_UINT;
+    constexpr Format VISIBILITY_BUFFER_FORMAT = Format::R32_UINT;
     constexpr u32 VISIBILITY_BUFFER_CLEAR_VALUE = std::numeric_limits<u32>::max();
 }
 
@@ -20,6 +19,7 @@ VisibilityBuffer::VisibilityBuffer(const glm::uvec2& size, const CommandBuffer& 
 
     ImageSubresource imageSubresource = m_VisibilityImage.CreateSubresource(1, 1);
     
+    DeletionQueue deletionQueue = {};
     DependencyInfo layoutTransition = DependencyInfo::Builder()
         .LayoutTransition({
             .ImageSubresource = &imageSubresource,
@@ -29,7 +29,7 @@ VisibilityBuffer::VisibilityBuffer(const glm::uvec2& size, const CommandBuffer& 
             .DestinationAccess = PipelineAccess::ReadShader,
             .OldLayout = ImageLayout::Undefined,
             .NewLayout = ImageLayout::General})
-        .Build();
+        .Build(deletionQueue);
 
     Barrier barrier = {};
     barrier.Wait(cmd, layoutTransition);
@@ -55,7 +55,7 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
             {"../assets/shaders/processed/visibility-buffer/visibility-buffer-vert.shader",
             "../assets/shaders/processed/visibility-buffer/visibility-buffer-frag.shader"},
             "visibility-pipeline",
-            *initInfo.DescriptorAllocator, *initInfo.LayoutCache);
+            *initInfo.DescriptorAllocator);
 
         RenderingDetails details = initInfo.RenderingDetails;
         details.ColorFormats = {VISIBILITY_BUFFER_FORMAT};
@@ -113,12 +113,13 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
     descriptorsOffsets[(u32)DescriptorKind::Pass] = {trianglesOffset};
 
     RenderingInfo clearRenderingInfo = GetClearRenderingInfo(*renderInfo.DepthBuffer,
-        renderInfo.FrameContext->Resolution);
+        renderInfo.FrameContext->Resolution, renderInfo.FrameContext);
     RenderingInfo loadRenderingInfo = GetLoadRenderingInfo(*renderInfo.DepthBuffer,
-        renderInfo.FrameContext->Resolution);
+        renderInfo.FrameContext->Resolution, renderInfo.FrameContext);
     
     m_RenderPassGeometryCull->CullRender({
         .Cmd = &renderInfo.FrameContext->Cmd,
+        .DeletionQueue = &renderInfo.FrameContext->DeletionQueue,
         .FrameNumber = renderInfo.FrameContext->FrameNumber,
         .Resolution = renderInfo.FrameContext->Resolution,
         .RenderingPipeline = &renderPassPipelineData,
@@ -128,55 +129,52 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
         .DepthBuffer = renderInfo.DepthBuffer});
 }
 
-RenderingInfo VisibilityPass::GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const
+RenderingInfo VisibilityPass::GetClearRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution,
+    FrameContext* frameContext) const
 {
-    // todo: fix: direct VKAPI Usage
-    VkClearValue colorClear = {};
-    colorClear.color.uint32[0] = VISIBILITY_BUFFER_CLEAR_VALUE;
-    VkClearValue depthClear = {.depthStencil = {.depth = 0.0f}};
-    
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
         .FromImage(m_VisibilityBuffer->GetVisibilityImage(), ImageLayout::General)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
-        .ClearValue(colorClear)
-        .Build();
+        .LoadStoreOperations(AttachmentLoad::Clear, AttachmentStore::Store)
+        .ClearValue(glm::uvec4(VISIBILITY_BUFFER_CLEAR_VALUE, 0u, 0u, 0u))
+        .Build(frameContext->DeletionQueue);
 
     RenderingAttachment depth = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Depth)
         .FromImage(depthBuffer, ImageLayout::DepthAttachment)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_CLEAR, VK_ATTACHMENT_STORE_OP_STORE)
-        .ClearValue(depthClear)
-        .Build();
+        .LoadStoreOperations(AttachmentLoad::Clear, AttachmentStore::Store)
+        .ClearValue(0.0f)
+        .Build(frameContext->DeletionQueue);
 
     RenderingInfo renderingInfo = RenderingInfo::Builder()
         .AddAttachment(color)
         .AddAttachment(depth)
         .SetRenderArea(resolution)
-        .Build();
+        .Build(frameContext->DeletionQueue);
 
     return renderingInfo;
 }
 
-RenderingInfo VisibilityPass::GetLoadRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution) const
+RenderingInfo VisibilityPass::GetLoadRenderingInfo(const Image& depthBuffer, const glm::uvec2& resolution,
+    FrameContext* frameContext) const
 {
     RenderingAttachment color = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Color)
         .FromImage(m_VisibilityBuffer->GetVisibilityImage(), ImageLayout::General)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
-        .Build();
+        .LoadStoreOperations(AttachmentLoad::Load, AttachmentStore::Store)
+        .Build(frameContext->DeletionQueue);
 
     RenderingAttachment depth = RenderingAttachment::Builder()
         .SetType(RenderingAttachmentType::Depth)
         .FromImage(depthBuffer, ImageLayout::DepthAttachment)
-        .LoadStoreOperations(VK_ATTACHMENT_LOAD_OP_LOAD, VK_ATTACHMENT_STORE_OP_STORE)
-        .Build();
+        .LoadStoreOperations(AttachmentLoad::Load, AttachmentStore::Store)
+        .Build(frameContext->DeletionQueue);
 
     RenderingInfo renderingInfo = RenderingInfo::Builder()
         .AddAttachment(color)
         .AddAttachment(depth)
         .SetRenderArea(resolution)
-        .Build();
+        .Build(frameContext->DeletionQueue);
 
     return renderingInfo;
 }

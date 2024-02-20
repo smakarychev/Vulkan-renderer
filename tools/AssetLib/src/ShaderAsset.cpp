@@ -51,7 +51,7 @@ namespace assetLib
         nlohmann::json metadata = nlohmann::json::parse(file.JSON);
 
         info.SourceSizeBytes = metadata["source_size_bytes"];
-        info.ShaderStages = VkShaderStageFlags(metadata["shader_stage"].get<u32>());
+        info.ShaderStages = metadata["shader_stage"];
 
         const nlohmann::json& includedFiles = metadata["included_files"];
         u32 includedFilesCount = (u32)includedFiles.size();
@@ -67,7 +67,7 @@ namespace assetLib
             ShaderInfo::SpecializationConstant specializationConstant = {};
             specializationConstant.Id = constant["id"];
             specializationConstant.Name = constant["name"];
-            specializationConstant.ShaderStages = (VkShaderStageFlags)constant["shader_stages"];
+            specializationConstant.ShaderStages = constant["shader_stages"];
 
             info.SpecializationConstants.push_back(specializationConstant);
         }
@@ -81,7 +81,7 @@ namespace assetLib
             inputAttribute.Binding = input["binding"];
             inputAttribute.Location = input["location"];
             inputAttribute.Name = input["name"];
-            inputAttribute.Format = (VkFormat)input["format"];
+            inputAttribute.Format = input["format"];
             inputAttribute.SizeBytes = input["size_bytes"];
 
             info.InputAttributes.push_back(inputAttribute);
@@ -95,7 +95,7 @@ namespace assetLib
             ShaderInfo::PushConstant pushConstant = {};
             pushConstant.SizeBytes = push["size_bytes"];
             pushConstant.Offset = push["offset"];
-            pushConstant.ShaderStages = (VkShaderStageFlags)push["shader_stages"];
+            pushConstant.ShaderStages = push["shader_stages"];
 
             info.PushConstants.push_back(pushConstant);
         }
@@ -115,8 +115,8 @@ namespace assetLib
                 ShaderInfo::DescriptorSet::DescriptorBinding descriptorBinding = {};
                 descriptorBinding.Binding = binding["binding"];
                 descriptorBinding.Name = binding["name"];
-                descriptorBinding.Type = (VkDescriptorType)binding["descriptor"];
-                descriptorBinding.ShaderStages = (VkShaderStageFlags)binding["shader_stages"];
+                descriptorBinding.Type = binding["descriptor"];
+                descriptorBinding.ShaderStages = binding["shader_stages"];
                 const nlohmann::json& flags = binding["flags"];
                 std::vector<std::string> flagsStrings;
                 flagsStrings.reserve(flags.size());
