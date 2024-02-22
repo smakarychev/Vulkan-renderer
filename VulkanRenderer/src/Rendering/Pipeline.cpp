@@ -7,7 +7,7 @@
 PipelineLayout PipelineLayout::Builder::Build()
 {
     PipelineLayout layout = PipelineLayout::Create(m_CreateInfo);
-    Driver::DeletionQueue().AddDeleter([layout]() { PipelineLayout::Destroy(layout); });
+    Driver::DeletionQueue().Enqueue(layout);
 
     return layout;
 }
@@ -34,7 +34,7 @@ PipelineLayout PipelineLayout::Create(const Builder::CreateInfo& createInfo)
 
 void PipelineLayout::Destroy(const PipelineLayout& pipelineLayout)
 {
-    Driver::Destroy(pipelineLayout);
+    Driver::Destroy(pipelineLayout.Handle());
 }
 
 Pipeline Pipeline::Builder::Build()
@@ -47,7 +47,7 @@ Pipeline Pipeline::Builder::Build(DeletionQueue& deletionQueue)
     PreBuild();
     
     Pipeline pipeline = Pipeline::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([pipeline](){ Pipeline::Destroy(pipeline); });
+    deletionQueue.Enqueue(pipeline);
 
     return pipeline;
 }
@@ -129,7 +129,7 @@ Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
 
 void Pipeline::Destroy(const Pipeline& pipeline)
 {
-    Driver::Destroy(pipeline);
+    Driver::Destroy(pipeline.Handle());
 }
 
 void Pipeline::BindGraphics(const CommandBuffer& commandBuffer) const

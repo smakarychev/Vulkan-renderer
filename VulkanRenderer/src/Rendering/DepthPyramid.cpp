@@ -2,15 +2,15 @@
 
 #include <tracy/Tracy.hpp>
 
-#include "Driver.h"
-#include "RenderCommand.h"
 #include "Renderer.h"
 #include "utils/MathUtils.h"
 #include "utils/utils.h"
+#include "Vulkan/Driver.h"
+#include "Vulkan/RenderCommand.h"
 
 
 DepthPyramid::DepthPyramid(const Image& depthImage, const CommandBuffer& cmd,
-    ComputeDepthPyramidData* computeDepthPyramidData)
+                           ComputeDepthPyramidData* computeDepthPyramidData)
     : m_ComputeDepthPyramidData(computeDepthPyramidData)
 {
     m_Sampler = CreateSampler();
@@ -22,9 +22,6 @@ DepthPyramid::DepthPyramid(const Image& depthImage, const CommandBuffer& cmd,
 
 DepthPyramid::~DepthPyramid()
 {
-    for (u32 i = 0; i < m_PyramidDepth.GetDescription().Mipmaps; i++)
-        ShaderDescriptorSet::Destroy(m_DepthPyramidDescriptors[i]);
-    
     ImageViewList::Destroy(m_MipmapViews);
     Image::Destroy(m_PyramidDepth);
 }
@@ -104,10 +101,10 @@ void DepthPyramid::CreateDescriptorSets(const Image& depthImage)
             m_Sampler, ImageLayout::General, m_MipmapViews, m_MipmapViewHandles[i]);
         
         m_DepthPyramidDescriptors[i] = ShaderDescriptorSet::Builder()
-            .SetTemplate(&m_ComputeDepthPyramidData->PipelineTemplate)
+            .SetTemplate(m_ComputeDepthPyramidData->PipelineTemplate)
             .AddBinding("u_in_image", source)
             .AddBinding("u_out_image", destination)
-            .BuildManualLifetime();
+            .Build();
     }
 }
 

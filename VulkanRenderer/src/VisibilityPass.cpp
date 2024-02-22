@@ -40,14 +40,11 @@ VisibilityBuffer::~VisibilityBuffer()
     Image::Destroy(m_VisibilityImage);
 }
 
-bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
+void VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
 {
-    bool recreated = false;
     if (m_VisibilityBuffer)
     {
         m_VisibilityBuffer.reset();
-        ShaderDescriptorSet::Destroy(m_DescriptorSet);
-        recreated = true;
     }
     else
     {
@@ -68,35 +65,30 @@ bool VisibilityPass::Init(const VisibilityPassInitInfo& initInfo)
 
         m_RenderPassGeometry = initInfo.RenderPassGeometry;
         m_RenderPassGeometryCull = initInfo.RenderPassGeometryCull;
+
+        m_DescriptorSet = ShaderDescriptorSet::Builder()
+            .SetTemplate(m_Template)
+            .AddBinding("u_camera_buffer", *initInfo.CameraBuffer, sizeof(CameraData), 0)
+            .AddBinding("u_position_buffer", initInfo.RenderPassGeometry->GetAttributeBuffers().Positions)
+            .AddBinding("u_uv_buffer", initInfo.RenderPassGeometry->GetAttributeBuffers().UVs)
+            .AddBinding("u_object_buffer", initInfo.RenderPassGeometry->GetRenderObjectsBuffer())
+            .AddBinding("u_triangle_buffer", initInfo.RenderPassGeometryCull->GetTriangleBuffer(),
+                initInfo.RenderPassGeometryCull->GetTriangleBufferSizeBytes(), 0)
+            .AddBinding("u_command_buffer", initInfo.RenderPassGeometry->GetCommandsBuffer())
+            .AddBinding("u_material_buffer", initInfo.RenderPassGeometry->GetMaterialsBuffer())
+            .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
+            .Build();
     }
     
     m_VisibilityBuffer = std::make_unique<VisibilityBuffer>(initInfo.Size, *initInfo.Cmd);
 
-    m_DescriptorSet = ShaderDescriptorSet::Builder()
-        .SetTemplate(m_Template)
-        .AddBinding("u_camera_buffer", *initInfo.CameraBuffer, sizeof(CameraData), 0)
-        .AddBinding("u_position_buffer", initInfo.RenderPassGeometry->GetAttributeBuffers().Positions)
-        .AddBinding("u_uv_buffer", initInfo.RenderPassGeometry->GetAttributeBuffers().UVs)
-        .AddBinding("u_object_buffer", initInfo.RenderPassGeometry->GetRenderObjectsBuffer())
-        .AddBinding("u_triangle_buffer", initInfo.RenderPassGeometryCull->GetTriangleBuffer(),
-            initInfo.RenderPassGeometryCull->GetTriangleBufferSizeBytes(), 0)
-        .AddBinding("u_command_buffer", initInfo.RenderPassGeometry->GetCommandsBuffer())
-        .AddBinding("u_material_buffer", initInfo.RenderPassGeometry->GetMaterialsBuffer())
-        .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
-        .BuildManualLifetime();
-
     initInfo.RenderPassGeometry->GetModelCollection().ApplyMaterialTextures(m_DescriptorSet);
-
-    return recreated;
 }
 
 void VisibilityPass::Shutdown()
 {
     if (m_VisibilityBuffer)
-    {
         m_VisibilityBuffer.reset();
-        ShaderDescriptorSet::Destroy(m_DescriptorSet);
-    }
 }
 
 void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
@@ -105,7 +97,7 @@ void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
         .Pipeline = m_Pipeline,
         .Descriptors = m_DescriptorSet};
 
-    u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) *
+    u32 cameraDataOffset = u32(renderUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) *
         renderInfo.FrameContext->FrameNumber);
     u32 trianglesOffset = RenderPassGeometryCull::TRIANGLE_OFFSET; 
     DescriptorsOffsets descriptorsOffsets = {};

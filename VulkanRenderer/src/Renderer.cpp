@@ -100,7 +100,7 @@ void Renderer::UpdateCameraBuffers()
         .View = m_Camera->GetView(),
         .Projection = m_Camera->GetProjection(),
         .ViewProjection = m_Camera->GetViewProjection()};
-    u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber;
+    u64 offsetBytes = renderUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * GetFrameContext().FrameNumber;
     m_ResourceUploader.UpdateBuffer(
         m_CameraDataUBO.Buffer, &m_CameraDataUBO.CameraData, sizeof(CameraData), offsetBytes);
 
@@ -115,7 +115,7 @@ void Renderer::UpdateCameraBuffers()
         .WindowSize = {(f32)m_Swapchain.GetResolution().x, (f32)m_Swapchain.GetResolution().y},
         .FrustumNear = frustumPlanes.Near,
         .FrustumFar = frustumPlanes.Far};
-    offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber;
+    offsetBytes = renderUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber;
     m_ResourceUploader.UpdateBuffer(
         m_CameraDataExtendedUBO.Buffer, &m_CameraDataExtendedUBO.CameraData, sizeof(CameraDataExtended), offsetBytes);
 }
@@ -138,7 +138,7 @@ void Renderer::UpdateScene()
     m_SceneDataUBO.SceneData.SunlightDirection = {sunPos * 2.0f, (sunPos + 2.0f) * 10.0f, sunPos * 8.0f, 1.0f};
     m_SceneDataUBO.SceneData.SunlightColor = {0.8f, 0.1f, 0.1f, 1.0};
     m_SceneDataUBO.SceneData.FogColor = {0.3f, 0.1f, 0.1f, 1.0f};
-    u64 offsetBytes = vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * context.FrameNumber;
+    u64 offsetBytes = renderUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * context.FrameNumber;
     m_ResourceUploader.UpdateBuffer(m_SceneDataUBO.Buffer, &m_SceneDataUBO.SceneData, sizeof(SceneData), offsetBytes);
 }
 
@@ -253,7 +253,7 @@ void Renderer::SceneVisibilityPass()
         .FrameContext = &GetFrameContext(),
         .DepthBuffer = &m_Swapchain.GetDepthImage()});
 
-    u32 cameraDataOffset = u32(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber);
+    u32 cameraDataOffset = u32(renderUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * GetFrameContext().FrameNumber);
 
     CommandBuffer& cmd = GetFrameContext().Cmd;
     RenderCommand::SetViewport(cmd, m_Swapchain.GetResolution());
@@ -327,19 +327,27 @@ void Renderer::InitRenderingStructures()
         .SetMaxSetsPerPool(100)
         .Build();
 
+    m_ResolutionDependentAllocator = DescriptorAllocator::Builder()
+        .SetMaxSetsPerPool(100000)
+        .Build();
+    
+    m_ResolutionDependentCullAllocator = DescriptorAllocator::Builder()
+        .SetMaxSetsPerPool(100)
+        .Build();
+
     m_SceneDataUBO.Buffer = Buffer::Builder()
         .SetUsage(BufferUsage::Uniform | BufferUsage::Upload)
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES)
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes(sizeof(SceneData)) * BUFFERED_FRAMES)
         .Build();
 
     m_CameraDataUBO.Buffer = Buffer::Builder()
         .SetUsage(BufferUsage::Uniform | BufferUsage::Upload)
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * BUFFERED_FRAMES)
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes(sizeof(CameraData)) * BUFFERED_FRAMES)
         .Build();
 
     m_CameraDataExtendedUBO.Buffer = Buffer::Builder()
         .SetUsage(BufferUsage::Uniform | BufferUsage::Upload)
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * BUFFERED_FRAMES)
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes(sizeof(CameraDataExtended)) * BUFFERED_FRAMES)
         .Build();
 
     m_CurrentFrameContext = &m_FrameContexts.front();
@@ -347,21 +355,19 @@ void Renderer::InitRenderingStructures()
 
 void Renderer::InitDepthPyramidComputeStructures()
 {
-    Shader* computeDepthPyramid = Shader::ReflectFrom({"../assets/shaders/processed/culling/depth-pyramid-comp.shader"});
-
-    m_ComputeDepthPyramidData.PipelineTemplate = ShaderPipelineTemplate::Builder()
-        .SetDescriptorAllocator(&m_CullDescriptorAllocator)
-        .SetShaderReflection(computeDepthPyramid)
-        .Build();
+    m_ComputeDepthPyramidData.PipelineTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
+        {"../assets/shaders/processed/culling/depth-pyramid-comp.shader"},
+        "depth-pyramid",
+        m_ResolutionDependentCullAllocator);
 
     m_ComputeDepthPyramidData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(&m_ComputeDepthPyramidData.PipelineTemplate)
+        .SetTemplate(m_ComputeDepthPyramidData.PipelineTemplate)
         .Build();
 }
 
 void Renderer::InitVisibilityPass()
 {
-    bool recreated = m_VisibilityPass.Init({
+    m_VisibilityPass.Init({
         .Size = m_Swapchain.GetResolution(),
         .Cmd = &GetFrameContext().Cmd,
         .DescriptorAllocator = &m_PersistentDescriptorAllocator,
@@ -370,9 +376,6 @@ void Renderer::InitVisibilityPass()
         .RenderPassGeometry = &m_OpaqueGeometry,
         .RenderPassGeometryCull = &m_OpaqueGeometryCull});
 
-    if (recreated)
-        ShaderDescriptorSet::Destroy(m_VisibilityBufferVisualizeData.DescriptorSet);
-    
     m_VisibilityBufferVisualizeData.DescriptorSet = ShaderDescriptorSet::Builder()
         .SetTemplate(m_VisibilityBufferVisualizeData.Template)
         .AddBinding("u_visibility_texture", m_VisibilityPass.GetVisibilityImage().CreateBindingInfo(
@@ -387,7 +390,7 @@ void Renderer::InitVisibilityPass()
         .AddBinding("u_command_buffer", m_OpaqueGeometry.GetCommandsBuffer())
         .AddBinding("u_material_buffer", m_OpaqueGeometry.GetMaterialsBuffer())
         .AddBinding("u_textures", BINDLESS_TEXTURES_COUNT)
-        .BuildManualLifetime();
+        .Build();
 
     m_ModelCollection.ApplyMaterialTextures(m_VisibilityBufferVisualizeData.DescriptorSet);
 }
@@ -398,7 +401,7 @@ void Renderer::InitVisibilityBufferVisualizationStructures()
         {"../assets/shaders/processed/visibility-buffer/visualize-vert.shader",
         "../assets/shaders/processed/visibility-buffer/visualize-frag.shader"},
         "visualize-visibility-pipeline",
-        m_PersistentDescriptorAllocator);
+        m_ResolutionDependentAllocator);
 
     RenderingDetails renderingDetails = m_Swapchain.GetRenderingDetails();
     renderingDetails.DepthFormat = Format::Undefined;
@@ -414,7 +417,8 @@ void Renderer::Shutdown()
     m_Device.WaitIdle();
 
     m_ComputeDepthPyramidData.DepthPyramid.reset();
-    
+
+    Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
     
     ShutdownVisibilityPass();
@@ -431,7 +435,6 @@ void Renderer::Shutdown()
 void Renderer::ShutdownVisibilityPass()
 {
     m_VisibilityPass.Shutdown();
-    ShaderDescriptorSet::Destroy(m_VisibilityBufferVisualizeData.DescriptorSet);
 }
 
 void Renderer::OnWindowResize()
@@ -451,13 +454,16 @@ void Renderer::RecreateSwapchain()
     }
     
     m_Device.WaitIdle();
-
+    
     Swapchain::Builder newSwapchainBuilder = Swapchain::Builder()
         .SetDevice(m_Device)
         .BufferedFrames(BUFFERED_FRAMES)
         .SetSyncStructures(m_Swapchain.GetFrameSync());
-    
+
+    Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
+    m_ResolutionDependentAllocator.ResetPools();
+    m_ResolutionDependentCullAllocator.ResetPools();
     
     m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
     m_ComputeDepthPyramidData.DepthPyramid.reset();
@@ -517,7 +523,7 @@ void Renderer::LoadScene()
         });
 
     m_OpaqueGeometryCull = RenderPassGeometryCull::ForGeometry(m_OpaqueGeometry,
-        m_CullDescriptorAllocator);
+        m_CullDescriptorAllocator, m_ResolutionDependentCullAllocator);
 }
 
 const FrameContext& Renderer::GetFrameContext() const

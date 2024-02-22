@@ -40,14 +40,17 @@ private:
     template <typename ResourceList, typename Resource>
     constexpr auto AddToResourceList(ResourceList& list, Resource&& value);
     template <typename Type>
-    constexpr void RemoveResource(const Type& type);
+    constexpr void RemoveResource(ResourceHandle<Type> handle);
     template <typename Type>
     constexpr const auto& operator[](const Type& type) const;
     template <typename Type>
     constexpr auto& operator[](const Type& type);
 
     void MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool);
-    void DestroyCmdsOfPool(const CommandPool& pool);
+    void DestroyCmdsOfPool(ResourceHandle<CommandPool> pool);
+
+    void MapDescriptorSetToAllocator(const DescriptorSet& set, const DescriptorAllocator& allocator);
+    void DestroyDescriptorSetsOfAllocator(ResourceHandle<DescriptorAllocator> allocator);
     
 private:
     // this one is a little strange
@@ -180,8 +183,8 @@ private:
         VkShaderModule Shader{VK_NULL_HANDLE};
     };
     
-    u32 m_AllocatedCount{0};
-    u32 m_DeallocatedCount{0};
+    u64 m_AllocatedCount{0};
+    u64 m_DeallocatedCount{0};
     
     Freelist<DeviceResource> m_Devices;
     Freelist<SwapchainResource> m_Swapchains;
@@ -206,6 +209,7 @@ private:
     Freelist<ShaderModuleResource> m_Shaders;
 
     std::vector<std::vector<u32>> m_CommandPoolToBuffersMap;
+    std::vector<std::vector<u32>> m_DescriptorAllocatorToSetsMap;
 };
 
 template <typename Resource>
@@ -269,52 +273,52 @@ constexpr auto DriverResources::AddToResourceList(ResourceList& list, Resource&&
 }
 
 template <typename Type>
-constexpr void DriverResources::RemoveResource(const Type& type)
+constexpr void DriverResources::RemoveResource(ResourceHandle<Type> handle)
 {
     m_DeallocatedCount++;
 
     if constexpr(std::is_same_v<Type, Device>)
-        m_Devices.Remove(type.Handle().m_Index);
+        m_Devices.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Swapchain>)
-        m_Swapchains.Remove(type.Handle().m_Index);
+        m_Swapchains.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Buffer>)
-        m_Buffers.Remove(type.Handle().m_Index);
+        m_Buffers.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Image>)
-        m_Images.Remove(type.Handle().m_Index);
+        m_Images.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Sampler>)
-        m_Samplers.Remove(type.Handle().m_Index);
+        m_Samplers.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, ImageViewList>)
-        m_ViewLists.Remove(type.Handle().m_Index);
+        m_ViewLists.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, CommandPool>)
-        m_CommandPools.Remove(type.Handle().m_Index);
+        m_CommandPools.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, CommandBuffer>)
-        m_CommandBuffers.Remove(type.Handle().m_Index);
+        m_CommandBuffers.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, QueueInfo>)
-        m_Queues.Remove(type.Handle().m_Index);
+        m_Queues.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, DescriptorSetLayout>)
-        m_DescriptorLayouts.Remove(type.Handle().m_Index);
+        m_DescriptorLayouts.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, DescriptorSet>)
-        m_DescriptorSets.Remove(type.Handle().m_Index);
+        m_DescriptorSets.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, DescriptorAllocator>)
-        m_DescriptorAllocators.Remove(type.Handle().m_Index);
+        m_DescriptorAllocators.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, PipelineLayout>)
-        m_PipelineLayouts.Remove(type.Handle().m_Index);
+        m_PipelineLayouts.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Pipeline>)
-        m_Pipelines.Remove(type.Handle().m_Index);
+        m_Pipelines.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, RenderingAttachment>)
-        m_RenderingAttachments.Remove(type.Handle().m_Index);
+        m_RenderingAttachments.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, RenderingInfo>)
-        m_RenderingInfos.Remove(type.Handle().m_Index);
+        m_RenderingInfos.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Fence>)
-        m_Fences.Remove(type.Handle().m_Index);
+        m_Fences.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Semaphore> || std::is_same_v<Type, TimelineSemaphore>)
-        m_Semaphores.Remove(type.Handle().m_Index);
+        m_Semaphores.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, DependencyInfo>)
-        m_DependencyInfos.Remove(type.Handle().m_Index);
+        m_DependencyInfos.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, SplitBarrier>)
-        m_SplitBarriers.Remove(type.Handle().m_Index);
+        m_SplitBarriers.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, ShaderModule>)
-        m_Shaders.Remove(type.Handle().m_Index);
+        m_Shaders.Remove(handle.m_Index);
     else 
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -377,13 +381,81 @@ constexpr auto& DriverResources::operator[](const Type& type)
 
 class DeletionQueue
 {
+    FRIEND_INTERNAL
 public:
     ~DeletionQueue() { Flush(); }
-    void AddDeleter(std::function<void()>&& deleter);
+
+    template <typename Type>
+    void Enqueue(Type& type);
+
     void Flush();
 private:
-    std::vector<std::function<void()>> m_Deleters;
+    std::vector<ResourceHandle<Device>> m_Devices;
+    std::vector<ResourceHandle<Swapchain>> m_Swapchains;
+    std::vector<ResourceHandle<Buffer>> m_Buffers;
+    std::vector<ResourceHandle<Image>> m_Images;
+    std::vector<ResourceHandle<Sampler>> m_Samplers;
+    std::vector<ResourceHandle<ImageViewList>> m_ViewLists;
+    std::vector<ResourceHandle<CommandPool>> m_CommandPools;
+    std::vector<ResourceHandle<QueueInfo>> m_Queues;
+    std::vector<ResourceHandle<DescriptorSetLayout>> m_DescriptorLayouts;
+    std::vector<ResourceHandle<DescriptorAllocator>> m_DescriptorAllocators;
+    std::vector<ResourceHandle<PipelineLayout>> m_PipelineLayouts;
+    std::vector<ResourceHandle<Pipeline>> m_Pipelines;
+    std::vector<ResourceHandle<RenderingAttachment>> m_RenderingAttachments;
+    std::vector<ResourceHandle<RenderingInfo>> m_RenderingInfos;
+    std::vector<ResourceHandle<Fence>> m_Fences;
+    std::vector<ResourceHandle<Semaphore>> m_Semaphores;
+    std::vector<ResourceHandle<DependencyInfo>> m_DependencyInfos;
+    std::vector<ResourceHandle<SplitBarrier>> m_SplitBarriers;
+    std::vector<ResourceHandle<ShaderModule>> m_Shaders;
 };
+
+
+template <typename Type>
+void DeletionQueue::Enqueue(Type& type)
+{
+    if constexpr(std::is_same_v<Type, Device>)
+        m_Devices.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, Swapchain>)
+        m_Swapchains.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, Buffer>)
+        m_Buffers.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, Image>)
+        m_Images.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, Sampler>)
+        m_Samplers.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, ImageViewList>)
+        m_ViewLists.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, CommandPool>)
+        m_CommandPools.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, QueueInfo>)
+        m_Queues.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, DescriptorSetLayout>)
+        m_DescriptorLayouts.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, DescriptorAllocator>)
+        m_DescriptorAllocators.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, PipelineLayout>)
+        m_PipelineLayouts.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, Pipeline>)
+        m_Pipelines.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, RenderingAttachment>)
+        m_RenderingAttachments.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, RenderingInfo>)
+        m_RenderingInfos.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, Fence>)
+        m_Fences.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, Semaphore> || std::is_same_v<Type, TimelineSemaphore>)
+        m_Semaphores.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, DependencyInfo>)
+        m_DependencyInfos.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, SplitBarrier>)
+        m_SplitBarriers.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, ShaderModule>)
+        m_Shaders.push_back(type.Handle());
+    else 
+        static_assert(!sizeof(Type), "No match for type");
+}
 
 struct DriverState
 {
@@ -400,79 +472,83 @@ class Driver
     friend class RenderCommand;
 public:
     static Device Create(const Device::Builder::CreateInfo& createInfo);
-    static void Destroy(const Device& device);
+    static void Destroy(ResourceHandle<Device> device);
     static void DeviceBuilderDefaults(Device::Builder::CreateInfo& createInfo);
 
+    static void Destroy(ResourceHandle<QueueInfo> queue);
+
     static Swapchain Create(const Swapchain::Builder::CreateInfo& createInfo);
-    static void Destroy(const Swapchain& swapchain);
+    static void Destroy(ResourceHandle<Swapchain> swapchain);
     static std::vector<Image> CreateSwapchainImages(const Swapchain& swapchain);
+    static void DestroySwapchainImages(const Swapchain& swapchain);
     
     static CommandBuffer Create(const CommandBuffer::Builder::CreateInfo& createInfo);
     static CommandPool Create(const CommandPool::Builder::CreateInfo& createInfo);
-    static void Destroy(const CommandPool& commandPool);
+    static void Destroy(ResourceHandle<CommandPool> commandPool);
 
     static Buffer Create(const Buffer::Builder::CreateInfo& createInfo);
-    static void Destroy(const Buffer& buffer);
+    static void Destroy(ResourceHandle<Buffer> buffer);
     static void* MapBuffer(const Buffer& buffer);
     static void UnmapBuffer(const Buffer& buffer);
     static void SetBufferData(Buffer& buffer, const void* data, u64 dataSizeBytes, u64 offsetBytes);
     static void SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBytes, u64 offsetBytes);
     
     static Image AllocateImage(const Image::Builder::CreateInfo& createInfo);
-    static void Destroy(const Image& image);
+    static void Destroy(ResourceHandle<Image> image);
     static void CreateView(const ImageSubresource& image);
 
     static Sampler Create(const Sampler::Builder::CreateInfo& createInfo);
-    static void Destroy(const Sampler& sampler);
+    static void Destroy(ResourceHandle<Sampler> sampler);
 
     static ImageViewList Create(const ImageViewList::Builder::CreateInfo& createInfo);
-    static void Destroy(const ImageViewList& imageViews);
+    static void Destroy(ResourceHandle<ImageViewList> imageViews);
 
     static RenderingAttachment Create(const RenderingAttachment::Builder::CreateInfo& createInfo);
-    static void Destroy(const RenderingAttachment& renderingAttachment);
+    static void Destroy(ResourceHandle<RenderingAttachment> renderingAttachment);
 
     static RenderingInfo Create(const RenderingInfo::Builder::CreateInfo& createInfo);
-    static void Destroy(const RenderingInfo& renderingInfo);
+    static void Destroy(ResourceHandle<RenderingInfo> renderingInfo);
 
     static ShaderModule Create(const ShaderModule::Builder::CreateInfo& createInfo);
-    static void Destroy(const ShaderModule& shader);
+    static void Destroy(ResourceHandle<ShaderModule> shader);
 
     static PipelineLayout Create(const PipelineLayout::Builder::CreateInfo& createInfo);
-    static void Destroy(const PipelineLayout& pipelineLayout);
+    static void Destroy(ResourceHandle<PipelineLayout> pipelineLayout);
 
     static Pipeline Create(const Pipeline::Builder::CreateInfo& createInfo);
-    static void Destroy(const Pipeline& pipeline);
+    static void Destroy(ResourceHandle<Pipeline> pipeline);
     
     static DescriptorSetLayout Create(const DescriptorSetLayout::Builder::CreateInfo& createInfo);
-    static void Destroy(const DescriptorSetLayout& layout);
+    static void Destroy(ResourceHandle<DescriptorSetLayout> layout);
     
     static DescriptorSet Create(const DescriptorSet::Builder::CreateInfo& createInfo);
     static void AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet& set, DescriptorPoolFlags poolFlags,
         const std::vector<u32>& variableBindingCounts);
-    static void DeallocateDescriptorSet(DescriptorAllocator& allocator, const DescriptorSet& set);
+    static void DeallocateDescriptorSet(ResourceHandle<DescriptorAllocator> allocator,
+        ResourceHandle<DescriptorSet> set);
     static void UpdateDescriptorSet(DescriptorSet& descriptorSet, u32 slot, const Texture& texture,
         DescriptorType type, u32 arrayIndex);
 
     static DescriptorAllocator Create(const DescriptorAllocator::Builder::CreateInfo& createInfo);
-    static void Destroy(const DescriptorAllocator& allocator);
+    static void Destroy(ResourceHandle<DescriptorAllocator> allocator);
     static void ResetAllocator(DescriptorAllocator& allocator);
 
     static Fence Create(const Fence::Builder::CreateInfo& createInfo);
-    static void Destroy(const Fence& fence);
+    static void Destroy(ResourceHandle<Fence> fence);
     
     static Semaphore Create(const Semaphore::Builder::CreateInfo& createInfo);
-    static void Destroy(const Semaphore& semaphore);
+    static void Destroy(ResourceHandle<Semaphore> semaphore);
 
     static TimelineSemaphore Create(const TimelineSemaphore::Builder::CreateInfo& createInfo);
-    static void Destroy(const TimelineSemaphore& semaphore);
+    static void Destroy(ResourceHandle<TimelineSemaphore> semaphore);
     static void TimelineSemaphoreWaitCPU(const TimelineSemaphore& semaphore, u64 value);
     static void TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value);
 
     static SplitBarrier Create(const SplitBarrier::Builder::CreateInfo& createInfo);
-    static void Destroy(const SplitBarrier& splitBarrier);
+    static void Destroy(ResourceHandle<SplitBarrier> splitBarrier);
 
     static DependencyInfo Create(const DependencyInfo::Builder::CreateInfo& createInfo);
-    static void Destroy(const DependencyInfo& dependencyInfo);
+    static void Destroy(ResourceHandle<DependencyInfo> dependencyInfo);
     
     template <typename Fn>
     static void ImmediateUpload(Fn&& uploadFunction);

@@ -2,8 +2,8 @@
 
 #include <algorithm>
 
-#include "Driver.h"
-#include "RenderCommand.h"
+#include "Vulkan/Driver.h"
+#include "Vulkan/RenderCommand.h"
 
 DescriptorSetLayout DescriptorSetLayout::Builder::Build()
 {
@@ -49,27 +49,11 @@ DescriptorSetLayout DescriptorSetLayout::Create(const Builder::CreateInfo& creat
 
 void DescriptorSetLayout::Destroy(const DescriptorSetLayout& layout)
 {
-    Driver::Destroy(layout);
+    Driver::Destroy(layout.Handle());
 }
 
 DescriptorSet DescriptorSet::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
-}
-
-DescriptorSet DescriptorSet::Builder::Build(DeletionQueue& deletionQueue)
-{
-    DescriptorSet set = DescriptorSet::Create(m_CreateInfo);
-    m_CreateInfo.BoundResources.clear();
-    if (enumHasAny(m_CreateInfo.PoolFlags, DescriptorPoolFlags::FreeSet))
-        deletionQueue.AddDeleter([set]() { DescriptorSet::Destroy(set); });
-    
-    return set;
-}
-
-DescriptorSet DescriptorSet::Builder::BuildManualLifetime()
-{
-    SetPoolFlags(DescriptorPoolFlags::FreeSet);
     DescriptorSet set = DescriptorSet::Create(m_CreateInfo);
     m_CreateInfo.BoundResources.clear();
 
@@ -134,11 +118,6 @@ DescriptorSet DescriptorSet::Create(const Builder::CreateInfo& createInfo)
     return Driver::Create(createInfo);
 }
 
-void DescriptorSet::Destroy(const DescriptorSet& descriptorSet)
-{
-    descriptorSet.m_Allocator->Deallocate(descriptorSet);
-}
-
 void DescriptorSet::BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex)
 {
     RenderCommand::BindGraphics(cmd, *this, pipelineLayout, setIndex, {});
@@ -174,7 +153,7 @@ DescriptorAllocator DescriptorAllocator::Builder::Build()
 DescriptorAllocator DescriptorAllocator::Builder::Build(DeletionQueue& deletionQueue)
 {
     DescriptorAllocator allocator = DescriptorAllocator::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([allocator](){ DescriptorAllocator::Destroy(allocator); });
+    deletionQueue.Enqueue(allocator);
 
     return allocator;
 }
@@ -198,7 +177,7 @@ DescriptorAllocator DescriptorAllocator::Create(const Builder::CreateInfo& creat
 
 void DescriptorAllocator::Destroy(const DescriptorAllocator& allocator)
 {
-    Driver::Destroy(allocator);
+    Driver::Destroy(allocator.Handle());
 }
 
 void DescriptorAllocator::Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags,
@@ -207,9 +186,9 @@ void DescriptorAllocator::Allocate(DescriptorSet& set, DescriptorPoolFlags poolF
     return Driver::AllocateDescriptorSet(*this, set, poolFlags, variableBindingCounts);
 }
 
-void DescriptorAllocator::Deallocate(const DescriptorSet& set)
+void DescriptorAllocator::Deallocate(ResourceHandle<DescriptorSet> set)
 {
-    Driver::DeallocateDescriptorSet(*this, set);
+    Driver::DeallocateDescriptorSet(Handle(), set);
 }
 
 void DescriptorAllocator::ResetPools()
@@ -259,7 +238,7 @@ DescriptorSetLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
     DescriptorSetLayout newLayout = DescriptorSetLayout::Create(createInfo);
     s_LayoutCache.emplace(key, newLayout);
 
-    Driver::DeletionQueue().AddDeleter([newLayout](){ DescriptorSetLayout::Destroy(newLayout); });
+    Driver::DeletionQueue().Enqueue(newLayout);
     
     return newLayout;
 }

@@ -44,7 +44,7 @@ class RenderPassGeometryCull
     };
 public:
     static RenderPassGeometryCull ForGeometry(const RenderPassGeometry& renderPassGeometry,
-        DescriptorAllocator& allocator);
+        DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator);
     // todo: to delegate
     static void Shutdown(const RenderPassGeometryCull& renderPassGeometryCull);
     // todo: to delegate
@@ -60,9 +60,8 @@ public:
     static constexpr u32 TRIANGLE_OFFSET = std::numeric_limits<u32>::max(); 
     
 private:
-    void InitPipelines(DescriptorAllocator& allocator);
+    void InitPipelines(DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator);
     void InitSynchronization();
-    void FreeResolutionDependentResources() const;
 
     void CullMeshes(const CullContextExtended& cullContext) const;
     void CullMeshlets(const CullContextExtended& cullContext) const;

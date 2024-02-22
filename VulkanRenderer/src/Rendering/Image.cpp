@@ -78,7 +78,7 @@ Sampler Sampler::Create(const Builder::CreateInfo& createInfo)
 
 void Sampler::Destroy(const Sampler& sampler)
 {
-    Driver::Destroy(sampler);
+    Driver::Destroy(sampler.Handle());
 }
 
 Image::Builder::Builder(const ImageDescription& description)
@@ -96,7 +96,8 @@ Image Image::Builder::Build(DeletionQueue& deletionQueue)
     PreBuild();
     
     Image image = Image::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([image](){ Image::Destroy(image); });
+    if (!enumHasAny(image.m_Description.Usage, ImageUsage::NoDeallocation))
+        deletionQueue.Enqueue(image);
 
     return image;
 }
@@ -263,7 +264,7 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
 
 void Image::Destroy(const Image& image)
 {
-    Driver::Destroy(image);
+    Driver::Destroy(image.Handle());
 }
 
 ImageSubresource Image::CreateSubresource() const
@@ -518,7 +519,7 @@ ImageViewList ImageViewList::Builder::Build()
 ImageViewList ImageViewList::Builder::Build(DeletionQueue& deletionQueue)
 {
     ImageViewList list = ImageViewList::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([list]() { ImageViewList::Destroy(list); });
+    deletionQueue.Enqueue(list);
 
     return list;
 }
@@ -552,7 +553,7 @@ ImageViewList ImageViewList::Create(const Builder::CreateInfo& createInfo)
 
 void ImageViewList::Destroy(const ImageViewList& imageViews)
 {
-    Driver::Destroy(imageViews);
+    Driver::Destroy(imageViews.Handle());
 }
 
 Sampler SamplerCache::CreateSampler(const Sampler::Builder::CreateInfo& createInfo)
@@ -565,7 +566,7 @@ Sampler SamplerCache::CreateSampler(const Sampler::Builder::CreateInfo& createIn
     Sampler newSampler = Sampler::Create(createInfo);
     s_SamplerCache.emplace(key, newSampler);
     
-    Driver::DeletionQueue().AddDeleter([newSampler](){ Sampler::Destroy(newSampler); });
+    Driver::DeletionQueue().Enqueue(newSampler);
 
     return newSampler;
 }

@@ -60,6 +60,7 @@ public:
 public:
     static Swapchain Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Swapchain& swapchain);
+    static void DestroyImages(const Swapchain& swapchain);
     
     u32 AcquireImage(u32 frameNumber);
     bool PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);

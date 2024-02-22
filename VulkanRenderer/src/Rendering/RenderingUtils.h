@@ -2,7 +2,7 @@
 
 #include "Vulkan/Driver.h"
 
-namespace vkUtils
+namespace renderUtils
 {
     inline u64 alignUniformBufferSizeBytes(u64 sizeBytes)
     {

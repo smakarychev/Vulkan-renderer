@@ -44,7 +44,7 @@ struct VisibilityRenderInfo
 class VisibilityPass
 {
 public:
-    bool Init(const VisibilityPassInitInfo& initInfo);
+    void Init(const VisibilityPassInitInfo& initInfo);
     void Shutdown();
 
     void RenderVisibility(const VisibilityRenderInfo& renderInfo);

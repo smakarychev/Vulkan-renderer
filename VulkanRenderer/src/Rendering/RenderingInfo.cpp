@@ -10,7 +10,7 @@ RenderingAttachment RenderingAttachment::Builder::Build()
 RenderingAttachment RenderingAttachment::Builder::Build(DeletionQueue& deletionQueue)
 {
     RenderingAttachment attachment = RenderingAttachment::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([attachment](){ RenderingAttachment::Destroy(attachment); });
+    deletionQueue.Enqueue(attachment);
 
     return attachment;
 }
@@ -81,7 +81,7 @@ RenderingAttachment RenderingAttachment::Create(const Builder::CreateInfo& creat
 
 void RenderingAttachment::Destroy(const RenderingAttachment& renderingAttachment)
 {
-    Driver::Destroy(renderingAttachment);
+    Driver::Destroy(renderingAttachment.Handle());
 }
 
 RenderingInfo RenderingInfo::Builder::Build()
@@ -92,7 +92,7 @@ RenderingInfo RenderingInfo::Builder::Build()
 RenderingInfo RenderingInfo::Builder::Build(DeletionQueue& deletionQueue)
 {
     RenderingInfo renderingInfo = RenderingInfo::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([renderingInfo]() { RenderingInfo::Destroy(renderingInfo); });
+    deletionQueue.Enqueue(renderingInfo);
 
     return renderingInfo;
 }
@@ -124,5 +124,5 @@ RenderingInfo RenderingInfo::Create(const Builder::CreateInfo& createInfo)
 
 void RenderingInfo::Destroy(const RenderingInfo& renderingInfo)
 {
-    Driver::Destroy(renderingInfo);
+    Driver::Destroy(renderingInfo.Handle());
 }

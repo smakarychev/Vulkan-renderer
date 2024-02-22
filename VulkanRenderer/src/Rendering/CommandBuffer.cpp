@@ -77,7 +77,7 @@ CommandPool CommandPool::Builder::Build()
 CommandPool CommandPool::Builder::Build(DeletionQueue& deletionQueue)
 {
     CommandPool commandPool = CommandPool::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([commandPool](){ CommandPool::Destroy(commandPool); });
+    deletionQueue.Enqueue(commandPool);
 
     return commandPool;
 }
@@ -109,7 +109,7 @@ CommandPool CommandPool::Create(const Builder::CreateInfo& createInfo)
 
 void CommandPool::Destroy(const CommandPool& commandPool)
 {
-    return Driver::Destroy(commandPool);
+    return Driver::Destroy(commandPool.Handle());
 }
 
 CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)

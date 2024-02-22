@@ -1,6 +1,6 @@
 #include "Device.h"
 
-#include "Driver.h"
+#include "Vulkan/Driver.h"
 #include "GLFW/glfw3.h"
 #include "utils/utils.h"
 
@@ -8,7 +8,7 @@ Device Device::Builder::Build()
 {
     ASSERT(m_CreateInfo.Window, "Window is unset")
     Device device = Driver::Create(m_CreateInfo);
-    Driver::DeletionQueue().AddDeleter([device](){ Device::Destroy(device); });
+    Driver::DeletionQueue().Enqueue(device);
 
     return device;
 }
@@ -42,7 +42,7 @@ Device Device::Create(const Builder::CreateInfo& createInfo)
 
 void Device::Destroy(const Device& device)
 {
-    Driver::Destroy(device);
+    Driver::Destroy(device.Handle());
 }
 
 void Device::WaitIdle() const

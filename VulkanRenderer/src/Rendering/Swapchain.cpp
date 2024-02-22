@@ -11,7 +11,7 @@ Swapchain Swapchain::Builder::Build()
     PreBuild();
     
     Swapchain swapchain = Swapchain::Create(m_CreateInfo);
-    Driver::DeletionQueue().AddDeleter([swapchain](){ Swapchain::Destroy(swapchain); });
+    Driver::DeletionQueue().Enqueue(swapchain);
 
     return swapchain;
 }
@@ -98,7 +98,12 @@ Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
 
 void Swapchain::Destroy(const Swapchain& swapchain)
 {
-    Driver::Destroy(swapchain);
+    Driver::Destroy(swapchain.Handle());
+}
+
+void Swapchain::DestroyImages(const Swapchain& swapchain)
+{
+    Driver::DestroySwapchainImages(swapchain);
 }
 
 u32 Swapchain::AcquireImage(u32 frameNumber)

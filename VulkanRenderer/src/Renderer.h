@@ -81,7 +81,7 @@ struct VisibilityBufferVisualizeData
 struct ComputeDepthPyramidData
 {
     ShaderPipeline Pipeline;
-    ShaderPipelineTemplate PipelineTemplate;
+    ShaderPipelineTemplate* PipelineTemplate;
     std::unique_ptr<DepthPyramid> DepthPyramid;
 };
 
@@ -95,6 +95,7 @@ struct FrameContext
     glm::uvec2 Resolution;
     
     CommandBuffer Cmd;
+    
     DeletionQueue DeletionQueue;
 };
 
@@ -171,6 +172,8 @@ private:
 
     DescriptorAllocator m_PersistentDescriptorAllocator;
     DescriptorAllocator m_CullDescriptorAllocator;
+    DescriptorAllocator m_ResolutionDependentAllocator;
+    DescriptorAllocator m_ResolutionDependentCullAllocator;
     ResourceUploader m_ResourceUploader;
 
     ComputeDepthPyramidData m_ComputeDepthPyramidData;

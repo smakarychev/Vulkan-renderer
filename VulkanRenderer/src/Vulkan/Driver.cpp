@@ -439,8 +439,6 @@ namespace
     constexpr VkDescriptorPoolCreateFlags vulkanDescriptorPoolFlagsFromDescriptorPoolFlags(DescriptorPoolFlags flags)
     {
         VkDescriptorPoolCreateFlags poolFlags = 0;
-        if (enumHasAny(flags, DescriptorPoolFlags::FreeSet))
-            poolFlags |= VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         if (enumHasAny(flags, DescriptorPoolFlags::UpdateAfterBind))
             poolFlags |= VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
         if (enumHasAny(flags, DescriptorPoolFlags::HostOnly))
@@ -495,18 +493,71 @@ namespace
     }
 }
 
-void DeletionQueue::AddDeleter(std::function<void()>&& deleter)
-{
-    m_Deleters.push_back(deleter);
-}
-
 void DeletionQueue::Flush()
 {
-    while(!m_Deleters.empty())
-    {
-        m_Deleters.back()();
-        m_Deleters.pop_back();
-    }
+    for (auto handle : m_Buffers)
+        Driver::Destroy(handle);
+    for (auto handle : m_ViewLists)
+        Driver::Destroy(handle);
+    for (auto handle : m_Images)
+        Driver::Destroy(handle);
+    for (auto handle : m_Samplers)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_CommandPools)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_DescriptorLayouts)
+        Driver::Destroy(handle);
+    for (auto handle : m_DescriptorAllocators)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_PipelineLayouts)
+        Driver::Destroy(handle);
+    for (auto handle : m_Pipelines)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_RenderingAttachments)
+        Driver::Destroy(handle);
+    for (auto handle : m_RenderingInfos)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_Fences)
+        Driver::Destroy(handle);
+    for (auto handle : m_Semaphores)
+        Driver::Destroy(handle);
+    for (auto handle : m_DependencyInfos)
+        Driver::Destroy(handle);
+    for (auto handle : m_SplitBarriers)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_Shaders)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_Queues)
+        Driver::Destroy(handle);
+    
+    for (auto handle : m_Swapchains)
+        Driver::Destroy(handle);
+    
+    m_Swapchains.clear();
+    m_Buffers.clear();
+    m_Images.clear();
+    m_Samplers.clear();
+    m_ViewLists.clear();
+    m_CommandPools.clear();
+    m_Queues.clear();
+    m_DescriptorLayouts.clear();
+    m_DescriptorAllocators.clear();
+    m_PipelineLayouts.clear();
+    m_Pipelines.clear();
+    m_RenderingAttachments.clear();
+    m_RenderingInfos.clear();
+    m_Fences.clear();
+    m_Semaphores.clear();
+    m_DependencyInfos.clear();
+    m_SplitBarriers.clear();
+    m_Shaders.clear();
 }
 
 void DriverResources::MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool)
@@ -516,12 +567,28 @@ void DriverResources::MapCmdToPool(const CommandBuffer& cmd, const CommandPool& 
     m_CommandPoolToBuffersMap[pool.Handle().m_Index].push_back(cmd.Handle().m_Index);
 }
 
-void DriverResources::DestroyCmdsOfPool(const CommandPool& pool)
+void DriverResources::DestroyCmdsOfPool(ResourceHandle<CommandPool> pool)
 {
-    for (auto index : m_CommandPoolToBuffersMap[pool.Handle().m_Index])
+    for (auto index : m_CommandPoolToBuffersMap[pool.m_Index])
         m_CommandBuffers.Remove(index);
-    m_DeallocatedCount += (u32)m_CommandPoolToBuffersMap[pool.Handle().m_Index].size(); 
-    m_CommandPoolToBuffersMap[pool.Handle().m_Index].clear();
+    m_DeallocatedCount += (u32)m_CommandPoolToBuffersMap[pool.m_Index].size(); 
+    m_CommandPoolToBuffersMap[pool.m_Index].clear();
+}
+
+
+void DriverResources::MapDescriptorSetToAllocator(const DescriptorSet& set, const DescriptorAllocator& allocator)
+{
+    if (allocator.Handle().m_Index >= m_DescriptorAllocatorToSetsMap.size())
+        m_DescriptorAllocatorToSetsMap.resize(allocator.Handle().m_Index + 1);
+    m_DescriptorAllocatorToSetsMap[allocator.Handle().m_Index].push_back(set.Handle().m_Index);
+}
+
+void DriverResources::DestroyDescriptorSetsOfAllocator(ResourceHandle<DescriptorAllocator> allocator)
+{
+    for (auto index : m_DescriptorAllocatorToSetsMap[allocator.m_Index])
+        m_DescriptorSets.Remove(index);
+    m_DeallocatedCount += (u32)m_DescriptorAllocatorToSetsMap[allocator.m_Index].size(); 
+    m_DescriptorAllocatorToSetsMap[allocator.m_Index].clear();
 }
 
 DriverState Driver::s_State = DriverState{};
@@ -547,10 +614,9 @@ Device Driver::Create(const Device::Builder::CreateInfo& createInfo)
     return device;
 }
 
-void Driver::Destroy(const Device& device)
+void Driver::Destroy(ResourceHandle<Device> device)
 {
-    DriverResources::DeviceResource& deviceResource = Resources()[device];
-    
+    DriverResources::DeviceResource& deviceResource = Resources().m_Devices[device.m_Index];
 #ifdef VULKAN_VAL_LAYERS
     DestroyDebugUtilsMessenger(deviceResource);
 #endif
@@ -558,11 +624,6 @@ void Driver::Destroy(const Device& device)
     vkDestroyDevice(deviceResource.Device, nullptr);
     vkDestroySurfaceKHR(deviceResource.Instance, deviceResource.Surface, nullptr);
     vkDestroyInstance(deviceResource.Instance, nullptr);
-
-    const DeviceQueues& queues = device.GetQueues();
-    Resources().RemoveResource(queues.Graphics);
-    Resources().RemoveResource(queues.Presentation);
-    Resources().RemoveResource(queues.Compute);
 
     Resources().RemoveResource(device);
 }
@@ -595,6 +656,11 @@ void Driver::DeviceBuilderDefaults(Device::Builder::CreateInfo& createInfo)
         VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
         VK_EXT_INDEX_TYPE_UINT8_EXTENSION_NAME,
     };
+}
+
+void Driver::Destroy(ResourceHandle<QueueInfo> queue)
+{
+    Resources().RemoveResource(queue);
 }
 
 Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
@@ -699,16 +765,9 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
     return swapchain;
 }
 
-void Driver::Destroy(const Swapchain& swapchain)
+void Driver::Destroy(ResourceHandle<Swapchain> swapchain)
 {
-    for (const auto& colorImage : swapchain.m_ColorImages)
-    {
-        vkDestroyImageView(DeviceHandle(), Resources()[colorImage].View, nullptr);
-        Resources().RemoveResource(colorImage);
-    }
-    Image::Destroy(swapchain.m_DrawImage);
-    Image::Destroy(swapchain.m_DepthImage);
-    vkDestroySwapchainKHR(DeviceHandle(), Resources()[swapchain].Swapchain, nullptr);
+    vkDestroySwapchainKHR(DeviceHandle(), Resources().m_Swapchains[swapchain.m_Index].Swapchain, nullptr);
     Resources().RemoveResource(swapchain);
 }
 
@@ -770,6 +829,17 @@ std::vector<Image> Driver::CreateSwapchainImages(const Swapchain& swapchain)
     return colorImages;
 }
 
+void Driver::DestroySwapchainImages(const Swapchain& swapchain)
+{
+    for (const auto& colorImage : swapchain.m_ColorImages)
+    {
+        vkDestroyImageView(DeviceHandle(), Resources()[colorImage].View, nullptr);
+        Resources().RemoveResource(colorImage.Handle());
+    }
+    Image::Destroy(swapchain.m_DrawImage);
+    Image::Destroy(swapchain.m_DepthImage);
+}
+
 
 CommandBuffer Driver::Create(const CommandBuffer::Builder::CreateInfo& createInfo)
 {
@@ -812,9 +882,9 @@ CommandPool Driver::Create(const CommandPool::Builder::CreateInfo& createInfo)
     return commandPool;
 }
 
-void Driver::Destroy(const CommandPool& commandPool)
+void Driver::Destroy(ResourceHandle<CommandPool> commandPool)
 {
-    vkDestroyCommandPool(DeviceHandle(), Resources()[commandPool].CommandPool, nullptr);
+    vkDestroyCommandPool(DeviceHandle(), Resources().m_CommandPools[commandPool.m_Index].CommandPool, nullptr);
     Resources().DestroyCmdsOfPool(commandPool);
     Resources().RemoveResource(commandPool);
 }
@@ -847,9 +917,9 @@ Buffer Driver::Create(const Buffer::Builder::CreateInfo& createInfo)
     return buffer;
 }
 
-void Driver::Destroy(const Buffer& buffer)
+void Driver::Destroy(ResourceHandle<Buffer> buffer)
 {
-    const DriverResources::BufferResource& resource = Resources()[buffer];
+    const DriverResources::BufferResource& resource = Resources().m_Buffers[buffer.m_Index];
     vmaDestroyBuffer(Allocator(), resource.Buffer, resource.Allocation);
     Resources().RemoveResource(buffer);
 }
@@ -919,15 +989,12 @@ Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
     return image;
 }
 
-void Driver::Destroy(const Image& image)
+void Driver::Destroy(ResourceHandle<Image> image)
 {
-    const DriverResources::ImageResource& imageResource = Resources()[image];
-    if (!enumHasAny(image.GetDescription().Usage, ImageUsage::NoDeallocation))
-    {
-        vkDestroyImageView(DeviceHandle(), imageResource.View, nullptr);
-        vmaDestroyImage(Allocator(), imageResource.Image, imageResource.Allocation);
-        Resources().RemoveResource(image);
-    }
+    const DriverResources::ImageResource& imageResource = Resources().m_Images[image.m_Index];
+    vkDestroyImageView(DeviceHandle(), imageResource.View, nullptr);
+    vmaDestroyImage(Allocator(), imageResource.Image, imageResource.Allocation);
+    Resources().RemoveResource(image);
 }
 
 void Driver::CreateView(const ImageSubresource& image)
@@ -973,9 +1040,9 @@ Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
     return sampler;
 }
 
-void Driver::Destroy(const Sampler& sampler)
+void Driver::Destroy(ResourceHandle<Sampler> sampler)
 {
-    vkDestroySampler(DeviceHandle(), Resources()[sampler].Sampler, nullptr);
+    vkDestroySampler(DeviceHandle(), Resources().m_Samplers[sampler.m_Index].Sampler, nullptr);
     Resources().RemoveResource(sampler);
 }
 
@@ -996,9 +1063,9 @@ ImageViewList Driver::Create(const ImageViewList::Builder::CreateInfo& createInf
     return list;
 }
 
-void Driver::Destroy(const ImageViewList& imageViews)
+void Driver::Destroy(ResourceHandle<ImageViewList> imageViews)
 {
-    for (auto& view : Resources()[imageViews].Views)
+    for (auto& view : Resources().m_ViewLists[imageViews.m_Index].Views)
         vkDestroyImageView(DeviceHandle(), view, nullptr);
     Resources().RemoveResource(imageViews);
 }
@@ -1028,7 +1095,7 @@ RenderingAttachment Driver::Create(const RenderingAttachment::Builder::CreateInf
     return renderingAttachment;
 }
 
-void Driver::Destroy(const RenderingAttachment& renderingAttachment)
+void Driver::Destroy(ResourceHandle<RenderingAttachment> renderingAttachment)
 {
     Resources().RemoveResource(renderingAttachment);
 }
@@ -1050,7 +1117,7 @@ RenderingInfo Driver::Create(const RenderingInfo::Builder::CreateInfo& createInf
     return renderingInfo;
 }
 
-void Driver::Destroy(const RenderingInfo& renderingInfo)
+void Driver::Destroy(ResourceHandle<RenderingInfo> renderingInfo)
 {
     Resources().RemoveResource(renderingInfo);
 }
@@ -1073,9 +1140,9 @@ ShaderModule Driver::Create(const ShaderModule::Builder::CreateInfo& createInfo)
     return shaderModule;
 }
 
-void Driver::Destroy(const ShaderModule& shader)
+void Driver::Destroy(ResourceHandle<ShaderModule> shader)
 {
-    vkDestroyShaderModule(DeviceHandle(), Resources()[shader].Shader, nullptr);
+    vkDestroyShaderModule(DeviceHandle(), Resources().m_Shaders[shader.m_Index].Shader, nullptr);
     Resources().RemoveResource(shader);
 }
 
@@ -1116,9 +1183,9 @@ PipelineLayout Driver::Create(const PipelineLayout::Builder::CreateInfo& createI
     return layout;
 }
 
-void Driver::Destroy(const PipelineLayout& pipelineLayout)
+void Driver::Destroy(ResourceHandle<PipelineLayout> pipelineLayout)
 {
-    vkDestroyPipelineLayout(DeviceHandle(), Resources()[pipelineLayout].Layout, nullptr);
+    vkDestroyPipelineLayout(DeviceHandle(), Resources().m_PipelineLayouts[pipelineLayout.m_Index].Layout, nullptr);
     Resources().RemoveResource(pipelineLayout);
 }
 
@@ -1314,9 +1381,9 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
     return pipeline;
 }
 
-void Driver::Destroy(const Pipeline& pipeline)
+void Driver::Destroy(ResourceHandle<Pipeline> pipeline)
 {
-    vkDestroyPipeline(DeviceHandle(), Resources()[pipeline].Pipeline, nullptr);
+    vkDestroyPipeline(DeviceHandle(), Resources().m_Pipelines[pipeline.m_Index].Pipeline, nullptr);
     Resources().RemoveResource(pipeline);
 }
 
@@ -1365,9 +1432,9 @@ DescriptorSetLayout Driver::Create(const DescriptorSetLayout::Builder::CreateInf
     return layout;
 }
 
-void Driver::Destroy(const DescriptorSetLayout& layout)
+void Driver::Destroy(ResourceHandle<DescriptorSetLayout> layout)
 {
-    vkDestroyDescriptorSetLayout(DeviceHandle(), Resources()[layout].Layout, nullptr);
+    vkDestroyDescriptorSetLayout(DeviceHandle(), Resources().m_DescriptorLayouts[layout.m_Index].Layout, nullptr);
     Resources().RemoveResource(layout);
 }
 
@@ -1393,6 +1460,7 @@ DescriptorSet Driver::Create(const DescriptorSet::Builder::CreateInfo& createInf
     descriptorSet.m_Layout = createInfo.Layout;
     
     createInfo.Allocator->Allocate(descriptorSet, createInfo.PoolFlags, variableBindingCounts);
+    Resources().MapDescriptorSetToAllocator(descriptorSet, *createInfo.Allocator);
     
     // convert bound resources
     std::vector<VkDescriptorBufferInfo> boundBuffers;
@@ -1488,10 +1556,11 @@ void Driver::AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet
     set.m_ResourceHandle = Resources().AddResource(descriptorSetResource);
 }
 
-void Driver::DeallocateDescriptorSet(DescriptorAllocator& allocator, const DescriptorSet& set)
+void Driver::DeallocateDescriptorSet(ResourceHandle<DescriptorAllocator> allocator, ResourceHandle<DescriptorSet> set)
 {
-    DriverResources::DescriptorAllocatorResource& allocatorResource = Resources()[allocator];
-    VkDescriptorPool pool = Resources()[set].Pool;
+    DriverResources::DescriptorAllocatorResource& allocatorResource =
+        Resources().m_DescriptorAllocators[allocator.m_Index];
+    VkDescriptorPool pool = Resources().m_DescriptorSets[set.m_Index].Pool;
 
     auto it = std::ranges::find(allocatorResource.FreePools, pool,
         [](const DriverResources::DescriptorAllocatorResource::PoolInfo& info)
@@ -1511,7 +1580,7 @@ void Driver::DeallocateDescriptorSet(DescriptorAllocator& allocator, const Descr
         allocatorResource.UsedPools.erase(it);
     }
     
-    vkFreeDescriptorSets(DeviceHandle(), pool, 1, &Resources()[set].DescriptorSet);
+    vkFreeDescriptorSets(DeviceHandle(), pool, 1, &Resources().m_DescriptorSets[set.m_Index].DescriptorSet);
     Resources().RemoveResource(set);
 }
 
@@ -1549,25 +1618,31 @@ DescriptorAllocator Driver::Create(const DescriptorAllocator::Builder::CreateInf
     return allocator;
 }
 
-void Driver::Destroy(const DescriptorAllocator& allocator)
+void Driver::Destroy(ResourceHandle<DescriptorAllocator> allocator)
 {
-    DriverResources::DescriptorAllocatorResource& descriptorAllocatorResource = Resources()[allocator];
-    for (auto& pool : descriptorAllocatorResource.FreePools)
+    DriverResources::DescriptorAllocatorResource& allocatorResource =
+        Resources().m_DescriptorAllocators[allocator.m_Index];
+    for (auto& pool : allocatorResource.FreePools)
         vkDestroyDescriptorPool(DeviceHandle(), pool.Pool, nullptr);
-    for (auto& pool : descriptorAllocatorResource.UsedPools)
+    for (auto& pool : allocatorResource.UsedPools)
         vkDestroyDescriptorPool(DeviceHandle(), pool.Pool, nullptr);
+
+    Resources().DestroyDescriptorSetsOfAllocator(allocator);
     Resources().RemoveResource(allocator);
 }
 
 void Driver::ResetAllocator(DescriptorAllocator& allocator)
 {
     DriverResources::DescriptorAllocatorResource& allocatorResource = Resources()[allocator];
+    for (auto& pool : allocatorResource.FreePools)
+        vkResetDescriptorPool(DeviceHandle(), pool.Pool, 0);
     for (auto pool : allocatorResource.UsedPools)
     {
         vkResetDescriptorPool(DeviceHandle(), pool.Pool, 0);
         allocatorResource.FreePools.push_back(pool);
     }
     allocatorResource.UsedPools.clear();
+    Resources().DestroyDescriptorSetsOfAllocator(allocator.Handle());
 }
 
 Fence Driver::Create(const Fence::Builder::CreateInfo& createInfo)
@@ -1589,9 +1664,9 @@ Fence Driver::Create(const Fence::Builder::CreateInfo& createInfo)
     return fence;
 }
 
-void Driver::Destroy(const Fence& fence)
+void Driver::Destroy(ResourceHandle<Fence> fence)
 {
-    vkDestroyFence(DeviceHandle(), Resources()[fence].Fence, nullptr);
+    vkDestroyFence(DeviceHandle(), Resources().m_Fences[fence.m_Index].Fence, nullptr);
     Resources().RemoveResource(fence);
 }
 
@@ -1610,9 +1685,9 @@ Semaphore Driver::Create(const Semaphore::Builder::CreateInfo& createInfo)
     return semaphore;
 }
 
-void Driver::Destroy(const Semaphore& semaphore)
+void Driver::Destroy(ResourceHandle<Semaphore> semaphore)
 {
-    vkDestroySemaphore(DeviceHandle(), Resources()[semaphore].Semaphore, nullptr);
+    vkDestroySemaphore(DeviceHandle(), Resources().m_Semaphores[semaphore.m_Index].Semaphore, nullptr);
     Resources().RemoveResource(semaphore);
 }
 
@@ -1637,9 +1712,9 @@ TimelineSemaphore Driver::Create(const TimelineSemaphore::Builder::CreateInfo& c
     return semaphore;
 }
 
-void Driver::Destroy(const TimelineSemaphore& semaphore)
+void Driver::Destroy(ResourceHandle<TimelineSemaphore> semaphore)
 {
-    vkDestroySemaphore(DeviceHandle(), Resources()[semaphore].Semaphore, nullptr);
+    vkDestroySemaphore(DeviceHandle(), Resources().m_Semaphores[semaphore.m_Index].Semaphore, nullptr);
     Resources().RemoveResource(semaphore);
 }
 
@@ -1684,9 +1759,9 @@ SplitBarrier Driver::Create(const SplitBarrier::Builder::CreateInfo& createInfo)
     
 }
 
-void Driver::Destroy(const SplitBarrier& splitBarrier)
+void Driver::Destroy(ResourceHandle<SplitBarrier> splitBarrier)
 {
-    vkDestroyEvent(DeviceHandle(), Resources()[splitBarrier].Event, nullptr);
+    vkDestroyEvent(DeviceHandle(), Resources().m_SplitBarriers[splitBarrier.m_Index].Event, nullptr);
     Resources().RemoveResource(splitBarrier);
 }
 
@@ -1759,7 +1834,7 @@ DependencyInfo Driver::Create(const DependencyInfo::Builder::CreateInfo& createI
     return dependencyInfo;
 }
 
-void Driver::Destroy(const DependencyInfo& dependencyInfo)
+void Driver::Destroy(ResourceHandle<DependencyInfo> dependencyInfo)
 {
     Resources().RemoveResource(dependencyInfo);
 }
@@ -2138,6 +2213,10 @@ void Driver::RetrieveDeviceQueues(DriverResources::DeviceResource& deviceResourc
     device.m_Queues.Graphics.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
     device.m_Queues.Presentation.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
     device.m_Queues.Compute.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
+
+    DeletionQueue().Enqueue(device.m_Queues.Graphics);
+    DeletionQueue().Enqueue(device.m_Queues.Presentation);
+    DeletionQueue().Enqueue(device.m_Queues.Compute);
     
     vkGetDeviceQueue(deviceResource.Device, device.m_Queues.Graphics.Family, 0,
         &Resources()[device.m_Queues.Graphics].Queue);
@@ -2221,7 +2300,6 @@ void Driver::Init(const Device& device)
     createInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     
     vmaCreateAllocator(&createInfo, &s_State.Allocator);
-    s_State.DeletionQueue.AddDeleter([](){ vmaDestroyAllocator(s_State.Allocator); });
 
     s_State.UploadContext.CommandPool = CommandPool::Builder()
         .SetQueue(QueueKind::Graphics)
@@ -2243,6 +2321,11 @@ void Driver::ShutdownResources()
     // not all descriptor sets may be deallocated, it is not considered to be an error
     Resources().m_DeallocatedCount += Resources().m_DescriptorSets.Count();
     Resources().m_DescriptorSets.Clear();
+
+    vmaDestroyAllocator(s_State.Allocator);
+        for (auto device : DeletionQueue().m_Devices)
+            Destroy(device);
+    DeletionQueue().m_Devices.clear();
     
     ASSERT(Resources().m_AllocatedCount == Resources().m_DeallocatedCount,
         "Not all driver resources are destroyed")

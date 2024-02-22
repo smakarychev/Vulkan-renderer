@@ -283,12 +283,10 @@ public:
             ShaderPipelineTemplate* ShaderPipelineTemplate;
             std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
             std::array<u32, MAX_PIPELINE_DESCRIPTOR_SETS> UsedSets{0};
-            bool ManualLifetime{false};
         };
         using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
         ShaderDescriptorSet Build();
-        ShaderDescriptorSet BuildManualLifetime();
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
         Builder& AddBinding(std::string_view name, const Buffer& buffer);
         Builder& AddBinding(std::string_view name, const Buffer& buffer, u64 sizeBytes, u64 offset);
@@ -312,7 +310,6 @@ public:
     };
 public:
     static ShaderDescriptorSet Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const ShaderDescriptorSet& descriptorSet);
     
     void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
         const;

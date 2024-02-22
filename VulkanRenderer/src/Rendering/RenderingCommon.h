@@ -12,6 +12,7 @@
 #define FRIEND_INTERNAL \
     friend class Driver; \
     friend class DriverResources; \
+    friend class DeletionQueue; \
     friend class RenderCommand;
 
 class Buffer;

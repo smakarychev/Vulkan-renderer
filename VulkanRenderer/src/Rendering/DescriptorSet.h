@@ -104,8 +104,6 @@ public:
         };
     public:
         DescriptorSet Build();
-        DescriptorSet Build(DeletionQueue& deletionQueue);
-        DescriptorSet BuildManualLifetime();
         
         Builder& SetAllocator(DescriptorAllocator* allocator);
         Builder& SetLayout(DescriptorSetLayout layout);
@@ -118,7 +116,6 @@ public:
     };
 public:
     static DescriptorSet Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const DescriptorSet& descriptorSet);
 
     void BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex);
     void BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex,
@@ -170,7 +167,7 @@ public:
     static void Destroy(const DescriptorAllocator& allocator);
 
     void Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
-    void Deallocate(const DescriptorSet& set);
+    void Deallocate(ResourceHandle<DescriptorSet> set);
 
     void ResetPools();
 private:

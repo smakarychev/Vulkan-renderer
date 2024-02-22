@@ -11,7 +11,7 @@ Fence Fence::Builder::Build()
 Fence Fence::Builder::Build(DeletionQueue& deletionQueue)
 {
     Fence fence = Fence::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([fence](){ Fence::Destroy(fence); });
+    deletionQueue.Enqueue(fence);
 
     return fence;
 }
@@ -35,7 +35,7 @@ Fence Fence::Create(const Builder::CreateInfo& createInfo)
 
 void Fence::Destroy(const Fence& fence)
 {
-    Driver::Destroy(fence);
+    Driver::Destroy(fence.Handle());
 }
 
 void Fence::Reset() const
@@ -61,7 +61,7 @@ Semaphore Semaphore::Builder::Build()
 Semaphore Semaphore::Builder::Build(DeletionQueue& deletionQueue)
 {
     Semaphore semaphore = Semaphore::Create({});
-    deletionQueue.AddDeleter([semaphore](){ Semaphore::Destroy(semaphore); });
+    deletionQueue.Enqueue(semaphore);
 
     return semaphore;
 }
@@ -78,7 +78,7 @@ Semaphore Semaphore::Create(const Builder::CreateInfo& createInfo)
 
 void Semaphore::Destroy(const Semaphore& semaphore)
 {
-    Driver::Destroy(semaphore);
+    Driver::Destroy(semaphore.Handle());
 }
 
 TimelineSemaphore TimelineSemaphore::Builder::Build()
@@ -89,7 +89,7 @@ TimelineSemaphore TimelineSemaphore::Builder::Build()
 TimelineSemaphore TimelineSemaphore::Builder::Build(DeletionQueue& deletionQueue)
 {
     TimelineSemaphore semaphore = TimelineSemaphore::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([semaphore](){ TimelineSemaphore::Destroy(semaphore); });
+    deletionQueue.Enqueue(semaphore);
 
     return semaphore;
 }
@@ -113,7 +113,7 @@ TimelineSemaphore TimelineSemaphore::Create(const Builder::CreateInfo& createInf
 
 void TimelineSemaphore::Destroy(const TimelineSemaphore& semaphore)
 {
-    Driver::Destroy(semaphore);
+    Driver::Destroy(semaphore.Handle());
 }
 
 void TimelineSemaphore::WaitCPU(u64 value) const
@@ -135,7 +135,7 @@ DependencyInfo DependencyInfo::Builder::Build()
 DependencyInfo DependencyInfo::Builder::Build(DeletionQueue& deletionQueue)
 {
     DependencyInfo dependencyInfo = DependencyInfo::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([dependencyInfo]() { DependencyInfo::Destroy(dependencyInfo); });
+    deletionQueue.Enqueue(dependencyInfo);
 
     return dependencyInfo;
 }
@@ -176,7 +176,7 @@ DependencyInfo DependencyInfo::Create(const Builder::CreateInfo& createInfo)
 
 void DependencyInfo::Destroy(const DependencyInfo& dependencyInfo)
 {
-    Driver::Destroy(dependencyInfo);
+    Driver::Destroy(dependencyInfo.Handle());
 }
 
 
@@ -193,7 +193,7 @@ SplitBarrier SplitBarrier::Builder::Build()
 SplitBarrier SplitBarrier::Builder::Build(DeletionQueue& deletionQueue)
 {
     SplitBarrier splitBarrier = SplitBarrier::Create({});
-    deletionQueue.AddDeleter([splitBarrier](){ SplitBarrier::Destroy(splitBarrier); });
+    deletionQueue.Enqueue(splitBarrier);
 
     return splitBarrier;
 }
@@ -210,7 +210,7 @@ SplitBarrier SplitBarrier::Create(const Builder::CreateInfo& createInfo)
 
 void SplitBarrier::Destroy(const SplitBarrier& splitBarrier)
 {
-    Driver::Destroy(splitBarrier);
+    Driver::Destroy(splitBarrier.Handle());
 }
 
 void SplitBarrier::Signal(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const

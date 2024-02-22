@@ -41,9 +41,8 @@ enum class DescriptorPoolFlags
 {
     None = 0,
     
-    FreeSet         = BIT(1),
-    UpdateAfterBind = BIT(2),
-    HostOnly        = BIT(3)
+    UpdateAfterBind = BIT(1),
+    HostOnly        = BIT(2)
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(DescriptorPoolFlags)

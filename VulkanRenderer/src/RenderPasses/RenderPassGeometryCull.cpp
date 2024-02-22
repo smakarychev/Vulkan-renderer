@@ -73,11 +73,11 @@ struct CullBatch
     }
     static u64 GetCommandsSizeBytes()
     {
-        return vkUtils::alignUniformBufferSizeBytes(MAX_COMMANDS * sizeof(IndirectCommand) * SUB_BATCH_COUNT);
+        return renderUtils::alignUniformBufferSizeBytes(MAX_COMMANDS * sizeof(IndirectCommand) * SUB_BATCH_COUNT);
     }
     static u64 GetTrianglesSizeBytes()
     {
-        return vkUtils::alignUniformBufferSizeBytes(MAX_TRIANGLES * sizeof(u8) * SUB_BATCH_COUNT);
+        return renderUtils::alignUniformBufferSizeBytes(MAX_TRIANGLES * sizeof(u8) * SUB_BATCH_COUNT);
     }
 
     Buffer Indices;
@@ -90,7 +90,7 @@ class RenderPassGeometryCull::BatchedCull
     struct ComputePipelineData;
 public:
     void Init(const RenderPassGeometry& renderPassGeometry, const CullBuffers& cullBuffers,
-        DescriptorAllocator& allocator);
+        DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator);
     void Shutdown(bool shouldFree);
 
     void SetDepthPyramid(const DepthPyramid& depthPyramid,
@@ -109,7 +109,8 @@ public:
     
     u32 ReadBackBatchCount(const CullBuffers& cullBuffers, u32 frameNumber) const;
 private:
-    void InitPipelines(const CullBuffers& cullBuffers, DescriptorAllocator& allocator);
+    void InitPipelines(const CullBuffers& cullBuffers,
+        DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator);
     void FreeResolutionDependentResources() const;
     void RecordCommandBuffers(const CullBuffers& cullBuffers, const glm::uvec2& resolution);
 private:
@@ -154,14 +155,15 @@ CullBatch::CullBatch()
 }
 
 void RenderPassGeometryCull::BatchedCull::Init(const RenderPassGeometry& renderPassGeometry,
-    const CullBuffers& cullBuffers, DescriptorAllocator& allocator)
+    const CullBuffers& cullBuffers,
+    DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator)
 {
     for (auto& batch : m_CullBatches)
         batch = std::make_unique<CullBatch>();
 
     m_MaxBatchDispatches = renderPassGeometry.GetCommandCount() / CullBatch::GetCommandCount() + 1;
 
-    InitPipelines(cullBuffers, allocator);
+    InitPipelines(cullBuffers, persistentAllocator, resolutionDependentAllocator);
 }
 
 void RenderPassGeometryCull::BatchedCull::Shutdown(bool shouldFree)
@@ -199,7 +201,7 @@ void RenderPassGeometryCull::BatchedCull::SetDepthPyramid(const DepthPyramid& de
             .AddBinding("u_triangle_buffer", cullBuffers.Triangles, CullBatch::GetTrianglesSizeBytes(), 0)
             .AddBinding("u_command_buffer", cullBuffers.CompactedCommands)
             .AddBinding("u_count_buffer", cullBuffers.CountBuffers.VisibleMeshlets, sizeof(u32), 0)
-            .BuildManualLifetime();
+            .Build();
 
         batchData.TriangleCullReocclusionSingular.Descriptors = batchData.TriangleCullSingular.Descriptors;
     }
@@ -215,8 +217,8 @@ void RenderPassGeometryCull::BatchedCull::BatchIndirectDispatchesBuffersPrepare(
 {
     const CommandBuffer& cmd = *cullContext.Cmd;
     
-    u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
-    u32 dispatchIndirectOffset = (u32)vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
+    u32 countOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
+    u32 dispatchIndirectOffset = (u32)renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
         m_MaxBatchDispatches) * cullContext.FrameNumber;
 
     std::vector<u32> pushConstants = {
@@ -278,7 +280,7 @@ void RenderPassGeometryCull::BatchedCull::ResetSubBatches()
 u32 RenderPassGeometryCull::BatchedCull::ReadBackBatchCount(const CullBuffers& cullBuffers, u32 frameNumber) const
 {
     void* address = cullBuffers.VisibleMeshletCountBufferMappedAddress;
-    address = (u8*)address + vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameNumber;
+    address = (u8*)address + renderUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameNumber;
     u32 visibleMeshletsValue = *(u32*)(address);
     u32 commandCount = CullBatch::GetCommandCount();
 
@@ -286,19 +288,19 @@ u32 RenderPassGeometryCull::BatchedCull::ReadBackBatchCount(const CullBuffers& c
 }
 
 void RenderPassGeometryCull::BatchedCull::InitPipelines(const CullBuffers& cullBuffers,
-    DescriptorAllocator& allocator)
+    DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator)
 {
     ShaderPipelineTemplate* triangleCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/triangle-cull-singular-comp.shader"}, "triangle-cull-singular",
-        allocator);
+        resolutionDependentAllocator);
 
     ShaderPipelineTemplate* prepareDrawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/prepare-draw-singular-comp.shader"}, "prepare-draw-singular",
-        allocator);
+        persistentAllocator);
 
     ShaderPipelineTemplate* prepareDispatchTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/prepare-indirect-dispatches-comp.shader"}, "prepare-batch-dispatch",
-        allocator);
+        persistentAllocator);
     
     auto& firstBatchData = m_CullDrawBatchData.front();
     
@@ -355,8 +357,6 @@ void RenderPassGeometryCull::BatchedCull::InitPipelines(const CullBuffers& cullB
 
 void RenderPassGeometryCull::BatchedCull::FreeResolutionDependentResources() const
 {
-    for (auto& batchData : m_CullDrawBatchData)
-        ShaderDescriptorSet::Destroy(batchData.TriangleCullSingular.Descriptors);
     CommandPool::Destroy(m_CommandPool);
 }
 
@@ -383,13 +383,13 @@ void RenderPassGeometryCull::BatchedCull::RecordCommandBuffers(const CullBuffers
                 u32 commandCount = CullBatch::GetCommandCount();
                 
                 u64 dispatchIndirectOffset =
-                    vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(m_MaxBatchDispatches) * frameIndex;
+                    renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(m_MaxBatchDispatches) * frameIndex;
                 dispatchIndirectOffset += sizeof(VkDispatchIndirectCommand) * dispatchIndex;
-                u32 countOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameIndex;
+                u32 countOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameIndex;
                 u32 commandOffset = commandCount * dispatchIndex;
 
                 u32 sceneCullOffset =
-                    (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(CameraCullData)) * frameIndex;
+                    (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(CameraCullData)) * frameIndex;
                 u32 triangleOffset = (u32)batch.GetTrianglesSizeBytes() * batchIndex;
 
                 RenderPassPipelineData& pipelineDataSingular = reocclusion ?
@@ -454,24 +454,24 @@ void RenderPassGeometryCull::CullBuffers::Init(const RenderPassGeometry& renderP
         .SetUsage(BufferUsage::Indirect | BufferUsage::Storage);
     
     CameraDataUBO.Buffer = uboBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<CameraCullData>(BUFFERED_FRAMES))
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<CameraCullData>(BUFFERED_FRAMES))
         .Build();
     CameraDataUBOExtended.Buffer = uboBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<CameraCullData>(BUFFERED_FRAMES))
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<CameraCullData>(BUFFERED_FRAMES))
         .Build();
 
     BatchIndirectDispatches = indirectDispatchBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
             maxBatchDispatches * BUFFERED_FRAMES))
         .Build();
 
     BatchCompactIndirectDispatches = indirectDispatchBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
             maxBatchDispatches * BUFFERED_FRAMES))
         .Build();
 
     CountBuffers.VisibleMeshlets = ssboReadBackBuilder
-        .SetSizeBytes(vkUtils::alignUniformBufferSizeBytes<u32>(BUFFERED_FRAMES))
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<u32>(BUFFERED_FRAMES))
         .Build();
     VisibleMeshletCountBufferMappedAddress = CountBuffers.VisibleMeshlets.Map();
     
@@ -502,18 +502,18 @@ void RenderPassGeometryCull::CullBuffers::Shutdown()
 }
 
 RenderPassGeometryCull RenderPassGeometryCull::ForGeometry(const RenderPassGeometry& renderPassGeometry,
-    DescriptorAllocator& allocator)
+    DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator)
 {
     RenderPassGeometryCull renderPassGeometryCull = {};
     renderPassGeometryCull.m_RenderPassGeometry = &renderPassGeometry;
     renderPassGeometryCull.m_CullBuffers = std::make_shared<CullBuffers>();
     renderPassGeometryCull.m_CullBuffers->Init(renderPassGeometry);
-    renderPassGeometryCull.InitPipelines(allocator);
+    renderPassGeometryCull.InitPipelines(persistentAllocator, resolutionDependentAllocator);
     renderPassGeometryCull.InitSynchronization();
     
     renderPassGeometryCull.m_BatchedCull = std::make_shared<BatchedCull>();
     renderPassGeometryCull.m_BatchedCull->Init(renderPassGeometry, *renderPassGeometryCull.m_CullBuffers,
-        allocator);
+        persistentAllocator, resolutionDependentAllocator);
 
     return renderPassGeometryCull;
 }
@@ -522,8 +522,6 @@ void RenderPassGeometryCull::Shutdown(const RenderPassGeometryCull& renderPassGe
 {
     renderPassGeometryCull.m_CullBuffers->Shutdown();
     renderPassGeometryCull.m_BatchedCull->Shutdown(renderPassGeometryCull.m_DepthPyramid != nullptr);
-    if (renderPassGeometryCull.m_DepthPyramid != nullptr)
-        renderPassGeometryCull.FreeResolutionDependentResources();
 }
 
 void RenderPassGeometryCull::SetDepthPyramid(DepthPyramid& depthPyramid, const glm::uvec2& renderResolution)
@@ -531,9 +529,6 @@ void RenderPassGeometryCull::SetDepthPyramid(DepthPyramid& depthPyramid, const g
     m_BatchedCull->SetDepthPyramid(depthPyramid, *m_RenderPassGeometry, *m_CullBuffers,
         renderResolution, m_DepthPyramid != nullptr);
     
-    if (m_DepthPyramid != nullptr)
-        FreeResolutionDependentResources();
-
     m_DepthPyramid = &depthPyramid;
     
     m_MeshCull.Descriptors = ShaderDescriptorSet::Builder()
@@ -543,7 +538,7 @@ void RenderPassGeometryCull::SetDepthPyramid(DepthPyramid& depthPyramid, const g
             depthPyramid.GetSampler(), ImageLayout::General))
         .AddBinding("u_object_buffer", m_RenderPassGeometry->GetRenderObjectsBuffer())
         .AddBinding("u_object_visibility_buffer", m_CullBuffers->VisibilityBuffers.MeshVisibility)
-        .BuildManualLifetime();
+        .Build();
 
     m_MeshCullReocclusion.Descriptors = m_MeshCull.Descriptors;
 
@@ -559,7 +554,7 @@ void RenderPassGeometryCull::SetDepthPyramid(DepthPyramid& depthPyramid, const g
         .AddBinding("u_command_buffer", m_RenderPassGeometry->GetCommandsBuffer())
         .AddBinding("u_compacted_command_buffer", m_CullBuffers->CompactedCommands)
         .AddBinding("u_count_buffer", m_CullBuffers->CountBuffers.VisibleMeshlets, sizeof(u32), 0)
-        .BuildManualLifetime();
+        .Build();
 
     m_MeshletCullReocclusion.Descriptors = m_MeshletCull.Descriptors;
 }
@@ -588,9 +583,9 @@ void RenderPassGeometryCull::Prepare(const Camera& camera,
         sceneCullDataExtended.PyramidHeight = (f32)m_DepthPyramid->GetTexture().GetDescription().Height;
     }
     resourceUploader.UpdateBuffer(m_CullBuffers->CameraDataUBO.Buffer, &sceneCullData,
-        sizeof(sceneCullData), vkUtils::alignUniformBufferSizeBytes(sizeof(sceneCullData)) * frameContext.FrameNumber);
+        sizeof(sceneCullData), renderUtils::alignUniformBufferSizeBytes(sizeof(sceneCullData)) * frameContext.FrameNumber);
     resourceUploader.UpdateBuffer(m_CullBuffers->CameraDataUBOExtended.Buffer, &sceneCullDataExtended,
-        sizeof(sceneCullDataExtended), vkUtils::alignUniformBufferSizeBytes(sizeof(sceneCullDataExtended)) *
+        sizeof(sceneCullDataExtended), renderUtils::alignUniformBufferSizeBytes(sizeof(sceneCullDataExtended)) *
         frameContext.FrameNumber);
 }
 
@@ -769,19 +764,20 @@ u32 RenderPassGeometryCull::GetTriangleBufferOffset() const
     return (u32)m_BatchedCull->GetTrianglesOffset();
 }
 
-void RenderPassGeometryCull::InitPipelines(DescriptorAllocator& allocator)
+void RenderPassGeometryCull::InitPipelines(DescriptorAllocator& persistentAllocator,
+    DescriptorAllocator& resolutionDependentAllocator)
 {
     ShaderPipelineTemplate* meshCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/mesh-cull-comp.shader"}, "mesh-cull",
-        allocator);
+        resolutionDependentAllocator);
 
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/meshlet-cull-comp.shader"}, "meshlet-cull",
-        allocator);
+        resolutionDependentAllocator);
 
     ShaderPipelineTemplate* meshletClearTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
         {"../assets/shaders/processed/culling/clear-buffers-comp.shader"}, "clear-buffers-cull",
-        allocator);
+        persistentAllocator);
 
     m_MeshCull.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(meshCullTemplate)
@@ -835,17 +831,11 @@ void RenderPassGeometryCull::InitSynchronization()
         .Build();
 }
 
-void RenderPassGeometryCull::FreeResolutionDependentResources() const
-{
-    ShaderDescriptorSet::Destroy(m_MeshCull.Descriptors);
-    ShaderDescriptorSet::Destroy(m_MeshletCull.Descriptors);
-}
-
 void RenderPassGeometryCull::CullMeshes(const CullContextExtended& cullContext) const
 {
     const CommandBuffer& cmd = *cullContext.Cmd;
 
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(CameraCullData)) *
+    u32 sceneCullOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(CameraCullData)) *
         cullContext.FrameNumber;
     u32 count = m_RenderPassGeometry->GetRenderObjectCount();
 
@@ -864,14 +854,14 @@ void RenderPassGeometryCull::CullMeshlets(const CullContextExtended& cullContext
 {
     const CommandBuffer& cmd = *cullContext.Cmd;
     
-    u32 countBufferOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
+    u32 countBufferOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
     m_MeshletCullClear.Pipeline.BindCompute(cmd);
     m_MeshletCullClear.Descriptors.BindCompute(cmd, DescriptorKind::Global,
                                                m_MeshletCullClear.Pipeline.GetPipelineLayout(), {countBufferOffset});
     RenderCommand::Dispatch(cmd, {1, 1, 1});
     m_Barrier.Wait(cmd, m_ComputeWRDependency);
 
-    u32 sceneCullOffset = (u32)vkUtils::alignUniformBufferSizeBytes(sizeof(CameraCullData)) *
+    u32 sceneCullOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(CameraCullData)) *
         cullContext.FrameNumber;
     u32 count = m_RenderPassGeometry->GetMeshletCount();
 

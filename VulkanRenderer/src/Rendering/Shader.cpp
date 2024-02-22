@@ -122,7 +122,7 @@ ShaderModule ShaderModule::Builder::Build()
 ShaderModule ShaderModule::Builder::Build(DeletionQueue& deletionQueue)
 {
     ShaderModule shader = ShaderModule::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([shader]() { ShaderModule::Destroy(shader); });
+    deletionQueue.Enqueue(shader);
 
     return shader;
 }
@@ -153,7 +153,7 @@ ShaderModule ShaderModule::Create(const Builder::CreateInfo& createInfo)
 
 void ShaderModule::Destroy(const ShaderModule& shader)
 {
-    Driver::Destroy(shader);
+    Driver::Destroy(shader.Handle());
 }
 
 Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
@@ -354,7 +354,8 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build()
 ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build(DeletionQueue& deletionQueue)
 {
     ShaderPipelineTemplate shaderPipelineTemplate = ShaderPipelineTemplate::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([shaderPipelineTemplate]() { ShaderPipelineTemplate::Destroy(shaderPipelineTemplate); });
+    for (auto& shader : shaderPipelineTemplate.m_Shaders)
+        deletionQueue.Enqueue(shader);
 
     return shaderPipelineTemplate;
 }
@@ -740,19 +741,6 @@ ShaderDescriptorSet ShaderDescriptorSet::Builder::Build()
     return descriptorSet;
 }
 
-ShaderDescriptorSet ShaderDescriptorSet::Builder::BuildManualLifetime()
-{
-    PreBuild();
-    for (auto& builder : m_CreateInfo.DescriptorBuilders)
-        builder.SetPoolFlags(DescriptorPoolFlags::FreeSet);
-    m_CreateInfo.ManualLifetime = true;
-    ShaderDescriptorSet descriptorSet = ShaderDescriptorSet::Create(m_CreateInfo);
-    m_CreateInfo.UsedSets = {};
-    m_CreateInfo.DescriptorBuilders = {};
-
-    return descriptorSet;
-}
-
 ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate)
 {
     m_CreateInfo.ShaderPipelineTemplate = shaderPipelineTemplate;
@@ -839,24 +827,13 @@ ShaderDescriptorSet ShaderDescriptorSet::Create(const Builder::CreateInfo& creat
             continue;
         
         descriptorSet.m_DescriptorSetsInfo.DescriptorSets[i].IsPresent = true;
-        if (createInfo.ManualLifetime)
-            descriptorSet.m_DescriptorSetsInfo.DescriptorSets[i].Set = const_cast<DescriptorSet::Builder&>(
-                createInfo.DescriptorBuilders[i]).BuildManualLifetime();
-        else
-            descriptorSet.m_DescriptorSetsInfo.DescriptorSets[i].Set = const_cast<DescriptorSet::Builder&>(
-                createInfo.DescriptorBuilders[i]).Build();
+        descriptorSet.m_DescriptorSetsInfo.DescriptorSets[i].Set = const_cast<DescriptorSet::Builder&>(
+            createInfo.DescriptorBuilders[i]).Build();
         setCount++;
     }
     descriptorSet.m_DescriptorSetsInfo.DescriptorCount = setCount;
 
     return descriptorSet;
-}
-
-void ShaderDescriptorSet::Destroy(const ShaderDescriptorSet& descriptorSet)
-{
-    for (auto& set : descriptorSet.m_DescriptorSetsInfo.DescriptorSets)
-        if (set.IsPresent)
-            DescriptorSet::Destroy(set.Set);
 }
 
 void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,

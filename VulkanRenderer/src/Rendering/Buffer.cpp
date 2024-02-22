@@ -16,7 +16,7 @@ Buffer Buffer::Builder::Build()
 Buffer Buffer::Builder::Build(DeletionQueue& deletionQueue)
 {
     Buffer buffer = Buffer::Create(m_CreateInfo);
-    deletionQueue.AddDeleter([buffer](){ Buffer::Destroy(buffer); });
+    deletionQueue.Enqueue(buffer);
 
     return buffer;
 }
@@ -47,7 +47,7 @@ Buffer Buffer::Create(const Builder::CreateInfo& createInfo)
 
 void Buffer::Destroy(const Buffer& buffer)
 {
-    Driver::Destroy(buffer);
+    Driver::Destroy(buffer.Handle());
 }
 
 void Buffer::SetData(const void* data, u64 dataSizeBytes)
