@@ -27,15 +27,13 @@ public:
     Sampler GetSampler() const { return m_Sampler; }
 private:
     static Sampler CreateSampler();
-    static Image CreatePyramidDepthImage(const CommandBuffer& cmd, const Image& depthImage);
     
-    ImageViewList CreateViews(const Image& pyramidImage);
+    Image CreatePyramidDepthImage(const CommandBuffer& cmd, const Image& depthImage);
     void CreateDescriptorSets(const Image& depthImage);
     void Fill(const CommandBuffer& cmd, const Image& depthImage, DeletionQueue& deletionQueue);
 private:
     Image m_PyramidDepth;
     Sampler m_Sampler;
-    ImageViewList m_MipmapViews;
     std::array<ImageViewHandle, DepthPyramid::MAX_MIPMAP_COUNT> m_MipmapViewHandles;
     
     ComputeDepthPyramidData* m_ComputeDepthPyramidData;

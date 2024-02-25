@@ -16,13 +16,11 @@ DepthPyramid::DepthPyramid(const Image& depthImage, const CommandBuffer& cmd,
     m_Sampler = CreateSampler();
 
     m_PyramidDepth = CreatePyramidDepthImage(cmd, depthImage);
-    m_MipmapViews = CreateViews(m_PyramidDepth);
     CreateDescriptorSets(depthImage);
 }
 
 DepthPyramid::~DepthPyramid()
 {
-    ImageViewList::Destroy(m_MipmapViews);
     Image::Destroy(m_PyramidDepth);
 }
 
@@ -48,12 +46,20 @@ Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Imag
 {
     u32 width = utils::floorToPowerOf2(depthImage.GetDescription().Width);
     u32 height = utils::floorToPowerOf2(depthImage.GetDescription().Height);
-    Image pyramidImage = Image::Builder()
+
+    Image::Builder pyramidImageBuilder = Image::Builder()
         .SetExtent({width, height})
         .SetFormat(Format::R32_FLOAT)
         .SetUsage(ImageUsage::Sampled | ImageUsage::Storage)
-        .CreateMipmaps(true, ImageFilter::Linear)
-        .BuildManualLifetime();
+        .CreateMipmaps(true, ImageFilter::Linear);
+
+    u32 mipmapCount = Image::CalculateMipmapCount({width, height});
+
+    for (u32 i = 0; i < mipmapCount; i++)
+        pyramidImageBuilder.AddView(
+            {.MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1}, m_MipmapViewHandles[i]);
+    
+    Image pyramidImage = pyramidImageBuilder.BuildManualLifetime();
 
     ImageSubresource imageSubresource = pyramidImage.CreateSubresource();
     Barrier barrier = {};
@@ -76,17 +82,6 @@ Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Imag
     return pyramidImage;
 }
 
-ImageViewList DepthPyramid::CreateViews(const Image& pyramidImage)
-{
-    ImageViewList::Builder viewBuilder = ImageViewList::Builder()
-        .ForImage(pyramidImage);
-
-    for (u32 i = 0; i < pyramidImage.GetDescription().Mipmaps; i++)
-        viewBuilder.Add(pyramidImage.CreateSubresource(i, 1, 0, 1), m_MipmapViewHandles[i]);
-    
-    return viewBuilder.BuildManualLifetime();
-}
-
 void DepthPyramid::CreateDescriptorSets(const Image& depthImage)
 {
     u32 mipMapCount = m_PyramidDepth.GetDescription().Mipmaps;
@@ -94,11 +89,11 @@ void DepthPyramid::CreateDescriptorSets(const Image& depthImage)
     {
         ImageBindingInfo source = i > 0 ?
             m_PyramidDepth.CreateBindingInfo(
-                m_Sampler, ImageLayout::General, m_MipmapViews, m_MipmapViewHandles[i - 1]) :
+                m_Sampler, ImageLayout::General, m_MipmapViewHandles[i - 1]) :
             depthImage.CreateBindingInfo(m_Sampler, ImageLayout::DepthReadonly);
         
         ImageBindingInfo destination = m_PyramidDepth.CreateBindingInfo(
-            m_Sampler, ImageLayout::General, m_MipmapViews, m_MipmapViewHandles[i]);
+            m_Sampler, ImageLayout::General, m_MipmapViewHandles[i]);
         
         m_DepthPyramidDescriptors[i] = ShaderDescriptorSet::Builder()
             .SetTemplate(m_ComputeDepthPyramidData->PipelineTemplate)
@@ -147,8 +142,8 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage, Delet
         RenderCommand::Dispatch(cmd, {(levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1});
 
         ImageSubresource pyramidSubresource = m_PyramidDepth.CreateSubresource();
-        pyramidSubresource.MipmapBase = i;
-        pyramidSubresource.Mipmaps = 1;
+        pyramidSubresource.Description.MipmapBase = i;
+        pyramidSubresource.Description.Mipmaps = 1;
 
         DependencyInfo pyramidTransition = DependencyInfo::Builder()
             .SetFlags(PipelineDependencyFlags::ByRegion)

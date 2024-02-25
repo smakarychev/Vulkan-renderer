@@ -84,6 +84,7 @@ void Sampler::Destroy(const Sampler& sampler)
 Image::Builder::Builder(const ImageDescription& description)
 {
     m_CreateInfo.Description = description;
+    m_CreateInfo.ViewCountFromDescription = description.Views > 1;
 }
 
 Image Image::Builder::Build()
@@ -214,18 +215,33 @@ Image::Builder& Image::Builder::SetUsage(ImageUsage usage)
     return *this;
 }
 
+Image::Builder& Image::Builder::AddView(const ImageSubresourceDescription& subresource, ImageViewHandle& viewHandle)
+{
+    if (!m_CreateInfo.ViewCountFromDescription)
+        m_CreateInfo.Description.Views += 1;
+    m_CreateInfo.AdditionalViews.push_back(subresource);
+    // set index after push, so that it begins with 1. Index 0 is reserved for a base view
+    viewHandle.m_Index = (u32)m_CreateInfo.AdditionalViews.size();
+
+    return *this;
+}
+
 void Image::Builder::PreBuild()
 {
+    ASSERT(!m_CreateInfo.ViewCountFromDescription ||
+        m_CreateInfo.Description.Views == (u16)m_CreateInfo.AdditionalViews.size(),
+        "View count does not match the value specified in image description")
+    
     if (m_CreateInfo.SourceInfo == CreateInfo::SourceInfo::Asset)
        m_CreateInfo.Description.Usage |= ImageUsage::Destination;
     
     if (m_CreateInfo.CreateMipmaps)
     {
         m_CreateInfo.Description.Usage |= ImageUsage::Destination | ImageUsage::Source;
-        u32 maxDimension = std::max(m_CreateInfo.Description.Width, m_CreateInfo.Description.Height);
-        if (m_CreateInfo.Description.Kind == ImageKind::Image3d)
-            maxDimension = std::max(maxDimension, m_CreateInfo.Description.Layers);
-        m_CreateInfo.Description.Mipmaps = (u16)std::log2(maxDimension) + 1;    
+        m_CreateInfo.Description.Mipmaps = CalculateMipmapCount({
+            m_CreateInfo.Description.Width,
+            m_CreateInfo.Description.Height,
+            m_CreateInfo.Description.Kind == ImageKind::Image3d ? m_CreateInfo.Description.Layers : 1});
     }
     
     if (enumHasAny(m_CreateInfo.Description.Usage, ImageUsage::Readback))
@@ -241,7 +257,7 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     case CreateInfo::SourceInfo::None:
     {
         image = AllocateImage(createInfo);
-        CreateImageView(image.CreateSubresource());
+        CreateImageView(image.CreateSubresource(), createInfo.AdditionalViews);
         break;
     }
     case CreateInfo::SourceInfo::Asset:
@@ -271,10 +287,11 @@ ImageSubresource Image::CreateSubresource() const
 {
     ImageSubresource imageSubresource = {
         .Image = this,
-        .MipmapBase = 0,
-        .Mipmaps = m_Description.Mipmaps,
-        .LayerBase = 0,
-        .Layers = m_Description.Layers};
+        .Description = {
+            .MipmapBase = 0,
+            .Mipmaps = m_Description.Mipmaps,
+            .LayerBase = 0,
+            .Layers = m_Description.Layers}};
     
     return imageSubresource;
 }
@@ -288,12 +305,20 @@ ImageSubresource Image::CreateSubresource(u32 mipBase, u32 mipCount, u32 layerBa
 {
     ImageSubresource imageSubresource = {
         .Image = this,
-        .MipmapBase = mipBase,
-        .Mipmaps = mipCount,
-        .LayerBase = layerBase,
-        .Layers = layerCount};
+        .Description = {
+            .MipmapBase = mipBase,
+            .Mipmaps = mipCount,
+            .LayerBase = layerBase,
+            .Layers = layerCount}};
 
     return imageSubresource;
+}
+
+ImageSubresource Image::CreateSubresource(const ImageSubresourceDescription& description) const
+{
+    return ImageSubresource{
+        .Image = this,
+        .Description = description};
 }
 
 ImageBlitInfo Image::CreateImageBlitInfo() const
@@ -339,21 +364,30 @@ ImageBindingInfo Image::CreateBindingInfo(Sampler sampler, ImageLayout layout) c
         .Layout = layout};
 }
 
-ImageBindingInfo Image::CreateBindingInfo(ImageFilter filter, ImageLayout layout,
-    const ImageViewList& views, ImageViewHandle handle) const
+ImageBindingInfo Image::CreateBindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const
 {
-    return CreateBindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout, views, handle);
+    return CreateBindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout, handle);
 }
 
-ImageBindingInfo Image::CreateBindingInfo(Sampler sampler, ImageLayout layout,
-    const ImageViewList& views, ImageViewHandle handle) const
+ImageBindingInfo Image::CreateBindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const
 {
     return ImageBindingInfo {
         .Image = this,
         .Sampler = sampler,
         .Layout = layout,
-        .ViewList = &views,
         .ViewHandle = handle};
+}
+
+u16 Image::CalculateMipmapCount(const glm::uvec2& resolution)
+{
+    return CalculateMipmapCount({resolution.x, resolution.y, 1});
+}
+
+u16 Image::CalculateMipmapCount(const glm::uvec3& resolution)
+{
+    u32 maxDimension = std::max(resolution.x, std::max(resolution.y, resolution.z));
+
+    return (u16)std::log2(maxDimension) + 1;    
 }
 
 Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
@@ -387,11 +421,11 @@ Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
     ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, 1);
     PrepareForMipmapDestination(imageSubresource);
     CopyBufferToImage(createInfo.DataBuffer, image);
-    imageSubresource.Mipmaps = createInfo.Description.Mipmaps;
+    imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
     CreateMipmaps(image, createInfo);
     PrepareForShaderRead(imageSubresource);
     
-    CreateImageView(image.CreateSubresource());
+    CreateImageView(image.CreateSubresource(), createInfo.AdditionalViews);
         
     return image;
 }
@@ -419,7 +453,7 @@ void Image::PrepareForMipmapSource(const ImageSubresource& imageSubresource)
 
 void Image::PrepareForShaderRead(const ImageSubresource& imageSubresource)
 {
-    ImageLayout current = imageSubresource.Mipmaps > 1 ? ImageLayout::Source : ImageLayout::Destination;
+    ImageLayout current = imageSubresource.Description.Mipmaps > 1 ? ImageLayout::Source : ImageLayout::Destination;
     PrepareImageGeneral(imageSubresource,
        current, ImageLayout::ReadOnly,
        PipelineAccess::ReadTransfer, PipelineAccess::ReadShader,
@@ -468,8 +502,8 @@ void Image::CreateMipmaps(const Image& image, const CreateInfo& createInfo)
     bool is3dImage = createInfo.Description.Kind == ImageKind::Image3d;
     u32 layerCount = is3dImage ? createInfo.Description.Layers : 1;
     ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, layerCount);
-    imageSubresource.Layers = layerCount;
-    imageSubresource.Mipmaps = 1;
+    imageSubresource.Description.Layers = layerCount;
+    imageSubresource.Description.Mipmaps = 1;
     
     PrepareForMipmapSource(imageSubresource);
 
@@ -501,59 +535,17 @@ void Image::CreateMipmaps(const Image& image, const CreateInfo& createInfo)
     }
 }
 
-void Image::CreateImageView(const ImageSubresource& imageSubresource)
+void Image::CreateImageView(const ImageSubresource& imageSubresource,
+    const std::vector<ImageSubresourceDescription>& additionalViews)
 {
-    ASSERT(imageSubresource.MipmapBase + imageSubresource.Mipmaps <= imageSubresource.Image->m_Description.Mipmaps,
+    ASSERT(imageSubresource.Description.MipmapBase + imageSubresource.Description.Mipmaps <=
+        imageSubresource.Image->m_Description.Mipmaps,
         "Incorrect mipmap range for image view")
-    ASSERT(imageSubresource.LayerBase + imageSubresource.Layers <= imageSubresource.Image->m_Description.Layers,
+    ASSERT(imageSubresource.Description.LayerBase + imageSubresource.Description.Layers <=
+        imageSubresource.Image->m_Description.Layers,
         "Incorrect layer range for image view")
 
-    Driver::CreateView(imageSubresource);
-}
-
-ImageViewList ImageViewList::Builder::Build()
-{
-    return Build(Driver::DeletionQueue());
-}
-
-ImageViewList ImageViewList::Builder::Build(DeletionQueue& deletionQueue)
-{
-    ImageViewList list = ImageViewList::Create(m_CreateInfo);
-    deletionQueue.Enqueue(list);
-
-    return list;
-}
-
-ImageViewList ImageViewList::Builder::BuildManualLifetime()
-{
-    return ImageViewList::Create(m_CreateInfo);
-}
-
-ImageViewList::Builder& ImageViewList::Builder::ForImage(const Image& image)
-{
-    m_CreateInfo.Image = &image;
-
-    return *this;
-}
-
-ImageViewList::Builder& ImageViewList::Builder::Add(const ImageSubresource& subresource, ImageViewHandle& handle)
-{
-    ASSERT(m_CreateInfo.Image == nullptr || m_CreateInfo.Image == subresource.Image, "Foreign subresource")
-    
-    handle.m_Index = (u32)m_CreateInfo.ImageViews.size();
-    m_CreateInfo.ImageViews.push_back(subresource);
-
-    return *this;
-}
-
-ImageViewList ImageViewList::Create(const Builder::CreateInfo& createInfo)
-{
-    return Driver::Create(createInfo);
-}
-
-void ImageViewList::Destroy(const ImageViewList& imageViews)
-{
-    Driver::Destroy(imageViews.Handle());
+    Driver::CreateViews(imageSubresource, additionalViews);
 }
 
 Sampler SamplerCache::CreateSampler(const Sampler::Builder::CreateInfo& createInfo)

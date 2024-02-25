@@ -497,8 +497,6 @@ void DeletionQueue::Flush()
 {
     for (auto handle : m_Buffers)
         Driver::Destroy(handle);
-    for (auto handle : m_ViewLists)
-        Driver::Destroy(handle);
     for (auto handle : m_Images)
         Driver::Destroy(handle);
     for (auto handle : m_Samplers)
@@ -822,8 +820,9 @@ std::vector<Image> Driver::CreateSwapchainImages(const Swapchain& swapchain)
     {
         DriverResources::ImageResource imageResource = {.Image = images[i]};
         colorImages[i].m_ResourceHandle = Resources().AddResource(imageResource);
-        Resources()[colorImages[i]].View = CreateVulkanImageView(
+        Resources()[colorImages[i]].Views.ViewType.View = CreateVulkanImageView(
             colorImages[i].CreateSubresource(0, 1, 0, 1), Resources()[swapchain].ColorFormat);
+        Resources()[colorImages[i]].Views.ViewList = &Resources()[colorImages[i]].Views.ViewType.View;
     }
 
     return colorImages;
@@ -833,7 +832,7 @@ void Driver::DestroySwapchainImages(const Swapchain& swapchain)
 {
     for (const auto& colorImage : swapchain.m_ColorImages)
     {
-        vkDestroyImageView(DeviceHandle(), Resources()[colorImage].View, nullptr);
+        vkDestroyImageView(DeviceHandle(), *Resources()[colorImage].Views.ViewList, nullptr);
         Resources().RemoveResource(colorImage.Handle());
     }
     Image::Destroy(swapchain.m_DrawImage);
@@ -992,15 +991,38 @@ Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
 void Driver::Destroy(ResourceHandle<Image> image)
 {
     const DriverResources::ImageResource& imageResource = Resources().m_Images[image.m_Index];
-    vkDestroyImageView(DeviceHandle(), imageResource.View, nullptr);
+    if (imageResource.Views.ViewList == &imageResource.Views.ViewType.View)
+    {
+        vkDestroyImageView(DeviceHandle(), imageResource.Views.ViewType.View, nullptr);
+    }
+    else
+    {
+        for (u32 viewIndex = 0; viewIndex < imageResource.Views.ViewType.ViewCount; viewIndex++)
+            vkDestroyImageView(DeviceHandle(), imageResource.Views.ViewList[viewIndex], nullptr);
+        delete[] imageResource.Views.ViewList;
+    }
     vmaDestroyImage(Allocator(), imageResource.Image, imageResource.Allocation);
     Resources().RemoveResource(image);
 }
 
-void Driver::CreateView(const ImageSubresource& image)
+void Driver::CreateViews(const ImageSubresource& image,
+    const std::vector<ImageSubresourceDescription>& additionalViews)
 {
-    Resources()[*image.Image].View = CreateVulkanImageView(image,
-        vulkanFormatFromFormat(image.Image->m_Description.Format));
+    DriverResources::ImageResource& resource = Resources()[*image.Image];
+    VkFormat viewFormat = vulkanFormatFromFormat(image.Image->m_Description.Format);
+    if (additionalViews.empty())
+    {
+        resource.Views.ViewType.View = CreateVulkanImageView(image, viewFormat);
+        resource.Views.ViewList = &resource.Views.ViewType.View;
+        return;
+    }
+
+    resource.Views.ViewType.ViewCount = image.Image->m_Description.Views;
+    resource.Views.ViewList = new VkImageView[image.Image->m_Description.Views];
+    resource.Views.ViewList[0] = CreateVulkanImageView(image, viewFormat);
+    for (u32 viewIndex = 0; viewIndex < additionalViews.size(); viewIndex++)
+        resource.Views.ViewList[viewIndex + 1] = CreateVulkanImageView(
+            image.Image->CreateSubresource(additionalViews[viewIndex]), viewFormat);
 }
 
 Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
@@ -1046,30 +1068,6 @@ void Driver::Destroy(ResourceHandle<Sampler> sampler)
     Resources().RemoveResource(sampler);
 }
 
-ImageViewList Driver::Create(const ImageViewList::Builder::CreateInfo& createInfo)
-{
-    DriverResources::ViewListResource viewListResource = {};
-    viewListResource.Views.reserve(createInfo.ImageViews.size());
-    for (auto& view : createInfo.ImageViews)
-    {
-        viewListResource.Views.push_back(CreateVulkanImageView(view,
-            vulkanFormatFromFormat(view.Image->m_Description.Format)));
-    }
-    
-    ImageViewList list = {};
-    list.m_Image = createInfo.Image;
-    list.m_ResourceHandle = Resources().AddResource(viewListResource);
-
-    return list;
-}
-
-void Driver::Destroy(ResourceHandle<ImageViewList> imageViews)
-{
-    for (auto& view : Resources().m_ViewLists[imageViews.m_Index].Views)
-        vkDestroyImageView(DeviceHandle(), view, nullptr);
-    Resources().RemoveResource(imageViews);
-}
-
 RenderingAttachment Driver::Create(const RenderingAttachment::Builder::CreateInfo& createInfo)
 {
     DriverResources::RenderingAttachmentResource renderingAttachmentResource = {};
@@ -1083,7 +1081,7 @@ RenderingAttachment Driver::Create(const RenderingAttachment::Builder::CreateInf
             createInfo.ClearValue.Color.F.b,
             createInfo.ClearValue.Color.F.a}}};
     renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(createInfo.Layout);
-    renderingAttachmentResource.AttachmentInfo.imageView = Resources()[*createInfo.Image].View;
+    renderingAttachmentResource.AttachmentInfo.imageView = *Resources()[*createInfo.Image].Views.ViewList;
     renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(createInfo.OnLoad);
     renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(createInfo.OnStore);
     renderingAttachmentResource.AttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
@@ -1497,11 +1495,12 @@ DescriptorSet Driver::Create(const DescriptorSet::Builder::CreateInfo& createInf
         else
         {
             VkDescriptorImageInfo descriptorTextureInfo = {};
-            descriptorTextureInfo.sampler = Resources()[boundResource.Texture->Sampler].Sampler;
-            descriptorTextureInfo.imageView = boundResource.Texture->ViewList == nullptr ?
-                Resources()[*boundResource.Texture->Image].View :
-                Resources()[*boundResource.Texture->ViewList].Views[boundResource.Texture->ViewHandle.m_Index];
-            descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(boundResource.Texture->Layout);
+            const ImageBindingInfo& binding = *boundResource.Texture;
+            descriptorTextureInfo.sampler = Resources()[binding.Sampler].Sampler;
+            descriptorTextureInfo.imageView = binding.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
+                *Resources()[*binding.Image].Views.ViewList :
+                Resources()[*binding.Image].Views.ViewList[binding.ViewHandle.m_Index];
+            descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(binding.Layout);
             ASSERT(boundTextures.size() < createInfo.BoundTextureCount, "Incorrect info about bound textures")
             boundTextures.push_back(descriptorTextureInfo);
             write.pImageInfo = &boundTextures.back();
@@ -1585,14 +1584,14 @@ void Driver::DeallocateDescriptorSet(ResourceHandle<DescriptorAllocator> allocat
 }
 
 void Driver::UpdateDescriptorSet(DescriptorSet& descriptorSet,
-                                 u32 slot, const Texture& texture, DescriptorType type, u32 arrayIndex)
+    u32 slot, const Texture& texture, DescriptorType type, u32 arrayIndex)
 {
     ImageBindingInfo bindingInfo = texture.CreateBindingInfo({}, ImageLayout::ReadOnly);
     VkDescriptorImageInfo descriptorTextureInfo = {};
     descriptorTextureInfo.sampler = Resources()[bindingInfo.Sampler].Sampler;
-    descriptorTextureInfo.imageView = bindingInfo.ViewList == nullptr ?
-        Resources()[*bindingInfo.Image].View :
-        Resources()[*bindingInfo.ViewList].Views[bindingInfo.ViewHandle.m_Index];
+    descriptorTextureInfo.imageView = bindingInfo.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
+        *Resources()[*bindingInfo.Image].Views.ViewList :
+        Resources()[*bindingInfo.Image].Views.ViewList[bindingInfo.ViewHandle.m_Index];
     descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(bindingInfo.Layout);
 
     VkWriteDescriptorSet write = {};
@@ -1820,10 +1819,10 @@ DependencyInfo Driver::Create(const DependencyInfo::Builder::CreateInfo& createI
         imageMemoryBarrier.subresourceRange = {
             .aspectMask = vulkanImageAspectFromImageUsage(
                 createInfo.LayoutTransitionInfo->ImageSubresource->Image->m_Description.Usage),
-            .baseMipLevel = createInfo.LayoutTransitionInfo->ImageSubresource->MipmapBase,
-            .levelCount = createInfo.LayoutTransitionInfo->ImageSubresource->Mipmaps,
-            .baseArrayLayer = createInfo.LayoutTransitionInfo->ImageSubresource->LayerBase,
-            .layerCount = createInfo.LayoutTransitionInfo->ImageSubresource->Layers};
+            .baseMipLevel = createInfo.LayoutTransitionInfo->ImageSubresource->Description.MipmapBase,
+            .levelCount = createInfo.LayoutTransitionInfo->ImageSubresource->Description.Mipmaps,
+            .baseArrayLayer = createInfo.LayoutTransitionInfo->ImageSubresource->Description.LayerBase,
+            .layerCount = createInfo.LayoutTransitionInfo->ImageSubresource->Description.Layers};
 
         dependencyInfoResource.LayoutTransitionsInfo.push_back(imageMemoryBarrier);
     }
@@ -2307,6 +2306,19 @@ void Driver::Init(const Device& device)
     s_State.UploadContext.CommandBuffer = s_State.UploadContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
     s_State.UploadContext.Fence = Fence::Builder().Build();
     s_State.UploadContext.QueueInfo = s_State.Device->GetQueues().Graphics;
+
+    Resources().m_Images.SetOnResizeCallback(
+        [](DriverResources::ImageResource* oldMem, DriverResources::ImageResource* newMem)
+        {
+            u32 imageCount = Resources().m_Images.Capacity();
+            for (u32 imageIndex = 0; imageIndex < imageCount; imageIndex++)
+            {
+                auto& resource = Resources().m_Images[imageIndex];
+                if (resource.Views.ViewList == &resource.Views.ViewType.View)
+                    *(VkImageView**)((u8*)newMem + ((u8*)&resource.Views.ViewList - (u8*)oldMem)) =
+                        (VkImageView*)((u8*)newMem + ((u8*)&resource.Views.ViewType.View - (u8*)oldMem));
+            }
+        });
 }
 
 void Driver::Shutdown()
@@ -2318,10 +2330,6 @@ void Driver::Shutdown()
 
 void Driver::ShutdownResources()
 {
-    // not all descriptor sets may be deallocated, it is not considered to be an error
-    Resources().m_DeallocatedCount += Resources().m_DescriptorSets.Count();
-    Resources().m_DescriptorSets.Clear();
-
     vmaDestroyAllocator(s_State.Allocator);
         for (auto device : DeletionQueue().m_Devices)
             Destroy(device);
@@ -2373,10 +2381,10 @@ VkImageView Driver::CreateVulkanImageView(const ImageSubresource& image, VkForma
 
     createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(
         image.Image->m_Description.Usage);
-    createInfo.subresourceRange.baseMipLevel = image.MipmapBase;
-    createInfo.subresourceRange.levelCount = image.Mipmaps;
-    createInfo.subresourceRange.baseArrayLayer = image.LayerBase;
-    createInfo.subresourceRange.layerCount = image.Layers;
+    createInfo.subresourceRange.baseMipLevel = image.Description.MipmapBase;
+    createInfo.subresourceRange.levelCount = image.Description.Mipmaps;
+    createInfo.subresourceRange.baseArrayLayer = image.Description.LayerBase;
+    createInfo.subresourceRange.layerCount = image.Description.Layers;
 
     VkImageView imageView;
 
@@ -2432,7 +2440,7 @@ std::pair<VkBlitImageInfo2, VkImageBlit2> Driver::CreateVulkanBlitInfo(const Ima
 
 VkBufferImageCopy2 Driver::CreateVulkanImageCopyInfo(const ImageSubresource& subresource)
 {
-    ASSERT(subresource.Mipmaps == 1, "Buffer to image copies one mipmap at a time")
+    ASSERT(subresource.Description.Mipmaps == 1, "Buffer to image copies one mipmap at a time")
     
     VkBufferImageCopy2 bufferImageCopy = {};
     bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
@@ -2443,9 +2451,9 @@ VkBufferImageCopy2 Driver::CreateVulkanImageCopyInfo(const ImageSubresource& sub
             (i32)subresource.Image->m_Description.Layers : 1u};
     bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(
         subresource.Image->m_Description.Usage);
-    bufferImageCopy.imageSubresource.mipLevel = subresource.MipmapBase;
-    bufferImageCopy.imageSubresource.baseArrayLayer = subresource.LayerBase;
-    bufferImageCopy.imageSubresource.layerCount = subresource.Layers;
+    bufferImageCopy.imageSubresource.mipLevel = subresource.Description.MipmapBase;
+    bufferImageCopy.imageSubresource.baseArrayLayer = subresource.Description.LayerBase;
+    bufferImageCopy.imageSubresource.layerCount = subresource.Description.Layers;
 
     return bufferImageCopy;
 }

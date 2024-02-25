@@ -7,15 +7,17 @@ class ResourceHandle
 {
     FRIEND_INTERNAL
 public:
-    friend auto operator<=>(const ResourceHandle& a, const ResourceHandle& b) = default;
+    friend auto constexpr operator<=>(const ResourceHandle& a, const ResourceHandle& b) = default;
+
+    constexpr bool HasValue() const { return m_Index != NON_HANDLE; }
     
-    ResourceHandle() = default;
-    ResourceHandle(const ResourceHandle&) = default;
-    ResourceHandle(ResourceHandle&&) = default;
-    ResourceHandle& operator=(const ResourceHandle&) = default;
-    ResourceHandle& operator=(ResourceHandle&&) = default;
+    constexpr ResourceHandle() = default;
+    constexpr ResourceHandle(const ResourceHandle&) = default;
+    constexpr ResourceHandle(ResourceHandle&&) = default;
+    constexpr ResourceHandle& operator=(const ResourceHandle&) = default;
+    constexpr ResourceHandle& operator=(ResourceHandle&&) = default;
 private:
-    ResourceHandle(u32 index) : m_Index(index) {}
+    constexpr ResourceHandle(u32 index) : m_Index(index) {}
     
 private:
     using UnderlyingType = u32;

@@ -9,7 +9,6 @@
 #include "FormatTraits.h"
 #include "SynchronizationTraits.h"
 
-class ImageViewList;
 struct LayoutTransitionInfo;
 
 namespace assetLib
@@ -67,7 +66,7 @@ class ImageViewHandle
 {
     static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
     friend class ImageViewList;
-    friend class Builder;
+    friend class Image;
     FRIEND_INTERNAL
 private:
     u32 m_Index{NON_INDEX};
@@ -88,14 +87,20 @@ struct ImageDescription
     ImageUsage Usage{ImageUsage::None};
     ImageFilter MipmapFilter{ImageFilter::Linear};
 };
+using TextureDescription = ImageDescription;
 
-struct ImageSubresource
+struct ImageSubresourceDescription
 {
-    const Image* Image;
     u32 MipmapBase;
     u32 Mipmaps{ImageDescription::ALL_MIPMAPS};
     u32 LayerBase;
     u32 Layers{ImageDescription::ALL_LAYERS};
+};
+
+struct ImageSubresource
+{
+    const Image* Image;
+    ImageSubresourceDescription Description;
 };
 
 struct ImageBlitInfo
@@ -114,7 +119,6 @@ struct ImageBindingInfo
     Sampler Sampler;
     ImageLayout Layout;
     
-    const ImageViewList* ViewList{nullptr};
     ImageViewHandle ViewHandle{};
 };
 
@@ -141,6 +145,8 @@ public:
             Buffer DataBuffer;
             ImageDescription Description{};
             bool CreateMipmaps{false};
+            bool ViewCountFromDescription{false};
+            std::vector<ImageSubresourceDescription> AdditionalViews;
         };
     public:
         Builder() = default;
@@ -160,6 +166,7 @@ public:
         Builder& SetKind(ImageKind kind);
         Builder& CreateMipmaps(bool enable, ImageFilter filter);
         Builder& SetUsage(ImageUsage usage);
+        Builder& AddView(const ImageSubresourceDescription& subresource, ImageViewHandle& viewHandle);
     private:
         void PreBuild();
         Builder& FromPixels(const void* pixels, u64 sizeBytes);
@@ -175,6 +182,7 @@ public:
     ImageSubresource CreateSubresource() const;
     ImageSubresource CreateSubresource(u32 mipCount, u32 layerCount) const;
     ImageSubresource CreateSubresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const;
+    ImageSubresource CreateSubresource(const ImageSubresourceDescription& description) const;
 
     ImageBlitInfo CreateImageBlitInfo() const;
     ImageBlitInfo CreateImageBlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
@@ -183,10 +191,11 @@ public:
 
     ImageBindingInfo CreateBindingInfo(ImageFilter filter, ImageLayout layout) const;
     ImageBindingInfo CreateBindingInfo(Sampler sampler, ImageLayout layout) const;
-    ImageBindingInfo CreateBindingInfo(ImageFilter filter, ImageLayout layout,
-        const ImageViewList& views, ImageViewHandle handle) const;
-    ImageBindingInfo CreateBindingInfo(Sampler sampler, ImageLayout layout,
-        const ImageViewList& views, ImageViewHandle handle) const;
+    ImageBindingInfo CreateBindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const;
+    ImageBindingInfo CreateBindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
+
+    static u16 CalculateMipmapCount(const glm::uvec2& resolution);
+    static u16 CalculateMipmapCount(const glm::uvec3& resolution);
 private:
     using CreateInfo = Builder::CreateInfo;
     static Image CreateImageFromAsset(const CreateInfo& createInfo);
@@ -203,45 +212,13 @@ private:
     static void CopyBufferToImage(const Buffer& buffer, const Image& image);
     static void CreateMipmaps(const Image& image, const CreateInfo& createInfo);
 
-    static void CreateImageView(const ImageSubresource& imageSubresource);
+    static void CreateImageView(const ImageSubresource& imageSubresource,
+        const std::vector<ImageSubresourceDescription>& additionalViews);
 
     ResourceHandle<Image> Handle() const { return m_ResourceHandle; }
 private:
     ImageDescription m_Description{};
     ResourceHandle<Image> m_ResourceHandle;
-};
-
-class ImageViewList
-{
-    friend class Image;
-    FRIEND_INTERNAL
-public:
-    class Builder
-    {
-        friend class ImageViewList;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            const Image* Image;
-            std::vector<ImageSubresource> ImageViews;
-        };
-    public:
-        ImageViewList Build();
-        ImageViewList Build(DeletionQueue& deletionQueue);
-        ImageViewList BuildManualLifetime();
-        Builder& ForImage(const Image& image);
-        Builder& Add(const ImageSubresource& subresource, ImageViewHandle& handle);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static ImageViewList Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const ImageViewList& imageViews);
-private:
-    ResourceHandle<ImageViewList> Handle() const { return m_ResourceHandle; }
-private:
-    const Image* m_Image{nullptr};
-    ResourceHandle<ImageViewList> m_ResourceHandle;
 };
 
 using Texture = Image;

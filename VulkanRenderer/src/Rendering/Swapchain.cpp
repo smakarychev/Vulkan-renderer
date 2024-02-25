@@ -190,9 +190,11 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     barrier.Wait(cmd, presentToDestinationTransition);
 
     ImageBlitInfo source = m_DrawImage.CreateImageBlitInfo(
-        drawSubresource.MipmapBase, drawSubresource.LayerBase, drawSubresource.Layers);
+        drawSubresource.Description.MipmapBase, drawSubresource.Description.LayerBase,
+        drawSubresource.Description.Layers);
     ImageBlitInfo destination = m_ColorImages[imageIndex].CreateImageBlitInfo(
-        presentSubresource.MipmapBase, presentSubresource.LayerBase, presentSubresource.Layers);
+        presentSubresource.Description.MipmapBase, presentSubresource.Description.LayerBase,
+        presentSubresource.Description.Layers);
     
     RenderCommand::BlitImage(cmd, source, destination, ImageFilter::Linear);
 

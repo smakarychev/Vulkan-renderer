@@ -16,7 +16,7 @@
 #include <tracy/TracyVulkan.hpp>
 
 #include "Rendering/RenderingInfo.h"
-#include "Core/Freelist.h"
+#include "DriverFreelist.h"
 #include "Core/ProfilerContext.h"
 
 
@@ -81,19 +81,27 @@ private:
     struct ImageResource
     {
         using ObjectType = Image;
+        struct ViewsInfo
+        {
+            union ViewType
+            {
+                u64 ViewCount;
+                VkImageView View{VK_NULL_HANDLE};
+            };
+            ViewType ViewType;
+            // in case of multiple views ViewList points to array of multiple views,
+            // in case of single view it points to ViewType, as a result you can always dereference
+            // ViewList and get a valid view
+            VkImageView* ViewList{nullptr};
+        };
         VkImage Image{VK_NULL_HANDLE};
-        VkImageView View{VK_NULL_HANDLE};
+        ViewsInfo Views{};
         VmaAllocation Allocation{VK_NULL_HANDLE};
     };
     struct SamplerResource
     {
         using ObjectType = Sampler;
         VkSampler Sampler{VK_NULL_HANDLE};
-    };
-    struct ViewListResource
-    {
-        using ObjectType = ImageViewList;
-        std::vector<VkImageView> Views;
     };
     struct CommandPoolResource
     {
@@ -186,27 +194,26 @@ private:
     u64 m_AllocatedCount{0};
     u64 m_DeallocatedCount{0};
     
-    Freelist<DeviceResource> m_Devices;
-    Freelist<SwapchainResource> m_Swapchains;
-    Freelist<BufferResource> m_Buffers;
-    Freelist<ImageResource> m_Images;
-    Freelist<SamplerResource> m_Samplers;
-    Freelist<ViewListResource> m_ViewLists;
-    Freelist<CommandPoolResource> m_CommandPools;
-    Freelist<CommandBufferResource> m_CommandBuffers;
-    Freelist<QueueResource> m_Queues;
-    Freelist<DescriptorSetLayoutResource> m_DescriptorLayouts;
-    Freelist<DescriptorSetResource> m_DescriptorSets;
-    Freelist<DescriptorAllocatorResource> m_DescriptorAllocators;
-    Freelist<PipelineLayoutResource> m_PipelineLayouts;
-    Freelist<PipelineResource> m_Pipelines;
-    Freelist<RenderingAttachmentResource> m_RenderingAttachments;
-    Freelist<RenderingInfoResource> m_RenderingInfos;
-    Freelist<FenceResource> m_Fences;
-    Freelist<SemaphoreResource> m_Semaphores;
-    Freelist<DependencyInfoResource> m_DependencyInfos;
-    Freelist<SplitBarrierResource> m_SplitBarriers;
-    Freelist<ShaderModuleResource> m_Shaders;
+    DriverFreelist<DeviceResource> m_Devices;
+    DriverFreelist<SwapchainResource> m_Swapchains;
+    DriverFreelist<BufferResource> m_Buffers;
+    DriverFreelist<ImageResource> m_Images;
+    DriverFreelist<SamplerResource> m_Samplers;
+    DriverFreelist<CommandPoolResource> m_CommandPools;
+    DriverFreelist<CommandBufferResource> m_CommandBuffers;
+    DriverFreelist<QueueResource> m_Queues;
+    DriverFreelist<DescriptorSetLayoutResource> m_DescriptorLayouts;
+    DriverFreelist<DescriptorSetResource> m_DescriptorSets;
+    DriverFreelist<DescriptorAllocatorResource> m_DescriptorAllocators;
+    DriverFreelist<PipelineLayoutResource> m_PipelineLayouts;
+    DriverFreelist<PipelineResource> m_Pipelines;
+    DriverFreelist<RenderingAttachmentResource> m_RenderingAttachments;
+    DriverFreelist<RenderingInfoResource> m_RenderingInfos;
+    DriverFreelist<FenceResource> m_Fences;
+    DriverFreelist<SemaphoreResource> m_Semaphores;
+    DriverFreelist<DependencyInfoResource> m_DependencyInfos;
+    DriverFreelist<SplitBarrierResource> m_SplitBarriers;
+    DriverFreelist<ShaderModuleResource> m_Shaders;
 
     std::vector<std::vector<u32>> m_CommandPoolToBuffersMap;
     std::vector<std::vector<u32>> m_DescriptorAllocatorToSetsMap;
@@ -227,8 +234,6 @@ constexpr auto DriverResources::AddResource(Resource&& resource)
         return AddToResourceList(m_Images, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<std::decay_t<Resource>, SamplerResource>)
         return AddToResourceList(m_Samplers, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, ViewListResource>)
-        return AddToResourceList(m_ViewLists, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<std::decay_t<Resource>, CommandPoolResource>)
         return AddToResourceList(m_CommandPools, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<std::decay_t<Resource>, CommandBufferResource>)
@@ -287,8 +292,6 @@ constexpr void DriverResources::RemoveResource(ResourceHandle<Type> handle)
         m_Images.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, Sampler>)
         m_Samplers.Remove(handle.m_Index);
-    else if constexpr(std::is_same_v<Type, ImageViewList>)
-        m_ViewLists.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, CommandPool>)
         m_CommandPools.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, CommandBuffer>)
@@ -342,8 +345,6 @@ constexpr auto& DriverResources::operator[](const Type& type)
         return m_Images[type.Handle().m_Index];
     else if constexpr(std::is_same_v<Type, Sampler>)
         return m_Samplers[type.Handle().m_Index];
-    else if constexpr(std::is_same_v<Type, ImageViewList>)
-        return m_ViewLists[type.Handle().m_Index];
     else if constexpr(std::is_same_v<Type, CommandPool>)
         return m_CommandPools[type.Handle().m_Index];
     else if constexpr(std::is_same_v<Type, CommandBuffer>)
@@ -495,13 +496,11 @@ public:
     
     static Image AllocateImage(const Image::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Image> image);
-    static void CreateView(const ImageSubresource& image);
+    static void CreateViews(const ImageSubresource& image,
+        const std::vector<ImageSubresourceDescription>& additionalViews);
 
     static Sampler Create(const Sampler::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Sampler> sampler);
-
-    static ImageViewList Create(const ImageViewList::Builder::CreateInfo& createInfo);
-    static void Destroy(ResourceHandle<ImageViewList> imageViews);
 
     static RenderingAttachment Create(const RenderingAttachment::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<RenderingAttachment> renderingAttachment);
