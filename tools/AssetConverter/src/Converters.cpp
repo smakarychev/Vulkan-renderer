@@ -481,7 +481,7 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     shaderc::CompileOptions options;
     std::vector<std::string> includedFiles;
     options.SetIncluder(std::make_unique<FileIncluder>(&includedFiles));
-    options.SetTargetSpirv(shaderc_spirv_version_1_3);
+    options.SetTargetSpirv(shaderc_spirv_version_1_6);
     options.SetOptimizationLevel(shaderc_optimization_level_zero);
     shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind,
         path.string().c_str(), options);
@@ -501,7 +501,7 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
 
     std::vector<u32> spirvOptimized;
     spirvOptimized.reserve(spirv.size());
-    spvtools::Optimizer optimizer(SPV_ENV_UNIVERSAL_1_3);
+    spvtools::Optimizer optimizer(SPV_ENV_VULKAN_1_3);
     optimizer.RegisterPerformancePasses(true);
 
     if (optimizer.Run(spirv.data(), spirv.size(), &spirvOptimized))
@@ -739,7 +739,7 @@ void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
 assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
         const std::vector<DescriptorFlagInfo>& flags, const std::vector<InputAttributeBindingInfo>& inputBindings)
 {
-    static constexpr u32 SPV_INVALID_VAL = (u32)-1;
+    static constexpr u32 SPV_INVALID_VAL = (u32)~0;
     
     assetLib::ShaderInfo shaderInfo = {};
     

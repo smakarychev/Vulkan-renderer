@@ -5,7 +5,7 @@
 
 #extension GL_KHR_shader_subgroup_ballot: enable
 #extension GL_KHR_shader_subgroup_vote: enable
-#extension GL_KHR_shader_subgroup_clustered: enable
+#extension GL_KHR_shader_subgroup_clustered: require
 
 const uint TRIANGLES_PER_MESHLET = 256;
 const uint MICRO_CLUSTER_SIZE = 4;
@@ -45,8 +45,13 @@ layout(std430, set = 0, binding = 7) writeonly buffer singular_index_count_buffe
     uint count;
 } u_singular_index_count_buffer;
 
+struct TriangleVisibility
+{
+    int visibility[2];
+};
+
 layout(std430, set = 0, binding = 8) buffer visible_triangles_buffer {
-    uint64_t visibility[];
+    TriangleVisibility visibility[];
 } u_visible_triangles_buffer;
 
 @dynamic
@@ -166,7 +171,11 @@ void main() {
     uint bitslot = triangle_index / MICRO_CLUSTER_SIZE;
     bool is_meshlet_drawn = flags_should_draw(u_meshlet_visibility_buffer.visibility[meshlet_index]);
     bool is_meshlet_visible = flags_visible(u_meshlet_visibility_buffer.visibility[meshlet_index]);
-    bool is_last_frame_visible = (u_visible_triangles_buffer.visibility[meshlet_index] & (uint64_t(1) << bitslot)) != 0;
+    
+    uint index_major = uint(bitslot > 31);
+    uint index_minor = bitslot & 31u;
+    TriangleVisibility visibility = u_visible_triangles_buffer.visibility[meshlet_index];
+    bool is_last_frame_visible = (visibility.visibility[index_major] & (1 << index_minor)) != 0;
     bool should_be_drawn = false;
     bool visible = false;
     if (!REOCCLUSION) {
@@ -174,13 +183,13 @@ void main() {
         should_be_drawn = visible;
     } else {
         visible = is_meshlet_visible && is_reocclusion_visible(triangle);
-        bool has_visible = is_meshlet_visible && subgroupClusteredOr(visible, MICRO_CLUSTER_SIZE);
+        bool has_visible = subgroupClusteredOr(visible, MICRO_CLUSTER_SIZE);
         if ((triangle_index & MICRO_CLUSTER_SIZE - 1) == 0)
         {
             if (has_visible)
-                atomicOr(u_visible_triangles_buffer.visibility[meshlet_index], (uint64_t(1) << bitslot));
+                atomicOr(u_visible_triangles_buffer.visibility[meshlet_index].visibility[index_major], (1 << bitslot));
             else
-                atomicAnd(u_visible_triangles_buffer.visibility[meshlet_index], ~(uint64_t(1) << bitslot));
+                atomicAnd(u_visible_triangles_buffer.visibility[meshlet_index].visibility[index_major], ~(1 << bitslot));
         }
 
         should_be_drawn = !is_last_frame_visible && visible;

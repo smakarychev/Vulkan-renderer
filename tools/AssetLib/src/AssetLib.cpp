@@ -5,7 +5,7 @@
 #include <iostream>
 #include <nlm_json.hpp>
 
-#include "Vulkan/Image.h"
+#include "Rendering/Image.h"
 
 namespace assetLib
 {
