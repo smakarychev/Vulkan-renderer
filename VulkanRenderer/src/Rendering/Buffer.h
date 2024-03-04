@@ -23,9 +23,15 @@ enum class BufferUsage
     Source = BIT(9),
     Destination = BIT(10),
     Conditional = BIT(11),
+    DeviceAddress = BIT(12),
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(BufferUsage)
+
+namespace BufferUtils
+{
+    std::string bufferUsageToString(BufferUsage usage);
+}
 
 struct BufferDescription
 {
@@ -52,6 +58,7 @@ public:
         struct CreateInfo
         {
             BufferDescription Description{};
+            bool CreateMapped{false};
         };
     public:
         Builder() = default;
@@ -61,6 +68,7 @@ public:
         Buffer BuildManualLifetime();
         Builder& SetUsage(BufferUsage usage);
         Builder& SetSizeBytes(u64 sizeBytes);
+        Builder& CreateMapped();
     private:
         CreateInfo m_CreateInfo;
     };
@@ -68,15 +76,18 @@ public:
     static Buffer Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Buffer& buffer);
 
+    const BufferDescription& GetDescription() const { return m_Description; }
+    
     void SetData(const void* data, u64 dataSizeBytes);
     void SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes);
     void SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes);
-    void* Map() const;
-    void Unmap() const;
+    void* Map();
+    void Unmap();
     
     u64 GetSizeBytes() const { return m_Description.SizeBytes; }
     BufferUsage GetKind() const { return m_Description.Usage; }
 
+    BufferSubresource CreateSubresource() const;
     BufferSubresource CreateSubresource(u64 sizeBytes, u64 offset) const;
 
     bool operator==(const Buffer& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
@@ -85,5 +96,8 @@ private:
     ResourceHandle<Buffer> Handle() const { return m_ResourceHandle; }
 private:
     BufferDescription m_Description{};
+    // todo: also store device address?
+    void* m_HostAddress{nullptr};
+    
     ResourceHandle<Buffer> m_ResourceHandle;
 };

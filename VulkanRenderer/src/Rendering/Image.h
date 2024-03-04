@@ -21,6 +21,14 @@ class Buffer;
 class Swapchain;
 class Device;
 
+namespace ImageUtils
+{
+    std::string imageKindToString(ImageKind kind);
+    std::string imageUsageToString(ImageUsage usage);
+    std::string imageFilterToString(ImageFilter filter);
+    std::string imageLayoutToString(ImageLayout layout);
+}
+
 class Sampler
 {
     FRIEND_INTERNAL
@@ -72,6 +80,7 @@ private:
     u32 m_Index{NON_INDEX};
 };
 
+// todo: store view subresources?
 struct ImageDescription
 {
     static constexpr u32 ALL_MIPMAPS = ~0u;
@@ -121,6 +130,7 @@ struct ImageBindingInfo
     
     ImageViewHandle ViewHandle{};
 };
+using TextureBindingInfo = ImageBindingInfo;
 
 class Image
 {
@@ -196,6 +206,9 @@ public:
 
     static u16 CalculateMipmapCount(const glm::uvec2& resolution);
     static u16 CalculateMipmapCount(const glm::uvec3& resolution);
+
+    bool operator==(const Image& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
+    bool operator!=(const Image& other) const { return !(*this == other); }
 private:
     using CreateInfo = Builder::CreateInfo;
     static Image CreateImageFromAsset(const CreateInfo& createInfo);

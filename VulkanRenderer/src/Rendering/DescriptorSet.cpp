@@ -5,14 +5,14 @@
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 
-DescriptorSetLayout DescriptorSetLayout::Builder::Build()
+DescriptorsLayout DescriptorsLayout::Builder::Build()
 {
     PreBuild();
 
     return DescriptorLayoutCache::CreateDescriptorSetLayout(m_CreateInfo);
 }
 
-DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::SetBindings(
+DescriptorsLayout::Builder& DescriptorsLayout::Builder::SetBindings(
     const std::vector<DescriptorSetBinding>& bindings)
 {
     m_CreateInfo.Bindings = bindings;
@@ -20,21 +20,21 @@ DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::SetBindings(
     return *this;
 }
 
-DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::SetBindingFlags(const std::vector<DescriptorFlags>& flags)
+DescriptorsLayout::Builder& DescriptorsLayout::Builder::SetBindingFlags(const std::vector<DescriptorFlags>& flags)
 {
     m_CreateInfo.BindingFlags = flags;
 
     return *this;
 }
 
-DescriptorSetLayout::Builder& DescriptorSetLayout::Builder::SetFlags(DescriptorSetFlags flags)
+DescriptorsLayout::Builder& DescriptorsLayout::Builder::SetFlags(DescriptorLayoutFlags flags)
 {
     m_CreateInfo.Flags |= flags;
 
     return *this;
 }
 
-void DescriptorSetLayout::Builder::PreBuild()
+void DescriptorsLayout::Builder::PreBuild()
 {
     if (m_CreateInfo.BindingFlags.empty())
         m_CreateInfo.BindingFlags.resize(m_CreateInfo.Bindings.size());
@@ -42,12 +42,12 @@ void DescriptorSetLayout::Builder::PreBuild()
         "If any element of binding flags is set, every element have to be set")
 }
 
-DescriptorSetLayout DescriptorSetLayout::Create(const Builder::CreateInfo& createInfo)
+DescriptorsLayout DescriptorsLayout::Create(const Builder::CreateInfo& createInfo)
 {
     return Driver::Create(createInfo);
 }
 
-void DescriptorSetLayout::Destroy(const DescriptorSetLayout& layout)
+void DescriptorsLayout::Destroy(const DescriptorsLayout& layout)
 {
     Driver::Destroy(layout.Handle());
 }
@@ -55,7 +55,8 @@ void DescriptorSetLayout::Destroy(const DescriptorSetLayout& layout)
 DescriptorSet DescriptorSet::Builder::Build()
 {
     DescriptorSet set = DescriptorSet::Create(m_CreateInfo);
-    m_CreateInfo.BoundResources.clear();
+    m_CreateInfo.Buffers.clear();
+    m_CreateInfo.Textures.clear();
 
     return set;
 }
@@ -67,7 +68,7 @@ DescriptorSet::Builder& DescriptorSet::Builder::SetAllocator(DescriptorAllocator
     return *this;
 }
 
-DescriptorSet::Builder& DescriptorSet::Builder::SetLayout(DescriptorSetLayout layout)
+DescriptorSet::Builder& DescriptorSet::Builder::SetLayout(DescriptorsLayout layout)
 {
     m_CreateInfo.Layout = layout;
 
@@ -84,9 +85,8 @@ DescriptorSet::Builder& DescriptorSet::Builder::SetPoolFlags(DescriptorPoolFlags
 DescriptorSet::Builder& DescriptorSet::Builder::AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo,
     DescriptorType descriptor)
 {
-    m_CreateInfo.BoundBufferCount++;
-    m_CreateInfo.BoundResources.push_back({
-        .Buffer = bindingInfo,
+    m_CreateInfo.Buffers.push_back({
+        .BindingInfo = bindingInfo,
         .Slot = slot,
         .Type = descriptor});
     
@@ -96,9 +96,8 @@ DescriptorSet::Builder& DescriptorSet::Builder::AddBufferBinding(u32 slot, const
 DescriptorSet::Builder& DescriptorSet::Builder::AddTextureBinding(u32 slot, const TextureBindingInfo& texture,
     DescriptorType descriptor)
 {
-    m_CreateInfo.BoundTextureCount++;
-    m_CreateInfo.BoundResources.push_back({
-        .Texture = texture,
+    m_CreateInfo.Textures.push_back({
+        .BindingInfo = texture,
         .Slot = slot,
         .Type = descriptor});
     
@@ -196,8 +195,106 @@ void DescriptorAllocator::ResetPools()
     Driver::ResetAllocator(*this);
 }
 
+void Descriptors::UpdateBinding(u32 slot, const BufferBindingInfo& buffer, DescriptorType type) const
+{
+    Driver::UpdateDescriptors(*this, slot, buffer, type);
+}
+
+void Descriptors::UpdateBinding(u32 slot, const TextureBindingInfo& texture, DescriptorType type) const
+{
+    Driver::UpdateDescriptors(*this, slot, texture, type);
+}
+
+DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build()
+{
+    return Build(Driver::DeletionQueue());
+}
+
+DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build(DeletionQueue& deletionQueue)
+{
+    PreBuild();
+    
+    DescriptorArenaAllocator allocator = DescriptorArenaAllocator::Create(m_CreateInfo);
+    deletionQueue.Enqueue(allocator.m_Buffer);
+
+    return allocator;
+}
+
+DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::Kind(DescriptorAllocatorKind kind)
+{
+    m_CreateInfo.Kind = kind;
+
+    return *this;
+}
+
+DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::Residence(DescriptorAllocatorResidence residence)
+{
+    m_CreateInfo.Residence = residence;
+
+    return *this;
+}
+
+DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::Count(u32 count)
+{
+    m_CreateInfo.DescriptorCount = count;
+
+    return *this;
+}
+
+DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::ForTypes(const std::vector<DescriptorType>& types)
+{
+    m_CreateInfo.UsedTypes = types;
+
+    return *this;
+}
+
+void DescriptorArenaAllocator::Builder::PreBuild()
+{
+    ASSERT(!m_CreateInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
+    
+    if (m_CreateInfo.Kind == DescriptorAllocatorKind::Resources)
+        for (auto type : m_CreateInfo.UsedTypes)
+            ASSERT(type != DescriptorType::Sampler,
+                "Cannot use allocator of this kind for requested descriptor kinds")
+    else
+        for (auto type : m_CreateInfo.UsedTypes)
+            ASSERT(type == DescriptorType::Sampler,
+                "Cannot use allocator of this kind for requested descriptor kinds")
+}
+
+DescriptorArenaAllocator DescriptorArenaAllocator::Create(const Builder::CreateInfo& createInfo)
+{
+    return Driver::Create(createInfo);
+}
+
+Descriptors DescriptorArenaAllocator::Allocate(DescriptorsLayout layout,
+    const DescriptorAllocatorAllocationBindings& bindings)
+{
+    ASSERT(m_Residence == DescriptorAllocatorResidence::CPU, "GPU allocators need ResourceUploader to be provided")
+    ValidateBindings(bindings);
+
+    std::optional<Descriptors> descriptors = Driver::Allocate(*this, layout, bindings);
+    ASSERT(descriptors.has_value(), "Increase allocator size")
+    
+    return *descriptors; 
+}
+
+void DescriptorArenaAllocator::Reset()
+{
+    m_CurrentOffset = 0;
+}
+
+void DescriptorArenaAllocator::ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings)
+{
+    for (auto& binding : bindings.Bindings)
+        ASSERT(
+            (m_Kind == DescriptorAllocatorKind::Samplers && binding.Type == DescriptorType::Sampler) ||
+            (m_Kind == DescriptorAllocatorKind::Resources && binding.Type != DescriptorType::Sampler),
+            "Cannot use this descriptor allocator with such bindings")
+}
+
 std::unordered_map<DescriptorLayoutCache::CacheKey,
-    DescriptorSetLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
+                   DescriptorsLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
 
 bool DescriptorLayoutCache::CacheKey::operator==(const CacheKey& other) const
 {
@@ -225,8 +322,8 @@ bool DescriptorLayoutCache::CacheKey::operator==(const CacheKey& other) const
     return true;
 }
 
-DescriptorSetLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
-    const DescriptorSetLayout::Builder::CreateInfo& createInfo)
+DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
+    const DescriptorsLayout::Builder::CreateInfo& createInfo)
 {
     CacheKey key = {.CreateInfo = createInfo};
     SortBindings(key);
@@ -235,7 +332,7 @@ DescriptorSetLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
         return s_LayoutCache.at(key);
 
 
-    DescriptorSetLayout newLayout = DescriptorSetLayout::Create(createInfo);
+    DescriptorsLayout newLayout = DescriptorsLayout::Create(createInfo);
     s_LayoutCache.emplace(key, newLayout);
 
     Driver::DeletionQueue().Enqueue(newLayout);

@@ -13,9 +13,10 @@
 #include "GLFW/glfw3.h"
 #include "Vulkan/RenderCommand.h"
 #include "Rendering/RenderingUtils.h"
-#include "RenderPasses/ModelCollection.h"
-#include "RenderPasses/RenderPassGeometry.h"
-#include "RenderPasses/RenderPassGeometryCull.h"
+#include "RenderGraph/ModelCollection.h"
+#include "RenderGraph/RenderPassGeometry.h"
+#include "RenderGraph/RenderPassGeometryCull.h"
+#include "RenderGraph/TestPass/TestPass.h"
 #include "Rendering//DepthPyramid.h"
 
 Renderer::Renderer() = default;
@@ -23,13 +24,16 @@ Renderer::Renderer() = default;
 void Renderer::Init()
 {
     InitRenderingStructures();
-    LoadScene();
-    InitDepthPyramidComputeStructures();
-    InitVisibilityBufferVisualizationStructures();
+    //LoadScene();
+    //InitDepthPyramidComputeStructures();
+    //InitVisibilityBufferVisualizationStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetResolution();
     m_Camera = std::make_shared<Camera>();
     m_CameraController = std::make_unique<CameraController>(m_Camera);
+
+    m_Graph = std::make_unique<RenderGraph::Graph>();
+    m_TestPass = std::make_shared<TestPass>(*m_Graph, m_Swapchain.GetDrawImage());
 }
 
 Renderer* Renderer::Get()
@@ -48,7 +52,7 @@ void Renderer::Run()
     while(!glfwWindowShouldClose(m_Window))
     {
         glfwPollEvents();
-        OnUpdate();
+        //OnUpdate();
         OnRender();
     }
 }
@@ -60,17 +64,25 @@ void Renderer::OnRender()
     BeginFrame();
     if (!m_FrameEarlyExit)
     {
-        if (!m_ComputeDepthPyramidData.DepthPyramid)
-        {
-            CreateDepthPyramid();
-            InitVisibilityPass();
-        }
+        //if (!m_ComputeDepthPyramidData.DepthPyramid)
+        //{
+        //    CreateDepthPyramid();
+        //    InitVisibilityPass();
+        //}
+//
+        //{
+        //    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
+        //    SceneVisibilityPass();
+        //}
 
+        m_Graph->Compile();
+        static bool once = true;
+        if (once)
         {
-            TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
-            SceneVisibilityPass();
+            LOG("{}", m_Graph->MermaidDump());
+            once = false;
         }
-
+        m_Graph->Execute(GetFrameContext());
         EndFrame();
         
         FrameMark; // tracy
@@ -160,9 +172,6 @@ void Renderer::BeginFrame()
     cmd.Begin();
 
     m_Swapchain.PrepareRendering(cmd);
-    
-    // todo: is this the best place for it?
-    m_ResourceUploader.SubmitUpload();
 }
 
 RenderingInfo Renderer::GetColorRenderingInfo()
@@ -190,6 +199,9 @@ void Renderer::EndFrame()
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
 
     TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()))
+
+    // todo: is this the best place for it?
+    m_ResourceUploader.SubmitUpload();
     
     cmd.End();
 
@@ -311,6 +323,7 @@ void Renderer::InitRenderingStructures()
         m_FrameContexts[i].Resolution = m_Swapchain.GetResolution();
 
         m_FrameContexts[i].Cmd = pool.AllocateBuffer(CommandBufferKind::Primary);
+        m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
     }
 
     std::array<CommandBuffer*, BUFFERED_FRAMES> cmds;
@@ -420,7 +433,8 @@ void Renderer::Shutdown()
 
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
-    
+
+    m_Graph.reset();
     ShutdownVisibilityPass();
     RenderPassGeometryCull::Shutdown(m_OpaqueGeometryCull);
     m_ResourceUploader.Shutdown();

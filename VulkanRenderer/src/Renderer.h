@@ -8,12 +8,14 @@
 #include "ResourceUploader.h"
 #include "VisibilityPass.h"
 #include "Core/Camera.h"
-#include "RenderPasses/RenderPassGeometry.h"
-#include "RenderPasses/RenderPassGeometryCull.h"
+#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RenderPassGeometry.h"
+#include "RenderGraph/RenderPassGeometryCull.h"
 #include "Rendering/CommandBuffer.h"
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class TestPass;
 class Camera;
 class CameraController;
 
@@ -97,6 +99,7 @@ struct FrameContext
     CommandBuffer Cmd;
     
     DeletionQueue DeletionQueue;
+    ResourceUploader* ResourceUploader{nullptr};
 };
 
 class Renderer
@@ -181,6 +184,9 @@ private:
     VisibilityPass m_VisibilityPass;
     // todo: temp object to visualize the visibility buffer
     VisibilityBufferVisualizeData m_VisibilityBufferVisualizeData;
+
+    std::unique_ptr<RenderGraph::Graph> m_Graph;
+    std::shared_ptr<TestPass> m_TestPass;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

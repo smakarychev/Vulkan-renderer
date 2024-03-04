@@ -680,7 +680,7 @@ std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInp
 
     if (attributes.front().TextPosition < bindings.front().TextPosition)
     {
-        auto it = std::find_if(bindings.begin(), bindings.end(),
+        auto it = std::ranges::find_if(bindings,
             [](auto& bindingInfo){ return bindingInfo.Binding == 0;});
         if (it != bindings.end())
             LOG("WARNING: dangerous implicit binding 0 for some input attributes");
@@ -834,11 +834,11 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
                 .Type = (u32)set->bindings[i]->descriptor_type,
                 .ShaderStages = (u32)reflectedModule.shader_stage
             };
-            auto it = std::find_if(flags.begin(), flags.end(),
-                [&descriptorSet, i](const auto& flag)
-                {
-                    return flag.DescriptorName == descriptorSet.Descriptors[i].Name;
-                });
+            auto it = std::ranges::find_if(flags,
+               [&descriptorSet, i](const auto& flag)
+               {
+                   return flag.DescriptorName == descriptorSet.Descriptors[i].Name;
+               });
 
             if (it != flags.end())
                 descriptorSet.Descriptors[i].Flags = it->Flags;

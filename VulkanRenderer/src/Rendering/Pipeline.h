@@ -7,7 +7,7 @@
 
 class DeletionQueue;
 class ShaderModule;
-class DescriptorSetLayout;
+class DescriptorsLayout;
 struct ShaderPushConstantDescription;
 class CommandBuffer;
 
@@ -22,12 +22,12 @@ public:
         struct CreateInfo
         {
             std::vector<ShaderPushConstantDescription> PushConstants;
-            std::vector<DescriptorSetLayout> DescriptorSetLayouts;
+            std::vector<DescriptorsLayout> DescriptorSetLayouts;
         };
     public:
         PipelineLayout Build();
         Builder& SetPushConstants(const std::vector<ShaderPushConstantDescription>& pushConstants);
-        Builder& SetDescriptorLayouts(const std::vector<DescriptorSetLayout>& layouts);
+        Builder& SetDescriptorLayouts(const std::vector<DescriptorsLayout>& layouts);
     private:
         CreateInfo m_CreateInfo;
     };
@@ -53,6 +53,7 @@ public:
             PipelineLayout PipelineLayout;
             RenderingDetails RenderingDetails;
             bool IsComputePipeline{false};
+            bool UseDescriptorBuffer{false};
             std::vector<ShaderModule> Shaders;
             VertexInputDescription VertexDescription;
             PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
@@ -71,6 +72,7 @@ public:
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
         Builder& AlphaBlending(AlphaBlending alphaBlending);
         Builder& UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo);
+        Builder& UseDescriptorBuffer();
     private:
         void PreBuild();
     private:

@@ -64,6 +64,7 @@ private:
         VkPhysicalDeviceProperties GPUProperties;
         VkPhysicalDeviceDescriptorIndexingProperties GPUDescriptorIndexingProperties;
         VkPhysicalDeviceSubgroupProperties GPUSubgroupProperties;
+        VkPhysicalDeviceDescriptorBufferPropertiesEXT GPUDescriptorBufferProperties;
         VkDebugUtilsMessengerEXT DebugUtilsMessenger;
     };
     struct SwapchainResource
@@ -120,7 +121,7 @@ private:
     };
     struct DescriptorSetLayoutResource
     {
-        using ObjectType = DescriptorSetLayout;
+        using ObjectType = DescriptorsLayout;
         VkDescriptorSetLayout Layout{VK_NULL_HANDLE};
     };
     struct DescriptorSetResource
@@ -298,7 +299,7 @@ constexpr void DriverResources::RemoveResource(ResourceHandle<Type> handle)
         m_CommandBuffers.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, QueueInfo>)
         m_Queues.Remove(handle.m_Index);
-    else if constexpr(std::is_same_v<Type, DescriptorSetLayout>)
+    else if constexpr(std::is_same_v<Type, DescriptorsLayout>)
         m_DescriptorLayouts.Remove(handle.m_Index);
     else if constexpr(std::is_same_v<Type, DescriptorSet>)
         m_DescriptorSets.Remove(handle.m_Index);
@@ -351,7 +352,7 @@ constexpr auto& DriverResources::operator[](const Type& type)
         return m_CommandBuffers[type.Handle().m_Index];
     else if constexpr(std::is_same_v<Type, QueueInfo>)
         return m_Queues[type.Handle().m_Index];
-    else if constexpr(std::is_same_v<Type, DescriptorSetLayout>)
+    else if constexpr(std::is_same_v<Type, DescriptorsLayout>)
         return m_DescriptorLayouts[type.Handle().m_Index];
     else if constexpr(std::is_same_v<Type, DescriptorSet>)
         return m_DescriptorSets[type.Handle().m_Index];
@@ -399,7 +400,7 @@ private:
     std::vector<ResourceHandle<ImageViewList>> m_ViewLists;
     std::vector<ResourceHandle<CommandPool>> m_CommandPools;
     std::vector<ResourceHandle<QueueInfo>> m_Queues;
-    std::vector<ResourceHandle<DescriptorSetLayout>> m_DescriptorLayouts;
+    std::vector<ResourceHandle<DescriptorsLayout>> m_DescriptorLayouts;
     std::vector<ResourceHandle<DescriptorAllocator>> m_DescriptorAllocators;
     std::vector<ResourceHandle<PipelineLayout>> m_PipelineLayouts;
     std::vector<ResourceHandle<Pipeline>> m_Pipelines;
@@ -432,7 +433,7 @@ void DeletionQueue::Enqueue(Type& type)
         m_CommandPools.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, QueueInfo>)
         m_Queues.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, DescriptorSetLayout>)
+    else if constexpr(std::is_same_v<Type, DescriptorsLayout>)
         m_DescriptorLayouts.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, DescriptorAllocator>)
         m_DescriptorAllocators.push_back(type.Handle());
@@ -517,8 +518,8 @@ public:
     static Pipeline Create(const Pipeline::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Pipeline> pipeline);
     
-    static DescriptorSetLayout Create(const DescriptorSetLayout::Builder::CreateInfo& createInfo);
-    static void Destroy(ResourceHandle<DescriptorSetLayout> layout);
+    static DescriptorsLayout Create(const DescriptorsLayout::Builder::CreateInfo& createInfo);
+    static void Destroy(ResourceHandle<DescriptorsLayout> layout);
     
     static DescriptorSet Create(const DescriptorSet::Builder::CreateInfo& createInfo);
     static void AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet& set, DescriptorPoolFlags poolFlags,
@@ -531,6 +532,20 @@ public:
     static DescriptorAllocator Create(const DescriptorAllocator::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<DescriptorAllocator> allocator);
     static void ResetAllocator(DescriptorAllocator& allocator);
+
+    static DescriptorArenaAllocator Create(const DescriptorArenaAllocator::Builder::CreateInfo& createInfo);
+    static std::optional<Descriptors> Allocate(DescriptorArenaAllocator& allocator,
+        DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
+    static void Bind(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators);
+        
+    static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
+        DescriptorType type);
+    static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
+        DescriptorType type);
+    static void BindGraphics(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
+        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
+    static void BindCompute(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
+        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
 
     static Fence Create(const Fence::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Fence> fence);
@@ -618,6 +633,8 @@ private:
     static void ShutdownResources();
 
     static u32 GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, DescriptorPoolFlags poolFlags);
+    static void BindDescriptors(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
+        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
 
     static void CreateInstance(const Device::Builder::CreateInfo& createInfo,
         DriverResources::DeviceResource& deviceResource);
@@ -643,6 +660,11 @@ private:
     };
     static DeviceSurfaceDetails GetSurfaceDetails(const Device& device);
 
+    static u32 GetDescriptorSizeBytes(DescriptorType type);
+
+    static DriverResources::BufferResource CreateBufferResource(u64 sizeBytes, VkBufferUsageFlags usage,
+        VmaAllocationCreateFlags allocationFlags);
+    
     static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
     static std::pair<VkBlitImageInfo2, VkImageBlit2> CreateVulkanBlitInfo(
         const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter);

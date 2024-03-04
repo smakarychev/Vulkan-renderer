@@ -118,13 +118,13 @@ private:
 
     struct ComputeBatchData
     {
-        RenderPassPipelineData TriangleCullSingular{};
-        RenderPassPipelineData TriangleCullReocclusionSingular{};
-        RenderPassPipelineData PrepareDrawSingular{};
+        RenderGraph::PipelineData TriangleCullSingular{};
+        RenderGraph::PipelineData TriangleCullReocclusionSingular{};
+        RenderGraph::PipelineData PrepareDrawSingular{};
     };
     std::array<ComputeBatchData, CULL_BATCH_OVERLAP> m_CullDrawBatchData{};
-    RenderPassPipelineData m_PrepareIndirectDispatches{};
-    RenderPassPipelineData m_PrepareCompactIndirectDispatches{};
+    RenderGraph::PipelineData m_PrepareIndirectDispatches{};
+    RenderGraph::PipelineData m_PrepareCompactIndirectDispatches{};
     
     u32 m_CurrentBatch{0};
     u32 m_CurrentBatchFlat{0};
@@ -392,7 +392,7 @@ void RenderPassGeometryCull::BatchedCull::RecordCommandBuffers(const CullBuffers
                     (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(CameraCullData)) * frameIndex;
                 u32 triangleOffset = (u32)batch.GetTrianglesSizeBytes() * batchIndex;
 
-                RenderPassPipelineData& pipelineDataSingular = reocclusion ?
+                RenderGraph::PipelineData& pipelineDataSingular = reocclusion ?
                     batchData.TriangleCullReocclusionSingular : batchData.TriangleCullSingular;
                 
                 pipelineDataSingular.Pipeline.BindCompute(cmd);
@@ -520,6 +520,8 @@ RenderPassGeometryCull RenderPassGeometryCull::ForGeometry(const RenderPassGeome
 
 void RenderPassGeometryCull::Shutdown(const RenderPassGeometryCull& renderPassGeometryCull)
 {
+    if (!renderPassGeometryCull.m_RenderPassGeometry)
+        return;
     renderPassGeometryCull.m_CullBuffers->Shutdown();
     renderPassGeometryCull.m_BatchedCull->Shutdown(renderPassGeometryCull.m_DepthPyramid != nullptr);
 }
@@ -739,7 +741,6 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
     preTriangleCull(cmd, true, fence);
     preTriangleWaitCPU(cmd, fence);
     BatchIndirectDispatchesBuffersPrepare({
-        .Reocclusion = true,
         .Cmd = &cmd,
         .FrameNumber = context.FrameNumber,
         .DeletionQueue = context.DeletionQueue});
@@ -814,14 +815,6 @@ void RenderPassGeometryCull::InitSynchronization()
             .DestinationAccess = PipelineAccess::ReadSampled})
         .Build();
 
-    m_IndirectWRDependency = DependencyInfo::Builder()
-        .MemoryDependency({
-            .SourceStage = PipelineStage::ComputeShader,
-            .DestinationStage = PipelineStage::Indirect,
-            .SourceAccess = PipelineAccess::WriteShader,
-            .DestinationAccess = PipelineAccess::ReadIndirect})
-        .Build();
-
     m_SplitBarrierDependency = DependencyInfo::Builder()
         .MemoryDependency({
             .SourceStage = PipelineStage::ComputeShader,
@@ -839,11 +832,11 @@ void RenderPassGeometryCull::CullMeshes(const CullContextExtended& cullContext) 
         cullContext.FrameNumber;
     u32 count = m_RenderPassGeometry->GetRenderObjectCount();
 
-    const RenderPassPipelineData& pipelineData = cullContext.Reocclusion ? m_MeshCullReocclusion : m_MeshCull;
+    const RenderGraph::PipelineData& pipelineData = cullContext.Reocclusion ? m_MeshCullReocclusion : m_MeshCull;
 
     pipelineData.Pipeline.BindCompute(cmd);
     pipelineData.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-                                         pipelineData.Pipeline.GetPipelineLayout(), {sceneCullOffset});
+        pipelineData.Pipeline.GetPipelineLayout(), {sceneCullOffset});
     RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), &count);
     RenderCommand::Dispatch(cmd, {count / 64 + 1, 1, 1});
 
@@ -865,7 +858,7 @@ void RenderPassGeometryCull::CullMeshlets(const CullContextExtended& cullContext
         cullContext.FrameNumber;
     u32 count = m_RenderPassGeometry->GetMeshletCount();
 
-    const RenderPassPipelineData& pipelineData = cullContext.Reocclusion ? m_MeshletCullReocclusion : m_MeshletCull;
+    const RenderGraph::PipelineData& pipelineData = cullContext.Reocclusion ? m_MeshletCullReocclusion : m_MeshletCull;
 
     pipelineData.Pipeline.BindCompute(cmd);
     pipelineData.Descriptors.BindCompute(cmd, DescriptorKind::Global,

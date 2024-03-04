@@ -65,7 +65,7 @@ enum class PipelineAccess
     WriteFeedbackCounter            = BIT(21),
     WriteFeedback                   = BIT(22),
     
-    ReadConditional                 = BIT(22)
+    ReadConditional                 = BIT(23)
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(PipelineAccess)
@@ -81,3 +81,9 @@ enum class PipelineDependencyFlags
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(PipelineDependencyFlags)
+
+namespace SynchronizationUtils
+{
+    std::string pipelineStageToString(PipelineStage stage);
+    std::string pipelineAccessToString(PipelineAccess access);
+}

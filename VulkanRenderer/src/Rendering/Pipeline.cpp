@@ -20,7 +20,7 @@ PipelineLayout::Builder& PipelineLayout::Builder::SetPushConstants(
     return *this;
 }
 
-PipelineLayout::Builder& PipelineLayout::Builder::SetDescriptorLayouts(const std::vector<DescriptorSetLayout>& layouts)
+PipelineLayout::Builder& PipelineLayout::Builder::SetDescriptorLayouts(const std::vector<DescriptorsLayout>& layouts)
 {
     m_CreateInfo.DescriptorSetLayouts = layouts;
     
@@ -113,6 +113,13 @@ Pipeline::Builder& Pipeline::Builder::UseSpecialization(const PipelineSpecializa
 {
     m_CreateInfo.ShaderSpecialization = pipelineSpecializationInfo;
         
+    return *this;
+}
+
+Pipeline::Builder& Pipeline::Builder::UseDescriptorBuffer()
+{
+    m_CreateInfo.UseDescriptorBuffer = true;
+
     return *this;
 }
 

@@ -6,6 +6,8 @@
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #include <vma/vk_mem_alloc.h>
 
+#include "ResourceUploader.h"
+#include "Core/CoreUtils.h"
 #include "Rendering/Buffer.h"
 #include "Core/ProfilerContext.h"
 #include "Rendering/FormatTraits.h"
@@ -102,6 +104,8 @@ namespace
             flags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
         if (enumHasAny(kind, BufferUsage::Conditional))
             flags |= VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT;
+        if (enumHasAny(kind, BufferUsage::DeviceAddress))
+            flags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
 
         return flags;
     }
@@ -396,7 +400,6 @@ namespace
         {
         case DescriptorType::Sampler:               return VK_DESCRIPTOR_TYPE_SAMPLER;
         case DescriptorType::Image:                 return VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        case DescriptorType::ImageSampler:          return VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         case DescriptorType::ImageStorage:          return VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
         case DescriptorType::TexelUniform:          return VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
         case DescriptorType::TexelStorage:          return VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER;
@@ -427,11 +430,16 @@ namespace
         return bindingFlags;
     }
 
-    constexpr VkDescriptorSetLayoutCreateFlags vulkanDescriptorSetFlagsFromDescriptorSetFlags(DescriptorSetFlags flags)
+    constexpr VkDescriptorSetLayoutCreateFlags vulkanDescriptorsLayoutFlagsFromDescriptorsLayoutFlags(
+        DescriptorLayoutFlags flags)
     {
         VkDescriptorSetLayoutCreateFlags setFlags = 0;
-        if (enumHasAny(flags, DescriptorSetFlags::UpdateAfterBind))
+        if (enumHasAny(flags, DescriptorLayoutFlags::UpdateAfterBind))
             setFlags |= VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+        if (enumHasAny(flags, DescriptorLayoutFlags::DescriptorBuffer))
+            setFlags |= VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+        if (enumHasAny(flags, DescriptorLayoutFlags::EmbeddedImmutableSamplers))
+            setFlags |= VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT;
 
         return setFlags;
     }
@@ -560,8 +568,6 @@ void DeletionQueue::Flush()
 
 void DriverResources::MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool)
 {
-    if (pool.Handle().m_Index >= m_CommandPoolToBuffersMap.size())
-        m_CommandPoolToBuffersMap.resize(pool.Handle().m_Index + 1);
     m_CommandPoolToBuffersMap[pool.Handle().m_Index].push_back(cmd.Handle().m_Index);
 }
 
@@ -576,8 +582,6 @@ void DriverResources::DestroyCmdsOfPool(ResourceHandle<CommandPool> pool)
 
 void DriverResources::MapDescriptorSetToAllocator(const DescriptorSet& set, const DescriptorAllocator& allocator)
 {
-    if (allocator.Handle().m_Index >= m_DescriptorAllocatorToSetsMap.size())
-        m_DescriptorAllocatorToSetsMap.resize(allocator.Handle().m_Index + 1);
     m_DescriptorAllocatorToSetsMap[allocator.Handle().m_Index].push_back(set.Handle().m_Index);
 }
 
@@ -653,6 +657,7 @@ void Driver::DeviceBuilderDefaults(Device::Builder::CreateInfo& createInfo)
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
         VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
         VK_EXT_INDEX_TYPE_UINT8_EXTENSION_NAME,
+        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME
     };
 }
 
@@ -877,6 +882,8 @@ CommandPool Driver::Create(const CommandPool::Builder::CreateInfo& createInfo)
     
     CommandPool commandPool = {};
     commandPool.m_ResourceHandle = Resources().AddResource(commandPoolResource);
+    if (commandPool.Handle().m_Index >= Resources().m_CommandPoolToBuffersMap.size())
+        Resources().m_CommandPoolToBuffersMap.resize(commandPool.Handle().m_Index + 1);
     
     return commandPool;
 }
@@ -890,28 +897,22 @@ void Driver::Destroy(ResourceHandle<CommandPool> commandPool)
 
 Buffer Driver::Create(const Buffer::Builder::CreateInfo& createInfo)
 {
-    VkBufferCreateInfo bufferCreateInfo = {};
-    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.usage = vulkanBufferUsageFromUsage(createInfo.Description.Usage);
-    bufferCreateInfo.size = createInfo.Description.SizeBytes;
-
-    VmaAllocationCreateFlags flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+    VmaAllocationCreateFlags flags = 0;
     if (enumHasAny(createInfo.Description.Usage, BufferUsage::Upload))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
     if (enumHasAny(createInfo.Description.Usage, BufferUsage::UploadRandomAccess | BufferUsage::Readback))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
-    
-    VmaAllocationCreateInfo allocationCreateInfo = {};
-    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocationCreateInfo.flags = flags;
 
-    DriverResources::BufferResource bufferResource = {};
-    DriverCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
-        &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
-        "Failed to create a buffer");
+    if (createInfo.CreateMapped)
+        flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    
+    DriverResources::BufferResource bufferResource = CreateBufferResource(createInfo.Description.SizeBytes,
+        vulkanBufferUsageFromUsage(createInfo.Description.Usage), flags);
 
     Buffer buffer = {};
     buffer.m_Description = createInfo.Description;
+    if (createInfo.CreateMapped)
+        buffer.m_HostAddress = bufferResource.Allocation->GetMappedData();
     buffer.m_ResourceHandle = Resources().AddResource(bufferResource);    
     return buffer;
 }
@@ -974,7 +975,8 @@ Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
 
     VmaAllocationCreateInfo allocationInfo = {};
     allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocationInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+    allocationInfo.flags = enumHasAny(createInfo.Description.Usage,
+        ImageUsage::Color | ImageUsage::Depth | ImageUsage::Stencil) ? VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT : 0;
 
     DriverResources::ImageResource imageResource = {};
     DriverCheck(vmaCreateImage(Allocator(), &imageCreateInfo, &allocationInfo,
@@ -1162,7 +1164,6 @@ PipelineLayout Driver::Create(const PipelineLayout::Builder::CreateInfo& createI
     for (auto& descriptorLayout : createInfo.DescriptorSetLayouts)
         descriptorSetLayouts.push_back(Resources()[descriptorLayout].Layout);
     
-    
     VkPipelineLayoutCreateInfo layoutCreateInfo = {};
     layoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     layoutCreateInfo.pushConstantRangeCount = (u32)pushConstantRanges.size();
@@ -1236,6 +1237,8 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
         pipelineCreateInfo.stage = shaders.front();
         pipelineCreateInfo.layout = layout;
+        if (createInfo.UseDescriptorBuffer)
+            pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
         DriverResources::PipelineResource pipelineResource = {};
         DriverCheck(vkCreateComputePipelines(DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
@@ -1369,6 +1372,8 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         pipelineCreateInfo.renderPass = VK_NULL_HANDLE;
         pipelineCreateInfo.subpass = 0;
         pipelineCreateInfo.pNext = &pipelineRenderingCreateInfo;
+        if (createInfo.UseDescriptorBuffer)
+            pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
         DriverResources::PipelineResource pipelineResource = {};
         DriverCheck(vkCreateGraphicsPipelines(DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
@@ -1385,7 +1390,7 @@ void Driver::Destroy(ResourceHandle<Pipeline> pipeline)
     Resources().RemoveResource(pipeline);
 }
 
-DescriptorSetLayout Driver::Create(const DescriptorSetLayout::Builder::CreateInfo& createInfo)
+DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& createInfo)
 {
     static Sampler immutableSampler = GetImmutableSampler();
     
@@ -1396,6 +1401,7 @@ DescriptorSetLayout Driver::Create(const DescriptorSetLayout::Builder::CreateInf
     
     std::vector<VkDescriptorSetLayoutBinding> bindings;
     bindings.reserve(createInfo.Bindings.size());
+    DescriptorLayoutFlags layoutFlags = createInfo.Flags;
     for (auto& binding : createInfo.Bindings)
     {
         bindings.push_back({
@@ -1405,7 +1411,10 @@ DescriptorSetLayout Driver::Create(const DescriptorSetLayout::Builder::CreateInf
             .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders)});
 
         if (binding.HasImmutableSampler)
+        {
             bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
+            layoutFlags |= DescriptorLayoutFlags::EmbeddedImmutableSamplers;
+        }
     }
     
     VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
@@ -1417,20 +1426,20 @@ DescriptorSetLayout Driver::Create(const DescriptorSetLayout::Builder::CreateInf
     layoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     layoutCreateInfo.bindingCount = (u32)bindings.size();
     layoutCreateInfo.pBindings = bindings.data();
-    layoutCreateInfo.flags = vulkanDescriptorSetFlagsFromDescriptorSetFlags(createInfo.Flags);
+    layoutCreateInfo.flags = vulkanDescriptorsLayoutFlagsFromDescriptorsLayoutFlags(layoutFlags);
     layoutCreateInfo.pNext = &bindingFlagsCreateInfo;
 
     DriverResources::DescriptorSetLayoutResource descriptorSetLayoutResource = {};
     DriverCheck(vkCreateDescriptorSetLayout(DeviceHandle(), &layoutCreateInfo, nullptr,
         &descriptorSetLayoutResource.Layout), "Failed to create descriptor set layout");
     
-    DescriptorSetLayout layout = {};
+    DescriptorsLayout layout = {};
     layout.m_ResourceHandle = Resources().AddResource(descriptorSetLayoutResource);
 
     return layout;
 }
 
-void Driver::Destroy(ResourceHandle<DescriptorSetLayout> layout)
+void Driver::Destroy(ResourceHandle<DescriptorsLayout> layout)
 {
     vkDestroyDescriptorSetLayout(DeviceHandle(), Resources().m_DescriptorLayouts[layout.m_Index].Layout, nullptr);
     Resources().RemoveResource(layout);
@@ -1451,7 +1460,7 @@ DescriptorSet Driver::Create(const DescriptorSet::Builder::CreateInfo& createInf
     std::vector<u32> variableBindingCounts(createInfo.VariableBindingCounts.size());
     for (u32 i = 0; i < variableBindingInfos.size(); i++)
         variableBindingCounts[i] = variableBindingInfos[i].Count;
-
+    
     // create empty descriptor set
     DescriptorSet descriptorSet = {};
     descriptorSet.m_Allocator = createInfo.Allocator;
@@ -1462,50 +1471,51 @@ DescriptorSet Driver::Create(const DescriptorSet::Builder::CreateInfo& createInf
     
     // convert bound resources
     std::vector<VkDescriptorBufferInfo> boundBuffers;
-    boundBuffers.reserve(createInfo.BoundBufferCount);
+    boundBuffers.reserve(createInfo.Buffers.size());
     std::vector<VkDescriptorImageInfo> boundTextures;
-    boundTextures.reserve(createInfo.BoundTextureCount);
+    boundTextures.reserve(createInfo.Textures.size());
     std::vector<VkWriteDescriptorSet> writes;
-    writes.reserve(createInfo.BoundResources.size());
-    
-    for (auto& boundResource : createInfo.BoundResources)
+    writes.reserve(boundBuffers.size() + boundTextures.size());
+
+    for (auto& buffer : createInfo.Buffers)
     {
         VkWriteDescriptorSet write = {};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write.descriptorCount = 1;
         write.dstSet = Resources()[descriptorSet].DescriptorSet;
-        write.descriptorType = vulkanDescriptorTypeFromDescriptorType(boundResource.Type);
-        u32 slot = boundResource.Slot;
+        write.descriptorType = vulkanDescriptorTypeFromDescriptorType(buffer.Type);
+        u32 slot = buffer.Slot;
         write.dstBinding = slot;
         
-        ASSERT(boundResource.Texture.has_value() || boundResource.Buffer.has_value(),
-            "Invalid bound resource")
+        const DriverResources::BufferResource& bufferResource = Resources()[*buffer.BindingInfo.Buffer];
+        VkDescriptorBufferInfo descriptorBufferInfo = {};
+        descriptorBufferInfo.buffer = bufferResource.Buffer;
+        descriptorBufferInfo.offset = buffer.BindingInfo.Offset;
+        descriptorBufferInfo.range = buffer.BindingInfo.SizeBytes;
+        boundBuffers.push_back(descriptorBufferInfo);
+        write.pBufferInfo = &boundBuffers.back();
+        writes.push_back(write);
+    }
 
-        if (boundResource.Buffer.has_value())
-        {
-            const DriverResources::BufferResource& bufferResource = Resources()[*boundResource.Buffer->Buffer];
-            VkDescriptorBufferInfo descriptorBufferInfo = {};
-            descriptorBufferInfo.buffer = bufferResource.Buffer;
-            descriptorBufferInfo.offset = boundResource.Buffer->Offset;
-            descriptorBufferInfo.range = boundResource.Buffer->SizeBytes;
-            ASSERT(boundBuffers.size() < createInfo.BoundBufferCount, "Incorrect info about bound buffers")
-            boundBuffers.push_back(descriptorBufferInfo);
-            write.pBufferInfo = &boundBuffers.back();
-        }
-        else
-        {
-            VkDescriptorImageInfo descriptorTextureInfo = {};
-            const ImageBindingInfo& binding = *boundResource.Texture;
-            descriptorTextureInfo.sampler = Resources()[binding.Sampler].Sampler;
-            descriptorTextureInfo.imageView = binding.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
-                *Resources()[*binding.Image].Views.ViewList :
-                Resources()[*binding.Image].Views.ViewList[binding.ViewHandle.m_Index];
-            descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(binding.Layout);
-            ASSERT(boundTextures.size() < createInfo.BoundTextureCount, "Incorrect info about bound textures")
-            boundTextures.push_back(descriptorTextureInfo);
-            write.pImageInfo = &boundTextures.back();
-        }
-
+    for (auto& texture : createInfo.Textures)
+    {
+        VkWriteDescriptorSet write = {};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write.descriptorCount = 1;
+        write.dstSet = Resources()[descriptorSet].DescriptorSet;
+        write.descriptorType = vulkanDescriptorTypeFromDescriptorType(texture.Type);
+        u32 slot = texture.Slot;
+        write.dstBinding = slot;
+        
+        VkDescriptorImageInfo descriptorTextureInfo = {};
+        const ImageBindingInfo& binding = texture.BindingInfo;
+        descriptorTextureInfo.sampler = Resources()[binding.Sampler].Sampler;
+        descriptorTextureInfo.imageView = binding.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
+            *Resources()[*binding.Image].Views.ViewList :
+            Resources()[*binding.Image].Views.ViewList[binding.ViewHandle.m_Index];
+        descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(binding.Layout);
+        boundTextures.push_back(descriptorTextureInfo);
+        write.pImageInfo = &boundTextures.back();
         writes.push_back(write);
     }
     
@@ -1613,6 +1623,8 @@ DescriptorAllocator Driver::Create(const DescriptorAllocator::Builder::CreateInf
     DescriptorAllocator allocator = {};
     allocator.m_MaxSetsPerPool = createInfo.MaxSets;
     allocator.m_ResourceHandle = Resources().AddResource(descriptorAllocatorResource);
+    if (allocator.Handle().m_Index >= Resources().m_DescriptorAllocatorToSetsMap.size())
+        Resources().m_DescriptorAllocatorToSetsMap.resize(allocator.Handle().m_Index + 1);
 
     return allocator;
 }
@@ -1642,6 +1654,218 @@ void Driver::ResetAllocator(DescriptorAllocator& allocator)
     }
     allocatorResource.UsedPools.clear();
     Resources().DestroyDescriptorSetsOfAllocator(allocator.Handle());
+}
+
+DescriptorArenaAllocator Driver::Create(const DescriptorArenaAllocator::Builder::CreateInfo& createInfo)
+{
+    u32 maxDescriptorSize = 0;
+    for (auto type : createInfo.UsedTypes)
+        maxDescriptorSize = std::max(maxDescriptorSize, GetDescriptorSizeBytes(type));
+    
+    u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
+
+    VkBufferUsageFlags usageFlags = createInfo.Kind == DescriptorAllocatorKind::Resources ?
+        VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+    usageFlags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
+    VmaAllocationCreateFlags allocationFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+    BufferUsage bufferUsage = BufferUsage::None;
+    if (createInfo.Residence == DescriptorAllocatorResidence::GPU)
+    {
+        usageFlags |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+        bufferUsage |= BufferUsage::Destination;
+    }
+    else
+    {
+        allocationFlags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+    }
+
+    DriverResources::BufferResource arenaResource = CreateBufferResource(arenaSizeBytes,
+        usageFlags, allocationFlags);
+    Buffer arena = {};
+    arena.m_Description = {
+        .SizeBytes = arenaSizeBytes,
+        .Usage = bufferUsage};
+    arena.m_HostAddress = arenaResource.Allocation->GetMappedData();
+    arena.m_ResourceHandle = Resources().AddResource(arenaResource);
+    
+
+    DescriptorArenaAllocator descriptorArenaAllocator = {};
+    descriptorArenaAllocator.m_Kind = createInfo.Kind;
+    descriptorArenaAllocator.m_Residence = createInfo.Residence;
+    descriptorArenaAllocator.m_UsedTypes = createInfo.UsedTypes;
+    descriptorArenaAllocator.m_Buffer = arena;
+
+    return descriptorArenaAllocator;
+}
+
+std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
+    DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings)
+{
+    auto& descriptorBufferProps = Resources().m_Devices[0].GPUDescriptorBufferProperties;
+    u64 layoutSizeBytes = 0;
+    vkGetDescriptorSetLayoutSizeEXT(DeviceHandle(), Resources()[layout].Layout, &layoutSizeBytes);
+    layoutSizeBytes = CoreUtils::align(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
+    if (layoutSizeBytes + allocator.m_CurrentOffset >= allocator.m_Buffer.GetSizeBytes())
+        return {};
+
+    std::vector<u64> bindingOffsets(bindings.Bindings.size());
+    for (u32 offsetIndex = 0; offsetIndex < bindingOffsets.size(); offsetIndex++)
+    {
+        auto& binding = bindings.Bindings[offsetIndex];
+        vkGetDescriptorSetLayoutBindingOffsetEXT(DeviceHandle(), Resources()[layout].Layout, binding.Binding,
+            &bindingOffsets[offsetIndex]);
+        bindingOffsets[offsetIndex] += allocator.m_CurrentOffset;
+    }
+    
+
+    Descriptors descriptors = {};
+    descriptors.m_Offsets = bindingOffsets;
+    descriptors.m_Allocator = &allocator;
+
+    allocator.m_CurrentOffset += layoutSizeBytes;
+    
+    return descriptors;
+}
+
+void Driver::Bind(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators)
+{
+    std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
+    descriptorBufferBindings.reserve(allocators.size());
+
+    for (auto& allocator : allocators)
+    {
+        VkBufferDeviceAddressInfo deviceAddressInfo = {};
+        deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        deviceAddressInfo.buffer = Resources()[allocator->m_Buffer].Buffer;
+        u64 deviceAddress = vkGetBufferDeviceAddress(DeviceHandle(), &deviceAddressInfo);
+
+        VkDescriptorBufferBindingInfoEXT binding = {};
+        binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
+        binding.address = deviceAddress;
+        binding.usage = allocator->m_Kind == DescriptorAllocatorKind::Resources ?
+            VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+
+        descriptorBufferBindings.push_back(binding);
+    }
+
+    vkCmdBindDescriptorBuffersEXT(Resources()[cmd].CommandBuffer, (u32)descriptorBufferBindings.size(),
+        descriptorBufferBindings.data());
+}
+
+void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer, DescriptorType type)
+{
+    ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
+        "Texel buffers require format information")
+    ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
+        "Dynamic buffers are not supported when using descriptor buffer")
+    
+    VkBufferDeviceAddressInfo deviceAddressInfo = {};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer = Resources()[*buffer.Buffer].Buffer;
+    u64 deviceAddress = vkGetBufferDeviceAddress(DeviceHandle(), &deviceAddressInfo);
+
+    VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
+    descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
+    descriptorAddressInfo.address = deviceAddress + buffer.Offset;
+    descriptorAddressInfo.format = VK_FORMAT_UNDEFINED;
+    descriptorAddressInfo.range = buffer.SizeBytes;
+
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    // using the fact that 'descriptorGetInfo.data' is union
+    descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
+
+    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, GetDescriptorSizeBytes(type),
+        (u8*)descriptors.m_Allocator->m_Buffer.m_HostAddress + descriptors.m_Offsets[slot]);
+}
+
+void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
+    DescriptorType type)
+{
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    VkDescriptorImageInfo descriptorImageInfo;
+    if (type == DescriptorType::Sampler)
+    {
+        descriptorGetInfo.data.pSampler = &Resources()[texture.Sampler].Sampler;
+    }
+    else
+    {
+        descriptorImageInfo.sampler = Resources()[texture.Sampler].Sampler,
+        descriptorImageInfo.imageView = texture.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
+            *Resources()[*texture.Image].Views.ViewList :
+            Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index],
+        descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(texture.Layout);
+        descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
+    }
+
+    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, GetDescriptorSizeBytes(type),
+        (u8*)descriptors.m_Allocator->m_Buffer.m_HostAddress + descriptors.m_Offsets[slot]);
+}
+
+void Driver::BindGraphics(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
+    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
+{
+    BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void Driver::BindCompute(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
+    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
+{
+    BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_COMPUTE);
+}
+
+void Driver::BindDescriptors(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
+    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+{
+    auto it = std::ranges::find(allocators, descriptors.m_Allocator);
+    ASSERT(it != allocators.end(), "Descriptors were not allocated by any of the provided allocators")
+
+    u32 allocatorIndex = (u32)(it - allocators.begin());
+    u64 offset = descriptors.m_Offsets.front();
+
+    vkCmdSetDescriptorBufferOffsetsEXT(Resources()[cmd].CommandBuffer, bindPoint,
+        Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);
+}
+
+u32 Driver::GetDescriptorSizeBytes(DescriptorType type)
+{
+    auto& props = Resources().m_Devices[0].GPUDescriptorBufferProperties;
+    switch (type)
+    {
+    case DescriptorType::Sampler:       return (u32)props.samplerDescriptorSize;
+    case DescriptorType::Image:         return (u32)props.sampledImageDescriptorSize;
+    case DescriptorType::ImageStorage:  return (u32)props.storageImageDescriptorSize;
+    case DescriptorType::TexelUniform:  return (u32)props.uniformTexelBufferDescriptorSize;
+    case DescriptorType::TexelStorage:  return (u32)props.storageTexelBufferDescriptorSize;
+    case DescriptorType::UniformBuffer: return (u32)props.uniformBufferDescriptorSize;
+    case DescriptorType::StorageBuffer: return (u32)props.storageBufferDescriptorSize;
+    case DescriptorType::Input:         return (u32)props.inputAttachmentDescriptorSize;
+    default:
+        return 0;
+    }
+}
+
+DriverResources::BufferResource Driver::CreateBufferResource(u64 sizeBytes, VkBufferUsageFlags usage,
+    VmaAllocationCreateFlags allocationFlags)
+{
+    VkBufferCreateInfo bufferCreateInfo = {};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.size = sizeBytes;
+    bufferCreateInfo.usage = usage;
+
+    VmaAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocationCreateInfo.flags = allocationFlags;
+
+    DriverResources::BufferResource bufferResource = {};
+    DriverCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
+        &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
+        "Failed to create a buffer");
+
+    return bufferResource;
 }
 
 Fence Driver::Create(const Fence::Builder::CreateInfo& createInfo)
@@ -1871,7 +2095,7 @@ u32 Driver::GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, Descri
 }
 
 void Driver::CreateInstance(const Device::Builder::CreateInfo& createInfo,
-        DriverResources::DeviceResource& deviceResource)
+                            DriverResources::DeviceResource& deviceResource)
 {
     auto checkInstanceExtensions = [](const Device::Builder::CreateInfo& createInfo)
     {
@@ -2044,10 +2268,15 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
             physicalDeviceIndexTypeUint8FeaturesExt.sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INDEX_TYPE_UINT8_FEATURES_EXT;
             physicalDeviceIndexTypeUint8FeaturesExt.pNext = &conditionalRenderingFeaturesExt;
+
+            VkPhysicalDeviceDescriptorBufferFeaturesEXT physicalDeviceDescriptorBufferFeaturesExt = {};
+            physicalDeviceDescriptorBufferFeaturesExt.sType =
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
+            physicalDeviceDescriptorBufferFeaturesExt.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
             
             VkPhysicalDeviceFeatures2 features = {};
             features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-            features.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
+            features.pNext = &physicalDeviceDescriptorBufferFeaturesExt;
             
             vkGetPhysicalDeviceFeatures2(gpu, &features);
             
@@ -2078,7 +2307,8 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
                     deviceVulkan13Features.dynamicRendering == VK_TRUE &&
                     deviceVulkan13Features.synchronization2 == VK_TRUE &&
                     conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE &&
-                    physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE;
+                    physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE &&
+                    physicalDeviceDescriptorBufferFeaturesExt.descriptorBuffer == VK_TRUE;
         };
         
         
@@ -2119,12 +2349,17 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
     ASSERT(deviceResource.GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
 
     deviceResource.GPUDescriptorIndexingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+
     deviceResource.GPUSubgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
     deviceResource.GPUSubgroupProperties.pNext = &deviceResource.GPUDescriptorIndexingProperties;
+
+    deviceResource.GPUDescriptorBufferProperties.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
+    deviceResource.GPUDescriptorBufferProperties.pNext = &deviceResource.GPUSubgroupProperties;
     
     VkPhysicalDeviceProperties2 deviceProperties2 = {};
     deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    deviceProperties2.pNext = &deviceResource.GPUSubgroupProperties;
+    deviceProperties2.pNext = &deviceResource.GPUDescriptorBufferProperties;
     vkGetPhysicalDeviceProperties2(deviceResource.GPU, &deviceProperties2);
     deviceResource.GPUProperties = deviceProperties2.properties;
 }
@@ -2191,10 +2426,15 @@ void Driver::CreateDevice(const Device::Builder::CreateInfo& createInfo,
     physicalDeviceIndexTypeUint8FeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INDEX_TYPE_UINT8_FEATURES_EXT;
     physicalDeviceIndexTypeUint8FeaturesExt.pNext = &conditionalRenderingFeaturesExt;
     physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 = VK_TRUE;
+
+    VkPhysicalDeviceDescriptorBufferFeaturesEXT physicalDeviceDescriptorBufferFeaturesExt = {};
+    physicalDeviceDescriptorBufferFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
+    physicalDeviceDescriptorBufferFeaturesExt.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
+    physicalDeviceDescriptorBufferFeaturesExt.descriptorBuffer = VK_TRUE;
     
     VkDeviceCreateInfo deviceCreateInfo = {};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    deviceCreateInfo.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
+    deviceCreateInfo.pNext = &physicalDeviceDescriptorBufferFeaturesExt;
     deviceCreateInfo.queueCreateInfoCount = (u32)queueCreateInfos.size();
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfos.data();
     deviceCreateInfo.enabledExtensionCount = (u32)createInfo.DeviceExtensions.size();

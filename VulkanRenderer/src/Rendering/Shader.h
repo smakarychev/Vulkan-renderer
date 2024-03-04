@@ -11,7 +11,7 @@
 
 class DescriptorSet;
 struct ShaderPushConstantDescription;
-class DescriptorSetLayout;
+class DescriptorsLayout;
 class DescriptorLayoutCache;
 class DescriptorAllocator;
 class Image;
@@ -83,7 +83,7 @@ public:
                 DescriptorSetBinding Descriptor;
             };
             u32 Set; 
-            DescriptorSetFlags LayoutFlags;
+            DescriptorLayoutFlags LayoutFlags;
             DescriptorPoolFlags PoolFlags;
             std::vector<DescriptorSetBindingNamedFlagged> Descriptors;
             std::vector<u32> VariableDescriptorCounts;
@@ -133,6 +133,7 @@ public:
         {
             Shader* ShaderReflection;
             DescriptorAllocator* Allocator;
+            DescriptorArenaAllocator* ArenaAllocator;
         };
     public:
         ShaderPipelineTemplate Build();
@@ -140,6 +141,7 @@ public:
         ShaderPipelineTemplate BuildManualLifetime();
         Builder& SetShaderReflection(Shader* shaderReflection);
         Builder& SetDescriptorAllocator(DescriptorAllocator* allocator);
+        Builder& SetDescriptorArenaAllocator(DescriptorArenaAllocator* allocator);
     private:
         CreateInfo m_CreateInfo;
     };
@@ -161,15 +163,16 @@ public:
     static void Destroy(const ShaderPipelineTemplate& shaderPipelineTemplate);
 
     PipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
-    const DescriptorSetLayout GetDescriptorSetLayout(u32 index) const { return m_DescriptorSetLayouts[index]; }
+    const DescriptorsLayout GetDescriptorsLayout(u32 index) const { return m_DescriptorsLayouts[index]; }
 
     const DescriptorInfo& GetDescriptorInfo(std::string_view name);
+    std::array<bool, MAX_PIPELINE_DESCRIPTOR_SETS> GetSetPresence() const;
     
     bool IsComputeTemplate() const;
     
 private:
-    static std::vector<DescriptorSetLayout> CreateDescriptorLayouts(
-        const std::vector<ReflectionData::DescriptorSet>& descriptorSetReflections);
+    static std::vector<DescriptorsLayout> CreateDescriptorLayouts(
+        const std::vector<ReflectionData::DescriptorSet>& descriptorSetReflections, bool useDescriptorBuffer);
     static VertexInputDescription CreateInputDescription(
         const std::vector<ReflectionData::InputAttribute>& inputAttributeReflections);
     static std::vector<ShaderPushConstantDescription> CreatePushConstantDescriptions(
@@ -177,17 +180,23 @@ private:
     static std::vector<ShaderModule> CreateShaderModules(const std::vector<Shader::ShaderModuleSource>& shaders);
     static DescriptorsFlags ExtractDescriptorsAndFlags(const ReflectionData::DescriptorSet& descriptorSet);
 private:
-    DescriptorAllocator* m_Allocator{nullptr};
+    union Allocator
+    {
+        DescriptorAllocator* DescriptorAllocator;    
+        DescriptorArenaAllocator* ArenaAllocator{nullptr};    
+    };
+    Allocator m_Allocator{};
+    bool m_UseDescriptorBuffer{false};
 
     VertexInputDescription m_VertexInputDescription;
     Pipeline::Builder m_PipelineBuilder{};
     PipelineLayout m_PipelineLayout;
-    std::vector<DescriptorSetLayout> m_DescriptorSetLayouts;
+    std::vector<DescriptorsLayout> m_DescriptorsLayouts;
 
     std::vector<ShaderModule> m_Shaders;
     std::vector<SpecializationConstant> m_SpecializationConstants;
     std::vector<DescriptorInfo> m_DescriptorsInfo;
-    std::vector<DescriptorSetFlags> m_DescriptorSetFlags;
+    std::vector<DescriptorLayoutFlags> m_DescriptorSetFlags;
     std::vector<DescriptorPoolFlags> m_DescriptorPoolFlags;
     u32 m_DescriptorSetCount;
 };
@@ -205,6 +214,7 @@ public:
             RenderingDetails RenderingDetails;
             std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
             PipelineSpecializationInfo PipelineSpecializationInfo;
+            bool UseDescriptorBuffer{false};
         };
         using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
@@ -216,6 +226,7 @@ public:
         Builder& CompatibleWithVertex(const VertexInputDescription& vertexInputDescription);
         template <typename T>
         Builder& AddSpecialization(std::string_view name, const T& specializationData);
+        Builder& UseDescriptorBuffer();
     private:
         void Prebuild();
         void CreateCompatibleLayout();
@@ -270,6 +281,11 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::AddSpecialization(std::string_
     return *this;
 }
 
+class ShaderDescriptorSetUpdateInfo
+{
+    
+};
+
 class ShaderDescriptorSet
 {
     using Texture = Image;
@@ -282,7 +298,7 @@ public:
         {
             ShaderPipelineTemplate* ShaderPipelineTemplate;
             std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
-            std::array<u32, MAX_PIPELINE_DESCRIPTOR_SETS> UsedSets{0};
+            std::array<bool, MAX_PIPELINE_DESCRIPTOR_SETS> SetPresence{};
         };
         using DescriptorInfo = ShaderPipelineTemplate::DescriptorInfo;
     public:
@@ -339,8 +355,12 @@ class ShaderTemplateLibrary
 public:
     static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
         std::string_view templateName, DescriptorAllocator& allocator);
+    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+        std::string_view templateName, DescriptorArenaAllocator& allocator);
     static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
 private:
+    static std::string GenerateTemplateName(std::string_view templateName, DescriptorAllocator& allocator);
+    static std::string GenerateTemplateName(std::string_view templateName, DescriptorArenaAllocator& allocator);
     static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
 private:
     static std::unordered_map<std::string, ShaderPipelineTemplate> m_Templates;

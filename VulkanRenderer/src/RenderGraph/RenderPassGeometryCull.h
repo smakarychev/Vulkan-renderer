@@ -26,7 +26,7 @@ struct RenderPassGeometryCullRenderingContext
     DeletionQueue* DeletionQueue{nullptr};
     u32 FrameNumber{0};
     glm::vec2 Resolution; 
-    RenderPassPipelineData* RenderingPipeline;
+    RenderGraph::PipelineData* RenderingPipeline;
     DescriptorsOffsets DescriptorsOffsets;
     const RenderingInfo* ClearRenderingInfo;
     const RenderingInfo* CopyRenderingInfo;
@@ -82,14 +82,13 @@ private:
     class BatchedCull;
     std::shared_ptr<BatchedCull> m_BatchedCull;
 
-    RenderPassPipelineData m_MeshCull{};
-    RenderPassPipelineData m_MeshCullReocclusion{};
-    RenderPassPipelineData m_MeshletCull{};
-    RenderPassPipelineData m_MeshletCullReocclusion{};
-    RenderPassPipelineData m_MeshletCullClear{};
+    RenderGraph::PipelineData m_MeshCull{};
+    RenderGraph::PipelineData m_MeshCullReocclusion{};
+    RenderGraph::PipelineData m_MeshletCull{};
+    RenderGraph::PipelineData m_MeshletCullReocclusion{};
+    RenderGraph::PipelineData m_MeshletCullClear{};
 
     DependencyInfo m_ComputeWRDependency{};
-    DependencyInfo m_IndirectWRDependency{};
     Barrier m_Barrier{};
 
     DepthPyramid* m_DepthPyramid{nullptr};

@@ -12,13 +12,15 @@
 #include "DescriptorSetTraits.h"
 #include "Image.h"
 
+class DescriptorArenaAllocator;
+class ResourceUploader;
 class Sampler;
 class PipelineLayout;
 class Image;
 class CommandBuffer;
 class Pipeline;
 class Buffer;
-class DescriptorSetLayout;
+class DescriptorsLayout;
 class DescriptorPool;
 class Device;
 
@@ -31,38 +33,38 @@ struct DescriptorSetBinding
     bool HasImmutableSampler{false};
 };
 
-class DescriptorSetLayout
+class DescriptorsLayout
 {
     FRIEND_INTERNAL
 public:
     class Builder
     {
-        friend class DescriptorSetLayout;
+        friend class DescriptorsLayout;
         friend class DescriptorLayoutCache;
         FRIEND_INTERNAL
         struct CreateInfo
         {
             std::vector<DescriptorSetBinding> Bindings;
             std::vector<DescriptorFlags> BindingFlags;
-            DescriptorSetFlags Flags;
+            DescriptorLayoutFlags Flags;
         };
     public:
-        DescriptorSetLayout Build();
+        DescriptorsLayout Build();
         Builder& SetBindings(const std::vector<DescriptorSetBinding>& bindings);
         Builder& SetBindingFlags(const std::vector<DescriptorFlags>& flags);
-        Builder& SetFlags(DescriptorSetFlags flags);
+        Builder& SetFlags(DescriptorLayoutFlags flags);
     private:
         void PreBuild();
     private:
         CreateInfo m_CreateInfo;
     };
 public:
-    static DescriptorSetLayout Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const DescriptorSetLayout& layout);
+    static DescriptorsLayout Create(const Builder::CreateInfo& createInfo);
+    static void Destroy(const DescriptorsLayout& layout);
 private:
-    ResourceHandle<DescriptorSetLayout> Handle() const { return m_ResourceHandle; }
+    ResourceHandle<DescriptorsLayout> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<DescriptorSetLayout> m_ResourceHandle;
+    ResourceHandle<DescriptorsLayout> m_ResourceHandle;
 };
 
 class DescriptorSet
@@ -85,20 +87,21 @@ public:
         };
         struct CreateInfo
         {
+            template <typename Binding>
             struct BoundResource
             {
-                std::optional<BufferBindingInfo> Buffer;
-                std::optional<TextureBindingInfo> Texture;
+                Binding BindingInfo;
                 u32 Slot;
                 DescriptorType Type;
             };
+            using BoundBuffer = BoundResource<BufferBindingInfo>;
+            using BoundTexture = BoundResource<TextureBindingInfo>;
 
             DescriptorPoolFlags PoolFlags{0};
-            std::vector<BoundResource> BoundResources;
-            u32 BoundBufferCount{0};
-            u32 BoundTextureCount{0};
+            std::vector<BoundBuffer> Buffers;
+            std::vector<BoundTexture> Textures;
             DescriptorAllocator* Allocator;
-            DescriptorSetLayout Layout;
+            DescriptorsLayout Layout;
             std::vector<u32> VariableBindingSlots;
             std::vector<u32> VariableBindingCounts;
         };
@@ -106,7 +109,7 @@ public:
         DescriptorSet Build();
         
         Builder& SetAllocator(DescriptorAllocator* allocator);
-        Builder& SetLayout(DescriptorSetLayout layout);
+        Builder& SetLayout(DescriptorsLayout layout);
         Builder& SetPoolFlags(DescriptorPoolFlags flags);
         Builder& AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo, DescriptorType descriptor);
         Builder& AddTextureBinding(u32 slot, const TextureBindingInfo& texture, DescriptorType descriptor);
@@ -126,12 +129,12 @@ public:
 
     void SetTexture(u32 slot, const Texture& texture, DescriptorType descriptor, u32 arrayIndex);
     
-    const DescriptorSetLayout& GetLayout() const { return m_Layout; }
+    const DescriptorsLayout& GetLayout() const { return m_Layout; }
 private:
     ResourceHandle<DescriptorSet> Handle() const { return m_ResourceHandle; }
 private:
     DescriptorAllocator* m_Allocator{nullptr};
-    DescriptorSetLayout m_Layout;
+    DescriptorsLayout m_Layout;
     ResourceHandle<DescriptorSet> m_ResourceHandle;
 };
 
@@ -175,7 +178,6 @@ private:
 private:
     PoolSizes m_PoolSizes = {
         { DescriptorType::Sampler, 0.5f },
-        { DescriptorType::ImageSampler, 4.f },
         { DescriptorType::Image, 4.f },
         { DescriptorType::ImageStorage, 1.f },
         { DescriptorType::TexelUniform, 1.f },
@@ -191,16 +193,88 @@ private:
     ResourceHandle<DescriptorAllocator> m_ResourceHandle;
 };
 
+class Descriptors
+{
+    FRIEND_INTERNAL
+public:
+    using BufferBindingInfo = BufferSubresource;
+    using TextureBindingInfo = ImageBindingInfo;
+    void UpdateBinding(u32 slot, const BufferBindingInfo& buffer, DescriptorType type) const;
+    void UpdateBinding(u32 slot, const TextureBindingInfo& texture, DescriptorType type) const;
+private:
+    std::vector<u64> m_Offsets;
+    const DescriptorArenaAllocator* m_Allocator;
+};
+
+enum class DescriptorAllocatorKind
+{
+    Resources, Samplers
+};
+
+enum class DescriptorAllocatorResidence
+{
+    CPU, GPU
+};
+
+struct DescriptorAllocatorAllocationBindings
+{
+    std::vector<DescriptorSetBinding> Bindings;
+    std::vector<DescriptorFlags> Flags;
+};
+
+// todo: name is temp, `DescriptorAllocator` is currently an existing entity
+class DescriptorArenaAllocator
+{
+    FRIEND_INTERNAL
+public:
+    class Builder
+    {
+        friend class DescriptorArenaAllocator;
+        FRIEND_INTERNAL
+        struct CreateInfo
+        {
+            DescriptorAllocatorKind Kind{DescriptorAllocatorKind::Resources};
+            DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
+            std::vector<DescriptorType> UsedTypes;
+            u32 DescriptorCount;
+        };
+    public:
+        DescriptorArenaAllocator Build();
+        DescriptorArenaAllocator Build(DeletionQueue& deletionQueue);
+        Builder& Kind(DescriptorAllocatorKind kind);
+        Builder& Residence(DescriptorAllocatorResidence residence);
+        Builder& Count(u32 count);
+        Builder& ForTypes(const std::vector<DescriptorType>& types);
+    private:
+        void PreBuild();
+    private:
+        CreateInfo m_CreateInfo;
+    };
+public:
+    static DescriptorArenaAllocator Create(const Builder::CreateInfo& createInfo);
+
+    Descriptors Allocate(DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
+    void Reset();
+private:
+    void ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings);
+private:
+    Buffer m_Buffer;
+    u64 m_CurrentOffset{0};
+    DescriptorAllocatorKind m_Kind{DescriptorAllocatorKind::Resources};
+    DescriptorAllocatorResidence m_Residence{DescriptorAllocatorResidence::CPU};
+    std::vector<DescriptorType> m_UsedTypes;
+};
+
 class DescriptorLayoutCache
 {
     friend class ShaderPipelineTemplate;
     struct CacheKey
     {
-        DescriptorSetLayout::Builder::CreateInfo CreateInfo;
+        DescriptorsLayout::Builder::CreateInfo CreateInfo;
         bool operator==(const CacheKey& other) const;
     };
 public:
-    static DescriptorSetLayout CreateDescriptorSetLayout(const DescriptorSetLayout::Builder::CreateInfo& createInfo);
+    static DescriptorsLayout CreateDescriptorSetLayout(const DescriptorsLayout::Builder::CreateInfo& createInfo);
 private:
     static void SortBindings(CacheKey& cacheKey);
 private:
@@ -209,5 +283,5 @@ private:
         u64 operator()(const CacheKey& cacheKey) const;
     };
     
-    static std::unordered_map<CacheKey, DescriptorSetLayout, DescriptorSetLayoutKeyHash> s_LayoutCache;
+    static std::unordered_map<CacheKey, DescriptorsLayout, DescriptorSetLayoutKeyHash> s_LayoutCache;
 };

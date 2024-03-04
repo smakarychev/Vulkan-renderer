@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 
 enum class Format
 {
@@ -65,3 +66,8 @@ enum class Format
   
     MaxVal
 };
+
+namespace FormatUtils
+{
+    std::string formatToString(Format format);
+}

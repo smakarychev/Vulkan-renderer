@@ -48,7 +48,8 @@ void ResourceUploader::SubmitUpload()
     Driver::ImmediateUpload([this](const CommandBuffer& cmd)
     {
         for (auto& upload : m_BufferUploads)
-            RenderCommand::CopyBuffer(cmd, m_StageBuffers[upload.SourceIndex].Buffer, upload.Destination, upload.CopyInfo);
+            RenderCommand::CopyBuffer(cmd, m_StageBuffers[upload.SourceIndex].Buffer,
+                upload.Destination, upload.CopyInfo);
     });
     
     for (u32 i = 0; i <= m_LastUsedBuffer; i++)

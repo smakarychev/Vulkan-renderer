@@ -5,7 +5,6 @@ enum class DescriptorType
 {
     Sampler = 0,
     Image,
-    ImageSampler,
     ImageStorage,
     TexelUniform,
     TexelStorage,
@@ -28,14 +27,16 @@ enum class DescriptorFlags
 
 CREATE_ENUM_FLAGS_OPERATORS(DescriptorFlags)
 
-enum class DescriptorSetFlags
+enum class DescriptorLayoutFlags
 {
     None = 0,
 
-    UpdateAfterBind = BIT(1)
+    UpdateAfterBind = BIT(1),
+    DescriptorBuffer = BIT(2),
+    EmbeddedImmutableSamplers = BIT(3),
 };
 
-CREATE_ENUM_FLAGS_OPERATORS(DescriptorSetFlags)
+CREATE_ENUM_FLAGS_OPERATORS(DescriptorLayoutFlags)
 
 enum class DescriptorPoolFlags
 {

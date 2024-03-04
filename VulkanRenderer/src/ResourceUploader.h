@@ -43,11 +43,19 @@ public:
     
     void StartRecording();
     void SubmitUpload();
-    
+
+    template <typename T>
+    void UpdateBuffer(Buffer& buffer, const T& data);
+    template <typename T>
+    void UpdateBuffer(Buffer& buffer, const T& data, u64 bufferOffset);
     void UpdateBuffer(Buffer& buffer, const void* data);
     void UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
     void UpdateBuffer(Buffer& buffer, u32 mappedBufferIndex, u64 bufferOffset);
         u32 GetMappedBuffer(u64 sizeBytes);
+    template <typename T>
+    void UpdateBufferImmediately(Buffer& buffer, const T& data);
+    template <typename T>
+    void UpdateBufferImmediately(Buffer& buffer, const T& data, u64 bufferOffset);
     void UpdateBufferImmediately(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
     void* GetMappedAddress(u32 mappedBufferIndex);
 private:
@@ -73,3 +81,27 @@ private:
     
     Buffer m_ImmediateUploadBuffer;
 };
+
+template <typename T>
+void ResourceUploader::UpdateBuffer(Buffer& buffer, const T& data)
+{
+    UpdateBuffer(buffer, data, 0);
+}
+
+template <typename T>
+void ResourceUploader::UpdateBuffer(Buffer& buffer, const T& data, u64 bufferOffset)
+{
+    UpdateBuffer(buffer, (void*)&data, sizeof(T), bufferOffset);
+}
+
+template <typename T>
+void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const T& data)
+{
+    UpdateBufferImmediately(buffer, data);
+}
+
+template <typename T>
+void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const T& data, u64 bufferOffset)
+{
+    UpdateBufferImmediately(buffer, (void*)&data, sizeof(T), bufferOffset);
+}
