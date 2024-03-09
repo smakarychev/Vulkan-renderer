@@ -44,6 +44,23 @@ struct Position {
     float z;
 };
 
+struct Normal {
+    float x;
+    float y; 
+    float z;
+};
+
+struct Tangent {
+    float x;
+    float y; 
+    float z;
+};
+
+struct UV {
+    float u;
+    float v;
+};
+
 struct Triangle {
     vec4 a;
     vec4 b;

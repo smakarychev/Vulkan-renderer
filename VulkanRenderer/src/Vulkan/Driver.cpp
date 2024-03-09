@@ -17,8 +17,8 @@
 
 namespace
 {
-    static_assert(ImageDescription::ALL_MIPMAPS == VK_REMAINING_MIP_LEVELS, "Incorrect value for `ALL_MIPMAPS`");
-    static_assert(ImageDescription::ALL_LAYERS == VK_REMAINING_ARRAY_LAYERS, "Incorrect value for `ALL_LAYERS`");
+    static_assert(ImageSubresourceDescription::ALL_MIPMAPS == VK_REMAINING_MIP_LEVELS, "Incorrect value for `ALL_MIPMAPS`");
+    static_assert(ImageSubresourceDescription::ALL_LAYERS == VK_REMAINING_ARRAY_LAYERS, "Incorrect value for `ALL_LAYERS`");
     static_assert(Sampler::LOD_MAX == VK_LOD_CLAMP_NONE, "Incorrect value for `LOD_MAX`");
     
     constexpr VkFormat vulkanFormatFromFormat(Format format)
@@ -657,7 +657,8 @@ void Driver::DeviceBuilderDefaults(Device::Builder::CreateInfo& createInfo)
         VK_KHR_MAINTENANCE1_EXTENSION_NAME,
         VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
         VK_EXT_INDEX_TYPE_UINT8_EXTENSION_NAME,
-        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME
+        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
+        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
     };
 }
 
@@ -1019,8 +1020,8 @@ void Driver::CreateViews(const ImageSubresource& image,
         return;
     }
 
-    resource.Views.ViewType.ViewCount = image.Image->m_Description.Views;
-    resource.Views.ViewList = new VkImageView[image.Image->m_Description.Views];
+    resource.Views.ViewType.ViewCount = 1 + (u32)image.Image->m_Description.AdditionalViews.size();
+    resource.Views.ViewList = new VkImageView[resource.Views.ViewType.ViewCount];
     resource.Views.ViewList[0] = CreateVulkanImageView(image, viewFormat);
     for (u32 viewIndex = 0; viewIndex < additionalViews.size(); viewIndex++)
         resource.Views.ViewList[viewIndex + 1] = CreateVulkanImageView(
@@ -1490,8 +1491,8 @@ DescriptorSet Driver::Create(const DescriptorSet::Builder::CreateInfo& createInf
         const DriverResources::BufferResource& bufferResource = Resources()[*buffer.BindingInfo.Buffer];
         VkDescriptorBufferInfo descriptorBufferInfo = {};
         descriptorBufferInfo.buffer = bufferResource.Buffer;
-        descriptorBufferInfo.offset = buffer.BindingInfo.Offset;
-        descriptorBufferInfo.range = buffer.BindingInfo.SizeBytes;
+        descriptorBufferInfo.offset = buffer.BindingInfo.Description.Offset;
+        descriptorBufferInfo.range = buffer.BindingInfo.Description.SizeBytes;
         boundBuffers.push_back(descriptorBufferInfo);
         write.pBufferInfo = &boundBuffers.back();
         writes.push_back(write);
@@ -1717,7 +1718,6 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
         bindingOffsets[offsetIndex] += allocator.m_CurrentOffset;
     }
     
-
     Descriptors descriptors = {};
     descriptors.m_Offsets = bindingOffsets;
     descriptors.m_Allocator = &allocator;
@@ -1725,31 +1725,6 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     allocator.m_CurrentOffset += layoutSizeBytes;
     
     return descriptors;
-}
-
-void Driver::Bind(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators)
-{
-    std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
-    descriptorBufferBindings.reserve(allocators.size());
-
-    for (auto& allocator : allocators)
-    {
-        VkBufferDeviceAddressInfo deviceAddressInfo = {};
-        deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-        deviceAddressInfo.buffer = Resources()[allocator->m_Buffer].Buffer;
-        u64 deviceAddress = vkGetBufferDeviceAddress(DeviceHandle(), &deviceAddressInfo);
-
-        VkDescriptorBufferBindingInfoEXT binding = {};
-        binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
-        binding.address = deviceAddress;
-        binding.usage = allocator->m_Kind == DescriptorAllocatorKind::Resources ?
-            VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
-
-        descriptorBufferBindings.push_back(binding);
-    }
-
-    vkCmdBindDescriptorBuffersEXT(Resources()[cmd].CommandBuffer, (u32)descriptorBufferBindings.size(),
-        descriptorBufferBindings.data());
 }
 
 void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer, DescriptorType type)
@@ -1766,9 +1741,9 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const B
 
     VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
     descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
-    descriptorAddressInfo.address = deviceAddress + buffer.Offset;
+    descriptorAddressInfo.address = deviceAddress + buffer.Description.Offset;
     descriptorAddressInfo.format = VK_FORMAT_UNDEFINED;
-    descriptorAddressInfo.range = buffer.SizeBytes;
+    descriptorAddressInfo.range = buffer.Description.SizeBytes;
 
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
@@ -1803,31 +1778,6 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
 
     vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, GetDescriptorSizeBytes(type),
         (u8*)descriptors.m_Allocator->m_Buffer.m_HostAddress + descriptors.m_Offsets[slot]);
-}
-
-void Driver::BindGraphics(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
-    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
-{
-    BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_GRAPHICS);
-}
-
-void Driver::BindCompute(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
-    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
-{
-    BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_COMPUTE);
-}
-
-void Driver::BindDescriptors(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
-    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
-{
-    auto it = std::ranges::find(allocators, descriptors.m_Allocator);
-    ASSERT(it != allocators.end(), "Descriptors were not allocated by any of the provided allocators")
-
-    u32 allocatorIndex = (u32)(it - allocators.begin());
-    u64 offset = descriptors.m_Offsets.front();
-
-    vkCmdSetDescriptorBufferOffsetsEXT(Resources()[cmd].CommandBuffer, bindPoint,
-        Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);
 }
 
 u32 Driver::GetDescriptorSizeBytes(DescriptorType type)

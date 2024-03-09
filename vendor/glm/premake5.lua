@@ -3,7 +3,7 @@ project "glm"
 	language "C"
 
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-        objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
 	systemversion "latest"
 	staticruntime "On"
 

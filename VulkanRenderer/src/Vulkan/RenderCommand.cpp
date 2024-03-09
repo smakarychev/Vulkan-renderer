@@ -8,6 +8,7 @@
 #include "Rendering/Pipeline.h"
 #include "Rendering/Swapchain.h"
 #include "Rendering/Synchronization.h"
+#include "Rendering/Descriptors.h"
 
 namespace
 {
@@ -84,7 +85,8 @@ u32 RenderCommand::AcquireNextImage(const Swapchain& swapchain,
     u32 imageIndex;
     
     VkResult res = vkAcquireNextImageKHR(Driver::DeviceHandle(), Driver::Resources()[swapchain].Swapchain,
-        10'000'000'000, Driver::Resources()[swapchainFrameSync.PresentSemaphore].Semaphore, VK_NULL_HANDLE, &imageIndex);
+        10'000'000'000, Driver::Resources()[swapchainFrameSync.PresentSemaphore].Semaphore, VK_NULL_HANDLE,
+        &imageIndex);
     if (res == VK_ERROR_OUT_OF_DATE_KHR)
         return INVALID_SWAPCHAIN_IMAGE;
     
@@ -215,12 +217,14 @@ VkResult RenderCommand::SubmitCommandBufferStatus(const CommandBuffer& cmd, cons
     return SubmitCommandBuffersStatus({cmd}, queueInfo, submitSync);
 }
 
-VkResult RenderCommand::SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence)
+VkResult RenderCommand::SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+    const Fence& fence)
 {
     return SubmitCommandBufferStatus(cmd, queueInfo, &fence);
 }
 
-VkResult RenderCommand::SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence)
+VkResult RenderCommand::SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo,
+    const Fence* fence)
 {
     VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
     commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -231,7 +235,8 @@ VkResult RenderCommand::SubmitCommandBufferStatus(const CommandBuffer& cmd, cons
     submitInfo.commandBufferInfoCount = 1;
     submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
     
-    return vkQueueSubmit2(Driver::Resources()[queueInfo].Queue, 1, &submitInfo, fence ? Driver::Resources()[*fence].Fence : VK_NULL_HANDLE);
+    return vkQueueSubmit2(Driver::Resources()[queueInfo].Queue, 1, &submitInfo, fence ?
+        Driver::Resources()[*fence].Fence : VK_NULL_HANDLE);
 }
 
 VkResult RenderCommand::SubmitCommandBuffersStatus(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
@@ -304,7 +309,6 @@ VkResult RenderCommand::SubmitCommandBuffersStatus(const std::vector<CommandBuff
         Driver::Resources()[*submitSync.Fence].Fence : VK_NULL_HANDLE);
 }
 
-
 void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary)
 {
     vkCmdExecuteCommands(Driver::Resources()[cmd].CommandBuffer, 1, &Driver::Resources()[secondary].CommandBuffer);
@@ -369,12 +373,26 @@ void RenderCommand::BindVertexBuffers(const CommandBuffer& cmd, const std::vecto
     for (u32 i = 0; i < vkBuffers.size(); i++)
         vkBuffers[i] = Driver::Resources()[buffers[i]].Buffer;
     
-    vkCmdBindVertexBuffers(Driver::Resources()[cmd].CommandBuffer, 0, (u32)vkBuffers.size(), vkBuffers.data(), offsets.data());
+    vkCmdBindVertexBuffers(Driver::Resources()[cmd].CommandBuffer, 0, (u32)vkBuffers.size(), vkBuffers.data(),
+        offsets.data());
 }
 
-void RenderCommand::BindIndexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindIndexU32Buffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
 {
-    vkCmdBindIndexBuffer(Driver::Resources()[cmd].CommandBuffer, Driver::Resources()[buffer].Buffer, offset, VK_INDEX_TYPE_UINT32);
+    vkCmdBindIndexBuffer(Driver::Resources()[cmd].CommandBuffer, Driver::Resources()[buffer].Buffer, offset,
+        VK_INDEX_TYPE_UINT32);
+}
+
+void RenderCommand::BindIndexU16Buffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+{
+    vkCmdBindIndexBuffer(Driver::Resources()[cmd].CommandBuffer, Driver::Resources()[buffer].Buffer, offset,
+        VK_INDEX_TYPE_UINT16);
+}
+
+void RenderCommand::BindIndexU8Buffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+{
+    vkCmdBindIndexBuffer(Driver::Resources()[cmd].CommandBuffer, Driver::Resources()[buffer].Buffer, offset,
+        VK_INDEX_TYPE_UINT8_EXT);
 }
 
 void RenderCommand::BindGraphics(const CommandBuffer& cmd, Pipeline pipeline)
@@ -409,6 +427,55 @@ void RenderCommand::BindCompute(const CommandBuffer& cmd, const DescriptorSet& d
         (u32)dynamicOffsets.size(), dynamicOffsets.data());
 }
 
+void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators)
+{
+    std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
+    descriptorBufferBindings.reserve(allocators.m_Allocators.size());
+
+    for (auto& allocator : allocators.m_Allocators)
+    {
+        VkBufferDeviceAddressInfo deviceAddressInfo = {};
+        deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+        deviceAddressInfo.buffer = Driver::Resources()[allocator.m_Buffer].Buffer;
+        u64 deviceAddress = vkGetBufferDeviceAddress(Driver::DeviceHandle(), &deviceAddressInfo);
+
+        VkDescriptorBufferBindingInfoEXT binding = {};
+        binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
+        binding.address = deviceAddress;
+        binding.usage = allocator.m_Kind == DescriptorAllocatorKind::Resources ?
+            VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+
+        descriptorBufferBindings.push_back(binding);
+    }
+
+    vkCmdBindDescriptorBuffersEXT(Driver::Resources()[cmd].CommandBuffer, (u32)descriptorBufferBindings.size(),
+        descriptorBufferBindings.data());
+}
+
+void RenderCommand::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
+{
+    BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+void RenderCommand::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
+{
+    BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_COMPUTE);
+}
+
+void RenderCommand::BindDescriptors(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+{
+    ASSERT(&allocators.Get(descriptors.m_Allocator->m_Kind) == descriptors.m_Allocator,
+        "Descriptors were not allocated by any of the provided allocators")
+
+    u32 allocatorIndex = (u32)descriptors.m_Allocator->m_Kind;
+    u64 offset = descriptors.m_Offsets.front();
+    vkCmdSetDescriptorBufferOffsetsEXT(Driver::Resources()[cmd].CommandBuffer, bindPoint,
+        Driver::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);
+}
+
 void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount)
 {
     vkCmdDraw(Driver::Resources()[cmd].CommandBuffer, vertexCount, 1, 0, 0);
@@ -432,7 +499,8 @@ void RenderCommand::DrawIndexed(const CommandBuffer& cmd, u32 indexCount, u32 ba
 void RenderCommand::DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset, u32 count,
     u32 stride)
 {
-    vkCmdDrawIndexedIndirect(Driver::Resources()[cmd].CommandBuffer, Driver::Resources()[buffer].Buffer, offset, count, stride);    
+    vkCmdDrawIndexedIndirect(Driver::Resources()[cmd].CommandBuffer, Driver::Resources()[buffer].Buffer, offset, count,
+        stride);    
 }
 
 void RenderCommand::DrawIndexedIndirectCount(const CommandBuffer& cmd, const Buffer& drawBuffer, u64 drawOffset,

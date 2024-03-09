@@ -16,3 +16,4 @@ tools/*/bin-int
 *.shader
 *.blob
 *.tx
+vendor/imgui/bin

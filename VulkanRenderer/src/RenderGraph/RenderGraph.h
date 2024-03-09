@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "RenderGraphBlackboard.h"
 #include "RenderGraphResource.h"
 #include "RenderPass.h"
 #include "Vulkan/Driver.h"
@@ -26,6 +27,9 @@ namespace RenderGraph
         Storage     = BIT(9),
 
         Sampled     = BIT(10),
+
+        Blit        = BIT(11),
+        Copy        = BIT(12),
     };
     CREATE_ENUM_FLAGS_OPERATORS(ResourceAccessFlags)
 
@@ -48,16 +52,25 @@ namespace RenderGraph
         using ResourceTraits = ResourceTraits<Texture>;
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other)
         {
-            return
-                description.Height == other.Height &&
+            bool canAlias = description.Height == other.Height &&
                 description.Width == other.Width &&
                 description.Layers == other.Layers &&
                 description.Mipmaps == other.Mipmaps &&
-                description.Views == other.Views &&
                 description.Format == other.Format &&
                 description.Kind == other.Kind &&
                 description.Usage == other.Usage &&
                 description.MipmapFilter == other.MipmapFilter;
+            if (!canAlias)
+                return false;
+
+            if (description.AdditionalViews.size() != other.AdditionalViews.size())
+                return false;
+
+            for (u32 view = 0; view < description.AdditionalViews.size(); view++)
+                if (description.AdditionalViews[view] != other.AdditionalViews[view])
+                    return false;
+
+            return true;
         }
     };
 
@@ -123,6 +136,9 @@ namespace RenderGraph
     public:
         Graph();
         ~Graph();
+
+        Resource SetBackbuffer(const Texture& texture);
+        Resource GetBackbuffer() const;
         
         template <typename PassData, typename SetupFn, typename CallbackFn>
         Pass& AddRenderPass(const std::string& name, SetupFn&& setup, CallbackFn&& callback);
@@ -141,10 +157,13 @@ namespace RenderGraph
         Resource DepthStencilTarget(Resource resource, AttachmentLoad onLoad,
                 AttachmentStore onStore, f32 clearDepth, u32 clearStencil = 0);
 
-        DeletionQueue& GetFrameDeletionQueue() { return m_DeletionQueue; }
-        DescriptorAllocator& GetFrameDescriptorAllocator() { return m_DescriptorAllocator; }
-        DescriptorArenaAllocator& GetDescriptorResourceAllocator() const { return *m_DescriptorResourceArenaAllocator; }
-        DescriptorArenaAllocator& GetDescriptorSamplerAllocator() const { return *m_DescriptorSamplerArenaAllocator; }
+        const BufferDescription& GetBufferDescription(Resource buffer);
+        const TextureDescription& GetTextureDescription(Resource texture);
+
+        DeletionQueue& GetFrameDeletionQueue() { return m_FrameDeletionQueue; }
+        const DescriptorArenaAllocators& GetArenaAllocators() const { return *m_ArenaAllocators; }
+        DescriptorArenaAllocators& GetArenaAllocators() { return *m_ArenaAllocators; }
+        Blackboard& GetBlackboard() { return m_Blackboard; }
 
         void Clear();
         void Compile();
@@ -153,6 +172,14 @@ namespace RenderGraph
     private:
         Resource CreateResource(const std::string& name, const BufferDescription& description);
         Resource CreateResource(const std::string& name, const TextureDescription& description);
+
+        void PreprocessResources();
+        void CullPasses();
+        std::vector<std::vector<u32>> BuildAdjacencyList();
+        std::vector<u32> CalculateLongestPath(const std::vector<std::vector<u32>>& adjacency);
+        void CalculateResourcesLifeSpan();
+        void CreatePhysicalResources();
+        void ManageBarriers();
         
         std::pair<PipelineStage, PipelineAccess> InferResourceReadAccess(BufferDescription& description,
             ResourceAccessFlags readFlags);
@@ -167,7 +194,6 @@ namespace RenderGraph
         Resource AddOrCreateAccess(Resource resource, PipelineStage stage, PipelineAccess access);
         Resource AddAccess(ResourceAccess& resource, PipelineStage stage, PipelineAccess access);
     private:
-
         template <typename T>
         struct ExternalResource
         {
@@ -181,12 +207,13 @@ namespace RenderGraph
         std::vector<std::unique_ptr<Pass>> m_RenderPasses;
 
         Pass* m_ResourceTarget{nullptr};
+        Resource m_Backbuffer{};
+        ImageLayout m_BackbufferLayout{ImageLayout::Undefined};
 
         RenderGraphPool m_Pool;
-        DeletionQueue m_DeletionQueue;
-        DescriptorAllocator m_DescriptorAllocator;
-        std::unique_ptr<DescriptorArenaAllocator> m_DescriptorResourceArenaAllocator;
-        std::unique_ptr<DescriptorArenaAllocator> m_DescriptorSamplerArenaAllocator;
+        DeletionQueue m_FrameDeletionQueue;
+        std::unique_ptr<DescriptorArenaAllocators> m_ArenaAllocators;
+        Blackboard m_Blackboard;
     };
 
     class Resources

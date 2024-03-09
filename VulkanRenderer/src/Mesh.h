@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "ModelAsset.h"
-#include "Rendering/RenderingCommon.h"
+#include "Rendering/Pipeline.h"
 
 class ResourceUploader;
 class Renderer;

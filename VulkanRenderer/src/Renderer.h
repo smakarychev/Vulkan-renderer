@@ -15,7 +15,11 @@
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
-class TestPass;
+class BlitPass;
+class HiZVisualize;
+class HiZPass;
+class CrtPass;
+class TestPass3d;
 class Camera;
 class CameraController;
 
@@ -93,12 +97,15 @@ struct FrameContext
     
     SwapchainFrameSync FrameSync;
     u32 FrameNumber;
+    u64 FrameNumberTick;
 
     glm::uvec2 Resolution;
     
     CommandBuffer Cmd;
     
     DeletionQueue DeletionQueue;
+    
+    Camera* Camera{nullptr};
     ResourceUploader* ResourceUploader{nullptr};
 };
 
@@ -138,6 +145,7 @@ private:
     void SceneVisibilityPass();
 
     RenderingInfo GetColorRenderingInfo();
+    RenderingInfo GetImGuiUIRenderingInfo();
 
     void OnWindowResize();
     void RecreateSwapchain();
@@ -158,7 +166,7 @@ private:
     Device m_Device;
     Swapchain m_Swapchain;
     
-    u32 m_FrameNumber{0};
+    u64 m_FrameNumber{0};
     u32 m_SwapchainImageIndex{0};
 
     std::vector<FrameContext> m_FrameContexts;
@@ -186,7 +194,11 @@ private:
     VisibilityBufferVisualizeData m_VisibilityBufferVisualizeData;
 
     std::unique_ptr<RenderGraph::Graph> m_Graph;
-    std::shared_ptr<TestPass> m_TestPass;
+    std::shared_ptr<TestPass3d> m_TestPass3d;
+    std::shared_ptr<CrtPass> m_CrtPass;
+    std::shared_ptr<HiZPass> m_HiZPass;
+    std::shared_ptr<HiZVisualize> m_HiZVisualizePass;
+    std::shared_ptr<BlitPass> m_BlitPass;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

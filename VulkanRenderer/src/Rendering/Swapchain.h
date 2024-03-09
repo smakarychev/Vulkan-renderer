@@ -1,10 +1,8 @@
 ﻿#pragma once
 
-#include <array>
 #include <vector>
 #include <glm/vec2.hpp>
 
-#include "DepthPyramid.h"
 #include "Image.h"
 #include "Synchronization.h"
 #include "types.h"
@@ -65,7 +63,6 @@ public:
     u32 AcquireImage(u32 frameNumber);
     bool PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);
 
-    void PrepareRendering(const CommandBuffer& cmd);
     void PreparePresent(const CommandBuffer& cmd, u32 imageIndex);
 
     const SwapchainFrameSync& GetFrameSync(u32 frameNumber) const;
@@ -96,5 +93,5 @@ private:
     std::vector<SwapchainFrameSync> m_SwapchainFrameSync;
     GLFWwindow* m_Window{nullptr};
     
-    ResourceHandle<Swapchain> m_ResourceHandle;
+    ResourceHandle<Swapchain> m_ResourceHandle{};
 };

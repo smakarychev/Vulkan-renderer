@@ -21,6 +21,7 @@ project "VulkanRenderer"
         IncludeDir["spirv_reflect"],	
         IncludeDir["tracy"],    
         IncludeDir["volk"],
+        IncludeDir["imgui"],
         "$(VULKAN_SDK)/Include",
     }
 
@@ -31,6 +32,7 @@ project "VulkanRenderer"
     links
     {
         "glfw",
+        "imgui",
         "AssetLib",
     }
 

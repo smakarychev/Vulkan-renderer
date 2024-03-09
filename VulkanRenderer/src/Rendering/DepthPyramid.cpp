@@ -26,7 +26,7 @@ DepthPyramid::~DepthPyramid()
 
 void DepthPyramid::Compute(const Image& depthImage, const CommandBuffer& cmd, DeletionQueue& deletionQueue)
 {
-    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Depth pyramid")
+    GPU_PROFILE_FRAME("Depth pyramid")
     Fill(cmd, depthImage, deletionQueue);
 }
 
@@ -105,7 +105,7 @@ void DepthPyramid::CreateDescriptorSets(const Image& depthImage)
 
 void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage, DeletionQueue& deletionQueue)
 {
-    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Fill depth pyramid")
+    GPU_PROFILE_FRAME("Fill depth pyramid")
 
     ImageSubresource depthSubresource = depthImage.CreateSubresource();
     Barrier barrier = {};
@@ -137,8 +137,8 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage, Delet
         u32 levelHeight = std::max(1u, height >> i);
         glm::uvec2 levels = {levelWidth, levelHeight};
 
-        descriptorSet.BindCompute(cmd, DescriptorKind::Global, pipeline->GetPipelineLayout());
-        RenderCommand::PushConstants(cmd, pipeline->GetPipelineLayout(), &levels);
+        descriptorSet.BindCompute(cmd, DescriptorKind::Global, pipeline->GetLayout());
+        RenderCommand::PushConstants(cmd, pipeline->GetLayout(), &levels);
         RenderCommand::Dispatch(cmd, {(levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1});
 
         ImageSubresource pyramidSubresource = m_PyramidDepth.CreateSubresource();

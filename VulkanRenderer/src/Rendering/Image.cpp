@@ -1,5 +1,7 @@
 ﻿#include "Image.h"
 
+#include <numeric>
+
 #include "Core/core.h"
 #include "Vulkan/Driver.h"
 
@@ -46,7 +48,7 @@ namespace ImageUtils
 
     std::string imageUsageToString(ImageUsage usage)
     {
-        std::string usageString = "";
+        std::string usageString;
         if (enumHasAny(usage, ImageUsage::Sampled))
             usageString += usageString.empty() ? "Sampled" : " | Sampled";
         if (enumHasAny(usage, ImageUsage::Color))
@@ -155,10 +157,45 @@ void Sampler::Destroy(const Sampler& sampler)
     Driver::Destroy(sampler.Handle());
 }
 
+ImageSubresourceDescription::Packed ImageSubresourceDescription::Pack() const
+{
+    u8 mipBase = (u8)MipmapBase;
+    // this should conveniently convert ALL_MIPMAPS to -1
+    i8 mipmaps = (i8)Mipmaps;
+    u8 layerBase = (u8)LayerBase;
+    // this should conveniently convert ALL_LAYERS to -1
+    i8 layers = (i8)Layers;
+
+    Packed packed;
+    packed.m_Data = mipBase | *(u8*)&mipmaps << 8 | layerBase << 16 | *(u8*)&layers << 24;
+    
+    return packed;
+}
+
+ImageSubresourceDescription::Packed ImageSubresourceDescription::Pack(const ImageSubresourceDescription& description)
+{
+    return description.Pack();
+}
+
+ImageSubresourceDescription ImageSubresourceDescription::Unpack(Packed packed)
+{
+    static constexpr u32 MASK = (1 << 8) - 1;
+    u32 data = packed.m_Data;
+    u8 mipBase = data & MASK;
+    i8 mipmaps = (i8)(data >> 8 & MASK);
+    u8 layerBase = data >> 16 & MASK;
+    i8 layers = (i8)(data >> 24 & MASK);
+
+    return {
+        .MipmapBase = mipBase,
+        .Mipmaps = (u32)mipmaps,
+        .LayerBase = layerBase,
+        .Layers = (u32)layers};
+}
+
 Image::Builder::Builder(const ImageDescription& description)
 {
     m_CreateInfo.Description = description;
-    m_CreateInfo.ViewCountFromDescription = description.Views > 1;
 }
 
 Image Image::Builder::Build()
@@ -291,8 +328,7 @@ Image::Builder& Image::Builder::SetUsage(ImageUsage usage)
 
 Image::Builder& Image::Builder::AddView(const ImageSubresourceDescription& subresource, ImageViewHandle& viewHandle)
 {
-    if (!m_CreateInfo.ViewCountFromDescription)
-        m_CreateInfo.Description.Views += 1;
+    m_CreateInfo.Description.AdditionalViews.push_back(subresource.Pack());
     m_CreateInfo.AdditionalViews.push_back(subresource);
     // set index after push, so that it begins with 1. Index 0 is reserved for a base view
     viewHandle.m_Index = (u32)m_CreateInfo.AdditionalViews.size();
@@ -302,8 +338,7 @@ Image::Builder& Image::Builder::AddView(const ImageSubresourceDescription& subre
 
 void Image::Builder::PreBuild()
 {
-    ASSERT(!m_CreateInfo.ViewCountFromDescription ||
-        m_CreateInfo.Description.Views == (u16)m_CreateInfo.AdditionalViews.size(),
+    ASSERT(m_CreateInfo.Description.AdditionalViews.size() == m_CreateInfo.AdditionalViews.size(),
         "View count does not match the value specified in image description")
     
     if (m_CreateInfo.SourceInfo == CreateInfo::SourceInfo::Asset)
@@ -450,6 +485,15 @@ ImageBindingInfo Image::CreateBindingInfo(Sampler sampler, ImageLayout layout, I
         .Sampler = sampler,
         .Layout = layout,
         .ViewHandle = handle};
+}
+
+std::vector<ImageViewHandle> Image::GetViewHandles() const
+{
+    std::vector<ImageViewHandle> handles(m_Description.AdditionalViews.size());
+    for (u32 i = 0; i < m_Description.AdditionalViews.size(); i++)
+        handles[i] = i;
+    
+    return handles;
 }
 
 u16 Image::CalculateMipmapCount(const glm::uvec2& resolution)

@@ -39,11 +39,16 @@ struct BufferDescription
     BufferUsage Usage{BufferUsage::None};
 };
 
+struct BufferSubresourceDescription
+{
+    u64 SizeBytes;
+    u64 Offset;
+};
+
 struct BufferSubresource
 {
     const Buffer* Buffer;
-    u64 SizeBytes;
-    u64 Offset;
+    BufferSubresourceDescription Description;
 };
 using BufferBindingInfo = BufferSubresource;
 
@@ -89,6 +94,16 @@ public:
 
     BufferSubresource CreateSubresource() const;
     BufferSubresource CreateSubresource(u64 sizeBytes, u64 offset) const;
+    BufferSubresource CreateSubresource(const BufferSubresourceDescription& description) const;
+    
+    BufferBindingInfo CreateBindingInfo() const
+    {
+        return CreateSubresource();
+    }
+    BufferBindingInfo CreateBindingInfo(u64 sizeBytes, u64 offset) const
+    {
+        return CreateSubresource(sizeBytes, offset);
+    }
 
     bool operator==(const Buffer& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(const Buffer& other) const { return !(*this == other); }
@@ -99,5 +114,5 @@ private:
     // todo: also store device address?
     void* m_HostAddress{nullptr};
     
-    ResourceHandle<Buffer> m_ResourceHandle;
+    ResourceHandle<Buffer> m_ResourceHandle{};
 };

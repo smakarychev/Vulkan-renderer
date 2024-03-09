@@ -1,7 +1,10 @@
 #pragma once
+
+#include "types.h"
+
 #include <string>
 
-enum class Format
+enum class Format : u8
 {
     Undefined = 0,
 

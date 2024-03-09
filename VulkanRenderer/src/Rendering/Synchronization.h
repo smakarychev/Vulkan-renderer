@@ -46,7 +46,7 @@ public:
 private:
     ResourceHandle<Fence> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Fence> m_ResourceHandle;
+    ResourceHandle<Fence> m_ResourceHandle{};
 };
 
 class Semaphore
@@ -69,7 +69,7 @@ public:
 private:
     ResourceHandle<Semaphore> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Semaphore> m_ResourceHandle;
+    ResourceHandle<Semaphore> m_ResourceHandle{};
 };
 
 class TimelineSemaphore
@@ -165,7 +165,7 @@ public:
 private:
     ResourceHandle<DependencyInfo> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<DependencyInfo> m_ResourceHandle;
+    ResourceHandle<DependencyInfo> m_ResourceHandle{};
 };
 
 class Barrier
@@ -198,5 +198,5 @@ public:
 private:
     ResourceHandle<SplitBarrier> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<SplitBarrier> m_ResourceHandle;
+    ResourceHandle<SplitBarrier> m_ResourceHandle{};
 };

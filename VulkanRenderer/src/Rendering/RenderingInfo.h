@@ -66,7 +66,7 @@ private:
     ResourceHandle<RenderingAttachment> Handle() const { return m_ResourceHandle; }
 private:
     RenderingAttachmentType m_Type{};
-    ResourceHandle<RenderingAttachment> m_ResourceHandle;
+    ResourceHandle<RenderingAttachment> m_ResourceHandle{};
 };
 
 class RenderingInfo
@@ -98,5 +98,5 @@ private:
     ResourceHandle<RenderingInfo> Handle() const { return m_ResourceHandle; }
 private:
     glm::uvec2 m_RenderArea;
-    ResourceHandle<RenderingInfo> m_ResourceHandle;
+    ResourceHandle<RenderingInfo> m_ResourceHandle{};
 };

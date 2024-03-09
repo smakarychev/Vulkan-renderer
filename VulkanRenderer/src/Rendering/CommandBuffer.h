@@ -75,7 +75,7 @@ private:
     ResourceHandle<CommandBuffer> Handle() const { return m_ResourceHandle; }
 private:
     CommandBufferKind m_Kind{};
-    ResourceHandle<CommandBuffer> m_ResourceHandle;
+    ResourceHandle<CommandBuffer> m_ResourceHandle{};
 };
 
 
@@ -110,7 +110,7 @@ public:
 private:
     ResourceHandle<CommandPool> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<CommandPool> m_ResourceHandle;
+    ResourceHandle<CommandPool> m_ResourceHandle{};
 };
 
 class CommandBufferArray

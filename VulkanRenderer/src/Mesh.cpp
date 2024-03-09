@@ -79,19 +79,19 @@ VertexInputDescription VertexP3N3T3UV2::GetInputDescriptionDI()
 
     VertexInputDescription::Attribute normal = {};
     normal.BindingIndex = normalBinding.Index;
-    normal.Index = 0;
+    normal.Index = 1;
     normal.Format = Format::RGB32_FLOAT;
     normal.OffsetBytes = 0;
 
     VertexInputDescription::Attribute tangent = {};
     tangent.BindingIndex = tangentBinding.Index;
-    tangent.Index = 0;
+    tangent.Index = 2;
     tangent.Format = Format::RGB32_FLOAT;
     tangent.OffsetBytes = 0;
     
     VertexInputDescription::Attribute uv = {};
     uv.BindingIndex = uvBinding.Index;
-    uv.Index = 0;
+    uv.Index = 3;
     uv.Format = Format::RG32_FLOAT;
     uv.OffsetBytes = 0;
 

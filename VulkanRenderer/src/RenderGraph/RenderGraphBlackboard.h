@@ -21,7 +21,17 @@ namespace RenderGraph
         template <typename OutputType>
         void RegisterOutput(const OutputType& output);
         template <typename OutputType>
-        const OutputType& GetOutput() const;        
+        void UpdateOutput(const OutputType& output);
+        template <typename OutputType>
+        const OutputType& GetOutput() const;
+        template <typename OutputType>
+        OutputType& GetOutput();
+        template <typename OutputType>
+        const OutputType* TryGetOutput() const;
+        template <typename OutputType>
+        OutputType* TryGetOutput();
+        template <typename OutputType>
+        bool Has() const;
     private:
         std::vector<std::shared_ptr<void>> m_PassesOutputs;
     };
@@ -38,6 +48,20 @@ namespace RenderGraph
     }
 
     template <typename OutputType>
+    void Blackboard::UpdateOutput(const OutputType& output)
+    {
+        if (!Has<OutputType>())
+        {
+            RegisterOutput(output);
+        }
+        else
+        {
+            u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
+            m_PassesOutputs[outputIndex] = std::make_shared<OutputType>(output);
+        }
+    }
+
+    template <typename OutputType>
     const OutputType& Blackboard::GetOutput() const
     {
         u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
@@ -45,6 +69,35 @@ namespace RenderGraph
             "Output is not registered")
 
         return *(OutputType*)m_PassesOutputs[outputIndex].get();
+    }
+
+    template <typename OutputType>
+    OutputType& Blackboard::GetOutput()
+    {
+        return const_cast<OutputType&>(const_cast<const Blackboard&>(*this).GetOutput<OutputType>());
+    }
+
+    template <typename OutputType>
+    const OutputType* Blackboard::TryGetOutput() const
+    {
+        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
+        if (outputIndex >= m_PassesOutputs.size() || m_PassesOutputs[outputIndex] == nullptr)
+            return nullptr;
+
+        return (OutputType*)m_PassesOutputs[outputIndex].get();
+    }
+
+    template <typename OutputType>
+    OutputType* Blackboard::TryGetOutput()
+    {
+        return const_cast<OutputType&>(const_cast<const Blackboard&>(*this).TryGetOutput<OutputType>());
+    }
+
+    template <typename OutputType>
+    bool Blackboard::Has() const
+    {
+        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
+        return outputIndex < m_PassesOutputs.size() && m_PassesOutputs[outputIndex] != nullptr;
     }
 }
 

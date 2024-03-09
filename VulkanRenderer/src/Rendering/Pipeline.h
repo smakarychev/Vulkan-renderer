@@ -37,7 +37,40 @@ public:
 private:
     ResourceHandle<PipelineLayout> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<PipelineLayout> m_ResourceHandle;
+    ResourceHandle<PipelineLayout> m_ResourceHandle{};
+};
+
+struct PipelineSpecializationInfo
+{
+    struct ShaderSpecialization
+    {
+        u32 Id;
+        u32 SizeBytes;
+        u32 Offset;
+        ShaderStage ShaderStages;
+    };
+    std::vector<ShaderSpecialization> ShaderSpecializations;
+    std::vector<u8> Buffer;
+};
+
+enum class PrimitiveKind { Triangle, Point };
+
+struct VertexInputDescription
+{
+    struct Binding
+    {
+        u32 Index;
+        u32 StrideBytes;
+    };
+    struct Attribute
+    {
+        u32 Index;
+        u32 BindingIndex;
+        Format Format;
+        u32 OffsetBytes;
+    };
+    std::vector<Binding> Bindings;
+    std::vector<Attribute> Attributes;
 };
 
 class Pipeline
@@ -89,5 +122,5 @@ public:
 private:
     ResourceHandle<Pipeline> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Pipeline> m_ResourceHandle;
+    ResourceHandle<Pipeline> m_ResourceHandle{};
 };

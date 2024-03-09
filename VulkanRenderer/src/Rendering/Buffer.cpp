@@ -125,9 +125,16 @@ BufferSubresource Buffer::CreateSubresource() const
 
 BufferSubresource Buffer::CreateSubresource(u64 sizeBytes, u64 offset) const
 {
-    ASSERT(offset + sizeBytes <= m_Description.SizeBytes, "Invalid subresource range")
-    return {
-        .Buffer = this,
+    return CreateSubresource({
         .SizeBytes = sizeBytes,
-        .Offset = offset};
+        .Offset = offset});
+}
+
+BufferSubresource Buffer::CreateSubresource(const BufferSubresourceDescription& description) const
+{
+    ASSERT(description.Offset + description.SizeBytes <= m_Description.SizeBytes, "Invalid subresource range")
+
+    return BufferSubresource{
+        .Buffer = this,
+        .Description = description};
 }

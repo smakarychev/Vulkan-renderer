@@ -67,7 +67,7 @@ public:
 private:
     ResourceHandle<Sampler> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Sampler> m_ResourceHandle;
+    ResourceHandle<Sampler> m_ResourceHandle{};
 };
 
 class ImageViewHandle
@@ -76,34 +76,36 @@ class ImageViewHandle
     friend class ImageViewList;
     friend class Image;
     FRIEND_INTERNAL
+public:
+    ImageViewHandle() = default;
+private:
+    ImageViewHandle(u32 index) : m_Index(index) {}
 private:
     u32 m_Index{NON_INDEX};
 };
 
-// todo: store view subresources?
-struct ImageDescription
+struct ImageSubresourceDescription
 {
     static constexpr u32 ALL_MIPMAPS = ~0u;
     static constexpr u32 ALL_LAYERS = ~0u;
     
-    u32 Width{0};
-    u32 Height{0};
-    u32 Layers{1};
-    u16 Mipmaps{1};
-    u16 Views{1};
-    Format Format{Format::Undefined};
-    ImageKind Kind{ImageKind::Image2d};
-    ImageUsage Usage{ImageUsage::None};
-    ImageFilter MipmapFilter{ImageFilter::Linear};
-};
-using TextureDescription = ImageDescription;
-
-struct ImageSubresourceDescription
-{
     u32 MipmapBase;
-    u32 Mipmaps{ImageDescription::ALL_MIPMAPS};
+    u32 Mipmaps{ALL_MIPMAPS};
     u32 LayerBase;
-    u32 Layers{ImageDescription::ALL_LAYERS};
+    u32 Layers{ALL_LAYERS};
+
+    class Packed
+    {
+        friend struct ImageSubresourceDescription;
+    public:
+        auto operator<=>(const Packed& other) const = default; 
+    private:
+        u32 m_Data{0};
+    };
+
+    Packed Pack() const;
+    static Packed Pack(const ImageSubresourceDescription& description);
+    static ImageSubresourceDescription Unpack(Packed packed);
 };
 
 struct ImageSubresource
@@ -112,12 +114,26 @@ struct ImageSubresource
     ImageSubresourceDescription Description;
 };
 
+struct ImageDescription
+{
+    u32 Width{0};
+    u32 Height{0};
+    u32 Layers{1};
+    u32 Mipmaps{1};
+    Format Format{Format::Undefined};
+    ImageKind Kind{ImageKind::Image2d};
+    ImageUsage Usage{ImageUsage::None};
+    ImageFilter MipmapFilter{ImageFilter::Linear};
+    std::vector<ImageSubresourceDescription::Packed> AdditionalViews;
+};
+using TextureDescription = ImageDescription;
+
 struct ImageBlitInfo
 {
     const Image* Image;
     u32 MipmapBase;
     u32 LayerBase;
-    u32 Layers{ImageDescription::ALL_LAYERS};
+    u32 Layers{ImageSubresourceDescription::ALL_LAYERS};
     glm::uvec3 Bottom;
     glm::uvec3 Top;
 };
@@ -155,7 +171,6 @@ public:
             Buffer DataBuffer;
             ImageDescription Description{};
             bool CreateMipmaps{false};
-            bool ViewCountFromDescription{false};
             std::vector<ImageSubresourceDescription> AdditionalViews;
         };
     public:
@@ -204,6 +219,8 @@ public:
     ImageBindingInfo CreateBindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const;
     ImageBindingInfo CreateBindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
 
+    std::vector<ImageViewHandle> GetViewHandles() const;
+
     static u16 CalculateMipmapCount(const glm::uvec2& resolution);
     static u16 CalculateMipmapCount(const glm::uvec3& resolution);
 
@@ -231,7 +248,7 @@ private:
     ResourceHandle<Image> Handle() const { return m_ResourceHandle; }
 private:
     ImageDescription m_Description{};
-    ResourceHandle<Image> m_ResourceHandle;
+    ResourceHandle<Image> m_ResourceHandle{};
 };
 
 using Texture = Image;

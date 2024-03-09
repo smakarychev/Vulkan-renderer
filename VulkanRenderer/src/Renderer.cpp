@@ -11,12 +11,17 @@
 #include "Core/Random.h"
 
 #include "GLFW/glfw3.h"
+#include "Imgui/ImguiUI.h"
 #include "Vulkan/RenderCommand.h"
 #include "Rendering/RenderingUtils.h"
 #include "RenderGraph/ModelCollection.h"
 #include "RenderGraph/RenderPassGeometry.h"
 #include "RenderGraph/RenderPassGeometryCull.h"
-#include "RenderGraph/TestPass/TestPass.h"
+#include "RenderGraph/HiZ/HiZPass.h"
+#include "RenderGraph/HiZ/HiZVisualize.h"
+#include "RenderGraph/PostProcessing/CRT/CrtPass.h"
+#include "RenderGraph/TestPass3d/TestPass3d.h"
+#include "RenderGraph/Utility/BlitPass.h"
 #include "Rendering//DepthPyramid.h"
 
 Renderer::Renderer() = default;
@@ -31,9 +36,21 @@ void Renderer::Init()
     Input::s_MainViewportSize = m_Swapchain.GetResolution();
     m_Camera = std::make_shared<Camera>();
     m_CameraController = std::make_unique<CameraController>(m_Camera);
+    for (auto& ctx : m_FrameContexts)
+        ctx.Camera = m_Camera.get();
 
     m_Graph = std::make_unique<RenderGraph::Graph>();
-    m_TestPass = std::make_shared<TestPass>(*m_Graph, m_Swapchain.GetDrawImage());
+    m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
+    
+    m_TestPass3d = std::make_shared<TestPass3d>(*m_Graph, m_Swapchain.GetDepthImage(),
+        &m_ResourceUploader);
+    auto& testPassOutput = m_Graph->GetBlackboard().GetOutput<TestPass3d::PassData>();
+    m_CrtPass = std::make_shared<CrtPass>(*m_Graph, testPassOutput.ColorOut, m_Graph->GetBackbuffer());
+    m_HiZPass = std::make_shared<HiZPass>(*m_Graph, testPassOutput.DepthOut);
+    auto& hizPassOutput = m_Graph->GetBlackboard().GetOutput<HiZPass::PassData>();
+    m_HiZVisualizePass = std::make_shared<HiZVisualize>(*m_Graph, hizPassOutput.HiZOut);
+    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
+    m_BlitPass = std::make_shared<BlitPass>(*m_Graph, hizVisualizePassOutput.ColorOut, m_Graph->GetBackbuffer());
 }
 
 Renderer* Renderer::Get()
@@ -53,6 +70,7 @@ void Renderer::Run()
     {
         glfwPollEvents();
         //OnUpdate();
+        m_CameraController->OnUpdate(1.0f / 60.0f);
         OnRender();
     }
 }
@@ -62,6 +80,7 @@ void Renderer::OnRender()
     ZoneScopedN("On render");
 
     BeginFrame();
+    ImGuiUI::BeginFrame();
     if (!m_FrameEarlyExit)
     {
         //if (!m_ComputeDepthPyramidData.DepthPyramid)
@@ -83,6 +102,8 @@ void Renderer::OnRender()
             once = false;
         }
         m_Graph->Execute(GetFrameContext());
+        
+        ImGuiUI::EndFrame(GetFrameContext().Cmd, GetImGuiUIRenderingInfo());
         EndFrame();
         
         FrameMark; // tracy
@@ -170,8 +191,6 @@ void Renderer::BeginFrame()
     CommandBuffer& cmd = GetFrameContext().Cmd;
     cmd.Reset();
     cmd.Begin();
-
-    m_Swapchain.PrepareRendering(cmd);
 }
 
 RenderingInfo Renderer::GetColorRenderingInfo()
@@ -188,6 +207,22 @@ RenderingInfo Renderer::GetColorRenderingInfo()
         .Build(GetFrameContext().DeletionQueue);
 
     return renderingInfo;
+}
+
+RenderingInfo Renderer::GetImGuiUIRenderingInfo()
+{
+    RenderingAttachment color = RenderingAttachment::Builder()
+      .SetType(RenderingAttachmentType::Color)
+      .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::General)
+      .LoadStoreOperations(AttachmentLoad::Load, AttachmentStore::Store)
+      .Build(GetFrameContext().DeletionQueue);
+
+    RenderingInfo info = RenderingInfo::Builder()
+        .AddAttachment(color)
+        .SetRenderArea(m_Swapchain.GetResolution())
+        .Build(GetFrameContext().DeletionQueue);
+
+    return info;
 }
 
 void Renderer::EndFrame()
@@ -218,7 +253,8 @@ void Renderer::EndFrame()
         RecreateSwapchain();
     
     m_FrameNumber++;
-    m_CurrentFrameContext = &m_FrameContexts[m_FrameNumber % BUFFERED_FRAMES];
+    m_CurrentFrameContext = &m_FrameContexts[(u32)m_FrameNumber % BUFFERED_FRAMES];
+    m_CurrentFrameContext->FrameNumberTick = m_FrameNumber;
     m_CurrentFrameContext->DeletionQueue.Flush();
     
     ProfilerContext::Get()->NextFrame();
@@ -274,7 +310,7 @@ void Renderer::SceneVisibilityPass()
     RenderCommand::BeginRendering(cmd, GetColorRenderingInfo());
 
     m_VisibilityBufferVisualizeData.Pipeline.BindGraphics(cmd);
-    const PipelineLayout& layout = m_VisibilityBufferVisualizeData.Pipeline.GetPipelineLayout();
+    const PipelineLayout& layout = m_VisibilityBufferVisualizeData.Pipeline.GetLayout();
     m_VisibilityBufferVisualizeData.DescriptorSet.BindGraphics(cmd, DescriptorKind::Global, layout, {cameraDataOffset});
     m_VisibilityBufferVisualizeData.DescriptorSet.BindGraphics(cmd, DescriptorKind::Pass, layout);
     RenderCommand::Draw(cmd, 3);
@@ -302,6 +338,7 @@ void Renderer::InitRenderingStructures()
         .Build();
 
     Driver::Init(m_Device);
+    ImGuiUI::Init(m_Window);
 
     m_ResourceUploader.Init();
     
@@ -434,6 +471,7 @@ void Renderer::Shutdown()
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
 
+    m_HiZPass.reset();
     m_Graph.reset();
     ShutdownVisibilityPass();
     RenderPassGeometryCull::Shutdown(m_OpaqueGeometryCull);
@@ -441,6 +479,8 @@ void Renderer::Shutdown()
     for (auto& ctx : m_FrameContexts)
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();
+
+    ImGuiUI::Shutdown();
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();

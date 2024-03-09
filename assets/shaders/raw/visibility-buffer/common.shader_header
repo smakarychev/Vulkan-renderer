@@ -19,23 +19,6 @@ VisibilityInfo unpack_visibility(uint packed) {
     return visibilityInfo;
 }
 
-struct Normal {
-    float x;
-    float y; 
-    float z;
-};
-
-struct Tangent {
-    float x;
-    float y; 
-    float z;
-};
-
-struct UV {
-    float u;
-    float v;
-};
-
 struct Material {
     vec4 albedo_color;
     float metallic;

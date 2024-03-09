@@ -4,7 +4,6 @@
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 #include "utils/utils.h"
-#include "GLFW/glfw3.h"
 
 Swapchain Swapchain::Builder::Build()
 {
@@ -116,69 +115,27 @@ bool Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 fra
     return RenderCommand::Present(*this, queueInfo, m_SwapchainFrameSync[frameNumber], imageIndex);
 }
 
-void Swapchain::PrepareRendering(const CommandBuffer& cmd)
-{
-    ImageSubresource drawSubresource = m_DrawImage.CreateSubresource();
-    ImageSubresource depthSubresource = m_DepthImage.CreateSubresource();
-    Barrier barrier = {};
-
-    DeletionQueue deletionQueue = {};
-    
-    DependencyInfo drawTransition = DependencyInfo::Builder()
-        .LayoutTransition({
-            .ImageSubresource = &drawSubresource,
-            .SourceStage = PipelineStage::Top,
-            .DestinationStage = PipelineStage::ColorOutput,
-            .SourceAccess = PipelineAccess::None,
-            .DestinationAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,
-            .OldLayout = ImageLayout::Undefined,
-            .NewLayout = ImageLayout::ColorAttachment})
-        .Build(deletionQueue);
-    
-    DependencyInfo depthTransition = DependencyInfo::Builder()
-        .LayoutTransition({
-            .ImageSubresource = &depthSubresource,
-            .SourceStage = PipelineStage::Top,
-            .DestinationStage = PipelineStage::DepthEarly | PipelineStage::DepthLate,
-            .SourceAccess = PipelineAccess::None,
-            .DestinationAccess = PipelineAccess::ReadDepthStencilAttachment |
-                PipelineAccess::WriteDepthStencilAttachment,
-            .OldLayout = ImageLayout::Undefined,
-            .NewLayout = ImageLayout::DepthAttachment})
-        .Build(deletionQueue);
-
-    barrier.Wait(cmd, drawTransition);
-    barrier.Wait(cmd, depthTransition);
-}
-
 void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
 {
     ImageSubresource drawSubresource = m_DrawImage.CreateSubresource(0, 1, 0, 1);
     ImageSubresource presentSubresource = m_ColorImages[imageIndex].CreateSubresource(0, 1, 0, 1);
     Barrier barrier = {};
     DeletionQueue deletionQueue = {};
-    
-    LayoutTransitionInfo drawToSourceTransitionInfo = {
-        .ImageSubresource = &drawSubresource,
+
+    LayoutTransitionInfo presentToDestinationTransitionInfo = {
+        .ImageSubresource = &presentSubresource,
         .SourceStage = PipelineStage::ColorOutput,
         .DestinationStage = PipelineStage::Bottom,
         .SourceAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,
         .DestinationAccess = PipelineAccess::None,
-        .OldLayout = ImageLayout::ColorAttachment,
-        .NewLayout = ImageLayout::Source};
-    
-    LayoutTransitionInfo presentToDestinationTransitionInfo = drawToSourceTransitionInfo;
-    presentToDestinationTransitionInfo.ImageSubresource = &presentSubresource;
-    presentToDestinationTransitionInfo.OldLayout = ImageLayout::Undefined;
-    presentToDestinationTransitionInfo.NewLayout = ImageLayout::Destination;
+        .OldLayout = ImageLayout::Undefined,
+        .NewLayout = ImageLayout::Destination 
+    }; 
 
     LayoutTransitionInfo destinationToPresentTransitionInfo = presentToDestinationTransitionInfo;
     destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
     destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
 
-    DependencyInfo drawToSourceTransition = DependencyInfo::Builder()
-        .LayoutTransition(drawToSourceTransitionInfo)
-        .Build(deletionQueue);
     DependencyInfo presentToDestinationTransition = DependencyInfo::Builder()
         .LayoutTransition(presentToDestinationTransitionInfo)
         .Build(deletionQueue);
@@ -186,7 +143,6 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
         .LayoutTransition(destinationToPresentTransitionInfo)
         .Build(deletionQueue);
 
-    barrier.Wait(cmd, drawToSourceTransition);
     barrier.Wait(cmd, presentToDestinationTransition);
 
     ImageBlitInfo source = m_DrawImage.CreateImageBlitInfo(

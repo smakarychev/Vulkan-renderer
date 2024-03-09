@@ -25,6 +25,7 @@ namespace RenderGraph
         constexpr bool IsBuffer() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == BUFFER_TYPE; }
         constexpr bool IsTexture() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == TEXTURE_TYPE; }
         constexpr u32 Index() const { return m_Value & INDEX_BITS_MASK; }
+        constexpr bool IsValid() const { return m_Value != NON_INDEX; }
 
         static constexpr Resource Texture(u32 index)
         {
@@ -65,7 +66,20 @@ namespace RenderGraph
         {
             return enumHasAny(access,
                 PipelineAccess::WriteShader | PipelineAccess::WriteAll |
-                PipelineAccess::WriteColorAttachment | PipelineAccess::WriteDepthStencilAttachment);
+                PipelineAccess::WriteColorAttachment | PipelineAccess::WriteDepthStencilAttachment |
+                PipelineAccess::WriteTransfer);
+        }
+        static constexpr bool HasReadAccess(PipelineAccess access)
+        {
+            return enumHasAny(access,
+                PipelineAccess::ReadAll | PipelineAccess::ReadAttribute |
+                PipelineAccess::ReadConditional | PipelineAccess::ReadHost |
+                PipelineAccess::ReadIndex | PipelineAccess::ReadIndirect |
+                PipelineAccess::ReadSampled | PipelineAccess::ReadShader |
+                PipelineAccess::ReadStorage | PipelineAccess::ReadUniform |
+                PipelineAccess::ReadDepthStencilAttachment | PipelineAccess::ReadColorAttachment |
+                PipelineAccess::ReadFeedbackCounter | PipelineAccess::ReadInputAttachment |
+                PipelineAccess::ReadTransfer);
         }
     private:
         Resource m_Resource{};
@@ -135,6 +149,7 @@ namespace RenderGraph
         friend class Resources;
         
         using Desc = typename ResourceTraits<T>::Desc;
+        using Type = T;
     public:
         ResourceType(const std::string& name, const Desc& desc)
             : ResourceTypeBase(name), m_Description(desc) {}
@@ -169,11 +184,11 @@ namespace RenderGraph
         u32 Width;
         u32 Height;
         u32 Layers{1};
-        u16 Mipmaps{1};
-        u16 Views{1};
+        u32 Mipmaps{1};
         Format Format;
-        ImageKind Kind;
+        ImageKind Kind{ImageKind::Image2d};
         ImageFilter MipmapFilter{ImageFilter::Linear};
+        std::vector<ImageSubresourceDescription::Packed> AdditionalViews;
     };
 }
 

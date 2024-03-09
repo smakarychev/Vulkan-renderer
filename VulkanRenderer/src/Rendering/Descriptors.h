@@ -9,9 +9,10 @@
 #include <vector>
 
 #include "Buffer.h"
-#include "DescriptorSetTraits.h"
+#include "DescriptorsTraits.h"
 #include "Image.h"
 
+class DescriptorArenaAllocators;
 class DescriptorArenaAllocator;
 class ResourceUploader;
 class Sampler;
@@ -24,7 +25,7 @@ class DescriptorsLayout;
 class DescriptorPool;
 class Device;
 
-struct DescriptorSetBinding
+struct DescriptorBinding
 {
     u32 Binding;
     DescriptorType Type;
@@ -44,13 +45,13 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            std::vector<DescriptorSetBinding> Bindings;
+            std::vector<DescriptorBinding> Bindings;
             std::vector<DescriptorFlags> BindingFlags;
             DescriptorLayoutFlags Flags;
         };
     public:
         DescriptorsLayout Build();
-        Builder& SetBindings(const std::vector<DescriptorSetBinding>& bindings);
+        Builder& SetBindings(const std::vector<DescriptorBinding>& bindings);
         Builder& SetBindingFlags(const std::vector<DescriptorFlags>& flags);
         Builder& SetFlags(DescriptorLayoutFlags flags);
     private:
@@ -64,7 +65,7 @@ public:
 private:
     ResourceHandle<DescriptorsLayout> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<DescriptorsLayout> m_ResourceHandle;
+    ResourceHandle<DescriptorsLayout> m_ResourceHandle{};
 };
 
 class DescriptorSet
@@ -73,7 +74,6 @@ class DescriptorSet
     FRIEND_INTERNAL
     friend class DescriptorAllocator;
 public:
-    using BufferBindingInfo = BufferSubresource;
     using TextureBindingInfo = ImageBindingInfo;
     class Builder
     {
@@ -135,7 +135,7 @@ private:
 private:
     DescriptorAllocator* m_Allocator{nullptr};
     DescriptorsLayout m_Layout;
-    ResourceHandle<DescriptorSet> m_ResourceHandle;
+    ResourceHandle<DescriptorSet> m_ResourceHandle{};
 };
 
 class DescriptorAllocator
@@ -190,17 +190,27 @@ private:
     };
 
     u32 m_MaxSetsPerPool{};
-    ResourceHandle<DescriptorAllocator> m_ResourceHandle;
+    ResourceHandle<DescriptorAllocator> m_ResourceHandle{};
 };
 
 class Descriptors
 {
     FRIEND_INTERNAL
 public:
+    struct BindingInfo
+    {
+        u32 Slot;
+        DescriptorType Type;
+    };
+public:
     using BufferBindingInfo = BufferSubresource;
     using TextureBindingInfo = ImageBindingInfo;
-    void UpdateBinding(u32 slot, const BufferBindingInfo& buffer, DescriptorType type) const;
-    void UpdateBinding(u32 slot, const TextureBindingInfo& texture, DescriptorType type) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+        PipelineLayout pipelineLayout, u32 firstSet) const;
+    void BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+        PipelineLayout pipelineLayout, u32 firstSet) const;
 private:
     std::vector<u64> m_Offsets;
     const DescriptorArenaAllocator* m_Allocator;
@@ -208,7 +218,8 @@ private:
 
 enum class DescriptorAllocatorKind
 {
-    Resources, Samplers
+    Resources = 0, Samplers,
+    MaxVal
 };
 
 enum class DescriptorAllocatorResidence
@@ -218,14 +229,14 @@ enum class DescriptorAllocatorResidence
 
 struct DescriptorAllocatorAllocationBindings
 {
-    std::vector<DescriptorSetBinding> Bindings;
-    std::vector<DescriptorFlags> Flags;
+    std::vector<DescriptorBinding> Bindings;
 };
 
 // todo: name is temp, `DescriptorAllocator` is currently an existing entity
 class DescriptorArenaAllocator
 {
     FRIEND_INTERNAL
+    friend class DescriptorArenaAllocators;
 public:
     class Builder
     {
@@ -263,6 +274,19 @@ private:
     DescriptorAllocatorKind m_Kind{DescriptorAllocatorKind::Resources};
     DescriptorAllocatorResidence m_Residence{DescriptorAllocatorResidence::CPU};
     std::vector<DescriptorType> m_UsedTypes;
+};
+
+class DescriptorArenaAllocators
+{
+    FRIEND_INTERNAL
+public:
+    DescriptorArenaAllocators(const DescriptorArenaAllocator& resourceAllocator,
+        const DescriptorArenaAllocator& samplerAllocator);
+    
+    const DescriptorArenaAllocator& Get(DescriptorAllocatorKind kind) const;
+    DescriptorArenaAllocator& Get(DescriptorAllocatorKind kind);
+private:
+    std::array<DescriptorArenaAllocator, (u32)DescriptorAllocatorKind::MaxVal> m_Allocators;
 };
 
 class DescriptorLayoutCache

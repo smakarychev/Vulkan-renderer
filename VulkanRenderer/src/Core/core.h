@@ -52,6 +52,13 @@ constexpr bool enumHasAny(Enum a, Enum b)
     return (std::underlying_type_t<Enum>(a) & std::underlying_type_t<Enum>(b)) != 0;
 }
 
+template <typename Enum>
+constexpr bool enumHasOnly(Enum a, Enum b)
+{
+    static_assert(std::is_enum_v<Enum>, "Provided type is not an enum");
+    return (std::underlying_type_t<Enum>(a) ^ std::underlying_type_t<Enum>(b)) == 0;
+}
+
 #define CREATE_ENUM_FLAGS_OPERATORS(enumType) \
     ENUM_FLAGS_BINARY_CONST_OP(enumType, |) \
     ENUM_FLAGS_BINARY_CONST_OP(enumType, &) \

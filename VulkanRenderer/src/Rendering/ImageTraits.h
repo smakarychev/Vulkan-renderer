@@ -2,7 +2,7 @@
 
 #include "Core/core.h"
 
-enum class ImageLayout
+enum class ImageLayout : u8
 {
     Undefined = 0,
     
@@ -23,12 +23,12 @@ enum class ImageLayout
     Destination
 };
 
-enum class ImageKind
+enum class ImageKind : u8
 {
     Image2d, Image3d //, Cubemap
 };
 
-enum class ImageUsage
+enum class ImageUsage : u16
 {
     None = 0,
     Sampled = BIT(1),
@@ -45,22 +45,22 @@ enum class ImageUsage
 
 CREATE_ENUM_FLAGS_OPERATORS(ImageUsage)
 
-enum class ImageFilter
+enum class ImageFilter : u8
 {
     Linear, Nearest
 };
 
-enum class SamplerWrapMode
+enum class SamplerWrapMode : u8
 {
     ClampEdge, ClampBorder, Repeat
 };
 
-enum class SamplerReductionMode
+enum class SamplerReductionMode : u8
 {
     Average, Min, Max
 };
 
-enum class AttachmentLoad
+enum class AttachmentLoad : u8
 {
     Unspecified = 0,
     
@@ -68,8 +68,8 @@ enum class AttachmentLoad
     Clear
 };
 
-enum class AttachmentStore
-{
+enum class AttachmentStore : u8
+{ 
     Unspecified = 0,
     
     Store

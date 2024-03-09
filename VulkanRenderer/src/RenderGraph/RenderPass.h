@@ -61,6 +61,8 @@ namespace RenderGraph
         std::vector<DependencyInfo> m_LayoutTransitions;
         std::vector<DependencyInfo> m_Barriers;
         bool m_IsRasterizationPass{false};
+        // passes that write to external resources, cannot be culled
+        bool m_CanBeCulled{true};
         
         // mainly for mermaid dump
         struct PassTextureTransitionInfo

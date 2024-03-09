@@ -20,7 +20,7 @@ public:
 private:
     ResourceHandle<QueueInfo> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<QueueInfo> m_ResourceHandle;
+    ResourceHandle<QueueInfo> m_ResourceHandle{};
 };
 
 struct DeviceQueues
@@ -101,5 +101,5 @@ private:
 private:
     DeviceQueues m_Queues;
     GLFWwindow* m_Window{nullptr};
-    ResourceHandle<Device> m_ResourceHandle;
+    ResourceHandle<Device> m_ResourceHandle{};
 };

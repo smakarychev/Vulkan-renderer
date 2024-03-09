@@ -10,7 +10,7 @@
 
 #include <vma/vk_mem_alloc.h>
 
-#include "Rendering/DescriptorSet.h"
+#include "..\Rendering\Descriptors.h"
 
 #include <volk.h>
 #include <tracy/TracyVulkan.hpp>
@@ -18,6 +18,7 @@
 #include "Rendering/RenderingInfo.h"
 #include "DriverFreelist.h"
 #include "Core/ProfilerContext.h"
+#include "Rendering/Shader.h"
 
 
 class ProfilerContext;
@@ -34,6 +35,7 @@ struct UploadContext
 class DriverResources
 {
     FRIEND_INTERNAL
+    friend class ImGuiUI;
 private:
     template <typename Resource>
     constexpr auto AddResource(Resource&& resource);
@@ -472,6 +474,7 @@ struct DriverState
 class Driver
 {
     friend class RenderCommand;
+    friend class ImGuiUI;
 public:
     static Device Create(const Device::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Device> device);
@@ -536,16 +539,11 @@ public:
     static DescriptorArenaAllocator Create(const DescriptorArenaAllocator::Builder::CreateInfo& createInfo);
     static std::optional<Descriptors> Allocate(DescriptorArenaAllocator& allocator,
         DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
-    static void Bind(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators);
         
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
         DescriptorType type);
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
         DescriptorType type);
-    static void BindGraphics(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
-        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
-    static void BindCompute(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
-        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
 
     static Fence Create(const Fence::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Fence> fence);
@@ -633,8 +631,6 @@ private:
     static void ShutdownResources();
 
     static u32 GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, DescriptorPoolFlags poolFlags);
-    static void BindDescriptors(const CommandBuffer& cmd, const std::vector<DescriptorArenaAllocator*>& allocators,
-        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
 
     static void CreateInstance(const Device::Builder::CreateInfo& createInfo,
         DriverResources::DeviceResource& deviceResource);

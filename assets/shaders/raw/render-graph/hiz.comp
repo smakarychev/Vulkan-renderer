@@ -1,0 +1,19 @@
+#version 460
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(set = 0, binding = 0) uniform sampler u_in_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_in_image;
+layout(set = 1, binding = 1, r32f) uniform writeonly image2D u_out_image;
+
+layout(push_constant) uniform push_constants {
+    uvec2 levels_size;
+};
+
+void main()
+{
+    uvec2 pos = gl_GlobalInvocationID.xy;
+
+    float depth = texture(sampler2D(u_in_image, u_in_sampler), (vec2(pos) + vec2(0.5f)) / levels_size).r;
+    imageStore(u_out_image, ivec2(pos), vec4(depth));
+}

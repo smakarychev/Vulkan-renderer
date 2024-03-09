@@ -1,4 +1,4 @@
-﻿#include "DescriptorSet.h"
+﻿#include "Descriptors.h"
 
 #include <algorithm>
 
@@ -13,7 +13,7 @@ DescriptorsLayout DescriptorsLayout::Builder::Build()
 }
 
 DescriptorsLayout::Builder& DescriptorsLayout::Builder::SetBindings(
-    const std::vector<DescriptorSetBinding>& bindings)
+    const std::vector<DescriptorBinding>& bindings)
 {
     m_CreateInfo.Bindings = bindings;
 
@@ -195,14 +195,26 @@ void DescriptorAllocator::ResetPools()
     Driver::ResetAllocator(*this);
 }
 
-void Descriptors::UpdateBinding(u32 slot, const BufferBindingInfo& buffer, DescriptorType type) const
+void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
-    Driver::UpdateDescriptors(*this, slot, buffer, type);
+    Driver::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type);
 }
 
-void Descriptors::UpdateBinding(u32 slot, const TextureBindingInfo& texture, DescriptorType type) const
+void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
 {
-    Driver::UpdateDescriptors(*this, slot, texture, type);
+    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type);
+}
+
+void Descriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+    PipelineLayout pipelineLayout, u32 firstSet) const
+{
+    RenderCommand::BindGraphics(cmd, allocators, pipelineLayout, *this, firstSet);
+}
+
+void Descriptors::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+    PipelineLayout pipelineLayout, u32 firstSet) const
+{
+    RenderCommand::BindCompute(cmd, allocators, pipelineLayout, *this, firstSet);
 }
 
 DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build()
@@ -294,7 +306,31 @@ void DescriptorArenaAllocator::ValidateBindings(const DescriptorAllocatorAllocat
 }
 
 std::unordered_map<DescriptorLayoutCache::CacheKey,
-                   DescriptorsLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
+    DescriptorsLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
+
+DescriptorArenaAllocators::DescriptorArenaAllocators(const DescriptorArenaAllocator& resourceAllocator,
+    const DescriptorArenaAllocator& samplerAllocator)
+    : m_Allocators({resourceAllocator, samplerAllocator})
+{
+    ASSERT(resourceAllocator.m_Kind == DescriptorAllocatorKind::Resources,
+        "Provided 'resource' allocator isn't actually a resource allocator")
+    ASSERT(samplerAllocator.m_Kind == DescriptorAllocatorKind::Samplers,
+        "Provided 'sampler' allocator isn't actually a sampler allocator")
+}
+
+const DescriptorArenaAllocator& DescriptorArenaAllocators::Get(DescriptorAllocatorKind kind) const
+{
+    ASSERT(kind == DescriptorAllocatorKind::Resources || kind == DescriptorAllocatorKind::Samplers,
+           "Unsupported allocator kind")
+
+       return m_Allocators[(u32)kind];
+}
+
+DescriptorArenaAllocator& DescriptorArenaAllocators::Get(DescriptorAllocatorKind kind)
+{
+    return const_cast<DescriptorArenaAllocator&>(const_cast<const DescriptorArenaAllocators&>(*this).Get(kind));
+}
+
 
 bool DescriptorLayoutCache::CacheKey::operator==(const CacheKey& other) const
 {

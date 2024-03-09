@@ -6,6 +6,7 @@
 #include "RenderPassGeometry.h"
 #include "Core/Camera.h"
 #include "Rendering/Buffer.h"
+#include "Rendering/DepthPyramid.h"
 #include "Rendering/RenderingUtils.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -229,8 +230,8 @@ void RenderPassGeometryCull::BatchedCull::BatchIndirectDispatchesBuffersPrepare(
     
     m_PrepareIndirectDispatches.Pipeline.BindCompute(cmd);
     m_PrepareIndirectDispatches.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-        m_PrepareIndirectDispatches.Pipeline.GetPipelineLayout(), {countOffset, dispatchIndirectOffset});
-    RenderCommand::PushConstants(cmd, m_PrepareIndirectDispatches.Pipeline.GetPipelineLayout(),
+        m_PrepareIndirectDispatches.Pipeline.GetLayout(), {countOffset, dispatchIndirectOffset});
+    RenderCommand::PushConstants(cmd, m_PrepareIndirectDispatches.Pipeline.GetLayout(),
         pushConstants.data());
     RenderCommand::Dispatch(cmd, {m_MaxBatchDispatches / 64 + 1, 1, 1});
 
@@ -241,8 +242,8 @@ void RenderPassGeometryCull::BatchedCull::BatchIndirectDispatchesBuffersPrepare(
         m_MaxBatchDispatches};
     m_PrepareCompactIndirectDispatches.Pipeline.BindCompute(cmd);
     m_PrepareCompactIndirectDispatches.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-        m_PrepareCompactIndirectDispatches.Pipeline.GetPipelineLayout(), {countOffset, dispatchIndirectOffset});
-    RenderCommand::PushConstants(cmd, m_PrepareCompactIndirectDispatches.Pipeline.GetPipelineLayout(),
+        m_PrepareCompactIndirectDispatches.Pipeline.GetLayout(), {countOffset, dispatchIndirectOffset});
+    RenderCommand::PushConstants(cmd, m_PrepareCompactIndirectDispatches.Pipeline.GetLayout(),
         pushConstants.data());
     RenderCommand::Dispatch(cmd, {m_MaxBatchDispatches / 64 + 1, 1, 1});
 
@@ -397,13 +398,13 @@ void RenderPassGeometryCull::BatchedCull::RecordCommandBuffers(const CullBuffers
                 
                 pipelineDataSingular.Pipeline.BindCompute(cmd);
                 pipelineDataSingular.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-                    pipelineDataSingular.Pipeline.GetPipelineLayout(), {sceneCullOffset, triangleOffset, countOffset});
+                    pipelineDataSingular.Pipeline.GetLayout(), {sceneCullOffset, triangleOffset, countOffset});
                 std::vector<u32> pushConstantsCull(4);
                 pushConstantsCull[0] = resolution.x; 
                 pushConstantsCull[1] = resolution.y; 
                 pushConstantsCull[2] = commandOffset;   
                 pushConstantsCull[3] = commandCount; 
-                RenderCommand::PushConstants(cmd, pipelineDataSingular.Pipeline.GetPipelineLayout(),
+                RenderCommand::PushConstants(cmd, pipelineDataSingular.Pipeline.GetLayout(),
                     pushConstantsCull.data());
                 RenderCommand::DispatchIndirect(cmd, cullBuffers.BatchIndirectDispatches, dispatchIndirectOffset);
 
@@ -418,7 +419,7 @@ void RenderPassGeometryCull::BatchedCull::RecordCommandBuffers(const CullBuffers
 
                 batchData.PrepareDrawSingular.Pipeline.BindCompute(cmd);
                 batchData.PrepareDrawSingular.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-                    batchData.PrepareDrawSingular.Pipeline.GetPipelineLayout());
+                    batchData.PrepareDrawSingular.Pipeline.GetLayout());
                 RenderCommand::Dispatch(cmd, {1, 1, 1});
 
                 cmd.End();
@@ -661,10 +662,10 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
             *context.ClearRenderingInfo :
             *context.CopyRenderingInfo);
 
-        RenderCommand::BindIndexBuffer(cmd, m_BatchedCull->GetCullDrawBatch().Indices, 0);
+        RenderCommand::BindIndexU32Buffer(cmd, m_BatchedCull->GetCullDrawBatch().Indices, 0);
         
         context.RenderingPipeline->Pipeline.BindGraphics(cmd);
-        PipelineLayout layout = context.RenderingPipeline->Pipeline.GetPipelineLayout();
+        PipelineLayout layout = context.RenderingPipeline->Pipeline.GetLayout();
         DescriptorsOffsets offsets = CreateDescriptorOffsets(context);
         context.RenderingPipeline->Descriptors.BindGraphics(cmd, DescriptorKind::Global,
             layout, offsets[(u32)DescriptorKind::Global]);
@@ -836,8 +837,8 @@ void RenderPassGeometryCull::CullMeshes(const CullContextExtended& cullContext) 
 
     pipelineData.Pipeline.BindCompute(cmd);
     pipelineData.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-        pipelineData.Pipeline.GetPipelineLayout(), {sceneCullOffset});
-    RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), &count);
+        pipelineData.Pipeline.GetLayout(), {sceneCullOffset});
+    RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetLayout(), &count);
     RenderCommand::Dispatch(cmd, {count / 64 + 1, 1, 1});
 
     m_Barrier.Wait(cmd, m_ComputeWRDependency);
@@ -850,7 +851,7 @@ void RenderPassGeometryCull::CullMeshlets(const CullContextExtended& cullContext
     u32 countBufferOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
     m_MeshletCullClear.Pipeline.BindCompute(cmd);
     m_MeshletCullClear.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-                                               m_MeshletCullClear.Pipeline.GetPipelineLayout(), {countBufferOffset});
+                                               m_MeshletCullClear.Pipeline.GetLayout(), {countBufferOffset});
     RenderCommand::Dispatch(cmd, {1, 1, 1});
     m_Barrier.Wait(cmd, m_ComputeWRDependency);
 
@@ -862,8 +863,8 @@ void RenderPassGeometryCull::CullMeshlets(const CullContextExtended& cullContext
 
     pipelineData.Pipeline.BindCompute(cmd);
     pipelineData.Descriptors.BindCompute(cmd, DescriptorKind::Global,
-                                         pipelineData.Pipeline.GetPipelineLayout(), {sceneCullOffset, countBufferOffset});
-    RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetPipelineLayout(), &count);
+                                         pipelineData.Pipeline.GetLayout(), {sceneCullOffset, countBufferOffset});
+    RenderCommand::PushConstants(cmd, pipelineData.Pipeline.GetLayout(), &count);
     RenderCommand::Dispatch(cmd, {count / 64 + 1, 1, 1});
 
     m_Barrier.Wait(cmd, m_ComputeWRDependency);
