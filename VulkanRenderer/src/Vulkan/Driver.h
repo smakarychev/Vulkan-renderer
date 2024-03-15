@@ -664,6 +664,8 @@ private:
     static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
     static std::pair<VkBlitImageInfo2, VkImageBlit2> CreateVulkanBlitInfo(
         const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter);
+    static std::pair<VkCopyImageInfo2, VkImageCopy2> CreateVulkanImageCopyInfo(
+        const ImageCopyInfo& source, const ImageCopyInfo& destination);
     static VkBufferImageCopy2 CreateVulkanImageCopyInfo(const ImageSubresource& subresource);
 
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(

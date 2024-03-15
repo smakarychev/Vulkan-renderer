@@ -21,14 +21,6 @@ class Buffer;
 class Swapchain;
 class Device;
 
-namespace ImageUtils
-{
-    std::string imageKindToString(ImageKind kind);
-    std::string imageUsageToString(ImageUsage usage);
-    std::string imageFilterToString(ImageFilter filter);
-    std::string imageLayoutToString(ImageLayout layout);
-}
-
 class Sampler
 {
     FRIEND_INTERNAL
@@ -137,6 +129,7 @@ struct ImageBlitInfo
     glm::uvec3 Bottom;
     glm::uvec3 Top;
 };
+using ImageCopyInfo = ImageBlitInfo;
 
 struct ImageBindingInfo
 {
@@ -147,6 +140,11 @@ struct ImageBindingInfo
     ImageViewHandle ViewHandle{};
 };
 using TextureBindingInfo = ImageBindingInfo;
+
+enum class ImageSizeType
+{
+    Absolute, Relative
+};
 
 class Image
 {
@@ -213,6 +211,15 @@ public:
     ImageBlitInfo CreateImageBlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
     ImageBlitInfo CreateImageBlitInfo(const glm::uvec3& bottom, const glm::uvec3& top,
         u32 mipBase, u32 layerBase, u32 layerCount) const;
+    ImageBlitInfo CreateImageBlitInfo(const glm::vec3& bottom, const glm::vec3& top,
+        u32 mipBase, u32 layerBase, u32 layerCount, ImageSizeType sizeType) const;
+    
+    ImageBlitInfo CreateImageCopyInfo() const;
+    ImageBlitInfo CreateImageCopyInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
+    ImageBlitInfo CreateImageCopyInfo(const glm::uvec3& bottom, const glm::uvec3& size,
+        u32 mipBase, u32 layerBase, u32 layerCount) const;
+    ImageBlitInfo CreateImageCopyInfo(const glm::vec3& bottom, const glm::vec3& size,
+        u32 mipBase, u32 layerBase, u32 layerCount, ImageSizeType sizeType) const;
 
     ImageBindingInfo CreateBindingInfo(ImageFilter filter, ImageLayout layout) const;
     ImageBindingInfo CreateBindingInfo(Sampler sampler, ImageLayout layout) const;
@@ -252,6 +259,34 @@ private:
 };
 
 using Texture = Image;
+
+namespace ImageUtils
+{
+    std::string imageKindToString(ImageKind kind);
+    std::string imageUsageToString(ImageUsage usage);
+    std::string imageFilterToString(ImageFilter filter);
+    std::string imageLayoutToString(ImageLayout layout);
+
+    enum class DefaultTexture
+    {
+        White = 0, Black, Red, Green, Blue, Cyan, Yellow, Magenta,
+        MaxVal
+    };
+    class DefaultTextures
+    {
+    public:
+        static void Init();
+        static const Texture& Get(DefaultTexture texture);
+        static Texture GetCopy(DefaultTexture texture);
+    private:
+        struct DefaultTextureData
+        {
+            Texture Texture;
+            u32 Color;
+        };
+        static std::array<DefaultTextureData, (u32)DefaultTexture::MaxVal> s_DefaultImages;
+    };
+}
 
 class SamplerCache
 {

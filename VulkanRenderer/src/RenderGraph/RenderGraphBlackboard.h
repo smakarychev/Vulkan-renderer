@@ -32,9 +32,16 @@ namespace RenderGraph
         OutputType* TryGetOutput();
         template <typename OutputType>
         bool Has() const;
+
+        void Clear();
     private:
         std::vector<std::shared_ptr<void>> m_PassesOutputs;
     };
+
+    inline void Blackboard::Clear()
+    {
+        m_PassesOutputs.clear();
+    }
 
     template <typename OutputType>
     void Blackboard::RegisterOutput(const OutputType& output)
@@ -90,7 +97,7 @@ namespace RenderGraph
     template <typename OutputType>
     OutputType* Blackboard::TryGetOutput()
     {
-        return const_cast<OutputType&>(const_cast<const Blackboard&>(*this).TryGetOutput<OutputType>());
+        return const_cast<OutputType*>(const_cast<const Blackboard&>(*this).TryGetOutput<OutputType>());
     }
 
     template <typename OutputType>

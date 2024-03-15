@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RenderGraph/RenderGraphResource.h"
+#include "RenderGraph/RenderPassCommon.h"
 
 class CrtPass
 {
@@ -19,11 +20,17 @@ public:
         RenderGraph::Resource ColorTarget{};
         RenderGraph::Resource TimeUbo{};
         RenderGraph::Resource SettingsUbo{};
-        
-        SettingsUBO Settings;
-    };
 
-    CrtPass(RenderGraph::Graph& renderGraph, RenderGraph::Resource colorIn, RenderGraph::Resource colorTarget);
+        RenderGraph::PipelineData* PipelineData{nullptr};
+        
+        SettingsUBO* Settings{nullptr};
+    };
+public:
+    CrtPass(RenderGraph::Graph& renderGraph);
+    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource colorIn, RenderGraph::Resource colorTarget);
 private:
     RenderGraph::Pass* m_Pass{nullptr};
+
+    RenderGraph::PipelineData m_PipelineData;
+    SettingsUBO m_SettingsUBO{};
 };

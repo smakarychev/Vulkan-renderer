@@ -11,15 +11,21 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RenderPassGeometry.h"
 #include "RenderGraph/RenderPassGeometryCull.h"
-#include "Rendering/CommandBuffer.h"
+#include "RenderGraph/Culling/MeshletCullPass.h"
+#include "FrameContext.h"
+#include "RenderGraph/General/DrawIndirectCountPass.h"
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class CopyTexturePass;
+class SlimeMoldPass;
+class SlimeMoldContext;
+class HiZPassContext;
+class SkyGradientPass;
 class BlitPass;
 class HiZVisualize;
 class HiZPass;
 class CrtPass;
-class TestPass3d;
 class Camera;
 class CameraController;
 
@@ -91,24 +97,6 @@ struct ComputeDepthPyramidData
     std::unique_ptr<DepthPyramid> DepthPyramid;
 };
 
-struct FrameContext
-{
-    u32 CommandBufferIndex{0};
-    
-    SwapchainFrameSync FrameSync;
-    u32 FrameNumber;
-    u64 FrameNumberTick;
-
-    glm::uvec2 Resolution;
-    
-    CommandBuffer Cmd;
-    
-    DeletionQueue DeletionQueue;
-    
-    Camera* Camera{nullptr};
-    ResourceUploader* ResourceUploader{nullptr};
-};
-
 class Renderer
 {
 public:
@@ -135,6 +123,8 @@ private:
     void InitDepthPyramidComputeStructures();
     void InitVisibilityPass();
     void InitVisibilityBufferVisualizationStructures();
+    void InitRenderGraph();
+    void SetupRenderGraph();
 
     void Shutdown();
     void ShutdownVisibilityPass();
@@ -193,12 +183,37 @@ private:
     // todo: temp object to visualize the visibility buffer
     VisibilityBufferVisualizeData m_VisibilityBufferVisualizeData;
 
+
+    ModelCollection m_GraphModelCollection;
+    RenderPassGeometry m_GraphOpaqueGeometry;
+    
     std::unique_ptr<RenderGraph::Graph> m_Graph;
-    std::shared_ptr<TestPass3d> m_TestPass3d;
+    std::shared_ptr<SkyGradientPass> m_SkyGradientPass;
     std::shared_ptr<CrtPass> m_CrtPass;
+    std::shared_ptr<HiZPassContext> m_HiZPassContext;
     std::shared_ptr<HiZPass> m_HiZPass;
     std::shared_ptr<HiZVisualize> m_HiZVisualizePass;
+
+    std::shared_ptr<CopyTexturePass> m_CopyTexturePass;
     std::shared_ptr<BlitPass> m_BlitPass;
+    
+    std::shared_ptr<MeshCullContext> m_MeshCullContext;
+    std::shared_ptr<MeshCullPass> m_MeshCullPass;
+    std::shared_ptr<MeshCullReocclusionPass> m_MeshCullReocclusionPass;
+    
+    std::shared_ptr<MeshletCullContext> m_MeshletCullContext;
+    std::shared_ptr<MeshletCullPass> m_MeshletCullPass;
+    std::shared_ptr<MeshletCullReocclusionPass> m_MeshletCullReocclusionPass;
+
+    std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
+    std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;
+
+    struct DrawIndirectCountOrdinary{};
+    using DrawOrdinary = DrawIndirectCountPass<DrawIndirectCountOrdinary>;
+    std::shared_ptr<DrawOrdinary> m_DrawOrdinary;
+    struct DrawIndirectCountReocclusion{};
+    using DrawReocclusion = DrawIndirectCountPass<DrawIndirectCountReocclusion>;
+    std::shared_ptr<DrawReocclusion> m_DrawReocclusion;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

@@ -2628,6 +2628,48 @@ std::pair<VkBlitImageInfo2, VkImageBlit2> Driver::CreateVulkanBlitInfo(const Ima
     return {blitImageInfo, imageBlit};
 }
 
+std::pair<VkCopyImageInfo2, VkImageCopy2> Driver::CreateVulkanImageCopyInfo(const ImageCopyInfo& source,
+    const ImageCopyInfo& destination)
+{
+    glm::uvec3 extentSource = source.Top - source.Bottom;
+    glm::uvec3 extentDestination = destination.Top - destination.Bottom;
+    ASSERT(extentSource == extentDestination, "Extents of source and destination must match for image copy")
+
+    VkImageCopy2 imageCopy = {};
+    VkCopyImageInfo2 copyImageInfo = {};
+    
+    imageCopy.sType = VK_STRUCTURE_TYPE_IMAGE_COPY_2;
+    imageCopy.extent = VkExtent3D{
+        .width = extentSource.x,
+        .height = extentSource.y,
+        .depth = extentSource.z};
+    imageCopy.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(source.Image->m_Description.Usage);
+    imageCopy.srcSubresource.baseArrayLayer = source.LayerBase;
+    imageCopy.srcSubresource.layerCount = source.Layers;
+    imageCopy.srcSubresource.mipLevel = source.MipmapBase;
+    imageCopy.srcOffset = VkOffset3D{
+        .x = (i32)source.Bottom.x,
+        .y = (i32)source.Bottom.y,
+        .z = (i32)source.Bottom.z};
+    imageCopy.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destination.Image->m_Description.Usage);
+    imageCopy.dstSubresource.baseArrayLayer = destination.LayerBase;
+    imageCopy.dstSubresource.layerCount = destination.Layers;
+    imageCopy.dstSubresource.mipLevel = destination.MipmapBase;
+    imageCopy.dstOffset = VkOffset3D{
+        .x = (i32)destination.Bottom.x,
+        .y = (i32)destination.Bottom.y,
+        .z = (i32)destination.Bottom.z};
+    
+    copyImageInfo.sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2;
+    copyImageInfo.srcImage = Resources()[*source.Image].Image;
+    copyImageInfo.dstImage = Resources()[*destination.Image].Image;
+    copyImageInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    copyImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    copyImageInfo.regionCount = 1;
+
+    return {copyImageInfo, imageCopy};
+}
+
 VkBufferImageCopy2 Driver::CreateVulkanImageCopyInfo(const ImageSubresource& subresource)
 {
     ASSERT(subresource.Description.Mipmaps == 1, "Buffer to image copies one mipmap at a time")

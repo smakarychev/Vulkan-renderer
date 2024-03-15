@@ -15,6 +15,8 @@ public:
         Buffer UVs;
         Buffer Indices;
     };
+    using ObjectVisibilityType = u16;
+    using MeshletVisibilityType = u16;
 public:
     template <typename Filter>
     static RenderPassGeometry FromModelCollectionFiltered(const ModelCollection& modelCollection,
@@ -179,10 +181,10 @@ inline RenderPassGeometry::AttributeBuffers RenderPassGeometry::InitAttributeBuf
     u64 totalIndicesSizeBytes = countsInfo.IndexCount * sizeof(assetLib::ModelInfo::IndexType);
 
     Buffer::Builder vertexBufferBuilder = Buffer::Builder()
-        .SetUsage(BufferUsage::Vertex | BufferUsage::Storage | BufferUsage::Destination);
+        .SetUsage(BufferUsage::Vertex | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress);
     
     Buffer::Builder indexBufferBuilder = Buffer::Builder()
-        .SetUsage(BufferUsage::Index | BufferUsage::Storage | BufferUsage::Destination);
+        .SetUsage(BufferUsage::Index | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress);
 
     AttributeBuffers attributeBuffers = {};
 
@@ -210,19 +212,19 @@ inline void RenderPassGeometry::InitBuffers(RenderPassGeometry& renderPassGeomet
     renderPassGeometry.m_CommandCount = countsInfo.CommandCount;
     renderPassGeometry.m_RenderObjectCount = countsInfo.RenderObjectCount;
     renderPassGeometry.m_Commands = Buffer::Builder()
-        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination)
+        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
         .SetSizeBytes(countsInfo.CommandCount * sizeof(IndirectCommand))
         .Build();
     renderPassGeometry.m_RenderObjects = Buffer::Builder()
-        .SetUsage(BufferUsage::Storage | BufferUsage::Destination)
+        .SetUsage(BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
         .SetSizeBytes(countsInfo.RenderObjectCount * sizeof(RenderObjectGPU))
         .Build();
     renderPassGeometry.m_Materials = Buffer::Builder()
-       .SetUsage(BufferUsage::Storage | BufferUsage::Destination)
+       .SetUsage(BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
        .SetSizeBytes(countsInfo.RenderObjectCount * sizeof(MaterialGPU))
        .Build();
     renderPassGeometry.m_Meshlets = Buffer::Builder()
-        .SetUsage(BufferUsage::Storage | BufferUsage::Destination)
+        .SetUsage(BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
         .SetSizeBytes(countsInfo.CommandCount * sizeof(MeshletGPU))
         .Build();
 }

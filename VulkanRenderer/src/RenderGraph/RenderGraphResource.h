@@ -21,11 +21,12 @@ namespace RenderGraph
 
         static constexpr u32 BUFFER_TYPE = 0;
         static constexpr u32 TEXTURE_TYPE = 1;
+    public:
+        constexpr bool IsValid() const { return m_Value != NON_INDEX; }
     private:
         constexpr bool IsBuffer() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == BUFFER_TYPE; }
         constexpr bool IsTexture() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == TEXTURE_TYPE; }
         constexpr u32 Index() const { return m_Value & INDEX_BITS_MASK; }
-        constexpr bool IsValid() const { return m_Value != NON_INDEX; }
 
         static constexpr Resource Texture(u32 index)
         {

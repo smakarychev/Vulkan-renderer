@@ -93,7 +93,7 @@ void VisibilityPass::Shutdown()
 
 void VisibilityPass::RenderVisibility(const VisibilityRenderInfo& renderInfo)
 {
-    RenderGraph::PipelineData renderPassPipelineData{
+    RenderGraph::PipelineDataDescriptorSet renderPassPipelineData{
         .Pipeline = m_Pipeline,
         .Descriptors = m_DescriptorSet};
 

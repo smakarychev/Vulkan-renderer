@@ -60,6 +60,8 @@ public:
 
     static void ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary);
 
+    using ImageCopyInfo = ImageBlitInfo;
+    static void CopyImage(const CommandBuffer& cmd, const ImageCopyInfo& source, const ImageCopyInfo& destination);
     static void BlitImage(const CommandBuffer& cmd,
         const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter);
     
@@ -100,6 +102,7 @@ public:
         const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride = sizeof(IndirectCommand));
 
     static void Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize);
+    static void Dispatch(const CommandBuffer& cmd, const glm::uvec3& invocations, const glm::uvec3& workGroups);
     static void DispatchIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset);
 
     static void PushConstants(const CommandBuffer& cmd, PipelineLayout pipelineLayout, const void* pushConstants);

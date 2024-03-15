@@ -314,6 +314,14 @@ void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, cons
     vkCmdExecuteCommands(Driver::Resources()[cmd].CommandBuffer, 1, &Driver::Resources()[secondary].CommandBuffer);
 }
 
+void RenderCommand::CopyImage(const CommandBuffer& cmd, const ImageCopyInfo& source, const ImageCopyInfo& destination)
+{
+    auto&& [copyImageInfo, imageCopy] = Driver::CreateVulkanImageCopyInfo(source, destination);
+    copyImageInfo.pRegions = &imageCopy;
+
+    vkCmdCopyImage2(Driver::Resources()[cmd].CommandBuffer, &copyImageInfo);
+}
+
 void RenderCommand::BlitImage(const CommandBuffer& cmd,
     const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter)
 {
@@ -515,6 +523,11 @@ void RenderCommand::DrawIndexedIndirectCount(const CommandBuffer& cmd, const Buf
 void RenderCommand::Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize)
 {
     vkCmdDispatch(Driver::Resources()[cmd].CommandBuffer, groupSize.x, groupSize.y, groupSize.z);
+}
+
+void RenderCommand::Dispatch(const CommandBuffer& cmd, const glm::uvec3& invocations, const glm::uvec3& workGroups)
+{
+    Dispatch(cmd, (invocations + workGroups - glm::uvec3(1)) / workGroups);
 }
 
 void RenderCommand::DispatchIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)

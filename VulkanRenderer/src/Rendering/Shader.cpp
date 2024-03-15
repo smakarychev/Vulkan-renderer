@@ -435,9 +435,9 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     std::vector<ShaderModule> shaderModules = CreateShaderModules(createInfo.ShaderReflection->GetShadersSource());
     
     shaderPipelineTemplate.m_PipelineLayout = PipelineLayout::Builder()
-       .SetPushConstants(pushConstantDescriptions)
-       .SetDescriptorLayouts(shaderPipelineTemplate.m_DescriptorsLayouts)
-       .Build();
+        .SetPushConstants(pushConstantDescriptions)
+        .SetDescriptorLayouts(shaderPipelineTemplate.m_DescriptorsLayouts)
+        .Build();
     
     shaderPipelineTemplate.m_PipelineBuilder = Pipeline::Builder()
         .SetLayout(shaderPipelineTemplate.m_PipelineLayout);
@@ -542,8 +542,15 @@ std::vector<DescriptorsLayout> ShaderPipelineTemplate::CreateDescriptorLayouts(
     std::vector<DescriptorsLayout> layouts;
     layouts.reserve(descriptorSetReflections.size());
 
+    static const DescriptorsLayout EMPTY_LAYOUT_ORDINARY = DescriptorsLayout::Builder().Build(); 
+    static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = DescriptorsLayout::Builder()
+        .SetFlags(DescriptorLayoutFlags::DescriptorBuffer)
+        .Build();
+
+    const DescriptorsLayout* EMPTY_LAYOUT = useDescriptorBuffer ?
+        &EMPTY_LAYOUT_DESCRIPTOR_BUFFER : &EMPTY_LAYOUT_ORDINARY;
     for (u32 emptySetIndex = 0; emptySetIndex < descriptorSetReflections.front().Set; emptySetIndex++)
-        layouts.emplace_back();
+        layouts.push_back(*EMPTY_LAYOUT);
     
     for (auto& set : descriptorSetReflections)
     {

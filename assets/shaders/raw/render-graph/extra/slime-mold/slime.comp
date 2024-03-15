@@ -1,0 +1,195 @@
+#version 460
+
+#extension GL_EXT_scalar_block_layout: require
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+layout(constant_id = 0) const bool SLIME_MAP_STAGE = false;
+layout(constant_id = 1) const bool SLIME_DIFFUSE_STAGE = false;
+layout(constant_id = 2) const bool SLIME_GRADIENT_STAGE = false;
+
+struct Traits {
+    float move_speed;
+    float turn_speed;
+    float sensor_angle;
+    float sensor_offset;
+    float r, g, b;
+};
+
+struct Slime {
+    vec2 position;
+    float angle;
+    uint traits_index;
+};
+
+struct GradColors {
+    vec4 a;
+    vec4 b;
+    vec4 c;
+    vec4 d;
+};
+
+layout(std430, set = 1, binding = 0) readonly buffer traits_buffer {
+    Traits traits[];
+} u_traits;
+
+layout(std430, set = 1, binding = 1) buffer slime_buffer {
+    Slime slimes[];
+} u_slime;
+
+layout(set = 1, binding = 2, rgba16f) uniform image2D u_slime_map;
+layout(set = 1, binding = 3, rgba16f) uniform image2D u_diffuse_map;
+layout(set = 1, binding = 4, rgba16f) uniform image2D u_gradient_map;
+layout(set = 1, binding = 5) uniform gradient_colors {
+    GradColors colors;
+} u_gradient_colors;
+
+layout(push_constant) uniform push_constants {
+    float width;
+    float height;
+    uint slime_count;
+    float delta_time;
+    float time;
+    float diffuse_rate;
+    float decay_rate;
+};
+
+#define PI 3.1415926538
+
+uint hash(inout uint state) {
+    state ^= 2747636419u;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    state ^= state >> 16;
+    state *= 2654435769u;
+    
+    return state;
+}
+
+float random_unit(inout uint state) {
+    return hash(state) / 4294967295.0;
+}
+
+float sense(Slime slime, float sensor_angle_local, float sensor_offset) {
+    float sensor_angle = slime.angle + sensor_angle_local;
+    vec2 sensor_dir = vec2(cos(sensor_angle), sin(sensor_angle));
+    vec2 sensor_position = slime.position + sensor_dir * sensor_offset;
+    ivec2 sensor_pixel = ivec2(sensor_position);
+    
+    float sum = 0.0f;
+    
+    int radius = 3;
+    for (int x = -radius; x <= radius; x++) {
+        for (int y = -radius; y <= radius; y++) {
+            int sample_x = clamp(sensor_pixel.x + x, 0, int(width) - 1);
+            int sample_y = clamp(sensor_pixel.y + y, 0, int(height) - 1);
+            sum += dot(imageLoad(u_slime_map, ivec2(sample_x, sample_y)), vec4(1.0f));
+        }
+    }
+    
+    return sum;
+}
+
+void update_slime_map() {
+    uint id = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * gl_WorkGroupSize.x;
+    if (id >= slime_count)
+        return;
+
+    vec2 slime_position = u_slime.slimes[id].position;
+    uint random_seed = id + uint(time);
+    random_seed = uint(slime_position.x * width + slime_position.y * height + hash(random_seed));
+    random_seed = hash(random_seed);
+    
+    Traits traits = u_traits.traits[u_slime.slimes[id].traits_index];
+    float sensor_angle = traits.sensor_angle;
+    float sensor_offset = traits.sensor_offset;
+    float weight_forward = sense(u_slime.slimes[id], 0, sensor_offset);
+    float weight_left = sense(u_slime.slimes[id], sensor_angle, sensor_offset);
+    float weight_right = sense(u_slime.slimes[id], -sensor_angle, sensor_offset);
+    float slime_angle = u_slime.slimes[id].angle; 
+    
+    float random_turn_rate = random_unit(random_seed);
+    
+    if (weight_forward > weight_left && weight_forward > weight_right)
+        slime_angle += 0.0f;
+    else if (weight_forward < weight_left && weight_forward < weight_right)
+        slime_angle += ((random_turn_rate - 0.5f) * 2.0f) * traits.turn_speed * delta_time;
+    else if (weight_right > weight_left)
+        slime_angle -= random_turn_rate * traits.turn_speed * delta_time;
+    else if (weight_left > weight_right)
+        slime_angle += random_turn_rate * traits.turn_speed * delta_time;
+    u_slime.slimes[id].angle = slime_angle;
+    
+    vec2 velocity = vec2(cos(slime_angle), sin(slime_angle)) * traits.move_speed * delta_time;
+    slime_position += velocity * delta_time;
+    
+    if (slime_position.x < 0.0f || slime_position.x >= width) {
+        velocity.x *= -1;
+        u_slime.slimes[id].angle = atan(velocity.y, velocity.x);
+        slime_position.x = clamp(slime_position.x, 0.0f, width);
+        slime_position.y = clamp(slime_position.y, 0.0f, height);
+    }
+    if (slime_position.y < 0.0f || slime_position.y >= height) {
+        velocity.y *= -1;
+        u_slime.slimes[id].angle = atan(velocity.y, velocity.x);
+        slime_position.x = clamp(slime_position.x, 0.0f, width);
+        slime_position.y = clamp(slime_position.y, 0.0f, height);
+    }
+    
+    u_slime.slimes[id].position = slime_position;
+
+    ivec2 coord = ivec2(slime_position);
+
+    vec4 color = vec4(traits.r, traits.g, traits.b, 1.0f);
+    imageStore(u_slime_map, coord, color);
+}
+
+void diffuse_slime_map() {
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    if (pos.x >=  uint(width) || pos.y >= uint(height))
+        return;
+
+    vec4 diffused_color = vec4(0.0f);
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            int sample_x = clamp(pos.x + x, 0, int(width) - 1);
+            int sample_y = clamp(pos.y + y, 0, int(height) - 1);
+            diffused_color += imageLoad(u_slime_map, ivec2(sample_x, sample_y));
+        }
+    }
+    diffused_color /= 9.0f;
+    
+    float diffuse_weight = clamp(diffuse_rate * delta_time, 0.0f, 1.0f);
+    diffused_color = mix(imageLoad(u_slime_map, pos), diffused_color, diffuse_weight);
+    diffused_color = clamp(diffused_color - decay_rate * delta_time, 0.0f, 1.0f);
+    
+    imageStore(u_diffuse_map, pos, diffused_color);
+}
+
+void gradient_slime_map() {
+    // https://iquilezles.org/articles/palettes/
+    
+    ivec2 pos = ivec2(gl_GlobalInvocationID.xy);
+    if (pos.x >=  uint(width) || pos.y >= uint(height))
+        return;
+    
+    vec4 color = imageLoad(u_diffuse_map, pos);
+    float brightness = color.r * 0.21f + color.g * 0.72f + color.b * 0.07f;
+    brightness = clamp(brightness, 0.0f, 1.0f);
+    
+    GradColors colors = u_gradient_colors.colors;
+    color = colors.a +
+        colors.b * cos(2.0 * PI * (colors.c * brightness + colors.d));
+    color.a = 1.0f;
+    imageStore(u_gradient_map, pos, color);
+}
+
+void main() {
+    if (SLIME_MAP_STAGE)
+        update_slime_map();
+    else if (SLIME_DIFFUSE_STAGE)
+        diffuse_slime_map();
+    else if (SLIME_GRADIENT_STAGE)
+        gradient_slime_map();
+}

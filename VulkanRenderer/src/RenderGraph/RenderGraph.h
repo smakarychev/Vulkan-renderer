@@ -93,19 +93,24 @@ namespace RenderGraph
         {
             if constexpr(std::is_same_v<T, Buffer>)
             {
-                m_Buffers.Resources.push_back(std::make_shared<T>(resource));
-                return m_Buffers.Resources.back();
+                m_ExternalBuffers.Resources.push_back(std::make_shared<T>(resource));
+                return m_ExternalBuffers.Resources.back();
             }
             else if constexpr(std::is_same_v<T, Texture>)
             {
-                m_Textures.Resources.push_back(std::make_shared<T>(resource));
-                return m_Textures.Resources.back();
+                m_ExternalTextures.Resources.push_back(std::make_shared<T>(resource));
+                return m_ExternalTextures.Resources.back();
             }
             else
             {
                 static_assert(!sizeof(T), "No match for type");
             }
             std::unreachable();   
+        }
+        void ClearExternals()
+        {
+            m_ExternalBuffers.Resources.clear();
+            m_ExternalTextures.Resources.clear();
         }
     private:
         template <typename T>
@@ -128,6 +133,8 @@ namespace RenderGraph
 
         Pool<Buffer> m_Buffers;
         Pool<Texture> m_Textures;
+        Pool<Buffer> m_ExternalBuffers;
+        Pool<Texture> m_ExternalTextures;
     };
 
     class Graph
@@ -145,6 +152,9 @@ namespace RenderGraph
 
         Resource AddExternal(const std::string& name, const Buffer& buffer);
         Resource AddExternal(const std::string& name, const Texture& texture);
+        Resource AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback);
+        Resource Export(Resource resource, std::shared_ptr<Buffer>* buffer);
+        Resource Export(Resource resource, std::shared_ptr<Texture>* texture);
         Resource CreateResource(const std::string& name, const GraphBufferDescription& description);
         Resource CreateResource(const std::string& name, const GraphTextureDescription& description);
         Resource Read(Resource resource, ResourceAccessFlags readFlags);
@@ -160,23 +170,25 @@ namespace RenderGraph
         const BufferDescription& GetBufferDescription(Resource buffer);
         const TextureDescription& GetTextureDescription(Resource texture);
 
-        DeletionQueue& GetFrameDeletionQueue() { return m_FrameDeletionQueue; }
         const DescriptorArenaAllocators& GetArenaAllocators() const { return *m_ArenaAllocators; }
         DescriptorArenaAllocators& GetArenaAllocators() { return *m_ArenaAllocators; }
         Blackboard& GetBlackboard() { return m_Blackboard; }
 
-        void Clear();
-        void Compile();
+        void Reset();
+        void Compile(FrameContext& frameContext);
         void Execute(FrameContext& frameContext);
         std::string MermaidDump() const;
     private:
+        void Clear();
         Resource CreateResource(const std::string& name, const BufferDescription& description);
         Resource CreateResource(const std::string& name, const TextureDescription& description);
 
         void PreprocessResources();
         void CullPasses();
-        std::vector<std::vector<u32>> BuildAdjacencyList();
-        std::vector<u32> CalculateLongestPath(const std::vector<std::vector<u32>>& adjacency);
+        void BuildAdjacencyList();
+        void TopologicalSort();
+        std::vector<u32> CalculateLongestPath();
+        std::vector<u32> CalculateRenameRemap(auto&& filterLambda);
         void CalculateResourcesLifeSpan();
         void CreatePhysicalResources();
         void ManageBarriers();
@@ -205,13 +217,29 @@ namespace RenderGraph
         std::vector<GraphBuffer> m_Buffers;
         std::vector<GraphTexture> m_Textures;
         std::vector<std::unique_ptr<Pass>> m_RenderPasses;
+        std::vector<std::vector<u32>> m_AdjacencyList;
+        std::unordered_map<std::string, u32> m_NameToPassIndexMap;
+        // storing a shared_ptr we make sure that it will not be aliased
+        struct TextureToExport
+        {
+            Resource TextureResource{};
+            std::shared_ptr<Texture>* Target{nullptr};
+        };
+        struct BufferToExport
+        {
+            Resource BufferResource{};
+            std::shared_ptr<Buffer>* Target{nullptr};
+        };
+        std::vector<TextureToExport> m_TexturesToExport;
+        std::vector<BufferToExport> m_BuffersToExport;
 
         Pass* m_ResourceTarget{nullptr};
         Resource m_Backbuffer{};
+        std::shared_ptr<GraphTexture> m_BackbufferTexture{};
         ImageLayout m_BackbufferLayout{ImageLayout::Undefined};
 
         RenderGraphPool m_Pool;
-        DeletionQueue m_FrameDeletionQueue;
+        DeletionQueue* m_FrameDeletionQueue{nullptr};
         std::unique_ptr<DescriptorArenaAllocators> m_ArenaAllocators;
         Blackboard m_Blackboard;
     };
@@ -219,6 +247,7 @@ namespace RenderGraph
     class Resources
     {
     public:
+        using DefaultTexture = ImageUtils::DefaultTexture;
         Resources(Graph& graph)
             : m_Graph(&graph) {}
 
@@ -241,6 +270,8 @@ namespace RenderGraph
     template <typename PassData, typename SetupFn, typename CallbackFn>
     Pass& Graph::AddRenderPass(const std::string& name, SetupFn&& setup, CallbackFn&& callback)
     {
+        ASSERT(!m_NameToPassIndexMap.contains(name), "Pass with such name already exists")
+        m_NameToPassIndexMap.emplace(name, (u32)m_RenderPasses.size());
         m_RenderPasses.push_back(std::make_unique<Pass>(name));
         Pass* pass = m_RenderPasses.back().get();
         
@@ -255,6 +286,38 @@ namespace RenderGraph
         m_ResourceTarget = nullptr;
         
         return *pass;
+    }
+
+    std::vector<u32> Graph::CalculateRenameRemap(auto&& filterLambda)
+    {
+        u32 remapCount = 0;
+        for (auto& pass : m_RenderPasses) 
+            remapCount += (u32)pass->m_Accesses.size();
+
+        static constexpr u32 NO_MAP = std::numeric_limits<u32>::max();
+        std::vector remap(remapCount, NO_MAP);
+        
+        for (auto& pass : m_RenderPasses)
+        {
+            for (auto& access : pass->m_Accesses)
+            {
+                Resource resource = access.m_Resource;
+                if (!filterLambda(resource))
+                    continue;
+                
+                remap[resource.Index()] = remap[resource.Index()] == NO_MAP ?
+                    resource.Index() : remap[resource.Index()];
+                Resource rename = GetResourceTypeBase(resource).m_Rename;
+                while (rename.IsValid())
+                {
+                    remap[rename.Index()] = remap[rename.Index()] == NO_MAP ?
+                        resource.Index() : remap[rename.Index()];
+                    rename = GetResourceTypeBase(rename).m_Rename;
+                }
+            }
+        }
+        
+        return remap;
     }
 
     template <typename T>

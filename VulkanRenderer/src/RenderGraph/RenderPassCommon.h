@@ -10,6 +10,13 @@ namespace RenderGraph
     struct PipelineData
     {
         ShaderPipeline Pipeline;
+        ShaderDescriptors SamplerDescriptors;
+        ShaderDescriptors ResourceDescriptors;
+    };
+
+    struct PipelineDataDescriptorSet
+    {
+        ShaderPipeline Pipeline;
         ShaderDescriptorSet Descriptors;
     };
 }

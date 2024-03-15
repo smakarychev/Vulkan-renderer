@@ -103,6 +103,92 @@ namespace ImageUtils
         default:                                    return "";
         } 
     }
+
+    std::array<DefaultTextures::DefaultTextureData, (u32)DefaultTexture::MaxVal> DefaultTextures::s_DefaultImages = {};
+    
+    void DefaultTextures::Init()
+    {
+        ImageDescription description = {
+            .Width = 1,
+            .Height = 1,
+            .Format = Format::RGBA8_SNORM,
+            .Kind = ImageKind::Image2d,
+            .Usage = ImageUsage::Sampled | ImageUsage::Source | ImageUsage::Destination};
+        
+        u32 miniFloatOne = 0b0'1111'111;
+        u32 white =     miniFloatOne        | miniFloatOne << 8     | miniFloatOne << 16    | miniFloatOne << 24;
+        u32 black = 0;
+        u32 red =       miniFloatOne                                                        | miniFloatOne << 24;
+        u32 green =                          miniFloatOne << 8                              | miniFloatOne << 24;
+        u32 blue =                                                    miniFloatOne << 16    | miniFloatOne << 24;
+        u32 cyan =                            miniFloatOne << 8     | miniFloatOne << 16    | miniFloatOne << 24;
+        u32 yellow =    miniFloatOne                                | miniFloatOne << 16    | miniFloatOne << 24;
+        u32 magenta =   miniFloatOne        | miniFloatOne << 8                             | miniFloatOne << 24;
+        
+        s_DefaultImages[(u32)DefaultTexture::White] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{white})
+                .Build(),
+            .Color = white};
+
+        s_DefaultImages[(u32)DefaultTexture::Black] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{black})
+                .Build(),
+            .Color = black};
+        
+        s_DefaultImages[(u32)DefaultTexture::Red] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{red})
+                .Build(),
+            .Color = red};
+        s_DefaultImages[(u32)DefaultTexture::Green] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{green})
+                .Build(),
+            .Color = green};
+        s_DefaultImages[(u32)DefaultTexture::Blue] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{blue})
+                .Build(),
+            .Color = blue};
+
+        s_DefaultImages[(u32)DefaultTexture::Cyan] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{cyan})
+                .Build(),
+            .Color = cyan};
+        s_DefaultImages[(u32)DefaultTexture::Yellow] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{yellow})
+                .Build(),
+            .Color = yellow};
+        s_DefaultImages[(u32)DefaultTexture::Magenta] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{magenta})
+                .Build(),
+            .Color = magenta};
+    }
+
+    const Texture& DefaultTextures::Get(DefaultTexture texture)
+    {
+        ASSERT((u32)texture < (u32)DefaultTexture::MaxVal, "Incorrect texture type")
+
+        return s_DefaultImages[(u32)texture].Texture;
+    }
+
+    Texture DefaultTextures::GetCopy(DefaultTexture texture)
+    {
+        ASSERT((u32)texture < (u32)DefaultTexture::MaxVal, "Incorrect texture type")
+
+        const auto& [textureOriginal, color] = s_DefaultImages[(u32)texture];
+        
+        Texture copy =  Texture::Builder(textureOriginal.GetDescription())
+            .FromPixels(std::vector{color})
+            .Build();
+
+        return copy;
+    }
 }
 
 
@@ -458,6 +544,60 @@ ImageBlitInfo Image::CreateImageBlitInfo(const glm::uvec3& bottom, const glm::uv
         .Layers = layerCount,
         .Bottom = bottom,
         .Top = top};
+}
+
+ImageBlitInfo Image::CreateImageBlitInfo(const glm::vec3& bottom, const glm::vec3& top, u32 mipBase, u32 layerBase,
+    u32 layerCount, ImageSizeType sizeType) const
+{
+    if (sizeType == ImageSizeType::Absolute)
+        return {
+            .Image = this,
+            .MipmapBase = mipBase,
+            .LayerBase = layerBase,
+            .Layers = layerCount,
+            .Bottom = glm::uvec3{bottom.x, bottom.y, bottom.z},
+            .Top = glm::uvec3{top.x, top.y, top.z}};
+
+    glm::uvec3 size = {
+        m_Description.Width,
+        m_Description.Height,
+        m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers};
+
+    glm::uvec3 absBottom = {
+        (u32)((f32)size.x * bottom.x), (u32)((f32)size.y * bottom.y), (u32)((f32)size.z * bottom.z)};
+
+    glm::uvec3 absTop = {
+       (u32)((f32)size.x * top.x), (u32)((f32)size.y * top.y), (u32)((f32)size.z * top.z)};
+
+    return {
+        .Image = this,
+        .MipmapBase = mipBase,
+        .LayerBase = layerBase,
+        .Layers = layerCount,
+        .Bottom = glm::uvec3{absBottom.x, absBottom.y, absBottom.z},
+        .Top = glm::uvec3{absTop.x, absTop.y, absTop.z}};
+}
+
+ImageBlitInfo Image::CreateImageCopyInfo() const
+{
+    return CreateImageBlitInfo();
+}
+
+ImageBlitInfo Image::CreateImageCopyInfo(u32 mipBase, u32 layerBase, u32 layerCount) const
+{
+    return CreateImageBlitInfo(mipBase, layerBase, layerCount);
+}
+
+ImageBlitInfo Image::CreateImageCopyInfo(const glm::uvec3& bottom, const glm::uvec3& size, u32 mipBase, u32 layerBase,
+    u32 layerCount) const
+{
+    return CreateImageBlitInfo(bottom, size, mipBase, layerBase, layerCount);
+}
+
+ImageBlitInfo Image::CreateImageCopyInfo(const glm::vec3& bottom, const glm::vec3& size, u32 mipBase, u32 layerBase,
+    u32 layerCount, ImageSizeType sizeType) const
+{
+    return CreateImageBlitInfo(bottom, size, mipBase, layerBase, layerCount, sizeType);
 }
 
 ImageBindingInfo Image::CreateBindingInfo(ImageFilter filter, ImageLayout layout) const

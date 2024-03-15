@@ -1,5 +1,6 @@
 #include "RenderGraph.h"
 
+#include <numeric>
 #include <sstream>
 #include <stack>
 #include <unordered_set>
@@ -31,12 +32,21 @@ namespace RenderGraph
 
     Graph::~Graph()
     {
-        m_FrameDeletionQueue.Flush();
     }
 
     Resource Graph::SetBackbuffer(const Texture& texture)
     {
-        m_Backbuffer = AddExternal("graph-backbuffer", texture);
+        if (m_Backbuffer.IsValid())
+        {
+            m_Textures[m_Backbuffer.Index()].SetPhysicalResource(m_Pool.AddExternalResource(texture));
+            m_Textures[m_Backbuffer.Index()].m_Description = texture.GetDescription();
+        }
+        else
+        {
+            m_Backbuffer = AddExternal("graph-backbuffer", texture);
+        }
+        
+        m_BackbufferTexture = std::make_shared<GraphTexture>(m_Textures[m_Backbuffer.Index()]);
 
         return m_Backbuffer;
     }
@@ -66,11 +76,49 @@ namespace RenderGraph
         return textureResource;
     }
 
+    Resource Graph::AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback)
+    {
+        if (texture)
+            return AddExternal(name, *texture);
+
+        return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(fallback));
+    }
+
+    Resource Graph::Export(Resource resource, std::shared_ptr<Buffer>* buffer)
+    {
+        ASSERT(m_ResourceTarget, "Call to 'Export' outside of 'SetupFn' of render pass")
+        m_ResourceTarget->m_CanBeCulled = false;
+        
+        ASSERT(resource.IsBuffer(), "Provided resource is not a buffer")
+        auto it = std::ranges::find_if(m_BuffersToExport, [&buffer](auto& res) { return res.Target == buffer; });
+        ASSERT(it == m_BuffersToExport.end(), "Buffer is already exported to by other resource")
+
+        m_BuffersToExport.push_back({.BufferResource = resource, .Target = buffer});
+
+        return resource;
+    }
+
+    Resource Graph::Export(Resource resource, std::shared_ptr<Texture>* texture)
+    {
+        ASSERT(m_ResourceTarget, "Call to 'Export' outside of 'SetupFn' of render pass")
+        m_ResourceTarget->m_CanBeCulled = false;
+        
+        ASSERT(resource.IsTexture(), "Provided resource is not a texture")
+        auto it = std::ranges::find_if(m_TexturesToExport, [&texture](auto& res) { return res.Target == texture; });
+        ASSERT(it == m_TexturesToExport.end(), "Texture is already exported to by other resource")
+
+        m_TexturesToExport.push_back({.TextureResource = resource, .Target = texture});
+
+        return resource;
+    }
+
     Resource Graph::CreateResource(const std::string& name, const GraphBufferDescription& description)
     {
+        // all buffers require device address
+        
         return CreateResource(name, BufferDescription{
             .SizeBytes = description.SizeBytes,
-            .Usage = BufferUsage::None});
+            .Usage = BufferUsage::DeviceAddress});
     }
 
     Resource Graph::CreateResource(const std::string& name, const GraphTextureDescription& description)
@@ -206,14 +254,15 @@ namespace RenderGraph
 
     void Graph::Clear()
     {
-        m_FrameDeletionQueue.Flush();
         for (auto& pass: m_RenderPasses)
         {
-            pass->m_LayoutTransitions.clear();
             pass->m_Barriers.clear();
-
-            pass->m_LayoutTransitionInfos.clear();
-            pass->m_Barriers.clear();
+            pass->m_SplitBarriersToSignal.clear();
+            pass->m_SplitBarriersToWait.clear();
+            
+            pass->m_BarrierDependencyInfos.clear();
+            pass->m_SplitBarrierSignalInfos.clear();
+            pass->m_SplitBarrierWaitInfos.clear();
 
             for (auto& resourceAccess : pass->m_Accesses)
             {
@@ -223,11 +272,32 @@ namespace RenderGraph
         }
     }
 
-    void Graph::Compile()
+    void Graph::Reset()
     {
+        m_Buffers.clear();
+        m_Textures.clear();
+        m_Blackboard.Clear();
+        m_RenderPasses.clear();
+        m_Pool.ClearExternals();
+        m_BuffersToExport.clear();
+        m_TexturesToExport.clear();
+        m_NameToPassIndexMap.clear();
+
+        if (m_Backbuffer.IsValid())
+            m_Textures.push_back(*m_BackbufferTexture);
+    }
+
+    void Graph::Compile(FrameContext& frameContext)
+    {
+        m_FrameDeletionQueue = &frameContext.DeletionQueue;
+        
         Clear();
         
         PreprocessResources();
+
+        BuildAdjacencyList();
+        
+        TopologicalSort();
 
         CullPasses();
 
@@ -245,10 +315,12 @@ namespace RenderGraph
         Resources resources = {*this};
         for (auto& pass : m_RenderPasses)
         {
+            for (auto& splitWait : pass->m_SplitBarriersToWait)
+                RenderCommand::WaitOnSplitBarrier(frameContext.Cmd, splitWait.Barrier, splitWait.Dependency);
             for (auto& barrier : pass->m_Barriers)
                 RenderCommand::WaitOnBarrier(frameContext.Cmd, barrier);
-            for (auto& layoutTransition : pass->m_LayoutTransitions)
-                RenderCommand::WaitOnBarrier(frameContext.Cmd, layoutTransition);
+            for (auto& splitSignal : pass->m_SplitBarriersToSignal)
+                RenderCommand::SignalSplitBarrier(frameContext.Cmd, splitSignal.Barrier, splitSignal.Dependency);
 
             if (pass->m_IsRasterizationPass)
             {
@@ -273,7 +345,7 @@ namespace RenderGraph
                         .SetType(RenderingAttachmentType::Color)
                         .LoadStoreOperations(target.m_OnLoad, target.m_OnStore)
                         .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource, ImageLayout::ColorAttachment)
-                        .Build(m_FrameDeletionQueue));
+                        .Build(*m_FrameDeletionQueue));
                 if (pass->m_DepthStencilAccess.has_value())
                 {
                     auto target = pass->m_DepthStencilAccess.value();
@@ -286,14 +358,14 @@ namespace RenderGraph
                        .SetType(RenderingAttachmentType::Depth)
                        .LoadStoreOperations(target.m_OnLoad, target.m_OnStore)
                        .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource, layout)
-                       .Build(m_FrameDeletionQueue));
+                       .Build(*m_FrameDeletionQueue));
                 }
                 RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
                     .SetRenderArea(resolution);
                 for (auto& attachment : attachments)
                     renderingInfoBuilder.AddAttachment(attachment);
 
-                RenderingInfo renderingInfo = renderingInfoBuilder.Build(m_FrameDeletionQueue);
+                RenderingInfo renderingInfo = renderingInfoBuilder.Build(*m_FrameDeletionQueue);
                 
                 RenderCommand::BeginRendering(frameContext.Cmd, renderingInfo);
 
@@ -325,7 +397,7 @@ namespace RenderGraph
             .NewLayout = ImageLayout::Source};
         DependencyInfo transitionDependency = DependencyInfo::Builder()
             .LayoutTransition(backbufferTransition)
-            .Build(m_FrameDeletionQueue);
+            .Build(*m_FrameDeletionQueue);
         RenderCommand::WaitOnBarrier(frameContext.Cmd, transitionDependency);
     }
 
@@ -333,12 +405,9 @@ namespace RenderGraph
     {
         for (auto& buffer : m_Buffers)
         {
-            // all buffers require device address
-            buffer.m_Description.Usage |= BufferUsage::DeviceAddress;
             // todo: definitely not the best way
             buffer.m_Description.Usage |= BufferUsage::Destination;
         }
-        
     }
 
     void Graph::CullPasses()
@@ -357,27 +426,65 @@ namespace RenderGraph
         std::vector bufferRefCount(m_Buffers.size(), ResourceRefInfo{});
         std::vector textureRefCount(m_Textures.size(), ResourceRefInfo{});
         std::vector producerMap(m_RenderPasses.size(), ProducerInfo{});
-        
+
+        static constexpr u32 NO_MAP = std::numeric_limits<u32>::max();
+        std::vector bufferRemap(m_Buffers.size(), NO_MAP);
+        std::vector textureRemap(m_Textures.size(), NO_MAP);
+
+        for (auto& pass : m_RenderPasses)
+        {
+            for (auto& access : pass->m_Accesses)
+            {
+                Resource resource = access.m_Resource;
+                u32 index = resource.Index();
+                if (resource.IsBuffer())
+                {
+                    bufferRemap[index] = bufferRemap[index] == NO_MAP ?
+                        index : bufferRemap[index];
+                    if (m_Buffers[index].m_Rename.IsValid())
+                        bufferRemap[m_Buffers[index].m_Rename.Index()] = bufferRemap[index];
+                }
+                else
+                {
+                    textureRemap[index] = textureRemap[index] == NO_MAP ?
+                        resource.Index() : textureRemap[index];
+                    if (m_Textures[index].m_Rename.IsValid())
+                        textureRemap[m_Textures[index].m_Rename.Index()] = textureRemap[index];
+                }
+            }
+        }
 
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
         {
             for (auto& access : m_RenderPasses[passIndex]->m_Accesses)
             {
-                if (ResourceAccess::HasWriteAccess(access.m_Access))
+                Resource resource = access.m_Resource;
+                u32 index = resource.Index();
+                if (resource.IsBuffer())
                 {
-                    passRefCount[passIndex]++;
-                    access.m_Resource.IsBuffer() ?
-                        bufferRefCount[access.m_Resource.Index()].Producer = passIndex : 
-                        textureRefCount[access.m_Resource.Index()].Producer = passIndex; 
+                    if (ResourceAccess::HasWriteAccess(access.m_Access))
+                    {
+                        passRefCount[passIndex]++;
+                        bufferRefCount[bufferRemap[index]].Producer = passIndex;
+                    }
+                    if (ResourceAccess::HasReadAccess(access.m_Access))
+                    {
+                        bufferRefCount[bufferRemap[index]].Count++;
+                        producerMap[passIndex].ReadBuffers.push_back(bufferRemap[index]);
+                    }
                 }
-                else if (ResourceAccess::HasReadAccess(access.m_Access))
+                else
                 {
-                    access.m_Resource.IsBuffer() ?
-                        ++bufferRefCount[access.m_Resource.Index()].Count : 
-                        ++textureRefCount[access.m_Resource.Index()].Count;
-                    access.m_Resource.IsBuffer() ?
-                        producerMap[passIndex].ReadBuffers.push_back(access.m_Resource.Index()) : 
-                        producerMap[passIndex].ReadTextures.push_back(access.m_Resource.Index()); 
+                    if (ResourceAccess::HasWriteAccess(access.m_Access))
+                    {
+                        passRefCount[passIndex]++;
+                        textureRefCount[textureRemap[index]].Producer = passIndex;
+                    }
+                    if (ResourceAccess::HasReadAccess(access.m_Access))
+                    {
+                        textureRefCount[textureRemap[index]].Count++;
+                        producerMap[passIndex].ReadTextures.push_back(textureRemap[index]);
+                    }
                 }
             }
         }
@@ -429,34 +536,91 @@ namespace RenderGraph
             }
         }
 
+        // todo: the actual culling. Also this algorithm can be simplified if we account for non-cullable passes
         for (u32 passIndex = 0; passIndex < passRefCount.size(); passIndex++)
             if (passRefCount[passIndex] == 0)
                 LOG("TO BE CULLED: {}", m_RenderPasses[passIndex]->m_Name);
     }
 
     // todo: use for barriers
-    std::vector<std::vector<u32>> Graph::BuildAdjacencyList()
+    void Graph::BuildAdjacencyList()
     {
-        std::vector adjacency(m_RenderPasses.size(), std::vector<u32>{});
+        m_AdjacencyList = std::vector(m_RenderPasses.size(), std::vector<u32>{});
         // beautiful 
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
             for (u32 otherIndex = passIndex + 1; otherIndex < m_RenderPasses.size(); otherIndex++)
                 for (auto& access : m_RenderPasses[passIndex]->m_Accesses)
                     for (auto& otherAccess : m_RenderPasses[otherIndex]->m_Accesses)
                         if (access.m_Resource == otherAccess.m_Resource &&
-                            ResourceAccess::HasWriteAccess(access.m_Access) &&
-                            ResourceAccess::HasReadAccess(otherAccess.m_Access))
-                                adjacency[passIndex].push_back(otherIndex);
+                            ResourceAccess::HasWriteAccess(access.m_Access))
+                                m_AdjacencyList[passIndex].push_back(otherIndex);
+    }
 
-        return adjacency;
+    void Graph::TopologicalSort()
+    {
+        std::vector<u32> sortedIndices;
+        sortedIndices.reserve(m_RenderPasses.size());
+        struct Mark
+        {
+            bool Permanent{false};
+            bool Temporary{false};
+        };
+        std::vector<Mark> marks(m_RenderPasses.size());
+        std::vector<u32> unprocessed(m_RenderPasses.size());
+        std::ranges::generate(unprocessed.begin(), unprocessed.end(),
+            [n = (u32)m_RenderPasses.size() - 1]() mutable { return n--; });
+
+        // assume that pass 0 has no dependency
+        auto dfsSort = [&sortedIndices, &marks, this](u32 index)
+        {
+            auto dfsSortRecursive = [&sortedIndices, &marks, this](u32 index, auto& dfs)
+            {
+                if (marks[index].Permanent)
+                    return;
+                ASSERT(!marks[index].Temporary, "Circular dependency in graph (node {})", index)
+
+                marks[index].Temporary = true;
+                for (u32 adjacent : m_AdjacencyList[index])
+                    dfs(adjacent, dfs);
+
+                marks[index].Temporary = false;
+                marks[index].Permanent = true;
+                sortedIndices.push_back(index);
+            };
+
+            dfsSortRecursive(index, dfsSortRecursive);
+        };
+
+        while (!unprocessed.empty())
+        {
+            u32 toProcess = unprocessed.back(); unprocessed.pop_back();
+            if (!marks[toProcess].Permanent)
+                dfsSort(toProcess);
+        }
+
+        std::ranges::reverse(sortedIndices);
+        for (u32 index = 0; index < sortedIndices.size(); index++)
+        {
+            u32 current = index;
+            u32 next = sortedIndices[current];
+            while (next != index)
+            {
+                std::swap(m_RenderPasses[current], m_RenderPasses[next]);
+                std::swap(m_AdjacencyList[current], m_AdjacencyList[next]);
+                sortedIndices[current] = current;
+                current = next;
+                next = sortedIndices[next];
+            }
+            sortedIndices[current] = current;
+        }
     }
 
     // todo: use for barriers
-    std::vector<u32> Graph::CalculateLongestPath(const std::vector<std::vector<u32>>& adjacency)
+    std::vector<u32> Graph::CalculateLongestPath()
     {
         std::vector<u32> longestPath(m_RenderPasses.size());
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
-            for (u32 adjacentIndex : adjacency[passIndex])
+            for (u32 adjacentIndex : m_AdjacencyList[passIndex])
                 if (longestPath[adjacentIndex] < longestPath[passIndex] + 1)
                     longestPath[adjacentIndex] = longestPath[passIndex] + 1;
 
@@ -503,7 +667,13 @@ namespace RenderGraph
         {
             auto& graphResource = collection[index];
             if (needsAllocation && graphResource.m_Resource == nullptr)
-                graphResource.SetPhysicalResource(allocFn(graphResource));
+            {
+                // only the last rename has a full info on it's usage
+                auto* resource = &graphResource;
+                while (resource->m_Rename.IsValid())
+                    resource = &collection[resource->m_Rename.Index()];
+                graphResource.SetPhysicalResource(allocFn(*resource));
+            }
             if (hasRename)
                 collection[graphResource.m_Rename.Index()].SetPhysicalResource(graphResource.m_ResourceRef);
         };
@@ -512,7 +682,7 @@ namespace RenderGraph
             if (needsDeallocation)
                 collection[index].ReleaseResource();
         };
-        
+
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
         {
             for (auto& resourceAccess : m_RenderPasses[passIndex]->m_Accesses)
@@ -546,10 +716,21 @@ namespace RenderGraph
                 }
             }
         }
+        
+        for (auto& buffer : m_BuffersToExport)
+            *buffer.Target = m_Buffers[buffer.BufferResource.Index()].m_ResourceRef; 
+        for (auto& texture : m_TexturesToExport)
+            *texture.Target = m_Textures[texture.TextureResource.Index()].m_ResourceRef; 
     }
 
     void Graph::ManageBarriers()
     {
+        std::vector longestPath = CalculateLongestPath();
+
+        std::vector bufferRemap = CalculateRenameRemap([](Resource resource) { return resource.IsBuffer(); });
+        std::vector textureRemap = CalculateRenameRemap([](Resource resource) { return resource.IsTexture(); });
+
+        static constexpr u32 NO_PASS = std::numeric_limits<u32>::max();
         // data needed for barriers and layout transitions
         struct TextureTransitionInfo
         {
@@ -560,6 +741,8 @@ namespace RenderGraph
             PipelineAccess DestinationAccess;
             ImageLayout OldLayout;
             ImageLayout NewLayout;
+            u32 SourcePass{NO_PASS};
+            u32 DestinationPass{NO_PASS};
 
             TextureTransitionInfo Merge(const TextureTransitionInfo& other)
             {
@@ -567,6 +750,7 @@ namespace RenderGraph
                 info.DestinationStage = other.DestinationStage;
                 info.DestinationAccess = other.DestinationAccess;
                 info.NewLayout = other.NewLayout;
+                info.DestinationPass = other.DestinationPass;
 
                 return info;
             }
@@ -576,6 +760,7 @@ namespace RenderGraph
             PipelineStage Stage{PipelineStage::None};
             PipelineAccess Access{PipelineAccess::None};
             ImageLayout Layout{ImageLayout::Undefined};
+            u32 PassIndex{NO_PASS};
         };
         std::vector currentLayouts(m_Textures.size(), LayoutInfo{});
         enum class AccessType
@@ -589,6 +774,7 @@ namespace RenderGraph
             PipelineStage Stage{PipelineStage::None};
             PipelineAccess Access{PipelineAccess::None};
             AccessType Type{AccessType::None};
+            u32 PassIndex{NO_PASS};
         };
         std::vector currentBufferAccess(m_Buffers.size(), AccessInfo{});
         std::vector currentTextureAccess(m_Textures.size(), AccessInfo{});
@@ -598,8 +784,9 @@ namespace RenderGraph
             if (enumHasAny(access.m_Access, PipelineAccess::ReadTransfer | PipelineAccess::WriteTransfer))
             {
                 ASSERT(
-                    enumHasOnly(access.m_Access, PipelineAccess::ReadTransfer) ||
-                    enumHasOnly(access.m_Access, PipelineAccess::WriteTransfer),
+                    (enumHasAny(access.m_Access, PipelineAccess::ReadTransfer) ||
+                     enumHasAny(access.m_Access, PipelineAccess::WriteTransfer)) &&
+                    !enumHasAll(access.m_Access, PipelineAccess::ReadTransfer | PipelineAccess::WriteTransfer),
                     "Cannot mix transfer accesses with any other type of access")
                 if (enumHasAny(access.m_Access, PipelineAccess::ReadTransfer))
                     return ImageLayout::Source;
@@ -633,7 +820,104 @@ namespace RenderGraph
                 rename = GetResourceTypeBase(rename).m_Rename;
             }
         };
-        auto addLayoutTransition = [this](Pass& pass, const TextureTransitionInfo& transition)
+        auto addExecutionDependency = [this](Pass& pass, Resource resource, const ExecutionDependencyInfo& dependency)
+        {
+            pass.m_Barriers.push_back(
+               DependencyInfo::Builder()
+                   .ExecutionDependency(dependency)
+                   .Build(*m_FrameDeletionQueue));
+            pass.m_BarrierDependencyInfos.push_back({
+                .Resource = resource,
+                .ExecutionDependency = dependency});
+        };
+        auto addExecutionSplitBarrier = [this](Pass& passSignal, Pass& passWait, Resource resource,
+            const ExecutionDependencyInfo& dependency)
+        {
+            DependencyInfo dependencyInfo = DependencyInfo::Builder()
+                   .ExecutionDependency(dependency)
+                   .Build(*m_FrameDeletionQueue);
+            SplitBarrier splitBarrier = SplitBarrier::Builder().Build(*m_FrameDeletionQueue);
+            passSignal.m_SplitBarriersToSignal.push_back({
+                .Dependency = dependencyInfo,
+                .Barrier = splitBarrier});
+            passWait.m_SplitBarriersToWait.push_back({
+                .Dependency = dependencyInfo,
+                .Barrier = splitBarrier});
+
+            passSignal.m_SplitBarrierSignalInfos.push_back({
+                .Resource = resource,
+                .ExecutionDependency = dependency});
+            passWait.m_SplitBarrierWaitInfos.push_back({
+                .Resource = resource,
+                .ExecutionDependency = dependency});
+        };
+        auto addMemoryDependency = [this](Pass& pass, Resource resource, const MemoryDependencyInfo& dependency)
+        {
+            pass.m_Barriers.push_back(
+                DependencyInfo::Builder()
+                    .SetFlags(resource.IsTexture() ?
+                        PipelineDependencyFlags::ByRegion : PipelineDependencyFlags::None)
+                    .MemoryDependency(dependency)
+                    .Build(*m_FrameDeletionQueue));
+            pass.m_BarrierDependencyInfos.push_back({
+                .Resource = resource,
+                .MemoryDependency = dependency});
+        };
+        auto addMemorySplitBarrier = [this](Pass& passSignal, Pass& passWait, Resource resource,
+            const MemoryDependencyInfo& dependency)
+        {
+            DependencyInfo dependencyInfo = DependencyInfo::Builder()
+                .MemoryDependency(dependency)
+                .Build(*m_FrameDeletionQueue);
+            SplitBarrier splitBarrier = SplitBarrier::Builder().Build(*m_FrameDeletionQueue);
+            passSignal.m_SplitBarriersToSignal.push_back({
+                .Dependency = dependencyInfo,
+                .Barrier = splitBarrier});
+            passWait.m_SplitBarriersToWait.push_back({
+                .Dependency = dependencyInfo,
+                .Barrier = splitBarrier});
+
+            passSignal.m_SplitBarrierSignalInfos.push_back({
+                .Resource = resource,
+                .MemoryDependency = dependency});
+            passWait.m_SplitBarrierWaitInfos.push_back({
+                .Resource = resource,
+                .MemoryDependency = dependency});
+        };
+        auto addLayoutDependency = [this](Pass& pass, Resource resource, const LayoutTransitionInfo& dependency)
+        {
+            pass.m_Barriers.push_back(
+                DependencyInfo::Builder()
+                    .SetFlags(PipelineDependencyFlags::ByRegion)
+                    .LayoutTransition(dependency)
+                    .Build(*m_FrameDeletionQueue));
+            pass.m_BarrierDependencyInfos.push_back({
+                .Resource = resource,
+                .LayoutTransition = dependency});
+        };
+        auto addLayoutSplitBarrier = [this](Pass& passSignal, Pass& passWait, Resource resource,
+            const LayoutTransitionInfo& dependency)
+        {
+            DependencyInfo dependencyInfo = DependencyInfo::Builder()
+                .LayoutTransition(dependency)
+                .Build(*m_FrameDeletionQueue);
+            SplitBarrier splitBarrier = SplitBarrier::Builder().Build(*m_FrameDeletionQueue);
+            passSignal.m_SplitBarriersToSignal.push_back({
+                .Dependency = dependencyInfo,
+                .Barrier = splitBarrier});
+            passWait.m_SplitBarriersToWait.push_back({
+                .Dependency = dependencyInfo,
+                .Barrier = splitBarrier});
+
+            passSignal.m_SplitBarrierSignalInfos.push_back({
+                .Resource = resource,
+                .LayoutTransition = dependency});
+            passWait.m_SplitBarrierWaitInfos.push_back({
+                .Resource = resource,
+                .LayoutTransition = dependency});
+        };
+        auto addLayoutTransition = [this, &addLayoutDependency, &addLayoutSplitBarrier, longestPath]
+            (const TextureTransitionInfo& transition)
         {
             auto& texture = m_Textures[transition.Texture.Index()];
                 
@@ -646,37 +930,14 @@ namespace RenderGraph
                 .DestinationAccess = transition.DestinationAccess,
                 .OldLayout = transition.OldLayout,
                 .NewLayout = transition.NewLayout};
-            pass.m_LayoutTransitions.push_back(
-                DependencyInfo::Builder()
-                    .SetFlags(PipelineDependencyFlags::ByRegion)
-                    .LayoutTransition(layoutTransitionInfo)
-                    .Build(m_FrameDeletionQueue));
-            pass.m_LayoutTransitionInfos.push_back(Pass::PassTextureTransitionInfo{
-                .Texture = transition.Texture,
-                .OldLayout = transition.OldLayout,
-                .NewLayout = transition.NewLayout});
-        };
-        auto addExecutionDependency = [this](Pass& pass, Resource resource, const ExecutionDependencyInfo& dependency)
-        {
-            pass.m_Barriers.push_back(
-               DependencyInfo::Builder()
-                   .ExecutionDependency(dependency)
-                   .Build(m_FrameDeletionQueue));
-            pass.m_BarrierDependencyInfos.push_back({
-                .Resource = resource,
-                .ExecutionDependency = dependency});
-        };
-        auto addMemoryDependency = [this](Pass& pass, Resource resource, const MemoryDependencyInfo& dependency)
-        {
-            pass.m_Barriers.push_back(
-                DependencyInfo::Builder()
-                    .SetFlags(resource.IsTexture() ?
-                        PipelineDependencyFlags::ByRegion : PipelineDependencyFlags::None)
-                    .MemoryDependency(dependency)
-                    .Build(m_FrameDeletionQueue));
-            pass.m_BarrierDependencyInfos.push_back({
-                .Resource = resource,
-                .MemoryDependency = dependency});
+
+            if (longestPath[transition.DestinationPass] - longestPath[transition.SourcePass] > 1)
+                addLayoutSplitBarrier(
+                    *m_RenderPasses[transition.SourcePass], *m_RenderPasses[transition.DestinationPass],
+                    transition.Texture, layoutTransitionInfo);
+            else
+                addLayoutDependency(*m_RenderPasses[transition.DestinationPass],
+                    transition.Texture, layoutTransitionInfo);
         };
         
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
@@ -699,7 +960,8 @@ namespace RenderGraph
                     AccessInfo accessInfo = {
                         .Stage = resourceAccess.m_Stage,
                         .Access = resourceAccess.m_Access,
-                        .Type = accessType};
+                        .Type = accessType,
+                        .PassIndex = passIndex};
                     if (resource.IsTexture())
                         currentTextureAccess[resource.Index()] = accessInfo;
                     else
@@ -725,12 +987,16 @@ namespace RenderGraph
                             .SourceAccess = currentLayouts[resource.Index()].Access,
                             .DestinationAccess = resourceAccess.m_Access,
                             .OldLayout = currentLayout,
-                            .NewLayout = desiredLayout});
+                            .NewLayout = desiredLayout,
+                            .SourcePass = currentLayouts[resource.Index()].PassIndex == NO_PASS ?
+                                passIndex : currentLayouts[resource.Index()].PassIndex,
+                            .DestinationPass = passIndex});
 
                         updateAndPropagate(currentLayouts, resource, LayoutInfo{
                             .Stage = resourceAccess.m_Stage,
                             .Access = resourceAccess.m_Access,
-                            .Layout = desiredLayout});
+                            .Layout = desiredLayout,
+                            .PassIndex = passIndex});
 
                         // layout change is a barrier itself, so no further processing is necessary 
                         shouldHandleBarriers = false;
@@ -747,7 +1013,13 @@ namespace RenderGraph
                     ExecutionDependencyInfo executionDependencyInfo = {
                         .SourceStage = currentAccessInfo.Stage,
                         .DestinationStage = resourceAccess.m_Stage};
-                    addExecutionDependency(*pass, resource, executionDependencyInfo);
+
+                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
+                        addExecutionSplitBarrier(
+                            *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
+                            resource, executionDependencyInfo);
+                    else
+                        addExecutionDependency(*pass, resource, executionDependencyInfo);
                 }
                 else if (shouldHandleBarriers &&
                     !(currentAccessInfo.Type == AccessType::Read && accessType == AccessType::Read))
@@ -758,19 +1030,27 @@ namespace RenderGraph
                         .DestinationStage = resourceAccess.m_Stage,
                         .SourceAccess = currentAccessInfo.Access,
                         .DestinationAccess = resourceAccess.m_Access};
-                    addMemoryDependency(*pass, resource, memoryDependencyInfo);
+
+                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
+                        addMemorySplitBarrier(
+                            *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
+                            resource, memoryDependencyInfo);
+                    else
+                        addMemoryDependency(*pass, resource, memoryDependencyInfo);
                 }
 
                 if (resource.IsBuffer())
                     updateAndPropagate(currentBufferAccess, resource, AccessInfo{
                         .Stage = resourceAccess.m_Stage,
                         .Access = resourceAccess.m_Access,
-                        .Type = accessType});
+                        .Type = accessType,
+                        .PassIndex = passIndex});
                 else
                     updateAndPropagate(currentTextureAccess, resource, AccessInfo{
                         .Stage = resourceAccess.m_Stage,
                         .Access = resourceAccess.m_Access,
-                        .Type = accessType});
+                        .Type = accessType,
+                        .PassIndex = passIndex});
             }
 
             // sometimes you may have redundant layout transitions
@@ -793,7 +1073,7 @@ namespace RenderGraph
                 }
                 else
                 {
-                    addLayoutTransition(pass, transition.Merge(otherTransition));
+                    addLayoutTransition(transition.Merge(otherTransition));
                 }
             };
             
@@ -807,7 +1087,7 @@ namespace RenderGraph
                     auto& transition = layoutTransitions[currentIndex];
                     auto& otherTransition = layoutTransitions[index];
                     
-                    if (otherTransition.Texture != transition.Texture)
+                    if (textureRemap[otherTransition.Texture.Index()] != textureRemap[transition.Texture.Index()])
                     {
                         if (index - currentIndex > 1)
                         {
@@ -815,12 +1095,12 @@ namespace RenderGraph
                         }
                         else if (index == layoutTransitions.size() - 1)
                         {
-                            addLayoutTransition(*pass, transition);
-                            addLayoutTransition(*pass, otherTransition);
+                            addLayoutTransition(transition);
+                            addLayoutTransition(otherTransition);
                         }
                         else
                         {
-                            addLayoutTransition(*pass, transition);
+                            addLayoutTransition(transition);
                         }
                         currentIndex = index;
                     }
@@ -831,7 +1111,7 @@ namespace RenderGraph
             else if (!layoutTransitions.empty())
             {
                 auto& transition = layoutTransitions.front();
-                addLayoutTransition(*pass, transition);
+                addLayoutTransition(transition);
             }
         }
 
@@ -1202,8 +1482,8 @@ namespace RenderGraph
     {
         ASSERT(
             !ResourceAccess::HasWriteAccess(access) ||
-            !ResourceAccess::HasWriteAccess(resource.m_Access) ||
-            !GetResourceTypeBase(resource.m_Resource).m_Rename.IsValid(), "Cannot write twice to the same resource")
+            (!ResourceAccess::HasWriteAccess(resource.m_Access) &&
+            !GetResourceTypeBase(resource.m_Resource).m_Rename.IsValid()), "Cannot write twice to the same resource")
 
         if (ResourceAccess::HasWriteAccess(access))
         {
@@ -1274,17 +1554,21 @@ namespace RenderGraph
         {
             return std::format("pass_{}", passIndex);
         };
-        auto getTransitionId = [](u32 passIndex, u32 transitionIndex)
-        {
-            return std::format("transition_{}_{}", passIndex, transitionIndex);
-        };
         auto getBarrierId = [](u32 passIndex, u32 barrierIndex)
         {
             return std::format("barrier_{}_{}", passIndex, barrierIndex);
         };
+        auto getSignalId = [](u32 passIndex, u32 splitBarrierIndex)
+        {
+            return std::format("signal_barrier_{}_{}", passIndex, splitBarrierIndex);
+        };
+        auto getWaitId = [](u32 passIndex, u32 splitBarrierIndex)
+        {
+            return std::format("wait_barrier_{}_{}", passIndex, splitBarrierIndex);
+        };
         
         std::stringstream ss;
-        ss << std::format("graph TB\n");
+        ss << std::format("graph LR\n");
 
         // declare-nodes
         std::unordered_set<u32> declaredAccesses = {};
@@ -1303,13 +1587,21 @@ namespace RenderGraph
                 ss << std::format("\t{}[\"`{}\n", access.m_Resource.m_Value, resourceName);
                 if (access.m_Resource.IsBuffer())
                 {
-                    const BufferDescription& description = m_Buffers[access.m_Resource.Index()].m_Description;
+                    const GraphBuffer* descriptionHolder = &m_Buffers[access.m_Resource.Index()];
+                    while (descriptionHolder->m_Rename.IsValid())
+                        descriptionHolder = &m_Buffers[descriptionHolder->m_Rename.Index()];
+                    
+                    const BufferDescription& description = descriptionHolder->m_Description;
                     ss << std::format("\t{}\n\t{}`\"]\n", description.SizeBytes,
                         BufferUtils::bufferUsageToString(description.Usage));
                 }
                 else
                 {
-                    const TextureDescription& description = m_Textures[access.m_Resource.Index()].m_Description;
+                    const GraphTexture* descriptionHolder = &m_Textures[access.m_Resource.Index()];
+                    while (descriptionHolder->m_Rename.IsValid())
+                        descriptionHolder = &m_Textures[descriptionHolder->m_Rename.Index()];
+                    
+                    const TextureDescription& description = descriptionHolder->m_Description;
                     ss << std::format("\t({} x {} x {})\n\t{}\n\t{}\n\t{}\n\t{}`\"]\n",
                         description.Width, description.Height, description.Layers,
                         ImageUtils::imageKindToString(description.Kind),
@@ -1321,36 +1613,91 @@ namespace RenderGraph
                 declaredAccesses.emplace(access.m_Resource.m_Value);
             }
 
-            for (u32 transitionIndex = 0; transitionIndex < pass.m_LayoutTransitions.size(); transitionIndex++)
-            {
-                auto& transitionInfo = pass.m_LayoutTransitionInfos[transitionIndex];
-                std::string transitionId = getTransitionId(passIndex, transitionIndex);
-                ss << std::format("\t{}{{{{\"`{}\n", transitionId, "Layout transition");
-                ss << std::format("\t{} - {}`\"}}}}\n",
-                    ImageUtils::imageLayoutToString(transitionInfo.OldLayout),
-                    ImageUtils::imageLayoutToString(transitionInfo.NewLayout));
-            }
-
-            for (u32 barrierIndex = 0; barrierIndex < pass.m_Barriers.size(); barrierIndex++)
+            for (u32 barrierIndex = 0; barrierIndex < pass.m_BarrierDependencyInfos.size(); barrierIndex++)
             {
                 auto& barrierInfo = pass.m_BarrierDependencyInfos[barrierIndex];
                 std::string barrierId = getBarrierId(passIndex, barrierIndex);
-                ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Barrier");
                 if (barrierInfo.ExecutionDependency.has_value())
                 {
+                    ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Execution barrier");
                     auto& execution = barrierInfo.ExecutionDependency.value();
                     ss << std::format("\t{} - {}`\"}}}}\n",
                         SynchronizationUtils::pipelineStageToString(execution.SourceStage),
                         SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
                 }
-                else
+                else if (barrierInfo.MemoryDependency.has_value())
                 {
+                    ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Memory barrier");
                     auto& memory = barrierInfo.MemoryDependency.value();
                     ss << std::format("\t{} - {}\n\t{} - {}`\"}}}}\n",
                         SynchronizationUtils::pipelineStageToString(memory.SourceStage),
                         SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
                         SynchronizationUtils::pipelineAccessToString(memory.SourceAccess),
                         SynchronizationUtils::pipelineAccessToString(memory.DestinationAccess));
+                }
+                else
+                {
+                    ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Layout transition barrier");
+                    auto& transition = barrierInfo.LayoutTransition.value();
+                    ss << std::format("\t{} - {}`\"}}}}\n",
+                        ImageUtils::imageLayoutToString(transition.OldLayout),
+                        ImageUtils::imageLayoutToString(transition.NewLayout));
+                }
+            }
+            for (u32 signalIndex = 0; signalIndex < pass.m_SplitBarrierSignalInfos.size(); signalIndex++)
+            {
+                auto& signalInfo = pass.m_SplitBarrierSignalInfos[signalIndex];
+                std::string signalId = getSignalId(passIndex, signalIndex);
+                if (signalInfo.ExecutionDependency.has_value())
+                {
+                    ss << std::format("\t{}[/\"`{}\n", signalId, "Signal execution");
+                    auto& execution = signalInfo.ExecutionDependency.value();
+                    ss << std::format("\t{}`\"\\]\n",
+                        SynchronizationUtils::pipelineStageToString(execution.SourceStage));
+                }
+                else if (signalInfo.MemoryDependency.has_value())
+                {
+                    ss << std::format("\t{}[/\"`{}\n", signalId, "Signal memory");
+                    auto& memory = signalInfo.MemoryDependency.value();
+                    ss << std::format("\t{}\n\t{}`\"\\]\n",
+                        SynchronizationUtils::pipelineStageToString(memory.SourceStage),
+                        SynchronizationUtils::pipelineAccessToString(memory.SourceAccess));
+                }
+                else
+                {
+                    ss << std::format("\t{}[/\"`{}\n", signalId, "Signal layout transition");
+                    auto& transition = signalInfo.LayoutTransition.value();
+                    ss << std::format("\t{} - {}`\"\\]\n",
+                        ImageUtils::imageLayoutToString(transition.OldLayout),
+                        ImageUtils::imageLayoutToString(transition.NewLayout));
+                }
+            }
+            for (u32 waitIndex = 0; waitIndex < pass.m_SplitBarrierWaitInfos.size(); waitIndex++)
+            {
+                auto& waitInfo = pass.m_SplitBarrierWaitInfos[waitIndex];
+                std::string waitId = getWaitId(passIndex, waitIndex);
+                if (waitInfo.ExecutionDependency.has_value())
+                {
+                    ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait execution");
+                    auto& execution = waitInfo.ExecutionDependency.value();
+                    ss << std::format("\t{}`\"/]\n",
+                        SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
+                }
+                else if (waitInfo.MemoryDependency.has_value())
+                {
+                    ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait memory");
+                    auto& memory = waitInfo.MemoryDependency.value();
+                    ss << std::format("\t{}\n\t{}`\"/]\n",
+                        SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
+                        SynchronizationUtils::pipelineAccessToString(memory.DestinationAccess));
+                }
+                else
+                {
+                    ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait layout transition");
+                    auto& transition = waitInfo.LayoutTransition.value();
+                    ss << std::format("\t{} - {}`\"/]\n",
+                        ImageUtils::imageLayoutToString(transition.OldLayout),
+                        ImageUtils::imageLayoutToString(transition.NewLayout));
                 }
             }
         }
@@ -1364,21 +1711,45 @@ namespace RenderGraph
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
         {
             auto& pass = *m_RenderPasses[passIndex];
-            std::unordered_map<u32, u32> transitionedTextures = {};
-            for (u32 transitionIndex = 0; transitionIndex < pass.m_LayoutTransitions.size(); transitionIndex++)
+            std::unordered_set<u32> processedResourcesRead = {};
+            std::unordered_set<u32> processedResourcesWrite = {};
+            for (u32 signalIndex = 0; signalIndex < pass.m_SplitBarrierSignalInfos.size(); signalIndex++)
             {
-                auto& transitionInfo = pass.m_LayoutTransitionInfos[transitionIndex];
-                transitionedTextures.emplace(transitionInfo.Texture.m_Value, transitionIndex);
+                auto& signalInfo = pass.m_SplitBarrierSignalInfos[signalIndex];
+                std::string signalId = getSignalId(passIndex, signalIndex);
+                ss << std::format("\t{} -- signals --> {}\n", getPassId(passIndex), signalId);
+                ss << std::format("\t{} --> {}\n", signalId, signalInfo.Resource.m_Value);
             }
-            std::unordered_map<u32, u32> barriers = {};
-            for (u32 barrierIndex = 0; barrierIndex < pass.m_Barriers.size(); barrierIndex++)
+            for (u32 waitIndex = 0; waitIndex < pass.m_SplitBarrierWaitInfos.size(); waitIndex++)
+            {
+                auto& waitInfo = pass.m_SplitBarrierWaitInfos[waitIndex];
+                std::string waitId = getWaitId(passIndex, waitIndex);
+                ss << std::format("\t{} --> {}\n", waitId, waitInfo.Resource.m_Value);
+                ss << std::format("\t{} -- waits for --> {}\n", getPassId(passIndex), waitId);
+            }
+            for (u32 barrierIndex = 0; barrierIndex < pass.m_BarrierDependencyInfos.size(); barrierIndex++)
             {
                 auto& barrierInfo = pass.m_BarrierDependencyInfos[barrierIndex];
-                barriers.emplace(barrierInfo.Resource.m_Value, barrierIndex);
+                std::string barrierId = getBarrierId(passIndex, barrierIndex);
+                ResourceAccess access = *std::ranges::find_if(pass.m_Accesses,
+                    [&barrierInfo](auto& access){ return access.m_Resource == barrierInfo.Resource; });
+                
+                if (ResourceAccess::HasWriteAccess(access.m_Access))
+                {
+                    ss << std::format("\t{} -- waits for --> {}\n", getPassId(passIndex), barrierId);
+                    ss << std::format("\t{} -- to write to --> {}\n", barrierId, barrierInfo.Resource.m_Value);
+                    processedResourcesWrite.emplace(barrierInfo.Resource.m_Value);
+                }
+                if (ResourceAccess::HasReadAccess(access.m_Access))
+                {
+                    ss << std::format("\t{} -- waited on --> {}\n", barrierInfo.Resource.m_Value, barrierId);
+                    ss << std::format("\t{} -- to be read by --> {}\n", barrierId, getPassId(passIndex));
+                    processedResourcesRead.emplace(barrierInfo.Resource.m_Value);
+                }
             }
+            
             for (auto& access : pass.m_Accesses)
             {
-                // resource can have rename only if it is written to
                 Resource rename = GetResourceTypeBase(access.m_Resource).m_Rename;
                 if (rename.IsValid() && !renames.contains(rename.m_Value))
                 {
@@ -1395,59 +1766,14 @@ namespace RenderGraph
                     renames.emplace(rename.m_Value, RenameData{.RenameOf = renameOf, .Depth = depth});
                 }
 
-                
-                if (ResourceAccess::HasWriteAccess(access.m_Access))
-                {
-                    if (transitionedTextures.contains(access.m_Resource.m_Value))
-                    {
-                        u32 transitionIndex = transitionedTextures.at(access.m_Resource.m_Value);
-                        std::string transitionId = getTransitionId(passIndex, transitionIndex);
-                        ss << std::format("\t{} -- waits for --> {}\n",
-                            getPassId(passIndex), transitionId);
-                        ss << std::format("\t{} -- to write to --> {}\n",
-                            transitionId, access.m_Resource.m_Value);
-                    }
-                    else if (barriers.contains(access.m_Resource.m_Value))
-                    {
-                        u32 barrierIndex = barriers.at(access.m_Resource.m_Value);
-                        std::string barrierId = getBarrierId(passIndex, barrierIndex);
-                        ss << std::format("\t{} -- waits for --> {}\n",
-                            getPassId(passIndex), barrierId);
-                        ss << std::format("\t{} -- to write to --> {}\n",
-                            barrierId, access.m_Resource.m_Value);
-                    }
-                    else
-                    {
+                if (ResourceAccess::HasWriteAccess(access.m_Access) &&
+                    !processedResourcesWrite.contains(access.m_Resource.m_Value))
                         ss << std::format("\t{} -- writes to --> {}\n",
                             getPassId(passIndex), access.m_Resource.m_Value);
-                    }
-                }
-                if (ResourceAccess::HasReadAccess(access.m_Access))
-                {
-                    if (transitionedTextures.contains(access.m_Resource.m_Value))
-                    {
-                        u32 transitionIndex = transitionedTextures.at(access.m_Resource.m_Value);
-                        std::string transitionId = getTransitionId(passIndex, transitionIndex);
-                        ss << std::format("\t{} -- transitions --> {}\n",
-                            access.m_Resource.m_Value, transitionId);
-                        ss << std::format("\t{} -- to be read by --> {}\n",
-                            transitionId, getPassId(passIndex));
-                    }
-                    else if (barriers.contains(access.m_Resource.m_Value))
-                    {
-                        u32 barrierIndex = barriers.at(access.m_Resource.m_Value);
-                        std::string barrierId = getBarrierId(passIndex, barrierIndex);
-                        ss << std::format("\t{} -- waited on --> {}\n",
-                            access.m_Resource.m_Value, barrierId);
-                        ss << std::format("\t{} -- to be read by --> {}\n",
-                            barrierId, getPassId(passIndex));
-                    }
-                    else
-                    {
+                if (ResourceAccess::HasReadAccess(access.m_Access) &&
+                    !processedResourcesRead.contains(access.m_Resource.m_Value))
                         ss << std::format("\t{} -- read by --> {}\n",
                             access.m_Resource.m_Value, getPassId(passIndex));
-                    }
-                }
             }
         }
 

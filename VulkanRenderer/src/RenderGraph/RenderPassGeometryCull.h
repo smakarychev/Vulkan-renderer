@@ -26,7 +26,7 @@ struct RenderPassGeometryCullRenderingContext
     DeletionQueue* DeletionQueue{nullptr};
     u32 FrameNumber{0};
     glm::vec2 Resolution; 
-    RenderGraph::PipelineData* RenderingPipeline;
+    RenderGraph::PipelineDataDescriptorSet* RenderingPipeline;
     DescriptorsOffsets DescriptorsOffsets;
     const RenderingInfo* ClearRenderingInfo;
     const RenderingInfo* CopyRenderingInfo;
@@ -58,7 +58,6 @@ public:
     u32 GetTriangleBufferSizeBytes() const;
 
     static constexpr u32 TRIANGLE_OFFSET = std::numeric_limits<u32>::max(); 
-    
 private:
     void InitPipelines(DescriptorAllocator& persistentAllocator, DescriptorAllocator& resolutionDependentAllocator);
     void InitSynchronization();
@@ -82,11 +81,11 @@ private:
     class BatchedCull;
     std::shared_ptr<BatchedCull> m_BatchedCull;
 
-    RenderGraph::PipelineData m_MeshCull{};
-    RenderGraph::PipelineData m_MeshCullReocclusion{};
-    RenderGraph::PipelineData m_MeshletCull{};
-    RenderGraph::PipelineData m_MeshletCullReocclusion{};
-    RenderGraph::PipelineData m_MeshletCullClear{};
+    RenderGraph::PipelineDataDescriptorSet m_MeshCull{};
+    RenderGraph::PipelineDataDescriptorSet m_MeshCullReocclusion{};
+    RenderGraph::PipelineDataDescriptorSet m_MeshletCull{};
+    RenderGraph::PipelineDataDescriptorSet m_MeshletCullReocclusion{};
+    RenderGraph::PipelineDataDescriptorSet m_MeshletCullClear{};
 
     DependencyInfo m_ComputeWRDependency{};
     Barrier m_Barrier{};

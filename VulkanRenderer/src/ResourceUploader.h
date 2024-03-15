@@ -97,7 +97,7 @@ void ResourceUploader::UpdateBuffer(Buffer& buffer, const T& data, u64 bufferOff
 template <typename T>
 void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const T& data)
 {
-    UpdateBufferImmediately(buffer, data);
+    UpdateBufferImmediately(buffer, (void*)&data, sizeof(T), 0);
 }
 
 template <typename T>
