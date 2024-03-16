@@ -90,6 +90,7 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
     const HiZPassContext& hiZPassContext)
 {
     using namespace RenderGraph;
+    using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo samplerBinding =
         m_PipelineData.SamplerDescriptors.GetBindingInfo("u_sampler");
@@ -129,13 +130,12 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
                 passData.VisibilitySsbo = meshOutput.VisibilitySsbo;
             }
 
-            const ResourceAccessFlags commonFlags = ResourceAccessFlags::Compute;
             passData.HiZSampler = hiZPassContext.GetSampler();
-            passData.HiZ = graph.Read(passData.HiZ, commonFlags | ResourceAccessFlags::Sampled);
-            passData.SceneUbo = graph.Read(passData.SceneUbo, commonFlags | ResourceAccessFlags::Uniform);
-            passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, commonFlags | ResourceAccessFlags::Storage);
-            passData.VisibilitySsbo = graph.Read(passData.VisibilitySsbo, commonFlags | ResourceAccessFlags::Storage);
-            passData.VisibilitySsbo = graph.Write(passData.VisibilitySsbo, commonFlags | ResourceAccessFlags::Storage);
+            passData.HiZ = graph.Read(passData.HiZ, Compute | Sampled);
+            passData.SceneUbo = graph.Read(passData.SceneUbo, Compute | Uniform | Upload);
+            passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Compute | Storage);
+            passData.VisibilitySsbo = graph.Read(passData.VisibilitySsbo, Compute | Storage);
+            passData.VisibilitySsbo = graph.Write(passData.VisibilitySsbo, Compute |Storage);
             
             passData.PipelineData = &m_PipelineData;
 

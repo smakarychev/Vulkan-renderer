@@ -14,16 +14,20 @@ public:
         f32 SensorAngle;
         f32 SensorOffset;
         glm::vec3 Color;
+        f32 ContagionThreshold;
+        u32 ContagionSteps;
     };
     struct Slime
     {
         glm::vec2 Position;
         f32 Angle;
         u32 TraitsIndex;
+        u32 ContagionStepsLeft;
     };
 public:
     static SlimeMoldContext RandomIn(const glm::uvec2& bounds, u32 traitCount, u32 slimeCount,
         ResourceUploader& resourceUploader);
+    static Traits RandomTrait();
     
     const glm::uvec2& GetBounds() const { return m_Resolution; }
     const std::vector<Traits>& GetTraits() const { return m_Traits; }
@@ -34,6 +38,8 @@ public:
     const Buffer& GetTraitsBuffer() const { return m_TraitsBuffer; }
     const Buffer& GetSlimeBuffer() const { return m_SlimeBuffer; }
 
+    const Texture& GetSlimeMap() const { return m_SlimeMap; }
+
     void UpdateTraits(ResourceUploader& resourceUploader);
 private:
     glm::uvec2 m_Resolution{};
@@ -42,6 +48,7 @@ private:
 
     Buffer m_TraitsBuffer;
     Buffer m_SlimeBuffer;
+    Texture m_SlimeMap;
 };
 
 enum class SlimeMoldPassStage

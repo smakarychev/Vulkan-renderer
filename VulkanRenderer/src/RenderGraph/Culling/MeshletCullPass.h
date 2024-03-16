@@ -84,6 +84,7 @@ void MeshletCullPassGeneral<Reocclusion>::AddToGraph(RenderGraph::Graph& renderG
     const HiZPassContext& hiZPassContext)
 {
     using namespace RenderGraph;
+    using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo samplerBinding =
         m_PipelineData.SamplerDescriptors.GetBindingInfo("u_sampler");
@@ -147,28 +148,19 @@ void MeshletCullPassGeneral<Reocclusion>::AddToGraph(RenderGraph::Graph& renderG
                     GraphBufferDescription{.SizeBytes = sizeof(u32)});
             }
 
-            const ResourceAccessFlags commonFlags = ResourceAccessFlags::Compute;
-
             passData.HiZSampler = hiZPassContext.GetSampler();
-            passData.HiZ = graph.Read(passData.HiZ, commonFlags | ResourceAccessFlags::Sampled);
-            passData.SceneUbo = graph.Read(passData.SceneUbo, commonFlags | ResourceAccessFlags::Uniform);
-            passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, commonFlags | ResourceAccessFlags::Storage);
-            passData.ObjectVisibilitySsbo = graph.Read(passData.ObjectVisibilitySsbo,
-                commonFlags | ResourceAccessFlags::Storage);
-            passData.MeshletsSsbo = graph.Read(passData.MeshletsSsbo, commonFlags | ResourceAccessFlags::Storage);
-            passData.MeshletVisibilitySsbo = graph.Read(passData.MeshletVisibilitySsbo,
-                commonFlags | ResourceAccessFlags::Storage);
-            passData.MeshletVisibilitySsbo = graph.Write(passData.MeshletVisibilitySsbo,
-                commonFlags | ResourceAccessFlags::Storage);
-            passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, commonFlags | ResourceAccessFlags::Storage);
-            passData.CompactCommandsSsbo = graph.Read(passData.CompactCommandsSsbo,
-                commonFlags | ResourceAccessFlags::Storage);
-            passData.CompactCommandsSsbo = graph.Write(passData.CompactCommandsSsbo,
-                commonFlags | ResourceAccessFlags::Storage);
-            passData.CompactCountSsbo = graph.Read(passData.CompactCountSsbo,
-                commonFlags | ResourceAccessFlags::Storage);
-            passData.CompactCountSsbo = graph.Write(passData.CompactCountSsbo,
-                commonFlags | ResourceAccessFlags::Storage);
+            passData.HiZ = graph.Read(passData.HiZ, Compute | Sampled);
+            passData.SceneUbo = graph.Read(passData.SceneUbo, Compute | Uniform);
+            passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Compute | Storage);
+            passData.ObjectVisibilitySsbo = graph.Read(passData.ObjectVisibilitySsbo, Compute | Storage);
+            passData.MeshletsSsbo = graph.Read(passData.MeshletsSsbo, Compute | Storage);
+            passData.MeshletVisibilitySsbo = graph.Read(passData.MeshletVisibilitySsbo, Compute | Storage);
+            passData.MeshletVisibilitySsbo = graph.Write(passData.MeshletVisibilitySsbo, Compute | Storage);
+            passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, Compute | Storage);
+            passData.CompactCommandsSsbo = graph.Read(passData.CompactCommandsSsbo, Compute | Storage);
+            passData.CompactCommandsSsbo = graph.Write(passData.CompactCommandsSsbo, Compute | Storage);
+            passData.CompactCountSsbo = graph.Read(passData.CompactCountSsbo, Compute | Storage | Upload);
+            passData.CompactCountSsbo = graph.Write(passData.CompactCountSsbo, Compute | Storage);
             
             passData.PipelineData = &m_PipelineData;
 

@@ -85,23 +85,31 @@ private:
 template <typename T>
 void ResourceUploader::UpdateBuffer(Buffer& buffer, const T& data)
 {
+    if constexpr(std::is_pointer_v<T>)
+        LOG("Warning: passing a pointer to `UpdateBuffer`");
     UpdateBuffer(buffer, data, 0);
 }
 
 template <typename T>
 void ResourceUploader::UpdateBuffer(Buffer& buffer, const T& data, u64 bufferOffset)
 {
+    if constexpr(std::is_pointer_v<T>)
+        LOG("Warning: passing a pointer to `UpdateBuffer`");
     UpdateBuffer(buffer, (void*)&data, sizeof(T), bufferOffset);
 }
 
 template <typename T>
 void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const T& data)
 {
+    if constexpr(std::is_pointer_v<T>)
+        LOG("Warning: passing a pointer to `UpdateBufferImmediately`");
     UpdateBufferImmediately(buffer, (void*)&data, sizeof(T), 0);
 }
 
 template <typename T>
 void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const T& data, u64 bufferOffset)
 {
+    if constexpr(std::is_pointer_v<T>)
+        LOG("Warning: passing a pointer to `UpdateBufferImmediately`");
     UpdateBufferImmediately(buffer, (void*)&data, sizeof(T), bufferOffset);
 }

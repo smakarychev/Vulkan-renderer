@@ -30,6 +30,8 @@ namespace RenderGraph
 
         Blit        = BIT(11),
         Copy        = BIT(12),
+
+        Upload      = BIT(13),
     };
     CREATE_ENUM_FLAGS_OPERATORS(ResourceAccessFlags)
 
@@ -40,9 +42,10 @@ namespace RenderGraph
     struct ResourceAliasTraits<Buffer>
     {
         using ResourceTraits = ResourceTraits<Buffer>;
-        static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other)
+        static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
-            return description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
+            return (!enumHasAny(description.Usage, BufferUsage::Upload) || otherFrame != 0) &&
+                description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
         }
     };
 
@@ -50,7 +53,7 @@ namespace RenderGraph
     struct ResourceAliasTraits<Texture>
     {
         using ResourceTraits = ResourceTraits<Texture>;
-        static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other)
+        static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
             bool canAlias = description.Height == other.Height &&
                 description.Width == other.Width &&
@@ -76,6 +79,7 @@ namespace RenderGraph
 
     class RenderGraphPool
     {
+        static constexpr u32 MAX_UNREFERENCED_FRAMES = 4;
     public:
         template <typename T>
         std::shared_ptr<T> GetResource(const typename ResourceTraits<T>::Desc& description)
@@ -93,13 +97,19 @@ namespace RenderGraph
         {
             if constexpr(std::is_same_v<T, Buffer>)
             {
-                m_ExternalBuffers.Resources.push_back(std::make_shared<T>(resource));
-                return m_ExternalBuffers.Resources.back();
+                m_ExternalBuffers.Resources.push_back({
+                    .Resource = std::make_shared<T>(resource),
+                    .LastFrame = 0});
+                
+                return m_ExternalBuffers.Resources.back().Resource;
             }
             else if constexpr(std::is_same_v<T, Texture>)
             {
-                m_ExternalTextures.Resources.push_back(std::make_shared<T>(resource));
-                return m_ExternalTextures.Resources.back();
+                m_ExternalTextures.Resources.push_back({
+                    .Resource = std::make_shared<T>(resource),
+                    .LastFrame = 0});
+                
+                return m_ExternalTextures.Resources.back().Resource;
             }
             else
             {
@@ -112,23 +122,58 @@ namespace RenderGraph
             m_ExternalBuffers.Resources.clear();
             m_ExternalTextures.Resources.clear();
         }
+        void ClearUnreferenced()
+        {
+            for (auto& resource : m_Buffers.Resources)
+            {
+                resource.LastFrame++;
+                if (resource.LastFrame == MAX_UNREFERENCED_FRAMES)
+                {
+                    std::swap(resource, m_Buffers.Resources.back());
+                    m_Buffers.Resources.pop_back();
+                }
+            }
+            for (auto& resource : m_Textures.Resources)
+            {
+                resource.LastFrame++;
+                if (resource.LastFrame == MAX_UNREFERENCED_FRAMES)
+                {
+                    std::swap(resource, m_Textures.Resources.back());
+                    m_Textures.Resources.pop_back();
+                }
+            }
+        }
     private:
         template <typename T>
         struct Pool
         {
+            struct Item
+            {
+                std::shared_ptr<T> Resource;
+                // how many frames since the last usage
+                u32 LastFrame{0};
+            };
             std::shared_ptr<T> GetResource(const typename ResourceTraits<T>::Desc& description)
             {
-                for (auto& resource : Resources)
+                for (auto&& [resource, frame] : Resources)
+                {
                     if (resource.use_count() == 1 && ResourceAliasTraits<T>::CanAlias(
-                        description, resource->GetDescription()))
+                            description, resource->GetDescription(), frame))
+                    {
+                        frame = 0;
+                        
                         return resource;
+                    }
+                }
 
                 // allocate new resource
-                Resources.push_back(std::make_shared<T>(T::Builder(description).Build()));
+                Resources.push_back({
+                    .Resource = std::make_shared<T>(T::Builder(description).Build()),
+                    .LastFrame = 0});
                 
-                return Resources.back();
+                return Resources.back().Resource;
             }
-            std::vector<std::shared_ptr<T>> Resources;
+            std::vector<Item> Resources;
         };
 
         Pool<Buffer> m_Buffers;

@@ -279,6 +279,7 @@ namespace RenderGraph
         m_Blackboard.Clear();
         m_RenderPasses.clear();
         m_Pool.ClearExternals();
+        m_Pool.ClearUnreferenced();
         m_BuffersToExport.clear();
         m_TexturesToExport.clear();
         m_NameToPassIndexMap.clear();
@@ -405,8 +406,8 @@ namespace RenderGraph
     {
         for (auto& buffer : m_Buffers)
         {
-            // todo: definitely not the best way
-            buffer.m_Description.Usage |= BufferUsage::Destination;
+            if (!enumHasAny(buffer.m_Description.Usage, BufferUsage::Upload))
+                buffer.m_Description.Usage |= BufferUsage::Destination;
         }
     }
 
@@ -677,14 +678,14 @@ namespace RenderGraph
             if (hasRename)
                 collection[graphResource.m_Rename.Index()].SetPhysicalResource(graphResource.m_ResourceRef);
         };
-        auto handleDeallocation = [](auto& collection, u32 index, bool needsDeallocation)
+        auto handleDeallocation = [](auto& collection, u32 index)
         {
-            if (needsDeallocation)
-                collection[index].ReleaseResource();
+            collection[index].ReleaseResource();
         };
-
+        std::vector<Resource> toDeallocate;
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
         {
+            toDeallocate.clear();
             for (auto& resourceAccess : m_RenderPasses[passIndex]->m_Accesses)
             {
                 Resource resource = resourceAccess.m_Resource;
@@ -701,20 +702,25 @@ namespace RenderGraph
                     !resourceTypeBase.m_IsExternal;
                 bool needsDeallocation = resourceTypeBase.m_LastAccess == passIndex &&
                     !resourceTypeBase.m_IsExternal && !hasRename;
-
+                // delay deallocation, so we don't incorrectly alias an active resource
+                if (needsDeallocation)
+                    toDeallocate.push_back(resource);
+                
                 if (resource.IsBuffer())
-                {
                     handleAllocation(m_Buffers, resource.Index(), needsAllocation, hasRename,
                         [this](auto& res){ return m_Pool.GetResource<Buffer>(res.m_Description); });
-                    handleDeallocation(m_Buffers, resource.Index(), needsDeallocation);
-                }
                 else
-                {
                     handleAllocation(m_Textures, resource.Index(), needsAllocation, hasRename,
                         [this](auto& res){ return m_Pool.GetResource<Texture>(res.m_Description); });
-                    handleDeallocation(m_Textures, resource.Index(), needsDeallocation);
-                }
             }
+            for (Resource resource : toDeallocate)
+            {
+                if (resource.IsBuffer())
+                    handleDeallocation(m_Buffers, resource.Index());
+                else
+                    handleDeallocation(m_Textures, resource.Index());
+            }
+                
         }
         
         for (auto& buffer : m_BuffersToExport)
@@ -1194,6 +1200,11 @@ namespace RenderGraph
                     .Access = PipelineAccess::ReadTransfer,
                     .Usage = BufferUsage::Source}
             },
+            {
+                ResourceAccessFlags::Upload,
+                ResourceSubAccess{
+                    .Usage = BufferUsage::Upload}
+            },
         }; 
         
         PipelineStage stage = PipelineStage::None;
@@ -1218,7 +1229,8 @@ namespace RenderGraph
         ASSERT(!enumHasAny(readFlags,
             ResourceAccessFlags::Attribute |
             ResourceAccessFlags::Index | ResourceAccessFlags::Indirect | ResourceAccessFlags::Conditional |
-            ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform), "Image read has inappropriate flags")
+            ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform | ResourceAccessFlags::Upload),
+            "Image read has inappropriate flags")
         ASSERT(
             enumHasAny(readFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
             enumHasAny(readFlags, ResourceAccessFlags::Sampled | ResourceAccessFlags::Storage) ||
@@ -1350,6 +1362,11 @@ namespace RenderGraph
                     .Access = PipelineAccess::WriteTransfer,
                     .Usage = BufferUsage::Destination}
             },
+            {
+                ResourceAccessFlags::Upload,
+                ResourceSubAccess{
+                    .Usage = BufferUsage::Upload}
+            },
         }; 
         
         PipelineStage stage = PipelineStage::None;
@@ -1374,7 +1391,8 @@ namespace RenderGraph
         ASSERT(!enumHasAny(writeFlags,
            ResourceAccessFlags::Attribute |
            ResourceAccessFlags::Index | ResourceAccessFlags::Indirect | ResourceAccessFlags::Conditional |
-           ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform), "Image write has inappropriate flags")
+           ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform | ResourceAccessFlags::Upload),
+           "Image write has inappropriate flags")
        ASSERT(
            enumHasAny(writeFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
            enumHasAny(writeFlags, ResourceAccessFlags::Sampled | ResourceAccessFlags::Storage) ||
@@ -1530,6 +1548,11 @@ namespace RenderGraph
     {
         ASSERT(resource.IsBuffer(), "Provided resource handle is not a buffer")
 
+        GraphBuffer& bufferResource = m_Graph->m_Buffers[resource.Index()];
+        ASSERT(bufferResource.m_IsExternal || enumHasAny(bufferResource.m_Description.Usage, BufferUsage::Upload),
+            "GetBuffer with resoruce upload can be used only on external buffers, "
+            "or buffers created with 'Upload' usage")
+        
         Buffer& buffer = const_cast<Buffer&>(GetBuffer(resource));
         resourceUploader.UpdateBuffer(buffer, data, sizeBytes, offset);
 

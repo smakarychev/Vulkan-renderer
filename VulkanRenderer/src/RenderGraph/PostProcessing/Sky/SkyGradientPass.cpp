@@ -24,6 +24,7 @@ SkyGradientPass::SkyGradientPass(RenderGraph::Graph& renderGraph)
 void SkyGradientPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource renderTarget)
 {
     using namespace RenderGraph;
+    using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo cameraBinding =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_camera");
@@ -37,16 +38,13 @@ void SkyGradientPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::R
         {
             passData.CameraUbo = graph.CreateResource("sky-grading-pass-camera-ubo", GraphBufferDescription{
                 .SizeBytes = sizeof(passData.Camera)});
-            passData.CameraUbo = graph.Read(passData.CameraUbo,
-                ResourceAccessFlags::Compute | ResourceAccessFlags::Uniform);
+            passData.CameraUbo = graph.Read(passData.CameraUbo, Compute | Uniform | Upload);
             
             passData.SettingsUbo = graph.CreateResource("sky-grading-pass-settings-ubo", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.SettingsUbo = graph.Read(passData.SettingsUbo,
-                ResourceAccessFlags::Compute | ResourceAccessFlags::Uniform);
+            passData.SettingsUbo = graph.Read(passData.SettingsUbo, Compute | Uniform | Upload);
 
-            passData.ColorOut = graph.Write(renderTarget,
-                ResourceAccessFlags::Compute | ResourceAccessFlags::Storage);
+            passData.ColorOut = graph.Write(renderTarget, Compute | Storage);
 
             passData.PipelineData = &m_PipelineData;
             passData.Settings = &m_Settings;

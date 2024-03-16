@@ -14,12 +14,15 @@ struct Traits {
     float sensor_angle;
     float sensor_offset;
     float r, g, b;
+    float contagion_threshold;
+    uint contagion_steps;
 };
 
 struct Slime {
     vec2 position;
     float angle;
     uint traits_index;
+    uint contagion_steps;
 };
 
 struct GradColors {
@@ -79,7 +82,7 @@ float sense(Slime slime, float sensor_angle_local, float sensor_offset) {
     
     float sum = 0.0f;
     
-    int radius = 3;
+    int radius = 1;
     for (int x = -radius; x <= radius; x++) {
         for (int y = -radius; y <= radius; y++) {
             int sample_x = clamp(sensor_pixel.x + x, 0, int(width) - 1);
@@ -110,15 +113,26 @@ void update_slime_map() {
     float slime_angle = u_slime.slimes[id].angle; 
     
     float random_turn_rate = random_unit(random_seed);
-    
+    float angle_delta = 0.0f;
     if (weight_forward > weight_left && weight_forward > weight_right)
-        slime_angle += 0.0f;
+        angle_delta += 0.0f;
     else if (weight_forward < weight_left && weight_forward < weight_right)
-        slime_angle += ((random_turn_rate - 0.5f) * 2.0f) * traits.turn_speed * delta_time;
+        angle_delta += ((random_turn_rate - 0.5f) * 2.0f) * traits.turn_speed * delta_time;
     else if (weight_right > weight_left)
-        slime_angle -= random_turn_rate * traits.turn_speed * delta_time;
+        angle_delta -= random_turn_rate * traits.turn_speed * delta_time;
     else if (weight_left > weight_right)
-        slime_angle += random_turn_rate * traits.turn_speed * delta_time;
+        angle_delta += random_turn_rate * traits.turn_speed * delta_time;
+    
+    if (u_slime.slimes[id].contagion_steps > 0) {
+        angle_delta = -angle_delta;
+        u_slime.slimes[id].contagion_steps--;
+    }
+    
+    if (random_unit(random_seed) < traits.contagion_threshold) {
+        u_slime.slimes[id].contagion_steps = traits.contagion_steps;
+    }
+    
+    slime_angle += angle_delta;
     u_slime.slimes[id].angle = slime_angle;
     
     vec2 velocity = vec2(cos(slime_angle), sin(slime_angle)) * traits.move_speed * delta_time;

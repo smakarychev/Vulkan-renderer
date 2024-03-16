@@ -35,6 +35,7 @@ void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
     RenderGraph::Resource colorTarget)
 {
     using namespace RenderGraph;
+    using enum ResourceAccessFlags;
     
     static ShaderDescriptors::BindingInfo samplerBindingInfo =
         m_PipelineData.SamplerDescriptors.GetBindingInfo("u_sampler");
@@ -48,21 +49,18 @@ void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
     m_Pass = &renderGraph.AddRenderPass<PassData>("crt-pass",
         [&](Graph& graph, PassData& passData)
         {
-            passData.ColorIn = graph.Read(colorIn,
-                ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);
+            passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
             
             passData.ColorTarget = graph.RenderTarget(colorTarget,
                 AttachmentLoad::Load, AttachmentStore::Store);
 
             passData.TimeUbo = graph.CreateResource("crt-pass-time", GraphBufferDescription{
                 .SizeBytes = sizeof(f32)});
-            passData.TimeUbo = graph.Read(passData.TimeUbo,
-                ResourceAccessFlags::Pixel | ResourceAccessFlags::Uniform);
+            passData.TimeUbo = graph.Read(passData.TimeUbo, Pixel | Uniform | Upload);
 
             passData.SettingsUbo = graph.CreateResource("crt-pass-settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.SettingsUbo = graph.Read(passData.SettingsUbo,
-                ResourceAccessFlags::Pixel | ResourceAccessFlags::Uniform);
+            passData.SettingsUbo = graph.Read(passData.SettingsUbo, Pixel | Uniform | Upload);
 
             passData.PipelineData = &m_PipelineData;
             passData.Settings = &m_SettingsUBO;

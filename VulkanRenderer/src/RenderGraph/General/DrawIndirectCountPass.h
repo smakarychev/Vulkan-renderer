@@ -70,6 +70,7 @@ void DrawIndirectCountPass<Specialization>::AddToGraph(RenderGraph::Graph& rende
     RenderGraph::Resource commands, RenderGraph::Resource count, const RenderPassGeometry& geometry)
 {
     using namespace RenderGraph;
+    using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo cameraBinding = m_PipelineData.ResourceDescriptors.GetBindingInfo("u_camera");
     static ShaderDescriptors::BindingInfo objectsBinding =
@@ -82,14 +83,11 @@ void DrawIndirectCountPass<Specialization>::AddToGraph(RenderGraph::Graph& rende
         {
             passData.CameraUbo = graph.CreateResource(m_Name + "-camera",
                 GraphBufferDescription{.SizeBytes = sizeof(CameraUBO)});
-            passData.CameraUbo = graph.Read(passData.CameraUbo,
-                ResourceAccessFlags::Vertex | ResourceAccessFlags::Uniform);
+            passData.CameraUbo = graph.Read(passData.CameraUbo, Vertex | Uniform | Upload);
             passData.ObjectsSsbo = graph.AddExternal(m_Name + "-objects",
                 geometry.GetRenderObjectsBuffer());
-            passData.CommandsIndirect = graph.Read(commands,
-                ResourceAccessFlags::Vertex | ResourceAccessFlags::Indirect);
-            passData.CountIndirect = graph.Read(count,
-                ResourceAccessFlags::Vertex | ResourceAccessFlags::Indirect);
+            passData.CommandsIndirect = graph.Read(commands, Vertex | Indirect);
+            passData.CountIndirect = graph.Read(count, Vertex | Indirect);
 
             if (color.IsValid())
             {

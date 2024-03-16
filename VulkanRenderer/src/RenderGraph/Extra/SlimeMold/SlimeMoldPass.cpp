@@ -17,19 +17,15 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
     
     ctx.m_Traits.resize(traitCount);
     for (auto& trait : ctx.m_Traits)
-        trait = {
-            .MovementSpeed = Random::Float(1000.0f, 3000.0f),
-            .TurningSpeed = Random::Float(5.0f, 50.0f),
-            .SensorAngle = Random::Float(0.0f, glm::radians(180.0f)),
-            .SensorOffset = Random::Float(5.0f, 50.0f),
-            .Color = glm::vec4(1.0f)};
+        trait = RandomTrait();
 
     ctx.m_Slime.resize(slimeCount);
     for (auto& slime : ctx.m_Slime)
         slime = {
             .Position = {Random::Float(0.0f, (f32)bounds.x), Random::Float(0.0f, (f32)bounds.y)},
             .Angle = Random::Float(0.0f, glm::radians(360.0f)),
-            .TraitsIndex = Random::UInt32(0, traitCount - 1)};
+            .TraitsIndex = Random::UInt32(0, traitCount - 1),
+            .ContagionStepsLeft = 0};
 
     ctx.m_TraitsBuffer = Buffer::Builder()
         .SetSizeBytes((u32)ctx.m_Traits.size() * sizeof(Traits))
@@ -41,12 +37,31 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
         .SetUsage(BufferUsage::Storage | BufferUsage::DeviceAddress | BufferUsage::Destination)
         .Build();
 
+    ctx.m_SlimeMap = Texture::Builder({
+            .Width = bounds.x,
+            .Height = bounds.y,
+            .Format = Format::RGBA16_FLOAT})
+        .SetUsage(ImageUsage::Storage | ImageUsage::Destination)
+        .Build();
+
     resourceUploader.UpdateBuffer(ctx.m_TraitsBuffer, ctx.m_Traits.data(),
         ctx.m_TraitsBuffer.GetSizeBytes(), 0);
     resourceUploader.UpdateBuffer(ctx.m_SlimeBuffer, ctx.m_Slime.data(),
         ctx.m_SlimeBuffer.GetSizeBytes(), 0);
 
     return ctx;
+}
+
+SlimeMoldContext::Traits SlimeMoldContext::RandomTrait()
+{
+    return {
+        .MovementSpeed = Random::Float(500.0f, 3000.0f),
+        .TurningSpeed = Random::Float(5.0f, 50.0f),
+        .SensorAngle = Random::Float(0.0f, glm::radians(180.0f)),
+        .SensorOffset = Random::Float(1.0f, 50.0f),
+        .Color = glm::vec4(1.0f),
+        .ContagionThreshold = Random::Float(0, 1e-1),
+        .ContagionSteps = Random::UInt32(1, 25)};
 }
 
 void SlimeMoldContext::UpdateTraits(ResourceUploader& resourceUploader)
@@ -139,10 +154,7 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RenderGraph::Graph& renderGraph, Slim
             passData.SlimeSsbo = graph.Read(passData.SlimeSsbo, Compute | Storage);
             passData.SlimeSsbo = graph.Write(passData.SlimeSsbo, Compute | Storage);
 
-            passData.SlimeMap = graph.CreateResource("slime-pass-slime-map", GraphTextureDescription{
-                .Width = ctx.GetBounds().x,
-                .Height = ctx.GetBounds().y,
-                .Format = Format::RGBA16_FLOAT});
+            passData.SlimeMap = graph.AddExternal("slime-pass-slime-map", ctx.GetSlimeMap());
             passData.SlimeMap = graph.Write(passData.SlimeMap, Compute | Storage);
 
             passData.PipelineData = &m_UpdateSlimeMapPipelineData;
@@ -233,7 +245,11 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
                 ImGui::DragFloat("turning speed", &trait.TurningSpeed, 1.0f, 0.0f, 100.0f);
                 ImGui::DragFloat("sensors angle", &sensorAngleDegrees, 1.0f, 0.0f, 180.0f);
                 ImGui::DragFloat("sensors offset", &trait.SensorOffset, 0.1f, 0.0f, 100.0f);
+                ImGui::DragFloat("contagion chance", &trait.ContagionThreshold, 1e-4f, 0.0f, 1.0f);
+                ImGui::DragInt("contagion steps", (i32*)&trait.ContagionSteps, 1, 1, 25);
                 trait.SensorAngle = glm::radians(sensorAngleDegrees);
+                if (ImGui::Button("Randomize"))
+                    moldCtx.GetTraits()[0] = SlimeMoldContext::RandomTrait();
                 ImGui::End();
             ImGui::End();
             moldCtx.UpdateTraits(*frameContext.ResourceUploader);
@@ -286,8 +302,8 @@ void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldC
             passData.GradientMap = graph.Write(passData.GradientMap, Compute | Storage);
 
             passData.GradientUbo = graph.CreateResource("slime-pass-gradient-colors-buffer", GraphBufferDescription{
-                .SizeBytes = 192});
-            passData.GradientUbo = graph.Read(passData.GradientUbo, Compute | Uniform);
+                .SizeBytes = sizeof(GradientUBO)});
+            passData.GradientUbo = graph.Read(passData.GradientUbo, Compute | Uniform | Upload);
 
             passData.PipelineData = &m_GradientSlimeMapPipelineData;
             passData.PushConstants = &m_PushConstants;
@@ -318,6 +334,8 @@ void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldC
             ImGui::End();
             const Buffer& gradientUbo = resources.GetBuffer(passData.GradientUbo, (void*)&colors, sizeof(GradientUBO), 0,
                 *frameContext.ResourceUploader);
+            frameContext.ResourceUploader->SubmitUpload();
+            frameContext.ResourceUploader->StartRecording();
             
             auto& pushConstant = *passData.PushConstants;
             auto& pipeline = passData.PipelineData->Pipeline;
