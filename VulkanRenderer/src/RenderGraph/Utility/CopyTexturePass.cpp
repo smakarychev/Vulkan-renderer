@@ -3,7 +3,7 @@
 #include "FrameContext.h"
 #include "Vulkan/RenderCommand.h"
 
-CopyTexturePass::CopyTexturePass(const std::string& name)
+CopyTexturePass::CopyTexturePass(std::string_view name)
     : m_Name(name)
 {
 }

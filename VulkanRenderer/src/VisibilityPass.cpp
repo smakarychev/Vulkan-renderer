@@ -22,7 +22,7 @@ VisibilityBuffer::VisibilityBuffer(const glm::uvec2& size, const CommandBuffer& 
     DeletionQueue deletionQueue = {};
     DependencyInfo layoutTransition = DependencyInfo::Builder()
         .LayoutTransition({
-            .ImageSubresource = &imageSubresource,
+            .ImageSubresource = imageSubresource,
             .SourceStage = PipelineStage::ComputeShader,
             .DestinationStage = PipelineStage::ComputeShader,
             .SourceAccess = PipelineAccess::WriteShader,
@@ -141,7 +141,7 @@ RenderingInfo VisibilityPass::GetClearRenderingInfo(const Image& depthBuffer, co
     RenderingInfo renderingInfo = RenderingInfo::Builder()
         .AddAttachment(color)
         .AddAttachment(depth)
-        .SetRenderArea(resolution)
+        .SetResolution(resolution)
         .Build(frameContext->DeletionQueue);
 
     return renderingInfo;
@@ -165,7 +165,7 @@ RenderingInfo VisibilityPass::GetLoadRenderingInfo(const Image& depthBuffer, con
     RenderingInfo renderingInfo = RenderingInfo::Builder()
         .AddAttachment(color)
         .AddAttachment(depth)
-        .SetRenderArea(resolution)
+        .SetResolution(resolution)
         .Build(frameContext->DeletionQueue);
 
     return renderingInfo;

@@ -5,6 +5,8 @@
 
 #include <vector>
 
+#include "DescriptorsTraits.h"
+
 class DeletionQueue;
 class ShaderModule;
 class DescriptorsLayout;

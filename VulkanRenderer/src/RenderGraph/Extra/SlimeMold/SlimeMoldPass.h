@@ -67,7 +67,7 @@ public:
         f32 Dt;
         f32 Time;
         f32 DiffuseRate{10.0f};
-        f32 DecayRate{0.007f};
+        f32 DecayRate{0.02f};
     };
     struct GradientUBO
     {
@@ -75,10 +75,6 @@ public:
         glm::vec4 B{0.5f, 0.5f, 0.5f, 1.0f};
         glm::vec4 C{1.0f, 1.0f, 1.0f, 1.0f};
         glm::vec4 D{0.0f, 0.1f, 0.2f, 1.0f};
-        //glm::vec4 A{0.5f, 0.5f, 0.5f, 1.0f};
-        //glm::vec4 B{0.5f, 0.5f, 0.5f, 1.0f};
-        //glm::vec4 C{1.0f, 1.0f, 1.0f, 1.0f};
-        //glm::vec4 D{0.0f, 0.1f, 0.2f, 1.0f};
     };
     struct UpdateSlimeMapPassData
     {

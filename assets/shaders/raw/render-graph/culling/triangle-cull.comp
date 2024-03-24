@@ -1,0 +1,195 @@
+#version 460
+
+#include "common.shader_header"
+#include "culling_functions.shader_header"
+
+#extension GL_KHR_shader_subgroup_ballot: enable
+#extension GL_KHR_shader_subgroup_clustered: enable
+
+const uint TRIANGLES_PER_MESHLET = 256;
+const uint MICRO_CLUSTER_SIZE = 4;
+
+layout(local_size_x = 256) in;
+
+layout(constant_id = 0) const bool REOCCLUSION = false;
+
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_hiz;
+
+layout(set = 1, binding = 1) uniform scene_data_buffer {
+    scene_data scene;
+} u_scene_data;
+
+layout(std430, set = 1, binding = 2) readonly buffer object_buffer {
+    object_data objects[];
+} u_objects;
+
+layout(std430, set = 1, binding = 3) readonly buffer meshlet_visibility_buffer {
+    uint16_t visibility[];
+} u_meshlet_visibility;
+
+layout(std430, set = 1, binding = 4) readonly buffer command_buffer {
+    IndirectCommand commands[];
+} u_commands;
+
+layout(std430, set = 1, binding = 5) buffer count_buffer {
+    uint count;
+} u_count;
+
+layout(std430, set = 1, binding = 6) buffer triangle_buffer {
+    uint8_t triangles[];
+} u_triangles;
+
+struct TriangleVisibility
+{
+    int visibility[2];
+};
+layout(std430, set = 1, binding = 7) buffer visible_triangles_buffer {
+    TriangleVisibility visibility[];
+} u_triangle_visibility;
+
+layout(std430, set = 1, binding = 8) readonly buffer positions_buffer {
+    Position positions[];
+} u_positions;
+
+layout(std430, set = 1, binding = 9) readonly buffer indices_buffer {
+    uint8_t indices[];
+} u_indices;
+
+layout(std430, set = 1, binding = 10) writeonly buffer singular_indices_buffer {
+    uint indices[];
+} u_culled_indices;
+
+layout(std430, set = 1, binding = 11) writeonly buffer singular_index_count_buffer {
+    uint count;
+} u_culled_count;
+
+layout(push_constant) uniform push_constants {
+    uint u_screen_width;
+    uint u_screen_height;
+    uint u_command_offset;
+    uint u_max_command_index;
+};
+
+vec4 transform_to_NDC_and_get_aabb(inout Triangle triangle) {
+    triangle.a.xyz /= triangle.a.w;
+    triangle.b.xyz /= triangle.b.w;
+    triangle.c.xyz /= triangle.c.w;
+
+    float minx = min(triangle.a.x, min(triangle.b.x, triangle.c.x));
+    float maxx = max(triangle.a.x, max(triangle.b.x, triangle.c.x));
+    float miny = min(triangle.a.y, min(triangle.b.y, triangle.c.y));
+    float maxy = max(triangle.a.y, max(triangle.b.y, triangle.c.y));
+
+    vec4 aabb = vec4(minx, maxy, maxx, miny);
+    aabb = aabb.xyzw * 0.5f + vec4(0.5f);
+
+    return aabb;
+}
+
+bool is_visible(Triangle triangle) {
+    bool visible = true;
+    visible = visible && is_backface_triangle_visible(triangle);
+    vec4 aabb = transform_to_NDC_and_get_aabb(triangle);
+    visible = visible && is_screen_size_visible(aabb, u_screen_width, u_screen_height);
+    visible = visible && is_frustum_triangle_visible(aabb);
+
+    return visible;
+}
+
+bool is_reocclusion_visible(Triangle triangle) {
+    bool visible = true;
+    visible = visible && is_backface_triangle_visible(triangle);
+    vec4 aabb = transform_to_NDC_and_get_aabb(triangle);
+    visible = visible && is_screen_size_visible(aabb, u_screen_width, u_screen_height);
+    visible = visible && is_frustum_triangle_visible(aabb);
+    float depth = max(triangle.a.z, max(triangle.b.z, triangle.c.z));
+    visible = visible && is_occlusion_triangle_visible(aabb, depth, u_scene_data.scene, u_sampler, u_hiz);
+
+    return visible;
+}
+
+void compact(uint id, uint8_t triangle_index, uvec3 indices, bool should_draw) {
+    IndirectCommand command = u_commands.commands[id];
+
+    uvec4 visible_ballot = subgroupBallot(should_draw);
+    uint total_visible_triangle_count = subgroupBallotBitCount(visible_ballot);
+    uint total_visible_count = total_visible_triangle_count * 3;
+
+    uint compacted_index_offset = 0;
+    if (subgroupElect())
+        compacted_index_offset = atomicAdd(u_culled_count.count, total_visible_count);
+
+    compacted_index_offset = subgroupBroadcastFirst(compacted_index_offset);
+
+    if (should_draw) {
+        uint compacted_buffer_index = compacted_index_offset + subgroupBallotExclusiveBitCount(visible_ballot) * 3;
+        u_culled_indices.indices[compacted_buffer_index + 0] = (command.firstInstance << 8) | indices.x;
+        u_culled_indices.indices[compacted_buffer_index + 1] = (command.firstInstance << 8) | indices.y;
+        u_culled_indices.indices[compacted_buffer_index + 2] = (command.firstInstance << 8) | indices.z;
+
+        u_triangles.triangles[compacted_buffer_index / 3] = triangle_index;
+    }
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x / gl_WorkGroupSize.x;
+    if (id >= u_max_command_index || id + u_command_offset >= u_count.count)
+        return;
+    id = id + u_command_offset;
+
+    IndirectCommand command = u_commands.commands[id];
+
+    uint triangle_index = gl_LocalInvocationID.x;
+    uint index_offset = triangle_index * 3;
+
+    if (index_offset >= command.indexCount)
+        return;
+
+    object_data object = u_objects.objects[command.render_object];
+
+    uvec3 indices = uvec3(
+    u_indices.indices[command.firstIndex + index_offset + 0],
+    u_indices.indices[command.firstIndex + index_offset + 1],
+    u_indices.indices[command.firstIndex + index_offset + 2]);
+
+    Triangle triangle;
+    triangle.a = vec4_from_position(u_positions.positions[command.vertexOffset + uint(indices.x)]);
+    triangle.b = vec4_from_position(u_positions.positions[command.vertexOffset + uint(indices.y)]);
+    triangle.c = vec4_from_position(u_positions.positions[command.vertexOffset + uint(indices.z)]);
+
+    // view_matrix is actually a view_projection_matrix
+    triangle.a = u_scene_data.scene.view_matrix * object.model * triangle.a;
+    triangle.b = u_scene_data.scene.view_matrix * object.model * triangle.b;
+    triangle.c = u_scene_data.scene.view_matrix * object.model * triangle.c;
+
+    uint meshlet_index = command.firstInstance;
+    uint bitslot = triangle_index / MICRO_CLUSTER_SIZE;
+    bool is_meshlet_drawn = flags_should_draw(u_meshlet_visibility.visibility[meshlet_index]);
+    bool is_meshlet_visible = flags_visible(u_meshlet_visibility.visibility[meshlet_index]);
+
+    uint index_major = uint(bitslot > 31);
+    uint index_minor = bitslot & 31u;
+    TriangleVisibility visibility = u_triangle_visibility.visibility[meshlet_index];
+    bool is_last_frame_visible = (visibility.visibility[index_major] & (1 << index_minor)) != 0;
+    bool should_be_drawn = false;
+    bool visible = false;
+    if (!REOCCLUSION) {
+        visible = is_meshlet_drawn && is_last_frame_visible && is_visible(triangle);
+        should_be_drawn = visible;
+    } else {
+        visible = is_meshlet_visible && is_reocclusion_visible(triangle);
+        bool has_visible = subgroupClusteredOr(visible, MICRO_CLUSTER_SIZE);
+        if ((triangle_index & MICRO_CLUSTER_SIZE - 1) == 0)
+        {
+            if (has_visible)
+                atomicOr(u_triangle_visibility.visibility[meshlet_index].visibility[index_major], (1 << bitslot));
+            else
+                atomicAnd(u_triangle_visibility.visibility[meshlet_index].visibility[index_major], ~(1 << bitslot));
+        }
+
+        should_be_drawn = !is_last_frame_visible && visible;
+    }
+
+    compact(id, uint8_t(triangle_index), indices, should_be_drawn);
+}

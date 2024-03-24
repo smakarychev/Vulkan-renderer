@@ -45,3 +45,9 @@ inline enumType& operator op(enumType& a, enumType b) \
     ENUM_FLAGS_BINARY_OP(enumType, |=, |) \
     ENUM_FLAGS_BINARY_OP(enumType, &=, &) \
     ENUM_FLAGS_BINARY_OP(enumType, ^=, ^)
+
+#if defined _MSC_VER
+#   define GENERATOR_PRETTY_FUNCTION __FUNCSIG__
+#elif defined __clang__ || (defined __GNUC__)
+#   define GENERATOR_PRETTY_FUNCTION __PRETTY_FUNCTION__
+#endif

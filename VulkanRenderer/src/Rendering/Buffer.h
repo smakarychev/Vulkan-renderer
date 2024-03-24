@@ -3,6 +3,7 @@
 #include "types.h"
 
 #include "DriverResourceHandle.h"
+#include "Core/core.h"
 
 class DeletionQueue;
 class CommandBuffer;
@@ -104,6 +105,9 @@ public:
     {
         return CreateSubresource(sizeBytes, offset);
     }
+
+    const void* GetHostAddress() const { return m_HostAddress; }
+    void* GetHostAddress() { return m_HostAddress; }
 
     bool operator==(const Buffer& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(const Buffer& other) const { return !(*this == other); }

@@ -2,11 +2,11 @@
 
 #include "MeshCullPass.h"
 
-MeshletCullContext::MeshletCullContext(const MeshCullContext& meshCullContext)
-    : m_Geometry(&meshCullContext.Geometry())
+MeshletCullContext::MeshletCullContext(MeshCullContext& meshCullContext)
+    : m_MeshCullContext(&meshCullContext)
 {
     m_Visibility = Buffer::Builder()
-        .SetSizeBytes(m_Geometry->GetMeshletCount() * sizeof(RenderPassGeometry::MeshletVisibilityType))
+        .SetSizeBytes(meshCullContext.Geometry().GetMeshletCount() * sizeof(RenderPassGeometry::MeshletVisibilityType))
         .SetUsage(BufferUsage::Storage | BufferUsage::DeviceAddress)
         .Build();
 }

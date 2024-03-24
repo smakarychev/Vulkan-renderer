@@ -97,9 +97,9 @@ public:
     static void DrawIndexed(const CommandBuffer& cmd, u32 indexCount, u32 baseInstance);
 
     static void DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset, u32 count,
-        u32 stride = sizeof(IndirectCommand));
+        u32 stride = sizeof(IndirectDrawCommand));
     static void DrawIndexedIndirectCount(const CommandBuffer& cmd, const Buffer& drawBuffer, u64 drawOffset,
-        const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride = sizeof(IndirectCommand));
+        const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride = sizeof(IndirectDrawCommand));
 
     static void Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize);
     static void Dispatch(const CommandBuffer& cmd, const glm::uvec3& invocations, const glm::uvec3& workGroups);

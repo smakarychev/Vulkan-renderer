@@ -11,7 +11,7 @@ CrtPass::CrtPass(RenderGraph::Graph& renderGraph)
     ShaderPipelineTemplate* crtTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
           "../assets/shaders/processed/render-graph/post/crt-frag.shader"},
-      "render-graph-ctr-pass-template", renderGraph.GetArenaAllocators());
+      "Pass.CRT", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
        .SetTemplate(crtTemplate)
@@ -46,7 +46,7 @@ void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
     static ShaderDescriptors::BindingInfo settingsBindingInfo =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_settings");
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>("crt-pass",
+    m_Pass = &renderGraph.AddRenderPass<PassData>({"CRT"},
         [&](Graph& graph, PassData& passData)
         {
             passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
@@ -54,11 +54,11 @@ void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
             passData.ColorTarget = graph.RenderTarget(colorTarget,
                 AttachmentLoad::Load, AttachmentStore::Store);
 
-            passData.TimeUbo = graph.CreateResource("crt-pass-time", GraphBufferDescription{
+            passData.TimeUbo = graph.CreateResource("CRT.Time", GraphBufferDescription{
                 .SizeBytes = sizeof(f32)});
             passData.TimeUbo = graph.Read(passData.TimeUbo, Pixel | Uniform | Upload);
 
-            passData.SettingsUbo = graph.CreateResource("crt-pass-settings", GraphBufferDescription{
+            passData.SettingsUbo = graph.CreateResource("CRT.Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
             passData.SettingsUbo = graph.Read(passData.SettingsUbo, Pixel | Uniform | Upload);
 

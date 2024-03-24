@@ -1098,6 +1098,12 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const 
     return GetShaderTemplate(name);
 }
 
+ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::string& name,
+    DescriptorArenaAllocators& allocators)
+{
+    return GetShaderTemplate(GenerateTemplateName(name, allocators));
+}
+
 ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::string& name)
 {
     auto it = m_Templates.find(name);

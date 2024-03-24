@@ -10,7 +10,7 @@
 
 #include <vma/vk_mem_alloc.h>
 
-#include "..\Rendering\Descriptors.h"
+#include "../Rendering/Descriptors.h"
 
 #include <volk.h>
 #include <tracy/TracyVulkan.hpp>

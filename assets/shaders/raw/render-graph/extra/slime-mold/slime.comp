@@ -189,12 +189,14 @@ void gradient_slime_map() {
         return;
     
     vec4 color = imageLoad(u_diffuse_map, pos);
-    float brightness = color.r * 0.21f + color.g * 0.72f + color.b * 0.07f;
+    float brightness = color.r * 0.2126f + color.g * 0.7152f + color.b * 0.0722f;
     brightness = clamp(brightness, 0.0f, 1.0f);
     
     GradColors colors = u_gradient_colors.colors;
     color = colors.a +
         colors.b * cos(2.0 * PI * (colors.c * brightness + colors.d));
+    color = max(vec4(vec3(0.0f), 1.0f), color - vec4(vec3(0.004), 1.0f));
+    color = (color * (6.2 * color + .5)) / (color * (6.2 * color + 1.7) + 0.06);
     color.a = 1.0f;
     imageStore(u_gradient_map, pos, color);
 }

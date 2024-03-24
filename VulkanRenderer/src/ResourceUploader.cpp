@@ -32,7 +32,7 @@ void ResourceUploader::StartRecording()
 
 void ResourceUploader::SubmitUpload()
 {
-    CPU_PROFILE_FRAME("Submit Upload");
+    CPU_PROFILE_FRAME("Submit Upload")
 
     for (auto& directUpload : m_BufferDirectUploads)
         directUpload.Destination.SetData(

@@ -68,7 +68,7 @@ Image DepthPyramid::CreatePyramidDepthImage(const CommandBuffer& cmd, const Imag
     DependencyInfo layoutTransition = DependencyInfo::Builder()
         .SetFlags(PipelineDependencyFlags::ByRegion)
         .LayoutTransition({
-            .ImageSubresource = &imageSubresource,
+            .ImageSubresource = imageSubresource,
             .SourceStage = PipelineStage::ComputeShader,
             .DestinationStage = PipelineStage::ComputeShader,
             .SourceAccess = PipelineAccess::WriteShader,
@@ -113,7 +113,7 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage, Delet
     DependencyInfo depthToReadTransition = DependencyInfo::Builder()
         .SetFlags(PipelineDependencyFlags::ByRegion)
         .LayoutTransition({
-            .ImageSubresource = &depthSubresource,
+            .ImageSubresource = depthSubresource,
             .SourceStage = PipelineStage::DepthEarly | PipelineStage::DepthLate,
             .DestinationStage = PipelineStage::ComputeShader,
             .SourceAccess = PipelineAccess::WriteDepthStencilAttachment,
@@ -148,7 +148,7 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage, Delet
         DependencyInfo pyramidTransition = DependencyInfo::Builder()
             .SetFlags(PipelineDependencyFlags::ByRegion)
             .LayoutTransition({
-                .ImageSubresource = &pyramidSubresource,
+                .ImageSubresource = pyramidSubresource,
                 .SourceStage = PipelineStage::ComputeShader,
                 .DestinationStage = PipelineStage::ComputeShader,
                 .SourceAccess = PipelineAccess::WriteShader,
@@ -162,7 +162,7 @@ void DepthPyramid::Fill(const CommandBuffer& cmd, const Image& depthImage, Delet
     DependencyInfo readToDepthTransition = DependencyInfo::Builder()
        .SetFlags(PipelineDependencyFlags::ByRegion)
        .LayoutTransition({
-           .ImageSubresource = &depthSubresource,
+           .ImageSubresource = depthSubresource,
            .SourceStage = PipelineStage::ComputeShader,
            .DestinationStage =  PipelineStage::DepthEarly | PipelineStage::DepthLate,
            .SourceAccess = PipelineAccess::ReadShader,

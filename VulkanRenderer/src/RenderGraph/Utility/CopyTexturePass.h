@@ -10,12 +10,12 @@ private:
         RenderGraph::Resource TextureOut;
     };
 public:
-    CopyTexturePass(const std::string& name);
+    CopyTexturePass(std::string_view name);
     void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource textureIn, RenderGraph::Resource textureOut,
         const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType = ImageSizeType::Relative);
 public:
 private:
     RenderGraph::Pass* m_Pass{nullptr};
 
-    std::string m_Name;
+    RenderGraph::PassName m_Name;
 };

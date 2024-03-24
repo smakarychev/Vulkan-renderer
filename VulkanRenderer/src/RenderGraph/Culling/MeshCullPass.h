@@ -11,14 +11,25 @@
 class MeshCullContext
 {
 public:
+    struct PassResources
+    {
+        RenderGraph::Resource HiZ{};
+        Sampler HiZSampler{};
+        RenderGraph::Resource SceneUbo{};
+        RenderGraph::Resource ObjectsSsbo{};
+        RenderGraph::Resource VisibilitySsbo{};
+    };
+public:
     MeshCullContext(const RenderPassGeometry& geometry);
 
-    const Buffer& Visibility() const { return m_Visibility; }
-    const RenderPassGeometry& Geometry() const { return *m_Geometry; }
+    const Buffer& Visibility() { return m_Visibility; }
+    const RenderPassGeometry& Geometry() { return *m_Geometry; }
+    PassResources& Resources() { return m_Resources; }
 private:
     Buffer m_Visibility{};
     
     const RenderPassGeometry* m_Geometry{nullptr};
+    PassResources m_Resources{};
 };
 
 template <bool Reocclusion>
@@ -37,21 +48,18 @@ public:
     };
     struct PassData
     {
-        RenderGraph::Resource HiZ;
-        Sampler HiZSampler;
-        RenderGraph::Resource SceneUbo;
-        RenderGraph::Resource ObjectsSsbo;
-        RenderGraph::Resource VisibilitySsbo;
-        
-        SceneUBO Scene;
+        MeshCullContext::PassResources Resources{};
+        u32 ObjectCount;
         
         RenderGraph::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshCullGeneralPass(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const MeshCullContext& ctx, const HiZPassContext& hiZPassContext);
+    MeshCullGeneralPass(RenderGraph::Graph& renderGraph, std::string_view name);
+    void AddToGraph(RenderGraph::Graph& renderGraph, MeshCullContext& ctx, const HiZPassContext& hiZPassContext);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RenderGraph::Pass* m_Pass{nullptr};
+    RenderGraph::PassName m_Name;
 
     RenderGraph::PipelineData m_PipelineData;
 };
@@ -62,11 +70,12 @@ using MeshCullReocclusionPass = MeshCullGeneralPass<true>;
 
 
 template <bool Reocclusion>
-MeshCullGeneralPass<Reocclusion>::MeshCullGeneralPass(RenderGraph::Graph& renderGraph)
+MeshCullGeneralPass<Reocclusion>::MeshCullGeneralPass(RenderGraph::Graph& renderGraph, std::string_view name)
+    : m_Name(name)
 {
     ShaderPipelineTemplate* meshCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/mesh-cull-comp.shader"},
-        "render-graph-mesh-cull-pass-template", renderGraph.GetArenaAllocators());
+        "Pass.MeshCull", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(meshCullTemplate)
@@ -86,7 +95,7 @@ MeshCullGeneralPass<Reocclusion>::MeshCullGeneralPass(RenderGraph::Graph& render
 }
 
 template <bool Reocclusion>
-void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGraph, const MeshCullContext& ctx,
+void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGraph, MeshCullContext& ctx,
     const HiZPassContext& hiZPassContext)
 {
     using namespace RenderGraph;
@@ -103,61 +112,63 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
     static ShaderDescriptors::BindingInfo visibilityBinding =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_object_visibility");
 
-    static constexpr std::string_view PASS_NAME = Reocclusion ? "mesh-cull-reocclusion" : "mesh-cull";
-    
-    m_Pass = &renderGraph.AddRenderPass<PassData>(std::string{PASS_NAME},
+    std::string passName = m_Name.Name() + (Reocclusion ? ".Reocclusion" : "");
+    m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{passName},
         [&](Graph& graph, PassData& passData)
         {
             // if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass
             if constexpr(!Reocclusion)
             {
                 // we do not really need hiz for ordinary pass, but it is still has to be provided
-                passData.HiZ = graph.AddExternal("hiz-previous", hiZPassContext.GetHiZPrevious(),
+                ctx.Resources().HiZ = graph.AddExternal("Hiz.Previous", hiZPassContext.GetHiZPrevious(),
                     ImageUtils::DefaultTexture::Black);
 
-                passData.SceneUbo = graph.CreateResource("mesh-cull-scene", GraphBufferDescription{
-                    .SizeBytes = sizeof(SceneUBO)});
-                passData.ObjectsSsbo = graph.AddExternal("mesh-cull-objects", ctx.Geometry().GetRenderObjectsBuffer());
-                passData.VisibilitySsbo = graph.AddExternal("mesh-cull-object-visibility", ctx.Visibility());
+                ctx.Resources().SceneUbo = graph.CreateResource(std::format("{}.{}", passName, "Scene"),
+                    GraphBufferDescription{.SizeBytes = sizeof(SceneUBO)});
+                ctx.Resources().ObjectsSsbo =
+                    graph.AddExternal(std::format("{}.{}", passName, "Objects"),
+                        ctx.Geometry().GetRenderObjectsBuffer());
+                ctx.Resources().VisibilitySsbo =
+                    graph.AddExternal(std::format("{}.{}", passName, "Visibility"), ctx.Visibility());
             }
             else
             {
-                passData.HiZ = graph.GetBlackboard().GetOutput<HiZPass::PassData>().HiZOut;
-
-                auto& meshOutput = graph.GetBlackboard().GetOutput<MeshCullPass::PassData>();
-                passData.SceneUbo = meshOutput.SceneUbo;
-                passData.ObjectsSsbo = meshOutput.ObjectsSsbo;
-                passData.VisibilitySsbo = meshOutput.VisibilitySsbo;
+                ctx.Resources().HiZ = graph.GetBlackboard().GetOutput<HiZPass::PassData>().HiZOut;
             }
 
-            passData.HiZSampler = hiZPassContext.GetSampler();
-            passData.HiZ = graph.Read(passData.HiZ, Compute | Sampled);
-            passData.SceneUbo = graph.Read(passData.SceneUbo, Compute | Uniform | Upload);
-            passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Compute | Storage);
-            passData.VisibilitySsbo = graph.Read(passData.VisibilitySsbo, Compute | Storage);
-            passData.VisibilitySsbo = graph.Write(passData.VisibilitySsbo, Compute |Storage);
+            auto& resources = ctx.Resources();
+            resources.HiZSampler = hiZPassContext.GetSampler();
+            resources.HiZ = graph.Read(resources.HiZ, Compute | Sampled);
+            resources.SceneUbo = graph.Read(resources.SceneUbo, Compute | Uniform | Upload);
+            resources.ObjectsSsbo = graph.Read(resources.ObjectsSsbo, Compute | Storage);
+            resources.VisibilitySsbo = graph.Read(resources.VisibilitySsbo, Compute | Storage);
+            resources.VisibilitySsbo = graph.Write(resources.VisibilitySsbo, Compute |Storage);
+
+            passData.Resources = resources;
+            passData.ObjectCount = ctx.Geometry().GetRenderObjectCount();
             
             passData.PipelineData = &m_PipelineData;
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().UpdateOutput(m_Name.Hash(), passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("Mesh Cull")
             
-            const Texture& hiz = resources.GetTexture(passData.HiZ);
-            const Sampler& hizSampler = passData.HiZSampler;
-            
-            passData.Scene.ViewMatrix = frameContext.Camera->GetView();
-            passData.Scene.FrustumPlanes = frameContext.Camera->GetFrustumPlanes();
-            passData.Scene.ProjectionData = frameContext.Camera->GetProjectionData();
-            passData.Scene.HiZWidth = (f32)hiz.GetDescription().Width;
-            passData.Scene.HiZHeight = (f32)hiz.GetDescription().Height;
-            const Buffer& sceneUbo = resources.GetBuffer(passData.SceneUbo, passData.Scene,
+            const Texture& hiz = resources.GetTexture(passData.Resources.HiZ);
+            const Sampler& hizSampler = passData.Resources.HiZSampler;
+
+            SceneUBO scene = {};
+            scene.ViewMatrix = frameContext.Camera->GetView();
+            scene.FrustumPlanes = frameContext.Camera->GetFrustumPlanes();
+            scene.ProjectionData = frameContext.Camera->GetProjectionData();
+            scene.HiZWidth = (f32)hiz.GetDescription().Width;
+            scene.HiZHeight = (f32)hiz.GetDescription().Height;
+            const Buffer& sceneUbo = resources.GetBuffer(passData.Resources.SceneUbo, scene,
                 *frameContext.ResourceUploader);
 
-            const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
-            const Buffer& visibilitySsbo = resources.GetBuffer(passData.VisibilitySsbo);
+            const Buffer& objectsSsbo = resources.GetBuffer(passData.Resources.ObjectsSsbo);
+            const Buffer& visibilitySsbo = resources.GetBuffer(passData.Resources.VisibilitySsbo);
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
@@ -169,7 +180,7 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
             resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.CreateBindingInfo());
             resourceDescriptors.UpdateBinding(visibilityBinding, visibilitySsbo.CreateBindingInfo());
 
-            u32 objectCount = ctx.Geometry().GetRenderObjectCount();
+            u32 objectCount = passData.ObjectCount;
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);

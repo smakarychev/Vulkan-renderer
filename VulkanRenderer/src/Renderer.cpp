@@ -17,10 +17,10 @@
 #include "RenderGraph/ModelCollection.h"
 #include "RenderGraph/RenderPassGeometry.h"
 #include "RenderGraph/RenderPassGeometryCull.h"
+#include "RenderGraph/Culling/CullMetaPass.h"
 #include "RenderGraph/Culling/MeshletCullPass.h"
 #include "RenderGraph/Extra/SlimeMold/SlimeMoldPass.h"
-#include "RenderGraph/General/DrawIndirectCountPass.h"
-#include "RenderGraph/HiZ/HiZPass.h"
+#include "RenderGraph/DrawIndirectCulledPass/DrawIndirectCountPass.h"
 #include "RenderGraph/HiZ/HiZVisualize.h"
 #include "RenderGraph/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/PostProcessing/Sky/SkyGradientPass.h"
@@ -48,9 +48,11 @@ void Renderer::Init()
 
 void Renderer::InitRenderGraph()
 {
-    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.AddModelInstance("car", {glm::mat4{1.0f}});
+    m_GraphModelCollection.AddModelInstance("car", {glm::translate(glm::mat4{1.0f}, glm::vec3{-2.0f, 0.0f, 0.0f})});
+    m_GraphModelCollection.AddModelInstance("car", {glm::translate(glm::mat4{1.0f}, glm::vec3{2.0f, 0.0f, 0.0f})});
     m_GraphOpaqueGeometry = RenderPassGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
             [](auto& obj) { return true; });
@@ -58,23 +60,20 @@ void Renderer::InitRenderGraph()
     m_Graph = std::make_unique<RenderGraph::Graph>();
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
 
-    m_HiZPassContext = std::make_shared<HiZPassContext>(m_Swapchain.GetResolution());
-    m_MeshCullContext = std::make_shared<MeshCullContext>(m_GraphOpaqueGeometry);
-    m_MeshletCullContext = std::make_shared<MeshletCullContext>(m_GraphOpaqueGeometry);
-    m_MeshCullPass = std::make_shared<MeshCullPass>(*m_Graph);
-    m_MeshCullReocclusionPass = std::make_shared<MeshCullReocclusionPass>(*m_Graph);
-    m_MeshletCullPass = std::make_shared<MeshletCullPass>(*m_Graph);
-    m_MeshletCullReocclusionPass = std::make_shared<MeshletCullReocclusionPass>(*m_Graph);
+    m_TriangleCull = std::make_shared<CullMetaPass>(*m_Graph, CullMetaPassInitInfo{
+        .DrawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
+            "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.shader",
+            "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.shader",},
+            "Pass.DrawCulled", m_Graph->GetArenaAllocators()),
+        .Resolution = m_Swapchain.GetResolution(),
+        .Geometry = &m_GraphOpaqueGeometry}, "MetaCull");
 
-    m_DrawOrdinary = std::make_shared<DrawOrdinary>(*m_Graph, "draw");
-    m_DrawReocclusion = std::make_shared<DrawReocclusion>(*m_Graph, "draw-reocclusion");
-    
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
-    m_HiZPass = std::make_shared<HiZPass>(*m_Graph);
     m_HiZVisualizePass = std::make_shared<HiZVisualize>(*m_Graph);
-    m_BlitPass = std::make_shared<BlitPass>("blit");
-    m_CopyTexturePass = std::make_shared<CopyTexturePass>("copy-texture");
+    m_BlitPartialDraw = std::make_shared<BlitPass>("Blit.PartialDraw");
+    m_BlitHiZ = std::make_shared<BlitPass>("Blit.Hiz");
+    m_CopyTexturePass = std::make_shared<CopyTexturePass>("Copy.Texture");
 
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
@@ -82,59 +81,42 @@ void Renderer::InitRenderGraph()
     m_SlimeMoldPass = std::make_shared<SlimeMoldPass>(*m_Graph);
 }
 
+void Renderer::SetupRenderSlimePasses()
+{
+    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::UpdateSlimeMap, *m_SlimeMoldContext);
+    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::DiffuseSlimeMap, *m_SlimeMoldContext);
+    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::Gradient, *m_SlimeMoldContext);
+    auto& slimeMoldOutput = m_Graph->GetBlackboard().GetOutput<SlimeMoldPass::GradientPassData>();
+    m_CopyTexturePass->AddToGraph(*m_Graph, slimeMoldOutput.GradientMap, m_Graph->GetBackbuffer(),
+        glm::vec3{0.0f}, glm::vec3{1.0f});
+    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
+}
+
 void Renderer::SetupRenderGraph()
 {
     m_Graph->Reset();
 
     m_SkyGradientPass->AddToGraph(*m_Graph,
-        m_Graph->CreateResource("sky-pass-target", RenderGraph::GraphTextureDescription{
+        m_Graph->CreateResource("Sky.Target", RenderGraph::GraphTextureDescription{
             .Width = GetFrameContext().Resolution.x,
             .Height = GetFrameContext().Resolution.y,
             .Format = Format::RGBA16_FLOAT}));
     auto& skyGradientOutput = m_Graph->GetBlackboard().GetOutput<SkyGradientPass::PassData>();
     
-    m_MeshCullPass->AddToGraph(*m_Graph, *m_MeshCullContext, *m_HiZPassContext);
-    m_MeshletCullPass->AddToGraph(*m_Graph, *m_MeshletCullContext, *m_HiZPassContext);
-    auto& meshletOutput = m_Graph->GetBlackboard().GetOutput<MeshletCullPass::PassData>();
-
-    RenderGraph::Resource depth = m_Graph->CreateResource("depth", RenderGraph::GraphTextureDescription{
-        .Width = m_Swapchain.GetDepthImage().GetDescription().Width,
-        .Height = m_Swapchain.GetDepthImage().GetDescription().Height,
-        .Format =  m_Swapchain.GetDepthImage().GetDescription().Format});
-    m_DrawOrdinary->AddToGraph(
-        *m_Graph, skyGradientOutput.ColorOut, depth, GetFrameContext().Resolution, true,
-        meshletOutput.CompactCommandsSsbo, meshletOutput.CompactCountSsbo, m_GraphOpaqueGeometry);
-    auto& drawOutput = m_Graph->GetBlackboard().GetOutput<DrawOrdinary::PassData>();
+    m_TriangleCull->AddToGraph(*m_Graph, {
+        .FrameContext = &GetFrameContext(),
+        .Colors = {skyGradientOutput.ColorOut},
+        .Depth = RenderGraph::Resource{}});
+    auto& triangleCullOut = m_Graph->GetBlackboard().GetOutput<CullMetaPass::PassData>(m_TriangleCull->GetNameHash());
     
-    m_HiZPass->AddToGraph(*m_Graph, drawOutput.DepthOut,
-        *m_HiZPassContext);
-    auto& hizPassOutput = m_Graph->GetBlackboard().GetOutput<HiZPass::PassData>();
+    m_CrtPass->AddToGraph(*m_Graph, triangleCullOut.ColorsOut[0], m_Graph->GetBackbuffer());
 
-    m_MeshCullReocclusionPass->AddToGraph(*m_Graph, *m_MeshCullContext, *m_HiZPassContext);
-    m_MeshletCullReocclusionPass->AddToGraph(*m_Graph, *m_MeshletCullContext, *m_HiZPassContext);
-    auto& meshletReocclusion = m_Graph->GetBlackboard().GetOutput<MeshletCullReocclusionPass::PassData>();
-
-    m_DrawReocclusion->AddToGraph(
-        *m_Graph, drawOutput.ColorOut, drawOutput.DepthOut, GetFrameContext().Resolution, false,
-        meshletReocclusion.CompactCommandsSsbo, meshletReocclusion.CompactCountSsbo, m_GraphOpaqueGeometry);
-    auto& drawReocclusionOutput = m_Graph->GetBlackboard().GetOutput<DrawReocclusion::PassData>();
-    
-    m_CrtPass->AddToGraph(*m_Graph, drawReocclusionOutput.ColorOut, m_Graph->GetBackbuffer());
-
-    m_HiZVisualizePass->AddToGraph(*m_Graph, hizPassOutput.HiZOut);
+    m_HiZVisualizePass->AddToGraph(*m_Graph, triangleCullOut.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
+    m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, m_Graph->GetBackbuffer(),
+        glm::vec3{0.25f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
 
-    m_BlitPass->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, m_Graph->GetBackbuffer(),
-        glm::vec3{0.05f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
-
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::UpdateSlimeMap, *m_SlimeMoldContext);
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::DiffuseSlimeMap, *m_SlimeMoldContext);
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::Gradient, *m_SlimeMoldContext);
-    auto& slimeMoldOutput = m_Graph->GetBlackboard().GetOutput<SlimeMoldPass::GradientPassData>();
-        
-    m_CopyTexturePass->AddToGraph(*m_Graph, slimeMoldOutput.GradientMap, m_Graph->GetBackbuffer(),
-        glm::vec3{0.0f}, glm::vec3{1.0f});
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
+    //SetupRenderSlimePasses();
 }
 
 Renderer* Renderer::Get()
@@ -161,10 +143,10 @@ void Renderer::Run()
 
 void Renderer::OnRender()
 {
-    CPU_PROFILE_FRAME("On render");
+    CPU_PROFILE_FRAME("On render")
 
     {
-        CPU_PROFILE_FRAME("Setup Render Graph");
+        CPU_PROFILE_FRAME("Setup Render Graph")
         SetupRenderGraph();
     }
     
@@ -205,7 +187,7 @@ void Renderer::OnRender()
 
 void Renderer::OnUpdate()
 {
-    CPU_PROFILE_FRAME("On update");
+    CPU_PROFILE_FRAME("On update")
 
     m_CameraController->OnUpdate(1.0f / 60.0f);
     //glm::vec3 pos = m_Camera->GetPosition();
@@ -266,7 +248,7 @@ void Renderer::UpdateScene()
 
 void Renderer::BeginFrame()
 {
-    CPU_PROFILE_FRAME("Begin frame");
+    CPU_PROFILE_FRAME("Begin frame")
 
     u32 frameNumber = GetFrameContext().FrameNumber;
     m_SwapchainImageIndex = m_Swapchain.AcquireImage(frameNumber);
@@ -276,6 +258,8 @@ void Renderer::BeginFrame()
         RecreateSwapchain();
         return;
     }
+
+    m_CurrentFrameContext->DeletionQueue.Flush();
 
     CommandBuffer& cmd = GetFrameContext().Cmd;
     cmd.Reset();
@@ -292,7 +276,7 @@ RenderingInfo Renderer::GetColorRenderingInfo()
 
     RenderingInfo renderingInfo = RenderingInfo::Builder()
         .AddAttachment(color)
-        .SetRenderArea(m_Swapchain.GetResolution())
+        .SetResolution(m_Swapchain.GetResolution())
         .Build(GetFrameContext().DeletionQueue);
 
     return renderingInfo;
@@ -308,7 +292,7 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 
     RenderingInfo info = RenderingInfo::Builder()
         .AddAttachment(color)
-        .SetRenderArea(m_Swapchain.GetResolution())
+        .SetResolution(m_Swapchain.GetResolution())
         .Build(GetFrameContext().DeletionQueue);
 
     return info;
@@ -344,7 +328,6 @@ void Renderer::EndFrame()
     m_FrameNumber++;
     m_CurrentFrameContext = &m_FrameContexts[(u32)m_FrameNumber % BUFFERED_FRAMES];
     m_CurrentFrameContext->FrameNumberTick = m_FrameNumber;
-    m_CurrentFrameContext->DeletionQueue.Flush();
     
     ProfilerContext::Get()->NextFrame();
 
@@ -364,7 +347,7 @@ void Renderer::Dispatch(const ComputeDispatch& dispatch)
 
 void Renderer::CreateDepthPyramid()
 {
-    CPU_PROFILE_FRAME("Create depth pyramid");
+    CPU_PROFILE_FRAME("Create depth pyramid")
 
     CommandBuffer& cmd = GetFrameContext().Cmd;
     if (m_ComputeDepthPyramidData.DepthPyramid)
@@ -378,7 +361,7 @@ void Renderer::CreateDepthPyramid()
 
 void Renderer::ComputeDepthPyramid()
 {
-    CPU_PROFILE_FRAME("Compute depth pyramid");
+    CPU_PROFILE_FRAME("Compute depth pyramid")
 
     CommandBuffer& cmd = GetFrameContext().Cmd;
     m_ComputeDepthPyramidData.DepthPyramid->Compute(m_Swapchain.GetDepthImage(), cmd, GetFrameContext().DeletionQueue);
@@ -561,7 +544,7 @@ void Renderer::Shutdown()
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
 
-    m_HiZPassContext.reset();
+    m_TriangleCull.reset();
     m_Graph.reset();
     ShutdownVisibilityPass();
     RenderPassGeometryCull::Shutdown(m_OpaqueGeometryCull);

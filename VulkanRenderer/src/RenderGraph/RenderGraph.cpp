@@ -16,15 +16,15 @@ namespace RenderGraph
         DescriptorArenaAllocator resourceAllocator = DescriptorArenaAllocator::Builder()
                 .Kind(DescriptorAllocatorKind::Resources)
                 .Residence(DescriptorAllocatorResidence::CPU)
-                .ForTypes({DescriptorType::UniformBuffer, DescriptorType::StorageBuffer})
-                .Count(1000)
+                .ForTypes({DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image})
+                .Count(2048)
                 .Build();
 
         DescriptorArenaAllocator samplerAllocator =  DescriptorArenaAllocator::Builder()
                 .Kind(DescriptorAllocatorKind::Samplers)
                 .Residence(DescriptorAllocatorResidence::CPU)
                 .ForTypes({DescriptorType::Sampler})
-                .Count(32)
+                .Count(256)
                 .Build();
         
         m_ArenaAllocators = std::make_unique<DescriptorArenaAllocators>(resourceAllocator, samplerAllocator);
@@ -84,28 +84,28 @@ namespace RenderGraph
         return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(fallback));
     }
 
-    Resource Graph::Export(Resource resource, std::shared_ptr<Buffer>* buffer)
+    Resource Graph::Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force)
     {
         ASSERT(m_ResourceTarget, "Call to 'Export' outside of 'SetupFn' of render pass")
         m_ResourceTarget->m_CanBeCulled = false;
         
         ASSERT(resource.IsBuffer(), "Provided resource is not a buffer")
         auto it = std::ranges::find_if(m_BuffersToExport, [&buffer](auto& res) { return res.Target == buffer; });
-        ASSERT(it == m_BuffersToExport.end(), "Buffer is already exported to by other resource")
+        ASSERT(force || it == m_BuffersToExport.end(), "Buffer is already exported to by other resource")
 
         m_BuffersToExport.push_back({.BufferResource = resource, .Target = buffer});
 
         return resource;
     }
 
-    Resource Graph::Export(Resource resource, std::shared_ptr<Texture>* texture)
+    Resource Graph::Export(Resource resource, std::shared_ptr<Texture>* texture, bool force)
     {
         ASSERT(m_ResourceTarget, "Call to 'Export' outside of 'SetupFn' of render pass")
         m_ResourceTarget->m_CanBeCulled = false;
         
         ASSERT(resource.IsTexture(), "Provided resource is not a texture")
         auto it = std::ranges::find_if(m_TexturesToExport, [&texture](auto& res) { return res.Target == texture; });
-        ASSERT(it == m_TexturesToExport.end(), "Texture is already exported to by other resource")
+        ASSERT(force || it == m_TexturesToExport.end(), "Texture is already exported to by other resource")
 
         m_TexturesToExport.push_back({.TextureResource = resource, .Target = texture});
 
@@ -297,8 +297,9 @@ namespace RenderGraph
         PreprocessResources();
 
         BuildAdjacencyList();
-        
-        TopologicalSort();
+
+        // todo: fix me I am weird
+        //TopologicalSort();
 
         CullPasses();
 
@@ -311,7 +312,7 @@ namespace RenderGraph
 
     void Graph::Execute(FrameContext& frameContext)
     {
-        RenderCommand::Bind(frameContext.Cmd, GetArenaAllocators());
+        OnCmdBegin(frameContext);
         
         Resources resources = {*this};
         for (auto& pass : m_RenderPasses)
@@ -362,7 +363,7 @@ namespace RenderGraph
                        .Build(*m_FrameDeletionQueue));
                 }
                 RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
-                    .SetRenderArea(resolution);
+                    .SetResolution(resolution);
                 for (auto& attachment : attachments)
                     renderingInfoBuilder.AddAttachment(attachment);
 
@@ -378,7 +379,6 @@ namespace RenderGraph
             {
                 pass->Execute(frameContext, resources);
             }
-            
         }
 
 
@@ -389,7 +389,7 @@ namespace RenderGraph
         const Texture& backbuffer = *m_Textures[m_Backbuffer.Index()].m_Resource;
         ImageSubresource backbufferSubresource = backbuffer.CreateSubresource(0, 1, 0, 1);
         LayoutTransitionInfo backbufferTransition = {
-            .ImageSubresource = &backbufferSubresource,
+            .ImageSubresource = backbufferSubresource,
             .SourceStage = PipelineStage::AllCommands,
             .DestinationStage = PipelineStage::Bottom,
             .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::ReadAll,
@@ -400,6 +400,17 @@ namespace RenderGraph
             .LayoutTransition(backbufferTransition)
             .Build(*m_FrameDeletionQueue);
         RenderCommand::WaitOnBarrier(frameContext.Cmd, transitionDependency);
+    }
+
+    void Graph::OnCmdBegin(FrameContext& frameContext) const
+    {
+        RenderCommand::Bind(frameContext.Cmd, GetArenaAllocators());
+    }
+
+    void Graph::OnCmdEnd(FrameContext& frameContext) const
+    {
+        frameContext.ResourceUploader->SubmitUpload();
+        frameContext.ResourceUploader->StartRecording();
     }
 
     void Graph::PreprocessResources()
@@ -540,7 +551,7 @@ namespace RenderGraph
         // todo: the actual culling. Also this algorithm can be simplified if we account for non-cullable passes
         for (u32 passIndex = 0; passIndex < passRefCount.size(); passIndex++)
             if (passRefCount[passIndex] == 0)
-                LOG("TO BE CULLED: {}", m_RenderPasses[passIndex]->m_Name);
+                LOG("TO BE CULLED: {}", m_RenderPasses[passIndex]->m_Name.m_Name);
     }
 
     // todo: use for barriers
@@ -929,7 +940,7 @@ namespace RenderGraph
                 
             ImageSubresource subresource = texture.m_Resource->CreateSubresource();
             LayoutTransitionInfo layoutTransitionInfo = {
-                .ImageSubresource = &subresource,
+                .ImageSubresource = subresource,
                 .SourceStage = transition.SourceStage,
                 .DestinationStage = transition.DestinationStage,
                 .SourceAccess = transition.SourceAccess,
@@ -1205,6 +1216,13 @@ namespace RenderGraph
                 ResourceSubAccess{
                     .Usage = BufferUsage::Upload}
             },
+            {
+                ResourceAccessFlags::Readback,
+                ResourceSubAccess{
+                    .Stage = PipelineStage::Host,
+                    .Access = PipelineAccess::ReadHost,
+                    .Usage = BufferUsage::Readback}
+            },
         }; 
         
         PipelineStage stage = PipelineStage::None;
@@ -1229,7 +1247,8 @@ namespace RenderGraph
         ASSERT(!enumHasAny(readFlags,
             ResourceAccessFlags::Attribute |
             ResourceAccessFlags::Index | ResourceAccessFlags::Indirect | ResourceAccessFlags::Conditional |
-            ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform | ResourceAccessFlags::Upload),
+            ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform |
+            ResourceAccessFlags::Upload | ResourceAccessFlags::Readback),
             "Image read has inappropriate flags")
         ASSERT(
             enumHasAny(readFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
@@ -1308,6 +1327,7 @@ namespace RenderGraph
     {
         ASSERT(!enumHasAny(writeFlags,
            ResourceAccessFlags::Blit | ResourceAccessFlags::Sampled), "Buffer write has inappropriate flags")
+        ASSERT(!enumHasAny(writeFlags, ResourceAccessFlags::Readback), "Cannot use readback flag in write operation")
         
         struct ResourceSubAccess
         {
@@ -1388,10 +1408,12 @@ namespace RenderGraph
     std::pair<PipelineStage, PipelineAccess> Graph::InferResourceWriteAccess(TextureDescription& description,
         ResourceAccessFlags writeFlags)
     {
+        ASSERT(!enumHasAny(writeFlags, ResourceAccessFlags::Readback), "Cannot use readback flag in write operation")
         ASSERT(!enumHasAny(writeFlags,
            ResourceAccessFlags::Attribute |
            ResourceAccessFlags::Index | ResourceAccessFlags::Indirect | ResourceAccessFlags::Conditional |
-           ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform | ResourceAccessFlags::Upload),
+           ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform |
+           ResourceAccessFlags::Upload),
            "Image write has inappropriate flags")
        ASSERT(
            enumHasAny(writeFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
@@ -1498,10 +1520,10 @@ namespace RenderGraph
     Resource Graph::AddAccess(ResourceAccess& resource, PipelineStage stage,
         PipelineAccess access)
     {
-        ASSERT(
-            !ResourceAccess::HasWriteAccess(access) ||
-            (!ResourceAccess::HasWriteAccess(resource.m_Access) &&
-            !GetResourceTypeBase(resource.m_Resource).m_Rename.IsValid()), "Cannot write twice to the same resource")
+        ASSERT(!
+            (ResourceAccess::HasWriteAccess(access) &&
+            ResourceAccess::HasWriteAccess(resource.m_Access) &&
+            GetResourceTypeBase(resource.m_Resource).m_Rename.IsValid()), "Cannot write twice to the same resource")
 
         if (ResourceAccess::HasWriteAccess(access))
         {
@@ -1575,19 +1597,19 @@ namespace RenderGraph
     {
         auto getPassId = [](u32 passIndex)
         {
-            return std::format("pass_{}", passIndex);
+            return std::format("pass.{}", passIndex);
         };
         auto getBarrierId = [](u32 passIndex, u32 barrierIndex)
         {
-            return std::format("barrier_{}_{}", passIndex, barrierIndex);
+            return std::format("barrier.{}.{}", passIndex, barrierIndex);
         };
         auto getSignalId = [](u32 passIndex, u32 splitBarrierIndex)
         {
-            return std::format("signal_barrier_{}_{}", passIndex, splitBarrierIndex);
+            return std::format("signal_barrier.{}.{}", passIndex, splitBarrierIndex);
         };
         auto getWaitId = [](u32 passIndex, u32 splitBarrierIndex)
         {
-            return std::format("wait_barrier_{}_{}", passIndex, splitBarrierIndex);
+            return std::format("wait_barrier.{}.{}", passIndex, splitBarrierIndex);
         };
         
         std::stringstream ss;
@@ -1598,7 +1620,7 @@ namespace RenderGraph
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
         {
             auto& pass = *m_RenderPasses[passIndex];
-            std::string passName = std::format("\t{}[/Pass_{}/]", getPassId(passIndex), pass.m_Name);
+            std::string passName = std::format("\t{}[/Pass{}/]", getPassId(passIndex), pass.m_Name.m_Name);
             ss << std::format("{}\n", passName);
 
             for (auto& access : pass.m_Accesses)

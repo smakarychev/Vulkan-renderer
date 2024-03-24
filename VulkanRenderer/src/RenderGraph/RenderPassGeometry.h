@@ -17,6 +17,7 @@ public:
     };
     using ObjectVisibilityType = u16;
     using MeshletVisibilityType = u16;
+    using TriangleVisibilityType = u64;
 public:
     template <typename Filter>
     static RenderPassGeometry FromModelCollectionFiltered(const ModelCollection& modelCollection,
@@ -76,7 +77,7 @@ RenderPassGeometry RenderPassGeometry::FromModelCollectionFiltered(const ModelCo
     renderPassGeometry.m_AttributeBuffers = InitAttributeBuffers(countsInfo);
 
     u32 mappedCommandsBuffer = resourceUploader.GetMappedBuffer(renderPassGeometry.m_Commands.GetSizeBytes());
-    IndirectCommand* commands = (IndirectCommand*)resourceUploader.GetMappedAddress(mappedCommandsBuffer);
+    IndirectDrawCommand* commands = (IndirectDrawCommand*)resourceUploader.GetMappedAddress(mappedCommandsBuffer);
 
     u32 mappedMeshletsBuffer = resourceUploader.GetMappedBuffer(renderPassGeometry.m_Meshlets.GetSizeBytes());
     MeshletGPU* meshletsGPU = (MeshletGPU*)resourceUploader.GetMappedAddress(mappedMeshletsBuffer);
@@ -213,7 +214,7 @@ inline void RenderPassGeometry::InitBuffers(RenderPassGeometry& renderPassGeomet
     renderPassGeometry.m_RenderObjectCount = countsInfo.RenderObjectCount;
     renderPassGeometry.m_Commands = Buffer::Builder()
         .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
-        .SetSizeBytes(countsInfo.CommandCount * sizeof(IndirectCommand))
+        .SetSizeBytes(countsInfo.CommandCount * sizeof(IndirectDrawCommand))
         .Build();
     renderPassGeometry.m_RenderObjects = Buffer::Builder()
         .SetUsage(BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)

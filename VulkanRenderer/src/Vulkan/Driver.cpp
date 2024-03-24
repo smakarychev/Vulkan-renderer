@@ -1079,18 +1079,21 @@ RenderingAttachment Driver::Create(const RenderingAttachment::Builder::CreateInf
     renderingAttachmentResource.AttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
     renderingAttachmentResource.AttachmentInfo.clearValue = VkClearValue{.color = {
         .float32 = {
-            createInfo.ClearValue.Color.F.r,
-            createInfo.ClearValue.Color.F.g,
-            createInfo.ClearValue.Color.F.b,
-            createInfo.ClearValue.Color.F.a}}};
-    renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(createInfo.Layout);
+            createInfo.Description.Clear.Color.F.r,
+            createInfo.Description.Clear.Color.F.g,
+            createInfo.Description.Clear.Color.F.b,
+            createInfo.Description.Clear.Color.F.a}}};
+    renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(
+        createInfo.Layout);
     renderingAttachmentResource.AttachmentInfo.imageView = *Resources()[*createInfo.Image].Views.ViewList;
-    renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(createInfo.OnLoad);
-    renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(createInfo.OnStore);
+    renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(
+        createInfo.Description.OnLoad);
+    renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(
+        createInfo.Description.OnStore);
     renderingAttachmentResource.AttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 
     RenderingAttachment renderingAttachment = {};
-    renderingAttachment.m_Type = createInfo.Type;
+    renderingAttachment.m_Type = createInfo.Description.Type;
     renderingAttachment.m_ResourceHandle = Resources().AddResource(renderingAttachmentResource);
     
     return renderingAttachment;
@@ -1989,14 +1992,14 @@ DependencyInfo Driver::Create(const DependencyInfo::Builder::CreateInfo& createI
     
         imageMemoryBarrier.oldLayout = vulkanImageLayoutFromImageLayout(createInfo.LayoutTransitionInfo->OldLayout);
         imageMemoryBarrier.newLayout = vulkanImageLayoutFromImageLayout(createInfo.LayoutTransitionInfo->NewLayout);
-        imageMemoryBarrier.image = Resources()[*createInfo.LayoutTransitionInfo->ImageSubresource->Image].Image;
+        imageMemoryBarrier.image = Resources()[*createInfo.LayoutTransitionInfo->ImageSubresource.Image].Image;
         imageMemoryBarrier.subresourceRange = {
             .aspectMask = vulkanImageAspectFromImageUsage(
-                createInfo.LayoutTransitionInfo->ImageSubresource->Image->m_Description.Usage),
-            .baseMipLevel = createInfo.LayoutTransitionInfo->ImageSubresource->Description.MipmapBase,
-            .levelCount = createInfo.LayoutTransitionInfo->ImageSubresource->Description.Mipmaps,
-            .baseArrayLayer = createInfo.LayoutTransitionInfo->ImageSubresource->Description.LayerBase,
-            .layerCount = createInfo.LayoutTransitionInfo->ImageSubresource->Description.Layers};
+                createInfo.LayoutTransitionInfo->ImageSubresource.Image->m_Description.Usage),
+            .baseMipLevel = createInfo.LayoutTransitionInfo->ImageSubresource.Description.MipmapBase,
+            .levelCount = createInfo.LayoutTransitionInfo->ImageSubresource.Description.Mipmaps,
+            .baseArrayLayer = createInfo.LayoutTransitionInfo->ImageSubresource.Description.LayerBase,
+            .layerCount = createInfo.LayoutTransitionInfo->ImageSubresource.Description.Layers};
 
         dependencyInfoResource.LayoutTransitionsInfo.push_back(imageMemoryBarrier);
     }

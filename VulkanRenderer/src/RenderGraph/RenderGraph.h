@@ -32,6 +32,7 @@ namespace RenderGraph
         Copy        = BIT(12),
 
         Upload      = BIT(13),
+        Readback    = BIT(14),
     };
     CREATE_ENUM_FLAGS_OPERATORS(ResourceAccessFlags)
 
@@ -44,8 +45,10 @@ namespace RenderGraph
         using ResourceTraits = ResourceTraits<Buffer>;
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
-            return (!enumHasAny(description.Usage, BufferUsage::Upload) || otherFrame != 0) &&
-                description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
+            return (!enumHasAny(description.Usage, BufferUsage::Upload) &&
+                    !enumHasAny(description.Usage, BufferUsage::Readback)
+                    || otherFrame != 0) &&
+                    description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
         }
     };
 
@@ -81,6 +84,13 @@ namespace RenderGraph
     {
         static constexpr u32 MAX_UNREFERENCED_FRAMES = 4;
     public:
+        ~RenderGraphPool()
+        {
+            for (auto& buffer : m_Buffers.Resources)
+                Buffer::Destroy(*buffer.Resource);
+            for (auto& texture : m_Textures.Resources)
+                Texture::Destroy(*texture.Resource);
+        }
         template <typename T>
         std::shared_ptr<T> GetResource(const typename ResourceTraits<T>::Desc& description)
         {
@@ -130,6 +140,7 @@ namespace RenderGraph
                 if (resource.LastFrame == MAX_UNREFERENCED_FRAMES)
                 {
                     std::swap(resource, m_Buffers.Resources.back());
+                    Buffer::Destroy(*m_Buffers.Resources.back().Resource);
                     m_Buffers.Resources.pop_back();
                 }
             }
@@ -139,6 +150,7 @@ namespace RenderGraph
                 if (resource.LastFrame == MAX_UNREFERENCED_FRAMES)
                 {
                     std::swap(resource, m_Textures.Resources.back());
+                    Texture::Destroy(*m_Textures.Resources.back().Resource);
                     m_Textures.Resources.pop_back();
                 }
             }
@@ -158,7 +170,7 @@ namespace RenderGraph
                 for (auto&& [resource, frame] : Resources)
                 {
                     if (resource.use_count() == 1 && ResourceAliasTraits<T>::CanAlias(
-                            description, resource->GetDescription(), frame))
+                        description, resource->GetDescription(), frame))
                     {
                         frame = 0;
                         
@@ -168,7 +180,7 @@ namespace RenderGraph
 
                 // allocate new resource
                 Resources.push_back({
-                    .Resource = std::make_shared<T>(T::Builder(description).Build()),
+                    .Resource = std::make_shared<T>(T::Builder(description).BuildManualLifetime()),
                     .LastFrame = 0});
                 
                 return Resources.back().Resource;
@@ -193,13 +205,13 @@ namespace RenderGraph
         Resource GetBackbuffer() const;
         
         template <typename PassData, typename SetupFn, typename CallbackFn>
-        Pass& AddRenderPass(const std::string& name, SetupFn&& setup, CallbackFn&& callback);
+        Pass& AddRenderPass(const PassName& passName, SetupFn&& setup, CallbackFn&& callback);
 
         Resource AddExternal(const std::string& name, const Buffer& buffer);
         Resource AddExternal(const std::string& name, const Texture& texture);
         Resource AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback);
-        Resource Export(Resource resource, std::shared_ptr<Buffer>* buffer);
-        Resource Export(Resource resource, std::shared_ptr<Texture>* texture);
+        Resource Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force = false);
+        Resource Export(Resource resource, std::shared_ptr<Texture>* texture, bool force = false);
         Resource CreateResource(const std::string& name, const GraphBufferDescription& description);
         Resource CreateResource(const std::string& name, const GraphTextureDescription& description);
         Resource Read(Resource resource, ResourceAccessFlags readFlags);
@@ -222,6 +234,8 @@ namespace RenderGraph
         void Reset();
         void Compile(FrameContext& frameContext);
         void Execute(FrameContext& frameContext);
+        void OnCmdBegin(FrameContext& frameContext) const;
+        void OnCmdEnd(FrameContext& frameContext) const;
         std::string MermaidDump() const;
     private:
         void Clear();
@@ -313,11 +327,11 @@ namespace RenderGraph
     };
 
     template <typename PassData, typename SetupFn, typename CallbackFn>
-    Pass& Graph::AddRenderPass(const std::string& name, SetupFn&& setup, CallbackFn&& callback)
+    Pass& Graph::AddRenderPass(const PassName& passName, SetupFn&& setup, CallbackFn&& callback)
     {
-        ASSERT(!m_NameToPassIndexMap.contains(name), "Pass with such name already exists")
-        m_NameToPassIndexMap.emplace(name, (u32)m_RenderPasses.size());
-        m_RenderPasses.push_back(std::make_unique<Pass>(name));
+        ASSERT(!m_NameToPassIndexMap.contains(passName.m_Name), "Pass with such name already exists")
+        m_NameToPassIndexMap.emplace(passName.m_Name, (u32)m_RenderPasses.size());
+        m_RenderPasses.push_back(std::make_unique<Pass>(passName));
         Pass* pass = m_RenderPasses.back().get();
         
         m_ResourceTarget = pass;

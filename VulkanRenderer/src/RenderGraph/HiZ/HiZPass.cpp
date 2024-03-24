@@ -36,11 +36,12 @@ HiZPassContext::~HiZPassContext()
     Image::Destroy(m_HiZ);
 }
 
-HiZPass::HiZPass(RenderGraph::Graph& renderGraph)
+HiZPass::HiZPass(RenderGraph::Graph& renderGraph, std::string_view baseName)
+    : m_Name(baseName)
 {
     ShaderPipelineTemplate* hizPassTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
        {"../assets/shaders/processed/render-graph/culling/hiz-comp.shader"},
-       "render-graph-hiz-pass-template", renderGraph.GetArenaAllocators());
+       "Pass.HiZ", renderGraph.GetArenaAllocators());
 
     ShaderPipeline pipeline = ShaderPipeline::Builder()
         .SetTemplate(hizPassTemplate)
@@ -77,7 +78,7 @@ void HiZPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
         m_PipelinesData[0].ResourceDescriptors.GetBindingInfo("u_out_image");
 
     for (u32 i = 0; i < mipMapCount; i++)
-        m_Passes[i] = &renderGraph.AddRenderPass<PassData>(std::format("hiz-subpass{}", i),
+        m_Passes[i] = &renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", m_Name.Name(), i)},
             [&](Graph& graph, PassData& passData)
             {
                 Resource depthIn = {};
@@ -86,8 +87,8 @@ void HiZPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
                 if (i == 0)
                 {
                     depthIn = depth;
-                    depthOut = graph.AddExternal("hiz-out", ctx.GetHiZ());
-                    graph.Export(depthOut, ctx.GetHiZPrevious());
+                    depthOut = graph.AddExternal("Hiz.Out", ctx.GetHiZ());
+                    graph.Export(depthOut, ctx.GetHiZPrevious(), true);
                 }
                 else
                 {

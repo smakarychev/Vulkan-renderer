@@ -64,12 +64,12 @@ bool is_frustum_triangle_visible(vec4 aabb) {
     return aabb.z >= 0 && aabb.x <= 1 && aabb.y >= 0 && aabb.w <= 1;
 }
 
-bool is_occlusion_triangle_visible(vec4 aabb, float z, scene_data scene, sampler2D depth_pyramid) {
+bool is_occlusion_triangle_visible(vec4 aabb, float z, scene_data scene, sampler hiz_sampler, texture2D hiz) {
     float width = (aabb.z - aabb.x) * scene.hiz_width;
     float height = (aabb.y - aabb.w) * scene.hiz_height;
     float level = ceil(log2(max(width, height)));
 
-    float depth = textureLod(depth_pyramid, (aabb.xy + aabb.zw) * 0.5, level).r;
+    float depth = textureLod(sampler2D(hiz, hiz_sampler),(aabb.xy + aabb.zw) * 0.5, level).r;
 
     return depth <= z;
 }

@@ -8,7 +8,7 @@ SkyGradientPass::SkyGradientPass(RenderGraph::Graph& renderGraph)
 {
     ShaderPipelineTemplate* skyTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/post/sky-gradient-comp.shader"},
-      "render-graph-sky-gradient-pass-template", renderGraph.GetArenaAllocators());
+      "Pass.SkyGradient", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
        .SetTemplate(skyTemplate)
@@ -33,14 +33,14 @@ void SkyGradientPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::R
     static ShaderDescriptors::BindingInfo imageOutBinding =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_out_image");
     
-    m_Pass = &renderGraph.AddRenderPass<PassData>("sky-gradient",
+    m_Pass = &renderGraph.AddRenderPass<PassData>({"SkyGradient"},
         [&](Graph& graph, PassData& passData)
         {
-            passData.CameraUbo = graph.CreateResource("sky-grading-pass-camera-ubo", GraphBufferDescription{
+            passData.CameraUbo = graph.CreateResource("SkyGradient.Camera", GraphBufferDescription{
                 .SizeBytes = sizeof(passData.Camera)});
             passData.CameraUbo = graph.Read(passData.CameraUbo, Compute | Uniform | Upload);
             
-            passData.SettingsUbo = graph.CreateResource("sky-grading-pass-settings-ubo", GraphBufferDescription{
+            passData.SettingsUbo = graph.CreateResource("SkyGradient.Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
             passData.SettingsUbo = graph.Read(passData.SettingsUbo, Compute | Uniform | Upload);
 

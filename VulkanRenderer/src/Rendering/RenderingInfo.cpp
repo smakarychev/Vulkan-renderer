@@ -2,6 +2,11 @@
 
 #include "Vulkan/Driver.h"
 
+RenderingAttachment::Builder::Builder(const RenderingAttachmentDescription& description)
+{
+    m_CreateInfo.Description = description;
+}
+
 RenderingAttachment RenderingAttachment::Builder::Build()
 {
     return Build(Driver::DeletionQueue());
@@ -17,7 +22,7 @@ RenderingAttachment RenderingAttachment::Builder::Build(DeletionQueue& deletionQ
 
 RenderingAttachment::Builder& RenderingAttachment::Builder::SetType(RenderingAttachmentType type)
 {
-    m_CreateInfo.Type = type;
+    m_CreateInfo.Description.Type = type;
 
     return *this;
 }
@@ -33,43 +38,43 @@ RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const Imag
 RenderingAttachment::Builder& RenderingAttachment::Builder::LoadStoreOperations(AttachmentLoad onLoad,
     AttachmentStore onStore)
 {
-    m_CreateInfo.OnLoad = onLoad;
-    m_CreateInfo.OnStore = onStore;
+    m_CreateInfo.Description.OnLoad = onLoad;
+    m_CreateInfo.Description.OnStore = onStore;
 
     return *this;
 }
 
 RenderingAttachment::Builder& RenderingAttachment::Builder::ClearValue(const glm::vec4& value)
 {
-    m_CreateInfo.ClearValue.Color.F = value;
+    m_CreateInfo.Description.Clear.Color.F = value;
 
     return *this;
 }
 
 RenderingAttachment::Builder& RenderingAttachment::Builder::ClearValue(const glm::uvec4& value)
 {
-    m_CreateInfo.ClearValue.Color.U = value;
+    m_CreateInfo.Description.Clear.Color.U = value;
 
     return *this;
 }
 
 RenderingAttachment::Builder& RenderingAttachment::Builder::ClearValue(const glm::ivec4& value)
 {
-    m_CreateInfo.ClearValue.Color.I = value;
+    m_CreateInfo.Description.Clear.Color.I = value;
 
     return *this;
 }
 
 RenderingAttachment::Builder& RenderingAttachment::Builder::ClearValue(f32 depth)
 {
-    m_CreateInfo.ClearValue.DepthStencil = {.Depth = depth, .Stencil = 0};
+    m_CreateInfo.Description.Clear.DepthStencil = {.Depth = depth, .Stencil = 0};
 
     return *this;
 }
 
 RenderingAttachment::Builder& RenderingAttachment::Builder::ClearValue(f32 depth, u32 stencil)
 {
-    m_CreateInfo.ClearValue.DepthStencil = {.Depth = depth, .Stencil = stencil};
+    m_CreateInfo.Description.Clear.DepthStencil = {.Depth = depth, .Stencil = stencil};
 
     return *this;
 }
@@ -110,9 +115,9 @@ RenderingInfo::Builder& RenderingInfo::Builder::AddAttachment(const RenderingAtt
     return *this;
 }
 
-RenderingInfo::Builder& RenderingInfo::Builder::SetRenderArea(const glm::uvec2& area)
+RenderingInfo::Builder& RenderingInfo::Builder::SetResolution(const glm::uvec2& resolution)
 {
-    m_CreateInfo.RenderArea = area;
+    m_CreateInfo.RenderArea = resolution;
 
     return *this;
 }

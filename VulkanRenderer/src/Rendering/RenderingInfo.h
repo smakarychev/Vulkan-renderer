@@ -10,6 +10,31 @@ class DeletionQueue;
 
 enum class RenderingAttachmentType {Color, Depth};
 
+struct RenderingAttachmentDescription
+{
+    union ClearValue
+    {
+        union Color
+        {
+            glm::fvec4 F;
+            glm::uvec4 U;
+            glm::ivec4 I;
+        };
+        struct DepthStencil
+        {
+            f32 Depth;
+            u32 Stencil;
+        };
+        Color Color;
+        DepthStencil DepthStencil;
+    };
+
+    RenderingAttachmentType Type;
+    ClearValue Clear{};
+    AttachmentLoad OnLoad;
+    AttachmentStore OnStore;
+};
+
 class RenderingAttachment
 {
     friend class RenderingInfo;
@@ -21,31 +46,13 @@ public:
         friend class RenderingAttachment;
         struct CreateInfo
         {
-            union ClearValue
-            {
-                union Color
-                {
-                    glm::fvec4 F;
-                    glm::uvec4 U;
-                    glm::ivec4 I;
-                };
-                struct DepthStencil
-                {
-                    f32 Depth;
-                    u32 Stencil;
-                };
-                Color Color;
-                DepthStencil DepthStencil;
-            };
-            
-            RenderingAttachmentType Type;
-            ClearValue ClearValue{};
+            RenderingAttachmentDescription Description{};
             const Image* Image{nullptr};
             ImageLayout Layout;
-            AttachmentLoad OnLoad;
-            AttachmentStore OnStore;
         };
     public:
+        Builder() = default;
+        Builder(const RenderingAttachmentDescription& description);
         RenderingAttachment Build();
         RenderingAttachment Build(DeletionQueue& deletionQueue);
         Builder& SetType(RenderingAttachmentType type);
@@ -87,7 +94,7 @@ public:
         RenderingInfo Build();
         RenderingInfo Build(DeletionQueue& deletionQueue);
         Builder& AddAttachment(const RenderingAttachment& attachment);
-        Builder& SetRenderArea(const glm::uvec2& area);
+        Builder& SetResolution(const glm::uvec2& resolution);
     private:
         CreateInfo m_CreateInfo;
     };

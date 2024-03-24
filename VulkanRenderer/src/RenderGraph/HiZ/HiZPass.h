@@ -35,10 +35,11 @@ public:
         RenderGraph::PipelineData* PipelineData{nullptr};
     };
 public:
-    HiZPass(RenderGraph::Graph& renderGraph);
+    HiZPass(RenderGraph::Graph& renderGraph, std::string_view baseName);
     void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource depth, HiZPassContext& ctx);
 private:
     std::array<RenderGraph::Pass*, HiZPassContext::MAX_MIPMAP_COUNT> m_Passes{};
+    RenderGraph::PassName m_Name;
 
     std::array<RenderGraph::PipelineData, HiZPassContext::MAX_MIPMAP_COUNT> m_PipelinesData;
 };

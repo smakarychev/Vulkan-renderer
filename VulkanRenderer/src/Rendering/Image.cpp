@@ -727,7 +727,7 @@ void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
     
     DependencyInfo layoutTransition = DependencyInfo::Builder()
         .LayoutTransition({
-            .ImageSubresource = &imageSubresource,
+            .ImageSubresource = imageSubresource,
             .SourceStage = srcStage,
             .DestinationStage = dstStage,
             .SourceAccess = srcAccess,

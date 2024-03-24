@@ -74,7 +74,7 @@ struct CullBatch
     }
     static u64 GetCommandsSizeBytes()
     {
-        return renderUtils::alignUniformBufferSizeBytes(MAX_COMMANDS * sizeof(IndirectCommand) * SUB_BATCH_COUNT);
+        return renderUtils::alignUniformBufferSizeBytes(MAX_COMMANDS * sizeof(IndirectDrawCommand) * SUB_BATCH_COUNT);
     }
     static u64 GetTrianglesSizeBytes()
     {
@@ -151,7 +151,7 @@ CullBatch::CullBatch()
 
     Draw = Buffer::Builder()
         .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination)
-        .SetSizeBytes(sizeof(IndirectCommand))
+        .SetSizeBytes(sizeof(IndirectDrawCommand))
         .Build();
 }
 
@@ -219,7 +219,7 @@ void RenderPassGeometryCull::BatchedCull::BatchIndirectDispatchesBuffersPrepare(
     const CommandBuffer& cmd = *cullContext.Cmd;
     
     u32 countOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(u32)) * cullContext.FrameNumber;
-    u32 dispatchIndirectOffset = (u32)renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
+    u32 dispatchIndirectOffset = (u32)renderUtils::alignUniformBufferSizeBytes<IndirectDispatchCommand>(
         m_MaxBatchDispatches) * cullContext.FrameNumber;
 
     std::vector<u32> pushConstants = {
@@ -345,14 +345,14 @@ void RenderPassGeometryCull::BatchedCull::InitPipelines(const CullBuffers& cullB
         .SetTemplate(prepareDispatchTemplate)
         .AddBinding("u_command_count_buffer", cullBuffers.CountBuffers.VisibleMeshlets, sizeof(u32), 0)
         .AddBinding("u_indirect_dispatch_buffer", cullBuffers.BatchIndirectDispatches,
-            m_MaxBatchDispatches * sizeof(VkDispatchIndirectCommand), 0)
+            m_MaxBatchDispatches * sizeof(IndirectDispatchCommand), 0)
         .Build();
 
     m_PrepareCompactIndirectDispatches.Descriptors = ShaderDescriptorSet::Builder()
         .SetTemplate(prepareDispatchTemplate)
         .AddBinding("u_command_count_buffer", cullBuffers.CountBuffers.VisibleMeshlets, sizeof(u32), 0)
         .AddBinding("u_indirect_dispatch_buffer", cullBuffers.BatchCompactIndirectDispatches,
-            m_MaxBatchDispatches * sizeof(VkDispatchIndirectCommand), 0)
+            m_MaxBatchDispatches * sizeof(IndirectDispatchCommand), 0)
         .Build();
 }
 
@@ -384,8 +384,8 @@ void RenderPassGeometryCull::BatchedCull::RecordCommandBuffers(const CullBuffers
                 u32 commandCount = CullBatch::GetCommandCount();
                 
                 u64 dispatchIndirectOffset =
-                    renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(m_MaxBatchDispatches) * frameIndex;
-                dispatchIndirectOffset += sizeof(VkDispatchIndirectCommand) * dispatchIndex;
+                    renderUtils::alignUniformBufferSizeBytes<IndirectDispatchCommand>(m_MaxBatchDispatches) * frameIndex;
+                dispatchIndirectOffset += sizeof(IndirectDispatchCommand) * dispatchIndex;
                 u32 countOffset = (u32)renderUtils::alignUniformBufferSizeBytes(sizeof(u32)) * frameIndex;
                 u32 commandOffset = commandCount * dispatchIndex;
 
@@ -462,12 +462,12 @@ void RenderPassGeometryCull::CullBuffers::Init(const RenderPassGeometry& renderP
         .Build();
 
     BatchIndirectDispatches = indirectDispatchBuilder
-        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<IndirectDispatchCommand>(
             maxBatchDispatches * BUFFERED_FRAMES))
         .Build();
 
     BatchCompactIndirectDispatches = indirectDispatchBuilder
-        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<VkDispatchIndirectCommand>(
+        .SetSizeBytes(renderUtils::alignUniformBufferSizeBytes<IndirectDispatchCommand>(
             maxBatchDispatches * BUFFERED_FRAMES))
         .Build();
 
@@ -477,7 +477,7 @@ void RenderPassGeometryCull::CullBuffers::Init(const RenderPassGeometry& renderP
     VisibleMeshletCountBufferMappedAddress = CountBuffers.VisibleMeshlets.Map();
     
     CompactedCommands = ssboIndirectBuilder
-        .SetSizeBytes(renderPassGeometry.GetCommandCount() * sizeof(IndirectCommand))
+        .SetSizeBytes(renderPassGeometry.GetCommandCount() * sizeof(IndirectDrawCommand))
         .Build();
 
     Triangles = ssboBuilder
@@ -599,7 +599,7 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
     
     auto preTriangleCull = [&](CommandBuffer& cmd, bool reocclusion, Fence fence)
     {
-        CPU_PROFILE_FRAME("Culling");
+        CPU_PROFILE_FRAME("Culling")
 
         CullContextExtended cullContext = {
             .Reocclusion = reocclusion,
@@ -624,7 +624,7 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
     };
     auto preTriangleWaitCPU = [&](CommandBuffer& cmd, Fence fence)
     {
-        CPU_PROFILE_FRAME("Fence wait");
+        CPU_PROFILE_FRAME("Fence wait")
         fence.Wait();
         fence.Reset();
         batchCount = m_BatchedCull->ReadBackBatchCount(*m_CullBuffers, context.FrameNumber);
@@ -632,7 +632,7 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
     };
     auto cull = [&](CommandBuffer& cmd, bool reocclusion)
     {
-        CPU_PROFILE_FRAME("Culling");
+        CPU_PROFILE_FRAME("Culling")
         CullContextExtended cullContext = {
             .Reocclusion = reocclusion,
             .Cmd = &cmd,
@@ -654,7 +654,7 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
     };
     auto render = [&](CommandBuffer& cmd, u32 iteration, bool computeDepthPyramid, bool shouldClear)
     {
-        CPU_PROFILE_FRAME("Rendering");
+        CPU_PROFILE_FRAME("Rendering")
 
         RenderCommand::SetViewport(cmd, context.Resolution);
         RenderCommand::SetScissors(cmd, {0, 0}, context.Resolution);
@@ -675,13 +675,13 @@ void RenderPassGeometryCull::CullRender(const RenderPassGeometryCullRenderingCon
             layout, offsets[(u32)DescriptorKind::Material]);
         RenderCommand::DrawIndexedIndirect(cmd,
             m_BatchedCull->GetCullDrawBatch().Draw,
-            0, 1, sizeof(IndirectCommand));
+            0, 1, sizeof(IndirectDrawCommand));
 
         RenderCommand::EndRendering(cmd);
 
         if (computeDepthPyramid)
         {
-            CPU_PROFILE_FRAME("Compute depth pyramid");
+            CPU_PROFILE_FRAME("Compute depth pyramid")
             m_DepthPyramid->Compute(*context.DepthBuffer, cmd, *context.DeletionQueue);
         }
     };

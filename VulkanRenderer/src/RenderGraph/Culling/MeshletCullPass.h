@@ -11,14 +11,27 @@ class MeshCullContext;
 class MeshletCullContext
 {
 public:
-    MeshletCullContext(const MeshCullContext& meshCullContext);
+    struct PassResources
+    {
+        RenderGraph::Resource MeshletsSsbo{};
+        RenderGraph::Resource VisibilitySsbo{};
+        RenderGraph::Resource CommandsSsbo{};
+        RenderGraph::Resource CompactCommandsSsbo{};
+        RenderGraph::Resource CompactCountSsbo{};
+        RenderGraph::Resource CompactCountReocclusionSsbo{};
+    };
+public:
+    MeshletCullContext(MeshCullContext& meshCullContext);
 
-    const Buffer& Visibility() const { return m_Visibility; }
-    const RenderPassGeometry& Geometry() const { return *m_Geometry; }
+    const Buffer& Visibility() { return m_Visibility; }
+    const RenderPassGeometry& Geometry() { return m_MeshCullContext->Geometry(); }
+    MeshCullContext& MeshContext() { return *m_MeshCullContext; }
+    PassResources& Resources() { return m_Resources; }
 private:
     Buffer m_Visibility;
-    
-    const RenderPassGeometry* m_Geometry{nullptr};
+
+    MeshCullContext* m_MeshCullContext{nullptr};
+    PassResources m_Resources{};
 };
 
 template <bool Reocclusion>
@@ -27,25 +40,20 @@ class MeshletCullPassGeneral
 public:
     struct PassData
     {
-        RenderGraph::Resource HiZ;
-        Sampler HiZSampler;
-        RenderGraph::Resource SceneUbo;
-        RenderGraph::Resource ObjectsSsbo;
-        RenderGraph::Resource ObjectVisibilitySsbo;
-        RenderGraph::Resource MeshletsSsbo;
-        RenderGraph::Resource MeshletVisibilitySsbo;
-        RenderGraph::Resource CommandsSsbo;
-        RenderGraph::Resource CompactCommandsSsbo;
-        RenderGraph::Resource CompactCountSsbo;
+        MeshCullContext::PassResources MeshResources;
+        MeshletCullContext::PassResources MeshletResources;
+
+        u32 MeshletCount;
         
         RenderGraph::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshletCullPassGeneral(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const MeshletCullContext& ctx,
-        const HiZPassContext& hiZPassContext);
+    MeshletCullPassGeneral(RenderGraph::Graph& renderGraph, std::string_view name);
+    void AddToGraph(RenderGraph::Graph& renderGraph, MeshletCullContext& ctx);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RenderGraph::Pass* m_Pass{nullptr};
+    RenderGraph::PassName m_Name;
 
     RenderGraph::PipelineData m_PipelineData;
 };
@@ -56,32 +64,33 @@ using MeshletCullReocclusionPass = MeshletCullPassGeneral<true>;
 
 
 template <bool Reocclusion>
-MeshletCullPassGeneral<Reocclusion>::MeshletCullPassGeneral(RenderGraph::Graph& renderGraph)
+MeshletCullPassGeneral<Reocclusion>::MeshletCullPassGeneral(RenderGraph::Graph& renderGraph, std::string_view name)
+    : m_Name(name)
 {
-    ShaderPipelineTemplate* mesheletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
+    ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/meshlet-cull-comp.shader"},
-        "render-graph-meshlet-cull-pass-template", renderGraph.GetArenaAllocators());
+        "Pass.MeshletCull", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(mesheletCullTemplate)
+        .SetTemplate(meshletCullTemplate)
         .AddSpecialization("REOCCLUSION", Reocclusion)
         .UseDescriptorBuffer()
         .Build();
 
     m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(mesheletCullTemplate, DescriptorAllocatorKind::Samplers)
+        .SetTemplate(meshletCullTemplate, DescriptorAllocatorKind::Samplers)
         .ExtractSet(0)
         .Build();
 
     m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(mesheletCullTemplate, DescriptorAllocatorKind::Resources)
+        .SetTemplate(meshletCullTemplate, DescriptorAllocatorKind::Resources)
         .ExtractSet(1)
         .Build();
 }
 
 template <bool Reocclusion>
-void MeshletCullPassGeneral<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGraph, const MeshletCullContext& ctx,
-    const HiZPassContext& hiZPassContext)
+void MeshletCullPassGeneral<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGraph,
+    MeshletCullContext& ctx)
 {
     using namespace RenderGraph;
     using enum ResourceAccessFlags;
@@ -107,80 +116,84 @@ void MeshletCullPassGeneral<Reocclusion>::AddToGraph(RenderGraph::Graph& renderG
     static ShaderDescriptors::BindingInfo countBinding =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_count");
 
-    static constexpr std::string_view PASS_NAME = Reocclusion ? "meshlet-cull-reocclusion" : "meshlet-cull";
+    std::string passName = m_Name.Name() + (Reocclusion ? ".Reocclusion" : "");
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>(std::string{PASS_NAME},
+    m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{passName},
         [&](Graph& graph, PassData& passData)
         {
             // if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass
             if constexpr(!Reocclusion)
             {
-                // we do not really need hiz for ordinary pass, but it is still has to be provided
-                auto& meshOutput = graph.GetBlackboard().GetOutput<MeshCullPass::PassData>();
-                passData.HiZ = meshOutput.HiZ;
-                passData.SceneUbo = meshOutput.SceneUbo;
-                passData.ObjectsSsbo = meshOutput.ObjectsSsbo;
-                passData.ObjectVisibilitySsbo = meshOutput.VisibilitySsbo;
-                passData.MeshletsSsbo = graph.AddExternal("meshlet-cull-meshlets",
+                ctx.Resources().MeshletsSsbo = graph.AddExternal(std::format("{}.{}", passName, "Meshlets"),
                     ctx.Geometry().GetMeshletsBuffer());
-                passData.MeshletVisibilitySsbo = graph.AddExternal("meshlet-cull-meshlet-visibility", ctx.Visibility());
-                passData.CommandsSsbo = graph.AddExternal("meshlet-cull-commands", ctx.Geometry().GetCommandsBuffer());
-                passData.CompactCommandsSsbo = graph.CreateResource("meshlet-cull-compacted-commands",
-                    GraphBufferDescription{.SizeBytes = ctx.Geometry().GetCommandsBuffer().GetSizeBytes()});
+                ctx.Resources().VisibilitySsbo =
+                    graph.AddExternal(std::format("{}.{}", passName, "Visibility"), ctx.Visibility());
+                ctx.Resources().CommandsSsbo =
+                    graph.AddExternal(std::format("{}.{}", passName, "Commands"), ctx.Geometry().GetCommandsBuffer());
+                ctx.Resources().CompactCommandsSsbo =
+                    graph.CreateResource(std::format("{}.{}", passName, "Commands.Compact"),
+                        GraphBufferDescription{.SizeBytes = ctx.Geometry().GetCommandsBuffer().GetSizeBytes()});
                 // count buffer will be separate for ordinary and reocclusion passes
-                passData.CompactCountSsbo = graph.CreateResource("meshlet-cull-command-count",
+                ctx.Resources().CompactCountSsbo =
+                    graph.CreateResource(std::format("{}.{}", passName, "Commands.CompactCount"),
+                        GraphBufferDescription{.SizeBytes = sizeof(u32)});
+                ctx.Resources().CompactCountReocclusionSsbo =
+                    graph.CreateResource(std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
                     GraphBufferDescription{.SizeBytes = sizeof(u32)});
+            }
+
+            auto& meshResources = ctx.MeshContext().Resources();
+            meshResources.HiZ = graph.Read(meshResources.HiZ, Compute | Sampled);
+            meshResources.SceneUbo = graph.Read(meshResources.SceneUbo, Compute | Uniform);
+            meshResources.ObjectsSsbo = graph.Read(meshResources.ObjectsSsbo, Compute | Storage);
+            meshResources.VisibilitySsbo = graph.Read(meshResources.VisibilitySsbo, Compute | Storage);
+
+            auto& resources = ctx.Resources();
+            resources.MeshletsSsbo = graph.Read(resources.MeshletsSsbo, Compute | Storage);
+            resources.VisibilitySsbo = graph.Read(resources.VisibilitySsbo, Compute | Storage);
+            resources.VisibilitySsbo = graph.Write(resources.VisibilitySsbo, Compute | Storage);
+            resources.CommandsSsbo = graph.Read(resources.CommandsSsbo, Compute | Storage);
+            resources.CompactCommandsSsbo = graph.Read(resources.CompactCommandsSsbo, Compute | Storage);
+            resources.CompactCommandsSsbo = graph.Write(resources.CompactCommandsSsbo, Compute | Storage);
+            if constexpr(!Reocclusion)
+            {
+                resources.CompactCountSsbo = graph.Read(resources.CompactCountSsbo, Compute | Storage | Upload);
+                resources.CompactCountSsbo = graph.Write(resources.CompactCountSsbo, Compute | Storage);
             }
             else
             {
-                passData.HiZ = graph.GetBlackboard().GetOutput<HiZPass::PassData>().HiZOut;
-                
-                auto& meshletOutput = graph.GetBlackboard().GetOutput<MeshletCullPass::PassData>();
-                passData.SceneUbo = meshletOutput.SceneUbo;
-                passData.ObjectsSsbo = meshletOutput.ObjectsSsbo;
-                passData.ObjectVisibilitySsbo = meshletOutput.ObjectVisibilitySsbo;
-                passData.MeshletsSsbo = meshletOutput.MeshletsSsbo;
-                passData.MeshletVisibilitySsbo = meshletOutput.MeshletVisibilitySsbo;
-                passData.CommandsSsbo = meshletOutput.CommandsSsbo;
-                passData.CompactCommandsSsbo = meshletOutput.CompactCommandsSsbo;
-                // count buffer will be separate for ordinary and reocclusion passes
-                passData.CompactCountSsbo = graph.CreateResource("meshlet-cull-reocclusion-command-count",
-                    GraphBufferDescription{.SizeBytes = sizeof(u32)});
+                resources.CompactCountReocclusionSsbo =
+                    graph.Read(resources.CompactCountReocclusionSsbo, Compute | Storage | Upload);
+                resources.CompactCountReocclusionSsbo =
+                    graph.Write(resources.CompactCountReocclusionSsbo, Compute | Storage);
             }
 
-            passData.HiZSampler = hiZPassContext.GetSampler();
-            passData.HiZ = graph.Read(passData.HiZ, Compute | Sampled);
-            passData.SceneUbo = graph.Read(passData.SceneUbo, Compute | Uniform);
-            passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Compute | Storage);
-            passData.ObjectVisibilitySsbo = graph.Read(passData.ObjectVisibilitySsbo, Compute | Storage);
-            passData.MeshletsSsbo = graph.Read(passData.MeshletsSsbo, Compute | Storage);
-            passData.MeshletVisibilitySsbo = graph.Read(passData.MeshletVisibilitySsbo, Compute | Storage);
-            passData.MeshletVisibilitySsbo = graph.Write(passData.MeshletVisibilitySsbo, Compute | Storage);
-            passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, Compute | Storage);
-            passData.CompactCommandsSsbo = graph.Read(passData.CompactCommandsSsbo, Compute | Storage);
-            passData.CompactCommandsSsbo = graph.Write(passData.CompactCommandsSsbo, Compute | Storage);
-            passData.CompactCountSsbo = graph.Read(passData.CompactCountSsbo, Compute | Storage | Upload);
-            passData.CompactCountSsbo = graph.Write(passData.CompactCountSsbo, Compute | Storage);
-            
+            passData.MeshResources = meshResources;
+            passData.MeshletResources = resources;
+            passData.MeshletCount = ctx.Geometry().GetMeshletCount();
             passData.PipelineData = &m_PipelineData;
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().UpdateOutput(m_Name.Hash(), passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("Meshlet Cull")
+
+            auto& meshResources = passData.MeshResources;
+            auto& meshletResources = passData.MeshletResources;
             
-            const Texture& hiz = resources.GetTexture(passData.HiZ);
-            const Sampler& hizSampler = passData.HiZSampler;
-            const Buffer& sceneUbo = resources.GetBuffer(passData.SceneUbo);
-            const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
-            const Buffer& objectVisibilitySsbo = resources.GetBuffer(passData.ObjectVisibilitySsbo);
-            const Buffer& meshletsSsbo = resources.GetBuffer(passData.MeshletsSsbo);
-            const Buffer& meshletVisibilitySsbo = resources.GetBuffer(passData.MeshletVisibilitySsbo);
-            const Buffer& commandsSsbo = resources.GetBuffer(passData.CommandsSsbo);
-            const Buffer& compactCommandsSsbo = resources.GetBuffer(passData.CompactCommandsSsbo);
-            
-            const Buffer& countSsbo = resources.GetBuffer(passData.CompactCountSsbo, 0u,
+            const Texture& hiz = resources.GetTexture(meshResources.HiZ);
+            const Sampler& hizSampler = meshResources.HiZSampler;
+            const Buffer& sceneUbo = resources.GetBuffer(meshResources.SceneUbo);
+            const Buffer& objectsSsbo = resources.GetBuffer(meshResources.ObjectsSsbo);
+            const Buffer& objectVisibilitySsbo = resources.GetBuffer(meshResources.VisibilitySsbo);
+            const Buffer& meshletsSsbo = resources.GetBuffer(meshletResources.MeshletsSsbo);
+            const Buffer& meshletVisibilitySsbo = resources.GetBuffer(meshletResources.VisibilitySsbo);
+            const Buffer& commandsSsbo = resources.GetBuffer(meshletResources.CommandsSsbo);
+            const Buffer& compactCommandsSsbo = resources.GetBuffer(meshletResources.CompactCommandsSsbo);
+
+            const Buffer& countSsbo = resources.GetBuffer(Reocclusion ?
+                meshletResources.CompactCountReocclusionSsbo : meshletResources.CompactCountSsbo, 0u,
                 *frameContext.ResourceUploader);
 
             auto& pipeline = passData.PipelineData->Pipeline;
@@ -198,7 +211,7 @@ void MeshletCullPassGeneral<Reocclusion>::AddToGraph(RenderGraph::Graph& renderG
             resourceDescriptors.UpdateBinding(compactCommandsBinding, compactCommandsSsbo.CreateBindingInfo());
             resourceDescriptors.UpdateBinding(countBinding, countSsbo.CreateBindingInfo());
 
-            u32 meshletCount = ctx.Geometry().GetMeshletCount();
+            u32 meshletCount = passData.MeshletCount;
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);

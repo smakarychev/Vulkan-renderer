@@ -4,9 +4,8 @@
 
 #include "RenderingCommon.h"
 
-#include <Vulkan/vulkan_core.h>
-
 #include "DriverResourceHandle.h"
+#include "Image.h"
 #include "ImageTraits.h"
 #include "SynchronizationTraits.h"
 
@@ -125,7 +124,7 @@ struct MemoryDependencyInfo
 
 struct LayoutTransitionInfo
 {
-    const ImageSubresource* ImageSubresource;
+    ImageSubresource ImageSubresource;
     PipelineStage SourceStage;
     PipelineStage DestinationStage;
     PipelineAccess SourceAccess;   

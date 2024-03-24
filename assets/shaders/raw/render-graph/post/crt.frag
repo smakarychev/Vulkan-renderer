@@ -53,9 +53,9 @@ vec3 split_colors(vec2 uv, float split) {
     if (uvb.y < 0.0f) uvb = uv;
     
     vec3 color;
-    color.r = texture(sampler2D(u_image, u_sampler), uvr).r;
-    color.g = texture(sampler2D(u_image, u_sampler), uv).g;
-    color.b = texture(sampler2D(u_image, u_sampler), uvb).b;
+    color.r = textureLod(sampler2D(u_image, u_sampler), uvr, 0).r;
+    color.g = textureLod(sampler2D(u_image, u_sampler), uv, 0).g;
+    color.b = textureLod(sampler2D(u_image, u_sampler), uvb, 0).b;
 
     return color;
 }

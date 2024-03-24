@@ -7,6 +7,7 @@
 
 #include "RenderGraphResource.h"
 #include "Rendering/Synchronization.h"
+#include "utils/StringHasher.h"
 
 class DependencyInfo;
 struct FrameContext;
@@ -14,6 +15,21 @@ struct FrameContext;
 namespace RenderGraph
 {
     class Resources;
+
+    class PassName
+    {
+        friend class Graph;
+        friend class Pass;
+    public:
+        PassName(std::string_view name) :
+            m_Name(name), m_Hash(name) {}
+        
+        const std::string& Name() const { return m_Name; }
+        utils::StringHasher Hash() const { return m_Hash; }
+    private:
+        std::string m_Name{};
+        utils::StringHasher m_Hash{};
+    };
     
     class Pass
     {
@@ -33,7 +49,7 @@ namespace RenderGraph
             ExecutionCallback(const PassData& passData, ExecutionLambda&& executionLambda)
                 : m_ExecutionLambda(std::forward<ExecutionLambda>(executionLambda)), m_PassData(passData)
             {
-                static_assert(sizeof(executionLambda) <= 1 * 1024);
+                static_assert((u32)sizeof(executionLambda) <= 1 * 1024);
             }
             void Execute(FrameContext& frameContext, const Resources& passResources) override
             {
@@ -44,13 +60,19 @@ namespace RenderGraph
             PassData m_PassData;
         };
     public:
-        Pass(const std::string& name)
+        Pass(std::string_view name)
+            : m_Name(name) {}
+        Pass(const PassName& name)
             : m_Name(name) {}
 
         void Execute(FrameContext& frameContext, const Resources& passResources) const
         {
             m_ExecutionCallback->Execute(frameContext, passResources);
         }
+
+        std::string_view GetNameString() const { return m_Name.m_Name; }
+        utils::StringHasher GetNameHash() const { return m_Name.m_Hash; }
+        
     private:
         void Reset()
         {
@@ -99,6 +121,6 @@ namespace RenderGraph
         std::vector<BarrierDependencyInfo> m_SplitBarrierSignalInfos;
         std::vector<BarrierDependencyInfo> m_SplitBarrierWaitInfos;
     
-        std::string m_Name;
+        PassName m_Name;
     };    
 }

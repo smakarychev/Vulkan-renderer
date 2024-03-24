@@ -9,7 +9,7 @@ HiZVisualize::HiZVisualize(RenderGraph::Graph& renderGraph)
     ShaderPipelineTemplate* hizVisualizeTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
             "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
             "../assets/shaders/processed/render-graph/culling/hiz-visualize-frag.shader"},
-        "render-graph-hiz-visualize-pass-template", renderGraph.GetArenaAllocators());
+        "Pass.HiZ.Visualize", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(hizVisualizeTemplate)
@@ -38,14 +38,14 @@ void HiZVisualize::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
     static ShaderDescriptors::BindingInfo hizBindingInfo =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_hiz");
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>("hiz-visualize-pass",
+    m_Pass = &renderGraph.AddRenderPass<PassData>({"HiZ.Visualize"},
         [&](Graph& graph, PassData& passData)
         {
             passData.HiZ = graph.Read(hiz,
                 ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);
             const TextureDescription& hizDescription = graph.GetTextureDescription(hiz);
 
-            passData.ColorOut = graph.CreateResource("hiz-visualize-out", GraphTextureDescription{
+            passData.ColorOut = graph.CreateResource("HiZ.Visualize.ColorOut", GraphTextureDescription{
                 .Width = hizDescription.Width,
                 .Height = hizDescription.Height,
                 .Format = Format::RGBA16_FLOAT});

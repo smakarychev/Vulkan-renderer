@@ -1,5 +1,7 @@
 ﻿#include "Renderer.h"
-#include "utils\utils.h"
+#include "utils/StringHasher.h"
+#include "utils/utils.h"
+#include "Core/core.h"
 
 i32 main()
 {

@@ -1,53 +1,16 @@
-#pragma once
-
-#include <glm/glm.hpp>
+#include "DrawIndirectCountPass.h"
 
 #include "FrameContext.h"
-#include "Core/Camera.h"
-#include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RenderPassCommon.h"
 #include "RenderGraph/RenderPassGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
-template <typename Specialization>
-class DrawIndirectCountPass
-{
-public:
-    struct CameraUBO
-    {
-        glm::mat4 ViewProjection;
-    };
-    struct PassData
-    {
-        RenderGraph::Resource CameraUbo;
-        RenderGraph::Resource ObjectsSsbo;
-        RenderGraph::Resource CommandsIndirect;
-        RenderGraph::Resource CountIndirect;
-        RenderGraph::Resource ColorOut;
-        RenderGraph::Resource DepthOut;
-
-        RenderGraph::PipelineData* PipelineData{nullptr};
-    };
-public:
-    DrawIndirectCountPass(RenderGraph::Graph& renderGraph, const std::string& name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource color, RenderGraph::Resource depth,
-        const glm::uvec2& resolution, bool clearDepth,
-        RenderGraph::Resource commands, RenderGraph::Resource count, const RenderPassGeometry& geometry);
-private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    std::string m_Name;
-    
-    RenderGraph::PipelineData m_PipelineData;
-};
-
-template <typename Specialization>
-DrawIndirectCountPass<Specialization>::DrawIndirectCountPass(RenderGraph::Graph& renderGraph, const std::string& name)
+DrawIndirectCountPass::DrawIndirectCountPass(RenderGraph::Graph& renderGraph, std::string_view name)
     : m_Name(name)
 {
     ShaderPipelineTemplate* drawIndirectCountTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/general/draw-indirect-count-vert.shader",
           "../assets/shaders/processed/render-graph/general/draw-indirect-count-frag.shader"},
-      "render-graph-draw-ic-pass-template", renderGraph.GetArenaAllocators());
+      "Pass.DrawIndirectCount", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(drawIndirectCountTemplate)
@@ -64,50 +27,49 @@ DrawIndirectCountPass<Specialization>::DrawIndirectCountPass(RenderGraph::Graph&
         .Build();
 }
 
-template <typename Specialization>
-void DrawIndirectCountPass<Specialization>::AddToGraph(RenderGraph::Graph& renderGraph,
-    RenderGraph::Resource color, RenderGraph::Resource depth, const glm::uvec2& resolution, bool clearDepth,
-    RenderGraph::Resource commands, RenderGraph::Resource count, const RenderPassGeometry& geometry)
+void DrawIndirectCountPass::AddToGraph(RenderGraph::Graph& renderGraph,
+    const RenderPassGeometry& geometry, const DrawIndirectCountPassInitInfo& initInfo)
 {
     using namespace RenderGraph;
     using enum ResourceAccessFlags;
 
-    static ShaderDescriptors::BindingInfo cameraBinding = m_PipelineData.ResourceDescriptors.GetBindingInfo("u_camera");
+    static ShaderDescriptors::BindingInfo cameraBinding =
+        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_camera");
     static ShaderDescriptors::BindingInfo objectsBinding =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_objects");
     static ShaderDescriptors::BindingInfo commandsBinding =
         m_PipelineData.ResourceDescriptors.GetBindingInfo("u_commands");
-
+    
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.CameraUbo = graph.CreateResource(m_Name + "-camera",
+            passData.CameraUbo = graph.CreateResource(m_Name.Name() + ".Camera",
                 GraphBufferDescription{.SizeBytes = sizeof(CameraUBO)});
             passData.CameraUbo = graph.Read(passData.CameraUbo, Vertex | Uniform | Upload);
-            passData.ObjectsSsbo = graph.AddExternal(m_Name + "-objects",
+            passData.ObjectsSsbo = graph.AddExternal(m_Name.Name() + ".Objects",
                 geometry.GetRenderObjectsBuffer());
-            passData.CommandsIndirect = graph.Read(commands, Vertex | Indirect);
-            passData.CountIndirect = graph.Read(count, Vertex | Indirect);
+            passData.CommandsIndirect = graph.Read(initInfo.Commands, Vertex | Indirect);
+            passData.CountIndirect = graph.Read(initInfo.CommandCount, Vertex | Indirect);
 
-            if (color.IsValid())
+            if (initInfo.Color.IsValid())
             {
-                passData.ColorOut = graph.RenderTarget(color, AttachmentLoad::Load, AttachmentStore::Store);
+                passData.ColorOut = graph.RenderTarget(initInfo.Color, AttachmentLoad::Load, AttachmentStore::Store);
             }
             else
             {
-                passData.ColorOut = graph.CreateResource(m_Name + "-color", GraphTextureDescription{
-                    .Width = resolution.x,
-                    .Height = resolution.y,
+                passData.ColorOut = graph.CreateResource(m_Name.Name() + ".Color", GraphTextureDescription{
+                    .Width = initInfo.Resolution.x,
+                    .Height = initInfo.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
                 passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Clear, AttachmentStore::Store,
                     glm::vec4{0.01f, 0.01f, 0.01f, 1.0f});
             }
-            passData.DepthOut = graph.DepthStencilTarget(depth,
-                clearDepth ? AttachmentLoad::Clear : AttachmentLoad::Load, AttachmentStore::Store, 0.0f);
+            passData.DepthOut = graph.DepthStencilTarget(initInfo.Depth,
+                initInfo.ClearDepth ? AttachmentLoad::Clear : AttachmentLoad::Load, AttachmentStore::Store, 0.0f);
             
             passData.PipelineData = &m_PipelineData;
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().UpdateOutput(m_Name.Hash(), passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -129,7 +91,6 @@ void DrawIndirectCountPass<Specialization>::AddToGraph(RenderGraph::Graph& rende
             resourceDescriptors.UpdateBinding(commandsBinding, commandsDraw.CreateBindingInfo());
 
             auto& cmd = frameContext.Cmd;
-
             RenderCommand::BindIndexU8Buffer(cmd, geometry.GetAttributeBuffers().Indices, 0);
             RenderCommand::BindVertexBuffers(cmd,
                 {

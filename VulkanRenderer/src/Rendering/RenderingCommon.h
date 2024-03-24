@@ -4,7 +4,6 @@
 
 #include <vector>
 
-#include "DescriptorsTraits.h"
 #include "FormatTraits.h"
 #include "RenderHandle.h"
 #include "RenderObject.h"
@@ -16,12 +15,12 @@
     friend class RenderCommand;
 
 #define GPU_PROFILE_FRAME(name) TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), name)
-#define CPU_PROFILE_FRAME(name) ZoneScopedN(name)
+#define CPU_PROFILE_FRAME(name) ZoneScopedN(name);
 
 class Buffer;
 class Image;
 
-struct IndirectCommand
+struct IndirectDrawCommand
 {
     u32 IndexCount;
     u32 InstanceCount;
@@ -29,6 +28,13 @@ struct IndirectCommand
     i32 VertexOffset;
     u32 FirstInstance;
     RenderHandle<RenderObject> RenderObject;
+};
+
+struct IndirectDispatchCommand
+{
+    u32 GroupX;
+    u32 GroupY;
+    u32 GroupZ;
 };
 
 enum class QueueKind {Graphics, Presentation, Compute};

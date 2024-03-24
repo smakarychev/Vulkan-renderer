@@ -60,7 +60,7 @@ SlimeMoldContext::Traits SlimeMoldContext::RandomTrait()
         .SensorAngle = Random::Float(0.0f, glm::radians(180.0f)),
         .SensorOffset = Random::Float(1.0f, 50.0f),
         .Color = glm::vec4(1.0f),
-        .ContagionThreshold = Random::Float(0, 1e-1),
+        .ContagionThreshold = Random::Float(0, 1e-1f),
         .ContagionSteps = Random::UInt32(1, 25)};
 }
 
@@ -73,7 +73,7 @@ SlimeMoldPass::SlimeMoldPass(RenderGraph::Graph& renderGraph)
 {
     ShaderPipelineTemplate* slimeTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
             "../assets/shaders/processed/render-graph/extra/slime-mold/slime-comp.shader"},
-        "render-graph-slime-mold-template", renderGraph.GetArenaAllocators());
+        "Pass.SlimeMold", renderGraph.GetArenaAllocators());
 
     m_UpdateSlimeMapPipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(slimeTemplate)
@@ -108,7 +108,7 @@ SlimeMoldPass::SlimeMoldPass(RenderGraph::Graph& renderGraph)
         .ExtractSet(1)
         .Build();
 
-    m_CopyDiffuseToMapPass = std::make_shared<CopyTexturePass>("copy-slime-diffuse-pass");
+    m_CopyDiffuseToMapPass = std::make_shared<CopyTexturePass>("Copy.SlimeDiffuse");
 }
 
 void SlimeMoldPass::AddToGraph(RenderGraph::Graph& renderGraph, SlimeMoldPassStage stage, SlimeMoldContext& ctx)
@@ -144,17 +144,17 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RenderGraph::Graph& renderGraph, Slim
     static ShaderDescriptors::BindingInfo mapBinding =
         m_UpdateSlimeMapPipelineData.ResourceDescriptors.GetBindingInfo("u_slime_map");
 
-    m_UpdateSlimeMapPass = &renderGraph.AddRenderPass<UpdateSlimeMapPassData>("update-slime-map",
+    m_UpdateSlimeMapPass = &renderGraph.AddRenderPass<UpdateSlimeMapPassData>({"Slime.Update"},
         [&](Graph& graph, UpdateSlimeMapPassData& passData)
         {
-            passData.TraitsSsbo = graph.AddExternal("slime-pass-traits", ctx.GetTraitsBuffer());
+            passData.TraitsSsbo = graph.AddExternal("Slime.Update.Traits", ctx.GetTraitsBuffer());
             passData.TraitsSsbo = graph.Read(passData.TraitsSsbo, Compute | Storage);
 
-            passData.SlimeSsbo = graph.AddExternal("slime-pass-slime", ctx.GetSlimeBuffer());
+            passData.SlimeSsbo = graph.AddExternal("Slime.Update.Slime", ctx.GetSlimeBuffer());
             passData.SlimeSsbo = graph.Read(passData.SlimeSsbo, Compute | Storage);
             passData.SlimeSsbo = graph.Write(passData.SlimeSsbo, Compute | Storage);
 
-            passData.SlimeMap = graph.AddExternal("slime-pass-slime-map", ctx.GetSlimeMap());
+            passData.SlimeMap = graph.AddExternal("Slime.Update.SlimeMap", ctx.GetSlimeMap());
             passData.SlimeMap = graph.Write(passData.SlimeMap, Compute | Storage);
 
             passData.PipelineData = &m_UpdateSlimeMapPipelineData;
@@ -208,13 +208,13 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
     static ShaderDescriptors::BindingInfo diffuseBinding =
         m_DiffuseSlimeMapPipelineData.ResourceDescriptors.GetBindingInfo("u_diffuse_map");
 
-    m_DiffuseSlimeMapPass = &renderGraph.AddRenderPass<DiffuseSlimeMapPassData>("diffuse-slime-map",
+    m_DiffuseSlimeMapPass = &renderGraph.AddRenderPass<DiffuseSlimeMapPassData>({"Slime.Diffuse"},
         [&](Graph& graph, DiffuseSlimeMapPassData& passData)
         {
             passData.SlimeMap = graph.GetBlackboard().GetOutput<UpdateSlimeMapPassData>().SlimeMap;
             passData.SlimeMap = graph.Read(passData.SlimeMap, Compute | Storage);
 
-            passData.DiffuseMap = graph.CreateResource("slime-pass-diffuse-map", GraphTextureDescription{
+            passData.DiffuseMap = graph.CreateResource("Slime.Diffuse.DiffuseMap", GraphTextureDescription{
                 .Width = ctx.GetBounds().x,
                 .Height = ctx.GetBounds().y,
                 .Format = Format::RGBA16_FLOAT});
@@ -289,19 +289,19 @@ void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldC
     static ShaderDescriptors::BindingInfo gradientColorsBinding =
         m_DiffuseSlimeMapPipelineData.ResourceDescriptors.GetBindingInfo("u_gradient_colors");
 
-    m_GradientSlimeMapPass = &renderGraph.AddRenderPass<GradientPassData>("gradient-slime-map",
+    m_GradientSlimeMapPass = &renderGraph.AddRenderPass<GradientPassData>({"Slime.Gradient"},
         [&](Graph& graph, GradientPassData& passData)
         {
             passData.DiffuseMap = graph.GetBlackboard().GetOutput<DiffuseSlimeMapPassData>().DiffuseMap;
             passData.DiffuseMap = graph.Read(passData.DiffuseMap, Compute | Storage);
 
-            passData.GradientMap = graph.CreateResource("slime-pass-gradient-map", GraphTextureDescription{
+            passData.GradientMap = graph.CreateResource("Slime.Gradient.GradientMap", GraphTextureDescription{
                 .Width = ctx.GetBounds().x,
                 .Height = ctx.GetBounds().y,
                 .Format = Format::RGBA16_FLOAT});
             passData.GradientMap = graph.Write(passData.GradientMap, Compute | Storage);
 
-            passData.GradientUbo = graph.CreateResource("slime-pass-gradient-colors-buffer", GraphBufferDescription{
+            passData.GradientUbo = graph.CreateResource("Slime.Gradient.Colors", GraphBufferDescription{
                 .SizeBytes = sizeof(GradientUBO)});
             passData.GradientUbo = graph.Read(passData.GradientUbo, Compute | Uniform | Upload);
 

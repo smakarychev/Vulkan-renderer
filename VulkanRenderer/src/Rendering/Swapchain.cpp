@@ -123,7 +123,7 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     DeletionQueue deletionQueue = {};
 
     LayoutTransitionInfo presentToDestinationTransitionInfo = {
-        .ImageSubresource = &presentSubresource,
+        .ImageSubresource = presentSubresource,
         .SourceStage = PipelineStage::ColorOutput,
         .DestinationStage = PipelineStage::Bottom,
         .SourceAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,

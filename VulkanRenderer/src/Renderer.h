@@ -13,10 +13,10 @@
 #include "RenderGraph/RenderPassGeometryCull.h"
 #include "RenderGraph/Culling/MeshletCullPass.h"
 #include "FrameContext.h"
-#include "RenderGraph/General/DrawIndirectCountPass.h"
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class CullMetaPass;
 class CopyTexturePass;
 class SlimeMoldPass;
 class SlimeMoldContext;
@@ -124,6 +124,7 @@ private:
     void InitVisibilityPass();
     void InitVisibilityBufferVisualizationStructures();
     void InitRenderGraph();
+    void SetupRenderSlimePasses();
     void SetupRenderGraph();
 
     void Shutdown();
@@ -190,30 +191,16 @@ private:
     std::unique_ptr<RenderGraph::Graph> m_Graph;
     std::shared_ptr<SkyGradientPass> m_SkyGradientPass;
     std::shared_ptr<CrtPass> m_CrtPass;
-    std::shared_ptr<HiZPassContext> m_HiZPassContext;
-    std::shared_ptr<HiZPass> m_HiZPass;
+    
     std::shared_ptr<HiZVisualize> m_HiZVisualizePass;
-
     std::shared_ptr<CopyTexturePass> m_CopyTexturePass;
-    std::shared_ptr<BlitPass> m_BlitPass;
-    
-    std::shared_ptr<MeshCullContext> m_MeshCullContext;
-    std::shared_ptr<MeshCullPass> m_MeshCullPass;
-    std::shared_ptr<MeshCullReocclusionPass> m_MeshCullReocclusionPass;
-    
-    std::shared_ptr<MeshletCullContext> m_MeshletCullContext;
-    std::shared_ptr<MeshletCullPass> m_MeshletCullPass;
-    std::shared_ptr<MeshletCullReocclusionPass> m_MeshletCullReocclusionPass;
+    std::shared_ptr<BlitPass> m_BlitPartialDraw;
+    std::shared_ptr<BlitPass> m_BlitHiZ;
+
+    std::shared_ptr<CullMetaPass> m_TriangleCull;
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;
-
-    struct DrawIndirectCountOrdinary{};
-    using DrawOrdinary = DrawIndirectCountPass<DrawIndirectCountOrdinary>;
-    std::shared_ptr<DrawOrdinary> m_DrawOrdinary;
-    struct DrawIndirectCountReocclusion{};
-    using DrawReocclusion = DrawIndirectCountPass<DrawIndirectCountReocclusion>;
-    std::shared_ptr<DrawReocclusion> m_DrawReocclusion;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

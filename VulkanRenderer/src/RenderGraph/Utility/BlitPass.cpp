@@ -3,7 +3,7 @@
 #include "Renderer.h"
 #include "Vulkan/RenderCommand.h"
 
-BlitPass::BlitPass(const std::string& name)
+BlitPass::BlitPass(std::string_view name)
     : m_Name(name)
 {
 }

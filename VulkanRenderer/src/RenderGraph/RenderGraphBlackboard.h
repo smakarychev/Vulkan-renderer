@@ -1,18 +1,28 @@
 #pragma once
 #include <memory>
-#include <vector>
+#include <unordered_map>
 
 #include "types.h"
 #include "Core/core.h"
+#include "utils/hash.h"
+#include "utils/StringHasher.h"
+#include "utils/utils.h"
 
 namespace RenderGraph
 {
     class PassOutputTypeIndex
     {
-        inline static u64 s_Counter = 0;
     public:
         template <typename OutputType>
-        inline static const u64 Type = s_Counter++;
+        static constexpr u64 Type()
+        {
+            return utils::hashString(GENERATOR_PRETTY_FUNCTION);
+        }
+        template <typename OutputType>
+        static constexpr u64 Type(utils::StringHasher name)
+        {
+            return name.GetHash() ^ utils::hashString(GENERATOR_PRETTY_FUNCTION);
+        }
     };
     
     class Blackboard
@@ -21,21 +31,33 @@ namespace RenderGraph
         template <typename OutputType>
         void RegisterOutput(const OutputType& output);
         template <typename OutputType>
+        void RegisterOutput(utils::StringHasher name, const OutputType& output);
+        template <typename OutputType>
         void UpdateOutput(const OutputType& output);
+        template <typename OutputType>
+        void UpdateOutput(utils::StringHasher name, const OutputType& output);
         template <typename OutputType>
         const OutputType& GetOutput() const;
         template <typename OutputType>
+        const OutputType& GetOutput(utils::StringHasher name) const;
+        template <typename OutputType>
         OutputType& GetOutput();
+        template <typename OutputType>
+        OutputType& GetOutput(utils::StringHasher name);
         template <typename OutputType>
         const OutputType* TryGetOutput() const;
         template <typename OutputType>
+        const OutputType* TryGetOutput(utils::StringHasher name) const;
+        template <typename OutputType>
         OutputType* TryGetOutput();
         template <typename OutputType>
-        bool Has() const;
-
+        OutputType* TryGetOutput(utils::StringHasher name);
+        
+        bool Has(u64 key) const;
+        
         void Clear();
     private:
-        std::vector<std::shared_ptr<void>> m_PassesOutputs;
+        std::unordered_map<u64, std::shared_ptr<void>> m_PassesOutputs;
     };
 
     inline void Blackboard::Clear()
@@ -46,10 +68,17 @@ namespace RenderGraph
     template <typename OutputType>
     void Blackboard::RegisterOutput(const OutputType& output)
     {
-        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
-        if (outputIndex >= m_PassesOutputs.size())
-            m_PassesOutputs.resize(outputIndex + 1);
-        ASSERT(m_PassesOutputs[outputIndex] == nullptr, "Output is already registered")
+        constexpr u64 outputIndex = PassOutputTypeIndex::Type<OutputType>();
+        ASSERT(!m_PassesOutputs.contains(outputIndex), "Output is already registered")
+
+        m_PassesOutputs[outputIndex] = std::make_shared<OutputType>(output);
+    }
+    
+    template <typename OutputType>
+    void Blackboard::RegisterOutput(utils::StringHasher name, const OutputType& output)
+    {
+        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>(name);
+        ASSERT(!m_PassesOutputs.contains(outputIndex), "Output is already registered")
 
         m_PassesOutputs[outputIndex] = std::make_shared<OutputType>(output);
     }
@@ -57,25 +86,39 @@ namespace RenderGraph
     template <typename OutputType>
     void Blackboard::UpdateOutput(const OutputType& output)
     {
-        if (!Has<OutputType>())
-        {
+        constexpr u64 outputIndex = PassOutputTypeIndex::Type<OutputType>();
+        if (!Has(outputIndex))
             RegisterOutput(output);
-        }
         else
-        {
-            u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
             m_PassesOutputs[outputIndex] = std::make_shared<OutputType>(output);
-        }
+    }
+
+    template <typename OutputType>
+    void Blackboard::UpdateOutput(utils::StringHasher name, const OutputType& output)
+    {
+        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>(name);
+        if (!Has(outputIndex))
+            RegisterOutput(name, output);
+        else
+            m_PassesOutputs[outputIndex] = std::make_shared<OutputType>(output);
     }
 
     template <typename OutputType>
     const OutputType& Blackboard::GetOutput() const
     {
-        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
-        ASSERT(outputIndex < m_PassesOutputs.size() && m_PassesOutputs[outputIndex] != nullptr,
-            "Output is not registered")
+        constexpr u64 outputIndex = PassOutputTypeIndex::Type<OutputType>();
+        ASSERT(m_PassesOutputs.contains(outputIndex), "Output is not registered")
 
-        return *(OutputType*)m_PassesOutputs[outputIndex].get();
+        return *(OutputType*)m_PassesOutputs.at(outputIndex).get();
+    }
+
+    template <typename OutputType>
+    const OutputType& Blackboard::GetOutput(utils::StringHasher name) const
+    {
+        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>(name);
+        ASSERT(m_PassesOutputs.contains(outputIndex), "Output is not registered")
+
+        return *(OutputType*)m_PassesOutputs.at(outputIndex).get();
     }
 
     template <typename OutputType>
@@ -85,13 +128,29 @@ namespace RenderGraph
     }
 
     template <typename OutputType>
+    OutputType& Blackboard::GetOutput(utils::StringHasher name)
+    {
+        return const_cast<OutputType&>(const_cast<const Blackboard&>(*this).GetOutput<OutputType>(name));
+    }
+
+    template <typename OutputType>
     const OutputType* Blackboard::TryGetOutput() const
     {
-        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
-        if (outputIndex >= m_PassesOutputs.size() || m_PassesOutputs[outputIndex] == nullptr)
+        constexpr u64 outputIndex = PassOutputTypeIndex::Type<OutputType>();
+        if (!m_PassesOutputs.contains(outputIndex))
             return nullptr;
 
-        return (OutputType*)m_PassesOutputs[outputIndex].get();
+        return (OutputType*)m_PassesOutputs.at(outputIndex).get();
+    }
+
+    template <typename OutputType>
+    const OutputType* Blackboard::TryGetOutput(utils::StringHasher name) const
+    {
+        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>(name);
+        if (!m_PassesOutputs.contains(outputIndex))
+            return nullptr;
+
+        return (OutputType*)m_PassesOutputs.at(outputIndex).get();
     }
 
     template <typename OutputType>
@@ -101,10 +160,14 @@ namespace RenderGraph
     }
 
     template <typename OutputType>
-    bool Blackboard::Has() const
+    OutputType* Blackboard::TryGetOutput(utils::StringHasher name)
     {
-        u64 outputIndex = PassOutputTypeIndex::Type<OutputType>;
-        return outputIndex < m_PassesOutputs.size() && m_PassesOutputs[outputIndex] != nullptr;
+        return const_cast<OutputType*>(const_cast<const Blackboard&>(*this).TryGetOutput<OutputType>(name));
+    }
+
+    inline bool Blackboard::Has(u64 key) const
+    {
+        return m_PassesOutputs.contains(key);
     }
 }
 

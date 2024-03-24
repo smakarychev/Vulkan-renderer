@@ -401,8 +401,9 @@ public:
         std::string_view templateName, DescriptorAllocator& allocator);
     static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
         std::string_view templateName, DescriptorArenaAllocators& allocators);
-    static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
+    static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name, DescriptorArenaAllocators& allocators);
 private:
+    static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
     static std::string GenerateTemplateName(std::string_view templateName, DescriptorAllocator& allocator);
     static std::string GenerateTemplateName(std::string_view templateName, DescriptorArenaAllocators& allocators);
     static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
