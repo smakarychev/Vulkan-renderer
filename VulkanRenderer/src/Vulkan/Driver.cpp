@@ -1414,11 +1414,8 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
             .descriptorCount = binding.Count,
             .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders)});
 
-        if (binding.HasImmutableSampler)
-        {
+        if (binding.IsImmutableSampler)
             bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
-            layoutFlags |= DescriptorLayoutFlags::EmbeddedImmutableSamplers;
-        }
     }
     
     VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
@@ -1706,8 +1703,30 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings)
 {
     auto& descriptorBufferProps = Resources().m_Devices[0].GPUDescriptorBufferProperties;
+
+
+    // if we have bindless binding, we have to calculate layout size as a sum of bindings sizes
     u64 layoutSizeBytes = 0;
-    vkGetDescriptorSetLayoutSizeEXT(DeviceHandle(), Resources()[layout].Layout, &layoutSizeBytes);
+    if (bindings.BindlessCount == 0)
+    {
+        vkGetDescriptorSetLayoutSizeEXT(DeviceHandle(), Resources()[layout].Layout, &layoutSizeBytes);    
+    }    
+    else
+    {
+        for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
+        {
+            auto& binding = bindings.Bindings[bindingIndex];
+            bool isBindless = binding.IsBindless;
+            ASSERT(
+                (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
+                (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),
+                "Only one binding can be declared as 'bindless' for any particular set, and it has to be the last one")
+
+            layoutSizeBytes += isBindless ? bindings.BindlessCount * GetDescriptorSizeBytes(binding.Type) :
+                GetDescriptorSizeBytes(binding.Type);
+        }
+    }
+    
     layoutSizeBytes = CoreUtils::align(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
     if (layoutSizeBytes + allocator.m_CurrentOffset >= allocator.m_Buffer.GetSizeBytes())
         return {};
@@ -1730,7 +1749,8 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     return descriptors;
 }
 
-void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer, DescriptorType type)
+void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
+    DescriptorType type)
 {
     ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
         "Texel buffers require format information")
@@ -1759,7 +1779,7 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const B
 }
 
 void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-    DescriptorType type)
+    DescriptorType type, u32 bindlessIndex)
 {
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
@@ -1771,16 +1791,18 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
     }
     else
     {
-        descriptorImageInfo.sampler = Resources()[texture.Sampler].Sampler,
+        descriptorImageInfo.sampler = Resources()[texture.Sampler].Sampler;
         descriptorImageInfo.imageView = texture.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
             *Resources()[*texture.Image].Views.ViewList :
-            Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index],
+            Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index];
         descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(texture.Layout);
         descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
     }
 
-    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, GetDescriptorSizeBytes(type),
-        (u8*)descriptors.m_Allocator->m_Buffer.m_HostAddress + descriptors.m_Offsets[slot]);
+    u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
+    u64 offsetBytes = descriptors.m_Offsets[slot] + descriptorSizeBytes * bindlessIndex;
+    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, descriptorSizeBytes,
+        (u8*)descriptors.m_Allocator->m_Buffer.m_HostAddress + offsetBytes);
 }
 
 u32 Driver::GetDescriptorSizeBytes(DescriptorType type)

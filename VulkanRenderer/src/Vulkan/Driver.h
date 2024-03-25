@@ -1,24 +1,22 @@
 ﻿#pragma once
 
-#include <functional>
+#include "DriverFreelist.h"
+#include "Core/ProfilerContext.h"
 
 #include "Rendering/CommandBuffer.h"
 #include "Rendering/Device.h"
+#include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
+#include "Rendering/RenderingInfo.h"
+#include "Rendering/Shader.h"
 #include "Rendering/Swapchain.h"
 #include "Rendering/Synchronization.h"
 
 #include <vma/vk_mem_alloc.h>
-
-#include "../Rendering/Descriptors.h"
+#include <functional>
 
 #include <volk.h>
 #include <tracy/TracyVulkan.hpp>
-
-#include "Rendering/RenderingInfo.h"
-#include "DriverFreelist.h"
-#include "Core/ProfilerContext.h"
-#include "Rendering/Shader.h"
 
 
 class ProfilerContext;
@@ -543,7 +541,7 @@ public:
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
         DescriptorType type);
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-        DescriptorType type);
+        DescriptorType type, u32 bindlessIndex);
 
     static Fence Create(const Fence::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Fence> fence);

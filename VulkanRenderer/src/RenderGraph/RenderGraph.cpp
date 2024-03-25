@@ -350,7 +350,7 @@ namespace RenderGraph
                         .Build(*m_FrameDeletionQueue));
                 if (pass->m_DepthStencilAccess.has_value())
                 {
-                    auto target = pass->m_DepthStencilAccess.value();
+                    auto target = *pass->m_DepthStencilAccess;
 
                     ImageLayout layout = target.m_IsDepthOnly ?
                         ImageLayout::DepthAttachment : ImageLayout::DepthStencilAttachment;
@@ -1665,7 +1665,7 @@ namespace RenderGraph
                 if (barrierInfo.ExecutionDependency.has_value())
                 {
                     ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Execution barrier");
-                    auto& execution = barrierInfo.ExecutionDependency.value();
+                    auto& execution = *barrierInfo.ExecutionDependency;
                     ss << std::format("\t{} - {}`\"}}}}\n",
                         SynchronizationUtils::pipelineStageToString(execution.SourceStage),
                         SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
@@ -1673,7 +1673,7 @@ namespace RenderGraph
                 else if (barrierInfo.MemoryDependency.has_value())
                 {
                     ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Memory barrier");
-                    auto& memory = barrierInfo.MemoryDependency.value();
+                    auto& memory = *barrierInfo.MemoryDependency;
                     ss << std::format("\t{} - {}\n\t{} - {}`\"}}}}\n",
                         SynchronizationUtils::pipelineStageToString(memory.SourceStage),
                         SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
@@ -1683,7 +1683,7 @@ namespace RenderGraph
                 else
                 {
                     ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Layout transition barrier");
-                    auto& transition = barrierInfo.LayoutTransition.value();
+                    auto& transition = *barrierInfo.LayoutTransition;
                     ss << std::format("\t{} - {}`\"}}}}\n",
                         ImageUtils::imageLayoutToString(transition.OldLayout),
                         ImageUtils::imageLayoutToString(transition.NewLayout));
@@ -1696,14 +1696,14 @@ namespace RenderGraph
                 if (signalInfo.ExecutionDependency.has_value())
                 {
                     ss << std::format("\t{}[/\"`{}\n", signalId, "Signal execution");
-                    auto& execution = signalInfo.ExecutionDependency.value();
+                    auto& execution = *signalInfo.ExecutionDependency;
                     ss << std::format("\t{}`\"\\]\n",
                         SynchronizationUtils::pipelineStageToString(execution.SourceStage));
                 }
                 else if (signalInfo.MemoryDependency.has_value())
                 {
                     ss << std::format("\t{}[/\"`{}\n", signalId, "Signal memory");
-                    auto& memory = signalInfo.MemoryDependency.value();
+                    auto& memory = *signalInfo.MemoryDependency;
                     ss << std::format("\t{}\n\t{}`\"\\]\n",
                         SynchronizationUtils::pipelineStageToString(memory.SourceStage),
                         SynchronizationUtils::pipelineAccessToString(memory.SourceAccess));
@@ -1711,7 +1711,7 @@ namespace RenderGraph
                 else
                 {
                     ss << std::format("\t{}[/\"`{}\n", signalId, "Signal layout transition");
-                    auto& transition = signalInfo.LayoutTransition.value();
+                    auto& transition = *signalInfo.LayoutTransition;
                     ss << std::format("\t{} - {}`\"\\]\n",
                         ImageUtils::imageLayoutToString(transition.OldLayout),
                         ImageUtils::imageLayoutToString(transition.NewLayout));
@@ -1724,14 +1724,14 @@ namespace RenderGraph
                 if (waitInfo.ExecutionDependency.has_value())
                 {
                     ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait execution");
-                    auto& execution = waitInfo.ExecutionDependency.value();
+                    auto& execution = *waitInfo.ExecutionDependency;
                     ss << std::format("\t{}`\"/]\n",
                         SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
                 }
                 else if (waitInfo.MemoryDependency.has_value())
                 {
                     ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait memory");
-                    auto& memory = waitInfo.MemoryDependency.value();
+                    auto& memory = *waitInfo.MemoryDependency;
                     ss << std::format("\t{}\n\t{}`\"/]\n",
                         SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
                         SynchronizationUtils::pipelineAccessToString(memory.DestinationAccess));
@@ -1739,7 +1739,7 @@ namespace RenderGraph
                 else
                 {
                     ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait layout transition");
-                    auto& transition = waitInfo.LayoutTransition.value();
+                    auto& transition = *waitInfo.LayoutTransition;
                     ss << std::format("\t{} - {}`\"/]\n",
                         ImageUtils::imageLayoutToString(transition.OldLayout),
                         ImageUtils::imageLayoutToString(transition.NewLayout));

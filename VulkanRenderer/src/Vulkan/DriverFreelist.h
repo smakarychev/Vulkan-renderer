@@ -2,8 +2,6 @@
 
 #include "types.h"
 
-#include <vector>
-
 #include "Core/core.h"
 
 // this struct should not be used as a general data structure,
@@ -48,7 +46,6 @@ private:
     u32 m_Count{0};
 
     OnResizeCallback m_OnResizeCallback = [](T*, T*){};
-    Driver* m_Driver{nullptr};
 };
 
 template <typename T>

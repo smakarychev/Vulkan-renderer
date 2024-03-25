@@ -82,6 +82,10 @@ public:
         PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets);
     static void BindCompute(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
         PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets);
+    static void BindGraphicsImmutableSamplers(const CommandBuffer& cmd,
+        PipelineLayout pipelineLayout, u32 setIndex);
+    static void BindComputeImmutableSamplers(const CommandBuffer& cmd,
+        PipelineLayout pipelineLayout, u32 setIndex);
 
     static void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators);
     static void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,

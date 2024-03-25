@@ -12,6 +12,8 @@ class DrawIndirectCulledContext;
 struct CullMetaPassInitInfo
 {
     ShaderPipelineTemplate* DrawTemplate{nullptr};
+    TriangleCullDrawPassInitInfo::Features DrawFeatures{TriangleCullDrawPassInitInfo::Features::AllAttributes};
+    u32 BindlessTextureCount{0};
     glm::uvec2 Resolution;
     RenderPassGeometry* Geometry{nullptr};
 };
@@ -45,6 +47,9 @@ private:
 private:
     RenderGraph::PassName m_Name;
     PassData m_PassData;
+    TriangleCullDrawPassInitInfo::Features m_DrawFeatures{TriangleCullDrawPassInitInfo::Features::AllAttributes};
+    std::optional<ShaderDescriptors> m_TextureDescriptors{};
+    std::optional<ShaderDescriptors> m_ImmutableSamplerDescriptors{};
 
     using HiZ = HiZPass;
     

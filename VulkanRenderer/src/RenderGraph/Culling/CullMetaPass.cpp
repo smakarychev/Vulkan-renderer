@@ -1,7 +1,7 @@
 #include "CullMetaPass.h"
 
 CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name)
-    : m_Name(name)
+    : m_Name(name), m_DrawFeatures(info.DrawFeatures)
 {
     m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution);
     m_MeshContext = std::make_shared<MeshCullContext>(*info.Geometry);
@@ -22,12 +22,36 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
     m_TrianglePrepareReocclusionDispatch = std::make_shared<TrianglePrepareReocclusionDispatch>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
 
-    m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, TriangleCullDrawPassInitInfo{
-        .DrawTemplate = info.DrawTemplate}, m_Name.Name() + ".CullDraw");
-    m_ReoccludeTrianglesDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, TriangleCullDrawPassInitInfo{
-        .DrawTemplate = info.DrawTemplate}, m_Name.Name() + ".CullDraw.TriangleReocclusion");
-    m_ReoccludeDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, TriangleCullDrawPassInitInfo{
-        .DrawTemplate = info.DrawTemplate}, m_Name.Name() + ".CullDraw.Reocclusion");
+    if (m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials)
+    {
+        m_TextureDescriptors = ShaderDescriptors::Builder()
+            .SetTemplate(info.DrawTemplate, DescriptorAllocatorKind::Resources)
+            // todo: make this (2) an enum
+            .ExtractSet(2)
+            .BindlessCount(info.BindlessTextureCount)
+            .Build();
+
+        m_TextureDescriptors->UpdateBinding("u_materials", info.Geometry->GetMaterialsBuffer().CreateBindingInfo());
+        info.Geometry->GetModelCollection().ApplyMaterialTextures(*m_TextureDescriptors);
+
+        m_ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
+            .SetTemplate(info.DrawTemplate, DescriptorAllocatorKind::Samplers)
+            // todo: make this (0) an enum
+            .ExtractSet(0)
+            .Build();
+    }
+
+    TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
+        .DrawFeatures = m_DrawFeatures,
+        .TextureDescriptors = m_TextureDescriptors,
+        .ImmutableSamplerDescriptors = m_ImmutableSamplerDescriptors,
+        .DrawTemplate = info.DrawTemplate};
+    
+    m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
+    m_ReoccludeTrianglesDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, cullDrawPassInitInfo,
+        m_Name.Name() + ".CullDraw.TriangleReocclusion");
+    m_ReoccludeDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, cullDrawPassInitInfo,
+        m_Name.Name() + ".CullDraw.Reocclusion");
 }
 
 CullMetaPass::~CullMetaPass()
@@ -70,7 +94,7 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
     std::optional<TriangleCullDrawPassExecutionInfo::Attachment> depthAttachment{};
     if (depth.has_value())
         depthAttachment = {
-            .Resource = depth.value(),
+            .Resource = *depth,
             .Description = {
                 .Type = RenderingAttachmentType::Depth,
                 .Clear = {.DepthStencil = {.Depth = 0.0f}},

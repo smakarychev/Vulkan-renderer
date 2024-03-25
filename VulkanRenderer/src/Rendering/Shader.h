@@ -79,12 +79,11 @@ public:
             struct DescriptorSetBindingNamedFlagged
             {
                 std::string Name;
-                DescriptorFlags Flags;
                 DescriptorBinding Descriptor;
             };
             u32 Set; 
-            DescriptorLayoutFlags LayoutFlags;
-            DescriptorPoolFlags PoolFlags;
+            bool HasBindless{false};
+            bool HasImmutableSampler{false};
             std::vector<DescriptorSetBindingNamedFlagged> Descriptors;
         };
 
@@ -178,7 +177,8 @@ private:
     static std::vector<ShaderPushConstantDescription> CreatePushConstantDescriptions(
         const std::vector<ReflectionData::PushConstant>& pushConstantReflections);
     static std::vector<ShaderModule> CreateShaderModules(const std::vector<Shader::ShaderModuleSource>& shaders);
-    static DescriptorsFlags ExtractDescriptorsAndFlags(const ReflectionData::DescriptorSet& descriptorSet);
+    static DescriptorsFlags ExtractDescriptorsAndFlags(const ReflectionData::DescriptorSet& descriptorSet,
+        bool useDescriptorBuffer);
 private:
     struct Allocator
     {
@@ -197,7 +197,6 @@ private:
     std::vector<ShaderModule> m_Shaders;
     std::vector<SpecializationConstant> m_SpecializationConstants;
     std::array<DescriptorSetInfo, MAX_PIPELINE_DESCRIPTOR_SETS> m_DescriptorSetsInfo;
-    std::vector<DescriptorLayoutFlags> m_DescriptorLayoutsFlags;
     std::vector<DescriptorPoolFlags> m_DescriptorPoolFlags;
     u32 m_DescriptorSetCount;
 };
@@ -362,11 +361,13 @@ public:
             ShaderPipelineTemplate* ShaderPipelineTemplate{nullptr};
             DescriptorArenaAllocator* Allocator{nullptr};
             u32 Set{0};
+            u32 BindlessCount{0};
         };
     public:
         ShaderDescriptors Build();
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate, DescriptorAllocatorKind allocatorKind);
         Builder& ExtractSet(u32 set);
+        Builder& BindlessCount(u32 count);
     private:
         CreateInfo m_CreateInfo;
     };
@@ -379,11 +380,15 @@ public:
         PipelineLayout pipelineLayout) const;
     void BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout) const;
+    void BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const;
+    void BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const;
 
     void UpdateBinding(std::string_view name, const BufferBindingInfo& buffer) const;
     void UpdateBinding(std::string_view name, const TextureBindingInfo& texture) const;
+    void UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 bindlessIndex) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 bindlessIndex) const;
 
     BindingInfo GetBindingInfo(std::string_view bindingName) const;
     

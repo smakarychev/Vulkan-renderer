@@ -14,6 +14,14 @@ namespace RenderGraph
         ShaderDescriptors ResourceDescriptors;
     };
 
+    struct BindlessTexturesPipelineData
+    {
+        ShaderPipeline Pipeline;
+        ShaderDescriptors ImmutableSamplerDescriptors;
+        ShaderDescriptors ResourceDescriptors;
+        ShaderDescriptors TextureDescriptors;
+    };
+
     struct PipelineDataDescriptorSet
     {
         ShaderPipeline Pipeline;

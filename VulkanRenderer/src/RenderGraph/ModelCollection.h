@@ -8,6 +8,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
+class ShaderDescriptors;
 class Image;
 class Mesh;
 struct Material;
@@ -28,6 +29,7 @@ public:
     void RegisterModel(Model* model, const std::string& name);
     void AddModelInstance(const std::string& modelName, const ModelInstanceInfo& modelInstanceInfo);
     void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const;
+    void ApplyMaterialTextures(ShaderDescriptors& bindlessDescriptors) const;
         
     template <typename Filter, typename Callback>
     void FilterRenderObjects(Filter&& filterFn, Callback&& callbackFn) const;

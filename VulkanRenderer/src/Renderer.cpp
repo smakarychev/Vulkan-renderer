@@ -48,14 +48,17 @@ void Renderer::Init()
 
 void Renderer::InitRenderGraph()
 {
-    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.AddModelInstance("car", {glm::mat4{1.0f}});
     m_GraphModelCollection.AddModelInstance("car", {glm::translate(glm::mat4{1.0f}, glm::vec3{-2.0f, 0.0f, 0.0f})});
     m_GraphModelCollection.AddModelInstance("car", {glm::translate(glm::mat4{1.0f}, glm::vec3{2.0f, 0.0f, 0.0f})});
     m_GraphOpaqueGeometry = RenderPassGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
-            [](auto& obj) { return true; });
+        [this](auto& obj) {
+            return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
+                assetLib::ModelInfo::MaterialType::Opaque;
+        });
 
     m_Graph = std::make_unique<RenderGraph::Graph>();
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
@@ -65,6 +68,8 @@ void Renderer::InitRenderGraph()
             "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.shader",
             "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.shader",},
             "Pass.DrawCulled", m_Graph->GetArenaAllocators()),
+        .DrawFeatures = TriangleCullDrawPassInitInfo::Features::Materials,
+        .BindlessTextureCount = 1024,
         .Resolution = m_Swapchain.GetResolution(),
         .Geometry = &m_GraphOpaqueGeometry}, "MetaCull");
 
@@ -331,7 +336,6 @@ void Renderer::EndFrame()
     
     ProfilerContext::Get()->NextFrame();
 
-    // todo: is this the best place for it?
     m_ResourceUploader.StartRecording();
 }
 

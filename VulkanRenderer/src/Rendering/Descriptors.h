@@ -31,7 +31,8 @@ struct DescriptorBinding
     DescriptorType Type;
     u32 Count;
     ShaderStage Shaders;
-    bool HasImmutableSampler{false};
+    bool IsImmutableSampler{false};
+    bool IsBindless{false};
 };
 
 class DescriptorsLayout
@@ -207,10 +208,13 @@ public:
     using TextureBindingInfo = ImageBindingInfo;
     void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 bindlessIndex) const;
     void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, u32 firstSet) const;
     void BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, u32 firstSet) const;
+    void BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 firstSet) const;
+    void BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 firstSet) const;
 private:
     std::vector<u64> m_Offsets;
     const DescriptorArenaAllocator* m_Allocator;
@@ -230,6 +234,9 @@ enum class DescriptorAllocatorResidence
 struct DescriptorAllocatorAllocationBindings
 {
     std::vector<DescriptorBinding> Bindings;
+    // used to specify the count of bindless descriptors,
+    // for each set only one descriptor can be bindless, and it is always the last one
+    u32 BindlessCount{0};
 };
 
 // todo: name is temp, `DescriptorAllocator` is currently an existing entity

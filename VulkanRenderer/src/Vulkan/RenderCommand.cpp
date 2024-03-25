@@ -435,6 +435,20 @@ void RenderCommand::BindCompute(const CommandBuffer& cmd, const DescriptorSet& d
         (u32)dynamicOffsets.size(), dynamicOffsets.data());
 }
 
+void RenderCommand::BindGraphicsImmutableSamplers(const CommandBuffer& cmd,
+    PipelineLayout pipelineLayout, u32 setIndex)
+{
+    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(Driver::Resources()[cmd].CommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS, Driver::Resources()[pipelineLayout].Layout, setIndex);
+}
+
+void RenderCommand::BindComputeImmutableSamplers(const CommandBuffer& cmd,
+    PipelineLayout pipelineLayout, u32 setIndex)
+{
+    vkCmdBindDescriptorBufferEmbeddedSamplersEXT(Driver::Resources()[cmd].CommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE, Driver::Resources()[pipelineLayout].Layout, setIndex);
+}
+
 void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;

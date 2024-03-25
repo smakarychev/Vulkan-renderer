@@ -39,7 +39,7 @@ void DescriptorsLayout::Builder::PreBuild()
     if (m_CreateInfo.BindingFlags.empty())
         m_CreateInfo.BindingFlags.resize(m_CreateInfo.Bindings.size());
     ASSERT(m_CreateInfo.BindingFlags.size() == m_CreateInfo.Bindings.size(),
-        "If any element of binding flags is set, every element have to be set")
+        "If any element of binding flags is set, every element has to be set")
 }
 
 DescriptorsLayout DescriptorsLayout::Create(const Builder::CreateInfo& createInfo)
@@ -180,7 +180,7 @@ void DescriptorAllocator::Destroy(const DescriptorAllocator& allocator)
 }
 
 void DescriptorAllocator::Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags,
-                                   const std::vector<u32>& variableBindingCounts)
+    const std::vector<u32>& variableBindingCounts)
 {
     return Driver::AllocateDescriptorSet(*this, set, poolFlags, variableBindingCounts);
 }
@@ -202,7 +202,13 @@ void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBind
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
 {
-    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type);
+    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
+}
+
+void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+    u32 bindlessIndex) const
+{
+    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, bindlessIndex);
 }
 
 void Descriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
@@ -215,6 +221,18 @@ void Descriptors::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAll
     PipelineLayout pipelineLayout, u32 firstSet) const
 {
     RenderCommand::BindCompute(cmd, allocators, pipelineLayout, *this, firstSet);
+}
+
+void Descriptors::BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout,
+    u32 firstSet) const
+{
+    RenderCommand::BindGraphicsImmutableSamplers(cmd, pipelineLayout, firstSet);
+}
+
+void Descriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout,
+    u32 firstSet) const
+{
+    RenderCommand::BindComputeImmutableSamplers(cmd, pipelineLayout, firstSet);
 }
 
 DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build()

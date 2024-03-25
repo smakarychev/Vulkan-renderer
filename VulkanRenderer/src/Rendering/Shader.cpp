@@ -319,6 +319,7 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
         descriptorSets[setIndex].Set = sets[setIndex].Set;
         descriptorSets[setIndex].Descriptors.resize(sets[setIndex].Descriptors.size());
         bool containsBindlessDescriptors = false;
+        bool containsImmutableSamplers = false;
         for (u32 descriptorIndex = 0; descriptorIndex < sets[setIndex].Descriptors.size(); descriptorIndex++)
         {
             auto& descriptor = descriptorSets[setIndex].Descriptors[descriptorIndex];
@@ -334,25 +335,18 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
                 containsBindlessDescriptors = true;
                 descriptor.Descriptor.Count = bindlessDescriptorCount(
                     sets[setIndex].Descriptors[descriptorIndex].Type);
-                descriptor.Flags =
-                    DescriptorFlags::VariableCount |
-                    DescriptorFlags::PartiallyBound |
-                    DescriptorFlags::UpdateAfterBind |
-                    DescriptorFlags::UpdateUnusedPending;
+                descriptor.Descriptor.IsBindless = true;
             }
             else
             {
                 descriptor.Descriptor.Count = 1;
             }
-            
-            descriptor.Descriptor.HasImmutableSampler = sets[setIndex].Descriptors[descriptorIndex].Flags &
+            descriptor.Descriptor.IsImmutableSampler = sets[setIndex].Descriptors[descriptorIndex].Flags &
                 assetLib::ShaderInfo::DescriptorSet::ImmutableSampler;
+            containsImmutableSamplers = containsImmutableSamplers || descriptor.Descriptor.IsImmutableSampler;
         }
-        if (containsBindlessDescriptors)
-        {
-            descriptorSets[setIndex].LayoutFlags = DescriptorLayoutFlags::UpdateAfterBind;
-            descriptorSets[setIndex].PoolFlags = DescriptorPoolFlags::UpdateAfterBind;
-        }
+        descriptorSets[setIndex].HasBindless = containsBindlessDescriptors;
+        descriptorSets[setIndex].HasImmutableSampler = containsImmutableSamplers;
     }
 
     return descriptorSets;
@@ -466,9 +460,9 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
             setInfo.Names.push_back(descriptor.Name);
             setInfo.Bindings.push_back(descriptor.Descriptor);
         }
-
-        shaderPipelineTemplate.m_DescriptorLayoutsFlags.push_back(set.LayoutFlags);
-        shaderPipelineTemplate.m_DescriptorPoolFlags.push_back(set.PoolFlags);
+        
+        shaderPipelineTemplate.m_DescriptorPoolFlags.push_back(set.HasBindless ?
+            DescriptorPoolFlags::UpdateAfterBind : DescriptorPoolFlags::None);
     }
         
     shaderPipelineTemplate.m_DescriptorSetCount = (u32)reflectionData.DescriptorSets.size();
@@ -554,11 +548,14 @@ std::vector<DescriptorsLayout> ShaderPipelineTemplate::CreateDescriptorLayouts(
     
     for (auto& set : descriptorSetReflections)
     {
-        DescriptorsFlags descriptorsFlags = ExtractDescriptorsAndFlags(set);
-
-        DescriptorLayoutFlags layoutFlags = useDescriptorBuffer ?
-            set.LayoutFlags | DescriptorLayoutFlags::DescriptorBuffer :
-            set.LayoutFlags;
+        DescriptorsFlags descriptorsFlags = ExtractDescriptorsAndFlags(set, useDescriptorBuffer);
+    
+        DescriptorLayoutFlags layoutFlags = set.HasImmutableSampler ?
+            DescriptorLayoutFlags::EmbeddedImmutableSamplers : DescriptorLayoutFlags::None;
+        if (useDescriptorBuffer)
+            layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
+        else if (set.HasBindless)
+            layoutFlags |= DescriptorLayoutFlags::UpdateAfterBind;
         
         DescriptorsLayout layout = DescriptorsLayout::Builder()
             .SetBindings(descriptorsFlags.Descriptors)
@@ -659,7 +656,7 @@ std::vector<ShaderModule> ShaderPipelineTemplate::CreateShaderModules(
 }
 
 ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescriptorsAndFlags(
-    const ReflectionData::DescriptorSet& descriptorSet)
+    const ReflectionData::DescriptorSet& descriptorSet, bool useDescriptorBuffer)
 {
     DescriptorsFlags descriptorsFlags;
     descriptorsFlags.Descriptors.reserve(descriptorSet.Descriptors.size());
@@ -668,7 +665,16 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
     for (auto& descriptor : descriptorSet.Descriptors)
     {
         descriptorsFlags.Descriptors.push_back(descriptor.Descriptor);
-        descriptorsFlags.Flags.push_back(descriptor.Flags);
+        DescriptorFlags flags = DescriptorFlags::None;
+        if (descriptor.Descriptor.IsBindless)
+        {
+            flags |= DescriptorFlags::VariableCount;
+            if (!useDescriptorBuffer)
+                flags |= DescriptorFlags::PartiallyBound |
+                    DescriptorFlags::UpdateAfterBind |
+                    DescriptorFlags::UpdateUnusedPending;
+        }
+        descriptorsFlags.Flags.push_back(flags);
     }
 
     return descriptorsFlags;
@@ -1001,13 +1007,21 @@ ShaderDescriptors::Builder& ShaderDescriptors::Builder::ExtractSet(u32 set)
     return *this;
 }
 
+ShaderDescriptors::Builder& ShaderDescriptors::Builder::BindlessCount(u32 count)
+{
+    m_CreateInfo.BindlessCount = count;
+
+    return *this;
+}
+
 ShaderDescriptors ShaderDescriptors::Create(const Builder::CreateInfo& createInfo)
 {
     auto* shaderTemplate = createInfo.ShaderPipelineTemplate;
 
     Descriptors descriptors = createInfo.Allocator->Allocate(
         shaderTemplate->GetDescriptorsLayout(createInfo.Set), {
-            .Bindings = shaderTemplate->m_DescriptorSetsInfo[createInfo.Set].Bindings});
+            .Bindings = shaderTemplate->m_DescriptorSetsInfo[createInfo.Set].Bindings,
+            .BindlessCount = createInfo.BindlessCount});
 
     ShaderDescriptors shaderDescriptors = {};
     shaderDescriptors.m_Descriptors = descriptors;
@@ -1029,6 +1043,16 @@ void ShaderDescriptors::BindCompute(const CommandBuffer& cmd, const DescriptorAr
     m_Descriptors.BindCompute(cmd, allocators, pipelineLayout, m_SetNumber);
 }
 
+void ShaderDescriptors::BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const
+{
+    m_Descriptors.BindGraphicsImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
+}
+
+void ShaderDescriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const
+{
+    m_Descriptors.BindComputeImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
+}
+
 void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBindingInfo& buffer) const
 {
     m_Descriptors.UpdateBinding(GetBindingInfo(name), buffer);
@@ -1039,6 +1063,11 @@ void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindin
     m_Descriptors.UpdateBinding(GetBindingInfo(name), texture);
 }
 
+void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 bindlessIndex) const
+{
+    m_Descriptors.UpdateBinding(GetBindingInfo(name), texture, bindlessIndex);
+}
+
 void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
     m_Descriptors.UpdateBinding(bindingInfo, buffer);
@@ -1047,6 +1076,12 @@ void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const Buff
 void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
 {
     m_Descriptors.UpdateBinding(bindingInfo, texture);
+}
+
+void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+    u32 bindlessIndex) const
+{
+    m_Descriptors.UpdateBinding(bindingInfo, texture, bindlessIndex);
 }
 
 ShaderDescriptors::BindingInfo ShaderDescriptors::GetBindingInfo(std::string_view bindingName) const

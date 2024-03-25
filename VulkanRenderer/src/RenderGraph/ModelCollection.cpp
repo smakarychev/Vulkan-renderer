@@ -46,6 +46,18 @@ void ModelCollection::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescrip
     }
 }
 
+void ModelCollection::ApplyMaterialTextures(ShaderDescriptors& bindlessDescriptors) const
+{
+    ShaderDescriptors::BindingInfo bindingInfo = bindlessDescriptors.GetBindingInfo("u_textures");
+    
+    for (u32 textureIndex = 0; textureIndex < m_Textures.size(); textureIndex++)
+    {
+        const Texture& texture = m_Textures[textureIndex];
+        bindlessDescriptors.UpdateBinding(bindingInfo,
+            texture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::ReadOnly), textureIndex);
+    }
+}
+
 const std::vector<RenderObject>& ModelCollection::GetRenderObjects(const std::string& modelName) const
 {
     ASSERT(m_Models.contains(modelName), "Unknown model name: {}", modelName)

@@ -71,6 +71,25 @@ private:
 
 struct TriangleCullDrawPassInitInfo
 {
+    // naming is hard, this enum defines what descriptors are used by draw pipeline
+    // (e.g. does it use u_normal, or textures)
+    enum class Features
+    {
+        // only positions are used
+        Position,
+
+        // positions, normals, uvs (tangents are not used)  
+        MainAttributes,
+
+        // positions, normals, tangents, uvs
+        AllAttributes,
+
+        // all attributes + materials and textures
+        Materials,
+    };
+    Features DrawFeatures{Features::AllAttributes};
+    std::optional<ShaderDescriptors> TextureDescriptors{};
+    std::optional<ShaderDescriptors> ImmutableSamplerDescriptors{};
     ShaderPipelineTemplate* DrawTemplate{nullptr};
 };
 
@@ -186,7 +205,9 @@ private:
 
         std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES>* CullPipelines{nullptr};
         std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES>* PreparePipelines{nullptr};
-        std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES>* DrawPipelines{nullptr};
+        std::array<RenderGraph::BindlessTexturesPipelineData, TriangleCullContext::MAX_BATCHES>* DrawPipelines{nullptr};
+
+        TriangleCullDrawPassInitInfo::Features Features{TriangleCullDrawPassInitInfo::Features::AllAttributes};
 
         std::array<SplitBarrier, TriangleCullContext::MAX_BATCHES>* SplitBarriers{nullptr};
         DependencyInfo* SplitBarrierDependency{nullptr};
@@ -197,7 +218,10 @@ private:
 
     std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES> m_CullPipelines;
     std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES> m_PreparePipelines;
-    std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES> m_DrawPipelines;
+    std::array<RenderGraph::BindlessTexturesPipelineData, TriangleCullContext::MAX_BATCHES> m_DrawPipelines;
+
+    TriangleCullDrawPassInitInfo::Features m_Features{TriangleCullDrawPassInitInfo::Features::AllAttributes};
+    
     std::array<SplitBarrier, TriangleCullContext::MAX_BATCHES> m_SplitBarriers{};
     DependencyInfo m_SplitBarrierDependency{};
 };
@@ -330,6 +354,10 @@ TriangleCullDrawPass<Reocclusion>::TriangleCullDrawPass(RenderGraph::Graph& rend
         "../assets/shaders/processed/render-graph/culling/prepare-draw-comp.shader"},
         "Pass.TriangleCull.PrepareDraw", renderGraph.GetArenaAllocators());
 
+    ASSERT(!info.TextureDescriptors.has_value() ||
+        info.DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials,
+        "If 'TextureDescriptors' are provided, the 'DrawFeatures' must be equal to 'Materials'")
+    
     for (u32 i = 0; i < TriangleCullContext::MAX_BATCHES; i++)
     {
         m_CullPipelines[i].Pipeline = ShaderPipeline::Builder()
@@ -369,8 +397,18 @@ TriangleCullDrawPass<Reocclusion>::TriangleCullDrawPass(RenderGraph::Graph& rend
         m_DrawPipelines[i].ResourceDescriptors = ShaderDescriptors::Builder()
             .SetTemplate(info.DrawTemplate, DescriptorAllocatorKind::Resources)
             .ExtractSet(1)
-            .Build();   
+            .Build();
+        
+        if (info.TextureDescriptors.has_value())
+        {
+            ASSERT(info.ImmutableSamplerDescriptors.has_value(),
+                "ImmutableSampler descriptors must be provided with textures")
+            m_DrawPipelines[i].TextureDescriptors = *info.TextureDescriptors;
+            m_DrawPipelines[i].ImmutableSamplerDescriptors = *info.ImmutableSamplerDescriptors;
+        }
     }
+
+    m_Features = info.DrawFeatures;
 
     for (auto& splitBarrier : m_SplitBarriers)
         splitBarrier = SplitBarrier::Builder().Build();
@@ -433,7 +471,7 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 // draw subpass data
                 info.DrawContext->Resources().CameraUbo = graph.CreateResource(
                     m_Name.Name() + ".Camera", GraphBufferDescription{.SizeBytes = sizeof(CameraUBO)});
-                info.DrawContext->Resources().PositionsSsbo = graph.AddExternal(std::format("{}.{}", m_Name.Name(), "Positions"),
+                info.DrawContext->Resources().PositionsSsbo = graph.AddExternal(m_Name.Name() + ".Positions",
                    ctx.Geometry().GetAttributeBuffers().Positions);
                 info.DrawContext->Resources().NormalsSsbo = graph.AddExternal(m_Name.Name() + ".Normals",
                     ctx.Geometry().GetAttributeBuffers().Normals);
@@ -456,25 +494,35 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
             meshletResources.CompactCommandsSsbo = graph.Read(meshletResources.CompactCommandsSsbo, Compute | Storage);
             meshletResources.CompactCountSsbo = graph.Read(meshletResources.CompactCountSsbo, Compute | Storage);
 
-            auto& triangleResources = ctx.Resources();
-            triangleResources.SceneUbo = graph.Read(triangleResources.SceneUbo, Compute | Uniform | Upload);
-            triangleResources.TriangleVisibilitySsbo =
-                graph.Read(triangleResources.TriangleVisibilitySsbo, Compute | Storage);
-            triangleResources.TriangleVisibilitySsbo =
-                graph.Write(triangleResources.TriangleVisibilitySsbo, Compute | Storage);
-            triangleResources.IndicesSsbo = graph.Read(triangleResources.IndicesSsbo, Compute | Storage);
+            auto& cullResources = ctx.Resources();
+            cullResources.SceneUbo = graph.Read(cullResources.SceneUbo, Compute | Uniform | Upload);
+            cullResources.TriangleVisibilitySsbo =
+                graph.Read(cullResources.TriangleVisibilitySsbo, Compute | Storage);
+            cullResources.TriangleVisibilitySsbo =
+                graph.Write(cullResources.TriangleVisibilitySsbo, Compute | Storage);
+            cullResources.IndicesSsbo = graph.Read(cullResources.IndicesSsbo, Compute | Storage);
+
+            // draw subpass data
+            auto& drawResources = info.DrawContext->Resources();
+            drawResources.CameraUbo = graph.Read(drawResources.CameraUbo, Vertex | Uniform | Upload);
+            drawResources.PositionsSsbo = graph.Read(drawResources.PositionsSsbo, Vertex | Storage);
+            drawResources.NormalsSsbo = graph.Read(drawResources.NormalsSsbo, Vertex | Storage);
+            drawResources.TangentsSsbo = graph.Read(drawResources.TangentsSsbo, Vertex | Storage);
+            drawResources.UVsSsbo = graph.Read(drawResources.UVsSsbo, Vertex | Storage);
+            drawResources.ObjectsSsbo = graph.Read(drawResources.ObjectsSsbo, Vertex | Storage);
+            drawResources.CommandsSsbo = graph.Read(meshletResources.CommandsSsbo, Vertex | Storage);
 
             for (u32 i = 0; i < ctx.MAX_BATCHES; i++)
             {
-                triangleResources.TrianglesSsbo[i] = graph.Write(triangleResources.TrianglesSsbo[i], Compute | Storage);
-                triangleResources.TrianglesSsbo[i] = graph.Read(triangleResources.TrianglesSsbo[i], Vertex | Storage);
+                cullResources.TrianglesSsbo[i] = graph.Write(cullResources.TrianglesSsbo[i], Compute | Storage);
+                cullResources.TrianglesSsbo[i] = graph.Read(cullResources.TrianglesSsbo[i], Vertex | Storage);
                 
-                triangleResources.IndicesCulledSsbo[i] =
-                    graph.Write(triangleResources.IndicesCulledSsbo[i], Compute | Storage);
-                triangleResources.IndicesCulledSsbo[i] =
-                    graph.Read(triangleResources.IndicesCulledSsbo[i], Compute | Storage | Vertex | Storage | Index);
+                cullResources.IndicesCulledSsbo[i] =
+                    graph.Write(cullResources.IndicesCulledSsbo[i], Compute | Storage);
+                cullResources.IndicesCulledSsbo[i] =
+                    graph.Read(cullResources.IndicesCulledSsbo[i], Compute | Storage | Vertex | Storage | Index);
                 
-                triangleResources.DispatchIndirect = graph.Read(info.Dispatch, Compute | Indirect);
+                cullResources.DispatchIndirect = graph.Read(info.Dispatch, Compute | Indirect);
                 
                 ctx.Resources().IndicesCulledCountSsbo[i] = graph.Write(
                     ctx.Resources().IndicesCulledCountSsbo[i], Compute | Storage);
@@ -506,8 +554,6 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                     attachment.Description.Clear.DepthStencil.Stencil);
             }
         
-            passData.TriangleDrawResources = info.DrawContext->Resources();
-            
             if constexpr(!Reocclusion)
                 passData.HiZ = meshResources.HiZ;
             else
@@ -518,22 +564,16 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
             passData.MeshletVisibilitySsbo = meshletResources.VisibilitySsbo;
             passData.CompactCommandsSsbo = meshletResources.CompactCommandsSsbo;
             passData.CompactCountSsbo = meshletResources.CompactCountSsbo;
-            passData.TriangleCullResources = triangleResources;
+            passData.TriangleCullResources = cullResources;
+            passData.TriangleDrawResources = drawResources;
             passData.DrawIndirect = ctx.Resources().DrawIndirect;
-
-            // draw subpass data
-            auto& drawResources = info.DrawContext->Resources();
-            passData.TriangleDrawResources.CameraUbo = graph.Read(drawResources.CameraUbo, Vertex | Uniform | Upload);
-            passData.TriangleDrawResources.NormalsSsbo = graph.Read(drawResources.NormalsSsbo, Vertex | Storage);
-            passData.TriangleDrawResources.TangentsSsbo = graph.Read(drawResources.TangentsSsbo, Vertex | Storage);
-            passData.TriangleDrawResources.UVsSsbo = graph.Read(drawResources.UVsSsbo, Vertex | Storage);
-            passData.TriangleDrawResources.ObjectsSsbo = graph.Read(drawResources.ObjectsSsbo, Vertex | Storage);
-            passData.TriangleDrawResources.CommandsSsbo = graph.Read(meshletResources.CommandsSsbo, Vertex | Storage);
 
             passData.CullPipelines = &m_CullPipelines;
             passData.PreparePipelines = &m_PreparePipelines;
             passData.DrawPipelines = &m_DrawPipelines;
 
+            passData.Features = m_Features;
+            
             passData.SplitBarriers = &m_SplitBarriers;
             passData.SplitBarrierDependency = &m_SplitBarrierDependency;
 
@@ -619,13 +659,21 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 auto& resourceDescriptors = passData.DrawPipelines->at(index).ResourceDescriptors;
 
                 resourceDescriptors.UpdateBinding("u_camera", cameraUbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.CreateBindingInfo());
                 resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.CreateBindingInfo());
                 resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.CreateBindingInfo());
                 resourceDescriptors.UpdateBinding("u_triangles", trianglesSsbo[index].CreateBindingInfo());
+                
+                resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.CreateBindingInfo());
+
+                if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::MainAttributes)
+                {
+                    resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.CreateBindingInfo());
+                    resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.CreateBindingInfo());
+                }
+                if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::AllAttributes)
+                {
+                    resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.CreateBindingInfo());
+                }
             };
             auto createRenderingInfo = [&](bool canClear)
             {
@@ -650,7 +698,7 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                     if (!canClear)
                         description.OnLoad = AttachmentLoad::Load;
 
-                    const Texture& depthTexture = resources.GetTexture(depth.value());
+                    const Texture& depthTexture = resources.GetTexture(*depth);
                     renderingInfoBuilder.AddAttachment(RenderingAttachment::Builder(description)
                         .FromImage(depthTexture, ImageLayout::DepthAttachment)
                         .Build(frameContext.DeletionQueue));
@@ -679,6 +727,16 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 updateIterationCull(i);
                 updateIterationPrepare(i);
                 updateIterationDraw(i);
+            }
+
+            // bind the immutable samplers once
+            if (passData.Features == TriangleCullDrawPassInitInfo::Features::Materials)
+            {
+                auto& pipeline = passData.DrawPipelines->at(0).Pipeline;
+                passData.DrawPipelines->at(0).ImmutableSamplerDescriptors.BindGraphicsImmutableSamplers(
+                    frameContext.Cmd, pipeline.GetLayout());
+                passData.DrawPipelines->at(0).TextureDescriptors.BindGraphics(frameContext.Cmd,
+                            resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             }
         
             for (u32 i = 0; i < info.CullContext->GetIterationCount(); i++)
@@ -756,6 +814,7 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                     pipeline.BindGraphics(cmd);
                     resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
                         pipeline.GetLayout());
+
                     RenderCommand::DrawIndexedIndirect(cmd, drawIndirectSsbo[batchIndex], 0, 1);                    
                     
                     RenderCommand::EndRendering(cmd);
