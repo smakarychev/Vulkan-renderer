@@ -49,6 +49,7 @@ void Renderer::Init()
 void Renderer::InitRenderGraph()
 {
     Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
+    m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.AddModelInstance("car", {glm::mat4{1.0f}});
     m_GraphModelCollection.AddModelInstance("car", {glm::translate(glm::mat4{1.0f}, glm::vec3{-2.0f, 0.0f, 0.0f})});

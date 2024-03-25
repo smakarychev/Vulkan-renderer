@@ -122,8 +122,8 @@ namespace ImageUtils
         u32 green =                          miniFloatOne << 8                              | miniFloatOne << 24;
         u32 blue =                                                    miniFloatOne << 16    | miniFloatOne << 24;
         u32 cyan =                            miniFloatOne << 8     | miniFloatOne << 16    | miniFloatOne << 24;
-        u32 yellow =    miniFloatOne                                | miniFloatOne << 16    | miniFloatOne << 24;
-        u32 magenta =   miniFloatOne        | miniFloatOne << 8                             | miniFloatOne << 24;
+        u32 magenta =   miniFloatOne                                | miniFloatOne << 16    | miniFloatOne << 24;
+        u32 yellow  =   miniFloatOne        | miniFloatOne << 8                             | miniFloatOne << 24;
         
         s_DefaultImages[(u32)DefaultTexture::White] = DefaultTextureData{
             .Texture = Texture::Builder(description)

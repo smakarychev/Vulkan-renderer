@@ -5,6 +5,13 @@
 #include "Rendering/Image.h"
 #include "Rendering/Shader.h"
 
+void ModelCollection::CreateDefaultTextures()
+{
+    // add default white texture, so that every material has a texture (to avoid branching in shaders)
+    m_WhiteTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(ImageUtils::DefaultTexture::White),
+        m_Textures);
+}
+
 void ModelCollection::RegisterModel(Model* model, const std::string& name)
 {
     if (m_Models.contains(name))
@@ -65,13 +72,17 @@ const std::vector<RenderObject>& ModelCollection::GetRenderObjects(const std::st
     return m_Models.at(modelName).RenderObjects;
 }
 
-std::vector<RenderObject> ModelCollection::CreateRenderObjects(Model* model)
+std::vector<RenderObject> ModelCollection::CreateRenderObjects(const Model* model)
 {
     std::vector<RenderObject> renderObjects;
     renderObjects.reserve(model->m_Meshes.size());
     for (auto& mesh : model->m_Meshes)
     {
-        MaterialGPU material;
+        MaterialGPU material = {
+            .AlbedoTextureHandle = m_WhiteTexture,
+            .NormalTextureHandle = m_WhiteTexture,
+            .MetallicRoughnessTextureHandle = m_WhiteTexture,
+            .AmbientOcclusionTextureHandle = m_WhiteTexture};
         material.Albedo = mesh.Material.PropertiesPBR.Albedo;
         material.Metallic = mesh.Material.PropertiesPBR.Metallic;
         material.Roughness = mesh.Material.PropertiesPBR.Roughness;

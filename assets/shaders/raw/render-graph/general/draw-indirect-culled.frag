@@ -36,9 +36,9 @@ void main() {
     Material material = u_materials.materials[object_index];
 
     vec4 albedo = material.albedo_color;
-    if (material.albedo_texture_index != -1)
-        albedo *= texture(nonuniformEXT(sampler2D(u_textures[material.albedo_texture_index], u_sampler)),
-            vertex_uv).rgba;
+    albedo *= texture(nonuniformEXT(sampler2D(u_textures[material.albedo_texture_index], u_sampler)),
+        vertex_uv).rgba;
+        
 
     out_color = albedo;
 }

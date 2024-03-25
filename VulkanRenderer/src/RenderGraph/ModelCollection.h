@@ -26,6 +26,7 @@ public:
     };
     
 public:
+    void CreateDefaultTextures();
     void RegisterModel(Model* model, const std::string& name);
     void AddModelInstance(const std::string& modelName, const ModelInstanceInfo& modelInstanceInfo);
     void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const;
@@ -41,7 +42,7 @@ public:
     const HandleArray<Material>& GetMaterials() const { return m_Materials; }
     
 private:
-    std::vector<RenderObject> CreateRenderObjects(Model* model);
+    std::vector<RenderObject> CreateRenderObjects(const Model* model);
     RenderHandle<MaterialGPU> AddMaterialGPU(const MaterialGPU& material);
     RenderHandle<Material> AddMaterial(const Material& material);
     RenderHandle<Mesh> AddMesh(const Mesh& mesh);
@@ -62,6 +63,8 @@ private:
     HandleArray<MaterialGPU> m_MaterialsGPU;
     HandleArray<Material> m_Materials;
 
+    RenderHandle<Image> m_WhiteTexture{}; 
+    
     std::vector<RenderObject> m_RenderObjects;
 };
 
