@@ -17,7 +17,7 @@ namespace RenderGraph
                 .Kind(DescriptorAllocatorKind::Resources)
                 .Residence(DescriptorAllocatorResidence::CPU)
                 .ForTypes({DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image})
-                .Count(2048)
+                .Count(8192)
                 .Build();
 
         DescriptorArenaAllocator samplerAllocator =  DescriptorArenaAllocator::Builder()

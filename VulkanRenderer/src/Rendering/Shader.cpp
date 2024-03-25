@@ -986,8 +986,8 @@ ShaderDescriptors ShaderDescriptors::Builder::Build()
     return ShaderDescriptors::Create(m_CreateInfo);
 }
 
-ShaderDescriptors::Builder& ShaderDescriptors::Builder::SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate,
-    DescriptorAllocatorKind allocatorKind)
+ShaderDescriptors::Builder& ShaderDescriptors::Builder::SetTemplate(
+    const ShaderPipelineTemplate* shaderPipelineTemplate, DescriptorAllocatorKind allocatorKind)
 {
     ASSERT(shaderPipelineTemplate->m_UseDescriptorBuffer,
         "Shader pipeline template is not configured to be used with descriptor buffer")

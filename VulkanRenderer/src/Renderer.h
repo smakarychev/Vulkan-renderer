@@ -125,6 +125,7 @@ private:
     void InitVisibilityBufferVisualizationStructures();
     void InitRenderGraph();
     void SetupRenderSlimePasses();
+    void SetupVisibilityBufferPass();
     void SetupRenderGraph();
 
     void Shutdown();
@@ -198,6 +199,8 @@ private:
     std::shared_ptr<BlitPass> m_BlitHiZ;
 
     std::shared_ptr<CullMetaPass> m_TriangleCull;
+    // todo: rename once working
+    std::shared_ptr<CullMetaPass> m_VisibilityBufferPass;
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;

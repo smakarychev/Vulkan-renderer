@@ -358,14 +358,15 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            ShaderPipelineTemplate* ShaderPipelineTemplate{nullptr};
+            const ShaderPipelineTemplate* ShaderPipelineTemplate{nullptr};
             DescriptorArenaAllocator* Allocator{nullptr};
             u32 Set{0};
             u32 BindlessCount{0};
         };
     public:
         ShaderDescriptors Build();
-        Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate, DescriptorAllocatorKind allocatorKind);
+        Builder& SetTemplate(const ShaderPipelineTemplate* shaderPipelineTemplate,
+            DescriptorAllocatorKind allocatorKind);
         Builder& ExtractSet(u32 set);
         Builder& BindlessCount(u32 count);
     private:
@@ -396,7 +397,7 @@ private:
     Descriptors m_Descriptors{};
     u32 m_SetNumber{0};
     
-    ShaderPipelineTemplate* m_Template{nullptr};
+    const ShaderPipelineTemplate* m_Template{nullptr};
 };
 
 class ShaderTemplateLibrary

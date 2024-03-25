@@ -64,15 +64,44 @@ void Renderer::InitRenderGraph()
     m_Graph = std::make_unique<RenderGraph::Graph>();
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
 
+    auto drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
+        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.shader",
+        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.shader",},
+        "Pass.DrawCulled", m_Graph->GetArenaAllocators());
+    ShaderPipeline drawPipeline = ShaderPipeline::Builder()
+        .SetTemplate(drawTemplate)
+        .SetRenderingDetails({
+            .ColorFormats = {Format::RGBA16_FLOAT},
+            .DepthFormat = Format::D32_FLOAT})
+        .UseDescriptorBuffer()
+        .Build();
+    
     m_TriangleCull = std::make_shared<CullMetaPass>(*m_Graph, CullMetaPassInitInfo{
-        .DrawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-            "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.shader",
-            "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.shader",},
-            "Pass.DrawCulled", m_Graph->GetArenaAllocators()),
-        .DrawFeatures = TriangleCullDrawPassInitInfo::Features::Materials,
+        .DrawPipeline = drawPipeline,
+        .DrawFeatures = CullMetaPassInitInfo::Features::Materials,
         .BindlessTextureCount = 1024,
         .Resolution = m_Swapchain.GetResolution(),
         .Geometry = &m_GraphOpaqueGeometry}, "MetaCull");
+
+    auto visibilityTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
+        "../assets/shaders/processed/render-graph/general/visibility-buffer-vert.shader",
+        "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.shader",},
+        "Pass.VisibilityBuffer", m_Graph->GetArenaAllocators());
+    ShaderPipeline visibilityPipeline = ShaderPipeline::Builder()
+        .SetTemplate(visibilityTemplate)
+        .SetRenderingDetails({
+            .ColorFormats = {Format::R32_UINT},
+            .DepthFormat = Format::D32_FLOAT})
+        .AlphaBlending(AlphaBlending::None)
+        .UseDescriptorBuffer()
+        .Build();
+    CullMetaPassInitInfo visibilityPassInitInfo = {
+        .DrawPipeline = visibilityPipeline,
+        .DrawFeatures = CullMetaPassInitInfo::Features::AlphaTest,
+        .BindlessTextureCount = 1024,
+        .Resolution = m_Swapchain.GetResolution(),
+        .Geometry = &m_GraphOpaqueGeometry};
+    m_VisibilityBufferPass = std::make_shared<CullMetaPass>(*m_Graph, visibilityPassInitInfo, "VisibilityBuffer");
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
@@ -80,7 +109,6 @@ void Renderer::InitRenderGraph()
     m_BlitPartialDraw = std::make_shared<BlitPass>("Blit.PartialDraw");
     m_BlitHiZ = std::make_shared<BlitPass>("Blit.Hiz");
     m_CopyTexturePass = std::make_shared<CopyTexturePass>("Copy.Texture");
-
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(m_Swapchain.GetResolution(), 1, 5000000, *GetFrameContext().ResourceUploader));
@@ -98,9 +126,27 @@ void Renderer::SetupRenderSlimePasses()
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
 }
 
+void Renderer::SetupVisibilityBufferPass()
+{
+    using namespace RenderGraph;
+
+    Resource visibility = m_Graph->CreateResource(m_VisibilityBufferPass->GetName() + ".VisibilityBuffer",
+        GraphTextureDescription{
+            .Width = m_Swapchain.GetResolution().x,
+            .Height = m_Swapchain.GetResolution().y,
+            .Format = Format::R32_UINT});
+
+    m_VisibilityBufferPass->AddToGraph(*m_Graph, {
+        .FrameContext = &GetFrameContext(),
+        .Colors = {visibility},
+        .Depth = RenderGraph::Resource{}});
+}
+
 void Renderer::SetupRenderGraph()
 {
     m_Graph->Reset();
+
+    SetupVisibilityBufferPass();
 
     m_SkyGradientPass->AddToGraph(*m_Graph,
         m_Graph->CreateResource("Sky.Target", RenderGraph::GraphTextureDescription{
@@ -549,6 +595,7 @@ void Renderer::Shutdown()
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
 
+    m_VisibilityBufferPass.reset();
     m_TriangleCull.reset();
     m_Graph.reset();
     ShutdownVisibilityPass();

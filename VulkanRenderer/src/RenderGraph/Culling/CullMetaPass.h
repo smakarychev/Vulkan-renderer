@@ -11,8 +11,9 @@ class DrawIndirectCulledContext;
 
 struct CullMetaPassInitInfo
 {
-    ShaderPipelineTemplate* DrawTemplate{nullptr};
-    TriangleCullDrawPassInitInfo::Features DrawFeatures{TriangleCullDrawPassInitInfo::Features::AllAttributes};
+    using Features = TriangleCullDrawPassInitInfo::Features;
+    ShaderPipeline DrawPipeline{};
+    Features DrawFeatures{Features::AllAttributes};
     u32 BindlessTextureCount{0};
     glm::uvec2 Resolution;
     RenderPassGeometry* Geometry{nullptr};
@@ -39,6 +40,7 @@ public:
     ~CullMetaPass();
     void AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    const std::string& GetName() const { return m_Name.Name(); }
 private:
     std::vector<RenderGraph::Resource> EnsureColors(RenderGraph::Graph& renderGraph,
         const CullMetaPassExecutionInfo& info) const;

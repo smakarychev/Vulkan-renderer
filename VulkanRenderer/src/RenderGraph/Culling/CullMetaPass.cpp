@@ -22,10 +22,11 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
     m_TrianglePrepareReocclusionDispatch = std::make_shared<TrianglePrepareReocclusionDispatch>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
 
-    if (m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials)
+    if (m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials ||
+        m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::AlphaTest)
     {
         m_TextureDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawTemplate, DescriptorAllocatorKind::Resources)
+            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Resources)
             // todo: make this (2) an enum
             .ExtractSet(2)
             .BindlessCount(info.BindlessTextureCount)
@@ -35,7 +36,7 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
         info.Geometry->GetModelCollection().ApplyMaterialTextures(*m_TextureDescriptors);
 
         m_ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawTemplate, DescriptorAllocatorKind::Samplers)
+            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Samplers)
             // todo: make this (0) an enum
             .ExtractSet(0)
             .Build();
@@ -45,7 +46,7 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
         .DrawFeatures = m_DrawFeatures,
         .TextureDescriptors = m_TextureDescriptors,
         .ImmutableSamplerDescriptors = m_ImmutableSamplerDescriptors,
-        .DrawTemplate = info.DrawTemplate};
+        .DrawPipeline = info.DrawPipeline};
     
     m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
     m_ReoccludeTrianglesDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, cullDrawPassInitInfo,

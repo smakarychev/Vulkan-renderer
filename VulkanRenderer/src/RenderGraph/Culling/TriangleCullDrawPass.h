@@ -78,6 +78,9 @@ struct TriangleCullDrawPassInitInfo
         // only positions are used
         Position,
 
+        // positions and uvs for texture fetch
+        AlphaTest,
+
         // positions, normals, uvs (tangents are not used)  
         MainAttributes,
 
@@ -90,7 +93,7 @@ struct TriangleCullDrawPassInitInfo
     Features DrawFeatures{Features::AllAttributes};
     std::optional<ShaderDescriptors> TextureDescriptors{};
     std::optional<ShaderDescriptors> ImmutableSamplerDescriptors{};
-    ShaderPipelineTemplate* DrawTemplate{nullptr};
+    ShaderPipeline DrawPipeline{};
 };
 
 class TriangleDrawContext
@@ -355,8 +358,9 @@ TriangleCullDrawPass<Reocclusion>::TriangleCullDrawPass(RenderGraph::Graph& rend
         "Pass.TriangleCull.PrepareDraw", renderGraph.GetArenaAllocators());
 
     ASSERT(!info.TextureDescriptors.has_value() ||
-        info.DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials,
-        "If 'TextureDescriptors' are provided, the 'DrawFeatures' must be equal to 'Materials'")
+        info.DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials ||
+        info.DrawFeatures == TriangleCullDrawPassInitInfo::Features::AlphaTest,
+        "If 'TextureDescriptors' are provided, the 'DrawFeatures' must be equal to 'Materials' or 'AlphaTest'")
     
     for (u32 i = 0; i < TriangleCullContext::MAX_BATCHES; i++)
     {
@@ -386,16 +390,10 @@ TriangleCullDrawPass<Reocclusion>::TriangleCullDrawPass(RenderGraph::Graph& rend
             .ExtractSet(1)
             .Build();
 
-        m_DrawPipelines[i].Pipeline = ShaderPipeline::Builder()
-            .SetTemplate(info.DrawTemplate)
-            .SetRenderingDetails({
-                .ColorFormats = {Format::RGBA16_FLOAT},
-                .DepthFormat = Format::D32_FLOAT})
-            .UseDescriptorBuffer()
-            .Build();
+        m_DrawPipelines[i].Pipeline = info.DrawPipeline;
 
         m_DrawPipelines[i].ResourceDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawTemplate, DescriptorAllocatorKind::Resources)
+            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Resources)
             .ExtractSet(1)
             .Build();
         
@@ -665,15 +663,12 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 
                 resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.CreateBindingInfo());
 
-                if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::MainAttributes)
-                {
-                    resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.CreateBindingInfo());
+                if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::AlphaTest)
                     resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.CreateBindingInfo());
-                }
+                if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::MainAttributes)
+                    resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.CreateBindingInfo());
                 if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::AllAttributes)
-                {
                     resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.CreateBindingInfo());
-                }
             };
             auto createRenderingInfo = [&](bool canClear)
             {
@@ -730,7 +725,8 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
             }
 
             // bind the immutable samplers once
-            if (passData.Features == TriangleCullDrawPassInitInfo::Features::Materials)
+            if (passData.Features == TriangleCullDrawPassInitInfo::Features::Materials ||
+                passData.Features == TriangleCullDrawPassInitInfo::Features::AlphaTest)
             {
                 auto& pipeline = passData.DrawPipelines->at(0).Pipeline;
                 passData.DrawPipelines->at(0).ImmutableSamplerDescriptors.BindGraphicsImmutableSamplers(
