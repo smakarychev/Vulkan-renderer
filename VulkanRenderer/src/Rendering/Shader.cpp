@@ -329,21 +329,23 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
                 sets[setIndex].Descriptors[descriptorIndex].Type);
             descriptor.Descriptor.Shaders = shaderStageFromMultipleAssetStages(
                 sets[setIndex].Descriptors[descriptorIndex].ShaderStages);
+            descriptor.Descriptor.DescriptorFlags = sets[setIndex].Descriptors[descriptorIndex].Flags;
 
-            if (sets[setIndex].Descriptors[descriptorIndex].Flags & assetLib::ShaderInfo::DescriptorSet::Bindless)
+            if (enumHasAny(sets[setIndex].Descriptors[descriptorIndex].Flags,
+                assetLib::ShaderInfo::DescriptorSet::Bindless))
             {
                 containsBindlessDescriptors = true;
                 descriptor.Descriptor.Count = bindlessDescriptorCount(
                     sets[setIndex].Descriptors[descriptorIndex].Type);
-                descriptor.Descriptor.IsBindless = true;
             }
             else
             {
                 descriptor.Descriptor.Count = 1;
             }
-            descriptor.Descriptor.IsImmutableSampler = sets[setIndex].Descriptors[descriptorIndex].Flags &
-                assetLib::ShaderInfo::DescriptorSet::ImmutableSampler;
-            containsImmutableSamplers = containsImmutableSamplers || descriptor.Descriptor.IsImmutableSampler;
+            containsImmutableSamplers = containsImmutableSamplers ||
+                enumHasAny(descriptor.Descriptor.DescriptorFlags,
+                    assetLib::ShaderInfo::DescriptorSet::ImmutableSampler |
+                    assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearest);
         }
         descriptorSets[setIndex].HasBindless = containsBindlessDescriptors;
         descriptorSets[setIndex].HasImmutableSampler = containsImmutableSamplers;
@@ -666,7 +668,7 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
     {
         descriptorsFlags.Descriptors.push_back(descriptor.Descriptor);
         DescriptorFlags flags = DescriptorFlags::None;
-        if (descriptor.Descriptor.IsBindless)
+        if (enumHasAny(descriptor.Descriptor.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::Bindless))
         {
             flags |= DescriptorFlags::VariableCount;
             if (!useDescriptorBuffer)

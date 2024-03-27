@@ -91,7 +91,7 @@ struct TriangleCullDrawPassInitInfo
         Materials,
     };
     Features DrawFeatures{Features::AllAttributes};
-    std::optional<ShaderDescriptors> TextureDescriptors{};
+    std::optional<ShaderDescriptors> MaterialDescriptors{};
     std::optional<ShaderDescriptors> ImmutableSamplerDescriptors{};
     ShaderPipeline DrawPipeline{};
 };
@@ -357,10 +357,10 @@ TriangleCullDrawPass<Reocclusion>::TriangleCullDrawPass(RenderGraph::Graph& rend
         "../assets/shaders/processed/render-graph/culling/prepare-draw-comp.shader"},
         "Pass.TriangleCull.PrepareDraw", renderGraph.GetArenaAllocators());
 
-    ASSERT(!info.TextureDescriptors.has_value() ||
+    ASSERT(!info.MaterialDescriptors.has_value() ||
         info.DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials ||
         info.DrawFeatures == TriangleCullDrawPassInitInfo::Features::AlphaTest,
-        "If 'TextureDescriptors' are provided, the 'DrawFeatures' must be equal to 'Materials' or 'AlphaTest'")
+        "If 'MaterialDescriptors' are provided, the 'DrawFeatures' must be equal to 'Materials' or 'AlphaTest'")
     
     for (u32 i = 0; i < TriangleCullContext::MAX_BATCHES; i++)
     {
@@ -397,11 +397,11 @@ TriangleCullDrawPass<Reocclusion>::TriangleCullDrawPass(RenderGraph::Graph& rend
             .ExtractSet(1)
             .Build();
         
-        if (info.TextureDescriptors.has_value())
+        if (info.MaterialDescriptors.has_value())
         {
             ASSERT(info.ImmutableSamplerDescriptors.has_value(),
                 "ImmutableSampler descriptors must be provided with textures")
-            m_DrawPipelines[i].TextureDescriptors = *info.TextureDescriptors;
+            m_DrawPipelines[i].MaterialDescriptors = *info.MaterialDescriptors;
             m_DrawPipelines[i].ImmutableSamplerDescriptors = *info.ImmutableSamplerDescriptors;
         }
     }
@@ -537,7 +537,8 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
             {
                 auto& attachment = info.ColorAttachments[attachmentIndex];
                 Resource resource = attachment.Resource;
-                info.DrawContext->Resources().RenderTargets.push_back(graph.RenderTarget(resource,
+                info.DrawContext->Resources().RenderTargets.push_back(graph.RenderTarget(
+                    resource,
                     attachment.Description.OnLoad, attachment.Description.OnStore,
                     attachment.Description.Clear.Color.F));
             }
@@ -587,9 +588,9 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
             const Texture& hiz = resources.GetTexture(passData.HiZ);
             const Sampler& hizSampler = passData.HiZSampler;
             SceneUBO scene = {};
-            scene.ViewProjectionMatrix = frameContext.Camera->GetViewProjection();
-            scene.FrustumPlanes = frameContext.Camera->GetFrustumPlanes();
-            scene.ProjectionData = frameContext.Camera->GetProjectionData();
+            scene.ViewProjectionMatrix = frameContext.MainCamera->GetViewProjection();
+            scene.FrustumPlanes = frameContext.MainCamera->GetFrustumPlanes();
+            scene.ProjectionData = frameContext.MainCamera->GetProjectionData();
             scene.HiZWidth = (f32)hiz.GetDescription().Width;
             scene.HiZHeight = (f32)hiz.GetDescription().Height;
             const Buffer& sceneUbo = resources.GetBuffer(passData.TriangleCullResources.SceneUbo, scene,
@@ -614,9 +615,9 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
             }
 
             CameraUBO camera = {};
-            camera.View = frameContext.Camera->GetView();
-            camera.Projection = frameContext.Camera->GetProjection();
-            camera.ViewProjection = frameContext.Camera->GetViewProjection();
+            camera.View = frameContext.MainCamera->GetView();
+            camera.Projection = frameContext.MainCamera->GetProjection();
+            camera.ViewProjection = frameContext.MainCamera->GetViewProjection();
             const Buffer& cameraUbo = resources.GetBuffer(passData.TriangleDrawResources.CameraUbo, camera,
                 *frameContext.ResourceUploader); 
             const Buffer& positionsSsbo = resources.GetBuffer(passData.TriangleDrawResources.PositionsSsbo);
@@ -724,14 +725,15 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 updateIterationDraw(i);
             }
 
-            // bind the immutable samplers once
+            // bind the immutable samplers and texutres once
             if (passData.Features == TriangleCullDrawPassInitInfo::Features::Materials ||
                 passData.Features == TriangleCullDrawPassInitInfo::Features::AlphaTest)
             {
                 auto& pipeline = passData.DrawPipelines->at(0).Pipeline;
+                pipeline.BindGraphics(frameContext.Cmd);
                 passData.DrawPipelines->at(0).ImmutableSamplerDescriptors.BindGraphicsImmutableSamplers(
                     frameContext.Cmd, pipeline.GetLayout());
-                passData.DrawPipelines->at(0).TextureDescriptors.BindGraphics(frameContext.Cmd,
+                passData.DrawPipelines->at(0).MaterialDescriptors.BindGraphics(frameContext.Cmd,
                             resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             }
         

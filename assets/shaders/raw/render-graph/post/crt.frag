@@ -4,7 +4,7 @@
 
 layout(location = 0) out vec4 out_color;
 
-layout(location = 0) in vec2 vert_uv;
+layout(location = 0) in vec2 vertex_uv;
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_image;
@@ -61,7 +61,7 @@ vec3 split_colors(vec2 uv, float split) {
 }
 
 void main() {
-    vec2 uv = uv_transform(vert_uv, vec2(u_settings.curvature));
+    vec2 uv = uv_transform(vertex_uv, vec2(u_settings.curvature));
     if (uv.x < 0 || uv.x > 1 || uv.y < 0 || uv.y > 1) {
         out_color = vec4(vec3(0.0f), 1.0f);
         return;

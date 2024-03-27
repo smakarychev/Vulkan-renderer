@@ -11,6 +11,12 @@
 #include "Buffer.h"
 #include "DescriptorsTraits.h"
 #include "Image.h"
+#include "ShaderAsset.h"
+
+namespace assetLib
+{
+    struct ShaderInfo;
+}
 
 class DescriptorArenaAllocators;
 class DescriptorArenaAllocator;
@@ -27,12 +33,12 @@ class Device;
 
 struct DescriptorBinding
 {
+    using Flags = assetLib::ShaderInfo::DescriptorSet::DescriptorFlags;
     u32 Binding;
     DescriptorType Type;
     u32 Count;
     ShaderStage Shaders;
-    bool IsImmutableSampler{false};
-    bool IsBindless{false};
+    Flags DescriptorFlags{Flags::None};
 };
 
 class DescriptorsLayout

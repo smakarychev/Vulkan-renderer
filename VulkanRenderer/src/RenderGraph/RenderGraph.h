@@ -321,6 +321,7 @@ namespace RenderGraph
             ResourceUploader& resourceUploader) const;
         const Texture& GetTexture(Resource resource) const;
         Texture& GetTexture(Resource resource);
+        const TextureDescription& GetTextureDescription(Resource resource) const;
         const Graph* GetGraph() const { return m_Graph; }
     private:
         Graph* m_Graph{nullptr};

@@ -159,9 +159,9 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
             const Sampler& hizSampler = passData.Resources.HiZSampler;
 
             SceneUBO scene = {};
-            scene.ViewMatrix = frameContext.Camera->GetView();
-            scene.FrustumPlanes = frameContext.Camera->GetFrustumPlanes();
-            scene.ProjectionData = frameContext.Camera->GetProjectionData();
+            scene.ViewMatrix = frameContext.MainCamera->GetView();
+            scene.FrustumPlanes = frameContext.MainCamera->GetFrustumPlanes();
+            scene.ProjectionData = frameContext.MainCamera->GetProjectionData();
             scene.HiZWidth = (f32)hiz.GetDescription().Width;
             scene.HiZHeight = (f32)hiz.GetDescription().Height;
             const Buffer& sceneUbo = resources.GetBuffer(passData.Resources.SceneUbo, scene,

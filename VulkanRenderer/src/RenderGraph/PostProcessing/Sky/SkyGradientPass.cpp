@@ -55,8 +55,8 @@ void SkyGradientPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::R
         {
             GPU_PROFILE_FRAME("sky gradient")
             
-            passData.Camera.ViewInverse = glm::inverse(frameContext.Camera->GetView());
-            passData.Camera.Position = frameContext.Camera->GetPosition();
+            passData.Camera.ViewInverse = glm::inverse(frameContext.MainCamera->GetView());
+            passData.Camera.Position = frameContext.MainCamera->GetPosition();
 
             auto& settings = *passData.Settings;
             ImGui::Begin("Sky gradient");

@@ -22,6 +22,7 @@
 #include "RenderGraph/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/DrawIndirectCulledPass/DrawIndirectCountPass.h"
 #include "RenderGraph/HiZ/HiZVisualize.h"
+#include "RenderGraph/PBR/PbrVisibilityBuffer.h"
 #include "RenderGraph/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/PostProcessing/Sky/SkyGradientPass.h"
 #include "RenderGraph/Utility/BlitPass.h"
@@ -41,7 +42,7 @@ void Renderer::Init()
     m_Camera = std::make_shared<Camera>();
     m_CameraController = std::make_unique<CameraController>(m_Camera);
     for (auto& ctx : m_FrameContexts)
-        ctx.Camera = m_Camera.get();
+        ctx.MainCamera = m_Camera.get();
 
     InitRenderGraph();
 }
@@ -75,11 +76,19 @@ void Renderer::InitRenderGraph()
             .DepthFormat = Format::D32_FLOAT})
         .UseDescriptorBuffer()
         .Build();
+    ShaderDescriptors materialDescriptors = ShaderDescriptors::Builder()
+            .SetTemplate(drawTemplate, DescriptorAllocatorKind::Resources)
+            // todo: make this (2) an enum
+            .ExtractSet(2)
+            .BindlessCount(1024)
+            .Build();
+    materialDescriptors.UpdateBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().CreateBindingInfo());
+    m_GraphOpaqueGeometry.GetModelCollection().ApplyMaterialTextures(materialDescriptors);
     
     m_TriangleCull = std::make_shared<CullMetaPass>(*m_Graph, CullMetaPassInitInfo{
-        .DrawPipeline = drawPipeline,
+        .DrawPipeline = &drawPipeline,
+        .MaterialDescriptors = &materialDescriptors,
         .DrawFeatures = CullMetaPassInitInfo::Features::Materials,
-        .BindlessTextureCount = 1024,
         .Resolution = m_Swapchain.GetResolution(),
         .Geometry = &m_GraphOpaqueGeometry}, "MetaCull");
 
@@ -96,12 +105,14 @@ void Renderer::InitRenderGraph()
         .UseDescriptorBuffer()
         .Build();
     CullMetaPassInitInfo visibilityPassInitInfo = {
-        .DrawPipeline = visibilityPipeline,
+        .DrawPipeline = &visibilityPipeline,
+        .MaterialDescriptors = &materialDescriptors,
         .DrawFeatures = CullMetaPassInitInfo::Features::AlphaTest,
-        .BindlessTextureCount = 1024,
         .Resolution = m_Swapchain.GetResolution(),
         .Geometry = &m_GraphOpaqueGeometry};
     m_VisibilityBufferPass = std::make_shared<CullMetaPass>(*m_Graph, visibilityPassInitInfo, "VisibilityBuffer");
+    m_PbrVisibilityBufferPass = std::make_shared<PbrVisibilityBuffer>(*m_Graph, PbrVisibilityBufferInitInfo{
+        .MaterialDescriptors = &materialDescriptors});
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
@@ -126,7 +137,7 @@ void Renderer::SetupRenderSlimePasses()
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
 }
 
-void Renderer::SetupVisibilityBufferPass()
+CullMetaPass::PassData Renderer::SetupVisibilityBufferPass()
 {
     using namespace RenderGraph;
 
@@ -138,35 +149,51 @@ void Renderer::SetupVisibilityBufferPass()
 
     m_VisibilityBufferPass->AddToGraph(*m_Graph, {
         .FrameContext = &GetFrameContext(),
-        .Colors = {visibility},
+        .Colors = {
+            CullMetaPassExecutionInfo::ColorInfo{
+                .Color = visibility,
+                .OnLoad = AttachmentLoad::Clear,
+                .ClearValue = {.Color = {.U = glm::uvec4{std::numeric_limits<u32>::max(), 0, 0, 0}}}}},
         .Depth = RenderGraph::Resource{}});
+
+    auto& output = m_Graph->GetBlackboard().GetOutput<CullMetaPass::PassData>(m_VisibilityBufferPass->GetNameHash());
+
+    return output; 
 }
 
 void Renderer::SetupRenderGraph()
 {
+    using namespace RenderGraph;
+    
     m_Graph->Reset();
 
-    SetupVisibilityBufferPass();
+    auto visibility = SetupVisibilityBufferPass();
 
     m_SkyGradientPass->AddToGraph(*m_Graph,
-        m_Graph->CreateResource("Sky.Target", RenderGraph::GraphTextureDescription{
+        m_Graph->CreateResource("Sky.Target", GraphTextureDescription{
             .Width = GetFrameContext().Resolution.x,
             .Height = GetFrameContext().Resolution.y,
             .Format = Format::RGBA16_FLOAT}));
     auto& skyGradientOutput = m_Graph->GetBlackboard().GetOutput<SkyGradientPass::PassData>();
-    
-    m_TriangleCull->AddToGraph(*m_Graph, {
-        .FrameContext = &GetFrameContext(),
-        .Colors = {skyGradientOutput.ColorOut},
-        .Depth = RenderGraph::Resource{}});
-    auto& triangleCullOut = m_Graph->GetBlackboard().GetOutput<CullMetaPass::PassData>(m_TriangleCull->GetNameHash());
-    
-    m_CrtPass->AddToGraph(*m_Graph, triangleCullOut.ColorsOut[0], m_Graph->GetBackbuffer());
 
-    m_HiZVisualizePass->AddToGraph(*m_Graph, triangleCullOut.HiZOut);
-    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
-    m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, m_Graph->GetBackbuffer(),
-        glm::vec3{0.25f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
+    m_PbrVisibilityBufferPass->AddToGraph(*m_Graph, {
+        .VisibilityTexture = visibility.ColorsOut[0],
+        .ColorIn = skyGradientOutput.ColorOut,
+        .Geometry = &m_GraphOpaqueGeometry});
+    auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBuffer::PassData>();
+    
+    //m_TriangleCull->AddToGraph(*m_Graph, {
+    //    .FrameContext = &GetFrameContext(),
+    //    .Colors = {skyGradientOutput.ColorOut},
+    //    .Depth = RenderGraph::Resource{}});
+    //auto& triangleCullOut = m_Graph->GetBlackboard().GetOutput<CullMetaPass::PassData>(m_TriangleCull->GetNameHash());
+    
+    m_CrtPass->AddToGraph(*m_Graph, pbrOutput.ColorOut, m_Graph->GetBackbuffer());
+
+    //m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
+    //auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
+    //m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, m_Graph->GetBackbuffer(),
+    //    glm::vec3{0.25f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
 
     //SetupRenderSlimePasses();
 }

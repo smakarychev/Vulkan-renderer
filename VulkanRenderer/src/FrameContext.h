@@ -22,6 +22,6 @@ struct FrameContext
     
     DeletionQueue DeletionQueue;
     
-    Camera* Camera{nullptr};
+    Camera* MainCamera{nullptr};
     ResourceUploader* ResourceUploader{nullptr};
 };

@@ -10,6 +10,9 @@ void ModelCollection::CreateDefaultTextures()
     // add default white texture, so that every material has a texture (to avoid branching in shaders)
     m_WhiteTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(ImageUtils::DefaultTexture::White),
         m_Textures);
+
+    m_NormalMapTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(ImageUtils::DefaultTexture::NormalMap),
+        m_Textures);
 }
 
 void ModelCollection::RegisterModel(Model* model, const std::string& name)
@@ -80,7 +83,7 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(const Model* mode
     {
         MaterialGPU material = {
             .AlbedoTextureHandle = m_WhiteTexture,
-            .NormalTextureHandle = m_WhiteTexture,
+            .NormalTextureHandle = m_NormalMapTexture,
             .MetallicRoughnessTextureHandle = m_WhiteTexture,
             .AmbientOcclusionTextureHandle = m_WhiteTexture};
         material.Albedo = mesh.Material.PropertiesPBR.Albedo;

@@ -21,6 +21,8 @@ namespace
                 flags |= DescriptorFlags::Bindless;
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler))
                 flags |= DescriptorFlags::ImmutableSampler;
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearest))
+                flags |= DescriptorFlags::ImmutableSamplerNearest;
             else
                 ASSERT(false, "Unrecogrinzed flag {}", flagString)
         }
@@ -37,6 +39,8 @@ namespace
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::Bindless));
         if (flags & DescriptorFlags::ImmutableSampler)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler));
+        if (flags & DescriptorFlags::ImmutableSamplerNearest)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearest));
 
         return flagsStrings;
     }
@@ -235,6 +239,8 @@ namespace assetLib
             return "bindless";
         if (flag == DescriptorFlags::ImmutableSampler)
             return "immutable_sampler";
+        if (flag == DescriptorFlags::ImmutableSamplerNearest)
+            return "immutable_sampler_nearest";
         ASSERT(false, "Unsupported flag")
         std::unreachable();
     }

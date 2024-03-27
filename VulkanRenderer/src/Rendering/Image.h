@@ -270,6 +270,7 @@ namespace ImageUtils
     enum class DefaultTexture
     {
         White = 0, Black, Red, Green, Blue, Cyan, Yellow, Magenta,
+        NormalMap,
         MaxVal
     };
     class DefaultTextures

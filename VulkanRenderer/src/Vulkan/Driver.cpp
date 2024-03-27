@@ -1396,7 +1396,8 @@ void Driver::Destroy(ResourceHandle<Pipeline> pipeline)
 
 DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& createInfo)
 {
-    static Sampler immutableSampler = GetImmutableSampler();
+    static Sampler immutableSampler = GetImmutableSampler(ImageFilter::Linear);
+    static Sampler immutableSamplerNearest = GetImmutableSampler(ImageFilter::Nearest);
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     bindingFlags.reserve(createInfo.BindingFlags.size());
@@ -1414,7 +1415,9 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
             .descriptorCount = binding.Count,
             .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders)});
 
-        if (binding.IsImmutableSampler)
+        if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearest))
+            bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearest].Sampler;
+        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSampler))
             bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
     }
     
@@ -1716,7 +1719,7 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
         for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
         {
             auto& binding = bindings.Bindings[bindingIndex];
-            bool isBindless = binding.IsBindless;
+            bool isBindless = enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::Bindless);
             ASSERT(
                 (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
                 (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),
@@ -2554,10 +2557,10 @@ void Driver::ShutdownResources()
         "Not all driver resources are destroyed")
 }
 
-Sampler Driver::GetImmutableSampler()
+Sampler Driver::GetImmutableSampler(ImageFilter filter)
 {
     static Sampler sampler = Sampler::Builder()
-        .Filters(ImageFilter::Linear, ImageFilter::Linear)
+        .Filters(filter, filter)
         .Build();
 
     return sampler;

@@ -607,7 +607,7 @@ public:
     static u32 GetSubgroupSize() { return Resources().m_Devices[0].GPUSubgroupProperties.subgroupSize; }
     static UploadContext* UploadContext() { return &s_State.UploadContext; }
 
-    static Sampler GetImmutableSampler();
+    static Sampler GetImmutableSampler(ImageFilter filter);
     
     static TracyVkCtx CreateTracyGraphicsContext(const CommandBuffer& cmd);
     static void DestroyTracyGraphicsContext(TracyVkCtx context);

@@ -116,14 +116,17 @@ namespace ImageUtils
             .Usage = ImageUsage::Sampled | ImageUsage::Source | ImageUsage::Destination};
         
         u32 miniFloatOne = 0b0'1111'111;
+        u32 miniFloatOneHalf = 0b0'0111'111;
         u32 white =     miniFloatOne        | miniFloatOne << 8     | miniFloatOne << 16    | miniFloatOne << 24;
         u32 black = 0;
         u32 red =       miniFloatOne                                                        | miniFloatOne << 24;
         u32 green =                          miniFloatOne << 8                              | miniFloatOne << 24;
         u32 blue =                                                    miniFloatOne << 16    | miniFloatOne << 24;
-        u32 cyan =                            miniFloatOne << 8     | miniFloatOne << 16    | miniFloatOne << 24;
+        u32 cyan =                           miniFloatOne << 8      | miniFloatOne << 16    | miniFloatOne << 24;
         u32 magenta =   miniFloatOne                                | miniFloatOne << 16    | miniFloatOne << 24;
-        u32 yellow  =   miniFloatOne        | miniFloatOne << 8                             | miniFloatOne << 24;
+        u32 yellow =    miniFloatOne        | miniFloatOne << 8                             | miniFloatOne << 24;
+
+        u32 normal =    miniFloatOneHalf    | miniFloatOneHalf << 8 | miniFloatOne << 16    | miniFloatOne << 24;
         
         s_DefaultImages[(u32)DefaultTexture::White] = DefaultTextureData{
             .Texture = Texture::Builder(description)
@@ -168,6 +171,11 @@ namespace ImageUtils
                 .FromPixels(std::vector{magenta})
                 .Build(),
             .Color = magenta};
+        s_DefaultImages[(u32)DefaultTexture::NormalMap] = DefaultTextureData{
+            .Texture = Texture::Builder(description)
+                .FromPixels(std::vector{normal})
+                .Build(),
+            .Color = normal};
     }
 
     const Texture& DefaultTextures::Get(DefaultTexture texture)

@@ -19,7 +19,7 @@ namespace RenderGraph
         ShaderPipeline Pipeline;
         ShaderDescriptors ImmutableSamplerDescriptors;
         ShaderDescriptors ResourceDescriptors;
-        ShaderDescriptors TextureDescriptors;
+        ShaderDescriptors MaterialDescriptors;
     };
 
     struct PipelineDataDescriptorSet

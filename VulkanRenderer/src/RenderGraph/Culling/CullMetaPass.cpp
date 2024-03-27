@@ -25,18 +25,8 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
     if (m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials ||
         m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::AlphaTest)
     {
-        m_TextureDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Resources)
-            // todo: make this (2) an enum
-            .ExtractSet(2)
-            .BindlessCount(info.BindlessTextureCount)
-            .Build();
-
-        m_TextureDescriptors->UpdateBinding("u_materials", info.Geometry->GetMaterialsBuffer().CreateBindingInfo());
-        info.Geometry->GetModelCollection().ApplyMaterialTextures(*m_TextureDescriptors);
-
         m_ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Samplers)
+            .SetTemplate(info.DrawPipeline->GetTemplate(), DescriptorAllocatorKind::Samplers)
             // todo: make this (0) an enum
             .ExtractSet(0)
             .Build();
@@ -44,9 +34,9 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
 
     TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
         .DrawFeatures = m_DrawFeatures,
-        .TextureDescriptors = m_TextureDescriptors,
+        .MaterialDescriptors = *info.MaterialDescriptors,
         .ImmutableSamplerDescriptors = m_ImmutableSamplerDescriptors,
-        .DrawPipeline = info.DrawPipeline};
+        .DrawPipeline = *info.DrawPipeline};
     
     m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
     m_ReoccludeTrianglesDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, cullDrawPassInitInfo,
@@ -82,15 +72,16 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
 
     std::vector<TriangleCullDrawPassExecutionInfo::Attachment> colorAttachments;
     colorAttachments.reserve(colors.size());
-    for (auto& color : colors)
+    for (u32 i = 0; i < colors.size(); i++)
     {
+        auto& color = colors[i];
         colorAttachments.push_back({
             .Resource = color,
             .Description = {
-            .Type = RenderingAttachmentType::Color,
-            .Clear = {.Color = {.F = glm::vec4{0.1, 0.1, 0.1, 1.0}}},
-            .OnLoad = AttachmentLoad::Load,
-            .OnStore = AttachmentStore::Store}});
+                .Type = RenderingAttachmentType::Color,
+                .Clear = info.Colors[i].ClearValue,
+                .OnLoad = info.Colors[i].OnLoad,
+                .OnStore = AttachmentStore::Store}});
     }
     std::optional<TriangleCullDrawPassExecutionInfo::Attachment> depthAttachment{};
     if (depth.has_value())
@@ -117,10 +108,17 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
     m_HiZ->AddToGraph(renderGraph, drawOutput.DepthTarget.value_or(Resource{}), *m_HiZContext);
     m_PassData.HiZOut = blackboard.GetOutput<HiZPass::PassData>().HiZOut;
 
-    for (auto& color : colorAttachments)
-        color.Description.OnLoad = AttachmentLoad::Load;
+    // we have to update attachment resources
+    for (u32 i = 0; i < colorAttachments.size(); i++)
+    {
+        colorAttachments[i].Description.OnLoad = AttachmentLoad::Load;
+        colorAttachments[i].Resource = drawOutput.RenderTargets[i];
+    }
     if (depthAttachment.has_value())
-        depthAttachment.value().Description.OnLoad = AttachmentLoad::Load;
+    {
+        depthAttachment->Description.OnLoad = AttachmentLoad::Load;
+        depthAttachment->Resource = *drawOutput.DepthTarget;
+    }
 
     // triangle only reocclusion (this updates visibility flags for most of the triangles and draws them)
     m_ReoccludeTrianglesDraw->AddToGraph(renderGraph, {
@@ -137,6 +135,18 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
     m_HiZReocclusion->AddToGraph(renderGraph,
         reoccludeTrianglesOutput.DepthTarget.value_or(Resource{}), *m_HiZContext);
     m_PassData.HiZOut = blackboard.GetOutput<HiZPass::PassData>().HiZOut;
+
+    // we have to update attachment resources (again)
+    for (u32 i = 0; i < colorAttachments.size(); i++)
+    {
+        colorAttachments[i].Description.OnLoad = AttachmentLoad::Load;
+        colorAttachments[i].Resource = reoccludeTrianglesOutput.RenderTargets[i];
+    }
+    if (depthAttachment.has_value())
+    {
+        depthAttachment->Description.OnLoad = AttachmentLoad::Load;
+        depthAttachment->Resource = *reoccludeTrianglesOutput.DepthTarget;
+    }
 
     // finally, reocclude meshlets and draw them
     m_MeshReocclusion->AddToGraph(renderGraph, *m_MeshContext, *m_HiZContext);
@@ -158,6 +168,7 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
     auto& reoccludeOutput = blackboard.GetOutput<TriangleReoccludeDraw::PassData>(
         m_ReoccludeDraw->GetNameHash());
     m_PassData.ColorsOut = reoccludeOutput.RenderTargets;
+    m_PassData.DepthOut = reoccludeOutput.DepthTarget;
     
     blackboard.RegisterOutput(m_Name.Hash(), m_PassData);
 }
@@ -165,10 +176,10 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
 std::vector<RenderGraph::Resource> CullMetaPass::EnsureColors(RenderGraph::Graph& renderGraph,
     const CullMetaPassExecutionInfo& info) const
 {
-    std::vector<RenderGraph::Resource> colors = info.Colors;
+    std::vector<RenderGraph::Resource> colors(info.Colors.size());
     for (u32 i = 0; i < colors.size(); i++)
     {
-        auto& color = colors[i];
+        RenderGraph::Resource color = info.Colors[i].Color; 
         if (!color.IsValid())
         {
             color = renderGraph.CreateResource(std::format("{}.{}.{}", m_Name.Name(), ".ColorIn", i),
@@ -177,6 +188,7 @@ std::vector<RenderGraph::Resource> CullMetaPass::EnsureColors(RenderGraph::Graph
                     .Height = info.FrameContext->Resolution.y,
                     .Format =  Format::RGBA16_FLOAT});
         }
+        colors[i] = color;
     }
     
     return colors;

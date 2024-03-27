@@ -519,10 +519,12 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
 
 std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptorsFlags(std::string_view shaderSource)
 {
+    // weird flex but ok
     std::vector<ShaderConverter::DescriptorFlags> flags = {
         DescriptorFlags::Dynamic,
         DescriptorFlags::Bindless,
-        DescriptorFlags::ImmutableSampler
+        DescriptorFlags::ImmutableSampler,
+        DescriptorFlags::ImmutableSamplerNearest,
     };
 
     std::vector<DescriptorFlagInfo> descriptorFlagsUnmerged = {};
@@ -722,6 +724,7 @@ void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
         std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::Dynamic),
         std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::Bindless),
         std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler),
+        std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearest),
         std::string{META_KEYWORD_PREFIX} + "binding",
     };
 

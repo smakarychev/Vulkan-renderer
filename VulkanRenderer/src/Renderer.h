@@ -13,9 +13,11 @@
 #include "RenderGraph/RenderPassGeometryCull.h"
 #include "RenderGraph/Culling/MeshletCullPass.h"
 #include "FrameContext.h"
+#include "RenderGraph/Culling/CullMetaPass.h"
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class PbrVisibilityBuffer;
 class CullMetaPass;
 class CopyTexturePass;
 class SlimeMoldPass;
@@ -125,7 +127,7 @@ private:
     void InitVisibilityBufferVisualizationStructures();
     void InitRenderGraph();
     void SetupRenderSlimePasses();
-    void SetupVisibilityBufferPass();
+    CullMetaPass::PassData SetupVisibilityBufferPass();
     void SetupRenderGraph();
 
     void Shutdown();
@@ -201,6 +203,7 @@ private:
     std::shared_ptr<CullMetaPass> m_TriangleCull;
     // todo: rename once working
     std::shared_ptr<CullMetaPass> m_VisibilityBufferPass;
+    std::shared_ptr<PbrVisibilityBuffer> m_PbrVisibilityBufferPass;
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;

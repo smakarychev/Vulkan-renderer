@@ -32,7 +32,6 @@ layout(push_constant) uniform push_constants {
     uvec2 image_size;
 };
 
-
 void main() {
     uvec2 pos = gl_GlobalInvocationID.xy;
     

@@ -4,7 +4,7 @@
 
 layout(location = 0) out vec4 out_color;
 
-layout(location = 0) in vec2 vert_uv;
+layout(location = 0) in vec2 vertex_uv;
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz;
@@ -15,6 +15,6 @@ layout(push_constant) uniform push_constants {
 };
 
 void main() {
-    float depth = textureLod(sampler2D(u_hiz, u_sampler), vert_uv, float(mipmap)).r;
+    float depth = textureLod(sampler2D(u_hiz, u_sampler), vertex_uv, float(mipmap)).r;
     out_color = vec4(vec3(depth) * intensity, 1.0f);
 }

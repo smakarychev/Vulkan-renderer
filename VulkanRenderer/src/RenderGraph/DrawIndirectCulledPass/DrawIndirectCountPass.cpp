@@ -76,7 +76,7 @@ void DrawIndirectCountPass::AddToGraph(RenderGraph::Graph& renderGraph,
             GPU_PROFILE_FRAME("Draw indirect count")
 
             CameraUBO camera = {};
-            camera.ViewProjection = frameContext.Camera->GetViewProjection();
+            camera.ViewProjection = frameContext.MainCamera->GetViewProjection();
             const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo, camera,
                 *frameContext.ResourceUploader);
             const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);

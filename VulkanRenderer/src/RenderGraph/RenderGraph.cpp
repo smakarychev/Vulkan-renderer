@@ -194,10 +194,14 @@ namespace RenderGraph
         ASSERT(m_ResourceTarget, "Call to 'RenderTarget' outside of 'SetupFn' of render pass")
 
         RenderTargetAccess renderTargetAccess = {};
-
-        renderTargetAccess.m_Resource = AddOrCreateAccess(resource,
-            PipelineStage::ColorOutput, PipelineAccess::WriteColorAttachment);
+        
         m_Textures[resource.Index()].m_Description.Usage |= ImageUsage::Color;
+        renderTargetAccess.m_Resource = resource;
+        if (onLoad == AttachmentLoad::Load)
+            renderTargetAccess.m_Resource = AddOrCreateAccess(renderTargetAccess.m_Resource,
+                PipelineStage::ColorOutput, PipelineAccess::ReadColorAttachment);    
+        renderTargetAccess.m_Resource = AddOrCreateAccess(renderTargetAccess.m_Resource,
+            PipelineStage::ColorOutput, PipelineAccess::WriteColorAttachment);
         renderTargetAccess.m_ClearColor = clearColor;
         renderTargetAccess.m_OnLoad = onLoad;
         renderTargetAccess.m_OnStore = onStore;
@@ -222,9 +226,13 @@ namespace RenderGraph
 
         DepthStencilAccess depthStencilAccess = {};
         
-        depthStencilAccess.m_Resource = AddOrCreateAccess(resource,
-            PipelineStage::DepthLate, PipelineAccess::WriteDepthStencilAttachment);
         m_Textures[resource.Index()].m_Description.Usage |= ImageUsage::Depth | ImageUsage::Stencil;
+        depthStencilAccess.m_Resource = resource;
+        if (onLoad == AttachmentLoad::Load)
+            depthStencilAccess.m_Resource = AddOrCreateAccess(depthStencilAccess.m_Resource,
+                PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::ReadDepthStencilAttachment);    
+        depthStencilAccess.m_Resource = AddOrCreateAccess(depthStencilAccess.m_Resource,
+            PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::WriteDepthStencilAttachment);
         depthStencilAccess.m_ClearDepth = clearDepth;
         depthStencilAccess.m_ClearStencil = clearStencil;
         depthStencilAccess.m_OnLoad = onLoad;
@@ -820,7 +828,6 @@ namespace RenderGraph
                         ImageLayout::DepthAttachment : ImageLayout::DepthStencilAttachment;
                 return ImageLayout::Attachment;
             }
-
             if (enumHasAny(access.m_Access, PipelineAccess::ReadDepthStencilAttachment) ||
                 texture.m_Description.Format == Format::D32_FLOAT)
                 return texture.m_Description.Format == Format::D32_FLOAT ?
@@ -1108,7 +1115,7 @@ namespace RenderGraph
                     {
                         if (index - currentIndex > 1)
                         {
-                            mergeLayoutsOrConvertIntoBarrier(*pass, currentIndex, index);
+                            mergeLayoutsOrConvertIntoBarrier(*pass, currentIndex, index - 1);
                         }
                         else if (index == layoutTransitions.size() - 1)
                         {
@@ -1133,7 +1140,12 @@ namespace RenderGraph
         }
 
         if (m_Backbuffer.IsValid())
-            m_BackbufferLayout = currentLayouts[m_Backbuffer.Index()].Layout;
+        {
+            Resource backbuffer = m_Backbuffer;
+            while (GetResourceTypeBase(backbuffer).m_Rename.IsValid())
+                backbuffer = GetResourceTypeBase(backbuffer).m_Rename;
+            m_BackbufferLayout = currentLayouts[backbuffer.Index()].Layout;
+        }
     }
 
     std::pair<PipelineStage, PipelineAccess> Graph::InferResourceReadAccess(BufferDescription& description,
@@ -1572,7 +1584,7 @@ namespace RenderGraph
 
         GraphBuffer& bufferResource = m_Graph->m_Buffers[resource.Index()];
         ASSERT(bufferResource.m_IsExternal || enumHasAny(bufferResource.m_Description.Usage, BufferUsage::Upload),
-            "GetBuffer with resoruce upload can be used only on external buffers, "
+            "GetBuffer with resource upload can be used only on external buffers, "
             "or buffers created with 'Upload' usage")
         
         Buffer& buffer = const_cast<Buffer&>(GetBuffer(resource));
@@ -1591,6 +1603,13 @@ namespace RenderGraph
     Texture& Resources::GetTexture(Resource resource)
     {
         return const_cast<Texture&>(const_cast<const Resources&>(*this).GetTexture(resource));
+    }
+
+    const TextureDescription& Resources::GetTextureDescription(Resource resource) const
+    {
+        ASSERT(resource.IsTexture(), "Provided resource handle is not a texture")
+
+        return m_Graph->m_Textures[resource.Index()].m_Description;
     }
 
     std::string Graph::MermaidDump() const

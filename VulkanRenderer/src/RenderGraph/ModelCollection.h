@@ -64,6 +64,7 @@ private:
     HandleArray<Material> m_Materials;
 
     RenderHandle<Image> m_WhiteTexture{}; 
+    RenderHandle<Image> m_NormalMapTexture{}; 
     
     std::vector<RenderObject> m_RenderObjects;
 };
