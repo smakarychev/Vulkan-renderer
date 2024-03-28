@@ -64,7 +64,7 @@ void ModelCollection::ApplyMaterialTextures(ShaderDescriptors& bindlessDescripto
     {
         const Texture& texture = m_Textures[textureIndex];
         bindlessDescriptors.UpdateBinding(bindingInfo,
-            texture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::ReadOnly), textureIndex);
+            texture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::Readonly), textureIndex);
     }
 }
 

@@ -17,6 +17,8 @@
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class SsaoVisualizePass;
+class SsaoPSPass;
 class PbrVisibilityBuffer;
 class CullMetaPass;
 class CopyTexturePass;
@@ -204,6 +206,8 @@ private:
     // todo: rename once working
     std::shared_ptr<CullMetaPass> m_VisibilityBufferPass;
     std::shared_ptr<PbrVisibilityBuffer> m_PbrVisibilityBufferPass;
+    std::shared_ptr<SsaoPSPass> m_SsaoPsPass;
+    std::shared_ptr<SsaoVisualizePass> m_SsaoVisualizePass;
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;

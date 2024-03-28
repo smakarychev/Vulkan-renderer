@@ -258,7 +258,7 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
             resourceDescriptors.UpdateBinding(mapBinding, slimeMap.CreateBindingInfo(
-                ImageFilter::Linear, ImageLayout::ReadOnly));       
+                ImageFilter::Linear, ImageLayout::Readonly));       
             resourceDescriptors.UpdateBinding(diffuseBinding, diffuseMap.CreateBindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
 
@@ -342,7 +342,7 @@ void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldC
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
             resourceDescriptors.UpdateBinding(diffuseBinding, diffuseMap.CreateBindingInfo(
-                ImageFilter::Linear, ImageLayout::ReadOnly));
+                ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding(gradientBinding, gradientMap.CreateBindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
             resourceDescriptors.UpdateBinding(gradientColorsBinding, gradientUbo.CreateBindingInfo());

@@ -368,6 +368,8 @@ bool DescriptorLayoutCache::CacheKey::operator==(const CacheKey& other) const
             return false;
         if (CreateInfo.Bindings[i].Shaders != other.CreateInfo.Bindings[i].Shaders)
             return false;
+        if (CreateInfo.Bindings[i].DescriptorFlags != other.CreateInfo.Bindings[i].DescriptorFlags)
+            return false;
         
         if (CreateInfo.BindingFlags[i] != other.CreateInfo.BindingFlags[i])
             return false;
@@ -384,7 +386,6 @@ DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
 
     if (s_LayoutCache.contains(key))
         return s_LayoutCache.at(key);
-
 
     DescriptorsLayout newLayout = DescriptorsLayout::Create(createInfo);
     s_LayoutCache.emplace(key, newLayout);

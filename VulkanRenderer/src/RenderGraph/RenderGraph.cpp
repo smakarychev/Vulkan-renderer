@@ -325,10 +325,10 @@ namespace RenderGraph
         Resources resources = {*this};
         for (auto& pass : m_RenderPasses)
         {
-            for (auto& splitWait : pass->m_SplitBarriersToWait)
-                RenderCommand::WaitOnSplitBarrier(frameContext.Cmd, splitWait.Barrier, splitWait.Dependency);
             for (auto& barrier : pass->m_Barriers)
                 RenderCommand::WaitOnBarrier(frameContext.Cmd, barrier);
+            for (auto& splitWait : pass->m_SplitBarriersToWait)
+                RenderCommand::WaitOnSplitBarrier(frameContext.Cmd, splitWait.Barrier, splitWait.Dependency);
             for (auto& splitSignal : pass->m_SplitBarriersToSignal)
                 RenderCommand::SignalSplitBarrier(frameContext.Cmd, splitSignal.Barrier, splitSignal.Dependency);
 
@@ -388,7 +388,6 @@ namespace RenderGraph
                 pass->Execute(frameContext, resources);
             }
         }
-
 
         if (!m_Backbuffer.IsValid())
             return;
@@ -832,7 +831,7 @@ namespace RenderGraph
                 texture.m_Description.Format == Format::D32_FLOAT)
                 return texture.m_Description.Format == Format::D32_FLOAT ?
                     ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly;
-            return ImageLayout::ReadOnly;
+            return ImageLayout::Readonly;
         };
         auto updateAndPropagate = [this](auto& collection, Resource resource, const auto& updateData)
         {
@@ -1103,7 +1102,10 @@ namespace RenderGraph
             
             if (layoutTransitions.size() > 1)
             {
-                std::ranges::sort(layoutTransitions, [](auto& a, auto& b) { return a.Texture < b.Texture; });
+                std::ranges::sort(layoutTransitions, [textureRemap](auto& a, auto& b)
+                {
+                    return textureRemap[a.Texture.Index()] < textureRemap[b.Texture.Index()];
+                });
                 u32 currentIndex = 0;
                 
                 for (u32 index = 1; index < layoutTransitions.size(); index++)
@@ -1116,6 +1118,8 @@ namespace RenderGraph
                         if (index - currentIndex > 1)
                         {
                             mergeLayoutsOrConvertIntoBarrier(*pass, currentIndex, index - 1);
+                            if (index == layoutTransitions.size() - 1)
+                                addLayoutTransition(otherTransition);
                         }
                         else if (index == layoutTransitions.size() - 1)
                         {
@@ -1514,6 +1518,10 @@ namespace RenderGraph
     Resource Graph::AddOrCreateAccess(Resource resource, PipelineStage stage,
         PipelineAccess access)
     {
+        ASSERT(!
+           (ResourceAccess::HasWriteAccess(access) &&
+            GetResourceTypeBase(resource).m_Rename.IsValid()), "Cannot write twice to the same resource")
+         
         auto it = std::ranges::find_if(m_ResourceTarget->m_Accesses,
             [resource](auto& resourceAccess) { return resourceAccess.m_Resource == resource; });
 
@@ -1532,11 +1540,6 @@ namespace RenderGraph
     Resource Graph::AddAccess(ResourceAccess& resource, PipelineStage stage,
         PipelineAccess access)
     {
-        ASSERT(!
-            (ResourceAccess::HasWriteAccess(access) &&
-            ResourceAccess::HasWriteAccess(resource.m_Access) &&
-            GetResourceTypeBase(resource.m_Resource).m_Rename.IsValid()), "Cannot write twice to the same resource")
-
         if (ResourceAccess::HasWriteAccess(access))
         {
             Resource rename = resource.m_Resource.IsBuffer() ?

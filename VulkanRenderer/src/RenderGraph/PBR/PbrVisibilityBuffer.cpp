@@ -110,7 +110,7 @@ void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrV
             auto& materialDescriptors = passData.PipelineData->MaterialDescriptors;
 
             resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.CreateBindingInfo(ImageFilter::Nearest,
-                ImageLayout::ReadOnly));
+                ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_camera", cameraUbo.CreateBindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.CreateBindingInfo());
             resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.CreateBindingInfo());

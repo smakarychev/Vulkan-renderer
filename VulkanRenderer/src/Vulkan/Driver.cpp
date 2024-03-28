@@ -117,7 +117,7 @@ namespace
         case ImageLayout::Undefined:                return VK_IMAGE_LAYOUT_UNDEFINED;
         case ImageLayout::General:                  return VK_IMAGE_LAYOUT_GENERAL;
         case ImageLayout::Attachment:               return VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
-        case ImageLayout::ReadOnly:                 return VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
+        case ImageLayout::Readonly:                 return VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL;
         case ImageLayout::ColorAttachment:          return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         case ImageLayout::Present:                  return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
         case ImageLayout::DepthStencilAttachment:   return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
@@ -1600,7 +1600,7 @@ void Driver::DeallocateDescriptorSet(ResourceHandle<DescriptorAllocator> allocat
 void Driver::UpdateDescriptorSet(DescriptorSet& descriptorSet,
     u32 slot, const Texture& texture, DescriptorType type, u32 arrayIndex)
 {
-    ImageBindingInfo bindingInfo = texture.CreateBindingInfo({}, ImageLayout::ReadOnly);
+    ImageBindingInfo bindingInfo = texture.CreateBindingInfo({}, ImageLayout::Readonly);
     VkDescriptorImageInfo descriptorTextureInfo = {};
     descriptorTextureInfo.sampler = Resources()[bindingInfo.Sampler].Sampler;
     descriptorTextureInfo.imageView = bindingInfo.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
@@ -2559,7 +2559,7 @@ void Driver::ShutdownResources()
 
 Sampler Driver::GetImmutableSampler(ImageFilter filter)
 {
-    static Sampler sampler = Sampler::Builder()
+    Sampler sampler = Sampler::Builder()
         .Filters(filter, filter)
         .Build();
 

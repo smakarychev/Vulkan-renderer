@@ -633,8 +633,8 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 auto& samplerDescriptors = passData.CullPipelines->at(index).SamplerDescriptors;
                 auto& resourceDescriptors = passData.CullPipelines->at(index).ResourceDescriptors;
 
-                samplerDescriptors.UpdateBinding("u_sampler", hiz.CreateBindingInfo(hizSampler, ImageLayout::ReadOnly));
-                resourceDescriptors.UpdateBinding("u_hiz", hiz.CreateBindingInfo(hizSampler, ImageLayout::ReadOnly));
+                samplerDescriptors.UpdateBinding("u_sampler", hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
+                resourceDescriptors.UpdateBinding("u_hiz", hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
                 resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.CreateBindingInfo());
                 resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.CreateBindingInfo());
                 resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibilitySsbo.CreateBindingInfo());

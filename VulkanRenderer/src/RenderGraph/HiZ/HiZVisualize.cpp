@@ -73,9 +73,9 @@ void HiZVisualize::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
             
             samplerDescriptors.UpdateBinding(samplerBindingInfo,
-                hizTexture.CreateBindingInfo(ImageFilter::Nearest, ImageLayout::ReadOnly));
+                hizTexture.CreateBindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding(hizBindingInfo,
-                hizTexture.CreateBindingInfo(ImageFilter::Nearest, ImageLayout::ReadOnly));
+                hizTexture.CreateBindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
 
             pipeline.BindGraphics(frameContext.Cmd);
             RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), pushConstants);

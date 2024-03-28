@@ -104,7 +104,6 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
         .DepthAttachment = depthAttachment});
 
     auto& drawOutput = blackboard.GetOutput<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
-    m_PassData.ColorsOut = drawOutput.RenderTargets;
     m_HiZ->AddToGraph(renderGraph, drawOutput.DepthTarget.value_or(Resource{}), *m_HiZContext);
     m_PassData.HiZOut = blackboard.GetOutput<HiZPass::PassData>().HiZOut;
 
@@ -131,7 +130,6 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
         .DepthAttachment = depthAttachment});
     auto& reoccludeTrianglesOutput = blackboard.GetOutput<TriangleReoccludeDraw::PassData>(
         m_ReoccludeTrianglesDraw->GetNameHash());
-    m_PassData.ColorsOut = reoccludeTrianglesOutput.RenderTargets;
     m_HiZReocclusion->AddToGraph(renderGraph,
         reoccludeTrianglesOutput.DepthTarget.value_or(Resource{}), *m_HiZContext);
     m_PassData.HiZOut = blackboard.GetOutput<HiZPass::PassData>().HiZOut;

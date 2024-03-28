@@ -17,6 +17,8 @@
 #include "RenderGraph/ModelCollection.h"
 #include "RenderGraph/RenderPassGeometry.h"
 #include "RenderGraph/RenderPassGeometryCull.h"
+#include "RenderGraph/AO/SsaoPSPass.h"
+#include "RenderGraph/AO/SsaoVisualizePass.h"
 #include "RenderGraph/Culling/CullMetaPass.h"
 #include "RenderGraph/Culling/MeshletCullPass.h"
 #include "RenderGraph/Extra/SlimeMold/SlimeMoldPass.h"
@@ -113,6 +115,8 @@ void Renderer::InitRenderGraph()
     m_VisibilityBufferPass = std::make_shared<CullMetaPass>(*m_Graph, visibilityPassInitInfo, "VisibilityBuffer");
     m_PbrVisibilityBufferPass = std::make_shared<PbrVisibilityBuffer>(*m_Graph, PbrVisibilityBufferInitInfo{
         .MaterialDescriptors = &materialDescriptors});
+    m_SsaoPsPass = std::make_shared<SsaoPSPass>(*m_Graph);
+    m_SsaoVisualizePass = std::make_shared<SsaoVisualizePass>(*m_Graph);
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
@@ -166,6 +170,7 @@ void Renderer::SetupRenderGraph()
     using namespace RenderGraph;
     
     m_Graph->Reset();
+    Resource backbuffer = m_Graph->GetBackbuffer();
 
     auto visibility = SetupVisibilityBufferPass();
 
@@ -181,19 +186,27 @@ void Renderer::SetupRenderGraph()
         .ColorIn = skyGradientOutput.ColorOut,
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBuffer::PassData>();
-    
+
+    if (visibility.DepthOut.has_value())
+    {
+        m_SsaoPsPass->AddToGraph(*m_Graph, *visibility.DepthOut);
+        auto& ssaoOutput = m_Graph->GetBlackboard().GetOutput<SsaoPSPass::PassData>();
+
+        m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoOutput.SSAO, backbuffer);
+        backbuffer = m_Graph->GetBlackboard().GetOutput<SsaoVisualizePass::PassData>().ColorOut;
+    }
     //m_TriangleCull->AddToGraph(*m_Graph, {
     //    .FrameContext = &GetFrameContext(),
     //    .Colors = {skyGradientOutput.ColorOut},
     //    .Depth = RenderGraph::Resource{}});
     //auto& triangleCullOut = m_Graph->GetBlackboard().GetOutput<CullMetaPass::PassData>(m_TriangleCull->GetNameHash());
     
-    m_CrtPass->AddToGraph(*m_Graph, pbrOutput.ColorOut, m_Graph->GetBackbuffer());
+    //m_CrtPass->AddToGraph(*m_Graph, pbrOutput.ColorOut, m_Graph->GetBackbuffer());
 
-    //m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
-    //auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
-    //m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, m_Graph->GetBackbuffer(),
-    //    glm::vec3{0.25f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
+    m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
+    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
+    m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, backbuffer,
+        glm::vec3{0.25f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
 
     //SetupRenderSlimePasses();
 }

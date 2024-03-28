@@ -91,7 +91,7 @@ namespace ImageUtils
         case ImageLayout::Undefined:                return "Undefined"; 
         case ImageLayout::General:                  return "General"; 
         case ImageLayout::Attachment:               return "Attachment"; 
-        case ImageLayout::ReadOnly:                 return "ReadOnly"; 
+        case ImageLayout::Readonly:                 return "Readonly"; 
         case ImageLayout::ColorAttachment:          return "ColorAttachment"; 
         case ImageLayout::Present:                  return "Present"; 
         case ImageLayout::DepthStencilAttachment:   return "DepthStencilAttachment"; 
@@ -102,6 +102,26 @@ namespace ImageUtils
         case ImageLayout::Destination:              return "Destination";
         default:                                    return "";
         } 
+    }
+
+    u32 toRGBA8(const glm::vec4& color)
+    {
+        u8 r = (u8)(color.r * 255.0f);
+        u8 g = (u8)(color.g * 255.0f);
+        u8 b = (u8)(color.b * 255.0f);
+        u8 a = (u8)(color.a * 255.0f);
+
+        return r | g << 8 | b << 16 | a << 24;
+    }
+
+    u32 toRGBA8SNorm(const glm::vec4& color)
+    {
+        i8 r = (i8)(color.r * 127.0f);
+        i8 g = (i8)(color.g * 127.0f);
+        i8 b = (i8)(color.b * 127.0f);
+        i8 a = (i8)(color.a * 127.0f);
+
+        return *(u8*)&r | *(u8*)&g << 8 | *(u8*)&b << 16 | *(u8*)&a << 24;
     }
 
     std::array<DefaultTextures::DefaultTextureData, (u32)DefaultTexture::MaxVal> DefaultTextures::s_DefaultImages = {};
@@ -721,7 +741,7 @@ void Image::PrepareForShaderRead(const ImageSubresource& imageSubresource)
 {
     ImageLayout current = imageSubresource.Description.Mipmaps > 1 ? ImageLayout::Source : ImageLayout::Destination;
     PrepareImageGeneral(imageSubresource,
-       current, ImageLayout::ReadOnly,
+       current, ImageLayout::Readonly,
        PipelineAccess::ReadTransfer, PipelineAccess::ReadShader,
        PipelineStage::AllTransfer, PipelineStage::PixelShader);
 }

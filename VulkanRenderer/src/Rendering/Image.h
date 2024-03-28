@@ -267,6 +267,9 @@ namespace ImageUtils
     std::string imageFilterToString(ImageFilter filter);
     std::string imageLayoutToString(ImageLayout layout);
 
+    u32 toRGBA8(const glm::vec4& color);
+    u32 toRGBA8SNorm(const glm::vec4& color);
+
     enum class DefaultTexture
     {
         White = 0, Black, Red, Green, Blue, Cyan, Yellow, Magenta,

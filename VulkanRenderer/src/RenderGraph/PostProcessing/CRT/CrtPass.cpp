@@ -90,9 +90,9 @@ void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
             
             samplerDescriptors.UpdateBinding(samplerBindingInfo,
-                colorInTexture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::ReadOnly));
+                colorInTexture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding(imageBindingInfo,
-                colorInTexture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::ReadOnly));
+                colorInTexture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding(timeBindingInfo, time.CreateBindingInfo());
             resourceDescriptors.UpdateBinding(settingsBindingInfo, settings.CreateBindingInfo());
             

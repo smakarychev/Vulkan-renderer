@@ -9,7 +9,7 @@ enum class ImageLayout : u8
     General,
     
     Attachment,
-    ReadOnly,
+    Readonly,
     
     ColorAttachment,
     Present,
