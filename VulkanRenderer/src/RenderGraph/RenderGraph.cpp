@@ -334,8 +334,6 @@ namespace RenderGraph
                 RenderCommand::WaitOnBarrier(frameContext.Cmd, barrier);
             for (auto& splitWait : pass->m_SplitBarriersToWait)
                 RenderCommand::WaitOnSplitBarrier(frameContext.Cmd, splitWait.Barrier, splitWait.Dependency);
-            for (auto& splitSignal : pass->m_SplitBarriersToSignal)
-                RenderCommand::SignalSplitBarrier(frameContext.Cmd, splitSignal.Barrier, splitSignal.Dependency);
 
             if (pass->m_IsRasterizationPass)
             {
@@ -392,6 +390,9 @@ namespace RenderGraph
             {
                 pass->Execute(frameContext, resources);
             }
+            
+            for (auto& splitSignal : pass->m_SplitBarriersToSignal)
+                RenderCommand::SignalSplitBarrier(frameContext.Cmd, splitSignal.Barrier, splitSignal.Dependency);
         }
 
         if (!m_Backbuffer.IsValid())
