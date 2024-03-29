@@ -281,7 +281,7 @@ namespace ImageUtils
     public:
         static void Init();
         static const Texture& Get(DefaultTexture texture);
-        static Texture GetCopy(DefaultTexture texture);
+        static Texture GetCopy(DefaultTexture texture, DeletionQueue& deletionQueue);
     private:
         struct DefaultTextureData
         {

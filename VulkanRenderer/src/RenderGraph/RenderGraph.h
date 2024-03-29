@@ -209,6 +209,7 @@ namespace RenderGraph
 
         Resource AddExternal(const std::string& name, const Buffer& buffer);
         Resource AddExternal(const std::string& name, const Texture& texture);
+        Resource AddExternal(const std::string& name, ImageUtils::DefaultTexture texture);
         Resource AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback);
         Resource Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force = false);
         Resource Export(Resource resource, std::shared_ptr<Texture>* texture, bool force = false);
@@ -231,7 +232,7 @@ namespace RenderGraph
         DescriptorArenaAllocators& GetArenaAllocators() { return *m_ArenaAllocators; }
         Blackboard& GetBlackboard() { return m_Blackboard; }
 
-        void Reset();
+        void Reset(FrameContext& frameContext);
         void Compile(FrameContext& frameContext);
         void Execute(FrameContext& frameContext);
         void OnCmdBegin(FrameContext& frameContext) const;

@@ -92,6 +92,12 @@ bool TextureConverter::NeedsConversion(const std::filesystem::path& initialDirec
 void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     const std::filesystem::path& path)
 {
+    Convert(initialDirectoryPath, path, assetLib::TextureFormat::SRGBA8);
+}
+
+void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path,
+    assetLib::TextureFormat format)
+{
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
         {
@@ -108,7 +114,7 @@ void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath
     u8* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
     
     assetLib::TextureInfo textureInfo = {};
-    textureInfo.Format = assetLib::TextureFormat::SRGBA8;
+    textureInfo.Format = format;
     textureInfo.Dimensions = {.Width = (u32)width, .Height = (u32)height, .Depth = 1};
     textureInfo.SizeBytes = 4llu * width * height; 
     textureInfo.CompressionMode = assetLib::CompressionMode::LZ4;
@@ -180,7 +186,8 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
         for (u32 i = 0; i < currentNode->mNumMeshes; i++)
         {
             MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[i]], path);
-            
+            ConvertTextures(initialDirectoryPath, meshData);
+
             modelInfo.MeshInfos.push_back({
                 .Name = meshData.Name,
                 .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
@@ -202,7 +209,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
         for (u32 i = 0; i < currentNode->mNumChildren; i++)
             nodesToProcess.push_back(currentNode->mChildren[i]);
     }
-
+    
     std::array<const void*, (u32)assetLib::VertexElement::MaxVal> vertexElements = modelData.VertexGroup.Elements();
     assetLib::File modelFile = assetLib::packModel(modelInfo, {vertexElements.begin(), vertexElements.end()},
         modelData.Indices.data(), modelData.Meshlets.data());
@@ -328,7 +335,6 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
         aiString textureName;
         material->GetTexture(textureType, i, &textureName);
         std::filesystem::path texturePath = modelPath.parent_path() / std::filesystem::path(textureName.C_Str());
-        texturePath.replace_extension(TextureConverter::POST_CONVERT_EXTENSION);
         textures[i] = texturePath.string();
     }
 
@@ -357,6 +363,39 @@ assetLib::ModelInfo::MaterialPropertiesPBR ModelConverter::GetMaterialProperties
         .Albedo = {albedo.r, albedo.g, albedo.b, albedo.a},
         .Metallic = (f32)metallic,
         .Roughness = (f32)roughness};
+}
+
+void ModelConverter::ConvertTextures(const std::filesystem::path& initialDirectoryPath, MeshData& meshData)
+{
+    for (u32 aspect = 0; aspect < (u32)assetLib::ModelInfo::MaterialAspect::MaxVal; aspect++)
+    {
+        auto aspectType = (assetLib::ModelInfo::MaterialAspect)aspect;
+        auto& material = meshData.MaterialInfos[aspect];
+        for (auto& texture : material.Textures)
+        {
+            if (TextureConverter::NeedsConversion(initialDirectoryPath, texture))
+            {
+                switch (aspectType)
+                {
+                case assetLib::ModelInfo::MaterialAspect::Albedo:
+                    TextureConverter::Convert(initialDirectoryPath, texture, assetLib::TextureFormat::SRGBA8);    
+                    break;
+                case assetLib::ModelInfo::MaterialAspect::Normal:
+                case assetLib::ModelInfo::MaterialAspect::MetallicRoughness:
+                case assetLib::ModelInfo::MaterialAspect::AmbientOcclusion:
+                    TextureConverter::Convert(initialDirectoryPath, texture, assetLib::TextureFormat::RGBA8);
+                    break;
+                default:
+                    LOG("Error unrecognized material type for {}", texture);
+                    break;
+                }
+            }
+            
+            std::filesystem::path texturePath = texture;
+            texturePath.replace_extension(TextureConverter::POST_CONVERT_EXTENSION);
+            texture = texturePath.string();
+        }
+    }
 }
 
 bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,

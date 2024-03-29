@@ -14,8 +14,9 @@ layout(set = 0, binding = 0) uniform sampler u_sampler_visibility;
 layout(set = 0, binding = 1) uniform sampler u_sampler;
 
 layout(set = 1, binding = 0) uniform utexture2D u_visibility_texture;
+layout(set = 1, binding = 1) uniform texture2D u_ssao_texture;
 
-layout(set = 1, binding = 1) uniform camera_buffer {
+layout(set = 1, binding = 2) uniform camera_buffer {
     mat4 view;
     mat4 projection;
     mat4 view_projection;
@@ -26,31 +27,31 @@ layout(set = 1, binding = 1) uniform camera_buffer {
     float frustum_far;
 } u_camera;
 
-layout(std430, set = 1, binding = 2) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 3) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 3) readonly buffer objects_buffer {
+layout(std430, set = 1, binding = 4) readonly buffer objects_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 4) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 5) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 5) readonly buffer normals_buffer {
+layout(std430, set = 1, binding = 6) readonly buffer normals_buffer {
     Normal normals[];
 } u_normals;
 
-layout(std430, set = 1, binding = 6) readonly buffer tangents_buffer {
+layout(std430, set = 1, binding = 7) readonly buffer tangents_buffer {
     Tangent tangents[];
 } u_tangents;
 
-layout(std430, set = 1, binding = 7) readonly buffer uvs_buffer {
+layout(std430, set = 1, binding = 8) readonly buffer uvs_buffer {
     UV uvs[];
 } u_uv;
 
-layout(std430, set = 1, binding = 8) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 9) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
@@ -339,7 +340,8 @@ vec3 shade_pbr(ShadeInfo shade_info) {
 
     vec3 Lo = (Fd + Fr) * radiance * n_dot_l;
 
-    vec3 ambient = shade_info.albedo * shade_info.ambient_occlusion;
+    float ao = textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
+    vec3 ambient = shade_info.albedo * shade_info.ambient_occlusion * ao;
 
     //if (vertex_position.x < 0.0)
     //    return vec3(roughness);

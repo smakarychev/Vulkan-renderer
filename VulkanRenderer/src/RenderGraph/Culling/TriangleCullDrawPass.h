@@ -736,7 +736,19 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 passData.DrawPipelines->at(0).MaterialDescriptors.BindGraphics(frameContext.Cmd,
                             resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             }
-        
+
+            // if there are no batches, we clear the screen (if needed)
+            if (info.CullContext->GetIterationCount() == 0)
+            {
+                auto& cmd = frameContext.Cmd;
+                RenderCommand::SetViewport(cmd, info.Resolution);
+                RenderCommand::SetScissors(cmd, {0, 0}, info.Resolution);
+                RenderCommand::BeginRendering(cmd, createRenderingInfo(true));
+                RenderCommand::EndRendering(cmd);
+
+                return;
+            }
+            
             for (u32 i = 0; i < info.CullContext->GetIterationCount(); i++)
             {
                 u32 batchIndex = i % TriangleCullContext::MAX_BATCHES;

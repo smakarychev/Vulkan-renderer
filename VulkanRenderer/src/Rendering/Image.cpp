@@ -205,7 +205,7 @@ namespace ImageUtils
         return s_DefaultImages[(u32)texture].Texture;
     }
 
-    Texture DefaultTextures::GetCopy(DefaultTexture texture)
+    Texture DefaultTextures::GetCopy(DefaultTexture texture, DeletionQueue& deletionQueue)
     {
         ASSERT((u32)texture < (u32)DefaultTexture::MaxVal, "Incorrect texture type")
 
@@ -213,7 +213,7 @@ namespace ImageUtils
         
         Texture copy =  Texture::Builder(textureOriginal.GetDescription())
             .FromPixels(std::vector{color})
-            .Build();
+            .Build(deletionQueue);
 
         return copy;
     }

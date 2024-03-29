@@ -2,20 +2,22 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RenderPassCommon.h"
 
-class SsaoPSPass
+class SsaoPass
 {
+    static constexpr u32 MAX_SAMPLES_COUNT{256};
 public:
     struct SettingsUBO
     {
-        f32 TotalStrength{1.0f};
-        f32 Base{0.2f};
-        f32 Area{0.0075f};
-        f32 Falloff{0.000001f};
-        f32 Radius{0.0002f};
+        f32 Power{1.0f};
+        f32 Radius{0.5f};
+        u32 Samples{0};
     };
     struct CameraUBO
     {
+        glm::mat4 Projection{glm::mat4{1.0f}};
         glm::mat4 ProjectionInverse{glm::mat4{1.0f}};
+        f32 Near{0.0f};
+        f32 Far{1000.0f};
     };
     struct PassData
     {
@@ -25,20 +27,23 @@ public:
         RenderGraph::Resource NoiseTexture{};
         RenderGraph::Resource SettingsUbo{};
         RenderGraph::Resource CameraUbo{};
-        
+        RenderGraph::Resource SamplesUbo{};
 
         RenderGraph::PipelineData* PipelineData{nullptr};
 
         SettingsUBO* Settings{nullptr};
+        u32 SampleCount{0};
     };
 public:
-    SsaoPSPass(RenderGraph::Graph& renderGraph);
+    SsaoPass(RenderGraph::Graph& renderGraph, u32 sampleCount);
     void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource depthIn);
 private:
     RenderGraph::Pass* m_Pass{nullptr};
 
     Texture m_NoiseTexture{};
-
+    Buffer m_SamplesBuffer{};
+    u32 m_SampleCount{0};
+    
     RenderGraph::PipelineData m_PipelineData{};
 
     SettingsUBO m_Settings{};

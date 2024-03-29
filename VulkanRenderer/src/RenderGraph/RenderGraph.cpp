@@ -76,12 +76,17 @@ namespace RenderGraph
         return textureResource;
     }
 
+    Resource Graph::AddExternal(const std::string& name, ImageUtils::DefaultTexture texture)
+    {
+        return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(texture, *m_FrameDeletionQueue));
+    }
+
     Resource Graph::AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback)
     {
         if (texture)
             return AddExternal(name, *texture);
 
-        return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(fallback));
+        return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(fallback, *m_FrameDeletionQueue));
     }
 
     Resource Graph::Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force)
@@ -280,8 +285,10 @@ namespace RenderGraph
         }
     }
 
-    void Graph::Reset()
+    void Graph::Reset(FrameContext& frameContext)
     {
+        m_FrameDeletionQueue = &frameContext.DeletionQueue;
+        
         m_Buffers.clear();
         m_Textures.clear();
         m_Blackboard.Clear();
@@ -297,9 +304,7 @@ namespace RenderGraph
     }
 
     void Graph::Compile(FrameContext& frameContext)
-    {
-        m_FrameDeletionQueue = &frameContext.DeletionQueue;
-        
+    {        
         Clear();
         
         PreprocessResources();

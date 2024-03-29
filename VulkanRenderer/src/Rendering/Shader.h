@@ -272,7 +272,16 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::AddSpecialization(std::string_
     m_SpecializationConstantNames.push_back(std::string{name});
     u32 bufferStart = (u32)m_PipelineSpecializationInfo.Buffer.size();
     m_PipelineSpecializationInfo.Buffer.resize(bufferStart + dataSizeBytes);
-    std::memcpy(m_PipelineSpecializationInfo.Buffer.data() + bufferStart, &specializationData, dataSizeBytes);
+    if constexpr (std::is_same_v<T, bool>)
+    {
+        u32 data = (u32)specializationData;
+        std::memcpy(m_PipelineSpecializationInfo.Buffer.data() + bufferStart, &data, dataSizeBytes);
+    }
+    else
+    {
+        std::memcpy(m_PipelineSpecializationInfo.Buffer.data() + bufferStart, &specializationData, dataSizeBytes);
+    }
+    
     m_PipelineSpecializationInfo.ShaderSpecializations.push_back({
         .SizeBytes = dataSizeBytes,
         .Offset = bufferStart});

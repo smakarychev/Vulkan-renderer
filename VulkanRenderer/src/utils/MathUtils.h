@@ -20,7 +20,7 @@ namespace utils
         seed ^= hasher(val) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
     }
 
-    inline u32 floorToPowerOf2(u32 number)
+    constexpr u32 floorToPowerOf2(u32 number)
     {
         number |= number >> 1;
         number |= number >> 2;
@@ -35,4 +35,18 @@ namespace utils
     {
         return 32 - clz32(number) - 1;
     }
+
+    constexpr std::floating_point auto lerp(std::floating_point auto a, std::floating_point auto b,
+        std::floating_point auto t)
+    {
+        return a + (b - a) * t;
+    }
+
+    constexpr std::floating_point auto ilerp(std::floating_point auto a, std::floating_point auto b,
+        std::floating_point auto t)
+    {
+        return (t - a) / (b - a);
+    }
+
+    
 }

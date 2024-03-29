@@ -60,7 +60,11 @@ void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrV
                     .Height = visibilityDescription.Height,
                     .Format = Format::RGBA16_FLOAT});
 
+            Resource ssao = info.SSAOTexture.IsValid() ? info.SSAOTexture :
+                graph.AddExternal("SSAO.Dummy", ImageUtils::DefaultTexture::White);
+
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
+            passData.SSAOTexture = graph.Read(ssao, Pixel | Sampled);
             passData.CameraUbo = graph.Read(passData.CameraUbo, Pixel | Uniform | Upload);
             passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, Pixel | Storage);
             passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Pixel | Storage);
@@ -83,6 +87,7 @@ void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrV
             GPU_PROFILE_FRAME("PBR Visibility pass")
 
             const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
+            const Texture& ssao = resources.GetTexture(passData.SSAOTexture);
 
             CameraUBO camera = {
                 .View = frameContext.MainCamera->GetView(),
@@ -110,6 +115,8 @@ void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrV
             auto& materialDescriptors = passData.PipelineData->MaterialDescriptors;
 
             resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.CreateBindingInfo(ImageFilter::Nearest,
+                ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_ssao_texture", ssao.CreateBindingInfo(ImageFilter::Linear,
                 ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_camera", cameraUbo.CreateBindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.CreateBindingInfo());

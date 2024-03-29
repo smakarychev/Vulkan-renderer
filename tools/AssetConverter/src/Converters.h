@@ -4,6 +4,7 @@
 #include "AssetLib.h"
 #include "ModelAsset.h"
 #include "ShaderAsset.h"
+#include "TextureAsset.h"
 
 namespace assetLib
 {
@@ -24,6 +25,8 @@ class TextureConverter
 public:
     static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
     static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
+    static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path,
+        assetLib::TextureFormat format);
 public:
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".tx";
 };
@@ -53,6 +56,8 @@ private:
         assetLib::ModelInfo::MaterialAspect type, const std::filesystem::path& modelPath);
     static assetLib::ModelInfo::MaterialType GetMaterialType(const aiMaterial* material);
     static assetLib::ModelInfo::MaterialPropertiesPBR GetMaterialPropertiesPBR(const aiMaterial* material);
+
+    static void ConvertTextures(const std::filesystem::path& initialDirectoryPath, MeshData& meshData);
     
 public:
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".model";

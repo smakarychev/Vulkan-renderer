@@ -10,6 +10,7 @@ struct PbrVisibilityBufferInitInfo
 struct PbrVisibilityBufferExecutionInfo
 {
     RenderGraph::Resource VisibilityTexture{};
+    RenderGraph::Resource SSAOTexture{};
     RenderGraph::Resource ColorIn{};
     
     const RenderPassGeometry* Geometry{nullptr};
@@ -32,6 +33,8 @@ public:
     struct PassData
     {
         RenderGraph::Resource VisibilityTexture{};
+        RenderGraph::Resource SSAOTexture{};
+        
         RenderGraph::Resource CameraUbo{};
         RenderGraph::Resource CommandsSsbo{};
         RenderGraph::Resource ObjectsSsbo{};

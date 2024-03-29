@@ -4,14 +4,17 @@
 #include "RenderObject.h"
 #include "Rendering/Image.h"
 #include "Rendering/Shader.h"
+#include "Vulkan/Driver.h"
 
 void ModelCollection::CreateDefaultTextures()
 {
     // add default white texture, so that every material has a texture (to avoid branching in shaders)
-    m_WhiteTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(ImageUtils::DefaultTexture::White),
+    m_WhiteTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(
+        ImageUtils::DefaultTexture::White, Driver::DeletionQueue()),
         m_Textures);
 
-    m_NormalMapTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(ImageUtils::DefaultTexture::NormalMap),
+    m_NormalMapTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(
+        ImageUtils::DefaultTexture::NormalMap, Driver::DeletionQueue()),
         m_Textures);
 }
 

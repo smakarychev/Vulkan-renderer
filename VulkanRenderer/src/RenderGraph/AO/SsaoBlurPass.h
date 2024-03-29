@@ -19,6 +19,8 @@ public:
     };
 public:
     SsaoBlurPass(RenderGraph::Graph& renderGraph, SsaoBlurPassKind kind);
+    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource ssao, RenderGraph::Resource colorOut);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RenderGraph::Pass* m_Pass{nullptr};
     RenderGraph::PassName m_Name;
