@@ -16,6 +16,10 @@ public:
     {
         std::cout << message << "\n";
     }
+    static void Log()
+    {
+        
+    }
 };
 
 #define LOG(...) Logger::Log(__VA_ARGS__)
@@ -25,18 +29,39 @@ public:
 #define BIT(x) (1 << x)
 
 #define ENUM_FLAGS_BINARY_CONST_OP(enumType, op) \
-inline enumType operator op(enumType a, enumType b) \
+inline constexpr enumType operator op(enumType a, enumType b) \
 { \
     static_assert(std::is_enum_v<enumType>, "Provided type is not an enum"); \
     return enumType(std::underlying_type_t<enumType>(a) op std::underlying_type_t<enumType>(b)); \
 } \
 
 #define ENUM_FLAGS_BINARY_OP(enumType, op, constOp) \
-inline enumType& operator op(enumType& a, enumType b) \
+inline constexpr enumType& operator op(enumType& a, enumType b) \
 { \
     static_assert(std::is_enum_v<enumType>, "Provided type is not an enum"); \
     return a = enumType(a constOp b); \
 } \
+
+template <typename Enum>
+constexpr bool enumHasAll(Enum a, Enum b)
+{
+    static_assert(std::is_enum_v<Enum>, "Provided type is not an enum");
+    return (std::underlying_type_t<Enum>(a) & std::underlying_type_t<Enum>(b)) == std::underlying_type_t<Enum>(b);
+}
+
+template <typename Enum>
+constexpr bool enumHasAny(Enum a, Enum b)
+{
+    static_assert(std::is_enum_v<Enum>, "Provided type is not an enum");
+    return (std::underlying_type_t<Enum>(a) & std::underlying_type_t<Enum>(b)) != 0;
+}
+
+template <typename Enum>
+constexpr bool enumHasOnly(Enum a, Enum b)
+{
+    static_assert(std::is_enum_v<Enum>, "Provided type is not an enum");
+    return (std::underlying_type_t<Enum>(a) ^ std::underlying_type_t<Enum>(b)) == 0;
+}
 
 #define CREATE_ENUM_FLAGS_OPERATORS(enumType) \
     ENUM_FLAGS_BINARY_CONST_OP(enumType, |) \
@@ -44,7 +69,7 @@ inline enumType& operator op(enumType& a, enumType b) \
     ENUM_FLAGS_BINARY_CONST_OP(enumType, ^) \
     ENUM_FLAGS_BINARY_OP(enumType, |=, |) \
     ENUM_FLAGS_BINARY_OP(enumType, &=, &) \
-    ENUM_FLAGS_BINARY_OP(enumType, ^=, ^)
+    ENUM_FLAGS_BINARY_OP(enumType, ^=, ^) \
 
 #if defined _MSC_VER
 #   define GENERATOR_PRETTY_FUNCTION __FUNCSIG__

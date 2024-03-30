@@ -24,6 +24,7 @@
 #include "RenderGraph/PBR/PbrVisibilityBuffer.h"
 #include "RenderGraph/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/PostProcessing/Sky/SkyGradientPass.h"
+#include "RenderGraph/Skybox/SkyboxPass.h"
 #include "RenderGraph/Utility/BlitPass.h"
 #include "RenderGraph/Utility/CopyTexturePass.h"
 
@@ -57,6 +58,10 @@ void Renderer::InitRenderGraph()
             return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
                 assetLib::ModelInfo::MaterialType::Opaque;
         });
+    m_SkyboxTexture = Texture::Builder()
+        .FromEquirectangular("../assets/textures/evening_meadow_4k.tx")
+        .SetUsage(ImageUsage::Sampled)
+        .Build();
 
     m_Graph = std::make_unique<RenderGraph::Graph>();
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
@@ -99,6 +104,8 @@ void Renderer::InitRenderGraph()
     m_SsaoBlurHorizontalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Horizontal);
     m_SsaoBlurVerticalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Vertical);
     m_SsaoVisualizePass = std::make_shared<SsaoVisualizePass>(*m_Graph);
+
+    m_SkyboxPass = std::make_shared<SkyboxPass>(*m_Graph);
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
@@ -189,10 +196,14 @@ void Renderer::SetupRenderGraph()
         .ColorIn = skyGradientOutput.ColorOut,
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBuffer::PassData>();
+
+    m_SkyboxPass->AddToGraph(*m_Graph, m_SkyboxTexture, backbuffer, *visibility.DepthOut, GetFrameContext().Resolution);
+    auto& skyboxOutput = m_Graph->GetBlackboard().GetOutput<SkyboxPass::PassData>();
+    backbuffer = skyboxOutput.ColorOut;
     
-    m_CrtPass->AddToGraph(*m_Graph, pbrOutput.ColorOut, backbuffer);
-    auto& crtOut = m_Graph->GetBlackboard().GetOutput<CrtPass::PassData>();
-    backbuffer = crtOut.ColorTarget;
+    //m_CrtPass->AddToGraph(*m_Graph, pbrOutput.ColorOut, backbuffer);
+    //auto& crtOut = m_Graph->GetBlackboard().GetOutput<CrtPass::PassData>();
+    //backbuffer = crtOut.ColorTarget;
 
     m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
@@ -235,19 +246,10 @@ void Renderer::OnRender()
     
     BeginFrame();
     ImGuiUI::BeginFrame();
+    CreatePendingCubemaps();
+
     if (!m_FrameEarlyExit)
     {
-        //if (!m_ComputeDepthPyramidData.DepthPyramid)
-        //{
-        //    CreateDepthPyramid();
-        //    InitVisibilityPass();
-        //}
-//
-        //{
-        //    TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), "Scene passes")
-        //    SceneVisibilityPass();
-        //}
-
         m_Graph->Compile(GetFrameContext());
         static u32 twice = 2;
         if (twice)
@@ -309,6 +311,12 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
         .Build(GetFrameContext().DeletionQueue);
 
     return info;
+}
+
+void Renderer::CreatePendingCubemaps()
+{
+    if (CubemapProcessor::HasPending())
+        CubemapProcessor::Process(GetFrameContext().Cmd);
 }
 
 void Renderer::EndFrame()

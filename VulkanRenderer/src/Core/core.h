@@ -16,6 +16,10 @@ public:
     {
         std::cout << message << "\n";
     }
+    static void Log()
+    {
+        
+    }
 };
 
 #define LOG(...) Logger::Log(__VA_ARGS__)

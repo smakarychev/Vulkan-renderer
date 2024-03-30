@@ -14,6 +14,8 @@ namespace
             return assetLib::TextureFormat::SRGBA8;
         if (format == "RGBA8")
             return assetLib::TextureFormat::RGBA8;
+        if (format == "RGBA32")
+            return assetLib::TextureFormat::RGBA32;
         if (format == "unknown")
             return assetLib::TextureFormat::Unknown;
         std::cout << "Unrecognized texture format string\n";
@@ -28,6 +30,8 @@ namespace
             return "SRGBA8";
         case assetLib::TextureFormat::RGBA8:
             return "RGBA8";
+        case assetLib::TextureFormat::RGBA32:
+            return "RGBA32";
         case assetLib::TextureFormat::Unknown:
             return "unknown";
         default:

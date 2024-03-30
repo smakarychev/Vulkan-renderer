@@ -1,0 +1,50 @@
+#version 460
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+const float PI = 3.14159265359f;
+const float TAU = PI * 2.0f;
+
+@immutable_sampler
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_equirectangular;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly imageCube u_cubemap;
+
+layout(push_constant) uniform push_constants {
+    vec2 u_cubemap_size_inv;
+    uint face;
+};
+
+vec3 normal_vector() {
+    const vec2 st = vec2(gl_GlobalInvocationID.xy) * u_cubemap_size_inv;
+    const vec2 uv = 2.0f * vec2(st.x, 1.0f - st.y) - vec2(1.0f);
+
+    vec3 ret;
+    if (gl_GlobalInvocationID.z == 0)
+        ret = vec3(1.0,  uv.y, -uv.x);
+    else if (gl_GlobalInvocationID.z == 1)
+        ret = vec3(-1.0, uv.y,  uv.x);
+    else if (gl_GlobalInvocationID.z == 2)
+        ret = vec3(uv.x, 1.0, -uv.y);
+    else if (gl_GlobalInvocationID.z == 3)
+        ret = vec3(uv.x, -1.0, uv.y);
+    else if (gl_GlobalInvocationID.z == 4)
+        ret = vec3(uv.x, uv.y, 1.0);
+    else if (gl_GlobalInvocationID.z == 5)
+        ret = vec3(-uv.x, uv.y, -1.0);
+    
+    return normalize(ret);
+}
+
+void main() {
+    const vec3 normal = normal_vector();
+
+    const float phi = atan(normal.z, normal.x);
+    const float theta = acos(normal.y);
+    
+    const vec2 uv = vec2(phi / TAU, 1.0f - theta / PI);
+    
+    const vec4 color = textureLod(sampler2D(u_equirectangular, u_sampler), uv, 0);
+    
+    imageStore(u_cubemap, ivec3(gl_GlobalInvocationID), color);
+}

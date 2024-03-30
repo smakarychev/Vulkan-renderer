@@ -10,7 +10,8 @@ namespace utils
     {
         u32 compressedSizeBound = LZ4_compressBound((i32)sourceSizeBytes);
         blob.resize(compressedSizeBound);
-        u32 compressedSize = LZ4_compress_default((const char*)source, (char*)blob.data(), (i32)sourceSizeBytes, (i32)compressedSizeBound);
+        u32 compressedSize = LZ4_compress_default((const char*)source, (char*)blob.data(), (i32)sourceSizeBytes,
+            (i32)compressedSizeBound);
         blob.resize(compressedSize);
 
         return (u64)compressedSize;

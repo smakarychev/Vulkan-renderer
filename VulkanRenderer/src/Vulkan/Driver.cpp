@@ -172,6 +172,7 @@ namespace
         switch (kind)
         {
         case ImageKind::Image2d:
+        case ImageKind::Cubemap:
             return VK_IMAGE_TYPE_2D;
         case ImageKind::Image3d:
             return VK_IMAGE_TYPE_3D;
@@ -180,6 +181,15 @@ namespace
             break;
         }
         std::unreachable();
+    }
+
+    constexpr VkImageCreateFlags vulkanImageFlagsFromImageKind(ImageKind kind)
+    {
+        VkImageCreateFlags flags = 0;
+        if (kind == ImageKind::Cubemap)
+            flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
+
+        return flags;
     }
     
     constexpr VkImageViewType vulkanImageViewTypeFromImageKind(ImageKind kind)
@@ -190,6 +200,8 @@ namespace
             return VK_IMAGE_VIEW_TYPE_2D;
         case ImageKind::Image3d:
             return VK_IMAGE_VIEW_TYPE_3D;
+        case ImageKind::Cubemap:
+            return VK_IMAGE_VIEW_TYPE_CUBE;
         default:
             ASSERT(false, "Unsupported image kind")
             break;
@@ -973,6 +985,7 @@ Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
     imageCreateInfo.imageType = vulkanImageTypeFromImageKind(createInfo.Description.Kind);
     imageCreateInfo.mipLevels = createInfo.Description.Mipmaps;
     imageCreateInfo.arrayLayers = layers;
+    imageCreateInfo.flags = vulkanImageFlagsFromImageKind(createInfo.Description.Kind);
 
     VmaAllocationCreateInfo allocationInfo = {};
     allocationInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -1731,7 +1744,7 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     }
     
     layoutSizeBytes = CoreUtils::align(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
-    if (layoutSizeBytes + allocator.m_CurrentOffset >= allocator.m_Buffer.GetSizeBytes())
+    if (layoutSizeBytes + allocator.m_CurrentOffset > allocator.m_Buffer.GetSizeBytes())
         return {};
 
     std::vector<u64> bindingOffsets(bindings.Bindings.size());

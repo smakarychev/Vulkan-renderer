@@ -6,7 +6,7 @@ namespace assetLib
 {
     enum class TextureFormat : u32
     {
-        Unknown, SRGBA8, RGBA8,
+        Unknown, SRGBA8, RGBA8, RGBA32
     };
     
     struct TextureDimensions

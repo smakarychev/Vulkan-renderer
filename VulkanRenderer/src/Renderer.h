@@ -14,6 +14,7 @@
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class SkyboxPass;
 class SsaoPass;
 class SsaoBlurPass;
 class SsaoVisualizePass;
@@ -61,6 +62,8 @@ private:
 
     RenderingInfo GetImGuiUIRenderingInfo();
 
+    void CreatePendingCubemaps();
+
     void OnWindowResize();
     void RecreateSwapchain();
     
@@ -100,6 +103,9 @@ private:
     std::shared_ptr<SsaoBlurPass> m_SsaoBlurHorizontalPass;
     std::shared_ptr<SsaoBlurPass> m_SsaoBlurVerticalPass;
     std::shared_ptr<SsaoVisualizePass> m_SsaoVisualizePass;
+
+    Texture m_SkyboxTexture{};
+    std::shared_ptr<SkyboxPass> m_SkyboxPass;
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;

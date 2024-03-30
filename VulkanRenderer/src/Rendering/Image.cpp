@@ -1,7 +1,5 @@
 ﻿#include "Image.h"
 
-#include <numeric>
-
 #include "Core/core.h"
 #include "Vulkan/Driver.h"
 
@@ -23,6 +21,8 @@ namespace
             return Format::RGBA8_SRGB;
         case assetLib::TextureFormat::RGBA8:
             return Format::RGBA8_UNORM;
+        case assetLib::TextureFormat::RGBA32:
+            return Format::RGBA32_FLOAT;
         default:
             ASSERT(false, "Unsupported image format")
             break;
@@ -30,6 +30,8 @@ namespace
         std::unreachable();
     }
 }
+
+std::unordered_map<std::string, Image> CubemapProcessor::s_PendingTextures = {};
 
 namespace ImageUtils
 {
@@ -41,6 +43,8 @@ namespace ImageUtils
             return "Image2d";
         case ImageKind::Image3d:
             return "Image3d";
+        case ImageKind::Cubemap:
+            return "Cubemap";
         default:
             return "";
         }
@@ -335,9 +339,35 @@ Image Image::Builder::BuildManualLifetime()
     return Image::Create(m_CreateInfo);
 }
 
+Image::Builder& Image::Builder::FromEquirectangular(std::string_view path)
+{
+    // Equirectangular images have to be converted to cubemaps before using them in shader,
+    // this conversion happens in compute shader, and therefore it need a valid frame context
+    // therefore actual conversion is postponed.
+    // Here we only create an empty cube map, and store the path to the equirectangular image to static map;
+
+    SetSource(CreateInfo::SourceInfo::Equirectangular);
+    m_CreateInfo.AssetInfo.AssetPath = path;
+
+    assetLib::File textureFile;
+    assetLib::loadAssetFile(path, textureFile);
+    assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
+
+    u32 textureHeight = textureInfo.Dimensions.Height / 2;
+    u32 textureWidth = textureHeight;
+    m_CreateInfo.Description = {
+        .Width = textureWidth,
+        .Height = textureHeight,
+        .Layers = 6,
+        .Format = Format::RGBA16_FLOAT,
+        .Kind = ImageKind::Cubemap};
+
+    return *this;
+}
+
 Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
 {
-    m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::Asset;
+    SetSource(CreateInfo::SourceInfo::Asset);
     m_CreateInfo.AssetInfo.AssetPath = path;
 
     Image* image = AssetManager::GetImage(m_CreateInfo.AssetInfo.AssetPath);
@@ -375,7 +405,7 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
 
 Image::Builder& Image::Builder::FromPixels(const void* pixels, u64 sizeBytes)
 {
-    m_CreateInfo.SourceInfo = CreateInfo::SourceInfo::Pixels;
+    SetSource(CreateInfo::SourceInfo::Pixels);
 
     m_CreateInfo.DataBuffer = Buffer::Builder()
         .SetUsage(BufferUsage::Source | BufferUsage::Upload)
@@ -387,9 +417,21 @@ Image::Builder& Image::Builder::FromPixels(const void* pixels, u64 sizeBytes)
     return *this;
 }
 
+void Image::Builder::SetSource(enum CreateInfo::SourceInfo sourceInfo)
+{
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset || sourceInfo == CreateInfo::SourceInfo::Asset)
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Pixels || sourceInfo == CreateInfo::SourceInfo::Pixels)
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Equirectangular ||
+        sourceInfo == CreateInfo::SourceInfo::Equirectangular)
+
+    m_CreateInfo.SourceInfo = sourceInfo;
+}
+
 Image::Builder& Image::Builder::SetFormat(Format format)
 {
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot use custom format when loading from file")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Equirectangular,
+        "Cannot use custom format when loading from file")
     
     m_CreateInfo.Description.Format = format;
     
@@ -399,6 +441,8 @@ Image::Builder& Image::Builder::SetFormat(Format format)
 Image::Builder& Image::Builder::SetExtent(const glm::uvec2& extent)
 {
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot set extent when loading from file")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Equirectangular,
+        "Cannot set extent when loading from file")
 
     m_CreateInfo.Description.Width = extent.x;
     m_CreateInfo.Description.Height = extent.y;
@@ -410,6 +454,8 @@ Image::Builder& Image::Builder::SetExtent(const glm::uvec2& extent)
 Image::Builder& Image::Builder::SetExtent(const glm::uvec3& extent)
 {
     ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot set extent when loading from file")
+    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Equirectangular,
+        "Cannot set extent when loading from file")
 
     m_CreateInfo.Description.Width = extent.x;
     m_CreateInfo.Description.Height = extent.y;
@@ -466,6 +512,9 @@ void Image::Builder::PreBuild()
             m_CreateInfo.Description.Height,
             m_CreateInfo.Description.Kind == ImageKind::Image3d ? m_CreateInfo.Description.Layers : 1});
     }
+
+    if (m_CreateInfo.Description.Kind == ImageKind::Cubemap)
+        m_CreateInfo.Description.Layers = 6;
     
     if (enumHasAny(m_CreateInfo.Description.Usage, ImageUsage::Readback))
         m_CreateInfo.Description.Usage |= ImageUsage::Source;
@@ -486,6 +535,11 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     case CreateInfo::SourceInfo::Asset:
     {
         image = CreateImageFromAsset(createInfo);
+        break;
+    }
+    case CreateInfo::SourceInfo::Equirectangular:
+    {
+        image = CreateImageFromEquirectangular(createInfo);
         break;
     }
     case CreateInfo::SourceInfo::Pixels:
@@ -694,6 +748,16 @@ Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
     return image;
 }
 
+Image Image::CreateImageFromEquirectangular(const CreateInfo& createInfo)
+{
+    Image image = AllocateImage(createInfo);
+    CreateImageView(image.CreateSubresource(), createInfo.AdditionalViews);
+
+    CubemapProcessor::Add(createInfo.AssetInfo.AssetPath, image);
+
+    return image;
+}
+
 Image Image::CreateImageFromPixelData(const CreateInfo& createInfo)
 {
     return CreateImageFromBuffer(createInfo);
@@ -743,7 +807,7 @@ void Image::PrepareForShaderRead(const ImageSubresource& imageSubresource)
     PrepareImageGeneral(imageSubresource,
        current, ImageLayout::Readonly,
        PipelineAccess::ReadTransfer, PipelineAccess::ReadShader,
-       PipelineStage::AllTransfer, PipelineStage::PixelShader);
+       PipelineStage::AllTransfer, PipelineStage::PixelShader | PipelineStage::ComputeShader);
 }
 
 void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
@@ -832,6 +896,104 @@ void Image::CreateImageView(const ImageSubresource& imageSubresource,
         "Incorrect layer range for image view")
 
     Driver::CreateViews(imageSubresource, additionalViews);
+}
+
+void CubemapProcessor::Add(const std::string& path, const Image& image)
+{
+    s_PendingTextures.emplace(path, image);
+}
+
+void CubemapProcessor::Process(const CommandBuffer& cmd)
+{
+    static DescriptorArenaAllocator samplerAllocator = DescriptorArenaAllocator::Builder()
+        .Kind(DescriptorAllocatorKind::Samplers)
+        .Residence(DescriptorAllocatorResidence::CPU)
+        .ForTypes({DescriptorType::Sampler})
+        .Count(1)
+        .Build();
+
+    static DescriptorArenaAllocator resourceAllocator = DescriptorArenaAllocator::Builder()
+        .Kind(DescriptorAllocatorKind::Resources)
+        .Residence(DescriptorAllocatorResidence::CPU)
+        .ForTypes({DescriptorType::Image})
+        .Count(2)
+        .Build();
+    
+    static DescriptorArenaAllocators allocators(resourceAllocator, samplerAllocator);
+    static ShaderPipelineTemplate* cubemapTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
+        "../assets/shaders/processed/cubemap-processor-comp.shader"},
+        "CubemapProcessor", allocators);
+    static ShaderPipeline pipeline = ShaderPipeline::Builder()
+        .SetTemplate(cubemapTemplate)
+        .UseDescriptorBuffer()
+        .Build();
+    static ShaderDescriptors samplerDescriptors = ShaderDescriptors::Builder()
+        .SetTemplate(cubemapTemplate, DescriptorAllocatorKind::Samplers)
+        .ExtractSet(0)
+        .Build();
+    static ShaderDescriptors resourceDescriptors = ShaderDescriptors::Builder()
+        .SetTemplate(cubemapTemplate, DescriptorAllocatorKind::Resources)
+        .ExtractSet(1)
+        .Build();
+
+    DeletionQueue deletionQueue = {};
+    RenderCommand::Bind(cmd, allocators);
+    samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+    pipeline.BindCompute(cmd);
+    resourceDescriptors.BindCompute(cmd, allocators, pipeline.GetLayout());
+    for (auto&& [path, cubemap] : s_PendingTextures)
+    {
+        Texture equirectangular = Texture::Builder()
+            .FromAssetFile(path)
+            .SetUsage(ImageUsage::Sampled)
+            .Build(deletionQueue);
+
+        LayoutTransitionInfo toGeneral = {
+            .ImageSubresource = cubemap.CreateSubresource(),
+            .SourceStage = PipelineStage::Top,
+            .DestinationStage = PipelineStage::ComputeShader,
+            .SourceAccess = PipelineAccess::None,
+            .DestinationAccess = PipelineAccess::WriteShader,
+            .OldLayout = ImageLayout::Undefined,
+            .NewLayout = ImageLayout::General};
+
+        LayoutTransitionInfo toReadOnly = {
+            .ImageSubresource = cubemap.CreateSubresource(),
+            .SourceStage = PipelineStage::ComputeShader,
+            .DestinationStage =  PipelineStage::PixelShader | PipelineStage::ComputeShader,
+            .SourceAccess = PipelineAccess::WriteShader,
+            .DestinationAccess = PipelineAccess::ReadSampled,
+            .OldLayout = ImageLayout::General,
+            .NewLayout = ImageLayout::Readonly};
+
+        resourceDescriptors.UpdateBinding("u_equirectangular", equirectangular.CreateBindingInfo(
+            ImageFilter::Linear, ImageLayout::Readonly));
+        resourceDescriptors.UpdateBinding("u_cubemap", cubemap.CreateBindingInfo(
+            ImageFilter::Linear, ImageLayout::General));
+        
+        struct PushConstants
+        {
+            glm::vec2 CubemapResolutionInverse{};
+        };
+        
+        RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder().LayoutTransition(toGeneral).Build(deletionQueue));
+        PushConstants pushConstants = {
+            .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemap.GetDescription().Width}};
+        RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
+        RenderCommand::Dispatch(cmd,
+            {cubemap.GetDescription().Width, cubemap.GetDescription().Width, 6},
+            {32, 32, 1});
+        RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder().LayoutTransition(toReadOnly).Build(deletionQueue));
+    }
+    
+    Fence convertFence = Fence::Builder().Build(deletionQueue);
+    cmd.End();
+    cmd.Submit(Driver::GetDevice().GetQueues().Graphics, convertFence);
+    convertFence.Wait();
+    deletionQueue.Flush();
+    cmd.Begin();
+
+    s_PendingTextures.clear();
 }
 
 Sampler SamplerCache::CreateSampler(const Sampler::Builder::CreateInfo& createInfo)

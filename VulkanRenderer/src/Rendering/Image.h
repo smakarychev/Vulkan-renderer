@@ -5,6 +5,7 @@
 #include <unordered_map>
 
 #include "Buffer.h"
+#include "CommandBuffer.h"
 #include "ImageTraits.h"
 #include "FormatTraits.h"
 #include "SynchronizationTraits.h"
@@ -157,7 +158,7 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            enum class SourceInfo {None, Asset, Pixels};
+            enum class SourceInfo {None, Asset, Pixels, Equirectangular};
             struct AssetInfo
             {
                 enum class AssetStatus {Loaded, Reused};
@@ -177,6 +178,7 @@ public:
         Image Build();
         Image Build(DeletionQueue& deletionQueue);
         Image BuildManualLifetime();
+        Builder& FromEquirectangular(std::string_view path);
         Builder& FromAssetFile(std::string_view path);
         template <typename T>
         Builder& FromPixels(const std::vector<T>& pixels)
@@ -193,6 +195,7 @@ public:
     private:
         void PreBuild();
         Builder& FromPixels(const void* pixels, u64 sizeBytes);
+        void SetSource(enum CreateInfo::SourceInfo sourceInfo);
     private:
         CreateInfo m_CreateInfo;
     };
@@ -236,6 +239,7 @@ public:
 private:
     using CreateInfo = Builder::CreateInfo;
     static Image CreateImageFromAsset(const CreateInfo& createInfo);
+    static Image CreateImageFromEquirectangular(const CreateInfo& createInfo);
     static Image CreateImageFromPixelData(const CreateInfo& createInfo);
     static Image CreateImageFromBuffer(const CreateInfo& createInfo);
     static Image AllocateImage(const CreateInfo& createInfo);
@@ -259,6 +263,17 @@ private:
 };
 
 using Texture = Image;
+
+
+class CubemapProcessor
+{
+public:
+    static bool HasPending() { return !s_PendingTextures.empty(); }
+    static void Add(const std::string& path, const Image& image);
+    static void Process(const CommandBuffer& cmd);
+private:
+    static std::unordered_map<std::string, Image> s_PendingTextures;
+};
 
 namespace ImageUtils
 {

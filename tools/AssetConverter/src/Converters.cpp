@@ -111,12 +111,24 @@ void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath
 
     i32 width, height, channels;
     stbi_set_flip_vertically_on_load(true);
-    u8* pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
-    
+    u8* pixels{nullptr};
+    u64 sizeBytes{0};
+    if (path.extension() == ".hdr")
+    {
+        pixels = (u8*)stbi_loadf(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);    
+        format = assetLib::TextureFormat::RGBA32;
+        sizeBytes = 16llu * width * height; 
+    }
+    else
+    {
+        pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
+        sizeBytes = 4llu * width * height; 
+    }
+
     assetLib::TextureInfo textureInfo = {};
     textureInfo.Format = format;
     textureInfo.Dimensions = {.Width = (u32)width, .Height = (u32)height, .Depth = 1};
-    textureInfo.SizeBytes = 4llu * width * height; 
+    textureInfo.SizeBytes = sizeBytes; 
     textureInfo.CompressionMode = assetLib::CompressionMode::LZ4;
     textureInfo.OriginalFile = path.string();
     textureInfo.BlobFile = blobPath.string();

@@ -8,7 +8,7 @@
 i32 main(i32 argc, char** argv)
 {
     namespace fs = std::filesystem;
-    
+
     if (argc < 2)
     {
         std::cout << "Usage: AssetConverter <directory>\n";
@@ -22,8 +22,8 @@ i32 main(i32 argc, char** argv)
         if (!file.is_directory())
         {
             ConverterDispatcher dispatcher(argv[1], file);
-            dispatcher.Dispatch<TextureConverter>({".png", ".jpg", ".jpeg"});
             dispatcher.Dispatch<ModelConverter>({".obj", ".fbx", ".blend", ".gltf"});
+            dispatcher.Dispatch<TextureConverter>({".png", ".jpg", ".jpeg", ".hdr"});
             dispatcher.Dispatch<ShaderConverter>({".vert", ".frag", ".comp"});
         }
     }

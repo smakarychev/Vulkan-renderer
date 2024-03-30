@@ -307,7 +307,7 @@ vec3 shade(ShadeInfo shade_info) {
 }
 
 vec3 shade_pbr(ShadeInfo shade_info) {
-    const vec3 light_dir = normalize(vec3(1.5, 1.5, 1.0));
+    const vec3 light_dir = -normalize(vec3(0.1, -0.1, 0.1));
     vec3 radiance = vec3(15.0, 14.0, 14.0);
 
     vec3 view_dir = normalize(u_camera.camera_position.xyz - shade_info.position);
@@ -348,7 +348,7 @@ vec3 shade_pbr(ShadeInfo shade_info) {
     //else 
     //    return vec3(shade_info.roughness * shade_info.roughness);
 
-    return ambient + Lo;
+    return Lo + ambient;
 }
 
 void main() {
@@ -417,7 +417,7 @@ void main() {
     metallic *= metallic_roughness.b;
     roughness *= metallic_roughness.g;
 
-    float ambient_occlusion = 0.1;
+    float ambient_occlusion = 1.0;
     ambient_occlusion *= textureGrad(nonuniformEXT(sampler2D(u_textures[
         material.ambient_occlusion_texture_index], u_sampler)), uv, uv_dx, uv_dy).r;
 
