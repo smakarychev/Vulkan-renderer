@@ -103,7 +103,7 @@ void main() {
     }
     
     const vec3 center_position = vec3(s_positions[ids[0]], center_depth);
-    const vec3 normal = normalize(cross(p2 - center_position, p1 - center_position) * vec3(1, -1, 1));
+    const vec3 normal = normalize(cross(p2 - center_position, p1 - center_position));
     const vec2 uv = (vec2(gl_GlobalInvocationID.xy) + 0.5f) * u_ssao_size_inv;
     vec2 noise_uv = u_ssao_size * u_noise_size_inv * uv;
     vec3 noise = textureLod(sampler2D(u_noise_texture, u_noise_sampler), noise_uv, 0).rgb;
