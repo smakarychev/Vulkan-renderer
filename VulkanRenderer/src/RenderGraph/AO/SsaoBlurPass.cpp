@@ -7,14 +7,11 @@ SsaoBlurPass::SsaoBlurPass(RenderGraph::Graph& renderGraph, SsaoBlurPassKind kin
     : m_Name(std::string("SSAO.Blur") + (kind == SsaoBlurPassKind::Horizontal ? "Horizontal" : "Vertical"))
 {
     ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-        "../assets/shaders/processed/render-graph/ao/ssao-blur-frag.shader"},
+        "../assets/shaders/processed/render-graph/ao/ssao-blur-comp.shader"},
         "Pass.SSAO.Blur", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(ssaoTemplate)
-        .SetRenderingDetails({
-            .ColorFormats = {Format::R8_UNORM}})
         .UseDescriptorBuffer()
         .AddSpecialization("IS_VERTICAL", kind == SsaoBlurPassKind::Vertical)
         .Build();
@@ -48,8 +45,8 @@ void SsaoBlurPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
                     .Format = Format::R8_UNORM});
             }
 
-            passData.SsaoIn = graph.Read(ssao, Pixel | Sampled);
-            passData.SsaoOut = graph.RenderTarget(passData.SsaoOut, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.SsaoIn = graph.Read(ssao, Compute | Sampled);
+            passData.SsaoOut = graph.Write(passData.SsaoOut, Compute | Storage);
 
             passData.PipelineData = &m_PipelineData;
 
@@ -57,7 +54,10 @@ void SsaoBlurPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
+            GPU_PROFILE_FRAME("SSAO.Blur")
+            
             const Texture& ssaoIn = resources.GetTexture(passData.SsaoIn);
+            const Texture& ssaoOut = resources.GetTexture(passData.SsaoOut);
 
             auto& pipeline = passData.PipelineData->Pipeline;    
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
@@ -65,12 +65,15 @@ void SsaoBlurPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
 
             resourceDescriptors.UpdateBinding("u_ssao", ssaoIn.CreateBindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_ssao_blurred", ssaoOut.CreateBindingInfo(
+                ImageFilter::Linear, ImageLayout::General));
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
-            pipeline.BindGraphics(cmd);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
-            
-            RenderCommand::Draw(cmd, 3);
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            pipeline.BindCompute(cmd);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::Dispatch(cmd,
+                {ssaoIn.GetDescription().Width, ssaoIn.GetDescription().Height, 1},
+                {16, 16, 1});
         });
 }

@@ -173,6 +173,6 @@ void SsaoPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource
 
             RenderCommand::Dispatch(cmd,
                 {ssaoTexture.GetDescription().Width, ssaoTexture.GetDescription().Height, 1},
-                {8, 8, 1});
+                {16, 16, 1});
         });
 }
