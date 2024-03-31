@@ -2,7 +2,7 @@
 
 #include "Model.h"
 #include "RenderObject.h"
-#include "Rendering/Image.h"
+#include "Rendering/Image/Image.h"
 #include "Rendering/Shader.h"
 #include "Vulkan/Driver.h"
 
@@ -67,7 +67,7 @@ void ModelCollection::ApplyMaterialTextures(ShaderDescriptors& bindlessDescripto
     {
         const Texture& texture = m_Textures[textureIndex];
         bindlessDescriptors.UpdateBinding(bindingInfo,
-            texture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::Readonly), textureIndex);
+            texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly), textureIndex);
     }
 }
 
@@ -96,10 +96,8 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(const Model* mode
         {
             if (!textures.empty())
             {
-                Image texture = Image::Builder()
+                Image texture = Image::Builder({.Usage = ImageUsage::Sampled})
                     .FromAssetFile(textures.front())
-                    .SetUsage(ImageUsage::Sampled)
-                    .CreateMipmaps(true, ImageFilter::Linear)
                     .Build();
 
                 fn(materialGPU, texture);

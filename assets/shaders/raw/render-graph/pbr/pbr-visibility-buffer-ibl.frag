@@ -15,8 +15,11 @@ layout(set = 0, binding = 1) uniform sampler u_sampler;
 
 layout(set = 1, binding = 0) uniform utexture2D u_visibility_texture;
 layout(set = 1, binding = 1) uniform texture2D u_ssao_texture;
+layout(set = 1, binding = 2) uniform textureCube u_irradiance_map;
+layout(set = 1, binding = 3) uniform textureCube u_prefilter_map;
+layout(set = 1, binding = 4) uniform texture2D u_brdf;
 
-layout(set = 1, binding = 2) uniform camera_buffer {
+layout(set = 1, binding = 5) uniform camera_buffer {
     mat4 view;
     mat4 projection;
     mat4 view_projection;
@@ -27,31 +30,31 @@ layout(set = 1, binding = 2) uniform camera_buffer {
     float frustum_far;
 } u_camera;
 
-layout(std430, set = 1, binding = 3) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 6) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 4) readonly buffer objects_buffer {
+layout(std430, set = 1, binding = 7) readonly buffer objects_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 5) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 8) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 6) readonly buffer normals_buffer {
+layout(std430, set = 1, binding = 9) readonly buffer normals_buffer {
     Normal normals[];
 } u_normals;
 
-layout(std430, set = 1, binding = 7) readonly buffer tangents_buffer {
+layout(std430, set = 1, binding = 10) readonly buffer tangents_buffer {
     Tangent tangents[];
 } u_tangents;
 
-layout(std430, set = 1, binding = 8) readonly buffer uvs_buffer {
+layout(std430, set = 1, binding = 11) readonly buffer uvs_buffer {
     UV uvs[];
 } u_uv;
 
-layout(std430, set = 1, binding = 9) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 12) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
@@ -316,12 +319,12 @@ vec3 shade_pbr(ShadeInfo shade_info) {
     // remapping of perceptual roughness
     float roughness = shade_info.roughness * shade_info.roughness;
 
-    vec2 delta_u = (transpose(shade_info.tbn_dx) * halfway_dir).xy;
-    vec2 delta_v = (transpose(shade_info.tbn_dy) * halfway_dir).xy;
-    vec2 bound = abs(delta_u) + abs(delta_v);
-    vec2 variance = 0.25 * bound * bound;
-    vec2 kernelRoughness2 = min(variance * 2, 0.18);
-    roughness = clamp(roughness + kernelRoughness2.x, 0.0, 1.0);
+    //vec2 delta_u = (transpose(shade_info.tbn_dx) * halfway_dir).xy;
+    //vec2 delta_v = (transpose(shade_info.tbn_dy) * halfway_dir).xy;
+    //vec2 bound = abs(delta_u) + abs(delta_v);
+    //vec2 variance = 0.25 * bound * bound;
+    //vec2 kernelRoughness2 = min(variance * 2, 0.18);
+    //roughness = clamp(roughness + kernelRoughness2.x, 0.0, 1.0);
 
     float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0, 1.0);
     float n_dot_v = clamp(dot(shade_info.normal, view_dir), 0.0, 1.0);
@@ -339,14 +342,25 @@ vec3 shade_pbr(ShadeInfo shade_info) {
     vec3 Fd = (vec3(1.0) - F) * (1.0 - shade_info.metallic) * shade_info.albedo / PI;
 
     vec3 Lo = (Fd + Fr) * radiance * n_dot_l;
+    
+    vec3 ambient;
+    {
+        vec3 F = fresnel_schlick_roughness(n_dot_v, F0, roughness);
+        vec3 irradiance = textureLod(samplerCube(u_irradiance_map, u_sampler), shade_info.normal, 0).rgb;
+        vec3 diffuse = irradiance * shade_info.albedo;
 
-    float ao = textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
-    vec3 ambient = shade_info.albedo * shade_info.ambient_occlusion * ao;
-
-    //if (vertex_position.x < 0.0)
-    //    return vec3(roughness);
-    //else 
-    //    return vec3(shade_info.roughness * shade_info.roughness);
+        
+        const vec3 R = reflect(-view_dir, shade_info.normal);
+        const float MAX_REFLECTION_LOD = 4.0;
+        const vec3 prefilteredColor = 
+            textureLod(samplerCube(u_prefilter_map, u_sampler), R, roughness * MAX_REFLECTION_LOD).rgb;
+        const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler), vec2(n_dot_v, roughness), 0).rg;
+        const vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
+        
+        float ao = textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r * shade_info.ambient_occlusion;
+        
+        ambient = ((1.0f - F) * diffuse + specular) * ao;
+    }
 
     return Lo + ambient;
 }
@@ -437,8 +451,7 @@ void main() {
 
     vec3 color;
     color = shade_pbr(shade_info);
-    float exposure = 1.0;
-    color *= exposure / (1.0 + color / exposure);
+    color = color / (color + vec3(1.0));
 
     out_color = vec4(color, 1.0);
 }

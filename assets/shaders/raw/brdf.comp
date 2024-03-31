@@ -1,0 +1,55 @@
+#version 460
+
+#include "globals.shader_header"
+
+layout(local_size_x = 32, local_size_y = 32) in;
+
+layout(set = 1, binding = 0, rg16f) uniform writeonly image2D u_brdf;
+
+layout(push_constant) uniform push_constants {
+    vec2 u_brdf_size_inv;
+};
+
+vec2 integrate_brdf(float n_dot_v, float roughness) {
+    vec3 V;
+    V.x = sqrt(1.0f - n_dot_v * n_dot_v);
+    V.y = 0.0f;
+    V.z = n_dot_v;
+
+    float A = 0.0;
+    float B = 0.0;
+
+    vec3 normal = vec3(0.0, 0.0, 1.0);
+
+    const uint n = 1024u;
+    for(uint i = 0u; i < n; ++i)
+    {
+        const vec2 hammersley = hammersley2d(i, n);
+        const vec3 sample_dir = importance_sample_GGX(hammersley, normal, roughness);
+        const vec3 L = normalize(2.0f * dot(V, sample_dir) * sample_dir - V);
+
+        float n_dot_l = clamp(L.z, 0.0f, 1.0f);
+        float n_dot_h = clamp(sample_dir.z, 0.0f, 1.0f);
+        float v_dot_h = clamp(dot(V, sample_dir), 0.0f, 1.0f);
+
+        if(n_dot_l > 0.0)
+        {
+            float G = geometry_smith(normal, V, L, roughness);
+            float G_Vis = (G * v_dot_h) / (n_dot_h * n_dot_v);
+            float Fc = pow(1.0f - v_dot_h, 5.0f);
+
+            A += (1.0f - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
+    }
+    A /= float(n);
+    B /= float(n);
+    
+    return vec2(A, B);
+}
+
+void main() {
+    const vec2 uv = (vec2(gl_GlobalInvocationID.xy) + 0.5f) * u_brdf_size_inv;
+    vec2 brdf = integrate_brdf(uv.x, 1.0f - uv.y);
+    imageStore(u_brdf, ivec2(gl_GlobalInvocationID.xy), vec4(brdf, 0.0f, 0.0f));
+}

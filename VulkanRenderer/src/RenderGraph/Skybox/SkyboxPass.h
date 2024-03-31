@@ -17,6 +17,8 @@ public:
     SkyboxPass(RenderGraph::Graph& renderGraph);
     void AddToGraph(RenderGraph::Graph& renderGraph, const Texture& skybox, RenderGraph::Resource colorOut,
         RenderGraph::Resource depthIn, const glm::uvec2& resolution);
+    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource skybox, RenderGraph::Resource colorOut,
+        RenderGraph::Resource depthIn, const glm::uvec2& resolution);
 private:
     RenderGraph::Pass* m_Pass{nullptr};
 

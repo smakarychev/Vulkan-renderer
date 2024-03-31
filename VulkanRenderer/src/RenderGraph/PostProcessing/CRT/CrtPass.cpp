@@ -51,7 +51,7 @@ void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
         {
             passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
             
-            passData.ColorTarget = graph.RenderTarget(colorTarget,
+            passData.ColorOut = graph.RenderTarget(colorTarget,
                 AttachmentLoad::Load, AttachmentStore::Store);
 
             passData.TimeUbo = graph.CreateResource("CRT.Time", GraphBufferDescription{
@@ -90,11 +90,11 @@ void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
             
             samplerDescriptors.UpdateBinding(samplerBindingInfo,
-                colorInTexture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+                colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding(imageBindingInfo,
-                colorInTexture.CreateBindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(timeBindingInfo, time.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(settingsBindingInfo, settings.CreateBindingInfo());
+                colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding(timeBindingInfo, time.BindingInfo());
+            resourceDescriptors.UpdateBinding(settingsBindingInfo, settings.BindingInfo());
             
             pipeline.BindGraphics(frameContext.Cmd);
             samplerDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),

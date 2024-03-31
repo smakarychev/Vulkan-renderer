@@ -36,7 +36,6 @@ std::string BufferUtils::bufferUsageToString(BufferUsage usage)
 
 Buffer::Builder::Builder(const BufferDescription& description)
 {
-    SetUsage(description.Usage);
     m_CreateInfo.Description = description;
 }
 
@@ -56,20 +55,6 @@ Buffer Buffer::Builder::Build(DeletionQueue& deletionQueue)
 Buffer Buffer::Builder::BuildManualLifetime()
 {
     return Buffer::Create(m_CreateInfo);
-}
-
-Buffer::Builder& Buffer::Builder::SetUsage(BufferUsage usage)
-{
-    m_CreateInfo.Description.Usage |=  usage;
-
-    return *this;
-}
-
-Buffer::Builder& Buffer::Builder::SetSizeBytes(u64 sizeBytes)
-{
-    m_CreateInfo.Description.SizeBytes = sizeBytes;
-
-    return *this;
 }
 
 Buffer::Builder& Buffer::Builder::CreateMapped()
@@ -118,19 +103,19 @@ void Buffer::Unmap()
     Driver::UnmapBuffer(*this);
 }
 
-BufferSubresource Buffer::CreateSubresource() const
+BufferSubresource Buffer::Subresource() const
 {
-    return CreateSubresource(m_Description.SizeBytes, 0);
+    return Subresource(m_Description.SizeBytes, 0);
 }
 
-BufferSubresource Buffer::CreateSubresource(u64 sizeBytes, u64 offset) const
+BufferSubresource Buffer::Subresource(u64 sizeBytes, u64 offset) const
 {
-    return CreateSubresource({
+    return Subresource({
         .SizeBytes = sizeBytes,
         .Offset = offset});
 }
 
-BufferSubresource Buffer::CreateSubresource(const BufferSubresourceDescription& description) const
+BufferSubresource Buffer::Subresource(const BufferSubresourceDescription& description) const
 {
     ASSERT(description.Offset + description.SizeBytes <= m_Description.SizeBytes, "Invalid subresource range")
 

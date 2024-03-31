@@ -5,8 +5,8 @@
 MeshCullContext::MeshCullContext(const RenderPassGeometry& geometry)
     : m_Geometry(&geometry)
 {
-    m_Visibility = Buffer::Builder()
-        .SetSizeBytes(geometry.GetRenderObjectCount() * sizeof(RenderPassGeometry::ObjectVisibilityType))
-        .SetUsage(BufferUsage::Storage | BufferUsage::DeviceAddress)
+    m_Visibility = Buffer::Builder({
+            .SizeBytes = geometry.GetRenderObjectCount() * sizeof(RenderPassGeometry::ObjectVisibilityType),
+            .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
         .Build();
 }

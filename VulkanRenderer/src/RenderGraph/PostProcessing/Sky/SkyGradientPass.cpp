@@ -83,10 +83,10 @@ void SkyGradientPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::R
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
             
-            resourceDescriptors.UpdateBinding(cameraBinding, cameraUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(settingsBinding, settingsUbo.CreateBindingInfo());
+            resourceDescriptors.UpdateBinding(cameraBinding, cameraUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(settingsBinding, settingsUbo.BindingInfo());
             resourceDescriptors.UpdateBinding(imageOutBinding,
-                colorOut.CreateBindingInfo(ImageFilter::Linear, ImageLayout::General));
+                colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             pipeline.BindCompute(frameContext.Cmd);
             RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), passData.PushConstants);

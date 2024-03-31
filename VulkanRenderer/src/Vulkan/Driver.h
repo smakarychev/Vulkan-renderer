@@ -22,7 +22,7 @@
 class ProfilerContext;
 class ShaderPipeline;
 
-struct UploadContext
+struct ImmediateSubmitContext
 {
     CommandPool CommandPool;
     CommandBuffer CommandBuffer;
@@ -464,7 +464,7 @@ struct DriverState
     const Device* Device; 
     VmaAllocator Allocator;
     DeletionQueue DeletionQueue;
-    UploadContext UploadContext;
+    ImmediateSubmitContext SubmitContext;
 
     DriverResources Resources;
 };
@@ -561,7 +561,7 @@ public:
     static void Destroy(ResourceHandle<DependencyInfo> dependencyInfo);
     
     template <typename Fn>
-    static void ImmediateUpload(Fn&& uploadFunction);
+    static void ImmediateSubmit(Fn&& uploadFunction);
 
     static void WaitIdle();
     
@@ -605,7 +605,7 @@ public:
             maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
     }
     static u32 GetSubgroupSize() { return Resources().m_Devices[0].GPUSubgroupProperties.subgroupSize; }
-    static UploadContext* UploadContext() { return &s_State.UploadContext; }
+    static ImmediateSubmitContext* SubmitContext() { return &s_State.SubmitContext; }
 
     static Sampler GetImmutableSampler(ImageFilter filter);
     
@@ -676,9 +676,9 @@ private:
 };
 
 template <typename Fn>
-void Driver::ImmediateUpload(Fn&& uploadFunction)
+void Driver::ImmediateSubmit(Fn&& uploadFunction)
 {
-    auto&& [pool, cmd, fence, queue] = *UploadContext();
+    auto&& [pool, cmd, fence, queue] = *SubmitContext();
     
     cmd.Begin();
 

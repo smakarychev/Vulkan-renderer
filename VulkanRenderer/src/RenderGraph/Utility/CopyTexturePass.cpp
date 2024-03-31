@@ -30,8 +30,8 @@ void CopyTexturePass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::R
             const Texture& dst = resources.GetTexture(passData.TextureOut);
 
             RenderCommand::CopyImage(frameContext.Cmd,
-                src.CreateImageCopyInfo(),
-                dst.CreateImageCopyInfo(
+                src.CopyInfo(),
+                dst.CopyInfo(
                     offset, offset + size, 0, 0, 1, sizeType));
         });
 }

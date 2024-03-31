@@ -3,10 +3,11 @@
 #include "Core/core.h"
 #include "Vulkan/Driver.h"
 
-#include "Buffer.h"
+#include "Rendering/Buffer.h"
 #include "Vulkan/RenderCommand.h"
 #include "AssetLib.h"
 #include "AssetManager.h"
+#include "Processing/CubemapProcessor.h"
 #include "TextureAsset.h"
 
 namespace
@@ -30,8 +31,6 @@ namespace
         std::unreachable();
     }
 }
-
-std::unordered_map<std::string, Image> CubemapProcessor::s_PendingTextures = {};
 
 namespace ImageUtils
 {
@@ -223,58 +222,6 @@ namespace ImageUtils
     }
 }
 
-
-Sampler Sampler::Builder::Build()
-{
-    return SamplerCache::CreateSampler(m_CreateInfo);
-}
-
-Sampler::Builder& Sampler::Builder::Filters(ImageFilter minification, ImageFilter magnification)
-{
-    m_CreateInfo.MinificationFilter = minification;
-    m_CreateInfo.MagnificationFilter = magnification;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::WrapMode(SamplerWrapMode mode)
-{
-    m_CreateInfo.AddressMode = mode;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::ReductionMode(SamplerReductionMode mode)
-{
-    m_CreateInfo.ReductionMode = mode;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::MaxLod(f32 lod)
-{
-    m_CreateInfo.MaxLod = lod;
-    
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::WithAnisotropy(bool enabled)
-{
-    m_CreateInfo.WithAnisotropy = enabled;
-
-    return *this;
-}
-
-Sampler Sampler::Create(const Builder::CreateInfo& createInfo)
-{
-    return Driver::Create(createInfo);
-}
-
-void Sampler::Destroy(const Sampler& sampler)
-{
-    Driver::Destroy(sampler.Handle());
-}
-
 ImageSubresourceDescription::Packed ImageSubresourceDescription::Pack() const
 {
     u8 mipBase = (u8)MipmapBase;
@@ -342,9 +289,8 @@ Image Image::Builder::BuildManualLifetime()
 Image::Builder& Image::Builder::FromEquirectangular(std::string_view path)
 {
     // Equirectangular images have to be converted to cubemaps before using them in shader,
-    // this conversion happens in compute shader, and therefore it need a valid frame context
-    // therefore actual conversion is postponed.
-    // Here we only create an empty cube map, and store the path to the equirectangular image to static map;
+    // this conversion happens in compute shader, and the actual conversion is postponed
+    // Here we only create an empty cube map, and store the path to the equirectangular image in static map;
 
     SetSource(CreateInfo::SourceInfo::Equirectangular);
     m_CreateInfo.AssetInfo.AssetPath = path;
@@ -355,12 +301,13 @@ Image::Builder& Image::Builder::FromEquirectangular(std::string_view path)
 
     u32 textureHeight = textureInfo.Dimensions.Height / 2;
     u32 textureWidth = textureHeight;
-    m_CreateInfo.Description = {
-        .Width = textureWidth,
-        .Height = textureHeight,
-        .Layers = 6,
-        .Format = Format::RGBA16_FLOAT,
-        .Kind = ImageKind::Cubemap};
+    m_CreateInfo.Description.Width = textureWidth;
+    m_CreateInfo.Description.Height = textureHeight;
+    m_CreateInfo.Description.Layers = 6;
+    m_CreateInfo.Description.Format = Format::RGBA16_FLOAT;
+    m_CreateInfo.Description.Kind = ImageKind::Cubemap;
+    m_CreateInfo.Description.Mipmaps = CalculateMipmapCount({textureWidth, textureHeight});
+    m_CreateInfo.NoMips = true;
 
     return *this;
 }
@@ -383,9 +330,9 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
         assetLib::loadAssetFile(path, textureFile);
         assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
     
-        m_CreateInfo.DataBuffer = Buffer::Builder()
-            .SetUsage(BufferUsage::Source | BufferUsage::UploadRandomAccess)
-            .SetSizeBytes(textureInfo.SizeBytes)
+        m_CreateInfo.DataBuffer = Buffer::Builder({
+                .SizeBytes = textureInfo.SizeBytes,
+                .Usage = BufferUsage::Source | BufferUsage::UploadRandomAccess})
             .BuildManualLifetime();
     
         void* destination = m_CreateInfo.DataBuffer.Map();
@@ -395,6 +342,8 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
         m_CreateInfo.Description.Format = formatFromAssetFormat(textureInfo.Format);
         m_CreateInfo.Description.Width = textureInfo.Dimensions.Width;
         m_CreateInfo.Description.Height = textureInfo.Dimensions.Height;
+        m_CreateInfo.Description.Mipmaps = CalculateMipmapCount({
+            textureInfo.Dimensions.Width, textureInfo.Dimensions.Height});
         // todo: not always correct, should reflect in in asset file
         m_CreateInfo.Description.Kind = ImageKind::Image2d;
         m_CreateInfo.Description.Layers = 1;
@@ -407,9 +356,9 @@ Image::Builder& Image::Builder::FromPixels(const void* pixels, u64 sizeBytes)
 {
     SetSource(CreateInfo::SourceInfo::Pixels);
 
-    m_CreateInfo.DataBuffer = Buffer::Builder()
-        .SetUsage(BufferUsage::Source | BufferUsage::Upload)
-        .SetSizeBytes(sizeBytes)
+    m_CreateInfo.DataBuffer = Buffer::Builder({
+            .SizeBytes = sizeBytes,
+            .Usage = BufferUsage::Source | BufferUsage::Upload})
         .BuildManualLifetime();
 
     m_CreateInfo.DataBuffer.SetData(pixels, sizeBytes);
@@ -427,97 +376,30 @@ void Image::Builder::SetSource(enum CreateInfo::SourceInfo sourceInfo)
     m_CreateInfo.SourceInfo = sourceInfo;
 }
 
-Image::Builder& Image::Builder::SetFormat(Format format)
+Image::Builder& Image::Builder::NoMips()
 {
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot use custom format when loading from file")
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Equirectangular,
-        "Cannot use custom format when loading from file")
+    m_CreateInfo.NoMips = true;
     
-    m_CreateInfo.Description.Format = format;
-    
-    return *this;
-}
-
-Image::Builder& Image::Builder::SetExtent(const glm::uvec2& extent)
-{
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot set extent when loading from file")
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Equirectangular,
-        "Cannot set extent when loading from file")
-
-    m_CreateInfo.Description.Width = extent.x;
-    m_CreateInfo.Description.Height = extent.y;
-    m_CreateInfo.Description.Layers = 1;
-
-    return *this;
-}
-
-Image::Builder& Image::Builder::SetExtent(const glm::uvec3& extent)
-{
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Asset, "Cannot set extent when loading from file")
-    ASSERT(m_CreateInfo.SourceInfo != CreateInfo::SourceInfo::Equirectangular,
-        "Cannot set extent when loading from file")
-
-    m_CreateInfo.Description.Width = extent.x;
-    m_CreateInfo.Description.Height = extent.y;
-    m_CreateInfo.Description.Layers = extent.z;
-    
-    return *this;
-}
-
-Image::Builder& Image::Builder::SetKind(ImageKind kind)
-{
-    m_CreateInfo.Description.Kind = kind;
-
-    return *this;
-}
-
-Image::Builder& Image::Builder::CreateMipmaps(bool enable, ImageFilter filter)
-{
-    m_CreateInfo.CreateMipmaps = enable;
-    m_CreateInfo.Description.MipmapFilter = filter;
-    
-    return *this;
-}
-
-Image::Builder& Image::Builder::SetUsage(ImageUsage usage)
-{
-    m_CreateInfo.Description.Usage = usage;
-
-    return *this;
-}
-
-Image::Builder& Image::Builder::AddView(const ImageSubresourceDescription& subresource, ImageViewHandle& viewHandle)
-{
-    m_CreateInfo.Description.AdditionalViews.push_back(subresource.Pack());
-    m_CreateInfo.AdditionalViews.push_back(subresource);
-    // set index after push, so that it begins with 1. Index 0 is reserved for a base view
-    viewHandle.m_Index = (u32)m_CreateInfo.AdditionalViews.size();
-
     return *this;
 }
 
 void Image::Builder::PreBuild()
 {
-    ASSERT(m_CreateInfo.Description.AdditionalViews.size() == m_CreateInfo.AdditionalViews.size(),
-        "View count does not match the value specified in image description")
-    
     if (m_CreateInfo.SourceInfo == CreateInfo::SourceInfo::Asset)
-       m_CreateInfo.Description.Usage |= ImageUsage::Destination;
+        m_CreateInfo.Description.Usage |= ImageUsage::Destination;
     
-    if (m_CreateInfo.CreateMipmaps)
-    {
+    if (m_CreateInfo.Description.Mipmaps > 1)
         m_CreateInfo.Description.Usage |= ImageUsage::Destination | ImageUsage::Source;
-        m_CreateInfo.Description.Mipmaps = CalculateMipmapCount({
-            m_CreateInfo.Description.Width,
-            m_CreateInfo.Description.Height,
-            m_CreateInfo.Description.Kind == ImageKind::Image3d ? m_CreateInfo.Description.Layers : 1});
-    }
 
     if (m_CreateInfo.Description.Kind == ImageKind::Cubemap)
         m_CreateInfo.Description.Layers = 6;
     
     if (enumHasAny(m_CreateInfo.Description.Usage, ImageUsage::Readback))
         m_CreateInfo.Description.Usage |= ImageUsage::Source;
+
+    m_CreateInfo.AdditionalViews.reserve(m_CreateInfo.Description.AdditionalViews.size());
+    for (auto& view : m_CreateInfo.Description.AdditionalViews)
+        m_CreateInfo.AdditionalViews.push_back(ImageSubresourceDescription::Unpack(view));
 }
 
 Image Image::Create(const Builder::CreateInfo& createInfo)
@@ -527,26 +409,17 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
     switch (createInfo.SourceInfo)
     {
     case CreateInfo::SourceInfo::None:
-    {
-        image = AllocateImage(createInfo);
-        CreateImageView(image.CreateSubresource(), createInfo.AdditionalViews);
+        image = CreateImage(createInfo);
         break;
-    }
     case CreateInfo::SourceInfo::Asset:
-    {
         image = CreateImageFromAsset(createInfo);
         break;
-    }
     case CreateInfo::SourceInfo::Equirectangular:
-    {
         image = CreateImageFromEquirectangular(createInfo);
         break;
-    }
     case CreateInfo::SourceInfo::Pixels:
-    {
         image = CreateImageFromPixelData(createInfo);
         break;
-    }
     default:
         ASSERT(false, "Unrecognized image source info")
         std::unreachable();
@@ -560,7 +433,7 @@ void Image::Destroy(const Image& image)
     Driver::Destroy(image.Handle());
 }
 
-ImageSubresource Image::CreateSubresource() const
+ImageSubresource Image::Subresource() const
 {
     ImageSubresource imageSubresource = {
         .Image = this,
@@ -573,12 +446,12 @@ ImageSubresource Image::CreateSubresource() const
     return imageSubresource;
 }
 
-ImageSubresource Image::CreateSubresource(u32 mipCount, u32 layerCount) const
+ImageSubresource Image::Subresource(u32 mipCount, u32 layerCount) const
 {
-    return CreateSubresource(0, mipCount, 0, layerCount);
+    return Subresource(0, mipCount, 0, layerCount);
 }
 
-ImageSubresource Image::CreateSubresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const
+ImageSubresource Image::Subresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const
 {
     ImageSubresource imageSubresource = {
         .Image = this,
@@ -591,32 +464,32 @@ ImageSubresource Image::CreateSubresource(u32 mipBase, u32 mipCount, u32 layerBa
     return imageSubresource;
 }
 
-ImageSubresource Image::CreateSubresource(const ImageSubresourceDescription& description) const
+ImageSubresource Image::Subresource(const ImageSubresourceDescription& description) const
 {
     return ImageSubresource{
         .Image = this,
         .Description = description};
 }
 
-ImageBlitInfo Image::CreateImageBlitInfo() const
+ImageBlitInfo Image::BlitInfo() const
 {
-    return CreateImageBlitInfo(glm::uvec3{}, glm::uvec3{
+    return BlitInfo(glm::uvec3{}, glm::uvec3{
         m_Description.Width,
         m_Description.Height,
         m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers},
         0, 0, m_Description.Kind != ImageKind::Image3d ? m_Description.Layers : 1u);
 }
 
-ImageBlitInfo Image::CreateImageBlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const
+ImageBlitInfo Image::BlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const
 {
-    return CreateImageBlitInfo(glm::uvec3{}, glm::uvec3{
+    return BlitInfo(glm::uvec3{}, glm::uvec3{
         m_Description.Width,
         m_Description.Height,
         m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers},
         mipBase, layerBase, layerCount);
 }
 
-ImageBlitInfo Image::CreateImageBlitInfo(const glm::uvec3& bottom, const glm::uvec3& top, u32 mipBase, u32 layerBase,
+ImageBlitInfo Image::BlitInfo(const glm::uvec3& bottom, const glm::uvec3& top, u32 mipBase, u32 layerBase,
     u32 layerCount) const
 {
     return {
@@ -628,7 +501,7 @@ ImageBlitInfo Image::CreateImageBlitInfo(const glm::uvec3& bottom, const glm::uv
         .Top = top};
 }
 
-ImageBlitInfo Image::CreateImageBlitInfo(const glm::vec3& bottom, const glm::vec3& top, u32 mipBase, u32 layerBase,
+ImageBlitInfo Image::BlitInfo(const glm::vec3& bottom, const glm::vec3& top, u32 mipBase, u32 layerBase,
     u32 layerCount, ImageSizeType sizeType) const
 {
     if (sizeType == ImageSizeType::Absolute)
@@ -660,34 +533,34 @@ ImageBlitInfo Image::CreateImageBlitInfo(const glm::vec3& bottom, const glm::vec
         .Top = glm::uvec3{absTop.x, absTop.y, absTop.z}};
 }
 
-ImageBlitInfo Image::CreateImageCopyInfo() const
+ImageBlitInfo Image::CopyInfo() const
 {
-    return CreateImageBlitInfo();
+    return BlitInfo();
 }
 
-ImageBlitInfo Image::CreateImageCopyInfo(u32 mipBase, u32 layerBase, u32 layerCount) const
+ImageBlitInfo Image::CopyInfo(u32 mipBase, u32 layerBase, u32 layerCount) const
 {
-    return CreateImageBlitInfo(mipBase, layerBase, layerCount);
+    return BlitInfo(mipBase, layerBase, layerCount);
 }
 
-ImageBlitInfo Image::CreateImageCopyInfo(const glm::uvec3& bottom, const glm::uvec3& size, u32 mipBase, u32 layerBase,
+ImageBlitInfo Image::CopyInfo(const glm::uvec3& bottom, const glm::uvec3& size, u32 mipBase, u32 layerBase,
     u32 layerCount) const
 {
-    return CreateImageBlitInfo(bottom, size, mipBase, layerBase, layerCount);
+    return BlitInfo(bottom, size, mipBase, layerBase, layerCount);
 }
 
-ImageBlitInfo Image::CreateImageCopyInfo(const glm::vec3& bottom, const glm::vec3& size, u32 mipBase, u32 layerBase,
+ImageBlitInfo Image::CopyInfo(const glm::vec3& bottom, const glm::vec3& size, u32 mipBase, u32 layerBase,
     u32 layerCount, ImageSizeType sizeType) const
 {
-    return CreateImageBlitInfo(bottom, size, mipBase, layerBase, layerCount, sizeType);
+    return BlitInfo(bottom, size, mipBase, layerBase, layerCount, sizeType);
 }
 
-ImageBindingInfo Image::CreateBindingInfo(ImageFilter filter, ImageLayout layout) const
+ImageBindingInfo Image::BindingInfo(ImageFilter filter, ImageLayout layout) const
 {
-    return CreateBindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout);
+    return BindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout);
 }
 
-ImageBindingInfo Image::CreateBindingInfo(Sampler sampler, ImageLayout layout) const
+ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout) const
 {
     return ImageBindingInfo {
         .Image = this,
@@ -695,12 +568,12 @@ ImageBindingInfo Image::CreateBindingInfo(Sampler sampler, ImageLayout layout) c
         .Layout = layout};
 }
 
-ImageBindingInfo Image::CreateBindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const
+ImageBindingInfo Image::BindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const
 {
-    return CreateBindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout, handle);
+    return BindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout, handle);
 }
 
-ImageBindingInfo Image::CreateBindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const
+ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const
 {
     return ImageBindingInfo {
         .Image = this,
@@ -713,7 +586,7 @@ std::vector<ImageViewHandle> Image::GetViewHandles() const
 {
     std::vector<ImageViewHandle> handles(m_Description.AdditionalViews.size());
     for (u32 i = 0; i < m_Description.AdditionalViews.size(); i++)
-        handles[i] = i;
+        handles[i] = i + 1; // skip index 0, it is used as a base view
     
     return handles;
 }
@@ -728,6 +601,53 @@ u16 Image::CalculateMipmapCount(const glm::uvec3& resolution)
     u32 maxDimension = std::max(resolution.x, std::max(resolution.y, resolution.z));
 
     return (u16)std::log2(maxDimension) + 1;    
+}
+
+void Image::CreateMipmaps(ImageLayout currentLayout)
+{
+    if (m_Description.Mipmaps == 1)
+        return;
+
+    bool is3dImage = m_Description.Kind == ImageKind::Image3d;
+
+    i32 width = (i32)m_Description.Width;
+    i32 height = (i32)m_Description.Height;
+    i32 depth = is3dImage ? (i32)m_Description.Layers : 1;
+    u32 layers = is3dImage ? 1 : m_Description.Layers;
+    
+    ImageSubresource imageSubresource = Subresource(0, 1, 0, layers);
+    PrepareForMipmapSource(imageSubresource, currentLayout);
+    for (u32 mip = 1; mip < m_Description.Mipmaps; mip++)
+    {
+        ImageBlitInfo source = BlitInfo({}, {
+            width, height, depth},
+            mip - 1, 0, layers);
+
+        width = std::max(1, width >> 1);
+        height = std::max(1, height >> 1);
+        depth = std::max(1, depth >> 1);
+
+        ImageBlitInfo destination = BlitInfo({}, {
+            width, height, depth},
+            mip, 0, layers);
+
+        ImageSubresource mipmapSubresource = Subresource(mip, 1, 0, layers);
+        PrepareForMipmapDestination(mipmapSubresource);
+        Driver::ImmediateSubmit([this, &source, destination](const CommandBuffer& cmd)
+        {
+            RenderCommand::BlitImage(cmd, source, destination, m_Description.MipmapFilter);
+        });
+        PrepareForMipmapSource(mipmapSubresource, ImageLayout::Destination);
+    }
+}
+
+Image Image::CreateImage(const CreateInfo& createInfo)
+{
+    Image image = AllocateImage(createInfo);
+    
+    CreateImageView(image.Subresource(), createInfo.AdditionalViews);
+
+    return image;
 }
 
 Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
@@ -750,8 +670,7 @@ Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
 
 Image Image::CreateImageFromEquirectangular(const CreateInfo& createInfo)
 {
-    Image image = AllocateImage(createInfo);
-    CreateImageView(image.CreateSubresource(), createInfo.AdditionalViews);
+    Image image = CreateImage(createInfo);
 
     CubemapProcessor::Add(createInfo.AssetInfo.AssetPath, image);
 
@@ -768,15 +687,16 @@ Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
     Image image = {};
     
     image = AllocateImage(createInfo);
-    ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, 1);
+    CreateImageView(image.Subresource(), createInfo.AdditionalViews);
+    
+    ImageSubresource imageSubresource = image.Subresource(0, 1, 0, 1);
     PrepareForMipmapDestination(imageSubresource);
     CopyBufferToImage(createInfo.DataBuffer, image);
+    if (!createInfo.NoMips)
+        image.CreateMipmaps(ImageLayout::Destination);
     imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
-    CreateMipmaps(image, createInfo);
     PrepareForShaderRead(imageSubresource);
     
-    CreateImageView(image.CreateSubresource(), createInfo.AdditionalViews);
-        
     return image;
 }
 
@@ -793,12 +713,12 @@ void Image::PrepareForMipmapDestination(const ImageSubresource& imageSubresource
         PipelineStage::AllTransfer, PipelineStage::AllTransfer);
 }
 
-void Image::PrepareForMipmapSource(const ImageSubresource& imageSubresource)
+void Image::PrepareForMipmapSource(const ImageSubresource& imageSubresource, ImageLayout currentLayout)
 {
     PrepareImageGeneral(imageSubresource,
-        ImageLayout::Destination, ImageLayout::Source,
-        PipelineAccess::WriteTransfer, PipelineAccess::ReadTransfer,
-        PipelineStage::AllTransfer, PipelineStage::AllTransfer);
+        currentLayout, ImageLayout::Source,
+        PipelineAccess::WriteAll, PipelineAccess::ReadTransfer,
+        PipelineStage::AllCommands, PipelineStage::AllTransfer);
 }
 
 void Image::PrepareForShaderRead(const ImageSubresource& imageSubresource)
@@ -828,7 +748,7 @@ void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
             .NewLayout = target})
         .Build(deletionQueue);
     
-    Driver::ImmediateUpload([&layoutTransition](const CommandBuffer& cmd)
+    Driver::ImmediateSubmit([&layoutTransition](const CommandBuffer& cmd)
     {
        RenderCommand::WaitOnBarrier(cmd, layoutTransition);
     });
@@ -836,53 +756,12 @@ void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
 
 void Image::CopyBufferToImage(const Buffer& buffer, const Image& image)
 {
-    Driver::ImmediateUpload([&buffer, &image](const CommandBuffer& cmd)
+    Driver::ImmediateSubmit([&buffer, &image](const CommandBuffer& cmd)
     {
-        RenderCommand::CopyBufferToImage(cmd, buffer, image.CreateSubresource(0, 1, 0, image.m_Description.Layers));
+        RenderCommand::CopyBufferToImage(cmd, buffer, image.Subresource(0, 1, 0, image.m_Description.Layers));
     });
     
     Buffer::Destroy(buffer);
-}
-
-void Image::CreateMipmaps(const Image& image, const CreateInfo& createInfo)
-{
-    if (createInfo.Description.Mipmaps == 1)
-        return;
-
-    bool is3dImage = createInfo.Description.Kind == ImageKind::Image3d;
-    u32 layerCount = is3dImage ? createInfo.Description.Layers : 1;
-    ImageSubresource imageSubresource = image.CreateSubresource(0, 1, 0, layerCount);
-    imageSubresource.Description.Layers = layerCount;
-    imageSubresource.Description.Mipmaps = 1;
-    
-    PrepareForMipmapSource(imageSubresource);
-
-    for (u32 i = 1; i < createInfo.Description.Mipmaps; i++)
-    {
-        ImageBlitInfo source = image.CreateImageBlitInfo({},
-            {
-            (i32)createInfo.Description.Width >> (i - 1),
-            (i32)createInfo.Description.Height >> (i - 1),
-            is3dImage ? (i32)createInfo.Description.Layers >> (i - 1) : 1},
-            i - 1, 0, layerCount);
-
-        ImageBlitInfo destination = image.CreateImageBlitInfo({},
-            {
-            (i32)createInfo.Description.Width >> i,
-            (i32)createInfo.Description.Height >> i,
-            is3dImage ? (i32)createInfo.Description.Layers >> i : 1},
-            i, 0, layerCount);
-        
-        ImageSubresource mipmapSubresource = image.CreateSubresource(i, 1, 0, layerCount);
-
-        PrepareForMipmapDestination(mipmapSubresource);
-    
-        Driver::ImmediateUpload([&image, &source, destination](const CommandBuffer& cmd)
-        {
-                RenderCommand::BlitImage(cmd, source, destination, image.m_Description.MipmapFilter);
-        });
-        PrepareForMipmapSource(mipmapSubresource);
-    }
 }
 
 void Image::CreateImageView(const ImageSubresource& imageSubresource,
@@ -898,141 +777,4 @@ void Image::CreateImageView(const ImageSubresource& imageSubresource,
     Driver::CreateViews(imageSubresource, additionalViews);
 }
 
-void CubemapProcessor::Add(const std::string& path, const Image& image)
-{
-    s_PendingTextures.emplace(path, image);
-}
 
-void CubemapProcessor::Process(const CommandBuffer& cmd)
-{
-    static DescriptorArenaAllocator samplerAllocator = DescriptorArenaAllocator::Builder()
-        .Kind(DescriptorAllocatorKind::Samplers)
-        .Residence(DescriptorAllocatorResidence::CPU)
-        .ForTypes({DescriptorType::Sampler})
-        .Count(1)
-        .Build();
-
-    static DescriptorArenaAllocator resourceAllocator = DescriptorArenaAllocator::Builder()
-        .Kind(DescriptorAllocatorKind::Resources)
-        .Residence(DescriptorAllocatorResidence::CPU)
-        .ForTypes({DescriptorType::Image})
-        .Count(2)
-        .Build();
-    
-    static DescriptorArenaAllocators allocators(resourceAllocator, samplerAllocator);
-    static ShaderPipelineTemplate* cubemapTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/cubemap-processor-comp.shader"},
-        "CubemapProcessor", allocators);
-    static ShaderPipeline pipeline = ShaderPipeline::Builder()
-        .SetTemplate(cubemapTemplate)
-        .UseDescriptorBuffer()
-        .Build();
-    static ShaderDescriptors samplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(cubemapTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-    static ShaderDescriptors resourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(cubemapTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-
-    DeletionQueue deletionQueue = {};
-    RenderCommand::Bind(cmd, allocators);
-    samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
-    pipeline.BindCompute(cmd);
-    resourceDescriptors.BindCompute(cmd, allocators, pipeline.GetLayout());
-    for (auto&& [path, cubemap] : s_PendingTextures)
-    {
-        Texture equirectangular = Texture::Builder()
-            .FromAssetFile(path)
-            .SetUsage(ImageUsage::Sampled)
-            .Build(deletionQueue);
-
-        LayoutTransitionInfo toGeneral = {
-            .ImageSubresource = cubemap.CreateSubresource(),
-            .SourceStage = PipelineStage::Top,
-            .DestinationStage = PipelineStage::ComputeShader,
-            .SourceAccess = PipelineAccess::None,
-            .DestinationAccess = PipelineAccess::WriteShader,
-            .OldLayout = ImageLayout::Undefined,
-            .NewLayout = ImageLayout::General};
-
-        LayoutTransitionInfo toReadOnly = {
-            .ImageSubresource = cubemap.CreateSubresource(),
-            .SourceStage = PipelineStage::ComputeShader,
-            .DestinationStage =  PipelineStage::PixelShader | PipelineStage::ComputeShader,
-            .SourceAccess = PipelineAccess::WriteShader,
-            .DestinationAccess = PipelineAccess::ReadSampled,
-            .OldLayout = ImageLayout::General,
-            .NewLayout = ImageLayout::Readonly};
-
-        resourceDescriptors.UpdateBinding("u_equirectangular", equirectangular.CreateBindingInfo(
-            ImageFilter::Linear, ImageLayout::Readonly));
-        resourceDescriptors.UpdateBinding("u_cubemap", cubemap.CreateBindingInfo(
-            ImageFilter::Linear, ImageLayout::General));
-        
-        struct PushConstants
-        {
-            glm::vec2 CubemapResolutionInverse{};
-        };
-        
-        RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder().LayoutTransition(toGeneral).Build(deletionQueue));
-        PushConstants pushConstants = {
-            .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemap.GetDescription().Width}};
-        RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-        RenderCommand::Dispatch(cmd,
-            {cubemap.GetDescription().Width, cubemap.GetDescription().Width, 6},
-            {32, 32, 1});
-        RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder().LayoutTransition(toReadOnly).Build(deletionQueue));
-    }
-    
-    Fence convertFence = Fence::Builder().Build(deletionQueue);
-    cmd.End();
-    cmd.Submit(Driver::GetDevice().GetQueues().Graphics, convertFence);
-    convertFence.Wait();
-    deletionQueue.Flush();
-    cmd.Begin();
-
-    s_PendingTextures.clear();
-}
-
-Sampler SamplerCache::CreateSampler(const Sampler::Builder::CreateInfo& createInfo)
-{
-    CacheKey key = {.CreateInfo = createInfo};
-
-    if (s_SamplerCache.contains(key))
-        return s_SamplerCache.at(key);
-
-    Sampler newSampler = Sampler::Create(createInfo);
-    s_SamplerCache.emplace(key, newSampler);
-    
-    Driver::DeletionQueue().Enqueue(newSampler);
-
-    return newSampler;
-}
-
-bool SamplerCache::CacheKey::operator==(const CacheKey& other) const
-{
-    return
-        CreateInfo.MinificationFilter == other.CreateInfo.MinificationFilter &&
-        CreateInfo.MagnificationFilter == other.CreateInfo.MagnificationFilter &&
-        CreateInfo.ReductionMode == other.CreateInfo.ReductionMode &&
-        CreateInfo.MaxLod == other.CreateInfo.MaxLod &&
-        CreateInfo.WithAnisotropy == other.CreateInfo.WithAnisotropy;
-}
-
-u64 SamplerCache::SamplerKeyHash::operator()(const CacheKey& cacheKey) const
-{
-    u64 hashKey =
-        (u32)cacheKey.CreateInfo.MagnificationFilter |
-        ((u32)cacheKey.CreateInfo.MagnificationFilter << 1) |
-        (cacheKey.CreateInfo.WithAnisotropy << 2) |
-        (cacheKey.CreateInfo.ReductionMode.has_value() << 3) |
-        ((cacheKey.CreateInfo.ReductionMode.has_value() ? (u32)*cacheKey.CreateInfo.ReductionMode : 0) << 4) |
-        ((u64)std::bit_cast<u32>(cacheKey.CreateInfo.MaxLod) << 32);
-    u64 hash = std::hash<u64>()(hashKey);
-    
-    return hash;
-}
-
-std::unordered_map<SamplerCache::CacheKey, Sampler, SamplerCache::SamplerKeyHash> SamplerCache::s_SamplerCache = {};

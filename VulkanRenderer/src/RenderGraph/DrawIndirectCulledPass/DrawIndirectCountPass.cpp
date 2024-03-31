@@ -86,9 +86,9 @@ void DrawIndirectCountPass::AddToGraph(RenderGraph::Graph& renderGraph,
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding(cameraBinding, cameraUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(commandsBinding, commandsDraw.CreateBindingInfo());
+            resourceDescriptors.UpdateBinding(cameraBinding, cameraUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(commandsBinding, commandsDraw.BindingInfo());
 
             auto& cmd = frameContext.Cmd;
             RenderCommand::BindIndexU8Buffer(cmd, geometry.GetAttributeBuffers().Indices, 0);

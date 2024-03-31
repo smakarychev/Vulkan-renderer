@@ -3,7 +3,7 @@
 #include <vector>
 #include <glm/vec2.hpp>
 
-#include "Image.h"
+#include "Image/Image.h"
 #include "Synchronization.h"
 #include "types.h"
 

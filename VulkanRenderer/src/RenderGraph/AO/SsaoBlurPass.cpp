@@ -63,9 +63,9 @@ void SsaoBlurPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding("u_ssao", ssaoIn.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding("u_ssao", ssaoIn.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_ssao_blurred", ssaoOut.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding("u_ssao_blurred", ssaoOut.BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
             
             auto& cmd = frameContext.Cmd;

@@ -5,8 +5,8 @@
 #include "RenderingCommon.h"
 
 #include "DriverResourceHandle.h"
-#include "Image.h"
-#include "ImageTraits.h"
+#include "Image/Image.h"
+#include "Image/ImageTraits.h"
 #include "SynchronizationTraits.h"
 
 class DeletionQueue;

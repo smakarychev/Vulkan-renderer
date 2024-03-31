@@ -14,11 +14,12 @@
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class VisualizeBRDFPass;
 class SkyboxPass;
 class SsaoPass;
 class SsaoBlurPass;
 class SsaoVisualizePass;
-class PbrVisibilityBuffer;
+class PbrVisibilityBufferIBL;
 class CullMetaPass;
 class CopyTexturePass;
 class SlimeMoldPass;
@@ -46,9 +47,6 @@ public:
     void BeginFrame();
     void EndFrame();
 
-    template <typename Fn>
-    void ImmediateUpload(Fn&& uploadFunction) const;
-
     GLFWwindow* GetWindow() { return m_Window; }
 private:
     Renderer();
@@ -62,7 +60,8 @@ private:
 
     RenderingInfo GetImGuiUIRenderingInfo();
 
-    void CreatePendingCubemaps();
+    void ProcessPendingCubemaps();
+    void ProcessPendingPBRTextures();
 
     void OnWindowResize();
     void RecreateSwapchain();
@@ -98,13 +97,19 @@ private:
     std::shared_ptr<BlitPass> m_BlitHiZ;
 
     std::shared_ptr<CullMetaPass> m_VisibilityBufferPass;
-    std::shared_ptr<PbrVisibilityBuffer> m_PbrVisibilityBufferPass;
+    std::shared_ptr<PbrVisibilityBufferIBL> m_PbrVisibilityBufferIBLPass;
     std::shared_ptr<SsaoPass> m_SsaoPass;
     std::shared_ptr<SsaoBlurPass> m_SsaoBlurHorizontalPass;
     std::shared_ptr<SsaoBlurPass> m_SsaoBlurVerticalPass;
     std::shared_ptr<SsaoVisualizePass> m_SsaoVisualizePass;
+    
+    std::shared_ptr<VisualizeBRDFPass> m_VisualizeBRDFPass;
+    
 
     Texture m_SkyboxTexture{};
+    Texture m_SkyboxIrradianceMap{};
+    Texture m_SkyboxPrefilterMap{};
+    std::shared_ptr<Texture> m_BRDF{};
     std::shared_ptr<SkyboxPass> m_SkyboxPass;
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
@@ -113,9 +118,3 @@ private:
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
 };
-
-template <typename Fn>
-void Renderer::ImmediateUpload(Fn&& uploadFunction) const
-{
-    Driver::ImmediateUpload(uploadFunction);
-}

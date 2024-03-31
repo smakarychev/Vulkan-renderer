@@ -12,3 +12,7 @@ static constexpr u32 CULL_BATCH_OVERLAP{2};
 static constexpr u32 MAX_OBJECTS{100'000};
 static constexpr u32 MAX_DRAW_INDIRECT_CALLS{1'000'000};
 static constexpr u32 BINDLESS_TEXTURES_COUNT{MAX_DRAW_INDIRECT_CALLS};
+
+static constexpr u32 IRRADIANCE_RESOLUTION = 32;
+static constexpr u32 PREFILTER_RESOLUTION = 128;
+static constexpr u32 BRDF_RESOLUTION = 512;

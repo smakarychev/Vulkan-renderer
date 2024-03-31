@@ -46,9 +46,9 @@ SsaoPass::SsaoPass(RenderGraph::Graph& renderGraph, u32 sampleCount)
         samples[i] = glm::vec4{sample, 1.0f};
     }
 
-    m_SamplesBuffer = Buffer::Builder()
-        .SetUsage(BufferUsage::Uniform | BufferUsage::DeviceAddress | BufferUsage::Upload)
-        .SetSizeBytes(samples.size() * sizeof(glm::vec4))
+    m_SamplesBuffer = Buffer::Builder({
+            .SizeBytes = samples.size() * sizeof(glm::vec4),
+            .Usage = BufferUsage::Uniform | BufferUsage::DeviceAddress | BufferUsage::Upload})
         .Build();
     m_SamplesBuffer.SetData(samples.data(), m_SamplesBuffer.GetSizeBytes());
 
@@ -141,14 +141,14 @@ void SsaoPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;    
 
-            resourceDescriptors.UpdateBinding("u_settings", settingUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", cameraUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_samples", samplesUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_depth_texture", depthTexture.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding("u_settings", settingUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_samples", samplesUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_depth_texture", depthTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::DepthReadonly));
-            resourceDescriptors.UpdateBinding("u_noise_texture", noiseTexture.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding("u_noise_texture", noiseTexture.BindingInfo(
                 ImageFilter::Nearest, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_ssao", ssaoTexture.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding("u_ssao", ssaoTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
 
             struct PushConstants

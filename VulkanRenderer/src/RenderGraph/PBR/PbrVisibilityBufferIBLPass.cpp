@@ -1,16 +1,16 @@
-#include "PbrVisibilityBuffer.h"
+#include "PbrVisibilityBufferIBLPass.h"
 
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RenderPassGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
-PbrVisibilityBuffer::PbrVisibilityBuffer(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info)
+PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info)
 {
     ShaderPipelineTemplate* pbrTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-          "../assets/shaders/processed/render-graph/pbr/pbr-visibility-buffer-frag.shader"},
-      "Pass.PBR.Visibility", renderGraph.GetArenaAllocators());
+          "../assets/shaders/processed/render-graph/pbr/pbr-visibility-buffer-ibl-frag.shader"},
+      "Pass.PBR.Visibility.IBL", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
        .SetTemplate(pbrTemplate)
@@ -32,7 +32,7 @@ PbrVisibilityBuffer::PbrVisibilityBuffer(RenderGraph::Graph& renderGraph, const 
     m_PipelineData.MaterialDescriptors = *info.MaterialDescriptors;
 }
 
-void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info)
+void PbrVisibilityBufferIBL::AddToGraph(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info)
 {
     using namespace RenderGraph;
     using enum ResourceAccessFlags;
@@ -63,8 +63,19 @@ void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrV
             Resource ssao = info.SSAOTexture.IsValid() ? info.SSAOTexture :
                 graph.AddExternal("SSAO.Dummy", ImageUtils::DefaultTexture::White);
 
+            ASSERT(info.IrradianceMap.IsValid(), "Must provide irradiance map")
+            ASSERT(info.PrefilterMap.IsValid(), "Must provide prefilter map")
+            ASSERT(info.BRDF.IsValid(), "Must provide brdf")
+
+            Resource irradiance = info.IrradianceMap;
+            Resource prefilter = info.PrefilterMap;
+            Resource brdf = info.BRDF;
+
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
             passData.SSAOTexture = graph.Read(ssao, Pixel | Sampled);
+            passData.IrradianceMap = graph.Read(irradiance, Pixel | Sampled);
+            passData.PrefilterMap = graph.Read(prefilter, Pixel | Sampled);
+            passData.BRDF = graph.Read(brdf, Pixel | Sampled);
             passData.CameraUbo = graph.Read(passData.CameraUbo, Pixel | Uniform | Upload);
             passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, Pixel | Storage);
             passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Pixel | Storage);
@@ -88,6 +99,9 @@ void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrV
 
             const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
             const Texture& ssao = resources.GetTexture(passData.SSAOTexture);
+            const Texture& irradiance = resources.GetTexture(passData.IrradianceMap);
+            const Texture& prefilter = resources.GetTexture(passData.PrefilterMap);
+            const Texture& brdf = resources.GetTexture(passData.BRDF);
 
             CameraUBO camera = {
                 .View = frameContext.MainCamera->GetView(),
@@ -114,18 +128,24 @@ void PbrVisibilityBuffer::AddToGraph(RenderGraph::Graph& renderGraph, const PbrV
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
             auto& materialDescriptors = passData.PipelineData->MaterialDescriptors;
 
-            resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.CreateBindingInfo(ImageFilter::Nearest,
+            resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.BindingInfo(ImageFilter::Nearest,
                 ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_ssao_texture", ssao.CreateBindingInfo(ImageFilter::Linear,
+            resourceDescriptors.UpdateBinding("u_ssao_texture", ssao.BindingInfo(ImageFilter::Linear,
                 ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_camera", cameraUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding("u_indices", indicesSsbo.CreateBindingInfo());
+            resourceDescriptors.UpdateBinding("u_irradiance_map", irradiance.BindingInfo(ImageFilter::Linear,
+                ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_prefilter_map", prefilter.BindingInfo(ImageFilter::Linear,
+                ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_brdf", brdf.BindingInfo(ImageFilter::Linear,
+                ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_indices", indicesSsbo.BindingInfo());
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());

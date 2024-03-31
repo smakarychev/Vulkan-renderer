@@ -870,7 +870,7 @@ ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::stri
     auto&& [set, descriptorBinding] = m_CreateInfo.ShaderPipelineTemplate->GetSetAndBinding(name);
 
     m_CreateInfo.DescriptorBuilders[set].AddBufferBinding(
-        descriptorBinding.Binding, buffer.CreateSubresource(sizeBytes, offset), descriptorBinding.Type);
+        descriptorBinding.Binding, buffer.Subresource(sizeBytes, offset), descriptorBinding.Type);
 
     return *this;
 }

@@ -839,7 +839,7 @@ std::vector<Image> Driver::CreateSwapchainImages(const Swapchain& swapchain)
         DriverResources::ImageResource imageResource = {.Image = images[i]};
         colorImages[i].m_ResourceHandle = Resources().AddResource(imageResource);
         Resources()[colorImages[i]].Views.ViewType.View = CreateVulkanImageView(
-            colorImages[i].CreateSubresource(0, 1, 0, 1), Resources()[swapchain].ColorFormat);
+            colorImages[i].Subresource(0, 1, 0, 1), Resources()[swapchain].ColorFormat);
         Resources()[colorImages[i]].Views.ViewList = &Resources()[colorImages[i]].Views.ViewType.View;
     }
 
@@ -1038,7 +1038,7 @@ void Driver::CreateViews(const ImageSubresource& image,
     resource.Views.ViewList[0] = CreateVulkanImageView(image, viewFormat);
     for (u32 viewIndex = 0; viewIndex < additionalViews.size(); viewIndex++)
         resource.Views.ViewList[viewIndex + 1] = CreateVulkanImageView(
-            image.Image->CreateSubresource(additionalViews[viewIndex]), viewFormat);
+            image.Image->Subresource(additionalViews[viewIndex]), viewFormat);
 }
 
 Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
@@ -1613,7 +1613,7 @@ void Driver::DeallocateDescriptorSet(ResourceHandle<DescriptorAllocator> allocat
 void Driver::UpdateDescriptorSet(DescriptorSet& descriptorSet,
     u32 slot, const Texture& texture, DescriptorType type, u32 arrayIndex)
 {
-    ImageBindingInfo bindingInfo = texture.CreateBindingInfo({}, ImageLayout::Readonly);
+    ImageBindingInfo bindingInfo = texture.BindingInfo({}, ImageLayout::Readonly);
     VkDescriptorImageInfo descriptorTextureInfo = {};
     descriptorTextureInfo.sampler = Resources()[bindingInfo.Sampler].Sampler;
     descriptorTextureInfo.imageView = bindingInfo.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
@@ -2531,12 +2531,12 @@ void Driver::Init(const Device& device)
     
     vmaCreateAllocator(&createInfo, &s_State.Allocator);
 
-    s_State.UploadContext.CommandPool = CommandPool::Builder()
+    s_State.SubmitContext.CommandPool = CommandPool::Builder()
         .SetQueue(QueueKind::Graphics)
         .Build();
-    s_State.UploadContext.CommandBuffer = s_State.UploadContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
-    s_State.UploadContext.Fence = Fence::Builder().Build();
-    s_State.UploadContext.QueueInfo = s_State.Device->GetQueues().Graphics;
+    s_State.SubmitContext.CommandBuffer = s_State.SubmitContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
+    s_State.SubmitContext.Fence = Fence::Builder().Build();
+    s_State.SubmitContext.QueueInfo = s_State.Device->GetQueues().Graphics;
 
     Resources().m_Images.SetOnResizeCallback(
         [](DriverResources::ImageResource* oldMem, DriverResources::ImageResource* newMem)

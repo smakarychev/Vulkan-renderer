@@ -400,7 +400,7 @@ namespace RenderGraph
         
         // transition backbuffer to the layout that swapchain expects
         const Texture& backbuffer = *m_Textures[m_Backbuffer.Index()].m_Resource;
-        ImageSubresource backbufferSubresource = backbuffer.CreateSubresource(0, 1, 0, 1);
+        ImageSubresource backbufferSubresource = backbuffer.Subresource(0, 1, 0, 1);
         LayoutTransitionInfo backbufferTransition = {
             .ImageSubresource = backbufferSubresource,
             .SourceStage = PipelineStage::AllCommands,
@@ -950,7 +950,7 @@ namespace RenderGraph
         {
             auto& texture = m_Textures[transition.Texture.Index()];
                 
-            ImageSubresource subresource = texture.m_Resource->CreateSubresource();
+            ImageSubresource subresource = texture.m_Resource->Subresource();
             LayoutTransitionInfo layoutTransitionInfo = {
                 .ImageSubresource = subresource,
                 .SourceStage = transition.SourceStage,

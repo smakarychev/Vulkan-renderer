@@ -200,16 +200,16 @@ void MeshletCullPassGeneral<Reocclusion>::AddToGraph(RenderGraph::Graph& renderG
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            samplerDescriptors.UpdateBinding(samplerBinding, hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(hizBinding, hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(sceneBinding, sceneUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(objectVisibilityBinding, objectVisibilitySsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(meshletsBinding, meshletsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(meshletVisibilityBinding, meshletVisibilitySsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(commandsBinding, commandsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(compactCommandsBinding, compactCommandsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(countBinding, countSsbo.CreateBindingInfo());
+            samplerDescriptors.UpdateBinding(samplerBinding, hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding(hizBinding, hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding(sceneBinding, sceneUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(objectVisibilityBinding, objectVisibilitySsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(meshletsBinding, meshletsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(meshletVisibilityBinding, meshletVisibilitySsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(commandsBinding, commandsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(compactCommandsBinding, compactCommandsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(countBinding, countSsbo.BindingInfo());
 
             u32 meshletCount = passData.MeshletCount;
 

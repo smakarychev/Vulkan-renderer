@@ -72,8 +72,6 @@ public:
         Buffer Build();
         Buffer Build(DeletionQueue& deletionQueue);
         Buffer BuildManualLifetime();
-        Builder& SetUsage(BufferUsage usage);
-        Builder& SetSizeBytes(u64 sizeBytes);
         Builder& CreateMapped();
     private:
         CreateInfo m_CreateInfo;
@@ -93,17 +91,17 @@ public:
     u64 GetSizeBytes() const { return m_Description.SizeBytes; }
     BufferUsage GetKind() const { return m_Description.Usage; }
 
-    BufferSubresource CreateSubresource() const;
-    BufferSubresource CreateSubresource(u64 sizeBytes, u64 offset) const;
-    BufferSubresource CreateSubresource(const BufferSubresourceDescription& description) const;
+    BufferSubresource Subresource() const;
+    BufferSubresource Subresource(u64 sizeBytes, u64 offset) const;
+    BufferSubresource Subresource(const BufferSubresourceDescription& description) const;
     
-    BufferBindingInfo CreateBindingInfo() const
+    BufferBindingInfo BindingInfo() const
     {
-        return CreateSubresource();
+        return Subresource();
     }
-    BufferBindingInfo CreateBindingInfo(u64 sizeBytes, u64 offset) const
+    BufferBindingInfo BindingInfo(u64 sizeBytes, u64 offset) const
     {
-        return CreateSubresource(sizeBytes, offset);
+        return Subresource(sizeBytes, offset);
     }
 
     const void* GetHostAddress() const { return m_HostAddress; }

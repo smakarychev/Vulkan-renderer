@@ -10,18 +10,23 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution)
     u32 width = utils::floorToPowerOf2(resolution.x);
     u32 height = utils::floorToPowerOf2(resolution.y);
     
-    Texture::Builder hizBuilder = Texture::Builder()
-        .SetExtent({width, height})
-        .SetFormat(Format::R32_FLOAT)
-        .SetUsage(ImageUsage::Sampled | ImageUsage::Storage)
-        .CreateMipmaps(true, ImageFilter::Linear);
     u32 mipmapCount = Image::CalculateMipmapCount({width, height});
 
+    std::vector<ImageSubresourceDescription::Packed> additionalViews(mipmapCount);
     for (u32 i = 0; i < mipmapCount; i++)
-        hizBuilder.AddView(
-            {.MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1}, m_MipmapViewHandles[i]);
+        additionalViews[i] = ImageSubresourceDescription::Pack({
+            .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1});
+    
+    m_HiZ = Texture::Builder({
+            .Width = width,
+            .Height = height,
+            .Mipmaps = mipmapCount,
+            .Format = Format::R32_FLOAT,
+            .Usage = ImageUsage::Sampled | ImageUsage::Storage,
+            .AdditionalViews = additionalViews})
+        .BuildManualLifetime();
 
-    m_HiZ = hizBuilder.BuildManualLifetime();
+    m_MipmapViewHandles = m_HiZ.GetViewHandles();
 
     m_MinMaxSampler = Sampler::Builder()
         .Filters(ImageFilter::Linear, ImageFilter::Linear)
@@ -115,9 +120,9 @@ void HiZPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
                 const Texture& hizOut = resources.GetTexture(passData.HiZOut);
 
                 TextureBindingInfo depthInBinding = i > 0 ?
-                    depthIn.CreateBindingInfo(
+                    depthIn.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i - 1]) :
-                    depthIn.CreateBindingInfo(passData.MinMaxSampler, ImageLayout::DepthReadonly);
+                    depthIn.BindingInfo(passData.MinMaxSampler, ImageLayout::DepthReadonly);
 
                 auto& pipeline = passData.PipelineData->Pipeline;
                 auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
@@ -126,7 +131,7 @@ void HiZPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
                 samplerDescriptors.UpdateBinding(samplerBinding, depthInBinding);
                 resourceDescriptors.UpdateBinding(inImageBinding, depthInBinding);
                 resourceDescriptors.UpdateBinding(outImageBinding,
-                    hizOut.CreateBindingInfo(
+                    hizOut.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i]));
                 
                 u32 levelWidth = std::max(1u, width >> i);

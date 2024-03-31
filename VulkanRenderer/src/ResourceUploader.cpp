@@ -45,7 +45,7 @@ void ResourceUploader::SubmitUpload()
     if (m_LastUsedBuffer == INVALID_INDEX)
         return;
     
-    Driver::ImmediateUpload([this](const CommandBuffer& cmd)
+    Driver::ImmediateSubmit([this](const CommandBuffer& cmd)
     {
         for (auto& upload : m_BufferUploads)
             RenderCommand::CopyBuffer(cmd, m_StageBuffers[upload.SourceIndex].Buffer,
@@ -120,7 +120,7 @@ void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const void* data,
 
     m_ImmediateUploadBuffer.SetData(data, sizeBytes);
     
-    Driver::ImmediateUpload([&](const CommandBuffer& cmd)
+    Driver::ImmediateSubmit([&](const CommandBuffer& cmd)
     {
         RenderCommand::CopyBuffer(cmd, m_ImmediateUploadBuffer, buffer,
             {.SizeBytes = sizeBytes, .SourceOffset = 0, .DestinationOffset = bufferOffset});        
@@ -161,9 +161,9 @@ void ResourceUploader::ManageLifeTime()
 
 ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 sizeBytes)
 {
-    Buffer stagingBuffer = Buffer::Builder()
-        .SetUsage(BufferUsage::Source | BufferUsage::Upload)
-        .SetSizeBytes(sizeBytes)
+    Buffer stagingBuffer = Buffer::Builder({
+            .SizeBytes = sizeBytes,
+            .Usage = BufferUsage::Source | BufferUsage::Upload})
         .BuildManualLifetime();
 
     return {.Buffer = stagingBuffer, .MappedAddress = nullptr};

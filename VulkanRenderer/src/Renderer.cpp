@@ -21,12 +21,17 @@
 #include "RenderGraph/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/DrawIndirectCulledPass/DrawIndirectCountPass.h"
 #include "RenderGraph/HiZ/HiZVisualize.h"
-#include "RenderGraph/PBR/PbrVisibilityBuffer.h"
+#include "RenderGraph/PBR/VisualizeBRDFPass.h"
+#include "RenderGraph\PBR\PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/PostProcessing/Sky/SkyGradientPass.h"
 #include "RenderGraph/Skybox/SkyboxPass.h"
 #include "RenderGraph/Utility/BlitPass.h"
 #include "RenderGraph/Utility/CopyTexturePass.h"
+#include "Rendering/Image/Processing/BRDFProcessor.h"
+#include "Rendering/Image/Processing/CubemapProcessor.h"
+#include "Rendering/Image/Processing/DiffuseIrradianceProcessor.h"
+#include "Rendering/Image/Processing/EnvironmentPrefilterProcessor.h"
 
 Renderer::Renderer() = default;
 
@@ -58,10 +63,13 @@ void Renderer::InitRenderGraph()
             return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
                 assetLib::ModelInfo::MaterialType::Opaque;
         });
-    m_SkyboxTexture = Texture::Builder()
+    m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
         .FromEquirectangular("../assets/textures/evening_meadow_4k.tx")
-        .SetUsage(ImageUsage::Sampled)
         .Build();
+    m_SkyboxIrradianceMap = DiffuseIrradianceProcessor::CreateEmptyTexture();
+    m_SkyboxPrefilterMap = EnvironmentPrefilterProcessor::CreateEmptyTexture();
+    DiffuseIrradianceProcessor::Add(m_SkyboxTexture, m_SkyboxIrradianceMap);
+    EnvironmentPrefilterProcessor::Add(m_SkyboxTexture, m_SkyboxPrefilterMap);
 
     m_Graph = std::make_unique<RenderGraph::Graph>();
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
@@ -76,7 +84,7 @@ void Renderer::InitRenderGraph()
             .ExtractSet(2)
             .BindlessCount(1024)
             .Build();
-    materialDescriptors.UpdateBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().CreateBindingInfo());
+    materialDescriptors.UpdateBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
     m_GraphOpaqueGeometry.GetModelCollection().ApplyMaterialTextures(materialDescriptors);
     
     auto visibilityTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -98,12 +106,14 @@ void Renderer::InitRenderGraph()
         .Resolution = m_Swapchain.GetResolution(),
         .Geometry = &m_GraphOpaqueGeometry};
     m_VisibilityBufferPass = std::make_shared<CullMetaPass>(*m_Graph, visibilityPassInitInfo, "VisibilityBuffer");
-    m_PbrVisibilityBufferPass = std::make_shared<PbrVisibilityBuffer>(*m_Graph, PbrVisibilityBufferInitInfo{
+    m_PbrVisibilityBufferIBLPass = std::make_shared<PbrVisibilityBufferIBL>(*m_Graph, PbrVisibilityBufferInitInfo{
         .MaterialDescriptors = &materialDescriptors});
     m_SsaoPass = std::make_shared<SsaoPass>(*m_Graph, 32);
     m_SsaoBlurHorizontalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Horizontal);
     m_SsaoBlurVerticalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Vertical);
     m_SsaoVisualizePass = std::make_shared<SsaoVisualizePass>(*m_Graph);
+
+    m_VisualizeBRDFPass = std::make_shared<VisualizeBRDFPass>(*m_Graph);
 
     m_SkyboxPass = std::make_shared<SkyboxPass>(*m_Graph);
 
@@ -163,12 +173,12 @@ void Renderer::SetupRenderGraph()
 
     auto visibility = SetupVisibilityBufferPass();
 
-    m_SkyGradientPass->AddToGraph(*m_Graph,
-        m_Graph->CreateResource("Sky.Target", GraphTextureDescription{
-            .Width = GetFrameContext().Resolution.x,
-            .Height = GetFrameContext().Resolution.y,
-            .Format = Format::RGBA16_FLOAT}));
-    auto& skyGradientOutput = m_Graph->GetBlackboard().GetOutput<SkyGradientPass::PassData>();
+    //m_SkyGradientPass->AddToGraph(*m_Graph,
+    //    m_Graph->CreateResource("Sky.Target", GraphTextureDescription{
+    //        .Width = GetFrameContext().Resolution.x,
+    //        .Height = GetFrameContext().Resolution.y,
+    //        .Format = Format::RGBA16_FLOAT}));
+    //auto& skyGradientOutput = m_Graph->GetBlackboard().GetOutput<SkyGradientPass::PassData>();
 
     if (visibility.DepthOut.has_value())
     {
@@ -190,20 +200,27 @@ void Renderer::SetupRenderGraph()
     auto ssaoBlurVerticalOutput = m_Graph->GetBlackboard().TryGetOutput<SsaoBlurPass::PassData>(
         m_SsaoBlurVerticalPass->GetNameHash());
 
-    m_PbrVisibilityBufferPass->AddToGraph(*m_Graph, {
+    m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
         .VisibilityTexture = visibility.ColorsOut[0],
         .SSAOTexture = ssaoBlurVerticalOutput != nullptr ? ssaoBlurVerticalOutput->SsaoOut : Resource{},
-        .ColorIn = skyGradientOutput.ColorOut,
+        .IrradianceMap = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
+        .PrefilterMap = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
+        .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF),
+        .ColorIn = {},
         .Geometry = &m_GraphOpaqueGeometry});
-    auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBuffer::PassData>();
+    auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBufferIBL::PassData>();
 
-    m_SkyboxPass->AddToGraph(*m_Graph, m_SkyboxTexture, backbuffer, *visibility.DepthOut, GetFrameContext().Resolution);
+    m_SkyboxPass->AddToGraph(*m_Graph,
+        m_SkyboxTexture, pbrOutput.ColorOut, *visibility.DepthOut, GetFrameContext().Resolution);
     auto& skyboxOutput = m_Graph->GetBlackboard().GetOutput<SkyboxPass::PassData>();
-    backbuffer = skyboxOutput.ColorOut;
     
-    //m_CrtPass->AddToGraph(*m_Graph, pbrOutput.ColorOut, backbuffer);
-    //auto& crtOut = m_Graph->GetBlackboard().GetOutput<CrtPass::PassData>();
-    //backbuffer = crtOut.ColorTarget;
+    m_CrtPass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer);
+    auto& crtOut = m_Graph->GetBlackboard().GetOutput<CrtPass::PassData>();
+    backbuffer = crtOut.ColorOut;
+
+    //m_VisualizeBRDFPass->AddToGraph(*m_Graph, *m_BRDF, backbuffer, GetFrameContext().Resolution);
+    //auto& visualizeBRDFOutput = m_Graph->GetBlackboard().GetOutput<VisualizeBRDFPass::PassData>();
+    //backbuffer = visualizeBRDFOutput.ColorOut;
 
     m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
@@ -239,14 +256,16 @@ void Renderer::OnRender()
 {
     CPU_PROFILE_FRAME("On render")
 
+    BeginFrame();
+    ImGuiUI::BeginFrame();
+    ProcessPendingCubemaps();
+    ProcessPendingPBRTextures();
+
     {
         CPU_PROFILE_FRAME("Setup Render Graph")
         SetupRenderGraph();
     }
     
-    BeginFrame();
-    ImGuiUI::BeginFrame();
-    CreatePendingCubemaps();
 
     if (!m_FrameEarlyExit)
     {
@@ -313,10 +332,20 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
     return info;
 }
 
-void Renderer::CreatePendingCubemaps()
+void Renderer::ProcessPendingCubemaps()
 {
     if (CubemapProcessor::HasPending())
         CubemapProcessor::Process(GetFrameContext().Cmd);
+}
+
+void Renderer::ProcessPendingPBRTextures()
+{
+    if (DiffuseIrradianceProcessor::HasPending())
+        DiffuseIrradianceProcessor::Process(GetFrameContext().Cmd);
+    if (EnvironmentPrefilterProcessor::HasPending())
+        EnvironmentPrefilterProcessor::Process(GetFrameContext().Cmd);
+    if (!m_BRDF)
+        m_BRDF = std::make_shared<Texture>(BRDFProcessor::CreateBRDF(GetFrameContext().Cmd));
 }
 
 void Renderer::EndFrame()

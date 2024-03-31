@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Rendering/Buffer.h"
-#include "Rendering/Image.h"
+#include "Rendering/Image/Image.h"
 
 namespace RenderGraph
 {

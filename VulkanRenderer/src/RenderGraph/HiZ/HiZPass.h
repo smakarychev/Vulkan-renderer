@@ -13,12 +13,12 @@ public:
     std::shared_ptr<Texture>* GetHiZPrevious() { return &m_HiZPrevious; }
     const Texture* GetHiZPrevious() const { return m_HiZPrevious.get(); }
     Sampler GetSampler() const { return m_MinMaxSampler; }
-    const std::array<ImageViewHandle, MAX_MIPMAP_COUNT>& GetViewHandles() const { return m_MipmapViewHandles; }
+    const std::vector<ImageViewHandle>& GetViewHandles() const { return m_MipmapViewHandles; }
 private:
     Texture m_HiZ;
     std::shared_ptr<Texture> m_HiZPrevious{};
     Sampler m_MinMaxSampler;
-    std::array<ImageViewHandle, MAX_MIPMAP_COUNT> m_MipmapViewHandles;
+    std::vector<ImageViewHandle> m_MipmapViewHandles;
 };
 
 class HiZPass
@@ -27,7 +27,7 @@ public:
     struct PassData
     {
         Sampler MinMaxSampler;
-        std::array<ImageViewHandle, HiZPassContext::MAX_MIPMAP_COUNT> MipmapViewHandles;
+        std::vector<ImageViewHandle> MipmapViewHandles;
 
         RenderGraph::Resource DepthIn;
         RenderGraph::Resource HiZOut;

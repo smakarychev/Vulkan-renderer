@@ -65,7 +65,7 @@ void SsaoVisualizePass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph:
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding("u_ssao", ssaoTexture.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding("u_ssao", ssaoTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
 
             auto& cmd = frameContext.Cmd;

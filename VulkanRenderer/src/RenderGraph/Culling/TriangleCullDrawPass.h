@@ -302,8 +302,8 @@ void TriangleCullPrepareDispatchPass<Reocclusion>::AddToGraph(RenderGraph::Graph
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding(countBinding, countSsbo.CreateBindingInfo());          
-            resourceDescriptors.UpdateBinding(dispatchBinding, dispatchSsbo.CreateBindingInfo());
+            resourceDescriptors.UpdateBinding(countBinding, countSsbo.BindingInfo());          
+            resourceDescriptors.UpdateBinding(dispatchBinding, dispatchSsbo.BindingInfo());
 
             struct PushConstants
             {
@@ -633,43 +633,43 @@ void TriangleCullDrawPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGra
                 auto& samplerDescriptors = passData.CullPipelines->at(index).SamplerDescriptors;
                 auto& resourceDescriptors = passData.CullPipelines->at(index).ResourceDescriptors;
 
-                samplerDescriptors.UpdateBinding("u_sampler", hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
-                resourceDescriptors.UpdateBinding("u_hiz", hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
-                resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibilitySsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_commands", compactCommandsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_count", compactCountSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_triangle_visibility", triangleVisibilitySsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_indices", indicesSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_triangles", trianglesSsbo[index].CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_culled_indices", indicesCulledSsbo[index].CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_culled_count", indicesCulledCountSsbo[index].CreateBindingInfo());
+                samplerDescriptors.UpdateBinding("u_sampler", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+                resourceDescriptors.UpdateBinding("u_hiz", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+                resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibilitySsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_commands", compactCommandsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_count", compactCountSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_triangle_visibility", triangleVisibilitySsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_indices", indicesSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_triangles", trianglesSsbo[index].BindingInfo());
+                resourceDescriptors.UpdateBinding("u_culled_indices", indicesCulledSsbo[index].BindingInfo());
+                resourceDescriptors.UpdateBinding("u_culled_count", indicesCulledCountSsbo[index].BindingInfo());
             };
             auto updateIterationPrepare = [&](u32 index)
             {
                 auto& resourceDescriptors = passData.PreparePipelines->at(index).ResourceDescriptors;
-                resourceDescriptors.UpdateBinding("u_index_count", indicesCulledCountSsbo[index].CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_indirect_draw", drawIndirectSsbo[index].CreateBindingInfo());
+                resourceDescriptors.UpdateBinding("u_index_count", indicesCulledCountSsbo[index].BindingInfo());
+                resourceDescriptors.UpdateBinding("u_indirect_draw", drawIndirectSsbo[index].BindingInfo());
             };
             auto updateIterationDraw = [&](u32 index)
             {
                 auto& resourceDescriptors = passData.DrawPipelines->at(index).ResourceDescriptors;
 
-                resourceDescriptors.UpdateBinding("u_camera", cameraUbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.CreateBindingInfo());
-                resourceDescriptors.UpdateBinding("u_triangles", trianglesSsbo[index].CreateBindingInfo());
+                resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_triangles", trianglesSsbo[index].BindingInfo());
                 
-                resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.CreateBindingInfo());
+                resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
 
                 if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::AlphaTest)
-                    resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.CreateBindingInfo());
+                    resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.BindingInfo());
                 if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::MainAttributes)
-                    resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.CreateBindingInfo());
+                    resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.BindingInfo());
                 if ((u32)passData.Features >= (u32)TriangleCullDrawPassInitInfo::Features::AllAttributes)
-                    resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.CreateBindingInfo());
+                    resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.BindingInfo());
             };
             auto createRenderingInfo = [&](bool canClear)
             {

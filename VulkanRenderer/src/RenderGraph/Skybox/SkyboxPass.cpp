@@ -34,6 +34,14 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, const Texture& skyb
     RenderGraph::Resource depthIn, const glm::uvec2& resolution)
 {
     using namespace RenderGraph;
+    std::string name = "Skybox";
+    AddToGraph(renderGraph, renderGraph.AddExternal(name + ".Skybox", skybox), colorOut, depthIn, resolution);
+}
+
+void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource skybox,
+    RenderGraph::Resource colorOut, RenderGraph::Resource depthIn, const glm::uvec2& resolution)
+{
+    using namespace RenderGraph;
     using enum ResourceAccessFlags;
     
     std::string name = "Skybox";
@@ -50,8 +58,7 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, const Texture& skyb
             }
             ASSERT(depthIn.IsValid(), "Depth has to be provided")
       
-            passData.Skybox = graph.AddExternal(name + ".Skybox", skybox);
-            passData.Skybox = graph.Read(passData.Skybox, Pixel | Sampled);
+            passData.Skybox = graph.Read(skybox, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 AttachmentLoad::Unspecified, AttachmentStore::Store);
             passData.DepthIn = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
@@ -80,7 +87,7 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, const Texture& skyb
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding("u_skybox", skyboxTexture.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding("u_skybox", skyboxTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
             
             auto& cmd = frameContext.Cmd;

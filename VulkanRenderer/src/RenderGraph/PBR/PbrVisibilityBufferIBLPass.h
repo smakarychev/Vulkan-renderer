@@ -11,12 +11,15 @@ struct PbrVisibilityBufferExecutionInfo
 {
     RenderGraph::Resource VisibilityTexture{};
     RenderGraph::Resource SSAOTexture{};
+    RenderGraph::Resource IrradianceMap{};
+    RenderGraph::Resource PrefilterMap{};
+    RenderGraph::Resource BRDF{};
     RenderGraph::Resource ColorIn{};
     
     const RenderPassGeometry* Geometry{nullptr};
 };
 
-class PbrVisibilityBuffer
+class PbrVisibilityBufferIBL
 {
 public:
     struct CameraUBO
@@ -34,6 +37,9 @@ public:
     {
         RenderGraph::Resource VisibilityTexture{};
         RenderGraph::Resource SSAOTexture{};
+        RenderGraph::Resource IrradianceMap{};
+        RenderGraph::Resource PrefilterMap{};
+        RenderGraph::Resource BRDF{};
         
         RenderGraph::Resource CameraUbo{};
         RenderGraph::Resource CommandsSsbo{};
@@ -49,7 +55,7 @@ public:
         RenderGraph::BindlessTexturesPipelineData* PipelineData{nullptr};        
     };
 public:
-    PbrVisibilityBuffer(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info);
+    PbrVisibilityBufferIBL(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info);
     void AddToGraph(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info);
 private:
     RenderGraph::Pass* m_Pass{nullptr};

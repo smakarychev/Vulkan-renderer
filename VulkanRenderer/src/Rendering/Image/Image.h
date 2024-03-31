@@ -4,11 +4,12 @@
 #include <string_view>
 #include <unordered_map>
 
-#include "Buffer.h"
-#include "CommandBuffer.h"
+#include "Rendering/Buffer.h"
+#include "Rendering/CommandBuffer.h"
 #include "ImageTraits.h"
-#include "FormatTraits.h"
-#include "SynchronizationTraits.h"
+#include "Sampler.h"
+#include "Rendering/FormatTraits.h"
+#include "Rendering/SynchronizationTraits.h"
 
 struct LayoutTransitionInfo;
 
@@ -17,51 +18,10 @@ namespace assetLib
     enum class TextureFormat : u32;
 }
 
-struct UploadContext;
+struct ImmediateSubmitContext;
 class Buffer;
 class Swapchain;
 class Device;
-
-class Sampler
-{
-    FRIEND_INTERNAL
-    friend class Image;
-    friend class SamplerCache;
-public:
-    static constexpr f32 LOD_MAX = 1000.0f;
-    
-    class Builder
-    {
-        friend class Sampler;
-        friend class SamplerCache;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            ImageFilter MinificationFilter{ImageFilter::Linear};
-            ImageFilter MagnificationFilter{ImageFilter::Linear};
-            SamplerWrapMode AddressMode{SamplerWrapMode::Repeat};
-            std::optional<SamplerReductionMode> ReductionMode;
-            f32 MaxLod{LOD_MAX};
-            bool WithAnisotropy{true};
-        };
-    public:
-        Sampler Build();
-        Builder& Filters(ImageFilter minification, ImageFilter magnification);
-        Builder& WrapMode(SamplerWrapMode mode);
-        Builder& ReductionMode(SamplerReductionMode mode);
-        Builder& MaxLod(f32 lod);
-        Builder& WithAnisotropy(bool enabled);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static Sampler Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const Sampler& sampler);
-private:
-    ResourceHandle<Sampler> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandle<Sampler> m_ResourceHandle{};
-};
 
 class ImageViewHandle
 {
@@ -169,8 +129,8 @@ public:
             AssetInfo AssetInfo;
             Buffer DataBuffer;
             ImageDescription Description{};
-            bool CreateMipmaps{false};
             std::vector<ImageSubresourceDescription> AdditionalViews;
+            bool NoMips{false};
         };
     public:
         Builder() = default;
@@ -185,13 +145,9 @@ public:
         {
             return FromPixels(pixels.data(), pixels.size() * sizeof(T));
         }
-        Builder& SetFormat(Format format);
-        Builder& SetExtent(const glm::uvec2& extent);
-        Builder& SetExtent(const glm::uvec3& extent);
-        Builder& SetKind(ImageKind kind);
-        Builder& CreateMipmaps(bool enable, ImageFilter filter);
-        Builder& SetUsage(ImageUsage usage);
-        Builder& AddView(const ImageSubresourceDescription& subresource, ImageViewHandle& viewHandle);
+        // builder should not create mipmaps (still allocates if mipmap count is not 1),
+        // intended for the cases when mipmap creation has to be delayed (when image does not yet has any pixel data)
+        Builder& NoMips();
     private:
         void PreBuild();
         Builder& FromPixels(const void* pixels, u64 sizeBytes);
@@ -205,53 +161,54 @@ public:
 
     const ImageDescription& GetDescription() const { return m_Description; }
     
-    ImageSubresource CreateSubresource() const;
-    ImageSubresource CreateSubresource(u32 mipCount, u32 layerCount) const;
-    ImageSubresource CreateSubresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const;
-    ImageSubresource CreateSubresource(const ImageSubresourceDescription& description) const;
+    ImageSubresource Subresource() const;
+    ImageSubresource Subresource(u32 mipCount, u32 layerCount) const;
+    ImageSubresource Subresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const;
+    ImageSubresource Subresource(const ImageSubresourceDescription& description) const;
 
-    ImageBlitInfo CreateImageBlitInfo() const;
-    ImageBlitInfo CreateImageBlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
-    ImageBlitInfo CreateImageBlitInfo(const glm::uvec3& bottom, const glm::uvec3& top,
+    ImageBlitInfo BlitInfo() const;
+    ImageBlitInfo BlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
+    ImageBlitInfo BlitInfo(const glm::uvec3& bottom, const glm::uvec3& top,
         u32 mipBase, u32 layerBase, u32 layerCount) const;
-    ImageBlitInfo CreateImageBlitInfo(const glm::vec3& bottom, const glm::vec3& top,
+    ImageBlitInfo BlitInfo(const glm::vec3& bottom, const glm::vec3& top,
         u32 mipBase, u32 layerBase, u32 layerCount, ImageSizeType sizeType) const;
     
-    ImageBlitInfo CreateImageCopyInfo() const;
-    ImageBlitInfo CreateImageCopyInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
-    ImageBlitInfo CreateImageCopyInfo(const glm::uvec3& bottom, const glm::uvec3& size,
+    ImageBlitInfo CopyInfo() const;
+    ImageBlitInfo CopyInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
+    ImageBlitInfo CopyInfo(const glm::uvec3& bottom, const glm::uvec3& size,
         u32 mipBase, u32 layerBase, u32 layerCount) const;
-    ImageBlitInfo CreateImageCopyInfo(const glm::vec3& bottom, const glm::vec3& size,
+    ImageBlitInfo CopyInfo(const glm::vec3& bottom, const glm::vec3& size,
         u32 mipBase, u32 layerBase, u32 layerCount, ImageSizeType sizeType) const;
 
-    ImageBindingInfo CreateBindingInfo(ImageFilter filter, ImageLayout layout) const;
-    ImageBindingInfo CreateBindingInfo(Sampler sampler, ImageLayout layout) const;
-    ImageBindingInfo CreateBindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const;
-    ImageBindingInfo CreateBindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
+    ImageBindingInfo BindingInfo(ImageFilter filter, ImageLayout layout) const;
+    ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout) const;
+    ImageBindingInfo BindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const;
+    ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
 
     std::vector<ImageViewHandle> GetViewHandles() const;
 
     static u16 CalculateMipmapCount(const glm::uvec2& resolution);
     static u16 CalculateMipmapCount(const glm::uvec3& resolution);
+    void CreateMipmaps(ImageLayout currentLayout);
 
     bool operator==(const Image& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(const Image& other) const { return !(*this == other); }
 private:
     using CreateInfo = Builder::CreateInfo;
+    static Image CreateImage(const CreateInfo& createInfo);
     static Image CreateImageFromAsset(const CreateInfo& createInfo);
     static Image CreateImageFromEquirectangular(const CreateInfo& createInfo);
     static Image CreateImageFromPixelData(const CreateInfo& createInfo);
     static Image CreateImageFromBuffer(const CreateInfo& createInfo);
     static Image AllocateImage(const CreateInfo& createInfo);
     static void PrepareForMipmapDestination(const ImageSubresource& imageSubresource);
-    static void PrepareForMipmapSource(const ImageSubresource& imageSubresource);
+    static void PrepareForMipmapSource(const ImageSubresource& imageSubresource, ImageLayout currentLayout);
     static void PrepareForShaderRead(const ImageSubresource& imageSubresource);
     static void PrepareImageGeneral(const ImageSubresource& imageSubresource,
         ImageLayout current, ImageLayout target,
         PipelineAccess srcAccess, PipelineAccess dstAccess,
         PipelineStage srcStage, PipelineStage dstStage);
     static void CopyBufferToImage(const Buffer& buffer, const Image& image);
-    static void CreateMipmaps(const Image& image, const CreateInfo& createInfo);
 
     static void CreateImageView(const ImageSubresource& imageSubresource,
         const std::vector<ImageSubresourceDescription>& additionalViews);
@@ -263,17 +220,6 @@ private:
 };
 
 using Texture = Image;
-
-
-class CubemapProcessor
-{
-public:
-    static bool HasPending() { return !s_PendingTextures.empty(); }
-    static void Add(const std::string& path, const Image& image);
-    static void Process(const CommandBuffer& cmd);
-private:
-    static std::unordered_map<std::string, Image> s_PendingTextures;
-};
 
 namespace ImageUtils
 {
@@ -307,20 +253,3 @@ namespace ImageUtils
     };
 }
 
-class SamplerCache
-{
-public:
-    static Sampler CreateSampler(const Sampler::Builder::CreateInfo& createInfo);
-private:
-    struct CacheKey
-    {
-        Sampler::Builder::CreateInfo CreateInfo;
-        bool operator==(const CacheKey& other) const;
-    };
-    struct SamplerKeyHash
-    {
-        u64 operator()(const CacheKey& cacheKey) const;
-    };
-
-    static std::unordered_map<CacheKey, Sampler, SamplerKeyHash> s_SamplerCache;
-};

@@ -30,8 +30,8 @@ void BlitPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource
             const Texture& dst = resources.GetTexture(passData.TextureOut);
 
             RenderCommand::BlitImage(frameContext.Cmd,
-                src.CreateImageBlitInfo(),
-                dst.CreateImageBlitInfo(
+                src.BlitInfo(),
+                dst.BlitInfo(
                     offset, offset + size, 0, 0, 1, sizeType),
                 ImageFilter::Nearest);
         });

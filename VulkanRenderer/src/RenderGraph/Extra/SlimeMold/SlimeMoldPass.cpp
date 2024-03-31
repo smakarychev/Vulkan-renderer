@@ -27,21 +27,21 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
             .TraitsIndex = Random::UInt32(0, traitCount - 1),
             .ContagionStepsLeft = 0};
 
-    ctx.m_TraitsBuffer = Buffer::Builder()
-        .SetSizeBytes((u32)ctx.m_Traits.size() * sizeof(Traits))
-        .SetUsage(BufferUsage::Storage | BufferUsage::DeviceAddress | BufferUsage::Destination)
+    ctx.m_TraitsBuffer = Buffer::Builder({
+            .SizeBytes = (u32)ctx.m_Traits.size() * sizeof(Traits),
+            .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress | BufferUsage::Destination})
         .Build();
 
-    ctx.m_SlimeBuffer = Buffer::Builder()
-        .SetSizeBytes((u32)ctx.m_Slime.size() * sizeof(Slime))
-        .SetUsage(BufferUsage::Storage | BufferUsage::DeviceAddress | BufferUsage::Destination)
+    ctx.m_SlimeBuffer = Buffer::Builder({
+            .SizeBytes = (u32)ctx.m_Slime.size() * sizeof(Slime),
+            .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress | BufferUsage::Destination})
         .Build();
 
     ctx.m_SlimeMap = Texture::Builder({
             .Width = bounds.x,
             .Height = bounds.y,
-            .Format = Format::RGBA16_FLOAT})
-        .SetUsage(ImageUsage::Storage | ImageUsage::Destination)
+            .Format = Format::RGBA16_FLOAT,
+            .Usage = ImageUsage::Storage | ImageUsage::Destination})
         .Build();
 
     resourceUploader.UpdateBuffer(ctx.m_TraitsBuffer, ctx.m_Traits.data(),
@@ -182,9 +182,9 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RenderGraph::Graph& renderGraph, Slim
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding(traitsBinding, traitsBuffer.CreateBindingInfo());            
-            resourceDescriptors.UpdateBinding(slimeBinding, slimeBuffer.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(mapBinding, slimeMap.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding(traitsBinding, traitsBuffer.BindingInfo());            
+            resourceDescriptors.UpdateBinding(slimeBinding, slimeBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding(mapBinding, slimeMap.BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
 
             u32 slimeCount = (u32)moldCtx.GetSlime().size();
@@ -257,9 +257,9 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding(mapBinding, slimeMap.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding(mapBinding, slimeMap.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));       
-            resourceDescriptors.UpdateBinding(diffuseBinding, diffuseMap.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding(diffuseBinding, diffuseMap.BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
@@ -341,11 +341,11 @@ void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldC
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding(diffuseBinding, diffuseMap.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding(diffuseBinding, diffuseMap.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(gradientBinding, gradientMap.CreateBindingInfo(
+            resourceDescriptors.UpdateBinding(gradientBinding, gradientMap.BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
-            resourceDescriptors.UpdateBinding(gradientColorsBinding, gradientUbo.CreateBindingInfo());
+            resourceDescriptors.UpdateBinding(gradientColorsBinding, gradientUbo.BindingInfo());
 
             auto& moldCtx = *passData.SlimeMoldContext;
             auto& cmd = frameContext.Cmd;

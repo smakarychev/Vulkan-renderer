@@ -181,28 +181,22 @@ inline RenderPassGeometry::AttributeBuffers RenderPassGeometry::InitAttributeBuf
     u64 totalUVsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec2);
     u64 totalIndicesSizeBytes = countsInfo.IndexCount * sizeof(assetLib::ModelInfo::IndexType);
 
-    Buffer::Builder vertexBufferBuilder = Buffer::Builder()
-        .SetUsage(BufferUsage::Vertex | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress);
-    
-    Buffer::Builder indexBufferBuilder = Buffer::Builder()
-        .SetUsage(BufferUsage::Index | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress);
+    BufferUsage vertexUsage =
+        BufferUsage::Vertex | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress;
+    BufferUsage indexUsage =
+        BufferUsage::Index | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress;
 
     AttributeBuffers attributeBuffers = {};
 
-    attributeBuffers.Positions = vertexBufferBuilder
-        .SetSizeBytes(totalPositionsSizeBytes)
+    attributeBuffers.Positions = Buffer::Builder({.SizeBytes = totalPositionsSizeBytes, .Usage = vertexUsage})
         .Build();
-    attributeBuffers.Normals = vertexBufferBuilder
-        .SetSizeBytes(totalNormalsSizeBytes)
+    attributeBuffers.Normals = Buffer::Builder({.SizeBytes = totalNormalsSizeBytes, .Usage = vertexUsage})
         .Build();
-    attributeBuffers.Tangents = vertexBufferBuilder
-        .SetSizeBytes(totalTangentsSizeBytes)
+    attributeBuffers.Tangents = Buffer::Builder({.SizeBytes = totalTangentsSizeBytes, .Usage = vertexUsage})
         .Build();
-    attributeBuffers.UVs = vertexBufferBuilder
-        .SetSizeBytes(totalUVsSizeBytes)
+    attributeBuffers.UVs = Buffer::Builder({.SizeBytes = totalUVsSizeBytes, .Usage = vertexUsage})
         .Build();
-    attributeBuffers.Indices = indexBufferBuilder
-        .SetSizeBytes(totalIndicesSizeBytes)
+    attributeBuffers.Indices = Buffer::Builder({.SizeBytes = totalIndicesSizeBytes, .Usage = indexUsage})
         .Build();
 
     return attributeBuffers;
@@ -212,20 +206,21 @@ inline void RenderPassGeometry::InitBuffers(RenderPassGeometry& renderPassGeomet
 {
     renderPassGeometry.m_CommandCount = countsInfo.CommandCount;
     renderPassGeometry.m_RenderObjectCount = countsInfo.RenderObjectCount;
-    renderPassGeometry.m_Commands = Buffer::Builder()
-        .SetUsage(BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
-        .SetSizeBytes(countsInfo.CommandCount * sizeof(IndirectDrawCommand))
+    renderPassGeometry.m_Commands = Buffer::Builder({
+            .SizeBytes = countsInfo.CommandCount * sizeof(IndirectDrawCommand),
+            .Usage = BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination |
+                BufferUsage::DeviceAddress})
         .Build();
-    renderPassGeometry.m_RenderObjects = Buffer::Builder()
-        .SetUsage(BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
-        .SetSizeBytes(countsInfo.RenderObjectCount * sizeof(RenderObjectGPU))
+    renderPassGeometry.m_RenderObjects = Buffer::Builder({
+            .SizeBytes = countsInfo.RenderObjectCount * sizeof(RenderObjectGPU),
+            .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
         .Build();
-    renderPassGeometry.m_Materials = Buffer::Builder()
-       .SetUsage(BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
-       .SetSizeBytes(countsInfo.RenderObjectCount * sizeof(MaterialGPU))
+    renderPassGeometry.m_Materials = Buffer::Builder({
+            .SizeBytes = countsInfo.RenderObjectCount * sizeof(MaterialGPU),
+            .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
        .Build();
-    renderPassGeometry.m_Meshlets = Buffer::Builder()
-        .SetUsage(BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress)
-        .SetSizeBytes(countsInfo.CommandCount * sizeof(MeshletGPU))
+    renderPassGeometry.m_Meshlets = Buffer::Builder({
+            .SizeBytes = countsInfo.CommandCount * sizeof(MeshletGPU),
+            .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
         .Build();
 }

@@ -17,7 +17,7 @@ public:
     struct PassData
     {
         RenderGraph::Resource ColorIn;
-        RenderGraph::Resource ColorTarget{};
+        RenderGraph::Resource ColorOut{};
         RenderGraph::Resource TimeUbo{};
         RenderGraph::Resource SettingsUbo{};
 

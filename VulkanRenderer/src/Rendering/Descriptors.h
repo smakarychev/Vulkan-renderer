@@ -10,7 +10,7 @@
 
 #include "Buffer.h"
 #include "DescriptorsTraits.h"
-#include "Image.h"
+#include "Image/Image.h"
 #include "ShaderAsset.h"
 
 namespace assetLib

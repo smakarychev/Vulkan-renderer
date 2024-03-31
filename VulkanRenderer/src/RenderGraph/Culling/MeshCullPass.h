@@ -174,11 +174,11 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            samplerDescriptors.UpdateBinding(samplerBinding, hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(hizBinding, hiz.CreateBindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(sceneBinding, sceneUbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.CreateBindingInfo());
-            resourceDescriptors.UpdateBinding(visibilityBinding, visibilitySsbo.CreateBindingInfo());
+            samplerDescriptors.UpdateBinding(samplerBinding, hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding(hizBinding, hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding(sceneBinding, sceneUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(visibilityBinding, visibilitySsbo.BindingInfo());
 
             u32 objectCount = passData.ObjectCount;
 

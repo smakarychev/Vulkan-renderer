@@ -3,7 +3,7 @@
 #include <Vulkan/vulkan_core.h>
 
 #include "Rendering/CommandBuffer.h"
-#include "Rendering/ImageTraits.h"
+#include "Rendering/Image/ImageTraits.h"
 #include "types.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/RenderingCommon.h"

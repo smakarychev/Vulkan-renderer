@@ -1,7 +1,7 @@
 #pragma once
 
 #include "DriverResourceHandle.h"
-#include "ImageTraits.h"
+#include "Image/ImageTraits.h"
 #include "RenderingCommon.h"
 
 #include <optional>
