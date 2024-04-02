@@ -351,8 +351,7 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     transform_to_clip_space(triangle, visibility_info);
     const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.resolution);
 
-    const vec3 one_over_w = 1.0f / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
-    const float w = 1.0f / dot(one_over_w, interpolation_data.barycentric);
+    const float w = dot(vec3(triangle.a.w, triangle.b.w, triangle.c.w), interpolation_data.barycentric);
     const float z = -w * u_camera.projection[2][2] + u_camera.projection[3][2];
     const vec3 position = (u_camera.view_projection_inverse * vec4(vertex_position * w, z, w)).xyz;
 
