@@ -23,6 +23,11 @@ namespace
                 flags |= DescriptorFlags::ImmutableSampler;
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearest))
                 flags |= DescriptorFlags::ImmutableSamplerNearest;
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampEdge))
+                flags |= DescriptorFlags::ImmutableSamplerClampEdge;
+            else if (flagString == assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerNearestClampEdge))
+                    flags |= DescriptorFlags::ImmutableSamplerNearestClampEdge;
             else
                 ASSERT(false, "Unrecogrinzed flag {}", flagString)
         }
@@ -41,6 +46,11 @@ namespace
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler));
         if (flags & DescriptorFlags::ImmutableSamplerNearest)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearest));
+        if (flags & DescriptorFlags::ImmutableSamplerClampEdge)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampEdge));
+        if (flags & DescriptorFlags::ImmutableSamplerNearestClampEdge)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerNearestClampEdge));
 
         return flagsStrings;
     }
@@ -241,6 +251,10 @@ namespace assetLib
             return "immutable_sampler";
         if (flag == DescriptorFlags::ImmutableSamplerNearest)
             return "immutable_sampler_nearest";
+        if (flag == DescriptorFlags::ImmutableSamplerClampEdge)
+            return "immutable_sampler_clamp_edge";
+        if (flag == DescriptorFlags::ImmutableSamplerNearestClampEdge)
+            return "immutable_sampler_nearest_clamp_edge";
         ASSERT(false, "Unsupported flag")
         std::unreachable();
     }

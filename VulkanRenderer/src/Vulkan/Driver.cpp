@@ -1409,8 +1409,12 @@ void Driver::Destroy(ResourceHandle<Pipeline> pipeline)
 
 DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& createInfo)
 {
-    static Sampler immutableSampler = GetImmutableSampler(ImageFilter::Linear);
-    static Sampler immutableSamplerNearest = GetImmutableSampler(ImageFilter::Nearest);
+    static Sampler immutableSampler = GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::Repeat);
+    static Sampler immutableSamplerNearest = GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::Repeat);
+    static Sampler immutableSamplerClampEdge =
+        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampEdge);
+    static Sampler immutableSamplerNearestClampEdge =
+        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampEdge);
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     bindingFlags.reserve(createInfo.BindingFlags.size());
@@ -1428,7 +1432,12 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
             .descriptorCount = binding.Count,
             .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders)});
 
-        if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearest))
+        if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerClampEdge))
+            bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampEdge].Sampler;
+        else if (enumHasAny(binding.DescriptorFlags,
+            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearestClampEdge))
+                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampEdge].Sampler;
+        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearest))
             bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearest].Sampler;
         else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSampler))
             bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
@@ -2570,10 +2579,11 @@ void Driver::ShutdownResources()
         "Not all driver resources are destroyed")
 }
 
-Sampler Driver::GetImmutableSampler(ImageFilter filter)
+Sampler Driver::GetImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode)
 {
     Sampler sampler = Sampler::Builder()
         .Filters(filter, filter)
+        .WrapMode(wrapMode)
         .Build();
 
     return sampler;

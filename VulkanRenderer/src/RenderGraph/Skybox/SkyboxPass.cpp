@@ -31,15 +31,15 @@ SkyboxPass::SkyboxPass(RenderGraph::Graph& renderGraph)
 }
 
 void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, const Texture& skybox, RenderGraph::Resource colorOut,
-    RenderGraph::Resource depthIn, const glm::uvec2& resolution)
+    RenderGraph::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
     using namespace RenderGraph;
     std::string name = "Skybox";
-    AddToGraph(renderGraph, renderGraph.AddExternal(name + ".Skybox", skybox), colorOut, depthIn, resolution);
+    AddToGraph(renderGraph, renderGraph.AddExternal(name + ".Skybox", skybox), colorOut, depthIn, resolution, lodBias);
 }
 
 void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource skybox,
-    RenderGraph::Resource colorOut, RenderGraph::Resource depthIn, const glm::uvec2& resolution)
+    RenderGraph::Resource colorOut, RenderGraph::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
     using namespace RenderGraph;
     using enum ResourceAccessFlags;
@@ -57,13 +57,18 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resour
                     .Format = Format::RGBA16_FLOAT});
             }
             ASSERT(depthIn.IsValid(), "Depth has to be provided")
+
+            passData.ProjectionUbo = graph.CreateResource(name + ".Projection", GraphBufferDescription{
+                .SizeBytes = sizeof(ProjectionUBO)});
       
             passData.Skybox = graph.Read(skybox, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
-                AttachmentLoad::Unspecified, AttachmentStore::Store);
+                AttachmentLoad::Load, AttachmentStore::Store);
             passData.DepthIn = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.ProjectionUbo = graph.Read(passData.ProjectionUbo, Vertex | Uniform | Upload);
 
             passData.PipelineData = &m_PipelineData;
+            passData.LodBias = lodBias;
 
             graph.GetBlackboard().UpdateOutput(passData);
         },
@@ -72,16 +77,12 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resour
             GPU_PROFILE_FRAME("Skybox")
 
             const Texture& skyboxTexture = resources.GetTexture(passData.Skybox);
-            
-            struct PushConstants
-            {
-                glm::mat4 ProjectionInverse{};
-                glm::mat4 ViewInverse{};
-            };
 
-            PushConstants pushConstants = {
+            ProjectionUBO projection = {
                 .ProjectionInverse = glm::inverse(frameContext.MainCamera->GetProjection()),
                 .ViewInverse = glm::inverse(frameContext.MainCamera->GetView())};
+            const Buffer projectionUbo = resources.GetBuffer(passData.ProjectionUbo, projection,
+                *frameContext.ResourceUploader);
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
@@ -89,11 +90,12 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resour
 
             resourceDescriptors.UpdateBinding("u_skybox", skyboxTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_projection", projectionUbo.BindingInfo());
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
             pipeline.BindGraphics(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
+            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), passData.LodBias);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::Draw(cmd, 6);
         });

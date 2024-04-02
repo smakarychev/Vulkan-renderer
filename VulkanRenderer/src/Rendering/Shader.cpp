@@ -342,10 +342,10 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
             {
                 descriptor.Descriptor.Count = 1;
             }
+            // every specific version of ImmutableSampler flag also contains the base flag
             containsImmutableSamplers = containsImmutableSamplers ||
                 enumHasAny(descriptor.Descriptor.DescriptorFlags,
-                    assetLib::ShaderInfo::DescriptorSet::ImmutableSampler |
-                    assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearest);
+                    assetLib::ShaderInfo::DescriptorSet::ImmutableSampler);
         }
         descriptorSets[setIndex].HasBindless = containsBindlessDescriptors;
         descriptorSets[setIndex].HasImmutableSampler = containsImmutableSamplers;

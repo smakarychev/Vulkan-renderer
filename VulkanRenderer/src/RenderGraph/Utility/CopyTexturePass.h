@@ -3,7 +3,7 @@
 
 class CopyTexturePass
 {
-private:
+public:
     struct PassData
     {
         RenderGraph::Resource TextureIn;

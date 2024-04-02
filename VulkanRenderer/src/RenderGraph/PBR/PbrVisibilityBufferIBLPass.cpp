@@ -13,11 +13,13 @@ PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RenderGraph::Graph& renderGraph, 
       "Pass.PBR.Visibility.IBL", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
-       .SetTemplate(pbrTemplate)
-       .SetRenderingDetails({
-           .ColorFormats = {Format::RGBA16_FLOAT}})
-       .UseDescriptorBuffer()
-       .Build();
+        .SetTemplate(pbrTemplate)
+        .SetRenderingDetails({
+            .ColorFormats = {Format::RGBA16_FLOAT}})
+        .AddSpecialization("MAX_REFLECTION_LOD",
+            (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
+        .UseDescriptorBuffer()
+        .Build();
 
     m_PipelineData.ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
         .SetTemplate(pbrTemplate, DescriptorAllocatorKind::Samplers)

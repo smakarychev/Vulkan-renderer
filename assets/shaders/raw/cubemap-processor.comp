@@ -22,6 +22,6 @@ void main() {
     const vec2 uv = vec2(phi / TAU, 1.0f - theta / PI);
     
     const vec4 color = textureLod(sampler2D(u_equirectangular, u_sampler), uv, 0);
-    
+
     imageStore(u_cubemap, ivec3(gl_GlobalInvocationID), color);
 }

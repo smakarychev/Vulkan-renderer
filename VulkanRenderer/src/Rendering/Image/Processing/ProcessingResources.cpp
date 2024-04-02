@@ -15,7 +15,7 @@ DescriptorArenaAllocators ProcessingResources::Allocators()
         .Kind(DescriptorAllocatorKind::Resources)
         .Residence(DescriptorAllocatorResidence::CPU)
         .ForTypes({DescriptorType::Image})
-        .Count(16)
+        .Count(32)
         .Build();
 
     DescriptorArenaAllocators allocators(resourceAllocator, samplerAllocator);

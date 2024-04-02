@@ -32,11 +32,13 @@ namespace assetLib
         {
             enum DescriptorFlags
             {
-                None                    = 0,
-                Dynamic                 = BIT(1),
-                Bindless                = BIT(2),
-                ImmutableSampler        = BIT(3),
-                ImmutableSamplerNearest = BIT(4),
+                None                                = 0,
+                Dynamic                             = BIT(1),
+                Bindless                            = BIT(2),
+                ImmutableSampler                    = BIT(3),
+                ImmutableSamplerNearest             = BIT(4),
+                ImmutableSamplerClampEdge           = BIT(5),
+                ImmutableSamplerNearestClampEdge    = BIT(6),
             };
             
             struct DescriptorBinding

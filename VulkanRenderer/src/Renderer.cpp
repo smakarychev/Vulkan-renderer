@@ -53,7 +53,7 @@ void Renderer::Init()
 
 void Renderer::InitRenderGraph()
 {
-    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.AddModelInstance("car", {glm::mat4{1.0f}});
@@ -64,7 +64,7 @@ void Renderer::InitRenderGraph()
                 assetLib::ModelInfo::MaterialType::Opaque;
         });
     m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
-        .FromEquirectangular("../assets/textures/evening_meadow_4k.tx")
+        .FromEquirectangular("../assets/textures/forest.tx")
         .Build();
     m_SkyboxIrradianceMap = DiffuseIrradianceProcessor::CreateEmptyTexture();
     m_SkyboxPrefilterMap = EnvironmentPrefilterProcessor::CreateEmptyTexture();
@@ -211,12 +211,15 @@ void Renderer::SetupRenderGraph()
     auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBufferIBL::PassData>();
 
     m_SkyboxPass->AddToGraph(*m_Graph,
-        m_SkyboxTexture, pbrOutput.ColorOut, *visibility.DepthOut, GetFrameContext().Resolution);
+        m_SkyboxPrefilterMap, pbrOutput.ColorOut, *visibility.DepthOut, GetFrameContext().Resolution, 1.2f);
     auto& skyboxOutput = m_Graph->GetBlackboard().GetOutput<SkyboxPass::PassData>();
+
+    m_CopyTexturePass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer, glm::vec3{}, glm::vec3{1.0f});
+    backbuffer = m_Graph->GetBlackboard().GetOutput<CopyTexturePass::PassData>().TextureOut;
     
-    m_CrtPass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer);
-    auto& crtOut = m_Graph->GetBlackboard().GetOutput<CrtPass::PassData>();
-    backbuffer = crtOut.ColorOut;
+    //m_CrtPass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer);
+    //auto& crtOut = m_Graph->GetBlackboard().GetOutput<CrtPass::PassData>();
+    //backbuffer = crtOut.ColorOut;
 
     //m_VisualizeBRDFPass->AddToGraph(*m_Graph, *m_BRDF, backbuffer, GetFrameContext().Resolution);
     //auto& visualizeBRDFOutput = m_Graph->GetBlackboard().GetOutput<VisualizeBRDFPass::PassData>();
@@ -225,7 +228,7 @@ void Renderer::SetupRenderGraph()
     m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
     m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, backbuffer,
-        glm::vec3{0.25f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
+        glm::vec3{0.75f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
 
     //SetupRenderSlimePasses();
 }

@@ -10,7 +10,7 @@ layout(set = 1, binding = 0) uniform textureCube u_env;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly imageCube u_prefilter;
 
 layout(push_constant) uniform push_constants {
-    vec2 u_irradiance_size_inv;
+    vec2 u_prefilter_size_inv;
     vec2 u_env_size_inv;
     float u_roughness;
 };
@@ -21,14 +21,14 @@ vec4 prefilter(vec3 normal) {
     float total_weight = 0.0f;
     for (uint i = 0; i < n; i++) {
         const vec2 hammersley = hammersley2d(i, n);
-        const vec3 sample_dir = importance_sample_GGX(hammersley, normal, u_roughness);
+        const vec3 sample_dir = importance_sample_ggx(hammersley, normal, u_roughness);
         const vec3 l = normalize(2.0f * dot(normal, sample_dir) * sample_dir - normal);
         const float n_dot_l = clamp(dot(normal, l), 0.0f, 1.0f);
         
         if (n_dot_l > 0.0f) {
             const float n_dot_h = clamp(dot(normal, sample_dir), 0.0f, 1.0f);
             const float h_dot_v = n_dot_h;
-            const float d = d_GGX(n_dot_h, u_roughness);
+            const float d = d_ggx(n_dot_h, u_roughness);
             float pdf = d * n_dot_h / (4.0f * h_dot_v) + 1e-4;
             float sa_texel = 4.0f * PI * u_env_size_inv.x * u_env_size_inv.x / 6.0f;
             float sa_sample = 1.0f / (float(n) * pdf + 1e-4);
@@ -45,9 +45,12 @@ vec4 prefilter(vec3 normal) {
 }
 
 void main() {
-    const vec3 normal = cubemap_normal_vector(gl_GlobalInvocationID, u_irradiance_size_inv);
+    ivec2 image_size = imageSize(u_prefilter);
+    // somehow this seems to be unnecessary 
+    if (gl_GlobalInvocationID.x >= image_size.x || gl_GlobalInvocationID.y >= image_size.y)
+        return;
+    vec3 normal = cubemap_normal_vector(gl_GlobalInvocationID, u_prefilter_size_inv);
     const vec4 color = prefilter(normal);
 
-    const ivec3 coord = ivec3(gl_GlobalInvocationID);
-    imageStore(u_prefilter, coord, color);
+    imageStore(u_prefilter, ivec3(gl_GlobalInvocationID), color);
 }

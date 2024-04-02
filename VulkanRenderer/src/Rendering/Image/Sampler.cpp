@@ -74,6 +74,7 @@ bool SamplerCache::CacheKey::operator==(const CacheKey& other) const
     return
         CreateInfo.MinificationFilter == other.CreateInfo.MinificationFilter &&
         CreateInfo.MagnificationFilter == other.CreateInfo.MagnificationFilter &&
+        CreateInfo.AddressMode == other.CreateInfo.AddressMode &&
         CreateInfo.ReductionMode == other.CreateInfo.ReductionMode &&
         CreateInfo.MaxLod == other.CreateInfo.MaxLod &&
         CreateInfo.WithAnisotropy == other.CreateInfo.WithAnisotropy;
