@@ -13,6 +13,11 @@ void ModelCollection::CreateDefaultTextures()
         ImageUtils::DefaultTexture::White, Driver::DeletionQueue()),
         m_Textures);
 
+    // black is default emissive texture
+    m_BlackTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(
+        ImageUtils::DefaultTexture::Black, Driver::DeletionQueue()),
+        m_Textures);
+
     m_NormalMapTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(
         ImageUtils::DefaultTexture::NormalMap, Driver::DeletionQueue()),
         m_Textures);
@@ -88,7 +93,8 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(const Model* mode
             .AlbedoTextureHandle = m_WhiteTexture,
             .NormalTextureHandle = m_NormalMapTexture,
             .MetallicRoughnessTextureHandle = m_WhiteTexture,
-            .AmbientOcclusionTextureHandle = m_WhiteTexture};
+            .AmbientOcclusionTextureHandle = m_WhiteTexture,
+            .EmissiveTextureHandle = m_BlackTexture};
         material.Albedo = mesh.Material.PropertiesPBR.Albedo;
         material.Metallic = mesh.Material.PropertiesPBR.Metallic;
         material.Roughness = mesh.Material.PropertiesPBR.Roughness;
@@ -126,6 +132,12 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(const Model* mode
             [this](MaterialGPU& materialGPU, const Image& texture)
             {
                 materialGPU.AmbientOcclusionTextureHandle = AddTexture(texture);
+            });
+        
+        addTexture(material, mesh.Material.EmissiveTextures,
+            [this](MaterialGPU& materialGPU, const Image& texture)
+            {
+                materialGPU.EmissiveTextureHandle = AddTexture(texture);
             });
             
         RenderObject renderObject = {};

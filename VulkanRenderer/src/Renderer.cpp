@@ -53,10 +53,14 @@ void Renderer::Init()
 
 void Renderer::InitRenderGraph()
 {
-    Model* car = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
+    Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
+    Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
+    m_GraphModelCollection.RegisterModel(helmet, "helmet");
+    m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
-    m_GraphModelCollection.AddModelInstance("car", {glm::mat4{1.0f}});
+    m_GraphModelCollection.AddModelInstance("broken helmet", {glm::mat4{1.0f}});
     m_GraphOpaqueGeometry = RenderPassGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
         [this](auto& obj) {

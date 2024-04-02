@@ -92,7 +92,9 @@ bool is_visible(Triangle triangle) {
     visible = visible && is_backface_triangle_visible(triangle);
     vec4 aabb = transform_to_NDC_and_get_aabb(triangle);
     visible = visible && is_screen_size_visible(aabb, u_screen_width, u_screen_height);
-    visible = visible && is_frustum_triangle_visible(aabb);
+    visible = visible && 
+        (is_frustum_triangle_visible(aabb) || 
+        min(triangle.a.z, min(triangle.b.z, triangle.c.z)) < 0.0f);
 
     return visible;
 }
@@ -102,9 +104,12 @@ bool is_reocclusion_visible(Triangle triangle) {
     visible = visible && is_backface_triangle_visible(triangle);
     vec4 aabb = transform_to_NDC_and_get_aabb(triangle);
     visible = visible && is_screen_size_visible(aabb, u_screen_width, u_screen_height);
-    visible = visible && is_frustum_triangle_visible(aabb);
     float depth = max(triangle.a.z, max(triangle.b.z, triangle.c.z));
-    visible = visible && is_occlusion_triangle_visible(aabb, depth, u_scene_data.scene, u_sampler, u_hiz);
+    
+    visible = visible &&
+        ((is_frustum_triangle_visible(aabb) && 
+        is_occlusion_triangle_visible(aabb, depth, u_scene_data.scene, u_sampler, u_hiz)) ||
+        min(triangle.a.z, min(triangle.b.z, triangle.c.z)) < 0.0f);
 
     return visible;
 }

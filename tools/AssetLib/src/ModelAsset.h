@@ -69,7 +69,7 @@ namespace assetLib
         };
         enum class MaterialAspect : u32
         {
-            Albedo = 0, Normal, MetallicRoughness, AmbientOcclusion,
+            Albedo = 0, Normal, MetallicRoughness, AmbientOcclusion, Emissive,
             MaxVal
         };
         struct MaterialPropertiesPBR

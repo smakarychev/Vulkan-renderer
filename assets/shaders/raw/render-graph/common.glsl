@@ -1,6 +1,18 @@
 #extension GL_EXT_shader_8bit_storage: require
 #extension GL_EXT_shader_16bit_storage: require
 
+struct Material {
+    vec4 albedo_color;
+    float metallic;
+    float roughness;
+    float pad0;
+    uint albedo_texture_index;
+    uint normal_texture_index;
+    uint metallic_roughness_texture_index;
+    uint ambient_occlusion_texture_index;
+    uint emissive_texture_index;
+};
+
 struct IndirectCommand {
     uint indexCount;
     uint instanceCount;

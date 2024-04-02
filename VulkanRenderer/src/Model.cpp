@@ -73,13 +73,16 @@ Model* Model::LoadFromAsset(std::string_view path)
             meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::MetallicRoughness];
         assetLib::ModelInfo::MaterialInfo& ambientOcclusion =
             meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::AmbientOcclusion];
+        assetLib::ModelInfo::MaterialInfo& emissive =
+            meshInfo.Materials[(u32)assetLib::ModelInfo::MaterialAspect::Emissive];
         Material material = {
             .Type = meshInfo.MaterialType,
             .PropertiesPBR = meshInfo.MaterialPropertiesPBR,
             .AlbedoTextures = albedo.Textures,
             .NormalTextures = normal.Textures,
             .MetallicRoughnessTextures = metallicRoughness.Textures,
-            .AmbientOcclusionTextures = ambientOcclusion.Textures};
+            .AmbientOcclusionTextures = ambientOcclusion.Textures,
+            .EmissiveTextures = emissive.Textures};
 
         meshes.push_back(
             {Mesh(

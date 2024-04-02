@@ -39,6 +39,8 @@ namespace
             return assetLib::ModelInfo::MaterialAspect::MetallicRoughness;
         if (materialString == "ambient_occlusion")
             return assetLib::ModelInfo::MaterialAspect::AmbientOcclusion;
+        if (materialString == "emissive")
+            return assetLib::ModelInfo::MaterialAspect::Emissive;
         std::cout << "Unrecognized material string\n";
         std::unreachable();
     }
@@ -55,6 +57,8 @@ namespace
             return "metallic_roughness";
         case assetLib::ModelInfo::MaterialAspect::AmbientOcclusion:
             return "ambient_occlusion";
+        case assetLib::ModelInfo::MaterialAspect::Emissive:
+            return "emissive";
         default:
             std::cout << "Unsupported material type\n";
             break;

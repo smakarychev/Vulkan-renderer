@@ -18,15 +18,3 @@ VisibilityInfo unpack_visibility(uint packed) {
     visibilityInfo.instance_id = packed >> TRIANGLE_BITS;
     return visibilityInfo;
 }
-
-struct Material {
-    vec4 albedo_color;
-    float metallic;
-    float roughness;
-    float pad0;
-    float pad1;
-    uint albedo_texture_index;
-    uint normal_texture_index;
-    uint metallic_roughness_texture_index;
-    uint ambient_occlusion_texture_index;
-};

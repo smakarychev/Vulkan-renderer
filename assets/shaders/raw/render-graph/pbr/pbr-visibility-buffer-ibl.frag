@@ -16,7 +16,7 @@ layout(set = 0, binding = 0) uniform sampler u_sampler_visibility;
 layout(set = 0, binding = 1) uniform sampler u_sampler;
 
 @immutable_sampler_clamp_edge
-layout(set = 0, binding = 2) uniform sampler u_sampler_clamp;
+layout(set = 0, binding = 2) uniform sampler u_sampler_brdf;
 
 layout(set = 1, binding = 0) uniform utexture2D u_visibility_texture;
 layout(set = 1, binding = 1) uniform texture2D u_ssao_texture;
@@ -135,10 +135,9 @@ void convert_to_world_space_normal(inout vec3 normal, VisibilityInfo visibility_
 }
 
 void convert_to_world_space_normal_tangents(
-inout vec3 normal, vec3 normal_dx, vec3 normal_dy,
-inout vec3 tangent, vec3 tangent_dx, vec3 tangent_dy,
-inout vec3 bitangent, inout vec3 bitangent_dx, inout vec3 bitangent_dy,
-VisibilityInfo visibility_info) {
+        inout vec3 normal, vec3 normal_dx, vec3 normal_dy,
+        inout vec3 tangent, vec3 tangent_dx, vec3 tangent_dy,
+        inout vec3 bitangent, inout vec3 bitangent_dx, inout vec3 bitangent_dy, VisibilityInfo visibility_info) {
     IndirectCommand command = u_commands.commands[visibility_info.instance_id];
     object_data object = u_objects.objects[command.render_object];
 
@@ -281,78 +280,41 @@ mat3 interpolate_with_derivatives_3d(InterpolationData interpolation, mat3 attri
     return mat3(vec3(ax, ay, az), vec3(addxx, addxy, addxz), vec3(addyx, addyy, addyz));
 }
 
-struct ShadeInfo {
-    vec3 position;
-    vec3 normal;
-    vec3 normal_dx;
-    vec3 normal_dy;
-    vec3 albedo;
-    float metallic;
-    float roughness;
-    float ambient_occlusion;
-    mat3 tbn_dx;
-    mat3 tbn_dy;
-    mat3 tbn;
-};
-
-vec3 shade(ShadeInfo shade_info) {
-    // todo: remove upon adding actual lights support
-    const vec3 light_dir = normalize(vec3(1.5, 1.5, 1.0));
-
-    vec3 view_dir = normalize(u_camera.camera_position.xyz - shade_info.position);
-    vec3 halfway_dir = normalize(light_dir + view_dir);
-
-    float ambient_power = 0.05f;
-    vec3 ambient = shade_info.albedo * ambient_power;
-
-    float diffuse_power = max(0.0f, dot(shade_info.normal, light_dir));
-    vec3 diffuse = shade_info.albedo * diffuse_power;
-
-    float specular_power = pow(max(0.0f, dot(shade_info.normal, halfway_dir)), 128.0);
-    vec3 specular = vec3(0.3) * specular_power;
-
-    return ambient + diffuse + specular;
-}
-
-vec3 shade_pbr_lights(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_v) {
+vec3 shade_pbr_lights(ShadeInfo shade_info) {
     const vec3 light_dir = -normalize(vec3(-0.1f, -0.1f, -0.1f));
-    const vec3 radiance = vec3(15.0f, 14.0f, 14.0f);
+    const vec3 radiance = vec3(1.0f);
     
-    const vec3 halfway_dir = normalize(light_dir + view_dir);
+    const vec3 halfway_dir = normalize(light_dir + shade_info.view);
 
     const  float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
     const  float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
     const  float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
 
-    const float D = d_ggx(n_dot_h, shade_info.roughness);
-    const float V = v_smith_correlated(n_dot_v, n_dot_l, shade_info.roughness);
-    const vec3 F = fresnel_schlick(h_dot_l, F0);
-
-    const vec3 Fr = D * V * F;
-    const vec3 kd = (vec3(1.0f) - F) * (1.0f - shade_info.metallic);
-    const vec3 Fd = shade_info.albedo / PI;
+    const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
+    const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
+    const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
     
-    const vec3 Lo = (Fr + kd * Fd) * radiance * n_dot_l;
+    const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
+    const vec3 specular = D * V * F;
+    
+    const vec3 Lo = (specular + diffuse) * radiance * n_dot_l;
     
     return Lo;
 }
 
-vec3 shade_pbr_ibl(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_v) {
-    const vec3 F = fresnel_schlick_roughness(n_dot_v, F0, shade_info.roughness);
+vec3 shade_pbr_ibl(ShadeInfo shade_info) {
+    const vec3 R = reflect(-shade_info.view, shade_info.normal);
     const vec3 irradiance = textureLod(samplerCube(u_irradiance_map, u_sampler), shade_info.normal, 0).rgb;
-
-    const vec3 R = reflect(-view_dir, shade_info.normal);
-    const vec3 prefilteredColor =
-        textureLod(samplerCube(u_prefilter_map, u_sampler), R, shade_info.roughness * MAX_REFLECTION_LOD).rgb;
-    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_clamp), vec2(n_dot_v, shade_info.roughness), 0).rg;
-
-    const vec3 Fr = prefilteredColor * (F * brdf.x + brdf.y);
-    const vec3 kd = vec3(1.0f) - F;
-    const vec3 Fd = irradiance * shade_info.albedo;
-
-    const float ao = textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r * shade_info.ambient_occlusion;
     
-    const vec3 ambient = (Fr + kd * Fd) * ao;
+    const float lod = shade_info.perceptual_roughness * MAX_REFLECTION_LOD;
+    const vec3 prefiltered = textureLod(samplerCube(u_prefilter_map, u_sampler), R, lod).rgb;
+    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_brdf), 
+        vec2(shade_info.n_dot_v, shade_info.perceptual_roughness), 0).rg;
+    
+    const vec3 diffuse = irradiance * shade_info.diffuse_color;
+    const vec3 specular = (shade_info.F0 * brdf.x + shade_info.F90 * brdf.y) * prefiltered; 
+    
+    const vec3 ambient = specular + diffuse;
     
     return ambient;
 }
@@ -362,61 +324,70 @@ vec3 shade_pbr(ShadeInfo shade_info) {
 
     const  float n_dot_v = clamp(dot(shade_info.normal, view_dir), 0.0f, 1.0f);
 
-    vec3 F0 = vec3(0.04);
-    F0 = mix(F0, shade_info.albedo, shade_info.metallic);
-    
     vec3 Lo = vec3(0.0f);
-    //Lo = shade_pbr_lights(shade_info, F0, view_dir, n_dot_v);
+    //Lo = shade_pbr_lights(shade_info);
 
-    vec3 ambient = shade_pbr_ibl(shade_info, F0, view_dir, n_dot_v);
+    vec3 ambient = shade_pbr_ibl(shade_info);
 
     return ambient + Lo;
 }
 
-void main() {
-    uint visibility_packed = textureLod(usampler2D(u_visibility_texture, u_sampler_visibility), vertex_uv, 0).r;
-    if (visibility_packed == (~0)) {
-        //out_color = vec4(0.01f, 0.01f, 0.01f, 1.0f);
-        //out_color = vec4(0.215f, 0.22f, 0.22f, 1.0f);
-        return;
-    }
+// the interpolated data (does not actually come from gbuffer)
+struct GBufferData {
+    vec3 position;
+    vec2 uv;
+    vec2 uv_dx;
+    vec2 uv_dy;
+    vec3 normal;
+    vec3 albedo;
+    vec3 emissive;
+    vec2 metallic_roughness;
+    float ao;
+};
 
-    VisibilityInfo visibility_info = unpack_visibility(visibility_packed);
-
-    uvec3 indices = get_indices(visibility_info);
-
+GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
+    const uvec3 indices = get_indices(visibility_info);
     Triangle triangle = get_triangle_local(indices);
     transform_to_clip_space(triangle, visibility_info);
+    const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.resolution);
 
-    InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.resolution);
+    const vec3 one_over_w = 1.0f / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
+    const float w = 1.0f / dot(one_over_w, interpolation_data.barycentric);
+    const float z = -w * u_camera.projection[2][2] + u_camera.projection[3][2];
+    const vec3 position = (u_camera.view_projection_inverse * vec4(vertex_position * w, z, w)).xyz;
 
-    vec3 one_over_w = 1.0f / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
-    float w = 1.0f / dot(one_over_w, interpolation_data.barycentric);
-    float z = -w * u_camera.projection[2][2] + u_camera.projection[3][2];
-    vec3 position = (u_camera.view_projection_inverse * vec4(vertex_position * w, z, w)).xyz;
+    const mat3x2 uvs = get_uvs(indices);
+    const mat3x2 uvs_interpolated = interpolate_with_derivatives_2d(interpolation_data, uvs);
+    const vec2 uv = vec2(uvs_interpolated[0][0], uvs_interpolated[0][1]);
+    const vec2 uv_dx = vec2(uvs_interpolated[1][0], uvs_interpolated[1][1]);
+    const vec2 uv_dy = vec2(uvs_interpolated[2][0], uvs_interpolated[2][1]);
 
-    mat3x2 uvs = get_uvs(indices);
-    mat3x2 uvs_interpolated = interpolate_with_derivatives_2d(interpolation_data, uvs);
-    vec2 uv = vec2(uvs_interpolated[0][0], uvs_interpolated[0][1]);
-    vec2 uv_dx = vec2(uvs_interpolated[1][0], uvs_interpolated[1][1]);
-    vec2 uv_dy = vec2(uvs_interpolated[2][0], uvs_interpolated[2][1]);
+    const Material material = get_material(visibility_info);
 
-    Material material = get_material(visibility_info);
     vec3 albedo = material.albedo_color.rgb;
     albedo *= textureGrad(nonuniformEXT(sampler2D(u_textures[
         material.albedo_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
+    
+    vec3 emissive = textureGrad(nonuniformEXT(sampler2D(u_textures[
+        material.emissive_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
 
-    mat3 normals = get_normals(indices);
-    mat3 normals_interpolated = interpolate_with_derivatives_3d(interpolation_data, normals);
+    vec2 metallic_roughness = textureGrad(nonuniformEXT(sampler2D(u_textures[
+        material.metallic_roughness_texture_index], u_sampler)), uv, uv_dx, uv_dy).bg;
+    
+    float ao = textureGrad(nonuniformEXT(sampler2D(u_textures[
+        material.ambient_occlusion_texture_index], u_sampler)), uv, uv_dx, uv_dy).r;
+
+    const mat3 normals = get_normals(indices);
+    const mat3 normals_interpolated = interpolate_with_derivatives_3d(interpolation_data, normals);
     vec3 normal = vec3(normals_interpolated[0][0], normals_interpolated[0][1], normals_interpolated[0][2]);
-    vec3 normal_dx = vec3(normals_interpolated[1][0], normals_interpolated[1][1], normals_interpolated[1][2]);
-    vec3 normal_dy = vec3(normals_interpolated[2][0], normals_interpolated[2][1], normals_interpolated[2][2]);
+    const vec3 normal_dx = vec3(normals_interpolated[1][0], normals_interpolated[1][1], normals_interpolated[1][2]);
+    const vec3 normal_dy = vec3(normals_interpolated[2][0], normals_interpolated[2][1], normals_interpolated[2][2]);
 
-    mat3 tangents = get_tangents(indices);
-    mat3 tangents_interpolated = interpolate_with_derivatives_3d(interpolation_data, tangents);
+    const mat3 tangents = get_tangents(indices);
+    const mat3 tangents_interpolated = interpolate_with_derivatives_3d(interpolation_data, tangents);
     vec3 tangent = vec3(tangents_interpolated[0][0], tangents_interpolated[0][1], tangents_interpolated[0][2]);
-    vec3 tangent_dx = vec3(tangents_interpolated[1][0], tangents_interpolated[1][1], tangents_interpolated[1][2]);
-    vec3 tangent_dy = vec3(tangents_interpolated[2][0], tangents_interpolated[2][1], tangents_interpolated[2][2]);
+    const vec3 tangent_dx = vec3(tangents_interpolated[1][0], tangents_interpolated[1][1], tangents_interpolated[1][2]);
+    const vec3 tangent_dy = vec3(tangents_interpolated[2][0], tangents_interpolated[2][1], tangents_interpolated[2][2]);
     vec3 bi_tangent;
     vec3 bi_tangent_dx;
     vec3 bi_tangent_dy;
@@ -425,41 +396,69 @@ void main() {
         tangent, tangent_dx, tangent_dy,
         bi_tangent, bi_tangent_dx, bi_tangent_dy,
         visibility_info);
-    
+
     vec3 normal_from_map = textureGrad(nonuniformEXT(sampler2D(u_textures[
         material.normal_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
     normal_from_map = normalize(normal_from_map * 2.0f - 1.0f);
     normal = tangent * normal_from_map.x + bi_tangent * normal_from_map.y + normal * normal_from_map.z;
+    
+    GBufferData data;
+    data.position = position;
+    data.uv = uv;
+    data.uv_dx = uv_dx;
+    data.uv_dy = uv_dy;
+    data.normal = normal;
+    data.albedo = albedo;
+    data.emissive = emissive;
+    data.metallic_roughness = vec2(material.metallic, material.roughness) * metallic_roughness;
+    data.ao = ao;
+    
+    return data;
+}
 
-    float metallic = material.metallic;
-    float roughness = material.roughness;
-    vec3 metallic_roughness = textureGrad(nonuniformEXT(sampler2D(u_textures[
-        material.metallic_roughness_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
+void main() {
+    uint visibility_packed = textureLod(usampler2D(u_visibility_texture, u_sampler_visibility), vertex_uv, 0).r;
+    if (visibility_packed == (~0)) 
+        return;
 
-    metallic *= metallic_roughness.b;
-    roughness *= metallic_roughness.g;
+    const VisibilityInfo visibility_info = unpack_visibility(visibility_packed);
+    const GBufferData gbuffer_data = get_gbuffer_data(visibility_info);
+    
+    float metallic = gbuffer_data.metallic_roughness.r;
+    metallic = clamp(metallic, MIN_ROUGHNESS, 1.0f);
+    const float perceptual_roughness = gbuffer_data.metallic_roughness.g;
 
-    float ambient_occlusion = 1.0;
-    ambient_occlusion *= textureGrad(nonuniformEXT(sampler2D(u_textures[
-        material.ambient_occlusion_texture_index], u_sampler)), uv, uv_dx, uv_dy).r;
-
-
+    // todo: reflectance can be provided as a material parameter
+    const float reflectance = 0.5f;
+    const vec3 F0 = mix(vec3(0.16f * reflectance * reflectance), gbuffer_data.albedo, metallic);
+    const vec3 F90 = vec3(1.0f);
+    
+    vec3 diffuse_color = (1.0f - metallic) * gbuffer_data.albedo * (vec3(1.0f) - F0);
+    vec3 specular_color = F0;
+    
     ShadeInfo shade_info;
-    shade_info.albedo = albedo;
-    shade_info.position = position;
-    shade_info.normal = normal;
-    shade_info.normal_dx = normal_dx;
-    shade_info.normal_dy = normal_dy;
+    shade_info.position = gbuffer_data.position;
+    shade_info.normal = gbuffer_data.normal;
+    shade_info.view = normalize(u_camera.camera_position.xyz - shade_info.position);
+    shade_info.n_dot_v = clamp(dot(shade_info.normal, shade_info.view), 0.0f, 1.0f);
+    shade_info.perceptual_roughness = perceptual_roughness;
+    shade_info.alpha_roughness = perceptual_roughness * perceptual_roughness;
     shade_info.metallic = metallic;
-    shade_info.roughness = roughness;
-    shade_info.ambient_occlusion = ambient_occlusion;
-    shade_info.tbn_dx = mat3(tangent_dx, bi_tangent_dx, normal_dx);
-    shade_info.tbn_dy = mat3(tangent_dy, bi_tangent_dy, normal_dy);
-    shade_info.tbn = mat3(tangent, bi_tangent, normal);
-
+    shade_info.F0 = F0;
+    shade_info.F90 = F90;
+    shade_info.diffuse_color = diffuse_color;
+    shade_info.specular_color = specular_color;
+    
     vec3 color;
     color = shade_pbr(shade_info);
     color = tonemap(color, 1.0f);
 
+    float ambient_occlusion = 1.0f;
+    ambient_occlusion *= gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
+    
+    color *= ambient_occlusion;
+    
+    color += gbuffer_data.emissive;
+    
     out_color = vec4(color, 1.0);
 }

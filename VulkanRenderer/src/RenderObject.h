@@ -20,6 +20,7 @@ struct Material
     std::vector<std::string> NormalTextures;
     std::vector<std::string> MetallicRoughnessTextures;
     std::vector<std::string> AmbientOcclusionTextures;   
+    std::vector<std::string> EmissiveTextures;   
 };
 
 struct MaterialGPU
@@ -29,11 +30,11 @@ struct MaterialGPU
     f32 Metallic;
     f32 Roughness;
     f32 Pad0;
-    f32 Pad1;
     RenderHandle<Image> AlbedoTextureHandle{NO_TEXTURE};
     RenderHandle<Image> NormalTextureHandle{NO_TEXTURE};
     RenderHandle<Image> MetallicRoughnessTextureHandle{NO_TEXTURE};
     RenderHandle<Image> AmbientOcclusionTextureHandle{NO_TEXTURE};
+    RenderHandle<Image> EmissiveTextureHandle{NO_TEXTURE};
 };
 
 struct RenderObject

@@ -329,6 +329,9 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
     case assetLib::ModelInfo::MaterialAspect::AmbientOcclusion:
         textureType = aiTextureType_AMBIENT_OCCLUSION;
         break;
+    case assetLib::ModelInfo::MaterialAspect::Emissive:
+        textureType = aiTextureType_EMISSION_COLOR;
+        break;
     default:
         std::cout << "Unsupported material type";
         return {};
@@ -390,6 +393,7 @@ void ModelConverter::ConvertTextures(const std::filesystem::path& initialDirecto
                 switch (aspectType)
                 {
                 case assetLib::ModelInfo::MaterialAspect::Albedo:
+                case assetLib::ModelInfo::MaterialAspect::Emissive:
                     TextureConverter::Convert(initialDirectoryPath, texture, assetLib::TextureFormat::SRGBA8);    
                     break;
                 case assetLib::ModelInfo::MaterialAspect::Normal:
