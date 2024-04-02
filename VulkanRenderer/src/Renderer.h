@@ -10,17 +10,16 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RenderPassGeometry.h"
 #include "FrameContext.h"
-#include "RenderGraph/Culling/CullMetaPass.h"
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class VisibilityPass;
 class VisualizeBRDFPass;
 class SkyboxPass;
 class SsaoPass;
 class SsaoBlurPass;
 class SsaoVisualizePass;
 class PbrVisibilityBufferIBL;
-class CullMetaPass;
 class CopyTexturePass;
 class SlimeMoldPass;
 class SlimeMoldContext;
@@ -53,7 +52,6 @@ private:
     void InitRenderingStructures();
     void InitRenderGraph();
     void SetupRenderSlimePasses();
-    CullMetaPass::PassData SetupVisibilityBufferPass();
     void SetupRenderGraph();
 
     void Shutdown();
@@ -96,7 +94,7 @@ private:
     std::shared_ptr<BlitPass> m_BlitPartialDraw;
     std::shared_ptr<BlitPass> m_BlitHiZ;
 
-    std::shared_ptr<CullMetaPass> m_VisibilityBufferPass;
+    std::shared_ptr<VisibilityPass> m_VisibilityPass;
     std::shared_ptr<PbrVisibilityBufferIBL> m_PbrVisibilityBufferIBLPass;
     std::shared_ptr<SsaoPass> m_SsaoPass;
     std::shared_ptr<SsaoBlurPass> m_SsaoBlurHorizontalPass;

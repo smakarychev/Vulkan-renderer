@@ -3,7 +3,6 @@
 CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name)
     : m_Name(name), m_DrawFeatures(info.DrawFeatures)
 {
-    m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution);
     m_MeshContext = std::make_shared<MeshCullContext>(*info.Geometry);
     m_MeshletContext = std::make_shared<MeshletCullContext>(*m_MeshContext);
     m_TriangleContext = std::make_shared<TriangleCullContext>(*m_MeshletContext);
@@ -47,12 +46,20 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
 
 CullMetaPass::~CullMetaPass()
 {
-    m_HiZContext.reset();
+    if (m_HiZContext)
+        m_HiZContext.reset();
 }
 
 void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPassExecutionInfo& info)
 {
     using namespace RenderGraph;
+
+    if (!m_HiZContext ||
+        m_HiZContext->GetHiZ().GetDescription().Width  != info.Resolution.x ||
+        m_HiZContext->GetHiZ().GetDescription().Height != info.Resolution.y)
+    {
+        m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution);
+    }
     
     auto& blackboard = renderGraph.GetBlackboard();
 
@@ -99,7 +106,7 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = m_HiZContext.get(),
-        .Resolution = info.FrameContext->Resolution,
+        .Resolution = info.Resolution,
         .ColorAttachments = colorAttachments,
         .DepthAttachment = depthAttachment});
 
@@ -125,7 +132,7 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = m_HiZContext.get(),
-        .Resolution = info.FrameContext->Resolution,
+        .Resolution = info.Resolution,
         .ColorAttachments = colorAttachments,
         .DepthAttachment = depthAttachment});
     auto& reoccludeTrianglesOutput = blackboard.GetOutput<TriangleReoccludeDraw::PassData>(
@@ -160,7 +167,7 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
             .CullContext = m_TriangleContext.get(),
             .DrawContext = m_TriangleDrawContext.get(),
             .HiZContext = m_HiZContext.get(),
-            .Resolution = info.FrameContext->Resolution,
+            .Resolution = info.Resolution,
             .ColorAttachments = colorAttachments,
             .DepthAttachment = depthAttachment});
     auto& reoccludeOutput = blackboard.GetOutput<TriangleReoccludeDraw::PassData>(
@@ -182,8 +189,8 @@ std::vector<RenderGraph::Resource> CullMetaPass::EnsureColors(RenderGraph::Graph
         {
             color = renderGraph.CreateResource(std::format("{}.{}.{}", m_Name.Name(), ".ColorIn", i),
                 RenderGraph::GraphTextureDescription{
-                    .Width = info.FrameContext->Resolution.x,
-                    .Height = info.FrameContext->Resolution.y,
+                    .Width = info.Resolution.x,
+                    .Height = info.Resolution.y,
                     .Format =  Format::RGBA16_FLOAT});
         }
         colors[i] = color;
@@ -199,8 +206,8 @@ std::optional<RenderGraph::Resource> CullMetaPass::EnsureDepth(RenderGraph::Grap
     if (depth.has_value() && !depth.value().IsValid())
         depth = renderGraph.CreateResource(m_Name.Name() + ".DepthIn",
             RenderGraph::GraphTextureDescription{
-                .Width = info.FrameContext->Resolution.x,
-                .Height = info.FrameContext->Resolution.y,
+                .Width = info.Resolution.x,
+                .Height = info.Resolution.y,
                 .Format =  Format::D32_FLOAT});
         
     return depth;

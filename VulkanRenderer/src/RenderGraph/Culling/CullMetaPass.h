@@ -12,22 +12,21 @@ class DrawIndirectCulledContext;
 struct CullMetaPassInitInfo
 {
     using Features = TriangleCullDrawPassInitInfo::Features;
+    const RenderPassGeometry* Geometry{nullptr};
     const ShaderPipeline* DrawPipeline{nullptr};
     const ShaderDescriptors* MaterialDescriptors{nullptr};
     Features DrawFeatures{Features::AllAttributes};
-    glm::uvec2 Resolution;
-    RenderPassGeometry* Geometry{nullptr};
 };
 
 struct CullMetaPassExecutionInfo
 {
-    FrameContext* FrameContext{nullptr};
     struct ColorInfo
     {
         RenderGraph::Resource Color{};
         AttachmentLoad OnLoad{AttachmentLoad::Load};
         RenderingAttachmentDescription::ClearValue ClearValue{};
     };
+    glm::uvec2 Resolution;
     std::vector<ColorInfo> Colors{};
     std::optional<RenderGraph::Resource> Depth{};
 };

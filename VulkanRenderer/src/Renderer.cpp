@@ -16,13 +16,13 @@
 #include "RenderGraph/AO/SsaoBlurPass.h"
 #include "RenderGraph/AO/SsaoPass.h"
 #include "RenderGraph/AO/SsaoVisualizePass.h"
-#include "RenderGraph/Culling/CullMetaPass.h"
 #include "RenderGraph/Culling/MeshletCullPass.h"
 #include "RenderGraph/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/DrawIndirectCulledPass/DrawIndirectCountPass.h"
+#include "RenderGraph/General/VisibilityPass.h"
 #include "RenderGraph/HiZ/HiZVisualize.h"
 #include "RenderGraph/PBR/VisualizeBRDFPass.h"
-#include "RenderGraph\PBR\PbrVisibilityBufferIBLPass.h"
+#include "RenderGraph/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/PostProcessing/Sky/SkyGradientPass.h"
 #include "RenderGraph/Skybox/SkyboxPass.h"
@@ -90,26 +90,11 @@ void Renderer::InitRenderGraph()
             .Build();
     materialDescriptors.UpdateBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
     m_GraphOpaqueGeometry.GetModelCollection().ApplyMaterialTextures(materialDescriptors);
-    
-    auto visibilityTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/general/visibility-buffer-vert.shader",
-        "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.shader",},
-        "Pass.VisibilityBuffer", m_Graph->GetArenaAllocators());
-    ShaderPipeline visibilityPipeline = ShaderPipeline::Builder()
-        .SetTemplate(visibilityTemplate)
-        .SetRenderingDetails({
-            .ColorFormats = {Format::R32_UINT},
-            .DepthFormat = Format::D32_FLOAT})
-        .AlphaBlending(AlphaBlending::None)
-        .UseDescriptorBuffer()
-        .Build();
-    CullMetaPassInitInfo visibilityPassInitInfo = {
-        .DrawPipeline = &visibilityPipeline,
+
+    m_VisibilityPass = std::make_shared<VisibilityPass>(*m_Graph, VisibilityPassInitInfo{
         .MaterialDescriptors = &materialDescriptors,
-        .DrawFeatures = CullMetaPassInitInfo::Features::AlphaTest,
-        .Resolution = m_Swapchain.GetResolution(),
-        .Geometry = &m_GraphOpaqueGeometry};
-    m_VisibilityBufferPass = std::make_shared<CullMetaPass>(*m_Graph, visibilityPassInitInfo, "VisibilityBuffer");
+        .Geometry = &m_GraphOpaqueGeometry});
+    
     m_PbrVisibilityBufferIBLPass = std::make_shared<PbrVisibilityBufferIBL>(*m_Graph, PbrVisibilityBufferInitInfo{
         .MaterialDescriptors = &materialDescriptors});
     m_SsaoPass = std::make_shared<SsaoPass>(*m_Graph, 32);
@@ -144,30 +129,6 @@ void Renderer::SetupRenderSlimePasses()
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
 }
 
-CullMetaPass::PassData Renderer::SetupVisibilityBufferPass()
-{
-    using namespace RenderGraph;
-
-    Resource visibility = m_Graph->CreateResource(m_VisibilityBufferPass->GetName() + ".VisibilityBuffer",
-        GraphTextureDescription{
-            .Width = m_Swapchain.GetResolution().x,
-            .Height = m_Swapchain.GetResolution().y,
-            .Format = Format::R32_UINT});
-
-    m_VisibilityBufferPass->AddToGraph(*m_Graph, {
-        .FrameContext = &GetFrameContext(),
-        .Colors = {
-            CullMetaPassExecutionInfo::ColorInfo{
-                .Color = visibility,
-                .OnLoad = AttachmentLoad::Clear,
-                .ClearValue = {.Color = {.U = glm::uvec4{std::numeric_limits<u32>::max(), 0, 0, 0}}}}},
-        .Depth = RenderGraph::Resource{}});
-
-    auto& output = m_Graph->GetBlackboard().GetOutput<CullMetaPass::PassData>(m_VisibilityBufferPass->GetNameHash());
-
-    return output; 
-}
-
 void Renderer::SetupRenderGraph()
 {
     using namespace RenderGraph;
@@ -175,7 +136,8 @@ void Renderer::SetupRenderGraph()
     m_Graph->Reset(GetFrameContext());
     Resource backbuffer = m_Graph->GetBackbuffer();
 
-    auto visibility = SetupVisibilityBufferPass();
+    m_VisibilityPass->AddToGraph(*m_Graph, m_Swapchain.GetResolution());
+    auto& visibility = m_Graph->GetBlackboard().GetOutput<VisibilityPass::PassData>();
 
     //m_SkyGradientPass->AddToGraph(*m_Graph,
     //    m_Graph->CreateResource("Sky.Target", GraphTextureDescription{
@@ -184,29 +146,23 @@ void Renderer::SetupRenderGraph()
     //        .Format = Format::RGBA16_FLOAT}));
     //auto& skyGradientOutput = m_Graph->GetBlackboard().GetOutput<SkyGradientPass::PassData>();
 
-    if (visibility.DepthOut.has_value())
-    {
-        m_SsaoPass->AddToGraph(*m_Graph, *visibility.DepthOut);
-        auto& ssaoOutput = m_Graph->GetBlackboard().GetOutput<SsaoPass::PassData>();
+    m_SsaoPass->AddToGraph(*m_Graph, visibility.DepthOut);
+    auto& ssaoOutput = m_Graph->GetBlackboard().GetOutput<SsaoPass::PassData>();
 
-        m_SsaoBlurHorizontalPass->AddToGraph(*m_Graph, ssaoOutput.SSAO, {});
-        auto& ssaoBlurHorizontalOutput = m_Graph->GetBlackboard().GetOutput<SsaoBlurPass::PassData>(
-            m_SsaoBlurHorizontalPass->GetNameHash());
+    m_SsaoBlurHorizontalPass->AddToGraph(*m_Graph, ssaoOutput.SSAO, {});
+    auto& ssaoBlurHorizontalOutput = m_Graph->GetBlackboard().GetOutput<SsaoBlurPass::PassData>(
+        m_SsaoBlurHorizontalPass->GetNameHash());
 
-        m_SsaoBlurVerticalPass->AddToGraph(*m_Graph, ssaoBlurHorizontalOutput.SsaoOut, ssaoOutput.SSAO);
-        auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().GetOutput<SsaoBlurPass::PassData>(
-                m_SsaoBlurVerticalPass->GetNameHash());
+    m_SsaoBlurVerticalPass->AddToGraph(*m_Graph, ssaoBlurHorizontalOutput.SsaoOut, ssaoOutput.SSAO);
+    auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().GetOutput<SsaoBlurPass::PassData>(
+            m_SsaoBlurVerticalPass->GetNameHash());
         
-        m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
-        backbuffer = m_Graph->GetBlackboard().GetOutput<SsaoVisualizePass::PassData>().ColorOut;
-    }
-
-    auto ssaoBlurVerticalOutput = m_Graph->GetBlackboard().TryGetOutput<SsaoBlurPass::PassData>(
-        m_SsaoBlurVerticalPass->GetNameHash());
-
+    m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
+    backbuffer = m_Graph->GetBlackboard().GetOutput<SsaoVisualizePass::PassData>().ColorOut;
+    
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
-        .VisibilityTexture = visibility.ColorsOut[0],
-        .SSAOTexture = ssaoBlurVerticalOutput != nullptr ? ssaoBlurVerticalOutput->SsaoOut : Resource{},
+        .VisibilityTexture = visibility.ColorsOut,
+        .SSAOTexture = ssaoBlurVerticalOutput.SsaoOut,
         .IrradianceMap = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
         .PrefilterMap = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
         .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF),
@@ -215,7 +171,7 @@ void Renderer::SetupRenderGraph()
     auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBufferIBL::PassData>();
 
     m_SkyboxPass->AddToGraph(*m_Graph,
-        m_SkyboxPrefilterMap, pbrOutput.ColorOut, *visibility.DepthOut, GetFrameContext().Resolution, 1.2f);
+        m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibility.DepthOut, GetFrameContext().Resolution, 1.2f);
     auto& skyboxOutput = m_Graph->GetBlackboard().GetOutput<SkyboxPass::PassData>();
 
     m_CopyTexturePass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer, glm::vec3{}, glm::vec3{1.0f});
@@ -452,7 +408,7 @@ void Renderer::Shutdown()
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
 
-    m_VisibilityBufferPass.reset();
+    m_VisibilityPass.reset();
     m_Graph.reset();
     m_ResourceUploader.Shutdown();
     for (auto& ctx : m_FrameContexts)
