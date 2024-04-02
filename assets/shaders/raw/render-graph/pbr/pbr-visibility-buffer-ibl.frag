@@ -2,8 +2,8 @@
 
 #version 460
 
-#include "common.shader_header"
-#include "pbr.shader_header"
+#include "common.glsl"
+#include "pbr.glsl"
 
 #extension GL_EXT_nonuniform_qualifier : require
 
@@ -314,7 +314,7 @@ vec3 shade(ShadeInfo shade_info) {
     return ambient + diffuse + specular;
 }
 
-vec3 shade_pbr_lights(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_v, float roughness) {
+vec3 shade_pbr_lights(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_v) {
     const vec3 light_dir = -normalize(vec3(-0.1f, -0.1f, -0.1f));
     const vec3 radiance = vec3(15.0f, 14.0f, 14.0f);
     
@@ -324,8 +324,8 @@ vec3 shade_pbr_lights(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_
     const  float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
     const  float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
 
-    const float D = d_ggx(n_dot_h, roughness);
-    const float V = v_smith_correlated(n_dot_v, n_dot_l, roughness);
+    const float D = d_ggx(n_dot_h, shade_info.roughness);
+    const float V = v_smith_correlated(n_dot_v, n_dot_l, shade_info.roughness);
     const vec3 F = fresnel_schlick(h_dot_l, F0);
 
     const vec3 Fr = D * V * F;
@@ -337,14 +337,14 @@ vec3 shade_pbr_lights(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_
     return Lo;
 }
 
-vec3 shade_pbr_ibl(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_v, float roughness) {
-    const vec3 F = fresnel_schlick_roughness(n_dot_v, F0, roughness);
+vec3 shade_pbr_ibl(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_v) {
+    const vec3 F = fresnel_schlick_roughness(n_dot_v, F0, shade_info.roughness);
     const vec3 irradiance = textureLod(samplerCube(u_irradiance_map, u_sampler), shade_info.normal, 0).rgb;
 
     const vec3 R = reflect(-view_dir, shade_info.normal);
     const vec3 prefilteredColor =
-        textureLod(samplerCube(u_prefilter_map, u_sampler), R, roughness * MAX_REFLECTION_LOD).rgb;
-    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_clamp), vec2(n_dot_v, roughness), 0).rg;
+        textureLod(samplerCube(u_prefilter_map, u_sampler), R, shade_info.roughness * MAX_REFLECTION_LOD).rgb;
+    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_clamp), vec2(n_dot_v, shade_info.roughness), 0).rg;
 
     const vec3 Fr = prefilteredColor * (F * brdf.x + brdf.y);
     const vec3 kd = vec3(1.0f) - F;
@@ -360,17 +360,15 @@ vec3 shade_pbr_ibl(ShadeInfo shade_info, vec3 F0, vec3 view_dir, float n_dot_v, 
 vec3 shade_pbr(ShadeInfo shade_info) {
     const vec3 view_dir = normalize(u_camera.camera_position.xyz - shade_info.position);
 
-    // remapping of perceptual roughness
-    float roughness = shade_info.roughness * shade_info.roughness;
     const  float n_dot_v = clamp(dot(shade_info.normal, view_dir), 0.0f, 1.0f);
 
     vec3 F0 = vec3(0.04);
     F0 = mix(F0, shade_info.albedo, shade_info.metallic);
     
     vec3 Lo = vec3(0.0f);
-    //Lo = shade_pbr_lights(shade_info, F0, view_dir, n_dot_v, roughness);
+    //Lo = shade_pbr_lights(shade_info, F0, view_dir, n_dot_v);
 
-    vec3 ambient = shade_pbr_ibl(shade_info, F0, view_dir, n_dot_v, roughness);
+    vec3 ambient = shade_pbr_ibl(shade_info, F0, view_dir, n_dot_v);
 
     return ambient + Lo;
 }

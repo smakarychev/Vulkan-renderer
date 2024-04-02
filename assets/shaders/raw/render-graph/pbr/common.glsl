@@ -1,4 +1,4 @@
-#include "../common.shader_header"
+#include "../common.glsl"
 
 const uint TRIANGLE_BITS = 8;
 const uint TRIANGLE_MASK = (1 << 8) - 1;

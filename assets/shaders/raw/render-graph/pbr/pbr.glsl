@@ -4,16 +4,15 @@ const float TAU = PI * 2.0f;
 const float PI_INV = 1.0f /  PI;
 
 float d_ggx(float n_dot_h, float roughness) {
-    //const float a2 = roughness * roughness;
-    const float a2 = roughness;
-    
+    const float a2 = roughness * roughness;
     const float f = (n_dot_h * a2 - n_dot_h) * n_dot_h + 1.0;
     
     return a2 / (PI * f * f);
 }
 
 float v_smith_correlated(float n_dot_v, float n_dot_l, float roughness) {
-    const float v = 0.5f / mix(2 * n_dot_l * n_dot_v, n_dot_l + n_dot_v, roughness);
+    const float a2 = roughness * roughness;
+    const float v = 0.5f / mix(2 * n_dot_l * n_dot_v, n_dot_l + n_dot_v, a2);
     
     return clamp(v, 0.0f, 3.402823466e+38f); 
 }

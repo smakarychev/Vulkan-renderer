@@ -1,6 +1,6 @@
 #version 460
 
-#include "../common.shader_header"
+#include "../common.glsl"
 
 layout(location = 0) in vec3 cube_uv;
 

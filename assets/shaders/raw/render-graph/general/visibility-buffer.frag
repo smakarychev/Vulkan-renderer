@@ -1,6 +1,6 @@
 #version 460
 
-#include "common.shader_header"
+#include "common.glsl"
 
 #extension GL_EXT_nonuniform_qualifier : require
 

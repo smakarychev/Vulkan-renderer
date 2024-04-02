@@ -1,7 +1,7 @@
 #version 460
 
-#include "common.shader_header"
-#include "culling_functions.shader_header"
+#include "common.glsl"
+#include "culling_functions.glsl"
 
 #extension GL_KHR_shader_subgroup_ballot: enable
 

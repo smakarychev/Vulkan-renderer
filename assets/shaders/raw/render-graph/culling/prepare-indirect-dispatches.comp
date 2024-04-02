@@ -2,7 +2,7 @@
 
 layout(local_size_x = 64) in;
 
-#include "common.shader_header"
+#include "common.glsl"
 
 layout(std430, set = 1, binding = 0) readonly buffer command_count_buffer {
     uint count;

@@ -71,4 +71,4 @@ vec4 vec4_from_position(Position position) {
     return vec4(position.x, position.y, position.z, 1.0f);
 }
 
-#include "tonemapping.shader_header"
+#include "tonemapping.glsl"

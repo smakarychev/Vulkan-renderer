@@ -1,4 +1,4 @@
-#include "../common.shader_header"
+#include "../common.glsl"
 
 #extension GL_EXT_shader_explicit_arithmetic_types: require
 #extension GL_EXT_shader_explicit_arithmetic_types_int8: require    

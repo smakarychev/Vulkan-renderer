@@ -1,6 +1,6 @@
 #version 460
 
-#include "common.shader_header"
+#include "common.glsl"
 
 layout(local_size_x = 1) in;
 
