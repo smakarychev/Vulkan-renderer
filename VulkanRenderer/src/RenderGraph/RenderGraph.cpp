@@ -9,7 +9,7 @@
 #include "Rendering/Synchronization.h"
 #include "Vulkan/RenderCommand.h"
 
-namespace RenderGraph
+namespace RG
 {
     Graph::Graph()
     {

@@ -6,16 +6,16 @@ class CopyTexturePass
 public:
     struct PassData
     {
-        RenderGraph::Resource TextureIn;
-        RenderGraph::Resource TextureOut;
+        RG::Resource TextureIn;
+        RG::Resource TextureOut;
     };
 public:
     CopyTexturePass(std::string_view name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource textureIn, RenderGraph::Resource textureOut,
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn, RG::Resource textureOut,
         const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType = ImageSizeType::Relative);
 public:
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::PassName m_Name;
+    RG::PassName m_Name;
 };

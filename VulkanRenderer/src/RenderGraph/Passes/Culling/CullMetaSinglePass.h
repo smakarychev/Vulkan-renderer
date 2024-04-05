@@ -11,20 +11,20 @@ class CullMetaSinglePass
 public:
     struct PassData
     {
-        std::vector<RenderGraph::Resource> ColorsOut{};
-        std::optional<RenderGraph::Resource> DepthOut{};
+        std::vector<RG::Resource> ColorsOut{};
+        std::optional<RG::Resource> DepthOut{};
     };
 public:
-    CullMetaSinglePass(RenderGraph::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPassExecutionInfo& info,
+    CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name);
+    void AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info,
         HiZPassContext& hiZContext);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
     const std::string& GetName() const { return m_Name.Name(); }
 private:
-    RenderGraph::PassName m_Name;
+    RG::PassName m_Name;
     PassData m_PassData;
 
-    RenderGraph::DrawFeatures m_DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+    RG::DrawFeatures m_DrawFeatures{RG::DrawFeatures::AllAttributes};
 
     using MeshCull = MeshCullSinglePass;
     using MeshletCull = MeshletCullSinglePass;

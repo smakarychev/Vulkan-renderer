@@ -1,13 +1,12 @@
 #include "DrawIndirectPass.h"
 
 #include "FrameContext.h"
-#include "Mesh.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/RGGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
-DrawIndirectPass::DrawIndirectPass(RenderGraph::Graph& renderGraph, std::string_view name,
+DrawIndirectPass::DrawIndirectPass(RG::Graph& renderGraph, std::string_view name,
     const DrawIndirectPassInitInfo& info)
         : m_Name(name), m_Features(info.DrawFeatures)
 {
@@ -18,7 +17,7 @@ DrawIndirectPass::DrawIndirectPass(RenderGraph::Graph& renderGraph, std::string_
         .ExtractSet(1)
         .Build();
 
-    if (enumHasAny(m_Features, RenderGraph::DrawFeatures::Textures))
+    if (enumHasAny(m_Features, RG::DrawFeatures::Textures))
     {
         ASSERT(info.MaterialDescriptors.has_value(), "Material desciptors are not provided")
         
@@ -31,10 +30,10 @@ DrawIndirectPass::DrawIndirectPass(RenderGraph::Graph& renderGraph, std::string_
     }
 }
 
-void DrawIndirectPass::AddToGraph(RenderGraph::Graph& renderGraph, const RenderPassGeometry& geometry,
+void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const RG::Geometry& geometry,
     const DrawIndirectPassExecutionInfo& info)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,

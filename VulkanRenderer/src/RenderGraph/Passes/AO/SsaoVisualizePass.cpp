@@ -4,7 +4,7 @@
 #include "RenderGraph/RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-SsaoVisualizePass::SsaoVisualizePass(RenderGraph::Graph& renderGraph)
+SsaoVisualizePass::SsaoVisualizePass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
        "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
@@ -29,10 +29,10 @@ SsaoVisualizePass::SsaoVisualizePass(RenderGraph::Graph& renderGraph)
         .Build();
 }
 
-void SsaoVisualizePass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource ssao,
-    RenderGraph::Resource colorOut)
+void SsaoVisualizePass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao,
+    RG::Resource colorOut)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
     
     std::string name = "SSAO.Visualize";

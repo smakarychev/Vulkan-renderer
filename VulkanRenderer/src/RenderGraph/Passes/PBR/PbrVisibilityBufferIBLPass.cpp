@@ -6,7 +6,7 @@
 #include "RenderGraph/RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info)
+PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RG::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info)
 {
     ShaderPipelineTemplate* pbrTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
@@ -35,9 +35,9 @@ PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RenderGraph::Graph& renderGraph, 
     m_PipelineData.MaterialDescriptors = *info.MaterialDescriptors;
 }
 
-void PbrVisibilityBufferIBL::AddToGraph(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info)
+void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     std::string name = "Pbr.VisibilityBuffer";

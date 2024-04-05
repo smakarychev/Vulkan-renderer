@@ -8,7 +8,7 @@
 #include "utils/StringHasher.h"
 #include "utils/utils.h"
 
-namespace RenderGraph
+namespace RG
 {
     class PassDataTypeIndex
     {

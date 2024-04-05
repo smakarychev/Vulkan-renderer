@@ -1,9 +1,9 @@
 #include "RGUtils.h"
 
 #include "RenderGraph.h"
-#include "General/DrawResources.h"
+#include "RenderGraph/RGDrawResources.h"
 
-namespace RenderGraph::RgUtils
+namespace RG::RgUtils
 {
     Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
         const GraphTextureDescription& fallback)

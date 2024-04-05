@@ -78,54 +78,54 @@ public:
     };
     struct UpdateSlimeMapPassData
     {
-        RenderGraph::Resource TraitsSsbo;
-        RenderGraph::Resource SlimeSsbo;
-        RenderGraph::Resource SlimeMap;
+        RG::Resource TraitsSsbo;
+        RG::Resource SlimeSsbo;
+        RG::Resource SlimeMap;
         
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
         
         PushConstants* PushConstants{nullptr};
         SlimeMoldContext* SlimeMoldContext{ nullptr };
     };
     struct DiffuseSlimeMapPassData
     {
-        RenderGraph::Resource SlimeMap;
-        RenderGraph::Resource DiffuseMap;
+        RG::Resource SlimeMap;
+        RG::Resource DiffuseMap;
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
         
         PushConstants* PushConstants{nullptr};
         SlimeMoldContext* SlimeMoldContext{nullptr};
     };
     struct GradientPassData
     {
-        RenderGraph::Resource DiffuseMap;
-        RenderGraph::Resource GradientMap;
-        RenderGraph::Resource GradientUbo;
+        RG::Resource DiffuseMap;
+        RG::Resource GradientMap;
+        RG::Resource GradientUbo;
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
         
         PushConstants* PushConstants{nullptr};
         SlimeMoldContext* SlimeMoldContext{ nullptr };
         GradientUBO* Gradient{nullptr};
     };
 public:
-    SlimeMoldPass(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, SlimeMoldPassStage stage, SlimeMoldContext& ctx);
+    SlimeMoldPass(RG::Graph& renderGraph);
+    void AddToGraph(RG::Graph& renderGraph, SlimeMoldPassStage stage, SlimeMoldContext& ctx);
 private:
-    void AddUpdateSlimeMapStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx);
-    void AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx);
-    void AddCopyDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx);
-    void AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx);
+    void AddUpdateSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
+    void AddDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
+    void AddCopyDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
+    void AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
 private:
-    RenderGraph::Pass* m_UpdateSlimeMapPass{nullptr};
-    RenderGraph::Pass* m_DiffuseSlimeMapPass{nullptr};
+    RG::Pass* m_UpdateSlimeMapPass{nullptr};
+    RG::Pass* m_DiffuseSlimeMapPass{nullptr};
     std::shared_ptr<CopyTexturePass> m_CopyDiffuseToMapPass{nullptr};
-    RenderGraph::Pass* m_GradientSlimeMapPass{nullptr};
+    RG::Pass* m_GradientSlimeMapPass{nullptr};
 
-    RenderGraph::PipelineData m_UpdateSlimeMapPipelineData;
-    RenderGraph::PipelineData m_DiffuseSlimeMapPipelineData;
-    RenderGraph::PipelineData m_GradientSlimeMapPipelineData;
+    RG::PipelineData m_UpdateSlimeMapPipelineData;
+    RG::PipelineData m_DiffuseSlimeMapPipelineData;
+    RG::PipelineData m_GradientSlimeMapPipelineData;
 
     PushConstants m_PushConstants{};
     GradientUBO m_Gradient{};

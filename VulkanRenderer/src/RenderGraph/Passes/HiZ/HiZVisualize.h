@@ -12,19 +12,19 @@ public:
     };
     struct PassData
     {
-        RenderGraph::Resource HiZ;
-        RenderGraph::Resource ColorOut;
+        RG::Resource HiZ;
+        RG::Resource ColorOut;
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
         
         PushConstants* PushConstants{nullptr};
     };
 public:
-    HiZVisualize(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource hiz);
+    HiZVisualize(RG::Graph& renderGraph);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource hiz);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::PipelineData m_PipelineData;
+    RG::PipelineData m_PipelineData;
     PushConstants m_PushConstants{};
 };

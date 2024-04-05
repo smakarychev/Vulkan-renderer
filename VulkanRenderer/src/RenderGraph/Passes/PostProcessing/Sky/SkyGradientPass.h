@@ -29,23 +29,23 @@ public:
     };
     struct PassData
     {
-        RenderGraph::Resource ColorOut;
-        RenderGraph::Resource CameraUbo;
-        RenderGraph::Resource SettingsUbo;
+        RG::Resource ColorOut;
+        RG::Resource CameraUbo;
+        RG::Resource SettingsUbo;
 
         CameraUBO Camera;
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
         
         SettingsUBO* Settings{nullptr};
         PushConstants PushConstants;
     };
 public:
-    SkyGradientPass(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource renderTarget);
+    SkyGradientPass(RG::Graph& renderGraph);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarget);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::PipelineData m_PipelineData;
+    RG::PipelineData m_PipelineData;
     SettingsUBO m_Settings;
 };

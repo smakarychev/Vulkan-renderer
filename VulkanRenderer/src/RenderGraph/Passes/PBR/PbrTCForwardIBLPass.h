@@ -6,24 +6,28 @@
 
 #include "RenderGraph/RGDrawResources.h"
 
+namespace RG
+{
+    class Geometry;
+}
+
 class CullMetaPass;
 class HiZPassContext;
 class ShaderDescriptors;
-class RenderPassGeometry;
 
 struct PbrForwardIBLPassInitInfo
 {
     const ShaderDescriptors* MaterialDescriptors{nullptr};
-    const RenderPassGeometry* Geometry{nullptr};
+    const RG::Geometry* Geometry{nullptr};
 };
 
 struct PbrForwardIBLPassExecutionInfo
 {
     glm::uvec2 Resolution{};
-    RenderGraph::Resource ColorIn{};
-    RenderGraph::Resource DepthIn{};
+    RG::Resource ColorIn{};
+    RG::Resource DepthIn{};
 
-    RenderGraph::IBLData IBL{};
+    RG::IBLData IBL{};
 };
 
 /* Main forward pbr ibl pass
@@ -35,14 +39,14 @@ class PbrTCForwardIBLPass
 public:
     struct PassData
     {
-        RenderGraph::Resource ColorOut{};
-        RenderGraph::Resource DepthOut{};
+        RG::Resource ColorOut{};
+        RG::Resource DepthOut{};
     };
 public:
-    PbrTCForwardIBLPass(RenderGraph::Graph& renderGraph, const PbrForwardIBLPassInitInfo& info, std::string_view name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info);
+    PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwardIBLPassInitInfo& info, std::string_view name);
+    void AddToGraph(RG::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
-    RenderGraph::PassName m_Name;
+    RG::PassName m_Name;
     std::shared_ptr<CullMetaPass> m_Pass{};
 };

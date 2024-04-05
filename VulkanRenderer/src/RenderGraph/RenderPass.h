@@ -12,7 +12,7 @@
 class DependencyInfo;
 struct FrameContext;
 
-namespace RenderGraph
+namespace RG
 {
     class Resources;
 

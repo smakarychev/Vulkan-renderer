@@ -4,7 +4,7 @@
 #include "RenderGraph/RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-VisualizeBRDFPass::VisualizeBRDFPass(RenderGraph::Graph& renderGraph)
+VisualizeBRDFPass::VisualizeBRDFPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* brdfTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
@@ -29,16 +29,16 @@ VisualizeBRDFPass::VisualizeBRDFPass(RenderGraph::Graph& renderGraph)
         .Build();
 }
 
-void VisualizeBRDFPass::AddToGraph(RenderGraph::Graph& renderGraph, const Texture& brdf, RenderGraph::Resource colorIn,
+void VisualizeBRDFPass::AddToGraph(RG::Graph& renderGraph, const Texture& brdf, RG::Resource colorIn,
     const glm::uvec2 resolution)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
     
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{"BRDF.Visualize"},
         [&](Graph& graph, PassData& passData)
         {
-            passData.ColorOut = RenderGraph::RgUtils::ensureResource(colorIn, graph, "BRDF.Visualize.ColorOut",
+            passData.ColorOut = RG::RgUtils::ensureResource(colorIn, graph, "BRDF.Visualize.ColorOut",
                 GraphTextureDescription{
                     .Width = resolution.x,
                     .Height = resolution.y,

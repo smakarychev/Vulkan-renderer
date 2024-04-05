@@ -41,7 +41,7 @@ HiZPassContext::~HiZPassContext()
     Image::Destroy(m_HiZ);
 }
 
-HiZPass::HiZPass(RenderGraph::Graph& renderGraph, std::string_view baseName)
+HiZPass::HiZPass(RG::Graph& renderGraph, std::string_view baseName)
     : m_Name(baseName)
 {
     ShaderPipelineTemplate* hizPassTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
@@ -67,9 +67,9 @@ HiZPass::HiZPass(RenderGraph::Graph& renderGraph, std::string_view baseName)
     }
 }
 
-void HiZPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource depth, HiZPassContext& ctx)
+void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassContext& ctx)
 {
-    using namespace RenderGraph;
+    using namespace RG;
 
     u32 mipMapCount = ctx.GetHiZ().GetDescription().Mipmaps;
     u32 width = ctx.GetHiZ().GetDescription().Width;  

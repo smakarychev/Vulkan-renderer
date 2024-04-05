@@ -13,18 +13,18 @@ class MeshletCullContext
 public:
     struct PassResources
     {
-        RenderGraph::Resource MeshletsSsbo{};
-        RenderGraph::Resource VisibilitySsbo{};
-        RenderGraph::Resource CommandsSsbo{};
-        RenderGraph::Resource CompactCommandsSsbo{};
-        RenderGraph::Resource CompactCountSsbo{};
-        RenderGraph::Resource CompactCountReocclusionSsbo{};
+        RG::Resource MeshletsSsbo{};
+        RG::Resource VisibilitySsbo{};
+        RG::Resource CommandsSsbo{};
+        RG::Resource CompactCommandsSsbo{};
+        RG::Resource CompactCountSsbo{};
+        RG::Resource CompactCountReocclusionSsbo{};
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
 
     const Buffer& Visibility() { return m_Visibility; }
-    const RenderPassGeometry& Geometry() { return m_MeshCullContext->Geometry(); }
+    const RG::Geometry& Geometry() { return m_MeshCullContext->Geometry(); }
     MeshCullContext& MeshContext() { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
 private:
@@ -45,17 +45,17 @@ public:
 
         u32 MeshletCount;
         
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshletCullPassGeneral(RenderGraph::Graph& renderGraph, std::string_view name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, MeshletCullContext& ctx);
+    MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name);
+    void AddToGraph(RG::Graph& renderGraph, MeshletCullContext& ctx);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    RenderGraph::PassName m_Name;
+    RG::Pass* m_Pass{nullptr};
+    RG::PassName m_Name;
 
-    RenderGraph::PipelineData m_PipelineData;
+    RG::PipelineData m_PipelineData;
 };
 
 
@@ -65,7 +65,7 @@ using MeshletCullSinglePass = MeshletCullPassGeneral<CullStage::Single>;
 
 
 template <CullStage Stage>
-MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RenderGraph::Graph& renderGraph, std::string_view name)
+MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name)
     : m_Name(name)
 {
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -91,10 +91,10 @@ MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RenderGraph::Graph& render
 }
 
 template <CullStage Stage>
-void MeshletCullPassGeneral<Stage>::AddToGraph(RenderGraph::Graph& renderGraph,
+void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
     MeshletCullContext& ctx)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     std::string passName = m_Name.Name() + cullStageToString(Stage);

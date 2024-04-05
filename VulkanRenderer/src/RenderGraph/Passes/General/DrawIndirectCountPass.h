@@ -7,24 +7,29 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGCommon.h"
 
+namespace RG
+{
+    class Geometry;
+}
+
 struct DrawIndirectCountPassInitInfo
 {
-    RenderGraph::DrawFeatures DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+    RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
     const ShaderPipeline* DrawPipeline{nullptr};
     std::optional<ShaderDescriptors> MaterialDescriptors{};
 };
 
 struct DrawIndirectCountPassExecutionInfo
 {
-    RenderGraph::Resource Color{};
-    RenderGraph::Resource Depth{};
-    RenderGraph::Resource Commands{};
-    RenderGraph::Resource CommandCount{};
+    RG::Resource Color{};
+    RG::Resource Depth{};
+    RG::Resource Commands{};
+    RG::Resource CommandCount{};
     glm::uvec2 Resolution{};
     AttachmentLoad DepthOnLoad{AttachmentLoad::Load};
 
-    std::optional<RenderGraph::IBLData> IBL{};
-    std::optional<RenderGraph::SSAOData> SSAO{};
+    std::optional<RG::IBLData> IBL{};
+    std::optional<RG::SSAOData> SSAO{};
 };
 
 class DrawIndirectCountPass
@@ -32,29 +37,29 @@ class DrawIndirectCountPass
 public:
     struct PassData
     {
-        RenderGraph::Resource CameraUbo{};
-        RenderGraph::Resource ObjectsSsbo{};
-        RenderGraph::Resource CommandsIndirect{};
-        RenderGraph::Resource CountIndirect{};
-        RenderGraph::Resource ColorOut{};
-        RenderGraph::Resource DepthOut{};
+        RG::Resource CameraUbo{};
+        RG::Resource ObjectsSsbo{};
+        RG::Resource CommandsIndirect{};
+        RG::Resource CountIndirect{};
+        RG::Resource ColorOut{};
+        RG::Resource DepthOut{};
 
-        std::optional<RenderGraph::IBLData> IBL{};
-        std::optional<RenderGraph::SSAOData> SSAO{};
-        RenderGraph::DrawFeatures DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+        std::optional<RG::IBLData> IBL{};
+        std::optional<RG::SSAOData> SSAO{};
+        RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
 
-        RenderGraph::BindlessTexturesPipelineData* PipelineData{nullptr};
+        RG::BindlessTexturesPipelineData* PipelineData{nullptr};
     };
 public:
-    DrawIndirectCountPass(RenderGraph::Graph& renderGraph, std::string_view name, 
+    DrawIndirectCountPass(RG::Graph& renderGraph, std::string_view name, 
         const DrawIndirectCountPassInitInfo& info);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const RenderPassGeometry& geometry,
+    void AddToGraph(RG::Graph& renderGraph, const RG::Geometry& geometry,
         const DrawIndirectCountPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    RenderGraph::PassName m_Name;
+    RG::Pass* m_Pass{nullptr};
+    RG::PassName m_Name;
 
-    RenderGraph::DrawFeatures m_Features{RenderGraph::DrawFeatures::AllAttributes};
-    RenderGraph::BindlessTexturesPipelineData m_PipelineData;
+    RG::DrawFeatures m_Features{RG::DrawFeatures::AllAttributes};
+    RG::BindlessTexturesPipelineData m_PipelineData;
 };

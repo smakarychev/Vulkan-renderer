@@ -12,18 +12,18 @@ class SsaoBlurPass
 public:
     struct PassData
     {
-        RenderGraph::Resource SsaoIn{};
-        RenderGraph::Resource SsaoOut{};
+        RG::Resource SsaoIn{};
+        RG::Resource SsaoOut{};
         
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    SsaoBlurPass(RenderGraph::Graph& renderGraph, SsaoBlurPassKind kind);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource ssao, RenderGraph::Resource colorOut);
+    SsaoBlurPass(RG::Graph& renderGraph, SsaoBlurPassKind kind);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    RenderGraph::PassName m_Name;
+    RG::Pass* m_Pass{nullptr};
+    RG::PassName m_Name;
 
-    RenderGraph::PipelineData m_PipelineData{};
+    RG::PipelineData m_PipelineData{};
 };

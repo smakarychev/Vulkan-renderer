@@ -21,15 +21,15 @@ public:
     using IndexType = u32;
     struct PassResources
     {
-        RenderGraph::Resource SceneUbo{};
-        RenderGraph::Resource TriangleVisibilitySsbo{};
-        RenderGraph::Resource IndicesSsbo{};
-        RenderGraph::Resource DispatchIndirect{};
+        RG::Resource SceneUbo{};
+        RG::Resource TriangleVisibilitySsbo{};
+        RG::Resource IndicesSsbo{};
+        RG::Resource DispatchIndirect{};
 
-        std::array<RenderGraph::Resource, MAX_BATCHES> TrianglesSsbo{};
-        std::array<RenderGraph::Resource, MAX_BATCHES> IndicesCulledSsbo{};
-        std::array<RenderGraph::Resource, MAX_BATCHES> IndicesCulledCountSsbo{};
-        std::array<RenderGraph::Resource, MAX_BATCHES> DrawIndirect{};
+        std::array<RG::Resource, MAX_BATCHES> TrianglesSsbo{};
+        std::array<RG::Resource, MAX_BATCHES> IndicesCulledSsbo{};
+        std::array<RG::Resource, MAX_BATCHES> IndicesCulledCountSsbo{};
+        std::array<RG::Resource, MAX_BATCHES> DrawIndirect{};
     };
 public:
     TriangleCullContext(MeshletCullContext& meshletCullContext);
@@ -48,7 +48,7 @@ public:
     }
 
     const Buffer& Visibility() { return m_Visibility; }
-    const RenderPassGeometry& Geometry() { return m_MeshletCullContext->Geometry(); }
+    const RG::Geometry& Geometry() { return m_MeshletCullContext->Geometry(); }
     MeshletCullContext& MeshletContext() { return *m_MeshletCullContext; }
     PassResources& Resources() { return m_Resources; }
 
@@ -71,7 +71,7 @@ private:
 
 struct TriangleCullDrawPassInitInfo
 {
-    RenderGraph::DrawFeatures DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+    RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
     std::optional<ShaderDescriptors> MaterialDescriptors{};
     ShaderPipeline DrawPipeline{};
 };
@@ -81,19 +81,19 @@ class TriangleDrawContext
 public:
     struct PassResources
     {
-        RenderGraph::Resource CameraUbo{};
-        RenderGraph::Resource PositionsSsbo{};
-        RenderGraph::Resource NormalsSsbo{};
-        RenderGraph::Resource TangentsSsbo{};
-        RenderGraph::Resource UVsSsbo{};
-        RenderGraph::Resource ObjectsSsbo{};
-        RenderGraph::Resource CommandsSsbo{};
+        RG::Resource CameraUbo{};
+        RG::Resource PositionsSsbo{};
+        RG::Resource NormalsSsbo{};
+        RG::Resource TangentsSsbo{};
+        RG::Resource UVsSsbo{};
+        RG::Resource ObjectsSsbo{};
+        RG::Resource CommandsSsbo{};
 
-        std::optional<RenderGraph::IBLData> IBL{};
-        std::optional<RenderGraph::SSAOData> SSAO{};
+        std::optional<RG::IBLData> IBL{};
+        std::optional<RG::SSAOData> SSAO{};
 
-        std::vector<RenderGraph::Resource> RenderTargets{};
-        std::optional<RenderGraph::Resource> DepthTarget{};
+        std::vector<RG::Resource> RenderTargets{};
+        std::optional<RG::Resource> DepthTarget{};
     };
 public:
     PassResources& Resources() { return m_Resources; }
@@ -103,7 +103,7 @@ private:
 
 struct TriangleCullDrawPassExecutionInfo
 {
-    RenderGraph::Resource Dispatch{};
+    RG::Resource Dispatch{};
     
     TriangleCullContext* CullContext{nullptr};
     TriangleDrawContext* DrawContext{nullptr};
@@ -112,14 +112,14 @@ struct TriangleCullDrawPassExecutionInfo
 
     struct Attachment
     {
-        RenderGraph::Resource Resource{};
+        RG::Resource Resource{};
         RenderingAttachmentDescription Description{};
     };
     std::vector<Attachment> ColorAttachments;
     std::optional<Attachment> DepthAttachment;
 
-    std::optional<RenderGraph::IBLData> IBL{};
-    std::optional<RenderGraph::SSAOData> SSAO{};
+    std::optional<RG::IBLData> IBL{};
+    std::optional<RG::SSAOData> SSAO{};
 };
 
 template <CullStage Stage>
@@ -128,23 +128,23 @@ class TriangleCullPrepareDispatchPass
 public:
     struct PassData
     {
-        RenderGraph::Resource CompactCountSsbo;
-        RenderGraph::Resource DispatchIndirect;
-        RenderGraph::Resource VisibleMeshletCountSsbo;
+        RG::Resource CompactCountSsbo;
+        RG::Resource DispatchIndirect;
+        RG::Resource VisibleMeshletCountSsbo;
         u32 MaxDispatches{0};
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
         TriangleCullContext* Context{nullptr};
     };
 public:
-    TriangleCullPrepareDispatchPass(RenderGraph::Graph& renderGraph, std::string_view name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, TriangleCullContext& ctx);
+    TriangleCullPrepareDispatchPass(RG::Graph& renderGraph, std::string_view name);
+    void AddToGraph(RG::Graph& renderGraph, TriangleCullContext& ctx);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    RenderGraph::PassName m_Name;
+    RG::Pass* m_Pass{nullptr};
+    RG::PassName m_Name;
     
-    RenderGraph::PipelineData m_PipelineData;
+    RG::PipelineData m_PipelineData;
 };
 
 /* This pass shows a limitation of render graph implementation:
@@ -185,47 +185,47 @@ public:
     };
     struct PassData
     {
-        std::vector<RenderGraph::Resource> RenderTargets{};
-        std::optional<RenderGraph::Resource> DepthTarget{};
+        std::vector<RG::Resource> RenderTargets{};
+        std::optional<RG::Resource> DepthTarget{};
     };
 public:
-    TriangleCullDrawPass(RenderGraph::Graph& renderGraph, const TriangleCullDrawPassInitInfo& info,
+    TriangleCullDrawPass(RG::Graph& renderGraph, const TriangleCullDrawPassInitInfo& info,
         std::string_view name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const TriangleCullDrawPassExecutionInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const TriangleCullDrawPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     struct PassDataPrivate
     {
-        RenderGraph::Resource HiZ;
+        RG::Resource HiZ;
         Sampler HiZSampler;
-        RenderGraph::Resource ObjectsSsbo;
-        RenderGraph::Resource MeshletVisibilitySsbo;
-        RenderGraph::Resource CompactCommandsSsbo;
-        RenderGraph::Resource CompactCountSsbo;
+        RG::Resource ObjectsSsbo;
+        RG::Resource MeshletVisibilitySsbo;
+        RG::Resource CompactCommandsSsbo;
+        RG::Resource CompactCountSsbo;
         
         TriangleCullContext::PassResources TriangleCullResources;
         TriangleDrawContext::PassResources TriangleDrawResources;
 
-        std::array<RenderGraph::Resource, TriangleCullContext::MAX_BATCHES> DrawIndirect;
+        std::array<RG::Resource, TriangleCullContext::MAX_BATCHES> DrawIndirect;
 
-        std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES>* CullPipelines{nullptr};
-        std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES>* PreparePipelines{nullptr};
-        std::array<RenderGraph::BindlessTexturesPipelineData, TriangleCullContext::MAX_BATCHES>* DrawPipelines{nullptr};
+        std::array<RG::PipelineData, TriangleCullContext::MAX_BATCHES>* CullPipelines{nullptr};
+        std::array<RG::PipelineData, TriangleCullContext::MAX_BATCHES>* PreparePipelines{nullptr};
+        std::array<RG::BindlessTexturesPipelineData, TriangleCullContext::MAX_BATCHES>* DrawPipelines{nullptr};
 
-        RenderGraph::DrawFeatures DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+        RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
 
         std::array<SplitBarrier, TriangleCullContext::MAX_BATCHES>* SplitBarriers{nullptr};
         DependencyInfo* SplitBarrierDependency{nullptr};
     };
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    RenderGraph::PassName m_Name;
+    RG::Pass* m_Pass{nullptr};
+    RG::PassName m_Name;
 
-    std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES> m_CullPipelines;
-    std::array<RenderGraph::PipelineData, TriangleCullContext::MAX_BATCHES> m_PreparePipelines;
-    std::array<RenderGraph::BindlessTexturesPipelineData, TriangleCullContext::MAX_BATCHES> m_DrawPipelines;
+    std::array<RG::PipelineData, TriangleCullContext::MAX_BATCHES> m_CullPipelines;
+    std::array<RG::PipelineData, TriangleCullContext::MAX_BATCHES> m_PreparePipelines;
+    std::array<RG::BindlessTexturesPipelineData, TriangleCullContext::MAX_BATCHES> m_DrawPipelines;
 
-    RenderGraph::DrawFeatures m_Features{RenderGraph::DrawFeatures::AllAttributes};
+    RG::DrawFeatures m_Features{RG::DrawFeatures::AllAttributes};
     
     std::array<SplitBarrier, TriangleCullContext::MAX_BATCHES> m_SplitBarriers{};
     DependencyInfo m_SplitBarrierDependency{};
@@ -233,7 +233,7 @@ private:
 
 template <CullStage Stage>
 TriangleCullPrepareDispatchPass<Stage>::TriangleCullPrepareDispatchPass(
-    RenderGraph::Graph& renderGraph, std::string_view name)
+    RG::Graph& renderGraph, std::string_view name)
         : m_Name(name)
 {
     ShaderPipelineTemplate* prepareDispatchTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -252,10 +252,10 @@ TriangleCullPrepareDispatchPass<Stage>::TriangleCullPrepareDispatchPass(
 }
 
 template <CullStage Stage>
-void TriangleCullPrepareDispatchPass<Stage>::AddToGraph(RenderGraph::Graph& renderGraph,
+void TriangleCullPrepareDispatchPass<Stage>::AddToGraph(RG::Graph& renderGraph,
     TriangleCullContext& ctx)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo countBinding =
@@ -348,7 +348,7 @@ void TriangleCullPrepareDispatchPass<Stage>::AddToGraph(RenderGraph::Graph& rend
 }
 
 template <CullStage Stage>
-TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RenderGraph::Graph& renderGraph,
+TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph,
     const TriangleCullDrawPassInitInfo& info, std::string_view name)
         : m_Name(name)
 {
@@ -362,8 +362,8 @@ TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RenderGraph::Graph& renderGrap
 
     ASSERT(!info.MaterialDescriptors.has_value() ||
         enumHasAll(info.DrawFeatures,
-            RenderGraph::DrawFeatures::Materials |
-            RenderGraph::DrawFeatures::Textures),
+            RG::DrawFeatures::Materials |
+            RG::DrawFeatures::Textures),
         "If 'MaterialDescriptors' are provided, the 'DrawFeatures' must include 'Materials' and 'Textures'")
 
     ShaderDescriptors immutableSamplers = {};
@@ -430,10 +430,10 @@ TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RenderGraph::Graph& renderGrap
 }
 
 template <CullStage Stage>
-void TriangleCullDrawPass<Stage>::AddToGraph(RenderGraph::Graph& renderGraph,
+void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
     const TriangleCullDrawPassExecutionInfo& info)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
     
     m_Pass = &renderGraph.AddRenderPass<PassDataPrivate>(m_Name,

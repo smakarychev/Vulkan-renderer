@@ -3,7 +3,7 @@
 #include "RenderGraph/Passes/Culling/MeshletCullTranslucentPass.h"
 #include "RenderGraph/Passes/General/DrawIndirectPass.h"
 
-PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RenderGraph::Graph& renderGraph,
+PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGraph,
     const PbrForwardTranslucentIBLPassInitInfo& info)
 {
     m_MeshContext = std::make_shared<MeshCullContext>(*info.Geometry);
@@ -29,15 +29,15 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RenderGraph::Graph& r
         .Build();
     
     m_Draw = std::make_shared<DrawIndirectPass>(renderGraph, name + ".Draw", DrawIndirectPassInitInfo{
-        .DrawFeatures = RenderGraph::DrawFeatures::ShadedIBL,
+        .DrawFeatures = RG::DrawFeatures::ShadedIBL,
         .DrawPipeline = &drawPipeline,
         .MaterialDescriptors = *info.MaterialDescriptors});
 }
 
-void PbrForwardTranslucentIBLPass::AddToGraph(RenderGraph::Graph& renderGraph,
+void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
     const PbrForwardTranslucentIBLPassExecutionInfo& info)
 {
-    using namespace RenderGraph;
+    using namespace RG;
 
     auto& blackboard = renderGraph.GetBlackboard();
 

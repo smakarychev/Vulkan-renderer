@@ -12,23 +12,23 @@ public:
     };
     struct PassData
     {
-        RenderGraph::Resource Skybox{};
-        RenderGraph::Resource DepthOut{};
-        RenderGraph::Resource ColorOut{};
-        RenderGraph::Resource ProjectionUbo{};
+        RG::Resource Skybox{};
+        RG::Resource DepthOut{};
+        RG::Resource ColorOut{};
+        RG::Resource ProjectionUbo{};
 
         f32 LodBias{0.0f};
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    SkyboxPass(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const Texture& skybox, RenderGraph::Resource colorOut,
-        RenderGraph::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource skybox, RenderGraph::Resource colorOut,
-        RenderGraph::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
+    SkyboxPass(RG::Graph& renderGraph);
+    void AddToGraph(RG::Graph& renderGraph, const Texture& skybox, RG::Resource colorOut,
+        RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource skybox, RG::Resource colorOut,
+        RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::PipelineData m_PipelineData{};
+    RG::PipelineData m_PipelineData{};
 };

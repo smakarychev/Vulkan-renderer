@@ -7,7 +7,7 @@ MeshletCullContext::MeshletCullContext(MeshCullContext& meshCullContext)
 {
     m_Visibility = Buffer::Builder({
             .SizeBytes = meshCullContext.Geometry().GetMeshletCount() *
-                sizeof(RenderPassGeometry::MeshletVisibilityType),
+                sizeof(RG::Geometry::MeshletVisibilityType),
             .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
         .Build();
 }

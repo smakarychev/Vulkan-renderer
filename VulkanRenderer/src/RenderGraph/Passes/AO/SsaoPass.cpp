@@ -7,7 +7,7 @@
 #include "utils/MathUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-SsaoPass::SsaoPass(RenderGraph::Graph& renderGraph, u32 sampleCount)
+SsaoPass::SsaoPass(RG::Graph& renderGraph, u32 sampleCount)
     : m_SampleCount(sampleCount)
 {
     static constexpr u32 RANDOM_SIZE = 4;
@@ -75,9 +75,9 @@ SsaoPass::SsaoPass(RenderGraph::Graph& renderGraph, u32 sampleCount)
     m_Settings.Samples = m_SampleCount;
 }
 
-void SsaoPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource depthIn)
+void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     std::string name = "SSAO";

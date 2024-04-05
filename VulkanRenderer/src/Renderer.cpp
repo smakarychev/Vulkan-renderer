@@ -63,13 +63,13 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(car, "car");
     //m_GraphModelCollection.AddModelInstance("broken helmet", {glm::mat4{1.0f}});
     m_GraphModelCollection.AddModelInstance("car", {.Transform = {.Position = glm::vec3{0.0f}}});
-    m_GraphOpaqueGeometry = RenderPassGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
+    m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
         [this](auto& obj) {
             return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
                 assetLib::ModelInfo::MaterialType::Opaque;
         });
-    m_GraphTranslucentGeometry = RenderPassGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
+    m_GraphTranslucentGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
         [this](auto& obj) {
             return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
@@ -84,7 +84,7 @@ void Renderer::InitRenderGraph()
     DiffuseIrradianceProcessor::Add(m_SkyboxTexture, m_SkyboxIrradianceMap);
     EnvironmentPrefilterProcessor::Add(m_SkyboxTexture, m_SkyboxPrefilterMap);
 
-    m_Graph = std::make_unique<RenderGraph::Graph>();
+    m_Graph = std::make_unique<RG::Graph>();
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
 
     auto drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -165,7 +165,7 @@ void Renderer::SetupRenderSlimePasses()
 
 void Renderer::SetupRenderGraph()
 {
-    using namespace RenderGraph;
+    using namespace RG;
     
     m_Graph->Reset(GetFrameContext());
     Resource backbuffer = m_Graph->GetBackbuffer();
@@ -191,7 +191,7 @@ void Renderer::SetupRenderGraph()
         .Build(GetFrameContext().DeletionQueue);
     mainCameraBuffer.SetData(&cameraGPU, sizeof(CameraGPU));
     
-    RenderGraph::GlobalResources globalResources = {
+    RG::GlobalResources globalResources = {
         .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer)};
     m_Graph->GetBlackboard().Register(globalResources);
 

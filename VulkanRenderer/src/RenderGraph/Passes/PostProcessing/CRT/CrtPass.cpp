@@ -6,7 +6,7 @@
 #include "Rendering/Shader.h"
 #include "Vulkan/RenderCommand.h"
 
-CrtPass::CrtPass(RenderGraph::Graph& renderGraph)
+CrtPass::CrtPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* crtTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
@@ -31,10 +31,10 @@ CrtPass::CrtPass(RenderGraph::Graph& renderGraph)
         .Build();
 }
 
-void CrtPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource colorIn,
-    RenderGraph::Resource colorTarget)
+void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
+    RG::Resource colorTarget)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
     
     static ShaderDescriptors::BindingInfo samplerBindingInfo =

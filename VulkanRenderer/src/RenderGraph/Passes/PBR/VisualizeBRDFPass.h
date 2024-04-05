@@ -7,19 +7,19 @@ class VisualizeBRDFPass
 public:
     struct PassData
     {
-        RenderGraph::Resource BRDF{};
-        RenderGraph::Resource ColorOut{};
+        RG::Resource BRDF{};
+        RG::Resource ColorOut{};
 
         Sampler BRDFSampler{};
         
-        RenderGraph::PipelineData* PipelineData{nullptr};    
+        RG::PipelineData* PipelineData{nullptr};    
     };
 public:
-    VisualizeBRDFPass(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const Texture& brdf, RenderGraph::Resource colorIn,
+    VisualizeBRDFPass(RG::Graph& renderGraph);
+    void AddToGraph(RG::Graph& renderGraph, const Texture& brdf, RG::Resource colorIn,
         const glm::uvec2 resolution);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::PipelineData m_PipelineData{};
+    RG::PipelineData m_PipelineData{};
 };

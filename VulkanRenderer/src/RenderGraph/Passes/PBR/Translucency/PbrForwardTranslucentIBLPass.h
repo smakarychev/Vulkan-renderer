@@ -12,16 +12,16 @@ class MeshCullContext;
 struct PbrForwardTranslucentIBLPassInitInfo
 {
     const ShaderDescriptors* MaterialDescriptors{nullptr};
-    const RenderPassGeometry* Geometry{nullptr};
+    const RG::Geometry* Geometry{nullptr};
 };
 
 struct PbrForwardTranslucentIBLPassExecutionInfo
 {
     glm::uvec2 Resolution{};
-    RenderGraph::Resource ColorIn{};
-    RenderGraph::Resource DepthIn{};
+    RG::Resource ColorIn{};
+    RG::Resource DepthIn{};
 
-    RenderGraph::IBLData IBL{};
+    RG::IBLData IBL{};
     
     const HiZPassContext* HiZContext{nullptr};
 };
@@ -36,12 +36,12 @@ class PbrForwardTranslucentIBLPass
 public:
     struct PassData
     {
-        RenderGraph::Resource ColorOut{};
-        RenderGraph::Resource DepthOut{};
+        RG::Resource ColorOut{};
+        RG::Resource DepthOut{};
     };
 public:
-    PbrForwardTranslucentIBLPass(RenderGraph::Graph& renderGraph, const PbrForwardTranslucentIBLPassInitInfo& info);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const PbrForwardTranslucentIBLPassExecutionInfo& info);
+    PbrForwardTranslucentIBLPass(RG::Graph& renderGraph, const PbrForwardTranslucentIBLPassInitInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const PbrForwardTranslucentIBLPassExecutionInfo& info);
 private:
     std::shared_ptr<MeshCullContext> m_MeshContext;
     std::shared_ptr<MeshCullSinglePass> m_MeshCull;

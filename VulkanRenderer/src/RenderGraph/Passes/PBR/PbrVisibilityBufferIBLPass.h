@@ -3,6 +3,11 @@
 #include "RenderGraph/RGCommon.h"
 #include "RenderGraph/RGDrawResources.h"
 
+namespace RG
+{
+    class Geometry;
+}
+
 struct PbrVisibilityBufferInitInfo
 {
     const ShaderDescriptors* MaterialDescriptors{nullptr};
@@ -10,13 +15,13 @@ struct PbrVisibilityBufferInitInfo
 
 struct PbrVisibilityBufferExecutionInfo
 {
-    RenderGraph::Resource VisibilityTexture{};
-    RenderGraph::Resource ColorIn{};
+    RG::Resource VisibilityTexture{};
+    RG::Resource ColorIn{};
     
-    RenderGraph::IBLData IBL{};
-    RenderGraph::SSAOData SSAO{};
+    RG::IBLData IBL{};
+    RG::SSAOData SSAO{};
 
-    const RenderPassGeometry* Geometry{nullptr};
+    const RG::Geometry* Geometry{nullptr};
 };
 
 class PbrVisibilityBufferIBL
@@ -24,28 +29,28 @@ class PbrVisibilityBufferIBL
 public:
     struct PassData
     {
-        RenderGraph::Resource VisibilityTexture{};
-        RenderGraph::IBLData IBL{};
-        RenderGraph::SSAOData SSAO{};
+        RG::Resource VisibilityTexture{};
+        RG::IBLData IBL{};
+        RG::SSAOData SSAO{};
         
-        RenderGraph::Resource CameraUbo{};
-        RenderGraph::Resource CommandsSsbo{};
-        RenderGraph::Resource ObjectsSsbo{};
-        RenderGraph::Resource PositionsSsbo{};
-        RenderGraph::Resource NormalsSsbo{};
-        RenderGraph::Resource TangentsSsbo{};
-        RenderGraph::Resource UVsSsbo{};
-        RenderGraph::Resource IndicesSsbo{};
+        RG::Resource CameraUbo{};
+        RG::Resource CommandsSsbo{};
+        RG::Resource ObjectsSsbo{};
+        RG::Resource PositionsSsbo{};
+        RG::Resource NormalsSsbo{};
+        RG::Resource TangentsSsbo{};
+        RG::Resource UVsSsbo{};
+        RG::Resource IndicesSsbo{};
 
-        RenderGraph::Resource ColorOut{};
+        RG::Resource ColorOut{};
         
-        RenderGraph::BindlessTexturesPipelineData* PipelineData{nullptr};        
+        RG::BindlessTexturesPipelineData* PipelineData{nullptr};        
     };
 public:
-    PbrVisibilityBufferIBL(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info);
+    PbrVisibilityBufferIBL(RG::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::BindlessTexturesPipelineData m_PipelineData;
+    RG::BindlessTexturesPipelineData m_PipelineData;
 };

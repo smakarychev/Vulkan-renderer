@@ -2,7 +2,7 @@
 
 #include "RenderGraph.h"
 
-namespace RenderGraph
+namespace RG
 {
     class Resources;
     struct IBLData;
@@ -11,7 +11,7 @@ namespace RenderGraph
 
 class ShaderDescriptors;
 
-namespace RenderGraph::RgUtils
+namespace RG::RgUtils
 {
     Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
         const GraphTextureDescription& fallback);    

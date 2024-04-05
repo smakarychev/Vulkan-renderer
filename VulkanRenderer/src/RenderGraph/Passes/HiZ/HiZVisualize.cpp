@@ -4,7 +4,7 @@
 #include "imgui/imgui.h"
 #include "Vulkan/RenderCommand.h"
 
-HiZVisualize::HiZVisualize(RenderGraph::Graph& renderGraph)
+HiZVisualize::HiZVisualize(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* hizVisualizeTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
             "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
@@ -29,9 +29,9 @@ HiZVisualize::HiZVisualize(RenderGraph::Graph& renderGraph)
         .Build();
 }
 
-void HiZVisualize::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource hiz)
+void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
 {
-    using namespace RenderGraph;
+    using namespace RG;
 
     static ShaderDescriptors::BindingInfo samplerBindingInfo =
         m_PipelineData.SamplerDescriptors.GetBindingInfo("u_sampler");

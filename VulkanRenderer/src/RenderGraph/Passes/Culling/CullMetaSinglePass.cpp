@@ -2,7 +2,7 @@
 
 #include "CullMetaPass.h"
 
-CullMetaSinglePass::CullMetaSinglePass(RenderGraph::Graph& renderGraph, const CullMetaPassInitInfo& info,
+CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaPassInitInfo& info,
     std::string_view name)
         : m_Name(name), m_DrawFeatures(info.DrawFeatures)
 {
@@ -25,10 +25,10 @@ CullMetaSinglePass::CullMetaSinglePass(RenderGraph::Graph& renderGraph, const Cu
     m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
 }
 
-void CullMetaSinglePass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPassExecutionInfo& info,
+void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info,
     HiZPassContext& hiZContext)
 {
-    using namespace RenderGraph;
+    using namespace RG;
 
     auto& blackboard = renderGraph.GetBlackboard();
 

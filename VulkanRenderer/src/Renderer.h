@@ -85,10 +85,10 @@ private:
     ResourceUploader m_ResourceUploader;
 
     ModelCollection m_GraphModelCollection;
-    RenderPassGeometry m_GraphOpaqueGeometry;
-    RenderPassGeometry m_GraphTranslucentGeometry;
+    RG::Geometry m_GraphOpaqueGeometry;
+    RG::Geometry m_GraphTranslucentGeometry;
     
-    std::unique_ptr<RenderGraph::Graph> m_Graph;
+    std::unique_ptr<RG::Graph> m_Graph;
     std::shared_ptr<SkyGradientPass> m_SkyGradientPass;
     std::shared_ptr<CrtPass> m_CrtPass;
     

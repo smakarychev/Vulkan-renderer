@@ -3,7 +3,7 @@
 #include "Rendering/Buffer.h"
 #include "Rendering/Image/Image.h"
 
-namespace RenderGraph
+namespace RG
 {
     class Resource
     {

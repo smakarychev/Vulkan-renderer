@@ -29,17 +29,17 @@ public:
         Sampler MinMaxSampler;
         std::vector<ImageViewHandle> MipmapViewHandles;
 
-        RenderGraph::Resource DepthIn;
-        RenderGraph::Resource HiZOut;
+        RG::Resource DepthIn;
+        RG::Resource HiZOut;
         
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    HiZPass(RenderGraph::Graph& renderGraph, std::string_view baseName);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource depth, HiZPassContext& ctx);
+    HiZPass(RG::Graph& renderGraph, std::string_view baseName);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassContext& ctx);
 private:
-    std::array<RenderGraph::Pass*, HiZPassContext::MAX_MIPMAP_COUNT> m_Passes{};
-    RenderGraph::PassName m_Name;
+    std::array<RG::Pass*, HiZPassContext::MAX_MIPMAP_COUNT> m_Passes{};
+    RG::PassName m_Name;
 
-    std::array<RenderGraph::PipelineData, HiZPassContext::MAX_MIPMAP_COUNT> m_PipelinesData;
+    std::array<RG::PipelineData, HiZPassContext::MAX_MIPMAP_COUNT> m_PipelinesData;
 };

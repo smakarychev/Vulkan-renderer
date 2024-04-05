@@ -8,10 +8,10 @@ CopyTexturePass::CopyTexturePass(std::string_view name)
 {
 }
 
-void CopyTexturePass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource textureIn,
-    RenderGraph::Resource textureOut, const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType)
+void CopyTexturePass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
+    RG::Resource textureOut, const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)

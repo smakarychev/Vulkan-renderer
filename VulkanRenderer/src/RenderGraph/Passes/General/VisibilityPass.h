@@ -6,12 +6,10 @@
 
 #include "RenderGraph/Passes/Culling/CullMetaPass.h"
 
-class RenderPassGeometry;
-
 struct VisibilityPassInitInfo
 {
     const ShaderDescriptors* MaterialDescriptors{nullptr};
-    const RenderPassGeometry* Geometry{nullptr};
+    const RG::Geometry* Geometry{nullptr};
 };
 
 class VisibilityPass
@@ -19,13 +17,13 @@ class VisibilityPass
 public:
     struct PassData
     {
-        RenderGraph::Resource ColorOut{};
-        RenderGraph::Resource DepthOut{};
-        RenderGraph::Resource HiZOut{};
+        RG::Resource ColorOut{};
+        RG::Resource DepthOut{};
+        RG::Resource HiZOut{};
     };
 public:
-    VisibilityPass(RenderGraph::Graph& renderGraph, const VisibilityPassInitInfo& info);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const glm::uvec2& resolution);
+    VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolution);
     HiZPassContext* GetHiZContext() const { return m_Pass->GetHiZContext(); }
 private:
     std::shared_ptr<CullMetaPass> m_Pass{};

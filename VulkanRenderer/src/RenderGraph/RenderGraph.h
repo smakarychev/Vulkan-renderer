@@ -9,7 +9,7 @@
 #include "RGCommon.h"
 #include "Vulkan/Driver.h"
 
-namespace RenderGraph
+namespace RG
 {
     enum class ResourceAccessFlags
     {

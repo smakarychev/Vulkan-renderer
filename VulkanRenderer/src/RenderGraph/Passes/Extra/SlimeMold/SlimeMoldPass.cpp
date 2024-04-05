@@ -69,7 +69,7 @@ void SlimeMoldContext::UpdateTraits(ResourceUploader& resourceUploader)
     resourceUploader.UpdateBuffer(m_TraitsBuffer, m_Traits.data(), m_TraitsBuffer.GetSizeBytes(), 0);
 }
 
-SlimeMoldPass::SlimeMoldPass(RenderGraph::Graph& renderGraph)
+SlimeMoldPass::SlimeMoldPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* slimeTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
             "../assets/shaders/processed/render-graph/extra/slime-mold/slime-comp.shader"},
@@ -111,7 +111,7 @@ SlimeMoldPass::SlimeMoldPass(RenderGraph::Graph& renderGraph)
     m_CopyDiffuseToMapPass = std::make_shared<CopyTexturePass>("Copy.SlimeDiffuse");
 }
 
-void SlimeMoldPass::AddToGraph(RenderGraph::Graph& renderGraph, SlimeMoldPassStage stage, SlimeMoldContext& ctx)
+void SlimeMoldPass::AddToGraph(RG::Graph& renderGraph, SlimeMoldPassStage stage, SlimeMoldContext& ctx)
 {
     switch (stage)
     {
@@ -132,9 +132,9 @@ void SlimeMoldPass::AddToGraph(RenderGraph::Graph& renderGraph, SlimeMoldPassSta
     }
 }
 
-void SlimeMoldPass::AddUpdateSlimeMapStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx)
+void SlimeMoldPass::AddUpdateSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo traitsBinding =
@@ -198,9 +198,9 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RenderGraph::Graph& renderGraph, Slim
         });
 }
 
-void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx)
+void SlimeMoldPass::AddDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo mapBinding =
@@ -270,16 +270,16 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
         });
 }
 
-void SlimeMoldPass::AddCopyDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx)
+void SlimeMoldPass::AddCopyDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
     auto& diffuseOutput = renderGraph.GetBlackboard().Get<DiffuseSlimeMapPassData>();
     m_CopyDiffuseToMapPass->AddToGraph(renderGraph, diffuseOutput.DiffuseMap, diffuseOutput.SlimeMap,
         glm::vec3{}, glm::vec3{1.0f});
 }
 
-void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx)
+void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo diffuseBinding =

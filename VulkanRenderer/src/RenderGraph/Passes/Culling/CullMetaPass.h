@@ -11,8 +11,8 @@ class DrawIndirectCulledContext;
 
 struct CullMetaPassInitInfo
 {
-    using Features = RenderGraph::DrawFeatures;
-    const RenderPassGeometry* Geometry{nullptr};
+    using Features = RG::DrawFeatures;
+    const RG::Geometry* Geometry{nullptr};
     const ShaderPipeline* DrawPipeline{nullptr};
     const ShaderDescriptors* MaterialDescriptors{nullptr};
     Features DrawFeatures{Features::AllAttributes};
@@ -22,18 +22,18 @@ struct CullMetaPassExecutionInfo
 {
     struct ColorInfo
     {
-        RenderGraph::Resource Color{};
+        RG::Resource Color{};
         AttachmentLoad OnLoad{AttachmentLoad::Load};
         RenderingAttachmentDescription::ClearValue ClearValue{};
     };
     struct DepthInfo
     {
-        RenderGraph::Resource Depth{};
+        RG::Resource Depth{};
         AttachmentLoad OnLoad{AttachmentLoad::Load};
         RenderingAttachmentDescription::ClearValue ClearValue{};
     };
-    using IBLData = RenderGraph::IBLData;
-    using SSAOData = RenderGraph::SSAOData;
+    using IBLData = RG::IBLData;
+    using SSAOData = RG::SSAOData;
     
     glm::uvec2 Resolution;
     std::vector<ColorInfo> Colors{};
@@ -48,27 +48,27 @@ class CullMetaPass
 public:
     struct PassData
     {
-        std::vector<RenderGraph::Resource> ColorsOut{};
-        std::optional<RenderGraph::Resource> DepthOut{};
-        RenderGraph::Resource HiZOut{};
+        std::vector<RG::Resource> ColorsOut{};
+        std::optional<RG::Resource> DepthOut{};
+        RG::Resource HiZOut{};
     };
 public:
-    CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name);
+    CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name);
     ~CullMetaPass();
-    void AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPassExecutionInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
     const std::string& GetName() const { return m_Name.Name(); }
 
     HiZPassContext* GetHiZContext() const { return m_HiZContext.get(); }
 private:
-    static std::vector<RenderGraph::Resource> EnsureColors(RenderGraph::Graph& renderGraph,
-        const CullMetaPassExecutionInfo& info, const RenderGraph::PassName& name);
-    static std::optional<RenderGraph::Resource> EnsureDepth(RenderGraph::Graph& renderGraph,
-        const CullMetaPassExecutionInfo& info, const RenderGraph::PassName& name);
+    static std::vector<RG::Resource> EnsureColors(RG::Graph& renderGraph,
+        const CullMetaPassExecutionInfo& info, const RG::PassName& name);
+    static std::optional<RG::Resource> EnsureDepth(RG::Graph& renderGraph,
+        const CullMetaPassExecutionInfo& info, const RG::PassName& name);
 private:
-    RenderGraph::PassName m_Name;
+    RG::PassName m_Name;
     PassData m_PassData;
-    RenderGraph::DrawFeatures m_DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+    RG::DrawFeatures m_DrawFeatures{RG::DrawFeatures::AllAttributes};
 
     using HiZ = HiZPass;
     

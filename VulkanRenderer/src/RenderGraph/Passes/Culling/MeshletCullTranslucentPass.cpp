@@ -5,7 +5,7 @@ MeshletCullTranslucentContext::MeshletCullTranslucentContext(MeshCullContext& me
 {
 }
 
-MeshletCullTranslucentPass::MeshletCullTranslucentPass(RenderGraph::Graph& renderGraph, std::string_view name)
+MeshletCullTranslucentPass::MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name)
     : m_Name(name)
 {
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -28,10 +28,10 @@ MeshletCullTranslucentPass::MeshletCullTranslucentPass(RenderGraph::Graph& rende
         .Build();
 }
 
-void MeshletCullTranslucentPass::AddToGraph(RenderGraph::Graph& renderGraph,
+void MeshletCullTranslucentPass::AddToGraph(RG::Graph& renderGraph,
     MeshletCullTranslucentContext& ctx)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     std::string passName = m_Name.Name();

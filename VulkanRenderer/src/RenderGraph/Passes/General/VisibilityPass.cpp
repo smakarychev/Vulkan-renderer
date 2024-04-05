@@ -1,6 +1,6 @@
 #include "VisibilityPass.h"
 
-VisibilityPass::VisibilityPass(RenderGraph::Graph& renderGraph, const VisibilityPassInitInfo& info)
+VisibilityPass::VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitInfo& info)
 {
     ShaderPipelineTemplate* visibilityTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/general/visibility-buffer-vert.shader",
@@ -22,14 +22,14 @@ VisibilityPass::VisibilityPass(RenderGraph::Graph& renderGraph, const Visibility
         .MaterialDescriptors = info.MaterialDescriptors,
         .DrawFeatures =
             CullMetaPassInitInfo::Features::AlphaTest |
-            RenderGraph::DrawFeatures::Triangles};
+            RG::DrawFeatures::Triangles};
 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, visibilityPassInitInfo, "VisibilityBuffer");
 }
 
-void VisibilityPass::AddToGraph(RenderGraph::Graph& renderGraph, const glm::uvec2& resolution)
+void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolution)
 {
-    using namespace RenderGraph;
+    using namespace RG;
 
     Resource visibility = renderGraph.CreateResource("VisibilityBuffer.VisibilityBuffer",
         GraphTextureDescription{

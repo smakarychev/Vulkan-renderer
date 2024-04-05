@@ -5,7 +5,7 @@
 #include "RenderGraph/RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-SkyboxPass::SkyboxPass(RenderGraph::Graph& renderGraph)
+SkyboxPass::SkyboxPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* skyboxTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/general/skybox-vert.shader",
@@ -31,18 +31,18 @@ SkyboxPass::SkyboxPass(RenderGraph::Graph& renderGraph)
         .Build();
 }
 
-void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, const Texture& skybox, RenderGraph::Resource colorOut,
-    RenderGraph::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
+void SkyboxPass::AddToGraph(RG::Graph& renderGraph, const Texture& skybox, RG::Resource colorOut,
+    RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     std::string name = "Skybox";
     AddToGraph(renderGraph, renderGraph.AddExternal(name + ".Skybox", skybox), colorOut, depthIn, resolution, lodBias);
 }
 
-void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource skybox,
-    RenderGraph::Resource colorOut, RenderGraph::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
+void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
+    RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
     
     std::string name = "Skybox";

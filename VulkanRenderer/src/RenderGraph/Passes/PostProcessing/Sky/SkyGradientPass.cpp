@@ -4,7 +4,7 @@
 #include "imgui/imgui.h"
 #include "Vulkan/RenderCommand.h"
 
-SkyGradientPass::SkyGradientPass(RenderGraph::Graph& renderGraph)
+SkyGradientPass::SkyGradientPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* skyTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
           "../assets/shaders/processed/render-graph/post/sky-gradient-comp.shader"},
@@ -21,9 +21,9 @@ SkyGradientPass::SkyGradientPass(RenderGraph::Graph& renderGraph)
         .Build();
 }
 
-void SkyGradientPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource renderTarget)
+void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarget)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     static ShaderDescriptors::BindingInfo cameraBinding =

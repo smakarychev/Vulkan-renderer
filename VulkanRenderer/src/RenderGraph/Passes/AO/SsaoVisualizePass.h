@@ -7,16 +7,16 @@ class SsaoVisualizePass
 public:
     struct PassData
     {
-        RenderGraph::Resource SSAO{};
-        RenderGraph::Resource ColorOut{};
+        RG::Resource SSAO{};
+        RG::Resource ColorOut{};
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    SsaoVisualizePass(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource ssao, RenderGraph::Resource colorOut);
+    SsaoVisualizePass(RG::Graph& renderGraph);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::PipelineData m_PipelineData{};
+    RG::PipelineData m_PipelineData{};
 };

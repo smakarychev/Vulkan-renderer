@@ -4,7 +4,7 @@
 #include "RenderGraph/RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-SsaoBlurPass::SsaoBlurPass(RenderGraph::Graph& renderGraph, SsaoBlurPassKind kind)
+SsaoBlurPass::SsaoBlurPass(RG::Graph& renderGraph, SsaoBlurPassKind kind)
     : m_Name(std::string("SSAO.Blur") + (kind == SsaoBlurPassKind::Horizontal ? "Horizontal" : "Vertical"))
 {
     ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -28,9 +28,9 @@ SsaoBlurPass::SsaoBlurPass(RenderGraph::Graph& renderGraph, SsaoBlurPassKind kin
         .Build();
 }
 
-void SsaoBlurPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource ssao, RenderGraph::Resource colorOut)
+void SsaoBlurPass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,

@@ -21,30 +21,30 @@ public:
     };
     struct PassData
     {
-        RenderGraph::Resource DepthIn{};
-        RenderGraph::Resource SSAO{};
+        RG::Resource DepthIn{};
+        RG::Resource SSAO{};
 
-        RenderGraph::Resource NoiseTexture{};
-        RenderGraph::Resource SettingsUbo{};
-        RenderGraph::Resource CameraUbo{};
-        RenderGraph::Resource SamplesUbo{};
+        RG::Resource NoiseTexture{};
+        RG::Resource SettingsUbo{};
+        RG::Resource CameraUbo{};
+        RG::Resource SamplesUbo{};
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
 
         SettingsUBO* Settings{nullptr};
         u32 SampleCount{0};
     };
 public:
-    SsaoPass(RenderGraph::Graph& renderGraph, u32 sampleCount);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource depthIn);
+    SsaoPass(RG::Graph& renderGraph, u32 sampleCount);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
     Texture m_NoiseTexture{};
     Buffer m_SamplesBuffer{};
     u32 m_SampleCount{0};
     
-    RenderGraph::PipelineData m_PipelineData{};
+    RG::PipelineData m_PipelineData{};
 
     SettingsUBO m_Settings{};
 };

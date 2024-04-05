@@ -4,23 +4,28 @@
 #include "RenderGraph/RenderPass.h"
 #include "RenderGraph/RGCommon.h"
 
+namespace RG
+{
+    class Geometry;
+}
+
 struct DrawIndirectPassInitInfo
 {
-    RenderGraph::DrawFeatures DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+    RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
     const ShaderPipeline* DrawPipeline{nullptr};
     std::optional<ShaderDescriptors> MaterialDescriptors{};
 };
 
 struct DrawIndirectPassExecutionInfo
 {
-    RenderGraph::Resource Color{};
-    RenderGraph::Resource Depth{};
-    RenderGraph::Resource Commands{};
+    RG::Resource Color{};
+    RG::Resource Depth{};
+    RG::Resource Commands{};
     glm::uvec2 Resolution{};
     AttachmentLoad DepthOnLoad{AttachmentLoad::Load};
 
-    std::optional<RenderGraph::IBLData> IBL{};
-    std::optional<RenderGraph::SSAOData> SSAO{};
+    std::optional<RG::IBLData> IBL{};
+    std::optional<RG::SSAOData> SSAO{};
 };
 
 class DrawIndirectPass
@@ -28,27 +33,27 @@ class DrawIndirectPass
 public:
     struct PassData
     {
-        RenderGraph::Resource CameraUbo;
-        RenderGraph::Resource ObjectsSsbo;
-        RenderGraph::Resource CommandsIndirect;
-        RenderGraph::Resource ColorOut;
-        RenderGraph::Resource DepthOut;
+        RG::Resource CameraUbo;
+        RG::Resource ObjectsSsbo;
+        RG::Resource CommandsIndirect;
+        RG::Resource ColorOut;
+        RG::Resource DepthOut;
 
-        std::optional<RenderGraph::IBLData> IBL{};
-        std::optional<RenderGraph::SSAOData> SSAO{};
-        RenderGraph::DrawFeatures DrawFeatures{RenderGraph::DrawFeatures::AllAttributes};
+        std::optional<RG::IBLData> IBL{};
+        std::optional<RG::SSAOData> SSAO{};
+        RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
 
-        RenderGraph::BindlessTexturesPipelineData* PipelineData{nullptr};
+        RG::BindlessTexturesPipelineData* PipelineData{nullptr};
     };
 public:
-    DrawIndirectPass(RenderGraph::Graph& renderGraph, std::string_view name, const DrawIndirectPassInitInfo& info);
-    void AddToGraph(RenderGraph::Graph& renderGraph, const RenderPassGeometry& geometry,
+    DrawIndirectPass(RG::Graph& renderGraph, std::string_view name, const DrawIndirectPassInitInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const RG::Geometry& geometry,
         const DrawIndirectPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    RenderGraph::PassName m_Name;
+    RG::Pass* m_Pass{nullptr};
+    RG::PassName m_Name;
 
-    RenderGraph::DrawFeatures m_Features{RenderGraph::DrawFeatures::AllAttributes};
-    RenderGraph::BindlessTexturesPipelineData m_PipelineData;
+    RG::DrawFeatures m_Features{RG::DrawFeatures::AllAttributes};
+    RG::BindlessTexturesPipelineData m_PipelineData;
 };

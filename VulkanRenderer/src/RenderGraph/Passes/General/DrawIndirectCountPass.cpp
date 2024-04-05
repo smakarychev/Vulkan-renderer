@@ -5,7 +5,7 @@
 #include "RenderGraph/RGGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
-DrawIndirectCountPass::DrawIndirectCountPass(RenderGraph::Graph& renderGraph, std::string_view name, 
+DrawIndirectCountPass::DrawIndirectCountPass(RG::Graph& renderGraph, std::string_view name, 
     const DrawIndirectCountPassInitInfo& info)
         : m_Name(name), m_Features(info.DrawFeatures)
 {
@@ -16,7 +16,7 @@ DrawIndirectCountPass::DrawIndirectCountPass(RenderGraph::Graph& renderGraph, st
         .ExtractSet(1)
         .Build();
 
-    if (enumHasAny(m_Features, RenderGraph::DrawFeatures::Textures))
+    if (enumHasAny(m_Features, RG::DrawFeatures::Textures))
     {
         ASSERT(info.MaterialDescriptors.has_value(), "Material desciptors are not provided")
         
@@ -29,10 +29,10 @@ DrawIndirectCountPass::DrawIndirectCountPass(RenderGraph::Graph& renderGraph, st
     }
 }
 
-void DrawIndirectCountPass::AddToGraph(RenderGraph::Graph& renderGraph,
-    const RenderPassGeometry& geometry, const DrawIndirectCountPassExecutionInfo& info)
+void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph,
+    const RG::Geometry& geometry, const DrawIndirectCountPassExecutionInfo& info)
 {
-    using namespace RenderGraph;
+    using namespace RG;
     using enum ResourceAccessFlags;
 
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,

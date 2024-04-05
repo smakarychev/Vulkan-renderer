@@ -16,21 +16,21 @@ public:
     };
     struct PassData
     {
-        RenderGraph::Resource ColorIn;
-        RenderGraph::Resource ColorOut{};
-        RenderGraph::Resource TimeUbo{};
-        RenderGraph::Resource SettingsUbo{};
+        RG::Resource ColorIn;
+        RG::Resource ColorOut{};
+        RG::Resource TimeUbo{};
+        RG::Resource SettingsUbo{};
 
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
         
         SettingsUBO* Settings{nullptr};
     };
 public:
-    CrtPass(RenderGraph::Graph& renderGraph);
-    void AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource colorIn, RenderGraph::Resource colorTarget);
+    CrtPass(RG::Graph& renderGraph);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn, RG::Resource colorTarget);
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
+    RG::Pass* m_Pass{nullptr};
 
-    RenderGraph::PipelineData m_PipelineData;
+    RG::PipelineData m_PipelineData;
     SettingsUBO m_SettingsUBO{};
 };

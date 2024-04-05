@@ -2,7 +2,7 @@
 
 #include "RenderGraph/RGUtils.h"
 
-CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name)
+CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name)
     : m_Name(name), m_DrawFeatures(info.DrawFeatures)
 {
     m_MeshContext = std::make_shared<MeshCullContext>(*info.Geometry);
@@ -41,9 +41,9 @@ CullMetaPass::~CullMetaPass()
         m_HiZContext.reset();
 }
 
-void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPassExecutionInfo& info)
+void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info)
 {
-    using namespace RenderGraph;
+    using namespace RG;
 
     if (!m_HiZContext ||
         m_HiZContext->GetHiZ().GetDescription().Width  != info.Resolution.x ||
@@ -177,14 +177,14 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
     blackboard.Register(m_Name.Hash(), m_PassData);
 }
 
-std::vector<RenderGraph::Resource> CullMetaPass::EnsureColors(RenderGraph::Graph& renderGraph,
-    const CullMetaPassExecutionInfo& info, const RenderGraph::PassName& name)
+std::vector<RG::Resource> CullMetaPass::EnsureColors(RG::Graph& renderGraph,
+    const CullMetaPassExecutionInfo& info, const RG::PassName& name)
 {
-    std::vector<RenderGraph::Resource> colors(info.Colors.size());
+    std::vector<RG::Resource> colors(info.Colors.size());
     for (u32 i = 0; i < colors.size(); i++)
-        colors[i] = RenderGraph::RgUtils::ensureResource(
+        colors[i] = RG::RgUtils::ensureResource(
             info.Colors[i].Color, renderGraph, std::format("{}.{}.{}", name.Name(), ".ColorIn", i),
-                RenderGraph::GraphTextureDescription{
+                RG::GraphTextureDescription{
                     .Width = info.Resolution.x,
                     .Height = info.Resolution.y,
                     .Format =  Format::RGBA16_FLOAT});
@@ -192,15 +192,15 @@ std::vector<RenderGraph::Resource> CullMetaPass::EnsureColors(RenderGraph::Graph
     return colors;
 }
 
-std::optional<RenderGraph::Resource> CullMetaPass::EnsureDepth(RenderGraph::Graph& renderGraph,
-    const CullMetaPassExecutionInfo& info, const RenderGraph::PassName& name)
+std::optional<RG::Resource> CullMetaPass::EnsureDepth(RG::Graph& renderGraph,
+    const CullMetaPassExecutionInfo& info, const RG::PassName& name)
 {
     if (!info.Depth.has_value())
         return {};
     std::optional depth = info.Depth->Depth;
     if (depth.has_value())
-        depth = RenderGraph::RgUtils::ensureResource(*depth, renderGraph, name.Name() + ".DepthIn",
-            RenderGraph::GraphTextureDescription{
+        depth = RG::RgUtils::ensureResource(*depth, renderGraph, name.Name() + ".DepthIn",
+            RG::GraphTextureDescription{
                 .Width = info.Resolution.x,
                 .Height = info.Resolution.y,
                 .Format =  Format::D32_FLOAT});

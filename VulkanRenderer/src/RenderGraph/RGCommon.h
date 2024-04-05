@@ -2,10 +2,9 @@
 
 #include "Rendering/Shader.h"
 
-class RenderPassGeometry;
 class CommandBuffer;
 
-namespace RenderGraph
+namespace RG
 {
     struct GlobalResources
     {

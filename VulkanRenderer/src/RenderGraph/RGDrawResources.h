@@ -5,7 +5,7 @@
  * Draw features control what resources are actually used 
  */
 
-namespace RenderGraph
+namespace RG
 {
     struct IBLData
     {

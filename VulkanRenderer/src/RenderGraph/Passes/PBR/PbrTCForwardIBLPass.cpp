@@ -2,8 +2,9 @@
 
 #include "RenderGraph/Passes/Culling/CullMetaPass.h"
 #include "RenderGraph/Passes/Culling/CullMetaSinglePass.h"
+#include "RenderGraph/RGGeometry.h"
 
-PbrTCForwardIBLPass::PbrTCForwardIBLPass(RenderGraph::Graph& renderGraph, const PbrForwardIBLPassInitInfo& info,
+PbrTCForwardIBLPass::PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwardIBLPassInitInfo& info,
     std::string_view name)
         : m_Name(name)
 {
@@ -31,9 +32,9 @@ PbrTCForwardIBLPass::PbrTCForwardIBLPass(RenderGraph::Graph& renderGraph, const 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, pbrPassInitInfo, name);
 }
 
-void PbrTCForwardIBLPass::AddToGraph(RenderGraph::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info)
+void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info)
 {
-    using namespace RenderGraph;
+    using namespace RG;
 
     CullMetaPassExecutionInfo executionInfo = {
         .Resolution = info.Resolution,

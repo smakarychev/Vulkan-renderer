@@ -11,13 +11,13 @@ class MeshletCullTranslucentContext
 public:
     struct PassResources
     {
-        RenderGraph::Resource MeshletsSsbo{};
-        RenderGraph::Resource CommandsSsbo{};
+        RG::Resource MeshletsSsbo{};
+        RG::Resource CommandsSsbo{};
     };
 public:
     MeshletCullTranslucentContext(MeshCullContext& meshCullContext);
 
-    const RenderPassGeometry& Geometry() { return m_MeshCullContext->Geometry(); }
+    const RG::Geometry& Geometry() { return m_MeshCullContext->Geometry(); }
     MeshCullContext& MeshContext() { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
 private:
@@ -35,15 +35,15 @@ public:
 
         u32 MeshletCount;
         
-        RenderGraph::PipelineData* PipelineData{nullptr};
+        RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshletCullTranslucentPass(RenderGraph::Graph& renderGraph, std::string_view name);
-    void AddToGraph(RenderGraph::Graph& renderGraph, MeshletCullTranslucentContext& ctx);
+    MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name);
+    void AddToGraph(RG::Graph& renderGraph, MeshletCullTranslucentContext& ctx);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
-    RenderGraph::Pass* m_Pass{nullptr};
-    RenderGraph::PassName m_Name;
+    RG::Pass* m_Pass{nullptr};
+    RG::PassName m_Name;
 
-    RenderGraph::PipelineData m_PipelineData;
+    RG::PipelineData m_PipelineData;
 };
