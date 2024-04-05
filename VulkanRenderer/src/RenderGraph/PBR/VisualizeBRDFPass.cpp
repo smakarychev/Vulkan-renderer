@@ -1,6 +1,7 @@
 #include "VisualizeBRDFPass.h"
 
 #include "FrameContext.h"
+#include "..\RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
 VisualizeBRDFPass::VisualizeBRDFPass(RenderGraph::Graph& renderGraph)
@@ -37,9 +38,8 @@ void VisualizeBRDFPass::AddToGraph(RenderGraph::Graph& renderGraph, const Textur
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{"BRDF.Visualize"},
         [&](Graph& graph, PassData& passData)
         {
-            passData.ColorOut = colorIn;
-            if (!passData.ColorOut.IsValid())
-                passData.ColorOut = graph.CreateResource("BRDF.Visualize.ColorOut", GraphTextureDescription{
+            passData.ColorOut = RenderGraph::RgUtils::ensureResource(colorIn, graph, "BRDF.Visualize.ColorOut",
+                GraphTextureDescription{
                     .Width = resolution.x,
                     .Height = resolution.y,
                     .Format = Format::RGBA16_FLOAT});
@@ -59,7 +59,7 @@ void VisualizeBRDFPass::AddToGraph(RenderGraph::Graph& renderGraph, const Textur
 
             passData.BRDFSampler = brdfSampler;
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().Register(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {   

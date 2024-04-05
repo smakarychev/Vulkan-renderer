@@ -8,6 +8,8 @@
 layout(local_size_x = 64) in;
 
 layout(constant_id = 0) const bool REOCCLUSION = false;
+layout(constant_id = 1) const bool SINGLE_PASS = false;
+
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz;
@@ -57,7 +59,11 @@ void main() {
 
     bool should_be_drawn = false;
     bool visible = false;
-    if (!REOCCLUSION) {
+    if (SINGLE_PASS) {
+        visible = is_reocclusion_visible(origin, radius);
+        should_be_drawn = visible;
+    }
+    else if (!REOCCLUSION) {
         visible = is_last_frame_visible && is_visible(origin, radius);
         should_be_drawn = visible;
     } else {

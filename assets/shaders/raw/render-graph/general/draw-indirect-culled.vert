@@ -5,9 +5,7 @@
 #extension GL_ARB_shader_draw_parameters : enable
 
 layout(set = 1, binding = 0) uniform camera_buffer {
-    mat4 view;
-    mat4 projection;
-    mat4 view_projection;
+    CameraGPU camera;
 } u_camera;
 
 layout(set = 1, binding = 1) readonly buffer position_buffer {
@@ -64,7 +62,7 @@ void main() {
     UV uv = u_uv.uvs[argument_index];
     vec2 uv_v = vec2(uv.u, uv.v);
 
-    gl_Position = u_camera.view_projection * u_objects.objects[object_index].model * vec4(position_v, 1.0);
+    gl_Position = u_camera.camera.view_projection * u_objects.objects[object_index].model * vec4(position_v, 1.0);
     vertex_command_id = command_id;
     vertex_position = position_v;
     vertex_normal = normal_v;

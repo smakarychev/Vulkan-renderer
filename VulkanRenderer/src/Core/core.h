@@ -69,7 +69,7 @@ constexpr bool enumHasOnly(Enum a, Enum b)
     ENUM_FLAGS_BINARY_CONST_OP(enumType, ^) \
     ENUM_FLAGS_BINARY_OP(enumType, |=, |) \
     ENUM_FLAGS_BINARY_OP(enumType, &=, &) \
-    ENUM_FLAGS_BINARY_OP(enumType, ^=, ^) \
+    ENUM_FLAGS_BINARY_OP(enumType, ^=, ^) 
 
 #if defined _MSC_VER
 #   define GENERATOR_PRETTY_FUNCTION __FUNCSIG__

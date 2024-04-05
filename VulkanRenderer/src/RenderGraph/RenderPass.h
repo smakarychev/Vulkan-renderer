@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include "RenderGraphResource.h"
+#include "RGResource.h"
 #include "Rendering/Synchronization.h"
 #include "utils/StringHasher.h"
 

@@ -25,14 +25,7 @@ layout(set = 1, binding = 3) uniform textureCube u_prefilter_map;
 layout(set = 1, binding = 4) uniform texture2D u_brdf;
 
 layout(set = 1, binding = 5) uniform camera_buffer {
-    mat4 view;
-    mat4 projection;
-    mat4 view_projection;
-    mat4 view_projection_inverse;
-    vec4 camera_position;
-    vec2 resolution;
-    float frustum_near;
-    float frustum_far;
+    CameraGPU camera;
 } u_camera;
 
 layout(std430, set = 1, binding = 6) readonly buffer command_buffer {
@@ -98,9 +91,9 @@ Triangle get_triangle_local(uvec3 indices) {
 void transform_to_clip_space(inout Triangle triangle, VisibilityInfo visibility_info) {
     IndirectCommand command = u_commands.commands[visibility_info.instance_id];
     object_data object = u_objects.objects[command.render_object];
-    triangle.a = u_camera.view_projection * object.model * triangle.a;
-    triangle.b = u_camera.view_projection * object.model * triangle.b;
-    triangle.c = u_camera.view_projection * object.model * triangle.c;
+    triangle.a = u_camera.camera.view_projection * object.model * triangle.a;
+    triangle.b = u_camera.camera.view_projection * object.model * triangle.b;
+    triangle.c = u_camera.camera.view_projection * object.model * triangle.c;
 }
 
 mat3x2 get_uvs(uvec3 indices) {
@@ -320,9 +313,7 @@ vec3 shade_pbr_ibl(ShadeInfo shade_info) {
 }
 
 vec3 shade_pbr(ShadeInfo shade_info) {
-    const vec3 view_dir = normalize(u_camera.camera_position.xyz - shade_info.position);
-
-    const  float n_dot_v = clamp(dot(shade_info.normal, view_dir), 0.0f, 1.0f);
+    const  float n_dot_v = clamp(dot(shade_info.normal, shade_info.view), 0.0f, 1.0f);
 
     vec3 Lo = vec3(0.0f);
     //Lo = shade_pbr_lights(shade_info);
@@ -349,11 +340,11 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     const uvec3 indices = get_indices(visibility_info);
     Triangle triangle = get_triangle_local(indices);
     transform_to_clip_space(triangle, visibility_info);
-    const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.resolution);
+    const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.camera.resolution);
 
     const float w = dot(vec3(triangle.a.w, triangle.b.w, triangle.c.w), interpolation_data.barycentric);
-    const float z = -w * u_camera.projection[2][2] + u_camera.projection[3][2];
-    const vec3 position = (u_camera.view_projection_inverse * vec4(vertex_position * w, z, w)).xyz;
+    const float z = -w * u_camera.camera.projection[2][2] + u_camera.camera.projection[3][2];
+    const vec3 position = (u_camera.camera.inv_view_projection * vec4(vertex_position * w, z, w)).xyz;
 
     const mat3x2 uvs = get_uvs(indices);
     const mat3x2 uvs_interpolated = interpolate_with_derivatives_2d(interpolation_data, uvs);
@@ -387,19 +378,19 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     vec3 tangent = vec3(tangents_interpolated[0][0], tangents_interpolated[0][1], tangents_interpolated[0][2]);
     const vec3 tangent_dx = vec3(tangents_interpolated[1][0], tangents_interpolated[1][1], tangents_interpolated[1][2]);
     const vec3 tangent_dy = vec3(tangents_interpolated[2][0], tangents_interpolated[2][1], tangents_interpolated[2][2]);
-    vec3 bi_tangent;
-    vec3 bi_tangent_dx;
-    vec3 bi_tangent_dy;
+    vec3 bitangent;
+    vec3 bitangent_dx;
+    vec3 bitangent_dy;
     convert_to_world_space_normal_tangents(
         normal, normal_dx, normal_dy,
         tangent, tangent_dx, tangent_dy,
-        bi_tangent, bi_tangent_dx, bi_tangent_dy,
+        bitangent, bitangent_dx, bitangent_dy,
         visibility_info);
 
     vec3 normal_from_map = textureGrad(nonuniformEXT(sampler2D(u_textures[
         material.normal_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
     normal_from_map = normalize(normal_from_map * 2.0f - 1.0f);
-    normal = tangent * normal_from_map.x + bi_tangent * normal_from_map.y + normal * normal_from_map.z;
+    normal = tangent * normal_from_map.x + bitangent * normal_from_map.y + normal * normal_from_map.z;
     
     GBufferData data;
     data.position = position;
@@ -438,7 +429,7 @@ void main() {
     ShadeInfo shade_info;
     shade_info.position = gbuffer_data.position;
     shade_info.normal = gbuffer_data.normal;
-    shade_info.view = normalize(u_camera.camera_position.xyz - shade_info.position);
+    shade_info.view = normalize(u_camera.camera.position - shade_info.position);
     shade_info.n_dot_v = clamp(dot(shade_info.normal, shade_info.view), 0.0f, 1.0f);
     shade_info.perceptual_roughness = perceptual_roughness;
     shade_info.alpha_roughness = perceptual_roughness * perceptual_roughness;
@@ -450,7 +441,7 @@ void main() {
     
     vec3 color;
     color = shade_pbr(shade_info);
-    color = tonemap(color, 1.0f);
+    color = tonemap(color, 2.0f);
 
     float ambient_occlusion = 1.0f;
     ambient_occlusion *= gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;

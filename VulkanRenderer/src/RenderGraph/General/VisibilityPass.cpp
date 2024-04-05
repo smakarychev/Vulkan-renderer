@@ -1,12 +1,10 @@
 #include "VisibilityPass.h"
 
-#include "RenderGraph/Culling/CullMetaPass.h"
-
 VisibilityPass::VisibilityPass(RenderGraph::Graph& renderGraph, const VisibilityPassInitInfo& info)
 {
     ShaderPipelineTemplate* visibilityTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/general/visibility-buffer-vert.shader",
-        "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.shader",},
+        "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.shader"},
         "Pass.Visibility", renderGraph.GetArenaAllocators());
 
     ShaderPipeline pipeline = ShaderPipeline::Builder()
@@ -22,7 +20,9 @@ VisibilityPass::VisibilityPass(RenderGraph::Graph& renderGraph, const Visibility
         .Geometry = info.Geometry,
         .DrawPipeline = &pipeline,
         .MaterialDescriptors = info.MaterialDescriptors,
-        .DrawFeatures = CullMetaPassInitInfo::Features::AlphaTest};
+        .DrawFeatures =
+            CullMetaPassInitInfo::Features::AlphaTest |
+            RenderGraph::DrawFeatures::Triangles};
 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, visibilityPassInitInfo, "VisibilityBuffer");
 }
@@ -31,7 +31,7 @@ void VisibilityPass::AddToGraph(RenderGraph::Graph& renderGraph, const glm::uvec
 {
     using namespace RenderGraph;
 
-    Resource visibility =renderGraph.CreateResource("VisibilityBuffer.VisibilityBuffer",
+    Resource visibility = renderGraph.CreateResource("VisibilityBuffer.VisibilityBuffer",
         GraphTextureDescription{
             .Width = resolution.x,
             .Height = resolution.y,
@@ -44,12 +44,15 @@ void VisibilityPass::AddToGraph(RenderGraph::Graph& renderGraph, const glm::uvec
                 .Color = visibility,
                 .OnLoad = AttachmentLoad::Clear,
                 .ClearValue = {.Color = {.U = glm::uvec4{std::numeric_limits<u32>::max(), 0, 0, 0}}}}},
-        .Depth = Resource{}});
+        .Depth = CullMetaPassExecutionInfo::DepthInfo{
+            .Depth = {},
+            .OnLoad = AttachmentLoad::Clear,
+            .ClearValue = {.DepthStencil = {.Depth = 0.0f, .Stencil = 0}}}});
 
-    auto& output = renderGraph.GetBlackboard().GetOutput<CullMetaPass::PassData>(m_Pass->GetNameHash());
+    auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
     PassData passData = {
-        .ColorsOut = output.ColorsOut[0],
+        .ColorOut = output.ColorsOut[0],
         .DepthOut = *output.DepthOut,
         .HiZOut = output.HiZOut};
-    renderGraph.GetBlackboard().UpdateOutput(passData);
+    renderGraph.GetBlackboard().Update(passData);
 }

@@ -1,6 +1,7 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RenderPassCommon.h"
+#include "..\RGCommon.h"
+#include "RenderGraph/General/DrawResources.h"
 
 struct PbrVisibilityBufferInitInfo
 {
@@ -10,36 +11,22 @@ struct PbrVisibilityBufferInitInfo
 struct PbrVisibilityBufferExecutionInfo
 {
     RenderGraph::Resource VisibilityTexture{};
-    RenderGraph::Resource SSAOTexture{};
-    RenderGraph::Resource IrradianceMap{};
-    RenderGraph::Resource PrefilterMap{};
-    RenderGraph::Resource BRDF{};
     RenderGraph::Resource ColorIn{};
     
+    RenderGraph::IBLData IBL{};
+    RenderGraph::SSAOData SSAO{};
+
     const RenderPassGeometry* Geometry{nullptr};
 };
 
 class PbrVisibilityBufferIBL
 {
 public:
-    struct CameraUBO
-    {
-        glm::mat4 View;
-        glm::mat4 Projection;
-        glm::mat4 ViewProjection;
-        glm::mat4 ViewProjectionInverse;
-        glm::vec4 CameraPosition;
-        glm::vec2 Resolution;
-        f32 FrustumNear;
-        f32 FrustumFar;
-    };
     struct PassData
     {
         RenderGraph::Resource VisibilityTexture{};
-        RenderGraph::Resource SSAOTexture{};
-        RenderGraph::Resource IrradianceMap{};
-        RenderGraph::Resource PrefilterMap{};
-        RenderGraph::Resource BRDF{};
+        RenderGraph::IBLData IBL{};
+        RenderGraph::SSAOData SSAO{};
         
         RenderGraph::Resource CameraUbo{};
         RenderGraph::Resource CommandsSsbo{};

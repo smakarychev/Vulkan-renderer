@@ -1,7 +1,6 @@
 #include "ModelCollection.h"
 
 #include "Model.h"
-#include "RenderObject.h"
 #include "Rendering/Image/Image.h"
 #include "Rendering/Shader.h"
 #include "Vulkan/Driver.h"

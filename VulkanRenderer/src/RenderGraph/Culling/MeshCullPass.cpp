@@ -1,6 +1,6 @@
 #include "MeshCullPass.h"
 
-#include "RenderGraph/RenderPassGeometry.h"
+#include "..\RGGeometry.h"
 
 MeshCullContext::MeshCullContext(const RenderPassGeometry& geometry)
     : m_Geometry(&geometry)

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "RenderGraph/RenderGraphResource.h"
-#include "RenderGraph/RenderPassCommon.h"
+#include "..\..\RGResource.h"
+#include "..\..\RGCommon.h"
 
 class CrtPass
 {

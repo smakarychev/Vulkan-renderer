@@ -8,6 +8,8 @@
 layout(local_size_x = 64) in;
 
 layout(constant_id = 0) const bool REOCCLUSION = false;
+layout(constant_id = 1) const bool SINGLE_PASS = false;
+
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz;
@@ -88,7 +90,7 @@ void compact(uint id, bool should_draw) {
 void main() {
     uint id = gl_GlobalInvocationID.x;
     if (id >= meshlets_count)
-    return;
+        return;
 
     uint meshlet_id = u_commands.commands[id].firstInstance;
     Meshlet meshlet = u_meshlets.meshlets[meshlet_id];
@@ -106,7 +108,12 @@ void main() {
     bool is_last_frame_visible = flags_visible(u_meshlet_visibility.visibility[meshlet_id]);
     bool should_be_drawn = false;
     bool visible = false;
-    if (!REOCCLUSION) {
+    if (SINGLE_PASS) {
+        // this is for order-independent translucency rendering
+        visible = is_mesh_drawn && is_reocclusion_visible(origin, radius, cone_axis, cone_cutoff);
+        should_be_drawn = visible;
+    }
+    else if (!REOCCLUSION) {
         visible = is_mesh_drawn && is_last_frame_visible && is_visible(origin, radius, cone_axis, cone_cutoff);
         should_be_drawn = visible;
     } else {

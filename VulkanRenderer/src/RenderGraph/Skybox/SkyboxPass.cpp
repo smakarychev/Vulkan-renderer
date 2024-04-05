@@ -2,6 +2,7 @@
 
 #include "FrameContext.h"
 #include "Core/Camera.h"
+#include "..\RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
 SkyboxPass::SkyboxPass(RenderGraph::Graph& renderGraph)
@@ -48,14 +49,11 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resour
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
         [&](Graph& graph, PassData& passData)
         {
-            passData.ColorOut = colorOut;
-            if (!passData.ColorOut.IsValid())
-            {
-                passData.ColorOut = graph.CreateResource(name + ".Color", GraphTextureDescription{
+            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, name + ".Color",
+                GraphTextureDescription{
                     .Width = resolution.x,
                     .Height = resolution.y,
                     .Format = Format::RGBA16_FLOAT});
-            }
             ASSERT(depthIn.IsValid(), "Depth has to be provided")
 
             passData.ProjectionUbo = graph.CreateResource(name + ".Projection", GraphBufferDescription{
@@ -64,13 +62,13 @@ void SkyboxPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resour
             passData.Skybox = graph.Read(skybox, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 AttachmentLoad::Load, AttachmentStore::Store);
-            passData.DepthIn = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.DepthOut = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
             passData.ProjectionUbo = graph.Read(passData.ProjectionUbo, Vertex | Uniform | Upload);
 
             passData.PipelineData = &m_PipelineData;
             passData.LodBias = lodBias;
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

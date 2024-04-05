@@ -2,7 +2,7 @@
 
 #include "common.glsl"
 
-#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_nonuniform_qualifier: require
 
 layout(location = 0) in flat uint vertex_command_id;
 layout(location = 1) in vec2 vertex_uv;

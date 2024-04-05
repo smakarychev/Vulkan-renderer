@@ -161,7 +161,7 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RenderGraph::Graph& renderGraph, Slim
             passData.PushConstants = &m_PushConstants;
             passData.SlimeMoldContext = &ctx;
 
-            graph.GetBlackboard().RegisterOutput(passData);
+            graph.GetBlackboard().Register(passData);
         },
         [=](UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -211,7 +211,7 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
     m_DiffuseSlimeMapPass = &renderGraph.AddRenderPass<DiffuseSlimeMapPassData>({"Slime.Diffuse"},
         [&](Graph& graph, DiffuseSlimeMapPassData& passData)
         {
-            passData.SlimeMap = graph.GetBlackboard().GetOutput<UpdateSlimeMapPassData>().SlimeMap;
+            passData.SlimeMap = graph.GetBlackboard().Get<UpdateSlimeMapPassData>().SlimeMap;
             passData.SlimeMap = graph.Read(passData.SlimeMap, Compute | Storage);
 
             passData.DiffuseMap = graph.CreateResource("Slime.Diffuse.DiffuseMap", GraphTextureDescription{
@@ -224,7 +224,7 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
             passData.PushConstants = &m_PushConstants;
             passData.SlimeMoldContext = &ctx;
 
-            graph.GetBlackboard().RegisterOutput(passData);
+            graph.GetBlackboard().Register(passData);
         },
         [=](DiffuseSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -272,7 +272,7 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, Sli
 
 void SlimeMoldPass::AddCopyDiffuseSlimeMapStage(RenderGraph::Graph& renderGraph, SlimeMoldContext& ctx)
 {
-    auto& diffuseOutput = renderGraph.GetBlackboard().GetOutput<DiffuseSlimeMapPassData>();
+    auto& diffuseOutput = renderGraph.GetBlackboard().Get<DiffuseSlimeMapPassData>();
     m_CopyDiffuseToMapPass->AddToGraph(renderGraph, diffuseOutput.DiffuseMap, diffuseOutput.SlimeMap,
         glm::vec3{}, glm::vec3{1.0f});
 }
@@ -292,7 +292,7 @@ void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldC
     m_GradientSlimeMapPass = &renderGraph.AddRenderPass<GradientPassData>({"Slime.Gradient"},
         [&](Graph& graph, GradientPassData& passData)
         {
-            passData.DiffuseMap = graph.GetBlackboard().GetOutput<DiffuseSlimeMapPassData>().DiffuseMap;
+            passData.DiffuseMap = graph.GetBlackboard().Get<DiffuseSlimeMapPassData>().DiffuseMap;
             passData.DiffuseMap = graph.Read(passData.DiffuseMap, Compute | Storage);
 
             passData.GradientMap = graph.CreateResource("Slime.Gradient.GradientMap", GraphTextureDescription{
@@ -310,7 +310,7 @@ void SlimeMoldPass::AddGradientStage(RenderGraph::Graph& renderGraph, SlimeMoldC
             passData.Gradient = &m_Gradient;
             passData.SlimeMoldContext = &ctx;
 
-            graph.GetBlackboard().RegisterOutput(passData);
+            graph.GetBlackboard().Register(passData);
         },
         [=](GradientPassData& passData, FrameContext& frameContext, const Resources& resources)
         {

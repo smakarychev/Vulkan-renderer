@@ -8,11 +8,13 @@
 #include "ResourceUploader.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RenderPassGeometry.h"
+#include "RenderGraph\RGGeometry.h"
 #include "FrameContext.h"
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class PbrForwardTranslucentIBLPass;
+class PbrTCForwardIBLPass;
 class VisibilityPass;
 class VisualizeBRDFPass;
 class SkyboxPass;
@@ -84,6 +86,7 @@ private:
 
     ModelCollection m_GraphModelCollection;
     RenderPassGeometry m_GraphOpaqueGeometry;
+    RenderPassGeometry m_GraphTranslucentGeometry;
     
     std::unique_ptr<RenderGraph::Graph> m_Graph;
     std::shared_ptr<SkyGradientPass> m_SkyGradientPass;
@@ -96,6 +99,7 @@ private:
 
     std::shared_ptr<VisibilityPass> m_VisibilityPass;
     std::shared_ptr<PbrVisibilityBufferIBL> m_PbrVisibilityBufferIBLPass;
+    std::shared_ptr<PbrForwardTranslucentIBLPass> m_PbrForwardIBLTranslucentPass;
     std::shared_ptr<SsaoPass> m_SsaoPass;
     std::shared_ptr<SsaoBlurPass> m_SsaoBlurHorizontalPass;
     std::shared_ptr<SsaoBlurPass> m_SsaoBlurVerticalPass;

@@ -4,8 +4,9 @@
 
 #include <memory>
 
+#include "RenderGraph/Culling/CullMetaPass.h"
+
 class RenderPassGeometry;
-class CullMetaPass;
 
 struct VisibilityPassInitInfo
 {
@@ -18,14 +19,14 @@ class VisibilityPass
 public:
     struct PassData
     {
-        RenderGraph::Resource ColorsOut{};
+        RenderGraph::Resource ColorOut{};
         RenderGraph::Resource DepthOut{};
         RenderGraph::Resource HiZOut{};
     };
 public:
     VisibilityPass(RenderGraph::Graph& renderGraph, const VisibilityPassInitInfo& info);
     void AddToGraph(RenderGraph::Graph& renderGraph, const glm::uvec2& resolution);
+    HiZPassContext* GetHiZContext() const { return m_Pass->GetHiZContext(); }
 private:
     std::shared_ptr<CullMetaPass> m_Pass{};
-    
 };

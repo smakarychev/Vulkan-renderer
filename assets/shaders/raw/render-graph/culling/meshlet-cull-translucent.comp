@@ -1,0 +1,74 @@
+#version 460
+
+#include "common.glsl"
+#include "culling_functions.glsl"
+
+#extension GL_KHR_shader_subgroup_ballot: enable
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_hiz;
+
+layout(set = 1, binding = 1) uniform scene_data_buffer {
+    scene_data scene;
+} u_scene_data;
+
+layout(std430, set = 1, binding = 2) readonly buffer object_buffer {
+    object_data objects[];
+} u_objects;
+
+layout(std430, set = 1, binding = 3) readonly buffer object_visibility_buffer{
+    uint16_t visibility[];
+} u_object_visibility;
+
+layout(std430, set = 1, binding = 4) buffer meshlet_buffer {
+    Meshlet meshlets[];
+} u_meshlets;
+
+layout(std430, set = 1, binding = 5) buffer command_buffer {
+    IndirectCommand commands[];
+} u_commands;
+
+layout(push_constant) uniform push_constants {
+    uint meshlets_count;
+};
+
+bool is_visible(vec3 origin, float radius, vec3 cone_axis, float cone_cutoff) {
+    bool visible = true;
+    //visible = visible && is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff);
+    visible = visible && is_frustum_visible(origin, radius, u_scene_data.scene);
+    visible = visible && is_occlusion_visible(origin, radius, u_scene_data.scene, u_sampler, u_hiz);
+
+    return visible;
+}
+
+void cull(uint id, bool should_draw) {
+    u_commands.commands[id].instanceCount = uint(should_draw);
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= meshlets_count)
+        return;
+
+    uint meshlet_id = u_commands.commands[id].firstInstance;
+    Meshlet meshlet = u_meshlets.meshlets[meshlet_id];
+    object_data object = u_objects.objects[u_commands.commands[id].render_object];
+
+    vec3 origin = vec3(u_scene_data.scene.view_matrix * object.model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f));
+    float radius = meshlet.r * extract_scale(object.model);
+
+    vec3 cone_axis = vec3(meshlet.cone_x, meshlet.cone_y, meshlet.cone_z) / 127.0f;
+    cone_axis = vec3(u_scene_data.scene.view_matrix * object.model * vec4(cone_axis, 0.0f));
+    float cone_cutoff = float(meshlet.cone_cutoff) / 127.0f;
+
+    bool is_mesh_drawn = flags_should_draw(u_object_visibility.visibility[u_commands.commands[id].render_object]);
+    bool should_be_drawn = false;
+    bool visible = false;
+
+    visible = is_mesh_drawn && is_visible(origin, radius, cone_axis, cone_cutoff);
+    should_be_drawn = visible;
+
+    cull(id, visible);
+}

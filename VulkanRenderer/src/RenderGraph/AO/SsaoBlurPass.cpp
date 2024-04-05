@@ -1,6 +1,7 @@
 #include "SsaoBlurPass.h"
 
 #include "FrameContext.h"
+#include "..\RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
 SsaoBlurPass::SsaoBlurPass(RenderGraph::Graph& renderGraph, SsaoBlurPassKind kind)
@@ -35,22 +36,19 @@ void SsaoBlurPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.SsaoOut = colorOut;
-            if (!passData.SsaoOut.IsValid())
-            {
-                const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
-                passData.SsaoOut = graph.CreateResource(m_Name.Name() + ".ColorOut", GraphTextureDescription{
+            const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
+            passData.SsaoOut = RgUtils::ensureResource(colorOut, graph, m_Name.Name() + ".ColorOut",
+                GraphTextureDescription{
                     .Width = ssaoDescription.Width,
                     .Height = ssaoDescription.Height,
                     .Format = Format::R8_UNORM});
-            }
 
             passData.SsaoIn = graph.Read(ssao, Compute | Sampled);
             passData.SsaoOut = graph.Write(passData.SsaoOut, Compute | Storage);
 
             passData.PipelineData = &m_PipelineData;
 
-            graph.GetBlackboard().RegisterOutput(m_Name.Hash(), passData);
+            graph.GetBlackboard().Register(m_Name.Hash(), passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

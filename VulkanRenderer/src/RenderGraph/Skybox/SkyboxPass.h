@@ -1,6 +1,6 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RenderPassCommon.h"
+#include "..\RGCommon.h"
 
 class SkyboxPass
 {
@@ -13,7 +13,7 @@ public:
     struct PassData
     {
         RenderGraph::Resource Skybox{};
-        RenderGraph::Resource DepthIn{};
+        RenderGraph::Resource DepthOut{};
         RenderGraph::Resource ColorOut{};
         RenderGraph::Resource ProjectionUbo{};
 

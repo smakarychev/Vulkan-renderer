@@ -55,7 +55,7 @@ void HiZVisualize::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Reso
             passData.PipelineData = &m_PipelineData;
             passData.PushConstants = &m_PushConstants;
 
-            graph.GetBlackboard().RegisterOutput(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

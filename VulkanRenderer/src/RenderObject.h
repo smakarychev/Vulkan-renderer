@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include <glm/glm.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 #include "ModelAsset.h"
 #include "Settings.h"
@@ -37,12 +38,27 @@ struct MaterialGPU
     RenderHandle<Image> EmissiveTextureHandle{NO_TEXTURE};
 };
 
+struct RenderObjectTransform
+{
+    glm::vec3 Position{};
+    glm::quat Orientation{};
+    glm::vec3 Scale{1.0f};
+
+    glm::mat4 ToMatrix() const
+    {
+        return
+            glm::translate(glm::mat4{1.0f}, Position) * 
+            glm::toMat4(Orientation) * 
+            glm::scale(glm::mat4{1.0f}, Scale);
+    }
+};
+
 struct RenderObject
 {
     RenderHandle<Mesh> Mesh{};
     RenderHandle<MaterialGPU> MaterialGPU{};
     RenderHandle<Material> Material{};
-    glm::mat4 Transform{};
+    RenderObjectTransform Transform{};
 };
 
 struct RenderObjectGPU

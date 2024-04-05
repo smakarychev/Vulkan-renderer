@@ -12,6 +12,8 @@ const uint MICRO_CLUSTER_SIZE = 4;
 layout(local_size_x = 256) in;
 
 layout(constant_id = 0) const bool REOCCLUSION = false;
+layout(constant_id = 1) const bool SINGLE_PASS = false;
+
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz;
@@ -179,7 +181,12 @@ void main() {
     bool is_last_frame_visible = (visibility.visibility[index_major] & (1 << index_minor)) != 0;
     bool should_be_drawn = false;
     bool visible = false;
-    if (!REOCCLUSION) {
+    if (SINGLE_PASS) {
+        // this is for order-independent translucency rendering
+        visible = is_meshlet_drawn && is_reocclusion_visible(triangle);
+        should_be_drawn = visible;
+    }
+    else if (!REOCCLUSION) {
         visible = is_meshlet_drawn && is_last_frame_visible && is_visible(triangle);
         should_be_drawn = visible;
     } else {

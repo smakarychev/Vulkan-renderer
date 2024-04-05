@@ -4,6 +4,7 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
 
+#include "CameraGPU.h"
 #include "Model.h"
 #include "Core/Input.h"
 #include "Core/Random.h"
@@ -12,17 +13,18 @@
 #include "Imgui/ImguiUI.h"
 #include "Vulkan/RenderCommand.h"
 #include "RenderGraph/ModelCollection.h"
-#include "RenderGraph/RenderPassGeometry.h"
+#include "RenderGraph\RGGeometry.h"
 #include "RenderGraph/AO/SsaoBlurPass.h"
 #include "RenderGraph/AO/SsaoPass.h"
 #include "RenderGraph/AO/SsaoVisualizePass.h"
 #include "RenderGraph/Culling/MeshletCullPass.h"
 #include "RenderGraph/Extra/SlimeMold/SlimeMoldPass.h"
-#include "RenderGraph/DrawIndirectCulledPass/DrawIndirectCountPass.h"
 #include "RenderGraph/General/VisibilityPass.h"
 #include "RenderGraph/HiZ/HiZVisualize.h"
+#include "RenderGraph/PBR/PbrTCForwardIBLPass.h"
 #include "RenderGraph/PBR/VisualizeBRDFPass.h"
 #include "RenderGraph/PBR/PbrVisibilityBufferIBLPass.h"
+#include "RenderGraph/PBR/Translucency/PbrForwardTranslucentIBLPass.h"
 #include "RenderGraph/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/PostProcessing/Sky/SkyGradientPass.h"
 #include "RenderGraph/Skybox/SkyboxPass.h"
@@ -60,13 +62,21 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
-    m_GraphModelCollection.AddModelInstance("broken helmet", {glm::mat4{1.0f}});
+    //m_GraphModelCollection.AddModelInstance("broken helmet", {glm::mat4{1.0f}});
+    m_GraphModelCollection.AddModelInstance("car", {.Transform = {.Position = glm::vec3{0.0f}}});
     m_GraphOpaqueGeometry = RenderPassGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
         [this](auto& obj) {
             return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
                 assetLib::ModelInfo::MaterialType::Opaque;
         });
+    m_GraphTranslucentGeometry = RenderPassGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
+        *GetFrameContext().ResourceUploader,
+        [this](auto& obj) {
+            return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
+                assetLib::ModelInfo::MaterialType::Translucent;
+        });
+    
     m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
         .FromEquirectangular("../assets/textures/forest.tx")
         .Build();
@@ -82,6 +92,7 @@ void Renderer::InitRenderGraph()
         "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.shader",
         "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.shader",},
         "Pass.DrawCulled", m_Graph->GetArenaAllocators());
+    
     ShaderDescriptors materialDescriptors = ShaderDescriptors::Builder()
             .SetTemplate(drawTemplate, DescriptorAllocatorKind::Resources)
             // todo: make this (2) an enum
@@ -89,7 +100,7 @@ void Renderer::InitRenderGraph()
             .BindlessCount(1024)
             .Build();
     materialDescriptors.UpdateBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
-    m_GraphOpaqueGeometry.GetModelCollection().ApplyMaterialTextures(materialDescriptors);
+    m_GraphModelCollection.ApplyMaterialTextures(materialDescriptors);
 
     m_VisibilityPass = std::make_shared<VisibilityPass>(*m_Graph, VisibilityPassInitInfo{
         .MaterialDescriptors = &materialDescriptors,
@@ -97,6 +108,30 @@ void Renderer::InitRenderGraph()
     
     m_PbrVisibilityBufferIBLPass = std::make_shared<PbrVisibilityBufferIBL>(*m_Graph, PbrVisibilityBufferInitInfo{
         .MaterialDescriptors = &materialDescriptors});
+    // model collection might not have any translucent objects
+    if (m_GraphTranslucentGeometry.IsValid())
+    {
+        /* todo:
+         * this is actually unnecessary, there are at least two more options:
+         * - have both `u_materials` and `u_translucent_materials` (not so bad)
+         * - have two different descriptors: set (2) for materials and set (3) for bindless textures
+         */
+        ShaderDescriptors translucentMaterialDescriptors = ShaderDescriptors::Builder()
+                .SetTemplate(drawTemplate, DescriptorAllocatorKind::Resources)
+                // todo: make this (2) an enum
+                .ExtractSet(2)
+                .BindlessCount(1024)
+                .Build();
+        translucentMaterialDescriptors.UpdateBinding("u_materials",
+            m_GraphTranslucentGeometry.GetMaterialsBuffer().BindingInfo());
+        m_GraphModelCollection.ApplyMaterialTextures(translucentMaterialDescriptors);
+        
+        m_PbrForwardIBLTranslucentPass = std::make_shared<PbrForwardTranslucentIBLPass>(*m_Graph,
+            PbrForwardTranslucentIBLPassInitInfo{
+                .MaterialDescriptors = &translucentMaterialDescriptors,
+                .Geometry = &m_GraphTranslucentGeometry});
+    }
+    
     m_SsaoPass = std::make_shared<SsaoPass>(*m_Graph, 32);
     m_SsaoBlurHorizontalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Horizontal);
     m_SsaoBlurVerticalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Vertical);
@@ -123,7 +158,7 @@ void Renderer::SetupRenderSlimePasses()
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::UpdateSlimeMap, *m_SlimeMoldContext);
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::DiffuseSlimeMap, *m_SlimeMoldContext);
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::Gradient, *m_SlimeMoldContext);
-    auto& slimeMoldOutput = m_Graph->GetBlackboard().GetOutput<SlimeMoldPass::GradientPassData>();
+    auto& slimeMoldOutput = m_Graph->GetBlackboard().Get<SlimeMoldPass::GradientPassData>();
     m_CopyTexturePass->AddToGraph(*m_Graph, slimeMoldOutput.GradientMap, m_Graph->GetBackbuffer(),
         glm::vec3{0.0f}, glm::vec3{1.0f});
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
@@ -136,57 +171,97 @@ void Renderer::SetupRenderGraph()
     m_Graph->Reset(GetFrameContext());
     Resource backbuffer = m_Graph->GetBackbuffer();
 
-    m_VisibilityPass->AddToGraph(*m_Graph, m_Swapchain.GetResolution());
-    auto& visibility = m_Graph->GetBlackboard().GetOutput<VisibilityPass::PassData>();
+    // update camera
+    CameraGPU cameraGPU = {
+        .ViewProjection = m_Camera->GetViewProjection(),
+        .Projection = m_Camera->GetProjection(),
+        .View = m_Camera->GetView(),
+        .Position = m_Camera->GetPosition(),
+        .Near = m_Camera->GetFrustumPlanes().Near,
+        .Forward = m_Camera->GetForward(),
+        .Far = m_Camera->GetFrustumPlanes().Far,
+        .InverseViewProjection = glm::inverse(m_Camera->GetViewProjection()),
+        .InverseProjection = glm::inverse(m_Camera->GetProjection()),
+        .InverseView = glm::inverse(m_Camera->GetView()),
+        .Resolution = glm::vec2{m_Swapchain.GetResolution()}};
 
-    //m_SkyGradientPass->AddToGraph(*m_Graph,
-    //    m_Graph->CreateResource("Sky.Target", GraphTextureDescription{
-    //        .Width = GetFrameContext().Resolution.x,
-    //        .Height = GetFrameContext().Resolution.y,
-    //        .Format = Format::RGBA16_FLOAT}));
-    //auto& skyGradientOutput = m_Graph->GetBlackboard().GetOutput<SkyGradientPass::PassData>();
+    // todo: should not create and delete every frame
+    Buffer mainCameraBuffer = Buffer::Builder({
+            .SizeBytes = sizeof(CameraGPU),
+            .Usage = BufferUsage::Upload | BufferUsage::Upload | BufferUsage::DeviceAddress})
+        .Build(GetFrameContext().DeletionQueue);
+    mainCameraBuffer.SetData(&cameraGPU, sizeof(CameraGPU));
+    
+    RenderGraph::GlobalResources globalResources = {
+        .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer)};
+    m_Graph->GetBlackboard().Register(globalResources);
+
+    m_VisibilityPass->AddToGraph(*m_Graph, m_Swapchain.GetResolution());
+    auto& visibility = m_Graph->GetBlackboard().Get<VisibilityPass::PassData>();
 
     m_SsaoPass->AddToGraph(*m_Graph, visibility.DepthOut);
-    auto& ssaoOutput = m_Graph->GetBlackboard().GetOutput<SsaoPass::PassData>();
+    auto& ssaoOutput = m_Graph->GetBlackboard().Get<SsaoPass::PassData>();
 
     m_SsaoBlurHorizontalPass->AddToGraph(*m_Graph, ssaoOutput.SSAO, {});
-    auto& ssaoBlurHorizontalOutput = m_Graph->GetBlackboard().GetOutput<SsaoBlurPass::PassData>(
+    auto& ssaoBlurHorizontalOutput = m_Graph->GetBlackboard().Get<SsaoBlurPass::PassData>(
         m_SsaoBlurHorizontalPass->GetNameHash());
 
     m_SsaoBlurVerticalPass->AddToGraph(*m_Graph, ssaoBlurHorizontalOutput.SsaoOut, ssaoOutput.SSAO);
-    auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().GetOutput<SsaoBlurPass::PassData>(
+    auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().Get<SsaoBlurPass::PassData>(
             m_SsaoBlurVerticalPass->GetNameHash());
         
     m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
-    backbuffer = m_Graph->GetBlackboard().GetOutput<SsaoVisualizePass::PassData>().ColorOut;
+    backbuffer = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>().ColorOut;
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
-        .VisibilityTexture = visibility.ColorsOut,
-        .SSAOTexture = ssaoBlurVerticalOutput.SsaoOut,
-        .IrradianceMap = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
-        .PrefilterMap = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
-        .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF),
+        .VisibilityTexture = visibility.ColorOut,
         .ColorIn = {},
+        .IBL = {
+            .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
+            .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
+            .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
+        .SSAO = {
+            .SSAOTexture = ssaoBlurVerticalOutput.SsaoOut},
         .Geometry = &m_GraphOpaqueGeometry});
-    auto& pbrOutput = m_Graph->GetBlackboard().GetOutput<PbrVisibilityBufferIBL::PassData>();
+    auto& pbrOutput = m_Graph->GetBlackboard().Get<PbrVisibilityBufferIBL::PassData>();
 
+    
     m_SkyboxPass->AddToGraph(*m_Graph,
         m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibility.DepthOut, GetFrameContext().Resolution, 1.2f);
-    auto& skyboxOutput = m_Graph->GetBlackboard().GetOutput<SkyboxPass::PassData>();
+    auto& skyboxOutput = m_Graph->GetBlackboard().Get<SkyboxPass::PassData>();
+    Resource renderedColor = skyboxOutput.ColorOut;
+    Resource renderedDepth = skyboxOutput.DepthOut;
+    
+    // model collection might not have any translucent objects
+    if (m_GraphTranslucentGeometry.IsValid())
+    {
+        m_PbrForwardIBLTranslucentPass->AddToGraph(*m_Graph, {
+            .Resolution = m_Swapchain.GetResolution(),
+            .ColorIn = renderedColor,
+            .DepthIn = renderedDepth,
+            .IBL = {
+                 .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
+                 .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
+                 .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
+            .HiZContext = m_VisibilityPass->GetHiZContext()});
+        auto& pbrTranslucentOutput = m_Graph->GetBlackboard().Get<PbrForwardTranslucentIBLPass::PassData>();
+        
+        renderedColor = pbrTranslucentOutput.ColorOut;
+    }
 
-    m_CopyTexturePass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer, glm::vec3{}, glm::vec3{1.0f});
-    backbuffer = m_Graph->GetBlackboard().GetOutput<CopyTexturePass::PassData>().TextureOut;
+    m_CopyTexturePass->AddToGraph(*m_Graph, renderedColor, backbuffer, glm::vec3{}, glm::vec3{1.0f});
+    backbuffer = m_Graph->GetBlackboard().Get<CopyTexturePass::PassData>().TextureOut;
     
     //m_CrtPass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer);
-    //auto& crtOut = m_Graph->GetBlackboard().GetOutput<CrtPass::PassData>();
+    //auto& crtOut = m_Graph->GetBlackboard().Get<CrtPass::PassData>();
     //backbuffer = crtOut.ColorOut;
 
     //m_VisualizeBRDFPass->AddToGraph(*m_Graph, *m_BRDF, backbuffer, GetFrameContext().Resolution);
-    //auto& visualizeBRDFOutput = m_Graph->GetBlackboard().GetOutput<VisualizeBRDFPass::PassData>();
+    //auto& visualizeBRDFOutput = m_Graph->GetBlackboard().Get<VisualizeBRDFPass::PassData>();
     //backbuffer = visualizeBRDFOutput.ColorOut;
 
     m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
-    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().GetOutput<HiZVisualize::PassData>();
+    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<HiZVisualize::PassData>();
     m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, backbuffer,
         glm::vec3{0.75f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
 

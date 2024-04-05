@@ -696,6 +696,13 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderingDetails(const Rend
     return *this;
 }
 
+ShaderPipeline::Builder& ShaderPipeline::Builder::DepthMode(::DepthMode depthMode)
+{
+    m_DepthMode = depthMode;
+
+    return *this;
+}
+
 ShaderPipeline::Builder& ShaderPipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
 {
     m_PrimitiveKind = primitiveKind;
@@ -734,6 +741,7 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::UseDescriptorBuffer()
 
 void ShaderPipeline::Builder::Prebuild()
 {
+    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.DepthMode(m_DepthMode);
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.PrimitiveKind(m_PrimitiveKind);
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.AlphaBlending(m_AlphaBlending);
     

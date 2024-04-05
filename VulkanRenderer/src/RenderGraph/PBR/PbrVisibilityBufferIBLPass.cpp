@@ -2,7 +2,8 @@
 
 #include "FrameContext.h"
 #include "Core/Camera.h"
-#include "RenderGraph/RenderPassGeometry.h"
+#include "..\RGGeometry.h"
+#include "..\RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
 PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RenderGraph::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info)
@@ -43,8 +44,6 @@ void PbrVisibilityBufferIBL::AddToGraph(RenderGraph::Graph& renderGraph, const P
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
         [&](Graph& graph, PassData& passData)
         {
-            passData.CameraUbo = graph.CreateResource(name + ".Camera", GraphBufferDescription{
-                .SizeBytes = sizeof(CameraUBO)});
             passData.CommandsSsbo = graph.AddExternal(name + ".Commands", info.Geometry->GetCommandsBuffer());
             passData.ObjectsSsbo = graph.AddExternal(name + ".Objects", info.Geometry->GetRenderObjectsBuffer());
             auto& attributes = info.Geometry->GetAttributeBuffers();
@@ -56,29 +55,32 @@ void PbrVisibilityBufferIBL::AddToGraph(RenderGraph::Graph& renderGraph, const P
 
             const TextureDescription& visibilityDescription =
                 Resources(graph).GetTextureDescription(info.VisibilityTexture);
-            Resource color = info.ColorIn.IsValid() ? info.ColorIn :
-                graph.CreateResource(name + ".Color", GraphTextureDescription{
-                    .Width = visibilityDescription.Width,
-                    .Height = visibilityDescription.Height,
-                    .Format = Format::RGBA16_FLOAT});
+            
+            Resource color = RgUtils::ensureResource(info.ColorIn, graph, name + ".Color",
+                GraphTextureDescription{
+                   .Width = visibilityDescription.Width,
+                   .Height = visibilityDescription.Height,
+                   .Format = Format::RGBA16_FLOAT});
 
-            Resource ssao = info.SSAOTexture.IsValid() ? info.SSAOTexture :
-                graph.AddExternal("SSAO.Dummy", ImageUtils::DefaultTexture::White);
+            Resource irradiance = info.IBL.Irradiance;
+            Resource prefilter = info.IBL.PrefilterEnvironment;
+            Resource brdf = info.IBL.BRDF;
+            
+            ASSERT(irradiance.IsValid(), "Must provide irradiance map")
+            ASSERT(prefilter.IsValid(), "Must provide prefilter map")
+            ASSERT(brdf.IsValid(), "Must provide brdf")
+            
+            Resource ssao = RgUtils::ensureResource(info.SSAO.SSAOTexture, graph, "SSAO.Dummy",
+                ImageUtils::DefaultTexture::White);
 
-            ASSERT(info.IrradianceMap.IsValid(), "Must provide irradiance map")
-            ASSERT(info.PrefilterMap.IsValid(), "Must provide prefilter map")
-            ASSERT(info.BRDF.IsValid(), "Must provide brdf")
-
-            Resource irradiance = info.IrradianceMap;
-            Resource prefilter = info.PrefilterMap;
-            Resource brdf = info.BRDF;
-
+            auto& graphGlobals = graph.GetGlobalResources();
+            
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
-            passData.SSAOTexture = graph.Read(ssao, Pixel | Sampled);
-            passData.IrradianceMap = graph.Read(irradiance, Pixel | Sampled);
-            passData.PrefilterMap = graph.Read(prefilter, Pixel | Sampled);
-            passData.BRDF = graph.Read(brdf, Pixel | Sampled);
-            passData.CameraUbo = graph.Read(passData.CameraUbo, Pixel | Uniform | Upload);
+            passData.IBL.Irradiance = graph.Read(irradiance, Pixel | Sampled);
+            passData.IBL.PrefilterEnvironment = graph.Read(prefilter, Pixel | Sampled);
+            passData.IBL.BRDF = graph.Read(brdf, Pixel | Sampled);
+            passData.SSAO.SSAOTexture = graph.Read(ssao, Pixel | Sampled);
+            passData.CameraUbo = graph.Read(graphGlobals.MainCameraGPU, Pixel | Uniform);
             passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, Pixel | Storage);
             passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Pixel | Storage);
             passData.PositionsSsbo = graph.Read(passData.PositionsSsbo, Pixel | Storage);
@@ -93,29 +95,19 @@ void PbrVisibilityBufferIBL::AddToGraph(RenderGraph::Graph& renderGraph, const P
 
             passData.PipelineData = &m_PipelineData;
             
-            graph.GetBlackboard().RegisterOutput(passData);
+            graph.GetBlackboard().Register(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("PBR Visibility pass")
 
             const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
-            const Texture& ssao = resources.GetTexture(passData.SSAOTexture);
-            const Texture& irradiance = resources.GetTexture(passData.IrradianceMap);
-            const Texture& prefilter = resources.GetTexture(passData.PrefilterMap);
-            const Texture& brdf = resources.GetTexture(passData.BRDF);
+            const Texture& irradiance = resources.GetTexture(passData.IBL.Irradiance);
+            const Texture& prefilter = resources.GetTexture(passData.IBL.PrefilterEnvironment);
+            const Texture& brdf = resources.GetTexture(passData.IBL.BRDF);
+            const Texture& ssao = resources.GetTexture(passData.SSAO.SSAOTexture);
 
-            CameraUBO camera = {
-                .View = frameContext.MainCamera->GetView(),
-                .Projection = frameContext.MainCamera->GetProjection(),
-                .ViewProjection = frameContext.MainCamera->GetViewProjection(),
-                .ViewProjectionInverse = glm::inverse(frameContext.MainCamera->GetViewProjection()),
-                .CameraPosition = glm::vec4{frameContext.MainCamera->GetPosition(), 1.0f},
-                .Resolution = frameContext.Resolution,
-                .FrustumNear = frameContext.MainCamera->GetFrustumPlanes().Near,
-                .FrustumFar = frameContext.MainCamera->GetFrustumPlanes().Far};
-            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo, camera,
-                *frameContext.ResourceUploader);
+            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo);
 
             const Buffer& commandsSsbo = resources.GetBuffer(passData.CommandsSsbo);
             const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
@@ -132,13 +124,13 @@ void PbrVisibilityBufferIBL::AddToGraph(RenderGraph::Graph& renderGraph, const P
 
             resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.BindingInfo(ImageFilter::Nearest,
                 ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_ssao_texture", ssao.BindingInfo(ImageFilter::Linear,
-                ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_irradiance_map", irradiance.BindingInfo(ImageFilter::Linear,
                 ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_prefilter_map", prefilter.BindingInfo(ImageFilter::Linear,
                 ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_brdf", brdf.BindingInfo(ImageFilter::Linear,
+                ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_ssao_texture", ssao.BindingInfo(ImageFilter::Linear,
                 ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());

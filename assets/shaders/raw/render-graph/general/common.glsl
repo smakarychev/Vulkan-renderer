@@ -1,4 +1,5 @@
 #include "../common.glsl"
+#include "../../camera.glsl"
 
 const uint TRIANGLE_BITS = 8;
 const uint TRIANGLE_MASK = (1 << 8) - 1;

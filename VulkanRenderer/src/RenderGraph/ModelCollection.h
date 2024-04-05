@@ -2,18 +2,17 @@
 
 #include "HandleArray.h"
 #include "RenderHandle.h"
+#include "RenderObject.h"
 
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include <glm/glm.hpp>
 
+
 class ShaderDescriptors;
 class Image;
 class Mesh;
-struct Material;
-struct MaterialGPU;
-struct RenderObject;
 class ShaderDescriptorSet;
 class Model;
 
@@ -22,7 +21,7 @@ class ModelCollection
 public:
     struct ModelInstanceInfo
     {
-        glm::mat4 Transform;
+        RenderObjectTransform Transform;
     };
     
 public:
@@ -73,9 +72,9 @@ private:
 template <typename Filter, typename Callback>
 void ModelCollection::FilterRenderObjects(Filter&& filterFn, Callback&& callbackFn) const
 {
-    for (auto& renderObject : m_RenderObjects)
-        if (filterFn(renderObject))
-            callbackFn(renderObject);
+    for (u32 i = 0; i < m_RenderObjects.size(); i++)
+        if (filterFn(m_RenderObjects[i]))
+            callbackFn(m_RenderObjects[i], i);
 }
 
 template <typename T>

@@ -22,7 +22,7 @@ void CopyTexturePass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::R
             passData.TextureOut = graph.Write(textureOut,
                 ResourceAccessFlags::Copy);
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

@@ -34,6 +34,8 @@ public:
     u32 GetCommandCount() const { return m_CommandCount; }
     u32 GetMeshletCount() const { return m_CommandCount; }
     u32 GetRenderObjectCount() const { return m_RenderObjectCount; }
+
+    bool IsValid() const { return m_CommandCount != 0; }
 private:
     struct CountsInfo
     {
@@ -51,6 +53,11 @@ private:
     
 private:
     const ModelCollection* m_ModelCollection{nullptr};
+    /* indices into render objects array of model collection;
+     * used for sorting, and any other dynamic operation,
+     * where cpu-side of data (transforms, materials, etc.) is needed
+     */
+    std::vector<u32> m_RenderObjectIndices;
     
     AttributeBuffers m_AttributeBuffers;
     Buffer m_Commands;
@@ -68,10 +75,18 @@ RenderPassGeometry RenderPassGeometry::FromModelCollectionFiltered(const ModelCo
     ResourceUploader& resourceUploader, Filter&& filter)
 {
     CountsInfo countsInfo = GetCountsInfo(modelCollection, filter);
-
     RenderPassGeometry renderPassGeometry = {};
-
     renderPassGeometry.m_ModelCollection = &modelCollection;
+    renderPassGeometry.m_RenderObjectIndices.reserve(countsInfo.RenderObjectCount);
+    
+    if (countsInfo.RenderObjectCount == 0)
+    {
+        renderPassGeometry.m_CommandCount = 0;    
+        renderPassGeometry.m_RenderObjectCount = 0;    
+        renderPassGeometry.m_TriangleCount = 0;
+
+        return renderPassGeometry;
+    }
     
     InitBuffers(renderPassGeometry, countsInfo);
     renderPassGeometry.m_AttributeBuffers = InitAttributeBuffers(countsInfo);
@@ -93,8 +108,10 @@ RenderPassGeometry RenderPassGeometry::FromModelCollectionFiltered(const ModelCo
     u32 renderObjectIndex = 0;
     u32 meshletIndex = 0;
     
-    auto populateCallback = [&](const RenderObject& renderObject)
+    auto populateCallback = [&](const RenderObject& renderObject, u32 collectionIndex)
     {
+        renderPassGeometry.m_RenderObjectIndices.push_back(collectionIndex);
+        
         const Mesh& mesh = modelCollection.GetMeshes()[renderObject.Mesh];
 
         u64 verticesSize = mesh.GetPositions().size();
@@ -133,7 +150,7 @@ RenderPassGeometry RenderPassGeometry::FromModelCollectionFiltered(const ModelCo
         }
 
         renderObjectsGPU[renderObjectIndex] = {
-            .Transform = renderObject.Transform,
+            .Transform = renderObject.Transform.ToMatrix(),
             .BoundingSphere = mesh.GetBoundingSphere()};
 
         materialsGPU[renderObjectIndex] =
@@ -160,7 +177,7 @@ RenderPassGeometry::CountsInfo RenderPassGeometry::GetCountsInfo(const ModelColl
 {
     CountsInfo countInfos = {};
 
-    auto countCallback = [&modelCollection, &countInfos](const RenderObject& renderObject)
+    auto countCallback = [&modelCollection, &countInfos](const RenderObject& renderObject, u32)
     {
         countInfos.RenderObjectCount++;
         countInfos.CommandCount += modelCollection.GetMeshes()[renderObject.Mesh].GetMeshletCount();

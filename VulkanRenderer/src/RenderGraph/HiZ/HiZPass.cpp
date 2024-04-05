@@ -97,7 +97,7 @@ void HiZPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
                 }
                 else
                 {
-                    PassData& previousOutput = graph.GetBlackboard().GetOutput<PassData>();
+                    PassData& previousOutput = graph.GetBlackboard().Get<PassData>();
                     depthIn = previousOutput.HiZOut;
                     depthOut = previousOutput.HiZOut;
                 }
@@ -111,7 +111,7 @@ void HiZPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource 
 
                 passData.PipelineData = &m_PipelinesData[i];
                 
-                graph.GetBlackboard().UpdateOutput(passData);
+                graph.GetBlackboard().Update(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {

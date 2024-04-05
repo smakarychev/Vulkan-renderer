@@ -3,9 +3,10 @@
 #include <memory>
 #include <vector>
 
-#include "RenderGraphBlackboard.h"
-#include "RenderGraphResource.h"
+#include "RGBlackboard.h"
+#include "RGResource.h"
 #include "RenderPass.h"
+#include "RGCommon.h"
 #include "Vulkan/Driver.h"
 
 namespace RenderGraph
@@ -231,6 +232,7 @@ namespace RenderGraph
         const DescriptorArenaAllocators& GetArenaAllocators() const { return *m_ArenaAllocators; }
         DescriptorArenaAllocators& GetArenaAllocators() { return *m_ArenaAllocators; }
         Blackboard& GetBlackboard() { return m_Blackboard; }
+        const GlobalResources& GetGlobalResources() const { return m_Blackboard.Get<GlobalResources>(); } 
 
         void Reset(FrameContext& frameContext);
         void Compile(FrameContext& frameContext);

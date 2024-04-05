@@ -108,7 +108,7 @@ void SsaoPass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph::Resource
             passData.Settings = &m_Settings;
             passData.SampleCount = m_SampleCount;
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

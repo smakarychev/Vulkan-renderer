@@ -1,5 +1,7 @@
 #include "CullMetaPass.h"
 
+#include "..\RGUtils.h"
+
 CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name)
     : m_Name(name), m_DrawFeatures(info.DrawFeatures)
 {
@@ -21,20 +23,9 @@ CullMetaPass::CullMetaPass(RenderGraph::Graph& renderGraph, const CullMetaPassIn
     m_TrianglePrepareReocclusionDispatch = std::make_shared<TrianglePrepareReocclusionDispatch>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
 
-    if (m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::Materials ||
-        m_DrawFeatures == TriangleCullDrawPassInitInfo::Features::AlphaTest)
-    {
-        m_ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawPipeline->GetTemplate(), DescriptorAllocatorKind::Samplers)
-            // todo: make this (0) an enum
-            .ExtractSet(0)
-            .Build();
-    }
-
     TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
         .DrawFeatures = m_DrawFeatures,
         .MaterialDescriptors = *info.MaterialDescriptors,
-        .ImmutableSamplerDescriptors = m_ImmutableSamplerDescriptors,
         .DrawPipeline = *info.DrawPipeline};
     
     m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
@@ -63,8 +54,8 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
     
     auto& blackboard = renderGraph.GetBlackboard();
 
-    auto colors = EnsureColors(renderGraph, info);
-    auto depth = EnsureDepth(renderGraph, info);
+    auto colors = EnsureColors(renderGraph, info, m_Name);
+    auto depth = EnsureDepth(renderGraph, info, m_Name);
     
     m_PassData.ColorsOut = colors;
     m_PassData.DepthOut = depth;
@@ -74,7 +65,7 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
 
     // this pass also reads back the number of iterations to cull-draw
     m_TrianglePrepareDispatch->AddToGraph(renderGraph, *m_TriangleContext);
-    auto& dispatchOut = blackboard.GetOutput<TrianglePrepareDispatch::PassData>(
+    auto& dispatchOut = blackboard.Get<TrianglePrepareDispatch::PassData>(
         m_TrianglePrepareDispatch->GetNameHash());
 
     std::vector<TriangleCullDrawPassExecutionInfo::Attachment> colorAttachments;
@@ -91,13 +82,13 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
                 .OnStore = AttachmentStore::Store}});
     }
     std::optional<TriangleCullDrawPassExecutionInfo::Attachment> depthAttachment{};
-    if (depth.has_value())
+    if (info.Depth.has_value())
         depthAttachment = {
             .Resource = *depth,
             .Description = {
                 .Type = RenderingAttachmentType::Depth,
-                .Clear = {.DepthStencil = {.Depth = 0.0f}},
-                .OnLoad = AttachmentLoad::Clear,
+                .Clear = info.Depth->ClearValue,
+                .OnLoad = info.Depth->OnLoad,
                 .OnStore = AttachmentStore::Store}};
 
     // cull and draw triangles that were visible last frame (this presumably draws most of the triangles)
@@ -108,11 +99,13 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
         .HiZContext = m_HiZContext.get(),
         .Resolution = info.Resolution,
         .ColorAttachments = colorAttachments,
-        .DepthAttachment = depthAttachment});
+        .DepthAttachment = depthAttachment,
+        .IBL = info.IBL,
+        .SSAO = info.SSAO});
 
-    auto& drawOutput = blackboard.GetOutput<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
+    auto& drawOutput = blackboard.Get<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
     m_HiZ->AddToGraph(renderGraph, drawOutput.DepthTarget.value_or(Resource{}), *m_HiZContext);
-    m_PassData.HiZOut = blackboard.GetOutput<HiZPass::PassData>().HiZOut;
+    m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
 
     // we have to update attachment resources
     for (u32 i = 0; i < colorAttachments.size(); i++)
@@ -134,12 +127,15 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
         .HiZContext = m_HiZContext.get(),
         .Resolution = info.Resolution,
         .ColorAttachments = colorAttachments,
-        .DepthAttachment = depthAttachment});
-    auto& reoccludeTrianglesOutput = blackboard.GetOutput<TriangleReoccludeDraw::PassData>(
+        .DepthAttachment = depthAttachment,
+        .IBL = info.IBL,
+        .SSAO = info.SSAO});
+    
+    auto& reoccludeTrianglesOutput = blackboard.Get<TriangleReoccludeDraw::PassData>(
         m_ReoccludeTrianglesDraw->GetNameHash());
     m_HiZReocclusion->AddToGraph(renderGraph,
         reoccludeTrianglesOutput.DepthTarget.value_or(Resource{}), *m_HiZContext);
-    m_PassData.HiZOut = blackboard.GetOutput<HiZPass::PassData>().HiZOut;
+    m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
 
     // we have to update attachment resources (again)
     for (u32 i = 0; i < colorAttachments.size(); i++)
@@ -159,52 +155,51 @@ void CullMetaPass::AddToGraph(RenderGraph::Graph& renderGraph, const CullMetaPas
 
     // this pass also reads back the number of iterations to cull-draw
     m_TrianglePrepareReocclusionDispatch->AddToGraph(renderGraph, *m_TriangleContext);
-    auto& reocclusionDispatchOut = blackboard.GetOutput<TrianglePrepareReocclusionDispatch::PassData>(
+    auto& reocclusionDispatchOut = blackboard.Get<TrianglePrepareReocclusionDispatch::PassData>(
         m_TrianglePrepareReocclusionDispatch->GetNameHash());
     // reoccluded-meshlets triangle reocclusion updates visibility of triangles of reoccluded meshlets (and draws them) 
     m_ReoccludeDraw->AddToGraph(renderGraph, {
-            .Dispatch = reocclusionDispatchOut.DispatchIndirect,
-            .CullContext = m_TriangleContext.get(),
-            .DrawContext = m_TriangleDrawContext.get(),
-            .HiZContext = m_HiZContext.get(),
-            .Resolution = info.Resolution,
-            .ColorAttachments = colorAttachments,
-            .DepthAttachment = depthAttachment});
-    auto& reoccludeOutput = blackboard.GetOutput<TriangleReoccludeDraw::PassData>(
+        .Dispatch = reocclusionDispatchOut.DispatchIndirect,
+        .CullContext = m_TriangleContext.get(),
+        .DrawContext = m_TriangleDrawContext.get(),
+        .HiZContext = m_HiZContext.get(),
+        .Resolution = info.Resolution,
+        .ColorAttachments = colorAttachments,
+        .DepthAttachment = depthAttachment,
+        .IBL = info.IBL,
+        .SSAO = info.SSAO});
+    
+    auto& reoccludeOutput = blackboard.Get<TriangleReoccludeDraw::PassData>(
         m_ReoccludeDraw->GetNameHash());
     m_PassData.ColorsOut = reoccludeOutput.RenderTargets;
     m_PassData.DepthOut = reoccludeOutput.DepthTarget;
     
-    blackboard.RegisterOutput(m_Name.Hash(), m_PassData);
+    blackboard.Register(m_Name.Hash(), m_PassData);
 }
 
 std::vector<RenderGraph::Resource> CullMetaPass::EnsureColors(RenderGraph::Graph& renderGraph,
-    const CullMetaPassExecutionInfo& info) const
+    const CullMetaPassExecutionInfo& info, const RenderGraph::PassName& name)
 {
     std::vector<RenderGraph::Resource> colors(info.Colors.size());
     for (u32 i = 0; i < colors.size(); i++)
-    {
-        RenderGraph::Resource color = info.Colors[i].Color; 
-        if (!color.IsValid())
-        {
-            color = renderGraph.CreateResource(std::format("{}.{}.{}", m_Name.Name(), ".ColorIn", i),
+        colors[i] = RenderGraph::RgUtils::ensureResource(
+            info.Colors[i].Color, renderGraph, std::format("{}.{}.{}", name.Name(), ".ColorIn", i),
                 RenderGraph::GraphTextureDescription{
                     .Width = info.Resolution.x,
                     .Height = info.Resolution.y,
                     .Format =  Format::RGBA16_FLOAT});
-        }
-        colors[i] = color;
-    }
     
     return colors;
 }
 
 std::optional<RenderGraph::Resource> CullMetaPass::EnsureDepth(RenderGraph::Graph& renderGraph,
-    const CullMetaPassExecutionInfo& info) const
+    const CullMetaPassExecutionInfo& info, const RenderGraph::PassName& name)
 {
-    std::optional<RenderGraph::Resource> depth = info.Depth;
-    if (depth.has_value() && !depth.value().IsValid())
-        depth = renderGraph.CreateResource(m_Name.Name() + ".DepthIn",
+    if (!info.Depth.has_value())
+        return {};
+    std::optional depth = info.Depth->Depth;
+    if (depth.has_value())
+        depth = RenderGraph::RgUtils::ensureResource(*depth, renderGraph, name.Name() + ".DepthIn",
             RenderGraph::GraphTextureDescription{
                 .Width = info.Resolution.x,
                 .Height = info.Resolution.y,

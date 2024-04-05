@@ -7,6 +7,11 @@ class CommandBuffer;
 
 namespace RenderGraph
 {
+    struct GlobalResources
+    {
+        Resource MainCameraGPU{};
+    };
+    
     struct PipelineData
     {
         ShaderPipeline Pipeline;

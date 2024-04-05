@@ -1,10 +1,11 @@
 #pragma once
 
+#include "CullingTraits.h"
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RenderPassCommon.h"
-#include "RenderGraph/RenderPassGeometry.h"
+#include "..\RGCommon.h"
+#include "..\RGGeometry.h"
 #include "RenderGraph/HiZ/HiZPass.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -32,7 +33,7 @@ private:
     PassResources m_Resources{};
 };
 
-template <bool Reocclusion>
+template <CullStage Stage>
 class MeshCullGeneralPass
 {
 public:
@@ -65,12 +66,13 @@ private:
 };
 
 
-using MeshCullPass = MeshCullGeneralPass<false>;
-using MeshCullReocclusionPass = MeshCullGeneralPass<true>;
+using MeshCullPass = MeshCullGeneralPass<CullStage::Cull>;
+using MeshCullReocclusionPass = MeshCullGeneralPass<CullStage::Reocclusion>;
+using MeshCullSinglePass = MeshCullGeneralPass<CullStage::Single>;
 
 
-template <bool Reocclusion>
-MeshCullGeneralPass<Reocclusion>::MeshCullGeneralPass(RenderGraph::Graph& renderGraph, std::string_view name)
+template <CullStage Stage>
+MeshCullGeneralPass<Stage>::MeshCullGeneralPass(RenderGraph::Graph& renderGraph, std::string_view name)
     : m_Name(name)
 {
     ShaderPipelineTemplate* meshCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -79,7 +81,8 @@ MeshCullGeneralPass<Reocclusion>::MeshCullGeneralPass(RenderGraph::Graph& render
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(meshCullTemplate)
-        .AddSpecialization("REOCCLUSION", Reocclusion)
+        .AddSpecialization("REOCCLUSION", Stage == CullStage::Reocclusion)
+        .AddSpecialization("SINGLE_PASS", Stage == CullStage::Single)
         .UseDescriptorBuffer()
         .Build();
 
@@ -94,34 +97,20 @@ MeshCullGeneralPass<Reocclusion>::MeshCullGeneralPass(RenderGraph::Graph& render
         .Build();
 }
 
-template <bool Reocclusion>
-void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGraph, MeshCullContext& ctx,
+template <CullStage Stage>
+void MeshCullGeneralPass<Stage>::AddToGraph(RenderGraph::Graph& renderGraph, MeshCullContext& ctx,
     const HiZPassContext& hiZPassContext)
 {
     using namespace RenderGraph;
     using enum ResourceAccessFlags;
-
-    static ShaderDescriptors::BindingInfo samplerBinding =
-        m_PipelineData.SamplerDescriptors.GetBindingInfo("u_sampler");
-    static ShaderDescriptors::BindingInfo hizBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_hiz");
-    static ShaderDescriptors::BindingInfo sceneBinding = 
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_scene_data");
-    static ShaderDescriptors::BindingInfo objectsBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_objects");
-    static ShaderDescriptors::BindingInfo visibilityBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_object_visibility");
-
-    std::string passName = m_Name.Name() + (Reocclusion ? ".Reocclusion" : "");
+    
+    std::string passName = m_Name.Name() + cullStageToString(Stage);
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{passName},
         [&](Graph& graph, PassData& passData)
         {
             // if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass
-            if constexpr(!Reocclusion)
+            if constexpr(Stage != CullStage::Reocclusion)
             {
-                // we do not really need hiz for ordinary pass, but it is still has to be provided
-                ctx.Resources().HiZ = graph.AddExternal("Hiz.Previous", hiZPassContext.GetHiZPrevious(),
-                    ImageUtils::DefaultTexture::Black);
 
                 ctx.Resources().SceneUbo = graph.CreateResource(std::format("{}.{}", passName, "Scene"),
                     GraphBufferDescription{.SizeBytes = sizeof(SceneUBO)});
@@ -131,9 +120,15 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
                 ctx.Resources().VisibilitySsbo =
                     graph.AddExternal(std::format("{}.{}", passName, "Visibility"), ctx.Visibility());
             }
+            if constexpr(Stage == CullStage::Cull)
+            {
+                // we do not really need hiz for ordinary pass, but it is still has to be provided
+                ctx.Resources().HiZ = graph.AddExternal("Hiz.Previous", hiZPassContext.GetHiZPrevious(),
+                    ImageUtils::DefaultTexture::Black);
+            }
             else
             {
-                ctx.Resources().HiZ = graph.GetBlackboard().GetOutput<HiZPass::PassData>().HiZOut;
+                ctx.Resources().HiZ = graph.GetBlackboard().Get<HiZPass::PassData>().HiZOut;
             }
 
             auto& resources = ctx.Resources();
@@ -149,7 +144,7 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
             
             passData.PipelineData = &m_PipelineData;
 
-            graph.GetBlackboard().UpdateOutput(m_Name.Hash(), passData);
+            graph.GetBlackboard().Update(m_Name.Hash(), passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -174,11 +169,11 @@ void MeshCullGeneralPass<Reocclusion>::AddToGraph(RenderGraph::Graph& renderGrap
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            samplerDescriptors.UpdateBinding(samplerBinding, hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(hizBinding, hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(sceneBinding, sceneUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding(objectsBinding, objectsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding(visibilityBinding, visibilitySsbo.BindingInfo());
+            samplerDescriptors.UpdateBinding("u_sampler", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_hiz", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_object_visibility", visibilitySsbo.BindingInfo());
 
             u32 objectCount = passData.ObjectCount;
 

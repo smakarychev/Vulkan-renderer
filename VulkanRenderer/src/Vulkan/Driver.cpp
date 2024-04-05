@@ -1325,8 +1325,10 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         
         VkPipelineDepthStencilStateCreateInfo depthStencilState = {};
         depthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencilState.depthTestEnable = VK_TRUE;
-        depthStencilState.depthWriteEnable = VK_TRUE;
+        depthStencilState.depthTestEnable = createInfo.DepthMode == DepthMode::None ? VK_FALSE : VK_TRUE;
+        depthStencilState.depthWriteEnable =
+            (createInfo.DepthMode == DepthMode::None ||
+             createInfo.DepthMode == DepthMode::Read) ? VK_FALSE : VK_TRUE;
         depthStencilState.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
         depthStencilState.depthBoundsTestEnable = VK_FALSE;
         depthStencilState.stencilTestEnable = VK_FALSE;

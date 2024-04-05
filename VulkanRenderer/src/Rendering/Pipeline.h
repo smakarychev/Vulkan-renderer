@@ -55,7 +55,9 @@ struct PipelineSpecializationInfo
     std::vector<u8> Buffer;
 };
 
-enum class PrimitiveKind { Triangle, Point };
+enum class DepthMode {Read, ReadWrite, None};
+
+enum class PrimitiveKind {Triangle, Point};
 
 struct VertexInputDescription
 {
@@ -91,6 +93,7 @@ public:
             bool UseDescriptorBuffer{false};
             std::vector<ShaderModule> Shaders;
             VertexInputDescription VertexDescription;
+            DepthMode DepthMode{DepthMode::ReadWrite};
             PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
             AlphaBlending AlphaBlending{AlphaBlending::Over};
             PipelineSpecializationInfo ShaderSpecialization;
@@ -104,6 +107,7 @@ public:
         Builder& IsComputePipeline(bool isCompute);
         Builder& AddShader(const ShaderModule& shaderModule);
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
+        Builder& DepthMode(DepthMode depthMode);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
         Builder& AlphaBlending(AlphaBlending alphaBlending);
         Builder& UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo);

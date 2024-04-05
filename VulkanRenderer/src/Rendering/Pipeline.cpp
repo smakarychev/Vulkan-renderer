@@ -95,6 +95,13 @@ Pipeline::Builder& Pipeline::Builder::SetVertexDescription(const VertexInputDesc
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::DepthMode(::DepthMode depthMode)
+{
+    m_CreateInfo.DepthMode = depthMode;
+
+    return *this;
+}
+
 Pipeline::Builder& Pipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
 {
     m_CreateInfo.PrimitiveKind = primitiveKind;

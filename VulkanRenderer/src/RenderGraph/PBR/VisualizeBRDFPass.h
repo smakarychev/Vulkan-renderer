@@ -1,6 +1,6 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RenderPassCommon.h"
+#include "..\RGCommon.h"
 
 class VisualizeBRDFPass
 {

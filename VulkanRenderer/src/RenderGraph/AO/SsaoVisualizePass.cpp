@@ -1,6 +1,7 @@
 #include "SsaoVisualizePass.h"
 
 #include "FrameContext.h"
+#include "..\RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
 SsaoVisualizePass::SsaoVisualizePass(RenderGraph::Graph& renderGraph)
@@ -38,22 +39,19 @@ void SsaoVisualizePass::AddToGraph(RenderGraph::Graph& renderGraph, RenderGraph:
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
         [&](Graph& graph, PassData& passData)
         {
-            passData.ColorOut = colorOut;
-            if (!passData.ColorOut.IsValid())
-            {
-                auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
-                passData.ColorOut = graph.CreateResource(name + ".Color", GraphTextureDescription{
+            auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
+            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, name + ".Color",
+                GraphTextureDescription{
                     .Width = ssaoDescription.Width,
                     .Height = ssaoDescription.Height,
                     .Format = Format::RGBA16_FLOAT});
-            }
 
             passData.SSAO = graph.Read(ssao, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
 
             passData.PipelineData = &m_PipelineData;
 
-            graph.GetBlackboard().UpdateOutput(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

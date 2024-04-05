@@ -219,6 +219,7 @@ public:
     public:
         ShaderPipeline Build();
         Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
+        Builder& DepthMode(DepthMode depthMode);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
         Builder& AlphaBlending(AlphaBlending alphaBlending);
         Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
@@ -233,6 +234,7 @@ public:
     private:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_CompatibleVertexDescription;
+        ::DepthMode m_DepthMode{DepthMode::ReadWrite};
         ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
         ::AlphaBlending m_AlphaBlending{AlphaBlending::Over};
         PipelineSpecializationInfo m_PipelineSpecializationInfo;
