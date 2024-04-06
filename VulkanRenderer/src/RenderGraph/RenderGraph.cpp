@@ -267,6 +267,7 @@ namespace RG
 
     void Graph::Clear()
     {
+        CPU_PROFILE_FRAME("RenderGraph.Clear")
         for (auto& pass: m_RenderPasses)
         {
             pass->m_Barriers.clear();
@@ -304,7 +305,9 @@ namespace RG
     }
 
     void Graph::Compile(FrameContext& frameContext)
-    {        
+    {
+        CPU_PROFILE_FRAME("RenderGraph.Compile")
+        
         Clear();
         
         PreprocessResources();
@@ -428,6 +431,7 @@ namespace RG
 
     void Graph::PreprocessResources()
     {
+        CPU_PROFILE_FRAME("RenderGraph.Preprocess")
         for (auto& buffer : m_Buffers)
         {
             if (!enumHasAny(buffer.m_Description.Usage, BufferUsage::Upload))
@@ -437,6 +441,7 @@ namespace RG
 
     void Graph::CullPasses()
     {
+        CPU_PROFILE_FRAME("RenderGraph.Cull")
         std::vector passRefCount(m_RenderPasses.size(), 0u);
         struct ResourceRefInfo
         {
@@ -570,6 +575,7 @@ namespace RG
     // todo: use for barriers
     void Graph::BuildAdjacencyList()
     {
+        CPU_PROFILE_FRAME("RenderGraph.Adjacency")
         m_AdjacencyList = std::vector(m_RenderPasses.size(), std::vector<u32>{});
         // beautiful 
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
@@ -654,6 +660,7 @@ namespace RG
 
     void Graph::CalculateResourcesLifeSpan()
     {
+        CPU_PROFILE_FRAME("RenderGraph.ResourcesLifeSpan")
         // determine resources usage spans, assuming the passes are ordered correctly
         // todo: pass reordering
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
@@ -687,6 +694,7 @@ namespace RG
 
     void Graph::CreatePhysicalResources()
     {
+        CPU_PROFILE_FRAME("RenderGraph.Allocation.Deallocation")
         auto handleAllocation = [](auto& collection, u32 index, bool needsAllocation, bool hasRename,
             const auto& allocFn)
         {
@@ -755,6 +763,7 @@ namespace RG
 
     void Graph::ManageBarriers()
     {
+        CPU_PROFILE_FRAME("RenderGraph.ManageBarriers")
         std::vector longestPath = CalculateLongestPath();
 
         std::vector bufferRemap = CalculateRenameRemap([](Resource resource) { return resource.IsBuffer(); });
