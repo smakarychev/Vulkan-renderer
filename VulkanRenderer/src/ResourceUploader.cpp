@@ -56,6 +56,29 @@ void ResourceUploader::SubmitUpload()
         m_StageBuffers[i].Buffer.Unmap();
 }
 
+void ResourceUploader::SubmitUpload(const CommandBuffer& cmd)
+{
+    CPU_PROFILE_FRAME("Submit Upload")
+
+    for (auto& directUpload : m_BufferDirectUploads)
+        directUpload.Destination.SetData(
+            m_BufferDirectUploadData.data() + directUpload.CopyInfo.SourceOffset,
+            directUpload.CopyInfo.SizeBytes,
+            directUpload.CopyInfo.DestinationOffset);
+
+    ManageLifeTime();
+    
+    if (m_LastUsedBuffer == INVALID_INDEX)
+        return;
+    
+    for (auto& upload : m_BufferUploads)
+        RenderCommand::CopyBuffer(cmd, m_StageBuffers[upload.SourceIndex].Buffer,
+            upload.Destination, upload.CopyInfo);
+    
+    for (u32 i = 0; i <= m_LastUsedBuffer; i++)
+        m_StageBuffers[i].Buffer.Unmap();
+}
+
 void ResourceUploader::UpdateBuffer(Buffer& buffer, const void* data)
 {
     UpdateBuffer(buffer, data, buffer.GetSizeBytes(), 0);

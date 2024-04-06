@@ -2,6 +2,7 @@
 #include <vector>
 
 #include "Rendering/Buffer.h"
+#include "Rendering/CommandBuffer.h"
 
 // todo: use cvars for that, but need to load config first
 static constexpr u64 STAGING_BUFFER_DEFAULT_SIZE_BYTES = 16llu * 1024 * 1024;
@@ -42,7 +43,7 @@ public:
     void Shutdown();
     
     void StartRecording();
-    void SubmitUpload();
+    void SubmitUpload(const CommandBuffer& cmd);
 
     template <typename T>
     void UpdateBuffer(Buffer& buffer, const T& data);

@@ -334,7 +334,7 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
             ImGui::End();
             const Buffer& gradientUbo = resources.GetBuffer(passData.GradientUbo, (void*)&colors, sizeof(GradientUBO), 0,
                 *frameContext.ResourceUploader);
-            frameContext.ResourceUploader->SubmitUpload();
+            frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
             frameContext.ResourceUploader->StartRecording();
             
             auto& pushConstant = *passData.PushConstants;

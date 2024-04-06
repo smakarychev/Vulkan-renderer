@@ -404,7 +404,7 @@ void Renderer::EndFrame()
     TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()))
 
     // todo: is this the best place for it?
-    m_ResourceUploader.SubmitUpload();
+    m_ResourceUploader.SubmitUpload(cmd);
     
     cmd.End();
 

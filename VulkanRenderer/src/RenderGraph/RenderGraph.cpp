@@ -422,7 +422,7 @@ namespace RG
 
     void Graph::OnCmdEnd(FrameContext& frameContext) const
     {
-        frameContext.ResourceUploader->SubmitUpload();
+        frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
         frameContext.ResourceUploader->StartRecording();
     }
 
