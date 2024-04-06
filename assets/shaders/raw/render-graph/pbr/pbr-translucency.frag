@@ -57,7 +57,7 @@ vec3 shade_pbr_lights(ShadeInfo shade_info) {
     const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
     const vec3 specular = D * V * F;
 
-    const vec3 Lo = (specular + diffuse) * radiance * n_dot_l;
+    const vec3 Lo = (specular + diffuse * shade_info.alpha) * radiance * n_dot_l;
 
     return Lo;
 }
@@ -74,7 +74,7 @@ vec3 shade_pbr_ibl(ShadeInfo shade_info) {
     const vec3 diffuse = irradiance * shade_info.diffuse_color;
     const vec3 specular = (shade_info.F0 * brdf.x + shade_info.F90 * brdf.y) * prefiltered;
 
-    const vec3 ambient = specular + diffuse;
+    const vec3 ambient = specular + diffuse * shade_info.alpha;
 
     return ambient;
 }
@@ -136,6 +136,7 @@ void main() {
     shade_info.F90 = F90;
     shade_info.diffuse_color = diffuse_color;
     shade_info.specular_color = specular_color;
+    shade_info.alpha = albedo.a;
 
     vec3 color;
     color = shade_pbr(shade_info);

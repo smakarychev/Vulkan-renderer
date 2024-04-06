@@ -136,6 +136,7 @@ void main() {
     shade_info.F90 = F90;
     shade_info.diffuse_color = diffuse_color;
     shade_info.specular_color = specular_color;
+    shade_info.alpha = 1.0f; // unused
 
     vec3 color;
     color = shade_pbr(shade_info);
