@@ -1,14 +1,17 @@
 #pragma once
 
+class ResourceUploader;
+
 namespace RG
 {
     class Geometry;
     
-    class RGGeometrySorter
+    class GeometrySorter
     {
     public:
-        virtual ~RGGeometrySorter() = default;
-        virtual void Sort(RG::Geometry* geometry) = 0; 
+        GeometrySorter() = default;
+        virtual ~GeometrySorter() = default;
+        virtual void Sort(Geometry& geometry, ResourceUploader& resourceUploader) = 0; 
     };
 }
 

@@ -36,7 +36,7 @@ layout(push_constant) uniform push_constants {
 
 bool is_visible(vec3 origin, float radius, vec3 cone_axis, float cone_cutoff) {
     bool visible = true;
-    //visible = visible && is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff);
+    visible = visible && is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff);
     visible = visible && is_frustum_visible(origin, radius, u_scene_data.scene);
     visible = visible && is_occlusion_visible(origin, radius, u_scene_data.scene, u_sampler, u_hiz);
 
@@ -70,5 +70,5 @@ void main() {
     visible = is_mesh_drawn && is_visible(origin, radius, cone_axis, cone_cutoff);
     should_be_drawn = visible;
 
-    cull(id, visible);
+    cull(id, should_be_drawn);
 }

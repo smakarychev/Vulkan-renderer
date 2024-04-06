@@ -25,7 +25,12 @@ namespace RG
         static Geometry FromModelCollectionFiltered(const ModelCollection& modelCollection,
             ResourceUploader& resourceUploader, Filter&& filter);
 
+        /* is called in geometry sorters */
+        void ApplyRenderObjectPermutation(const ModelCollection::RenderObjectPermutation& permutation,
+            ResourceUploader& resourceUploader); 
+
         const ModelCollection& GetModelCollection() const { return *m_ModelCollection; }
+        const ModelCollection::RenderObjectIndices& GetRenderObjectIndices() const { return m_RenderObjectIndices; }
     
         const AttributeBuffers& GetAttributeBuffers() const { return m_AttributeBuffers; }
         const Buffer& GetCommandsBuffer() const { return m_Commands; }
@@ -55,17 +60,18 @@ namespace RG
     
     private:
         const ModelCollection* m_ModelCollection{nullptr};
-        /* indices into render objects array of model collection;
-     * used for sorting, and any other dynamic operation,
-     * where cpu-side of data (transforms, materials, etc.) is needed
-     */
-        std::vector<u32> m_RenderObjectIndices;
+        ModelCollection::RenderObjectIndices m_RenderObjectIndices;
     
         AttributeBuffers m_AttributeBuffers;
         Buffer m_Commands;
         Buffer m_Materials;
         Buffer m_RenderObjects;
         Buffer m_Meshlets;
+
+        /* Cpu-side of `m_Commands` buffer, used for reordering and updating */
+        std::vector<IndirectDrawCommand> m_CommandsCPU;
+        /* index of the first command for each render object, used for reordering and updating */
+        std::vector<u32> m_FirstCommands;
     
         u32 m_CommandCount{};
         u32 m_RenderObjectCount{};
@@ -133,15 +139,22 @@ namespace RG
             resourceUploader.UpdateBuffer(renderPassGeometry.m_AttributeBuffers.Indices, mesh.GetIndices().data(),
                 indicesSize * sizeof(assetLib::ModelInfo::IndexType),
                 indicesOffset * sizeof(assetLib::ModelInfo::IndexType));
+
+            renderPassGeometry.m_FirstCommands[renderObjectIndex] = meshletIndex;
         
             for (auto& meshlet : mesh.GetMeshlets())
             {
-                commands[meshletIndex].FirstIndex = (u32)indicesOffset + meshlet.FirstIndex;
-                commands[meshletIndex].IndexCount = meshlet.IndexCount;
-                commands[meshletIndex].FirstInstance = meshletIndex;
-                commands[meshletIndex].InstanceCount = 1;
-                commands[meshletIndex].VertexOffset = (i32)verticesOffset + (i32)meshlet.FirstVertex;
-                commands[meshletIndex].RenderObject = renderObjectIndex;
+                IndirectDrawCommand command = {
+                    .IndexCount = meshlet.IndexCount,
+                    .InstanceCount = 1,
+                    .FirstIndex = (u32)indicesOffset + meshlet.FirstIndex,
+                    .VertexOffset = (i32)verticesOffset + (i32)meshlet.FirstVertex,
+                    .FirstInstance = meshletIndex,
+                    .RenderObject = renderObjectIndex};
+                
+                renderPassGeometry.m_CommandsCPU[meshletIndex] = command;
+                
+                commands[meshletIndex] = command;
 
                 meshletsGPU[meshletIndex] = {
                     .BoundingCone = meshlet.BoundingCone,
@@ -191,57 +204,4 @@ namespace RG
 
         return countInfos;
     }
-
-    inline Geometry::AttributeBuffers Geometry::InitAttributeBuffers(const CountsInfo& countsInfo)
-    {
-        u64 totalPositionsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec3);
-        u64 totalNormalsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec3);
-        u64 totalTangentsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec3);
-        u64 totalUVsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec2);
-        u64 totalIndicesSizeBytes = countsInfo.IndexCount * sizeof(assetLib::ModelInfo::IndexType);
-
-        BufferUsage vertexUsage =
-            BufferUsage::Vertex | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress;
-        BufferUsage indexUsage =
-            BufferUsage::Index | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress;
-
-        AttributeBuffers attributeBuffers = {};
-
-        attributeBuffers.Positions = Buffer::Builder({.SizeBytes = totalPositionsSizeBytes, .Usage = vertexUsage})
-            .Build();
-        attributeBuffers.Normals = Buffer::Builder({.SizeBytes = totalNormalsSizeBytes, .Usage = vertexUsage})
-            .Build();
-        attributeBuffers.Tangents = Buffer::Builder({.SizeBytes = totalTangentsSizeBytes, .Usage = vertexUsage})
-            .Build();
-        attributeBuffers.UVs = Buffer::Builder({.SizeBytes = totalUVsSizeBytes, .Usage = vertexUsage})
-            .Build();
-        attributeBuffers.Indices = Buffer::Builder({.SizeBytes = totalIndicesSizeBytes, .Usage = indexUsage})
-            .Build();
-
-        return attributeBuffers;
-    }
-
-    inline void Geometry::InitBuffers(Geometry& renderPassGeometry, const CountsInfo& countsInfo)
-    {
-        renderPassGeometry.m_CommandCount = countsInfo.CommandCount;
-        renderPassGeometry.m_RenderObjectCount = countsInfo.RenderObjectCount;
-        renderPassGeometry.m_Commands = Buffer::Builder({
-                .SizeBytes = countsInfo.CommandCount * sizeof(IndirectDrawCommand),
-                .Usage = BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination |
-                BufferUsage::DeviceAddress})
-            .Build();
-        renderPassGeometry.m_RenderObjects = Buffer::Builder({
-                .SizeBytes = countsInfo.RenderObjectCount * sizeof(RenderObjectGPU),
-                .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
-            .Build();
-        renderPassGeometry.m_Materials = Buffer::Builder({
-                .SizeBytes = countsInfo.RenderObjectCount * sizeof(MaterialGPU),
-                .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
-            .Build();
-        renderPassGeometry.m_Meshlets = Buffer::Builder({
-                .SizeBytes = countsInfo.CommandCount * sizeof(MeshletGPU),
-                .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
-            .Build();
-    }
-    
 }

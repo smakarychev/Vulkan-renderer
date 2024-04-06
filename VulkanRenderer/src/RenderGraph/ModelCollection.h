@@ -23,7 +23,12 @@ public:
     {
         RenderObjectTransform Transform;
     };
-    
+    /* indices into render objects array of model collection;
+     * used for sorting, and any other dynamic operation,
+     * where cpu-side of data (transforms, materials, etc.) is needed
+     */
+    using RenderObjectIndices = std::vector<u32>;
+    using RenderObjectPermutation = std::vector<u32>;
 public:
     void CreateDefaultTextures();
     void RegisterModel(Model* model, const std::string& name);
@@ -34,12 +39,17 @@ public:
     template <typename Filter, typename Callback>
     void FilterRenderObjects(Filter&& filterFn, Callback&& callbackFn) const;
 
+    template <typename Callback>
+    void IterateRenderObjects(const RenderObjectIndices& indices, Callback&& callback) const;
+    template <typename Callback>
+    void IterateRenderObjects(const RenderObjectIndices& indices, const RenderObjectPermutation& permutation,
+        Callback&& callback) const;
+
     const std::vector<RenderObject>& GetRenderObjects(const std::string& modelName) const;
 
     const HandleArray<Mesh>& GetMeshes() const { return m_Meshes; }
     const HandleArray<MaterialGPU>& GetMaterialsGPU() const { return m_MaterialsGPU; }
     const HandleArray<Material>& GetMaterials() const { return m_Materials; }
-    
 private:
     std::vector<RenderObject> CreateRenderObjects(const Model* model);
     RenderHandle<MaterialGPU> AddMaterialGPU(const MaterialGPU& material);
@@ -75,6 +85,21 @@ void ModelCollection::FilterRenderObjects(Filter&& filterFn, Callback&& callback
     for (u32 i = 0; i < m_RenderObjects.size(); i++)
         if (filterFn(m_RenderObjects[i]))
             callbackFn(m_RenderObjects[i], i);
+}
+
+template <typename Callback>
+void ModelCollection::IterateRenderObjects(const RenderObjectIndices& indices, Callback&& callback) const
+{
+    for (u32 i = 0; i < indices.size(); i++)
+        callback(m_RenderObjects[indices[i]], i);
+}
+
+template <typename Callback>
+void ModelCollection::IterateRenderObjects(const RenderObjectIndices& indices,
+    const RenderObjectPermutation& permutation, Callback&& callback) const
+{
+    for (u32 i = 0; i < indices.size(); i++)
+        callback(m_RenderObjects[indices[permutation[i]]], permutation[i]);
 }
 
 template <typename T>

@@ -102,6 +102,13 @@ Pipeline::Builder& Pipeline::Builder::DepthMode(::DepthMode depthMode)
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::FaceCullMode(::FaceCullMode cullMode)
+{
+    m_CreateInfo.CullMode = cullMode;
+
+    return *this;
+}
+
 Pipeline::Builder& Pipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
 {
     m_CreateInfo.PrimitiveKind = primitiveKind;

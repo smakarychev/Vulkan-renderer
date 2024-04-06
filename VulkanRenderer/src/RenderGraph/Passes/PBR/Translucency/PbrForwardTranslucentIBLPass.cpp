@@ -21,6 +21,7 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGrap
     ShaderPipeline drawPipeline = ShaderPipeline::Builder()
         .SetTemplate(drawTemplate)
         .DepthMode(DepthMode::Read)
+        .FaceCullMode(FaceCullMode::Back)
         .CompatibleWithVertex(VertexP3N3T3UV2::GetInputDescriptionDI())
         .SetRenderingDetails({
             .ColorFormats = {Format::RGBA16_FLOAT},

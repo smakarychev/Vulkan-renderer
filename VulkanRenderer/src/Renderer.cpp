@@ -29,6 +29,7 @@
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
+#include "RenderGraph/Sorting/RGDepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
 #include "Rendering/Image/Processing/CubemapProcessor.h"
 #include "Rendering/Image/Processing/DiffuseIrradianceProcessor.h"
@@ -169,6 +170,13 @@ void Renderer::SetupRenderGraph()
     
     m_Graph->Reset(GetFrameContext());
     Resource backbuffer = m_Graph->GetBackbuffer();
+
+    // todo: move to proper place (this is just testing atm)
+    if (m_GraphTranslucentGeometry.IsValid())
+    {
+        DepthGeometrySorter translucentSorter(m_Camera->GetPosition(), m_Camera->GetForward());
+        translucentSorter.Sort(m_GraphTranslucentGeometry, *GetFrameContext().ResourceUploader);
+    }
 
     // update camera
     CameraGPU cameraGPU = {

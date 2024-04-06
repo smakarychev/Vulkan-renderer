@@ -703,6 +703,13 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::DepthMode(::DepthMode depthMod
     return *this;
 }
 
+ShaderPipeline::Builder& ShaderPipeline::Builder::FaceCullMode(::FaceCullMode cullMode)
+{
+    m_CullMode = cullMode;
+
+    return *this;
+}
+
 ShaderPipeline::Builder& ShaderPipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
 {
     m_PrimitiveKind = primitiveKind;
@@ -742,6 +749,7 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::UseDescriptorBuffer()
 void ShaderPipeline::Builder::Prebuild()
 {
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.DepthMode(m_DepthMode);
+    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.FaceCullMode(m_CullMode);
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.PrimitiveKind(m_PrimitiveKind);
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.AlphaBlending(m_AlphaBlending);
     

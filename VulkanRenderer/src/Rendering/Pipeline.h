@@ -56,6 +56,7 @@ struct PipelineSpecializationInfo
 };
 
 enum class DepthMode {Read, ReadWrite, None};
+enum class FaceCullMode {Front, Back, None};
 
 enum class PrimitiveKind {Triangle, Point};
 
@@ -94,6 +95,7 @@ public:
             std::vector<ShaderModule> Shaders;
             VertexInputDescription VertexDescription;
             DepthMode DepthMode{DepthMode::ReadWrite};
+            FaceCullMode CullMode{FaceCullMode::None};
             PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
             AlphaBlending AlphaBlending{AlphaBlending::Over};
             PipelineSpecializationInfo ShaderSpecialization;
@@ -108,6 +110,7 @@ public:
         Builder& AddShader(const ShaderModule& shaderModule);
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
         Builder& DepthMode(DepthMode depthMode);
+        Builder& FaceCullMode(FaceCullMode cullMode);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
         Builder& AlphaBlending(AlphaBlending alphaBlending);
         Builder& UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo);

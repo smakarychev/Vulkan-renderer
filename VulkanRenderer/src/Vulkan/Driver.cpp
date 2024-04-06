@@ -497,6 +497,22 @@ namespace
         std::unreachable();
     }
 
+    VkCullModeFlags vulkanCullModeFromFaceCullMode(FaceCullMode mode)
+    {
+        switch (mode)
+        {
+        case FaceCullMode::Front:
+            return VK_CULL_MODE_FRONT_BIT;
+        case FaceCullMode::Back:
+            return VK_CULL_MODE_BACK_BIT;
+        case FaceCullMode::None:
+            return VK_CULL_MODE_NONE;
+        default:
+            ASSERT(false, "Unrecognized face cull mode")
+        }
+        std::unreachable();
+    }
+
     VkPrimitiveTopology vulkanTopologyFromPrimitiveKind(PrimitiveKind kind)
     {
         switch (kind)
@@ -1315,7 +1331,7 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
         rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizationState.lineWidth = 1.0f;
-        rasterizationState.cullMode = VK_CULL_MODE_NONE;
+        rasterizationState.cullMode = vulkanCullModeFromFaceCullMode(createInfo.CullMode);
         rasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         
         VkPipelineMultisampleStateCreateInfo multisampleState = {};

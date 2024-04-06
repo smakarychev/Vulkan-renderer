@@ -36,7 +36,7 @@ void main() {
     alpha *= texture(nonuniformEXT(
         sampler2D(u_textures[material.albedo_texture_index], u_sampler)), vertex_uv).a;
 
-    if (alpha < 1.0f)
+    if (alpha < 0.5f)
         discard;
 
     uint instance_id = vertex_command_id;
