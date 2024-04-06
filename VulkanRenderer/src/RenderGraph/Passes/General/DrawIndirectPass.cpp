@@ -79,7 +79,7 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const RG::Geometry& ge
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            GPU_PROFILE_FRAME("Draw indirect count")
+            GPU_PROFILE_FRAME("Draw indirect")
 
             using enum DrawFeatures;
 

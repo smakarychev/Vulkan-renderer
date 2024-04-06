@@ -5,7 +5,8 @@
 #include "utils/MathUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-HiZPassContext::HiZPassContext(const glm::uvec2& resolution)
+HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue)
+    : m_DrawResolution(resolution)
 {
     u32 width = utils::floorToPowerOf2(resolution.x);
     u32 height = utils::floorToPowerOf2(resolution.y);
@@ -24,7 +25,7 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution)
             .Format = Format::R32_FLOAT,
             .Usage = ImageUsage::Sampled | ImageUsage::Storage,
             .AdditionalViews = additionalViews})
-        .BuildManualLifetime();
+        .Build(deletionQueue);
 
     m_MipmapViewHandles = m_HiZ.GetViewHandles();
 
@@ -34,11 +35,6 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution)
         .WithAnisotropy(false)
         .ReductionMode(SamplerReductionMode::Min)
         .Build();
-}
-
-HiZPassContext::~HiZPassContext()
-{
-    Image::Destroy(m_HiZ);
 }
 
 HiZPass::HiZPass(RG::Graph& renderGraph, std::string_view baseName)

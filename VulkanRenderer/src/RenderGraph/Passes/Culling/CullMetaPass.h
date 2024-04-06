@@ -54,7 +54,6 @@ public:
     };
 public:
     CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name);
-    ~CullMetaPass();
     void AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
     const std::string& GetName() const { return m_Name.Name(); }

@@ -6,19 +6,24 @@ class HiZPassContext
 {
 public:
     static constexpr u32 MAX_MIPMAP_COUNT = 16;
-    HiZPassContext(const glm::uvec2& resolution);
-    ~HiZPassContext();
+    HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue);
 
     const Texture& GetHiZ() const { return m_HiZ; }
     std::shared_ptr<Texture>* GetHiZPrevious() { return &m_HiZPrevious; }
     const Texture* GetHiZPrevious() const { return m_HiZPrevious.get(); }
     Sampler GetSampler() const { return m_MinMaxSampler; }
     const std::vector<ImageViewHandle>& GetViewHandles() const { return m_MipmapViewHandles; }
+
+    /* NOTE: this is not hiz resolution (which is a power of 2), but the resolution that was passed into constructor */
+    const glm::uvec2& GetDrawResolution() const { return m_DrawResolution; }
+    
 private:
     Texture m_HiZ;
     std::shared_ptr<Texture> m_HiZPrevious{};
     Sampler m_MinMaxSampler;
     std::vector<ImageViewHandle> m_MipmapViewHandles;
+    
+    glm::uvec2 m_DrawResolution{};
 };
 
 class HiZPass

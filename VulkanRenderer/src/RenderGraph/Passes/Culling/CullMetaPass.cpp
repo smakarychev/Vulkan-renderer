@@ -35,22 +35,18 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
         m_Name.Name() + ".CullDraw.Reocclusion");
 }
 
-CullMetaPass::~CullMetaPass()
-{
-    if (m_HiZContext)
-        m_HiZContext.reset();
-}
-
 void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info)
 {
     using namespace RG;
 
     if (!m_HiZContext ||
-        m_HiZContext->GetHiZ().GetDescription().Width  != info.Resolution.x ||
-        m_HiZContext->GetHiZ().GetDescription().Height != info.Resolution.y)
+        m_HiZContext->GetDrawResolution().x != info.Resolution.x ||
+        m_HiZContext->GetDrawResolution().y != info.Resolution.y)
     {
-        m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution);
+        m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution, renderGraph.GetResolutionDeletionQueue());
     }
+
+    m_MeshletContext->UpdateCompactCounts();
     
     auto& blackboard = renderGraph.GetBlackboard();
 

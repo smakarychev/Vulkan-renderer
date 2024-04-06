@@ -77,7 +77,7 @@ VkResult RenderCommand::ResetFenceStatus(const Fence& fence)
 }
 
 u32 RenderCommand::AcquireNextImage(const Swapchain& swapchain,
-                                    const SwapchainFrameSync& swapchainFrameSync)
+    const SwapchainFrameSync& swapchainFrameSync)
 {
     Driver::DriverCheck(WaitForFenceStatus(swapchainFrameSync.RenderFence),
         "Error while waiting for fences");

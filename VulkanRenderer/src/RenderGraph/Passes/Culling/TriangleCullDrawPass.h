@@ -130,7 +130,6 @@ public:
     {
         RG::Resource CompactCountSsbo;
         RG::Resource DispatchIndirect;
-        RG::Resource VisibleMeshletCountSsbo;
         u32 MaxDispatches{0};
 
         RG::PipelineData* PipelineData{nullptr};
@@ -269,7 +268,6 @@ void TriangleCullPrepareDispatchPass<Stage>::AddToGraph(RG::Graph& renderGraph,
         {
             passData.MaxDispatches = ctx.Geometry().GetCommandCount() / TriangleCullContext::GetCommandCount() + 1;
             auto& meshletResources = ctx.MeshletContext().Resources();
-            passData.CompactCountSsbo = graph.Read(meshletResources.CompactCountSsbo, Compute | Storage);
             ctx.Resources().DispatchIndirect = graph.CreateResource(std::format("{}.{}", name, "Dispatch"),
                 GraphBufferDescription{.SizeBytes = renderUtils::alignUniformBufferSizeBytes(
                     passData.MaxDispatches * sizeof(IndirectDispatchCommand))});
@@ -279,13 +277,13 @@ void TriangleCullPrepareDispatchPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             {
                 ctx.MeshletContext().Resources().CompactCountSsbo =
                     graph.Read(ctx.MeshletContext().Resources().CompactCountSsbo, Readback);
-                passData.VisibleMeshletCountSsbo = ctx.MeshletContext().Resources().CompactCountSsbo;
+                passData.CompactCountSsbo = graph.Read(meshletResources.CompactCountSsbo, Compute | Storage);
             }
             else
             {
                 ctx.MeshletContext().Resources().CompactCountReocclusionSsbo = 
                     graph.Read(ctx.MeshletContext().Resources().CompactCountReocclusionSsbo, Readback);
-                passData.VisibleMeshletCountSsbo = ctx.MeshletContext().Resources().CompactCountReocclusionSsbo;
+                passData.CompactCountSsbo = graph.Read(meshletResources.CompactCountReocclusionSsbo, Compute | Storage);
             }
             
             passData.DispatchIndirect = ctx.Resources().DispatchIndirect;
@@ -335,13 +333,15 @@ void TriangleCullPrepareDispatchPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             Fence::Destroy(readbackFence);
             cmd.Begin();
             resources.GetGraph()->OnCmdBegin(frameContext);
-
-            const Buffer& visibleMeshlets = resources.GetBuffer(passData.VisibleMeshletCountSsbo);
-            const void* address = Driver::MapBuffer(visibleMeshlets);
-            u32 visibleMeshletsValue = *(u32*)(address);
+            
+            u32 visibleMeshletsValue = 0;
+            if constexpr(Stage == CullStage::Reocclusion)
+                visibleMeshletsValue = passData.Context->MeshletContext().CompactCountReocclusionValue();
+            else
+                visibleMeshletsValue = passData.Context->MeshletContext().CompactCountValue();
+            
             u32 commandCount = TriangleCullContext::GetCommandCount();
             u32 iterationCount = visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0);
-            Driver::UnmapBuffer(visibleMeshlets);
             passData.Context->SetIterationCount(iterationCount);
             passData.Context->ResetIteration();
         });

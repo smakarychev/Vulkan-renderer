@@ -232,7 +232,10 @@ namespace RG
         const DescriptorArenaAllocators& GetArenaAllocators() const { return *m_ArenaAllocators; }
         DescriptorArenaAllocators& GetArenaAllocators() { return *m_ArenaAllocators; }
         Blackboard& GetBlackboard() { return m_Blackboard; }
-        const GlobalResources& GetGlobalResources() const { return m_Blackboard.Get<GlobalResources>(); } 
+        const GlobalResources& GetGlobalResources() const { return m_Blackboard.Get<GlobalResources>(); }
+
+        DeletionQueue& GetFrameDeletionQueue() const { ASSERT(m_FrameDeletionQueue) return *m_FrameDeletionQueue; }
+        DeletionQueue& GetResolutionDeletionQueue() { return m_ResolutionDeletionQueue; }
 
         void Reset(FrameContext& frameContext);
         void Compile(FrameContext& frameContext);
@@ -302,6 +305,7 @@ namespace RG
 
         RenderGraphPool m_Pool;
         DeletionQueue* m_FrameDeletionQueue{nullptr};
+        DeletionQueue m_ResolutionDeletionQueue{};
         std::unique_ptr<DescriptorArenaAllocators> m_ArenaAllocators;
         Blackboard m_Blackboard;
     };

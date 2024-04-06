@@ -22,13 +22,27 @@ public:
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
+    void UpdateCompactCounts();
+    u32 CompactCountValue() const { return m_CompactCountValues[m_FrameNumber]; }
+    u32 CompactCountReocclusionValue() const { return m_CompactCountReocclusionValues[m_FrameNumber]; }
 
-    const Buffer& Visibility() { return m_Visibility; }
-    const RG::Geometry& Geometry() { return m_MeshCullContext->Geometry(); }
-    MeshCullContext& MeshContext() { return *m_MeshCullContext; }
+    const Buffer& Visibility() const { return m_Visibility; }
+    const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
+    const Buffer& CompactCountReocclusion() const { return m_CompactCountReocclusion[m_FrameNumber]; }
+    const RG::Geometry& Geometry() const { return m_MeshCullContext->Geometry(); }
+    MeshCullContext& MeshContext() const { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
 private:
+    u32 ReadbackCount(const Buffer& buffer) const;
+private:
     Buffer m_Visibility;
+
+    /* can be detached from real frame number */
+    u32 m_FrameNumber{0};
+    std::array<Buffer, BUFFERED_FRAMES> m_CompactCount;
+    std::array<Buffer, BUFFERED_FRAMES> m_CompactCountReocclusion;
+    std::array<u32, BUFFERED_FRAMES> m_CompactCountValues{};
+    std::array<u32, BUFFERED_FRAMES> m_CompactCountReocclusionValues{};
 
     MeshCullContext* m_MeshCullContext{nullptr};
     PassResources m_Resources{};
@@ -115,11 +129,10 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
                         GraphBufferDescription{.SizeBytes = ctx.Geometry().GetCommandsBuffer().GetSizeBytes()});
                 // count buffer will be separate for ordinary and reocclusion passes
                 ctx.Resources().CompactCountSsbo =
-                    graph.CreateResource(std::format("{}.{}", passName, "Commands.CompactCount"),
-                        GraphBufferDescription{.SizeBytes = sizeof(u32)});
+                    graph.AddExternal(std::format("{}.{}", passName, "Commands.CompactCount"), ctx.CompactCount());
                 ctx.Resources().CompactCountReocclusionSsbo =
-                    graph.CreateResource(std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
-                    GraphBufferDescription{.SizeBytes = sizeof(u32)});
+                    graph.AddExternal(std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
+                        ctx.CompactCountReocclusion());
             }
 
             auto& meshResources = ctx.MeshContext().Resources();
