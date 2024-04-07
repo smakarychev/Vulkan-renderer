@@ -40,6 +40,7 @@ namespace RG
         {
             m_Textures[m_Backbuffer.Index()].SetPhysicalResource(m_Pool.AddExternalResource(texture));
             m_Textures[m_Backbuffer.Index()].m_Description = texture.GetDescription();
+            m_Textures[m_Backbuffer.Index()].m_Rename = {};
         }
         else
         {
