@@ -97,10 +97,11 @@ void main() {
     object_data object = u_objects.objects[u_commands.commands[id].render_object];
 
     vec3 origin = vec3(u_scene_data.scene.view_matrix * object.model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f));
-    float radius = meshlet.r * extract_scale(object.model);
+    float scale = extract_scale(object.model);
+    float radius = meshlet.r * scale;
 
     vec3 cone_axis = vec3(meshlet.cone_x, meshlet.cone_y, meshlet.cone_z) / 127.0f;
-    cone_axis = vec3(u_scene_data.scene.view_matrix * object.model * vec4(cone_axis, 0.0f));
+    cone_axis = vec3(u_scene_data.scene.view_matrix * object.model * vec4(cone_axis, 0.0f)) / scale;
     float cone_cutoff = float(meshlet.cone_cutoff) / 127.0f;
 
     bool is_mesh_drawn = flags_should_draw(u_object_visibility.visibility[u_commands.commands[id].render_object]);
