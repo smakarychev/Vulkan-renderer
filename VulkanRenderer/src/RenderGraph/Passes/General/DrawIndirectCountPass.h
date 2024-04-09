@@ -23,6 +23,7 @@ struct DrawIndirectCountPassExecutionInfo
 {
     RG::Resource Color{};
     RG::Resource Depth{};
+    const RG::Geometry* Geometry{nullptr};
     RG::Resource Commands{};
     RG::Resource CommandCount{};
     glm::uvec2 Resolution{};
@@ -37,10 +38,23 @@ class DrawIndirectCountPass
 public:
     struct PassData
     {
+        RG::Resource ColorOut{};
+        RG::Resource DepthOut{};
+    };
+public:
+    DrawIndirectCountPass(RG::Graph& renderGraph, std::string_view name, 
+        const DrawIndirectCountPassInitInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const DrawIndirectCountPassExecutionInfo& info);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+private:
+    struct PassDataPrivate
+    {
         RG::Resource CameraUbo{};
+        RG::DrawAttributeBuffers AttributeBuffers{};
         RG::Resource ObjectsSsbo{};
         RG::Resource CommandsIndirect{};
         RG::Resource CountIndirect{};
+        
         RG::Resource ColorOut{};
         RG::Resource DepthOut{};
 
@@ -50,12 +64,6 @@ public:
 
         RG::BindlessTexturesPipelineData* PipelineData{nullptr};
     };
-public:
-    DrawIndirectCountPass(RG::Graph& renderGraph, std::string_view name, 
-        const DrawIndirectCountPassInitInfo& info);
-    void AddToGraph(RG::Graph& renderGraph, const RG::Geometry& geometry,
-        const DrawIndirectCountPassExecutionInfo& info);
-    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;

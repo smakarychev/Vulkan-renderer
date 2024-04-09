@@ -23,13 +23,13 @@ layout(set = 1, binding = 0) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
 
-layout(std430, set = 1, binding = 2) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 6) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(set = 1, binding = 3) uniform textureCube u_irradiance_map;
-layout(set = 1, binding = 4) uniform textureCube u_prefilter_map;
-layout(set = 1, binding = 5) uniform texture2D u_brdf;
+layout(set = 1, binding = 7) uniform textureCube u_irradiance_map;
+layout(set = 1, binding = 8) uniform textureCube u_prefilter_map;
+layout(set = 1, binding = 9) uniform texture2D u_brdf;
 
 layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];

@@ -51,5 +51,13 @@ namespace RG
     };
     
     CREATE_ENUM_FLAGS_OPERATORS(DrawFeatures)
+
+    struct DrawAttributeBuffers
+    {
+        Resource PositionsSsbo{};
+        Resource NormalsSsbo{};
+        Resource TangentsSsbo{};
+        Resource UVsSsbo{};
+    };
 }
 

@@ -46,10 +46,12 @@ namespace RG
         using ResourceTraits = ResourceTraits<Buffer>;
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
-            return (!enumHasAny(description.Usage, BufferUsage::Upload) &&
+            bool canAlias = (!enumHasAny(description.Usage, BufferUsage::Upload) &&
                     !enumHasAny(description.Usage, BufferUsage::Readback)
                     || otherFrame != 0) &&
                     description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
+            
+            return canAlias;
         }
     };
 

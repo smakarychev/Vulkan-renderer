@@ -40,9 +40,6 @@ Renderer::Renderer() = default;
 void Renderer::Init()
 {
     InitRenderingStructures();
-    //LoadScene();
-    //InitDepthPyramidComputeStructures();
-    //InitVisibilityBufferVisualizationStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetResolution();
     m_Camera = std::make_shared<Camera>();
@@ -62,8 +59,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
-    //m_GraphModelCollection.AddModelInstance("broken helmet", {glm::mat4{1.0f}});
-    m_GraphModelCollection.AddModelInstance("car", {.Transform = {.Position = glm::vec3{0.0f}}});
+    m_GraphModelCollection.AddModelInstance("car", {.Transform = {.Position = glm::vec3{0.0f}, .Scale = glm::vec3{1.0f}}});
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
         [this](auto& obj) {
@@ -195,7 +191,7 @@ void Renderer::SetupRenderGraph()
     // todo: should not create and delete every frame
     Buffer mainCameraBuffer = Buffer::Builder({
             .SizeBytes = sizeof(CameraGPU),
-            .Usage = BufferUsage::Upload | BufferUsage::Upload | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Uniform | BufferUsage::Upload | BufferUsage::DeviceAddress})
         .Build(GetFrameContext().DeletionQueue);
     mainCameraBuffer.SetData(&cameraGPU, sizeof(CameraGPU));
     
@@ -403,7 +399,6 @@ void Renderer::EndFrame()
 
     TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()))
 
-    // todo: is this the best place for it?
     m_ResourceUploader.SubmitUpload(cmd);
     
     cmd.End();
@@ -415,7 +410,8 @@ void Renderer::EndFrame()
             .SignalSemaphores = {&sync.RenderSemaphore},
             .Fence = &sync.RenderFence});
     
-    bool isFramePresentSuccessful = m_Swapchain.PresentImage(m_Device.GetQueues().Presentation, m_SwapchainImageIndex, frameNumber); 
+    bool isFramePresentSuccessful = m_Swapchain.PresentImage(m_Device.GetQueues().Presentation, m_SwapchainImageIndex,
+        frameNumber); 
     bool shouldRecreateSwapchain = m_IsWindowResized || !isFramePresentSuccessful;
     if (shouldRecreateSwapchain)
         RecreateSwapchain();

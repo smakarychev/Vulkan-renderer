@@ -90,6 +90,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     // cull and draw triangles that were visible last frame (this presumably draws most of the triangles)
     m_CullDraw->AddToGraph(renderGraph, {
         .Dispatch = dispatchOut.DispatchIndirect,
+        .CompactCount = dispatchOut.CompactCountSsbo,
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = m_HiZContext.get(),
@@ -118,6 +119,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     // triangle only reocclusion (this updates visibility flags for most of the triangles and draws them)
     m_ReoccludeTrianglesDraw->AddToGraph(renderGraph, {
         .Dispatch = dispatchOut.DispatchIndirect,
+        .CompactCount = dispatchOut.CompactCountSsbo,
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = m_HiZContext.get(),
@@ -151,11 +153,12 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     // this pass also reads back the number of iterations to cull-draw
     m_TrianglePrepareReocclusionDispatch->AddToGraph(renderGraph, *m_TriangleContext);
-    auto& reocclusionDispatchOut = blackboard.Get<TrianglePrepareReocclusionDispatch::PassData>(
+    auto& reocclusionDispatchOutput = blackboard.Get<TrianglePrepareReocclusionDispatch::PassData>(
         m_TrianglePrepareReocclusionDispatch->GetNameHash());
     // reoccluded-meshlets triangle reocclusion updates visibility of triangles of reoccluded meshlets (and draws them) 
     m_ReoccludeDraw->AddToGraph(renderGraph, {
-        .Dispatch = reocclusionDispatchOut.DispatchIndirect,
+        .Dispatch = reocclusionDispatchOutput.DispatchIndirect,
+        .CompactCount = reocclusionDispatchOutput.CompactCountSsbo,
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = m_HiZContext.get(),

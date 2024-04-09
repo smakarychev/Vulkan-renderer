@@ -22,7 +22,6 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGrap
         .SetTemplate(drawTemplate)
         .DepthMode(DepthMode::Read)
         .FaceCullMode(FaceCullMode::Back)
-        .CompatibleWithVertex(VertexP3N3T3UV2::GetInputDescriptionDI())
         .SetRenderingDetails({
             .ColorFormats = {Format::RGBA16_FLOAT},
             .DepthFormat = Format::D32_FLOAT})
@@ -46,9 +45,10 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
     m_MeshletCull->AddToGraph(renderGraph, *m_MeshletContext);
     auto& meshletOutput = blackboard.Get<MeshletCullTranslucentPass::PassData>(m_MeshletCull->GetNameHash());
 
-    m_Draw->AddToGraph(renderGraph, m_MeshContext->Geometry(),{
+    m_Draw->AddToGraph(renderGraph, {
         .Color = info.ColorIn,
         .Depth = info.DepthIn,
+        .Geometry = &m_MeshContext->Geometry(),
         .Commands = meshletOutput.MeshletResources.CommandsSsbo,
         .Resolution = info.Resolution,
         .DepthOnLoad = AttachmentLoad::Load,

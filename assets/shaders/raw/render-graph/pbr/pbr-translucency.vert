@@ -4,24 +4,31 @@
 
 #extension GL_ARB_shader_draw_parameters: enable
 
-@binding : 0
-layout(location = 0) in vec3 a_position;
-@binding : 1
-layout(location = 1) in vec3 a_normal;
-@binding : 2
-layout(location = 2) in vec3 a_tangent;
-@binding : 3
-layout(location = 3) in vec2 a_uv;
-
 layout(set = 1, binding = 0) uniform camera {
     CameraGPU camera;
 } u_camera;
 
-layout(std430, set = 1, binding = 1) readonly buffer object_buffer {
+layout(std430, set = 1, binding = 1) readonly buffer positions_buffer {
+    Position positions[];
+} u_positions;
+
+layout(std430, set = 1, binding = 2) readonly buffer normals_buffer {
+    Normal normals[];
+} u_normals;
+
+layout(std430, set = 1, binding = 3) readonly buffer tangents_buffer {
+    Tangent tangents[];
+} u_tangents;
+
+layout(std430, set = 1, binding = 4) readonly buffer uvs_buffer {
+    UV uvs[];
+} u_uv;
+
+layout(std430, set = 1, binding = 5) readonly buffer object_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 2) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 6) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
@@ -37,12 +44,16 @@ void main() {
 
     const mat4 model = u_objects.objects[vertex_object_index].model;
 
-    vec4 v_position = u_camera.camera.view_projection * model * vec4(a_position, 1.0f);
-    vertex_position = v_position.xyz;
+    const Position position = u_positions.positions[gl_VertexIndex];
+    const vec4 position_v = u_camera.camera.view_projection * model * vec4(position.x, position.y, position.z, 1.0f);
+    vertex_position = position_v.xyz;
 
-    vertex_normal = transpose(inverse(mat3(model))) * vec3(a_normal);
-    vertex_tangent = mat3(model) * vec3(a_tangent);
-    vertex_uv = a_uv;
+    const Normal normal = u_normals.normals[gl_VertexIndex];
+    vertex_normal = transpose(inverse(mat3(model))) * vec3(normal.x, normal.y, normal.z);
+    const Tangent tangent = u_tangents.tangents[gl_VertexIndex];
+    vertex_tangent = mat3(model) * vec3(tangent.x, tangent.y, tangent.z);
+    const UV uv = u_uv.uvs[gl_VertexIndex];
+    vertex_uv = vec2(uv.u, uv.v);
 
-    gl_Position = v_position;
+    gl_Position = position_v;
 }

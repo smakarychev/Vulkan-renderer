@@ -82,10 +82,7 @@ public:
     struct PassResources
     {
         RG::Resource CameraUbo{};
-        RG::Resource PositionsSsbo{};
-        RG::Resource NormalsSsbo{};
-        RG::Resource TangentsSsbo{};
-        RG::Resource UVsSsbo{};
+        RG::DrawAttributeBuffers AttributeBuffers{};
         RG::Resource ObjectsSsbo{};
         RG::Resource CommandsSsbo{};
 
@@ -104,6 +101,7 @@ private:
 struct TriangleCullDrawPassExecutionInfo
 {
     RG::Resource Dispatch{};
+    RG::Resource CompactCount{};
     
     TriangleCullContext* CullContext{nullptr};
     TriangleDrawContext* DrawContext{nullptr};
@@ -477,14 +475,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 }
 
                 // draw subpass data
-                info.DrawContext->Resources().PositionsSsbo = graph.AddExternal(m_Name.Name() + ".Positions",
-                   ctx.Geometry().GetAttributeBuffers().Positions);
-                info.DrawContext->Resources().NormalsSsbo = graph.AddExternal(m_Name.Name() + ".Normals",
-                    ctx.Geometry().GetAttributeBuffers().Normals);
-                info.DrawContext->Resources().TangentsSsbo = graph.AddExternal(m_Name.Name() + ".Tangents",
-                    ctx.Geometry().GetAttributeBuffers().Tangents);
-                info.DrawContext->Resources().UVsSsbo = graph.AddExternal(m_Name.Name() + ".Uvs",
-                    ctx.Geometry().GetAttributeBuffers().UVs);
+                info.DrawContext->Resources().AttributeBuffers = RgUtils::readDrawAttributes(
+                    ctx.Geometry(), graph, m_Name.Name(), Vertex);
                 info.DrawContext->Resources().ObjectsSsbo = graph.AddExternal(m_Name.Name() + ".Objects",
                     ctx.Geometry().GetRenderObjectsBuffer());
             }
@@ -498,8 +490,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             auto& meshletResources = ctx.MeshletContext().Resources();
             meshletResources.VisibilitySsbo = graph.Read(meshletResources.VisibilitySsbo, Compute | Storage);
             meshletResources.CompactCommandsSsbo = graph.Read(meshletResources.CompactCommandsSsbo, Compute | Storage);
-            meshletResources.CompactCountSsbo = graph.Read(meshletResources.CompactCountSsbo, Compute | Storage);
 
+            
             auto& cullResources = ctx.Resources();
             cullResources.SceneUbo = graph.Read(cullResources.SceneUbo, Compute | Uniform | Upload);
             cullResources.TriangleVisibilitySsbo =
@@ -512,10 +504,6 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             auto& drawResources = info.DrawContext->Resources();
             auto& graphGlobals = graph.GetGlobalResources();
             drawResources.CameraUbo = graph.Read(graphGlobals.MainCameraGPU, Vertex | Uniform);
-            drawResources.PositionsSsbo = graph.Read(drawResources.PositionsSsbo, Vertex | Storage);
-            drawResources.NormalsSsbo = graph.Read(drawResources.NormalsSsbo, Vertex | Storage);
-            drawResources.TangentsSsbo = graph.Read(drawResources.TangentsSsbo, Vertex | Storage);
-            drawResources.UVsSsbo = graph.Read(drawResources.UVsSsbo, Vertex | Storage);
             drawResources.ObjectsSsbo = graph.Read(drawResources.ObjectsSsbo, Vertex | Storage);
             drawResources.CommandsSsbo = graph.Read(meshletResources.CommandsSsbo, Vertex | Storage);
 
@@ -585,7 +573,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             passData.ObjectsSsbo = meshResources.ObjectsSsbo;
             passData.MeshletVisibilitySsbo = meshletResources.VisibilitySsbo;
             passData.CompactCommandsSsbo = meshletResources.CompactCommandsSsbo;
-            passData.CompactCountSsbo = meshletResources.CompactCountSsbo;
+            passData.CompactCountSsbo = graph.Read(info.CompactCount, Compute | Storage);
             passData.TriangleCullResources = cullResources;
             passData.TriangleDrawResources = drawResources;
             passData.DrawIndirect = ctx.Resources().DrawIndirect;
@@ -640,10 +628,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             }
 
             const Buffer& cameraUbo = resources.GetBuffer(passData.TriangleDrawResources.CameraUbo); 
-            const Buffer& positionsSsbo = resources.GetBuffer(passData.TriangleDrawResources.PositionsSsbo);
-            const Buffer& normalsSsbo = resources.GetBuffer(passData.TriangleDrawResources.NormalsSsbo);
-            const Buffer& tangentsSsbo = resources.GetBuffer(passData.TriangleDrawResources.TangentsSsbo);
-            const Buffer& uvSsbo = resources.GetBuffer(passData.TriangleDrawResources.UVsSsbo);
+            const Buffer& positionsSsbo = resources.GetBuffer(
+                passData.TriangleDrawResources.AttributeBuffers.PositionsSsbo);
             const Buffer& commandsSsbo = resources.GetBuffer(passData.TriangleDrawResources.CommandsSsbo);
             const Buffer& indicesSsbo = resources.GetBuffer(passData.TriangleCullResources.IndicesSsbo);
             const Buffer& dispatchSsboIndirect = resources.GetBuffer(passData.TriangleCullResources.DispatchIndirect);
@@ -683,14 +669,9 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
 
                 if (enumHasAny(passData.DrawFeatures, Triangles))
                     resourceDescriptors.UpdateBinding("u_triangles", trianglesSsbo[index].BindingInfo());
-                if (enumHasAny(passData.DrawFeatures, Positions))
-                    resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
-                if (enumHasAny(passData.DrawFeatures, Normals))
-                    resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.BindingInfo());
-                if (enumHasAny(passData.DrawFeatures, Tangents))
-                    resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.BindingInfo());
-                if (enumHasAny(passData.DrawFeatures, UV))
-                    resourceDescriptors.UpdateBinding("u_uv", uvSsbo.BindingInfo());
+
+                RgUtils::updateDrawAttributeBindings(resourceDescriptors, resources,
+                    passData.TriangleDrawResources.AttributeBuffers, passData.DrawFeatures);
 
                 if (enumHasAny(passData.DrawFeatures, IBL))
                     RgUtils::updateIBLBindings(resourceDescriptors, resources, *passData.TriangleDrawResources.IBL);
@@ -760,7 +741,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 passData.DrawPipelines->at(0).ImmutableSamplerDescriptors.BindGraphicsImmutableSamplers(
                     frameContext.Cmd, pipeline.GetLayout());
                 passData.DrawPipelines->at(0).MaterialDescriptors.BindGraphics(frameContext.Cmd,
-                            resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                    resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             }
 
             // if there are no batches, we clear the screen (if needed)

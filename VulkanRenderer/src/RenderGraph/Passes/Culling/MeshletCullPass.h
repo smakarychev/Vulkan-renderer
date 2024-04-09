@@ -23,8 +23,8 @@ public:
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
     void UpdateCompactCounts();
-    u32 CompactCountValue() const { return m_CompactCountValues[m_FrameNumber]; }
-    u32 CompactCountReocclusionValue() const { return m_CompactCountReocclusionValues[m_FrameNumber]; }
+    u32 CompactCountValue() const { return ReadbackCount(m_CompactCount[m_FrameNumber]); }
+    u32 CompactCountReocclusionValue() const { return ReadbackCount(m_CompactCountReocclusion[m_FrameNumber]); }
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }

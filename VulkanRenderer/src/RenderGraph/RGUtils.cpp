@@ -1,6 +1,7 @@
 #include "RGUtils.h"
 
 #include "RenderGraph.h"
+#include "RGGeometry.h"
 #include "RenderGraph/RGDrawResources.h"
 
 namespace RG::RgUtils
@@ -19,6 +20,46 @@ namespace RG::RgUtils
         return resource.IsValid() ?
             resource :
             graph.AddExternal(name, fallback);
+    }
+
+    DrawAttributeBuffers readDrawAttributes(const Geometry& geometry, Graph& graph, const std::string& baseName,
+        ResourceAccessFlags shaderStage)
+    {
+        using enum ResourceAccessFlags;
+        
+        DrawAttributeBuffers buffers = {};
+
+        buffers.PositionsSsbo = graph.AddExternal(baseName + ".Positions", geometry.GetAttributeBuffers().Positions);
+        buffers.NormalsSsbo = graph.AddExternal(baseName + ".Normals", geometry.GetAttributeBuffers().Normals);
+        buffers.TangentsSsbo = graph.AddExternal(baseName + ".Tangents", geometry.GetAttributeBuffers().Tangents);
+        buffers.UVsSsbo = graph.AddExternal(baseName + ".Uvs", geometry.GetAttributeBuffers().UVs);
+        
+        buffers.PositionsSsbo = graph.Read(buffers.PositionsSsbo, shaderStage | Storage);
+        buffers.NormalsSsbo = graph.Read(buffers.NormalsSsbo, shaderStage | Storage);
+        buffers.TangentsSsbo = graph.Read(buffers.TangentsSsbo, shaderStage | Storage);
+        buffers.UVsSsbo = graph.Read(buffers.UVsSsbo, shaderStage | Storage);
+
+        return buffers;
+    }
+
+    void updateDrawAttributeBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+        const DrawAttributeBuffers& attributeBuffers, DrawFeatures features)
+    {
+        using enum DrawFeatures;
+
+        const Buffer& positionsSsbo = resources.GetBuffer(attributeBuffers.PositionsSsbo);
+        const Buffer& normalsSsbo = resources.GetBuffer(attributeBuffers.NormalsSsbo);
+        const Buffer& tangentsSsbo = resources.GetBuffer(attributeBuffers.TangentsSsbo);
+        const Buffer& uvSsbo = resources.GetBuffer(attributeBuffers.UVsSsbo);
+
+        if (enumHasAny(features, Positions))
+            descriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
+        if (enumHasAny(features, Normals))
+            descriptors.UpdateBinding("u_normals", normalsSsbo.BindingInfo());
+        if (enumHasAny(features, Tangents))
+            descriptors.UpdateBinding("u_tangents", tangentsSsbo.BindingInfo());
+        if (enumHasAny(features, UV))
+            descriptors.UpdateBinding("u_uv", uvSsbo.BindingInfo());
     }
 
     void updateIBLBindings(const ShaderDescriptors& descriptors, const Resources& resources, const IBLData& iblData)

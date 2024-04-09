@@ -30,19 +30,21 @@ DrawIndirectPass::DrawIndirectPass(RG::Graph& renderGraph, std::string_view name
     }
 }
 
-void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const RG::Geometry& geometry,
-    const DrawIndirectPassExecutionInfo& info)
+void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPassExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
-        [&](Graph& graph, PassData& passData)
+    m_Pass = &renderGraph.AddRenderPass<PassDataPrivate>(m_Name,
+        [&](Graph& graph, PassDataPrivate& passData)
         {
             auto& graphGlobals = graph.GetGlobalResources();
             passData.CameraUbo = graph.Read(graphGlobals.MainCameraGPU, Vertex | Uniform);
+
+            passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, m_Name.Name(), Vertex);
+            
             passData.ObjectsSsbo = graph.AddExternal(m_Name.Name() + ".Objects",
-                geometry.GetRenderObjectsBuffer());
+                info.Geometry->GetRenderObjectsBuffer());
             passData.CommandsIndirect = graph.Read(info.Commands, Vertex | Indirect);
 
             passData.ColorOut = RgUtils::ensureResource(info.Color, graph, m_Name.Name() + ".Color",
@@ -75,9 +77,12 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const RG::Geometry& ge
             passData.PipelineData = &m_PipelineData;
             passData.DrawFeatures = m_Features;
 
-            graph.GetBlackboard().Update(m_Name.Hash(), passData);
+            PassData passDataPublic = {};
+            passDataPublic.ColorOut = passData.ColorOut;
+            passDataPublic.DepthOut = passData.DepthOut;
+            graph.GetBlackboard().Update(m_Name.Hash(), passDataPublic);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("Draw indirect")
 
@@ -91,6 +96,10 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const RG::Geometry& ge
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
             resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
+
+            RgUtils::updateDrawAttributeBindings(resourceDescriptors, resources,
+                passData.AttributeBuffers, passData.DrawFeatures);
+            
             resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commandsDraw.BindingInfo());
 
@@ -110,19 +119,12 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const RG::Geometry& ge
             }
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindIndexU8Buffer(cmd, geometry.GetAttributeBuffers().Indices, 0);
-            RenderCommand::BindVertexBuffers(cmd,
-                {
-                    geometry.GetAttributeBuffers().Positions,
-                    geometry.GetAttributeBuffers().Normals,
-                    geometry.GetAttributeBuffers().Tangents,
-                    geometry.GetAttributeBuffers().UVs},
-                {0, 0, 0, 0});
+            RenderCommand::BindIndexU8Buffer(cmd, info.Geometry->GetAttributeBuffers().Indices, 0);
             
             pipeline.BindGraphics(cmd);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::DrawIndexedIndirect(cmd,
                 commandsDraw, 0,
-                geometry.GetMeshletCount());
+                info.Geometry->GetMeshletCount());
         });
 }
