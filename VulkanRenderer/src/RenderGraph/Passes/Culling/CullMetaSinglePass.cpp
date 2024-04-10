@@ -2,7 +2,7 @@
 
 #include "CullMetaPass.h"
 
-CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaPassInitInfo& info,
+CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaSinglePassInitInfo& info,
     std::string_view name)
         : m_Name(name), m_DrawFeatures(info.DrawFeatures)
 {
@@ -19,8 +19,8 @@ CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaPas
 
     TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
         .DrawFeatures = m_DrawFeatures,
-        .MaterialDescriptors = *info.MaterialDescriptors,
-        .DrawPipeline = *info.DrawPipeline};
+        .DrawTrianglesPipeline = *info.DrawPipeline,
+        .MaterialDescriptors = *info.MaterialDescriptors};
     
     m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
 }
@@ -43,7 +43,7 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
     auto& dispatchOut = blackboard.Get<TrianglePrepareDispatch::PassData>(
         m_TrianglePrepareDispatch->GetNameHash());
 
-    std::vector<TriangleCullDrawPassExecutionInfo::Attachment> colorAttachments;
+    std::vector<DrawAttachment> colorAttachments;
     colorAttachments.reserve(colors.size());
     for (u32 i = 0; i < colors.size(); i++)
     {
@@ -56,7 +56,7 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
                 .OnLoad = info.Colors[i].OnLoad,
                 .OnStore = AttachmentStore::Store}});
     }
-    std::optional<TriangleCullDrawPassExecutionInfo::Attachment> depthAttachment{};
+    std::optional<DrawAttachment> depthAttachment{};
     if (info.Depth.has_value())
         depthAttachment = {
         .Resource = *depth,
@@ -72,15 +72,16 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = &hiZContext,
         .Resolution = info.Resolution,
-        .ColorAttachments = colorAttachments,
-        .DepthAttachment = depthAttachment,
+        .DrawAttachments = {
+            .ColorAttachments = colorAttachments,
+            .DepthAttachment = depthAttachment},
         .IBL = info.IBL,
         .SSAO = info.SSAO});
 
     auto& drawOutput = blackboard.Get<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
 
-    m_PassData.ColorsOut = drawOutput.RenderTargets;
-    m_PassData.DepthOut = drawOutput.DepthTarget;
+    m_PassData.DrawAttachmentResources.RenderTargets = drawOutput.DrawAttachmentResources.RenderTargets;
+    m_PassData.DrawAttachmentResources.DepthTarget = drawOutput.DrawAttachmentResources.DepthTarget;
     
     blackboard.Register(m_Name.Hash(), m_PassData);
 }

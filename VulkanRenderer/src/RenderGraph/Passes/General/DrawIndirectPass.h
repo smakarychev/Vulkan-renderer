@@ -12,18 +12,17 @@ namespace RG
 struct DrawIndirectPassInitInfo
 {
     RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
-    const ShaderPipeline* DrawPipeline{nullptr};
+    ShaderPipeline DrawPipeline{};
     std::optional<ShaderDescriptors> MaterialDescriptors{};
 };
 
 struct DrawIndirectPassExecutionInfo
 {
-    RG::Resource Color{};
-    RG::Resource Depth{};
     const RG::Geometry* Geometry{nullptr};
     RG::Resource Commands{};
     glm::uvec2 Resolution{};
-    AttachmentLoad DepthOnLoad{AttachmentLoad::Load};
+
+    RG::DrawAttachments DrawAttachments{};
 
     std::optional<RG::IBLData> IBL{};
     std::optional<RG::SSAOData> SSAO{};
@@ -34,8 +33,7 @@ class DrawIndirectPass
 public:
     struct PassData
     {
-        RG::Resource ColorOut{};
-        RG::Resource DepthOut{};
+        RG::DrawAttachmentResources DrawAttachmentResources{};
     };
 public:
     DrawIndirectPass(RG::Graph& renderGraph, std::string_view name, const DrawIndirectPassInitInfo& info);
@@ -49,8 +47,7 @@ private:
         RG::Resource ObjectsSsbo{};
         RG::Resource CommandsIndirect{};
         
-        RG::Resource ColorOut{};
-        RG::Resource DepthOut{};
+        RG::DrawAttachmentResources DrawAttachmentResources{};
 
         std::optional<RG::IBLData> IBL{};
         std::optional<RG::SSAOData> SSAO{};

@@ -4,18 +4,26 @@
 #include "RenderGraph/RenderGraph.h"
 
 struct CullMetaPassExecutionInfo;
-struct CullMetaPassInitInfo;
+
+struct CullMetaSinglePassInitInfo
+{
+    using Features = RG::DrawFeatures;
+    const RG::Geometry* Geometry{nullptr};
+    const ShaderPipeline* DrawPipeline{nullptr};
+    const ShaderPipeline* DrawMeshletsPipeline{nullptr};
+    const ShaderDescriptors* MaterialDescriptors{nullptr};
+    Features DrawFeatures{Features::AllAttributes};
+};
 
 class CullMetaSinglePass
 {
 public:
     struct PassData
     {
-        std::vector<RG::Resource> ColorsOut{};
-        std::optional<RG::Resource> DepthOut{};
+        RG::DrawAttachmentResources DrawAttachmentResources{};
     };
 public:
-    CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaPassInitInfo& info, std::string_view name);
+    CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaSinglePassInitInfo& info, std::string_view name);
     void AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info,
         HiZPassContext& hiZContext);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }

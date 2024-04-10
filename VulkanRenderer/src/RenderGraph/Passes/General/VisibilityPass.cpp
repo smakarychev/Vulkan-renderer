@@ -7,18 +7,24 @@ VisibilityPass::VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitI
         "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.shader"},
         "Pass.Visibility", renderGraph.GetArenaAllocators());
 
-    ShaderPipeline pipeline = ShaderPipeline::Builder()
+    ShaderPipeline::Builder pipelineBuilder = ShaderPipeline::Builder()
         .SetTemplate(visibilityTemplate)
         .SetRenderingDetails({
             .ColorFormats = {Format::R32_UINT},
             .DepthFormat = Format::D32_FLOAT})
         .AlphaBlending(AlphaBlending::None)
-        .UseDescriptorBuffer()
+        .UseDescriptorBuffer();
+    
+    ShaderPipeline trianglePipeline = pipelineBuilder
+        .Build();
+    ShaderPipeline meshletPipeline = pipelineBuilder
+        .AddSpecialization("COMPOUND_INDEX", false)
         .Build();
 
     CullMetaPassInitInfo visibilityPassInitInfo = {
         .Geometry = info.Geometry,
-        .DrawPipeline = &pipeline,
+        .DrawTrianglesPipeline = &trianglePipeline,
+        .DrawMeshletsPipeline = &meshletPipeline,
         .MaterialDescriptors = info.MaterialDescriptors,
         .DrawFeatures =
             CullMetaPassInitInfo::Features::AlphaTest |
@@ -51,8 +57,8 @@ void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolu
 
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
     PassData passData = {
-        .ColorOut = output.ColorsOut[0],
-        .DepthOut = *output.DepthOut,
+        .ColorOut = output.DrawAttachmentResources.RenderTargets[0],
+        .DepthOut = *output.DrawAttachmentResources.DepthTarget,
         .HiZOut = output.HiZOut};
     renderGraph.GetBlackboard().Update(passData);
 }

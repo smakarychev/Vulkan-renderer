@@ -10,10 +10,10 @@ DrawIndirectPass::DrawIndirectPass(RG::Graph& renderGraph, std::string_view name
     const DrawIndirectPassInitInfo& info)
         : m_Name(name), m_Features(info.DrawFeatures)
 {
-    m_PipelineData.Pipeline = *info.DrawPipeline;
+    m_PipelineData.Pipeline = info.DrawPipeline;
 
     m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(info.DrawPipeline->GetTemplate(), DescriptorAllocatorKind::Resources)
+        .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Resources)
         .ExtractSet(1)
         .Build();
 
@@ -22,7 +22,7 @@ DrawIndirectPass::DrawIndirectPass(RG::Graph& renderGraph, std::string_view name
         ASSERT(info.MaterialDescriptors.has_value(), "Material desciptors are not provided")
         
         m_PipelineData.ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawPipeline->GetTemplate(), DescriptorAllocatorKind::Samplers)
+            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Samplers)
             .ExtractSet(0)
             .Build();
         
@@ -47,18 +47,7 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
                 info.Geometry->GetRenderObjectsBuffer());
             passData.CommandsIndirect = graph.Read(info.Commands, Vertex | Indirect);
 
-            passData.ColorOut = RgUtils::ensureResource(info.Color, graph, m_Name.Name() + ".Color",
-                GraphTextureDescription{
-                    .Width = info.Resolution.x,
-                    .Height = info.Resolution.y,
-                    .Format = Format::RGBA16_FLOAT});
-            
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut,
-                    info.Color.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear, AttachmentStore::Store,
-                    glm::vec4{0.01f, 0.01f, 0.01f, 1.0f});
-            
-            passData.DepthOut = graph.DepthStencilTarget(info.Depth,
-                info.DepthOnLoad, AttachmentStore::Store, 0.0f);
+            passData.DrawAttachmentResources = RgUtils::readWriteDrawAttachments(info.DrawAttachments, graph);
             
             if (enumHasAny(m_Features, DrawFeatures::IBL))
             {
@@ -78,8 +67,7 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
             passData.DrawFeatures = m_Features;
 
             PassData passDataPublic = {};
-            passDataPublic.ColorOut = passData.ColorOut;
-            passDataPublic.DepthOut = passData.DepthOut;
+            passDataPublic.DrawAttachmentResources  = passData.DrawAttachmentResources;
             graph.GetBlackboard().Update(m_Name.Hash(), passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)

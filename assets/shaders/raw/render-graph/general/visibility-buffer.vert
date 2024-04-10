@@ -4,6 +4,8 @@
 
 #extension GL_ARB_shader_draw_parameters: enable
 
+layout(constant_id = 0) const bool COMPOUND_INDEX = true;
+
 layout(set = 1, binding = 0) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
@@ -28,15 +30,28 @@ layout(location = 0) out uint vertex_command_id;
 layout(location = 1) out vec2 vertex_uv;
 
 void main() {
-    const VisibilityInfo visibility_info = unpack_visibility(gl_VertexIndex);
-    const uint command_id = visibility_info.instance_id;
-    vertex_command_id = command_id;
-    const uint index = visibility_info.triangle_id;
+    uint argument_index;
+    IndirectCommand command;
+    
+    if (COMPOUND_INDEX) {
+        const VisibilityInfo visibility_info = unpack_visibility(gl_VertexIndex);
+        const uint command_id = visibility_info.instance_id;
+        vertex_command_id = command_id;
+        const uint index = visibility_info.triangle_id;
 
-    const IndirectCommand command = u_commands.commands[command_id];
+        command = u_commands.commands[command_id];
+
+        argument_index = command.vertexOffset + index;
+    }
+    else {
+        command = u_commands.commands[gl_DrawIDARB];
+        
+        vertex_command_id = gl_DrawIDARB;
+        argument_index = gl_VertexIndex;
+    }
+
     const uint object_index = command.render_object;
-
-    const uint argument_index = command.vertexOffset + index;
+    const mat4 model = u_objects.objects[object_index].model;
 
     const Position position = u_positions.positions[argument_index];
     const vec3 position_v = vec3(position.x, position.y, position.z);
@@ -44,5 +59,5 @@ void main() {
     const UV uv = u_uv.uvs[argument_index];
     vertex_uv = vec2(uv.u, uv.v);
     
-    gl_Position = u_camera.camera.view_projection * u_objects.objects[object_index].model * vec4(position_v, 1.0);
+    gl_Position = u_camera.camera.view_projection * model * vec4(position_v, 1.0);
 }

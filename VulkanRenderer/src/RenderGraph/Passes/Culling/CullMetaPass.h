@@ -6,14 +6,14 @@
 
 #include <memory>
 
-class DrawIndirectCulledPass;
-class DrawIndirectCulledContext;
+class DrawIndirectCountPass;
 
 struct CullMetaPassInitInfo
 {
     using Features = RG::DrawFeatures;
     const RG::Geometry* Geometry{nullptr};
-    const ShaderPipeline* DrawPipeline{nullptr};
+    const ShaderPipeline* DrawTrianglesPipeline{nullptr};
+    const ShaderPipeline* DrawMeshletsPipeline{nullptr};
     const ShaderDescriptors* MaterialDescriptors{nullptr};
     Features DrawFeatures{Features::AllAttributes};
 };
@@ -48,8 +48,8 @@ class CullMetaPass
 public:
     struct PassData
     {
-        std::vector<RG::Resource> ColorsOut{};
-        std::optional<RG::Resource> DepthOut{};
+        RG::DrawAttachmentResources DrawAttachmentResources{};
+
         RG::Resource HiZOut{};
     };
 public:
@@ -103,4 +103,6 @@ private:
     std::shared_ptr<TriangleCullDraw> m_CullDraw;
     std::shared_ptr<TriangleReoccludeDraw> m_ReoccludeTrianglesDraw;
     std::shared_ptr<TriangleReoccludeDraw> m_ReoccludeDraw;
+
+    std::shared_ptr<DrawIndirectCountPass> m_DrawIndirectCountPass;
 };

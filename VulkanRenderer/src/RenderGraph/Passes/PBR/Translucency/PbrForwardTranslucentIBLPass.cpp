@@ -30,7 +30,7 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGrap
     
     m_Draw = std::make_shared<DrawIndirectPass>(renderGraph, name + ".Draw", DrawIndirectPassInitInfo{
         .DrawFeatures = RG::DrawFeatures::ShadedIBL,
-        .DrawPipeline = &drawPipeline,
+        .DrawPipeline = drawPipeline,
         .MaterialDescriptors = *info.MaterialDescriptors});
 }
 
@@ -46,17 +46,29 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
     auto& meshletOutput = blackboard.Get<MeshletCullTranslucentPass::PassData>(m_MeshletCull->GetNameHash());
 
     m_Draw->AddToGraph(renderGraph, {
-        .Color = info.ColorIn,
-        .Depth = info.DepthIn,
         .Geometry = &m_MeshContext->Geometry(),
         .Commands = meshletOutput.MeshletResources.CommandsSsbo,
         .Resolution = info.Resolution,
-        .DepthOnLoad = AttachmentLoad::Load,
+        .DrawAttachments = {
+            .ColorAttachments = {DrawAttachment{
+                .Resource = info.ColorIn,
+                .Description = {
+                    .Type = RenderingAttachmentType::Color,
+                    .Clear = {.Color = {.F = {0.1f, 0.1f, 0.1f, 1.0f}}},
+                    .OnLoad = info.ColorIn.IsValid() ?
+                        AttachmentLoad::Load : AttachmentLoad::Clear,
+                    .OnStore = AttachmentStore::Store}}},
+            .DepthAttachment = DrawAttachment{
+                .Resource = info.DepthIn,
+                .Description = {
+                    .Type = RenderingAttachmentType::Depth,
+                    .OnLoad = AttachmentLoad::Load,
+                    .OnStore = AttachmentStore::Store}}},
         .IBL = info.IBL});
     auto& drawOutput = blackboard.Get<DrawIndirectPass::PassData>(m_Draw->GetNameHash());
 
-    m_PassData.ColorOut = drawOutput.ColorOut;
-    m_PassData.DepthOut = drawOutput.DepthOut;
+    m_PassData.ColorOut = drawOutput.DrawAttachmentResources.RenderTargets[0];
+    m_PassData.DepthOut = *drawOutput.DrawAttachmentResources.DepthTarget;
     
     blackboard.Register(m_PassData);
 }

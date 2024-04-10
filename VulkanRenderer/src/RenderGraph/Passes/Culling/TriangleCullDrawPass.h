@@ -72,8 +72,9 @@ private:
 struct TriangleCullDrawPassInitInfo
 {
     RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
+    ShaderPipeline DrawTrianglesPipeline{};
+    ShaderPipeline DrawMeshletsPipeline{};
     std::optional<ShaderDescriptors> MaterialDescriptors{};
-    ShaderPipeline DrawPipeline{};
 };
 
 class TriangleDrawContext
@@ -89,8 +90,7 @@ public:
         std::optional<RG::IBLData> IBL{};
         std::optional<RG::SSAOData> SSAO{};
 
-        std::vector<RG::Resource> RenderTargets{};
-        std::optional<RG::Resource> DepthTarget{};
+        RG::DrawAttachmentResources DrawAttachmentResources{};
     };
 public:
     PassResources& Resources() { return m_Resources; }
@@ -108,13 +108,7 @@ struct TriangleCullDrawPassExecutionInfo
     HiZPassContext* HiZContext;
     glm::uvec2 Resolution;
 
-    struct Attachment
-    {
-        RG::Resource Resource{};
-        RenderingAttachmentDescription Description{};
-    };
-    std::vector<Attachment> ColorAttachments;
-    std::optional<Attachment> DepthAttachment;
+    RG::DrawAttachments DrawAttachments{};
 
     std::optional<RG::IBLData> IBL{};
     std::optional<RG::SSAOData> SSAO{};
@@ -182,8 +176,7 @@ public:
     };
     struct PassData
     {
-        std::vector<RG::Resource> RenderTargets{};
-        std::optional<RG::Resource> DepthTarget{};
+        RG::DrawAttachmentResources DrawAttachmentResources{};
     };
 public:
     TriangleCullDrawPass(RG::Graph& renderGraph, const TriangleCullDrawPassInitInfo& info,
@@ -367,7 +360,7 @@ TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph,
     ShaderDescriptors immutableSamplers = {};
     if (info.MaterialDescriptors.has_value())
         immutableSamplers = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Samplers)
+            .SetTemplate(info.DrawTrianglesPipeline.GetTemplate(), DescriptorAllocatorKind::Samplers)
             .ExtractSet(0)
             .Build();
     
@@ -400,10 +393,10 @@ TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph,
             .ExtractSet(1)
             .Build();
 
-        m_DrawPipelines[i].Pipeline = info.DrawPipeline;
+        m_DrawPipelines[i].Pipeline = info.DrawTrianglesPipeline;
 
         m_DrawPipelines[i].ResourceDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Resources)
+            .SetTemplate(info.DrawTrianglesPipeline.GetTemplate(), DescriptorAllocatorKind::Resources)
             .ExtractSet(1)
             .Build();
         
@@ -542,27 +535,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 ctx.Resources().DrawIndirect[i] = graph.Read(ctx.Resources().DrawIndirect[i], Indirect);
             }
 
-            info.DrawContext->Resources().RenderTargets.clear();
-            info.DrawContext->Resources().DepthTarget = {};
-            for (u32 attachmentIndex = 0; attachmentIndex < info.ColorAttachments.size(); attachmentIndex++)
-            {
-                auto& attachment = info.ColorAttachments[attachmentIndex];
-                Resource resource = attachment.Resource;
-                info.DrawContext->Resources().RenderTargets.push_back(graph.RenderTarget(
-                    resource,
-                    attachment.Description.OnLoad, attachment.Description.OnStore,
-                    attachment.Description.Clear.Color.F));
-            }
-            if (info.DepthAttachment.has_value())
-            {
-                auto& attachment = *info.DepthAttachment;
-                Resource resource = attachment.Resource;
-                info.DrawContext->Resources().DepthTarget = graph.DepthStencilTarget(
-                    resource,
-                    attachment.Description.OnLoad, attachment.Description.OnStore,
-                    attachment.Description.Clear.DepthStencil.Depth,
-                    attachment.Description.Clear.DepthStencil.Stencil);
-            }
+            info.DrawContext->Resources().DrawAttachmentResources = RgUtils::readWriteDrawAttachments(
+                info.DrawAttachments, graph);
         
             if constexpr(Stage != CullStage::Reocclusion)
                 passData.HiZ = meshResources.HiZ;
@@ -588,8 +562,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             passData.SplitBarrierDependency = &m_SplitBarrierDependency;
 
             PassData passDataPublic = {};
-            passDataPublic.RenderTargets = passData.TriangleDrawResources.RenderTargets;
-            passDataPublic.DepthTarget = passData.TriangleDrawResources.DepthTarget;
+            passDataPublic.DrawAttachmentResources = passData.TriangleDrawResources.DrawAttachmentResources;
             graph.GetBlackboard().Update(m_Name.Hash(), passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
@@ -683,11 +656,11 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             {
                 RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
                     .SetResolution(info.Resolution);
-                auto& colors = passData.TriangleDrawResources.RenderTargets;
-                auto& depth = passData.TriangleDrawResources.DepthTarget;
+                auto& colors = passData.TriangleDrawResources.DrawAttachmentResources.RenderTargets;
+                auto& depth = passData.TriangleDrawResources.DrawAttachmentResources.DepthTarget;
                 for (u32 attachmentIndex = 0; attachmentIndex < colors.size(); attachmentIndex++)
                 {
-                    auto description = info.ColorAttachments[attachmentIndex].Description;
+                    auto description = info.DrawAttachments.ColorAttachments[attachmentIndex].Description;
                     if (!canClear)
                         description.OnLoad = AttachmentLoad::Load;
 
@@ -698,7 +671,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 }
                 if (depth.has_value())
                 {
-                    auto description = info.DepthAttachment->Description;
+                    auto description = info.DrawAttachments.DepthAttachment->Description;
                     if (!canClear)
                         description.OnLoad = AttachmentLoad::Load;
 

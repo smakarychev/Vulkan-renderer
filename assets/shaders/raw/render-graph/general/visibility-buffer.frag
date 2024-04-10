@@ -4,6 +4,8 @@
 
 #extension GL_EXT_nonuniform_qualifier: require
 
+layout(constant_id = 0) const bool COMPOUND_INDEX = true;
+
 layout(location = 0) in flat uint vertex_command_id;
 layout(location = 1) in vec2 vertex_uv;
 
@@ -28,9 +30,9 @@ layout(set = 2, binding = 1) uniform texture2D u_textures[];
 layout(location = 0) out uint out_visibility_info;
 
 void main() {
-    IndirectCommand command = u_commands.commands[vertex_command_id];
-    uint object_index = command.render_object;
-    Material material = u_materials.materials[object_index];
+    const IndirectCommand command = u_commands.commands[vertex_command_id];
+    const uint object_index = command.render_object;
+    const Material material = u_materials.materials[object_index];
 
     float alpha = material.albedo_color.a;
     alpha *= texture(nonuniformEXT(
@@ -39,8 +41,16 @@ void main() {
     if (alpha < 0.5f)
         discard;
 
-    uint instance_id = vertex_command_id;
-    uint triangle_id = uint(u_triangles.triangles[gl_PrimitiveID]);
+    uint instance_id;
+    uint triangle_id;
+    if (COMPOUND_INDEX) {
+        instance_id = vertex_command_id;
+        triangle_id = uint(u_triangles.triangles[gl_PrimitiveID]);
+    }
+    else {
+        instance_id = command.firstInstance;
+        triangle_id = gl_PrimitiveID;
+    }
     
     VisibilityInfo info;
     info.instance_id = instance_id;

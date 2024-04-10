@@ -13,19 +13,25 @@ PbrTCForwardIBLPass::PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwar
         "../assets/shaders/processed/render-graph/pbr/pbr-ibl-frag.shader"},
         "Pass.Pbr.Forward.IBL", renderGraph.GetArenaAllocators());
 
-    ShaderPipeline pipeline = ShaderPipeline::Builder()
+    ShaderPipeline::Builder pipelineBuilder = ShaderPipeline::Builder()
         .SetTemplate(pbrTemplate)
         .AddSpecialization("MAX_REFLECTION_LOD",
             (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
         .SetRenderingDetails({
             .ColorFormats = {Format::RGBA16_FLOAT},
             .DepthFormat = Format::D32_FLOAT})
-        .UseDescriptorBuffer()
+        .UseDescriptorBuffer();
+    
+    ShaderPipeline trianglePipeline = pipelineBuilder
+        .Build();
+    ShaderPipeline meshletPipeline = pipelineBuilder
+        .AddSpecialization("COMPOUND_INDEX", false)
         .Build();
 
     CullMetaPassInitInfo pbrPassInitInfo = {
         .Geometry = info.Geometry,
-        .DrawPipeline = &pipeline,
+        .DrawTrianglesPipeline = &trianglePipeline,
+        .DrawMeshletsPipeline = &meshletPipeline,
         .MaterialDescriptors = info.MaterialDescriptors,
         .DrawFeatures = CullMetaPassInitInfo::Features::ShadedIBL};
 
@@ -52,7 +58,7 @@ void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBL
     m_Pass->AddToGraph(renderGraph, executionInfo);
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
     PassData passData = {
-        .ColorOut = output.ColorsOut[0],
-        .DepthOut = *output.DepthOut};
+        .ColorOut = output.DrawAttachmentResources.RenderTargets[0],
+        .DepthOut = *output.DrawAttachmentResources.DepthTarget};
     renderGraph.GetBlackboard().Update(m_Name.Hash(), passData);
 }

@@ -54,7 +54,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
