@@ -42,6 +42,32 @@ namespace RG::RgUtils
         return buffers;
     }
 
+    DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph)
+    {
+        DrawAttachmentResources drawAttachmentResources = {};
+        
+        for (auto& attachment : attachments.ColorAttachments)
+        {
+            Resource resource = attachment.Resource;
+            drawAttachmentResources.RenderTargets.push_back(graph.RenderTarget(
+                resource,
+                attachment.Description.OnLoad, attachment.Description.OnStore,
+                attachment.Description.Clear.Color.F));
+        }
+        if (attachments.DepthAttachment.has_value())
+        {
+            auto& attachment = *attachments.DepthAttachment;
+            Resource resource = attachment.Resource;
+            drawAttachmentResources.DepthTarget = graph.DepthStencilTarget(
+                resource,
+                attachment.Description.OnLoad, attachment.Description.OnStore,
+                attachment.Description.Clear.DepthStencil.Depth,
+                attachment.Description.Clear.DepthStencil.Stencil);
+        }
+
+        return drawAttachmentResources;
+    }
+
     void updateDrawAttributeBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const DrawAttributeBuffers& attributeBuffers, DrawFeatures features)
     {

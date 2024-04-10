@@ -21,7 +21,8 @@ namespace RG::RgUtils
         ImageUtils::DefaultTexture fallback);
 
     DrawAttributeBuffers readDrawAttributes(const Geometry& geometry, Graph& graph, const std::string& baseName,
-        ResourceAccessFlags shaderStage);  
+        ResourceAccessFlags shaderStage);
+    DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
 
     void updateDrawAttributeBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const DrawAttributeBuffers& attributeBuffers, DrawFeatures features);

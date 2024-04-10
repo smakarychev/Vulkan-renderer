@@ -1,5 +1,6 @@
 #pragma once
 #include "RGResource.h"
+#include "Rendering/RenderingInfo.h"
 
 /* Draw resources that are commonly used by different draw passes
  * Draw features control what resources are actually used 
@@ -58,6 +59,24 @@ namespace RG
         Resource NormalsSsbo{};
         Resource TangentsSsbo{};
         Resource UVsSsbo{};
+    };
+
+    struct DrawAttachment
+    {
+        Resource Resource{};
+        RenderingAttachmentDescription Description{};
+    };
+
+    struct DrawAttachments
+    {
+        std::vector<DrawAttachment> ColorAttachments{};
+        std::optional<DrawAttachment> DepthAttachment{};
+    };
+
+    struct DrawAttachmentResources
+    {
+        std::vector<Resource> RenderTargets{};
+        std::optional<Resource> DepthTarget{};
     };
 }
 
