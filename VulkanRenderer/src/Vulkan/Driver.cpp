@@ -1236,8 +1236,8 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
 
         shaders.push_back(shaderStageCreateInfo);
     }
-    
-    std::vector<VkSpecializationMapEntry> shaderSpecializationEntries;
+
+    std::vector<std::vector<VkSpecializationMapEntry>> shaderSpecializationEntries(createInfo.Shaders.size()); 
     std::vector<VkSpecializationInfo> shaderSpecializationInfos;
     shaderSpecializationInfos.reserve(createInfo.Shaders.size());
     u32 entriesOffset = 0;
@@ -1247,20 +1247,18 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         VkSpecializationInfo shaderSpecializationInfo = {};
         for (const auto& specialization : createInfo.ShaderSpecialization.ShaderSpecializations)
             if (enumHasAny(createInfo.Shaders[shaderIndex].m_Stage, specialization.ShaderStages))
-                shaderSpecializationEntries.push_back({
+                shaderSpecializationEntries[shaderIndex].push_back({
                     .constantID = specialization.Id,
                     .offset = specialization.Offset,
                     .size = specialization.SizeBytes});
 
         shaderSpecializationInfo.dataSize = createInfo.ShaderSpecialization.Buffer.size();
         shaderSpecializationInfo.pData = createInfo.ShaderSpecialization.Buffer.data();
-        shaderSpecializationInfo.mapEntryCount = (u32)shaderSpecializationEntries.size() - entriesOffset;
-        shaderSpecializationInfo.pMapEntries = shaderSpecializationEntries.data() + entriesOffset;
+        shaderSpecializationInfo.mapEntryCount = (u32)shaderSpecializationEntries[shaderIndex].size();
+        shaderSpecializationInfo.pMapEntries = shaderSpecializationEntries[shaderIndex].data();
 
         shaderSpecializationInfos.push_back(shaderSpecializationInfo);
         shader.pSpecializationInfo = &shaderSpecializationInfos.back();
-
-        entriesOffset = (u32)shaderSpecializationEntries.size();
     }
     
     Pipeline pipeline = {};
