@@ -10,6 +10,35 @@ TriangleCullContext::TriangleCullContext(MeshletCullContext& meshletCullContext)
                 (u32)sizeof(RG::Geometry::TriangleVisibilityType)),
             .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
         .Build();
+
+    for (u32 frameIndex = 0; frameIndex < BUFFERED_FRAMES; frameIndex++)
+    {
+        auto& batches = m_BatchesBuffers[frameIndex];
+        for (u32 i = 0; i < MAX_BATCHES; i++)
+        {
+            using enum BufferUsage;
+            
+            batches.Triangles[i] = Buffer::Builder({
+                    .SizeBytes = GetTriangleCount() * sizeof(TriangleType),
+                    .Usage = DeviceAddress | Storage})
+                .Build();
+
+            batches.Indices[i] = Buffer::Builder({
+                    .SizeBytes = GetIndexCount() * sizeof(IndexType),
+                    .Usage = DeviceAddress | Storage | Index})
+                .Build();
+            
+            batches.Count[i] = Buffer::Builder({
+                    .SizeBytes = sizeof(u32),
+                    .Usage = DeviceAddress | Storage})
+                .Build();
+            
+            batches.Draw[i] = Buffer::Builder({
+                    .SizeBytes = sizeof(IndirectDrawCommand),
+                    .Usage = DeviceAddress | Storage | Indirect})
+                .Build();
+        }
+    }
 }
 
 
@@ -97,14 +126,14 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
 
             // todo: fix me! this is bad! please!
             // readback cull iteration count
-            //resources.GetGraph()->OnCmdEnd(frameContext);
-            //cmd.End();
-            //Fence readbackFence = Fence::Builder().BuildManualLifetime();
-            //cmd.Submit(Driver::GetDevice().GetQueues().Graphics, readbackFence);
-            //readbackFence.Wait();
-            //Fence::Destroy(readbackFence);
-            //cmd.Begin();
-            //resources.GetGraph()->OnCmdBegin(frameContext);
+            resources.GetGraph()->OnCmdEnd(frameContext);
+            cmd.End();
+            Fence readbackFence = Fence::Builder().BuildManualLifetime();
+            cmd.Submit(Driver::GetDevice().GetQueues().Graphics, readbackFence);
+            readbackFence.Wait();
+            Fence::Destroy(readbackFence);
+            cmd.Begin();
+            resources.GetGraph()->OnCmdBegin(frameContext);
 
             RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
                 .MemoryDependency({
@@ -114,11 +143,11 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
                     .DestinationAccess = PipelineAccess::ReadHost})
                 .Build(frameContext.DeletionQueue));
             
-            u32 visibleMeshletsValue = 0;
-            visibleMeshletsValue = passData.Context->MeshletContext().CompactCountValue();
+            u32 visibleMeshletsValue = passData.Context->MeshletContext().CompactCountValue();
             
             u32 commandCount = TriangleCullContext::GetCommandCount();
             u32 iterationCount = visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0);
+            // todo: fix me!
             passData.Context->SetIterationCount(iterationCount);
             passData.Context->ResetIteration();
         });

@@ -195,7 +195,7 @@ void Renderer::SetupRenderGraph()
         .Build(GetFrameContext().DeletionQueue);
     mainCameraBuffer.SetData(&cameraGPU, sizeof(CameraGPU));
     
-    RG::GlobalResources globalResources = {
+    GlobalResources globalResources = {
         .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer)};
     m_Graph->GetBlackboard().Register(globalResources);
 
@@ -213,8 +213,8 @@ void Renderer::SetupRenderGraph()
     auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().Get<SsaoBlurPass::PassData>(
             m_SsaoBlurVerticalPass->GetNameHash());
         
-    m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
-    backbuffer = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>().ColorOut;
+    //m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
+    //backbuffer = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>().ColorOut;
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
         .VisibilityTexture = visibility.ColorOut,

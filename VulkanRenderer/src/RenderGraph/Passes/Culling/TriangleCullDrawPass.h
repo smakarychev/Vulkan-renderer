@@ -13,7 +13,7 @@
 class TriangleCullContext
 {
 public:
-    static constexpr u32 MAX_BATCHES = 2;
+    static constexpr u32 MAX_BATCHES = 5;
     static constexpr u32 MAX_TRIANGLES = 128'000;
     static constexpr u32 MAX_INDICES = MAX_TRIANGLES * 3;
     static constexpr u32 MAX_COMMANDS = MAX_TRIANGLES / assetLib::ModelInfo::TRIANGLES_PER_MESHLET;
@@ -30,6 +30,13 @@ public:
         std::array<RG::Resource, MAX_BATCHES> IndicesCulledSsbo{};
         std::array<RG::Resource, MAX_BATCHES> IndicesCulledCountSsbo{};
         std::array<RG::Resource, MAX_BATCHES> DrawIndirect{};
+    };
+    struct BatchesBuffers
+    {
+        std::array<Buffer, MAX_BATCHES> Indices;
+        std::array<Buffer, MAX_BATCHES> Triangles;
+        std::array<Buffer, MAX_BATCHES> Count;
+        std::array<Buffer, MAX_BATCHES> Draw;
     };
 public:
     TriangleCullContext(MeshletCullContext& meshletCullContext);
@@ -48,12 +55,12 @@ public:
     }
 
     const Buffer& Visibility() { return m_Visibility; }
+    const BatchesBuffers& GetBatchesBuffers(u32 frameIndex) { return m_BatchesBuffers[frameIndex]; }
     const RG::Geometry& Geometry() { return m_MeshletCullContext->Geometry(); }
     MeshletCullContext& MeshletContext() { return *m_MeshletCullContext; }
     PassResources& Resources() { return m_Resources; }
 
     u32 Iteration() const { return m_Iteration; }
-    void NextIteration() { m_Iteration++; }
     void ResetIteration() { m_Iteration = 0; }
 
     void SetIterationCount(u32 count) { m_IterationCount = count; }
@@ -61,6 +68,8 @@ public:
     
 private:
     Buffer m_Visibility;
+    
+    std::array<BatchesBuffers, BUFFERED_FRAMES> m_BatchesBuffers;
 
     u32 m_Iteration{0};
     u32 m_IterationCount{0};
@@ -323,30 +332,26 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 ctx.Resources().IndicesSsbo = graph.AddExternal(std::format("{}.{}", m_Name.Name(), "Indices"),
                    ctx.Geometry().GetAttributeBuffers().Indices);
 
+                // todo: remove me!
+                static u32 FRAME = 0;
+                FRAME = (FRAME + 1) % BUFFERED_FRAMES;
+                
                 for (u32 i = 0; i < ctx.MAX_BATCHES; i++)
                 {
                     std::string name = std::format("{}.{}", m_Name.Name(), i);
+                    auto& batchData = ctx.GetBatchesBuffers(FRAME);
 
-                    ctx.Resources().TrianglesSsbo[i] = graph.CreateResource(
-                        std::format("{}.{}", m_Name.Name(), "Triangles"),
-                            GraphBufferDescription{
-                                .SizeBytes =
-                                    TriangleCullContext::GetTriangleCount() *
-                                        sizeof(TriangleCullContext::TriangleType)});
+                    ctx.Resources().TrianglesSsbo[i] = graph.AddExternal(
+                        std::format("{}.{}", m_Name.Name(), "Triangles"), batchData.Triangles[i]);
                     
-                    ctx.Resources().IndicesCulledSsbo[i] =
-                        graph.CreateResource(std::format("{}.{}", name, "Indices.Culled"),
-                            GraphBufferDescription{
-                                .SizeBytes =
-                                    TriangleCullContext::GetIndexCount() * sizeof(TriangleCullContext::IndexType)});
+                    ctx.Resources().IndicesCulledSsbo[i] = graph.AddExternal(
+                        std::format("{}.{}", name, "Indices.Culled"), batchData.Indices[i]);
                     
-                    ctx.Resources().IndicesCulledCountSsbo[i] =
-                        graph.CreateResource(std::format("{}.{}", name, "CulledCount"),
-                            GraphBufferDescription{.SizeBytes = sizeof(u32)});
+                    ctx.Resources().IndicesCulledCountSsbo[i] = graph.AddExternal(
+                        std::format("{}.{}", name, "CulledCount"), batchData.Count[i]);
 
-                    ctx.Resources().DrawIndirect[i] =
-                        graph.CreateResource(std::format("{}.{}", name, "DrawIndirect"),
-                            GraphBufferDescription{.SizeBytes = sizeof(IndirectDrawCommand)});
+                    ctx.Resources().DrawIndirect[i] = graph.AddExternal(
+                        std::format("{}.{}", name, "DrawIndirect"), batchData.Draw[i]);
                 }
 
                 // draw subpass data
