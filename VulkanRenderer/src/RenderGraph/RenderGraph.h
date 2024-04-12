@@ -46,10 +46,11 @@ namespace RG
         using ResourceTraits = ResourceTraits<Buffer>;
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
-            bool canAlias = (!enumHasAny(description.Usage, BufferUsage::Upload) &&
-                    !enumHasAny(description.Usage, BufferUsage::Readback)
-                    || otherFrame != 0) &&
-                    description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
+            bool canAlias = (
+                !enumHasAny(description.Usage, BufferUsage::Upload) &&
+                !enumHasAny(description.Usage, BufferUsage::Readback)
+                || otherFrame != 0) &&
+                description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
             
             return canAlias;
         }
@@ -61,7 +62,8 @@ namespace RG
         using ResourceTraits = ResourceTraits<Texture>;
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
-            bool canAlias = description.Height == other.Height &&
+            bool canAlias =
+                description.Height == other.Height &&
                 description.Width == other.Width &&
                 description.Layers == other.Layers &&
                 description.Mipmaps == other.Mipmaps &&
@@ -138,25 +140,22 @@ namespace RG
         void ClearUnreferenced()
         {
             for (auto& resource : m_Buffers.Resources)
-            {
                 resource.LastFrame++;
-                if (resource.LastFrame == MAX_UNREFERENCED_FRAMES)
-                {
-                    std::swap(resource, m_Buffers.Resources.back());
-                    Buffer::Destroy(*m_Buffers.Resources.back().Resource);
-                    m_Buffers.Resources.pop_back();
-                }
-            }
             for (auto& resource : m_Textures.Resources)
-            {
                 resource.LastFrame++;
-                if (resource.LastFrame == MAX_UNREFERENCED_FRAMES)
-                {
-                    std::swap(resource, m_Textures.Resources.back());
-                    Texture::Destroy(*m_Textures.Resources.back().Resource);
-                    m_Textures.Resources.pop_back();
-                }
-            }
+
+            auto unorderedRemove = [this](auto& collection, auto&& onDeleteFn)
+            {
+                auto toRemoveIt = std::ranges::partition(collection.Resources,
+                    [](auto& r) { return r.LastFrame != MAX_UNREFERENCED_FRAMES; }).begin();
+
+                for (auto it = toRemoveIt; it != collection.Resources.end(); it++)
+                    onDeleteFn(*it->Resource);
+                collection.Resources.erase(toRemoveIt, collection.Resources.end());
+            };
+
+            unorderedRemove(m_Buffers, [](const Buffer& buffer) { Buffer::Destroy(buffer); });
+            unorderedRemove(m_Textures, [](const Texture& texture) { Texture::Destroy(texture); });
         }
     private:
         template <typename T>
