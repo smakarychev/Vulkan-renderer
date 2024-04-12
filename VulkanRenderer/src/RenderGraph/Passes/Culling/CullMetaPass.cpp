@@ -19,9 +19,7 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
     m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull");
     m_MeshletReocclusion = std::make_shared<MeshletReocclusion>(renderGraph, m_Name.Name() + ".MeshletCull");
 
-    m_TrianglePrepareDispatch = std::make_shared<TrianglePrepareDispatch>(
-        renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
-    m_TrianglePrepareReocclusionDispatch = std::make_shared<TrianglePrepareReocclusionDispatch>(
+    m_TrianglePrepareDispatch = std::make_shared<TriangleCullPrepareDispatchPass>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
 
     TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
@@ -53,8 +51,6 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
         m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution, renderGraph.GetResolutionDeletionQueue());
     }
 
-    m_MeshletContext->UpdateCompactCounts();
-    
     auto& blackboard = renderGraph.GetBlackboard();
 
     auto colors = EnsureColors(renderGraph, info, m_Name);
@@ -68,7 +64,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     // this pass also reads back the number of iterations to cull-draw
     m_TrianglePrepareDispatch->AddToGraph(renderGraph, *m_TriangleContext);
-    auto& dispatchOut = blackboard.Get<TrianglePrepareDispatch::PassData>(
+    auto& dispatchOut = blackboard.Get<TriangleCullPrepareDispatchPass::PassData>(
         m_TrianglePrepareDispatch->GetNameHash());
 
     std::vector<DrawAttachment> colorAttachments;

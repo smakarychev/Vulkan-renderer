@@ -77,9 +77,6 @@ private:
     using MeshletCull = MeshletCullPass;
     using MeshletReocclusion = MeshletCullReocclusionPass;
 
-    using TrianglePrepareDispatch = TriangleCullPrepareDispatchPass<CullStage::Cull>;
-    using TrianglePrepareReocclusionDispatch = TriangleCullPrepareDispatchPass<CullStage::Reocclusion>;
-
     std::shared_ptr<HiZPassContext> m_HiZContext;
     std::shared_ptr<HiZ> m_HiZ;
     std::shared_ptr<HiZ> m_HiZReocclusion;
@@ -94,8 +91,7 @@ private:
 
     std::shared_ptr<TriangleCullContext> m_TriangleContext;
     std::shared_ptr<TriangleDrawContext> m_TriangleDrawContext;
-    std::shared_ptr<TrianglePrepareDispatch> m_TrianglePrepareDispatch; 
-    std::shared_ptr<TrianglePrepareReocclusionDispatch> m_TrianglePrepareReocclusionDispatch;
+    std::shared_ptr<TriangleCullPrepareDispatchPass> m_TrianglePrepareDispatch; 
 
     using TriangleCullDraw = TriangleCullDrawPass<CullStage::Cull>;
     using TriangleReoccludeDraw = TriangleCullDrawPass<CullStage::Reocclusion>;

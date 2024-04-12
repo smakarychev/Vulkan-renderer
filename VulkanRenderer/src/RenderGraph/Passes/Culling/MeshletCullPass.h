@@ -22,13 +22,11 @@ public:
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
-    void UpdateCompactCounts();
     u32 CompactCountValue() const { return ReadbackCount(m_CompactCount[m_FrameNumber]); }
-    u32 CompactCountReocclusionValue() const { return ReadbackCount(m_CompactCountReocclusion[m_FrameNumber]); }
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
-    const Buffer& CompactCountReocclusion() const { return m_CompactCountReocclusion[m_FrameNumber]; }
+    const Buffer& CompactCountReocclusion() const { return m_CompactCountReocclusion; }
     const RG::Geometry& Geometry() const { return m_MeshCullContext->Geometry(); }
     MeshCullContext& MeshContext() const { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
@@ -40,7 +38,7 @@ private:
     /* can be detached from real frame number */
     u32 m_FrameNumber{0};
     std::array<Buffer, BUFFERED_FRAMES> m_CompactCount;
-    std::array<Buffer, BUFFERED_FRAMES> m_CompactCountReocclusion;
+    Buffer m_CompactCountReocclusion;
     std::array<u32, BUFFERED_FRAMES> m_CompactCountValues{};
     std::array<u32, BUFFERED_FRAMES> m_CompactCountReocclusionValues{};
 

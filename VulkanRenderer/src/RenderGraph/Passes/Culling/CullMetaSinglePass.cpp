@@ -14,7 +14,7 @@ CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaSin
     m_MeshCull = std::make_shared<MeshCull>(renderGraph, m_Name.Name() + ".MeshCull");
     m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull");
 
-    m_TrianglePrepareDispatch = std::make_shared<TrianglePrepareDispatch>(
+    m_TrianglePrepareDispatch = std::make_shared<TriangleCullPrepareDispatchPass>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
 
     TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
@@ -40,7 +40,7 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
 
     // this pass also reads back the number of iterations to cull-draw
     m_TrianglePrepareDispatch->AddToGraph(renderGraph, *m_TriangleContext);
-    auto& dispatchOut = blackboard.Get<TrianglePrepareDispatch::PassData>(
+    auto& dispatchOut = blackboard.Get<TriangleCullPrepareDispatchPass::PassData>(
         m_TrianglePrepareDispatch->GetNameHash());
 
     std::vector<DrawAttachment> colorAttachments;

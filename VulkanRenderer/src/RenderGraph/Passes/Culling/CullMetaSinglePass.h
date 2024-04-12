@@ -36,7 +36,6 @@ private:
 
     using MeshCull = MeshCullSinglePass;
     using MeshletCull = MeshletCullSinglePass;
-    using TrianglePrepareDispatch = TriangleCullPrepareDispatchPass<CullStage::Single>;
 
     std::shared_ptr<MeshCullContext> m_MeshContext;
     std::shared_ptr<MeshCull> m_MeshCull;
@@ -46,7 +45,7 @@ private:
 
     std::shared_ptr<TriangleCullContext> m_TriangleContext;
     std::shared_ptr<TriangleDrawContext> m_TriangleDrawContext;
-    std::shared_ptr<TrianglePrepareDispatch> m_TrianglePrepareDispatch; 
+    std::shared_ptr<TriangleCullPrepareDispatchPass> m_TrianglePrepareDispatch; 
 
     using TriangleCullDraw = TriangleCullDrawPass<CullStage::Single>;
     

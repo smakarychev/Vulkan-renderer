@@ -114,7 +114,6 @@ struct TriangleCullDrawPassExecutionInfo
     std::optional<RG::SSAOData> SSAO{};
 };
 
-template <CullStage Stage>
 class TriangleCullPrepareDispatchPass
 {
 public:
@@ -158,7 +157,7 @@ private:
  * - option 2) is impossible because cull and draw are interleaved, and
  * - option 1) is impossible because the recording (`AddToGraph`) happens before the batch count is known.
  *
- * Therefore cull and draw have to be united in this single not so pretty pass.
+ * Therefore, cull and draw have to be united in this single not so pretty pass.
  */
 template <CullStage Stage>
 class TriangleCullDrawPass
@@ -220,123 +219,6 @@ private:
     std::array<SplitBarrier, TriangleCullContext::MAX_BATCHES> m_SplitBarriers{};
     DependencyInfo m_SplitBarrierDependency{};
 };
-
-template <CullStage Stage>
-TriangleCullPrepareDispatchPass<Stage>::TriangleCullPrepareDispatchPass(
-    RG::Graph& renderGraph, std::string_view name)
-        : m_Name(name)
-{
-    ShaderPipelineTemplate* prepareDispatchTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/prepare-indirect-dispatches-comp.shader"},
-        "render-graph-prepare-triangle-cull-pass-template", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(prepareDispatchTemplate)
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(prepareDispatchTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-}
-
-template <CullStage Stage>
-void TriangleCullPrepareDispatchPass<Stage>::AddToGraph(RG::Graph& renderGraph,
-    TriangleCullContext& ctx)
-{
-    using namespace RG;
-    using enum ResourceAccessFlags;
-
-    static ShaderDescriptors::BindingInfo countBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_command_count"); 
-    static ShaderDescriptors::BindingInfo dispatchBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_indirect_dispatch"); 
-
-    std::string name = m_Name.Name() + cullStageToString(Stage);
-    m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
-        [&](Graph& graph, PassData& passData)
-        {
-            passData.MaxDispatches = ctx.Geometry().GetCommandCount() / TriangleCullContext::GetCommandCount() + 1;
-            auto& meshletResources = ctx.MeshletContext().Resources();
-            ctx.Resources().DispatchIndirect = graph.CreateResource(std::format("{}.{}", name, "Dispatch"),
-                GraphBufferDescription{.SizeBytes = renderUtils::alignUniformBufferSizeBytes(
-                    passData.MaxDispatches * sizeof(IndirectDispatchCommand))});
-            ctx.Resources().DispatchIndirect = graph.Write(ctx.Resources().DispatchIndirect, Compute | Storage);
-
-            if constexpr(Stage != CullStage::Reocclusion)
-            {
-                ctx.MeshletContext().Resources().CompactCountSsbo =
-                    graph.Read(ctx.MeshletContext().Resources().CompactCountSsbo, Readback);
-                passData.CompactCountSsbo = graph.Read(meshletResources.CompactCountSsbo, Compute | Storage);
-            }
-            else
-            {
-                ctx.MeshletContext().Resources().CompactCountReocclusionSsbo = 
-                    graph.Read(ctx.MeshletContext().Resources().CompactCountReocclusionSsbo, Readback);
-                passData.CompactCountSsbo = graph.Read(meshletResources.CompactCountReocclusionSsbo, Compute | Storage);
-            }
-            
-            passData.DispatchIndirect = ctx.Resources().DispatchIndirect;
-            passData.PipelineData = &m_PipelineData;
-            passData.Context = &ctx;
-
-            graph.GetBlackboard().Register(m_Name.Hash(), passData);
-        },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
-        {
-            GPU_PROFILE_FRAME("Prepare Dispatch Indirect")
-
-            const Buffer& countSsbo = resources.GetBuffer(passData.CompactCountSsbo);
-            const Buffer& dispatchSsbo = resources.GetBuffer(passData.DispatchIndirect);
-            
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
-
-            resourceDescriptors.UpdateBinding(countBinding, countSsbo.BindingInfo());          
-            resourceDescriptors.UpdateBinding(dispatchBinding, dispatchSsbo.BindingInfo());
-
-            struct PushConstants
-            {
-                u32 CommandsPerBatchCount;
-                u32 CommandsMultiplier;
-                u32 LocalGroupX;
-                u32 MaxDispatchesCount;
-            };
-            PushConstants pushConstants = {
-                .CommandsPerBatchCount = TriangleCullContext::GetCommandCount(),
-                .CommandsMultiplier = assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
-                .LocalGroupX = assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
-                .MaxDispatchesCount = passData.MaxDispatches};
-            auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
-            RenderCommand::Dispatch(cmd, {pushConstants.MaxDispatchesCount, 1, 1}, {64, 1, 1});
-
-            // todo: fix me! this is bad! please!
-            // readback cull iteration count
-            resources.GetGraph()->OnCmdEnd(frameContext);
-            cmd.End();
-            Fence readbackFence = Fence::Builder().BuildManualLifetime();
-            cmd.Submit(Driver::GetDevice().GetQueues().Graphics, readbackFence);
-            readbackFence.Wait();
-            Fence::Destroy(readbackFence);
-            cmd.Begin();
-            resources.GetGraph()->OnCmdBegin(frameContext);
-            
-            u32 visibleMeshletsValue = 0;
-            if constexpr(Stage == CullStage::Reocclusion)
-                visibleMeshletsValue = passData.Context->MeshletContext().CompactCountReocclusionValue();
-            else
-                visibleMeshletsValue = passData.Context->MeshletContext().CompactCountValue();
-            
-            u32 commandCount = TriangleCullContext::GetCommandCount();
-            u32 iterationCount = visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0);
-            passData.Context->SetIterationCount(iterationCount);
-            passData.Context->ResetIteration();
-        });
-}
 
 template <CullStage Stage>
 TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph,
@@ -534,7 +416,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 ctx.Resources().DrawIndirect[i] = graph.Write(ctx.Resources().DrawIndirect[i], Compute | Storage);
                 ctx.Resources().DrawIndirect[i] = graph.Read(ctx.Resources().DrawIndirect[i], Indirect);
             }
-
+                        
             info.DrawContext->Resources().DrawAttachmentResources = RgUtils::readWriteDrawAttachments(
                 info.DrawAttachments, graph);
         
