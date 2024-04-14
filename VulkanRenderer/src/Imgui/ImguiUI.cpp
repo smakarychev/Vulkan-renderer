@@ -88,6 +88,8 @@ void ImGuiUI::Shutdown()
 
 void ImGuiUI::BeginFrame()
 {
+    CPU_PROFILE_FRAME("ImGui begin frame")
+
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();

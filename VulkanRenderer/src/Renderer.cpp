@@ -375,12 +375,16 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 
 void Renderer::ProcessPendingCubemaps()
 {
+    CPU_PROFILE_FRAME("ProcessPendingCubemaps")
+
     if (CubemapProcessor::HasPending())
         CubemapProcessor::Process(GetFrameContext().Cmd);
 }
 
 void Renderer::ProcessPendingPBRTextures()
 {
+    CPU_PROFILE_FRAME("ProcessPendingPBRTextures")
+
     if (DiffuseIrradianceProcessor::HasPending())
         DiffuseIrradianceProcessor::Process(GetFrameContext().Cmd);
     if (EnvironmentPrefilterProcessor::HasPending())
