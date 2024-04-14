@@ -55,7 +55,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     auto colors = EnsureColors(renderGraph, info, m_Name);
     auto depth = EnsureDepth(renderGraph, info, m_Name);
-    
+
     m_PassData.DrawAttachmentResources.RenderTargets = colors;
     m_PassData.DrawAttachmentResources.DepthTarget = depth;
     

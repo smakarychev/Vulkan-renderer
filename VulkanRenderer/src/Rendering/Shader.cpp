@@ -1102,6 +1102,38 @@ void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const Text
     m_Descriptors.UpdateBinding(bindingInfo, texture, bindlessIndex);
 }
 
+void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer) const
+{
+    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), buffer);
+}
+
+void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture) const
+{
+    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), texture);
+}
+
+void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture,
+    u32 bindlessIndex) const
+{
+    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), texture, bindlessIndex);
+}
+
+void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
+{
+    m_Descriptors.UpdateGlobalBinding(bindingInfo, buffer);
+}
+
+void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
+{
+    m_Descriptors.UpdateGlobalBinding(bindingInfo, texture);
+}
+
+void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+    u32 bindlessIndex) const
+{
+    m_Descriptors.UpdateGlobalBinding(bindingInfo, texture, bindlessIndex);
+}
+
 ShaderDescriptors::BindingInfo ShaderDescriptors::GetBindingInfo(std::string_view bindingName) const
 {
     auto& binding = m_Template->GetBinding(m_SetNumber, bindingName);

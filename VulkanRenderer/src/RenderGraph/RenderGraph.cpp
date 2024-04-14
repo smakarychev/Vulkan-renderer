@@ -385,7 +385,6 @@ namespace RG
                 RenderingInfo renderingInfo = renderingInfoBuilder.Build(*m_FrameDeletionQueue);
                 
                 RenderCommand::BeginRendering(frameContext.Cmd, renderingInfo);
-
                 pass->Execute(frameContext, resources);
 
                 RenderCommand::EndRendering(frameContext.Cmd);
@@ -419,9 +418,9 @@ namespace RG
         RenderCommand::WaitOnBarrier(frameContext.Cmd, transitionDependency);
     }
 
-    void Graph::OnCmdBegin(FrameContext& frameContext) const
+    void Graph::OnCmdBegin(FrameContext& frameContext)
     {
-        RenderCommand::Bind(frameContext.Cmd, GetArenaAllocators());
+        GetArenaAllocators().Bind(frameContext.Cmd, frameContext.FrameNumber);
     }
 
     void Graph::OnCmdEnd(FrameContext& frameContext) const
@@ -725,10 +724,11 @@ namespace RG
                 
                 ResourceTypeBase& resourceTypeBase = GetResourceTypeBase(resource);
 
-                // if a resource has a 'Rename', the physical resource will be shared
-                // it means, that upon allocation the acquired physical resource should be also referenced
-                // in all of the renames (which is a linked list),
-                // and the deallocation shall be delayed until resource is the last in the chain of renames
+                /* if a resource has a 'Rename', the physical resource will be shared
+                 * it means, that upon allocation the acquired physical resource should be also referenced
+                 * in all the renames (which is a linked list),
+                 * and the deallocation shall be delayed until resource is the last in the chain of renames
+                 */
                 bool hasRename = resourceTypeBase.m_Rename.IsValid();
                 
                 bool needsAllocation = resourceTypeBase.m_FirstAccess == passIndex &&

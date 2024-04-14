@@ -212,9 +212,18 @@ public:
 public:
     using BufferBindingInfo = BufferSubresource;
     using TextureBindingInfo = ImageBindingInfo;
+
     void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 bindlessIndex) const;
+
+    /* 'Global' versions of UpdateBinding updates bindings in ALL descriptor buffers */
+    
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+        u32 bindlessIndex) const;
+    
     void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, u32 firstSet) const;
     void BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
@@ -240,8 +249,9 @@ enum class DescriptorAllocatorResidence
 struct DescriptorAllocatorAllocationBindings
 {
     std::vector<DescriptorBinding> Bindings;
-    // used to specify the count of bindless descriptors,
-    // for each set only one descriptor can be bindless, and it is always the last one
+    /* used to specify the count of bindless descriptors,
+     * for each set only one descriptor can be bindless, and it is always the last one
+     */
     u32 BindlessCount{0};
 };
 
@@ -279,10 +289,18 @@ public:
 
     Descriptors Allocate(DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
     void Reset();
+
+    /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES)
+     * NOTE: usually you want to call `Bind` on `DescriptorArenaAllocators`
+     */
+    void Bind(const CommandBuffer& cmd, u32 bufferIndex);
 private:
-    void ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings);
+    void ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings) const;
+
+    const Buffer& GetCurrentBuffer() const { return m_Buffers[m_CurrentBuffer]; }
 private:
-    Buffer m_Buffer;
+    std::array<Buffer, BUFFERED_FRAMES> m_Buffers;
+    u32 m_CurrentBuffer{0};
     u64 m_CurrentOffset{0};
     DescriptorAllocatorKind m_Kind{DescriptorAllocatorKind::Resources};
     DescriptorAllocatorResidence m_Residence{DescriptorAllocatorResidence::CPU};
@@ -298,6 +316,9 @@ public:
     
     const DescriptorArenaAllocator& Get(DescriptorAllocatorKind kind) const;
     DescriptorArenaAllocator& Get(DescriptorAllocatorKind kind);
+
+    /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
+    void Bind(const CommandBuffer& cmd, u32 bufferIndex);
 private:
     std::array<DescriptorArenaAllocator, (u32)DescriptorAllocatorKind::MaxVal> m_Allocators;
 };

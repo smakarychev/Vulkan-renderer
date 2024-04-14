@@ -95,7 +95,7 @@ void Renderer::InitRenderGraph()
             .ExtractSet(2)
             .BindlessCount(1024)
             .Build();
-    materialDescriptors.UpdateBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
+    materialDescriptors.UpdateGlobalBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
     m_GraphModelCollection.ApplyMaterialTextures(materialDescriptors);
 
     m_VisibilityPass = std::make_shared<VisibilityPass>(*m_Graph, VisibilityPassInitInfo{

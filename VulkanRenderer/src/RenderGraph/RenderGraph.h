@@ -241,7 +241,7 @@ namespace RG
         void Reset(FrameContext& frameContext);
         void Compile(FrameContext& frameContext);
         void Execute(FrameContext& frameContext);
-        void OnCmdBegin(FrameContext& frameContext) const;
+        void OnCmdBegin(FrameContext& frameContext);
         void OnCmdEnd(FrameContext& frameContext) const;
         std::string MermaidDump() const;
     private:
@@ -307,6 +307,7 @@ namespace RG
         RenderGraphPool m_Pool;
         DeletionQueue* m_FrameDeletionQueue{nullptr};
         DeletionQueue m_ResolutionDeletionQueue{};
+         
         std::unique_ptr<DescriptorArenaAllocators> m_ArenaAllocators;
         Blackboard m_Blackboard;
     };

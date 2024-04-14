@@ -211,6 +211,22 @@ void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBin
     Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, bindlessIndex);
 }
 
+void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
+{
+    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type);
+}
+
+void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
+{
+    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
+}
+
+void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+    u32 bindlessIndex) const
+{
+    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, bindlessIndex);
+}
+
 void Descriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
     PipelineLayout pipelineLayout, u32 firstSet) const
 {
@@ -245,7 +261,8 @@ DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build(DeletionQueue&
     PreBuild();
     
     DescriptorArenaAllocator allocator = DescriptorArenaAllocator::Create(m_CreateInfo);
-    deletionQueue.Enqueue(allocator.m_Buffer);
+    for (auto& buffer : allocator.m_Buffers)
+        deletionQueue.Enqueue(buffer);
 
     return allocator;
 }
@@ -314,7 +331,14 @@ void DescriptorArenaAllocator::Reset()
     m_CurrentOffset = 0;
 }
 
-void DescriptorArenaAllocator::ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings)
+void DescriptorArenaAllocator::Bind(const CommandBuffer& cmd, u32 bufferIndex)
+{
+    m_CurrentBuffer = bufferIndex;
+
+    RenderCommand::Bind(cmd, *this);
+}
+
+void DescriptorArenaAllocator::ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings) const
 {
     for (auto& binding : bindings.Bindings)
         ASSERT(
@@ -341,12 +365,20 @@ const DescriptorArenaAllocator& DescriptorArenaAllocators::Get(DescriptorAllocat
     ASSERT(kind == DescriptorAllocatorKind::Resources || kind == DescriptorAllocatorKind::Samplers,
            "Unsupported allocator kind")
 
-       return m_Allocators[(u32)kind];
+    return m_Allocators[(u32)kind];
 }
 
 DescriptorArenaAllocator& DescriptorArenaAllocators::Get(DescriptorAllocatorKind kind)
 {
     return const_cast<DescriptorArenaAllocator&>(const_cast<const DescriptorArenaAllocators&>(*this).Get(kind));
+}
+
+void DescriptorArenaAllocators::Bind(const CommandBuffer& cmd, u32 bufferIndex)
+{
+    for (auto& allocator : m_Allocators)
+        allocator.m_CurrentBuffer = bufferIndex;
+
+    RenderCommand::Bind(cmd, *this);
 }
 
 

@@ -87,6 +87,7 @@ public:
     static void BindComputeImmutableSamplers(const CommandBuffer& cmd,
         PipelineLayout pipelineLayout, u32 setIndex);
 
+    static void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocator& allocator);
     static void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators);
     static void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
@@ -116,6 +117,7 @@ public:
         PushConstants(cmd, pipelineLayout, (const void*)&pushConstants);
     }
 
+    static void WaitOnFullPipelineBarrier(const CommandBuffer& cmd);
     static void WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo);
     static void SignalSplitBarrier(const CommandBuffer& cmd, const SplitBarrier& splitBarrier,
         const DependencyInfo& dependencyInfo);

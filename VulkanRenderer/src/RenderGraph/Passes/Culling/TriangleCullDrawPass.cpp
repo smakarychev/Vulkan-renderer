@@ -126,14 +126,14 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
 
             // todo: fix me! this is bad! please!
             // readback cull iteration count
-            resources.GetGraph()->OnCmdEnd(frameContext);
-            cmd.End();
-            Fence readbackFence = Fence::Builder().BuildManualLifetime();
-            cmd.Submit(Driver::GetDevice().GetQueues().Graphics, readbackFence);
-            readbackFence.Wait();
-            Fence::Destroy(readbackFence);
-            cmd.Begin();
-            resources.GetGraph()->OnCmdBegin(frameContext);
+            //resources.GetGraph()->OnCmdEnd(frameContext);
+            //cmd.End();
+            //Fence readbackFence = Fence::Builder().BuildManualLifetime();
+            //cmd.Submit(Driver::GetDevice().GetQueues().Graphics, readbackFence);
+            //readbackFence.Wait();
+            //Fence::Destroy(readbackFence);
+            //cmd.Begin();
+            //resources.GetGraph()->OnCmdBegin(frameContext);
 
             RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
                 .MemoryDependency({

@@ -18,7 +18,6 @@ public:
     constexpr ResourceHandle& operator=(ResourceHandle&&) = default;
 private:
     constexpr ResourceHandle(u32 index) : m_Index(index) {}
-    
 private:
     using UnderlyingType = u32;
     static constexpr UnderlyingType NON_HANDLE = std::numeric_limits<UnderlyingType>::max();

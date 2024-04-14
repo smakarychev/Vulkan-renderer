@@ -541,6 +541,10 @@ public:
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
         DescriptorType type);
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
+        DescriptorType type, u32 bindlessIndex);  
+    static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
+        DescriptorType type);
+    static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
         DescriptorType type, u32 bindlessIndex);
 
     static Fence Create(const Fence::Builder::CreateInfo& createInfo);

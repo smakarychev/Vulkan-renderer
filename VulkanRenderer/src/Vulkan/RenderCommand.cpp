@@ -449,6 +449,22 @@ void RenderCommand::BindComputeImmutableSamplers(const CommandBuffer& cmd,
         VK_PIPELINE_BIND_POINT_COMPUTE, Driver::Resources()[pipelineLayout].Layout, setIndex);
 }
 
+void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocator& allocator)
+{
+    VkBufferDeviceAddressInfo deviceAddressInfo = {};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer = Driver::Resources()[allocator.GetCurrentBuffer()].Buffer;
+    u64 deviceAddress = vkGetBufferDeviceAddress(Driver::DeviceHandle(), &deviceAddressInfo);
+
+    VkDescriptorBufferBindingInfoEXT binding = {};
+    binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
+    binding.address = deviceAddress;
+    binding.usage = allocator.m_Kind == DescriptorAllocatorKind::Resources ?
+        VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
+
+    vkCmdBindDescriptorBuffersEXT(Driver::Resources()[cmd].CommandBuffer, 1, &binding);
+}
+
 void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
@@ -458,7 +474,7 @@ void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocato
     {
         VkBufferDeviceAddressInfo deviceAddressInfo = {};
         deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-        deviceAddressInfo.buffer = Driver::Resources()[allocator.m_Buffer].Buffer;
+        deviceAddressInfo.buffer = Driver::Resources()[allocator.GetCurrentBuffer()].Buffer;
         u64 deviceAddress = vkGetBufferDeviceAddress(Driver::DeviceHandle(), &deviceAddressInfo);
 
         VkDescriptorBufferBindingInfoEXT binding = {};
@@ -554,6 +570,23 @@ void RenderCommand::PushConstants(const CommandBuffer& cmd, PipelineLayout pipel
     VkPushConstantRange& pushConstantRange = Driver::Resources()[pipelineLayout].PushConstants.front();
     vkCmdPushConstants(Driver::Resources()[cmd].CommandBuffer, Driver::Resources()[pipelineLayout].Layout,
         pushConstantRange.stageFlags, 0, pushConstantRange.size, pushConstants);
+}
+
+void RenderCommand::WaitOnFullPipelineBarrier(const CommandBuffer& cmd)
+{
+    VkMemoryBarrier2 memoryBarrier = {};
+    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
+    memoryBarrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    memoryBarrier.srcAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+    memoryBarrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+    memoryBarrier.dstAccessMask = VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT;
+
+    VkDependencyInfo dependencyInfo = {};
+    dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+    dependencyInfo.memoryBarrierCount = 1;
+    dependencyInfo.pMemoryBarriers = &memoryBarrier;
+
+    vkCmdPipelineBarrier2(Driver::Resources()[cmd].CommandBuffer, &dependencyInfo);
 }
 
 void RenderCommand::WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo)

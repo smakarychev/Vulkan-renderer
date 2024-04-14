@@ -700,7 +700,8 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
     std::vector<VkPresentModeKHR> desiredPresentModes = {{
-            VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
+        VK_PRESENT_MODE_IMMEDIATE_KHR,
+        VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
     DeviceSurfaceDetails surfaceDetails = GetSurfaceDetails(*createInfo.Device);
     VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
@@ -1240,7 +1241,6 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
     std::vector<std::vector<VkSpecializationMapEntry>> shaderSpecializationEntries(createInfo.Shaders.size()); 
     std::vector<VkSpecializationInfo> shaderSpecializationInfos;
     shaderSpecializationInfos.reserve(createInfo.Shaders.size());
-    u32 entriesOffset = 0;
     for (u32 shaderIndex = 0; shaderIndex < createInfo.Shaders.size(); shaderIndex++)
     {
         auto& shader = shaders[shaderIndex];
@@ -1721,21 +1721,23 @@ DescriptorArenaAllocator Driver::Create(const DescriptorArenaAllocator::Builder:
         allocationFlags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
     }
 
-    DriverResources::BufferResource arenaResource = CreateBufferResource(arenaSizeBytes,
-        usageFlags, allocationFlags);
-    Buffer arena = {};
-    arena.m_Description = {
-        .SizeBytes = arenaSizeBytes,
-        .Usage = bufferUsage};
-    arena.m_HostAddress = arenaResource.Allocation->GetMappedData();
-    arena.m_ResourceHandle = Resources().AddResource(arenaResource);
-    
+    std::array<Buffer, BUFFERED_FRAMES> arenas = {};
+    for (auto& arena : arenas)
+    {
+        DriverResources::BufferResource arenaResource = CreateBufferResource(arenaSizeBytes,
+            usageFlags, allocationFlags);
+        arena.m_Description = {
+            .SizeBytes = arenaSizeBytes,
+            .Usage = bufferUsage};
+        arena.m_HostAddress = arenaResource.Allocation->GetMappedData();
+        arena.m_ResourceHandle = Resources().AddResource(arenaResource);
+    }
 
     DescriptorArenaAllocator descriptorArenaAllocator = {};
     descriptorArenaAllocator.m_Kind = createInfo.Kind;
     descriptorArenaAllocator.m_Residence = createInfo.Residence;
     descriptorArenaAllocator.m_UsedTypes = createInfo.UsedTypes;
-    descriptorArenaAllocator.m_Buffer = arena;
+    descriptorArenaAllocator.m_Buffers = arenas;
 
     return descriptorArenaAllocator;
 }
@@ -1744,7 +1746,6 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings)
 {
     auto& descriptorBufferProps = Resources().m_Devices[0].GPUDescriptorBufferProperties;
-
 
     // if we have bindless binding, we have to calculate layout size as a sum of bindings sizes
     u64 layoutSizeBytes = 0;
@@ -1769,7 +1770,7 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     }
     
     layoutSizeBytes = CoreUtils::align(layoutSizeBytes, descriptorBufferProps.descriptorBufferOffsetAlignment);
-    if (layoutSizeBytes + allocator.m_CurrentOffset > allocator.m_Buffer.GetSizeBytes())
+    if (layoutSizeBytes + allocator.m_CurrentOffset > allocator.m_Buffers[0].GetSizeBytes())
         return {};
 
     std::vector<u64> bindingOffsets(bindings.Bindings.size());
@@ -1816,7 +1817,7 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const B
     descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
 
     vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, GetDescriptorSizeBytes(type),
-        (u8*)descriptors.m_Allocator->m_Buffer.m_HostAddress + descriptors.m_Offsets[slot]);
+        (u8*)descriptors.m_Allocator->GetCurrentBuffer().m_HostAddress + descriptors.m_Offsets[slot]);
 }
 
 void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
@@ -1843,7 +1844,33 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
     u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
     u64 offsetBytes = descriptors.m_Offsets[slot] + descriptorSizeBytes * bindlessIndex;
     vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, descriptorSizeBytes,
-        (u8*)descriptors.m_Allocator->m_Buffer.m_HostAddress + offsetBytes);
+        (u8*)descriptors.m_Allocator->GetCurrentBuffer().m_HostAddress + offsetBytes);
+}
+
+void Driver::UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
+    DescriptorType type)
+{
+    u32 currentIndex = descriptors.m_Allocator->m_CurrentBuffer; 
+    for (u32 i = 0; i < descriptors.m_Allocator->m_Buffers.size(); i++)
+    {
+        // there is no spoon
+        const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = i;
+        UpdateDescriptors(descriptors, slot, buffer, type);
+    }
+    const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = currentIndex;
+}
+
+void Driver::UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
+    DescriptorType type, u32 bindlessIndex)
+{
+    u32 currentIndex = descriptors.m_Allocator->m_CurrentBuffer; 
+    for (u32 i = 0; i < descriptors.m_Allocator->m_Buffers.size(); i++)
+    {
+        // there is no spoon
+        const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = i;
+        UpdateDescriptors(descriptors, slot, texture, type, bindlessIndex);
+    }
+    const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = currentIndex;
 }
 
 u32 Driver::GetDescriptorSizeBytes(DescriptorType type)

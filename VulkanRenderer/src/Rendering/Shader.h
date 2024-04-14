@@ -404,6 +404,14 @@ public:
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 bindlessIndex) const;
 
+    void UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer) const;
+    void UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture) const;
+    void UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture, u32 bindlessIndex) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+        u32 bindlessIndex) const;
+
     BindingInfo GetBindingInfo(std::string_view bindingName) const;
     
 private:
