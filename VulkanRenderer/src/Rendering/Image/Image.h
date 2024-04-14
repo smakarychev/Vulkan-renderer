@@ -145,8 +145,9 @@ public:
         {
             return FromPixels(pixels.data(), pixels.size() * sizeof(T));
         }
-        // builder should not create mipmaps (still allocates if mipmap count is not 1),
-        // intended for the cases when mipmap creation has to be delayed (when image does not yet has any pixel data)
+        /* builder should not create mipmaps (still allocates if mipmap count is not 1),
+         * intended for the cases when mipmap creation has to be delayed (when image does not yet has any pixel data)
+         */
         Builder& NoMips();
     private:
         void PreBuild();

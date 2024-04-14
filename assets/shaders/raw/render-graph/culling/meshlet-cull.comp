@@ -127,7 +127,7 @@ void main() {
 
         should_be_drawn = !is_last_frame_visible && visible;
     }
-    
+
     if (should_be_drawn)
         set_flags_set_should_draw(u_meshlet_visibility.visibility[meshlet_id]);
     else

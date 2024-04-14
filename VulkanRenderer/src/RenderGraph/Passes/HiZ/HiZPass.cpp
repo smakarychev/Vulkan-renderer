@@ -66,6 +66,7 @@ HiZPass::HiZPass(RG::Graph& renderGraph, std::string_view baseName)
 void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassContext& ctx)
 {
     using namespace RG;
+    using enum ResourceAccessFlags;
 
     u32 mipMapCount = ctx.GetHiZ().GetDescription().Mipmaps;
     u32 width = ctx.GetHiZ().GetDescription().Width;  
@@ -97,10 +98,8 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassCont
                     depthIn = previousOutput.HiZOut;
                     depthOut = previousOutput.HiZOut;
                 }
-                passData.DepthIn = graph.Read(depthIn,
-                    ResourceAccessFlags::Compute | ResourceAccessFlags::Sampled);
-                passData.HiZOut = graph.Write(depthOut,
-                    ResourceAccessFlags::Compute | ResourceAccessFlags::Storage);
+                passData.DepthIn = graph.Read(depthIn, Compute | Sampled);
+                passData.HiZOut = graph.Write(depthOut, Compute | Storage);
 
                 passData.MinMaxSampler = ctx.GetSampler();
                 passData.MipmapViewHandles = ctx.GetViewHandles();
@@ -114,7 +113,7 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassCont
                 GPU_PROFILE_FRAME("HiZ")
                 const Texture& depthIn = resources.GetTexture(passData.DepthIn);
                 const Texture& hizOut = resources.GetTexture(passData.HiZOut);
-
+                
                 TextureBindingInfo depthInBinding = i > 0 ?
                     depthIn.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i - 1]) :
@@ -133,7 +132,7 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassCont
                 u32 levelWidth = std::max(1u, width >> i);
                 u32 levelHeight = std::max(1u, height >> i);
                 glm::uvec2 levels = {levelWidth, levelHeight};
-             
+
                 pipeline.BindCompute(frameContext.Cmd);
                 RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), levels);
                 samplerDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),

@@ -34,8 +34,8 @@ public:
         Sampler MinMaxSampler;
         std::vector<ImageViewHandle> MipmapViewHandles;
 
-        RG::Resource DepthIn;
-        RG::Resource HiZOut;
+        RG::Resource DepthIn{};
+        RG::Resource HiZOut{};
         
         RG::PipelineData* PipelineData{nullptr};
     };
