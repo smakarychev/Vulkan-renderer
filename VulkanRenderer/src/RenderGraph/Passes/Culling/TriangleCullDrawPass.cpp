@@ -124,17 +124,6 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::Dispatch(cmd, {pushConstants.MaxDispatchesCount, 1, 1}, {64, 1, 1});
 
-            // todo: fix me! this is bad! please!
-            // readback cull iteration count
-            //resources.GetGraph()->OnCmdEnd(frameContext);
-            //cmd.End();
-            //Fence readbackFence = Fence::Builder().BuildManualLifetime();
-            //cmd.Submit(Driver::GetDevice().GetQueues().Graphics, readbackFence);
-            //readbackFence.Wait();
-            //Fence::Destroy(readbackFence);
-            //cmd.Begin();
-            //resources.GetGraph()->OnCmdBegin(frameContext);
-
             RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
                 .MemoryDependency({
                     .SourceStage = PipelineStage::ComputeShader,
@@ -142,12 +131,12 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
                     .SourceAccess = PipelineAccess::WriteShader,
                     .DestinationAccess = PipelineAccess::ReadHost})
                 .Build(frameContext.DeletionQueue));
-            
+
+            // todo: render all missed meshlets in meshlet reocclusion pass
             u32 visibleMeshletsValue = passData.Context->MeshletContext().CompactCountValue();
             
             u32 commandCount = TriangleCullContext::GetCommandCount();
             u32 iterationCount = visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0);
-            // todo: fix me!
             passData.Context->SetIterationCount(iterationCount);
             passData.Context->ResetIteration();
         });

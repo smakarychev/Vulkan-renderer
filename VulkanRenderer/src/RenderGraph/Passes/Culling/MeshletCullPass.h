@@ -22,7 +22,7 @@ public:
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
-    u32 CompactCountValue() const { return ReadbackCount(m_CompactCount[m_FrameNumber]); }
+    u32 CompactCountValue() const { return ReadbackCount(m_CompactCount[PreviousFrame()]); }
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
@@ -32,6 +32,7 @@ public:
     PassResources& Resources() { return m_Resources; }
 private:
     u32 ReadbackCount(const Buffer& buffer) const;
+    u32 PreviousFrame() const { return (m_FrameNumber + BUFFERED_FRAMES - 1) % BUFFERED_FRAMES; }
 private:
     Buffer m_Visibility;
 
