@@ -22,6 +22,8 @@ public:
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
+    /* should be called once a frame */
+    void NextFrame() { m_FrameNumber = (m_FrameNumber + 1) % BUFFERED_FRAMES; }
     u32 CompactCountValue() const { return ReadbackCount(m_CompactCount[PreviousFrame()]); }
 
     const Buffer& Visibility() const { return m_Visibility; }

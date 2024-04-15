@@ -171,6 +171,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     auto& reoccludeOutput = blackboard.Get<DrawIndirectCountPass::PassData>(
         m_DrawIndirectCountPass->GetNameHash());
     m_PassData.DrawAttachmentResources = reoccludeOutput.DrawAttachmentResources;
+
+    m_MeshletContext->NextFrame();
     
     blackboard.Register(m_Name.Hash(), m_PassData);
 }
