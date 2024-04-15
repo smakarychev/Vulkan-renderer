@@ -6,7 +6,7 @@
 #include <memory>
 
 template <typename T>
-class HandleArray
+class RenderHandleArray
 {
     using IdType = typename RenderHandle<T>::UnderlyingType;
 public:
@@ -53,6 +53,9 @@ public:
 
     Iterator begin() { return Iterator(&m_Elements, 0); }
     Iterator end() { return Iterator(&m_Elements, (u32)m_Elements.size()); }
+
+    IdType IndexOf(RenderHandle<T> handle) const { return Id(handle); }
+    IdType index_of(RenderHandle<T> handle) const { return Id(handle); }
 private:
     static IdType Id(RenderHandle<T> handle) { return handle.m_Id; }
 private:

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "HandleArray.h"
+#include "RenderHandleArray.h"
 #include "RenderHandle.h"
 #include "RenderObject.h"
 
@@ -35,9 +35,17 @@ public:
     void AddModelInstance(const std::string& modelName, const ModelInstanceInfo& modelInstanceInfo);
     void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const;
     void ApplyMaterialTextures(ShaderDescriptors& bindlessDescriptors) const;
-        
+
+    /* Filter is (const Mesh&, const Material&) -> bool; Callback is (const RenderObject&, u32 index) */ 
     template <typename Filter, typename Callback>
     void FilterRenderObjects(Filter&& filterFn, Callback&& callbackFn) const;
+
+    /* Filter is (const Mesh&, const Material&) -> bool; Callback is (const Mesh&, u32 index). 
+     * The difference between render objects and meshes is that meshes are unique
+     * each instantiation of model creates new render objects, but not new meshes
+     */ 
+    template <typename Filter, typename Callback>
+    void FilterMeshes(Filter&& filterFn, Callback&& callbackFn) const;
 
     template <typename Callback>
     void IterateRenderObjects(const RenderObjectIndices& indices, Callback&& callback) const;
@@ -47,9 +55,9 @@ public:
 
     const std::vector<RenderObject>& GetRenderObjects(const std::string& modelName) const;
 
-    const HandleArray<Mesh>& GetMeshes() const { return m_Meshes; }
-    const HandleArray<MaterialGPU>& GetMaterialsGPU() const { return m_MaterialsGPU; }
-    const HandleArray<Material>& GetMaterials() const { return m_Materials; }
+    const RenderHandleArray<Mesh>& GetMeshes() const { return m_Meshes; }
+    const RenderHandleArray<MaterialGPU>& GetMaterialsGPU() const { return m_MaterialsGPU; }
+    const RenderHandleArray<Material>& GetMaterials() const { return m_Materials; }
 private:
     std::vector<RenderObject> CreateRenderObjects(const Model* model);
     RenderHandle<MaterialGPU> AddMaterialGPU(const MaterialGPU& material);
@@ -58,7 +66,7 @@ private:
     RenderHandle<Image> AddTexture(const Image& texture);
 
     template <typename T>
-    RenderHandle<T> AddRenderHandle(const T& object, HandleArray<T>& array);
+    RenderHandle<T> AddRenderHandle(const T& object, RenderHandleArray<T>& array);
     
 private:
     struct ModelInfo
@@ -67,10 +75,10 @@ private:
         std::vector<RenderObject> RenderObjects;
     };
     std::unordered_map<std::string, ModelInfo> m_Models;
-    HandleArray<Mesh> m_Meshes;
-    HandleArray<Image> m_Textures;
-    HandleArray<MaterialGPU> m_MaterialsGPU;
-    HandleArray<Material> m_Materials;
+    RenderHandleArray<Mesh> m_Meshes;
+    RenderHandleArray<Image> m_Textures;
+    RenderHandleArray<MaterialGPU> m_MaterialsGPU;
+    RenderHandleArray<Material> m_Materials;
 
     RenderHandle<Image> m_WhiteTexture{}; 
     RenderHandle<Image> m_BlackTexture{}; 
@@ -83,8 +91,16 @@ template <typename Filter, typename Callback>
 void ModelCollection::FilterRenderObjects(Filter&& filterFn, Callback&& callbackFn) const
 {
     for (u32 i = 0; i < m_RenderObjects.size(); i++)
-        if (filterFn(m_RenderObjects[i]))
+        if (filterFn(GetMeshes()[m_RenderObjects[i].Mesh], GetMaterials()[m_RenderObjects[i].Material]))
             callbackFn(m_RenderObjects[i], i);
+}
+
+template <typename Filter, typename Callback>
+void ModelCollection::FilterMeshes(Filter&& filterFn, Callback&& callbackFn) const
+{
+    for (u32 i = 0; i < m_Meshes.size(); i++)
+        if (filterFn(m_Meshes[i], m_Materials[i]))
+            callbackFn(m_Meshes[i], i);
 }
 
 template <typename Callback>
@@ -103,7 +119,7 @@ void ModelCollection::IterateRenderObjects(const RenderObjectIndices& indices,
 }
 
 template <typename T>
-RenderHandle<T> ModelCollection::AddRenderHandle(const T& object, HandleArray<T>& array)
+RenderHandle<T> ModelCollection::AddRenderHandle(const T& object, RenderHandleArray<T>& array)
 {
     RenderHandle<T> handle = (u32)array.size();
     array.push_back(object);

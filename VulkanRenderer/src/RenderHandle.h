@@ -6,12 +6,16 @@
 #include <compare>
 
 template <typename T>
-class HandleArray;
+class RenderHandleArray;
+
+template <typename T>
+class RenderHandleDenseMap;
 
 template <typename T>
 class RenderHandle
 {
-    friend class HandleArray<T>;
+    friend class RenderHandleArray<T>;
+    friend class RenderHandleDenseMap<T>;
 public:
     using UnderlyingType = u32;
     static constexpr UnderlyingType NON_HANDLE = std::numeric_limits<UnderlyingType>::max();

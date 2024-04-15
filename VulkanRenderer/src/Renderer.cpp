@@ -59,18 +59,22 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
-    m_GraphModelCollection.AddModelInstance("car", {.Transform = {.Position = glm::vec3{0.0f}, .Scale = glm::vec3{1.0f}}});
+    for (i32 x = -3; x <= 3; x++)
+        for (i32 z = -3; z <= 3; z++)
+            m_GraphModelCollection.AddModelInstance("car", {
+                .Transform = {
+                    .Position = glm::vec3{(f32)x, 0.0f, (f32)z},
+                    .Scale = glm::vec3{1.0f}}});
+    
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
-        [this](auto& obj) {
-            return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
-                assetLib::ModelInfo::MaterialType::Opaque;
+        [this](const Mesh&, const Material& material) {
+            return material.Type == assetLib::ModelInfo::MaterialType::Opaque;
         });
     m_GraphTranslucentGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
-        [this](auto& obj) {
-            return m_GraphModelCollection.GetMaterials()[obj.Material].Type ==
-                assetLib::ModelInfo::MaterialType::Translucent;
+        [this](const Mesh&, const Material& material) {
+            return material.Type == assetLib::ModelInfo::MaterialType::Translucent;
         });
     
     m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})

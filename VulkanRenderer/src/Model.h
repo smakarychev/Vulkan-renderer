@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include "HandleArray.h"
+#include "RenderHandleArray.h"
 #include "Mesh.h"
 #include "RenderObject.h"
 

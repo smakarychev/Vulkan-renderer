@@ -115,13 +115,11 @@ namespace RG
         u64 indicesOffset = 0;
         u32 renderObjectIndex = 0;
         u32 meshletIndex = 0;
-    
-        auto populateCallback = [&](const RenderObject& renderObject, u32 collectionIndex)
-        {
-            renderPassGeometry.m_RenderObjectIndices.push_back(collectionIndex);
-        
-            const Mesh& mesh = modelCollection.GetMeshes()[renderObject.Mesh];
 
+        std::vector verticesOffsets(modelCollection.GetMeshes().size(), 0llu);
+        std::vector indicesOffsets(modelCollection.GetMeshes().size(), 0llu);
+        auto meshCallback = [&](const Mesh& mesh, u32 meshIndex)
+        {
             u64 verticesSize = mesh.GetPositions().size();
             u64 indicesSize = mesh.GetIndices().size();
             resourceUploader.UpdateBuffer(renderPassGeometry.m_AttributeBuffers.Positions, mesh.GetPositions().data(),
@@ -140,6 +138,19 @@ namespace RG
                 indicesSize * sizeof(assetLib::ModelInfo::IndexType),
                 indicesOffset * sizeof(assetLib::ModelInfo::IndexType));
 
+            verticesOffsets[meshIndex] = verticesOffset;
+            indicesOffsets[meshIndex] = indicesOffset;
+            
+            verticesOffset += verticesSize;
+            indicesOffset += indicesSize;
+        };
+        auto renderObjectCallback = [&](const RenderObject& renderObject, u32 collectionIndex)
+        {
+            renderPassGeometry.m_RenderObjectIndices.push_back(collectionIndex);
+        
+            const Mesh& mesh = modelCollection.GetMeshes()[renderObject.Mesh];
+            u32 meshIndex = modelCollection.GetMeshes().index_of(renderObject.Mesh);
+
             renderPassGeometry.m_FirstCommands[renderObjectIndex] = meshletIndex;
         
             for (auto& meshlet : mesh.GetMeshlets())
@@ -147,8 +158,8 @@ namespace RG
                 IndirectDrawCommand command = {
                     .IndexCount = meshlet.IndexCount,
                     .InstanceCount = 1,
-                    .FirstIndex = (u32)indicesOffset + meshlet.FirstIndex,
-                    .VertexOffset = (i32)verticesOffset + (i32)meshlet.FirstVertex,
+                    .FirstIndex = (u32)indicesOffsets[meshIndex] + meshlet.FirstIndex,
+                    .VertexOffset = (i32)verticesOffsets[meshIndex] + (i32)meshlet.FirstVertex,
                     .FirstInstance = meshletIndex,
                     .RenderObject = renderObjectIndex};
                 
@@ -170,13 +181,12 @@ namespace RG
 
             materialsGPU[renderObjectIndex] =
                 modelCollection.GetMaterialsGPU()[renderObject.MaterialGPU];
-        
-            verticesOffset += verticesSize;
-            indicesOffset += indicesSize;
+            
             renderObjectIndex++;
         };
 
-        modelCollection.FilterRenderObjects(filter, populateCallback);
+        modelCollection.FilterMeshes(filter, meshCallback);
+        modelCollection.FilterRenderObjects(filter, renderObjectCallback);
     
         resourceUploader.UpdateBuffer(renderPassGeometry.m_Commands, mappedCommandsBuffer, 0);
         resourceUploader.UpdateBuffer(renderPassGeometry.m_Meshlets, mappedMeshletsBuffer, 0);
@@ -192,15 +202,19 @@ namespace RG
     {
         CountsInfo countInfos = {};
 
-        auto countCallback = [&modelCollection, &countInfos](const RenderObject& renderObject, u32)
+        auto meshCallback = [&countInfos](const Mesh& mesh, u32)
+        {
+            countInfos.VertexCount += mesh.GetVertexCount();
+            countInfos.IndexCount += mesh.GetIndexCount();
+        };
+        auto renderObjectCallback = [&modelCollection, &countInfos](const RenderObject& renderObject, u32)
         {
             countInfos.RenderObjectCount++;
             countInfos.CommandCount += modelCollection.GetMeshes()[renderObject.Mesh].GetMeshletCount();
-            countInfos.VertexCount += modelCollection.GetMeshes()[renderObject.Mesh].GetVertexCount();
-            countInfos.IndexCount += modelCollection.GetMeshes()[renderObject.Mesh].GetIndexCount();
         };
 
-        modelCollection.FilterRenderObjects(filter, countCallback);
+        modelCollection.FilterMeshes(filter, meshCallback);
+        modelCollection.FilterRenderObjects(filter, renderObjectCallback);
 
         return countInfos;
     }
