@@ -23,6 +23,7 @@ struct DrawIndirectCountPassExecutionInfo
 {
     const RG::Geometry* Geometry{nullptr};
     RG::Resource Commands{};
+    u64 CommandsOffsetBytes{0};
     RG::Resource CommandCount{};
     glm::uvec2 Resolution{};
 

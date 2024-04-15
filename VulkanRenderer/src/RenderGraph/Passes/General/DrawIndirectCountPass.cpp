@@ -113,7 +113,7 @@ void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirec
             pipeline.BindGraphics(cmd);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::DrawIndexedIndirectCount(cmd,
-                commandsDraw, 0,
+                commandsDraw, info.CommandsOffsetBytes,
                 countDraw, 0,
                 info.Geometry->GetMeshletCount());
         });

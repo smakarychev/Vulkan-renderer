@@ -20,6 +20,7 @@ struct DrawIndirectPassExecutionInfo
 {
     const RG::Geometry* Geometry{nullptr};
     RG::Resource Commands{};
+    u64 CommandsOffsetBytes{0};
     glm::uvec2 Resolution{};
 
     RG::DrawAttachments DrawAttachments{};
@@ -46,7 +47,7 @@ private:
         RG::DrawAttributeBuffers AttributeBuffers{};
         RG::Resource ObjectsSsbo{};
         RG::Resource CommandsIndirect{};
-        
+
         RG::DrawAttachmentResources DrawAttachmentResources{};
 
         std::optional<RG::IBLData> IBL{};
