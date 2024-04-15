@@ -35,8 +35,6 @@ public:
     {
         std::array<Buffer, MAX_BATCHES> Indices;
         std::array<Buffer, MAX_BATCHES> Triangles;
-        std::array<Buffer, MAX_BATCHES> Count;
-        std::array<Buffer, MAX_BATCHES> Draw;
     };
 public:
     TriangleCullContext(MeshletCullContext& meshletCullContext);
@@ -347,11 +345,13 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                     ctx.Resources().IndicesCulledSsbo[i] = graph.AddExternal(
                         std::format("{}.{}", name, "Indices.Culled"), batchData.Indices[i]);
                     
-                    ctx.Resources().IndicesCulledCountSsbo[i] = graph.AddExternal(
-                        std::format("{}.{}", name, "CulledCount"), batchData.Count[i]);
+                    ctx.Resources().IndicesCulledCountSsbo[i] = graph.CreateResource(
+                        std::format("{}.{}", name, "CulledCount"),
+                        GraphBufferDescription{.SizeBytes = sizeof(u32)});
 
-                    ctx.Resources().DrawIndirect[i] = graph.AddExternal(
-                        std::format("{}.{}", name, "DrawIndirect"), batchData.Draw[i]);
+                    ctx.Resources().DrawIndirect[i] = graph.CreateResource(
+                        std::format("{}.{}", name, "DrawIndirect"),
+                        GraphBufferDescription{.SizeBytes = sizeof(IndirectDrawCommand)});
                 }
 
                 // draw subpass data

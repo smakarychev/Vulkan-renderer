@@ -118,7 +118,7 @@ void Renderer::InitRenderGraph()
                 .ExtractSet(2)
                 .BindlessCount(1024)
                 .Build();
-        translucentMaterialDescriptors.UpdateBinding("u_materials",
+        translucentMaterialDescriptors.UpdateGlobalBinding("u_materials",
             m_GraphTranslucentGeometry.GetMaterialsBuffer().BindingInfo());
         m_GraphModelCollection.ApplyMaterialTextures(translucentMaterialDescriptors);
         

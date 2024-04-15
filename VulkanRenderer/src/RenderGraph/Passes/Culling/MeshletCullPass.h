@@ -28,7 +28,6 @@ public:
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
-    const Buffer& CompactCountReocclusion() const { return m_CompactCountReocclusion; }
     const RG::Geometry& Geometry() const { return m_MeshCullContext->Geometry(); }
     MeshCullContext& MeshContext() const { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
@@ -41,7 +40,6 @@ private:
     /* can be detached from real frame number */
     u32 m_FrameNumber{0};
     std::array<Buffer, BUFFERED_FRAMES> m_CompactCount;
-    Buffer m_CompactCountReocclusion;
     std::array<u32, BUFFERED_FRAMES> m_CompactCountValues{};
     std::array<u32, BUFFERED_FRAMES> m_CompactCountReocclusionValues{};
 
@@ -132,8 +130,8 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
                 ctx.Resources().CompactCountSsbo =
                     graph.AddExternal(std::format("{}.{}", passName, "Commands.CompactCount"), ctx.CompactCount());
                 ctx.Resources().CompactCountReocclusionSsbo =
-                    graph.AddExternal(std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
-                        ctx.CompactCountReocclusion());
+                    graph.CreateResource(std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
+                        GraphBufferDescription{.SizeBytes = sizeof(u32)});
             }
 
             auto& meshResources = ctx.MeshContext().Resources();

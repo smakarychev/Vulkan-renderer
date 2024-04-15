@@ -27,16 +27,6 @@ TriangleCullContext::TriangleCullContext(MeshletCullContext& meshletCullContext)
                     .SizeBytes = GetIndexCount() * sizeof(IndexType),
                     .Usage = DeviceAddress | Storage | Index})
                 .Build();
-            
-            batches.Count[i] = Buffer::Builder({
-                    .SizeBytes = sizeof(u32),
-                    .Usage = DeviceAddress | Storage})
-                .Build();
-            
-            batches.Draw[i] = Buffer::Builder({
-                    .SizeBytes = sizeof(IndirectDrawCommand),
-                    .Usage = DeviceAddress | Storage | Indirect})
-                .Build();
         }
     }
 }
