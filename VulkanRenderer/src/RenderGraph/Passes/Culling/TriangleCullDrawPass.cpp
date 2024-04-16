@@ -38,7 +38,7 @@ TriangleCullPrepareDispatchPass::TriangleCullPrepareDispatchPass(
 {
     ShaderPipelineTemplate* prepareDispatchTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/prepare-indirect-dispatches-comp.shader"},
-        "render-graph-prepare-triangle-cull-pass-template", renderGraph.GetArenaAllocators());
+        "Pass.TriangleCull.PrepareDispatch", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(prepareDispatchTemplate)
@@ -56,11 +56,6 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
 {
     using namespace RG;
     using enum ResourceAccessFlags;
-
-    static ShaderDescriptors::BindingInfo countBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_command_count"); 
-    static ShaderDescriptors::BindingInfo dispatchBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_indirect_dispatch"); 
 
     std::string name = m_Name.Name();
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
@@ -93,8 +88,8 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding(countBinding, countSsbo.BindingInfo());          
-            resourceDescriptors.UpdateBinding(dispatchBinding, dispatchSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_command_count", countSsbo.BindingInfo());          
+            resourceDescriptors.UpdateBinding("u_indirect_dispatch", dispatchSsbo.BindingInfo());
 
             struct PushConstants
             {
@@ -123,11 +118,10 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
                 .Build(frameContext.DeletionQueue));
 
             // todo: render all missed meshlets in meshlet reocclusion pass
-            u32 visibleMeshletsValue = passData.Context->MeshletContext().CompactCountValue();
+            u32 visibleMeshletsValue = passData.Context->MeshletContext().ReadbackCompactCountValue();
             
             u32 commandCount = TriangleCullContext::GetCommandCount();
             u32 iterationCount = visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0);
             passData.Context->SetIterationCount(iterationCount);
-            passData.Context->ResetIteration();
         });
 }

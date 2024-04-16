@@ -24,13 +24,15 @@ public:
     MeshletCullContext(MeshCullContext& meshCullContext);
     /* should be called once a frame */
     void NextFrame() { m_FrameNumber = (m_FrameNumber + 1) % BUFFERED_FRAMES; }
-    u32 CompactCountValue() const { return ReadbackCount(m_CompactCount[PreviousFrame()]); }
+    u32 ReadbackCompactCountValue();
+    u32 CompactCountValue() const { return m_CompactCountValue; }
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
     const RG::Geometry& Geometry() const { return m_MeshCullContext->Geometry(); }
     MeshCullContext& MeshContext() const { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
+    const PassResources& Resources() const { return m_Resources; }
 private:
     u32 ReadbackCount(const Buffer& buffer) const;
     u32 PreviousFrame() const { return (m_FrameNumber + BUFFERED_FRAMES - 1) % BUFFERED_FRAMES; }
@@ -40,8 +42,9 @@ private:
     /* can be detached from real frame number */
     u32 m_FrameNumber{0};
     std::array<Buffer, BUFFERED_FRAMES> m_CompactCount;
-    std::array<u32, BUFFERED_FRAMES> m_CompactCountValues{};
     std::array<u32, BUFFERED_FRAMES> m_CompactCountReocclusionValues{};
+
+    u32 m_CompactCountValue{0};
 
     MeshCullContext* m_MeshCullContext{nullptr};
     PassResources m_Resources{};

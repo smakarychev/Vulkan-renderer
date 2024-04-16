@@ -19,6 +19,12 @@ MeshletCullContext::MeshletCullContext(MeshCullContext& meshCullContext)
             .Build();
 }
 
+u32 MeshletCullContext::ReadbackCompactCountValue()
+{
+    m_CompactCountValue = ReadbackCount(m_CompactCount[PreviousFrame()]);
+    return m_CompactCountValue;
+}
+
 u32 MeshletCullContext::ReadbackCount(const Buffer& buffer) const
 {
     const void* address = Driver::MapBuffer(buffer);

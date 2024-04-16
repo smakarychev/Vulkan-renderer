@@ -13,7 +13,7 @@
 class TriangleCullContext
 {
 public:
-    static constexpr u32 MAX_BATCHES = 5;
+    static constexpr u32 MAX_BATCHES = 2;
     static constexpr u32 MAX_TRIANGLES = 128'000;
     static constexpr u32 MAX_INDICES = MAX_TRIANGLES * 3;
     static constexpr u32 MAX_COMMANDS = MAX_TRIANGLES / assetLib::ModelInfo::TRIANGLES_PER_MESHLET;
@@ -58,9 +58,6 @@ public:
     MeshletCullContext& MeshletContext() { return *m_MeshletCullContext; }
     PassResources& Resources() { return m_Resources; }
 
-    u32 Iteration() const { return m_Iteration; }
-    void ResetIteration() { m_Iteration = 0; }
-
     void SetIterationCount(u32 count) { m_IterationCount = count; }
     u32 GetIterationCount() const { return m_IterationCount; }
     
@@ -69,7 +66,6 @@ private:
     
     std::array<BatchesBuffers, BUFFERED_FRAMES> m_BatchesBuffers;
 
-    u32 m_Iteration{0};
     u32 m_IterationCount{0};
     
     MeshletCullContext* m_MeshletCullContext{nullptr};
@@ -165,6 +161,9 @@ private:
  * - option 1) is impossible because the recording (`AddToGraph`) happens before the batch count is known.
  *
  * Therefore, cull and draw have to be united in this single not so pretty pass.
+ *
+ * **UPDATE**: this coupling is no longer necessary, because the batch count comes from the previous frame;
+ * but I will leave this comment here, because the point on deferred execution limitations still stands.  
  */
 template <CullStage Stage>
 class TriangleCullDrawPass
