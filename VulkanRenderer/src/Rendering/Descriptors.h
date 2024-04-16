@@ -232,6 +232,7 @@ public:
     void BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 firstSet) const;
 private:
     std::vector<u64> m_Offsets;
+    u64 m_SizeBytes{0};
     const DescriptorArenaAllocator* m_Allocator;
 };
 

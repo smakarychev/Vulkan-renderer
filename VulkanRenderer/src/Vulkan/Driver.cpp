@@ -700,7 +700,7 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
     std::vector<VkPresentModeKHR> desiredPresentModes = {{
-        VK_PRESENT_MODE_IMMEDIATE_KHR,
+        //VK_PRESENT_MODE_IMMEDIATE_KHR,
         VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
     DeviceSurfaceDetails surfaceDetails = GetSurfaceDetails(*createInfo.Device);
@@ -1784,6 +1784,7 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     
     Descriptors descriptors = {};
     descriptors.m_Offsets = bindingOffsets;
+    descriptors.m_SizeBytes = layoutSizeBytes;
     descriptors.m_Allocator = &allocator;
 
     allocator.m_CurrentOffset += layoutSizeBytes;
@@ -1842,7 +1843,11 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
     }
 
     u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
-    u64 offsetBytes = descriptors.m_Offsets[slot] + descriptorSizeBytes * bindlessIndex;
+    u64 innerOffsetBytes = descriptorSizeBytes * bindlessIndex;
+    ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptors.m_SizeBytes,
+        "Trying to write descriptor outside of the allocated region")
+    
+    u64 offsetBytes = descriptors.m_Offsets[slot] + innerOffsetBytes;
     vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, descriptorSizeBytes,
         (u8*)descriptors.m_Allocator->GetCurrentBuffer().m_HostAddress + offsetBytes);
 }
