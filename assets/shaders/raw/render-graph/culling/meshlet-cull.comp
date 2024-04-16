@@ -47,7 +47,7 @@ layout(std430, set = 1, binding = 8) buffer count_buffer {
 } u_count;
 
 layout(push_constant) uniform push_constants {
-    uint meshlets_count;
+    uint u_meshlet_count;
 };
 
 bool is_visible(vec3 origin, float radius, vec3 cone_axis, float cone_cutoff) {
@@ -89,7 +89,7 @@ void compact(uint id, bool should_draw) {
 
 void main() {
     uint id = gl_GlobalInvocationID.x;
-    if (id >= meshlets_count)
+    if (id >= u_meshlet_count)
         return;
 
     uint meshlet_id = u_commands.commands[id].firstInstance;

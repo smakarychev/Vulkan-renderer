@@ -27,7 +27,7 @@ layout(std430, set = 1, binding = 3) writeonly buffer object_visibility_buffer{
 } u_object_visibility;
 
 layout(push_constant) uniform push_constants {
-    uint meshes_count;
+    uint u_mesh_count;
 };
 
 bool is_visible(vec3 origin, float radius) {
@@ -47,7 +47,7 @@ bool is_reocclusion_visible(vec3 origin, float radius) {
 
 void main() {
     uint id = gl_GlobalInvocationID.x;
-    if (id >= meshes_count)
+    if (id >= u_mesh_count)
         return;
 
     object_data object = u_objects.objects[id];

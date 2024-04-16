@@ -1,8 +1,6 @@
 #include "PbrTCForwardIBLPass.h"
 
 #include "RenderGraph/Passes/Culling/CullMetaPass.h"
-#include "RenderGraph/Passes/Culling/CullMetaSinglePass.h"
-#include "RenderGraph/RGGeometry.h"
 
 PbrTCForwardIBLPass::PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwardIBLPassInitInfo& info,
     std::string_view name)
