@@ -68,7 +68,7 @@ void utils::runSubProcess(const std::filesystem::path& executablePath, const std
             }
 
             std::string bufferString = std::string{buffer + 0, buffer + bytesRead};
-            std::vector<std::string_view> lines = splitStringTransient(bufferString, "\r\n");
+            std::vector<std::string_view> lines = splitStringTransient(bufferString, "\n");
 
             bool unfinishedLine = !bufferString.ends_with("\r\n");
 

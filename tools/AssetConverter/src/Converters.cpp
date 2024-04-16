@@ -4,6 +4,7 @@
 #include "TextureAsset.h"
 
 #define STB_IMAGE_IMPLEMENTATION
+#include <execution>
 #include <stb_image.h>
 
 #include <shaderc/shaderc.h>
@@ -18,9 +19,11 @@
 #include <spirv_reflect.h>
 #include <fstream>
 #include <iostream>
+#include <ranges>
 #include <vulkan/vulkan_core.h>
 
 #include "utils.h"
+#include "Core/core.h"
 
 namespace
 {
@@ -98,6 +101,8 @@ void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath
 void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path,
     assetLib::TextureFormat format)
 {
+    std::cout << std::format("Converting texture file {}\n", path.string());
+    
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
         {
@@ -155,6 +160,8 @@ bool ModelConverter::NeedsConversion(const std::filesystem::path& initialDirecto
 void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     const std::filesystem::path& path)
 {
+    std::cout << std::format("Converting model file {}\n", path.string());
+    
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
         {
@@ -195,11 +202,17 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     {
         aiNode* currentNode = nodesToProcess.back(); nodesToProcess.pop_back();
 
-        for (u32 i = 0; i < currentNode->mNumMeshes; i++)
+        auto meshes = std::ranges::views::iota(0u, currentNode->mNumMeshes);
+        std::mutex mutex{};
+        std::for_each(std::execution::par_unseq, meshes.begin(), meshes.end(), [&](u32 meshIndex)
         {
-            MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[i]], path);
+            std::cout << std::format("\tConverting mesh {} out of {}\n", modelInfo.MeshInfos.size(), scene->mNumMeshes);
+            
+            MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[meshIndex]], path);
             ConvertTextures(initialDirectoryPath, meshData);
+            assetLib::BoundingSphere sphere = utils::welzlSphere(meshData.VertexGroup.Positions);
 
+            std::lock_guard lock(mutex);
             modelInfo.MeshInfos.push_back({
                 .Name = meshData.Name,
                 .VertexElementsSizeBytes = meshData.VertexGroup.ElementsSizesBytes(),
@@ -208,7 +221,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
                 .MaterialType = meshData.MaterialType,
                 .MaterialPropertiesPBR = meshData.MaterialPropertiesPBR,
                 .Materials = meshData.MaterialInfos,
-                .BoundingSphere = utils::welzlSphere(meshData.VertexGroup.Positions)});
+                .BoundingSphere = sphere});
 
             modelData.VertexGroup.Positions.append_range(meshData.VertexGroup.Positions);
             modelData.VertexGroup.Normals.append_range(meshData.VertexGroup.Normals);
@@ -216,7 +229,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             modelData.VertexGroup.UVs.append_range(meshData.VertexGroup.UVs);
             modelData.Indices.append_range(meshData.Indices);
             modelData.Meshlets.append_range(meshData.Meshlets);
-        }
+        });
             
         for (u32 i = 0; i < currentNode->mNumChildren; i++)
             nodesToProcess.push_back(currentNode->mChildren[i]);
@@ -447,6 +460,8 @@ bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirect
 
 void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
+    std::cout << std::format("Converting shader file {}\n", path.string());
+    
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
         {
