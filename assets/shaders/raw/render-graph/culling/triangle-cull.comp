@@ -203,5 +203,5 @@ void main() {
         should_be_drawn = !is_last_frame_visible && visible;
     }
 
-    compact(id, uint8_t(triangle_index), indices, false);
+    compact(id, uint8_t(triangle_index), indices, should_be_drawn);
 }
