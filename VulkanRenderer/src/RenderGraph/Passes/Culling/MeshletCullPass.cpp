@@ -1,6 +1,7 @@
 #include "MeshletCullPass.h"
 
 #include "MeshCullPass.h"
+#include "TriangleCullDrawPass.h"
 
 MeshletCullContext::MeshletCullContext(MeshCullContext& meshCullContext)
     : m_MeshCullContext(&meshCullContext)
@@ -23,6 +24,13 @@ u32 MeshletCullContext::ReadbackCompactCountValue()
 {
     m_CompactCountValue = ReadbackCount(m_CompactCount[PreviousFrame()]);
     return m_CompactCountValue;
+}
+
+u32 MeshletCullContext::CompactCountRoundedValue() const
+{
+    return TriangleCullContext::GetCommandCount() *
+        (m_CompactCountValue / TriangleCullContext::GetCommandCount() +
+        (u32)(m_CompactCountValue % TriangleCullContext::GetCommandCount() != 0));
 }
 
 u32 MeshletCullContext::ReadbackCount(const Buffer& buffer) const

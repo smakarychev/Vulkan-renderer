@@ -26,6 +26,7 @@ public:
     void NextFrame() { m_FrameNumber = (m_FrameNumber + 1) % BUFFERED_FRAMES; }
     u32 ReadbackCompactCountValue();
     u32 CompactCountValue() const { return m_CompactCountValue; }
+    u32 CompactCountRoundedValue() const;
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
