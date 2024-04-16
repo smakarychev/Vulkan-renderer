@@ -97,46 +97,54 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(const Model* mode
         material.Albedo = mesh.Material.PropertiesPBR.Albedo;
         material.Metallic = mesh.Material.PropertiesPBR.Metallic;
         material.Roughness = mesh.Material.PropertiesPBR.Roughness;
-        auto addTexture = [](MaterialGPU& materialGPU, const std::vector<std::string>& textures, auto&& fn)
+        auto addTexture = [this](MaterialGPU& materialGPU, const std::vector<std::string>& textures, auto&& fn)
         {
             if (!textures.empty())
             {
-                Image texture = Image::Builder({.Usage = ImageUsage::Sampled})
-                    .FromAssetFile(textures.front())
-                    .Build();
-
-                fn(materialGPU, texture);
+                if (m_TexturesMap.contains(textures.front()))
+                {
+                    *fn(materialGPU) = m_TexturesMap.at(textures.front());
+                }
+                else
+                {
+                    Image texture = Image::Builder({.Usage = ImageUsage::Sampled})
+                        .FromAssetFile(textures.front())
+                        .Build();
+                    
+                    *fn(materialGPU) = AddTexture(texture);
+                    m_TexturesMap.emplace(textures.front(), *fn(materialGPU));
+                }
             }
         };
 
         addTexture(material, mesh.Material.AlbedoTextures,
-            [this](MaterialGPU& materialGPU, const Image& texture)
+            [this](MaterialGPU& materialGPU)
             {
-                materialGPU.AlbedoTextureHandle = AddTexture(texture);
+                return &materialGPU.AlbedoTextureHandle;
             });
 
         addTexture(material, mesh.Material.NormalTextures,
-            [this](MaterialGPU& materialGPU, const Image& texture)
+            [this](MaterialGPU& materialGPU)
             {
-                materialGPU.NormalTextureHandle = AddTexture(texture);
+                return &materialGPU.NormalTextureHandle;
             });
 
         addTexture(material, mesh.Material.MetallicRoughnessTextures,
-            [this](MaterialGPU& materialGPU, const Image& texture)
+            [this](MaterialGPU& materialGPU)
             {
-                materialGPU.MetallicRoughnessTextureHandle = AddTexture(texture);
+                return &materialGPU.MetallicRoughnessTextureHandle;
             });
 
         addTexture(material, mesh.Material.AmbientOcclusionTextures,
-            [this](MaterialGPU& materialGPU, const Image& texture)
+            [this](MaterialGPU& materialGPU)
             {
-                materialGPU.AmbientOcclusionTextureHandle = AddTexture(texture);
+                return &materialGPU.AmbientOcclusionTextureHandle;
             });
         
         addTexture(material, mesh.Material.EmissiveTextures,
-            [this](MaterialGPU& materialGPU, const Image& texture)
+            [this](MaterialGPU& materialGPU)
             {
-                materialGPU.EmissiveTextureHandle = AddTexture(texture);
+                return &materialGPU.EmissiveTextureHandle;
             });
             
         RenderObject renderObject = {};

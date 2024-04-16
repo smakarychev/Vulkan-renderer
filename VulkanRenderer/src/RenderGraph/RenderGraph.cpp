@@ -17,14 +17,14 @@ namespace RG
                 .Kind(DescriptorAllocatorKind::Resources)
                 .Residence(DescriptorAllocatorResidence::CPU)
                 .ForTypes({DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image})
-                .Count(8192)
+                .Count(8192 * 4)
                 .Build();
 
         DescriptorArenaAllocator samplerAllocator =  DescriptorArenaAllocator::Builder()
                 .Kind(DescriptorAllocatorKind::Samplers)
                 .Residence(DescriptorAllocatorResidence::CPU)
                 .ForTypes({DescriptorType::Sampler})
-                .Count(256)
+                .Count(256 * 4)
                 .Build();
         
         m_ArenaAllocators = std::make_unique<DescriptorArenaAllocators>(resourceAllocator, samplerAllocator);

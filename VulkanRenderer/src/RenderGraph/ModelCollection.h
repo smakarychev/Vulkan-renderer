@@ -77,6 +77,8 @@ private:
     std::unordered_map<std::string, ModelInfo> m_Models;
     RenderHandleArray<Mesh> m_Meshes;
     RenderHandleArray<Image> m_Textures;
+    /* is used to not push identical textures into `m_Textures` array */
+    std::unordered_map<std::string, RenderHandle<Image>> m_TexturesMap;
     RenderHandleArray<MaterialGPU> m_MaterialsGPU;
     RenderHandleArray<Material> m_Materials;
 
