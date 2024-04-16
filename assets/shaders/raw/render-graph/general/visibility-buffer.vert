@@ -26,6 +26,10 @@ layout(std430, set = 1, binding = 4) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
+layout(push_constant) uniform push_constants {
+    uint u_command_offset;
+};
+
 layout(location = 0) out uint vertex_command_id;
 layout(location = 1) out vec2 vertex_uv;
 
@@ -44,9 +48,9 @@ void main() {
         argument_index = command.vertexOffset + index;
     }
     else {
-        command = u_commands.commands[gl_DrawIDARB];
+        vertex_command_id = gl_DrawIDARB + u_command_offset;
+        command = u_commands.commands[vertex_command_id];
         
-        vertex_command_id = gl_DrawIDARB;
         argument_index = gl_VertexIndex;
     }
 

@@ -32,6 +32,10 @@ layout(std430, set = 1, binding = 6) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
+layout(push_constant) uniform push_constants {
+    uint u_command_offset;
+};
+
 layout(location = 0) out uint vertex_object_index;
 layout(location = 1) out vec3 vertex_position;
 layout(location = 2) out vec3 vertex_normal;
@@ -39,8 +43,8 @@ layout(location = 3) out vec3 vertex_tangent;
 layout(location = 4) out vec2 vertex_uv;
 
 void main() {
-    IndirectCommand command = u_commands.commands[gl_DrawIDARB];
-    vertex_object_index = command.render_object;
+    vertex_object_index = gl_DrawIDARB + u_command_offset;
+    const IndirectCommand command = u_commands.commands[vertex_object_index];
 
     const mat4 model = u_objects.objects[vertex_object_index].model;
 

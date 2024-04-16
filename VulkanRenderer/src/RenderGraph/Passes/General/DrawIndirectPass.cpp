@@ -111,8 +111,11 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
             
             pipeline.BindGraphics(cmd);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            u32 offsetCommands = std::min(info.CommandsOffset, info.Geometry->GetMeshletCount());
+            u32 toDrawCommands = info.Geometry->GetMeshletCount() - offsetCommands;
+            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), offsetCommands);
             RenderCommand::DrawIndexedIndirect(cmd,
-                commandsDraw, info.CommandsOffsetBytes,
-                info.Geometry->GetMeshletCount());
+                commandsDraw, offsetCommands * sizeof(IndirectDrawCommand),
+                toDrawCommands);
         });
 }

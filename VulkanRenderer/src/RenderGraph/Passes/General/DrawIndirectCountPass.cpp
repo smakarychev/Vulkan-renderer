@@ -112,9 +112,13 @@ void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirec
             
             pipeline.BindGraphics(cmd);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+
+            u32 offsetCommands = std::min(info.CommandsOffset, info.Geometry->GetMeshletCount());
+            u32 toDrawCommands = info.Geometry->GetMeshletCount() - offsetCommands;
+            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), offsetCommands);
             RenderCommand::DrawIndexedIndirectCount(cmd,
-                commandsDraw, info.CommandsOffsetBytes,
+                commandsDraw, offsetCommands * sizeof(IndirectDrawCommand),
                 countDraw, 0,
-                info.Geometry->GetMeshletCount());
+                toDrawCommands);
         });
 }

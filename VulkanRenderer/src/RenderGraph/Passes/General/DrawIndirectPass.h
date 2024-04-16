@@ -20,7 +20,7 @@ struct DrawIndirectPassExecutionInfo
 {
     const RG::Geometry* Geometry{nullptr};
     RG::Resource Commands{};
-    u64 CommandsOffsetBytes{0};
+    u32 CommandsOffset{0};
     glm::uvec2 Resolution{};
 
     RG::DrawAttachments DrawAttachments{};
