@@ -26,13 +26,6 @@ u32 MeshletCullContext::ReadbackCompactCountValue()
     return m_CompactCountValue;
 }
 
-u32 MeshletCullContext::CompactCountRoundedValue() const
-{
-    return TriangleCullContext::GetCommandCount() *
-        (m_CompactCountValue / TriangleCullContext::GetCommandCount() +
-        (u32)(m_CompactCountValue % TriangleCullContext::GetCommandCount() != 0));
-}
-
 u32 MeshletCullContext::ReadbackCount(const Buffer& buffer) const
 {
     const void* address = Driver::MapBuffer(buffer);

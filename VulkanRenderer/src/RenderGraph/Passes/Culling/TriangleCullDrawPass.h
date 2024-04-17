@@ -53,7 +53,6 @@ public:
     }
 
     const Buffer& Visibility() { return m_Visibility; }
-    const BatchesBuffers& GetBatchesBuffers(u32 frameIndex) { return m_BatchesBuffers[frameIndex]; }
     const RG::Geometry& Geometry() { return m_MeshletCullContext->Geometry(); }
     MeshletCullContext& MeshletContext() { return *m_MeshletCullContext; }
     PassResources& Resources() { return m_Resources; }
@@ -64,8 +63,6 @@ public:
 private:
     Buffer m_Visibility;
     
-    std::array<BatchesBuffers, BUFFERED_FRAMES> m_BatchesBuffers;
-
     u32 m_IterationCount{0};
     
     MeshletCullContext* m_MeshletCullContext{nullptr};
@@ -195,6 +192,7 @@ private:
         Sampler HiZSampler;
         RG::Resource ObjectsSsbo;
         RG::Resource MeshletVisibilitySsbo;
+        RG::Resource CommandsSsbo;
         RG::Resource CompactCommandsSsbo;
         RG::Resource CompactCountSsbo;
         
@@ -329,20 +327,21 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 ctx.Resources().IndicesSsbo = graph.AddExternal(std::format("{}.{}", m_Name.Name(), "Indices"),
                    ctx.Geometry().GetAttributeBuffers().Indices);
 
-                // todo: remove me!
-                static u32 FRAME = 0;
-                FRAME = (FRAME + 1) % BUFFERED_FRAMES;
-                
                 for (u32 i = 0; i < ctx.MAX_BATCHES; i++)
                 {
                     std::string name = std::format("{}.{}", m_Name.Name(), i);
-                    auto& batchData = ctx.GetBatchesBuffers(FRAME);
 
-                    ctx.Resources().TrianglesSsbo[i] = graph.AddExternal(
-                        std::format("{}.{}", m_Name.Name(), "Triangles"), batchData.Triangles[i]);
+                    ctx.Resources().TrianglesSsbo[i] = graph.CreateResource(
+                        std::format("{}.{}", m_Name.Name(), "Triangles"),
+                        GraphBufferDescription{
+                            .SizeBytes = TriangleCullContext::GetTriangleCount() *
+                                sizeof(TriangleCullContext::TriangleType)});
                     
-                    ctx.Resources().IndicesCulledSsbo[i] = graph.AddExternal(
-                        std::format("{}.{}", name, "Indices.Culled"), batchData.Indices[i]);
+                    ctx.Resources().IndicesCulledSsbo[i] = graph.CreateResource(
+                    std::format("{}.{}", name, "Indices.Culled"),
+                    GraphBufferDescription{
+                        .SizeBytes = TriangleCullContext::GetIndexCount() *
+                            sizeof(TriangleCullContext::IndexType)});
                     
                     ctx.Resources().IndicesCulledCountSsbo[i] = graph.CreateResource(
                         std::format("{}.{}", name, "CulledCount"),
@@ -368,9 +367,12 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
 
             auto& meshletResources = ctx.MeshletContext().Resources();
             meshletResources.VisibilitySsbo = graph.Read(meshletResources.VisibilitySsbo, Compute | Storage);
+            
+            meshletResources.CommandsSsbo = graph.Read(meshletResources.CommandsSsbo, Compute | Storage);
+            meshletResources.CommandsSsbo = graph.Write(meshletResources.CommandsSsbo, Compute | Storage);
+            
             meshletResources.CompactCommandsSsbo = graph.Read(meshletResources.CompactCommandsSsbo, Compute | Storage);
 
-            
             auto& cullResources = ctx.Resources();
             cullResources.SceneUbo = graph.Read(cullResources.SceneUbo, Compute | Uniform | Upload);
             cullResources.TriangleVisibilitySsbo =
@@ -432,6 +434,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             passData.HiZSampler = meshResources.HiZSampler;
             passData.ObjectsSsbo = meshResources.ObjectsSsbo;
             passData.MeshletVisibilitySsbo = meshletResources.VisibilitySsbo;
+            passData.CommandsSsbo = meshletResources.CommandsSsbo;
             passData.CompactCommandsSsbo = meshletResources.CompactCommandsSsbo;
             passData.CompactCountSsbo = graph.Read(info.CompactCount, Compute | Storage);
             passData.TriangleCullResources = cullResources;
@@ -469,6 +472,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 *frameContext.ResourceUploader);
             const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
             const Buffer& meshletVisibilitySsbo = resources.GetBuffer(passData.MeshletVisibilitySsbo);
+            const Buffer& commandsSsbo = resources.GetBuffer(passData.CommandsSsbo);
             const Buffer& compactCommandsSsbo = resources.GetBuffer(passData.CompactCommandsSsbo);
             const Buffer& compactCountSsbo = resources.GetBuffer(passData.CompactCountSsbo);
             const Buffer& triangleVisibilitySsbo = resources.GetBuffer(
@@ -489,7 +493,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             const Buffer& cameraUbo = resources.GetBuffer(passData.TriangleDrawResources.CameraUbo); 
             const Buffer& positionsSsbo = resources.GetBuffer(
                 passData.TriangleDrawResources.AttributeBuffers.PositionsSsbo);
-            const Buffer& commandsSsbo = resources.GetBuffer(passData.TriangleDrawResources.CommandsSsbo);
+            const Buffer& drawCommandsSsbo = resources.GetBuffer(passData.TriangleDrawResources.CommandsSsbo);
             const Buffer& indicesSsbo = resources.GetBuffer(passData.TriangleCullResources.IndicesSsbo);
             const Buffer& dispatchSsboIndirect = resources.GetBuffer(passData.TriangleCullResources.DispatchIndirect);
 
@@ -503,7 +507,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibilitySsbo.BindingInfo());
-                resourceDescriptors.UpdateBinding("u_commands", compactCommandsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_compacted_commands", compactCommandsSsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_count", compactCountSsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_triangle_visibility", triangleVisibilitySsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
@@ -524,7 +529,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
 
                 resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
-                resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_commands", drawCommandsSsbo.BindingInfo());
 
                 if (enumHasAny(passData.DrawFeatures, Triangles))
                     resourceDescriptors.UpdateBinding("u_triangles", trianglesSsbo[index].BindingInfo());

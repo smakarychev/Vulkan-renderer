@@ -34,7 +34,7 @@ layout(std430, set = 1, binding = 5) buffer meshlet_visibility_buffer{
     uint16_t visibility[];
 } u_meshlet_visibility;
 
-layout(std430, set = 1, binding = 6) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 6) buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
@@ -83,8 +83,15 @@ void compact(uint id, bool should_draw) {
 
     uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
 
-    if (should_draw)
+    if (should_draw) {
         u_compacted_commands.commands[compacted_buffer_index] = command;
+        
+        // this 0 serves as a mark; the triangle culling later sets it back to 1, 
+        // this way we can check if some command wasn't processed by triangle culling
+        // due to not up-to-date batch count
+        if (!REOCCLUSION)
+            u_commands.commands[id].instanceCount = 0;
+    }
 }
 
 void main() {
@@ -125,7 +132,10 @@ void main() {
         else
             flags_unset_visible(u_meshlet_visibility.visibility[meshlet_id]);
 
-        should_be_drawn = !is_last_frame_visible && visible;
+        // visible meshlet should be drawn if it wasn't drawn already OR if it wasn't processed by triange culling
+        const bool was_processed_by_triangle_culling = u_commands.commands[id].instanceCount == 1;
+        should_be_drawn = (!was_processed_by_triangle_culling || !is_last_frame_visible) && visible;
+        u_commands.commands[id].instanceCount = 1;
     }
 
     if (should_be_drawn)

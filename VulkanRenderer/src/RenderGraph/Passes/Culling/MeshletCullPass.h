@@ -26,7 +26,6 @@ public:
     void NextFrame() { m_FrameNumber = (m_FrameNumber + 1) % BUFFERED_FRAMES; }
     u32 ReadbackCompactCountValue();
     u32 CompactCountValue() const { return m_CompactCountValue; }
-    u32 CompactCountRoundedValue() const;
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
@@ -149,6 +148,7 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
             resources.VisibilitySsbo = graph.Read(resources.VisibilitySsbo, Compute | Storage);
             resources.VisibilitySsbo = graph.Write(resources.VisibilitySsbo, Compute | Storage);
             resources.CommandsSsbo = graph.Read(resources.CommandsSsbo, Compute | Storage);
+            resources.CommandsSsbo = graph.Write(resources.CommandsSsbo, Compute | Storage);
             resources.CompactCommandsSsbo = graph.Read(resources.CompactCommandsSsbo, Compute | Storage);
             resources.CompactCommandsSsbo = graph.Write(resources.CompactCommandsSsbo, Compute | Storage);
             if constexpr(Stage != CullStage::Reocclusion)

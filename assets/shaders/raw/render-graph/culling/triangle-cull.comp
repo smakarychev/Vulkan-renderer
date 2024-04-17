@@ -30,15 +30,19 @@ layout(std430, set = 1, binding = 3) readonly buffer meshlet_visibility_buffer {
     uint16_t visibility[];
 } u_meshlet_visibility;
 
-layout(std430, set = 1, binding = 4) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 4) buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 5) buffer count_buffer {
+layout(std430, set = 1, binding = 5) readonly buffer compacted_command_buffer {
+    IndirectCommand commands[];
+} u_compacted_commands;
+
+layout(std430, set = 1, binding = 6) buffer count_buffer {
     uint count;
 } u_count;
 
-layout(std430, set = 1, binding = 6) buffer triangle_buffer {
+layout(std430, set = 1, binding = 7) buffer triangle_buffer {
     uint8_t triangles[];
 } u_triangles;
 
@@ -46,23 +50,23 @@ struct TriangleVisibility
 {
     int visibility[2];
 };
-layout(std430, set = 1, binding = 7) buffer visible_triangles_buffer {
+layout(std430, set = 1, binding = 8) buffer visible_triangles_buffer {
     TriangleVisibility visibility[];
 } u_triangle_visibility;
 
-layout(std430, set = 1, binding = 8) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 9) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 9) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 10) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
-layout(std430, set = 1, binding = 10) writeonly buffer singular_indices_buffer {
+layout(std430, set = 1, binding = 11) writeonly buffer singular_indices_buffer {
     uint indices[];
 } u_culled_indices;
 
-layout(std430, set = 1, binding = 11) writeonly buffer singular_index_count_buffer {
+layout(std430, set = 1, binding = 12) writeonly buffer singular_index_count_buffer {
     uint count;
 } u_culled_count;
 
@@ -117,7 +121,13 @@ bool is_reocclusion_visible(Triangle triangle) {
 }
 
 void compact(uint id, uint8_t triangle_index, uvec3 indices, bool should_draw) {
-    IndirectCommand command = u_commands.commands[id];
+    // mark this command as processed; the REOCCLUSION and ordinary stages both process the same set of 
+    // commands, so we can update it only once
+    if (!REOCCLUSION) {
+        u_commands.commands[u_compacted_commands.commands[id].firstInstance].instanceCount = 1;
+    }
+    
+    IndirectCommand command = u_compacted_commands.commands[id];
 
     uvec4 visible_ballot = subgroupBallot(should_draw);
     uint total_visible_triangle_count = subgroupBallotBitCount(visible_ballot);
@@ -145,7 +155,7 @@ void main() {
         return;
     id = id + u_command_offset;
 
-    IndirectCommand command = u_commands.commands[id];
+    IndirectCommand command = u_compacted_commands.commands[id];
 
     uint triangle_index = gl_LocalInvocationID.x;
     uint index_offset = triangle_index * 3;

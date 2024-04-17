@@ -10,25 +10,6 @@ TriangleCullContext::TriangleCullContext(MeshletCullContext& meshletCullContext)
                 (u32)sizeof(RG::Geometry::TriangleVisibilityType)),
             .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
         .Build();
-
-    for (u32 frameIndex = 0; frameIndex < BUFFERED_FRAMES; frameIndex++)
-    {
-        auto& batches = m_BatchesBuffers[frameIndex];
-        for (u32 i = 0; i < MAX_BATCHES; i++)
-        {
-            using enum BufferUsage;
-            
-            batches.Triangles[i] = Buffer::Builder({
-                    .SizeBytes = GetTriangleCount() * sizeof(TriangleType),
-                    .Usage = DeviceAddress | Storage})
-                .Build();
-
-            batches.Indices[i] = Buffer::Builder({
-                    .SizeBytes = GetIndexCount() * sizeof(IndexType),
-                    .Usage = DeviceAddress | Storage | Index})
-                .Build();
-        }
-    }
 }
 
 
@@ -117,7 +98,6 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
                     .DestinationAccess = PipelineAccess::ReadHost})
                 .Build(frameContext.DeletionQueue));
 
-            // todo: render all missed meshlets in meshlet reocclusion pass
             u32 visibleMeshletsValue = passData.Context->MeshletContext().ReadbackCompactCountValue();
             
             u32 commandCount = TriangleCullContext::GetCommandCount();
