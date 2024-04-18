@@ -17,8 +17,12 @@ public:
         RG::Resource VisibilitySsbo{};
         RG::Resource CommandsSsbo{};
         RG::Resource CompactCommandsSsbo{};
+        /* count buffer will be separate for ordinary and reocclusion passes */
         RG::Resource CompactCountSsbo{};
         RG::Resource CompactCountReocclusionSsbo{};
+
+        /* is used to mark commands that were processed by triangle culling */
+        RG::Resource CommandFlagsSsbo{};
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
@@ -117,24 +121,27 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{passName},
         [&](Graph& graph, PassData& passData)
         {
-            // if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass
+            /* if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass */
             if constexpr(Stage != CullStage::Reocclusion)
             {
                 ctx.Resources().MeshletsSsbo = graph.AddExternal(std::format("{}.{}", passName, "Meshlets"),
                     ctx.Geometry().GetMeshletsBuffer());
-                ctx.Resources().VisibilitySsbo =
-                    graph.AddExternal(std::format("{}.{}", passName, "Visibility"), ctx.Visibility());
-                ctx.Resources().CommandsSsbo =
-                    graph.AddExternal(std::format("{}.{}", passName, "Commands"), ctx.Geometry().GetCommandsBuffer());
-                ctx.Resources().CompactCommandsSsbo =
-                    graph.CreateResource(std::format("{}.{}", passName, "Commands.Compact"),
-                        GraphBufferDescription{.SizeBytes = ctx.Geometry().GetCommandsBuffer().GetSizeBytes()});
-                // count buffer will be separate for ordinary and reocclusion passes
-                ctx.Resources().CompactCountSsbo =
-                    graph.AddExternal(std::format("{}.{}", passName, "Commands.CompactCount"), ctx.CompactCount());
-                ctx.Resources().CompactCountReocclusionSsbo =
-                    graph.CreateResource(std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
-                        GraphBufferDescription{.SizeBytes = sizeof(u32)});
+                ctx.Resources().VisibilitySsbo = graph.AddExternal(
+                    std::format("{}.{}", passName, "Visibility"), ctx.Visibility());
+                ctx.Resources().CommandsSsbo = graph.AddExternal(
+                    std::format("{}.{}", passName, "Commands"), ctx.Geometry().GetCommandsBuffer());
+                ctx.Resources().CompactCommandsSsbo = graph.CreateResource(
+                    std::format("{}.{}", passName, "Commands.Compact"),
+                    GraphBufferDescription{.SizeBytes = ctx.Geometry().GetCommandsBuffer().GetSizeBytes()});
+                ctx.Resources().CompactCountSsbo = graph.AddExternal(
+                    std::format("{}.{}", passName, "Commands.CompactCount"), ctx.CompactCount());
+                ctx.Resources().CompactCountReocclusionSsbo = graph.CreateResource(
+                    std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
+                    GraphBufferDescription{.SizeBytes = sizeof(u32)});
+
+                ctx.Resources().CommandFlagsSsbo = graph.CreateResource(
+                    std::format("{}.{}", passName, "Commands.CommandFlags"),
+                    GraphBufferDescription{.SizeBytes = ctx.Geometry().GetMeshletCount() * sizeof(u8)});
             }
 
             auto& meshResources = ctx.MeshContext().Resources();
@@ -148,7 +155,6 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
             resources.VisibilitySsbo = graph.Read(resources.VisibilitySsbo, Compute | Storage);
             resources.VisibilitySsbo = graph.Write(resources.VisibilitySsbo, Compute | Storage);
             resources.CommandsSsbo = graph.Read(resources.CommandsSsbo, Compute | Storage);
-            resources.CommandsSsbo = graph.Write(resources.CommandsSsbo, Compute | Storage);
             resources.CompactCommandsSsbo = graph.Read(resources.CompactCommandsSsbo, Compute | Storage);
             resources.CompactCommandsSsbo = graph.Write(resources.CompactCommandsSsbo, Compute | Storage);
             if constexpr(Stage != CullStage::Reocclusion)
@@ -162,7 +168,10 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
                     graph.Read(resources.CompactCountReocclusionSsbo, Compute | Storage | Upload);
                 resources.CompactCountReocclusionSsbo =
                     graph.Write(resources.CompactCountReocclusionSsbo, Compute | Storage);
+
+                resources.CommandFlagsSsbo = graph.Read(resources.CommandFlagsSsbo, Compute | Storage);    
             }
+            resources.CommandFlagsSsbo = graph.Write(resources.CommandFlagsSsbo, Compute | Storage);
 
             passData.MeshResources = meshResources;
             passData.MeshletResources = resources;
@@ -192,6 +201,8 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
                 meshletResources.CompactCountReocclusionSsbo : meshletResources.CompactCountSsbo, 0u,
                 *frameContext.ResourceUploader);
 
+            const Buffer& flags = resources.GetBuffer(passData.MeshletResources.CommandFlagsSsbo);
+
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
@@ -206,6 +217,7 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
             resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
             resourceDescriptors.UpdateBinding("u_compacted_commands", compactCommandsSsbo.BindingInfo());
             resourceDescriptors.UpdateBinding("u_count", countSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_flags", flags.BindingInfo());
 
             u32 meshletCount = passData.MeshletCount;
 

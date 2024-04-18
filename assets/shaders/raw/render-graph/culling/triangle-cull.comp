@@ -30,19 +30,19 @@ layout(std430, set = 1, binding = 3) readonly buffer meshlet_visibility_buffer {
     uint16_t visibility[];
 } u_meshlet_visibility;
 
-layout(std430, set = 1, binding = 4) buffer command_buffer {
+layout(std430, set = 1, binding = 4) readonly buffer compacted_command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 5) readonly buffer compacted_command_buffer {
-    IndirectCommand commands[];
-} u_compacted_commands;
-
-layout(std430, set = 1, binding = 6) buffer count_buffer {
+layout(std430, set = 1, binding = 5) readonly buffer count_buffer {
     uint count;
 } u_count;
 
-layout(std430, set = 1, binding = 7) buffer triangle_buffer {
+layout(std430, set = 1, binding = 6) buffer flags_buffer {
+    uint8_t flags[];
+} u_flags;
+
+layout(std430, set = 1, binding = 7) writeonly buffer triangle_buffer {
     uint8_t triangles[];
 } u_triangles;
 
@@ -124,10 +124,10 @@ void compact(uint id, uint8_t triangle_index, uvec3 indices, bool should_draw) {
     // mark this command as processed; the REOCCLUSION and ordinary stages both process the same set of 
     // commands, so we can update it only once
     if (!REOCCLUSION) {
-        u_commands.commands[u_compacted_commands.commands[id].firstInstance].instanceCount = 1;
+        u_flags.flags[u_commands.commands[id].firstInstance] = uint8_t(1);
     }
     
-    IndirectCommand command = u_compacted_commands.commands[id];
+    IndirectCommand command = u_commands.commands[id];
 
     uvec4 visible_ballot = subgroupBallot(should_draw);
     uint total_visible_triangle_count = subgroupBallotBitCount(visible_ballot);
@@ -155,7 +155,7 @@ void main() {
         return;
     id = id + u_command_offset;
 
-    IndirectCommand command = u_compacted_commands.commands[id];
+    IndirectCommand command = u_commands.commands[id];
 
     uint triangle_index = gl_LocalInvocationID.x;
     uint index_offset = triangle_index * 3;

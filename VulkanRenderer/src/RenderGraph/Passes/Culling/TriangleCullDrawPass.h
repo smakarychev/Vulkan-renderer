@@ -192,9 +192,9 @@ private:
         Sampler HiZSampler;
         RG::Resource ObjectsSsbo;
         RG::Resource MeshletVisibilitySsbo;
-        RG::Resource CommandsSsbo;
         RG::Resource CompactCommandsSsbo;
         RG::Resource CompactCountSsbo;
+        RG::Resource FlagsSsbo;
         
         TriangleCullContext::PassResources TriangleCullResources;
         TriangleDrawContext::PassResources TriangleDrawResources;
@@ -367,11 +367,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
 
             auto& meshletResources = ctx.MeshletContext().Resources();
             meshletResources.VisibilitySsbo = graph.Read(meshletResources.VisibilitySsbo, Compute | Storage);
-            
-            meshletResources.CommandsSsbo = graph.Read(meshletResources.CommandsSsbo, Compute | Storage);
-            meshletResources.CommandsSsbo = graph.Write(meshletResources.CommandsSsbo, Compute | Storage);
-            
             meshletResources.CompactCommandsSsbo = graph.Read(meshletResources.CompactCommandsSsbo, Compute | Storage);
+            meshletResources.CommandFlagsSsbo = graph.Write(meshletResources.CommandFlagsSsbo, Compute | Storage);
 
             auto& cullResources = ctx.Resources();
             cullResources.SceneUbo = graph.Read(cullResources.SceneUbo, Compute | Uniform | Upload);
@@ -434,9 +431,9 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             passData.HiZSampler = meshResources.HiZSampler;
             passData.ObjectsSsbo = meshResources.ObjectsSsbo;
             passData.MeshletVisibilitySsbo = meshletResources.VisibilitySsbo;
-            passData.CommandsSsbo = meshletResources.CommandsSsbo;
             passData.CompactCommandsSsbo = meshletResources.CompactCommandsSsbo;
             passData.CompactCountSsbo = graph.Read(info.CompactCount, Compute | Storage);
+            passData.FlagsSsbo = meshletResources.CommandFlagsSsbo;
             passData.TriangleCullResources = cullResources;
             passData.TriangleDrawResources = drawResources;
             passData.DrawIndirect = ctx.Resources().DrawIndirect;
@@ -472,9 +469,9 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 *frameContext.ResourceUploader);
             const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
             const Buffer& meshletVisibilitySsbo = resources.GetBuffer(passData.MeshletVisibilitySsbo);
-            const Buffer& commandsSsbo = resources.GetBuffer(passData.CommandsSsbo);
             const Buffer& compactCommandsSsbo = resources.GetBuffer(passData.CompactCommandsSsbo);
             const Buffer& compactCountSsbo = resources.GetBuffer(passData.CompactCountSsbo);
+            const Buffer& flagsSsbo = resources.GetBuffer(passData.FlagsSsbo);
             const Buffer& triangleVisibilitySsbo = resources.GetBuffer(
                 passData.TriangleCullResources.TriangleVisibilitySsbo);
 
@@ -507,9 +504,9 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibilitySsbo.BindingInfo());
-                resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
-                resourceDescriptors.UpdateBinding("u_compacted_commands", compactCommandsSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_commands", compactCommandsSsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_count", compactCountSsbo.BindingInfo());
+                resourceDescriptors.UpdateBinding("u_flags", flagsSsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_triangle_visibility", triangleVisibilitySsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_indices", indicesSsbo.BindingInfo());

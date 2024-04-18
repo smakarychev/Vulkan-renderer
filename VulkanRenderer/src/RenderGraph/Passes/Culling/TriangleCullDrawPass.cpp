@@ -98,6 +98,7 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
                     .DestinationAccess = PipelineAccess::ReadHost})
                 .Build(frameContext.DeletionQueue));
 
+            // todo: add some bias (like multiply by 1.25 for example)?
             u32 visibleMeshletsValue = passData.Context->MeshletContext().ReadbackCompactCountValue();
             
             u32 commandCount = TriangleCullContext::GetCommandCount();
