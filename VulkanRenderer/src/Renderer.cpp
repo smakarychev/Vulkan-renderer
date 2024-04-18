@@ -54,17 +54,15 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
-    for (i32 x = -3; x <= 3; x++)
-        for (i32 z = -3; z <= 3; z++)
-            m_GraphModelCollection.AddModelInstance("car", {
-                .Transform = {
-                    .Position = glm::vec3{(f32)x, 0.0f, (f32)z},
-                    .Scale = glm::vec3{1.0f}}});
+    m_GraphModelCollection.AddModelInstance("car", {
+               .Transform = {
+                   .Position = glm::vec3{0.0f, 0.0f, 0.0f},
+                   .Scale = glm::vec3{1.0f}}});
     
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
