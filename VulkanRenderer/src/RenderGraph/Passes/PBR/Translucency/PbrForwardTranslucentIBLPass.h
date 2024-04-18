@@ -18,6 +18,7 @@ struct PbrForwardTranslucentIBLPassInitInfo
 struct PbrForwardTranslucentIBLPassExecutionInfo
 {
     glm::uvec2 Resolution{};
+    const Camera* Camera{nullptr};
     RG::Resource ColorIn{};
     RG::Resource DepthIn{};
 
@@ -28,7 +29,7 @@ struct PbrForwardTranslucentIBLPassExecutionInfo
 
 /* Pass that renders translucent geometry after the opaque render pass and skybox pass (if any).
  * The translucent geometry has to be sorted before being submitted to render;
- * this pass does not fully utilizes culling, because culling does not respect order (outside of subgroups),
+ * this pass does not fully utilize culling, because culling does not respect order (outside of subgroups),
  * therefore only per-meshlet culling w/o any compaction is performed
  */
 class PbrForwardTranslucentIBLPass

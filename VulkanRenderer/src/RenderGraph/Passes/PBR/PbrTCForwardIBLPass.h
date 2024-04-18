@@ -1,10 +1,11 @@
 #pragma once
 
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGDrawResources.h"
 
 #include <memory>
 
-#include "RenderGraph/RGDrawResources.h"
+class Camera;
 
 namespace RG
 {
@@ -24,6 +25,7 @@ struct PbrForwardIBLPassInitInfo
 struct PbrForwardIBLPassExecutionInfo
 {
     glm::uvec2 Resolution{};
+    const Camera* Camera{};
     RG::Resource ColorIn{};
     RG::Resource DepthIn{};
 

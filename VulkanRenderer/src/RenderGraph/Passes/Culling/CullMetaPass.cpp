@@ -51,6 +51,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
         m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution, renderGraph.GetResolutionDeletionQueue());
     }
 
+    m_MeshContext->SetCamera(info.Camera);
+
     auto& blackboard = renderGraph.GetBlackboard();
 
     auto colors = EnsureColors(renderGraph, info, m_Name);
@@ -162,6 +164,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
         .Commands = meshletReocclusionOutput.MeshletResources.CompactCommandsSsbo,
         .CommandCount = meshletReocclusionOutput.MeshletResources.CompactCountReocclusionSsbo,
         .Resolution = info.Resolution,
+        .Camera = info.Camera,
         .DrawAttachments = {
             .ColorAttachments = colorAttachments,
             .DepthAttachment = depthAttachment},

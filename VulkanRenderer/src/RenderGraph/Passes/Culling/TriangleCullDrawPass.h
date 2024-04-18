@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CameraGPU.h"
 #include "MeshletCullPass.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
@@ -380,8 +381,10 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
 
             // draw subpass data
             auto& drawResources = info.DrawContext->Resources();
-            auto& graphGlobals = graph.GetGlobalResources();
-            drawResources.CameraUbo = graph.Read(graphGlobals.MainCameraGPU, Vertex | Uniform);
+            drawResources.CameraUbo = graph.CreateResource(
+                std::format("{}.{}", m_Name.Name(), "Camera"),
+                GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
+            drawResources.CameraUbo = graph.Read(drawResources.CameraUbo, Vertex | Pixel | Uniform | Upload);
             drawResources.ObjectsSsbo = graph.Read(drawResources.ObjectsSsbo, Vertex | Storage);
             drawResources.CommandsSsbo = graph.Read(meshletResources.CommandsSsbo, Vertex | Storage);
 
@@ -404,10 +407,10 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 cullResources.TrianglesSsbo[i] = graph.Write(cullResources.TrianglesSsbo[i], Compute | Storage);
                 cullResources.TrianglesSsbo[i] = graph.Read(cullResources.TrianglesSsbo[i], Vertex | Storage);
                 
-                cullResources.IndicesCulledSsbo[i] =
-                    graph.Write(cullResources.IndicesCulledSsbo[i], Compute | Storage);
-                cullResources.IndicesCulledSsbo[i] =
-                    graph.Read(cullResources.IndicesCulledSsbo[i], Compute | Storage | Vertex | Storage | Index);
+                cullResources.IndicesCulledSsbo[i] = graph.Write(
+                    cullResources.IndicesCulledSsbo[i], Compute | Storage);
+                cullResources.IndicesCulledSsbo[i] = graph.Read(
+                    cullResources.IndicesCulledSsbo[i], Compute | Storage | Vertex | Storage | Index);
                 
                 cullResources.DispatchIndirect = graph.Read(info.Dispatch, Compute | Indirect);
                 
@@ -460,9 +463,10 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             const Texture& hiz = resources.GetTexture(passData.HiZ);
             const Sampler& hizSampler = passData.HiZSampler;
             SceneUBO scene = {};
-            scene.ViewProjectionMatrix = frameContext.MainCamera->GetViewProjection();
-            scene.FrustumPlanes = frameContext.MainCamera->GetFrustumPlanes();
-            scene.ProjectionData = frameContext.MainCamera->GetProjectionData();
+            auto& camera = info.CullContext->MeshletContext().MeshContext().GetCamera();
+            scene.ViewProjectionMatrix = camera.GetViewProjection();
+            scene.FrustumPlanes = camera.GetFrustumPlanes();
+            scene.ProjectionData = camera.GetProjectionData();
             scene.HiZWidth = (f32)hiz.GetDescription().Width;
             scene.HiZHeight = (f32)hiz.GetDescription().Height;
             const Buffer& sceneUbo = resources.GetBuffer(passData.TriangleCullResources.SceneUbo, scene,
@@ -487,7 +491,10 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 indicesCulledSsbo[i] = resources.GetBuffer(passData.TriangleCullResources.IndicesCulledSsbo[i]);
             }
 
-            const Buffer& cameraUbo = resources.GetBuffer(passData.TriangleDrawResources.CameraUbo); 
+            CameraGPU cameraGPU = CameraGPU::FromCamera(info.CullContext->MeshletContext().MeshContext().GetCamera(),
+                frameContext.Resolution);
+            const Buffer& cameraUbo = resources.GetBuffer(passData.TriangleDrawResources.CameraUbo, cameraGPU,
+                *frameContext.ResourceUploader); 
             const Buffer& positionsSsbo = resources.GetBuffer(
                 passData.TriangleDrawResources.AttributeBuffers.PositionsSsbo);
             const Buffer& drawCommandsSsbo = resources.GetBuffer(passData.TriangleDrawResources.CommandsSsbo);

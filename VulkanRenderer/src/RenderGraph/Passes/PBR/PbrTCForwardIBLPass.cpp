@@ -42,6 +42,7 @@ void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBL
 
     CullMetaPassExecutionInfo executionInfo = {
         .Resolution = info.Resolution,
+        .Camera = info.Camera,
         .Colors = {
             CullMetaPassExecutionInfo::ColorInfo{
                 .Color = info.ColorIn,

@@ -39,6 +39,8 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
 {
     using namespace RG;
 
+    m_MeshContext->SetCamera(info.Camera);
+    
     auto& blackboard = renderGraph.GetBlackboard();
 
     m_MeshCull->AddToGraph(renderGraph, *m_MeshContext, *info.HiZContext);
@@ -49,6 +51,7 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
         .Geometry = &m_MeshContext->Geometry(),
         .Commands = meshletOutput.MeshletResources.CommandsSsbo,
         .Resolution = info.Resolution,
+        .Camera = info.Camera,
         .DrawAttachments = {
             .ColorAttachments = {DrawAttachment{
                 .Resource = info.ColorIn,

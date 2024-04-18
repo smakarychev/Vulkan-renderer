@@ -60,9 +60,9 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.AddModelInstance("car", {
-               .Transform = {
-                   .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-                   .Scale = glm::vec3{1.0f}}});
+        .Transform = {
+            .Position = glm::vec3{0.0f, 0.0f, 0.0f},
+            .Scale = glm::vec3{1.0f}}});
     
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
@@ -177,18 +177,7 @@ void Renderer::SetupRenderGraph()
     }
 
     // update camera
-    CameraGPU cameraGPU = {
-        .ViewProjection = m_Camera->GetViewProjection(),
-        .Projection = m_Camera->GetProjection(),
-        .View = m_Camera->GetView(),
-        .Position = m_Camera->GetPosition(),
-        .Near = m_Camera->GetFrustumPlanes().Near,
-        .Forward = m_Camera->GetForward(),
-        .Far = m_Camera->GetFrustumPlanes().Far,
-        .InverseViewProjection = glm::inverse(m_Camera->GetViewProjection()),
-        .InverseProjection = glm::inverse(m_Camera->GetProjection()),
-        .InverseView = glm::inverse(m_Camera->GetView()),
-        .Resolution = glm::vec2{m_Swapchain.GetResolution()}};
+    CameraGPU cameraGPU = CameraGPU::FromCamera(*m_Camera, m_Swapchain.GetResolution());
 
     // todo: should not create and delete every frame
     Buffer mainCameraBuffer = Buffer::Builder({
@@ -201,7 +190,7 @@ void Renderer::SetupRenderGraph()
         .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer)};
     m_Graph->GetBlackboard().Register(globalResources);
 
-    m_VisibilityPass->AddToGraph(*m_Graph, m_Swapchain.GetResolution());
+    m_VisibilityPass->AddToGraph(*m_Graph, m_Swapchain.GetResolution(), GetFrameContext().MainCamera);
     auto& visibility = m_Graph->GetBlackboard().Get<VisibilityPass::PassData>();
 
     m_SsaoPass->AddToGraph(*m_Graph, visibility.DepthOut);
@@ -242,6 +231,7 @@ void Renderer::SetupRenderGraph()
     {
         m_PbrForwardIBLTranslucentPass->AddToGraph(*m_Graph, {
             .Resolution = m_Swapchain.GetResolution(),
+            .Camera = GetFrameContext().MainCamera,
             .ColorIn = renderedColor,
             .DepthIn = renderedDepth,
             .IBL = {

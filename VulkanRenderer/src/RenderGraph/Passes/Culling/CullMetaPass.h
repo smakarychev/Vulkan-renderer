@@ -36,6 +36,7 @@ struct CullMetaPassExecutionInfo
     using SSAOData = RG::SSAOData;
     
     glm::uvec2 Resolution;
+    const Camera* Camera{nullptr};
     std::vector<ColorInfo> Colors{};
     std::optional<DepthInfo> Depth{};   
     std::optional<IBLData> IBL{};

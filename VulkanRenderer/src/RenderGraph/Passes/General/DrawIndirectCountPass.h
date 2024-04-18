@@ -26,6 +26,7 @@ struct DrawIndirectCountPassExecutionInfo
     u32 CommandsOffset{0};
     RG::Resource CommandCount{};
     glm::uvec2 Resolution{};
+    const Camera* Camera{nullptr};
 
     RG::DrawAttachments DrawAttachments{};
 

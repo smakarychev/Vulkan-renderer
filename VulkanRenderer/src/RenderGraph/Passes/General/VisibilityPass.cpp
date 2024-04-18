@@ -33,7 +33,7 @@ VisibilityPass::VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitI
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, visibilityPassInitInfo, "VisibilityBuffer");
 }
 
-void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolution)
+void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolution, const Camera* camera)
 {
     using namespace RG;
 
@@ -45,6 +45,7 @@ void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolu
 
     m_Pass->AddToGraph(renderGraph, {
         .Resolution = resolution,
+        .Camera = camera,
         .Colors = {
             CullMetaPassExecutionInfo::ColorInfo{
                 .Color = visibility,

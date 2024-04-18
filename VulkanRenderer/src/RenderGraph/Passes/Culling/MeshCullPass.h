@@ -23,10 +23,15 @@ public:
 public:
     MeshCullContext(const RG::Geometry& geometry);
 
+    void SetCamera(const Camera* camera) { m_Camera = camera; }
+    const Camera& GetCamera() const { return *m_Camera; }
+
     const Buffer& Visibility() { return m_Visibility; }
     const RG::Geometry& Geometry() { return *m_Geometry; }
     PassResources& Resources() { return m_Resources; }
 private:
+    const Camera* m_Camera{nullptr};
+    
     Buffer m_Visibility{};
     
     const RG::Geometry* m_Geometry{nullptr};
@@ -111,7 +116,6 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
             // if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass
             if constexpr(Stage != CullStage::Reocclusion)
             {
-
                 ctx.Resources().SceneUbo = graph.CreateResource(std::format("{}.{}", passName, "Scene"),
                     GraphBufferDescription{.SizeBytes = sizeof(SceneUBO)});
                 ctx.Resources().ObjectsSsbo =
@@ -154,9 +158,9 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
             const Sampler& hizSampler = passData.Resources.HiZSampler;
 
             SceneUBO scene = {};
-            scene.ViewMatrix = frameContext.MainCamera->GetView();
-            scene.FrustumPlanes = frameContext.MainCamera->GetFrustumPlanes();
-            scene.ProjectionData = frameContext.MainCamera->GetProjectionData();
+            scene.ViewMatrix = ctx.GetCamera().GetView();
+            scene.FrustumPlanes = ctx.GetCamera().GetFrustumPlanes();
+            scene.ProjectionData = ctx.GetCamera().GetProjectionData();
             scene.HiZWidth = (f32)hiz.GetDescription().Width;
             scene.HiZHeight = (f32)hiz.GetDescription().Height;
             const Buffer& sceneUbo = resources.GetBuffer(passData.Resources.SceneUbo, scene,

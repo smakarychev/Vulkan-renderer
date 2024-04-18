@@ -30,6 +30,8 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
 {
     using namespace RG;
 
+    m_MeshContext->SetCamera(info.Camera);
+
     auto& blackboard = renderGraph.GetBlackboard();
 
     auto colors = CullMetaPass::EnsureColors(renderGraph, info, m_Name);

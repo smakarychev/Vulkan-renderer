@@ -4,6 +4,8 @@
 #include "RenderGraph/RenderPass.h"
 #include "RenderGraph/RGCommon.h"
 
+class Camera;
+
 namespace RG
 {
     class Geometry;
@@ -22,6 +24,7 @@ struct DrawIndirectPassExecutionInfo
     RG::Resource Commands{};
     u32 CommandsOffset{0};
     glm::uvec2 Resolution{};
+    const Camera* Camera{nullptr};
 
     RG::DrawAttachments DrawAttachments{};
 

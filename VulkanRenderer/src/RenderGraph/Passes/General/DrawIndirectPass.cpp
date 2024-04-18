@@ -1,5 +1,6 @@
 #include "DrawIndirectPass.h"
 
+#include "CameraGPU.h"
 #include "FrameContext.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
@@ -38,9 +39,10 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
     m_Pass = &renderGraph.AddRenderPass<PassDataPrivate>(m_Name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
-            auto& graphGlobals = graph.GetGlobalResources();
-            passData.CameraUbo = graph.Read(graphGlobals.MainCameraGPU, Vertex | Uniform);
-
+            passData.CameraUbo = graph.CreateResource(
+                m_Name.Name() + ".Camera", GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
+            passData.CameraUbo = graph.Read(passData.CameraUbo, Vertex | Pixel | Uniform | Upload);
+            
             passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, m_Name.Name(), Vertex);
             
             passData.ObjectsSsbo = graph.AddExternal(m_Name.Name() + ".Objects",
@@ -76,7 +78,9 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
 
             using enum DrawFeatures;
 
-            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo);
+            CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
+            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo, cameraGPU,
+                *frameContext.ResourceUploader);
             const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
             const Buffer& commandsDraw = resources.GetBuffer(passData.CommandsIndirect);
 

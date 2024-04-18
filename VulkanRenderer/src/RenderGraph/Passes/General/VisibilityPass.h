@@ -23,7 +23,7 @@ public:
     };
 public:
     VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitInfo& info);
-    void AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolution);
+    void AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolution, const Camera* camera);
     HiZPassContext* GetHiZContext() const { return m_Pass->GetHiZContext(); }
 private:
     std::shared_ptr<CullMetaPass> m_Pass{};

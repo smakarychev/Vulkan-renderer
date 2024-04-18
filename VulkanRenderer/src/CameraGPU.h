@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "Core/Camera.h"
 
 #include <glm/glm.hpp>
 
@@ -23,5 +24,23 @@ struct CameraGPU
     glm::mat4 InverseProjection{glm::mat4{1.0f}};
     glm::mat4 InverseView{glm::mat4{1.0f}};
 
-    glm::vec2 Resolution{1.0f}; 
+    glm::vec2 Resolution{1.0f};
+
+    static CameraGPU FromCamera(const Camera& camera, const glm::uvec2& resolution)
+    {
+        CameraGPU cameraGPU = {
+            .ViewProjection = camera.GetViewProjection(),
+            .Projection = camera.GetProjection(),
+            .View = camera.GetView(),
+            .Position = camera.GetPosition(),
+            .Near = camera.GetFrustumPlanes().Near,
+            .Forward = camera.GetForward(),
+            .Far = camera.GetFrustumPlanes().Far,
+            .InverseViewProjection = glm::inverse(camera.GetViewProjection()),
+            .InverseProjection = glm::inverse(camera.GetProjection()),
+            .InverseView = glm::inverse(camera.GetView()),
+            .Resolution = glm::vec2{resolution}};
+
+        return cameraGPU;
+    }
 };
