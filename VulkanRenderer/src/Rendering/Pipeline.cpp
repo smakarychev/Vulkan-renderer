@@ -140,7 +140,9 @@ Pipeline::Builder& Pipeline::Builder::UseDescriptorBuffer()
 void Pipeline::Builder::PreBuild()
 {
     if (!m_CreateInfo.IsComputePipeline)
-        ASSERT(!m_CreateInfo.RenderingDetails.ColorFormats.empty(), "No rendering details provided")
+        ASSERT(
+            !m_CreateInfo.RenderingDetails.ColorFormats.empty() ||
+            m_CreateInfo.RenderingDetails.DepthFormat != Format::Undefined, "No rendering details provided")
 }
 
 Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)

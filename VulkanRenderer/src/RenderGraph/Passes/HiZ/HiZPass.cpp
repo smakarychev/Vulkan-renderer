@@ -68,9 +68,9 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassCont
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    u32 mipMapCount = ctx.GetHiZ().GetDescription().Mipmaps;
-    u32 width = ctx.GetHiZ().GetDescription().Width;  
-    u32 height = ctx.GetHiZ().GetDescription().Height;
+    u32 mipMapCount = ctx.GetHiZ().Description().Mipmaps;
+    u32 width = ctx.GetHiZ().Description().Width;  
+    u32 height = ctx.GetHiZ().Description().Height;
     
     static ShaderDescriptors::BindingInfo samplerBinding =
         m_PipelinesData[0].SamplerDescriptors.GetBindingInfo("u_in_sampler");

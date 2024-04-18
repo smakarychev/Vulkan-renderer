@@ -20,7 +20,7 @@ CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaSin
     TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
         .DrawFeatures = m_DrawFeatures,
         .DrawTrianglesPipeline = *info.DrawPipeline,
-        .MaterialDescriptors = *info.MaterialDescriptors};
+        .MaterialDescriptors = info.MaterialDescriptors};
     
     m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
 }

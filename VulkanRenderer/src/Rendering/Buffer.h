@@ -80,7 +80,7 @@ public:
     static Buffer Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Buffer& buffer);
 
-    const BufferDescription& GetDescription() const { return m_Description; }
+    const BufferDescription& Description() const { return m_Description; }
     
     void SetData(const void* data, u64 dataSizeBytes);
     void SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes);

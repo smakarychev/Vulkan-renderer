@@ -71,7 +71,7 @@ void SsaoBlurPass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Res
             pipeline.BindCompute(cmd);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::Dispatch(cmd,
-                {ssaoIn.GetDescription().Width, ssaoIn.GetDescription().Height, 1},
+                {ssaoIn.Description().Width, ssaoIn.Description().Height, 1},
                 {16, 16, 1});
         });
 }

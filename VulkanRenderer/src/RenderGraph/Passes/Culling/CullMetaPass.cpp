@@ -25,7 +25,7 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
     TriangleCullDrawPassInitInfo cullDrawPassInitInfo = {
         .DrawFeatures = m_DrawFeatures,
         .DrawTrianglesPipeline = *info.DrawTrianglesPipeline,
-        .MaterialDescriptors = *info.MaterialDescriptors};
+        .MaterialDescriptors = info.MaterialDescriptors};
     
     m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
     m_ReoccludeTrianglesDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, cullDrawPassInitInfo,
@@ -37,7 +37,7 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
         m_Name.Name() + ".CullDraw.MeshletReocclusion", DrawIndirectCountPassInitInfo{
             .DrawFeatures = m_DrawFeatures,
             .DrawPipeline = *info.DrawMeshletsPipeline,
-            .MaterialDescriptors = *info.MaterialDescriptors});
+            .MaterialDescriptors = info.MaterialDescriptors});
 }
 
 void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info)

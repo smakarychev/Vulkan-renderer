@@ -161,8 +161,8 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
             scene.ViewMatrix = ctx.GetCamera().GetView();
             scene.FrustumPlanes = ctx.GetCamera().GetFrustumPlanes();
             scene.ProjectionData = ctx.GetCamera().GetProjectionData();
-            scene.HiZWidth = (f32)hiz.GetDescription().Width;
-            scene.HiZHeight = (f32)hiz.GetDescription().Height;
+            scene.HiZWidth = (f32)hiz.Description().Width;
+            scene.HiZHeight = (f32)hiz.Description().Height;
             const Buffer& sceneUbo = resources.GetBuffer(passData.Resources.SceneUbo, scene,
                 *frameContext.ResourceUploader);
 

@@ -14,7 +14,7 @@ struct CullMetaPassInitInfo
     const RG::Geometry* Geometry{nullptr};
     const ShaderPipeline* DrawTrianglesPipeline{nullptr};
     const ShaderPipeline* DrawMeshletsPipeline{nullptr};
-    const ShaderDescriptors* MaterialDescriptors{nullptr};
+    std::optional<const ShaderDescriptors*> MaterialDescriptors{};
     Features DrawFeatures{Features::AllAttributes};
 };
 
@@ -35,7 +35,7 @@ struct CullMetaPassExecutionInfo
     using IBLData = RG::IBLData;
     using SSAOData = RG::SSAOData;
     
-    glm::uvec2 Resolution;
+    glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
     std::vector<ColorInfo> Colors{};
     std::optional<DepthInfo> Depth{};   

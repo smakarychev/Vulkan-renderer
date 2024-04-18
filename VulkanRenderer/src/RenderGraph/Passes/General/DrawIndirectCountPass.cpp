@@ -26,7 +26,7 @@ DrawIndirectCountPass::DrawIndirectCountPass(RG::Graph& renderGraph, std::string
             .ExtractSet(0)
             .Build();
         
-        m_PipelineData.MaterialDescriptors = *info.MaterialDescriptors;
+        m_PipelineData.MaterialDescriptors = **info.MaterialDescriptors;
     }
 }
 

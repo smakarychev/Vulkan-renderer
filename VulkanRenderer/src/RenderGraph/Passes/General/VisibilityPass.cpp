@@ -27,25 +27,25 @@ VisibilityPass::VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitI
         .DrawMeshletsPipeline = &meshletPipeline,
         .MaterialDescriptors = info.MaterialDescriptors,
         .DrawFeatures =
-            CullMetaPassInitInfo::Features::AlphaTest |
+            RG::DrawFeatures::AlphaTest |
             RG::DrawFeatures::Triangles};
 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, visibilityPassInitInfo, "VisibilityBuffer");
 }
 
-void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const glm::uvec2& resolution, const Camera* camera)
+void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info)
 {
     using namespace RG;
 
     Resource visibility = renderGraph.CreateResource("VisibilityBuffer.VisibilityBuffer",
         GraphTextureDescription{
-            .Width = resolution.x,
-            .Height = resolution.y,
+            .Width = info.Resolution.x,
+            .Height = info.Resolution.y,
             .Format = Format::R32_UINT});
 
     m_Pass->AddToGraph(renderGraph, {
-        .Resolution = resolution,
-        .Camera = camera,
+        .Resolution = info.Resolution,
+        .Camera = info.Camera,
         .Colors = {
             CullMetaPassExecutionInfo::ColorInfo{
                 .Color = visibility,

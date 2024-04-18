@@ -62,7 +62,7 @@ void CubemapProcessor::Process(const CommandBuffer& cmd)
             glm::vec2 CubemapResolutionInverse{};
         };
         PushConstants pushConstants = {
-            .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemap.GetDescription().Width}};
+            .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemap.Description().Width}};
         
         RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
             .LayoutTransition(toGeneral)
@@ -70,7 +70,7 @@ void CubemapProcessor::Process(const CommandBuffer& cmd)
             .Build(deletionQueue));
         RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
         RenderCommand::Dispatch(cmd,
-            {cubemap.GetDescription().Width, cubemap.GetDescription().Width, 6},
+            {cubemap.Description().Width, cubemap.Description().Width, 6},
             {32, 32, 1});
         RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
             .LayoutTransition(toReadOnly)

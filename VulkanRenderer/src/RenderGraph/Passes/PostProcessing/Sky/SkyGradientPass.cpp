@@ -78,7 +78,7 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
                 *frameContext.ResourceUploader);
             const Texture& colorOut = resources.GetTexture(passData.ColorOut);
 
-            passData.PushConstants.ImageSize = {colorOut.GetDescription().Width, colorOut.GetDescription().Height};
+            passData.PushConstants.ImageSize = {colorOut.Description().Width, colorOut.Description().Height};
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;

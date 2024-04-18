@@ -31,7 +31,7 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGrap
     m_Draw = std::make_shared<DrawIndirectPass>(renderGraph, name + ".Draw", DrawIndirectPassInitInfo{
         .DrawFeatures = RG::DrawFeatures::ShadedIBL,
         .DrawPipeline = drawPipeline,
-        .MaterialDescriptors = *info.MaterialDescriptors});
+        .MaterialDescriptors = info.MaterialDescriptors});
 }
 
 void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,

@@ -16,7 +16,7 @@ struct FrameContext
     u32 FrameNumber;
     u64 FrameNumberTick;
 
-    glm::uvec2 Resolution;
+    glm::uvec2 Resolution{};
     
     CommandBuffer Cmd;
     

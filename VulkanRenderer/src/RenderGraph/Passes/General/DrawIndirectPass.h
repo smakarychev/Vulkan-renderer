@@ -15,7 +15,7 @@ struct DrawIndirectPassInitInfo
 {
     RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
     ShaderPipeline DrawPipeline{};
-    std::optional<ShaderDescriptors> MaterialDescriptors{};
+    std::optional<const ShaderDescriptors*> MaterialDescriptors{};
 };
 
 struct DrawIndirectPassExecutionInfo

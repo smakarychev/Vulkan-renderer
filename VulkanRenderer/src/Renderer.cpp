@@ -26,9 +26,11 @@
 #include "RenderGraph/Passes/PBR/Translucency/PbrForwardTranslucentIBLPass.h"
 #include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/Passes/PostProcessing/Sky/SkyGradientPass.h"
+#include "RenderGraph/Passes/Shadows/DirectionalShadowPass.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
+#include "RenderGraph/Passes/Utility/VisualizeDepthPass.h"
 #include "RenderGraph/Sorting/RGDepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
 #include "Rendering/Image/Processing/CubemapProcessor.h"
@@ -139,6 +141,13 @@ void Renderer::InitRenderGraph()
 
     m_SkyboxPass = std::make_shared<SkyboxPass>(*m_Graph);
 
+
+    // todo: separate geometry for shadow casters
+    m_DirectionalShadowPass = std::make_shared<DirectionalShadowPass>(*m_Graph, DirectionalShadowPassInitInfo{
+        .Geometry = &m_GraphOpaqueGeometry});
+    m_VisualizeDirectionalShadowPass = std::make_shared<VisualizeDepthPass>(*m_Graph, "Visualize.Shadow.Directional");
+    m_BlitDirectionalShadow = std::make_shared<BlitPass>("Blit.Shadow.Directional");
+
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
     m_HiZVisualizePass = std::make_shared<HiZVisualize>(*m_Graph);
@@ -190,7 +199,9 @@ void Renderer::SetupRenderGraph()
         .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer)};
     m_Graph->GetBlackboard().Register(globalResources);
 
-    m_VisibilityPass->AddToGraph(*m_Graph, m_Swapchain.GetResolution(), GetFrameContext().MainCamera);
+    m_VisibilityPass->AddToGraph(*m_Graph, {
+        .Resolution = m_Swapchain.GetResolution(),
+        .Camera = GetFrameContext().MainCamera});
     auto& visibility = m_Graph->GetBlackboard().Get<VisibilityPass::PassData>();
 
     m_SsaoPass->AddToGraph(*m_Graph, visibility.DepthOut);
@@ -258,8 +269,28 @@ void Renderer::SetupRenderGraph()
     m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<HiZVisualize::PassData>();
     m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, backbuffer,
-        glm::vec3{0.75f, 0.05f, 0.0f}, glm::vec3{0.2f, 0.2f, 1.0f});
+        glm::vec3{0.75f, 0.05f, 0.0f}, 0.2f);
+    auto& blitHiZOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(m_BlitHiZ->GetNameHash());
+    backbuffer = blitHiZOutput.TextureOut;
 
+    // todo: this is obv not the right place for it
+    static Camera shadowCamera = *m_Camera;
+    shadowCamera = *m_Camera;
+    m_DirectionalShadowPass->AddToGraph(*m_Graph, {
+        .Resolution = m_Swapchain.GetResolution(),
+        .Camera = &shadowCamera});
+    auto& directionalShadowOutput = m_Graph->GetBlackboard().Get<DirectionalShadowPass::PassData>();
+
+    m_VisualizeDirectionalShadowPass->AddToGraph(*m_Graph, directionalShadowOutput.ShadowMap, {});
+    auto& visualizeShadowPassOutput = m_Graph->GetBlackboard().Get<VisualizeDepthPass::PassData>(
+        m_VisualizeDirectionalShadowPass->GetNameHash());
+
+    m_BlitDirectionalShadow->AddToGraph(*m_Graph, visualizeShadowPassOutput.ColorOut, backbuffer,
+        glm::vec3{0.75f, 0.35f, 0.0f}, 0.2f);
+    auto& blitDirectionalShadowOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(
+        m_BlitDirectionalShadow->GetNameHash());
+    backbuffer = blitDirectionalShadowOutput.TextureOut;
+        
     //SetupRenderSlimePasses();
 }
 

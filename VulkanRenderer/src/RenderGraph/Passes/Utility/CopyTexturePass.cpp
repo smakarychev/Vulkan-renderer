@@ -31,9 +31,21 @@ void CopyTexturePass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
             const Texture& src = resources.GetTexture(passData.TextureIn);
             const Texture& dst = resources.GetTexture(passData.TextureOut);
 
-            RenderCommand::CopyImage(frameContext.Cmd,
-                src.CopyInfo(),
-                dst.CopyInfo(
-                    offset, offset + size, 0, 0, 1, sizeType));
+            ImageCopyInfo srcCopy = src.CopyInfo();
+            ImageCopyInfo dstCopy = {};
+            
+            switch (sizeType)
+            {
+            case ImageSizeType::Absolute:
+                dstCopy = dst.CopyInfo(offset, offset + size, 0, 0, 1);
+                break;
+            case ImageSizeType::Relative:
+                dstCopy = dst.CopyInfo(
+                    dst.GetPixelCoordinate(offset, ImageSizeType::Relative),
+                    dst.GetPixelCoordinate(offset + size, ImageSizeType::Relative), 0, 0, 1);
+                break;
+            }
+            
+            RenderCommand::CopyImage(frameContext.Cmd, srcCopy, dstCopy);
         });
 }

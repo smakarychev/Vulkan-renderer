@@ -214,7 +214,7 @@ namespace ImageUtils
 
         const auto& [textureOriginal, color] = s_DefaultImages[(u32)texture];
         
-        Texture copy =  Texture::Builder(textureOriginal.GetDescription())
+        Texture copy =  Texture::Builder(textureOriginal.Description())
             .FromPixels(std::vector{color})
             .Build(deletionQueue);
 
@@ -501,38 +501,6 @@ ImageBlitInfo Image::BlitInfo(const glm::uvec3& bottom, const glm::uvec3& top, u
         .Top = top};
 }
 
-ImageBlitInfo Image::BlitInfo(const glm::vec3& bottom, const glm::vec3& top, u32 mipBase, u32 layerBase,
-    u32 layerCount, ImageSizeType sizeType) const
-{
-    if (sizeType == ImageSizeType::Absolute)
-        return {
-            .Image = this,
-            .MipmapBase = mipBase,
-            .LayerBase = layerBase,
-            .Layers = layerCount,
-            .Bottom = glm::uvec3{bottom.x, bottom.y, bottom.z},
-            .Top = glm::uvec3{top.x, top.y, top.z}};
-
-    glm::uvec3 size = {
-        m_Description.Width,
-        m_Description.Height,
-        m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers};
-
-    glm::uvec3 absBottom = {
-        (u32)((f32)size.x * bottom.x), (u32)((f32)size.y * bottom.y), (u32)((f32)size.z * bottom.z)};
-
-    glm::uvec3 absTop = {
-       (u32)((f32)size.x * top.x), (u32)((f32)size.y * top.y), (u32)((f32)size.z * top.z)};
-
-    return {
-        .Image = this,
-        .MipmapBase = mipBase,
-        .LayerBase = layerBase,
-        .Layers = layerCount,
-        .Bottom = glm::uvec3{absBottom.x, absBottom.y, absBottom.z},
-        .Top = glm::uvec3{absTop.x, absTop.y, absTop.z}};
-}
-
 ImageBlitInfo Image::CopyInfo() const
 {
     return BlitInfo();
@@ -547,12 +515,6 @@ ImageBlitInfo Image::CopyInfo(const glm::uvec3& bottom, const glm::uvec3& size, 
     u32 layerCount) const
 {
     return BlitInfo(bottom, size, mipBase, layerBase, layerCount);
-}
-
-ImageBlitInfo Image::CopyInfo(const glm::vec3& bottom, const glm::vec3& size, u32 mipBase, u32 layerBase,
-    u32 layerCount, ImageSizeType sizeType) const
-{
-    return BlitInfo(bottom, size, mipBase, layerBase, layerCount, sizeType);
 }
 
 ImageBindingInfo Image::BindingInfo(ImageFilter filter, ImageLayout layout) const
@@ -639,6 +601,20 @@ void Image::CreateMipmaps(ImageLayout currentLayout)
         });
         PrepareForMipmapSource(mipmapSubresource, ImageLayout::Destination);
     }
+}
+
+glm::uvec3 Image::GetPixelCoordinate(const glm::vec3& coordinate, ImageSizeType sizeType) const
+{
+    if (sizeType == ImageSizeType::Absolute)
+        return glm::uvec3{coordinate};
+
+    glm::uvec3 size = {
+        m_Description.Width,
+        m_Description.Height,
+        m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers};
+
+    return glm::uvec3 {
+        (u32)((f32)size.x * coordinate.x), (u32)((f32)size.y * coordinate.y), (u32)((f32)size.z * coordinate.z)};
 }
 
 Image Image::CreateImage(const CreateInfo& createInfo)

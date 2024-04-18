@@ -79,6 +79,21 @@ struct Triangle {
     vec4 c;
 };
 
+struct UnpackedIndex {
+    uint instance;
+    uint index;
+};
+
+const uint TRIANGLE_BITS = 8;
+const uint TRIANGLE_MASK = (1 << 8) - 1;
+
+UnpackedIndex unpack_index(uint packed) {
+    UnpackedIndex unpacked_index;
+    unpacked_index.index = packed & TRIANGLE_MASK;
+    unpacked_index.instance = packed >> TRIANGLE_BITS;
+    return unpacked_index;
+}
+
 vec4 vec4_from_position(Position position) {
     return vec4(position.x, position.y, position.z, 1.0f);
 }

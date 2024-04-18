@@ -104,7 +104,7 @@ using TextureBindingInfo = ImageBindingInfo;
 
 enum class ImageSizeType
 {
-    Absolute, Relative
+    Absolute, Relative,
 };
 
 class Image
@@ -160,7 +160,7 @@ public:
     static Image Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Image& image);
 
-    const ImageDescription& GetDescription() const { return m_Description; }
+    const ImageDescription& Description() const { return m_Description; }
     
     ImageSubresource Subresource() const;
     ImageSubresource Subresource(u32 mipCount, u32 layerCount) const;
@@ -171,15 +171,11 @@ public:
     ImageBlitInfo BlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
     ImageBlitInfo BlitInfo(const glm::uvec3& bottom, const glm::uvec3& top,
         u32 mipBase, u32 layerBase, u32 layerCount) const;
-    ImageBlitInfo BlitInfo(const glm::vec3& bottom, const glm::vec3& top,
-        u32 mipBase, u32 layerBase, u32 layerCount, ImageSizeType sizeType) const;
     
     ImageBlitInfo CopyInfo() const;
     ImageBlitInfo CopyInfo(u32 mipBase, u32 layerBase, u32 layerCount) const;
     ImageBlitInfo CopyInfo(const glm::uvec3& bottom, const glm::uvec3& size,
         u32 mipBase, u32 layerBase, u32 layerCount) const;
-    ImageBlitInfo CopyInfo(const glm::vec3& bottom, const glm::vec3& size,
-        u32 mipBase, u32 layerBase, u32 layerCount, ImageSizeType sizeType) const;
 
     ImageBindingInfo BindingInfo(ImageFilter filter, ImageLayout layout) const;
     ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout) const;
@@ -191,6 +187,8 @@ public:
     static u16 CalculateMipmapCount(const glm::uvec2& resolution);
     static u16 CalculateMipmapCount(const glm::uvec3& resolution);
     void CreateMipmaps(ImageLayout currentLayout);
+
+    glm::uvec3 GetPixelCoordinate(const glm::vec3& coordinate, ImageSizeType sizeType) const;
 
     bool operator==(const Image& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(const Image& other) const { return !(*this == other); }

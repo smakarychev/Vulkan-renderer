@@ -174,7 +174,7 @@ namespace RG
                 for (auto&& [resource, frame] : Resources)
                 {
                     if (resource.use_count() == 1 && ResourceAliasTraits<T>::CanAlias(
-                        description, resource->GetDescription(), frame))
+                        description, resource->Description(), frame))
                     {
                         frame = 0;
                         

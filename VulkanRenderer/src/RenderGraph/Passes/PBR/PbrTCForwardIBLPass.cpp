@@ -31,7 +31,7 @@ PbrTCForwardIBLPass::PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwar
         .DrawTrianglesPipeline = &trianglePipeline,
         .DrawMeshletsPipeline = &meshletPipeline,
         .MaterialDescriptors = info.MaterialDescriptors,
-        .DrawFeatures = CullMetaPassInitInfo::Features::ShadedIBL};
+        .DrawFeatures = RG::DrawFeatures::ShadedIBL};
 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, pbrPassInitInfo, name);
 }

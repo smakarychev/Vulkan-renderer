@@ -71,14 +71,14 @@ void EnvironmentPrefilterProcessor::Process(const CommandBuffer& cmd)
             .OldLayout = ImageLayout::General,
             .NewLayout = ImageLayout::Readonly};
        
-        u32 resolution = prefilter.GetDescription().Width;
+        u32 resolution = prefilter.Description().Width;
         auto viewHandles = prefilter.GetViewHandles();
         
         RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
             .LayoutTransition(toGeneral)
             .SetFlags(PipelineDependencyFlags::ByRegion)
             .Build(deletionQueue));
-        for (u32 mipmap = 0; mipmap < prefilter.GetDescription().Mipmaps; mipmap++)
+        for (u32 mipmap = 0; mipmap < prefilter.Description().Mipmaps; mipmap++)
         {
             resourceDescriptors[mipmap].UpdateBinding("u_env", source.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
@@ -95,8 +95,8 @@ void EnvironmentPrefilterProcessor::Process(const CommandBuffer& cmd)
             PushConstants pushConstants = {
                 .PrefilterResolutionInverse = 1.0f / glm::vec2{(f32)resolution},
                 .EnvironmentResolutionInverse = 1.0f / glm::vec2{
-                    (f32)source.GetDescription().Width, (f32)source.GetDescription().Height},
-                .Roughness = (f32)mipmap / (f32)prefilter.GetDescription().Mipmaps};
+                    (f32)source.Description().Width, (f32)source.Description().Height},
+                .Roughness = (f32)mipmap / (f32)prefilter.Description().Mipmaps};
 
             RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
             RenderCommand::Dispatch(cmd,

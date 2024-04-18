@@ -75,7 +75,7 @@ struct TriangleCullDrawPassInitInfo
     RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
     ShaderPipeline DrawTrianglesPipeline{};
     ShaderPipeline DrawMeshletsPipeline{};
-    std::optional<ShaderDescriptors> MaterialDescriptors{};
+    std::optional<const ShaderDescriptors*> MaterialDescriptors{};
 };
 
 class TriangleDrawContext
@@ -106,8 +106,8 @@ struct TriangleCullDrawPassExecutionInfo
     
     TriangleCullContext* CullContext{nullptr};
     TriangleDrawContext* DrawContext{nullptr};
-    HiZPassContext* HiZContext;
-    glm::uvec2 Resolution;
+    HiZPassContext* HiZContext{nullptr};
+    glm::uvec2 Resolution{};
 
     RG::DrawAttachments DrawAttachments{};
 
@@ -289,7 +289,7 @@ TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph,
         
         if (info.MaterialDescriptors.has_value())
         {
-            m_DrawPipelines[i].MaterialDescriptors = *info.MaterialDescriptors;
+            m_DrawPipelines[i].MaterialDescriptors = **info.MaterialDescriptors;
             m_DrawPipelines[i].ImmutableSamplerDescriptors = immutableSamplers;
         }
     }
@@ -467,8 +467,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             scene.ViewProjectionMatrix = camera.GetViewProjection();
             scene.FrustumPlanes = camera.GetFrustumPlanes();
             scene.ProjectionData = camera.GetProjectionData();
-            scene.HiZWidth = (f32)hiz.GetDescription().Width;
-            scene.HiZHeight = (f32)hiz.GetDescription().Height;
+            scene.HiZWidth = (f32)hiz.Description().Width;
+            scene.HiZHeight = (f32)hiz.Description().Height;
             const Buffer& sceneUbo = resources.GetBuffer(passData.TriangleCullResources.SceneUbo, scene,
                 *frameContext.ResourceUploader);
             const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);

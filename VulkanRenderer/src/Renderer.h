@@ -13,6 +13,8 @@
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
+class VisualizeDepthPass;
+class DirectionalShadowPass;
 class PbrForwardTranslucentIBLPass;
 class PbrTCForwardIBLPass;
 class VisibilityPass;
@@ -113,6 +115,10 @@ private:
     Texture m_SkyboxPrefilterMap{};
     std::shared_ptr<Texture> m_BRDF{};
     std::shared_ptr<SkyboxPass> m_SkyboxPass;
+
+    std::shared_ptr<DirectionalShadowPass> m_DirectionalShadowPass;
+    std::shared_ptr<VisualizeDepthPass> m_VisualizeDirectionalShadowPass;
+    std::shared_ptr<BlitPass> m_BlitDirectionalShadow;
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;

@@ -58,7 +58,7 @@ void DiffuseIrradianceProcessor::Process(const CommandBuffer& cmd)
             glm::vec2 IrradianceResolutionInverse{};
         };
         PushConstants pushConstants = {
-            .IrradianceResolutionInverse = 1.0f / glm::vec2{(f32)irradiance.GetDescription().Width}};
+            .IrradianceResolutionInverse = 1.0f / glm::vec2{(f32)irradiance.Description().Width}};
 
         RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
             .LayoutTransition(toGeneral)
@@ -66,7 +66,7 @@ void DiffuseIrradianceProcessor::Process(const CommandBuffer& cmd)
             .Build(deletionQueue));
         RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
         RenderCommand::Dispatch(cmd,
-            {irradiance.GetDescription().Width, irradiance.GetDescription().Width, 6},
+            {irradiance.Description().Width, irradiance.Description().Width, 6},
             {32, 32, 1});
         
         toReadOnly.ImageSubresource = irradiance.Subresource();

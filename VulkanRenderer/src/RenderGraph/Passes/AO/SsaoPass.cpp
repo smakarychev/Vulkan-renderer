@@ -159,11 +159,11 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
             };
             PushConstants pushConstants = {
                 .SsaoSizeInverse = 1.0f / glm::vec2(
-                    (f32)ssaoTexture.GetDescription().Width, (f32)ssaoTexture.GetDescription().Height),
+                    (f32)ssaoTexture.Description().Width, (f32)ssaoTexture.Description().Height),
                 .SsaoSize = glm::vec2(
-                    (f32)ssaoTexture.GetDescription().Width, (f32)ssaoTexture.GetDescription().Height),
+                    (f32)ssaoTexture.Description().Width, (f32)ssaoTexture.Description().Height),
                 .NoiseSizeInverse = 1.0f / glm::vec2(
-                    (f32)noiseTexture.GetDescription().Width, (f32)noiseTexture.GetDescription().Height)};
+                    (f32)noiseTexture.Description().Width, (f32)noiseTexture.Description().Height)};
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
@@ -172,7 +172,7 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
 
             RenderCommand::Dispatch(cmd,
-                {ssaoTexture.GetDescription().Width, ssaoTexture.GetDescription().Height, 1},
+                {ssaoTexture.Description().Width, ssaoTexture.Description().Height, 1},
                 {16, 16, 1});
         });
 }

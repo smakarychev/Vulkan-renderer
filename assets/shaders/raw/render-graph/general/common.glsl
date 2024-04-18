@@ -1,9 +1,6 @@
 #include "../common.glsl"
 #include "../../camera.glsl"
 
-const uint TRIANGLE_BITS = 8;
-const uint TRIANGLE_MASK = (1 << 8) - 1;
-
 struct VisibilityInfo {
     uint instance_id;
     uint triangle_id;
@@ -14,8 +11,8 @@ uint pack_visibility(VisibilityInfo visibility_info) {
 }
 
 VisibilityInfo unpack_visibility(uint packed) {
-    VisibilityInfo visibilityInfo;
-    visibilityInfo.triangle_id = packed & TRIANGLE_MASK;
-    visibilityInfo.instance_id = packed >> TRIANGLE_BITS;
-    return visibilityInfo;
+    VisibilityInfo visibility_info;
+    visibility_info.triangle_id = packed & TRIANGLE_MASK;
+    visibility_info.instance_id = packed >> TRIANGLE_BITS;
+    return visibility_info;
 }

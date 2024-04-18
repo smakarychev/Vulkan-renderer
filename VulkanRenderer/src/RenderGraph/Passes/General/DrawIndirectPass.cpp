@@ -27,7 +27,7 @@ DrawIndirectPass::DrawIndirectPass(RG::Graph& renderGraph, std::string_view name
             .ExtractSet(0)
             .Build();
         
-        m_PipelineData.MaterialDescriptors = *info.MaterialDescriptors;
+        m_PipelineData.MaterialDescriptors = **info.MaterialDescriptors;
     }
 }
 

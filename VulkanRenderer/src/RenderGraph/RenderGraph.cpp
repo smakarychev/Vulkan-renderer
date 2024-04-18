@@ -39,7 +39,7 @@ namespace RG
         if (m_Backbuffer.IsValid())
         {
             m_Textures[m_Backbuffer.Index()].SetPhysicalResource(m_Pool.AddExternalResource(texture));
-            m_Textures[m_Backbuffer.Index()].m_Description = texture.GetDescription();
+            m_Textures[m_Backbuffer.Index()].m_Description = texture.Description();
             m_Textures[m_Backbuffer.Index()].m_Rename = {};
         }
         else
@@ -61,7 +61,7 @@ namespace RG
 
     Resource Graph::AddExternal(const std::string& name, const Buffer& buffer)
     {
-        Resource bufferResource = CreateResource(name, buffer.GetDescription());
+        Resource bufferResource = CreateResource(name, buffer.Description());
         GetResourceTypeBase(bufferResource).m_IsExternal = true;
         m_Buffers[bufferResource.Index()].SetPhysicalResource(m_Pool.AddExternalResource(buffer));
 
@@ -70,7 +70,7 @@ namespace RG
 
     Resource Graph::AddExternal(const std::string& name, const Texture& texture)
     {
-        Resource textureResource = CreateResource(name, texture.GetDescription());
+        Resource textureResource = CreateResource(name, texture.Description());
         GetResourceTypeBase(textureResource).m_IsExternal = true;
         m_Textures[textureResource.Index()].SetPhysicalResource(m_Pool.AddExternalResource(texture));
 
