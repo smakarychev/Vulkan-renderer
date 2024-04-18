@@ -45,6 +45,7 @@ layout(location = 4) out vec2 vertex_uv;
 void main() {
     vertex_object_index = gl_DrawIDARB + u_command_offset;
     const IndirectCommand command = u_commands.commands[vertex_object_index];
+    vertex_object_index = command.render_object;
 
     const mat4 model = u_objects.objects[vertex_object_index].model;
 
