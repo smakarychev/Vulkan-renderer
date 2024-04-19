@@ -20,7 +20,6 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, scene_data scene, sa
     if (sphere_origin.z + radius >= -scene.frustum_near)
         return true;
     
-    vec4 aabb;
     vec3 cr = sphere_origin * radius;
     float czr2 = sphere_origin.z * sphere_origin.z - radius * radius;
 
@@ -31,8 +30,9 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, scene_data scene, sa
     float vy = sqrt(sphere_origin.y * sphere_origin.y + czr2);
     float miny = (vy * sphere_origin.y - cr.z) / (vy * sphere_origin.z + cr.y);
     float maxy = (vy * sphere_origin.y + cr.z) / (vy * sphere_origin.z - cr.y);
-    aabb = vec4(minx * scene.projection_width, miny * scene.projection_height,
-     maxx * scene.projection_width, maxy * scene.projection_height);
+
+    vec4 aabb = vec4(minx * scene.projection_width, miny * scene.projection_height,
+        maxx * scene.projection_width, maxy * scene.projection_height);
     // clip space -> uv space
     aabb = aabb.xwzy * vec4(-0.5f, 0.5f, -0.5f, 0.5f) + vec4(0.5f);
 
@@ -41,12 +41,41 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, scene_data scene, sa
 
     float level = ceil(log2(max(width, height)));
 
-    float depth = textureLod(sampler2D(hiz, hiz_sampler),(aabb.xy + aabb.zw) * 0.5, level).r;
+    float depth = textureLod(sampler2D(hiz, hiz_sampler), (aabb.xy + aabb.zw) * 0.5f, level).r;
 
     float coeff = 1.0f / (scene.frustum_far - scene.frustum_near);
     float projected_depth = coeff *
         (-scene.frustum_far * scene.frustum_near / (sphere_origin.z + radius) -
         scene.frustum_near);
+
+    return projected_depth >= depth;
+}
+
+bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, scene_data scene, sampler hiz_sampler, 
+    texture2D hiz) {
+
+    if (sphere_origin.z + radius >= -scene.frustum_near)
+        return true;
+    
+    float minx = sphere_origin.x - radius;
+    float maxx = sphere_origin.x + radius;
+    float miny = sphere_origin.y - radius;
+    float maxy = sphere_origin.y + radius;
+
+    vec4 aabb = vec4(minx * scene.projection_width, miny * scene.projection_height,
+        maxx * scene.projection_width, maxy * scene.projection_height);
+    // clip space -> uv space
+    aabb = aabb.xyzw * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
+
+    float width =  (aabb.z - aabb.x) * scene.hiz_width;
+    float height = (aabb.y - aabb.w) * scene.hiz_height;
+
+    float level = ceil(log2(max(width, height)));
+
+    float depth = textureLod(sampler2D(hiz, hiz_sampler), (aabb.xy + aabb.zw) * 0.5f, level).r;
+
+    float coeff = 1.0f / (scene.frustum_far - scene.frustum_near);
+    float projected_depth = coeff * ((sphere_origin.z + radius) + scene.frustum_far);
 
     return projected_depth >= depth;
 }

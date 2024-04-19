@@ -7,6 +7,8 @@
 
 layout(local_size_x = 64) in;
 
+layout(constant_id = 0) const bool IS_ORTHOGRAPHIC_PROJECTION = false;
+
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz;
 
@@ -38,8 +40,11 @@ bool is_visible(vec3 origin, float radius, vec3 cone_axis, float cone_cutoff) {
     bool visible = true;
     visible = visible && is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff);
     visible = visible && is_frustum_visible(origin, radius, u_scene_data.scene);
-    visible = visible && is_occlusion_visible(origin, radius, u_scene_data.scene, u_sampler, u_hiz);
-
+    if (IS_ORTHOGRAPHIC_PROJECTION)
+        visible = visible && is_occlusion_visible_orthographic(origin, radius, u_scene_data.scene, u_sampler, u_hiz);
+    else
+        visible = visible && is_occlusion_visible(origin, radius, u_scene_data.scene, u_sampler, u_hiz);
+    
     return visible;
 }
 
