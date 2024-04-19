@@ -44,7 +44,7 @@ void Renderer::Init()
     InitRenderingStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetResolution();
-    m_Camera = std::make_shared<Camera>();
+    m_Camera = std::make_shared<Camera>(CameraType::Perspective);
     m_CameraController = std::make_unique<CameraController>(m_Camera);
     for (auto& ctx : m_FrameContexts)
         ctx.MainCamera = m_Camera.get();
@@ -56,7 +56,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/car/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
@@ -64,6 +64,10 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
+            .Scale = glm::vec3{1.0f}}});
+    m_GraphModelCollection.AddModelInstance("car", {
+        .Transform = {
+            .Position = glm::vec3{0.1f, 0.0f, 1.0f},
             .Scale = glm::vec3{1.0f}}});
     
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
@@ -103,8 +107,9 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.ApplyMaterialTextures(materialDescriptors);
 
     m_VisibilityPass = std::make_shared<VisibilityPass>(*m_Graph, VisibilityPassInitInfo{
+        .Geometry = &m_GraphOpaqueGeometry,
         .MaterialDescriptors = &materialDescriptors,
-        .Geometry = &m_GraphOpaqueGeometry});
+        .CameraType = m_Camera->GetType()});
     
     m_PbrVisibilityBufferIBLPass = std::make_shared<PbrVisibilityBufferIBL>(*m_Graph, PbrVisibilityBufferInitInfo{
         .MaterialDescriptors = &materialDescriptors});
@@ -128,8 +133,9 @@ void Renderer::InitRenderGraph()
         
         m_PbrForwardIBLTranslucentPass = std::make_shared<PbrForwardTranslucentIBLPass>(*m_Graph,
             PbrForwardTranslucentIBLPassInitInfo{
+                .Geometry = &m_GraphTranslucentGeometry,
                 .MaterialDescriptors = &translucentMaterialDescriptors,
-                .Geometry = &m_GraphTranslucentGeometry});
+                .CameraType = m_Camera->GetType()});
     }
     
     m_SsaoPass = std::make_shared<SsaoPass>(*m_Graph, 32);
@@ -276,6 +282,8 @@ void Renderer::SetupRenderGraph()
     // todo: this is obv not the right place for it
     static Camera shadowCamera = *m_Camera;
     shadowCamera = *m_Camera;
+    shadowCamera.SetViewport(2048, 2048);
+    shadowCamera.SetType(CameraType::Orthographic);
     m_DirectionalShadowPass->AddToGraph(*m_Graph, {
         .Resolution = m_Swapchain.GetResolution(),
         .Camera = &shadowCamera});

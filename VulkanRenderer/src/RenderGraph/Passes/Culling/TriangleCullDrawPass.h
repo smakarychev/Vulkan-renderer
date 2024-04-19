@@ -492,7 +492,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             }
 
             CameraGPU cameraGPU = CameraGPU::FromCamera(info.CullContext->MeshletContext().MeshContext().GetCamera(),
-                frameContext.Resolution);
+                info.Resolution);
             const Buffer& cameraUbo = resources.GetBuffer(passData.TriangleDrawResources.CameraUbo, cameraGPU,
                 *frameContext.ResourceUploader); 
             const Buffer& positionsSsbo = resources.GetBuffer(
@@ -644,8 +644,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                         u32 MaxCommandIndex;
                     };
                     PushConstants pushConstants = {
-                        .ScreenWidth = frameContext.Resolution.x,
-                        .ScreenHeight = frameContext.Resolution.y,
+                        .ScreenWidth = info.Resolution.x,
+                        .ScreenHeight = info.Resolution.y,
                         .CommandOffset = i * TriangleCullContext::GetCommandCount(),
                         .MaxCommandIndex = TriangleCullContext::GetCommandCount()};
                     auto& cmd = frameContext.Cmd;

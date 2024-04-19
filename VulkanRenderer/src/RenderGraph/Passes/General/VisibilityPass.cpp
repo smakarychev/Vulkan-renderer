@@ -28,7 +28,8 @@ VisibilityPass::VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitI
         .MaterialDescriptors = info.MaterialDescriptors,
         .DrawFeatures =
             RG::DrawFeatures::AlphaTest |
-            RG::DrawFeatures::Triangles};
+            RG::DrawFeatures::Triangles,
+        .CameraType = info.CameraType};
 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, visibilityPassInitInfo, "VisibilityBuffer");
 }

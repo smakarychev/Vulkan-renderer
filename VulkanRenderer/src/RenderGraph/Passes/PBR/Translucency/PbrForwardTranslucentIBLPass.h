@@ -11,8 +11,9 @@ class MeshCullContext;
 
 struct PbrForwardTranslucentIBLPassInitInfo
 {
-    const ShaderDescriptors* MaterialDescriptors{nullptr};
     const RG::Geometry* Geometry{nullptr};
+    const ShaderDescriptors* MaterialDescriptors{nullptr};
+    CameraType CameraType{CameraType::Perspective};
 };
 
 struct PbrForwardTranslucentIBLPassExecutionInfo

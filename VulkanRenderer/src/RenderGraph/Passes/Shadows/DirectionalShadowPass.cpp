@@ -23,7 +23,8 @@ DirectionalShadowPass::DirectionalShadowPass(RG::Graph& renderGraph, const Direc
         .Geometry = info.Geometry,
         .DrawTrianglesPipeline = &trianglePipeline,
         .DrawMeshletsPipeline = &meshletPipeline,
-        .DrawFeatures = RG::DrawFeatures::Positions};
+        .DrawFeatures = RG::DrawFeatures::Positions,
+        .CameraType = CameraType::Orthographic};
 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, shaderPassInitInfo, "DirectionalShadow");
 }
@@ -32,6 +33,7 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const Directional
 {
     using namespace RG;
 
+    ASSERT(info.Camera->GetType() == CameraType::Orthographic, "DirectionalShadowPass assumes orthographic projection")
     // todo: to cvar
     static constexpr u32 SHADOW_MAP_RESOLUTION = 2048;
     

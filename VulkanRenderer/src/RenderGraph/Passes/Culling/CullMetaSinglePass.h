@@ -13,6 +13,7 @@ struct CullMetaSinglePassInitInfo
     const ShaderPipeline* DrawMeshletsPipeline{nullptr};
     const ShaderDescriptors* MaterialDescriptors{nullptr};
     Features DrawFeatures{Features::AllAttributes};
+    CameraType CameraType{CameraType::Perspective};
 };
 
 class CullMetaSinglePass

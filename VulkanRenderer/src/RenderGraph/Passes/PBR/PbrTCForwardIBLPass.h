@@ -5,6 +5,8 @@
 
 #include <memory>
 
+#include "Core/Camera.h"
+
 class Camera;
 
 namespace RG
@@ -18,8 +20,9 @@ class ShaderDescriptors;
 
 struct PbrForwardIBLPassInitInfo
 {
-    const ShaderDescriptors* MaterialDescriptors{nullptr};
     const RG::Geometry* Geometry{nullptr};
+    const ShaderDescriptors* MaterialDescriptors{nullptr};
+    CameraType CameraType{CameraType::Perspective};
 };
 
 struct PbrForwardIBLPassExecutionInfo

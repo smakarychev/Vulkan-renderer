@@ -10,8 +10,10 @@ static constexpr f32  DEFAULT_ASPECT			= 16.0f / 9.0f;
 static constexpr f32  DEFAULT_NEAR				= 0.1f;
 static constexpr f32  DEFAULT_FAR				= 5000.0f;
 
-Camera::Camera()
-    : m_Position(DEFAULT_POSITION), m_Orientation(DEFAULT_ORIENTATION),
+Camera::Camera(CameraType type)
+    :
+    m_CameraType(type),
+    m_Position(DEFAULT_POSITION), m_Orientation(DEFAULT_ORIENTATION),
     m_Aspect(DEFAULT_ASPECT),
     m_NearClipPlane(DEFAULT_NEAR), m_FarClipPlane(DEFAULT_FAR), m_FieldOfView(DEFAULT_FOV)
 {
@@ -20,12 +22,62 @@ Camera::Camera()
     UpdateViewProjection();
 }
 
-Camera::Camera(const glm::vec3& position, f32 fov, f32 aspect)
-    : m_Position(position), m_Orientation(DEFAULT_ORIENTATION),
+Camera::Camera(CameraType type, const glm::vec3& position, f32 fov, f32 aspect)
+    :
+    m_CameraType(type),
+    m_Position(position), m_Orientation(DEFAULT_ORIENTATION),
     m_Aspect(aspect),
     m_NearClipPlane(DEFAULT_NEAR), m_FarClipPlane(DEFAULT_FAR), m_FieldOfView(fov)
 {
     UpdateViewMatrix();
+    UpdateProjectionMatrix();
+    UpdateViewProjection();
+}
+
+Camera Camera::Perspective(const PerspectiveCameraCreateInfo& info)
+{
+    Camera camera{CameraType::Perspective};
+    camera.m_Position = info.BaseInfo.Position;
+    camera.m_Orientation = info.BaseInfo.Orientation;
+    camera.m_NearClipPlane = info.BaseInfo.Near;
+    camera.m_FarClipPlane = info.BaseInfo.Far;
+    camera.m_ViewportWidth = info.BaseInfo.ViewportWidth;
+    camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
+
+    camera.m_FieldOfView = info.Fov;
+    camera.m_Aspect = info.Aspect;
+
+    camera.UpdateViewMatrix();
+    camera.UpdateProjectionMatrix();
+    camera.UpdateViewProjection();
+
+    return camera;
+}
+
+Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
+{
+    Camera camera{CameraType::Orthographic};
+    camera.m_Position = info.BaseInfo.Position;
+    camera.m_Orientation = info.BaseInfo.Orientation;
+    camera.m_NearClipPlane = info.BaseInfo.Near;
+    camera.m_FarClipPlane = info.BaseInfo.Far;
+    camera.m_ViewportWidth = info.BaseInfo.ViewportWidth;
+    camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
+
+    camera.m_FieldOfView = 2.0f * std::atan(info.HalfHeight / info.BaseInfo.Near);
+    camera.m_Aspect = info.HalfWidth / info.HalfHeight;
+
+    camera.UpdateViewMatrix();
+    camera.m_ProjectionMatrix = glm::orthoRH_ZO(-info.HalfWidth, info.HalfWidth, -info.HalfHeight, info.HalfHeight,
+        info.BaseInfo.Far, info.BaseInfo.Near);
+    camera.UpdateViewProjection();
+
+    return camera;
+}
+
+void Camera::SetType(CameraType type)
+{
+    m_CameraType = type;
     UpdateProjectionMatrix();
     UpdateViewProjection();
 }
@@ -106,7 +158,25 @@ void Camera::UpdateViewMatrix()
 void Camera::UpdateProjectionMatrix()
 {
     m_Aspect = f32(m_ViewportWidth) / f32(m_ViewportHeight);
-    m_ProjectionMatrix = glm::perspectiveRH_ZO(m_FieldOfView, m_Aspect, m_FarClipPlane, m_NearClipPlane);
+
+    switch (m_CameraType)
+    {
+    case CameraType::Perspective:
+    {
+        m_ProjectionMatrix = glm::perspectiveRH_ZO(m_FieldOfView, m_Aspect, m_FarClipPlane, m_NearClipPlane);
+        break;
+    }
+    case CameraType::Orthographic:
+    {
+        f32 orthoHeight = 2.0f * std::tan(m_FieldOfView * 0.5f) * (m_NearClipPlane + 1.0f);
+        f32 orthoWidth = orthoHeight * m_Aspect;
+        f32 x = orthoWidth * 0.5f;
+        f32 y = orthoHeight * 0.5f;
+        m_ProjectionMatrix = glm::orthoRH_ZO(-x, x, -y, y, m_FarClipPlane, m_NearClipPlane);
+        break;
+    }
+    }
+    
     m_ProjectionMatrix[1][1] *= -1.0f;
 }
 

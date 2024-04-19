@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-#include <array>
 #include <memory>
 
 #include "types.h"
@@ -24,13 +23,45 @@ struct ProjectionData
     f32 Height;
 };
 
+enum class CameraType {Perspective, Orthographic};
+
+struct CameraCreateInfo
+{
+    glm::vec3 Position{0.0f};
+    glm::quat Orientation{glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f))};
+    f32 Near{0.1f};
+    f32 Far{5000.0f};
+
+    u32 ViewportWidth{1600};
+    u32 ViewportHeight{900};
+};
+
+struct PerspectiveCameraCreateInfo
+{
+    CameraCreateInfo BaseInfo{};
+    f32 Fov{glm::radians(45.0f)};
+    f32 Aspect{16.0f / 9.0f};
+};
+struct OrthographicCameraCreateInfo
+{
+    CameraCreateInfo BaseInfo{};
+    f32 HalfWidth{1.0f};
+    f32 HalfHeight{1.0f};
+};
+
 class Camera
 {
     friend class CameraController;
 public:
-    Camera();
-    Camera(const glm::vec3& position, f32 fov, f32 aspect);
+    Camera(CameraType type);
+    Camera(CameraType type, const glm::vec3& position, f32 fov, f32 aspect);
 
+    static Camera Perspective(const PerspectiveCameraCreateInfo& info);
+    static Camera Orthographic(const OrthographicCameraCreateInfo& info);
+
+    void SetType(CameraType type);
+    CameraType GetType() const { return m_CameraType; }
+    
     void SetPosition(const glm::vec3& position);
     void SetOrientation(const glm::quat& orientation);
 
@@ -56,6 +87,7 @@ private:
     void UpdateProjectionMatrix();
     void UpdateViewProjection();
 private:
+    CameraType m_CameraType{};
     glm::vec3 m_Position;
     glm::quat m_Orientation;
 

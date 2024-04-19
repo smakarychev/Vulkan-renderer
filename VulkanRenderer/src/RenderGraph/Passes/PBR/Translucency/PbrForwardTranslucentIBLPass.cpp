@@ -11,7 +11,7 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGrap
 
     std::string name = "PBR.Forward.Translucent";
     m_MeshCull = std::make_shared<MeshCullSinglePass>(renderGraph, name + ".MeshCull");
-    m_MeshletCull = std::make_shared<MeshletCullTranslucentPass>(renderGraph, name + ".MeshletCull");
+    m_MeshletCull = std::make_shared<MeshletCullTranslucentPass>(renderGraph, name + ".MeshletCull", info.CameraType);
 
     ShaderPipelineTemplate* drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/pbr/pbr-translucency-vert.shader",

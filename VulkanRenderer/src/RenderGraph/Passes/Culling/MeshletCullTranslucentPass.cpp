@@ -5,8 +5,9 @@ MeshletCullTranslucentContext::MeshletCullTranslucentContext(MeshCullContext& me
 {
 }
 
-MeshletCullTranslucentPass::MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name)
-    : m_Name(name)
+MeshletCullTranslucentPass::MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name,
+    CameraType cameraType)
+        : m_Name(name)
 {
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/meshlet-cull-translucent-comp.shader"},
@@ -14,6 +15,7 @@ MeshletCullTranslucentPass::MeshletCullTranslucentPass(RG::Graph& renderGraph, s
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(meshletCullTemplate)
+        .AddSpecialization("IS_ORTHOGRAPHIC_PROJECTION", cameraType == CameraType::Orthographic)
         .UseDescriptorBuffer()
         .Build();
 

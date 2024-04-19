@@ -38,7 +38,7 @@ public:
         RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name);
+    MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name, CameraType cameraType);
     void AddToGraph(RG::Graph& renderGraph, MeshletCullTranslucentContext& ctx);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:

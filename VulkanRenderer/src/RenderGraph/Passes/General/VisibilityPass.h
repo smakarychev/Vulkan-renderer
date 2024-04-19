@@ -7,8 +7,9 @@
 
 struct VisibilityPassInitInfo
 {
-    const ShaderDescriptors* MaterialDescriptors{nullptr};
     const RG::Geometry* Geometry{nullptr};
+    const ShaderDescriptors* MaterialDescriptors{nullptr};
+    CameraType CameraType{CameraType::Perspective};
 };
 
 struct VisibilityPassExecutionInfo

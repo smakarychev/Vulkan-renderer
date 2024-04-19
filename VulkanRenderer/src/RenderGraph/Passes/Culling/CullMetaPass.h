@@ -16,6 +16,7 @@ struct CullMetaPassInitInfo
     const ShaderPipeline* DrawMeshletsPipeline{nullptr};
     std::optional<const ShaderDescriptors*> MaterialDescriptors{};
     Features DrawFeatures{Features::AllAttributes};
+    CameraType CameraType{CameraType::Perspective};
 };
 
 struct CullMetaPassExecutionInfo

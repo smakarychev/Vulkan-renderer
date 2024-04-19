@@ -68,7 +68,7 @@ public:
         RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name);
+    MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name, CameraType cameraType);
     void AddToGraph(RG::Graph& renderGraph, MeshletCullContext& ctx);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
@@ -85,8 +85,9 @@ using MeshletCullSinglePass = MeshletCullPassGeneral<CullStage::Single>;
 
 
 template <CullStage Stage>
-MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name)
-    : m_Name(name)
+MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name,
+    CameraType cameraType)
+        : m_Name(name)
 {
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/meshlet-cull-comp.shader"},
@@ -96,6 +97,7 @@ MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RG::Graph& renderGraph, st
         .SetTemplate(meshletCullTemplate)
         .AddSpecialization("REOCCLUSION", Stage == CullStage::Reocclusion)
         .AddSpecialization("SINGLE_PASS", Stage == CullStage::Single)
+        .AddSpecialization("IS_ORTHOGRAPHIC_PROJECTION", cameraType == CameraType::Orthographic)
         .UseDescriptorBuffer()
         .Build();
 

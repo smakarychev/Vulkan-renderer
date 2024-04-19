@@ -16,8 +16,9 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
 
     m_MeshCull = std::make_shared<MeshCull>(renderGraph, m_Name.Name() + ".MeshCull");
     m_MeshReocclusion = std::make_shared<MeshReocclusion>(renderGraph, m_Name.Name() + ".MeshCull");
-    m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull");
-    m_MeshletReocclusion = std::make_shared<MeshletReocclusion>(renderGraph, m_Name.Name() + ".MeshletCull");
+    m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull", info.CameraType);
+    m_MeshletReocclusion = std::make_shared<MeshletReocclusion>(renderGraph, m_Name.Name() + ".MeshletCull",
+        info.CameraType);
 
     m_TrianglePrepareDispatch = std::make_shared<TriangleCullPrepareDispatchPass>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
