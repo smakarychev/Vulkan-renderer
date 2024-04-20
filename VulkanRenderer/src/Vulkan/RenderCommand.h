@@ -131,6 +131,7 @@ public:
     
     static void SetViewport(const CommandBuffer& cmd, const glm::vec2& size);
     static void SetScissors(const CommandBuffer& cmd, const glm::vec2& offset, const glm::vec2& size);
+    static void SetDepthBias(const CommandBuffer& cmd, const DepthBias& depthBias);
 private:
     static VkResult WaitForFenceStatus(const Fence& fence);
     static VkResult CheckFenceStatus(const Fence& fence);

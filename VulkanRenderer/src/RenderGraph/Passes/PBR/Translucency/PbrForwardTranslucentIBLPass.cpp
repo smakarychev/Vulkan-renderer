@@ -61,7 +61,7 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
                     .OnLoad = info.ColorIn.IsValid() ?
                         AttachmentLoad::Load : AttachmentLoad::Clear,
                     .OnStore = AttachmentStore::Store}}},
-            .DepthAttachment = DrawAttachment{
+            .DepthAttachment = DepthStencilAttachment{
                 .Resource = info.DepthIn,
                 .Description = {
                     .Type = RenderingAttachmentType::Depth,

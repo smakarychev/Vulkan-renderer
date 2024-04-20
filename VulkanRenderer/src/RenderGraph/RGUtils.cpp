@@ -69,6 +69,7 @@ namespace RG::RgUtils
             drawAttachmentResources.DepthTarget = graph.DepthStencilTarget(
                 resource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
+                attachment.DepthBias,
                 attachment.Description.Clear.DepthStencil.Depth,
                 attachment.Description.Clear.DepthStencil.Stencil);
         }

@@ -83,7 +83,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
                 .OnLoad = info.Colors[i].OnLoad,
                 .OnStore = AttachmentStore::Store}});
     }
-    std::optional<DrawAttachment> depthAttachment{};
+    std::optional<DepthStencilAttachment> depthAttachment{};
     if (info.Depth.has_value())
         depthAttachment = {
             .Resource = *depth,
@@ -91,7 +91,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
                 .Type = RenderingAttachmentType::Depth,
                 .Clear = info.Depth->ClearValue,
                 .OnLoad = info.Depth->OnLoad,
-                .OnStore = AttachmentStore::Store}};
+                .OnStore = AttachmentStore::Store},
+            .DepthBias = info.Depth->DepthBias};
 
     // cull and draw triangles that were visible last frame (this presumably draws most of the triangles)
     m_CullDraw->AddToGraph(renderGraph, {

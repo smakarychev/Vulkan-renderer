@@ -31,6 +31,7 @@ struct CullMetaPassExecutionInfo
     {
         RG::Resource Depth{};
         AttachmentLoad OnLoad{AttachmentLoad::Load};
+        std::optional<DepthBias> DepthBias{};
         RenderingAttachmentDescription::ClearValue ClearValue{};
     };
     using IBLData = RG::IBLData;

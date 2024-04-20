@@ -82,7 +82,7 @@ namespace
         std::unreachable();
     }
 
-    VkBufferUsageFlags vulkanBufferUsageFromUsage(BufferUsage kind)
+    constexpr VkBufferUsageFlags vulkanBufferUsageFromUsage(BufferUsage kind)
     {
         ASSERT(!enumHasAll(kind, BufferUsage::Vertex | BufferUsage::Index),
             "Buffer usage cannot include both vertex and index")
@@ -270,6 +270,20 @@ namespace
         std::unreachable();
     }
 
+    constexpr VkBorderColor vulkanBorderColorFromBorderColor(SamplerBorderColor color)
+    {
+        switch (color)
+        {
+        case SamplerBorderColor::White:
+            return VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        case SamplerBorderColor::Black:
+            return VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+        default:
+            ASSERT(false, "Unsupported attachment load")
+        }
+        std::unreachable();
+    }
+    
     constexpr VkAttachmentLoadOp vulkanAttachmentLoadFromAttachmentLoad(AttachmentLoad load)
     {
         switch (load)
@@ -300,7 +314,7 @@ namespace
         std::unreachable();
     }
 
-    VkCommandBufferLevel vulkanBufferLevelFromBufferKind(CommandBufferKind kind)
+    constexpr VkCommandBufferLevel vulkanBufferLevelFromBufferKind(CommandBufferKind kind)
     {
         switch (kind)
         {
@@ -480,7 +494,7 @@ namespace
         return flags;
     }
 
-    VkShaderStageFlagBits vulkanStageBitFromShaderStage(ShaderStage stage)
+    constexpr VkShaderStageFlagBits vulkanStageBitFromShaderStage(ShaderStage stage)
     {
         ASSERT(((u32)stage & (u32(stage) - 1)) == 0, "At this point, stage should represent a single (unmerged) shader")
         switch (stage)
@@ -497,7 +511,7 @@ namespace
         std::unreachable();
     }
 
-    std::vector<VkDynamicState> vulkanDynamicStatesFromDynamicStates(DynamicStates states)
+    constexpr std::vector<VkDynamicState> vulkanDynamicStatesFromDynamicStates(DynamicStates states)
     {
         std::vector<VkDynamicState> vulkanStates;
 
@@ -511,7 +525,7 @@ namespace
         return vulkanStates;
     }
 
-    VkCullModeFlags vulkanCullModeFromFaceCullMode(FaceCullMode mode)
+    constexpr VkCullModeFlags vulkanCullModeFromFaceCullMode(FaceCullMode mode)
     {
         switch (mode)
         {
@@ -527,7 +541,7 @@ namespace
         std::unreachable();
     }
 
-    VkPrimitiveTopology vulkanTopologyFromPrimitiveKind(PrimitiveKind kind)
+    constexpr VkPrimitiveTopology vulkanTopologyFromPrimitiveKind(PrimitiveKind kind)
     {
         switch (kind)
         {
@@ -1089,7 +1103,7 @@ Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
     samplerCreateInfo.anisotropyEnable = (u32)createInfo.WithAnisotropy;
     samplerCreateInfo.mipLodBias = 0.0f;
     samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
-    samplerCreateInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    samplerCreateInfo.borderColor = vulkanBorderColorFromBorderColor(createInfo.BorderColor);
 
     VkSamplerReductionModeCreateInfo reductionModeCreateInfo = {};
     if (createInfo.ReductionMode.has_value())
@@ -1336,7 +1350,7 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         VkPipelineRasterizationStateCreateInfo rasterizationState = {};
         rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         rasterizationState.depthClampEnable = VK_FALSE;
-        rasterizationState.depthBiasEnable = VK_FALSE;
+        rasterizationState.depthBiasEnable = enumHasAny(createInfo.DynamicStates, DynamicStates::DepthBias);
         rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
         rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizationState.lineWidth = 1.0f;
@@ -1436,12 +1450,22 @@ void Driver::Destroy(ResourceHandle<Pipeline> pipeline)
 
 DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& createInfo)
 {
-    static Sampler immutableSampler = GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::Repeat);
-    static Sampler immutableSamplerNearest = GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::Repeat);
+    static SamplerBorderColor black = SamplerBorderColor::Black;
+    static SamplerBorderColor white = SamplerBorderColor::White;
+    static Sampler immutableSampler = GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::Repeat, black);
+    static Sampler immutableSamplerNearest = GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::Repeat, black);
     static Sampler immutableSamplerClampEdge =
-        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampEdge);
+        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampEdge, black);
     static Sampler immutableSamplerNearestClampEdge =
-        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampEdge);
+        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampEdge, black);
+    static Sampler immutableSamplerClampBlack =
+        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, black);
+    static Sampler immutableSamplerNearestClampBlack =
+        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, black);
+    static Sampler immutableSamplerClampWhite =
+        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, white);
+    static Sampler immutableSamplerNearestClampWhite =
+        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, white);
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     bindingFlags.reserve(createInfo.BindingFlags.size());
@@ -1461,11 +1485,30 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
 
         if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerClampEdge))
             bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampEdge].Sampler;
+
         else if (enumHasAny(binding.DescriptorFlags,
             assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearestClampEdge))
                 bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampEdge].Sampler;
+
+        else if (enumHasAny(binding.DescriptorFlags,
+            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerClampBlack))
+                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampBlack].Sampler;
+
+        else if (enumHasAny(binding.DescriptorFlags,
+            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearestClampBlack))
+                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampBlack].Sampler;
+
+        else if (enumHasAny(binding.DescriptorFlags,
+            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerClampWhite))
+                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampWhite].Sampler;
+        
+        else if (enumHasAny(binding.DescriptorFlags,
+            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearestClampWhite))
+                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampWhite].Sampler;
+        
         else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearest))
             bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearest].Sampler;
+
         else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSampler))
             bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
     }
@@ -2363,6 +2406,7 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
                     deviceVulkan12Features.shaderBufferInt64Atomics == VK_TRUE &&
                     deviceVulkan12Features.timelineSemaphore == VK_TRUE &&
                     deviceVulkan12Features.bufferDeviceAddress == VK_TRUE &&
+                    deviceVulkan12Features.scalarBlockLayout == VK_TRUE &&
                     deviceVulkan13Features.dynamicRendering == VK_TRUE &&
                     deviceVulkan13Features.synchronization2 == VK_TRUE &&
                     conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE &&
@@ -2469,6 +2513,7 @@ void Driver::CreateDevice(const Device::Builder::CreateInfo& createInfo,
     vulkan12Features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vulkan12Features.timelineSemaphore = VK_TRUE;
     vulkan12Features.bufferDeviceAddress = VK_TRUE;
+    vulkan12Features.scalarBlockLayout = VK_TRUE;
 
     VkPhysicalDeviceVulkan13Features vulkan13Features = {};
     vulkan13Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
@@ -2638,11 +2683,12 @@ void Driver::ShutdownResources()
         "Not all driver resources are destroyed")
 }
 
-Sampler Driver::GetImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode)
+Sampler Driver::GetImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
 {
     Sampler sampler = Sampler::Builder()
         .Filters(filter, filter)
         .WrapMode(wrapMode)
+        .BorderColor(borderColor)
         .Build();
 
     return sampler;

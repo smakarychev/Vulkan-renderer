@@ -56,6 +56,11 @@ enum class SamplerWrapMode : u8
     ClampEdge, ClampBorder, Repeat
 };
 
+enum class SamplerBorderColor : u8
+{
+    White, Black
+};
+
 enum class SamplerReductionMode : u8
 {
     Average, Min, Max

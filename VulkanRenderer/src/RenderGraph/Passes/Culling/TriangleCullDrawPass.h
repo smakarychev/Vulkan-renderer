@@ -499,6 +499,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             const Buffer& indicesSsbo = resources.GetBuffer(passData.TriangleCullResources.IndicesSsbo);
             const Buffer& dispatchSsboIndirect = resources.GetBuffer(passData.TriangleCullResources.DispatchIndirect);
 
+            std::optional<DepthBias> depthBias{};
+
             auto updateIterationCull = [&](u32 index)
             {
                 auto& samplerDescriptors = passData.CullPipelines->at(index).SamplerDescriptors;
@@ -572,6 +574,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                     renderingInfoBuilder.AddAttachment(RenderingAttachment::Builder(description)
                         .FromImage(depthTexture, ImageLayout::DepthAttachment)
                         .Build(frameContext.DeletionQueue));
+
+                    depthBias = info.DrawAttachments.DepthAttachment->DepthBias;
                 }
 
                 RenderingInfo renderingInfo = renderingInfoBuilder.Build(frameContext.DeletionQueue);
@@ -614,9 +618,11 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             if (info.CullContext->GetIterationCount() == 0)
             {
                 auto& cmd = frameContext.Cmd;
+                RenderCommand::BeginRendering(cmd, createRenderingInfo(true));
                 RenderCommand::SetViewport(cmd, info.Resolution);
                 RenderCommand::SetScissors(cmd, {0, 0}, info.Resolution);
-                RenderCommand::BeginRendering(cmd, createRenderingInfo(true));
+                if (depthBias.has_value())
+                    RenderCommand::SetDepthBias(cmd, *depthBias);
                 RenderCommand::EndRendering(cmd);
 
                 return;
@@ -689,10 +695,14 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                     auto& resourceDescriptors = passData.DrawPipelines->at(batchIndex).ResourceDescriptors;
 
                     auto& cmd = frameContext.Cmd;
-                    RenderCommand::SetViewport(cmd, info.Resolution);
-                    RenderCommand::SetScissors(cmd, {0, 0}, info.Resolution);
+                    
                     RenderCommand::BeginRendering(cmd, createRenderingInfo(i == 0));
 
+                    RenderCommand::SetViewport(cmd, info.Resolution);
+                    RenderCommand::SetScissors(cmd, {0, 0}, info.Resolution);
+                    if (depthBias.has_value())
+                        RenderCommand::SetDepthBias(cmd, *depthBias);
+                    
                     RenderCommand::BindIndexU32Buffer(cmd, indicesCulledSsbo[batchIndex], 0);
                     pipeline.BindGraphics(cmd);
                     resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),

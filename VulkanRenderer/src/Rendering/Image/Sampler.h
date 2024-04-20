@@ -24,6 +24,7 @@ public:
             ImageFilter MinificationFilter{ImageFilter::Linear};
             ImageFilter MagnificationFilter{ImageFilter::Linear};
             SamplerWrapMode AddressMode{SamplerWrapMode::Repeat};
+            SamplerBorderColor BorderColor{SamplerBorderColor::White};
             std::optional<SamplerReductionMode> ReductionMode;
             f32 MaxLod{LOD_MAX};
             bool WithAnisotropy{true};
@@ -32,6 +33,7 @@ public:
         Sampler Build();
         Builder& Filters(ImageFilter minification, ImageFilter magnification);
         Builder& WrapMode(SamplerWrapMode mode);
+        Builder& BorderColor(SamplerBorderColor color);
         Builder& ReductionMode(SamplerReductionMode mode);
         Builder& MaxLod(f32 lod);
         Builder& WithAnisotropy(bool enabled);

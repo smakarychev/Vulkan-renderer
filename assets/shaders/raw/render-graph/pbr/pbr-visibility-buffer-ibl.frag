@@ -5,7 +5,8 @@
 #include "common.glsl"
 #include "pbr.glsl"
 
-#extension GL_EXT_nonuniform_qualifier : require
+#extension GL_EXT_nonuniform_qualifier: require
+#extension GL_EXT_samplerless_texture_functions: require
 
 layout(constant_id = 0) const float MAX_REFLECTION_LOD = 5.0f;
 
@@ -17,6 +18,9 @@ layout(set = 0, binding = 1) uniform sampler u_sampler;
 
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 2) uniform sampler u_sampler_brdf;
+
+@immutable_sampler_clamp_black
+layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
 
 layout(set = 1, binding = 0) uniform utexture2D u_visibility_texture;
 layout(set = 1, binding = 1) uniform texture2D u_ssao_texture;
@@ -336,6 +340,7 @@ struct GBufferData {
     vec2 uv_dx;
     vec2 uv_dy;
     vec3 normal;
+    vec3 flat_normal;
     vec3 albedo;
     vec3 emissive;
     vec2 metallic_roughness;
@@ -375,7 +380,8 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
 
     const mat3 normals = get_normals(indices);
     const mat3 normals_interpolated = interpolate_with_derivatives_3d(interpolation_data, normals);
-    vec3 normal = vec3(normals_interpolated[0][0], normals_interpolated[0][1], normals_interpolated[0][2]);
+    const vec3 flat_normal = vec3(normals_interpolated[0][0], normals_interpolated[0][1], normals_interpolated[0][2]);
+    vec3 normal = flat_normal;
     const vec3 normal_dx = vec3(normals_interpolated[1][0], normals_interpolated[1][1], normals_interpolated[1][2]);
     const vec3 normal_dy = vec3(normals_interpolated[2][0], normals_interpolated[2][1], normals_interpolated[2][2]);
 
@@ -404,6 +410,7 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     data.uv_dx = uv_dx;
     data.uv_dy = uv_dy;
     data.normal = normal;
+    data.flat_normal = flat_normal;
     data.albedo = albedo;
     data.emissive = emissive;
     data.metallic_roughness = vec2(material.metallic, material.roughness) * metallic_roughness;
@@ -412,14 +419,39 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     return data;
 }
 
-float shadow(vec3 position) {
+float sample_shadow(float projected_depth, vec2 uv, vec2 delta) {
+    const float bias = 0.0005f;
+    const float depth = textureLod(sampler2D(u_directional_shadow_map, u_sampler_shadow), uv + delta, 0).r;
+    const float shadow = depth < projected_depth + bias ? 0.0f : 0.8f;
+    
+    return shadow;
+}
+
+float shadow(vec3 position, vec3 normal) {
+
+    const ivec2 shadow_size = textureSize(u_directional_shadow_map, 0);
+    const float scale = 1.5f;
+    const vec2 delta = vec2(scale) / vec2(shadow_size);
+    
     const vec4 shadow_local = u_directional_shadow_transform.view_projection * vec4(position, 1.0f);
     const vec3 ndc = shadow_local.xyz / shadow_local.w;
     vec2 uv = (ndc.xy * 0.5f) + 0.5f;
     
-    const float depth = textureLod(sampler2D(u_directional_shadow_map, u_sampler), uv, 0).r; 
+    if (ndc.z < 0.0f)
+        return 0.0f;
     
-    return depth < ndc.z ? 0.0f : 1.0f;
+    float shadow_factor = 0.0f;
+    int samples_dim = 1;
+    int samples_count = 0;
+    for (int x = -samples_dim; x <= samples_dim; x++) {
+        for (int y = -samples_dim; y <= samples_dim; y++) {
+            shadow_factor += sample_shadow(ndc.z, uv, vec2(delta.x * x, delta.y * y));
+            samples_count++;
+        }
+    }
+    shadow_factor /= float(samples_count);
+
+    return shadow_factor;
 }
 
 void main() {
@@ -463,10 +495,11 @@ void main() {
     float ambient_occlusion = 1.0f;
     ambient_occlusion *= gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
     
-    const float shadow = shadow(gbuffer_data.position);
+    const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal);
     color *= ambient_occlusion * (1.0f - shadow);
     
     color += gbuffer_data.emissive;
     
     out_color = vec4(color, 1.0);
+    //out_color = vec4(vec3(shadow), 1.0);
 }

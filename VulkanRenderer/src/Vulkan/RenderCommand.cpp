@@ -666,3 +666,8 @@ void RenderCommand::SetScissors(const CommandBuffer& cmd, const glm::vec2& offse
     
     vkCmdSetScissor(Driver::Resources()[cmd].CommandBuffer, 0, 1, &scissor);
 }
+
+void RenderCommand::SetDepthBias(const CommandBuffer& cmd, const DepthBias& depthBias)
+{
+    vkCmdSetDepthBias(Driver::Resources()[cmd].CommandBuffer, depthBias.Constant, 0.0f, depthBias.Slope);
+}

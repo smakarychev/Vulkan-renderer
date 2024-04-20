@@ -57,14 +57,17 @@ void Renderer::InitRenderGraph()
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
     Model* car = Model::LoadFromAsset("../assets/models/vokselia_spawn/scene.model");
+    Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
+    m_GraphModelCollection.RegisterModel(plane, "plane");
+    
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{1.0f}}});
+            .Scale = glm::vec3{100.0f}}});
     
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
@@ -229,7 +232,7 @@ void Renderer::SetupRenderGraph()
         .Resolution = m_Swapchain.GetResolution(),
         .MainCamera = m_Camera.get(),
         .LightDirection = glm::normalize(lightDir),
-        .ViewDistance = 10.0f});
+        .ViewDistance = 50.0f});
     auto& directionalShadowOutput = m_Graph->GetBlackboard().Get<DirectionalShadowPass::PassData>();
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {

@@ -42,7 +42,7 @@ void ModelCollection::AddModelInstance(const std::string& modelName, const Model
 {
     if (!m_Models.contains(modelName))
     {
-        LOG("Uknown model name: {}", modelName);
+        LOG("Unknown model name: {}", modelName);
         return;
     }
 

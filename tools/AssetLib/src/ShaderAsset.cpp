@@ -17,17 +17,39 @@ namespace
         {
             if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::Dynamic))
                 flags |= DescriptorFlags::Dynamic;
+
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::Bindless))
                 flags |= DescriptorFlags::Bindless;
+
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler))
                 flags |= DescriptorFlags::ImmutableSampler;
+
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearest))
                 flags |= DescriptorFlags::ImmutableSamplerNearest;
+
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampEdge))
                 flags |= DescriptorFlags::ImmutableSamplerClampEdge;
+
             else if (flagString == assetLib::descriptorFlagToString(
                 DescriptorFlags::ImmutableSamplerNearestClampEdge))
                     flags |= DescriptorFlags::ImmutableSamplerNearestClampEdge;
+
+            else if (flagString == assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerClampBlack))
+                    flags |= DescriptorFlags::ImmutableSamplerClampBlack;
+
+            else if (flagString == assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerNearestClampBlack))
+                    flags |= DescriptorFlags::ImmutableSamplerNearestClampBlack;
+
+            else if (flagString == assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerClampWhite))
+                    flags |= DescriptorFlags::ImmutableSamplerClampWhite;
+
+            else if (flagString == assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerNearestClampWhite))
+                    flags |= DescriptorFlags::ImmutableSamplerNearestClampWhite;
+
             else
                 ASSERT(false, "Unrecogrinzed flag {}", flagString)
         }
@@ -40,17 +62,38 @@ namespace
         std::vector<std::string> flagsStrings;
         if (flags & DescriptorFlags::Dynamic)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::Dynamic));
+
         if (flags & DescriptorFlags::Bindless)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::Bindless));
+
         if (flags & DescriptorFlags::ImmutableSampler)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler));
+        
         if (flags & DescriptorFlags::ImmutableSamplerNearest)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearest));
+        
         if (flags & DescriptorFlags::ImmutableSamplerClampEdge)
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampEdge));
+
         if (flags & DescriptorFlags::ImmutableSamplerNearestClampEdge)
             flagsStrings.push_back(assetLib::descriptorFlagToString(
                 DescriptorFlags::ImmutableSamplerNearestClampEdge));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerClampBlack)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerClampBlack));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerNearestClampBlack)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerNearestClampBlack));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerClampWhite)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerClampWhite));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerNearestClampWhite)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerNearestClampWhite));
 
         return flagsStrings;
     }
@@ -241,22 +284,33 @@ namespace assetLib
 
     std::string descriptorFlagToString(ShaderInfo::DescriptorSet::DescriptorFlags flag)
     {
-        if (flag == DescriptorFlags::None)
+        switch (flag) {
+        case DescriptorFlags::None:
             return "none";
-        if (flag == DescriptorFlags::Dynamic)
+        case DescriptorFlags::Dynamic:
             return "dynamic";
-        if (flag == DescriptorFlags::Bindless)
+        case DescriptorFlags::Bindless:
             return "bindless";
-        if (flag == DescriptorFlags::ImmutableSampler)
+        case DescriptorFlags::ImmutableSampler:
             return "immutable_sampler";
-        if (flag == DescriptorFlags::ImmutableSamplerNearest)
+        case DescriptorFlags::ImmutableSamplerNearest:
             return "immutable_sampler_nearest";
-        if (flag == DescriptorFlags::ImmutableSamplerClampEdge)
+        case DescriptorFlags::ImmutableSamplerClampEdge:
             return "immutable_sampler_clamp_edge";
-        if (flag == DescriptorFlags::ImmutableSamplerNearestClampEdge)
+        case DescriptorFlags::ImmutableSamplerNearestClampEdge:
             return "immutable_sampler_nearest_clamp_edge";
-        ASSERT(false, "Unsupported flag")
-        std::unreachable();
+        case DescriptorFlags::ImmutableSamplerClampBlack:
+            return "immutable_sampler_clamp_black";
+        case DescriptorFlags::ImmutableSamplerNearestClampBlack:
+            return "immutable_sampler_nearest_clamp_black";
+        case DescriptorFlags::ImmutableSamplerClampWhite:
+            return "immutable_sampler_clamp_white";
+        case DescriptorFlags::ImmutableSamplerNearestClampWhite:
+            return "immutable_sampler_nearest_clamp_white";
+        default:
+            ASSERT(false, "Unsupported flag")
+        }
+        std::unreachable(); 
     }
 }
 

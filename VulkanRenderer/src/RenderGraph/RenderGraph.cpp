@@ -222,11 +222,17 @@ namespace RG
     Resource Graph::DepthStencilTarget(Resource resource, AttachmentLoad onLoad,
         AttachmentStore onStore)
     {
-        return DepthStencilTarget(resource, onLoad, onStore, 0.0, 0);
+        return DepthStencilTarget(resource, onLoad, onStore, {}, 0.0, 0);
     }
 
     Resource Graph::DepthStencilTarget(Resource resource, AttachmentLoad onLoad,
         AttachmentStore onStore, f32 clearDepth, u32 clearStencil)
+    {
+        return DepthStencilTarget(resource, onLoad, onStore, {}, clearDepth, clearStencil);
+    }
+
+    Resource Graph::DepthStencilTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore,
+        std::optional<DepthBias> depthBias, f32 clearDepth, u32 clearStencil)
     {
         ASSERT(m_ResourceTarget, "Call to 'DepthStencilTarget' outside of 'SetupFn' of render pass")
 
@@ -243,6 +249,7 @@ namespace RG
         depthStencilAccess.m_ClearStencil = clearStencil;
         depthStencilAccess.m_OnLoad = onLoad;
         depthStencilAccess.m_OnStore = onStore;
+        depthStencilAccess.m_DepthBias = depthBias;
         depthStencilAccess.m_IsDepthOnly = m_Textures[resource.Index()].m_Description.Format == Format::D32_FLOAT;
 
         m_ResourceTarget->m_DepthStencilAccess = depthStencilAccess;
@@ -350,8 +357,8 @@ namespace RG
                         m_Textures[pass->m_RenderTargetAttachmentAccess.front().m_Resource.Index()].m_Description.Width,
                         m_Textures[pass->m_RenderTargetAttachmentAccess.front().m_Resource.Index()].m_Description.Height
                     };
-                RenderCommand::SetViewport(frameContext.Cmd, resolution);
-                RenderCommand::SetScissors(frameContext.Cmd, {0, 0}, resolution);
+                    
+                std::optional<DepthBias> depthBias{};
 
                 std::vector<RenderingAttachment> attachments;
                 attachments.reserve(pass->m_RenderTargetAttachmentAccess.size() +
@@ -365,7 +372,7 @@ namespace RG
                         .Build(*m_FrameDeletionQueue));
                 if (pass->m_DepthStencilAccess.has_value())
                 {
-                    auto target = *pass->m_DepthStencilAccess;
+                    auto& target = *pass->m_DepthStencilAccess;
 
                     ImageLayout layout = target.m_IsDepthOnly ?
                         ImageLayout::DepthAttachment : ImageLayout::DepthStencilAttachment;
@@ -376,6 +383,10 @@ namespace RG
                        .LoadStoreOperations(target.m_OnLoad, target.m_OnStore)
                        .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource, layout)
                        .Build(*m_FrameDeletionQueue));
+
+                    /* add a depth bias, if depth target was created with it */
+                    if (target.m_DepthBias.has_value())
+                        depthBias = *target.m_DepthBias;
                 }
                 RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
                     .SetResolution(resolution);
@@ -385,6 +396,13 @@ namespace RG
                 RenderingInfo renderingInfo = renderingInfoBuilder.Build(*m_FrameDeletionQueue);
                 
                 RenderCommand::BeginRendering(frameContext.Cmd, renderingInfo);
+
+                /* set dynamic states */
+                RenderCommand::SetViewport(frameContext.Cmd, resolution);
+                RenderCommand::SetScissors(frameContext.Cmd, {0, 0}, resolution);
+                if (depthBias.has_value())
+                    RenderCommand::SetDepthBias(frameContext.Cmd, *depthBias);
+                
                 pass->Execute(frameContext, resources);
 
                 RenderCommand::EndRendering(frameContext.Cmd);

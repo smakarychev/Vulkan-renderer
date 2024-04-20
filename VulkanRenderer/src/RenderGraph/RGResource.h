@@ -109,6 +109,7 @@ namespace RG
         AttachmentStore m_OnStore{AttachmentStore::Unspecified};
         f32 m_ClearDepth{};
         u32 m_ClearStencil{};
+        std::optional<DepthBias> m_DepthBias{};
         bool m_IsDepthOnly{false};
     };
 

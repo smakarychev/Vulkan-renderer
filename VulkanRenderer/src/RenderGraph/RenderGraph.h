@@ -227,7 +227,9 @@ namespace RG
         Resource DepthStencilTarget(Resource resource, AttachmentLoad onLoad,
             AttachmentStore onStore);
         Resource DepthStencilTarget(Resource resource, AttachmentLoad onLoad,
-                AttachmentStore onStore, f32 clearDepth, u32 clearStencil = 0);
+            AttachmentStore onStore, f32 clearDepth, u32 clearStencil = 0);
+        Resource DepthStencilTarget(Resource resource, AttachmentLoad onLoad,
+            AttachmentStore onStore, std::optional<DepthBias> depthBias, f32 clearDepth, u32 clearStencil = 0);
 
         const BufferDescription& GetBufferDescription(Resource buffer);
         const TextureDescription& GetTextureDescription(Resource texture);

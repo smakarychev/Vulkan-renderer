@@ -58,7 +58,7 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
                 .OnLoad = info.Colors[i].OnLoad,
                 .OnStore = AttachmentStore::Store}});
     }
-    std::optional<DrawAttachment> depthAttachment{};
+    std::optional<DepthStencilAttachment> depthAttachment{};
     if (info.Depth.has_value())
         depthAttachment = {
         .Resource = *depth,
@@ -66,7 +66,8 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
             .Type = RenderingAttachmentType::Depth,
             .Clear = info.Depth->ClearValue,
             .OnLoad = info.Depth->OnLoad,
-            .OnStore = AttachmentStore::Store}};
+            .OnStore = AttachmentStore::Store},
+        .DepthBias = info.Depth->DepthBias};
 
     m_CullDraw->AddToGraph(renderGraph, {
         .Dispatch = dispatchOut.DispatchIndirect,

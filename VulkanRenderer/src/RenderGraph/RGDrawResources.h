@@ -73,11 +73,17 @@ namespace RG
         Resource Resource{};
         RenderingAttachmentDescription Description{};
     };
+    struct DepthStencilAttachment
+    {
+        Resource Resource;
+        RenderingAttachmentDescription Description{};
+        std::optional<DepthBias> DepthBias{};
+    };
 
     struct DrawAttachments
     {
         std::vector<DrawAttachment> ColorAttachments{};
-        std::optional<DrawAttachment> DepthAttachment{};
+        std::optional<DepthStencilAttachment> DepthAttachment{};
     };
 
     struct DrawAttachmentResources

@@ -597,6 +597,10 @@ std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptor
         DescriptorFlags::ImmutableSamplerNearest,
         DescriptorFlags::ImmutableSamplerClampEdge,
         DescriptorFlags::ImmutableSamplerNearestClampEdge,
+        DescriptorFlags::ImmutableSamplerClampBlack,
+        DescriptorFlags::ImmutableSamplerNearestClampBlack,
+        DescriptorFlags::ImmutableSamplerClampWhite,
+        DescriptorFlags::ImmutableSamplerNearestClampWhite,
     };
 
     std::vector<DescriptorFlagInfo> descriptorFlagsUnmerged = {};
@@ -801,6 +805,14 @@ void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
             assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampEdge),
         std::string{META_KEYWORD_PREFIX} +
             assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampEdge),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampBlack),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampBlack),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampWhite),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampWhite),
         std::string{META_KEYWORD_PREFIX} + "binding",
     };
 
