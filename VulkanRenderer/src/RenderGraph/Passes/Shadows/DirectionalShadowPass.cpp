@@ -33,9 +33,7 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const Directional
 {
     using namespace RG;
 
-    ASSERT(info.Camera->GetType() == CameraType::Orthographic, "DirectionalShadowPass assumes orthographic projection")
-    // todo: to cvar
-    static constexpr u32 SHADOW_MAP_RESOLUTION = 2048;
+    m_Camera = std::make_unique<Camera>(CreateShadowCamera(*info.MainCamera, info.LightDirection, info.ViewDistance));
     
     Resource shadow = renderGraph.CreateResource("DirectionalShadow.ShadowMap",
         GraphTextureDescription{
@@ -45,7 +43,7 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const Directional
 
     m_Pass->AddToGraph(renderGraph, {
         .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
-        .Camera = info.Camera,
+        .Camera = m_Camera.get(),
         .Depth = CullMetaPassExecutionInfo::DepthInfo{
             .Depth = shadow,
             .OnLoad = AttachmentLoad::Clear,
@@ -53,6 +51,57 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const Directional
 
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
     PassData passData = {
-        .ShadowMap = *output.DrawAttachmentResources.DepthTarget};
+        .ShadowMap = *output.DrawAttachmentResources.DepthTarget,
+        .Near = m_Camera->GetFrustumPlanes().Near,
+        .Far = m_Camera->GetFrustumPlanes().Far,
+        .ShadowViewProjection = m_Camera->GetViewProjection()};
     renderGraph.GetBlackboard().Update(passData);
+}
+
+Camera DirectionalShadowPass::CreateShadowCamera(const Camera& mainCamera, const glm::vec3& lightDirection,
+    f32 viewDistance)
+{
+    // todo: to cvar
+    static constexpr f32 CAMERA_NEAR_CLIP_OFFSET = 35.0f;
+    static constexpr f32 CAMERA_FAR = 10.0f;
+    
+    /* get world space location of frustum corners */
+    FrustumCorners corners = mainCamera.GetFrustumCorners(viewDistance);
+    
+    /* find the centroid */
+    glm::vec3 centroid = {};
+    for (auto& p : corners)
+        centroid += p;
+    centroid /= (f32)corners.size();
+    
+    /* offset in the opposite light direction */
+    glm::vec3 shadowCameraPosition = centroid - lightDirection * (CAMERA_FAR + CAMERA_NEAR_CLIP_OFFSET);
+    glm::vec3 up = abs(lightDirection.y) < 0.999f ?
+        glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+    glm::mat4 view = glm::lookAt(shadowCameraPosition, centroid, up);
+    
+    /* compute the bounds of original frustum in the newly formed view matrix */
+    glm::vec3 min{std::numeric_limits<f32>::max()};
+    glm::vec3 max = -min;
+    for (auto& p : corners)
+    {
+        glm::vec3 viewLocal = view * glm::vec4{p, 1.0f};
+        /* this can be written a little bit more efficiently, since either min or max is updated; but honestly
+         * I do not think this will be noticeable at all */
+        min = glm::min(min, viewLocal);
+        max = glm::max(max, viewLocal);
+    }
+
+    return Camera::Orthographic({
+        .BaseInfo = {
+            .Position = shadowCameraPosition,
+            .Orientation = glm::normalize(glm::quatLookAt(lightDirection, up)),
+            .Near = -max.z - CAMERA_NEAR_CLIP_OFFSET,
+            .Far = -min.z,
+            .ViewportWidth = SHADOW_MAP_RESOLUTION,
+            .ViewportHeight = SHADOW_MAP_RESOLUTION},
+        .Left = min.x,
+        .Right = max.x,
+        .Bottom = min.y,
+        .Top = max.y});
 }

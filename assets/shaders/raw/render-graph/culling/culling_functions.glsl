@@ -31,8 +31,8 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, scene_data scene, sa
     float miny = (vy * sphere_origin.y - cr.z) / (vy * sphere_origin.z + cr.y);
     float maxy = (vy * sphere_origin.y + cr.z) / (vy * sphere_origin.z - cr.y);
 
-    vec4 aabb = vec4(minx * scene.projection_width, miny * scene.projection_height,
-        maxx * scene.projection_width, maxy * scene.projection_height);
+    vec4 aabb = vec4(minx, miny, maxx, maxy) *
+        vec4(scene.projection_width, scene.projection_height, scene.projection_width, scene.projection_height);
     // clip space -> uv space
     aabb = aabb.xwzy * vec4(-0.5f, 0.5f, -0.5f, 0.5f) + vec4(0.5f);
 
@@ -62,8 +62,9 @@ bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, scene_d
     float miny = sphere_origin.y - radius;
     float maxy = sphere_origin.y + radius;
 
-    vec4 aabb = vec4(minx * scene.projection_width, miny * scene.projection_height,
-        maxx * scene.projection_width, maxy * scene.projection_height);
+    vec4 aabb = vec4(minx, miny, maxx, maxy) * 
+        vec4(scene.projection_width, scene.projection_height, scene.projection_width, scene.projection_height) +
+        vec4(scene.projection_bias_x, scene.projection_bias_y, scene.projection_bias_x, scene.projection_bias_y);
     // clip space -> uv space
     aabb = aabb.xyzw * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
 

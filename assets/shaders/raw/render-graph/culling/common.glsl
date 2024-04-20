@@ -14,9 +14,8 @@ struct scene_data {
     float frustum_far;
     float projection_width;
     float projection_height;
+    float projection_bias_x;
+    float projection_bias_y;
     float hiz_width;
     float hiz_height;
-    
-    uint pad0;
-    uint pad1;
 };

@@ -13,7 +13,8 @@ public:
     };
 public:
     VisualizeDepthPass(RG::Graph& renderGraph, std::string_view name);
-    void AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn, RG::Resource colorIn);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn, RG::Resource colorIn,
+        f32 near, f32 far, bool isOrthographic);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};

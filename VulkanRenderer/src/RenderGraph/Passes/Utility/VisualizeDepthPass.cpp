@@ -30,7 +30,8 @@ VisualizeDepthPass::VisualizeDepthPass(RG::Graph& renderGraph, std::string_view 
         .Build();
 }
 
-void VisualizeDepthPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn, RG::Resource colorIn)
+void VisualizeDepthPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn, RG::Resource colorIn,
+    f32 near, f32 far, bool isOrthographic)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -68,11 +69,23 @@ void VisualizeDepthPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn
                 ImageLayout::DepthReadonly :
                 ImageLayout::DepthStencilReadonly));
 
+            struct PushConstants
+            {
+                f32 Near{1.0f};
+                f32 Far{100.0f};
+                bool IsOrthographic{false};
+            };
+            PushConstants pushConstants = {
+                .Near = near,
+                .Far = far,
+                .IsOrthographic = isOrthographic};
+            
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
             pipeline.BindGraphics(cmd);
+            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
-
+            
             RenderCommand::Draw(cmd, 3);
         });
 }

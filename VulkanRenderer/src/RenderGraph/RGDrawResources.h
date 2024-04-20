@@ -20,6 +20,13 @@ namespace RG
         Resource SSAOTexture{};
     };
 
+    struct DirectionalShadowData
+    {
+        Resource ShadowMap{};
+        Resource ViewProjectionResource{};
+        glm::mat4 ViewProjection{1.0f};
+    };
+    
     enum class DrawFeatures
     {
         None        = 0,

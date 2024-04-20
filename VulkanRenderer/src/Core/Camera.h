@@ -17,10 +17,15 @@ struct FrustumPlanes
     f32 Far;
 };
 
+using FrustumCorners = std::array<glm::vec3, 8>;
+
 struct ProjectionData
 {
     f32 Width;
     f32 Height;
+
+    f32 BiasX;
+    f32 BiasY;
 };
 
 enum class CameraType {Perspective, Orthographic};
@@ -45,8 +50,10 @@ struct PerspectiveCameraCreateInfo
 struct OrthographicCameraCreateInfo
 {
     CameraCreateInfo BaseInfo{};
-    f32 HalfWidth{1.0f};
-    f32 HalfHeight{1.0f};
+    f32 Left{-0.5f};
+    f32 Right{0.5f};
+    f32 Bottom{-0.5f};
+    f32 Top{0.5f};
 };
 
 class Camera
@@ -81,6 +88,7 @@ public:
     glm::vec3 GetRight() const;
 
     FrustumPlanes GetFrustumPlanes() const;
+    FrustumCorners GetFrustumCorners(f32 maxDistance) const;
     ProjectionData GetProjectionData() const;
 private:
     void UpdateViewMatrix();

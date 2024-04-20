@@ -1,5 +1,7 @@
 ﻿#include "Camera.h"
 
+#include <array>
+
 #include "core.h"
 #include "Input.h"
 
@@ -64,12 +66,15 @@ Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
     camera.m_ViewportWidth = info.BaseInfo.ViewportWidth;
     camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
 
-    camera.m_FieldOfView = 2.0f * std::atan(info.HalfHeight / info.BaseInfo.Near);
-    camera.m_Aspect = info.HalfWidth / info.HalfHeight;
+    f32 halfHeight = (info.Top - info.Bottom) * 0.5f;
+    f32 halfWidth = (info.Right - info.Left) * 0.5f;
+    camera.m_FieldOfView = 2.0f * std::atan(halfHeight / std::abs(info.BaseInfo.Near));
+    camera.m_Aspect = halfWidth / halfHeight;
 
     camera.UpdateViewMatrix();
-    camera.m_ProjectionMatrix = glm::orthoRH_ZO(-info.HalfWidth, info.HalfWidth, -info.HalfHeight, info.HalfHeight,
+    camera.m_ProjectionMatrix = glm::orthoRH_ZO(info.Left, info.Right, info.Bottom, info.Top,
         info.BaseInfo.Far, info.BaseInfo.Near);
+    camera.m_ProjectionMatrix[1][1] *= -1.0f;
     camera.UpdateViewProjection();
 
     return camera;
@@ -143,11 +148,36 @@ FrustumPlanes Camera::GetFrustumPlanes() const
     return frustumPlanes;
 }
 
+FrustumCorners Camera::GetFrustumCorners(f32 maxDistance) const
+{
+    glm::vec3 nearCenter = GetForward() * m_NearClipPlane;
+    glm::vec3 farCenter = GetForward() * std::min(maxDistance, m_FarClipPlane);
+
+    f32 tanFov = std::tan(m_FieldOfView * 0.5f);
+    f32 nearHeight = tanFov * m_NearClipPlane;
+    f32 nearWidth = nearHeight * m_Aspect;
+    f32 farHeight = tanFov * std::min(maxDistance, m_FarClipPlane);
+    f32 farWidth = farHeight * m_Aspect;
+
+    FrustumCorners p = {};
+
+    p[0] = m_Position + nearCenter - GetRight() * nearWidth - GetUp() * nearHeight;
+    p[1] = m_Position + nearCenter - GetRight() * nearWidth + GetUp() * nearHeight;
+    p[2] = m_Position + nearCenter + GetRight() * nearWidth + GetUp() * nearHeight;
+    p[3] = m_Position + nearCenter + GetRight() * nearWidth - GetUp() * nearHeight;
+    p[4] = m_Position + farCenter  - GetRight() * farWidth  - GetUp() * farHeight;
+    p[5] = m_Position + farCenter  - GetRight() * farWidth  + GetUp() * farHeight;
+    p[6] = m_Position + farCenter  + GetRight() * farWidth  + GetUp() * farHeight;
+    p[7] = m_Position + farCenter  + GetRight() * farWidth  - GetUp() * farHeight;
+
+    return p;
+}
+
 ProjectionData Camera::GetProjectionData() const
 {
     const glm::mat4& mat = GetProjection();
     
-    return {mat[0][0], -mat[1][1]};
+    return {mat[0][0], -mat[1][1], mat[3][0], -mat[3][1]};
 }
 
 void Camera::UpdateViewMatrix()

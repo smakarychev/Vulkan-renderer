@@ -57,6 +57,12 @@ layout(std430, set = 1, binding = 12) readonly buffer indices_buffer {
 } u_indices;
 
 
+// shadow-related descriptors
+layout(set = 1, binding = 13) uniform texture2D u_directional_shadow_map;
+layout(set = 1, binding = 14) uniform directional_shadow_matrix {
+    mat4 view_projection;
+} u_directional_shadow_transform;
+
 layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];
 } u_materials;
@@ -406,6 +412,16 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     return data;
 }
 
+float shadow(vec3 position) {
+    const vec4 shadow_local = u_directional_shadow_transform.view_projection * vec4(position, 1.0f);
+    const vec3 ndc = shadow_local.xyz / shadow_local.w;
+    vec2 uv = (ndc.xy * 0.5f) + 0.5f;
+    
+    const float depth = textureLod(sampler2D(u_directional_shadow_map, u_sampler), uv, 0).r; 
+    
+    return depth < ndc.z ? 0.0f : 1.0f;
+}
+
 void main() {
     uint visibility_packed = textureLod(usampler2D(u_visibility_texture, u_sampler_visibility), vertex_uv, 0).r;
     if (visibility_packed == (~0)) 
@@ -447,7 +463,8 @@ void main() {
     float ambient_occlusion = 1.0f;
     ambient_occlusion *= gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
     
-    color *= ambient_occlusion;
+    const float shadow = shadow(gbuffer_data.position);
+    color *= ambient_occlusion * (1.0f - shadow);
     
     color += gbuffer_data.emissive;
     

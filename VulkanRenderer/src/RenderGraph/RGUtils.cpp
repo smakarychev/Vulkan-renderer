@@ -22,6 +22,14 @@ namespace RG::RgUtils
             graph.AddExternal(name, fallback);
     }
 
+    Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
+        const GraphBufferDescription& fallback)
+    {
+        return resource.IsValid() ?
+            resource :
+            graph.CreateResource(name, fallback);
+    }
+
     DrawAttributeBuffers readDrawAttributes(const Geometry& geometry, Graph& graph, const std::string& baseName,
         ResourceAccessFlags shaderStage)
     {
@@ -108,5 +116,20 @@ namespace RG::RgUtils
 
         descriptors.UpdateBinding("u_ssao_texture", ssao.BindingInfo(
             ImageFilter::Linear, ImageLayout::Readonly));
+    }
+
+    void updateShadowBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+        const DirectionalShadowData& shadowData, ResourceUploader& resourceUploader)
+    {
+        const Texture& shadow = resources.GetTexture(shadowData.ShadowMap);
+        const Buffer& view = resources.GetBuffer(shadowData.ViewProjectionResource, shadowData.ViewProjection,
+            resourceUploader);
+
+        descriptors.UpdateBinding("u_directional_shadow_map", shadow.BindingInfo(
+            ImageFilter::Linear,
+            shadow.Description().Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
+
+        descriptors.UpdateBinding("u_directional_shadow_transform", view.BindingInfo());
     }
 }

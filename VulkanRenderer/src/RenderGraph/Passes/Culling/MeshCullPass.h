@@ -49,8 +49,6 @@ public:
         ProjectionData ProjectionData;
         f32 HiZWidth;
         f32 HiZHeight;
-    
-        u64 Padding;
     };
     struct PassData
     {

@@ -20,6 +20,7 @@ struct PbrVisibilityBufferExecutionInfo
     
     RG::IBLData IBL{};
     RG::SSAOData SSAO{};
+    RG::DirectionalShadowData DirectionalShadowData{};
 
     const RG::Geometry* Geometry{nullptr};
 };
@@ -32,6 +33,7 @@ public:
         RG::Resource VisibilityTexture{};
         RG::IBLData IBL{};
         RG::SSAOData SSAO{};
+        RG::DirectionalShadowData DirectionalShadowData{};
         
         RG::Resource CameraUbo{};
         RG::Resource CommandsSsbo{};

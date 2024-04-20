@@ -56,7 +56,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/vokselia_spawn/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
@@ -64,10 +64,6 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{1.0f}}});
-    m_GraphModelCollection.AddModelInstance("car", {
-        .Transform = {
-            .Position = glm::vec3{0.1f, 0.0f, 1.0f},
             .Scale = glm::vec3{1.0f}}});
     
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
@@ -223,6 +219,18 @@ void Renderer::SetupRenderGraph()
         
     //m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
     //backbuffer = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>().ColorOut;
+
+    static glm::vec3 lightDir = glm::vec3{0.0f, -1.0f, -0.1f};
+    ImGui::Begin("light");
+    ImGui::DragFloat3("Dir", &lightDir[0], 1e-2, -1.0f, 1.0f);
+    ImGui::End();
+    
+    m_DirectionalShadowPass->AddToGraph(*m_Graph, {
+        .Resolution = m_Swapchain.GetResolution(),
+        .MainCamera = m_Camera.get(),
+        .LightDirection = glm::normalize(lightDir),
+        .ViewDistance = 10.0f});
+    auto& directionalShadowOutput = m_Graph->GetBlackboard().Get<DirectionalShadowPass::PassData>();
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
         .VisibilityTexture = visibility.ColorOut,
@@ -233,6 +241,9 @@ void Renderer::SetupRenderGraph()
             .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
         .SSAO = {
             .SSAOTexture = ssaoBlurVerticalOutput.SsaoOut},
+        .DirectionalShadowData = {
+            .ShadowMap = directionalShadowOutput.ShadowMap,
+            .ViewProjection = directionalShadowOutput.ShadowViewProjection},
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = m_Graph->GetBlackboard().Get<PbrVisibilityBufferIBL::PassData>();
 
@@ -279,17 +290,8 @@ void Renderer::SetupRenderGraph()
     auto& blitHiZOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(m_BlitHiZ->GetNameHash());
     backbuffer = blitHiZOutput.TextureOut;
 
-    // todo: this is obv not the right place for it
-    static Camera shadowCamera = *m_Camera;
-    shadowCamera = *m_Camera;
-    shadowCamera.SetViewport(2048, 2048);
-    shadowCamera.SetType(CameraType::Orthographic);
-    m_DirectionalShadowPass->AddToGraph(*m_Graph, {
-        .Resolution = m_Swapchain.GetResolution(),
-        .Camera = &shadowCamera});
-    auto& directionalShadowOutput = m_Graph->GetBlackboard().Get<DirectionalShadowPass::PassData>();
-
-    m_VisualizeDirectionalShadowPass->AddToGraph(*m_Graph, directionalShadowOutput.ShadowMap, {});
+    m_VisualizeDirectionalShadowPass->AddToGraph(*m_Graph, directionalShadowOutput.ShadowMap, {},
+        directionalShadowOutput.Near, directionalShadowOutput.Far, true);
     auto& visualizeShadowPassOutput = m_Graph->GetBlackboard().Get<VisualizeDepthPass::PassData>(
         m_VisualizeDirectionalShadowPass->GetNameHash());
 
