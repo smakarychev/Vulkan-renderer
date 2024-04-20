@@ -95,6 +95,13 @@ Pipeline::Builder& Pipeline::Builder::SetVertexDescription(const VertexInputDesc
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::DynamicStates(::DynamicStates states)
+{
+    m_CreateInfo.DynamicStates = states;
+
+    return *this;
+}
+
 Pipeline::Builder& Pipeline::Builder::DepthMode(::DepthMode depthMode)
 {
     m_CreateInfo.DepthMode = depthMode;

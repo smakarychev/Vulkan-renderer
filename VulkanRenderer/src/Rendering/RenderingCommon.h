@@ -54,3 +54,9 @@ struct RenderingDetails
     // todo: make it an std::optional?
     Format DepthFormat;
 };
+
+struct DepthBias
+{
+    f32 Constant{0.0f};
+    f32 Slope{0.0f};
+};

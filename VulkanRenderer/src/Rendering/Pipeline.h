@@ -55,10 +55,22 @@ struct PipelineSpecializationInfo
     std::vector<u8> Buffer;
 };
 
+enum class DynamicStates
+{
+    None = 0,
+    Viewport    = BIT(1),
+    Scissor    = BIT(2),
+    DepthBias   = BIT(3),
+
+    Default     = Viewport | Scissor,
+};
+CREATE_ENUM_FLAGS_OPERATORS(DynamicStates)
+
 enum class DepthMode {Read, ReadWrite, None};
 enum class FaceCullMode {Front, Back, None};
 
 enum class PrimitiveKind {Triangle, Point};
+
 
 struct VertexInputDescription
 {
@@ -94,6 +106,7 @@ public:
             bool UseDescriptorBuffer{false};
             std::vector<ShaderModule> Shaders;
             VertexInputDescription VertexDescription;
+            DynamicStates DynamicStates{DynamicStates::Default};
             DepthMode DepthMode{DepthMode::ReadWrite};
             FaceCullMode CullMode{FaceCullMode::None};
             PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
@@ -109,6 +122,7 @@ public:
         Builder& IsComputePipeline(bool isCompute);
         Builder& AddShader(const ShaderModule& shaderModule);
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
+        Builder& DynamicStates(DynamicStates states);
         Builder& DepthMode(DepthMode depthMode);
         Builder& FaceCullMode(FaceCullMode cullMode);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);

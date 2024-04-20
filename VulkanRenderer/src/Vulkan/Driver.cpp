@@ -497,6 +497,20 @@ namespace
         std::unreachable();
     }
 
+    std::vector<VkDynamicState> vulkanDynamicStatesFromDynamicStates(DynamicStates states)
+    {
+        std::vector<VkDynamicState> vulkanStates;
+
+        if (enumHasAny(states, DynamicStates::Viewport))
+            vulkanStates.push_back(VK_DYNAMIC_STATE_VIEWPORT);
+        if (enumHasAny(states, DynamicStates::Scissor))
+            vulkanStates.push_back(VK_DYNAMIC_STATE_SCISSOR);
+        if (enumHasAny(states, DynamicStates::DepthBias))
+            vulkanStates.push_back(VK_DYNAMIC_STATE_DEPTH_BIAS);
+
+        return vulkanStates;
+    }
+
     VkCullModeFlags vulkanCullModeFromFaceCullMode(FaceCullMode mode)
     {
         switch (mode)
@@ -1278,10 +1292,7 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
     }
     else
     {
-        std::vector<VkDynamicState> dynamicStates = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR
-        };
+        std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(createInfo.DynamicStates);
         
         VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
         dynamicStateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;

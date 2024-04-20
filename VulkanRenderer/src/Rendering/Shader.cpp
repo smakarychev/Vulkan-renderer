@@ -696,6 +696,13 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderingDetails(const Rend
     return *this;
 }
 
+ShaderPipeline::Builder& ShaderPipeline::Builder::DynamicStates(::DynamicStates states)
+{
+    m_DynamicStates = states;
+
+    return *this;
+}
+
 ShaderPipeline::Builder& ShaderPipeline::Builder::DepthMode(::DepthMode depthMode)
 {
     m_DepthMode = depthMode;
@@ -748,6 +755,7 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::UseDescriptorBuffer()
 
 void ShaderPipeline::Builder::Prebuild()
 {
+    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.DynamicStates(m_DynamicStates);
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.DepthMode(m_DepthMode);
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.FaceCullMode(m_CullMode);
     m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.PrimitiveKind(m_PrimitiveKind);
