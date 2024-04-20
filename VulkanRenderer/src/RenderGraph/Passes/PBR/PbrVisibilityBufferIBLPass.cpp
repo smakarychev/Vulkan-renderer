@@ -62,36 +62,15 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
                    .Height = visibilityDescription.Height,
                    .Format = Format::RGBA16_FLOAT});
 
-            Resource irradiance = info.IBL.Irradiance;
-            Resource prefilter = info.IBL.PrefilterEnvironment;
-            Resource brdf = info.IBL.BRDF;
-            
-            ASSERT(irradiance.IsValid(), "Must provide irradiance map")
-            ASSERT(prefilter.IsValid(), "Must provide prefilter map")
-            ASSERT(brdf.IsValid(), "Must provide brdf")
-            
-            Resource ssao = RgUtils::ensureResource(info.SSAO.SSAOTexture, graph, "SSAO.Dummy",
-                ImageUtils::DefaultTexture::White);
-
-            ASSERT(info.DirectionalShadowData.ShadowMap.IsValid(), "Must provide directional shadow map")
-            Resource directionalShadowView = RgUtils::ensureResource(info.DirectionalShadowData.ViewProjectionResource,
-                graph, "Shadow.ViewProjection", GraphBufferDescription{.SizeBytes = sizeof(glm::mat4)});
+            passData.LightsResources = RgUtils::readSceneLight(*info.SceneLights, graph, name, Pixel);
+            passData.IBL = RgUtils::readIBLData(info.IBL, graph, Pixel);
+            passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
+            passData.DirectionalShadowData = RgUtils::readDirectionalShadowData(
+                info.DirectionalShadowData, graph, Pixel);
 
             auto& graphGlobals = graph.GetGlobalResources();
             
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
-            
-            passData.IBL.Irradiance = graph.Read(irradiance, Pixel | Sampled);
-            passData.IBL.PrefilterEnvironment = graph.Read(prefilter, Pixel | Sampled);
-            passData.IBL.BRDF = graph.Read(brdf, Pixel | Sampled);
-            
-            passData.SSAO.SSAOTexture = graph.Read(ssao, Pixel | Sampled);
-            
-            passData.DirectionalShadowData.ShadowMap = graph.Read(
-                info.DirectionalShadowData.ShadowMap, Pixel | Sampled);
-            passData.DirectionalShadowData.ViewProjectionResource = graph.Read(
-                directionalShadowView, Pixel | Uniform | Upload);
-            passData.DirectionalShadowData.ViewProjection = info.DirectionalShadowData.ViewProjection;
             
             passData.CameraUbo = graph.Read(graphGlobals.MainCameraGPU, Pixel | Uniform);
             passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, Pixel | Storage);
@@ -132,6 +111,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
 
             resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.BindingInfo(ImageFilter::Nearest,
                 ImageLayout::Readonly));
+            RgUtils::updateSceneLightBindings(resourceDescriptors, resources, passData.LightsResources);
             RgUtils::updateIBLBindings(resourceDescriptors, resources, passData.IBL);
             RgUtils::updateSSAOBindings(resourceDescriptors, resources, passData.SSAO);
             RgUtils::updateShadowBindings(resourceDescriptors, resources, passData.DirectionalShadowData,

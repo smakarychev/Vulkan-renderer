@@ -37,8 +37,8 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const Directional
 {
     using namespace RG;
 
-    m_Camera = std::make_unique<Camera>(CreateShadowCamera(*info.MainCamera, info.LightDirection, info.ViewDistance));
-
+    m_Camera = std::make_unique<Camera>(CreateShadowCamera(*info.MainCamera,
+        info.DirectionalLight->Direction, info.ViewDistance));
     
     Resource shadow = renderGraph.CreateResource("DirectionalShadow.ShadowMap",
         GraphTextureDescription{

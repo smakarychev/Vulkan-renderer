@@ -7,6 +7,7 @@
 
 #extension GL_EXT_nonuniform_qualifier: require
 #extension GL_EXT_samplerless_texture_functions: require
+#extension GL_EXT_scalar_block_layout: require
 
 layout(constant_id = 0) const float MAX_REFLECTION_LOD = 5.0f;
 
@@ -32,38 +33,42 @@ layout(set = 1, binding = 5) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
 
-layout(std430, set = 1, binding = 6) readonly buffer command_buffer {
+layout(scalar, set = 1, binding = 6) uniform directional_light {
+    DirectionalLight light;
+} u_directional_light;
+
+layout(std430, set = 1, binding = 7) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 7) readonly buffer objects_buffer {
+layout(std430, set = 1, binding = 8) readonly buffer objects_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 8) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 9) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 9) readonly buffer normals_buffer {
+layout(std430, set = 1, binding = 10) readonly buffer normals_buffer {
     Normal normals[];
 } u_normals;
 
-layout(std430, set = 1, binding = 10) readonly buffer tangents_buffer {
+layout(std430, set = 1, binding = 11) readonly buffer tangents_buffer {
     Tangent tangents[];
 } u_tangents;
 
-layout(std430, set = 1, binding = 11) readonly buffer uvs_buffer {
+layout(std430, set = 1, binding = 12) readonly buffer uvs_buffer {
     UV uvs[];
 } u_uv;
 
-layout(std430, set = 1, binding = 12) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 13) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
 
 // shadow-related descriptors
-layout(set = 1, binding = 13) uniform texture2D u_directional_shadow_map;
-layout(set = 1, binding = 14) uniform directional_shadow_matrix {
+layout(set = 1, binding = 14) uniform texture2D u_directional_shadow_map;
+layout(set = 1, binding = 15) uniform directional_shadow_matrix {
     mat4 view_projection;
 } u_directional_shadow_transform;
 
@@ -284,23 +289,29 @@ mat3 interpolate_with_derivatives_3d(InterpolationData interpolation, mat3 attri
 }
 
 vec3 shade_pbr_lights(ShadeInfo shade_info) {
-    const vec3 light_dir = -normalize(vec3(-0.1f, -0.1f, -0.1f));
-    const vec3 radiance = vec3(1.0f);
-    
-    const vec3 halfway_dir = normalize(light_dir + shade_info.view);
 
-    const  float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
-    const  float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
-    const  float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
+    vec3 Lo = vec3(0.0f);
+    
+    // calculate directional light
+    {
+        const vec3 light_dir = -u_directional_light.light.direction;
+        const vec3 radiance = u_directional_light.light.color * u_directional_light.light.intensity;
 
-    const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
-    const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
-    const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
-    
-    const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
-    const vec3 specular = D * V * F;
-    
-    const vec3 Lo = (specular + diffuse) * radiance * n_dot_l;
+        const vec3 halfway_dir = normalize(light_dir + shade_info.view);
+
+        const float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
+        const float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
+        const float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
+
+        const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
+        const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
+        const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
+
+        const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
+        const vec3 specular = D * V * F;
+
+        Lo += (specular + diffuse) * radiance * n_dot_l;
+    }
     
     return Lo;
 }
@@ -326,11 +337,11 @@ vec3 shade_pbr(ShadeInfo shade_info) {
     const  float n_dot_v = clamp(dot(shade_info.normal, shade_info.view), 0.0f, 1.0f);
 
     vec3 Lo = vec3(0.0f);
-    //Lo = shade_pbr_lights(shade_info);
+    Lo = shade_pbr_lights(shade_info);
 
     vec3 ambient = shade_pbr_ibl(shade_info);
 
-    return ambient + Lo;
+    return Lo;
 }
 
 // the interpolated data (does not actually come from gbuffer)
@@ -419,10 +430,12 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     return data;
 }
 
-float sample_shadow(float projected_depth, vec2 uv, vec2 delta) {
-    const float bias = 0.0005f;
+float sample_shadow(vec3 normal, float projected_depth, vec2 uv, vec2 delta) {
+    const float bias = 0.0025f;
+    const float n_dot_l = dot(normal, -u_directional_light.light.direction);
+    const float normal_bias = mix(bias, 0.0005f, n_dot_l);
     const float depth = textureLod(sampler2D(u_directional_shadow_map, u_sampler_shadow), uv + delta, 0).r;
-    const float shadow = depth < projected_depth + bias ? 0.0f : 0.8f;
+    const float shadow = depth < projected_depth + normal_bias ? 0.0f : 0.8f;
     
     return shadow;
 }
@@ -445,7 +458,7 @@ float shadow(vec3 position, vec3 normal) {
     int samples_count = 0;
     for (int x = -samples_dim; x <= samples_dim; x++) {
         for (int y = -samples_dim; y <= samples_dim; y++) {
-            shadow_factor += sample_shadow(ndc.z, uv, vec2(delta.x * x, delta.y * y));
+            shadow_factor += sample_shadow(normal, ndc.z, uv, vec2(delta.x * x, delta.y * y));
             samples_count++;
         }
     }
@@ -501,5 +514,4 @@ void main() {
     color += gbuffer_data.emissive;
     
     out_color = vec4(color, 1.0);
-    //out_color = vec4(vec3(shadow), 1.0);
 }

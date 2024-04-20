@@ -7,6 +7,7 @@
 
 #include "Core/Camera.h"
 
+class SceneLight;
 class Camera;
 
 namespace RG
@@ -32,6 +33,7 @@ struct PbrForwardIBLPassExecutionInfo
     RG::Resource ColorIn{};
     RG::Resource DepthIn{};
 
+    const SceneLight* SceneLights{nullptr};
     RG::IBLData IBL{};
 };
 

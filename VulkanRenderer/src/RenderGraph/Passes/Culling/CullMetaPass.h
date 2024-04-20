@@ -6,6 +6,7 @@
 
 #include <memory>
 
+class SceneLight;
 class DrawIndirectCountPass;
 
 struct CullMetaPassInitInfo
@@ -40,7 +41,8 @@ struct CullMetaPassExecutionInfo
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
     std::vector<ColorInfo> Colors{};
-    std::optional<DepthInfo> Depth{};   
+    std::optional<DepthInfo> Depth{};
+    const SceneLight* SceneLights{nullptr};
     std::optional<IBLData> IBL{};
     std::optional<SSAOData> SSAO{};
 };

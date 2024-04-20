@@ -10,6 +10,7 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGGeometry.h"
 #include "FrameContext.h"
+#include "Light/SceneLight.h"
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
@@ -89,6 +90,8 @@ private:
     ModelCollection m_GraphModelCollection;
     RG::Geometry m_GraphOpaqueGeometry;
     RG::Geometry m_GraphTranslucentGeometry;
+
+    SceneLight m_SceneLights{};
     
     std::unique_ptr<RG::Graph> m_Graph;
     std::shared_ptr<SkyGradientPass> m_SkyGradientPass;

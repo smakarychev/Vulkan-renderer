@@ -53,6 +53,7 @@ void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBL
             .Depth = info.DepthIn,
             .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
             .ClearValue = {.DepthStencil = {.Depth = 0.0f, .Stencil = 0}}},
+        .SceneLights = info.SceneLights,
         .IBL = info.IBL};
 
     m_Pass->AddToGraph(renderGraph, executionInfo);

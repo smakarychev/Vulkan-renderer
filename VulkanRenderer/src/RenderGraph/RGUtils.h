@@ -3,6 +3,8 @@
 #include "RenderGraph.h"
 #include "RGDrawResources.h"
 
+class SceneLight;
+
 namespace RG
 {
     class Geometry;
@@ -25,10 +27,18 @@ namespace RG::RgUtils
     DrawAttributeBuffers readDrawAttributes(const Geometry& geometry, Graph& graph, const std::string& baseName,
         ResourceAccessFlags shaderStage);
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
+    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, const std::string& baseName,
+        ResourceAccessFlags shaderStage);
+    IBLData readIBLData(const IBLData& ibl, Graph& graph, ResourceAccessFlags shaderStage);
+    SSAOData readSSAOData(const SSAOData& ssao, Graph& graph, ResourceAccessFlags shaderStage);
+    DirectionalShadowData readDirectionalShadowData(const DirectionalShadowData& shadow, Graph& graph,
+        ResourceAccessFlags shaderStage);
 
     void updateDrawAttributeBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const DrawAttributeBuffers& attributeBuffers, DrawFeatures features);
-    
+
+    void updateSceneLightBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+        const SceneLightResources& lights);
     void updateIBLBindings(const ShaderDescriptors& descriptors, const Resources& resources, const IBLData& iblData);
     void updateSSAOBindings(const ShaderDescriptors& descriptors, const Resources& resources, const SSAOData& ssaoData);
     void updateShadowBindings(const ShaderDescriptors& descriptors, const Resources& resources,

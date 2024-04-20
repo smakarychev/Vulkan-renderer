@@ -1,5 +1,6 @@
 #include "../common.glsl"
 #include "../../camera.glsl"
+#include "../../light.glsl"
 
 struct VisibilityInfo {
     uint instance_id;

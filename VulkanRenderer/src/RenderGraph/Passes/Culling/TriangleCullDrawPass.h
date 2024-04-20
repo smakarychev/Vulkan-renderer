@@ -389,17 +389,14 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             if (enumHasAny(m_Features, DrawFeatures::IBL))
             {
                 ASSERT(info.IBL.has_value(), "IBL data is not provided")
-                drawResources.IBL = {
-                    .Irradiance = graph.Read(info.IBL->Irradiance, Pixel | Sampled),
-                    .PrefilterEnvironment = graph.Read(info.IBL->PrefilterEnvironment, Pixel | Sampled),
-                    .BRDF = graph.Read(info.IBL->BRDF, Pixel | Sampled)};
+                drawResources.IBL = RgUtils::readIBLData(*info.IBL, graph, Pixel);
             }
             if (enumHasAny(m_Features, DrawFeatures::SSAO))
             {
                 ASSERT(info.SSAO.has_value(), "SSAO data is not provided")
-                drawResources.SSAO->SSAOTexture = graph.Read(info.SSAO->SSAOTexture, Pixel | Sampled);
+                drawResources.SSAO = RgUtils::readSSAOData(*info.SSAO, graph, Pixel);
             }
-
+            
             for (u32 i = 0; i < ctx.MAX_BATCHES; i++)
             {
                 cullResources.TrianglesSsbo[i] = graph.Write(cullResources.TrianglesSsbo[i], Compute | Storage);

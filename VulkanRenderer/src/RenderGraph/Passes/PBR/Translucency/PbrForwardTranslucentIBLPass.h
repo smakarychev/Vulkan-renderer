@@ -4,6 +4,7 @@
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/Passes/Culling/MeshCullPass.h"
 
+class SceneLight;
 class MeshletCullTranslucentPass;
 class MeshletCullTranslucentContext;
 class DrawIndirectPass;
@@ -22,7 +23,8 @@ struct PbrForwardTranslucentIBLPassExecutionInfo
     const Camera* Camera{nullptr};
     RG::Resource ColorIn{};
     RG::Resource DepthIn{};
-
+    
+    const SceneLight* SceneLights{nullptr};
     RG::IBLData IBL{};
     
     const HiZPassContext* HiZContext{nullptr};

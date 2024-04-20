@@ -4,6 +4,7 @@
 #include "RenderGraph/RenderPass.h"
 #include "RenderGraph/RGCommon.h"
 
+class SceneLight;
 class Camera;
 
 namespace RG
@@ -27,7 +28,7 @@ struct DrawIndirectPassExecutionInfo
     const Camera* Camera{nullptr};
 
     RG::DrawAttachments DrawAttachments{};
-
+    const SceneLight* SceneLights{nullptr};
     std::optional<RG::IBLData> IBL{};
     std::optional<RG::SSAOData> SSAO{};
 };

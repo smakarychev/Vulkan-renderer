@@ -91,5 +91,10 @@ namespace RG
         std::vector<Resource> RenderTargets{};
         std::optional<Resource> DepthTarget{};
     };
+
+    struct SceneLightResources
+    {
+        Resource DirectionalLight{};
+    };
 }
 

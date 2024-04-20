@@ -3,6 +3,8 @@
 #include "RenderGraph/RGCommon.h"
 #include "RenderGraph/RGDrawResources.h"
 
+class SceneLight;
+
 namespace RG
 {
     class Geometry;
@@ -17,7 +19,8 @@ struct PbrVisibilityBufferExecutionInfo
 {
     RG::Resource VisibilityTexture{};
     RG::Resource ColorIn{};
-    
+
+    const SceneLight* SceneLights{nullptr};
     RG::IBLData IBL{};
     RG::SSAOData SSAO{};
     RG::DirectionalShadowData DirectionalShadowData{};
@@ -31,6 +34,7 @@ public:
     struct PassData
     {
         RG::Resource VisibilityTexture{};
+        RG::SceneLightResources LightsResources{};
         RG::IBLData IBL{};
         RG::SSAOData SSAO{};
         RG::DirectionalShadowData DirectionalShadowData{};

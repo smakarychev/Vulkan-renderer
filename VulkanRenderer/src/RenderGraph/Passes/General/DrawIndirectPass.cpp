@@ -54,15 +54,12 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
             if (enumHasAny(m_Features, DrawFeatures::IBL))
             {
                 ASSERT(info.IBL.has_value(), "IBL data is not provided")
-                passData.IBL = {
-                    .Irradiance = graph.Read(info.IBL->Irradiance, Pixel | Sampled),
-                    .PrefilterEnvironment = graph.Read(info.IBL->PrefilterEnvironment, Pixel | Sampled),
-                    .BRDF = graph.Read(info.IBL->BRDF, Pixel | Sampled)};
+                passData.IBL = RgUtils::readIBLData(*info.IBL, graph, Pixel);
             }
             if (enumHasAny(m_Features, DrawFeatures::SSAO))
             {
                 ASSERT(info.SSAO.has_value(), "SSAO data is not provided")
-                passData.SSAO->SSAOTexture = graph.Read(info.SSAO->SSAOTexture, Pixel | Sampled);
+                passData.SSAO = RgUtils::readSSAOData(*info.SSAO, graph, Pixel);
             }
             
             passData.PipelineData = &m_PipelineData;

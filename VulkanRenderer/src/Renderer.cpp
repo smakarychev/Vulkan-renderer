@@ -223,21 +223,28 @@ void Renderer::SetupRenderGraph()
     //m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
     //backbuffer = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>().ColorOut;
 
-    static glm::vec3 lightDir = glm::vec3{0.0f, -1.0f, -0.1f};
-    ImGui::Begin("light");
-    ImGui::DragFloat3("Dir", &lightDir[0], 1e-2, -1.0f, 1.0f);
+    // todo: should not be here obv
+    DirectionalLight directionalLight = m_SceneLights.GetDirectionalLight();
+    ImGui::Begin("Directional Light");
+    ImGui::DragFloat3("Light direction", &directionalLight.Direction[0], 1e-2f, -1.0f, 1.0f);
+    ImGui::ColorPicker3("Light color", &directionalLight.Color[0]);
+    ImGui::DragFloat("Light intensity", &directionalLight.Intensity, 1e-1f, 0.0f, 100.0f);
     ImGui::End();
+    directionalLight.Direction = glm::normalize(directionalLight.Direction);
+
+    m_SceneLights.SetDirectionalLight(directionalLight);
     
     m_DirectionalShadowPass->AddToGraph(*m_Graph, {
         .Resolution = m_Swapchain.GetResolution(),
         .MainCamera = m_Camera.get(),
-        .LightDirection = glm::normalize(lightDir),
+        .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
         .ViewDistance = 50.0f});
     auto& directionalShadowOutput = m_Graph->GetBlackboard().Get<DirectionalShadowPass::PassData>();
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
         .VisibilityTexture = visibility.ColorOut,
         .ColorIn = {},
+        .SceneLights = &m_SceneLights,
         .IBL = {
             .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
@@ -265,6 +272,7 @@ void Renderer::SetupRenderGraph()
             .Camera = GetFrameContext().MainCamera,
             .ColorIn = renderedColor,
             .DepthIn = renderedDepth,
+            .SceneLights = &m_SceneLights,
             .IBL = {
                  .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
                  .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
@@ -323,8 +331,12 @@ void Renderer::Run()
     while(!glfwWindowShouldClose(m_Window))
     {
         glfwPollEvents();
-        //OnUpdate();
+
+        // todo: move to OnUpdate
         m_CameraController->OnUpdate(1.0f / 60.0f);
+        m_SceneLights.UpdateBuffers(*GetFrameContext().ResourceUploader);    
+
+        
         OnRender();
     }
 }

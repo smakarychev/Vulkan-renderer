@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Light/Light.h"
 #include "RenderGraph/Passes/Culling/CullMetaPass.h"
 
 struct DirectionalShadowPassInitInfo
@@ -12,8 +13,7 @@ struct DirectionalShadowPassExecutionInfo
     glm::uvec2 Resolution{};
     /* DirectionalShadowPass will construct the suitable shadow camera based on main camera frustum */
     const Camera* MainCamera{nullptr};
-    /* Is assumed to be normalized */
-    glm::vec3 LightDirection{};
+    const DirectionalLight* DirectionalLight{nullptr};
     f32 ViewDistance{100};
 };
 
