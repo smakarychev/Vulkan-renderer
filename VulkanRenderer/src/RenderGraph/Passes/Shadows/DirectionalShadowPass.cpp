@@ -104,7 +104,7 @@ Camera DirectionalShadowPass::CreateShadowCamera(const Camera& mainCamera, const
             .Position = cameraPosition,
             .Orientation = glm::normalize(glm::quatLookAt(lightDirection, up)),
             .Near = 0.0f,
-            .Far = max.z,
+            .Far = max.z - min.z,
             .ViewportWidth = SHADOW_MAP_RESOLUTION,
             .ViewportHeight = SHADOW_MAP_RESOLUTION},
         .Left = min.x,
