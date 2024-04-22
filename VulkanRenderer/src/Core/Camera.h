@@ -79,6 +79,9 @@ public:
     const glm::mat4& GetView() const { return m_ViewMatrix; }
     const glm::mat4& GetProjection() const { return m_ProjectionMatrix; }
 
+    void SetView(const glm::mat4& view);
+    void SetProjection(const glm::mat4& projection);
+
     void SetViewport(u32 width, u32 height);
     u32 GetViewportWidth() const { return m_ViewportWidth; }
     u32 GetViewportHeight() const { return m_ViewportHeight; }

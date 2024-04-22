@@ -1349,7 +1349,7 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         
         VkPipelineRasterizationStateCreateInfo rasterizationState = {};
         rasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizationState.depthClampEnable = VK_FALSE;
+        rasterizationState.depthClampEnable = createInfo.ClampDepth ? VK_TRUE : VK_FALSE;
         rasterizationState.depthBiasEnable = enumHasAny(createInfo.DynamicStates, DynamicStates::DepthBias);
         rasterizationState.rasterizerDiscardEnable = VK_FALSE; // if we do not want an output
         rasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
@@ -2389,6 +2389,7 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
                     features.features.shaderSampledImageArrayDynamicIndexing == VK_TRUE &&
                     features.features.shaderInt16 == VK_TRUE &&
                     features.features.shaderInt64 == VK_TRUE &&
+                    features.features.depthClamp == VK_TRUE &&
                     descriptorIndexingFeatures.shaderSampledImageArrayNonUniformIndexing == VK_TRUE &&
                     descriptorIndexingFeatures.descriptorBindingSampledImageUpdateAfterBind == VK_TRUE &&
                     descriptorIndexingFeatures.descriptorBindingPartiallyBound == VK_TRUE &&
@@ -2493,6 +2494,7 @@ void Driver::CreateDevice(const Device::Builder::CreateInfo& createInfo,
     deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
     deviceFeatures.shaderInt16 = VK_TRUE;
     deviceFeatures.shaderInt64 = VK_TRUE;
+    deviceFeatures.depthClamp = VK_TRUE;
 
     VkPhysicalDeviceVulkan12Features vulkan12Features = {};
     vulkan12Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;

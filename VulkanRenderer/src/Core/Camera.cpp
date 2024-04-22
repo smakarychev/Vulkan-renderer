@@ -107,6 +107,16 @@ void Camera::SetOrientation(const glm::quat& orientation)
     }
 }
 
+void Camera::SetView(const glm::mat4& view)
+{
+    m_ViewMatrix = view; UpdateViewProjection();
+}
+
+void Camera::SetProjection(const glm::mat4& projection)
+{
+    m_ProjectionMatrix = projection; UpdateViewProjection();
+}
+
 void Camera::SetViewport(u32 width, u32 height)
 {
     m_ViewportWidth = width;

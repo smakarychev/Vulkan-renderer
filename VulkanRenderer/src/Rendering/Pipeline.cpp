@@ -102,6 +102,13 @@ Pipeline::Builder& Pipeline::Builder::DynamicStates(::DynamicStates states)
     return *this;
 }
 
+Pipeline::Builder& Pipeline::Builder::ClampDepth(bool enable)
+{
+    m_CreateInfo.ClampDepth = enable;
+
+    return *this;
+}
+
 Pipeline::Builder& Pipeline::Builder::DepthMode(::DepthMode depthMode)
 {
     m_CreateInfo.DepthMode = depthMode;

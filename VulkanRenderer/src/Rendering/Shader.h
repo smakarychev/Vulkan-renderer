@@ -220,6 +220,7 @@ public:
         ShaderPipeline Build();
         Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
         Builder& DynamicStates(DynamicStates states);
+        Builder& DepthClamp(bool enable = true);
         Builder& DepthMode(DepthMode depthMode);
         Builder& FaceCullMode(FaceCullMode cullMode);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);
@@ -237,6 +238,7 @@ public:
         CreateInfo m_CreateInfo;
         VertexInputDescription m_CompatibleVertexDescription;
         ::DynamicStates m_DynamicStates{DynamicStates::Default};
+        bool m_ClampDepth{false};
         ::DepthMode m_DepthMode{DepthMode::ReadWrite};
         ::FaceCullMode m_CullMode{FaceCullMode::None};
         ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};

@@ -107,6 +107,7 @@ public:
             std::vector<ShaderModule> Shaders;
             VertexInputDescription VertexDescription;
             DynamicStates DynamicStates{DynamicStates::Default};
+            bool ClampDepth{false};
             DepthMode DepthMode{DepthMode::ReadWrite};
             FaceCullMode CullMode{FaceCullMode::None};
             PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
@@ -123,6 +124,7 @@ public:
         Builder& AddShader(const ShaderModule& shaderModule);
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
         Builder& DynamicStates(DynamicStates states);
+        Builder& ClampDepth(bool enable = true);
         Builder& DepthMode(DepthMode depthMode);
         Builder& FaceCullMode(FaceCullMode cullMode);
         Builder& PrimitiveKind(PrimitiveKind primitiveKind);

@@ -13,6 +13,7 @@ DirectionalShadowPass::DirectionalShadowPass(RG::Graph& renderGraph, const Direc
         .SetRenderingDetails({
             .DepthFormat = Format::D32_FLOAT})
         /* enable depth bias */
+        .DepthClamp()
         .DynamicStates(DynamicStates::Default | DynamicStates::DepthBias)
         .AlphaBlending(AlphaBlending::None)
         .UseDescriptorBuffer();
@@ -47,7 +48,7 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const Directional
             .Format = Format::D32_FLOAT});
     
     // todo: to cvar
-    static constexpr f32 DEPTH_CONSTANT_BIAS = 0.0f;
+    static constexpr f32 DEPTH_CONSTANT_BIAS = -1.0f;
     static constexpr f32 DEPTH_SLOPE_BIAS = -1.5f;
     
     m_Pass->AddToGraph(renderGraph, {
@@ -73,7 +74,7 @@ Camera DirectionalShadowPass::CreateShadowCamera(const Camera& mainCamera, const
 {
     // todo: to cvar
     static constexpr f32 CAMERA_FAR = 40.0f;
-    
+
     /* get world space location of frustum corners */
     FrustumCorners corners = mainCamera.GetFrustumCorners(viewDistance);
     
@@ -83,37 +84,49 @@ Camera DirectionalShadowPass::CreateShadowCamera(const Camera& mainCamera, const
         centroid += p;
     centroid /= (f32)corners.size();
     
-    /* offset in the opposite light direction */
-    glm::vec3 shadowCameraPosition = centroid - lightDirection * CAMERA_FAR;
     glm::vec3 up = abs(lightDirection.y) < 0.999f ?
         glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
-    glm::mat4 view = glm::lookAt(shadowCameraPosition, centroid, up);
-    
-    /* compute the bounds of original frustum in the newly formed view matrix */
-    glm::vec3 min{std::numeric_limits<f32>::max()};
-    glm::vec3 max = -min;
+
+    f32 boundingSphereRadius = 0.0f;
     for (auto& p : corners)
-    {
-        glm::vec3 viewLocal = view * glm::vec4{p, 1.0f};
-        /* this can be written a little bit more efficiently, since either min or max is updated; but honestly
-         * I do not think this will be noticeable at all */
-        min = glm::min(min, viewLocal);
-        max = glm::max(max, viewLocal);
-    }
+        boundingSphereRadius = std::max(boundingSphereRadius, glm::distance2(p, centroid));
+    boundingSphereRadius = std::sqrt(boundingSphereRadius);
+    static constexpr f32 RADIUS_SNAP = 16.0f;
+    boundingSphereRadius = std::ceil(boundingSphereRadius * RADIUS_SNAP) / RADIUS_SNAP;
 
-    f32 near = -max.z - CAMERA_FAR;
-    f32 far = -min.z;
+    glm::vec3 max = glm::vec3{boundingSphereRadius};
+    glm::vec3 min = -max;
 
-    return Camera::Orthographic({
+    glm::vec3 cameraPosition = centroid + lightDirection * min.z;
+
+    Camera shadowCamera = Camera::Orthographic({
         .BaseInfo = {
-            .Position = shadowCameraPosition,
+            .Position = cameraPosition,
             .Orientation = glm::normalize(glm::quatLookAt(lightDirection, up)),
-            .Near = near,
-            .Far = far,
+            .Near = 0.0f,
+            .Far = max.z,
             .ViewportWidth = SHADOW_MAP_RESOLUTION,
             .ViewportHeight = SHADOW_MAP_RESOLUTION},
         .Left = min.x,
         .Right = max.x,
         .Bottom = min.y,
         .Top = max.y});
+
+    /* stabilize the camera */
+    glm::mat4 shadowMatrix = shadowCamera.GetViewProjection();
+    glm::vec4 shadowOrigin = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f};
+    /* transform the world origin to shadow-projected space, and scale by half resolution, to
+     * get into the pixel space;
+     * then snap to the closest pixel and transform the offset back to world space units.
+     * this also scales z and w coordinate, but it is ignored */
+    shadowOrigin = shadowMatrix * shadowOrigin * ((f32)SHADOW_MAP_RESOLUTION / 2.0f);
+    glm::vec4 shadowOriginRounded = glm::round(shadowOrigin);
+    glm::vec4 roundingOffset = shadowOriginRounded - shadowOrigin;
+    roundingOffset.z = roundingOffset.w = 0.0f;
+    roundingOffset *= 2.0f / (f32)SHADOW_MAP_RESOLUTION;
+    glm::mat4 stabilizedProjection = shadowCamera.GetProjection();
+    stabilizedProjection[3] += roundingOffset;
+    shadowCamera.SetProjection(stabilizedProjection);
+
+    return shadowCamera;
 }
