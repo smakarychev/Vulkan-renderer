@@ -24,7 +24,7 @@ layout(std430, set = 1, binding = 2) readonly buffer object_buffer {
 } u_objects;
 
 layout(std430, set = 1, binding = 3) readonly buffer object_visibility_buffer{
-    uint16_t visibility[];
+    uint8_t visibility[];
 } u_object_visibility;
 
 layout(std430, set = 1, binding = 4) buffer meshlet_buffer {
@@ -32,7 +32,7 @@ layout(std430, set = 1, binding = 4) buffer meshlet_buffer {
 } u_meshlets;
 
 layout(std430, set = 1, binding = 5) buffer meshlet_visibility_buffer{
-    uint16_t visibility[];
+    uint8_t visibility[];
 } u_meshlet_visibility;
 
 layout(std430, set = 1, binding = 6) readonly buffer command_buffer {

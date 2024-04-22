@@ -15,7 +15,7 @@ MeshletCullContext::MeshletCullContext(MeshCullContext& meshCullContext)
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
         m_CompactCount[i] = Buffer::Builder({
                 .SizeBytes = sizeof(u32),
-                .Usage = BufferUsage::Indirect |  BufferUsage::Storage | BufferUsage::DeviceAddress |
+                .Usage = BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::DeviceAddress |
                     BufferUsage::Upload | BufferUsage::Readback})
             .Build();
 }

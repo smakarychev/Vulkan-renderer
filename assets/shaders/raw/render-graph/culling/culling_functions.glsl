@@ -104,26 +104,26 @@ bool is_occlusion_triangle_visible(vec4 aabb, float z, scene_data scene, sampler
     return depth <= z;
 }
 
-bool flags_visible(uint16_t flags) {
-    return (flags & 1) == 1;
+bool flags_visible(uint8_t flags) {
+    return (flags & 1) == uint8_t(1);
 }
 
-void flags_set_visible(inout uint16_t flags) {
-    flags |= uint16_t(1);
+void flags_set_visible(inout uint8_t flags) {
+    flags |= uint8_t(1);
 }
 
-void flags_unset_visible(inout uint16_t flags) {
-    flags &= uint16_t(~1);
+void flags_unset_visible(inout uint8_t flags) {
+    flags &= uint8_t(~1);
 }
 
-bool flags_should_draw(uint16_t flags) {
-    return ((flags >> 1) & 1) == 1;
+bool flags_should_draw(uint8_t flags) {
+    return ((flags >> 1) & 1) == uint8_t(1);
 }
 
-void set_flags_set_should_draw(inout uint16_t flags) {
-    flags |= uint16_t(1 << 1);
+void set_flags_set_should_draw(inout uint8_t flags) {
+    flags |= uint8_t(1 << 1);
 }
 
-void set_flags_unset_should_draw(inout uint16_t flags) {
-    flags &= uint16_t(~(1 << 1));
+void set_flags_unset_should_draw(inout uint8_t flags) {
+    flags &= uint8_t(~(1 << 1));
 }

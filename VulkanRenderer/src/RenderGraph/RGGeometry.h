@@ -17,8 +17,8 @@ namespace RG
             Buffer UVs;
             Buffer Indices;
         };
-        using ObjectVisibilityType = u16;
-        using MeshletVisibilityType = u16;
+        using ObjectVisibilityType = u8;
+        using MeshletVisibilityType = u8;
         using TriangleVisibilityType = u64;
     public:
         template <typename Filter>

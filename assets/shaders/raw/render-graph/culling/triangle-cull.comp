@@ -27,7 +27,7 @@ layout(std430, set = 1, binding = 2) readonly buffer object_buffer {
 } u_objects;
 
 layout(std430, set = 1, binding = 3) readonly buffer meshlet_visibility_buffer {
-    uint16_t visibility[];
+    uint8_t visibility[];
 } u_meshlet_visibility;
 
 layout(std430, set = 1, binding = 4) readonly buffer compacted_command_buffer {
