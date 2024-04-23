@@ -544,7 +544,7 @@ ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout, ImageVi
         .ViewHandle = handle};
 }
 
-std::vector<ImageViewHandle> Image::GetViewHandles() const
+std::vector<ImageViewHandle> Image::GetAdditionalViewHandles() const
 {
     std::vector<ImageViewHandle> handles(m_Description.AdditionalViews.size());
     for (u32 i = 0; i < m_Description.AdditionalViews.size(); i++)

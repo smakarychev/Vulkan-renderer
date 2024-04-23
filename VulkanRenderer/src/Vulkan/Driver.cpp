@@ -1605,9 +1605,7 @@ DescriptorSet Driver::Create(const DescriptorSet::Builder::CreateInfo& createInf
         VkDescriptorImageInfo descriptorTextureInfo = {};
         const ImageBindingInfo& binding = texture.BindingInfo;
         descriptorTextureInfo.sampler = Resources()[binding.Sampler].Sampler;
-        descriptorTextureInfo.imageView = binding.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
-            *Resources()[*binding.Image].Views.ViewList :
-            Resources()[*binding.Image].Views.ViewList[binding.ViewHandle.m_Index];
+        descriptorTextureInfo.imageView = Resources()[*binding.Image].Views.ViewList[binding.ViewHandle.m_Index];
         descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(binding.Layout);
         boundTextures.push_back(descriptorTextureInfo);
         write.pImageInfo = &boundTextures.back();
@@ -1694,9 +1692,7 @@ void Driver::UpdateDescriptorSet(DescriptorSet& descriptorSet,
     ImageBindingInfo bindingInfo = texture.BindingInfo({}, ImageLayout::Readonly);
     VkDescriptorImageInfo descriptorTextureInfo = {};
     descriptorTextureInfo.sampler = Resources()[bindingInfo.Sampler].Sampler;
-    descriptorTextureInfo.imageView = bindingInfo.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
-        *Resources()[*bindingInfo.Image].Views.ViewList :
-        Resources()[*bindingInfo.Image].Views.ViewList[bindingInfo.ViewHandle.m_Index];
+    descriptorTextureInfo.imageView = Resources()[*bindingInfo.Image].Views.ViewList[bindingInfo.ViewHandle.m_Index];
     descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(bindingInfo.Layout);
 
     VkWriteDescriptorSet write = {};
@@ -1888,9 +1884,7 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
     else
     {
         descriptorImageInfo.sampler = Resources()[texture.Sampler].Sampler;
-        descriptorImageInfo.imageView = texture.ViewHandle.m_Index == ImageViewHandle::NON_INDEX ?
-            *Resources()[*texture.Image].Views.ViewList :
-            Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index];
+        descriptorImageInfo.imageView = Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index];
         descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(texture.Layout);
         descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
     }

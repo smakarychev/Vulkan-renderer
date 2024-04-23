@@ -5,7 +5,6 @@
 #include <unordered_map>
 
 #include "Rendering/Buffer.h"
-#include "Rendering/CommandBuffer.h"
 #include "ImageTraits.h"
 #include "Sampler.h"
 #include "Rendering/FormatTraits.h"
@@ -25,7 +24,6 @@ class Device;
 
 class ImageViewHandle
 {
-    static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
     friend class Image;
     FRIEND_INTERNAL
 public:
@@ -33,7 +31,7 @@ public:
 private:
     ImageViewHandle(u32 index) : m_Index(index) {}
 private:
-    u32 m_Index{NON_INDEX};
+    u32 m_Index{0};
 };
 
 struct ImageSubresourceDescription
@@ -144,7 +142,7 @@ public:
             return FromPixels(pixels.data(), pixels.size() * sizeof(T));
         }
         /* builder should not create mipmaps (still allocates if mipmap count is not 1),
-         * intended for the cases when mipmap creation has to be delayed (when image does not yet has any pixel data)
+         * intended for the cases when mipmap creation has to be delayed (when image does not yet have any pixel data)
          */
         Builder& NoMips();
     private:
@@ -180,7 +178,7 @@ public:
     ImageBindingInfo BindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const;
     ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
 
-    std::vector<ImageViewHandle> GetViewHandles() const;
+    std::vector<ImageViewHandle> GetAdditionalViewHandles() const;
 
     static u16 CalculateMipmapCount(const glm::uvec2& resolution);
     static u16 CalculateMipmapCount(const glm::uvec3& resolution);
