@@ -397,7 +397,6 @@ private:
     std::vector<ResourceHandle<Buffer>> m_Buffers;
     std::vector<ResourceHandle<Image>> m_Images;
     std::vector<ResourceHandle<Sampler>> m_Samplers;
-    std::vector<ResourceHandle<ImageViewList>> m_ViewLists;
     std::vector<ResourceHandle<CommandPool>> m_CommandPools;
     std::vector<ResourceHandle<QueueInfo>> m_Queues;
     std::vector<ResourceHandle<DescriptorsLayout>> m_DescriptorLayouts;
@@ -427,8 +426,6 @@ void DeletionQueue::Enqueue(Type& type)
         m_Images.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, Sampler>)
         m_Samplers.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, ImageViewList>)
-        m_ViewLists.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, CommandPool>)
         m_CommandPools.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, QueueInfo>)

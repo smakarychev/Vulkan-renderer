@@ -606,7 +606,6 @@ void DeletionQueue::Flush()
     m_Buffers.clear();
     m_Images.clear();
     m_Samplers.clear();
-    m_ViewLists.clear();
     m_CommandPools.clear();
     m_Queues.clear();
     m_DescriptorLayouts.clear();

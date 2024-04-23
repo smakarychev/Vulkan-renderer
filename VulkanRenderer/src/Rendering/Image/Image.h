@@ -26,7 +26,6 @@ class Device;
 class ImageViewHandle
 {
     static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
-    friend class ImageViewList;
     friend class Image;
     FRIEND_INTERNAL
 public:
@@ -109,7 +108,6 @@ enum class ImageSizeType
 
 class Image
 {
-    friend class ImageViewList;
     FRIEND_INTERNAL
 public:
     class Builder
