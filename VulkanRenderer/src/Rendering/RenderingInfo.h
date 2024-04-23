@@ -2,6 +2,7 @@
 
 #include "DriverResourceHandle.h"
 #include "Image/ImageTraits.h"
+#include "Image/Image.h"
 #include "RenderingCommon.h"
 
 #include <optional>
@@ -48,6 +49,7 @@ public:
         {
             RenderingAttachmentDescription Description{};
             const Image* Image{nullptr};
+            ImageViewHandle ViewHandle{};
             ImageLayout Layout;
         };
     public:
@@ -57,6 +59,7 @@ public:
         RenderingAttachment Build(DeletionQueue& deletionQueue);
         Builder& SetType(RenderingAttachmentType type);
         Builder& FromImage(const Image& image, ImageLayout imageLayout);
+        Builder& FromImage(const Image& image, ImageViewHandle viewHandle, ImageLayout imageLayout);
         Builder& LoadStoreOperations(AttachmentLoad onLoad, AttachmentStore onStore);
         Builder& ClearValue(const glm::vec4& value);
         Builder& ClearValue(const glm::uvec4& value);

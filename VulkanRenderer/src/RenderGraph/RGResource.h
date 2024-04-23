@@ -94,6 +94,7 @@ namespace RG
         friend class Pass;
     private:
         Resource m_Resource{};
+        ImageViewHandle m_ViewHandle{};
         AttachmentLoad m_OnLoad{AttachmentLoad::Unspecified};
         AttachmentStore m_OnStore{AttachmentStore::Unspecified};
         glm::vec4 m_ClearColor{};
@@ -105,6 +106,7 @@ namespace RG
         friend class Pass;
     private:
         Resource m_Resource{};
+        ImageViewHandle m_ViewHandle{};
         AttachmentLoad m_OnLoad{AttachmentLoad::Unspecified};
         AttachmentStore m_OnStore{AttachmentStore::Unspecified};
         f32 m_ClearDepth{};

@@ -35,6 +35,16 @@ RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const Imag
     return *this;
 }
 
+RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const Image& image, ImageViewHandle viewHandle,
+    ImageLayout imageLayout)
+{
+    m_CreateInfo.Image = &image;
+    m_CreateInfo.ViewHandle = viewHandle;
+    m_CreateInfo.Layout = imageLayout;
+
+    return *this;
+}
+
 RenderingAttachment::Builder& RenderingAttachment::Builder::LoadStoreOperations(AttachmentLoad onLoad,
     AttachmentStore onStore)
 {

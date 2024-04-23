@@ -1142,7 +1142,8 @@ RenderingAttachment Driver::Create(const RenderingAttachment::Builder::CreateInf
             createInfo.Description.Clear.Color.F.a}}};
     renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(
         createInfo.Layout);
-    renderingAttachmentResource.AttachmentInfo.imageView = *Resources()[*createInfo.Image].Views.ViewList;
+    renderingAttachmentResource.AttachmentInfo.imageView =
+        Resources()[*createInfo.Image].Views.ViewList[createInfo.ViewHandle.m_Index];
     renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(
         createInfo.Description.OnLoad);
     renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(

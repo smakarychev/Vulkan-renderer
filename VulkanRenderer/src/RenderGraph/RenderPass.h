@@ -106,7 +106,7 @@ namespace RG
         std::vector<SplitDependency> m_SplitBarriersToWait;
         
         bool m_IsRasterizationPass{false};
-        // passes that write to external resources, cannot be culled
+        // passes that write to external resources cannot be culled
         bool m_CanBeCulled{true};
         
         // mainly for mermaid dump
