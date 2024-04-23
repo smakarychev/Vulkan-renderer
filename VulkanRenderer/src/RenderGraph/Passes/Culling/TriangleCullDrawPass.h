@@ -552,7 +552,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 auto& depth = passData.TriangleDrawResources.DrawAttachmentResources.DepthTarget;
                 for (u32 attachmentIndex = 0; attachmentIndex < colors.size(); attachmentIndex++)
                 {
-                    auto description = info.DrawAttachments.ColorAttachments[attachmentIndex].Description;
+                    auto description = info.DrawAttachments.Colors[attachmentIndex].Description;
                     if (!canClear)
                         description.OnLoad = AttachmentLoad::Load;
 
@@ -563,7 +563,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 }
                 if (depth.has_value())
                 {
-                    auto description = info.DrawAttachments.DepthAttachment->Description;
+                    auto description = info.DrawAttachments.Depth->Description;
                     if (!canClear)
                         description.OnLoad = AttachmentLoad::Load;
 
@@ -572,7 +572,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                         .FromImage(depthTexture, ImageLayout::DepthAttachment)
                         .Build(frameContext.DeletionQueue));
 
-                    depthBias = info.DrawAttachments.DepthAttachment->DepthBias;
+                    depthBias = info.DrawAttachments.Depth->DepthBias;
                 }
 
                 RenderingInfo renderingInfo = renderingInfoBuilder.Build(frameContext.DeletionQueue);

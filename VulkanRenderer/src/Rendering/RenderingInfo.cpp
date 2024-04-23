@@ -7,6 +7,27 @@ RenderingAttachment::Builder::Builder(const RenderingAttachmentDescription& desc
     m_CreateInfo.Description = description;
 }
 
+RenderingAttachment::Builder::Builder(const ColorAttachmentDescription& description)
+{
+    m_CreateInfo.Description = {
+        .Subresource = description.Subresource,
+        .Type = RenderingAttachmentType::Color,
+        .Clear = RenderingAttachmentDescription::ClearValue{.Color = {.F = description.ClearColor.F}},
+        .OnLoad = description.OnLoad,
+        .OnStore = description.OnStore};
+}
+
+RenderingAttachment::Builder::Builder(const DepthStencilAttachmentDescription& description)
+{
+    m_CreateInfo.Description = {
+        .Subresource = description.Subresource,
+        .Type = RenderingAttachmentType::Depth,
+        .Clear = RenderingAttachmentDescription::ClearValue{.DepthStencil =
+            {.Depth = description.ClearDepth, .Stencil = description.ClearStencil}},
+        .OnLoad = description.OnLoad,
+        .OnStore = description.OnStore};
+}
+
 RenderingAttachment RenderingAttachment::Builder::Build()
 {
     return Build(Driver::DeletionQueue());
@@ -35,12 +56,9 @@ RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const Imag
     return *this;
 }
 
-RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const Image& image, ImageViewHandle viewHandle,
-    ImageLayout imageLayout)
+RenderingAttachment::Builder& RenderingAttachment::Builder::View(ImageSubresourceDescription::Packed subresource)
 {
-    m_CreateInfo.Image = &image;
-    m_CreateInfo.ViewHandle = viewHandle;
-    m_CreateInfo.Layout = imageLayout;
+    m_CreateInfo.Description.Subresource = subresource;
 
     return *this;
 }

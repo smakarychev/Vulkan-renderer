@@ -55,24 +55,24 @@ namespace RG::RgUtils
     {
         DrawAttachmentResources drawAttachmentResources = {};
         
-        for (auto& attachment : attachments.ColorAttachments)
+        for (auto& attachment : attachments.Colors)
         {
             Resource resource = attachment.Resource;
             drawAttachmentResources.RenderTargets.push_back(graph.RenderTarget(
                 resource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
-                attachment.Description.Clear.Color.F));
+                attachment.Description.ClearColor.F));
         }
-        if (attachments.DepthAttachment.has_value())
+        if (attachments.Depth.has_value())
         {
-            auto& attachment = *attachments.DepthAttachment;
+            auto& attachment = *attachments.Depth;
             Resource resource = attachment.Resource;
             drawAttachmentResources.DepthTarget = graph.DepthStencilTarget(
                 resource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
                 attachment.DepthBias,
-                attachment.Description.Clear.DepthStencil.Depth,
-                attachment.Description.Clear.DepthStencil.Stencil);
+                attachment.Description.ClearDepth,
+                attachment.Description.ClearStencil);
         }
 
         return drawAttachmentResources;

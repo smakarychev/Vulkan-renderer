@@ -1,5 +1,5 @@
 #include "RenderingUtils.h"
 
-namespace renderUtils
+namespace RenderUtils
 {
 }

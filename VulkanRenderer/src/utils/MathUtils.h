@@ -11,7 +11,7 @@
 #define clz32(x) __lzcnt(x)
 #endif
 
-namespace utils
+namespace MathUtils
 {
     template <typename T>
     void hashCombine(u64& seed, const T& val)
@@ -48,5 +48,4 @@ namespace utils
         return (t - a) / (b - a);
     }
 
-    
 }

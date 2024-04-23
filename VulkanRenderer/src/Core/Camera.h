@@ -91,7 +91,9 @@ public:
     glm::vec3 GetRight() const;
 
     FrustumPlanes GetFrustumPlanes() const;
+    FrustumCorners GetFrustumCorners() const;
     FrustumCorners GetFrustumCorners(f32 maxDistance) const;
+    FrustumCorners GetFrustumCorners(f32 minDistance, f32 maxDistance) const;
     ProjectionData GetProjectionData() const;
 private:
     void UpdateViewMatrix();

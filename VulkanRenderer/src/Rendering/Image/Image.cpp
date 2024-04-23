@@ -44,6 +44,8 @@ namespace ImageUtils
             return "Image3d";
         case ImageKind::Cubemap:
             return "Cubemap";
+        case ImageKind::Image2dArray:
+            return "Image2dArray";
         default:
             return "";
         }
@@ -551,6 +553,20 @@ std::vector<ImageViewHandle> Image::GetAdditionalViewHandles() const
         handles[i] = i + 1; // skip index 0, it is used as a base view
     
     return handles;
+}
+
+ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription::Packed subresource) const
+{
+    if (subresource == ImageSubresourceDescription::Packed{})
+        return 0;
+        
+    auto it = std::ranges::find(m_Description.AdditionalViews, subresource);
+
+    if (it != m_Description.AdditionalViews.end())
+        return ImageViewHandle{u32(it - m_Description.AdditionalViews.begin()) + 1};
+    
+    LOG("ERROR: Image does not have such view subresource, returning default view");
+    return ImageViewHandle{};
 }
 
 u16 Image::CalculateMipmapCount(const glm::uvec2& resolution)

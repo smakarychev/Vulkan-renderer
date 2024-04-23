@@ -26,7 +26,8 @@ enum class ImageLayout : u8
 
 enum class ImageKind : u8
 {
-    Image2d, Image3d, Cubemap
+    Image2d, Image3d, Cubemap,
+    Image2dArray,
 };
 
 enum class ImageUsage : u16

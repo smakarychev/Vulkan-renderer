@@ -27,6 +27,7 @@
 #include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/Passes/PostProcessing/Sky/SkyGradientPass.h"
 #include "RenderGraph/Passes/Shadows/DirectionalShadowPass.h"
+#include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
@@ -67,7 +68,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{100.0f}}});
+            .Scale = glm::vec3{10.0f}}});
     
     m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
@@ -148,7 +149,7 @@ void Renderer::InitRenderGraph()
 
 
     // todo: separate geometry for shadow casters
-    m_DirectionalShadowPass = std::make_shared<DirectionalShadowPass>(*m_Graph, DirectionalShadowPassInitInfo{
+    m_DirectionalShadowPass = std::make_shared<DirectionalShadowPass>(*m_Graph, ShadowPassInitInfo{
         .Geometry = &m_GraphOpaqueGeometry});
     m_VisualizeDirectionalShadowPass = std::make_shared<VisualizeDepthPass>(*m_Graph, "Visualize.Shadow.Directional");
     m_BlitDirectionalShadow = std::make_shared<BlitPass>("Blit.Shadow.Directional");

@@ -41,7 +41,7 @@ SsaoPass::SsaoPass(RG::Graph& renderGraph, u32 sampleCount)
         sample = glm::normalize(sample);
         sample *= Random::Float();
         f32 scale = (f32)i / samples.size();
-        scale = utils::lerp(0.1f, 1.0f, scale * scale);
+        scale = MathUtils::lerp(0.1f, 1.0f, scale * scale);
         sample *= scale;
         samples[i] = glm::vec4{sample, 1.0f};
     }

@@ -173,6 +173,7 @@ namespace
         {
         case ImageKind::Image2d:
         case ImageKind::Cubemap:
+        case ImageKind::Image2dArray:
             return VK_IMAGE_TYPE_2D;
         case ImageKind::Image3d:
             return VK_IMAGE_TYPE_3D;
@@ -202,6 +203,8 @@ namespace
             return VK_IMAGE_VIEW_TYPE_3D;
         case ImageKind::Cubemap:
             return VK_IMAGE_VIEW_TYPE_CUBE;
+        case ImageKind::Image2dArray:
+            return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         default:
             ASSERT(false, "Unsupported image kind")
             break;
@@ -1142,8 +1145,8 @@ RenderingAttachment Driver::Create(const RenderingAttachment::Builder::CreateInf
             createInfo.Description.Clear.Color.F.a}}};
     renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(
         createInfo.Layout);
-    renderingAttachmentResource.AttachmentInfo.imageView =
-        Resources()[*createInfo.Image].Views.ViewList[createInfo.ViewHandle.m_Index];
+    renderingAttachmentResource.AttachmentInfo.imageView = Resources()[*createInfo.Image].Views.ViewList[
+        createInfo.Image->GetViewHandle(createInfo.Description.Subresource).m_Index];
     renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(
         createInfo.Description.OnLoad);
     renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(

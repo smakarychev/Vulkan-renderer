@@ -22,26 +22,14 @@ struct CullMetaPassInitInfo
 
 struct CullMetaPassExecutionInfo
 {
-    struct ColorInfo
-    {
-        RG::Resource Color{};
-        AttachmentLoad OnLoad{AttachmentLoad::Load};
-        RenderingAttachmentDescription::ClearValue ClearValue{};
-    };
-    struct DepthInfo
-    {
-        RG::Resource Depth{};
-        AttachmentLoad OnLoad{AttachmentLoad::Load};
-        std::optional<DepthBias> DepthBias{};
-        RenderingAttachmentDescription::ClearValue ClearValue{};
-    };
     using IBLData = RG::IBLData;
     using SSAOData = RG::SSAOData;
     
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
-    std::vector<ColorInfo> Colors{};
-    std::optional<DepthInfo> Depth{};
+
+    RG::DrawAttachments DrawAttachments{};
+    
     const SceneLight* SceneLights{nullptr};
     std::optional<IBLData> IBL{};
     std::optional<SSAOData> SSAO{};

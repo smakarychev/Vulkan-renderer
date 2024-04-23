@@ -200,8 +200,8 @@ namespace RG
         return RenderTarget(resource, {}, onLoad, onStore, clearColor);
     }
 
-    Resource Graph::RenderTarget(Resource resource, ImageViewHandle viewHandle, AttachmentLoad onLoad,
-        AttachmentStore onStore, const glm::vec4& clearColor)
+    Resource Graph::RenderTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
+        AttachmentLoad onLoad, AttachmentStore onStore, const glm::vec4& clearColor)
     {
         ASSERT(m_ResourceTarget, "Call to 'RenderTarget' outside of 'SetupFn' of render pass")
 
@@ -214,7 +214,7 @@ namespace RG
                 PipelineStage::ColorOutput, PipelineAccess::ReadColorAttachment);    
         renderTargetAccess.m_Resource = AddOrCreateAccess(renderTargetAccess.m_Resource,
             PipelineStage::ColorOutput, PipelineAccess::WriteColorAttachment);
-        renderTargetAccess.m_ViewHandle = viewHandle;
+        renderTargetAccess.m_ViewSubresource = subresource;
         renderTargetAccess.m_ClearColor = clearColor;
         renderTargetAccess.m_OnLoad = onLoad;
         renderTargetAccess.m_OnStore = onStore;
@@ -245,8 +245,9 @@ namespace RG
 
     }
 
-    Resource Graph::DepthStencilTarget(Resource resource, ImageViewHandle viewHandle, AttachmentLoad onLoad,
-        AttachmentStore onStore, std::optional<DepthBias> depthBias, f32 clearDepth, u32 clearStencil)
+    Resource Graph::DepthStencilTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
+        AttachmentLoad onLoad, AttachmentStore onStore, std::optional<DepthBias> depthBias, f32 clearDepth,
+        u32 clearStencil)
     {
         ASSERT(m_ResourceTarget, "Call to 'DepthStencilTarget' outside of 'SetupFn' of render pass")
 
@@ -259,7 +260,7 @@ namespace RG
                 PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::ReadDepthStencilAttachment);    
         depthStencilAccess.m_Resource = AddOrCreateAccess(depthStencilAccess.m_Resource,
             PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::WriteDepthStencilAttachment);
-        depthStencilAccess.m_ViewHandle = viewHandle;
+        depthStencilAccess.m_ViewSubresource = subresource;
         depthStencilAccess.m_ClearDepth = clearDepth;
         depthStencilAccess.m_ClearStencil = clearStencil;
         depthStencilAccess.m_OnLoad = onLoad;
@@ -383,8 +384,9 @@ namespace RG
                         .ClearValue(target.m_ClearColor)
                         .SetType(RenderingAttachmentType::Color)
                         .LoadStoreOperations(target.m_OnLoad, target.m_OnStore)
-                        .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource, target.m_ViewHandle,
+                        .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource,
                             ImageLayout::ColorAttachment)
+                        .View(target.m_ViewSubresource)
                         .Build(*m_FrameDeletionQueue));
                 if (pass->m_DepthStencilAccess.has_value())
                 {
@@ -397,7 +399,8 @@ namespace RG
                        .ClearValue(target.m_ClearDepth, target.m_ClearStencil)
                        .SetType(RenderingAttachmentType::Depth)
                        .LoadStoreOperations(target.m_OnLoad, target.m_OnStore)
-                       .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource, target.m_ViewHandle, layout)
+                       .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource, layout)
+                       .View(target.m_ViewSubresource)
                        .Build(*m_FrameDeletionQueue));
 
                     /* add a depth bias, if depth target was created with it */

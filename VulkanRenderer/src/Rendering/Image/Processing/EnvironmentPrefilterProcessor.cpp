@@ -72,7 +72,7 @@ void EnvironmentPrefilterProcessor::Process(const CommandBuffer& cmd)
             .NewLayout = ImageLayout::Readonly};
        
         u32 resolution = prefilter.Description().Width;
-        auto viewHandles = prefilter.GetViewHandles();
+        auto viewHandles = prefilter.GetAdditionalViewHandles();
         
         RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
             .LayoutTransition(toGeneral)

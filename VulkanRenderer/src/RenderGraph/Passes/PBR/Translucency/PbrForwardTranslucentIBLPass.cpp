@@ -53,20 +53,15 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
         .Resolution = info.Resolution,
         .Camera = info.Camera,
         .DrawAttachments = {
-            .ColorAttachments = {DrawAttachment{
+            .Colors = {DrawAttachment{
                 .Resource = info.ColorIn,
                 .Description = {
-                    .Type = RenderingAttachmentType::Color,
-                    .Clear = {.Color = {.F = {0.1f, 0.1f, 0.1f, 1.0f}}},
-                    .OnLoad = info.ColorIn.IsValid() ?
-                        AttachmentLoad::Load : AttachmentLoad::Clear,
-                    .OnStore = AttachmentStore::Store}}},
-            .DepthAttachment = DepthStencilAttachment{
+                    .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                    .ClearColor = {.F = {0.1f, 0.1f, 0.1f, 1.0f}}}}},
+            .Depth = DepthStencilAttachment{
                 .Resource = info.DepthIn,
                 .Description = {
-                    .Type = RenderingAttachmentType::Depth,
-                    .OnLoad = AttachmentLoad::Load,
-                    .OnStore = AttachmentStore::Store}}},
+                    .OnLoad = AttachmentLoad::Load}}},
         .SceneLights = info.SceneLights,
         .IBL = info.IBL});
     auto& drawOutput = blackboard.Get<DrawIndirectPass::PassData>(m_Draw->GetNameHash());

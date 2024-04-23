@@ -44,15 +44,18 @@ void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBL
     CullMetaPassExecutionInfo executionInfo = {
         .Resolution = info.Resolution,
         .Camera = info.Camera,
-        .Colors = {
-            CullMetaPassExecutionInfo::ColorInfo{
-                .Color = info.ColorIn,
-                .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                .ClearValue = {.Color = {.U = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
-        .Depth = CullMetaPassExecutionInfo::DepthInfo{
-            .Depth = info.DepthIn,
-            .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-            .ClearValue = {.DepthStencil = {.Depth = 0.0f, .Stencil = 0}}},
+        .DrawAttachments = {
+            .Colors = {DrawAttachment{
+                .Resource = info.ColorIn,
+                .Description = {
+                    .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                    .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
+            .Depth = DepthStencilAttachment{
+                .Resource = info.DepthIn,
+                .Description = {
+                    .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                    .ClearDepth = 0.0f,
+                    .ClearStencil = 0}}},
         .SceneLights = info.SceneLights,
         .IBL = info.IBL};
 

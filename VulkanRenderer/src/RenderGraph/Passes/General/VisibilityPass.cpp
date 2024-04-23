@@ -47,15 +47,18 @@ void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const VisibilityPassExec
     m_Pass->AddToGraph(renderGraph, {
         .Resolution = info.Resolution,
         .Camera = info.Camera,
-        .Colors = {
-            CullMetaPassExecutionInfo::ColorInfo{
-                .Color = visibility,
-                .OnLoad = AttachmentLoad::Clear,
-                .ClearValue = {.Color = {.U = glm::uvec4{std::numeric_limits<u32>::max(), 0, 0, 0}}}}},
-        .Depth = CullMetaPassExecutionInfo::DepthInfo{
-            .Depth = {},
-            .OnLoad = AttachmentLoad::Clear,
-            .ClearValue = {.DepthStencil = {.Depth = 0.0f, .Stencil = 0}}}});
+        .DrawAttachments = {
+            .Colors = {DrawAttachment{
+                .Resource = visibility,
+                .Description = {
+                    .OnLoad = AttachmentLoad::Clear,
+                    .ClearColor = {.U = glm::uvec4{std::numeric_limits<u32>::max(), 0, 0, 0}}}}},
+            .Depth = DepthStencilAttachment{
+                .Resource = {},
+                .Description = {
+                    .OnLoad = AttachmentLoad::Clear,
+                    .ClearDepth = 0.0f,
+                    .ClearStencil = 0}}}});
 
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
     PassData passData = {

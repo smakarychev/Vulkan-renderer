@@ -8,8 +8,8 @@
 HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue)
     : m_DrawResolution(resolution)
 {
-    u32 width = utils::floorToPowerOf2(resolution.x);
-    u32 height = utils::floorToPowerOf2(resolution.y);
+    u32 width = MathUtils::floorToPowerOf2(resolution.x);
+    u32 height = MathUtils::floorToPowerOf2(resolution.y);
     
     u32 mipmapCount = Image::CalculateMipmapCount({width, height});
 
@@ -27,7 +27,7 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
             .AdditionalViews = additionalViews})
         .Build(deletionQueue);
 
-    m_MipmapViewHandles = m_HiZ.GetViewHandles();
+    m_MipmapViewHandles = m_HiZ.GetAdditionalViewHandles();
 
     m_MinMaxSampler = Sampler::Builder()
         .Filters(ImageFilter::Linear, ImageFilter::Linear)

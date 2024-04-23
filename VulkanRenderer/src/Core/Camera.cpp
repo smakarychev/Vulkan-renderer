@@ -158,15 +158,28 @@ FrustumPlanes Camera::GetFrustumPlanes() const
     return frustumPlanes;
 }
 
+FrustumCorners Camera::GetFrustumCorners() const
+{
+    return GetFrustumCorners(m_NearClipPlane, m_FarClipPlane);
+}
+
 FrustumCorners Camera::GetFrustumCorners(f32 maxDistance) const
 {
-    glm::vec3 nearCenter = GetForward() * m_NearClipPlane;
-    glm::vec3 farCenter = GetForward() * std::min(maxDistance, m_FarClipPlane);
+    return GetFrustumCorners(m_NearClipPlane, maxDistance);
+}
+
+FrustumCorners Camera::GetFrustumCorners(f32 minDistance, f32 maxDistance) const
+{
+    f32 near = std::max(m_NearClipPlane, minDistance);
+    f32 far = std::min(m_FarClipPlane, maxDistance);
+    
+    glm::vec3 nearCenter = GetForward() * near;
+    glm::vec3 farCenter = GetForward() * far;
 
     f32 tanFov = std::tan(m_FieldOfView * 0.5f);
-    f32 nearHeight = tanFov * m_NearClipPlane;
+    f32 nearHeight = tanFov * near;
     f32 nearWidth = nearHeight * m_Aspect;
-    f32 farHeight = tanFov * std::min(maxDistance, m_FarClipPlane);
+    f32 farHeight = tanFov * far;
     f32 farWidth = farHeight * m_Aspect;
 
     FrustumCorners p = {};
@@ -180,7 +193,7 @@ FrustumCorners Camera::GetFrustumCorners(f32 maxDistance) const
     p[6] = m_Position + farCenter  + GetRight() * farWidth  + GetUp() * farHeight;
     p[7] = m_Position + farCenter  + GetRight() * farWidth  - GetUp() * farHeight;
 
-    return p;
+    return p;   
 }
 
 ProjectionData Camera::GetProjectionData() const

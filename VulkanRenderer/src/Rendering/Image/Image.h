@@ -179,6 +179,7 @@ public:
     ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
 
     std::vector<ImageViewHandle> GetAdditionalViewHandles() const;
+    ImageViewHandle GetViewHandle(ImageSubresourceDescription::Packed subresource) const;
 
     static u16 CalculateMipmapCount(const glm::uvec2& resolution);
     static u16 CalculateMipmapCount(const glm::uvec3& resolution);

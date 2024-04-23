@@ -45,7 +45,7 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
             passData.MaxDispatches = ctx.Geometry().GetCommandCount() / TriangleCullContext::GetCommandCount() + 1;
             auto& meshletResources = ctx.MeshletContext().Resources();
             ctx.Resources().DispatchIndirect = graph.CreateResource(std::format("{}.{}", name, "Dispatch"),
-                GraphBufferDescription{.SizeBytes = renderUtils::alignUniformBufferSizeBytes(
+                GraphBufferDescription{.SizeBytes = RenderUtils::alignUniformBufferSizeBytes(
                     passData.MaxDispatches * sizeof(IndirectDispatchCommand))});
             ctx.Resources().DispatchIndirect = graph.Write(ctx.Resources().DispatchIndirect, Compute | Storage | Upload);
 

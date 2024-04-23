@@ -13,3 +13,4 @@ static constexpr u32 PREFILTER_RESOLUTION = 256;
 static constexpr u32 BRDF_RESOLUTION = 512;
 
 static constexpr u32 SHADOW_MAP_RESOLUTION = 2048;
+static constexpr u32 SHADOW_CASCADES = 3;

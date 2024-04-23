@@ -30,10 +30,34 @@ struct RenderingAttachmentDescription
         DepthStencil DepthStencil;
     };
 
+    ImageSubresourceDescription::Packed Subresource{};
     RenderingAttachmentType Type;
     ClearValue Clear{};
-    AttachmentLoad OnLoad;
-    AttachmentStore OnStore;
+    AttachmentLoad OnLoad{AttachmentLoad::Unspecified};
+    AttachmentStore OnStore{AttachmentStore::Unspecified};
+};
+
+struct ColorAttachmentDescription
+{
+    union Color
+    {
+        glm::fvec4 F;
+        glm::uvec4 U;
+        glm::ivec4 I;
+    };
+    ImageSubresourceDescription::Packed Subresource{};
+    AttachmentLoad OnLoad{AttachmentLoad::Load};
+    AttachmentStore OnStore{AttachmentStore::Store};
+    Color ClearColor{};
+};
+
+struct DepthStencilAttachmentDescription
+{
+    ImageSubresourceDescription::Packed Subresource{};
+    AttachmentLoad OnLoad{AttachmentLoad::Load};
+    AttachmentStore OnStore{AttachmentStore::Store};
+    f32 ClearDepth{};
+    u32 ClearStencil{};
 };
 
 class RenderingAttachment
@@ -49,17 +73,18 @@ public:
         {
             RenderingAttachmentDescription Description{};
             const Image* Image{nullptr};
-            ImageViewHandle ViewHandle{};
             ImageLayout Layout;
         };
     public:
         Builder() = default;
         Builder(const RenderingAttachmentDescription& description);
+        Builder(const ColorAttachmentDescription& description);
+        Builder(const DepthStencilAttachmentDescription& description);
         RenderingAttachment Build();
         RenderingAttachment Build(DeletionQueue& deletionQueue);
         Builder& SetType(RenderingAttachmentType type);
         Builder& FromImage(const Image& image, ImageLayout imageLayout);
-        Builder& FromImage(const Image& image, ImageViewHandle viewHandle, ImageLayout imageLayout);
+        Builder& View(ImageSubresourceDescription::Packed subresource);
         Builder& LoadStoreOperations(AttachmentLoad onLoad, AttachmentStore onStore);
         Builder& ClearValue(const glm::vec4& value);
         Builder& ClearValue(const glm::uvec4& value);

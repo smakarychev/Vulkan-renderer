@@ -45,29 +45,12 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
     auto& dispatchOut = blackboard.Get<TriangleCullPrepareDispatchPass::PassData>(
         m_TrianglePrepareDispatch->GetNameHash());
 
-    std::vector<DrawAttachment> colorAttachments;
-    colorAttachments.reserve(colors.size());
+    std::vector<DrawAttachment> colorAttachments = info.DrawAttachments.Colors;
     for (u32 i = 0; i < colors.size(); i++)
-    {
-        auto& color = colors[i];
-        colorAttachments.push_back({
-            .Resource = color,
-            .Description = {
-                .Type = RenderingAttachmentType::Color,
-                .Clear = info.Colors[i].ClearValue,
-                .OnLoad = info.Colors[i].OnLoad,
-                .OnStore = AttachmentStore::Store}});
-    }
-    std::optional<DepthStencilAttachment> depthAttachment{};
-    if (info.Depth.has_value())
-        depthAttachment = {
-        .Resource = *depth,
-        .Description = {
-            .Type = RenderingAttachmentType::Depth,
-            .Clear = info.Depth->ClearValue,
-            .OnLoad = info.Depth->OnLoad,
-            .OnStore = AttachmentStore::Store},
-        .DepthBias = info.Depth->DepthBias};
+        colorAttachments[i].Resource = colors[i];
+    std::optional<DepthStencilAttachment> depthAttachment = info.DrawAttachments.Depth;
+    if (depthAttachment.has_value())
+        depthAttachment->Resource = *depth;
 
     m_CullDraw->AddToGraph(renderGraph, {
         .Dispatch = dispatchOut.DispatchIndirect,
@@ -76,8 +59,8 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
         .HiZContext = &hiZContext,
         .Resolution = info.Resolution,
         .DrawAttachments = {
-            .ColorAttachments = colorAttachments,
-            .DepthAttachment = depthAttachment},
+            .Colors = colorAttachments,
+            .Depth = depthAttachment},
         .IBL = info.IBL,
         .SSAO = info.SSAO});
 
