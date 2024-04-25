@@ -63,7 +63,8 @@ HiZPass::HiZPass(RG::Graph& renderGraph, std::string_view baseName)
     }
 }
 
-void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassContext& ctx)
+void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubresourceDescription::Packed subresource,
+    HiZPassContext& ctx)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -117,7 +118,8 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassCont
                 TextureBindingInfo depthInBinding = i > 0 ?
                     depthIn.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i - 1]) :
-                    depthIn.BindingInfo(passData.MinMaxSampler, ImageLayout::DepthReadonly);
+                    depthIn.BindingInfo(passData.MinMaxSampler, ImageLayout::DepthReadonly,
+                        depthIn.GetViewHandle(subresource));
 
                 auto& pipeline = passData.PipelineData->Pipeline;
                 auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;

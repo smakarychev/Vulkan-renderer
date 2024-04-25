@@ -11,9 +11,9 @@ public:
     struct PassData
     {
         RG::Resource ShadowMap{};
+        RG::Resource ShadowUbo{};
         f32 Near{1.0f};
         f32 Far{100.0f};
-        glm::mat4 ShadowViewProjection{1.0f};
     };
 public:
     DirectionalShadowPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info);

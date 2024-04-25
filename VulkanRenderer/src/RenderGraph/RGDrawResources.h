@@ -23,8 +23,13 @@ namespace RG
     struct DirectionalShadowData
     {
         Resource ShadowMap{};
-        Resource ViewProjectionResource{};
-        glm::mat4 ViewProjection{1.0f};
+        Resource ShadowUbo{};
+    };
+
+    struct CSMData
+    {
+        Resource ShadowMap{};
+        Resource CSMUbo{};
     };
     
     enum class DrawFeatures

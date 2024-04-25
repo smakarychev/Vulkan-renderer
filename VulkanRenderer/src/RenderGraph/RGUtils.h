@@ -33,6 +33,7 @@ namespace RG::RgUtils
     SSAOData readSSAOData(const SSAOData& ssao, Graph& graph, ResourceAccessFlags shaderStage);
     DirectionalShadowData readDirectionalShadowData(const DirectionalShadowData& shadow, Graph& graph,
         ResourceAccessFlags shaderStage);
+    CSMData readCSMData(const CSMData& csm, Graph& graph, ResourceAccessFlags shaderStage);
 
     void updateDrawAttributeBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const DrawAttributeBuffers& attributeBuffers, DrawFeatures features);
@@ -42,5 +43,7 @@ namespace RG::RgUtils
     void updateIBLBindings(const ShaderDescriptors& descriptors, const Resources& resources, const IBLData& iblData);
     void updateSSAOBindings(const ShaderDescriptors& descriptors, const Resources& resources, const SSAOData& ssaoData);
     void updateShadowBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const DirectionalShadowData& shadowData, ResourceUploader& resourceUploader);
+        const DirectionalShadowData& shadowData);
+    void updateCSMBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+        const CSMData& csmData);
 }

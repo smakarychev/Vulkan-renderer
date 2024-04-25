@@ -26,6 +26,8 @@
 #include "RenderGraph/Passes/PBR/Translucency/PbrForwardTranslucentIBLPass.h"
 #include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/Passes/PostProcessing/Sky/SkyGradientPass.h"
+#include "RenderGraph/Passes/Shadows/CSMPass.h"
+#include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DirectionalShadowPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
@@ -149,10 +151,10 @@ void Renderer::InitRenderGraph()
 
 
     // todo: separate geometry for shadow casters
-    m_DirectionalShadowPass = std::make_shared<DirectionalShadowPass>(*m_Graph, ShadowPassInitInfo{
+    m_CSMPass = std::make_shared<CSMPass>(*m_Graph, ShadowPassInitInfo{
         .Geometry = &m_GraphOpaqueGeometry});
-    m_VisualizeDirectionalShadowPass = std::make_shared<VisualizeDepthPass>(*m_Graph, "Visualize.Shadow.Directional");
-    m_BlitDirectionalShadow = std::make_shared<BlitPass>("Blit.Shadow.Directional");
+    m_CSMVisualizePass = std::make_shared<CSMVisualizePass>(*m_Graph);
+    m_BlitCSM = std::make_shared<BlitPass>("Blit.CSM");
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
@@ -235,12 +237,11 @@ void Renderer::SetupRenderGraph()
 
     m_SceneLights.SetDirectionalLight(directionalLight);
     
-    m_DirectionalShadowPass->AddToGraph(*m_Graph, {
-        .Resolution = m_Swapchain.GetResolution(),
+    m_CSMPass->AddToGraph(*m_Graph, {
         .MainCamera = m_Camera.get(),
         .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
-        .ViewDistance = 50.0f});
-    auto& directionalShadowOutput = m_Graph->GetBlackboard().Get<DirectionalShadowPass::PassData>();
+        .ViewDistance = 400.0f});
+    auto& csmOutput = m_Graph->GetBlackboard().Get<CSMPass::PassData>();
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
         .VisibilityTexture = visibility.ColorOut,
@@ -252,9 +253,9 @@ void Renderer::SetupRenderGraph()
             .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
         .SSAO = {
             .SSAOTexture = ssaoBlurVerticalOutput.SsaoOut},
-        .DirectionalShadowData = {
-            .ShadowMap = directionalShadowOutput.ShadowMap,
-            .ViewProjection = directionalShadowOutput.ShadowViewProjection},
+        .CSMData = {
+            .ShadowMap = csmOutput.ShadowMap,
+            .CSMUbo = csmOutput.CSMUbo},
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = m_Graph->GetBlackboard().Get<PbrVisibilityBufferIBL::PassData>();
 
@@ -302,16 +303,14 @@ void Renderer::SetupRenderGraph()
     auto& blitHiZOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(m_BlitHiZ->GetNameHash());
     backbuffer = blitHiZOutput.TextureOut;
 
-    m_VisualizeDirectionalShadowPass->AddToGraph(*m_Graph, directionalShadowOutput.ShadowMap, {},
-        directionalShadowOutput.Near, directionalShadowOutput.Far, true);
-    auto& visualizeShadowPassOutput = m_Graph->GetBlackboard().Get<VisualizeDepthPass::PassData>(
-        m_VisualizeDirectionalShadowPass->GetNameHash());
+    m_CSMVisualizePass->AddToGraph(*m_Graph, csmOutput, {});
+    auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<CSMVisualizePass::PassData>();
 
-    m_BlitDirectionalShadow->AddToGraph(*m_Graph, visualizeShadowPassOutput.ColorOut, backbuffer,
+    m_BlitCSM->AddToGraph(*m_Graph, visualizeCSMPassOutput.ColorOut, backbuffer,
         glm::vec3{0.75f, 0.35f, 0.0f}, 0.2f);
-    auto& blitDirectionalShadowOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(
-        m_BlitDirectionalShadow->GetNameHash());
-    backbuffer = blitDirectionalShadowOutput.TextureOut;
+    auto& blitCSMOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(
+        m_BlitCSM->GetNameHash());
+    backbuffer = blitCSMOutput.TextureOut;
         
     //SetupRenderSlimePasses();
 }

@@ -18,7 +18,6 @@ struct ShadowPassInitInfo
 
 struct ShadowPassExecutionInfo
 {
-    glm::uvec2 Resolution{};
     /* DirectionalShadowPass will construct the suitable shadow camera based on main camera frustum */
     const Camera* MainCamera{nullptr};
     const DirectionalLight* DirectionalLight{nullptr};

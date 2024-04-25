@@ -1454,6 +1454,8 @@ namespace RG
             {
                 ResourceAccessFlags::Upload,
                 ResourceSubAccess{
+                    .Stage = PipelineStage::Host,
+                    .Access = PipelineAccess::WriteHost,
                     .Usage = BufferUsage::Upload}
             },
         }; 

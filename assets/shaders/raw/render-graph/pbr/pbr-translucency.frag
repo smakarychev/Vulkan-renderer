@@ -5,13 +5,13 @@
 
 #extension GL_EXT_nonuniform_qualifier: require
 
+layout(constant_id = 0) const float MAX_REFLECTION_LOD = 5.0f;
+
 layout(location = 0) in flat uint vertex_object_index;
 layout(location = 1) in vec3 vertex_position;
 layout(location = 2) in vec3 vertex_normal;
 layout(location = 3) in vec3 vertex_tangent;
 layout(location = 4) in vec2 vertex_uv;
-
-layout(constant_id = 0) const float MAX_REFLECTION_LOD = 5.0f;
 
 @immutable_sampler
 layout(set = 0, binding = 0) uniform sampler u_sampler;

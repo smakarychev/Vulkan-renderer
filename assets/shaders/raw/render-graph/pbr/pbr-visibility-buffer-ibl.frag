@@ -67,10 +67,10 @@ layout(std430, set = 1, binding = 13) readonly buffer indices_buffer {
 
 
 // shadow-related descriptors
-layout(set = 1, binding = 14) uniform texture2D u_directional_shadow_map;
-layout(set = 1, binding = 15) uniform directional_shadow_matrix {
-    mat4 view_projection;
-} u_directional_shadow_transform;
+layout(set = 1, binding = 14) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 15) uniform csm_data_buffer {
+    CSMData csm;
+} u_csm_data;
 
 layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];
@@ -430,23 +430,31 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     return data;
 }
 
-float sample_shadow(vec3 normal, float projected_depth, vec2 uv, vec2 delta) {
+float sample_shadow(vec3 normal, float projected_depth, vec2 uv, vec2 delta, float cascade) {
     const float bias = 0.0025f;
     const float n_dot_l = dot(normal, -u_directional_light.light.direction);
     const float normal_bias = mix(bias, 0.0005f, n_dot_l);
-    const float depth = textureLod(sampler2D(u_directional_shadow_map, u_sampler_shadow), uv + delta, 0).r;
+    
+    const float depth = textureLod(sampler2DArray(u_csm, u_sampler_shadow), vec3(uv + delta, cascade), 0).r;
     const float shadow = depth < projected_depth + normal_bias ? 0.0f : 0.8f;
     
     return shadow;
 }
 
 float shadow(vec3 position, vec3 normal) {
-
-    const ivec2 shadow_size = textureSize(u_directional_shadow_map, 0);
-    const float scale = 1.5f;
+    const ivec2 shadow_size = ivec2(textureSize(u_csm, 0));
+    const float scale = 0.8f;
     const vec2 delta = vec2(scale) / vec2(shadow_size);
-    
-    const vec4 shadow_local = u_directional_shadow_transform.view_projection * vec4(position, 1.0f);
+
+    const vec3 position_view = vec3(u_camera.camera.view * vec4(position, 1.0f));
+    uint cascade_index = 0;
+    for (uint i = 0; i < u_csm_data.csm.cascade_count; i++)
+        if (-position_view.z < u_csm_data.csm.cascades[i]) {
+            cascade_index = i;
+            break;
+        }
+
+    const vec4 shadow_local = u_csm_data.csm.view_projections[cascade_index] * vec4(position, 1.0f);
     const vec3 ndc = shadow_local.xyz / shadow_local.w;
     vec2 uv = (ndc.xy * 0.5f) + 0.5f;
     
@@ -458,7 +466,7 @@ float shadow(vec3 position, vec3 normal) {
     int samples_count = 0;
     for (int x = -samples_dim; x <= samples_dim; x++) {
         for (int y = -samples_dim; y <= samples_dim; y++) {
-            shadow_factor += sample_shadow(normal, ndc.z, uv, vec2(delta.x * x, delta.y * y));
+            shadow_factor += sample_shadow(normal, ndc.z, uv, vec2(delta.x * x, delta.y * y), float(cascade_index));
             samples_count++;
         }
     }

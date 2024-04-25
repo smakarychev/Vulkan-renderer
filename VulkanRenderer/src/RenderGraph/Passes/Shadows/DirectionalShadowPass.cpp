@@ -2,7 +2,6 @@
 
 #include "ShadowPassesCommon.h"
 #include "ShadowPassesUtils.h"
-#include "imgui/imgui.h"
 #include "Light/Light.h"
 
 DirectionalShadowPass::DirectionalShadowPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info)
@@ -40,6 +39,7 @@ DirectionalShadowPass::DirectionalShadowPass(RG::Graph& renderGraph, const Shado
 void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& info)
 {
     using namespace RG;
+    using enum ResourceAccessFlags;
 
     m_Camera = std::make_unique<Camera>(CreateShadowCamera(*info.MainCamera,
         info.DirectionalLight->Direction, info.ViewDistance));
@@ -50,10 +50,6 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
             .Height = SHADOW_MAP_RESOLUTION,
             .Format = Format::D32_FLOAT});
     
-    // todo: to cvar
-    static constexpr f32 DEPTH_CONSTANT_BIAS = -1.0f;
-    static constexpr f32 DEPTH_SLOPE_BIAS = -1.5f;
-
     m_Pass->AddToGraph(renderGraph, {
         .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
         .Camera = m_Camera.get(),
@@ -65,13 +61,38 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
                     .ClearDepth = 0.0f,
                     .ClearStencil = 0},
                 .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}});
-
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
+
+    /* because this pass is just a wrapper around meta cull pass, in order to actually upload data to resource,
+    * we need an additional dummy pass
+    */
+    struct PassDataDummy
+    {
+        Resource ShadowUbo{};
+        glm::mat4 CameraViewProjection{};
+    };
+    renderGraph.AddRenderPass<PassDataDummy>(PassName{"Shadow.Directional.Dummy"},
+        [&](Graph& graph, PassDataDummy& passData)
+        {
+            passData.ShadowUbo = graph.CreateResource("Shadow.Directional.Data", GraphBufferDescription{
+                .SizeBytes = sizeof(glm::mat4)});
+
+            passData.ShadowUbo = graph.Write(passData.ShadowUbo, Vertex | Uniform | Upload);
+
+            passData.CameraViewProjection = m_Camera->GetViewProjection();
+
+            graph.GetBlackboard().Update(passData);
+        },
+        [=](PassDataDummy& passData, FrameContext& frameContext, const Resources& resources)
+        {
+            resources.GetBuffer(passData.ShadowUbo, passData.CameraViewProjection, *frameContext.ResourceUploader);
+        });
+
     PassData passData = {
         .ShadowMap = *output.DrawAttachmentResources.DepthTarget,
+        .ShadowUbo = renderGraph.GetBlackboard().Get<PassDataDummy>().ShadowUbo,
         .Near = m_Camera->GetFrustumPlanes().Near,
-        .Far = m_Camera->GetFrustumPlanes().Far,
-        .ShadowViewProjection = m_Camera->GetViewProjection()};
+        .Far = m_Camera->GetFrustumPlanes().Far};
     renderGraph.GetBlackboard().Update(passData);
 }
 

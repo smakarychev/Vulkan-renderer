@@ -41,7 +41,8 @@ public:
     };
 public:
     HiZPass(RG::Graph& renderGraph, std::string_view baseName);
-    void AddToGraph(RG::Graph& renderGraph, RG::Resource depth, HiZPassContext& ctx);
+    void AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubresourceDescription::Packed subresource,
+        HiZPassContext& ctx);
 private:
     std::array<RG::Pass*, HiZPassContext::MAX_MIPMAP_COUNT> m_Passes{};
     RG::PassName m_Name;

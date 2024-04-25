@@ -92,8 +92,12 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
         .SSAO = info.SSAO});
 
     auto& drawOutput = blackboard.Get<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
-    m_HiZ->AddToGraph(renderGraph, drawOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}), *m_HiZContext);
-    m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
+    if (info.DrawAttachments.Depth.has_value())
+    {
+        m_HiZ->AddToGraph(renderGraph, drawOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}),
+            info.DrawAttachments.Depth->Description.Subresource, *m_HiZContext);
+        m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
+    }
 
     // we have to update attachment resources
     for (u32 i = 0; i < colorAttachments.size(); i++)
@@ -123,10 +127,14 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     
     auto& reoccludeTrianglesOutput = blackboard.Get<TriangleReoccludeDraw::PassData>(
         m_ReoccludeTrianglesDraw->GetNameHash());
-    m_HiZReocclusion->AddToGraph(renderGraph,
-        reoccludeTrianglesOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}), *m_HiZContext);
-    m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
-
+    if (info.DrawAttachments.Depth.has_value())
+    {
+        m_HiZReocclusion->AddToGraph(renderGraph,
+            reoccludeTrianglesOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}),
+            info.DrawAttachments.Depth->Description.Subresource, *m_HiZContext);
+        m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
+    }
+    
     // we have to update attachment resources (again)
     for (u32 i = 0; i < colorAttachments.size(); i++)
     {

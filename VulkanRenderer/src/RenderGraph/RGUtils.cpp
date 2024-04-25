@@ -59,7 +59,7 @@ namespace RG::RgUtils
         {
             Resource resource = attachment.Resource;
             drawAttachmentResources.RenderTargets.push_back(graph.RenderTarget(
-                resource,
+                resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
                 attachment.Description.ClearColor.F));
         }
@@ -68,7 +68,7 @@ namespace RG::RgUtils
             auto& attachment = *attachments.Depth;
             Resource resource = attachment.Resource;
             drawAttachmentResources.DepthTarget = graph.DepthStencilTarget(
-                resource,
+                resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
                 attachment.DepthBias,
                 attachment.Description.ClearDepth,
@@ -128,16 +128,24 @@ namespace RG::RgUtils
     {
         using enum ResourceAccessFlags;
 
-        Resource directionalShadowMatrix = ensureResource(shadow.ViewProjectionResource,
-            graph, "Shadow.ViewProjection", GraphBufferDescription{.SizeBytes = sizeof(glm::mat4)});
-        
         DirectionalShadowData shadowData = {};
         
         shadowData.ShadowMap = graph.Read(shadow.ShadowMap, shaderStage | Sampled);
-        shadowData.ViewProjectionResource = graph.Read(directionalShadowMatrix, shaderStage | Uniform | Upload);
-        shadowData.ViewProjection = shadow.ViewProjection;
+        shadowData.ShadowUbo = graph.Read(shadow.ShadowUbo, shaderStage | Uniform);
 
         return shadowData;
+    }
+
+    CSMData readCSMData(const CSMData& csm, Graph& graph, ResourceAccessFlags shaderStage)
+    {
+        using enum ResourceAccessFlags;
+
+        CSMData csmData = {};
+
+        csmData.ShadowMap = graph.Read(csm.ShadowMap, shaderStage | Sampled);
+        csmData.CSMUbo = graph.Read(csm.CSMUbo, shaderStage | Uniform);
+
+        return csmData;
     }
 
     void updateDrawAttributeBindings(const ShaderDescriptors& descriptors, const Resources& resources,
@@ -191,17 +199,29 @@ namespace RG::RgUtils
     }
 
     void updateShadowBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const DirectionalShadowData& shadowData, ResourceUploader& resourceUploader)
+        const DirectionalShadowData& shadowData)
     {
         const Texture& shadow = resources.GetTexture(shadowData.ShadowMap);
-        const Buffer& view = resources.GetBuffer(shadowData.ViewProjectionResource, shadowData.ViewProjection,
-            resourceUploader);
+        const Buffer& shadowUbo = resources.GetBuffer(shadowData.ShadowUbo);
 
         descriptors.UpdateBinding("u_directional_shadow_map", shadow.BindingInfo(
             ImageFilter::Linear,
             shadow.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
 
-        descriptors.UpdateBinding("u_directional_shadow_transform", view.BindingInfo());
+        descriptors.UpdateBinding("u_directional_shadow_transform", shadowUbo.BindingInfo());
+    }
+
+    void updateCSMBindings(const ShaderDescriptors& descriptors, const Resources& resources, const CSMData& csmData)
+    {
+        const Texture& shadow = resources.GetTexture(csmData.ShadowMap);
+        const Buffer& csmUbo = resources.GetBuffer(csmData.CSMUbo);
+
+        descriptors.UpdateBinding("u_csm", shadow.BindingInfo(
+            ImageFilter::Linear,
+            shadow.Description().Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
+
+        descriptors.UpdateBinding("u_csm_data", csmUbo.BindingInfo());
     }
 }

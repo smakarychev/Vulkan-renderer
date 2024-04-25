@@ -34,7 +34,6 @@ void BlitPass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
             f32 srcAspect = (f32)src.Description().Width / (f32)src.Description().Height;
             f32 dstAspect = (f32)dst.Description().Width / (f32)dst.Description().Height;
 
-
             glm::uvec3 bottom = dst.GetPixelCoordinate(offset, ImageSizeType::Relative);
             f32 width = relativeSize;
             f32 height = relativeSize / srcAspect * dstAspect;

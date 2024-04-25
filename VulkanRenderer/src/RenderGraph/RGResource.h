@@ -68,7 +68,7 @@ namespace RG
             return enumHasAny(access,
                 PipelineAccess::WriteShader | PipelineAccess::WriteAll |
                 PipelineAccess::WriteColorAttachment | PipelineAccess::WriteDepthStencilAttachment |
-                PipelineAccess::WriteTransfer);
+                PipelineAccess::WriteTransfer | PipelineAccess::WriteHost);
         }
         static constexpr bool HasReadAccess(PipelineAccess access)
         {

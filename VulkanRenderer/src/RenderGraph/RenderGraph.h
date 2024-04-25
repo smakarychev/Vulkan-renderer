@@ -47,10 +47,10 @@ namespace RG
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
             bool canAlias =
-                otherFrame >= BUFFERED_FRAMES && (
+                (
                 !enumHasAny(description.Usage, BufferUsage::Upload) &&
                 !enumHasAny(description.Usage, BufferUsage::Readback)
-                || otherFrame != 0) &&
+                || otherFrame >= BUFFERED_FRAMES) &&
                 description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
             
             return canAlias;
@@ -64,7 +64,6 @@ namespace RG
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
             bool canAlias =
-                otherFrame >= BUFFERED_FRAMES &&
                 description.Height == other.Height &&
                 description.Width == other.Width &&
                 description.Layers == other.Layers &&

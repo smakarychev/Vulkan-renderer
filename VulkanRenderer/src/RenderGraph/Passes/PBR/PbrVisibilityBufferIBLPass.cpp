@@ -65,8 +65,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             passData.LightsResources = RgUtils::readSceneLight(*info.SceneLights, graph, name, Pixel);
             passData.IBL = RgUtils::readIBLData(info.IBL, graph, Pixel);
             passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
-            passData.DirectionalShadowData = RgUtils::readDirectionalShadowData(
-                info.DirectionalShadowData, graph, Pixel);
+            passData.CSMData = RgUtils::readCSMData(info.CSMData, graph, Pixel);
 
             auto& graphGlobals = graph.GetGlobalResources();
             
@@ -114,8 +113,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             RgUtils::updateSceneLightBindings(resourceDescriptors, resources, passData.LightsResources);
             RgUtils::updateIBLBindings(resourceDescriptors, resources, passData.IBL);
             RgUtils::updateSSAOBindings(resourceDescriptors, resources, passData.SSAO);
-            RgUtils::updateShadowBindings(resourceDescriptors, resources, passData.DirectionalShadowData,
-                *frameContext.ResourceUploader);
+            RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
             resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
             resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
