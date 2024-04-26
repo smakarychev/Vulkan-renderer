@@ -11,7 +11,9 @@ bool is_frustum_visible(vec3 sphere_origin, float radius, scene_data scene) {
     bool visible = true;
     visible = visible && abs(scene.frustum_right_x * sphere_origin.x) < -sphere_origin.z * scene.frustum_right_z + radius;
     visible = visible && abs(scene.frustum_top_y * sphere_origin.y) < -sphere_origin.z * scene.frustum_top_z + radius;
-    visible = visible && sphere_origin.z - radius < -scene.frustum_near && sphere_origin.z + radius > -scene.frustum_far;
+    visible = visible &&
+        sphere_origin.z - radius <= -scene.frustum_near &&
+        sphere_origin.z + radius >= -scene.frustum_far;
     
     return visible;
 }

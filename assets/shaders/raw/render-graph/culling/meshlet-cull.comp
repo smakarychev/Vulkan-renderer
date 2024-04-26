@@ -10,6 +10,8 @@ layout(local_size_x = 64) in;
 layout(constant_id = 0) const bool REOCCLUSION = false;
 layout(constant_id = 1) const bool SINGLE_PASS = false;
 layout(constant_id = 2) const bool IS_ORTHOGRAPHIC_PROJECTION = false;
+layout(constant_id = 3) const bool CLAMP_DEPTH = false;
+
 
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
@@ -114,6 +116,8 @@ void main() {
     vec3 origin = vec3(u_scene_data.scene.view_matrix * object.model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f));
     float scale = extract_scale(object.model);
     float radius = meshlet.r * scale;
+    if (CLAMP_DEPTH)
+        origin.z = min(origin.z, -u_scene_data.scene.frustum_near);
 
     vec3 cone_axis = vec3(meshlet.cone_x, meshlet.cone_y, meshlet.cone_z) / 127.0f;
     cone_axis = vec3(u_scene_data.scene.view_matrix * object.model * vec4(cone_axis, 0.0f)) / scale;

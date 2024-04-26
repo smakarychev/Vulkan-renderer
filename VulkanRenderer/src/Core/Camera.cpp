@@ -144,17 +144,33 @@ FrustumPlanes Camera::GetFrustumPlanes() const
 {
     const glm::mat4& mat = GetProjection();
 
-    f32 rightLengthInverse = 1.0f / std::sqrt(1.0f + mat[0][0] * mat[0][0]);
-    f32 topLengthInverse = 1.0f / std::sqrt(1.0f + mat[1][1] * mat[1][1]);
-    
     FrustumPlanes frustumPlanes = {};
-    frustumPlanes.RightX = mat[0][0] * rightLengthInverse;
-    frustumPlanes.RightZ = rightLengthInverse;
-    frustumPlanes.TopY = -mat[1][1] * topLengthInverse;
-    frustumPlanes.TopZ = topLengthInverse;
     frustumPlanes.Near = m_NearClipPlane;
     frustumPlanes.Far  = m_FarClipPlane;
+    
+    switch (m_CameraType)
+    {
+    case CameraType::Perspective:
+    {
+        f32 rightLengthInverse = 1.0f / std::sqrt(1.0f + mat[0][0] * mat[0][0]);
+        f32 topLengthInverse = 1.0f / std::sqrt(1.0f + mat[1][1] * mat[1][1]);
 
+        frustumPlanes.RightX = mat[0][0] * rightLengthInverse;
+        frustumPlanes.RightZ = rightLengthInverse;
+        frustumPlanes.TopY = -mat[1][1] * topLengthInverse;
+        frustumPlanes.TopZ = topLengthInverse;
+        break;
+    }
+    case CameraType::Orthographic:
+    {
+        frustumPlanes.RightX = mat[0][0];
+        frustumPlanes.RightZ = 0.0f;
+        frustumPlanes.TopY = -mat[1][1];
+        frustumPlanes.TopZ = 0.0f;
+        break;
+    }
+    }
+    
     return frustumPlanes;
 }
 

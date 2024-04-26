@@ -4,6 +4,7 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGCommon.h"
 
+struct MeshletCullPassInitInfo;
 class MeshCullContext;
 
 class MeshletCullTranslucentContext
@@ -38,7 +39,7 @@ public:
         RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name, CameraType cameraType);
+    MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name, const MeshletCullPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, MeshletCullTranslucentContext& ctx);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:

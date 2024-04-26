@@ -54,6 +54,12 @@ private:
     PassResources m_Resources{};
 };
 
+struct MeshletCullPassInitInfo
+{
+    bool ClampDepth{false};
+    CameraType CameraType{CameraType::Perspective};
+};
+
 template <CullStage Stage>
 class MeshletCullPassGeneral
 {
@@ -68,7 +74,7 @@ public:
         RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name, CameraType cameraType);
+    MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name, const MeshletCullPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, MeshletCullContext& ctx);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
@@ -86,7 +92,7 @@ using MeshletCullSinglePass = MeshletCullPassGeneral<CullStage::Single>;
 
 template <CullStage Stage>
 MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name,
-    CameraType cameraType)
+    const MeshletCullPassInitInfo& info)
         : m_Name(name)
 {
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -97,7 +103,8 @@ MeshletCullPassGeneral<Stage>::MeshletCullPassGeneral(RG::Graph& renderGraph, st
         .SetTemplate(meshletCullTemplate)
         .AddSpecialization("REOCCLUSION", Stage == CullStage::Reocclusion)
         .AddSpecialization("SINGLE_PASS", Stage == CullStage::Single)
-        .AddSpecialization("IS_ORTHOGRAPHIC_PROJECTION", cameraType == CameraType::Orthographic)
+        .AddSpecialization("IS_ORTHOGRAPHIC_PROJECTION", info.CameraType == CameraType::Orthographic)
+        .AddSpecialization("CLAMP_DEPTH", info.ClampDepth)
         .UseDescriptorBuffer()
         .Build();
 

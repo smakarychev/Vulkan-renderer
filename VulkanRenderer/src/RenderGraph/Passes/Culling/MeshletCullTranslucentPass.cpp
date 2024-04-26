@@ -1,12 +1,14 @@
 #include "MeshletCullTranslucentPass.h"
 
+#include "MeshletCullPass.h"
+
 MeshletCullTranslucentContext::MeshletCullTranslucentContext(MeshCullContext& meshCullContext)
     : m_MeshCullContext(&meshCullContext)
 {
 }
 
 MeshletCullTranslucentPass::MeshletCullTranslucentPass(RG::Graph& renderGraph, std::string_view name,
-    CameraType cameraType)
+    const MeshletCullPassInitInfo& info)
         : m_Name(name)
 {
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -15,7 +17,8 @@ MeshletCullTranslucentPass::MeshletCullTranslucentPass(RG::Graph& renderGraph, s
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
         .SetTemplate(meshletCullTemplate)
-        .AddSpecialization("IS_ORTHOGRAPHIC_PROJECTION", cameraType == CameraType::Orthographic)
+        .AddSpecialization("IS_ORTHOGRAPHIC_PROJECTION", info.CameraType == CameraType::Orthographic)
+        .AddSpecialization("CLAMP_DEPTH", info.ClampDepth)
         .UseDescriptorBuffer()
         .Build();
 

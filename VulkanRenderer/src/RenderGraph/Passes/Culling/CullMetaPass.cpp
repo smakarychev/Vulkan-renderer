@@ -14,11 +14,18 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
     m_HiZ = std::make_shared<HiZ>(renderGraph, m_Name.Name() + ".HiZ");
     m_HiZReocclusion = std::make_shared<HiZ>(renderGraph, m_Name.Name() +  ".HiZ.Triangle");
 
-    m_MeshCull = std::make_shared<MeshCull>(renderGraph, m_Name.Name() + ".MeshCull");
-    m_MeshReocclusion = std::make_shared<MeshReocclusion>(renderGraph, m_Name.Name() + ".MeshCull");
-    m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull", info.CameraType);
+    m_MeshCull = std::make_shared<MeshCull>(renderGraph, m_Name.Name() + ".MeshCull", MeshCullPassInitInfo{
+        .ClampDepth = info.ClampDepth});
+    m_MeshReocclusion = std::make_shared<MeshReocclusion>(renderGraph, m_Name.Name() + ".MeshCull",
+        MeshCullPassInitInfo{
+            .ClampDepth = info.ClampDepth});
+    m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull", MeshletCullPassInitInfo{
+        .ClampDepth = info.ClampDepth,
+        .CameraType = info.CameraType});
     m_MeshletReocclusion = std::make_shared<MeshletReocclusion>(renderGraph, m_Name.Name() + ".MeshletCull",
-        info.CameraType);
+        MeshletCullPassInitInfo{
+            .ClampDepth = info.ClampDepth,
+            .CameraType = info.CameraType});
 
     m_TrianglePrepareDispatch = std::make_shared<TriangleCullPrepareDispatchPass>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
@@ -28,11 +35,11 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
         .DrawTrianglesPipeline = *info.DrawTrianglesPipeline,
         .MaterialDescriptors = info.MaterialDescriptors};
     
-    m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
-    m_ReoccludeTrianglesDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, cullDrawPassInitInfo,
-        m_Name.Name() + ".CullDraw.TriangleReocclusion");
-    m_ReoccludeDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph, cullDrawPassInitInfo,
-        m_Name.Name() + ".CullDraw.Reocclusion");
+    m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, m_Name.Name() + ".CullDraw", cullDrawPassInitInfo);
+    m_ReoccludeTrianglesDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph,
+        m_Name.Name() + ".CullDraw.TriangleReocclusion", cullDrawPassInitInfo);
+    m_ReoccludeDraw = std::make_shared<TriangleReoccludeDraw>(renderGraph,
+        m_Name.Name() + ".CullDraw.Reocclusion", cullDrawPassInitInfo);
 
     m_DrawIndirectCountPass = std::make_shared<DrawIndirectCountPass>(renderGraph,
         m_Name.Name() + ".CullDraw.MeshletReocclusion", DrawIndirectCountPassInitInfo{

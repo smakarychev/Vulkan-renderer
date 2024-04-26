@@ -11,8 +11,11 @@ CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaSin
     m_TriangleContext = std::make_shared<TriangleCullContext>(*m_MeshletContext);
     m_TriangleDrawContext = std::make_shared<TriangleDrawContext>();
 
-    m_MeshCull = std::make_shared<MeshCull>(renderGraph, m_Name.Name() + ".MeshCull");
-    m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull", info.CameraType);
+    m_MeshCull = std::make_shared<MeshCull>(renderGraph, m_Name.Name() + ".MeshCull", MeshCullPassInitInfo{
+        .ClampDepth = info.ClampDepth});
+    m_MeshletCull = std::make_shared<MeshletCull>(renderGraph, m_Name.Name() + ".MeshletCull", MeshletCullPassInitInfo{
+        .ClampDepth = info.ClampDepth,
+        .CameraType = info.CameraType});
 
     m_TrianglePrepareDispatch = std::make_shared<TriangleCullPrepareDispatchPass>(
         renderGraph, m_Name.Name() + ".TriangleCull.PrepareDispatch");
@@ -22,7 +25,7 @@ CullMetaSinglePass::CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaSin
         .DrawTrianglesPipeline = *info.DrawPipeline,
         .MaterialDescriptors = info.MaterialDescriptors};
     
-    m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, cullDrawPassInitInfo, m_Name.Name() + ".CullDraw");
+    m_CullDraw = std::make_shared<TriangleCullDraw>(renderGraph, m_Name.Name() + ".CullDraw", cullDrawPassInitInfo);
 }
 
 void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info,

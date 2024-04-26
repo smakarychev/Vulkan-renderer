@@ -32,6 +32,7 @@ CSMPass::CSMPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info)
         .DrawTrianglesPipeline = &trianglePipeline,
         .DrawMeshletsPipeline = &meshletPipeline,
         .DrawFeatures = RG::DrawFeatures::Positions,
+        .ClampDepth = true,
         .CameraType = CameraType::Orthographic};
 
     m_Passes.reserve(SHADOW_CASCADES);

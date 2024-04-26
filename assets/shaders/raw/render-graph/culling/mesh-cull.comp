@@ -9,6 +9,7 @@ layout(local_size_x = 64) in;
 
 layout(constant_id = 0) const bool REOCCLUSION = false;
 layout(constant_id = 1) const bool SINGLE_PASS = false;
+layout(constant_id = 2) const bool CLAMP_DEPTH = false;
 
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
@@ -54,6 +55,8 @@ void main() {
 
     vec3 origin = vec3(u_scene_data.scene.view_matrix * object.model * vec4(object.x, object.y, object.z, 1.0f));
     float radius = object.r * extract_scale(object.model);
+    if (CLAMP_DEPTH)
+        origin.z = min(origin.z, -u_scene_data.scene.frustum_near);
 
     bool is_last_frame_visible = flags_visible(u_object_visibility.visibility[id]);
 

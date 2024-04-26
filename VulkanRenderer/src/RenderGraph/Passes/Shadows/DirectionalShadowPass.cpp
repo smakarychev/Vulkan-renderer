@@ -31,6 +31,7 @@ DirectionalShadowPass::DirectionalShadowPass(RG::Graph& renderGraph, const Shado
         .DrawTrianglesPipeline = &trianglePipeline,
         .DrawMeshletsPipeline = &meshletPipeline,
         .DrawFeatures = RG::DrawFeatures::Positions,
+        .ClampDepth = true,
         .CameraType = CameraType::Orthographic};
 
     m_Pass = std::make_shared<CullMetaPass>(renderGraph, shaderPassInitInfo, "DirectionalShadow");

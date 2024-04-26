@@ -6,6 +6,7 @@
 
 struct scene_data {
     mat4 view_matrix;
+    mat4 view_projection_matrix;
     float frustum_top_y;
     float frustum_top_z;
     float frustum_right_x;

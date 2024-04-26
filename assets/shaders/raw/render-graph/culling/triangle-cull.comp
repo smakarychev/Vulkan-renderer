@@ -176,9 +176,9 @@ void main() {
     triangle.c = vec4_from_position(u_positions.positions[command.vertexOffset + uint(indices.z)]);
 
     // view_matrix is actually a view_projection_matrix
-    triangle.a = u_scene_data.scene.view_matrix * object.model * triangle.a;
-    triangle.b = u_scene_data.scene.view_matrix * object.model * triangle.b;
-    triangle.c = u_scene_data.scene.view_matrix * object.model * triangle.c;
+    triangle.a = u_scene_data.scene.view_projection_matrix * object.model * triangle.a;
+    triangle.b = u_scene_data.scene.view_projection_matrix * object.model * triangle.b;
+    triangle.c = u_scene_data.scene.view_projection_matrix * object.model * triangle.c;
 
     uint meshlet_index = command.firstInstance;
     uint bitslot = triangle_index / MICRO_CLUSTER_SIZE;

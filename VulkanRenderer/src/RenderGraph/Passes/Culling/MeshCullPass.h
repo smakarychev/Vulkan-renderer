@@ -38,6 +38,11 @@ private:
     PassResources m_Resources{};
 };
 
+struct MeshCullPassInitInfo
+{
+    bool ClampDepth{false};
+};
+
 template <CullStage Stage>
 class MeshCullGeneralPass
 {
@@ -45,6 +50,7 @@ public:
     struct SceneUBO
     {
         glm::mat4 ViewMatrix;
+        glm::mat4 ViewProjectionMatrix;
         FrustumPlanes FrustumPlanes;
         ProjectionData ProjectionData;
         f32 HiZWidth;
@@ -58,7 +64,7 @@ public:
         RG::PipelineData* PipelineData{nullptr};
     };
 public:
-    MeshCullGeneralPass(RG::Graph& renderGraph, std::string_view name);
+    MeshCullGeneralPass(RG::Graph& renderGraph, std::string_view name, const MeshCullPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, MeshCullContext& ctx, const HiZPassContext& hiZPassContext);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
@@ -75,8 +81,9 @@ using MeshCullSinglePass = MeshCullGeneralPass<CullStage::Single>;
 
 
 template <CullStage Stage>
-MeshCullGeneralPass<Stage>::MeshCullGeneralPass(RG::Graph& renderGraph, std::string_view name)
-    : m_Name(name)
+MeshCullGeneralPass<Stage>::MeshCullGeneralPass(RG::Graph& renderGraph, std::string_view name,
+    const MeshCullPassInitInfo& info)
+        : m_Name(name)
 {
     ShaderPipelineTemplate* meshCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/mesh-cull-comp.shader"},
@@ -86,6 +93,7 @@ MeshCullGeneralPass<Stage>::MeshCullGeneralPass(RG::Graph& renderGraph, std::str
         .SetTemplate(meshCullTemplate)
         .AddSpecialization("REOCCLUSION", Stage == CullStage::Reocclusion)
         .AddSpecialization("SINGLE_PASS", Stage == CullStage::Single)
+        .AddSpecialization("CLAMP_DEPTH", info.ClampDepth)
         .UseDescriptorBuffer()
         .Build();
 
@@ -157,6 +165,7 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
 
             SceneUBO scene = {};
             scene.ViewMatrix = ctx.GetCamera().GetView();
+            scene.ViewProjectionMatrix = ctx.GetCamera().GetViewProjection();
             scene.FrustumPlanes = ctx.GetCamera().GetFrustumPlanes();
             scene.ProjectionData = ctx.GetCamera().GetProjectionData();
             scene.HiZWidth = (f32)hiz.Description().Width;

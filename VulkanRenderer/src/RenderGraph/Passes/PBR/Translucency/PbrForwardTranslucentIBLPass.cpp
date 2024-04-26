@@ -1,5 +1,6 @@
 #include "PbrForwardTranslucentIBLPass.h"
 
+#include "RenderGraph/Passes/Culling/MeshletCullPass.h"
 #include "RenderGraph/Passes/Culling/MeshletCullTranslucentPass.h"
 #include "RenderGraph/Passes/General/DrawIndirectPass.h"
 
@@ -10,8 +11,12 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGrap
     m_MeshletContext = std::make_shared<MeshletCullTranslucentContext>(*m_MeshContext);
 
     std::string name = "PBR.Forward.Translucent";
-    m_MeshCull = std::make_shared<MeshCullSinglePass>(renderGraph, name + ".MeshCull");
-    m_MeshletCull = std::make_shared<MeshletCullTranslucentPass>(renderGraph, name + ".MeshletCull", info.CameraType);
+    m_MeshCull = std::make_shared<MeshCullSinglePass>(renderGraph, name + ".MeshCull", MeshCullPassInitInfo{
+        .ClampDepth = false});
+    m_MeshletCull = std::make_shared<MeshletCullTranslucentPass>(renderGraph, name + ".MeshletCull",
+        MeshletCullPassInitInfo{
+            .ClampDepth = false,
+            .CameraType = info.CameraType});
 
     ShaderPipelineTemplate* drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/pbr/pbr-translucency-vert.shader",

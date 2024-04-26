@@ -169,6 +169,7 @@ class TriangleCullDrawPass
 public:
     struct SceneUBO
     {
+        glm::mat4 ViewMatrix;
         glm::mat4 ViewProjectionMatrix;
         FrustumPlanes FrustumPlanes;
         ProjectionData ProjectionData;
@@ -180,8 +181,7 @@ public:
         RG::DrawAttachmentResources DrawAttachmentResources{};
     };
 public:
-    TriangleCullDrawPass(RG::Graph& renderGraph, const TriangleCullDrawPassInitInfo& info,
-        std::string_view name);
+    TriangleCullDrawPass(RG::Graph& renderGraph, std::string_view name, const TriangleCullDrawPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const TriangleCullDrawPassExecutionInfo& info);
     utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
@@ -224,8 +224,8 @@ private:
 };
 
 template <CullStage Stage>
-TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph,
-    const TriangleCullDrawPassInitInfo& info, std::string_view name)
+TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph, std::string_view name,
+    const TriangleCullDrawPassInitInfo& info)
         : m_Name(name)
 {
     ShaderPipelineTemplate* triangleCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -459,6 +459,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             const Sampler& hizSampler = passData.HiZSampler;
             SceneUBO scene = {};
             auto& camera = info.CullContext->MeshletContext().MeshContext().GetCamera();
+            scene.ViewMatrix = camera.GetView();
             scene.ViewProjectionMatrix = camera.GetViewProjection();
             scene.FrustumPlanes = camera.GetFrustumPlanes();
             scene.ProjectionData = camera.GetProjectionData();
