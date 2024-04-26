@@ -580,7 +580,7 @@ void Renderer::RecreateSwapchain()
 
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
     // todo: to multicast delegate
-    m_Graph->GetResolutionDeletionQueue().Flush();
+    m_Graph->OnResolutionChange();
 
     Input::s_MainViewportSize = m_Swapchain.GetResolution();
     m_Camera->SetViewport(m_Swapchain.GetResolution().x, m_Swapchain.GetResolution().y);

@@ -47,7 +47,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     if (!m_HiZContext ||
         m_HiZContext->GetDrawResolution().x != info.Resolution.x ||
-        m_HiZContext->GetDrawResolution().y != info.Resolution.y)
+        m_HiZContext->GetDrawResolution().y != info.Resolution.y ||
+        renderGraph.ChangedResolution())
     {
         m_HiZContext = std::make_shared<HiZPassContext>(info.Resolution, renderGraph.GetResolutionDeletionQueue());
     }

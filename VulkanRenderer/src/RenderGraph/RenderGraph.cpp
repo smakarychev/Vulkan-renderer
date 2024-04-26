@@ -310,8 +310,15 @@ namespace RG
         }
     }
 
+    void Graph::OnResolutionChange()
+    {
+        m_ResolutionDeletionQueue.Flush();
+        m_ResolutionChangedFrames = BUFFERED_FRAMES;
+    }
+
     void Graph::Reset(FrameContext& frameContext)
     {
+        m_ResolutionChangedFrames = std::max(1u, m_ResolutionChangedFrames) - 1u;
         m_FrameDeletionQueue = &frameContext.DeletionQueue;
         
         m_Buffers.clear();

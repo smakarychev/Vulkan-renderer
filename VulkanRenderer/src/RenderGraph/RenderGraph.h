@@ -246,6 +246,8 @@ namespace RG
 
         DeletionQueue& GetFrameDeletionQueue() const { ASSERT(m_FrameDeletionQueue) return *m_FrameDeletionQueue; }
         DeletionQueue& GetResolutionDeletionQueue() { return m_ResolutionDeletionQueue; }
+        void OnResolutionChange();
+        bool ChangedResolution() const { return m_ResolutionChangedFrames > 0; }
 
         void Reset(FrameContext& frameContext);
         void Compile(FrameContext& frameContext);
@@ -316,6 +318,7 @@ namespace RG
         RenderGraphPool m_Pool;
         DeletionQueue* m_FrameDeletionQueue{nullptr};
         DeletionQueue m_ResolutionDeletionQueue{};
+        u32 m_ResolutionChangedFrames{0};
          
         std::unique_ptr<DescriptorArenaAllocators> m_ArenaAllocators;
         Blackboard m_Blackboard;

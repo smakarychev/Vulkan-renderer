@@ -72,13 +72,6 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
     u32 mipMapCount = ctx.GetHiZ().Description().Mipmaps;
     u32 width = ctx.GetHiZ().Description().Width;  
     u32 height = ctx.GetHiZ().Description().Height;
-    
-    static ShaderDescriptors::BindingInfo samplerBinding =
-        m_PipelinesData[0].SamplerDescriptors.GetBindingInfo("u_in_sampler");
-    static ShaderDescriptors::BindingInfo inImageBinding =
-        m_PipelinesData[0].ResourceDescriptors.GetBindingInfo("u_in_image");
-    static ShaderDescriptors::BindingInfo outImageBinding =
-        m_PipelinesData[0].ResourceDescriptors.GetBindingInfo("u_out_image");
 
     for (u32 i = 0; i < mipMapCount; i++)
         m_Passes[i] = &renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", m_Name.Name(), i)},
@@ -125,9 +118,9 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
                 auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
                 auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
                 
-                samplerDescriptors.UpdateBinding(samplerBinding, depthInBinding);
-                resourceDescriptors.UpdateBinding(inImageBinding, depthInBinding);
-                resourceDescriptors.UpdateBinding(outImageBinding,
+                samplerDescriptors.UpdateBinding("u_in_sampler", depthInBinding);
+                resourceDescriptors.UpdateBinding("u_in_image", depthInBinding);
+                resourceDescriptors.UpdateBinding("u_out_image",
                     hizOut.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i]));
                 
