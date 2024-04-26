@@ -20,7 +20,7 @@ layout(set = 0, binding = 1) uniform sampler u_sampler;
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 2) uniform sampler u_sampler_brdf;
 
-@immutable_sampler_clamp_black
+@immutable_sampler_nearest_clamp_black
 layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
 
 layout(set = 1, binding = 0) uniform utexture2D u_visibility_texture;
