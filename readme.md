@@ -80,7 +80,7 @@ model are freely available.
 ### PBR + IBL
 | ![flight_helmet](./images/helmet.png)       | ![damaged_helmet](./images/damaged_helmet.png)          |
 |---------------------------------------------|---------------------------------------------------------|
-| pbr-ibl rendering with cms shadow pass | pbr-ibl rendering with emissive texture |
+| pbr-ibl rendering with cms shadow pass (casted by directional light) | pbr-ibl rendering with emissive texture |
 ### Visibility buffer
 The main pass rasterizes meshlet and triangle IDs to the `R32_UINT` render target.
 The image below shows the content of the visibility buffer, drawn as color-converted
