@@ -4,6 +4,10 @@ The toy renderer of mine where I try various rendering methods.
 
 ### The current most notable features:
 - Bindless textures
+- Render graph architecture:
+  - Automatic resource handling
+  - Automatic layout transitions
+  - Resource aliasing
 - GPU-driven rendering with completely GPU-side culling and indirect indexed rendering 
 via `vkCmdDrawIndexedIndirectCount`
 - Multilayered culling with two-phase  *HiZ* occlusion culling:
@@ -14,10 +18,15 @@ via `vkCmdDrawIndexedIndirectCount`
 - **Visibility buffer** as a general rendering technique. This can be seen as 
 smallest possible G-Buffer with one and only render target being a 32-bit primitive + triangle IDs
   (although for deformable meshes, positions and QTangents are also necessary)
+- Separate **Forward rendering** pass for translucent geometry (it also can be used as a 
+main pass instead of Visibility buffer)
 - Pipelines and descriptor sets creation is almost completely automated via GLSL-shader reflection
   (or rather a very small superset of GLSL with additional attributes such as
   `@dynamic` or `@bindless` and some more, but this will change in the future updates)
-- Simplified metallic-roughness **PBR** (w/o IBL atm)
+- Full metallic-roughness **PBR** (with IBL)
+- CSM (cascaded shadow maps, still WIP)
+- SSAO
+- [Dear ImGui](https://github.com/ocornut/imgui) debug interface 
 - CPU and GPU profiling via [Tracy profiler](https://github.com/wolfpld/tracy)
 
 
@@ -68,6 +77,10 @@ model are freely available.
 
 ## Images
 
+### PBR + IBL
+| ![flight_helmet](./images/helmet.png)       | ![damaged_helmet](./images/damaged_helmet.png)          |
+|---------------------------------------------|---------------------------------------------------------|
+| pbr-ibl rendering with cms shadow pass | pbr-ibl rendering with emissive texture |
 ### Visibility buffer
 The main pass rasterizes meshlet and triangle IDs to the `R32_UINT` render target.
 The image below shows the content of the visibility buffer, drawn as color-converted
@@ -90,7 +103,7 @@ flight helmet with its left shoulder.
 The right half of the picture shows the same scene
 from a slightly different camera position after the culling was frozen. 
 The scene is first culled on the mesh and meshlet levels before finally culling
-the individual triangles. You can see most of the culling sub-stages in action 
+the individual triangles. You can see most of the culling substages in action 
 (except for backface culling). The tiny holes in the middle of the models are the result 
 of small-primitive culling.
 
