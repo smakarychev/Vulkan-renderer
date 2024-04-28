@@ -197,7 +197,12 @@ void DescriptorAllocator::ResetPools()
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
-    Driver::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type);
+    Driver::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
+}
+
+void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
+{
+    Driver::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
 }
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
@@ -205,15 +210,19 @@ void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBin
     Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
 }
 
-void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
-    u32 bindlessIndex) const
+void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const
 {
-    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, bindlessIndex);
+    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
 }
 
 void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
-    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type);
+    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
+}
+
+void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
+{
+    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
 }
 
 void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
@@ -222,9 +231,9 @@ void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const Text
 }
 
 void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
-    u32 bindlessIndex) const
+    u32 index) const
 {
-    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, bindlessIndex);
+    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
 }
 
 void Descriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,

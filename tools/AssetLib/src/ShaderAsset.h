@@ -10,15 +10,15 @@ namespace assetLib
     {
         struct SpecializationConstant
         {
-            u32 Id;
             std::string Name;
+            u32 Id;
             u32 ShaderStages;
         };
         struct InputAttribute
         {
+            std::string Name;
             u32 Binding;
             u32 Location;
-            std::string Name;
             u32 Format;
             u32 SizeBytes;
         };
@@ -47,8 +47,9 @@ namespace assetLib
             
             struct DescriptorBinding
             {
-                u32 Binding;
                 std::string Name;
+                u32 Count;
+                u32 Binding;
                 u32 Type;
                 u32 ShaderStages;
                 DescriptorFlags Flags{None};

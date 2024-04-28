@@ -44,7 +44,7 @@ project "AssetConverter"
             "shadercd.lib",
             "shaderc_combinedd.lib", 
             "shaderc_sharedd.lib", 
-            "shaderc_utild.lib"
+            "shaderc_utild.lib",
         }
 
     filter "configurations:Release"
@@ -54,5 +54,5 @@ project "AssetConverter"
             "shaderc.lib",
             "shaderc_combined.lib", 
             "shaderc_shared.lib", 
-            "shaderc_util.lib"
+            "shaderc_util.lib",
         }

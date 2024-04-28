@@ -214,15 +214,16 @@ public:
     using TextureBindingInfo = ImageBindingInfo;
 
     void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 bindlessIndex) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
 
     /* 'Global' versions of UpdateBinding updates bindings in ALL descriptor buffers */
     
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
-        u32 bindlessIndex) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
     
     void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, u32 firstSet) const;

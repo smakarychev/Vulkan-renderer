@@ -1846,7 +1846,7 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
 }
 
 void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-    DescriptorType type)
+    DescriptorType type, u32 index)
 {
     ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
         "Texel buffers require format information")
@@ -1870,12 +1870,18 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const B
     // using the fact that 'descriptorGetInfo.data' is union
     descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
 
-    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, GetDescriptorSizeBytes(type),
-        (u8*)descriptors.m_Allocator->GetCurrentBuffer().m_HostAddress + descriptors.m_Offsets[slot]);
+    u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
+    u64 innerOffsetBytes = descriptorSizeBytes * index;
+    ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptors.m_SizeBytes,
+        "Trying to write descriptor outside of the allocated region")
+
+    u64 offsetBytes = descriptors.m_Offsets[slot] + innerOffsetBytes;
+    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, descriptorSizeBytes,
+        (u8*)descriptors.m_Allocator->GetCurrentBuffer().m_HostAddress + offsetBytes);
 }
 
 void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-    DescriptorType type, u32 bindlessIndex)
+    DescriptorType type, u32 index)
 {
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
@@ -1894,7 +1900,7 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
     }
 
     u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
-    u64 innerOffsetBytes = descriptorSizeBytes * bindlessIndex;
+    u64 innerOffsetBytes = descriptorSizeBytes * index;
     ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptors.m_SizeBytes,
         "Trying to write descriptor outside of the allocated region")
     
@@ -1904,27 +1910,27 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
 }
 
 void Driver::UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-    DescriptorType type)
+    DescriptorType type, u32 index)
 {
     u32 currentIndex = descriptors.m_Allocator->m_CurrentBuffer; 
     for (u32 i = 0; i < descriptors.m_Allocator->m_Buffers.size(); i++)
     {
         // there is no spoon
         const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = i;
-        UpdateDescriptors(descriptors, slot, buffer, type);
+        UpdateDescriptors(descriptors, slot, buffer, type, index);
     }
     const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = currentIndex;
 }
 
 void Driver::UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-    DescriptorType type, u32 bindlessIndex)
+    DescriptorType type, u32 index)
 {
     u32 currentIndex = descriptors.m_Allocator->m_CurrentBuffer; 
     for (u32 i = 0; i < descriptors.m_Allocator->m_Buffers.size(); i++)
     {
         // there is no spoon
         const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = i;
-        UpdateDescriptors(descriptors, slot, texture, type, bindlessIndex);
+        UpdateDescriptors(descriptors, slot, texture, type, index);
     }
     const_cast<DescriptorArenaAllocator*>(descriptors.m_Allocator)->m_CurrentBuffer = currentIndex;
 }

@@ -536,13 +536,13 @@ public:
         DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
         
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-        DescriptorType type);
+        DescriptorType type, u32 index);  
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-        DescriptorType type, u32 bindlessIndex);  
+        DescriptorType type, u32 index);  
     static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-        DescriptorType type);
+        DescriptorType type, u32 index);  
     static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-        DescriptorType type, u32 bindlessIndex);
+        DescriptorType type, u32 index);
 
     static Fence Create(const Fence::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandle<Fence> fence);

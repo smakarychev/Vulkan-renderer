@@ -848,8 +848,8 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
     shaderInfo.SpecializationConstants.reserve(specializationCount);
     for (auto& constant : specializationConstants)
         shaderInfo.SpecializationConstants.push_back({
-            .Id = constant->constant_id,
             .Name = constant->name,
+            .Id = constant->constant_id,
             .ShaderStages = (u32)reflectedModule.shader_stage});
 
     // extract input attributes
@@ -866,8 +866,8 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
             if (input->location == SPV_INVALID_VAL)
                 continue;
             shaderInfo.InputAttributes.push_back({
-                .Location = input->location,
                 .Name = input->name,
+                .Location = input->location,
                 .Format = (u32)input->format,
                 .SizeBytes = input->numeric.scalar.width * std::max(1u, input->numeric.vector.component_count) / 8});
             for (auto& inputBinding : inputBindings)
@@ -920,8 +920,9 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
         for (u32 i = 0; i < set->binding_count; i++)
         {
             descriptorSet.Descriptors[i] = {
-                .Binding = set->bindings[i]->binding,
                 .Name = set->bindings[i]->name,
+                .Count = set->bindings[i]->count,
+                .Binding = set->bindings[i]->binding,
                 .Type = (u32)set->bindings[i]->descriptor_type,
                 .ShaderStages = (u32)reflectedModule.shader_stage
             };

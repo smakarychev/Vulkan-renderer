@@ -277,7 +277,7 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::AddSpecialization(std::string_
         dataSizeBytes = sizeof(specializationData);
     
     // template might not be set yet, so we have to delay it until the very end
-    m_SpecializationConstantNames.push_back(std::string{name});
+    m_SpecializationConstantNames.emplace_back(name);
     u32 bufferStart = (u32)m_PipelineSpecializationInfo.Buffer.size();
     m_PipelineSpecializationInfo.Buffer.resize(bufferStart + dataSizeBytes);
     if constexpr (std::is_same_v<T, bool>)
@@ -402,19 +402,23 @@ public:
     void BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const;
 
     void UpdateBinding(std::string_view name, const BufferBindingInfo& buffer) const;
+    void UpdateBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateBinding(std::string_view name, const TextureBindingInfo& texture) const;
-    void UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 bindlessIndex) const;
+    void UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 index) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 bindlessIndex) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
 
     void UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer) const;
+    void UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture) const;
-    void UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture, u32 bindlessIndex) const;
+    void UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture, u32 index) const;
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
-        u32 bindlessIndex) const;
+        u32 index) const;
 
     BindingInfo GetBindingInfo(std::string_view bindingName) const;
     

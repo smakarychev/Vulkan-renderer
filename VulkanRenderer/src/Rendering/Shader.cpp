@@ -2,7 +2,6 @@
 
 #include <spirv_reflect.h>
 
-#include <fstream>
 #include <ranges>
 #include <algorithm>
 
@@ -340,7 +339,7 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
             }
             else
             {
-                descriptor.Descriptor.Count = 1;
+                descriptor.Descriptor.Count = sets[setIndex].Descriptors[descriptorIndex].Count;
             }
             // every specific version of ImmutableSampler flag also contains the base flag
             containsImmutableSamplers = containsImmutableSamplers ||
@@ -1092,19 +1091,29 @@ void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBinding
     m_Descriptors.UpdateBinding(GetBindingInfo(name), buffer);
 }
 
+void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const
+{
+    m_Descriptors.UpdateBinding(GetBindingInfo(name), buffer, index);
+}
+
 void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture) const
 {
     m_Descriptors.UpdateBinding(GetBindingInfo(name), texture);
 }
 
-void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 bindlessIndex) const
+void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 index) const
 {
-    m_Descriptors.UpdateBinding(GetBindingInfo(name), texture, bindlessIndex);
+    m_Descriptors.UpdateBinding(GetBindingInfo(name), texture, index);
 }
 
 void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
     m_Descriptors.UpdateBinding(bindingInfo, buffer);
+}
+
+void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
+{
+    m_Descriptors.UpdateBinding(bindingInfo, buffer, index);
 }
 
 void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
@@ -1113,14 +1122,19 @@ void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const Text
 }
 
 void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
-    u32 bindlessIndex) const
+    u32 index) const
 {
-    m_Descriptors.UpdateBinding(bindingInfo, texture, bindlessIndex);
+    m_Descriptors.UpdateBinding(bindingInfo, texture, index);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer) const
 {
     m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), buffer);
+}
+
+void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const
+{
+    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), buffer, index);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture) const
@@ -1129,14 +1143,20 @@ void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const Texture
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture,
-    u32 bindlessIndex) const
+    u32 index) const
 {
-    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), texture, bindlessIndex);
+    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), texture, index);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
     m_Descriptors.UpdateGlobalBinding(bindingInfo, buffer);
+}
+
+void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer,
+    u32 index) const
+{
+    m_Descriptors.UpdateGlobalBinding(bindingInfo, buffer, index);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
@@ -1145,9 +1165,9 @@ void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, cons
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
-    u32 bindlessIndex) const
+    u32 index) const
 {
-    m_Descriptors.UpdateGlobalBinding(bindingInfo, texture, bindlessIndex);
+    m_Descriptors.UpdateGlobalBinding(bindingInfo, texture, index);
 }
 
 ShaderDescriptors::BindingInfo ShaderDescriptors::GetBindingInfo(std::string_view bindingName) const

@@ -170,8 +170,9 @@ namespace assetLib
             for (auto& binding : bindings)
             {
                 ShaderInfo::DescriptorSet::DescriptorBinding descriptorBinding = {};
-                descriptorBinding.Binding = binding["binding"];
                 descriptorBinding.Name = binding["name"];
+                descriptorBinding.Count = binding["count"];
+                descriptorBinding.Binding = binding["binding"];
                 descriptorBinding.Type = binding["descriptor"];
                 descriptorBinding.ShaderStages = binding["shader_stages"];
                 const nlohmann::json& flags = binding["flags"];
@@ -247,8 +248,9 @@ namespace assetLib
             for (auto& binding : set.Descriptors)
             {
                 nlohmann::json bindingJson;
-                bindingJson["binding"] = binding.Binding;
                 bindingJson["name"] = binding.Name;
+                bindingJson["count"] = binding.Count;
+                bindingJson["binding"] = binding.Binding;
                 bindingJson["descriptor"] = (u32)binding.Type;
                 bindingJson["shader_stages"] = (u32)binding.ShaderStages;
                 bindingJson["flags"] = nlohmann::json::array();
