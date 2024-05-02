@@ -78,8 +78,8 @@ public:
     };
     struct UpdateSlimeMapPassData
     {
-        RG::Resource TraitsSsbo;
-        RG::Resource SlimeSsbo;
+        RG::Resource Traits;
+        RG::Resource Slime;
         RG::Resource SlimeMap;
         
         RG::PipelineData* PipelineData{nullptr};
@@ -101,13 +101,13 @@ public:
     {
         RG::Resource DiffuseMap;
         RG::Resource GradientMap;
-        RG::Resource GradientUbo;
+        RG::Resource Gradient;
 
         RG::PipelineData* PipelineData{nullptr};
         
         PushConstants* PushConstants{nullptr};
         SlimeMoldContext* SlimeMoldContext{ nullptr };
-        GradientUBO* Gradient{nullptr};
+        GradientUBO* GradientData{nullptr};
     };
 public:
     SlimeMoldPass(RG::Graph& renderGraph);

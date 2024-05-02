@@ -36,18 +36,18 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
     m_Pass = &renderGraph.AddRenderPass<PassData>({"SkyGradient"},
         [&](Graph& graph, PassData& passData)
         {
-            passData.CameraUbo = graph.CreateResource("SkyGradient.Camera", GraphBufferDescription{
+            passData.Camera = graph.CreateResource("SkyGradient.Camera", GraphBufferDescription{
                 .SizeBytes = sizeof(passData.Camera)});
-            passData.CameraUbo = graph.Read(passData.CameraUbo, Compute | Uniform | Upload);
+            passData.Camera = graph.Read(passData.Camera, Compute | Uniform | Upload);
             
-            passData.SettingsUbo = graph.CreateResource("SkyGradient.Settings", GraphBufferDescription{
+            passData.Settings = graph.CreateResource("SkyGradient.Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.SettingsUbo = graph.Read(passData.SettingsUbo, Compute | Uniform | Upload);
+            passData.Settings = graph.Read(passData.Settings, Compute | Uniform | Upload);
 
             passData.ColorOut = graph.Write(renderTarget, Compute | Storage);
 
             passData.PipelineData = &m_PipelineData;
-            passData.Settings = &m_Settings;
+            passData.SettingsData = &m_Settings;
 
             graph.GetBlackboard().Register(passData);
         },
@@ -55,10 +55,10 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
         {
             GPU_PROFILE_FRAME("sky gradient")
             
-            passData.Camera.ViewInverse = glm::inverse(frameContext.MainCamera->GetView());
-            passData.Camera.Position = frameContext.MainCamera->GetPosition();
+            passData.CameraData.ViewInverse = glm::inverse(frameContext.MainCamera->GetView());
+            passData.CameraData.Position = frameContext.MainCamera->GetPosition();
 
-            auto& settings = *passData.Settings;
+            auto& settings = *passData.SettingsData;
             ImGui::Begin("Sky gradient");
             ImGui::ColorEdit3("sky horizon", (f32*)&settings.SkyColorHorizon);
             ImGui::ColorEdit3("sky zenith", (f32*)&settings.SkyColorZenith);
@@ -72,9 +72,9 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
             ImGui::DragFloat("sun intensity", &settings.SunIntensity, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
             
-            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo, passData.Camera,
+            const Buffer& camera = resources.GetBuffer(passData.Camera, passData.Camera,
                 *frameContext.ResourceUploader);
-            const Buffer& settingsUbo = resources.GetBuffer(passData.SettingsUbo, settings,
+            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings, settings,
                 *frameContext.ResourceUploader);
             const Texture& colorOut = resources.GetTexture(passData.ColorOut);
 
@@ -83,8 +83,8 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
             
-            resourceDescriptors.UpdateBinding(cameraBinding, cameraUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding(settingsBinding, settingsUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(cameraBinding, camera.BindingInfo());
+            resourceDescriptors.UpdateBinding(settingsBinding, settingsBuffer.BindingInfo());
             resourceDescriptors.UpdateBinding(imageOutBinding,
                 colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 

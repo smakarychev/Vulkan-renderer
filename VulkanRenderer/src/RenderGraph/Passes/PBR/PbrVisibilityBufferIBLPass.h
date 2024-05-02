@@ -4,11 +4,7 @@
 #include "RenderGraph/RGDrawResources.h"
 
 class SceneLight;
-
-namespace RG
-{
-    class Geometry;
-}
+class SceneGeometry;
 
 struct PbrVisibilityBufferInitInfo
 {
@@ -25,7 +21,7 @@ struct PbrVisibilityBufferExecutionInfo
     RG::SSAOData SSAO{};
     RG::CSMData CSMData{};
 
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
 };
 
 class PbrVisibilityBufferIBL
@@ -39,14 +35,14 @@ public:
         RG::SSAOData SSAO{};
         RG::CSMData CSMData{};
         
-        RG::Resource CameraUbo{};
-        RG::Resource CommandsSsbo{};
-        RG::Resource ObjectsSsbo{};
-        RG::Resource PositionsSsbo{};
-        RG::Resource NormalsSsbo{};
-        RG::Resource TangentsSsbo{};
-        RG::Resource UVsSsbo{};
-        RG::Resource IndicesSsbo{};
+        RG::Resource Camera{};
+        RG::Resource Commands{};
+        RG::Resource Objects{};
+        RG::Resource Positions{};
+        RG::Resource Normals{};
+        RG::Resource Tangents{};
+        RG::Resource UVs{};
+        RG::Resource Indices{};
 
         RG::Resource ColorOut{};
         

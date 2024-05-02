@@ -9,7 +9,7 @@ public:
     struct PassData
     {
         RG::Resource ShadowMap{};
-        RG::Resource CsmUbo{};
+        RG::Resource CSM{};
 
         RG::Resource ColorOut{};
 

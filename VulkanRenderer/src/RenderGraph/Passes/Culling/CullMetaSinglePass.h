@@ -8,7 +8,7 @@ struct CullMetaPassExecutionInfo;
 struct CullMetaSinglePassInitInfo
 {
     using Features = RG::DrawFeatures;
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
     const ShaderPipeline* DrawPipeline{nullptr};
     const ShaderPipeline* DrawMeshletsPipeline{nullptr};
     const ShaderDescriptors* MaterialDescriptors{nullptr};

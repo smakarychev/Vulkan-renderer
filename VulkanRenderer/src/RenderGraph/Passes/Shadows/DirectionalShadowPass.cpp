@@ -69,16 +69,16 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
     */
     struct PassDataDummy
     {
-        Resource ShadowUbo{};
+        Resource Shadow{};
         glm::mat4 CameraViewProjection{};
     };
     renderGraph.AddRenderPass<PassDataDummy>(PassName{"Shadow.Directional.Dummy"},
         [&](Graph& graph, PassDataDummy& passData)
         {
-            passData.ShadowUbo = graph.CreateResource("Shadow.Directional.Data", GraphBufferDescription{
+            passData.Shadow = graph.CreateResource("Shadow.Directional.Data", GraphBufferDescription{
                 .SizeBytes = sizeof(glm::mat4)});
 
-            passData.ShadowUbo = graph.Write(passData.ShadowUbo, Vertex | Uniform | Upload);
+            passData.Shadow = graph.Write(passData.Shadow, Vertex | Uniform | Upload);
 
             passData.CameraViewProjection = m_Camera->GetViewProjection();
 
@@ -86,12 +86,12 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
         },
         [=](PassDataDummy& passData, FrameContext& frameContext, const Resources& resources)
         {
-            resources.GetBuffer(passData.ShadowUbo, passData.CameraViewProjection, *frameContext.ResourceUploader);
+            resources.GetBuffer(passData.Shadow, passData.CameraViewProjection, *frameContext.ResourceUploader);
         });
 
     PassData passData = {
         .ShadowMap = *output.DrawAttachmentResources.DepthTarget,
-        .ShadowUbo = renderGraph.GetBlackboard().Get<PassDataDummy>().ShadowUbo,
+        .Shadow = renderGraph.GetBlackboard().Get<PassDataDummy>().Shadow,
         .Near = m_Camera->GetFrustumPlanes().Near,
         .Far = m_Camera->GetFrustumPlanes().Far};
     renderGraph.GetBlackboard().Update(passData);

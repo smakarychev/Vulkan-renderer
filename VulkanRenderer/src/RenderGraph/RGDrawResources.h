@@ -17,19 +17,19 @@ namespace RG
 
     struct SSAOData
     {
-        Resource SSAOTexture{};
+        Resource SSAO{};
     };
 
     struct DirectionalShadowData
     {
         Resource ShadowMap{};
-        Resource ShadowUbo{};
+        Resource Shadow{};
     };
 
     struct CSMData
     {
         Resource ShadowMap{};
-        Resource CSMUbo{};
+        Resource CSM{};
     };
     
     enum class DrawFeatures
@@ -44,7 +44,7 @@ namespace RG
         SSAO        = BIT(7),
         IBL         = BIT(8),
 
-        // is graphics use 'u_triangles' buffer
+        // does graphics use 'u_triangles' buffer
         Triangles   = BIT(9),
 
         // positions, normals, uvs (tangents are not used)  
@@ -67,10 +67,10 @@ namespace RG
 
     struct DrawAttributeBuffers
     {
-        Resource PositionsSsbo{};
-        Resource NormalsSsbo{};
-        Resource TangentsSsbo{};
-        Resource UVsSsbo{};
+        Resource Positions{};
+        Resource Normals{};
+        Resource Tangents{};
+        Resource UVs{};
     };
 
     struct DrawAttachment

@@ -3,7 +3,7 @@
 #include "MeshCullPass.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGCommon.h"
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 #include "Rendering/Buffer.h"
 
 class MeshCullContext;
@@ -13,16 +13,16 @@ class MeshletCullContext
 public:
     struct PassResources
     {
-        RG::Resource MeshletsSsbo{};
-        RG::Resource VisibilitySsbo{};
-        RG::Resource CommandsSsbo{};
-        RG::Resource CompactCommandsSsbo{};
+        RG::Resource Meshlets{};
+        RG::Resource Visibility{};
+        RG::Resource Commands{};
+        RG::Resource CompactCommands{};
         /* count buffer will be separate for ordinary and reocclusion passes */
-        RG::Resource CompactCountSsbo{};
-        RG::Resource CompactCountReocclusionSsbo{};
+        RG::Resource CompactCount{};
+        RG::Resource CompactCountReocclusion{};
 
         /* is used to mark commands that were processed by triangle culling */
-        RG::Resource CommandFlagsSsbo{};
+        RG::Resource CommandFlags{};
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
@@ -33,7 +33,7 @@ public:
 
     const Buffer& Visibility() const { return m_Visibility; }
     const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
-    const RG::Geometry& Geometry() const { return m_MeshCullContext->Geometry(); }
+    const SceneGeometry& Geometry() const { return m_MeshCullContext->Geometry(); }
     MeshCullContext& MeshContext() const { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
     const PassResources& Resources() const { return m_Resources; }
@@ -133,54 +133,54 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
             /* if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass */
             if constexpr(Stage != CullStage::Reocclusion)
             {
-                ctx.Resources().MeshletsSsbo = graph.AddExternal(std::format("{}.{}", passName, "Meshlets"),
+                ctx.Resources().Meshlets = graph.AddExternal(std::format("{}.{}", passName, "Meshlets"),
                     ctx.Geometry().GetMeshletsBuffer());
-                ctx.Resources().VisibilitySsbo = graph.AddExternal(
+                ctx.Resources().Visibility = graph.AddExternal(
                     std::format("{}.{}", passName, "Visibility"), ctx.Visibility());
-                ctx.Resources().CommandsSsbo = graph.AddExternal(
+                ctx.Resources().Commands = graph.AddExternal(
                     std::format("{}.{}", passName, "Commands"), ctx.Geometry().GetCommandsBuffer());
-                ctx.Resources().CompactCommandsSsbo = graph.CreateResource(
+                ctx.Resources().CompactCommands = graph.CreateResource(
                     std::format("{}.{}", passName, "Commands.Compact"),
                     GraphBufferDescription{.SizeBytes = ctx.Geometry().GetCommandsBuffer().GetSizeBytes()});
-                ctx.Resources().CompactCountSsbo = graph.AddExternal(
+                ctx.Resources().CompactCount = graph.AddExternal(
                     std::format("{}.{}", passName, "Commands.CompactCount"), ctx.CompactCount());
-                ctx.Resources().CompactCountReocclusionSsbo = graph.CreateResource(
+                ctx.Resources().CompactCountReocclusion = graph.CreateResource(
                     std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
                     GraphBufferDescription{.SizeBytes = sizeof(u32)});
 
-                ctx.Resources().CommandFlagsSsbo = graph.CreateResource(
+                ctx.Resources().CommandFlags = graph.CreateResource(
                     std::format("{}.{}", passName, "Commands.CommandFlags"),
                     GraphBufferDescription{.SizeBytes = ctx.Geometry().GetMeshletCount() * sizeof(u8)});
             }
 
             auto& meshResources = ctx.MeshContext().Resources();
             meshResources.HiZ = graph.Read(meshResources.HiZ, Compute | Sampled);
-            meshResources.SceneUbo = graph.Read(meshResources.SceneUbo, Compute | Uniform);
-            meshResources.ObjectsSsbo = graph.Read(meshResources.ObjectsSsbo, Compute | Storage);
-            meshResources.VisibilitySsbo = graph.Read(meshResources.VisibilitySsbo, Compute | Storage);
+            meshResources.Scene = graph.Read(meshResources.Scene, Compute | Uniform);
+            meshResources.Objects = graph.Read(meshResources.Objects, Compute | Storage);
+            meshResources.Visibility = graph.Read(meshResources.Visibility, Compute | Storage);
 
             auto& resources = ctx.Resources();
-            resources.MeshletsSsbo = graph.Read(resources.MeshletsSsbo, Compute | Storage);
-            resources.VisibilitySsbo = graph.Read(resources.VisibilitySsbo, Compute | Storage);
-            resources.VisibilitySsbo = graph.Write(resources.VisibilitySsbo, Compute | Storage);
-            resources.CommandsSsbo = graph.Read(resources.CommandsSsbo, Compute | Storage);
-            resources.CompactCommandsSsbo = graph.Read(resources.CompactCommandsSsbo, Compute | Storage);
-            resources.CompactCommandsSsbo = graph.Write(resources.CompactCommandsSsbo, Compute | Storage);
+            resources.Meshlets = graph.Read(resources.Meshlets, Compute | Storage);
+            resources.Visibility = graph.Read(resources.Visibility, Compute | Storage);
+            resources.Visibility = graph.Write(resources.Visibility, Compute | Storage);
+            resources.Commands = graph.Read(resources.Commands, Compute | Storage);
+            resources.CompactCommands = graph.Read(resources.CompactCommands, Compute | Storage);
+            resources.CompactCommands = graph.Write(resources.CompactCommands, Compute | Storage);
             if constexpr(Stage != CullStage::Reocclusion)
             {
-                resources.CompactCountSsbo = graph.Read(resources.CompactCountSsbo, Compute | Storage | Upload);
-                resources.CompactCountSsbo = graph.Write(resources.CompactCountSsbo, Compute | Storage);
+                resources.CompactCount = graph.Read(resources.CompactCount, Compute | Storage | Upload);
+                resources.CompactCount = graph.Write(resources.CompactCount, Compute | Storage);
             }
             else
             {
-                resources.CompactCountReocclusionSsbo =
-                    graph.Read(resources.CompactCountReocclusionSsbo, Compute | Storage | Upload);
-                resources.CompactCountReocclusionSsbo =
-                    graph.Write(resources.CompactCountReocclusionSsbo, Compute | Storage);
+                resources.CompactCountReocclusion =
+                    graph.Read(resources.CompactCountReocclusion, Compute | Storage | Upload);
+                resources.CompactCountReocclusion =
+                    graph.Write(resources.CompactCountReocclusion, Compute | Storage);
 
-                resources.CommandFlagsSsbo = graph.Read(resources.CommandFlagsSsbo, Compute | Storage);    
+                resources.CommandFlags = graph.Read(resources.CommandFlags, Compute | Storage);    
             }
-            resources.CommandFlagsSsbo = graph.Write(resources.CommandFlagsSsbo, Compute | Storage);
+            resources.CommandFlags = graph.Write(resources.CommandFlags, Compute | Storage);
 
             passData.MeshResources = meshResources;
             passData.MeshletResources = resources;
@@ -198,19 +198,19 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
             
             const Texture& hiz = resources.GetTexture(meshResources.HiZ);
             const Sampler& hizSampler = meshResources.HiZSampler;
-            const Buffer& sceneUbo = resources.GetBuffer(meshResources.SceneUbo);
-            const Buffer& objectsSsbo = resources.GetBuffer(meshResources.ObjectsSsbo);
-            const Buffer& objectVisibilitySsbo = resources.GetBuffer(meshResources.VisibilitySsbo);
-            const Buffer& meshletsSsbo = resources.GetBuffer(meshletResources.MeshletsSsbo);
-            const Buffer& meshletVisibilitySsbo = resources.GetBuffer(meshletResources.VisibilitySsbo);
-            const Buffer& commandsSsbo = resources.GetBuffer(meshletResources.CommandsSsbo);
-            const Buffer& compactCommandsSsbo = resources.GetBuffer(meshletResources.CompactCommandsSsbo);
+            const Buffer& scene = resources.GetBuffer(meshResources.Scene);
+            const Buffer& objects = resources.GetBuffer(meshResources.Objects);
+            const Buffer& objectVisibility = resources.GetBuffer(meshResources.Visibility);
+            const Buffer& meshlets = resources.GetBuffer(meshletResources.Meshlets);
+            const Buffer& meshletVisibility = resources.GetBuffer(meshletResources.Visibility);
+            const Buffer& commands = resources.GetBuffer(meshletResources.Commands);
+            const Buffer& compactCommands = resources.GetBuffer(meshletResources.CompactCommands);
 
-            const Buffer& countSsbo = resources.GetBuffer(Stage == CullStage::Reocclusion ?
-                meshletResources.CompactCountReocclusionSsbo : meshletResources.CompactCountSsbo, 0u,
+            const Buffer& count = resources.GetBuffer(Stage == CullStage::Reocclusion ?
+                meshletResources.CompactCountReocclusion : meshletResources.CompactCount, 0u,
                 *frameContext.ResourceUploader);
 
-            const Buffer& flags = resources.GetBuffer(passData.MeshletResources.CommandFlagsSsbo);
+            const Buffer& flags = resources.GetBuffer(passData.MeshletResources.CommandFlags);
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
@@ -218,14 +218,14 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
 
             samplerDescriptors.UpdateBinding("u_sampler", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_hiz", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_object_visibility", objectVisibilitySsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_meshlets", meshletsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibilitySsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_compacted_commands", compactCommandsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_count", countSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_scene_data", scene.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_object_visibility", objectVisibility.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_meshlets", meshlets.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibility.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_commands", commands.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_compacted_commands", compactCommands.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_count", count.BindingInfo());
             resourceDescriptors.UpdateBinding("u_flags", flags.BindingInfo());
 
             u32 meshletCount = passData.MeshletCount;

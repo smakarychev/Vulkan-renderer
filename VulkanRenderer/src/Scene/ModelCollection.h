@@ -7,8 +7,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <glm/glm.hpp>
-
 
 class ShaderDescriptors;
 class Image;

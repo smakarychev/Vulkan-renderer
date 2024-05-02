@@ -1,7 +1,7 @@
 #include "RGUtils.h"
 
 #include "RenderGraph.h"
-#include "RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 #include "Light/SceneLight.h"
 #include "RenderGraph/RGDrawResources.h"
 
@@ -31,22 +31,22 @@ namespace RG::RgUtils
             graph.CreateResource(name, fallback);
     }
 
-    DrawAttributeBuffers readDrawAttributes(const Geometry& geometry, Graph& graph, const std::string& baseName,
+    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
         ResourceAccessFlags shaderStage)
     {
         using enum ResourceAccessFlags;
         
         DrawAttributeBuffers buffers = {};
 
-        buffers.PositionsSsbo = graph.AddExternal(baseName + ".Positions", geometry.GetAttributeBuffers().Positions);
-        buffers.NormalsSsbo = graph.AddExternal(baseName + ".Normals", geometry.GetAttributeBuffers().Normals);
-        buffers.TangentsSsbo = graph.AddExternal(baseName + ".Tangents", geometry.GetAttributeBuffers().Tangents);
-        buffers.UVsSsbo = graph.AddExternal(baseName + ".Uvs", geometry.GetAttributeBuffers().UVs);
+        buffers.Positions = graph.AddExternal(baseName + ".Positions", geometry.GetAttributeBuffers().Positions);
+        buffers.Normals = graph.AddExternal(baseName + ".Normals", geometry.GetAttributeBuffers().Normals);
+        buffers.Tangents = graph.AddExternal(baseName + ".Tangents", geometry.GetAttributeBuffers().Tangents);
+        buffers.UVs = graph.AddExternal(baseName + ".Uvs", geometry.GetAttributeBuffers().UVs);
         
-        buffers.PositionsSsbo = graph.Read(buffers.PositionsSsbo, shaderStage | Storage);
-        buffers.NormalsSsbo = graph.Read(buffers.NormalsSsbo, shaderStage | Storage);
-        buffers.TangentsSsbo = graph.Read(buffers.TangentsSsbo, shaderStage | Storage);
-        buffers.UVsSsbo = graph.Read(buffers.UVsSsbo, shaderStage | Storage);
+        buffers.Positions = graph.Read(buffers.Positions, shaderStage | Storage);
+        buffers.Normals = graph.Read(buffers.Normals, shaderStage | Storage);
+        buffers.Tangents = graph.Read(buffers.Tangents, shaderStage | Storage);
+        buffers.UVs = graph.Read(buffers.UVs, shaderStage | Storage);
 
         return buffers;
     }
@@ -114,11 +114,11 @@ namespace RG::RgUtils
     {
         using enum ResourceAccessFlags;
 
-        Resource ssaoResource = RgUtils::ensureResource(ssao.SSAOTexture, graph, "SSAO.Dummy",
+        Resource ssaoResource = RgUtils::ensureResource(ssao.SSAO, graph, "SSAO.Dummy",
             ImageUtils::DefaultTexture::White);
 
         SSAOData ssaoData = {};
-        ssaoData.SSAOTexture = graph.Read(ssaoResource, shaderStage | Sampled);
+        ssaoData.SSAO = graph.Read(ssaoResource, shaderStage | Sampled);
 
         return ssaoData;
     }
@@ -131,7 +131,7 @@ namespace RG::RgUtils
         DirectionalShadowData shadowData = {};
         
         shadowData.ShadowMap = graph.Read(shadow.ShadowMap, shaderStage | Sampled);
-        shadowData.ShadowUbo = graph.Read(shadow.ShadowUbo, shaderStage | Uniform);
+        shadowData.Shadow = graph.Read(shadow.Shadow, shaderStage | Uniform);
 
         return shadowData;
     }
@@ -143,7 +143,7 @@ namespace RG::RgUtils
         CSMData csmData = {};
 
         csmData.ShadowMap = graph.Read(csm.ShadowMap, shaderStage | Sampled);
-        csmData.CSMUbo = graph.Read(csm.CSMUbo, shaderStage | Uniform);
+        csmData.CSM = graph.Read(csm.CSM, shaderStage | Uniform);
 
         return csmData;
     }
@@ -153,19 +153,19 @@ namespace RG::RgUtils
     {
         using enum DrawFeatures;
 
-        const Buffer& positionsSsbo = resources.GetBuffer(attributeBuffers.PositionsSsbo);
-        const Buffer& normalsSsbo = resources.GetBuffer(attributeBuffers.NormalsSsbo);
-        const Buffer& tangentsSsbo = resources.GetBuffer(attributeBuffers.TangentsSsbo);
-        const Buffer& uvSsbo = resources.GetBuffer(attributeBuffers.UVsSsbo);
+        const Buffer& positions = resources.GetBuffer(attributeBuffers.Positions);
+        const Buffer& normals = resources.GetBuffer(attributeBuffers.Normals);
+        const Buffer& tangents = resources.GetBuffer(attributeBuffers.Tangents);
+        const Buffer& uv = resources.GetBuffer(attributeBuffers.UVs);
 
         if (enumHasAny(features, Positions))
-            descriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
+            descriptors.UpdateBinding("u_positions", positions.BindingInfo());
         if (enumHasAny(features, Normals))
-            descriptors.UpdateBinding("u_normals", normalsSsbo.BindingInfo());
+            descriptors.UpdateBinding("u_normals", normals.BindingInfo());
         if (enumHasAny(features, Tangents))
-            descriptors.UpdateBinding("u_tangents", tangentsSsbo.BindingInfo());
+            descriptors.UpdateBinding("u_tangents", tangents.BindingInfo());
         if (enumHasAny(features, UV))
-            descriptors.UpdateBinding("u_uv", uvSsbo.BindingInfo());
+            descriptors.UpdateBinding("u_uv", uv.BindingInfo());
     }
 
     void updateSceneLightBindings(const ShaderDescriptors& descriptors, const Resources& resources,
@@ -192,7 +192,7 @@ namespace RG::RgUtils
 
     void updateSSAOBindings(const ShaderDescriptors& descriptors, const Resources& resources, const SSAOData& ssaoData)
     {
-        const Texture& ssao = resources.GetTexture(ssaoData.SSAOTexture);
+        const Texture& ssao = resources.GetTexture(ssaoData.SSAO);
 
         descriptors.UpdateBinding("u_ssao_texture", ssao.BindingInfo(
             ImageFilter::Linear, ImageLayout::Readonly));
@@ -202,26 +202,26 @@ namespace RG::RgUtils
         const DirectionalShadowData& shadowData)
     {
         const Texture& shadow = resources.GetTexture(shadowData.ShadowMap);
-        const Buffer& shadowUbo = resources.GetBuffer(shadowData.ShadowUbo);
+        const Buffer& shadowBuffer = resources.GetBuffer(shadowData.Shadow);
 
         descriptors.UpdateBinding("u_directional_shadow_map", shadow.BindingInfo(
             ImageFilter::Linear,
             shadow.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
 
-        descriptors.UpdateBinding("u_directional_shadow_transform", shadowUbo.BindingInfo());
+        descriptors.UpdateBinding("u_directional_shadow_transform", shadowBuffer.BindingInfo());
     }
 
     void updateCSMBindings(const ShaderDescriptors& descriptors, const Resources& resources, const CSMData& csmData)
     {
         const Texture& shadow = resources.GetTexture(csmData.ShadowMap);
-        const Buffer& csmUbo = resources.GetBuffer(csmData.CSMUbo);
+        const Buffer& csm = resources.GetBuffer(csmData.CSM);
 
         descriptors.UpdateBinding("u_csm", shadow.BindingInfo(
             ImageFilter::Linear,
             shadow.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
 
-        descriptors.UpdateBinding("u_csm_data", csmUbo.BindingInfo());
+        descriptors.UpdateBinding("u_csm_data", csm.BindingInfo());
     }
 }

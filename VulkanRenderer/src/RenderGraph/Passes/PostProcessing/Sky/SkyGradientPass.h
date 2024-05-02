@@ -30,14 +30,14 @@ public:
     struct PassData
     {
         RG::Resource ColorOut;
-        RG::Resource CameraUbo;
-        RG::Resource SettingsUbo;
+        RG::Resource Camera;
+        RG::Resource Settings;
 
-        CameraUBO Camera;
+        CameraUBO CameraData;
 
         RG::PipelineData* PipelineData{nullptr};
         
-        SettingsUBO* Settings{nullptr};
+        SettingsUBO* SettingsData{nullptr};
         PushConstants PushConstants;
     };
 public:

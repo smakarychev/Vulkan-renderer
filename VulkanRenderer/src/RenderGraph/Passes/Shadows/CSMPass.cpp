@@ -2,6 +2,7 @@
 
 #include "ShadowPassesCommon.h"
 #include "ShadowPassesUtils.h"
+#include "imgui/imgui.h"
 #include "Light/Light.h"
 #include "utils/MathUtils.h"
 
@@ -90,15 +91,15 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
      */
     struct PassDataDummy
     {
-        Resource CSMUbo{};
+        Resource CSM{};
     };
     renderGraph.AddRenderPass<PassDataDummy>(PassName{"CSM.Dummy"},
         [&](Graph& graph, PassDataDummy& passData)
         {
-            passData.CSMUbo = graph.CreateResource("CSM.Data", GraphBufferDescription{
+            passData.CSM = graph.CreateResource("CSM.Data", GraphBufferDescription{
                 .SizeBytes = SHADOW_CASCADES * (sizeof(f32) + sizeof(glm::mat4))});
 
-            passData.CSMUbo = graph.Write(passData.CSMUbo, Vertex | Uniform | Upload);
+            passData.CSM = graph.Write(passData.CSM, Vertex | Uniform | Upload);
 
             graph.GetBlackboard().Update(passData);
         },
@@ -114,12 +115,12 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
             ubo.CascadeCount = SHADOW_CASCADES;
             std::ranges::copy(cascades.begin(), cascades.end(), ubo.Cascades.begin());
             std::ranges::copy(matrices.begin(), matrices.end(), ubo.Matrices.begin());
-            resources.GetBuffer(passData.CSMUbo, ubo, *frameContext.ResourceUploader);
+            resources.GetBuffer(passData.CSM, ubo, *frameContext.ResourceUploader);
         });
     
     PassData passData = {
         .ShadowMap = *output.DrawAttachmentResources.DepthTarget,
-        .CSMUbo = renderGraph.GetBlackboard().Get<PassDataDummy>().CSMUbo,
+        .CSM = renderGraph.GetBlackboard().Get<PassDataDummy>().CSM,
         .Near = m_Cameras.front().GetFrustumPlanes().Near,
         .Far = m_Cameras.back().GetFrustumPlanes().Far};
     renderGraph.GetBlackboard().Update(passData);
@@ -127,7 +128,10 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
 
 std::vector<f32> CSMPass::CalculateDepthCascades(const Camera& mainCamera, f32 viewDistance)
 {
-    static constexpr f32 SPLIT_LAMBDA = 0.0f;
+    static f32 SPLIT_LAMBDA = 0.0f;
+    ImGui::Begin("CSM lambda");
+    ImGui::DragFloat("Lambda", &SPLIT_LAMBDA, 1e-2f, 0.0f, 1.0f);
+    ImGui::End();
 
     f32 near = mainCamera.GetFrustumPlanes().Near;
     f32 far = std::min(mainCamera.GetFrustumPlanes().Far, viewDistance);

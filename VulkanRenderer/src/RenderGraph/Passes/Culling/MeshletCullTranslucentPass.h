@@ -12,13 +12,13 @@ class MeshletCullTranslucentContext
 public:
     struct PassResources
     {
-        RG::Resource MeshletsSsbo{};
-        RG::Resource CommandsSsbo{};
+        RG::Resource Meshlets{};
+        RG::Resource Commands{};
     };
 public:
     MeshletCullTranslucentContext(MeshCullContext& meshCullContext);
 
-    const RG::Geometry& Geometry() { return m_MeshCullContext->Geometry(); }
+    const SceneGeometry& Geometry() { return m_MeshCullContext->Geometry(); }
     MeshCullContext& MeshContext() { return *m_MeshCullContext; }
     PassResources& Resources() { return m_Resources; }
 private:

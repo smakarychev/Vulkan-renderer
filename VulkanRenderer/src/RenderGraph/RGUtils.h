@@ -4,10 +4,10 @@
 #include "RGDrawResources.h"
 
 class SceneLight;
+class SceneGeometry;
 
 namespace RG
 {
-    class Geometry;
     class Resources;
     struct IBLData;
     struct SSAOData;
@@ -24,7 +24,7 @@ namespace RG::RgUtils
     Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
         const GraphBufferDescription& fallback);
 
-    DrawAttributeBuffers readDrawAttributes(const Geometry& geometry, Graph& graph, const std::string& baseName,
+    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
         ResourceAccessFlags shaderStage);
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
     SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, const std::string& baseName,

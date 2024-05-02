@@ -12,8 +12,8 @@
 #include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
 #include "Vulkan/RenderCommand.h"
-#include "RenderGraph/ModelCollection.h"
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/ModelCollection.h"
+#include "Scene/SceneGeometry.h"
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"
 #include "RenderGraph/Passes/AO/SsaoPass.h"
 #include "RenderGraph/Passes/AO/SsaoVisualizePass.h"
@@ -34,7 +34,7 @@
 #include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/Utility/VisualizeDepthPass.h"
-#include "RenderGraph/Sorting/RGDepthGeometrySorter.h"
+#include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
 #include "Rendering/Image/Processing/CubemapProcessor.h"
 #include "Rendering/Image/Processing/DiffuseIrradianceProcessor.h"
@@ -72,12 +72,12 @@ void Renderer::InitRenderGraph()
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
             .Scale = glm::vec3{10.0f}}});
     
-    m_GraphOpaqueGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
+    m_GraphOpaqueGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
         [this](const Mesh&, const Material& material) {
             return material.Type == assetLib::ModelInfo::MaterialType::Opaque;
         });
-    m_GraphTranslucentGeometry = RG::Geometry::FromModelCollectionFiltered(m_GraphModelCollection,
+    m_GraphTranslucentGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
         [this](const Mesh&, const Material& material) {
             return material.Type == assetLib::ModelInfo::MaterialType::Translucent;
@@ -252,10 +252,10 @@ void Renderer::SetupRenderGraph()
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
             .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
         .SSAO = {
-            .SSAOTexture = ssaoBlurVerticalOutput.SsaoOut},
+            .SSAO = ssaoBlurVerticalOutput.SsaoOut},
         .CSMData = {
             .ShadowMap = csmOutput.ShadowMap,
-            .CSMUbo = csmOutput.CSMUbo},
+            .CSM = csmOutput.CSM},
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = m_Graph->GetBlackboard().Get<PbrVisibilityBufferIBL::PassData>();
 

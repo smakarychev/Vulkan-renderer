@@ -1,17 +1,17 @@
-#include "RGDepthGeometrySorter.h"
+#include "DepthGeometrySorter.h"
 
 #include <ranges>
 #include <algorithm>
 #include <numeric>
 
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 
-RG::DepthGeometrySorter::DepthGeometrySorter(const glm::vec3& sortingPoint, const glm::vec3& sortingDirection)
+DepthGeometrySorter::DepthGeometrySorter(const glm::vec3& sortingPoint, const glm::vec3& sortingDirection)
     : m_PlaneOffset(-glm::dot(sortingDirection, sortingPoint)), m_PlaneNormal(sortingDirection)
 {
 }
 
-void RG::DepthGeometrySorter::Sort(Geometry& geometry, ResourceUploader& resourceUploader)
+void DepthGeometrySorter::Sort(SceneGeometry& geometry, ResourceUploader& resourceUploader)
 {
     std::vector<f32> depths;
     depths.reserve(geometry.GetRenderObjectCount());

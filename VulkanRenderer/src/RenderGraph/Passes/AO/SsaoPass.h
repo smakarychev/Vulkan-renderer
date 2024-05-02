@@ -25,13 +25,13 @@ public:
         RG::Resource SSAO{};
 
         RG::Resource NoiseTexture{};
-        RG::Resource SettingsUbo{};
-        RG::Resource CameraUbo{};
-        RG::Resource SamplesUbo{};
+        RG::Resource Settings{};
+        RG::Resource Camera{};
+        RG::Resource Samples{};
 
         RG::PipelineData* PipelineData{nullptr};
 
-        SettingsUBO* Settings{nullptr};
+        SettingsUBO* SettingsData{nullptr};
         u32 SampleCount{0};
     };
 public:

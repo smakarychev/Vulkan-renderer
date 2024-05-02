@@ -41,6 +41,7 @@ bool is_visible(vec3 origin, float radius) {
 bool is_reocclusion_visible(vec3 origin, float radius) {
     bool visible = true;
     visible = visible && is_frustum_visible(origin, radius, u_scene_data.scene);
+    // todo: change it as in meshlet cull
     visible = visible && is_occlusion_visible(origin, radius, u_scene_data.scene, u_sampler, u_hiz);
 
     return visible;

@@ -12,7 +12,7 @@ class DrawIndirectCountPass;
 struct CullMetaPassInitInfo
 {
     using Features = RG::DrawFeatures;
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
     const ShaderPipeline* DrawTrianglesPipeline{nullptr};
     const ShaderPipeline* DrawMeshletsPipeline{nullptr};
     std::optional<const ShaderDescriptors*> MaterialDescriptors{};

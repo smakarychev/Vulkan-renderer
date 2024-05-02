@@ -2,7 +2,7 @@
 
 #include "FrameContext.h"
 #include "Core/Camera.h"
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 #include "RenderGraph/RGUtils.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -44,14 +44,14 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
         [&](Graph& graph, PassData& passData)
         {
-            passData.CommandsSsbo = graph.AddExternal(name + ".Commands", info.Geometry->GetCommandsBuffer());
-            passData.ObjectsSsbo = graph.AddExternal(name + ".Objects", info.Geometry->GetRenderObjectsBuffer());
+            passData.Commands = graph.AddExternal(name + ".Commands", info.Geometry->GetCommandsBuffer());
+            passData.Objects = graph.AddExternal(name + ".Objects", info.Geometry->GetRenderObjectsBuffer());
             auto& attributes = info.Geometry->GetAttributeBuffers();
-            passData.PositionsSsbo = graph.AddExternal(name + ".Positions", attributes.Positions);
-            passData.NormalsSsbo = graph.AddExternal(name + ".Normals", attributes.Normals);
-            passData.TangentsSsbo = graph.AddExternal(name + ".Tangents", attributes.Tangents);
-            passData.UVsSsbo = graph.AddExternal(name + ".UVs", attributes.UVs);
-            passData.IndicesSsbo = graph.AddExternal(name + ".Indices", attributes.Indices);
+            passData.Positions = graph.AddExternal(name + ".Positions", attributes.Positions);
+            passData.Normals = graph.AddExternal(name + ".Normals", attributes.Normals);
+            passData.Tangents = graph.AddExternal(name + ".Tangents", attributes.Tangents);
+            passData.UVs = graph.AddExternal(name + ".UVs", attributes.UVs);
+            passData.Indices = graph.AddExternal(name + ".Indices", attributes.Indices);
 
             const TextureDescription& visibilityDescription =
                 Resources(graph).GetTextureDescription(info.VisibilityTexture);
@@ -71,14 +71,14 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
             
-            passData.CameraUbo = graph.Read(graphGlobals.MainCameraGPU, Pixel | Uniform);
-            passData.CommandsSsbo = graph.Read(passData.CommandsSsbo, Pixel | Storage);
-            passData.ObjectsSsbo = graph.Read(passData.ObjectsSsbo, Pixel | Storage);
-            passData.PositionsSsbo = graph.Read(passData.PositionsSsbo, Pixel | Storage);
-            passData.NormalsSsbo = graph.Read(passData.NormalsSsbo, Pixel | Storage);
-            passData.TangentsSsbo = graph.Read(passData.TangentsSsbo, Pixel | Storage);
-            passData.UVsSsbo = graph.Read(passData.UVsSsbo, Pixel | Storage);
-            passData.IndicesSsbo = graph.Read(passData.IndicesSsbo, Pixel | Storage);
+            passData.Camera = graph.Read(graphGlobals.MainCameraGPU, Pixel | Uniform);
+            passData.Commands = graph.Read(passData.Commands, Pixel | Storage);
+            passData.Objects = graph.Read(passData.Objects, Pixel | Storage);
+            passData.Positions = graph.Read(passData.Positions, Pixel | Storage);
+            passData.Normals = graph.Read(passData.Normals, Pixel | Storage);
+            passData.Tangents = graph.Read(passData.Tangents, Pixel | Storage);
+            passData.UVs = graph.Read(passData.UVs, Pixel | Storage);
+            passData.Indices = graph.Read(passData.Indices, Pixel | Storage);
 
             passData.ColorOut = graph.RenderTarget(color,
                 info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
@@ -93,15 +93,15 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             GPU_PROFILE_FRAME("PBR Visibility pass")
 
             const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
-            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo);
+            const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera);
 
-            const Buffer& commandsSsbo = resources.GetBuffer(passData.CommandsSsbo);
-            const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
-            const Buffer& positionsSsbo = resources.GetBuffer(passData.PositionsSsbo);
-            const Buffer& normalsSsbo = resources.GetBuffer(passData.NormalsSsbo);
-            const Buffer& tangentsSsbo = resources.GetBuffer(passData.TangentsSsbo);
-            const Buffer& uvsSsbo = resources.GetBuffer(passData.UVsSsbo);
-            const Buffer& indicesSsbo = resources.GetBuffer(passData.IndicesSsbo);
+            const Buffer& commands = resources.GetBuffer(passData.Commands);
+            const Buffer& objects = resources.GetBuffer(passData.Objects);
+            const Buffer& positions = resources.GetBuffer(passData.Positions);
+            const Buffer& normals = resources.GetBuffer(passData.Normals);
+            const Buffer& tangents = resources.GetBuffer(passData.Tangents);
+            const Buffer& uvs = resources.GetBuffer(passData.UVs);
+            const Buffer& indices = resources.GetBuffer(passData.Indices);
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->ImmutableSamplerDescriptors;
@@ -114,14 +114,14 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             RgUtils::updateIBLBindings(resourceDescriptors, resources, passData.IBL);
             RgUtils::updateSSAOBindings(resourceDescriptors, resources, passData.SSAO);
             RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
-            resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_positions", positionsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_normals", normalsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_tangents", tangentsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_uv", uvsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_indices", indicesSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_camera", cameraBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_commands", commands.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_positions", positions.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_normals", normals.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_tangents", tangents.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_uv", uvs.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_indices", indices.BindingInfo());
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());

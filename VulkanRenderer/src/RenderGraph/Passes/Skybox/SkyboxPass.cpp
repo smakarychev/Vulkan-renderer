@@ -56,14 +56,14 @@ void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
                     .Format = Format::RGBA16_FLOAT});
             ASSERT(depthIn.IsValid(), "Depth has to be provided")
 
-            passData.ProjectionUbo = graph.CreateResource(name + ".Projection", GraphBufferDescription{
+            passData.Projection = graph.CreateResource(name + ".Projection", GraphBufferDescription{
                 .SizeBytes = sizeof(ProjectionUBO)});
       
             passData.Skybox = graph.Read(skybox, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 AttachmentLoad::Load, AttachmentStore::Store);
             passData.DepthOut = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.ProjectionUbo = graph.Read(passData.ProjectionUbo, Vertex | Uniform | Upload);
+            passData.Projection = graph.Read(passData.Projection, Vertex | Uniform | Upload);
 
             passData.PipelineData = &m_PipelineData;
             passData.LodBias = lodBias;
@@ -79,7 +79,7 @@ void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
             ProjectionUBO projection = {
                 .ProjectionInverse = glm::inverse(frameContext.MainCamera->GetProjection()),
                 .ViewInverse = glm::inverse(frameContext.MainCamera->GetView())};
-            const Buffer projectionUbo = resources.GetBuffer(passData.ProjectionUbo, projection,
+            const Buffer projectionBuffer = resources.GetBuffer(passData.Projection, projection,
                 *frameContext.ResourceUploader);
 
             auto& pipeline = passData.PipelineData->Pipeline;
@@ -88,7 +88,7 @@ void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
 
             resourceDescriptors.UpdateBinding("u_skybox", skyboxTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_projection", projectionUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_projection", projectionBuffer.BindingInfo());
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());

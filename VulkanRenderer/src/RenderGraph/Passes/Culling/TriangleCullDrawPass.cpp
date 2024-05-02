@@ -7,7 +7,7 @@ TriangleCullContext::TriangleCullContext(MeshletCullContext& meshletCullContext)
 {
     m_Visibility = Buffer::Builder({
             .SizeBytes = (u64)(MAX_TRIANGLES * SUB_BATCH_COUNT *
-                (u32)sizeof(RG::Geometry::TriangleVisibilityType)),
+                (u32)sizeof(SceneGeometry::TriangleVisibilityType)),
             .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
         .Build();
 }
@@ -44,16 +44,16 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
         {
             passData.MaxDispatches = ctx.Geometry().GetCommandCount() / TriangleCullContext::GetCommandCount() + 1;
             auto& meshletResources = ctx.MeshletContext().Resources();
-            ctx.Resources().DispatchIndirect = graph.CreateResource(std::format("{}.{}", name, "Dispatch"),
+            ctx.Resources().Dispatch = graph.CreateResource(std::format("{}.{}", name, "Dispatch"),
                 GraphBufferDescription{.SizeBytes = RenderUtils::alignUniformBufferSizeBytes(
                     passData.MaxDispatches * sizeof(IndirectDispatchCommand))});
-            ctx.Resources().DispatchIndirect = graph.Write(ctx.Resources().DispatchIndirect, Compute | Storage | Upload);
+            ctx.Resources().Dispatch = graph.Write(ctx.Resources().Dispatch, Compute | Storage | Upload);
 
-            ctx.MeshletContext().Resources().CompactCountSsbo =
-                    graph.Read(ctx.MeshletContext().Resources().CompactCountSsbo, Readback);
-                passData.CompactCountSsbo = graph.Read(meshletResources.CompactCountSsbo, Compute | Storage);
+            ctx.MeshletContext().Resources().CompactCount =
+                    graph.Read(ctx.MeshletContext().Resources().CompactCount, Readback);
+                passData.CompactCount = graph.Read(meshletResources.CompactCount, Compute | Storage);
             
-            passData.DispatchIndirect = ctx.Resources().DispatchIndirect;
+            passData.Dispatch = ctx.Resources().Dispatch;
             passData.PipelineData = &m_PipelineData;
             passData.Context = &ctx;
 
@@ -63,14 +63,14 @@ void TriangleCullPrepareDispatchPass::AddToGraph(RG::Graph& renderGraph,
         {
             GPU_PROFILE_FRAME("Prepare Dispatch Indirect")
 
-            const Buffer& countSsbo = resources.GetBuffer(passData.CompactCountSsbo);
-            const Buffer& dispatchSsbo = resources.GetBuffer(passData.DispatchIndirect);
+            const Buffer& count = resources.GetBuffer(passData.CompactCount);
+            const Buffer& dispatch = resources.GetBuffer(passData.Dispatch);
             
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding("u_command_count", countSsbo.BindingInfo());          
-            resourceDescriptors.UpdateBinding("u_indirect_dispatch", dispatchSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_command_count", count.BindingInfo());          
+            resourceDescriptors.UpdateBinding("u_indirect_dispatch", dispatch.BindingInfo());
 
             struct PushConstants
             {

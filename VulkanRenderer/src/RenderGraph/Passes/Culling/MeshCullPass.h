@@ -5,7 +5,7 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGCommon.h"
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 #include "RenderGraph/Passes/HiZ/HiZPass.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -16,25 +16,25 @@ public:
     {
         RG::Resource HiZ{};
         Sampler HiZSampler{};
-        RG::Resource SceneUbo{};
-        RG::Resource ObjectsSsbo{};
-        RG::Resource VisibilitySsbo{};
+        RG::Resource Scene{};
+        RG::Resource Objects{};
+        RG::Resource Visibility{};
     };
 public:
-    MeshCullContext(const RG::Geometry& geometry);
+    MeshCullContext(const SceneGeometry& geometry);
 
     void SetCamera(const Camera* camera) { m_Camera = camera; }
     const Camera& GetCamera() const { return *m_Camera; }
 
     const Buffer& Visibility() { return m_Visibility; }
-    const RG::Geometry& Geometry() { return *m_Geometry; }
+    const SceneGeometry& Geometry() { return *m_Geometry; }
     PassResources& Resources() { return m_Resources; }
 private:
     const Camera* m_Camera{nullptr};
     
     Buffer m_Visibility{};
     
-    const RG::Geometry* m_Geometry{nullptr};
+    const SceneGeometry* m_Geometry{nullptr};
     PassResources m_Resources{};
 };
 
@@ -122,12 +122,12 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
             // if it is an ordinary pass, create buffers, otherwise, use buffers of ordinary pass
             if constexpr(Stage != CullStage::Reocclusion)
             {
-                ctx.Resources().SceneUbo = graph.CreateResource(std::format("{}.{}", passName, "Scene"),
+                ctx.Resources().Scene = graph.CreateResource(std::format("{}.{}", passName, "Scene"),
                     GraphBufferDescription{.SizeBytes = sizeof(SceneUBO)});
-                ctx.Resources().ObjectsSsbo =
+                ctx.Resources().Objects =
                     graph.AddExternal(std::format("{}.{}", passName, "Objects"),
                         ctx.Geometry().GetRenderObjectsBuffer());
-                ctx.Resources().VisibilitySsbo =
+                ctx.Resources().Visibility =
                     graph.AddExternal(std::format("{}.{}", passName, "Visibility"), ctx.Visibility());
             }
             if constexpr(Stage == CullStage::Cull)
@@ -144,10 +144,10 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
             auto& resources = ctx.Resources();
             resources.HiZSampler = hiZPassContext.GetSampler();
             resources.HiZ = graph.Read(resources.HiZ, Compute | Sampled);
-            resources.SceneUbo = graph.Read(resources.SceneUbo, Compute | Uniform | Upload);
-            resources.ObjectsSsbo = graph.Read(resources.ObjectsSsbo, Compute | Storage);
-            resources.VisibilitySsbo = graph.Read(resources.VisibilitySsbo, Compute | Storage);
-            resources.VisibilitySsbo = graph.Write(resources.VisibilitySsbo, Compute |Storage);
+            resources.Scene = graph.Read(resources.Scene, Compute | Uniform | Upload);
+            resources.Objects = graph.Read(resources.Objects, Compute | Storage);
+            resources.Visibility = graph.Read(resources.Visibility, Compute | Storage);
+            resources.Visibility = graph.Write(resources.Visibility, Compute |Storage);
 
             passData.Resources = resources;
             passData.ObjectCount = ctx.Geometry().GetRenderObjectCount();
@@ -170,11 +170,11 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
             scene.ProjectionData = ctx.GetCamera().GetProjectionData();
             scene.HiZWidth = (f32)hiz.Description().Width;
             scene.HiZHeight = (f32)hiz.Description().Height;
-            const Buffer& sceneUbo = resources.GetBuffer(passData.Resources.SceneUbo, scene,
+            const Buffer& sceneBuffer = resources.GetBuffer(passData.Resources.Scene, scene,
                 *frameContext.ResourceUploader);
 
-            const Buffer& objectsSsbo = resources.GetBuffer(passData.Resources.ObjectsSsbo);
-            const Buffer& visibilitySsbo = resources.GetBuffer(passData.Resources.VisibilitySsbo);
+            const Buffer& objects = resources.GetBuffer(passData.Resources.Objects);
+            const Buffer& visibility = resources.GetBuffer(passData.Resources.Visibility);
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
@@ -182,9 +182,9 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
 
             samplerDescriptors.UpdateBinding("u_sampler", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_hiz", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_object_visibility", visibilitySsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_scene_data", sceneBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_object_visibility", visibility.BindingInfo());
 
             u32 objectCount = passData.ObjectCount;
 

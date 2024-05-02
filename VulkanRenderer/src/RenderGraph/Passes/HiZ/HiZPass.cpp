@@ -10,6 +10,8 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
 {
     u32 width = MathUtils::floorToPowerOf2(resolution.x);
     u32 height = MathUtils::floorToPowerOf2(resolution.y);
+
+    m_HiZResolution = glm::uvec2{width, height};
     
     u32 mipmapCount = Image::CalculateMipmapCount({width, height});
 

@@ -7,6 +7,7 @@
 static constexpr u32 BUFFERED_FRAMES{2};
 
 static constexpr u32 SUB_BATCH_COUNT{8};
+static constexpr u32 BATCH_OVERLAP{BUFFERED_FRAMES};
 
 static constexpr u32 IRRADIANCE_RESOLUTION = 64;
 static constexpr u32 PREFILTER_RESOLUTION = 256;

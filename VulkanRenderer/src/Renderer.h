@@ -8,7 +8,7 @@
 #include "ResourceUploader.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 #include "FrameContext.h"
 #include "Light/SceneLight.h"
 #include "Vulkan/Driver.h"
@@ -90,8 +90,8 @@ private:
     ResourceUploader m_ResourceUploader;
 
     ModelCollection m_GraphModelCollection;
-    RG::Geometry m_GraphOpaqueGeometry;
-    RG::Geometry m_GraphTranslucentGeometry;
+    SceneGeometry m_GraphOpaqueGeometry;
+    SceneGeometry m_GraphTranslucentGeometry;
 
     SceneLight m_SceneLights{};
     

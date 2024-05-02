@@ -7,10 +7,7 @@
 class SceneLight;
 class Camera;
 
-namespace RG
-{
-    class Geometry;
-}
+class SceneGeometry;
 
 struct DrawIndirectPassInitInfo
 {
@@ -21,7 +18,7 @@ struct DrawIndirectPassInitInfo
 
 struct DrawIndirectPassExecutionInfo
 {
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
     RG::Resource Commands{};
     u32 CommandsOffset{0};
     glm::uvec2 Resolution{};
@@ -47,9 +44,9 @@ public:
 private:
     struct PassDataPrivate
     {
-        RG::Resource CameraUbo{};
+        RG::Resource Camera{};
         RG::DrawAttributeBuffers AttributeBuffers{};
-        RG::Resource ObjectsSsbo{};
+        RG::Resource Objects{};
         RG::Resource CommandsIndirect{};
 
         RG::DrawAttachmentResources DrawAttachmentResources{};

@@ -87,8 +87,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     // cull and draw triangles that were visible last frame (this presumably draws most of the triangles)
     m_CullDraw->AddToGraph(renderGraph, {
-        .Dispatch = dispatchOut.DispatchIndirect,
-        .CompactCount = dispatchOut.CompactCountSsbo,
+        .Dispatch = dispatchOut.Dispatch,
+        .CompactCount = dispatchOut.CompactCount,
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = m_HiZContext.get(),
@@ -121,8 +121,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     // triangle only reocclusion (this updates visibility flags for most of the triangles and draws them)
     m_ReoccludeTrianglesDraw->AddToGraph(renderGraph, {
-        .Dispatch = dispatchOut.DispatchIndirect,
-        .CompactCount = dispatchOut.CompactCountSsbo,
+        .Dispatch = dispatchOut.Dispatch,
+        .CompactCount = dispatchOut.CompactCount,
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = m_HiZContext.get(),
@@ -162,8 +162,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     m_DrawIndirectCountPass->AddToGraph(renderGraph, {
         .Geometry = &m_MeshContext->Geometry(),
-        .Commands = meshletReocclusionOutput.MeshletResources.CompactCommandsSsbo,
-        .CommandCount = meshletReocclusionOutput.MeshletResources.CompactCountReocclusionSsbo,
+        .Commands = meshletReocclusionOutput.MeshletResources.CompactCommands,
+        .CommandCount = meshletReocclusionOutput.MeshletResources.CompactCountReocclusion,
         .Resolution = info.Resolution,
         .Camera = info.Camera,
         .DrawAttachments = {

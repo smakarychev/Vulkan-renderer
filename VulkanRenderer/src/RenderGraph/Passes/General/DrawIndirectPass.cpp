@@ -4,7 +4,7 @@
 #include "FrameContext.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
 DrawIndirectPass::DrawIndirectPass(RG::Graph& renderGraph, std::string_view name,
@@ -39,13 +39,13 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
     m_Pass = &renderGraph.AddRenderPass<PassDataPrivate>(m_Name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
-            passData.CameraUbo = graph.CreateResource(
+            passData.Camera = graph.CreateResource(
                 m_Name.Name() + ".Camera", GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
-            passData.CameraUbo = graph.Read(passData.CameraUbo, Vertex | Pixel | Uniform | Upload);
+            passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform | Upload);
             
             passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, m_Name.Name(), Vertex);
             
-            passData.ObjectsSsbo = graph.AddExternal(m_Name.Name() + ".Objects",
+            passData.Objects = graph.AddExternal(m_Name.Name() + ".Objects",
                 info.Geometry->GetRenderObjectsBuffer());
             passData.CommandsIndirect = graph.Read(info.Commands, Vertex | Indirect);
 
@@ -76,20 +76,20 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
             using enum DrawFeatures;
 
             CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
-            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo, cameraGPU,
+            const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera, cameraGPU,
                 *frameContext.ResourceUploader);
-            const Buffer& objectsSsbo = resources.GetBuffer(passData.ObjectsSsbo);
+            const Buffer& objects = resources.GetBuffer(passData.Objects);
             const Buffer& commandsDraw = resources.GetBuffer(passData.CommandsIndirect);
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
-            resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_camera", cameraBuffer.BindingInfo());
 
             RgUtils::updateDrawAttributeBindings(resourceDescriptors, resources,
                 passData.AttributeBuffers, passData.DrawFeatures);
             
-            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commandsDraw.BindingInfo());
 
             if (enumHasAny(passData.DrawFeatures, IBL))

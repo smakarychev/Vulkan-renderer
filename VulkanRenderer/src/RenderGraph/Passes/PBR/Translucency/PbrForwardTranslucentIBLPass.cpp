@@ -54,7 +54,7 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
 
     m_Draw->AddToGraph(renderGraph, {
         .Geometry = &m_MeshContext->Geometry(),
-        .Commands = meshletOutput.MeshletResources.CommandsSsbo,
+        .Commands = meshletOutput.MeshletResources.Commands,
         .Resolution = info.Resolution,
         .Camera = info.Camera,
         .DrawAttachments = {

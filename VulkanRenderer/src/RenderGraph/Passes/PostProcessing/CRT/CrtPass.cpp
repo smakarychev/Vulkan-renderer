@@ -54,16 +54,16 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
             passData.ColorOut = graph.RenderTarget(colorTarget,
                 AttachmentLoad::Load, AttachmentStore::Store);
 
-            passData.TimeUbo = graph.CreateResource("CRT.Time", GraphBufferDescription{
+            passData.Time = graph.CreateResource("CRT.Time", GraphBufferDescription{
                 .SizeBytes = sizeof(f32)});
-            passData.TimeUbo = graph.Read(passData.TimeUbo, Pixel | Uniform | Upload);
+            passData.Time = graph.Read(passData.Time, Pixel | Uniform | Upload);
 
-            passData.SettingsUbo = graph.CreateResource("CRT.Settings", GraphBufferDescription{
+            passData.Settings = graph.CreateResource("CRT.Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.SettingsUbo = graph.Read(passData.SettingsUbo, Pixel | Uniform | Upload);
+            passData.Settings = graph.Read(passData.Settings, Pixel | Uniform | Upload);
 
             passData.PipelineData = &m_PipelineData;
-            passData.Settings = &m_SettingsUBO;
+            passData.SettingsData = &m_SettingsUBO;
 
             graph.GetBlackboard().Register(passData);
         },
@@ -71,18 +71,18 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
         {
             GPU_PROFILE_FRAME("CRT post-processing")
             const Texture& colorInTexture = resources.GetTexture(passData.ColorIn);
-            const Buffer& time = resources.GetBuffer(passData.TimeUbo, (f32)frameContext.FrameNumberTick,
+            const Buffer& time = resources.GetBuffer(passData.Time, (f32)frameContext.FrameNumberTick,
                 *frameContext.ResourceUploader);
             
-            auto& settingsUBO = *passData.Settings;
+            auto& settings = *passData.SettingsData;
             ImGui::Begin("CRT settings");
-            ImGui::DragFloat("curvature", &settingsUBO.Curvature, 1e-2f, 0.0f, 10.0f);            
-            ImGui::DragFloat("color split", &settingsUBO.ColorSplit, 1e-4f, 0.0f, 0.5f);            
-            ImGui::DragFloat("lines multiplier", &settingsUBO.LinesMultiplier, 1e-1f, 0.0f, 10.0f);            
-            ImGui::DragFloat("vignette power", &settingsUBO.VignettePower, 1e-2f, 0.0f, 5.0f);            
-            ImGui::DragFloat("vignette clear radius", &settingsUBO.VignetteRadius, 1e-3f, 0.0f, 1.0f);            
+            ImGui::DragFloat("curvature", &settings.Curvature, 1e-2f, 0.0f, 10.0f);            
+            ImGui::DragFloat("color split", &settings.ColorSplit, 1e-4f, 0.0f, 0.5f);            
+            ImGui::DragFloat("lines multiplier", &settings.LinesMultiplier, 1e-1f, 0.0f, 10.0f);            
+            ImGui::DragFloat("vignette power", &settings.VignettePower, 1e-2f, 0.0f, 5.0f);            
+            ImGui::DragFloat("vignette clear radius", &settings.VignetteRadius, 1e-3f, 0.0f, 1.0f);            
             ImGui::End();
-            const Buffer& settings = resources.GetBuffer(passData.SettingsUbo, settingsUBO,
+            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings, settings,
                 *frameContext.ResourceUploader);
 
             auto& pipeline = passData.PipelineData->Pipeline;
@@ -94,7 +94,7 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
             resourceDescriptors.UpdateBinding(imageBindingInfo,
                 colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding(timeBindingInfo, time.BindingInfo());
-            resourceDescriptors.UpdateBinding(settingsBindingInfo, settings.BindingInfo());
+            resourceDescriptors.UpdateBinding(settingsBindingInfo, settingsBuffer.BindingInfo());
             
             pipeline.BindGraphics(frameContext.Cmd);
             samplerDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),

@@ -7,7 +7,7 @@
 
 struct VisibilityPassInitInfo
 {
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
     const ShaderDescriptors* MaterialDescriptors{nullptr};
     CameraType CameraType{CameraType::Perspective};
 };
@@ -31,6 +31,11 @@ public:
     VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info);
     HiZPassContext* GetHiZContext() const { return m_Pass->GetHiZContext(); }
+private:
+    struct DrawPassData
+    {
+        
+    };
 private:
     std::shared_ptr<CullMetaPass> m_Pass{};
 };

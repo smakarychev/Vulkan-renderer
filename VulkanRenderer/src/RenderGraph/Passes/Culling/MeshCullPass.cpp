@@ -1,12 +1,12 @@
 #include "MeshCullPass.h"
 
-#include "RenderGraph/RGGeometry.h"
+#include "Scene/SceneGeometry.h"
 
-MeshCullContext::MeshCullContext(const RG::Geometry& geometry)
+MeshCullContext::MeshCullContext(const SceneGeometry& geometry)
     : m_Geometry(&geometry)
 {
     m_Visibility = Buffer::Builder({
-            .SizeBytes = geometry.GetRenderObjectCount() * sizeof(RG::Geometry::ObjectVisibilityType),
+            .SizeBytes = geometry.GetRenderObjectCount() * sizeof(SceneGeometry::ObjectVisibilityType),
             .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
         .Build();
 }

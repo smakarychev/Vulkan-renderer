@@ -86,11 +86,11 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
         {
             const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(depthIn);
             passData.NoiseTexture = graph.AddExternal(name + ".NoiseTexture", m_NoiseTexture);
-            passData.SettingsUbo = graph.CreateResource(name + ".Settings", GraphBufferDescription{
+            passData.Settings = graph.CreateResource(name + ".Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.CameraUbo = graph.CreateResource(name + ".Camera", GraphBufferDescription{
+            passData.Camera = graph.CreateResource(name + ".Camera", GraphBufferDescription{
                 .SizeBytes = sizeof(CameraUBO)});
-            passData.SamplesUbo = graph.AddExternal(name + ".Samples", m_SamplesBuffer);
+            passData.Samples = graph.AddExternal(name + ".Samples", m_SamplesBuffer);
             passData.SSAO = graph.CreateResource(name + ".SSAO", GraphTextureDescription{
                 .Width = depthDescription.Width,
                 .Height = depthDescription.Height,
@@ -98,14 +98,14 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
 
             passData.DepthIn = graph.Read(depthIn, Compute | Sampled);
             passData.NoiseTexture = graph.Read(passData.NoiseTexture, Compute | Sampled);
-            passData.SettingsUbo = graph.Read(passData.SettingsUbo, Compute | Uniform | Upload);
-            passData.CameraUbo = graph.Read(passData.CameraUbo, Compute | Uniform | Upload);
-            passData.SamplesUbo = graph.Read(passData.SamplesUbo, Compute | Uniform);
+            passData.Settings = graph.Read(passData.Settings, Compute | Uniform | Upload);
+            passData.Camera = graph.Read(passData.Camera, Compute | Uniform | Upload);
+            passData.Samples = graph.Read(passData.Samples, Compute | Uniform);
             passData.SSAO = graph.Write(passData.SSAO, Compute | Storage);
 
             passData.PipelineData = &m_PipelineData;
 
-            passData.Settings = &m_Settings;
+            passData.SettingsData = &m_Settings;
             passData.SampleCount = m_SampleCount;
 
             graph.GetBlackboard().Update(passData);
@@ -114,13 +114,13 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
         {
             GPU_PROFILE_FRAME("SSAO")
 
-            auto& settings = *passData.Settings;
+            auto& settings = *passData.SettingsData;
             ImGui::Begin("AO settings");
             ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, passData.SampleCount);
             ImGui::DragFloat("Power", &settings.Power, 1e-3f, 0.0f, 5.0f);
             ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
-            const Buffer& settingUbo = resources.GetBuffer(passData.SettingsUbo, settings,
+            const Buffer& setting = resources.GetBuffer(passData.Settings, settings,
                 *frameContext.ResourceUploader);
 
             CameraUBO camera = {
@@ -128,10 +128,10 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
                 .ProjectionInverse = glm::inverse(frameContext.MainCamera->GetProjection()),
                 .Near = frameContext.MainCamera->GetFrustumPlanes().Near,
                 .Far = frameContext.MainCamera->GetFrustumPlanes().Far};
-            const Buffer& cameraUbo = resources.GetBuffer(passData.CameraUbo, camera,
+            const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera, camera,
                 *frameContext.ResourceUploader);
 
-            const Buffer& samplesUbo = resources.GetBuffer(passData.SamplesUbo);
+            const Buffer& samples = resources.GetBuffer(passData.Samples);
 
             const Texture& depthTexture = resources.GetTexture(passData.DepthIn);
             const Texture& noiseTexture = resources.GetTexture(passData.NoiseTexture);
@@ -141,9 +141,9 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;    
 
-            resourceDescriptors.UpdateBinding("u_settings", settingUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", cameraUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_samples", samplesUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_settings", setting.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_camera", cameraBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_samples", samples.BindingInfo());
             resourceDescriptors.UpdateBinding("u_depth_texture", depthTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::DepthReadonly));
             resourceDescriptors.UpdateBinding("u_noise_texture", noiseTexture.BindingInfo(

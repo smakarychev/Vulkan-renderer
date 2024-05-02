@@ -147,12 +147,12 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RG::Graph& renderGraph, SlimeMoldCont
     m_UpdateSlimeMapPass = &renderGraph.AddRenderPass<UpdateSlimeMapPassData>({"Slime.Update"},
         [&](Graph& graph, UpdateSlimeMapPassData& passData)
         {
-            passData.TraitsSsbo = graph.AddExternal("Slime.Update.Traits", ctx.GetTraitsBuffer());
-            passData.TraitsSsbo = graph.Read(passData.TraitsSsbo, Compute | Storage);
+            passData.Traits = graph.AddExternal("Slime.Update.Traits", ctx.GetTraitsBuffer());
+            passData.Traits = graph.Read(passData.Traits, Compute | Storage);
 
-            passData.SlimeSsbo = graph.AddExternal("Slime.Update.Slime", ctx.GetSlimeBuffer());
-            passData.SlimeSsbo = graph.Read(passData.SlimeSsbo, Compute | Storage);
-            passData.SlimeSsbo = graph.Write(passData.SlimeSsbo, Compute | Storage);
+            passData.Slime = graph.AddExternal("Slime.Update.Slime", ctx.GetSlimeBuffer());
+            passData.Slime = graph.Read(passData.Slime, Compute | Storage);
+            passData.Slime = graph.Write(passData.Slime, Compute | Storage);
 
             passData.SlimeMap = graph.AddExternal("Slime.Update.SlimeMap", ctx.GetSlimeMap());
             passData.SlimeMap = graph.Write(passData.SlimeMap, Compute | Storage);
@@ -166,8 +166,8 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RG::Graph& renderGraph, SlimeMoldCont
         [=](UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("Update slime");
-            const Buffer& traitsBuffer = resources.GetBuffer(passData.TraitsSsbo);
-            const Buffer& slimeBuffer = resources.GetBuffer(passData.SlimeSsbo);
+            const Buffer& traitsBuffer = resources.GetBuffer(passData.Traits);
+            const Buffer& slimeBuffer = resources.GetBuffer(passData.Slime);
             const Texture& slimeMap = resources.GetTexture(passData.SlimeMap);
 
             auto& pushConstant = *passData.PushConstants;
@@ -301,13 +301,13 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
                 .Format = Format::RGBA16_FLOAT});
             passData.GradientMap = graph.Write(passData.GradientMap, Compute | Storage);
 
-            passData.GradientUbo = graph.CreateResource("Slime.Gradient.Colors", GraphBufferDescription{
+            passData.Gradient = graph.CreateResource("Slime.Gradient.Colors", GraphBufferDescription{
                 .SizeBytes = sizeof(GradientUBO)});
-            passData.GradientUbo = graph.Read(passData.GradientUbo, Compute | Uniform | Upload);
+            passData.Gradient = graph.Read(passData.Gradient, Compute | Uniform | Upload);
 
             passData.PipelineData = &m_GradientSlimeMapPipelineData;
             passData.PushConstants = &m_PushConstants;
-            passData.Gradient = &m_Gradient;
+            passData.GradientData = &m_Gradient;
             passData.SlimeMoldContext = &ctx;
 
             graph.GetBlackboard().Register(passData);
@@ -318,7 +318,7 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
             const Texture& diffuseMap = resources.GetTexture(passData.DiffuseMap);
             const Texture& gradientMap = resources.GetTexture(passData.GradientMap);
 
-            auto& colors = *passData.Gradient;
+            auto& colors = *passData.GradientData;
             ImGui::Begin("slime gradient");
             ImGui::ColorEdit4("A", (f32*)&colors.A);
             ImGui::ColorEdit4("B", (f32*)&colors.B);
@@ -332,7 +332,7 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
                 colors.D = Random::Float4();
             }
             ImGui::End();
-            const Buffer& gradientUbo = resources.GetBuffer(passData.GradientUbo, (void*)&colors, sizeof(GradientUBO), 0,
+            const Buffer& gradient = resources.GetBuffer(passData.Gradient, (void*)&colors, sizeof(GradientUBO), 0,
                 *frameContext.ResourceUploader);
             frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
             frameContext.ResourceUploader->StartRecording();
@@ -345,7 +345,7 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
                 ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding(gradientBinding, gradientMap.BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
-            resourceDescriptors.UpdateBinding(gradientColorsBinding, gradientUbo.BindingInfo());
+            resourceDescriptors.UpdateBinding(gradientColorsBinding, gradient.BindingInfo());
 
             auto& moldCtx = *passData.SlimeMoldContext;
             auto& cmd = frameContext.Cmd;

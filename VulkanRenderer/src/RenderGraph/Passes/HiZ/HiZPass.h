@@ -16,6 +16,7 @@ public:
 
     /* NOTE: this is not hiz resolution (which is a power of 2), but the resolution that was passed into constructor */
     const glm::uvec2& GetDrawResolution() const { return m_DrawResolution; }
+    const glm::uvec2& GetHiZResolution() const { return m_HiZResolution; }
     
 private:
     Texture m_HiZ;
@@ -24,6 +25,7 @@ private:
     std::vector<ImageViewHandle> m_MipmapViewHandles;
     
     glm::uvec2 m_DrawResolution{};
+    glm::uvec2 m_HiZResolution{};
 };
 
 class HiZPass

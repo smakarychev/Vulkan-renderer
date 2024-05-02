@@ -15,7 +15,7 @@ public:
         RG::Resource Skybox{};
         RG::Resource DepthOut{};
         RG::Resource ColorOut{};
-        RG::Resource ProjectionUbo{};
+        RG::Resource Projection{};
 
         f32 LodBias{0.0f};
 

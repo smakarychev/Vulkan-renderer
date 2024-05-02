@@ -47,7 +47,7 @@ void CSMVisualizePass::AddToGraph(RG::Graph& renderGraph, const CSMPass::PassDat
                     .Format = Format::RGBA16_FLOAT});
 
             passData.ShadowMap = graph.Read(csmOutput.ShadowMap, Pixel | Sampled);
-            passData.CsmUbo = graph.Read(csmOutput.CSMUbo, Pixel | Uniform);
+            passData.CSM = graph.Read(csmOutput.CSM, Pixel | Uniform);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 colorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
                 AttachmentStore::Store, glm::vec4{0.0f, 0.0f, 0.0f, 1.0f});
@@ -62,7 +62,7 @@ void CSMVisualizePass::AddToGraph(RG::Graph& renderGraph, const CSMPass::PassDat
             GPU_PROFILE_FRAME("Visualize CSM")
 
             const Texture& shadowMap = resources.GetTexture(passData.ShadowMap);
-            const Buffer& csmData = resources.GetBuffer(passData.CsmUbo);
+            const Buffer& csmData = resources.GetBuffer(passData.CSM);
 
             auto& pipeline = passData.PipelineData->Pipeline;    
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    

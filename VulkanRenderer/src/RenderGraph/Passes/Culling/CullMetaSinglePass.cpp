@@ -56,7 +56,7 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
         depthAttachment->Resource = *depth;
 
     m_CullDraw->AddToGraph(renderGraph, {
-        .Dispatch = dispatchOut.DispatchIndirect,
+        .Dispatch = dispatchOut.Dispatch,
         .CullContext = m_TriangleContext.get(),
         .DrawContext = m_TriangleDrawContext.get(),
         .HiZContext = &hiZContext,

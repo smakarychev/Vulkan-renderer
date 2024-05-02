@@ -11,7 +11,7 @@ public:
     struct PassData
     {
         RG::Resource ShadowMap{};
-        RG::Resource ShadowUbo{};
+        RG::Resource Shadow{};
         f32 Near{1.0f};
         f32 Far{100.0f};
     };

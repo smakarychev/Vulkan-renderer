@@ -18,12 +18,12 @@ public:
     {
         RG::Resource ColorIn;
         RG::Resource ColorOut{};
-        RG::Resource TimeUbo{};
-        RG::Resource SettingsUbo{};
+        RG::Resource Time{};
+        RG::Resource Settings{};
 
         RG::PipelineData* PipelineData{nullptr};
         
-        SettingsUBO* Settings{nullptr};
+        SettingsUBO* SettingsData{nullptr};
     };
 public:
     CrtPass(RG::Graph& renderGraph);

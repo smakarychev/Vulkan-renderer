@@ -43,21 +43,21 @@ void MeshletCullTranslucentPass::AddToGraph(RG::Graph& renderGraph,
     m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{passName},
         [&](Graph& graph, PassData& passData)
         {
-            ctx.Resources().MeshletsSsbo = graph.AddExternal(std::format("{}.{}", passName, "Meshlets"),
+            ctx.Resources().Meshlets = graph.AddExternal(std::format("{}.{}", passName, "Meshlets"),
                     ctx.Geometry().GetMeshletsBuffer());
-            ctx.Resources().CommandsSsbo =
+            ctx.Resources().Commands =
                 graph.AddExternal(std::format("{}.{}", passName, "Commands"), ctx.Geometry().GetCommandsBuffer());
 
             auto& meshResources = ctx.MeshContext().Resources();
             meshResources.HiZ = graph.Read(meshResources.HiZ, Compute | Sampled);
-            meshResources.SceneUbo = graph.Read(meshResources.SceneUbo, Compute | Uniform);
-            meshResources.ObjectsSsbo = graph.Read(meshResources.ObjectsSsbo, Compute | Storage);
-            meshResources.VisibilitySsbo = graph.Read(meshResources.VisibilitySsbo, Compute | Storage);
+            meshResources.Scene = graph.Read(meshResources.Scene, Compute | Uniform);
+            meshResources.Objects = graph.Read(meshResources.Objects, Compute | Storage);
+            meshResources.Visibility = graph.Read(meshResources.Visibility, Compute | Storage);
 
             auto& resources = ctx.Resources();
-            resources.MeshletsSsbo = graph.Read(resources.MeshletsSsbo, Compute | Storage);
-            resources.CommandsSsbo = graph.Read(resources.CommandsSsbo, Compute | Storage);
-            resources.CommandsSsbo = graph.Write(resources.CommandsSsbo, Compute | Storage);
+            resources.Meshlets = graph.Read(resources.Meshlets, Compute | Storage);
+            resources.Commands = graph.Read(resources.Commands, Compute | Storage);
+            resources.Commands = graph.Write(resources.Commands, Compute | Storage);
 
             passData.MeshResources = meshResources;
             passData.MeshletResources = resources;
@@ -75,11 +75,11 @@ void MeshletCullTranslucentPass::AddToGraph(RG::Graph& renderGraph,
             
             const Texture& hiz = resources.GetTexture(meshResources.HiZ);
             const Sampler& hizSampler = meshResources.HiZSampler;
-            const Buffer& sceneUbo = resources.GetBuffer(meshResources.SceneUbo);
-            const Buffer& objectsSsbo = resources.GetBuffer(meshResources.ObjectsSsbo);
-            const Buffer& objectVisibilitySsbo = resources.GetBuffer(meshResources.VisibilitySsbo);
-            const Buffer& meshletsSsbo = resources.GetBuffer(meshletResources.MeshletsSsbo);
-            const Buffer& commandsSsbo = resources.GetBuffer(meshletResources.CommandsSsbo);
+            const Buffer& scene = resources.GetBuffer(meshResources.Scene);
+            const Buffer& objects = resources.GetBuffer(meshResources.Objects);
+            const Buffer& objectVisibility = resources.GetBuffer(meshResources.Visibility);
+            const Buffer& meshlets = resources.GetBuffer(meshletResources.Meshlets);
+            const Buffer& commands = resources.GetBuffer(meshletResources.Commands);
 
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
@@ -87,11 +87,11 @@ void MeshletCullTranslucentPass::AddToGraph(RG::Graph& renderGraph,
 
             samplerDescriptors.UpdateBinding("u_sampler", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_hiz", hiz.BindingInfo(hizSampler, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_scene_data", sceneUbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_objects", objectsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_object_visibility", objectVisibilitySsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_meshlets", meshletsSsbo.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_commands", commandsSsbo.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_scene_data", scene.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_object_visibility", objectVisibility.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_meshlets", meshlets.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_commands", commands.BindingInfo());
 
             u32 meshletCount = passData.MeshletCount;
 

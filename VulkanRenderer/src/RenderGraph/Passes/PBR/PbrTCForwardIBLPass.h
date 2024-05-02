@@ -10,18 +10,14 @@
 class SceneLight;
 class Camera;
 
-namespace RG
-{
-    class Geometry;
-}
-
+class SceneGeometry;
 class CullMetaPass;
 class HiZPassContext;
 class ShaderDescriptors;
 
 struct PbrForwardIBLPassInitInfo
 {
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
     const ShaderDescriptors* MaterialDescriptors{nullptr};
     CameraType CameraType{CameraType::Perspective};
 };

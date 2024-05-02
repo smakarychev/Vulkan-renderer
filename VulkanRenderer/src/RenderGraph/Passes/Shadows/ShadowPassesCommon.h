@@ -6,14 +6,11 @@
 
 struct DirectionalLight;
 class Camera;
-namespace RG
-{
-    class Geometry;
-}
+class SceneGeometry;
 
 struct ShadowPassInitInfo
 {
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
 };
 
 struct ShadowPassExecutionInfo

@@ -8,11 +8,7 @@
 #include "RenderGraph/RGCommon.h"
 
 class SceneLight;
-
-namespace RG
-{
-    class Geometry;
-}
+class SceneGeometry;
 
 struct DrawIndirectCountPassInitInfo
 {
@@ -23,7 +19,7 @@ struct DrawIndirectCountPassInitInfo
 
 struct DrawIndirectCountPassExecutionInfo
 {
-    const RG::Geometry* Geometry{nullptr};
+    const SceneGeometry* Geometry{nullptr};
     RG::Resource Commands{};
     u32 CommandsOffset{0};
     RG::Resource CommandCount{};
@@ -51,11 +47,11 @@ public:
 private:
     struct PassDataPrivate
     {
-        RG::Resource CameraUbo{};
+        RG::Resource Camera{};
         RG::DrawAttributeBuffers AttributeBuffers{};
-        RG::Resource ObjectsSsbo{};
-        RG::Resource CommandsIndirect{};
-        RG::Resource CountIndirect{};
+        RG::Resource Objects{};
+        RG::Resource Commands{};
+        RG::Resource Count{};
         
         RG::DrawAttachmentResources DrawAttachmentResources{};
 
