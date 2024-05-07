@@ -164,7 +164,41 @@ namespace RG::RgUtils
     }
 
     void updateMeshletCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResource& multiview)
+        const CullMultiviewResource& multiview, CullStage cullStage, bool triangleCull,
+        ResourceUploader& resourceUploader)
     {
+        descriptors.UpdateBinding("u_view_spans", resources.GetBuffer(multiview.ViewSpans).BindingInfo());
+
+        for (u32 i = 0; i < multiview.Objects.size(); i++)
+        {
+            descriptors.UpdateBinding("u_objects", resources.GetBuffer(multiview.Objects[i]).BindingInfo(), i);
+            descriptors.UpdateBinding("u_meshlets", resources.GetBuffer(multiview.Meshlets[i]).BindingInfo(), i);
+            descriptors.UpdateBinding("u_commands", resources.GetBuffer(multiview.Commands[i]).BindingInfo(), i);
+        }
+
+        for (u32 i = 0; i < multiview.Views.size(); i++)
+        {
+            const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
+            
+            descriptors.UpdateBinding("u_hiz", hiz.BindingInfo(multiview.HiZSampler,
+                hiz.Description().Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
+            
+            descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views[i]).BindingInfo(), i);
+            descriptors.UpdateBinding("u_object_visibility", resources.GetBuffer(multiview.MeshVisibility[i])
+                .BindingInfo(), i);
+            descriptors.UpdateBinding("u_meshlet_visibility", resources.GetBuffer(multiview.MeshletVisibility[i])
+                .BindingInfo(), i);
+            descriptors.UpdateBinding("u_compacted_commands", resources.GetBuffer(multiview.CompactCommands[i])
+                .BindingInfo(), i);
+
+            const Buffer& countBuffer = resources.GetBuffer(cullStage == CullStage::Reocclusion ?
+                multiview.CompactCommandCountReocclusion[i] : multiview.CompactCommandCount[i], 0u,
+                resourceUploader);
+            descriptors.UpdateBinding("u_count", countBuffer.BindingInfo(), i);
+
+            if (triangleCull)
+                descriptors.UpdateBinding("u_flags", resources.GetBuffer(multiview.CommandFlags[i]).BindingInfo(), i);
+        }
     }
 }

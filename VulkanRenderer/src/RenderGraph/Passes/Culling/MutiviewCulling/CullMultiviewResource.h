@@ -60,5 +60,6 @@ namespace RG::RgUtils
     void readWriteCullMeshletMultiview(CullMultiviewResource& multiview, CullStage cullStage, bool triangleCull,
         Graph& graph);
     void updateMeshletCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResource& multiview);
+        const CullMultiviewResource& multiview, CullStage cullStage, bool triangleCull,
+        ResourceUploader& resourceUploader);
 }
