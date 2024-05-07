@@ -121,8 +121,6 @@ void ModelCollection::IterateRenderObjects(const RenderObjectIndices& indices,
 template <typename T>
 RenderHandle<T> ModelCollection::AddRenderHandle(const T& object, RenderHandleArray<T>& array)
 {
-    RenderHandle<T> handle = (u32)array.size();
-    array.push_back(object);
-    return handle;
+    return array.push_back(object);
 }
 
