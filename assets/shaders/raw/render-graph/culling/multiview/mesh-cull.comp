@@ -1,0 +1,106 @@
+#version 460
+
+#include "common.glsl"
+#include "culling_functions.glsl"
+
+#extension GL_EXT_buffer_reference: require
+#extension GL_KHR_shader_subgroup_ballot: require
+
+layout(local_size_x = 64) in;
+
+layout(constant_id = 0) const bool REOCCLUSION = false;
+layout(constant_id = 1) const bool SINGLE_PASS = false;
+
+
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
+
+layout(set = 1, binding = 1) uniform view_buffer {
+    ViewData views[MAX_VIEWS];
+} u_views;
+
+layout(set = 1, binding = 2) uniform view_spans_buffer {
+    ViewSpan spans[MAX_GEOMETRIES];
+} u_view_spans;
+
+layout(std430, set = 1, binding = 3) readonly buffer object_buffer {
+    object_data objects[];
+} u_objects[MAX_GEOMETRIES];
+
+layout(std430, set = 1, binding = 4) buffer object_visibility_buffer {
+    uint8_t visibility[];
+} u_object_visibility[MAX_VIEWS];
+
+layout(push_constant) uniform push_constants {
+    uint u_mesh_count;
+    uint u_geometry_index;
+    uint u_view_count;
+};
+
+bool is_visible(vec3 origin, float radius, uint view_index) {
+    bool visible = true;
+    visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
+
+    return visible;
+}
+
+bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
+    bool visible = true;
+    visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
+    if (u_views.views[view_index].is_orthographic)
+        visible = visible && 
+            is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+    else
+        visible = visible && 
+            is_occlusion_visible(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+    
+    return visible;
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= u_mesh_count)
+        return;
+    
+    object_data object = u_objects[u_geometry_index].objects[id];
+    
+    const vec4 origin_world = object.model * vec4(object.x, object.y, object.z, 1.0f);
+    const float radius = object.r * extract_scale(object.model);
+    
+    const uint first_view = u_view_spans.spans[u_geometry_index].first;
+    const uint view_count = u_view_spans.spans[u_geometry_index].count;
+    for (uint i = first_view; i < first_view + view_count; i++) {
+        const ViewData view = u_views.views[i];
+        
+        vec3 origin_view = vec3(view.view_matrix * origin_world);
+        if (view.clamp_depth)
+            origin_view.z = min(origin_view.z, -view.frustum_near);
+        
+        const bool is_last_frame_visible = flags_visible(u_object_visibility[i].visibility[id]);
+        bool should_be_drawn = false;
+        bool visible = false;
+
+        if (SINGLE_PASS) {
+            visible = is_reocclusion_visible(origin_view, radius, i);
+            should_be_drawn = visible;
+        }
+        else if (!REOCCLUSION) {
+            visible = is_last_frame_visible && is_visible(origin_view, radius, i);
+            should_be_drawn = visible;
+        } else {
+            visible = is_reocclusion_visible(origin_view, radius, i);
+
+            if (visible)
+                flags_set_visible(u_object_visibility[i].visibility[id]);
+            else
+                flags_unset_visible(u_object_visibility[i].visibility[id]);
+
+            should_be_drawn = !is_last_frame_visible && visible;
+        }
+
+        if (should_be_drawn)
+            set_flags_set_should_draw(u_object_visibility[i].visibility[id]);
+        else
+            set_flags_unset_should_draw(u_object_visibility[i].visibility[id]);
+    }
+}

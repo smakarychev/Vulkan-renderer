@@ -1,0 +1,184 @@
+#version 460
+
+#include "common.glsl"
+#include "culling_functions.glsl"
+
+#extension GL_KHR_shader_subgroup_ballot: enable
+
+layout(local_size_x = 64) in;
+
+layout(constant_id = 0) const bool REOCCLUSION = false;
+layout(constant_id = 1) const bool SINGLE_PASS = false;
+layout(constant_id = 2) const bool TRIANGLE_CULL = false;
+
+
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
+
+layout(set = 1, binding = 1) uniform view_buffer {
+    ViewData views[MAX_VIEWS];
+} u_views;
+
+layout(set = 1, binding = 2) uniform view_spans_buffer {
+    ViewSpan spans[MAX_GEOMETRIES];
+} u_view_spans;
+
+layout(std430, set = 1, binding = 3) readonly buffer object_buffer {
+    object_data objects[];
+} u_objects[MAX_GEOMETRIES];
+
+layout(std430, set = 1, binding = 4) readonly buffer object_visibility_buffer{
+    uint8_t visibility[];
+} u_object_visibility[MAX_VIEWS];
+
+layout(std430, set = 1, binding = 5) readonly buffer meshlet_buffer {
+    Meshlet meshlets[];
+} u_meshlets[MAX_GEOMETRIES];
+
+layout(std430, set = 1, binding = 6) buffer meshlet_visibility_buffer{
+    uint8_t visibility[];
+} u_meshlet_visibility[MAX_VIEWS];
+
+layout(std430, set = 1, binding = 7) readonly buffer command_buffer {
+    IndirectCommand commands[];
+} u_commands[MAX_GEOMETRIES];
+
+layout(std430, set = 1, binding = 8) writeonly buffer compacted_command_buffer {
+    IndirectCommand commands[];
+} u_compacted_commands[MAX_VIEWS];
+
+layout(std430, set = 1, binding = 9) buffer count_buffer {
+    uint count;
+} u_count[MAX_VIEWS];
+
+layout(std430, set = 1, binding = 10) buffer flags_buffer {
+    uint8_t flags[];
+} u_flags[MAX_VIEWS];
+
+layout(push_constant) uniform push_constants {
+    uint u_meshlet_count;
+    uint u_geometry_index;
+    uint u_view_count;
+};
+
+bool is_visible(vec3 origin, float radius, vec3 cone_axis, float cone_cutoff, uint view_index) {
+    bool visible = true;
+    visible = visible && is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff);
+    visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
+
+    return visible;
+}
+
+bool is_reocclusion_visible(vec3 origin, float radius, vec3 cone_axis, float cone_cutoff, uint view_index) {
+    bool visible = true;
+    visible = visible && is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff);
+    visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
+    if (u_views.views[view_index].is_orthographic)
+        visible = visible && 
+            is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+    else
+        visible = visible && 
+            is_occlusion_visible(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+
+    return visible;
+}
+
+void compact(uint id, bool should_draw, uint view_index) {
+    IndirectCommand command = u_commands[u_geometry_index].commands[id];
+
+    uvec4 is_visible_ballot = subgroupBallot(should_draw);
+
+    uint total_visible_count = subgroupBallotBitCount(is_visible_ballot);
+
+    uint compacted_buffer_index_base;
+    if (subgroupElect())
+        compacted_buffer_index_base = atomicAdd(u_count[view_index].count, total_visible_count);
+    compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
+
+    uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_visible_ballot);
+
+    uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
+
+    if (should_draw) {
+        u_compacted_commands[view_index].commands[compacted_buffer_index] = command;
+        
+        // this 0 serves as a mark; the triangle culling later sets it back to 1, 
+        // this way we can check if some command wasn't processed by triangle culling
+        // due to not up-to-date batch count
+        if (TRIANGLE_CULL && !REOCCLUSION)
+            u_flags[view_index].flags[id] = uint8_t(0);
+    }
+}
+
+void main() {
+    uint id = gl_GlobalInvocationID.x;
+    if (id >= u_meshlet_count)
+        return;
+
+    const IndirectCommand command = u_commands[u_geometry_index].commands[id];
+    const uint meshlet_id = command.firstInstance;
+    const Meshlet meshlet = u_meshlets[u_geometry_index].meshlets[meshlet_id];
+    const object_data object = u_objects[u_geometry_index].objects[command.render_object];
+
+    const vec4 origin_world = object.model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f);
+    const float scale = extract_scale(object.model);
+    const float radius = meshlet.r * scale;
+    
+    const vec4 cone_axis_world = object.model * 
+        vec4(vec3(meshlet.cone_x, meshlet.cone_y, meshlet.cone_z) / 127.0f, 0.0f) / scale;
+    const float cone_cutoff = float(meshlet.cone_cutoff) / 127.0f;
+
+    const uint first_view = u_view_spans.spans[u_geometry_index].first;
+    const uint view_count = u_view_spans.spans[u_geometry_index].count;
+
+    for (uint i = first_view; i < first_view + view_count; i++) {
+        const ViewData view = u_views.views[i];
+
+        vec3 origin_view = vec3(view.view_matrix * origin_world);
+        if (view.clamp_depth)
+            origin_view.z = min(origin_view.z, -view.frustum_near);
+        
+        const vec3 cone_axis = vec3(view.view_matrix * cone_axis_world);
+        
+        const bool is_mesh_drawn = flags_should_draw(u_object_visibility[i].visibility[command.render_object]); 
+        const bool is_mesh_visible = flags_visible(u_object_visibility[i].visibility[command.render_object]);
+        const bool is_last_frame_visible = flags_visible(u_meshlet_visibility[i].visibility[meshlet_id]);
+
+        bool should_be_drawn = false;
+        bool visible = false;
+
+        if (SINGLE_PASS) {
+            // this is for order-independent translucency rendering
+            visible = is_mesh_drawn && is_reocclusion_visible(origin_view, radius, cone_axis, cone_cutoff, i);
+            should_be_drawn = visible;
+        }
+        else if (!REOCCLUSION) {
+            visible = is_mesh_drawn && is_last_frame_visible &&
+                is_visible(origin_view, radius, cone_axis, cone_cutoff, i);
+            should_be_drawn = visible;
+        } else {
+            visible = is_mesh_visible && is_reocclusion_visible(origin_view, radius, cone_axis, cone_cutoff, i);
+
+            if (visible)
+                flags_set_visible(u_meshlet_visibility[i].visibility[meshlet_id]);
+            else
+                flags_unset_visible(u_meshlet_visibility[i].visibility[meshlet_id]);
+
+            // visible meshlet should be drawn if it wasn't drawn already OR if it wasn't processed by triange culling
+            if (TRIANGLE_CULL) {
+                const bool was_processed_by_triangle_culling = u_flags[i].flags[id] == 1;
+                u_flags[i].flags[id] = uint8_t(1);
+                should_be_drawn = (!was_processed_by_triangle_culling || !is_last_frame_visible) && visible;
+            } else {
+                should_be_drawn = !is_last_frame_visible && visible;
+            }
+        }
+
+        if (should_be_drawn)
+            set_flags_set_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
+        else
+            set_flags_unset_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
+
+        compact(id, should_be_drawn, i);
+    }
+}
