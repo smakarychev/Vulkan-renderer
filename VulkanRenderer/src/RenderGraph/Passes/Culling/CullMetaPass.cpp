@@ -104,7 +104,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     {
         m_HiZ->AddToGraph(renderGraph, drawOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}),
             info.DrawAttachments.Depth->Description.Subresource, *m_HiZContext);
-        m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
+        m_PassData.HiZOut = m_HiZContext->GetHiZResource();
     }
 
     // we have to update attachment resources
@@ -140,7 +140,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
         m_HiZReocclusion->AddToGraph(renderGraph,
             reoccludeTrianglesOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}),
             info.DrawAttachments.Depth->Description.Subresource, *m_HiZContext);
-        m_PassData.HiZOut = blackboard.Get<HiZPass::PassData>().HiZOut;
+        m_PassData.HiZOut = m_HiZContext->GetHiZResource();
     }
     
     // we have to update attachment resources (again)

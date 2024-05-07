@@ -138,7 +138,7 @@ void MeshCullGeneralPass<Stage>::AddToGraph(RG::Graph& renderGraph, MeshCullCont
             }
             else
             {
-                ctx.Resources().HiZ = graph.GetBlackboard().Get<HiZPass::PassData>().HiZOut;
+                ctx.Resources().HiZ = hiZPassContext.GetHiZResource();
             }
 
             auto& resources = ctx.Resources();

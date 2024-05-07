@@ -8,6 +8,8 @@ public:
     static constexpr u32 MAX_MIPMAP_COUNT = 16;
     HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue);
 
+    void SetHiZResource(RG::Resource hiz) { m_HiZResource = hiz; }
+    RG::Resource GetHiZResource() const { return m_HiZResource; }
     const Texture& GetHiZ() const { return m_HiZ; }
     std::shared_ptr<Texture>* GetHiZPrevious() { return &m_HiZPrevious; }
     const Texture* GetHiZPrevious() const { return m_HiZPrevious.get(); }
@@ -19,6 +21,7 @@ public:
     const glm::uvec2& GetHiZResolution() const { return m_HiZResolution; }
     
 private:
+    RG::Resource m_HiZResource{};
     Texture m_HiZ;
     std::shared_ptr<Texture> m_HiZPrevious{};
     Sampler m_MinMaxSampler;

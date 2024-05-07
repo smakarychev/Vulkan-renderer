@@ -424,7 +424,7 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 passData.HiZ = meshResources.HiZ;
             else
                 passData.HiZ = graph.Read(
-                    graph.GetBlackboard().Get<HiZPass::PassData>().HiZOut, Compute | Sampled);
+                    info.HiZContext->GetHiZResource(), Compute | Sampled);
             passData.HiZSampler = meshResources.HiZSampler;
             passData.Objects = meshResources.Objects;
             passData.MeshletVisibility = meshletResources.Visibility;

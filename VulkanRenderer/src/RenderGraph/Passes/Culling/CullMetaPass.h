@@ -8,7 +8,7 @@
 
 class SceneLight;
 class DrawIndirectCountPass;
-
+ 
 struct CullMetaPassInitInfo
 {
     using Features = RG::DrawFeatures;
