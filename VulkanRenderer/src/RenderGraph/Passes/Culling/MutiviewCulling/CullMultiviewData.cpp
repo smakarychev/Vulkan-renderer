@@ -63,6 +63,7 @@ void CullMultiviewData::Finalize()
 void CullMultiviewData::UpdateView(u32 viewIndex, const CullViewDynamicDescription& description)
 {
     m_Views[viewIndex].Dynamic = description;
+    ValidateViewRenderingAttachments(viewIndex);
 }
 
 std::vector<CullViewDataGPU> CullMultiviewData::CreateMultiviewGPU() const
@@ -73,4 +74,28 @@ std::vector<CullViewDataGPU> CullMultiviewData::CreateMultiviewGPU() const
         views.emplace_back(CullViewDataGPU::FromCullViewDescription(v));
 
     return views;
+}
+
+void CullMultiviewData::ValidateViewRenderingAttachments(u32 lastViewIndex) const
+{
+    auto& toCompareAttachments = m_Views[lastViewIndex].Dynamic.DrawAttachments;
+    for (u32 viewIndex = 0; viewIndex < lastViewIndex; viewIndex++)
+    {
+        auto& attachments = m_Views[viewIndex].Dynamic.DrawAttachments;
+        for (auto& color : toCompareAttachments.Colors)
+        {
+            auto colorIt = std::ranges::find(attachments.Colors, color.Resource,
+                [](auto& other){ return other.Resource; });
+            if (colorIt != attachments.Colors.end())
+                ASSERT(colorIt->Description.Subresource != color.Description.Subresource,
+                    "Using the same resource and the same subresource as a draw target")
+        }
+        if (toCompareAttachments.Depth.has_value())
+        {
+            if (attachments.Depth.has_value() && attachments.Depth->Resource == toCompareAttachments.Depth->Resource)
+                ASSERT(attachments.Depth->Description.Subresource !=
+                    toCompareAttachments.Depth->Description.Subresource,
+                    "Using the same resource and the same subresource as a depth target")
+        }
+    }
 }

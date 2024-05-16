@@ -69,8 +69,8 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
 
     auto& drawOutput = blackboard.Get<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
 
-    m_PassData.DrawAttachmentResources.RenderTargets = drawOutput.DrawAttachmentResources.RenderTargets;
-    m_PassData.DrawAttachmentResources.DepthTarget = drawOutput.DrawAttachmentResources.DepthTarget;
+    m_PassData.DrawAttachmentResources.Colors = drawOutput.DrawAttachmentResources.Colors;
+    m_PassData.DrawAttachmentResources.Depth = drawOutput.DrawAttachmentResources.Depth;
     
     blackboard.Register(m_Name.Hash(), m_PassData);
 }

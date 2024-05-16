@@ -58,7 +58,7 @@ namespace RG::RgUtils
         for (auto& attachment : attachments.Colors)
         {
             Resource resource = attachment.Resource;
-            drawAttachmentResources.RenderTargets.push_back(graph.RenderTarget(
+            drawAttachmentResources.Colors.push_back(graph.RenderTarget(
                 resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
                 attachment.Description.ClearColor.F));
@@ -67,7 +67,7 @@ namespace RG::RgUtils
         {
             auto& attachment = *attachments.Depth;
             Resource resource = attachment.Resource;
-            drawAttachmentResources.DepthTarget = graph.DepthStencilTarget(
+            drawAttachmentResources.Depth = graph.DepthStencilTarget(
                 resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
                 attachment.DepthBias,

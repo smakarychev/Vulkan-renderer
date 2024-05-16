@@ -24,6 +24,9 @@ struct CullViewStaticDescription
     /* the user is not expected to set HiZContext manually, but it is possible */
     std::shared_ptr<HiZPassContext> HiZContext{};
     RG::DrawFeatures DrawFeatures{RG::DrawFeatures::None};
+    const ShaderPipeline* DrawMeshletsPipeline{nullptr};
+    const ShaderPipeline* DrawTrianglesPipeline{nullptr};
+    std::optional<const ShaderDescriptors*> MaterialDescriptors{};
     bool CullTriangles{false};
 };
 
@@ -58,8 +61,6 @@ struct CullViewDataGPU
     u32 IsOrthographic{0};
     u32 ClampDepth{0};
 
-    u32 Padding[2];
-
     static CullViewDataGPU FromCullViewDescription(const CullViewDescription& description);
 };
 
@@ -89,12 +90,15 @@ public:
     void UpdateView(u32 viewIndex, const CullViewDynamicDescription& description);
 
     const std::vector<CullViewDescription>& Views() const { return m_Views; }
+    std::vector<CullViewDescription>& Views() { return m_Views; }
     const std::vector<const SceneGeometry*>& Geometries() const { return m_Geometries; }
     const std::vector<ViewSpan>& ViewSpans() const { return m_ViewSpans; }
     const std::vector<CullViewVisibility>& Visibilities() const { return m_CullVisibilities; }
     const std::vector<CullViewTriangleVisibility>& TriangleVisibilities() const { return m_CullTriangleVisibilities; }
     
     std::vector<CullViewDataGPU> CreateMultiviewGPU() const;
+private:
+    void ValidateViewRenderingAttachments(u32 lastViewIndex) const;
 private:
     std::vector<CullViewDescription> m_Views;
 

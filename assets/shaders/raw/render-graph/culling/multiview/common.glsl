@@ -29,5 +29,5 @@ struct ViewSpan {
     uint count;
 };
 
-const uint MAX_VIEWS = 64;
+const uint MAX_VIEWS = 4;
 const uint MAX_GEOMETRIES = 3;

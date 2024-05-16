@@ -4,6 +4,7 @@
 #include "culling_functions.glsl"
 
 #extension GL_KHR_shader_subgroup_ballot: enable
+#extension GL_EXT_scalar_block_layout: require
 
 layout(local_size_x = 64) in;
 
@@ -13,13 +14,13 @@ layout(constant_id = 2) const bool TRIANGLE_CULL = false;
 
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
-layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
+layout(set = 1, binding = 1) uniform texture2D u_hiz[MAX_VIEWS];
 
-layout(set = 1, binding = 1) uniform view_buffer {
+layout(scalar, set = 1, binding = 0) uniform view_buffer {
     ViewData views[MAX_VIEWS];
 } u_views;
 
-layout(set = 1, binding = 2) uniform view_spans_buffer {
+layout(scalar, set = 1, binding = 2) uniform view_spans_buffer {
     ViewSpan spans[MAX_GEOMETRIES];
 } u_view_spans;
 
@@ -173,7 +174,7 @@ void main() {
                 should_be_drawn = !is_last_frame_visible && visible;
             }
         }
-
+        
         if (should_be_drawn)
             set_flags_set_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
         else

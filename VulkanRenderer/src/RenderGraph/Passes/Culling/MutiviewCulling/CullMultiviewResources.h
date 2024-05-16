@@ -12,16 +12,18 @@ class CullMultiviewData;
 
 namespace RG
 {
-    struct CullMultiviewResource
+    struct CullMultiviewResources
     {
+        u32 ViewCount{0};
+        
         std::vector<Resource> Objects;
         std::vector<Resource> Meshlets;
         std::vector<Resource> Commands;
         Resource ViewSpans;
+        Resource Views;
         
         Sampler HiZSampler{};
         std::vector<Resource> HiZs;
-        std::vector<Resource> Views;
         
         std::vector<Resource> MeshVisibility;
         std::vector<Resource> MeshletVisibility;
@@ -51,15 +53,15 @@ namespace RG
 
 namespace RG::RgUtils
 {
-    CullMultiviewResource createCullMultiview(const CullMultiviewData& cullMultiviewData, Graph& graph,
+    CullMultiviewResources createCullMultiview(const CullMultiviewData& cullMultiviewData, Graph& graph,
         const std::string& baseName);
-    void readWriteCullMeshMultiview(CullMultiviewResource& multiview, Graph& graph);
+    void readWriteCullMeshMultiview(CullMultiviewResources& multiview, Graph& graph);
     void updateMeshCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResource& multiview);
+        const CullMultiviewResources& multiview);
     
-    void readWriteCullMeshletMultiview(CullMultiviewResource& multiview, CullStage cullStage, bool triangleCull,
+    void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         Graph& graph);
     void updateMeshletCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResource& multiview, CullStage cullStage, bool triangleCull,
+        const CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         ResourceUploader& resourceUploader);
 }

@@ -4,6 +4,7 @@
 #include "ShadowPassesUtils.h"
 #include "imgui/imgui.h"
 #include "Light/Light.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
 #include "utils/MathUtils.h"
 
 CSMPass::CSMPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info)
@@ -28,17 +29,20 @@ CSMPass::CSMPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info)
         .AddSpecialization("COMPOUND_INDEX", false)
         .Build();
 
-    CullMetaPassInitInfo shaderPassInitInfo = {
-        .Geometry = info.Geometry,
-        .DrawTrianglesPipeline = &trianglePipeline,
-        .DrawMeshletsPipeline = &meshletPipeline,
-        .DrawFeatures = RG::DrawFeatures::Positions,
-        .ClampDepth = true,
-        .CameraType = CameraType::Orthographic};
-
-    m_Passes.reserve(SHADOW_CASCADES);
     for (u32 i = 0; i < SHADOW_CASCADES; i++)
-        m_Passes.emplace_back(renderGraph, shaderPassInitInfo, std::format("CSM.{}", i));
+        m_MultiviewData.AddView({
+            .Geometry = info.Geometry,
+            .DrawFeatures = RG::DrawFeatures::Positions,
+            .DrawMeshletsPipeline = &meshletPipeline,
+            .DrawTrianglesPipeline = &trianglePipeline,
+            .CullTriangles = false}); // todo: change me to true once triangle culling is working
+
+    m_MultiviewData.Finalize();
+    
+    CullMetaMultiviewPassInitInfo multiviewPassInitInfo = {
+        .MultiviewData = &m_MultiviewData};
+    
+    m_Pass = std::make_shared<CullMetaMultiviewPass>(renderGraph, "CSM", multiviewPassInitInfo);
 }
 
 void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& info)
@@ -62,29 +66,27 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
         .Kind = ImageKind::Image2dArray,
         .AdditionalViews = cascadeViews});
     
-    CullMetaPassExecutionInfo executionInfo = {
-        .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
-        .DrawAttachments = {
-            .Depth = DepthStencilAttachment{
-                .Resource = shadow,
-                .Description = {
-                    .OnLoad = AttachmentLoad::Clear,
-                    .ClearDepth = 0.0f,
-                    .ClearStencil = 0},
-                .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}};
-
-    for (u32 i = 0; i < SHADOW_CASCADES; i++)
-    {
-        executionInfo.Camera = &m_Cameras[i];
-        executionInfo.DrawAttachments.Depth->Description.Subresource = cascadeViews[i];
-        m_Passes[i].AddToGraph(renderGraph, executionInfo);
-        auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Passes[i].GetNameHash());
-        executionInfo.DrawAttachments.Depth->Resource = *output.DrawAttachmentResources.DepthTarget;
-    }
-    auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Passes.back().GetNameHash());
     std::vector<glm::mat4> matrices(SHADOW_CASCADES);
     for (u32 i = 0; i < SHADOW_CASCADES; i++)
         matrices[i] = m_Cameras[i].GetViewProjection();
+
+    for (u32 i = 0; i < SHADOW_CASCADES; i++)
+        m_MultiviewData.UpdateView(i, {
+            .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
+            .Camera = &m_Cameras[i],
+            .ClampDepth = true,
+            .DrawAttachments = {
+                .Depth = DepthStencilAttachment{
+                    .Resource = shadow,
+                    .Description = {
+                        .Subresource = cascadeViews[i],
+                        .OnLoad = AttachmentLoad::Clear,
+                        .ClearDepth = 0.0f,
+                        .ClearStencil = 0},
+                    .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}});
+    
+    m_Pass->AddToGraph(renderGraph);
+    auto& multiviewOutput = renderGraph.GetBlackboard().Get<CullMetaMultiviewPass::PassData>(m_Pass->GetNameHash());
 
     /* because this pass is just a wrapper around meta cull pass, in order to actually upload data to resource,
      * we need an additional dummy pass
@@ -119,7 +121,7 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
         });
     
     PassData passData = {
-        .ShadowMap = *output.DrawAttachmentResources.DepthTarget,
+        .ShadowMap = *multiviewOutput.DrawAttachmentResources.back().Depth,
         .CSM = renderGraph.GetBlackboard().Get<PassDataDummy>().CSM,
         .Near = m_Cameras.front().GetFrustumPlanes().Near,
         .Far = m_Cameras.back().GetFrustumPlanes().Far};

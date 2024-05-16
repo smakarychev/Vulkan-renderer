@@ -8,7 +8,7 @@ class CullMultiviewData;
 
 namespace RG
 {
-    struct CullMultiviewResource;
+    struct CullMultiviewResources;
 }
 
 struct MeshletCullMultiviewPassInitInfo
@@ -20,7 +20,7 @@ struct MeshletCullMultiviewPassInitInfo
 
 struct MeshletCullMultiviewPassExecutionInfo
 {
-    RG::CullMultiviewResource* MultiviewResource{nullptr};
+    RG::CullMultiviewResources* MultiviewResource{nullptr};
 };
 
 
@@ -29,7 +29,7 @@ class MeshletCullMultiviewPass
 public:
     struct PassData
     {
-        RG::CullMultiviewResource* MultiviewResource{nullptr};
+        RG::CullMultiviewResources* MultiviewResource{nullptr};
         
         RG::PipelineData* PipelineData{nullptr};
         const CullMultiviewData* MultiviewData{nullptr};
@@ -40,7 +40,8 @@ public:
 public:
     MeshletCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
         const MeshletCullMultiviewPassInitInfo& info);
-    void AddToGraph(RG::Graph& renderGraph, MeshletCullMultiviewPassExecutionInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const MeshletCullMultiviewPassExecutionInfo& info);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;

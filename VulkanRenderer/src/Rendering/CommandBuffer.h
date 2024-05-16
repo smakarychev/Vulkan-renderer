@@ -97,7 +97,7 @@ public:
         CommandPool Build(DeletionQueue& deletionQueue);
         CommandPool BuildManualLifetime();
         Builder& SetQueue(QueueKind queueKind);
-        Builder& PerBufferReset(bool enabled);
+        Builder& PerBufferReset(bool enabled = true);
     private:
         CreateInfo m_CreateInfo;
     };

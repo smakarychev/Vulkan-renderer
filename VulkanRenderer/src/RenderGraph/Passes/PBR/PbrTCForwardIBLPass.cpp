@@ -62,7 +62,7 @@ void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBL
     m_Pass->AddToGraph(renderGraph, executionInfo);
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
     PassData passData = {
-        .ColorOut = output.DrawAttachmentResources.RenderTargets[0],
-        .DepthOut = *output.DrawAttachmentResources.DepthTarget};
+        .ColorOut = output.DrawAttachmentResources.Colors[0],
+        .DepthOut = *output.DrawAttachmentResources.Depth};
     renderGraph.GetBlackboard().Update(m_Name.Hash(), passData);
 }

@@ -3,8 +3,8 @@
 #include "common.glsl"
 #include "culling_functions.glsl"
 
-#extension GL_EXT_buffer_reference: require
 #extension GL_KHR_shader_subgroup_ballot: require
+#extension GL_EXT_scalar_block_layout: require
 
 layout(local_size_x = 64) in;
 
@@ -15,11 +15,11 @@ layout(constant_id = 1) const bool SINGLE_PASS = false;
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
 
-layout(set = 1, binding = 1) uniform view_buffer {
+layout(scalar, set = 1, binding = 1) uniform view_buffer {
     ViewData views[MAX_VIEWS];
 } u_views;
 
-layout(set = 1, binding = 2) uniform view_spans_buffer {
+layout(scalar, set = 1, binding = 2) uniform view_spans_buffer {
     ViewSpan spans[MAX_GEOMETRIES];
 } u_view_spans;
 
@@ -69,9 +69,10 @@ void main() {
     
     const uint first_view = u_view_spans.spans[u_geometry_index].first;
     const uint view_count = u_view_spans.spans[u_geometry_index].count;
+
     for (uint i = first_view; i < first_view + view_count; i++) {
         const ViewData view = u_views.views[i];
-        
+
         vec3 origin_view = vec3(view.view_matrix * origin_world);
         if (view.clamp_depth)
             origin_view.z = min(origin_view.z, -view.frustum_near);
@@ -97,7 +98,7 @@ void main() {
 
             should_be_drawn = !is_last_frame_visible && visible;
         }
-
+        
         if (should_be_drawn)
             set_flags_set_should_draw(u_object_visibility[i].visibility[id]);
         else

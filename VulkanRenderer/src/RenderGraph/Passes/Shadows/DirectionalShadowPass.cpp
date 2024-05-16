@@ -90,7 +90,7 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
         });
 
     PassData passData = {
-        .ShadowMap = *output.DrawAttachmentResources.DepthTarget,
+        .ShadowMap = *output.DrawAttachmentResources.Depth,
         .Shadow = renderGraph.GetBlackboard().Get<PassDataDummy>().Shadow,
         .Near = m_Camera->GetFrustumPlanes().Near,
         .Far = m_Camera->GetFrustumPlanes().Far};

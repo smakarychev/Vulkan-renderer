@@ -440,6 +440,18 @@ namespace RG
             
             for (auto& splitSignal : pass->m_SplitBarriersToSignal)
                 RenderCommand::SignalSplitBarrier(frameContext.Cmd, splitSignal.Barrier, splitSignal.Dependency);
+
+            if (pass->m_IsRasterizationPass)
+            {
+                //Fence fence = Fence::Builder().BuildManualLifetime();
+                //OnCmdEnd(frameContext);
+                //frameContext.Cmd.End();
+                //frameContext.Cmd.Submit(Driver::GetDevice().GetQueues().Graphics, fence);
+                //fence.Wait();
+                //frameContext.Cmd.Begin();
+                //OnCmdBegin(frameContext);
+                //Fence::Destroy(fence);
+            }
         }
 
         if (!m_Backbuffer.IsValid())
@@ -1014,7 +1026,7 @@ namespace RG
                 .OldLayout = transition.OldLayout,
                 .NewLayout = transition.NewLayout};
 
-            if (longestPath[transition.DestinationPass] - longestPath[transition.SourcePass] > 1)
+            if (false)
                 addLayoutSplitBarrier(
                     *m_RenderPasses[transition.SourcePass], *m_RenderPasses[transition.DestinationPass],
                     transition.Texture, layoutTransitionInfo);
@@ -1097,7 +1109,7 @@ namespace RG
                         .SourceStage = currentAccessInfo.Stage,
                         .DestinationStage = resourceAccess.m_Stage};
 
-                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
+                    if (false)
                         addExecutionSplitBarrier(
                             *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
                             resource, executionDependencyInfo);
@@ -1114,7 +1126,7 @@ namespace RG
                         .SourceAccess = currentAccessInfo.Access,
                         .DestinationAccess = resourceAccess.m_Access};
 
-                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
+                    if (false)
                         addMemorySplitBarrier(
                             *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
                             resource, memoryDependencyInfo);
@@ -1577,8 +1589,7 @@ namespace RG
         return (ResourceTypeBase&)buffer;
     }
 
-    Resource Graph::AddOrCreateAccess(Resource resource, PipelineStage stage,
-        PipelineAccess access)
+    Resource Graph::AddOrCreateAccess(Resource resource, PipelineStage stage, PipelineAccess access)
     {
         ASSERT(!
            (ResourceAccess::HasWriteAccess(access) &&
@@ -1590,17 +1601,16 @@ namespace RG
         if (it != m_ResourceTarget->m_Accesses.end())
             return AddAccess(*it, stage, access);
 
-        ResourceAccess GraphResourceAccess = {};
-        GraphResourceAccess.m_Resource = resource;
-        GraphResourceAccess.m_Stage = stage;
-        GraphResourceAccess.m_Access = access;
-        m_ResourceTarget->m_Accesses.push_back(GraphResourceAccess);
+        ResourceAccess graphResourceAccess = {};
+        graphResourceAccess.m_Resource = resource;
+        graphResourceAccess.m_Stage = stage;
+        graphResourceAccess.m_Access = access;
+        m_ResourceTarget->m_Accesses.push_back(graphResourceAccess);
         
         return resource;
     }
 
-    Resource Graph::AddAccess(ResourceAccess& resource, PipelineStage stage,
-        PipelineAccess access)
+    Resource Graph::AddAccess(ResourceAccess& resource, PipelineStage stage, PipelineAccess access)
     {
         if (ResourceAccess::HasWriteAccess(access))
         {

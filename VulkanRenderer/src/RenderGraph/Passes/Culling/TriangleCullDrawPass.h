@@ -548,8 +548,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             {
                 RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
                     .SetResolution(info.Resolution);
-                auto& colors = passData.TriangleDrawResources.DrawAttachmentResources.RenderTargets;
-                auto& depth = passData.TriangleDrawResources.DrawAttachmentResources.DepthTarget;
+                auto& colors = passData.TriangleDrawResources.DrawAttachmentResources.Colors;
+                auto& depth = passData.TriangleDrawResources.DrawAttachmentResources.Depth;
                 for (u32 attachmentIndex = 0; attachmentIndex < colors.size(); attachmentIndex++)
                 {
                     auto description = info.DrawAttachments.Colors[attachmentIndex].Description;

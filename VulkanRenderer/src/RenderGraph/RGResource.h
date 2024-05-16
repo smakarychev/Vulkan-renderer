@@ -11,8 +11,8 @@ namespace RG
         friend class Pass;
         friend class Resources;
         friend std::ostream & operator<<(std::ostream &os, Resource renderGraphResource);
-        auto operator<=>(const Resource& other) const = default;
-
+        friend struct std::hash<Resource>;
+        
         static constexpr u32 TYPE_BITS_COUNT = 1u;
         static constexpr u32 INDEX_BITS_COUNT = 32u - TYPE_BITS_COUNT;
         static constexpr u32 TYPE_BITS_MASK = (1u << TYPE_BITS_COUNT) - 1;
@@ -23,6 +23,7 @@ namespace RG
         static constexpr u32 TEXTURE_TYPE = 1;
     public:
         constexpr bool IsValid() const { return m_Value != NON_INDEX; }
+        auto operator<=>(const Resource& other) const = default;
     private:
         constexpr bool IsBuffer() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == BUFFER_TYPE; }
         constexpr bool IsTexture() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == TEXTURE_TYPE; }
@@ -196,3 +197,14 @@ namespace RG
     };
 }
 
+namespace std
+{
+    template <>
+    struct hash<RG::Resource>
+    {
+        usize operator()(const RG::Resource& resource) const noexcept
+        {
+            return hash<u64>()(resource.m_Value);
+        }
+    };
+}

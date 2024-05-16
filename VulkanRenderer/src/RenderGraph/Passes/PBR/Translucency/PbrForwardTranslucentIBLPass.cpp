@@ -71,8 +71,8 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
         .IBL = info.IBL});
     auto& drawOutput = blackboard.Get<DrawIndirectPass::PassData>(m_Draw->GetNameHash());
 
-    m_PassData.ColorOut = drawOutput.DrawAttachmentResources.RenderTargets[0];
-    m_PassData.DepthOut = *drawOutput.DrawAttachmentResources.DepthTarget;
+    m_PassData.ColorOut = drawOutput.DrawAttachmentResources.Colors[0];
+    m_PassData.DepthOut = *drawOutput.DrawAttachmentResources.Depth;
     
     blackboard.Register(m_PassData);
 }

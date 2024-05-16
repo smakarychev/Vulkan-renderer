@@ -1,14 +1,16 @@
-#include "CullMultiviewResource.h"
+#include "CullMultiviewResources.h"
 
 #include "CullMultiviewData.h"
 #include "Scene/SceneGeometry.h"
 
 namespace RG::RgUtils
 {
-    CullMultiviewResource createCullMultiview(const CullMultiviewData& cullMultiviewData, Graph& graph,
+    CullMultiviewResources createCullMultiview(const CullMultiviewData& cullMultiviewData, Graph& graph,
         const std::string& baseName)
     {
-        CullMultiviewResource multiviewResource = {};
+        CullMultiviewResources multiviewResource = {};
+
+        multiviewResource.ViewCount = (u32)cullMultiviewData.Views().size();
 
         multiviewResource.Objects.reserve(cullMultiviewData.Geometries().size());
         multiviewResource.Meshlets.reserve(cullMultiviewData.Geometries().size());
@@ -17,7 +19,6 @@ namespace RG::RgUtils
         
         multiviewResource.ViewDescriptions = &cullMultiviewData.Views();
         multiviewResource.HiZs.reserve(cullMultiviewData.Views().size());
-        multiviewResource.Views.reserve(cullMultiviewData.Views().size());
         multiviewResource.MeshVisibility.reserve(cullMultiviewData.Views().size());
         multiviewResource.MeshletVisibility.reserve(cullMultiviewData.Views().size());
         multiviewResource.CompactCommands.reserve(cullMultiviewData.Views().size());
@@ -38,9 +39,13 @@ namespace RG::RgUtils
             multiviewResource.Commands.push_back(graph.AddExternal(std::format("{}.Commands.{}", baseName, i),
                 geometry->GetCommandsBuffer()));
         }
+        
         multiviewResource.ViewSpans = graph.CreateResource(baseName + ".ViewSpans",
             GraphBufferDescription{
                 .SizeBytes = cullMultiviewData.Geometries().size() * sizeof(CullMultiviewData::ViewSpan)});
+        multiviewResource.Views = graph.CreateResource(baseName + ".Views",
+            GraphBufferDescription{
+                .SizeBytes = cullMultiviewData.Geometries().size() * sizeof(CullViewDataGPU)});
         
         for (u32 i = 0; i < cullMultiviewData.Views().size(); i++)
         {
@@ -50,9 +55,6 @@ namespace RG::RgUtils
             multiviewResource.HiZs.push_back(graph.AddExternal(std::format("{}.HiZ.{}", baseName, i),
                 staticV.HiZContext->GetHiZPrevious()->get(),
                 ImageUtils::DefaultTexture::Black));
-
-            multiviewResource.Views.push_back(graph.CreateResource(std::format("{}.View.{}", baseName, i),
-                GraphBufferDescription{.SizeBytes = sizeof(CullViewDataGPU)}));
 
             multiviewResource.MeshVisibility.push_back(graph.AddExternal(
                 std::format("{}.Visibility.Mesh.{}", baseName, i),
@@ -79,33 +81,34 @@ namespace RG::RgUtils
         return multiviewResource;
     }
 
-    void readWriteCullMeshMultiview(CullMultiviewResource& multiview, Graph& graph)
+    void readWriteCullMeshMultiview(CullMultiviewResources& multiview, Graph& graph)
     {
         using enum ResourceAccessFlags;
 
         multiview.ViewSpans = graph.Read(multiview.ViewSpans, Compute | Uniform | Upload);
+        multiview.Views = graph.Read(multiview.Views, Compute | Uniform | Upload);
         
         for (u32 i = 0; i < multiview.Objects.size(); i++)
             multiview.Objects[i] = graph.Read(multiview.Objects[i], Compute | Storage);
         
-        for (u32 i = 0; i < multiview.Views.size(); i++)
+        for (u32 i = 0; i < multiview.ViewCount; i++)
         {
             multiview.HiZs[i] = graph.Read(multiview.HiZs[i], Compute | Sampled);
-            multiview.Views[i] = graph.Read(multiview.Views[i], Compute | Uniform | Upload);
             multiview.MeshVisibility[i] = graph.Read(multiview.MeshVisibility[i], Compute | Storage);
             multiview.MeshVisibility[i] = graph.Write(multiview.MeshVisibility[i], Compute | Storage);
         }
     }
 
     void updateMeshCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResource& multiview)
+        const CullMultiviewResources& multiview)
     {
         descriptors.UpdateBinding("u_view_spans", resources.GetBuffer(multiview.ViewSpans).BindingInfo());
+        descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views).BindingInfo());
 
         for (u32 i = 0; i < multiview.Objects.size(); i++)
             descriptors.UpdateBinding("u_objects", resources.GetBuffer(multiview.Objects[i]).BindingInfo(), i);
 
-        for (u32 i = 0; i < multiview.Views.size(); i++)
+        for (u32 i = 0; i < multiview.ViewCount; i++)
         {
             const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
             
@@ -113,18 +116,18 @@ namespace RG::RgUtils
                 hiz.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
             
-            descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views[i]).BindingInfo(), i);
             descriptors.UpdateBinding("u_object_visibility", resources.GetBuffer(multiview.MeshVisibility[i])
                 .BindingInfo(), i);
         }
     }
 
-    void readWriteCullMeshletMultiview(CullMultiviewResource& multiview, CullStage cullStage, bool triangleCull,
+    void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         Graph& graph)
     {
         using enum ResourceAccessFlags;
 
-        multiview.ViewSpans = graph.Read(multiview.ViewSpans, Compute | Uniform | Upload);
+        multiview.ViewSpans = graph.Read(multiview.ViewSpans, Compute | Uniform);
+        multiview.Views = graph.Read(multiview.Views, Compute | Uniform);
         
         for (u32 i = 0; i < multiview.Objects.size(); i++)
         {
@@ -133,10 +136,9 @@ namespace RG::RgUtils
             multiview.Commands[i] = graph.Read(multiview.Commands[i], Compute | Storage);
         }
         
-        for (u32 i = 0; i < multiview.Views.size(); i++)
+        for (u32 i = 0; i < multiview.ViewCount; i++)
         {
             multiview.HiZs[i] = graph.Read(multiview.HiZs[i], Compute | Sampled);
-            multiview.Views[i] = graph.Read(multiview.Views[i], Compute | Uniform | Upload);
             multiview.MeshVisibility[i] = graph.Read(multiview.MeshVisibility[i], Compute | Storage);
             multiview.MeshletVisibility[i] = graph.Read(multiview.MeshletVisibility[i], Compute | Storage);
             multiview.MeshletVisibility[i] = graph.Read(multiview.MeshletVisibility[i], Compute | Storage);
@@ -145,13 +147,14 @@ namespace RG::RgUtils
 
             if (cullStage != CullStage::Reocclusion)
             {
-                multiview.CompactCommandCount[i] = graph.Read(multiview.CompactCommandCount[i], Compute | Storage);
+                multiview.CompactCommandCount[i] = graph.Read(multiview.CompactCommandCount[i],
+                    Compute | Storage | Upload);
                 multiview.CompactCommandCount[i] = graph.Write(multiview.CompactCommandCount[i], Compute | Storage);
             }
             else
             {
                 multiview.CompactCommandCountReocclusion[i] = graph.Read(
-                    multiview.CompactCommandCountReocclusion[i], Compute | Storage);
+                    multiview.CompactCommandCountReocclusion[i], Compute | Storage | Upload);
                 multiview.CompactCommandCountReocclusion[i] = graph.Write(
                     multiview.CompactCommandCountReocclusion[i], Compute | Storage);
 
@@ -164,11 +167,12 @@ namespace RG::RgUtils
     }
 
     void updateMeshletCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResource& multiview, CullStage cullStage, bool triangleCull,
+        const CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         ResourceUploader& resourceUploader)
     {
         descriptors.UpdateBinding("u_view_spans", resources.GetBuffer(multiview.ViewSpans).BindingInfo());
-
+        descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views).BindingInfo());
+        
         for (u32 i = 0; i < multiview.Objects.size(); i++)
         {
             descriptors.UpdateBinding("u_objects", resources.GetBuffer(multiview.Objects[i]).BindingInfo(), i);
@@ -176,7 +180,7 @@ namespace RG::RgUtils
             descriptors.UpdateBinding("u_commands", resources.GetBuffer(multiview.Commands[i]).BindingInfo(), i);
         }
 
-        for (u32 i = 0; i < multiview.Views.size(); i++)
+        for (u32 i = 0; i < multiview.ViewCount; i++)
         {
             const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
             
@@ -184,7 +188,6 @@ namespace RG::RgUtils
                 hiz.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
             
-            descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views[i]).BindingInfo(), i);
             descriptors.UpdateBinding("u_object_visibility", resources.GetBuffer(multiview.MeshVisibility[i])
                 .BindingInfo(), i);
             descriptors.UpdateBinding("u_meshlet_visibility", resources.GetBuffer(multiview.MeshletVisibility[i])

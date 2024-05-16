@@ -1,5 +1,5 @@
 #pragma once
-#include "CullMultiviewResource.h"
+#include "CullMultiviewResources.h"
 #include "RenderGraph/Passes/Culling/CullingTraits.h"
 
 struct MeshCullMultiviewPassInitInfo
@@ -10,7 +10,7 @@ struct MeshCullMultiviewPassInitInfo
 
 struct MeshCullMultiviewPassExecutionInfo
 {
-    RG::CullMultiviewResource* MultiviewResource{nullptr};
+    RG::CullMultiviewResources* MultiviewResource{nullptr};
 };
 
 class MeshCullMultiviewPass
@@ -18,14 +18,15 @@ class MeshCullMultiviewPass
 public:
     struct PassData
     {
-        RG::CullMultiviewResource* MultiviewResource{nullptr};
+        RG::CullMultiviewResources* MultiviewResource{nullptr};
         
         RG::PipelineData* PipelineData{nullptr};
         const CullMultiviewData* MultiviewData{nullptr};
     };
 public:
     MeshCullMultiviewPass(RG::Graph& renderGraph, std::string_view name, const MeshCullMultiviewPassInitInfo& info);
-    void AddToGraph(RG::Graph& renderGraph, MeshCullMultiviewPassExecutionInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const MeshCullMultiviewPassExecutionInfo& info);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;

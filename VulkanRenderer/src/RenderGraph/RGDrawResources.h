@@ -93,8 +93,8 @@ namespace RG
 
     struct DrawAttachmentResources
     {
-        std::vector<Resource> RenderTargets{};
-        std::optional<Resource> DepthTarget{};
+        std::vector<Resource> Colors{};
+        std::optional<Resource> Depth{};
     };
 
     struct SceneLightResources

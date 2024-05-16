@@ -67,8 +67,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     auto colors = EnsureColors(renderGraph, info, m_Name);
     auto depth = EnsureDepth(renderGraph, info, m_Name);
 
-    m_PassData.DrawAttachmentResources.RenderTargets = colors;
-    m_PassData.DrawAttachmentResources.DepthTarget = depth;
+    m_PassData.DrawAttachmentResources.Colors = colors;
+    m_PassData.DrawAttachmentResources.Depth = depth;
     
     m_MeshCull->AddToGraph(renderGraph, *m_MeshContext, *m_HiZContext);
     m_MeshletCull->AddToGraph(renderGraph, *m_MeshletContext);
@@ -102,7 +102,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     auto& drawOutput = blackboard.Get<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
     if (info.DrawAttachments.Depth.has_value())
     {
-        m_HiZ->AddToGraph(renderGraph, drawOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}),
+        m_HiZ->AddToGraph(renderGraph, drawOutput.DrawAttachmentResources.Depth.value_or(Resource{}),
             info.DrawAttachments.Depth->Description.Subresource, *m_HiZContext);
         m_PassData.HiZOut = m_HiZContext->GetHiZResource();
     }
@@ -111,12 +111,12 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     for (u32 i = 0; i < colorAttachments.size(); i++)
     {
         colorAttachments[i].Description.OnLoad = AttachmentLoad::Load;
-        colorAttachments[i].Resource = drawOutput.DrawAttachmentResources.RenderTargets[i];
+        colorAttachments[i].Resource = drawOutput.DrawAttachmentResources.Colors[i];
     }
     if (depthAttachment.has_value())
     {
         depthAttachment->Description.OnLoad = AttachmentLoad::Load;
-        depthAttachment->Resource = *drawOutput.DrawAttachmentResources.DepthTarget;
+        depthAttachment->Resource = *drawOutput.DrawAttachmentResources.Depth;
     }
 
     // triangle only reocclusion (this updates visibility flags for most of the triangles and draws them)
@@ -138,7 +138,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     if (info.DrawAttachments.Depth.has_value())
     {
         m_HiZReocclusion->AddToGraph(renderGraph,
-            reoccludeTrianglesOutput.DrawAttachmentResources.DepthTarget.value_or(Resource{}),
+            reoccludeTrianglesOutput.DrawAttachmentResources.Depth.value_or(Resource{}),
             info.DrawAttachments.Depth->Description.Subresource, *m_HiZContext);
         m_PassData.HiZOut = m_HiZContext->GetHiZResource();
     }
@@ -147,12 +147,12 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     for (u32 i = 0; i < colorAttachments.size(); i++)
     {
         colorAttachments[i].Description.OnLoad = AttachmentLoad::Load;
-        colorAttachments[i].Resource = reoccludeTrianglesOutput.DrawAttachmentResources.RenderTargets[i];
+        colorAttachments[i].Resource = reoccludeTrianglesOutput.DrawAttachmentResources.Colors[i];
     }
     if (depthAttachment.has_value())
     {
         depthAttachment->Description.OnLoad = AttachmentLoad::Load;
-        depthAttachment->Resource = *reoccludeTrianglesOutput.DrawAttachmentResources.DepthTarget;
+        depthAttachment->Resource = *reoccludeTrianglesOutput.DrawAttachmentResources.Depth;
     }
 
     // finally, reocclude meshlets and draw them

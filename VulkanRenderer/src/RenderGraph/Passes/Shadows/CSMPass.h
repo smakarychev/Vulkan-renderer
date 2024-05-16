@@ -3,7 +3,9 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Culling/CullMetaPass.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/CullMultiviewData.h"
 
+class CullMetaMultiviewPass;
 class CullMetaPass;
 struct ShadowPassExecutionInfo;
 struct ShadowPassInitInfo;
@@ -26,7 +28,8 @@ private:
     static std::vector<Camera> CreateShadowCameras(const Camera& mainCamera, const glm::vec3& lightDirection,
         const std::vector<f32>& cascades);
 private:
-    std::vector<CullMetaPass> m_Passes{};
+    CullMultiviewData m_MultiviewData{};
+    std::shared_ptr<CullMetaMultiviewPass> m_Pass{};
 
     std::vector<Camera> m_Cameras{};
 };

@@ -30,7 +30,7 @@ MeshCullMultiviewPass::MeshCullMultiviewPass(RG::Graph& renderGraph, std::string
         .Build();
 }
 
-void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, MeshCullMultiviewPassExecutionInfo& info)
+void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMultiviewPassExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -41,7 +41,7 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, MeshCullMultiview
             if (m_Stage != CullStage::Reocclusion)
                 *info.MultiviewResource = RgUtils::createCullMultiview(*m_MultiviewData, graph, m_Name.Name());
             else
-                for (u32 i = 0; i < info.MultiviewResource->Views.size(); i++)
+                for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
                     info.MultiviewResource->HiZs[i] = m_MultiviewData->Views()[i].Static.HiZContext->GetHiZResource();
 
             RgUtils::readWriteCullMeshMultiview(*info.MultiviewResource, graph);
@@ -60,15 +60,18 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, MeshCullMultiview
 
             auto* multiview = passData.MultiviewResource;
 
-            Sampler hizSampler = multiview->HiZSampler;
+            resources.GetBuffer(multiview->ViewSpans, passData.MultiviewData->ViewSpans().data(),
+                passData.MultiviewData->ViewSpans().size() * sizeof(CullMultiviewData::ViewSpan), 0,
+                *frameContext.ResourceUploader);
             std::vector<CullViewDataGPU> views = passData.MultiviewData->CreateMultiviewGPU();
-            for (u32 i = 0; i < views.size(); i++)
-                resources.GetBuffer(multiview->Views[i], views[i], *frameContext.ResourceUploader);
+            resources.GetBuffer(multiview->Views, views.data(), views.size() * sizeof(CullViewDataGPU), 0,
+                *frameContext.ResourceUploader);
             
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
+            Sampler hizSampler = multiview->HiZSampler;
             samplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
@@ -93,7 +96,7 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, MeshCullMultiview
                 PushConstant pushConstant = {
                     .ObjectCount = meshCount,
                     .GeometryIndex = i,
-                    .ViewCount = (u32)info.MultiviewResource->Views.size()};
+                    .ViewCount = info.MultiviewResource->ViewCount};
 
                 RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
 
