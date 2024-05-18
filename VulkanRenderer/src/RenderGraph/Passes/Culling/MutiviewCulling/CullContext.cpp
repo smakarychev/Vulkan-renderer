@@ -12,8 +12,7 @@ CullViewVisibility::CullViewVisibility(const SceneGeometry& geometry)
         .Build();
 
     m_Meshlet = Buffer::Builder({
-           .SizeBytes = geometry.GetMeshletCount() *
-               sizeof(SceneGeometry::MeshletVisibilityType),
+           .SizeBytes = geometry.GetMeshletCount() * sizeof(SceneGeometry::MeshletVisibilityType),
            .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
        .Build();
 

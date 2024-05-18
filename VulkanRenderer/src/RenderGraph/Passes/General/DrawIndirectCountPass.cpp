@@ -107,7 +107,7 @@ void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirec
                 passData.PipelineData->MaterialDescriptors.BindGraphics(frameContext.Cmd,
                     resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             }
-    
+
             auto& cmd = frameContext.Cmd;
             RenderCommand::BindIndexU8Buffer(cmd, info.Geometry->GetAttributeBuffers().Indices, 0);
             

@@ -146,7 +146,7 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     for (u32 i = 0; i < m_DrawsReocclusion.size(); i++)
     {
         auto& drawOutput = renderGraph.GetBlackboard().Get<DrawIndirectCountPass::PassData>(
-            m_Draws[i]->GetNameHash());
+            m_DrawsReocclusion[i]->GetNameHash());
         // todo: fix me once triangle culling is done (hiz will be in m_HiZsReocclusion)
         auto& hizOutput = renderGraph.GetBlackboard().Get<HiZPass::PassData>(m_HiZs[i]->GetNameHash());
         

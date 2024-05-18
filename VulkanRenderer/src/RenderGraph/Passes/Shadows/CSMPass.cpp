@@ -95,11 +95,17 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
     {
         Resource CSM{};
     };
+    struct Ubo
+    {
+        u32 CascadeCount{0};
+        std::array<f32, MAX_SHADOW_CASCADES> Cascades{};
+        std::array<glm::mat4, MAX_SHADOW_CASCADES> Matrices{};
+    };
     renderGraph.AddRenderPass<PassDataDummy>(PassName{"CSM.Dummy"},
         [&](Graph& graph, PassDataDummy& passData)
         {
             passData.CSM = graph.CreateResource("CSM.Data", GraphBufferDescription{
-                .SizeBytes = SHADOW_CASCADES * (sizeof(f32) + sizeof(glm::mat4))});
+                .SizeBytes = sizeof(Ubo)});
 
             passData.CSM = graph.Write(passData.CSM, Vertex | Uniform | Upload);
 
@@ -107,12 +113,6 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
         },
         [=](PassDataDummy& passData, FrameContext& frameContext, const Resources& resources)
         {
-            struct Ubo
-            {
-                u32 CascadeCount{0};
-                std::array<f32, MAX_SHADOW_CASCADES> Cascades{};
-                std::array<glm::mat4, MAX_SHADOW_CASCADES> Matrices{};
-            };
             Ubo ubo = {};
             ubo.CascadeCount = SHADOW_CASCADES;
             std::ranges::copy(cascades.begin(), cascades.end(), ubo.Cascades.begin());
