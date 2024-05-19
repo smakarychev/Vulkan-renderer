@@ -359,12 +359,6 @@ void Renderer::OnRender()
     if (!m_FrameEarlyExit)
     {
         m_Graph->Compile(GetFrameContext());
-        static u32 twice = 2;
-        if (twice)
-        {
-            LOG("{}", m_Graph->MermaidDump());
-            twice --;
-        }
         m_Graph->Execute(GetFrameContext());
         
         ImGuiUI::EndFrame(GetFrameContext().Cmd, GetImGuiUIRenderingInfo());
