@@ -73,7 +73,8 @@ void ResourceUploader::UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBy
     }
     
     u64 stagingOffset = EnsureCapacity(sizeBytes);
-    m_StageBuffers[m_LastUsedBuffer].Buffer.SetData(m_StageBuffers[m_LastUsedBuffer].MappedAddress, data, sizeBytes, stagingOffset);
+    m_StageBuffers[m_LastUsedBuffer].Buffer.SetData(m_StageBuffers[m_LastUsedBuffer].MappedAddress, data, sizeBytes,
+        stagingOffset);
     if (MergeIsPossible(buffer, bufferOffset))
         m_BufferUploads.back().CopyInfo.SizeBytes += sizeBytes;
     else

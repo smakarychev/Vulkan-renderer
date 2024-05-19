@@ -76,16 +76,22 @@ void Buffer::Destroy(const Buffer& buffer)
 
 void Buffer::SetData(const void* data, u64 dataSizeBytes)
 {
+    ASSERT(dataSizeBytes <= m_Description.SizeBytes,
+        "Attempt to write data outside of buffer region")
     Driver::SetBufferData(*this, data, dataSizeBytes, 0);
 }
 
 void Buffer::SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes)
 {
+    ASSERT(dataSizeBytes + offsetBytes <= m_Description.SizeBytes,
+        "Attempt to write data outside of buffer region")
     Driver::SetBufferData(*this, data, dataSizeBytes, offsetBytes);
 }
 
 void Buffer::SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes)
 {
+    ASSERT((const u8*)mapped + dataSizeBytes + offsetBytes - m_HostAddress <= m_Description.SizeBytes,
+        "Attempt to write data outside of buffer region")
     Driver::SetBufferData(mapped, data, dataSizeBytes, offsetBytes);
 }
 
