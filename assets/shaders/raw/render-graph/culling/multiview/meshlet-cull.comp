@@ -10,7 +10,6 @@ layout(local_size_x = 64) in;
 
 layout(constant_id = 0) const bool REOCCLUSION = false;
 layout(constant_id = 1) const bool SINGLE_PASS = false;
-layout(constant_id = 2) const bool TRIANGLE_CULL = false;
 
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
@@ -74,7 +73,7 @@ bool is_reocclusion_visible(vec3 origin, float radius, vec3 cone_axis, float con
     bool visible = true;
     visible = visible && is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff);
     visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
-    if (u_views.views[view_index].is_orthographic)
+    if (is_orthographic(u_views.views[view_index]))
         visible = visible && 
             is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
     else
@@ -106,7 +105,7 @@ void compact(uint id, bool should_draw, uint view_index) {
         // this 0 serves as a mark; the triangle culling later sets it back to 1, 
         // this way we can check if some command wasn't processed by triangle culling
         // due to not up-to-date batch count
-        if (TRIANGLE_CULL && !REOCCLUSION)
+        if (is_triangle_culled(u_views.views[view_index]) && !REOCCLUSION)
             u_flags[view_index].flags[id] = uint8_t(0);
     }
 }
@@ -136,7 +135,7 @@ void main() {
         const ViewData view = u_views.views[i];
 
         vec3 origin_view = vec3(view.view_matrix * origin_world);
-        if (view.clamp_depth)
+        if (is_depth_clamped(view))
             origin_view.z = min(origin_view.z, -view.frustum_near);
         
         const vec3 cone_axis = vec3(view.view_matrix * cone_axis_world);
@@ -166,7 +165,7 @@ void main() {
                 flags_unset_visible(u_meshlet_visibility[i].visibility[meshlet_id]);
 
             // visible meshlet should be drawn if it wasn't drawn already OR if it wasn't processed by triange culling
-            if (TRIANGLE_CULL) {
+            if (is_triangle_culled(view)) {
                 const bool was_processed_by_triangle_culling = u_flags[i].flags[id] == 1;
                 u_flags[i].flags[id] = uint8_t(1);
                 should_be_drawn = (!was_processed_by_triangle_culling || !is_last_frame_visible) && visible;

@@ -47,7 +47,7 @@ bool is_visible(vec3 origin, float radius, uint view_index) {
 bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
     bool visible = true;
     visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
-    if (u_views.views[view_index].is_orthographic)
+    if (is_orthographic(u_views.views[view_index]))
         visible = visible && 
             is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
     else
@@ -74,7 +74,7 @@ void main() {
         const ViewData view = u_views.views[i];
 
         vec3 origin_view = vec3(view.view_matrix * origin_world);
-        if (view.clamp_depth)
+        if (is_depth_clamped(view))
             origin_view.z = min(origin_view.z, -view.frustum_near);
         
         const bool is_last_frame_visible = flags_visible(u_object_visibility[i].visibility[id]);

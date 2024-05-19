@@ -26,15 +26,12 @@ CullMetaMultiviewPass::CullMetaMultiviewPass(RG::Graph& renderGraph, std::string
     m_MeshletCull = std::make_unique<MeshletCullMultiviewPass>(renderGraph, std::format("{}.MeshletCull", name),
         MeshletCullMultiviewPassInitInfo{
             .MultiviewData = m_MultiviewData,
-            .Stage = CullStage::Cull,
-            // todo: fix me once triangle culling is done
-            .SubsequentTriangleCulling = false});
+            .Stage = CullStage::Cull});
     m_MeshletReocclusion = std::make_unique<MeshletCullMultiviewPass>(renderGraph,
         std::format("{}.MeshletReocclusion", name),
         MeshletCullMultiviewPassInitInfo{
             .MultiviewData = m_MultiviewData,
-            .Stage = CullStage::Reocclusion,
-            .SubsequentTriangleCulling = false});
+            .Stage = CullStage::Reocclusion});
 
     m_Draws.resize(info.MultiviewData->Views().size());
     m_DrawsReocclusion.resize(info.MultiviewData->Views().size());

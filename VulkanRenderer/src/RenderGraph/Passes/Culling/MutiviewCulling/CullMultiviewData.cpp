@@ -6,6 +6,10 @@
 
 CullViewDataGPU CullViewDataGPU::FromCullViewDescription(const CullViewDescription& description)
 {
+    u32 viewFlags = {};
+    viewFlags |= (u32)(description.Dynamic.Camera->GetType() == CameraType::Orthographic) << IS_ORTHOGRAPHIC_BIT;
+    viewFlags |= (u32)description.Dynamic.ClampDepth << CLAMP_DEPTH_BIT;
+    viewFlags |= (u32)description.Static.CullTriangles << TRIANGLE_CULLING_BIT;
     return {
         .ViewMatrix = description.Dynamic.Camera->GetView(),
         .ViewProjectionMatrix = description.Dynamic.Camera->GetViewProjection(),
@@ -13,8 +17,7 @@ CullViewDataGPU CullViewDataGPU::FromCullViewDescription(const CullViewDescripti
         .ProjectionData = description.Dynamic.Camera->GetProjectionData(),
         .HiZWidth = (f32)description.Static.HiZContext->GetHiZResolution().x,
         .HiZHeight = (f32)description.Static.HiZContext->GetHiZResolution().y,
-        .IsOrthographic = (u32)(description.Dynamic.Camera->GetType() == CameraType::Orthographic),
-        .ClampDepth = (u32)description.Dynamic.ClampDepth};
+        .ViewFlags = viewFlags};
 }
 
 u32 CullMultiviewData::AddView(const CullViewStaticDescription& description)

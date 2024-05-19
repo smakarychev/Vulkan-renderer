@@ -2,7 +2,10 @@
 
 #extension GL_EXT_shader_explicit_arithmetic_types: require
 #extension GL_EXT_shader_explicit_arithmetic_types_int8: require    
-#extension GL_EXT_shader_atomic_int64: require
+
+const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
+const uint VIEW_CLAMP_DEPTH_BIT = 1;
+const uint VIEW_TRIANGLE_CULLING_BIT = 2;
 
 struct ViewData {
     mat4 view_matrix;
@@ -20,9 +23,20 @@ struct ViewData {
     float hiz_width;
     float hiz_height;
     
-    bool is_orthographic;
-    bool clamp_depth;
+    uint view_flags;
 };
+
+bool is_orthographic(ViewData view) {
+    return ((view.view_flags >> VIEW_IS_ORTHOGRAPHIC_BIT) & 1u) == 1;
+}
+
+bool is_depth_clamped(ViewData view) {
+    return ((view.view_flags >> VIEW_CLAMP_DEPTH_BIT) & 1u) == 1;
+}
+
+bool is_triangle_culled(ViewData view) {
+    return ((view.view_flags >> VIEW_TRIANGLE_CULLING_BIT) & 1u) == 1;
+}
 
 struct ViewSpan {
     uint first;

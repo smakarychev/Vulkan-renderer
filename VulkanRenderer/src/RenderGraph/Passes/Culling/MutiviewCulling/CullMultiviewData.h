@@ -50,6 +50,10 @@ struct CullViewDescription
 
 struct CullViewDataGPU
 {
+    static constexpr u32 IS_ORTHOGRAPHIC_BIT = 0;
+    static constexpr u32 CLAMP_DEPTH_BIT = 1;
+    static constexpr u32 TRIANGLE_CULLING_BIT = 2;
+    
     glm::mat4 ViewMatrix;
     glm::mat4 ViewProjectionMatrix;
     FrustumPlanes FrustumPlanes;
@@ -57,9 +61,7 @@ struct CullViewDataGPU
     f32 HiZWidth;
     f32 HiZHeight;
 
-    /* these are obviously bools, but gpu size for bool is 32 bit */
-    u32 IsOrthographic{0};
-    u32 ClampDepth{0};
+    u32 ViewFlags{0};
 
     static CullViewDataGPU FromCullViewDescription(const CullViewDescription& description);
 };

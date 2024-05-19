@@ -15,7 +15,6 @@ struct MeshletCullMultiviewPassInitInfo
 {
     const CullMultiviewData* MultiviewData{nullptr};
     CullStage Stage{CullStage::Cull};
-    bool SubsequentTriangleCulling{false};
 };
 
 struct MeshletCullMultiviewPassExecutionInfo

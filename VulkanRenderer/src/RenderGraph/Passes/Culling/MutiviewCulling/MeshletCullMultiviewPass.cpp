@@ -8,8 +8,7 @@
 
 MeshletCullMultiviewPass::MeshletCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
     const MeshletCullMultiviewPassInitInfo& info)
-        : m_Name(name), m_MultiviewData(info.MultiviewData), m_Stage(info.Stage),
-    m_SubsequentTriangleCulling(info.SubsequentTriangleCulling)
+        : m_Name(name), m_MultiviewData(info.MultiviewData), m_Stage(info.Stage)
 {
     ShaderPipelineTemplate* cullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/multiview/meshlet-cull-comp.shader"},
@@ -19,7 +18,6 @@ MeshletCullMultiviewPass::MeshletCullMultiviewPass(RG::Graph& renderGraph, std::
         .SetTemplate(cullTemplate)
         .AddSpecialization("REOCCLUSION", m_Stage == CullStage::Reocclusion)
         .AddSpecialization("SINGLE_PASS", m_Stage == CullStage::Single)
-        .AddSpecialization("TRIANGLE_CULL", info.SubsequentTriangleCulling)
         .UseDescriptorBuffer()
         .Build();
 
