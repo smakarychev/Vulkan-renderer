@@ -10,8 +10,7 @@ layout(push_constant) uniform push_constants {
     uvec2 levels_size;
 };
 
-void main()
-{
+void main() {
     uvec2 pos = gl_GlobalInvocationID.xy;
 
     float depth = texture(sampler2D(u_in_image, u_in_sampler), (vec2(pos) + vec2(0.5f)) / levels_size).r;

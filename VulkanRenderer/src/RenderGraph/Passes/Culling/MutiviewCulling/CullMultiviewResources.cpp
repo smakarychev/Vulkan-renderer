@@ -45,7 +45,7 @@ namespace RG::RgUtils
                 .SizeBytes = cullMultiviewData.Geometries().size() * sizeof(CullMultiviewData::ViewSpan)});
         multiviewResource.Views = graph.CreateResource(baseName + ".Views",
             GraphBufferDescription{
-                .SizeBytes = cullMultiviewData.Geometries().size() * sizeof(CullViewDataGPU)});
+                .SizeBytes = cullMultiviewData.Views().size() * sizeof(CullViewDataGPU)});
         
         for (u32 i = 0; i < cullMultiviewData.Views().size(); i++)
         {
