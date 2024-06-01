@@ -97,6 +97,8 @@ void ImGuiUI::BeginFrame()
 
 void ImGuiUI::EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingInfo)
 {
+    CPU_PROFILE_FRAME("ImGui end frame")
+
     ImGui::Render();
     
     RenderCommand::BeginRendering(cmd, renderingInfo);
