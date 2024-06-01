@@ -85,7 +85,7 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
 
             for (u32 i = 0; i < info.MultiviewResource->Objects.size(); i++)
             {
-                u32 meshletCount = multiview->ViewDescriptions->at(i).Static.Geometry->GetMeshletCount();
+                u32 meshletCount = multiview->Multiview->Views()[i].Static.Geometry->GetMeshletCount();
                 
                 PushConstant pushConstant = {
                     .MeshletCount = meshletCount,

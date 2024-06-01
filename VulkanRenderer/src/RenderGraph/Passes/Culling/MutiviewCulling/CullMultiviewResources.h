@@ -19,6 +19,7 @@ namespace RG
         std::vector<Resource> Objects;
         std::vector<Resource> Meshlets;
         std::vector<Resource> Commands;
+        
         Resource ViewSpans;
         Resource Views;
         
@@ -34,20 +35,24 @@ namespace RG
         /* is used to mark commands that were processed by triangle culling */
         std::vector<Resource> CommandFlags;
 
-        const std::vector<CullViewDescription>* ViewDescriptions{nullptr};
+        const CullMultiviewData* Multiview{nullptr};
     };
 
     struct CullTrianglesMultiviewResource
     {
-        std::vector<Resource> BatchDispatches{};
+        const CullMultiviewResources* CullResources{nullptr};
+        u32 ViewCount{0};
+
         std::vector<Resource> Indices;
+        
+        Resource MaxDispatches{};
+        
+        std::vector<Resource> BatchDispatches;
         std::vector<Resource> TriangleVisibility;
         std::vector<std::array<Resource, BATCH_OVERLAP>> Triangles;
         std::vector<std::array<Resource, BATCH_OVERLAP>> IndicesCulled;
         std::vector<std::array<Resource, BATCH_OVERLAP>> IndicesCulledCount;
         std::vector<std::array<Resource, BATCH_OVERLAP>> Draw;
-
-        const std::vector<CullViewDescription>* ViewDescriptions{nullptr};
     };
 }
 
@@ -64,4 +69,7 @@ namespace RG::RgUtils
     void updateMeshletCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         ResourceUploader& resourceUploader);
+
+    CullTrianglesMultiviewResource createTriangleCullMultiview(const CullMultiviewResources& multiview, Graph& graph,
+        const std::string& baseName);
 }

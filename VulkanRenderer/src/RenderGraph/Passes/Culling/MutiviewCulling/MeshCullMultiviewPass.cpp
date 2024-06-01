@@ -91,7 +91,7 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMul
 
             for (u32 i = 0; i < info.MultiviewResource->Objects.size(); i++)
             {
-                u32 meshCount = multiview->ViewDescriptions->at(i).Static.Geometry->GetRenderObjectCount();
+                u32 meshCount = multiview->Multiview->Views()[i].Static.Geometry->GetRenderObjectCount();
                 
                 PushConstant pushConstant = {
                     .ObjectCount = meshCount,
