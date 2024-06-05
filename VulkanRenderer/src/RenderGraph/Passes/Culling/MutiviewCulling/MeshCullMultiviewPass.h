@@ -21,7 +21,6 @@ public:
         RG::CullMultiviewResources* MultiviewResource{nullptr};
         
         RG::PipelineData* PipelineData{nullptr};
-        const CullMultiviewData* MultiviewData{nullptr};
     };
 public:
     MeshCullMultiviewPass(RG::Graph& renderGraph, std::string_view name, const MeshCullMultiviewPassInitInfo& info);

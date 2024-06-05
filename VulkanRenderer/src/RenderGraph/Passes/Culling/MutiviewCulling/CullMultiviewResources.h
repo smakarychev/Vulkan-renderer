@@ -40,7 +40,11 @@ namespace RG
 
     struct CullTrianglesMultiviewResource
     {
-        const CullMultiviewResources* CullResources{nullptr};
+        CullMultiviewResources* CullResources{nullptr};
+        /* not each culling involves triangle culling, so in general there are
+         * less `CullTrianglesMultiviewResource` than `CullMultiviewResources`
+         */
+        std::vector<u32> MeshletViewIndices;
         u32 ViewCount{0};
 
         std::vector<Resource> Indices;
@@ -66,10 +70,14 @@ namespace RG::RgUtils
     
     void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         Graph& graph);
-    void updateMeshletCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+    void updateCullMeshletMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         ResourceUploader& resourceUploader);
 
     CullTrianglesMultiviewResource createTriangleCullMultiview(const CullMultiviewResources& multiview, Graph& graph,
         const std::string& baseName);
+
+    void readWriteCullTrianglePrepareMultiview(CullTrianglesMultiviewResource& multiview, Graph& graph);
+    void updateCullTrianglePrepareMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+        const CullTrianglesMultiviewResource& multiview);
 }

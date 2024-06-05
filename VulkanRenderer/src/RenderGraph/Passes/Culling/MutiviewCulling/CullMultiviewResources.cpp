@@ -166,7 +166,7 @@ namespace RG::RgUtils
         }
     }
 
-    void updateMeshletCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+    void updateCullMeshletMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
         ResourceUploader& resourceUploader)
     {
@@ -205,7 +205,7 @@ namespace RG::RgUtils
         }
     }
 
-    CullTrianglesMultiviewResource createTriangleCullMultiview(const CullMultiviewResources& multiview, Graph& graph,
+    CullTrianglesMultiviewResource createTriangleCullMultiview(CullMultiviewResources& multiview, Graph& graph,
         const std::string& baseName)
     {
         CullTrianglesMultiviewResource multiviewResource = {};
@@ -236,8 +236,9 @@ namespace RG::RgUtils
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(u32)});
 
         u32 triangleViewIndex = 0;
-        for (auto& view : multiview.Multiview->Views())
+        for (u32 meshletViewIndex = 0; meshletViewIndex < multiview.Multiview->Views().size(); meshletViewIndex++)
         {
+            auto& view = multiview.Multiview->Views()[meshletViewIndex];
             auto&& [staticV, dynamicV] = view;
 
             // skip all views that do not involve triangle culling
@@ -246,7 +247,9 @@ namespace RG::RgUtils
 
             auto* geometry = staticV.Geometry;
 
-            u32 maxDispatches = geometry->GetCommandCount() / TriangleCullMultiviewTraits::CommandCount() + 1;
+            u32 maxDispatches = TriangleCullMultiviewTraits::MaxDispatches(geometry->GetCommandCount());
+
+            multiviewResource.MeshletViewIndices.push_back(meshletViewIndex);
             
             multiviewResource.BatchDispatches.push_back(graph.CreateResource(
                 std::format("{}.Dispatches.{}", baseName, triangleViewIndex),
@@ -288,5 +291,37 @@ namespace RG::RgUtils
         }
 
         return multiviewResource;
+    }
+
+    void readWriteCullTrianglePrepareMultiview(CullTrianglesMultiviewResource& multiview, Graph& graph)
+    {
+        using enum ResourceAccessFlags;
+
+        multiview.MaxDispatches = graph.Read(multiview.MaxDispatches, Compute | Uniform | Upload);
+
+        for (u32 i = 0; i < multiview.BatchDispatches.size(); i++)
+        {
+            u32 meshletViewIndex = multiview.MeshletViewIndices[i];
+            multiview.BatchDispatches[i] = graph.Write(multiview.BatchDispatches[i], Compute | Storage);
+            multiview.CullResources->CompactCommandCount[meshletViewIndex] = graph.Read(
+                multiview.CullResources->CompactCommandCount[meshletViewIndex],
+                Compute | Storage);
+        }
+    }
+
+    void updateCullTrianglePrepareMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
+        const CullTrianglesMultiviewResource& multiview)
+    {
+        descriptors.UpdateBinding("u_max_dispatches", resources.GetBuffer(multiview.MaxDispatches).BindingInfo());
+
+        for (u32 i = 0; i < multiview.BatchDispatches.size(); i++)
+        {
+            u32 meshletViewIndex = multiview.MeshletViewIndices[i];
+            descriptors.UpdateBinding("u_command_counts", resources.GetBuffer(
+                multiview.CullResources->CompactCommandCount[meshletViewIndex])
+                .BindingInfo(), i);
+            descriptors.UpdateBinding("u_dispatches", resources.GetBuffer(multiview.BatchDispatches[i])
+                .BindingInfo(), i);
+        }
     }
 }

@@ -35,7 +35,6 @@ MeshletCullMultiviewPass::MeshletCullMultiviewPass(RG::Graph& renderGraph, std::
 void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletCullMultiviewPassExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)
@@ -46,7 +45,6 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
             passData.MultiviewResource = info.MultiviewResource;
             
             passData.PipelineData = &m_PipelineData;
-            passData.MultiviewData = m_MultiviewData;
             passData.CullStage = m_Stage;
             passData.SubsequentTriangleCulling = m_SubsequentTriangleCulling;
 
@@ -68,7 +66,7 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
             samplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
-            RgUtils::updateMeshletCullMultiviewBindings(resourceDescriptors, resources, *multiview,
+            RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview,
                 passData.CullStage, passData.SubsequentTriangleCulling, *frameContext.ResourceUploader);
 
             struct PushConstant

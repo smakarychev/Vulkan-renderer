@@ -33,7 +33,6 @@ MeshCullMultiviewPass::MeshCullMultiviewPass(RG::Graph& renderGraph, std::string
 void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMultiviewPassExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
     
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)
@@ -47,7 +46,6 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMul
             passData.MultiviewResource = info.MultiviewResource;
             
             passData.PipelineData = &m_PipelineData;
-            passData.MultiviewData = m_MultiviewData;
 
             graph.GetBlackboard().Update(m_Name.Hash(), passData);
         },
@@ -57,11 +55,12 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMul
             GPU_PROFILE_FRAME("Mesh Cull Multiview")
 
             auto* multiview = passData.MultiviewResource;
+            auto* multiviewData = multiview->Multiview;
 
-            resources.GetBuffer(multiview->ViewSpans, passData.MultiviewData->ViewSpans().data(),
-                passData.MultiviewData->ViewSpans().size() * sizeof(CullMultiviewData::ViewSpan), 0,
+            resources.GetBuffer(multiview->ViewSpans, multiviewData->ViewSpans().data(),
+                multiviewData->ViewSpans().size() * sizeof(CullMultiviewData::ViewSpan), 0,
                 *frameContext.ResourceUploader);
-            std::vector<CullViewDataGPU> views = passData.MultiviewData->CreateMultiviewGPU();
+            std::vector<CullViewDataGPU> views = multiviewData->CreateMultiviewGPU();
             resources.GetBuffer(multiview->Views, views.data(), views.size() * sizeof(CullViewDataGPU), 0,
                 *frameContext.ResourceUploader);
             

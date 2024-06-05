@@ -68,5 +68,6 @@ public:
     static u32 TriangleCount() { return MAX_TRIANGLES * SUB_BATCH_COUNT; }
     static u32 IndexCount() { return MAX_INDICES * SUB_BATCH_COUNT; }
     static u32 CommandCount() { return MAX_COMMANDS * SUB_BATCH_COUNT; }
+    static u32 MaxDispatches(u32 commandCount) { return commandCount / CommandCount() + 1; }
 };
 

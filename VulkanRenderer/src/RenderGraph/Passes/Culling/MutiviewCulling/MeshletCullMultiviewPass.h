@@ -31,7 +31,6 @@ public:
         RG::CullMultiviewResources* MultiviewResource{nullptr};
         
         RG::PipelineData* PipelineData{nullptr};
-        const CullMultiviewData* MultiviewData{nullptr};
 
         CullStage CullStage{CullStage::Cull};
         bool SubsequentTriangleCulling{false};
