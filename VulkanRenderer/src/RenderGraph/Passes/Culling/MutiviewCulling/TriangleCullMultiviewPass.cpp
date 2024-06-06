@@ -23,16 +23,16 @@ TriangleCullPrepareMultiviewPass::TriangleCullPrepareMultiviewPass(RG::Graph& re
 }
 
 void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
-    RG::CullTrianglesMultiviewResource* multiviewResource)
+    const TriangleCullPrepareMultiviewPassExecutionInfo& info)
 {
     using namespace RG;
 
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)
         {
-            RgUtils::readWriteCullTrianglePrepareMultiview(*multiviewResource, renderGraph);
+            RgUtils::readWriteCullTrianglePrepareMultiview(*info.MultiviewResource, renderGraph);
             
-            passData.MultiviewResource = multiviewResource;
+            passData.MultiviewResource = info.MultiviewResource;
             
             passData.PipelineData = &m_PipelineData;
             

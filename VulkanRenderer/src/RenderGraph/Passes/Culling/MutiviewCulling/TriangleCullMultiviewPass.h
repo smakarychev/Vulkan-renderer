@@ -3,6 +3,11 @@
 #include "RenderGraph/RenderPass.h"
 #include "RenderGraph/RGCommon.h"
 
+struct TriangleCullPrepareMultiviewPassExecutionInfo
+{
+    RG::CullTrianglesMultiviewResource* MultiviewResource{nullptr};
+};
+
 class TriangleCullPrepareMultiviewPass
 {
 public:
@@ -14,13 +19,15 @@ public:
     };
 public:
     TriangleCullPrepareMultiviewPass(RG::Graph& renderGraph, std::string_view name);
-    void AddToGraph(RG::Graph& renderGraph, RG::CullTrianglesMultiviewResource* multiviewResource);
+    void AddToGraph(RG::Graph& renderGraph, const TriangleCullPrepareMultiviewPassExecutionInfo& info);
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;
 
     RG::PipelineData m_PipelineData;
 };
+
+
 
 class TriangleCullMultiviewPass
 {
