@@ -87,10 +87,10 @@ void CullMultiviewData::UpdateBatchIterationCount()
 
 void CullMultiviewData::ValidateViewRenderingAttachments(u32 lastViewIndex) const
 {
-    auto& toCompareAttachments = m_Views[lastViewIndex].Dynamic.DrawAttachments;
+    auto& toCompareAttachments = m_Views[lastViewIndex].Dynamic.DrawInfo.Attachments;
     for (u32 viewIndex = 0; viewIndex < lastViewIndex; viewIndex++)
     {
-        auto& attachments = m_Views[viewIndex].Dynamic.DrawAttachments;
+        auto& attachments = m_Views[viewIndex].Dynamic.DrawInfo.Attachments;
         for (auto& color : toCompareAttachments.Colors)
         {
             auto colorIt = std::ranges::find(attachments.Colors, color.Resource,

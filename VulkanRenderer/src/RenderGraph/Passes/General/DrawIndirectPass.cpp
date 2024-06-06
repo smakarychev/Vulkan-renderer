@@ -49,17 +49,17 @@ void DrawIndirectPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectPass
                 info.Geometry->GetRenderObjectsBuffer());
             passData.CommandsIndirect = graph.Read(info.Commands, Vertex | Indirect);
 
-            passData.DrawAttachmentResources = RgUtils::readWriteDrawAttachments(info.DrawAttachments, graph);
+            passData.DrawAttachmentResources = RgUtils::readWriteDrawAttachments(info.DrawInfo.Attachments, graph);
             
             if (enumHasAny(m_Features, DrawFeatures::IBL))
             {
-                ASSERT(info.IBL.has_value(), "IBL data is not provided")
-                passData.IBL = RgUtils::readIBLData(*info.IBL, graph, Pixel);
+                ASSERT(info.DrawInfo.IBL.has_value(), "IBL data is not provided")
+                passData.IBL = RgUtils::readIBLData(*info.DrawInfo.IBL, graph, Pixel);
             }
             if (enumHasAny(m_Features, DrawFeatures::SSAO))
             {
-                ASSERT(info.SSAO.has_value(), "SSAO data is not provided")
-                passData.SSAO = RgUtils::readSSAOData(*info.SSAO, graph, Pixel);
+                ASSERT(info.DrawInfo.SSAO.has_value(), "SSAO data is not provided")
+                passData.SSAO = RgUtils::readSSAOData(*info.DrawInfo.SSAO, graph, Pixel);
             }
             
             passData.PipelineData = &m_PipelineData;

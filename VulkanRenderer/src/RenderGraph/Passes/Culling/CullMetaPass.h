@@ -29,11 +29,7 @@ struct CullMetaPassExecutionInfo
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
 
-    RG::DrawAttachments DrawAttachments{};
-    
-    const SceneLight* SceneLights{nullptr};
-    std::optional<IBLData> IBL{};
-    std::optional<SSAOData> SSAO{};
+    RG::DrawExecutionInfo DrawInfo{};
 };
 
 class CullMetaPass

@@ -57,7 +57,8 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
         .Commands = meshletOutput.MeshletResources.Commands,
         .Resolution = info.Resolution,
         .Camera = info.Camera,
-        .DrawAttachments = {
+        .DrawInfo = {
+            .Attachments = {
             .Colors = {DrawAttachment{
                 .Resource = info.ColorIn,
                 .Description = {
@@ -67,8 +68,9 @@ void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
                 .Resource = info.DepthIn,
                 .Description = {
                     .OnLoad = AttachmentLoad::Load}}},
-        .SceneLights = info.SceneLights,
-        .IBL = info.IBL});
+            .SceneLights = info.SceneLights,
+            .IBL = info.IBL}
+        });
     auto& drawOutput = blackboard.Get<DrawIndirectPass::PassData>(m_Draw->GetNameHash());
 
     m_PassData.ColorOut = drawOutput.DrawAttachmentResources.Colors[0];

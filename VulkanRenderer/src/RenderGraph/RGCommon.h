@@ -1,5 +1,6 @@
 #pragma once
 
+#include "RGResource.h"
 #include "Rendering/Shader.h"
 
 class CommandBuffer;

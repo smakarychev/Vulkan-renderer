@@ -9,12 +9,7 @@ class Camera;
 
 class SceneGeometry;
 
-struct DrawIndirectPassInitInfo
-{
-    RG::DrawFeatures DrawFeatures{RG::DrawFeatures::AllAttributes};
-    ShaderPipeline DrawPipeline{};
-    std::optional<const ShaderDescriptors*> MaterialDescriptors{};
-};
+using DrawIndirectPassInitInfo = RG::DrawInitInfo;
 
 struct DrawIndirectPassExecutionInfo
 {
@@ -24,10 +19,7 @@ struct DrawIndirectPassExecutionInfo
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
 
-    RG::DrawAttachments DrawAttachments{};
-    const SceneLight* SceneLights{nullptr};
-    std::optional<RG::IBLData> IBL{};
-    std::optional<RG::SSAOData> SSAO{};
+    RG::DrawExecutionInfo DrawInfo{};
 };
 
 class DrawIndirectPass

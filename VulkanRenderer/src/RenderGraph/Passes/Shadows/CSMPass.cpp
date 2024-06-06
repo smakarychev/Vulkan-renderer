@@ -75,15 +75,16 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
             .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
             .Camera = &m_Cameras[i],
             .ClampDepth = true,
-            .DrawAttachments = {
-                .Depth = DepthStencilAttachment{
-                    .Resource = shadow,
-                    .Description = {
-                        .Subresource = cascadeViews[i],
-                        .OnLoad = AttachmentLoad::Clear,
-                        .ClearDepth = 0.0f,
-                        .ClearStencil = 0},
-                    .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}});
+            .DrawInfo = {
+                .Attachments = {
+                    .Depth = DepthStencilAttachment{
+                        .Resource = shadow,
+                        .Description = {
+                            .Subresource = cascadeViews[i],
+                            .OnLoad = AttachmentLoad::Clear,
+                            .ClearDepth = 0.0f,
+                            .ClearStencil = 0},
+                        .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}}});
     
     m_Pass->AddToGraph(renderGraph);
     auto& multiviewOutput = renderGraph.GetBlackboard().Get<CullMetaMultiviewPass::PassData>(m_Pass->GetNameHash());

@@ -54,14 +54,15 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
     m_Pass->AddToGraph(renderGraph, {
         .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
         .Camera = m_Camera.get(),
-        .DrawAttachments = {
-            .Depth = DepthStencilAttachment{
-                .Resource = shadow,
-                .Description = {
-                    .OnLoad = AttachmentLoad::Clear,
-                    .ClearDepth = 0.0f,
-                    .ClearStencil = 0},
-                .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}});
+        .DrawInfo = {
+            .Attachments = {
+                .Depth = DepthStencilAttachment{
+                    .Resource = shadow,
+                    .Description = {
+                        .OnLoad = AttachmentLoad::Clear,
+                        .ClearDepth = 0.0f,
+                        .ClearStencil = 0},
+                    .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}}});
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
 
     /* because this pass is just a wrapper around meta cull pass, in order to actually upload data to resource,

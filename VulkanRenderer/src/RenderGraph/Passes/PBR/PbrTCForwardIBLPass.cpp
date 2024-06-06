@@ -44,20 +44,21 @@ void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBL
     CullMetaPassExecutionInfo executionInfo = {
         .Resolution = info.Resolution,
         .Camera = info.Camera,
-        .DrawAttachments = {
-            .Colors = {DrawAttachment{
-                .Resource = info.ColorIn,
-                .Description = {
-                    .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                    .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
-            .Depth = DepthStencilAttachment{
-                .Resource = info.DepthIn,
-                .Description = {
-                    .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                    .ClearDepth = 0.0f,
-                    .ClearStencil = 0}}},
-        .SceneLights = info.SceneLights,
-        .IBL = info.IBL};
+        .DrawInfo = {
+            .Attachments = {
+                .Colors = {DrawAttachment{
+                    .Resource = info.ColorIn,
+                    .Description = {
+                        .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                        .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
+                .Depth = DepthStencilAttachment{
+                    .Resource = info.DepthIn,
+                    .Description = {
+                        .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                        .ClearDepth = 0.0f,
+                        .ClearStencil = 0}}},
+            .SceneLights = info.SceneLights,
+            .IBL = info.IBL}};
 
     m_Pass->AddToGraph(renderGraph, executionInfo);
     auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());

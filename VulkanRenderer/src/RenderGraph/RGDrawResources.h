@@ -1,10 +1,14 @@
 #pragma once
+
+#include "RGCommon.h"
 #include "RGResource.h"
 #include "Rendering/RenderingInfo.h"
 
 /* Draw resources that are commonly used by different draw passes
  * Draw features control what resources are actually used 
  */
+
+class SceneLight;
 
 namespace RG
 {
@@ -100,6 +104,23 @@ namespace RG
     struct SceneLightResources
     {
         Resource DirectionalLight{};
+    };
+
+    
+    struct DrawInitInfo
+    {
+        DrawFeatures DrawFeatures{DrawFeatures::AllAttributes};
+        ShaderPipeline DrawPipeline{};
+        std::optional<const ShaderDescriptors*> MaterialDescriptors{};
+    };
+    
+    struct DrawExecutionInfo
+    {
+        DrawAttachments Attachments{};
+        const SceneLight* SceneLights{nullptr};
+        std::optional<IBLData> IBL{};
+        std::optional<SSAOData> SSAO{};
+        std::optional<CSMData> CSMData{};
     };
 }
 

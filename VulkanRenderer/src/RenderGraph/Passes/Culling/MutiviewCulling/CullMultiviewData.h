@@ -35,11 +35,8 @@ struct CullViewDynamicDescription
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
     bool ClampDepth{false};
-    RG::DrawAttachments DrawAttachments{};
-    std::optional<SceneLight> SceneLights{};
-    std::optional<RG::IBLData> IBL{};
-    std::optional<RG::SSAOData> SSAO{};
-    std::optional<RG::CSMData> CSMData{};
+
+    RG::DrawExecutionInfo DrawInfo{};
 };
 
 struct CullViewDescription

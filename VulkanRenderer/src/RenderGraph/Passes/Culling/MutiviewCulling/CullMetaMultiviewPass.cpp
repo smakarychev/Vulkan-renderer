@@ -86,27 +86,28 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     for (u32 i = 0; i < m_Draws.size(); i++)
     {
         auto& view = m_MultiviewData->Views()[i];
-        UpdateRecordedAttachmentResources(view.Dynamic.DrawAttachments);
+        UpdateRecordedAttachmentResources(view.Dynamic.DrawInfo.Attachments);
         m_Draws[i]->AddToGraph(renderGraph, {
             .Geometry = view.Static.Geometry,
             .Commands = meshletCullOutput.MultiviewResource->CompactCommands[i],
             .CommandCount = meshletCullOutput.MultiviewResource->CompactCommandCount[i],
             .Resolution = view.Dynamic.Resolution,
             .Camera = view.Dynamic.Camera,
-            .DrawAttachments = view.Dynamic.DrawAttachments,
-           // .SceneLights = *view.Dynamic.SceneLights, // todo: fix me
-            .IBL = view.Dynamic.IBL,
-            .SSAO = view.Dynamic.SSAO});
+            .DrawInfo = {
+                .Attachments = view.Dynamic.DrawInfo.Attachments,
+               // .SceneLights = *view.Dynamic.SceneLights, // todo: fix me
+                .IBL = view.Dynamic.DrawInfo.IBL,
+                .SSAO = view.Dynamic.DrawInfo.SSAO}});
         
         auto& drawOutput = renderGraph.GetBlackboard().Get<DrawIndirectCountPass::PassData>(m_Draws[i]->GetNameHash());
-        RecordUpdatedAttachmentResources(view.Dynamic.DrawAttachments, drawOutput.DrawAttachmentResources);
+        RecordUpdatedAttachmentResources(view.Dynamic.DrawInfo.Attachments, drawOutput.DrawAttachmentResources);
     }
     for (u32 i = 0; i < m_Draws.size(); i++)
     {
         auto& view = m_MultiviewData->Views()[i];
-        if (view.Dynamic.DrawAttachments.Depth.has_value())
-            m_HiZs[i]->AddToGraph(renderGraph, view.Dynamic.DrawAttachments.Depth->Resource,
-                view.Dynamic.DrawAttachments.Depth->Description.Subresource, *view.Static.HiZContext);
+        if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
+            m_HiZs[i]->AddToGraph(renderGraph, view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
     }
     
     m_MeshReocclusion->AddToGraph(renderGraph, MeshCullMultiviewPassExecutionInfo{
@@ -119,7 +120,7 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     for (u32 i = 0; i < m_Draws.size(); i++)
     {
         auto& view = m_MultiviewData->Views()[i];
-        UpdateRecordedAttachmentResources(view.Dynamic.DrawAttachments);
+        UpdateRecordedAttachmentResources(view.Dynamic.DrawInfo.Attachments);
         SetAttachmentsLoadOperation(AttachmentLoad::Load, view.Dynamic);
         m_DrawsReocclusion[i]->AddToGraph(renderGraph, {
             .Geometry = view.Static.Geometry,
@@ -127,14 +128,15 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
             .CommandCount = meshletReocclusionOutput.MultiviewResource->CompactCommandCountReocclusion[i],
             .Resolution = view.Dynamic.Resolution,
             .Camera = view.Dynamic.Camera,
-            .DrawAttachments = view.Dynamic.DrawAttachments,
-           // .SceneLights = *view.Dynamic.SceneLights, // todo: fix me
-            .IBL = view.Dynamic.IBL,
-            .SSAO = view.Dynamic.SSAO});
+            .DrawInfo = {
+                .Attachments = view.Dynamic.DrawInfo.Attachments,
+               // .SceneLights = *view.Dynamic.SceneLights, // todo: fix me
+                .IBL = view.Dynamic.DrawInfo.IBL,
+                .SSAO = view.Dynamic.DrawInfo.SSAO}});
         
         auto& drawOutput = renderGraph.GetBlackboard().Get<DrawIndirectCountPass::PassData>(
             m_DrawsReocclusion[i]->GetNameHash());
-        RecordUpdatedAttachmentResources(view.Dynamic.DrawAttachments, drawOutput.DrawAttachmentResources);
+        RecordUpdatedAttachmentResources(view.Dynamic.DrawInfo.Attachments, drawOutput.DrawAttachmentResources);
     }
 
     PassData passData = {};
@@ -156,9 +158,9 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
 
 void CullMetaMultiviewPass::EnsureViewAttachments(RG::Graph& renderGraph, CullViewDynamicDescription& view)
 {
-    for (u32 i = 0; i < view.DrawAttachments.Colors.size(); i++)
+    for (u32 i = 0; i < view.DrawInfo.Attachments.Colors.size(); i++)
     {
-        auto& color = view.DrawAttachments.Colors[i];
+        auto& color = view.DrawInfo.Attachments.Colors[i];
         color.Resource = RG::RgUtils::ensureResource(color.Resource, renderGraph,
             std::format("{}.ColorIn.{}", m_Name.Name(), i),
             RG::GraphTextureDescription{
@@ -167,9 +169,9 @@ void CullMetaMultiviewPass::EnsureViewAttachments(RG::Graph& renderGraph, CullVi
                     .Format =  Format::RGBA16_FLOAT});
     }
     
-    if (view.DrawAttachments.Depth.has_value())
+    if (view.DrawInfo.Attachments.Depth.has_value())
     {
-        auto& depth = *view.DrawAttachments.Depth;
+        auto& depth = *view.DrawInfo.Attachments.Depth;
         depth.Resource = RG::RgUtils::ensureResource(depth.Resource, renderGraph,
             std::format("{}.Depth", m_Name.Name()),
             RG::GraphTextureDescription{
@@ -181,15 +183,15 @@ void CullMetaMultiviewPass::EnsureViewAttachments(RG::Graph& renderGraph, CullVi
 
 void CullMetaMultiviewPass::SetAttachmentsLoadOperation(AttachmentLoad load, CullViewDynamicDescription& view)
 {
-    for (u32 i = 0; i < view.DrawAttachments.Colors.size(); i++)
+    for (u32 i = 0; i < view.DrawInfo.Attachments.Colors.size(); i++)
     {
-        auto& color = view.DrawAttachments.Colors[i];
+        auto& color = view.DrawInfo.Attachments.Colors[i];
         color.Description.OnLoad = load;
     }
     
-    if (view.DrawAttachments.Depth.has_value())
+    if (view.DrawInfo.Attachments.Depth.has_value())
     {
-        auto& depth = *view.DrawAttachments.Depth;
+        auto& depth = *view.DrawInfo.Attachments.Depth;
         depth.Description.OnLoad = load; 
     }
 }
