@@ -5,7 +5,7 @@
 
 namespace RG::RgUtils
 {
-    CullMultiviewResources createCullMultiview(const CullMultiviewData& cullMultiviewData, Graph& graph,
+    CullMultiviewResources createCullMultiview(CullMultiviewData& cullMultiviewData, Graph& graph,
         const std::string& baseName)
     {
         CullMultiviewResources multiviewResource = {};

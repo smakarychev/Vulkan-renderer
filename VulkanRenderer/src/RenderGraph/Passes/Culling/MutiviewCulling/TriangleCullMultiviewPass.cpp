@@ -85,6 +85,14 @@ void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
                 {maxDispatchesTotal, 1, 1},
                 {64, 1, 1});
 
-            // todo: readback
+            RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
+                .MemoryDependency({
+                    .SourceStage = PipelineStage::ComputeShader,
+                    .DestinationStage = PipelineStage::Host,
+                    .SourceAccess = PipelineAccess::WriteShader,
+                    .DestinationAccess = PipelineAccess::ReadHost})
+                .Build(frameContext.DeletionQueue));
+
+            multiview->CullResources->Multiview->UpdateBatchIterationCount();
         });
 }

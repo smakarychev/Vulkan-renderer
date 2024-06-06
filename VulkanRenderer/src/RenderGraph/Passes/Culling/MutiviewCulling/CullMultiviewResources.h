@@ -35,7 +35,7 @@ namespace RG
         /* is used to mark commands that were processed by triangle culling */
         std::vector<Resource> CommandFlags;
 
-        const CullMultiviewData* Multiview{nullptr};
+        CullMultiviewData* Multiview{nullptr};
     };
 
     struct CullTrianglesMultiviewResource
@@ -62,7 +62,7 @@ namespace RG
 
 namespace RG::RgUtils
 {
-    CullMultiviewResources createCullMultiview(const CullMultiviewData& cullMultiviewData, Graph& graph,
+    CullMultiviewResources createCullMultiview(CullMultiviewData& cullMultiviewData, Graph& graph,
         const std::string& baseName);
     void readWriteCullMeshMultiview(CullMultiviewResources& multiview, Graph& graph);
     void updateMeshCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,

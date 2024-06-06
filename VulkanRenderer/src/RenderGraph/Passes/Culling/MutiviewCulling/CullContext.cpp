@@ -49,3 +49,11 @@ CullViewTriangleVisibility::CullViewTriangleVisibility(CullViewVisibility* cullV
             .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress})
         .Build();
 }
+
+void CullViewTriangleVisibility::UpdateIterationCount()
+{
+    // todo: add some bias (like multiply by 1.25 for example)?
+    u32 visibleMeshletsValue = ReadbackCompactCountValue();
+    u32 commandCount = TriangleCullMultiviewTraits::CommandCount();
+    m_BatchIterationCount = visibleMeshletsValue / commandCount + (u32)(visibleMeshletsValue % commandCount != 0);
+}

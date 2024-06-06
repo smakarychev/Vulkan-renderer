@@ -99,6 +99,8 @@ public:
     const std::vector<CullViewTriangleVisibility>& TriangleVisibilities() const { return m_CullTriangleVisibilities; }
     
     std::vector<CullViewDataGPU> CreateMultiviewGPU() const;
+
+    void UpdateBatchIterationCount();
 private:
     void ValidateViewRenderingAttachments(u32 lastViewIndex) const;
 private:

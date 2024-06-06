@@ -79,6 +79,12 @@ std::vector<CullViewDataGPU> CullMultiviewData::CreateMultiviewGPU() const
     return views;
 }
 
+void CullMultiviewData::UpdateBatchIterationCount()
+{
+    for (auto& v : m_CullTriangleVisibilities)
+        v.UpdateIterationCount();
+}
+
 void CullMultiviewData::ValidateViewRenderingAttachments(u32 lastViewIndex) const
 {
     auto& toCompareAttachments = m_Views[lastViewIndex].Dynamic.DrawAttachments;

@@ -47,10 +47,13 @@ public:
     const Buffer& CompactCount() const { return m_CullViewVisibility->CompactCount(); }
     u32 ReadbackCompactCountValue() { return m_CullViewVisibility->ReadbackCompactCountValue(); }
     u32 CompactCountValue() const { return m_CullViewVisibility->CompactCountValue(); }
+
+    void UpdateIterationCount();
 private:
     CullViewVisibility* m_CullViewVisibility{nullptr};
 
     Buffer m_Triangle;
+    u32 m_BatchIterationCount{0};
 
     const SceneGeometry* m_Geometry{nullptr};
 };
