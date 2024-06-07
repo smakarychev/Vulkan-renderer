@@ -33,7 +33,6 @@ public:
         RG::PipelineData* PipelineData{nullptr};
 
         CullStage CullStage{CullStage::Cull};
-        bool SubsequentTriangleCulling{false};
     };
 public:
     MeshletCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
@@ -43,9 +42,7 @@ public:
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;
-    const CullMultiviewData* m_MultiviewData{nullptr};
     CullStage m_Stage{CullStage::Cull};
-    bool m_SubsequentTriangleCulling{false};
     
     RG::PipelineData m_PipelineData{};    
 };

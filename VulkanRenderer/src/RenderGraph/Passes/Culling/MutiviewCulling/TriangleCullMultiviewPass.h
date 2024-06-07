@@ -27,22 +27,27 @@ private:
     RG::PipelineData m_PipelineData;
 };
 
-struct TriangleCullMultiviewPasInitInfo
+struct TriangleCullMultiviewPassInitInfo
 {
-    
+    const CullMultiviewData* MultiviewData{nullptr};
+    CullStage Stage{CullStage::Cull};
+    RG::DrawInitInfo DrawInfo{};
 };
 
 struct TriangleCullMultiviewPassExecutionInfo
 {
-    
+    RG::CullTrianglesMultiviewResource* MultiviewResource{nullptr};
 };
 
 class TriangleCullMultiviewPass
 {
 public:
+    TriangleCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
+        const TriangleCullMultiviewPassInitInfo& info);
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;
+    CullStage m_Stage{CullStage::Cull};
 
     std::array<RG::PipelineData, TriangleCullMultiviewTraits::MAX_BATCHES> m_CullPipelines;
     std::array<RG::PipelineData, TriangleCullMultiviewTraits::MAX_BATCHES> m_PreparePipelines;

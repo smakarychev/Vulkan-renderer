@@ -13,9 +13,9 @@ layout(constant_id = 1) const bool SINGLE_PASS = false;
 
 
 layout(set = 0, binding = 0) uniform sampler u_sampler;
-layout(set = 1, binding = 1) uniform texture2D u_hiz[MAX_VIEWS];
+layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
 
-layout(scalar, set = 1, binding = 0) uniform view_buffer {
+layout(scalar, set = 1, binding = 1) uniform view_buffer {
     ViewData views[MAX_VIEWS];
 } u_views;
 
@@ -84,20 +84,20 @@ bool is_reocclusion_visible(vec3 origin, float radius, vec3 cone_axis, float con
 }
 
 void compact(uint id, bool should_draw, uint view_index) {
-    IndirectCommand command = u_commands[u_geometry_index].commands[id];
+    const IndirectCommand command = u_commands[u_geometry_index].commands[id];
 
-    uvec4 is_visible_ballot = subgroupBallot(should_draw);
+    const uvec4 is_visible_ballot = subgroupBallot(should_draw);
 
-    uint total_visible_count = subgroupBallotBitCount(is_visible_ballot);
+    const uint total_visible_count = subgroupBallotBitCount(is_visible_ballot);
 
     uint compacted_buffer_index_base;
     if (subgroupElect())
         compacted_buffer_index_base = atomicAdd(u_count[view_index].count, total_visible_count);
     compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
 
-    uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_visible_ballot);
+    const uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_visible_ballot);
 
-    uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
+    const uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
 
     if (should_draw) {
         u_compacted_commands[view_index].commands[compacted_buffer_index] = command;
@@ -111,7 +111,7 @@ void compact(uint id, bool should_draw, uint view_index) {
 }
 
 void main() {
-    uint id = gl_GlobalInvocationID.x;
+    const uint id = gl_GlobalInvocationID.x;
     if (id >= u_meshlet_count)
         return;
 

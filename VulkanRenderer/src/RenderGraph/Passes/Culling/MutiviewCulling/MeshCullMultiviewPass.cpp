@@ -6,7 +6,7 @@
 
 MeshCullMultiviewPass::MeshCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
     const MeshCullMultiviewPassInitInfo& info)
-        : m_Name(name), m_MultiviewData(info.MultiviewData), m_Stage(info.Stage)
+        : m_Name(name), m_Stage(info.Stage)
 {
     ShaderPipelineTemplate* cullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/multiview/mesh-cull-comp.shader"},
@@ -39,7 +39,8 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMul
         {
             if (m_Stage == CullStage::Reocclusion)
                 for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
-                    info.MultiviewResource->HiZs[i] = m_MultiviewData->Views()[i].Static.HiZContext->GetHiZResource();
+                    info.MultiviewResource->HiZs[i] =
+                        info.MultiviewResource->Multiview->Views()[i].Static.HiZContext->GetHiZResource();
 
             RgUtils::readWriteCullMeshMultiview(*info.MultiviewResource, graph);
             

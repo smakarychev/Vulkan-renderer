@@ -96,3 +96,10 @@ void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
             multiview->CullResources->Multiview->UpdateBatchIterationCount();
         });
 }
+
+TriangleCullMultiviewPass::TriangleCullMultiviewPass(RG::Graph& renderGraph,
+    std::string_view name, const TriangleCullMultiviewPassInitInfo& info)
+        : m_Name(name), m_Stage(info.Stage)
+{
+    
+}

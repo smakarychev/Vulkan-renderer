@@ -121,8 +121,7 @@ namespace RG::RgUtils
         }
     }
 
-    void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
-        Graph& graph)
+    void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, Graph& graph)
     {
         using enum ResourceAccessFlags;
 
@@ -138,6 +137,8 @@ namespace RG::RgUtils
         
         for (u32 i = 0; i < multiview.ViewCount; i++)
         {
+            bool cullTriangles = multiview.Multiview->Views()[i].Static.CullTriangles;
+            
             multiview.HiZs[i] = graph.Read(multiview.HiZs[i], Compute | Sampled);
             multiview.MeshVisibility[i] = graph.Read(multiview.MeshVisibility[i], Compute | Storage);
             multiview.MeshletVisibility[i] = graph.Read(multiview.MeshletVisibility[i], Compute | Storage);
@@ -158,17 +159,16 @@ namespace RG::RgUtils
                 multiview.CompactCommandCountReocclusion[i] = graph.Write(
                     multiview.CompactCommandCountReocclusion[i], Compute | Storage);
 
-                if (triangleCull)
+                if (cullTriangles)
                     multiview.CommandFlags[i] = graph.Read(multiview.CommandFlags[i], Compute | Storage);
             }
-            if (triangleCull)
+            if (cullTriangles)
                 multiview.CommandFlags[i] = graph.Write(multiview.CommandFlags[i], Compute | Storage);
         }
     }
 
     void updateCullMeshletMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
-        ResourceUploader& resourceUploader)
+        const CullMultiviewResources& multiview, CullStage cullStage, ResourceUploader& resourceUploader)
     {
         descriptors.UpdateBinding("u_view_spans", resources.GetBuffer(multiview.ViewSpans).BindingInfo());
         descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views).BindingInfo());
@@ -182,6 +182,8 @@ namespace RG::RgUtils
 
         for (u32 i = 0; i < multiview.ViewCount; i++)
         {
+            bool cullTriangles = multiview.Multiview->Views()[i].Static.CullTriangles;
+
             const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
             
             descriptors.UpdateBinding("u_hiz", hiz.BindingInfo(multiview.HiZSampler,
@@ -200,7 +202,7 @@ namespace RG::RgUtils
                 resourceUploader);
             descriptors.UpdateBinding("u_count", countBuffer.BindingInfo(), i);
 
-            if (triangleCull)
+            if (cullTriangles)
                 descriptors.UpdateBinding("u_flags", resources.GetBuffer(multiview.CommandFlags[i]).BindingInfo(), i);
         }
     }

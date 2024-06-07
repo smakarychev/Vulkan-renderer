@@ -8,7 +8,7 @@
 
 MeshletCullMultiviewPass::MeshletCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
     const MeshletCullMultiviewPassInitInfo& info)
-        : m_Name(name), m_MultiviewData(info.MultiviewData), m_Stage(info.Stage)
+        : m_Name(name), m_Stage(info.Stage)
 {
     ShaderPipelineTemplate* cullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
         "../assets/shaders/processed/render-graph/culling/multiview/meshlet-cull-comp.shader"},
@@ -39,14 +39,12 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)
         {
-            RgUtils::readWriteCullMeshletMultiview(*info.MultiviewResource, m_Stage, m_SubsequentTriangleCulling,
-                graph);
+            RgUtils::readWriteCullMeshletMultiview(*info.MultiviewResource, m_Stage, graph);
             
             passData.MultiviewResource = info.MultiviewResource;
             
             passData.PipelineData = &m_PipelineData;
             passData.CullStage = m_Stage;
-            passData.SubsequentTriangleCulling = m_SubsequentTriangleCulling;
 
             graph.GetBlackboard().Update(m_Name.Hash(), passData);
         },
@@ -67,7 +65,7 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
             RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview,
-                passData.CullStage, passData.SubsequentTriangleCulling, *frameContext.ResourceUploader);
+                passData.CullStage, *frameContext.ResourceUploader);
 
             struct PushConstant
             {

@@ -29,7 +29,6 @@ public:
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;
-    const CullMultiviewData* m_MultiviewData{nullptr};
     CullStage m_Stage{CullStage::Cull};
     
     RG::PipelineData m_PipelineData{};

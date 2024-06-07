@@ -58,7 +58,7 @@ bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
 }
 
 void main() {
-    uint id = gl_GlobalInvocationID.x;
+    const uint id = gl_GlobalInvocationID.x;
     if (id >= u_mesh_count)
         return;
     

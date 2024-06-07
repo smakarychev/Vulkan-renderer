@@ -68,11 +68,9 @@ namespace RG::RgUtils
     void updateMeshCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
         const CullMultiviewResources& multiview);
     
-    void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
-        Graph& graph);
+    void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, Graph& graph);
     void updateCullMeshletMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResources& multiview, CullStage cullStage, bool triangleCull,
-        ResourceUploader& resourceUploader);
+        const CullMultiviewResources& multiview, CullStage cullStage, ResourceUploader& resourceUploader);
 
     CullTrianglesMultiviewResource createTriangleCullMultiview(const CullMultiviewResources& multiview, Graph& graph,
         const std::string& baseName);

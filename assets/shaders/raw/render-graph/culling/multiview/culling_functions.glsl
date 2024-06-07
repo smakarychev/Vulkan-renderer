@@ -1,5 +1,5 @@
 float extract_scale(mat4 matrix) {
-    vec3 scales = vec3(dot(matrix[0], matrix[0]), dot(matrix[1], matrix[1]), dot(matrix[2], matrix[2]));
+    const vec3 scales = vec3(dot(matrix[0], matrix[0]), dot(matrix[1], matrix[1]), dot(matrix[2], matrix[2]));
     return max(scales.x, max(scales.y, scales.z));
 }
 
@@ -21,32 +21,32 @@ bool is_frustum_visible(vec3 sphere_origin, float radius, ViewData view) {
 bool is_occlusion_visible(vec3 sphere_origin, float radius, ViewData view, sampler hiz_sampler, texture2D hiz) {
     if (sphere_origin.z + radius >= -view.frustum_near)
         return true;
-    
-    vec3 cr = sphere_origin * radius;
-    float czr2 = sphere_origin.z * sphere_origin.z - radius * radius;
 
-    float vx = sqrt(sphere_origin.x * sphere_origin.x + czr2);
-    float minx = (vx * sphere_origin.x - cr.z) / (vx * sphere_origin.z + cr.x);
-    float maxx = (vx * sphere_origin.x + cr.z) / (vx * sphere_origin.z - cr.x);
+    const vec3 cr = sphere_origin * radius;
+    const float czr2 = sphere_origin.z * sphere_origin.z - radius * radius;
 
-    float vy = sqrt(sphere_origin.y * sphere_origin.y + czr2);
-    float miny = (vy * sphere_origin.y - cr.z) / (vy * sphere_origin.z + cr.y);
-    float maxy = (vy * sphere_origin.y + cr.z) / (vy * sphere_origin.z - cr.y);
+    const float vx = sqrt(sphere_origin.x * sphere_origin.x + czr2);
+    const float minx = (vx * sphere_origin.x - cr.z) / (vx * sphere_origin.z + cr.x);
+    const float maxx = (vx * sphere_origin.x + cr.z) / (vx * sphere_origin.z - cr.x);
+
+    const float vy = sqrt(sphere_origin.y * sphere_origin.y + czr2);
+    const float miny = (vy * sphere_origin.y - cr.z) / (vy * sphere_origin.z + cr.y);
+    const float maxy = (vy * sphere_origin.y + cr.z) / (vy * sphere_origin.z - cr.y);
 
     vec4 aabb = vec4(minx, miny, maxx, maxy) *
         vec4(view.projection_width, view.projection_height, view.projection_width, view.projection_height);
     // clip space -> uv space
     aabb = aabb.xwzy * vec4(-0.5f, 0.5f, -0.5f, 0.5f) + vec4(0.5f);
 
-    float width =  (aabb.x - aabb.z) * view.hiz_width;
-    float height = (aabb.y - aabb.w) * view.hiz_height;
+    const float width =  (aabb.x - aabb.z) * view.hiz_width;
+    const float height = (aabb.y - aabb.w) * view.hiz_height;
 
-    float level = ceil(log2(max(width, height)));
+    const float level = ceil(log2(max(width, height)));
 
-    float depth = textureLod(sampler2D(hiz, hiz_sampler), (aabb.xy + aabb.zw) * 0.5f, level).r;
+    const float depth = textureLod(sampler2D(hiz, hiz_sampler), (aabb.xy + aabb.zw) * 0.5f, level).r;
 
-    float coeff = 1.0f / (view.frustum_far - view.frustum_near);
-    float projected_depth = coeff *
+    const float coeff = 1.0f / (view.frustum_far - view.frustum_near);
+    const float projected_depth = coeff *
         (-view.frustum_far * view.frustum_near / (sphere_origin.z + radius) -
         view.frustum_near);
 
@@ -59,10 +59,10 @@ bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, ViewDat
     if (sphere_origin.z + radius >= -view.frustum_near)
         return true;
     
-    float minx = sphere_origin.x - radius;
-    float maxx = sphere_origin.x + radius;
-    float miny = sphere_origin.y - radius;
-    float maxy = sphere_origin.y + radius;
+    const float minx = sphere_origin.x - radius;
+    const float maxx = sphere_origin.x + radius;
+    const float miny = sphere_origin.y - radius;
+    const float maxy = sphere_origin.y + radius;
 
     vec4 aabb = vec4(minx, miny, maxx, maxy) * 
         vec4(view.projection_width, view.projection_height, view.projection_width, view.projection_height) +
@@ -70,15 +70,15 @@ bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, ViewDat
     // clip space -> uv space
     aabb = aabb.xyzw * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
 
-    float width =  (aabb.z - aabb.x) * view.hiz_width;
-    float height = (aabb.y - aabb.w) * view.hiz_height;
+    const float width =  (aabb.z - aabb.x) * view.hiz_width;
+    const float height = (aabb.y - aabb.w) * view.hiz_height;
 
-    float level = ceil(log2(max(width, height)));
+    const float level = ceil(log2(max(width, height)));
 
-    float depth = textureLod(sampler2D(hiz, hiz_sampler), (aabb.xy + aabb.zw) * 0.5f, level).r;
+    const float depth = textureLod(sampler2D(hiz, hiz_sampler), (aabb.xy + aabb.zw) * 0.5f, level).r;
 
-    float coeff = 1.0f / (view.frustum_far - view.frustum_near);
-    float projected_depth = coeff * ((sphere_origin.z + radius) + view.frustum_far);
+    const float coeff = 1.0f / (view.frustum_far - view.frustum_near);
+    const float projected_depth = coeff * ((sphere_origin.z + radius) + view.frustum_far);
 
     return projected_depth >= depth;
 }
@@ -97,11 +97,11 @@ bool is_frustum_triangle_visible(vec4 aabb) {
 }
 
 bool is_occlusion_triangle_visible(vec4 aabb, float z, ViewData view, sampler hiz_sampler, texture2D hiz) {
-    float width = (aabb.z - aabb.x) * view.hiz_width;
-    float height = (aabb.y - aabb.w) * view.hiz_height;
-    float level = ceil(log2(max(width, height)));
+    const float width = (aabb.z - aabb.x) * view.hiz_width;
+    const float height = (aabb.y - aabb.w) * view.hiz_height;
+    const float level = ceil(log2(max(width, height)));
 
-    float depth = textureLod(sampler2D(hiz, hiz_sampler),(aabb.xy + aabb.zw) * 0.5, level).r;
+    const float depth = textureLod(sampler2D(hiz, hiz_sampler),(aabb.xy + aabb.zw) * 0.5, level).r;
 
     return depth <= z;
 }
