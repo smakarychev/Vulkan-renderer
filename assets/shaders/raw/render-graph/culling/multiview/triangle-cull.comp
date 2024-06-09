@@ -212,14 +212,14 @@ void main() {
 
         if (SINGLE_PASS) {
             // this is for order-independent translucency rendering
-            visible = is_meshlet_drawn && is_reocclusion_visible(triangle, i);
+            visible = is_meshlet_drawn && is_reocclusion_visible(triangle_view, i);
             should_be_drawn = visible;
         }
         else if (!REOCCLUSION) {
-            visible = is_meshlet_drawn && is_last_frame_visible && is_visible(triangle, i);
+            visible = is_meshlet_drawn && is_last_frame_visible && is_visible(triangle_view, i);
             should_be_drawn = visible;
         } else {
-            visible = is_meshlet_visible && is_reocclusion_visible(triangle, i);
+            visible = is_meshlet_visible && is_reocclusion_visible(triangle_view, i);
             bool has_visible = subgroupClusteredOr(visible, MICRO_CLUSTER_SIZE);
             if ((triangle_index & MICRO_CLUSTER_SIZE - 1) == 0)
             {
