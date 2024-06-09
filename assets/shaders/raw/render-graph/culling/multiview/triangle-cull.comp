@@ -235,6 +235,5 @@ void main() {
         }
 
         compact(id, reference_id, uint8_t(triangle_index), indices, should_be_drawn, i);
-        
     }
 }

@@ -125,6 +125,8 @@ void main() {
 
     const uint first_view = u_view_spans.spans[u_geometry_index].first;
     const uint view_count = u_view_spans.spans[u_geometry_index].count;
+    
+    bool is_visible_any_view = false;
 
     for (uint i = first_view; i < first_view + view_count; i++) {
         const ViewData view = u_views.views[i];
@@ -176,5 +178,13 @@ void main() {
             flags_unset_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
 
         compact(id, should_be_drawn, i);
+        
+        // this is needed for subsequent triangle culling
+        if (!REOCCLUSION)
+            is_visible_any_view = is_visible_any_view || should_be_drawn;
     }
+
+    // this is needed for subsequent triangle culling
+    if (!REOCCLUSION)
+        compact(id, is_visible_any_view, u_geometry_index + u_view_count);
 }
