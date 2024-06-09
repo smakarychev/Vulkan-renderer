@@ -129,3 +129,15 @@ void set_flags_set_should_draw(inout uint8_t flags) {
 void set_flags_unset_should_draw(inout uint8_t flags) {
     flags &= uint8_t(~(1 << 1));
 }
+
+bool flags_triangle_culled(uint8_t flags) {
+    return ((flags >> 2) & 1) != uint8_t(1);
+}
+
+void flags_set_should_triangle_cull(inout uint8_t flags) {
+    flags |= uint8_t(1 << 2);
+}
+
+void flags_unset_should_triangle_cull(inout uint8_t flags) {
+    flags &= uint8_t(~(1 << 2));
+}

@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <ranges>
 
-
 CullViewDataGPU CullViewDataGPU::FromCullViewDescription(const CullViewDescription& description)
 {
     u32 viewFlags = {};
@@ -15,8 +14,8 @@ CullViewDataGPU CullViewDataGPU::FromCullViewDescription(const CullViewDescripti
         .ViewProjectionMatrix = description.Dynamic.Camera->GetViewProjection(),
         .FrustumPlanes = description.Dynamic.Camera->GetFrustumPlanes(),
         .ProjectionData = description.Dynamic.Camera->GetProjectionData(),
-        .HiZWidth = (f32)description.Static.HiZContext->GetHiZResolution().x,
-        .HiZHeight = (f32)description.Static.HiZContext->GetHiZResolution().y,
+        .Resolution = glm::vec2{description.Dynamic.Resolution},
+        .HiZResolution = glm::vec2{description.Static.HiZContext->GetHiZResolution()}, 
         .ViewFlags = viewFlags};
 }
 
@@ -36,7 +35,6 @@ void CullMultiviewData::Finalize()
     ASSERT(!m_Views.empty(), "CullMultiviewData must have at least one view")
     m_IsFinalized = true;
 
-    // todo: sort by geometry
     std::ranges::sort(m_Views, std::less{}, [](const CullViewDescription& view) { return view.Static.Geometry; });
     m_Geometries.push_back(m_Views.front().Static.Geometry);
     m_ViewSpans.push_back({.First = 0, .Count = 1});
@@ -52,6 +50,12 @@ void CullMultiviewData::Finalize()
             m_ViewSpans.back().Count++;
         }
     }
+    ASSERT(m_Geometries.size() <= MAX_CULL_GEOMETRIES,
+        "CullMultiviewData must have no more than {} geometries", MAX_CULL_GEOMETRIES)
+    ASSERT(m_Views.size() + m_Geometries.size() <= MAX_CULL_VIEWS,
+        "CullMultiviewData must have no more than {} - {} ({}) user views, "
+        "one view per geometry is resereved for internal use",
+        MAX_CULL_VIEWS, m_Geometries.size(), MAX_CULL_VIEWS - m_Geometries.size())
     
     m_CullVisibilities.reserve(m_Views.size());
     for (auto& view : m_Views)

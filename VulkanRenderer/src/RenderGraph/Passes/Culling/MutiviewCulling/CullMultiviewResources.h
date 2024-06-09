@@ -15,6 +15,7 @@ namespace RG
     struct CullMultiviewResources
     {
         u32 ViewCount{0};
+        u32 GeometryCount{0};
         
         std::vector<Resource> Objects;
         std::vector<Resource> Meshlets;
@@ -32,8 +33,6 @@ namespace RG
         std::vector<Resource> CompactCommands;
         std::vector<Resource> CompactCommandCount;
         std::vector<Resource> CompactCommandCountReocclusion;
-        /* is used to mark commands that were processed by triangle culling */
-        std::vector<Resource> CommandFlags;
 
         CullMultiviewData* Multiview{nullptr};
     };
@@ -45,7 +44,7 @@ namespace RG
          * less `CullTrianglesMultiviewResource` than `CullMultiviewResources`
          */
         std::vector<u32> MeshletViewIndices;
-        u32 ViewCount{0};
+        u32 TriangleViewCount{0};
 
         std::vector<Resource> Indices;
         

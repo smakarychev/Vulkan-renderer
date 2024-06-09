@@ -20,6 +20,8 @@ struct ViewData {
     float projection_height;
     float projection_bias_x;
     float projection_bias_y;
+    float width;
+    float height;
     float hiz_width;
     float hiz_height;
     
@@ -44,4 +46,4 @@ struct ViewSpan {
 };
 
 const uint MAX_VIEWS = 64;
-const uint MAX_GEOMETRIES = 3;
+const uint MAX_GEOMETRIES = 4;

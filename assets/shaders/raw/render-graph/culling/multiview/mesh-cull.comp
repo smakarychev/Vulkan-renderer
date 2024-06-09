@@ -100,8 +100,8 @@ void main() {
         }
 
         if (should_be_drawn)
-            set_flags_set_should_draw(u_object_visibility[i].visibility[id]);
+            flags_set_should_draw(u_object_visibility[i].visibility[id]);
         else
-            set_flags_unset_should_draw(u_object_visibility[i].visibility[id]);
+            flags_unset_should_draw(u_object_visibility[i].visibility[id]);
     }
 }

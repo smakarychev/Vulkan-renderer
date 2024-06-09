@@ -90,7 +90,7 @@ void Buffer::SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes)
 
 void Buffer::SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes)
 {
-    ASSERT((const u8*)mapped + dataSizeBytes + offsetBytes - m_HostAddress <= m_Description.SizeBytes,
+    ASSERT((u64)((const u8*)mapped + dataSizeBytes + offsetBytes - (const u8*)m_HostAddress) <= m_Description.SizeBytes,
         "Attempt to write data outside of buffer region")
     Driver::SetBufferData(mapped, data, dataSizeBytes, offsetBytes);
 }

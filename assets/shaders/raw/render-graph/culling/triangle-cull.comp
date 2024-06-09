@@ -26,7 +26,7 @@ layout(std430, set = 1, binding = 2) readonly buffer object_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 3) readonly buffer meshlet_visibility_buffer {
+layout(std430, set = 1, binding = 3) buffer meshlet_visibility_buffer {
     uint8_t visibility[];
 } u_meshlet_visibility;
 
@@ -38,11 +38,7 @@ layout(std430, set = 1, binding = 5) readonly buffer count_buffer {
     uint count;
 } u_count;
 
-layout(std430, set = 1, binding = 6) buffer flags_buffer {
-    uint8_t flags[];
-} u_flags;
-
-layout(std430, set = 1, binding = 7) writeonly buffer triangle_buffer {
+layout(std430, set = 1, binding = 6) writeonly buffer triangle_buffer {
     uint8_t triangles[];
 } u_triangles;
 
@@ -50,23 +46,23 @@ struct TriangleVisibility
 {
     int visibility[2];
 };
-layout(std430, set = 1, binding = 8) buffer visible_triangles_buffer {
+layout(std430, set = 1, binding = 7) buffer visible_triangles_buffer {
     TriangleVisibility visibility[];
 } u_triangle_visibility;
 
-layout(std430, set = 1, binding = 9) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 8) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 10) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 9) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
-layout(std430, set = 1, binding = 11) writeonly buffer singular_indices_buffer {
+layout(std430, set = 1, binding = 10) writeonly buffer singular_indices_buffer {
     uint indices[];
 } u_culled_indices;
 
-layout(std430, set = 1, binding = 12) writeonly buffer singular_index_count_buffer {
+layout(std430, set = 1, binding = 11) writeonly buffer singular_index_count_buffer {
     uint count;
 } u_culled_count;
 
@@ -123,9 +119,9 @@ bool is_reocclusion_visible(Triangle triangle) {
 void compact(uint id, uint8_t triangle_index, uvec3 indices, bool should_draw) {
     // mark this command as processed; the REOCCLUSION and ordinary stages both process the same set of 
     // commands, so we can update it only once
-    if (!REOCCLUSION) {
-        u_flags.flags[u_commands.commands[id].firstInstance] = uint8_t(1);
-    }
+    if (!REOCCLUSION)
+        flags_unset_should_triangle_cull(u_meshlet_visibility.visibility[u_commands.commands[id].firstInstance]);
+   
     
     IndirectCommand command = u_commands.commands[id];
 
@@ -175,7 +171,6 @@ void main() {
     triangle.b = vec4_from_position(u_positions.positions[command.vertexOffset + uint(indices.y)]);
     triangle.c = vec4_from_position(u_positions.positions[command.vertexOffset + uint(indices.z)]);
 
-    // view_matrix is actually a view_projection_matrix
     triangle.a = u_scene_data.scene.view_projection_matrix * object.model * triangle.a;
     triangle.b = u_scene_data.scene.view_projection_matrix * object.model * triangle.b;
     triangle.c = u_scene_data.scene.view_projection_matrix * object.model * triangle.c;

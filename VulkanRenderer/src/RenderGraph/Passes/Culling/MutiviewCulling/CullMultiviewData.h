@@ -55,8 +55,8 @@ struct CullViewDataGPU
     glm::mat4 ViewProjectionMatrix;
     FrustumPlanes FrustumPlanes;
     ProjectionData ProjectionData;
-    f32 HiZWidth;
-    f32 HiZHeight;
+    glm::vec2 Resolution;
+    glm::vec2 HiZResolution;
 
     u32 ViewFlags{0};
 

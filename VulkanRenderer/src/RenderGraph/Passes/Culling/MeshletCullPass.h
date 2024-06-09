@@ -20,9 +20,6 @@ public:
         /* count buffer will be separate for ordinary and reocclusion passes */
         RG::Resource CompactCount{};
         RG::Resource CompactCountReocclusion{};
-
-        /* is used to mark commands that were processed by triangle culling */
-        RG::Resource CommandFlags{};
     };
 public:
     MeshletCullContext(MeshCullContext& meshCullContext);
@@ -147,10 +144,6 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
                 ctx.Resources().CompactCountReocclusion = graph.CreateResource(
                     std::format("{}.{}", passName, "Commands.CompactCount.Reocclusion"),
                     GraphBufferDescription{.SizeBytes = sizeof(u32)});
-
-                ctx.Resources().CommandFlags = graph.CreateResource(
-                    std::format("{}.{}", passName, "Commands.CommandFlags"),
-                    GraphBufferDescription{.SizeBytes = ctx.Geometry().GetMeshletCount() * sizeof(u8)});
             }
 
             auto& meshResources = ctx.MeshContext().Resources();
@@ -177,10 +170,7 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
                     graph.Read(resources.CompactCountReocclusion, Compute | Storage | Upload);
                 resources.CompactCountReocclusion =
                     graph.Write(resources.CompactCountReocclusion, Compute | Storage);
-
-                resources.CommandFlags = graph.Read(resources.CommandFlags, Compute | Storage);    
             }
-            resources.CommandFlags = graph.Write(resources.CommandFlags, Compute | Storage);
 
             passData.MeshResources = meshResources;
             passData.MeshletResources = resources;
@@ -210,8 +200,6 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
                 meshletResources.CompactCountReocclusion : meshletResources.CompactCount, 0u,
                 *frameContext.ResourceUploader);
 
-            const Buffer& flags = resources.GetBuffer(passData.MeshletResources.CommandFlags);
-
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
@@ -226,7 +214,6 @@ void MeshletCullPassGeneral<Stage>::AddToGraph(RG::Graph& renderGraph,
             resourceDescriptors.UpdateBinding("u_commands", commands.BindingInfo());
             resourceDescriptors.UpdateBinding("u_compacted_commands", compactCommands.BindingInfo());
             resourceDescriptors.UpdateBinding("u_count", count.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_flags", flags.BindingInfo());
 
             u32 meshletCount = passData.MeshletCount;
 

@@ -184,7 +184,6 @@ private:
         RG::Resource MeshletVisibility;
         RG::Resource CompactCommands;
         RG::Resource CompactCount;
-        RG::Resource Flags;
         
         TriangleCullContext::PassResources TriangleCullResources;
         TriangleDrawContext::PassResources TriangleDrawResources;
@@ -357,8 +356,8 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
 
             auto& meshletResources = ctx.MeshletContext().Resources();
             meshletResources.Visibility = graph.Read(meshletResources.Visibility, Compute | Storage);
+            meshletResources.Visibility = graph.Write(meshletResources.Visibility, Compute | Storage);
             meshletResources.CompactCommands = graph.Read(meshletResources.CompactCommands, Compute | Storage);
-            meshletResources.CommandFlags = graph.Write(meshletResources.CommandFlags, Compute | Storage);
 
             auto& cullResources = ctx.Resources();
             cullResources.Scene = graph.Read(cullResources.Scene, Compute | Uniform | Upload);
@@ -422,7 +421,6 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             passData.MeshletVisibility = meshletResources.Visibility;
             passData.CompactCommands = meshletResources.CompactCommands;
             passData.CompactCount = graph.Read(info.CompactCount, Compute | Storage);
-            passData.Flags = meshletResources.CommandFlags;
             passData.TriangleCullResources = cullResources;
             passData.TriangleDrawResources = drawResources;
             passData.Draws = ctx.Resources().Draws;
@@ -462,7 +460,6 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
             const Buffer& meshletVisibility = resources.GetBuffer(passData.MeshletVisibility);
             const Buffer& compactCommands = resources.GetBuffer(passData.CompactCommands);
             const Buffer& compactCount = resources.GetBuffer(passData.CompactCount);
-            const Buffer& flags = resources.GetBuffer(passData.Flags);
             const Buffer& triangleVisibility = resources.GetBuffer(
                 passData.TriangleCullResources.TriangleVisibility);
 
@@ -502,7 +499,6 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                 resourceDescriptors.UpdateBinding("u_meshlet_visibility", meshletVisibility.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_commands", compactCommands.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_count", compactCount.BindingInfo());
-                resourceDescriptors.UpdateBinding("u_flags", flags.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_triangle_visibility", triangleVisibility.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_positions", positions.BindingInfo());
                 resourceDescriptors.UpdateBinding("u_indices", indices.BindingInfo());

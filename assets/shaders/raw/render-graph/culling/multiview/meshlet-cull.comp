@@ -51,10 +51,6 @@ layout(std430, set = 1, binding = 9) buffer count_buffer {
     uint count;
 } u_count[MAX_VIEWS];
 
-layout(std430, set = 1, binding = 10) buffer flags_buffer {
-    uint8_t flags[];
-} u_flags[MAX_VIEWS];
-
 layout(push_constant) uniform push_constants {
     uint u_meshlet_count;
     uint u_geometry_index;
@@ -101,12 +97,11 @@ void compact(uint id, bool should_draw, uint view_index) {
 
     if (should_draw) {
         u_compacted_commands[view_index].commands[compacted_buffer_index] = command;
-        
-        // this 0 serves as a mark; the triangle culling later sets it back to 1, 
-        // this way we can check if some command wasn't processed by triangle culling
-        // due to not up-to-date batch count
-        if (is_triangle_culled(u_views.views[view_index]) && !REOCCLUSION)
-            u_flags[view_index].flags[id] = uint8_t(0);
+
+        // mark that this command (meshlet) should be processed by triangle culling, 
+        // due to not up-to-date batch count it may not be
+        if (!REOCCLUSION)
+            flags_set_should_triangle_cull(u_meshlet_visibility[view_index].visibility[command.firstInstance]);
     }
 }
 
@@ -166,18 +161,19 @@ void main() {
 
             // visible meshlet should be drawn if it wasn't drawn already OR if it wasn't processed by triange culling
             if (is_triangle_culled(view)) {
-                const bool was_processed_by_triangle_culling = u_flags[i].flags[id] == 1;
-                u_flags[i].flags[id] = uint8_t(1);
+                const bool was_processed_by_triangle_culling = 
+                    flags_triangle_culled(u_meshlet_visibility[i].visibility[meshlet_id]);
                 should_be_drawn = (!was_processed_by_triangle_culling || !is_last_frame_visible) && visible;
+                flags_unset_should_triangle_cull(u_meshlet_visibility[i].visibility[meshlet_id]);
             } else {
                 should_be_drawn = !is_last_frame_visible && visible;
             }
         }
 
         if (should_be_drawn)
-            set_flags_set_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
+            flags_set_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
         else
-            set_flags_unset_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
+            flags_unset_should_draw(u_meshlet_visibility[i].visibility[meshlet_id]);
 
         compact(id, should_be_drawn, i);
     }

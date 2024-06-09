@@ -2455,7 +2455,8 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
     
     ASSERT(deviceResource.GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
 
-    deviceResource.GPUDescriptorIndexingProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
+    deviceResource.GPUDescriptorIndexingProperties.sType =
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
 
     deviceResource.GPUSubgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
     deviceResource.GPUSubgroupProperties.pNext = &deviceResource.GPUDescriptorIndexingProperties;
@@ -2577,10 +2578,10 @@ void Driver::RetrieveDeviceQueues(DriverResources::DeviceResource& deviceResourc
 namespace
 {
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-        VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-        void* pUserData)
+        VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
+        void* userData)
     {
-        LOG("VALIDATION LAYER: {}", pCallbackData->pMessage);
+        LOG("VALIDATION LAYER: {}", callbackData->pMessage);
         return VK_FALSE;
     }
 }

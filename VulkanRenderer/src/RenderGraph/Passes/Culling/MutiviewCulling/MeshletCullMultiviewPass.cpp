@@ -79,7 +79,7 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
             samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
 
-            for (u32 i = 0; i < info.MultiviewResource->Objects.size(); i++)
+            for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {
                 u32 meshletCount = multiview->Multiview->Views()[i].Static.Geometry->GetMeshletCount();
                 

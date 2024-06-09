@@ -20,13 +20,13 @@ layout(push_constant) uniform push_constants {
     uint u_commands_per_batch_count;
     uint u_commands_multiplier;
     uint u_local_group_x;
-    uint u_view_count;
+    uint u_geometry_count;
 };
 
 void main() {
     uint dispatch_id = gl_GlobalInvocationID.x;
     
-    for (uint i = 0; i < u_view_count; i++) {
+    for (uint i = 0; i < u_geometry_count; i++) {
         if (dispatch_id >= u_max_dispatches.count[i])
             continue;
 
