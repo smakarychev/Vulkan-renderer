@@ -1,5 +1,6 @@
 #include "RenderGraph.h"
 
+#include <fstream>
 #include <numeric>
 #include <sstream>
 #include <stack>
@@ -1711,7 +1712,7 @@ namespace RG
                     continue;
                 
                 std::string resourceName = GetResourceTypeBase(access.m_Resource).m_Name;
-                ss << std::format("\t{}[\"`{}\n", access.m_Resource.m_Value, resourceName);
+                ss << std::format("\t{}[\"{}\n", access.m_Resource.m_Value, resourceName);
                 if (access.m_Resource.IsBuffer())
                 {
                     const GraphBuffer* descriptionHolder = &m_Buffers[access.m_Resource.Index()];
@@ -1719,7 +1720,7 @@ namespace RG
                         descriptionHolder = &m_Buffers[descriptionHolder->m_Rename.Index()];
                     
                     const BufferDescription& description = descriptionHolder->m_Description;
-                    ss << std::format("\t{}\n\t{}`\"]\n", description.SizeBytes,
+                    ss << std::format("\t{}\n\t{}\"]\n", description.SizeBytes,
                         BufferUtils::bufferUsageToString(description.Usage));
                 }
                 else
@@ -1729,7 +1730,7 @@ namespace RG
                         descriptionHolder = &m_Textures[descriptionHolder->m_Rename.Index()];
                     
                     const TextureDescription& description = descriptionHolder->m_Description;
-                    ss << std::format("\t({} x {} x {})\n\t{}\n\t{}\n\t{}\n\t{}`\"]\n",
+                    ss << std::format("\t({} x {} x {})\n\t{}\n\t{}\n\t{}\n\t{}\"]\n",
                         description.Width, description.Height, description.Layers,
                         ImageUtils::imageKindToString(description.Kind),
                         FormatUtils::formatToString(description.Format),
@@ -1746,17 +1747,17 @@ namespace RG
                 std::string barrierId = getBarrierId(passIndex, barrierIndex);
                 if (barrierInfo.ExecutionDependency.has_value())
                 {
-                    ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Execution barrier");
+                    ss << std::format("\t{}{{{{\"{}\n", barrierId, "Execution barrier");
                     auto& execution = *barrierInfo.ExecutionDependency;
-                    ss << std::format("\t{} - {}`\"}}}}\n",
+                    ss << std::format("\t{} - {}\"}}}}\n",
                         SynchronizationUtils::pipelineStageToString(execution.SourceStage),
                         SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
                 }
                 else if (barrierInfo.MemoryDependency.has_value())
                 {
-                    ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Memory barrier");
+                    ss << std::format("\t{}{{{{\"{}\n", barrierId, "Memory barrier");
                     auto& memory = *barrierInfo.MemoryDependency;
-                    ss << std::format("\t{} - {}\n\t{} - {}`\"}}}}\n",
+                    ss << std::format("\t{} - {}\n\t{} - {}\"}}}}\n",
                         SynchronizationUtils::pipelineStageToString(memory.SourceStage),
                         SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
                         SynchronizationUtils::pipelineAccessToString(memory.SourceAccess),
@@ -1764,9 +1765,9 @@ namespace RG
                 }
                 else
                 {
-                    ss << std::format("\t{}{{{{\"`{}\n", barrierId, "Layout transition barrier");
+                    ss << std::format("\t{}{{{{\"{}\n", barrierId, "Layout transition barrier");
                     auto& transition = *barrierInfo.LayoutTransition;
-                    ss << std::format("\t{} - {}`\"}}}}\n",
+                    ss << std::format("\t{} - {}\"}}}}\n",
                         ImageUtils::imageLayoutToString(transition.OldLayout),
                         ImageUtils::imageLayoutToString(transition.NewLayout));
                 }
@@ -1777,24 +1778,24 @@ namespace RG
                 std::string signalId = getSignalId(passIndex, signalIndex);
                 if (signalInfo.ExecutionDependency.has_value())
                 {
-                    ss << std::format("\t{}[/\"`{}\n", signalId, "Signal execution");
+                    ss << std::format("\t{}[/\"{}\n", signalId, "Signal execution");
                     auto& execution = *signalInfo.ExecutionDependency;
-                    ss << std::format("\t{}`\"\\]\n",
+                    ss << std::format("\t{}\"\\]\n",
                         SynchronizationUtils::pipelineStageToString(execution.SourceStage));
                 }
                 else if (signalInfo.MemoryDependency.has_value())
                 {
-                    ss << std::format("\t{}[/\"`{}\n", signalId, "Signal memory");
+                    ss << std::format("\t{}[/\"{}\n", signalId, "Signal memory");
                     auto& memory = *signalInfo.MemoryDependency;
-                    ss << std::format("\t{}\n\t{}`\"\\]\n",
+                    ss << std::format("\t{}\n\t{}\"\\]\n",
                         SynchronizationUtils::pipelineStageToString(memory.SourceStage),
                         SynchronizationUtils::pipelineAccessToString(memory.SourceAccess));
                 }
                 else
                 {
-                    ss << std::format("\t{}[/\"`{}\n", signalId, "Signal layout transition");
+                    ss << std::format("\t{}[/\"{}\n", signalId, "Signal layout transition");
                     auto& transition = *signalInfo.LayoutTransition;
-                    ss << std::format("\t{} - {}`\"\\]\n",
+                    ss << std::format("\t{} - {}\"\\]\n",
                         ImageUtils::imageLayoutToString(transition.OldLayout),
                         ImageUtils::imageLayoutToString(transition.NewLayout));
                 }
@@ -1805,24 +1806,24 @@ namespace RG
                 std::string waitId = getWaitId(passIndex, waitIndex);
                 if (waitInfo.ExecutionDependency.has_value())
                 {
-                    ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait execution");
+                    ss << std::format("\t{}[\\\"{}\n", waitId, "Wait execution");
                     auto& execution = *waitInfo.ExecutionDependency;
-                    ss << std::format("\t{}`\"/]\n",
+                    ss << std::format("\t{}\"/]\n",
                         SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
                 }
                 else if (waitInfo.MemoryDependency.has_value())
                 {
-                    ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait memory");
+                    ss << std::format("\t{}[\\\"{}\n", waitId, "Wait memory");
                     auto& memory = *waitInfo.MemoryDependency;
-                    ss << std::format("\t{}\n\t{}`\"/]\n",
+                    ss << std::format("\t{}\n\t{}\"/]\n",
                         SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
                         SynchronizationUtils::pipelineAccessToString(memory.DestinationAccess));
                 }
                 else
                 {
-                    ss << std::format("\t{}[\\\"`{}\n", waitId, "Wait layout transition");
+                    ss << std::format("\t{}[\\\"{}\n", waitId, "Wait layout transition");
                     auto& transition = *waitInfo.LayoutTransition;
-                    ss << std::format("\t{} - {}`\"/]\n",
+                    ss << std::format("\t{} - {}\"/]\n",
                         ImageUtils::imageLayoutToString(transition.OldLayout),
                         ImageUtils::imageLayoutToString(transition.NewLayout));
                 }
@@ -1905,6 +1906,63 @@ namespace RG
         }
 
         return ss.str();
+    }
+
+    void Graph::MermaidDumpHTML(std::string_view path) const
+    {
+        std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+        std::ofstream out(path.data());
+
+        static constexpr std::string_view templateString = R"(
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Mermaid Flowchart</title>
+                <style type="text/css">
+                    #mySvgId {{
+                        height: 90%;
+                        width: 90%;
+                    }}
+                </style>
+            </head>
+
+            <body>
+                <div id="graphDiv"></div>
+                <script src="https://bumbu.me/svg-pan-zoom/dist/svg-pan-zoom.js"></script>
+                <script type="module">
+                    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+                    mermaid.initialize({{
+                        startOnLoad: true,
+                        maxTextSize: Number.MAX_SAFE_INTEGER
+                    }});
+
+                    const drawDiagram = async function () {{
+                        const element = document.querySelector('#graphDiv');
+                        const graphDefinition = `
+                            {}
+                        `;
+                        const {{ svg }} = await mermaid.render('mySvgId', graphDefinition);
+                        element.innerHTML = svg.replace(/[ ]*max-width:[ 0-9\.]*px;/i, '');
+                        var panZoomTiger = svgPanZoom('#mySvgId', {{
+                            zoomEnabled: true,
+                            controlIconsEnabled: true,
+                            fit: true,
+                            center: true
+                        }})
+                    }};
+                    await drawDiagram();
+                    document.getElementById('mySvgId').setAttribute("height", "100vh");
+                    document.getElementById('mySvgId').setAttribute("width", "100vw");
+                </script>
+            </body>
+            </html>
+        )";
+        
+        /* the future is now */
+        std::print(out, templateString, MermaidDump());
     }
 }
 

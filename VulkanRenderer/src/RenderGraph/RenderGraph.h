@@ -255,6 +255,7 @@ namespace RG
         void OnCmdBegin(FrameContext& frameContext);
         void OnCmdEnd(FrameContext& frameContext) const;
         std::string MermaidDump() const;
+        void MermaidDumpHTML(std::string_view path) const;
     private:
         void Clear();
         Resource CreateResource(const std::string& name, const BufferDescription& description);
