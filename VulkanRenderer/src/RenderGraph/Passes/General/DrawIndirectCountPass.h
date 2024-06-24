@@ -16,8 +16,11 @@ struct DrawIndirectCountPassExecutionInfo
 {
     const SceneGeometry* Geometry{nullptr};
     RG::Resource Commands{};
+    /* in number of commands */
     u32 CommandsOffset{0};
     RG::Resource CommandCount{};
+    /* in number of `count`, not bytes */
+    u32 CountOffset{0};
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
 

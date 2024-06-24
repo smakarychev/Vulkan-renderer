@@ -48,8 +48,8 @@ layout(std430, set = 1, binding = 8) writeonly buffer compacted_command_buffer {
 } u_compacted_commands[MAX_VIEWS];
 
 layout(std430, set = 1, binding = 9) buffer count_buffer {
-    uint count;
-} u_count[MAX_VIEWS];
+    uint count[];
+} u_count;
 
 layout(push_constant) uniform push_constants {
     uint u_meshlet_count;
@@ -88,7 +88,7 @@ void compact(uint id, bool should_draw, uint view_index) {
 
     uint compacted_buffer_index_base;
     if (subgroupElect())
-        compacted_buffer_index_base = atomicAdd(u_count[view_index].count, total_visible_count);
+        compacted_buffer_index_base = atomicAdd(u_count.count[view_index], total_visible_count);
     compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
 
     const uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_visible_ballot);

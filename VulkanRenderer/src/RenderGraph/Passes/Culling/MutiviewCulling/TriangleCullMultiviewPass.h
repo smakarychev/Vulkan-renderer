@@ -20,6 +20,7 @@ public:
 public:
     TriangleCullPrepareMultiviewPass(RG::Graph& renderGraph, std::string_view name);
     void AddToGraph(RG::Graph& renderGraph, const TriangleCullPrepareMultiviewPassExecutionInfo& info);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;
@@ -31,7 +32,6 @@ struct TriangleCullMultiviewPassInitInfo
 {
     const CullMultiviewData* MultiviewData{nullptr};
     CullStage Stage{CullStage::Cull};
-    RG::DrawInitInfo DrawInfo{};
 };
 
 struct TriangleCullMultiviewPassExecutionInfo
@@ -42,8 +42,37 @@ struct TriangleCullMultiviewPassExecutionInfo
 class TriangleCullMultiviewPass
 {
 public:
+    struct PassData
+    {
+        std::vector<RG::DrawAttachmentResources> DrawAttachmentResources{};
+    };
+public:
     TriangleCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
         const TriangleCullMultiviewPassInitInfo& info);
+    void AddToGraph(RG::Graph& renderGraph, const TriangleCullMultiviewPassExecutionInfo& info);
+    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+private:
+    /* this is a more convenient representation */
+    struct DrawPipeline
+    {
+        std::vector<ShaderPipeline> Pipelines;
+        std::vector<ShaderDescriptors> ImmutableSamplerDescriptors;
+        std::vector<ShaderDescriptors> ResourceDescriptors;
+        std::vector<ShaderDescriptors> MaterialDescriptors;
+    };
+    struct PassDataPrivate
+    {
+        RG::CullTrianglesMultiviewResource* MultiviewResource{nullptr};
+        std::vector<RG::DrawExecutionInfo> TriangleDrawInfos;
+        
+        std::array<RG::PipelineData, TriangleCullMultiviewTraits::MAX_BATCHES>* CullPipelines{nullptr};
+        std::array<RG::PipelineData, TriangleCullMultiviewTraits::MAX_BATCHES>* PreparePipelines{nullptr};
+        std::array<DrawPipeline, TriangleCullMultiviewTraits::MAX_BATCHES>*
+            DrawPipelines{nullptr};
+
+        std::array<SplitBarrier, TriangleCullMultiviewTraits::MAX_BATCHES>* SplitBarriers{nullptr};
+        DependencyInfo* SplitBarrierDependency{nullptr};
+    };
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;
@@ -51,10 +80,8 @@ private:
 
     std::array<RG::PipelineData, TriangleCullMultiviewTraits::MAX_BATCHES> m_CullPipelines;
     std::array<RG::PipelineData, TriangleCullMultiviewTraits::MAX_BATCHES> m_PreparePipelines;
-    std::array<RG::BindlessTexturesPipelineData, TriangleCullMultiviewTraits::MAX_BATCHES> m_DrawPipelines;
+    std::array<DrawPipeline, TriangleCullMultiviewTraits::MAX_BATCHES> m_DrawPipelines;
 
-    RG::DrawFeatures m_Features{RG::DrawFeatures::AllAttributes};
-    
     std::array<SplitBarrier, TriangleCullMultiviewTraits::MAX_BATCHES> m_SplitBarriers{};
     DependencyInfo m_SplitBarrierDependency{};
 };

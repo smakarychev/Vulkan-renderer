@@ -31,22 +31,33 @@ namespace RG::RgUtils
             graph.CreateResource(name, fallback);
     }
 
-    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
-        ResourceAccessFlags shaderStage)
+    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName)
     {
-        using enum ResourceAccessFlags;
-        
         DrawAttributeBuffers buffers = {};
 
         buffers.Positions = graph.AddExternal(baseName + ".Positions", geometry.GetAttributeBuffers().Positions);
         buffers.Normals = graph.AddExternal(baseName + ".Normals", geometry.GetAttributeBuffers().Normals);
         buffers.Tangents = graph.AddExternal(baseName + ".Tangents", geometry.GetAttributeBuffers().Tangents);
         buffers.UVs = graph.AddExternal(baseName + ".Uvs", geometry.GetAttributeBuffers().UVs);
+
+        return buffers;
+    }
+
+    void readDrawAttributes(DrawAttributeBuffers& buffers, Graph& graph, ResourceAccessFlags shaderStage)
+    {
+        using enum ResourceAccessFlags;
         
         buffers.Positions = graph.Read(buffers.Positions, shaderStage | Storage);
         buffers.Normals = graph.Read(buffers.Normals, shaderStage | Storage);
         buffers.Tangents = graph.Read(buffers.Tangents, shaderStage | Storage);
         buffers.UVs = graph.Read(buffers.UVs, shaderStage | Storage);
+    }
+
+    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
+        ResourceAccessFlags shaderStage)
+    {
+        DrawAttributeBuffers buffers = createDrawAttributes(geometry, graph, baseName);
+        readDrawAttributes(buffers, graph, shaderStage);
 
         return buffers;
     }
@@ -54,6 +65,7 @@ namespace RG::RgUtils
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph)
     {
         DrawAttachmentResources drawAttachmentResources = {};
+        drawAttachmentResources.Colors.reserve(attachments.Colors.size());
         
         for (auto& attachment : attachments.Colors)
         {
@@ -78,18 +90,16 @@ namespace RG::RgUtils
         return drawAttachmentResources;
     }
 
-    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, const std::string& baseName,
-        ResourceAccessFlags shaderStage)
+    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage)
     {
         using enum ResourceAccessFlags;
 
         SceneLightResources resources = {};
 
-        resources.DirectionalLight = graph.AddExternal(baseName + ".Light.Directional",
+        resources.DirectionalLight = graph.AddExternal("Light.Directional",
             light.GetBuffers().DirectionalLight);
-
         resources.DirectionalLight = graph.Read(resources.DirectionalLight, shaderStage | Uniform);
-
+        
         return resources;
     }
 

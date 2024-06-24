@@ -2,6 +2,7 @@
 
 #include "MeshCullMultiviewPass.h"
 #include "MeshletCullMultiviewPass.h"
+#include "TriangleCullMultiviewPass.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/Passes/General/DrawIndirectCountPass.h"
@@ -29,19 +30,20 @@ public:
 private:
     void EnsureViewAttachments(RG::Graph& renderGraph, CullViewDynamicDescription& view);
     void SetAttachmentsLoadOperation(AttachmentLoad load, CullViewDynamicDescription& view);
-    void RecordUpdatedAttachmentResources(const RG::DrawAttachments& old, const RG::DrawAttachmentResources& updated);
-    void UpdateRecordedAttachmentResources(RG::DrawAttachments& attachments);
 private:
     RG::PassName m_Name;
     PassData m_PassData;
 
-    std::unordered_map<RG::Resource, RG::Resource> m_AttachmentRenames;
-
     CullMultiviewData* m_MultiviewData{nullptr};
     RG::CullMultiviewResources m_MultiviewResource{};
+    RG::CullTrianglesMultiviewResource m_MultiviewTrianglesResource{};
     
     using MeshCull = MeshCullMultiviewPass;
     using MeshletCull = MeshletCullMultiviewPass;
+    using TrianglePrepare = TriangleCullPrepareMultiviewPass;
+    using TriangleCull = TriangleCullMultiviewPass;
+
+    std::vector<u32> m_MeshletOnlyViewIndices;
 
     std::vector<std::unique_ptr<HiZPass>> m_HiZs;
     std::vector<std::unique_ptr<HiZPass>> m_HiZsReocclusion;
@@ -52,7 +54,12 @@ private:
     std::unique_ptr<MeshletCull> m_MeshletCull;
     std::unique_ptr<MeshletCull> m_MeshletReocclusion;
 
-    // todo: this is temp, change once triangle culling is done
-    std::vector<std::unique_ptr<DrawIndirectCountPass>> m_Draws;
+    std::unique_ptr<TrianglePrepare> m_TrianglePrepare;
+    std::unique_ptr<TrianglePrepare> m_TrianglePrepareReocclusion;
+
+    std::unique_ptr<TriangleCull> m_TriangleCullDraw;
+    std::unique_ptr<TriangleCull> m_TriangleReocclusionDraw;
+    
+    std::vector<std::unique_ptr<DrawIndirectCountPass>> m_MeshletOnlyDraws;
     std::vector<std::unique_ptr<DrawIndirectCountPass>> m_DrawsReocclusion;
 };

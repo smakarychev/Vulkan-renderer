@@ -119,7 +119,7 @@ void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirec
             RenderCommand::PushConstants(cmd, pipeline.GetLayout(), offsetCommands);
             RenderCommand::DrawIndexedIndirectCount(cmd,
                 commandsDraw, offsetCommands * sizeof(IndirectDrawCommand),
-                countDraw, 0,
+                countDraw, info.CountOffset * sizeof(u32),
                 toDrawCommands);
         });
 }

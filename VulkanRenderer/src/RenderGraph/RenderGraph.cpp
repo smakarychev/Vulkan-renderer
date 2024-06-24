@@ -1936,7 +1936,8 @@ namespace RG
 
                     mermaid.initialize({{
                         startOnLoad: true,
-                        maxTextSize: Number.MAX_SAFE_INTEGER
+                        maxTextSize: Number.MAX_SAFE_INTEGER,
+                        maxEdges: Number.MAX_SAFE_INTEGER
                     }});
 
                     const drawDiagram = async function () {{

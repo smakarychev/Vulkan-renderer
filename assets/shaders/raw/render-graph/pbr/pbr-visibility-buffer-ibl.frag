@@ -341,7 +341,7 @@ vec3 shade_pbr(ShadeInfo shade_info) {
 
     vec3 ambient = shade_pbr_ibl(shade_info);
 
-    return Lo;
+    return Lo + ambient;
 }
 
 // the interpolated data (does not actually come from gbuffer)

@@ -55,6 +55,15 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
 
             auto* multiview = passData.MultiviewResource;
 
+            if (passData.CullStage == CullStage::Reocclusion)
+                for (u32 i = 0; i < multiview->ViewCount; i++)
+                    resources.GetBuffer(multiview->CompactCommandCountReocclusion, 0u, i * sizeof(u32),
+                        *frameContext.ResourceUploader);
+            else
+                for (u32 i = 0; i < multiview->ViewCount + multiview->GeometryCount; i++)
+                    resources.GetBuffer(multiview->CompactCommandCount, 0u, i * sizeof(u32),
+                        *frameContext.ResourceUploader);
+
             Sampler hizSampler = multiview->HiZSampler;
             
             auto& pipeline = passData.PipelineData->Pipeline;
@@ -64,8 +73,7 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
             samplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
-            RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview,
-                passData.CullStage, *frameContext.ResourceUploader);
+            RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview, passData.CullStage);
 
             struct PushConstant
             {

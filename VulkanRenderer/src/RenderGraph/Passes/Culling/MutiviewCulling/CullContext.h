@@ -43,12 +43,13 @@ public:
     const Buffer& Meshlet() const { return m_CullViewVisibility->Meshlet(); }
     const Buffer& Triangle() const { return m_Triangle; }
 
-    void NextFrame() { m_CullViewVisibility->NextFrame(); }
+    void NextFrame() const { m_CullViewVisibility->NextFrame(); }
     const Buffer& CompactCount() const { return m_CullViewVisibility->CompactCount(); }
-    u32 ReadbackCompactCountValue() { return m_CullViewVisibility->ReadbackCompactCountValue(); }
+    u32 ReadbackCompactCountValue() const { return m_CullViewVisibility->ReadbackCompactCountValue(); }
     u32 CompactCountValue() const { return m_CullViewVisibility->CompactCountValue(); }
 
     void UpdateIterationCount();
+    u32 IterationCount() const { return m_BatchIterationCount; }
 private:
     CullViewVisibility* m_CullViewVisibility{nullptr};
 
@@ -61,7 +62,7 @@ private:
 class TriangleCullMultiviewTraits
 {
 public:
-    static constexpr u32 MAX_BATCHES = 2;
+    static constexpr u32 MAX_BATCHES = BATCH_OVERLAP;
     static constexpr u32 MAX_TRIANGLES = 128'000;
     static constexpr u32 MAX_INDICES = MAX_TRIANGLES * 3;
     static constexpr u32 MAX_COMMANDS = MAX_TRIANGLES / assetLib::ModelInfo::TRIANGLES_PER_MESHLET;

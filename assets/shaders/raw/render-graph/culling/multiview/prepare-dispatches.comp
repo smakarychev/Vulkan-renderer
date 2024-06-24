@@ -5,8 +5,8 @@ layout(local_size_x = 64) in;
 #include "common.glsl"
 
 layout(std430, set = 1, binding = 0) readonly buffer command_count_buffer {
-    uint count;
-} u_command_counts[MAX_VIEWS];
+    uint count[];
+} u_command_counts;
 
 layout(std430, set = 1, binding = 1) writeonly buffer dispatch_buffer {
     VkDispatchIndirectCommand commands[];
@@ -31,7 +31,7 @@ void main() {
             continue;
 
         uint command_offset = gl_GlobalInvocationID.x * u_commands_per_batch_count;
-        uint total_count = u_command_counts[i].count;
+        uint total_count = u_command_counts.count[i];
 
         if (command_offset >= total_count) {
             VkDispatchIndirectCommand command;

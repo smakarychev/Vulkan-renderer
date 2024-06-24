@@ -35,7 +35,7 @@ CSMPass::CSMPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info)
             .DrawFeatures = RG::DrawFeatures::Positions,
             .DrawMeshletsPipeline = &meshletPipeline,
             .DrawTrianglesPipeline = &trianglePipeline,
-            .CullTriangles = false}); // todo: change me to true once triangle culling is working
+            .CullTriangles = true}); 
 
     m_MultiviewData.Finalize();
     

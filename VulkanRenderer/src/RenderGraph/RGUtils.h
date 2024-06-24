@@ -24,11 +24,15 @@ namespace RG::RgUtils
     Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
         const GraphBufferDescription& fallback);
 
+    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName);
+    void readDrawAttributes(DrawAttributeBuffers& buffers, Graph& graph, ResourceAccessFlags shaderStage);
     DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
         ResourceAccessFlags shaderStage);
+    
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
-    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, const std::string& baseName,
-        ResourceAccessFlags shaderStage);
+
+    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage);
+    
     IBLData readIBLData(const IBLData& ibl, Graph& graph, ResourceAccessFlags shaderStage);
     SSAOData readSSAOData(const SSAOData& ssao, Graph& graph, ResourceAccessFlags shaderStage);
     DirectionalShadowData readDirectionalShadowData(const DirectionalShadowData& shadow, Graph& graph,

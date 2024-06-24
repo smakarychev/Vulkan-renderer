@@ -327,10 +327,10 @@ void TriangleCullDrawPass<Stage>::AddToGraph(RG::Graph& renderGraph,
                                 sizeof(TriangleCullContext::TriangleType)});
                     
                     ctx.Resources().IndicesCulled[i] = graph.CreateResource(
-                    std::format("{}.{}", name, "Indices.Culled"),
-                    GraphBufferDescription{
-                        .SizeBytes = TriangleCullContext::GetIndexCount() *
-                            sizeof(TriangleCullContext::IndexType)});
+                        std::format("{}.{}", name, "Indices.Culled"),
+                        GraphBufferDescription{
+                            .SizeBytes = TriangleCullContext::GetIndexCount() *
+                                sizeof(TriangleCullContext::IndexType)});
                     
                     ctx.Resources().IndicesCulledCount[i] = graph.CreateResource(
                         std::format("{}.{}", name, "CulledCount"),

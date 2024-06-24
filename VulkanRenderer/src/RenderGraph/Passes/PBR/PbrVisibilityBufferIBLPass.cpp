@@ -62,7 +62,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
                    .Height = visibilityDescription.Height,
                    .Format = Format::RGBA16_FLOAT});
 
-            passData.LightsResources = RgUtils::readSceneLight(*info.SceneLights, graph, name, Pixel);
+            passData.LightsResources = RgUtils::readSceneLight(*info.SceneLights, graph, Pixel);
             passData.IBL = RgUtils::readIBLData(info.IBL, graph, Pixel);
             passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
             passData.CSMData = RgUtils::readCSMData(info.CSMData, graph, Pixel);

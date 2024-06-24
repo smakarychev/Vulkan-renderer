@@ -353,6 +353,13 @@ void Renderer::OnRender()
     {
         CPU_PROFILE_FRAME("Setup Render Graph")
         SetupRenderGraph();
+        static u32 twice = 2;
+        if (twice)
+        {
+            if (twice == 1)
+                m_Graph->MermaidDumpHTML("../assets/render graph/graph.html");
+            twice--;
+        }
     }
     
 

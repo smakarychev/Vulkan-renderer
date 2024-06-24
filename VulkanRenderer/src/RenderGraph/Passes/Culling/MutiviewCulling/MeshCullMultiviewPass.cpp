@@ -37,7 +37,7 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMul
     m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
         [&](Graph& graph, PassData& passData)
         {
-            if (m_Stage == CullStage::Reocclusion)
+            if (m_Stage != CullStage::Cull)
                 for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
                     info.MultiviewResource->HiZs[i] =
                         info.MultiviewResource->Multiview->Views()[i].Static.HiZContext->GetHiZResource();

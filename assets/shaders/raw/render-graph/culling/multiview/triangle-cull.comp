@@ -40,8 +40,8 @@ layout(std430, set = 1, binding = 5) readonly buffer compacted_command_buffer {
 } u_commands[MAX_VIEWS];
 
 layout(std430, set = 1, binding = 6) readonly buffer count_buffer {
-    uint count;
-} u_count[MAX_VIEWS];
+    uint count[];
+} u_count;
 
 layout(std430, set = 1, binding = 7) writeonly buffer triangle_buffer {
     uint8_t triangles[];
@@ -68,8 +68,8 @@ layout(std430, set = 1, binding = 11) writeonly buffer singular_indices_buffer {
 } u_culled_indices[MAX_VIEWS];
 
 layout(std430, set = 1, binding = 12) writeonly buffer singular_index_count_buffer {
-    uint count;
-} u_culled_count[MAX_VIEWS];
+    uint count[];
+} u_culled_count;
 
 layout(push_constant) uniform push_constants {
     uint u_command_offset;
@@ -137,8 +137,8 @@ void compact(uint id, uint reference_id, uint8_t triangle_index, uvec3 indices, 
     const uint total_visible_count = total_visible_triangle_count * 3;
 
     uint compacted_index_offset = 0;
-    if (subgroupElect())
-        compacted_index_offset = atomicAdd(u_culled_count[view_index].count, total_visible_count);
+    if (subgroupElect()) 
+        compacted_index_offset = atomicAdd(u_culled_count.count[view_index], total_visible_count);
 
     compacted_index_offset = subgroupBroadcastFirst(compacted_index_offset);
 
@@ -155,8 +155,9 @@ void compact(uint id, uint reference_id, uint8_t triangle_index, uvec3 indices, 
 
 void main() {
     uint id = gl_GlobalInvocationID.x / gl_WorkGroupSize.x;
-    const uint reference_id = u_geometry_index + u_view_count; 
-    if (id >= u_max_command_index || id + u_command_offset >= u_count[reference_id].count)
+    // todo: remove reference_id at all
+    const uint reference_id = u_geometry_index; 
+    if (id >= u_max_command_index || id + u_command_offset >= u_count.count[reference_id])
         return;
     id = id + u_command_offset;
 
@@ -171,15 +172,15 @@ void main() {
     const object_data object = u_objects[u_geometry_index].objects[command.render_object];
 
     const uvec3 indices = uvec3(
-        u_indices[reference_id].indices[command.firstIndex + index_offset + 0],
-        u_indices[reference_id].indices[command.firstIndex + index_offset + 1],
-        u_indices[reference_id].indices[command.firstIndex + index_offset + 2]);
+        u_indices[u_geometry_index].indices[command.firstIndex + index_offset + 0],
+        u_indices[u_geometry_index].indices[command.firstIndex + index_offset + 1],
+        u_indices[u_geometry_index].indices[command.firstIndex + index_offset + 2]);
 
     // get triangle position in world coordinates (common for all views)
     const Triangle triangle = Triangle(
-        object.model * vec4_from_position(u_positions[reference_id].positions[command.vertexOffset + uint(indices.x)]),
-        object.model * vec4_from_position(u_positions[reference_id].positions[command.vertexOffset + uint(indices.y)]),
-        object.model * vec4_from_position(u_positions[reference_id].positions[command.vertexOffset + uint(indices.z)]));
+        object.model * vec4_from_position(u_positions[u_geometry_index].positions[command.vertexOffset + uint(indices.x)]),
+        object.model * vec4_from_position(u_positions[u_geometry_index].positions[command.vertexOffset + uint(indices.y)]),
+        object.model * vec4_from_position(u_positions[u_geometry_index].positions[command.vertexOffset + uint(indices.z)]));
 
     const uint meshlet_index = command.firstInstance;
     const uint bitslot = triangle_index / MICRO_CLUSTER_SIZE;
@@ -233,7 +234,6 @@ void main() {
 
             should_be_drawn = !is_last_frame_visible && visible;
         }
-
         compact(id, reference_id, uint8_t(triangle_index), indices, should_be_drawn, i);
     }
 }
