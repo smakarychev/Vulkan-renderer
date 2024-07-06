@@ -7,6 +7,6 @@ class DescriptorAllocator;
 class Scene;
 class ShaderPipelineTemplate;
 
-namespace sceneUtils
+namespace SceneUtils
 {
 }

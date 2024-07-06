@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "Core/CoreUtils.h"
+#include "utils/CoreUtils.h"
 #include "Vulkan/Driver.h"
 
 namespace RenderUtils

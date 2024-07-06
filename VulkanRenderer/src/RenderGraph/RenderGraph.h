@@ -46,6 +46,7 @@ namespace RG
         using ResourceTraits = ResourceTraits<Buffer>;
         static bool CanAlias(const ResourceTraits::Desc& description, const ResourceTraits::Desc& other, u32 otherFrame)
         {
+            return false;
             bool canAlias =
                 (
                 !enumHasAny(description.Usage, BufferUsage::Upload) &&
@@ -88,7 +89,7 @@ namespace RG
 
     class RenderGraphPool
     {
-        static constexpr u32 MAX_UNREFERENCED_FRAMES = 4;
+        static constexpr u32 MAX_UNREFERENCED_FRAMES = 2;
     public:
         ~RenderGraphPool()
         {

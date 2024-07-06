@@ -1,6 +1,6 @@
 #pragma once
 
-#include "DriverResourceHandle.h"
+#include "ResourceHandle.h"
 #include "Image/ImageTraits.h"
 #include "Image/Image.h"
 #include "RenderingCommon.h"
@@ -98,10 +98,10 @@ public:
     static RenderingAttachment Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const RenderingAttachment& renderingAttachment);
 private:
-    ResourceHandle<RenderingAttachment> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<RenderingAttachment> Handle() const { return m_ResourceHandle; }
 private:
     RenderingAttachmentType m_Type{};
-    ResourceHandle<RenderingAttachment> m_ResourceHandle{};
+    ResourceHandleType<RenderingAttachment> m_ResourceHandle{};
 };
 
 class RenderingInfo
@@ -130,8 +130,8 @@ public:
     static RenderingInfo Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const RenderingInfo& renderingInfo);
 private:
-    ResourceHandle<RenderingInfo> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<RenderingInfo> Handle() const { return m_ResourceHandle; }
 private:
     glm::uvec2 m_RenderArea;
-    ResourceHandle<RenderingInfo> m_ResourceHandle{};
+    ResourceHandleType<RenderingInfo> m_ResourceHandle{};
 };

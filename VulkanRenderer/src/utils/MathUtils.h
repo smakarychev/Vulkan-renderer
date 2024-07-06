@@ -31,6 +31,11 @@ namespace MathUtils
         return number ^ (number >> 1);
     }
 
+    constexpr bool isPowerOf2(std::integral auto number)
+    {
+        return (number & (number - 1)) == 0;
+    }
+
     inline u32 log2(u32 number)
     {
         return 32 - clz32(number) - 1;
@@ -46,6 +51,13 @@ namespace MathUtils
         std::floating_point auto t)
     {
         return (t - a) / (b - a);
+    }
+
+    /* Returns `value mod base` when base is the power of 2 */
+    constexpr std::integral auto fastMod(std::integral auto value, std::integral auto base)
+    {
+        ASSERT(isPowerOf2(base), "Base have to be a power of 2")
+        return value & (base - 1);
     }
 
 }

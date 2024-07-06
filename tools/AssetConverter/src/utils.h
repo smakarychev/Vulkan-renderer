@@ -2,7 +2,7 @@
 
 #include "Converters.h"
 
-namespace utils
+namespace Utils
 {
     assetLib::BoundingSphere welzlSphere(std::vector<glm::vec3> points);
 

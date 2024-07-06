@@ -9,7 +9,7 @@ namespace RG
     struct DrawAttachments;
 }
 
-namespace utils
+namespace Utils
 {
     using AttachmentsRenames = std::unordered_map<RG::Resource, RG::Resource>;
     

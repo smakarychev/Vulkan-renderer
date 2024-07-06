@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "types.h"
-#include "DriverResourceHandle.h"
+#include "ResourceHandle.h"
 
 #include <vector>
 
@@ -37,9 +37,9 @@ public:
     static PipelineLayout Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const PipelineLayout& pipelineLayout);
 private:
-    ResourceHandle<PipelineLayout> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<PipelineLayout> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<PipelineLayout> m_ResourceHandle{};
+    ResourceHandleType<PipelineLayout> m_ResourceHandle{};
 };
 
 struct PipelineSpecializationInfo
@@ -145,7 +145,7 @@ public:
     bool operator==(Pipeline other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(Pipeline other) const { return !(*this == other); }
 private:
-    ResourceHandle<Pipeline> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Pipeline> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Pipeline> m_ResourceHandle{};
+    ResourceHandleType<Pipeline> m_ResourceHandle{};
 };

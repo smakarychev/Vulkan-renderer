@@ -209,10 +209,10 @@ private:
     static void CreateImageView(const ImageSubresource& imageSubresource,
         const std::vector<ImageSubresourceDescription>& additionalViews);
 
-    ResourceHandle<Image> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Image> Handle() const { return m_ResourceHandle; }
 private:
     ImageDescription m_Description{};
-    ResourceHandle<Image> m_ResourceHandle{};
+    ResourceHandleType<Image> m_ResourceHandle{};
 };
 
 using Texture = Image;

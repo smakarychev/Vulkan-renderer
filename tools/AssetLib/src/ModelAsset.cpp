@@ -288,7 +288,7 @@ namespace assetLib
         sizesBytes.push_back(info.IndicesSizeBytes());
         sizesBytes.push_back(info.MeshletsSizeBytes());
         
-        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, meshData, sizesBytes);
+        u64 blobSizeBytes = Utils::compressToBlob(assetFile.Blob, meshData, sizesBytes);
         metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
         metadata["asset"]["type"] = assetTypeToString(AssetType::Model);
 

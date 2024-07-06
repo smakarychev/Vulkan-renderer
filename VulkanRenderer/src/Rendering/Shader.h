@@ -53,10 +53,10 @@ public:
     static ShaderModule Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const ShaderModule& shader);
 private:
-    ResourceHandle<ShaderModule> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<ShaderModule> Handle() const { return m_ResourceHandle; }
 private:
     ShaderStage m_Stage;
-    ResourceHandle<ShaderModule> m_ResourceHandle{};
+    ResourceHandleType<ShaderModule> m_ResourceHandle{};
 };
 
 struct ShaderPushConstantDescription

@@ -4,7 +4,7 @@
 
 #include "Core/core.h"
 
-void utils::runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args)
+void Utils::runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args)
 {
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
@@ -99,7 +99,7 @@ void utils::runSubProcess(const std::filesystem::path& executablePath, const std
 
 }
 
-std::vector<std::string_view> utils::splitStringTransient(std::string_view string, std::string_view delimiter)
+std::vector<std::string_view> Utils::splitStringTransient(std::string_view string, std::string_view delimiter)
 {
     std::vector<std::string_view> result;
 

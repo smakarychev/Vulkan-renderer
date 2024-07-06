@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-namespace utils
+namespace Utils
 {
     static constexpr auto FNV_OFFSET_BASIS = 0xcbf29ce484222325ull;
     static constexpr auto FNV_PRIME = 0x100000001b3ull;

@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#include "DriverResourceHandle.h"
+#include "ResourceHandle.h"
 #include "Core/core.h"
 
 class DeletionQueue;
@@ -110,11 +110,11 @@ public:
     bool operator==(const Buffer& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(const Buffer& other) const { return !(*this == other); }
 private:
-    ResourceHandle<Buffer> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Buffer> Handle() const { return m_ResourceHandle; }
 private:
     BufferDescription m_Description{};
     // todo: also store device address?
     void* m_HostAddress{nullptr};
     
-    ResourceHandle<Buffer> m_ResourceHandle{};
+    ResourceHandleType<Buffer> m_ResourceHandle{};
 };

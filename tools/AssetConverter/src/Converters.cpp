@@ -210,7 +210,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             
             MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[meshIndex]], path);
             ConvertTextures(initialDirectoryPath, meshData);
-            assetLib::BoundingSphere sphere = utils::welzlSphere(meshData.VertexGroup.Positions);
+            assetLib::BoundingSphere sphere = Utils::welzlSphere(meshData.VertexGroup.Positions);
 
             std::lock_guard lock(mutex);
             modelInfo.MeshInfos.push_back({
@@ -270,8 +270,8 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
         .MaterialType = materialType,
         .MaterialPropertiesPBR = materialPropertiesPBR,
         .MaterialInfos = materials};
-    utils::remapMesh(meshData, indices);
-    meshData.Meshlets = utils::createMeshlets(meshData, indices);
+    Utils::remapMesh(meshData, indices);
+    meshData.Meshlets = Utils::createMeshlets(meshData, indices);
     
     return meshData;
 }

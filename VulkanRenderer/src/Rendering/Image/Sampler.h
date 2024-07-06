@@ -4,7 +4,7 @@
 
 #include "ImageTraits.h"
 #include "types.h"
-#include "Rendering/DriverResourceHandle.h"
+#include "Rendering/ResourceHandle.h"
 
 class Sampler
 {
@@ -44,9 +44,9 @@ public:
     static Sampler Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Sampler& sampler);
 private:
-    ResourceHandle<Sampler> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Sampler> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Sampler> m_ResourceHandle{};
+    ResourceHandleType<Sampler> m_ResourceHandle{};
 };
 
 class SamplerCache

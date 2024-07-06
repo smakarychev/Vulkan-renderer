@@ -46,17 +46,6 @@ void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
             
             auto* multiview = passData.MultiviewResource;
 
-            u32 maxDispatchesTotal = 0;
-            for (u32 i = 0; i < multiview->CullResources->GeometryCount; i++)
-            {
-                auto* geometry = multiview->CullResources->Multiview->Geometries()[i];
-                u32 maxDispatches = TriangleCullMultiviewTraits::MaxDispatches(geometry->GetCommandCount());
-                resources.GetBuffer(multiview->MaxDispatches, maxDispatches, i * sizeof(u32),
-                    *frameContext.ResourceUploader);
-
-                maxDispatchesTotal = std::max(maxDispatchesTotal, maxDispatches);
-            }
-            
             auto& pipeline = passData.PipelineData->Pipeline;
             auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
 
@@ -67,6 +56,8 @@ void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
                 u32 CommandsMultiplier;
                 u32 LocalGroupX;
                 u32 GeometryCount;
+                u32 MeshletViewCount;
+                u32 MaxDispatches;
             };
 
             auto& cmd = frameContext.Cmd;
@@ -77,12 +68,14 @@ void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
                 .CommandsPerBatchCount = TriangleCullMultiviewTraits::CommandCount(),
                 .CommandsMultiplier = assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
                 .LocalGroupX = assetLib::ModelInfo::TRIANGLES_PER_MESHLET,
-                .GeometryCount = multiview->CullResources->GeometryCount};
+                .GeometryCount = multiview->MeshletCull->GeometryCount,
+                .MeshletViewCount = multiview->MeshletCull->ViewCount,
+                .MaxDispatches = multiview->MaxDispatches};
             
             RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
             
             RenderCommand::Dispatch(cmd,
-                {maxDispatchesTotal, 1, 1},
+                {multiview->MaxDispatches, 1, 1},
                 {64, 1, 1});
 
             RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder()
@@ -93,7 +86,7 @@ void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
                     .DestinationAccess = PipelineAccess::ReadHost})
                 .Build(frameContext.DeletionQueue));
 
-            multiview->CullResources->Multiview->UpdateBatchIterationCount();
+            multiview->MeshletCull->Multiview->UpdateBatchIterationCount();
         });
 }
 
@@ -206,8 +199,8 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                 for (u32 i = 0; i < info.MultiviewResource->TriangleViewCount; i++)
                 {
                     u32 meshletIndex = info.MultiviewResource->MeshletViewIndices[i];
-                    info.MultiviewResource->CullResources->HiZs[meshletIndex] =
-                        info.MultiviewResource->CullResources->Multiview->Views()[meshletIndex]
+                    info.MultiviewResource->MeshletCull->HiZs[meshletIndex] =
+                        info.MultiviewResource->MeshletCull->Multiview->Views()[meshletIndex]
                             .Static.HiZContext->GetHiZResource();
                 }
             }
@@ -238,11 +231,12 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
         {
             CPU_PROFILE_FRAME("Triangle Cull Draw Multiview")
             GPU_PROFILE_FRAME("Triangle Cull Draw Multiview")
+            return;
 
             using enum DrawFeatures;
 
             auto* multiview = passData.MultiviewResource;
-            auto* multiviewData = multiview->CullResources->Multiview;
+            auto* multiviewData = multiview->MeshletCull->Multiview;
 
             auto createRenderingInfo = [&](bool canClear, u32 viewIndex)
             {
@@ -310,9 +304,9 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
             for (u32 i = 0; i < TriangleCullMultiviewTraits::MAX_BATCHES; i++)
             {
                 auto& cullSamplerDescriptors = passData.CullPipelines->at(i).SamplerDescriptors;
-                Sampler hizSampler = multiview->CullResources->HiZSampler;
+                Sampler hizSampler = multiview->MeshletCull->HiZSampler;
                 cullSamplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
-                    multiview->CullResources->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
+                    multiview->MeshletCull->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
                 std::vector<ShaderDescriptors> drawDescriptors;
                 RgUtils::updateCullTriangleMultiviewBindings(
@@ -367,7 +361,7 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                             .CommandOffset = batchIteration * TriangleCullMultiviewTraits::CommandCount(),
                             .MaxCommandIndex = TriangleCullMultiviewTraits::CommandCount(),
                             .GeometryIndex = geometryIndex,
-                            .ViewCount = multiview->CullResources->ViewCount};
+                            .ViewCount = multiview->MeshletCull->ViewCount};
                         auto& cmd = frameContext.Cmd;
                         pipeline.BindCompute(cmd);
                         RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
@@ -375,9 +369,11 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                             pipeline.GetLayout());
                         resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                             pipeline.GetLayout());
-                        RenderCommand::DispatchIndirect(cmd,
+                        RenderCommand::Dispatch(cmd,
+                            {1'000'000, 1, 1}, {256, 1, 1});
+                        /*RenderCommand::DispatchIndirect(cmd,
                             resources.GetBuffer(multiview->BatchDispatches[geometryIndex]),
-                            batchIteration * sizeof(IndirectDispatchCommand));
+                            batchIteration * sizeof(IndirectDispatchCommand));*/
 
                         MemoryDependencyInfo dependency = {
                             .SourceStage = PipelineStage::ComputeShader,

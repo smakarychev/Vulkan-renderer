@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "DriverResourceHandle.h"
+#include "ResourceHandle.h"
 #include "SynchronizationTraits.h"
 
 class DeletionQueue;
@@ -72,10 +72,10 @@ public:
     void Submit(const QueueInfo& queueInfo, const Fence& fence) const;
     void Submit(const QueueInfo& queueInfo, const Fence* fence) const;
 private:
-    ResourceHandle<CommandBuffer> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<CommandBuffer> Handle() const { return m_ResourceHandle; }
 private:
     CommandBufferKind m_Kind{};
-    ResourceHandle<CommandBuffer> m_ResourceHandle{};
+    ResourceHandleType<CommandBuffer> m_ResourceHandle{};
 };
 
 
@@ -108,9 +108,9 @@ public:
     CommandBuffer AllocateBuffer(CommandBufferKind kind);
     void Reset() const;
 private:
-    ResourceHandle<CommandPool> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<CommandPool> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<CommandPool> m_ResourceHandle{};
+    ResourceHandleType<CommandPool> m_ResourceHandle{};
 };
 
 class CommandBufferArray

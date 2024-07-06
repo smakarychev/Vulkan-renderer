@@ -77,7 +77,7 @@ namespace assetLib
     
         assetLib::File assetFile = {};
 
-        u64 blobSizeBytes = utils::compressToBlob(assetFile.Blob, pixels, info.SizeBytes);
+        u64 blobSizeBytes = Utils::compressToBlob(assetFile.Blob, pixels, info.SizeBytes);
         metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
         metadata["asset"]["type"] = assetTypeToString(AssetType::Texture);
 

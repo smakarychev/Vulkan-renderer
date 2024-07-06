@@ -25,7 +25,7 @@ public:
 public:
     MeshCullMultiviewPass(RG::Graph& renderGraph, std::string_view name, const MeshCullMultiviewPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const MeshCullMultiviewPassExecutionInfo& info);
-    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;

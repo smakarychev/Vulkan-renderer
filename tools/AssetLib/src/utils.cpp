@@ -4,7 +4,7 @@
 
 #include "lz4.h"
 
-namespace utils
+namespace Utils
 {
     u64 compressToBlob(std::vector<u8>& blob, const void* source, u64 sourceSizeBytes)
     {

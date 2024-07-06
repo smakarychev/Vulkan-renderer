@@ -6,7 +6,7 @@
 #include <vector>
 #include <filesystem>
 
-namespace utils
+namespace Utils
 {
     // Fn : (const char* req, T& avail) -> bool; Lg : (const char* req) -> void
     template <typename T, typename V, typename Fn, typename Lg>

@@ -4,7 +4,7 @@
 
 #include "hash.h"
 
-namespace utils
+namespace Utils
 {
     class StringHasher
     {

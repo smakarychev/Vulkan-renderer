@@ -2,7 +2,7 @@
 
 #include "RenderGraph/RGDrawResources.h"
 
-namespace utils
+namespace Utils
 {
     void recordUpdatedAttachmentResources(const RG::DrawAttachments& old, const RG::DrawAttachmentResources& updated,
         AttachmentsRenames& renames)

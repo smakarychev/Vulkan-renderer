@@ -41,14 +41,13 @@ namespace RG
 
     struct CullTrianglesMultiviewResource
     {
+        u32 MaxDispatches{0};
         u32 TriangleViewCount{0};
         std::vector<u32> MeshletViewIndices;
 
         Resource ViewSpans;
         Resource Views;
 
-        Resource MaxDispatches{};
-        
         std::vector<Resource> Indices;
         std::vector<Resource> BatchDispatches;
         
@@ -66,9 +65,9 @@ namespace RG
         std::vector<SSAOData> SSAOs;
         std::vector<CSMData> CSMs;
         
-        CullMultiviewResources* CullResources{nullptr};
+        CullMultiviewResources* MeshletCull{nullptr};
         CullMultiviewData* Multiview{nullptr};
-        utils::AttachmentsRenames* AttachmentsRenames{nullptr};
+        Utils::AttachmentsRenames* AttachmentsRenames{nullptr};
     };
 }
 

@@ -70,9 +70,9 @@ public:
     static DescriptorsLayout Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const DescriptorsLayout& layout);
 private:
-    ResourceHandle<DescriptorsLayout> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<DescriptorsLayout> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<DescriptorsLayout> m_ResourceHandle{};
+    ResourceHandleType<DescriptorsLayout> m_ResourceHandle{};
 };
 
 class DescriptorSet
@@ -138,11 +138,11 @@ public:
     
     const DescriptorsLayout& GetLayout() const { return m_Layout; }
 private:
-    ResourceHandle<DescriptorSet> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<DescriptorSet> Handle() const { return m_ResourceHandle; }
 private:
     DescriptorAllocator* m_Allocator{nullptr};
     DescriptorsLayout m_Layout;
-    ResourceHandle<DescriptorSet> m_ResourceHandle{};
+    ResourceHandleType<DescriptorSet> m_ResourceHandle{};
 };
 
 class DescriptorAllocator
@@ -177,11 +177,11 @@ public:
     static void Destroy(const DescriptorAllocator& allocator);
 
     void Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
-    void Deallocate(ResourceHandle<DescriptorSet> set);
+    void Deallocate(ResourceHandleType<DescriptorSet> set);
 
     void ResetPools();
 private:
-    ResourceHandle<DescriptorAllocator> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<DescriptorAllocator> Handle() const { return m_ResourceHandle; }
 private:
     PoolSizes m_PoolSizes = {
         { DescriptorType::Sampler, 0.5f },
@@ -197,7 +197,7 @@ private:
     };
 
     u32 m_MaxSetsPerPool{};
-    ResourceHandle<DescriptorAllocator> m_ResourceHandle{};
+    ResourceHandleType<DescriptorAllocator> m_ResourceHandle{};
 };
 
 class Descriptors

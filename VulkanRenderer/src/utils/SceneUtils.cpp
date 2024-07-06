@@ -1,6 +1,6 @@
 ﻿#include "SceneUtils.h"
 
-namespace sceneUtils
+namespace SceneUtils
 {
 }
 

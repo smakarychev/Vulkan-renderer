@@ -25,10 +25,10 @@ namespace RG
             m_Name(name), m_Hash(name) {}
         
         const std::string& Name() const { return m_Name; }
-        utils::StringHasher Hash() const { return m_Hash; }
+        Utils::StringHasher Hash() const { return m_Hash; }
     private:
         std::string m_Name{};
-        utils::StringHasher m_Hash{};
+        Utils::StringHasher m_Hash{};
     };
     
     class Pass
@@ -71,7 +71,7 @@ namespace RG
         }
 
         std::string_view GetNameString() const { return m_Name.m_Name; }
-        utils::StringHasher GetNameHash() const { return m_Name.m_Hash; }
+        Utils::StringHasher GetNameHash() const { return m_Name.m_Hash; }
         
     private:
         void Reset()

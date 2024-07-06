@@ -126,7 +126,7 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     {
         u32 viewIndex = m_MeshletOnlyViewIndices[i];
         auto& view = m_MultiviewData->Views()[viewIndex];
-        utils::updateRecordedAttachmentResources(view.Dynamic.DrawInfo.Attachments, attachmentRenames);
+        Utils::updateRecordedAttachmentResources(view.Dynamic.DrawInfo.Attachments, attachmentRenames);
         m_MeshletOnlyDraws[i]->AddToGraph(renderGraph, {
             .Geometry = view.Static.Geometry,
             .Commands = meshletCullOutput.MultiviewResource->CompactCommands[i],
@@ -142,7 +142,7 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
         
         auto& drawOutput = renderGraph.GetBlackboard().Get<DrawIndirectCountPass::PassData>(
             m_MeshletOnlyDraws[i]->GetNameHash());
-        utils::recordUpdatedAttachmentResources(view.Dynamic.DrawInfo.Attachments, drawOutput.DrawAttachmentResources,
+        Utils::recordUpdatedAttachmentResources(view.Dynamic.DrawInfo.Attachments, drawOutput.DrawAttachmentResources,
             attachmentRenames);
     }
 
@@ -151,8 +151,8 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     {
         m_TrianglePrepare->AddToGraph(renderGraph, TriangleCullPrepareMultiviewPassExecutionInfo{
             .MultiviewResource = &m_MultiviewTrianglesResource});
-        m_TriangleCullDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
-            .MultiviewResource = &m_MultiviewTrianglesResource});
+        //m_TriangleCullDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
+        //    .MultiviewResource = &m_MultiviewTrianglesResource});
     }
 
     /* update HiZs, now that all previously visible stuff was drawn */
@@ -176,10 +176,10 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     /* now we have to do triangle reocclusion */
     if (m_MultiviewTrianglesResource.TriangleViewCount > 0)
     {
-        m_TrianglePrepareReocclusion->AddToGraph(renderGraph, TriangleCullPrepareMultiviewPassExecutionInfo{
-            .MultiviewResource = &m_MultiviewTrianglesResource});
-        m_TriangleReocclusionDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
-            .MultiviewResource = &m_MultiviewTrianglesResource});
+        //m_TrianglePrepareReocclusion->AddToGraph(renderGraph, TriangleCullPrepareMultiviewPassExecutionInfo{
+        //    .MultiviewResource = &m_MultiviewTrianglesResource});
+        //m_TriangleReocclusionDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
+        //    .MultiviewResource = &m_MultiviewTrianglesResource});
     }
 
     /* update HiZs with reoccluded triangles */
@@ -202,7 +202,7 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     for (u32 i = 0; i < m_DrawsReocclusion.size(); i++)
     {
         auto& view = m_MultiviewData->Views()[i];
-        utils::updateRecordedAttachmentResources(
+        Utils::updateRecordedAttachmentResources(
             view.Dynamic.DrawInfo.Attachments, attachmentRenames);
         m_DrawsReocclusion[i]->AddToGraph(renderGraph, {
             .Geometry = view.Static.Geometry,
@@ -219,7 +219,7 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
         
         auto& drawOutput = renderGraph.GetBlackboard().Get<DrawIndirectCountPass::PassData>(
             m_DrawsReocclusion[i]->GetNameHash());
-        utils::recordUpdatedAttachmentResources(
+        Utils::recordUpdatedAttachmentResources(
             view.Dynamic.DrawInfo.Attachments, drawOutput.DrawAttachmentResources,
             attachmentRenames);
     }

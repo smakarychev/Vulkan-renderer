@@ -185,7 +185,7 @@ void DescriptorAllocator::Allocate(DescriptorSet& set, DescriptorPoolFlags poolF
     return Driver::AllocateDescriptorSet(*this, set, poolFlags, variableBindingCounts);
 }
 
-void DescriptorAllocator::Deallocate(ResourceHandle<DescriptorSet> set)
+void DescriptorAllocator::Deallocate(ResourceHandleType<DescriptorSet> set)
 {
     Driver::DeallocateDescriptorSet(Handle(), set);
 }

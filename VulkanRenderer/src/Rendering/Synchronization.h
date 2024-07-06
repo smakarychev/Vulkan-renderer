@@ -4,7 +4,7 @@
 
 #include "RenderingCommon.h"
 
-#include "DriverResourceHandle.h"
+#include "ResourceHandle.h"
 #include "Image/Image.h"
 #include "Image/ImageTraits.h"
 #include "SynchronizationTraits.h"
@@ -43,9 +43,9 @@ public:
     void Wait() const;
     bool Check() const;
 private:
-    ResourceHandle<Fence> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Fence> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Fence> m_ResourceHandle{};
+    ResourceHandleType<Fence> m_ResourceHandle{};
 };
 
 class Semaphore
@@ -66,9 +66,9 @@ public:
     static Semaphore Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Semaphore& semaphore);
 private:
-    ResourceHandle<Semaphore> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Semaphore> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<Semaphore> m_ResourceHandle{};
+    ResourceHandleType<Semaphore> m_ResourceHandle{};
 };
 
 class TimelineSemaphore
@@ -101,10 +101,10 @@ public:
     u64 GetTimeline() const { return m_Timeline; }
     void SetTimeline(u64 timeline) { m_Timeline = timeline; }
 private:
-    ResourceHandle<Semaphore> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Semaphore> Handle() const { return m_ResourceHandle; }
 private:
     u64 m_Timeline{0};
-    ResourceHandle<Semaphore> m_ResourceHandle;
+    ResourceHandleType<Semaphore> m_ResourceHandle;
 };
 
 // todo: add queue transfer somewhere
@@ -162,9 +162,9 @@ public:
     static DependencyInfo Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const DependencyInfo& dependencyInfo);
 private:
-    ResourceHandle<DependencyInfo> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<DependencyInfo> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<DependencyInfo> m_ResourceHandle{};
+    ResourceHandleType<DependencyInfo> m_ResourceHandle{};
 };
 
 class Barrier
@@ -195,7 +195,7 @@ public:
     void Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const;
     void Reset(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const;
 private:
-    ResourceHandle<SplitBarrier> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<SplitBarrier> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<SplitBarrier> m_ResourceHandle{};
+    ResourceHandleType<SplitBarrier> m_ResourceHandle{};
 };

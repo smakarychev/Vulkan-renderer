@@ -16,12 +16,12 @@ namespace RG
         template <typename DataType>
         static constexpr u64 Type()
         {
-            return utils::hashString(GENERATOR_PRETTY_FUNCTION);
+            return Utils::hashString(GENERATOR_PRETTY_FUNCTION);
         }
         template <typename DataType>
-        static constexpr u64 Type(utils::StringHasher name)
+        static constexpr u64 Type(Utils::StringHasher name)
         {
-            return name.GetHash() ^ utils::hashString(GENERATOR_PRETTY_FUNCTION);
+            return name.GetHash() ^ Utils::hashString(GENERATOR_PRETTY_FUNCTION);
         }
     };
     
@@ -31,27 +31,27 @@ namespace RG
         template <typename DataType>
         void Register(const DataType& value);
         template <typename DataType>
-        void Register(utils::StringHasher name, const DataType& value);
+        void Register(Utils::StringHasher name, const DataType& value);
         template <typename DataType>
         void Update(const DataType& value);
         template <typename DataType>
-        void Update(utils::StringHasher name, const DataType& value);
+        void Update(Utils::StringHasher name, const DataType& value);
         template <typename DataType>
         const DataType& Get() const;
         template <typename DataType>
-        const DataType& Get(utils::StringHasher name) const;
+        const DataType& Get(Utils::StringHasher name) const;
         template <typename DataType>
         DataType& Get();
         template <typename DataType>
-        DataType& Get(utils::StringHasher name);
+        DataType& Get(Utils::StringHasher name);
         template <typename DataType>
         const DataType* TryGet() const;
         template <typename DataType>
-        const DataType* TryGet(utils::StringHasher name) const;
+        const DataType* TryGet(Utils::StringHasher name) const;
         template <typename DataType>
         DataType* TryGet();
         template <typename DataType>
-        DataType* TryGet(utils::StringHasher name);
+        DataType* TryGet(Utils::StringHasher name);
         
         bool Has(u64 key) const;
         
@@ -75,7 +75,7 @@ namespace RG
     }
     
     template <typename DataType>
-    void Blackboard::Register(utils::StringHasher name, const DataType& value)
+    void Blackboard::Register(Utils::StringHasher name, const DataType& value)
     {
         u64 valueIndex = PassDataTypeIndex::Type<DataType>(name);
         ASSERT(!m_Values.contains(valueIndex), "Value is already registered")
@@ -94,7 +94,7 @@ namespace RG
     }
 
     template <typename DataType>
-    void Blackboard::Update(utils::StringHasher name, const DataType& value)
+    void Blackboard::Update(Utils::StringHasher name, const DataType& value)
     {
         u64 valueIndex = PassDataTypeIndex::Type<DataType>(name);
         if (!Has(valueIndex))
@@ -113,7 +113,7 @@ namespace RG
     }
 
     template <typename DataType>
-    const DataType& Blackboard::Get(utils::StringHasher name) const
+    const DataType& Blackboard::Get(Utils::StringHasher name) const
     {
         u64 valueIndex = PassDataTypeIndex::Type<DataType>(name);
         ASSERT(m_Values.contains(valueIndex), "Value is not registered")
@@ -128,7 +128,7 @@ namespace RG
     }
 
     template <typename DataType>
-    DataType& Blackboard::Get(utils::StringHasher name)
+    DataType& Blackboard::Get(Utils::StringHasher name)
     {
         return const_cast<DataType&>(const_cast<const Blackboard&>(*this).Get<DataType>(name));
     }
@@ -144,7 +144,7 @@ namespace RG
     }
 
     template <typename DataType>
-    const DataType* Blackboard::TryGet(utils::StringHasher name) const
+    const DataType* Blackboard::TryGet(Utils::StringHasher name) const
     {
         u64 valueIndex = PassDataTypeIndex::Type<DataType>(name);
         if (!m_Values.contains(valueIndex))
@@ -160,7 +160,7 @@ namespace RG
     }
 
     template <typename DataType>
-    DataType* Blackboard::TryGet(utils::StringHasher name)
+    DataType* Blackboard::TryGet(Utils::StringHasher name)
     {
         return const_cast<DataType*>(const_cast<const Blackboard&>(*this).TryGet<DataType>(name));
     }

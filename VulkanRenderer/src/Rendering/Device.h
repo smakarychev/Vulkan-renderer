@@ -5,7 +5,7 @@
 #include <string_view>
 #include <vector>
 
-#include "DriverResourceHandle.h"
+#include "ResourceHandle.h"
 #include "Core/core.h"
 
 class QueueInfo
@@ -18,9 +18,9 @@ public:
     static constexpr u32 UNSET_FAMILY = std::numeric_limits<u32>::max();
     u32 Family{UNSET_FAMILY};
 private:
-    ResourceHandle<QueueInfo> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<QueueInfo> Handle() const { return m_ResourceHandle; }
 private:
-    ResourceHandle<QueueInfo> m_ResourceHandle{};
+    ResourceHandleType<QueueInfo> m_ResourceHandle{};
 };
 
 struct DeviceQueues
@@ -97,9 +97,9 @@ public:
     void WaitIdle() const;
     
 private:
-    ResourceHandle<Device> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Device> Handle() const { return m_ResourceHandle; }
 private:
     DeviceQueues m_Queues;
     GLFWwindow* m_Window{nullptr};
-    ResourceHandle<Device> m_ResourceHandle{};
+    ResourceHandleType<Device> m_ResourceHandle{};
 };

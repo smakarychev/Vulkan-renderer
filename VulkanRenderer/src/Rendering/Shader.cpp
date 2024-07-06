@@ -235,7 +235,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
     merged.ShaderStages |= second.ShaderStages;
 
     // merge specialization constants
-    merged.SpecializationConstants = utils::mergeSets(merged.SpecializationConstants, second.SpecializationConstants,
+    merged.SpecializationConstants = Utils::mergeSets(merged.SpecializationConstants, second.SpecializationConstants,
         [](const auto& a, const auto& b)
         {
             if (a.Id == b.Id)
@@ -256,7 +256,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
     merged.InputAttributes.append_range(second.InputAttributes);
 
     // merge push constants
-    merged.PushConstants = utils::mergeSets(merged.PushConstants, second.PushConstants,
+    merged.PushConstants = Utils::mergeSets(merged.PushConstants, second.PushConstants,
         [](const auto& a, const auto& b)
         {
             if (a.Offset == b.Offset && a.SizeBytes == b.SizeBytes)
@@ -273,7 +273,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
         });
 
     // merge descriptor sets
-    merged.DescriptorSets = utils::mergeSets(merged.DescriptorSets, second.DescriptorSets,
+    merged.DescriptorSets = Utils::mergeSets(merged.DescriptorSets, second.DescriptorSets,
         [](const auto& a, const auto& b)
         {
             if (a.Set == b.Set)
@@ -285,7 +285,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
         [](const auto& a, const auto& b)
         {
             assetLib::ShaderInfo::DescriptorSet mergedSet = a;
-            mergedSet.Descriptors = utils::mergeSets(mergedSet.Descriptors, b.Descriptors,
+            mergedSet.Descriptors = Utils::mergeSets(mergedSet.Descriptors, b.Descriptors,
                 [](const auto& a, const auto& b)
                 {
                     if (a.Binding == b.Binding)

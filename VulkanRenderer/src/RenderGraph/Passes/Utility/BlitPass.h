@@ -13,7 +13,7 @@ public:
     BlitPass(std::string_view name);
     void AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn, RG::Resource textureOut,
         const glm::vec3& offset, f32 relativeSize);
-    utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
 

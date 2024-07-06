@@ -80,7 +80,7 @@ private:
     std::vector<Image> CreateColorImages() const;
     Image CreateDrawImage();
     Image CreateDepthImage();
-    ResourceHandle<Swapchain> Handle() const { return m_ResourceHandle; }
+    ResourceHandleType<Swapchain> Handle() const { return m_ResourceHandle; }
 private:
     glm::uvec2 m_SwapchainResolution;
     glm::uvec2 m_DrawResolution;
@@ -93,5 +93,5 @@ private:
     std::vector<SwapchainFrameSync> m_SwapchainFrameSync;
     GLFWwindow* m_Window{nullptr};
     
-    ResourceHandle<Swapchain> m_ResourceHandle{};
+    ResourceHandleType<Swapchain> m_ResourceHandle{};
 };
