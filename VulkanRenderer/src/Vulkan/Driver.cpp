@@ -730,7 +730,7 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
     std::vector<VkPresentModeKHR> desiredPresentModes = {{
-        //VK_PRESENT_MODE_IMMEDIATE_KHR,
+        VK_PRESENT_MODE_IMMEDIATE_KHR,
         VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
     DeviceSurfaceDetails surfaceDetails = GetSurfaceDetails(*createInfo.Device);

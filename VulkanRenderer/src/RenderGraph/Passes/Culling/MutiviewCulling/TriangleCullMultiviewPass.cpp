@@ -231,7 +231,6 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
         {
             CPU_PROFILE_FRAME("Triangle Cull Draw Multiview")
             GPU_PROFILE_FRAME("Triangle Cull Draw Multiview")
-            return;
 
             using enum DrawFeatures;
 
@@ -298,6 +297,10 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                 auto& view = multiviewData->TriangleViews()[i];
                 CameraGPU cameraGPU = CameraGPU::FromCamera(*view.Dynamic.Camera, view.Dynamic.Resolution);
                 resources.GetBuffer(multiview->Cameras[i], cameraGPU, *frameContext.ResourceUploader);
+
+                for (u32 batchIndex = 0; batchIndex < TriangleCullMultiviewTraits::MAX_BATCHES; batchIndex++)
+                    resources.GetBuffer(multiview->IndicesCulledCount[batchIndex], 0, i * sizeof(u32),
+                        *frameContext.ResourceUploader);
             }
 
             /* update all bindings */
@@ -355,13 +358,13 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                             u32 CommandOffset;
                             u32 MaxCommandIndex;
                             u32 GeometryIndex;
-                            u32 ViewCount;
+                            u32 MeshletViewCount;
                         };
                         PushConstants pushConstants = {
                             .CommandOffset = batchIteration * TriangleCullMultiviewTraits::CommandCount(),
                             .MaxCommandIndex = TriangleCullMultiviewTraits::CommandCount(),
                             .GeometryIndex = geometryIndex,
-                            .ViewCount = multiview->MeshletCull->ViewCount};
+                            .MeshletViewCount = multiview->MeshletCull->ViewCount};
                         auto& cmd = frameContext.Cmd;
                         pipeline.BindCompute(cmd);
                         RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
@@ -369,11 +372,9 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                             pipeline.GetLayout());
                         resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                             pipeline.GetLayout());
-                        RenderCommand::Dispatch(cmd,
-                            {1'000'000, 1, 1}, {256, 1, 1});
-                        /*RenderCommand::DispatchIndirect(cmd,
+                        RenderCommand::DispatchIndirect(cmd,
                             resources.GetBuffer(multiview->BatchDispatches[geometryIndex]),
-                            batchIteration * sizeof(IndirectDispatchCommand));*/
+                            batchIteration * sizeof(IndirectDispatchCommand));
 
                         MemoryDependencyInfo dependency = {
                             .SourceStage = PipelineStage::ComputeShader,

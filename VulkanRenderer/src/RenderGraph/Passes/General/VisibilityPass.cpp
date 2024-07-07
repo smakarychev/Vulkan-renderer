@@ -21,17 +21,22 @@ VisibilityPass::VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitI
         .AddSpecialization("COMPOUND_INDEX", false)
         .Build();
 
-    CullMetaPassInitInfo visibilityPassInitInfo = {
+    m_MultiviewData.AddView({
         .Geometry = info.Geometry,
-        .DrawTrianglesPipeline = &trianglePipeline,
-        .DrawMeshletsPipeline = &meshletPipeline,
-        .MaterialDescriptors = info.MaterialDescriptors,
-        .DrawFeatures =
+        .DrawFeatures = 
             RG::DrawFeatures::AlphaTest |
             RG::DrawFeatures::Triangles,
-        .CameraType = info.CameraType};
+        .DrawMeshletsPipeline = &meshletPipeline,
+        .DrawTrianglesPipeline = &trianglePipeline,
+        .MaterialDescriptors = info.MaterialDescriptors,
+        .CullTriangles = true});
 
-    m_Pass = std::make_shared<CullMetaPass>(renderGraph, visibilityPassInitInfo, "VisibilityBuffer");
+    m_MultiviewData.Finalize();
+
+    CullMetaMultiviewPassInitInfo multiviewPassInitInfo = {
+        .MultiviewData = &m_MultiviewData};
+    
+    m_Pass = std::make_shared<CullMetaMultiviewPass>(renderGraph, "VisibilityPass", multiviewPassInitInfo);
 }
 
 void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info)
@@ -44,7 +49,13 @@ void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const VisibilityPassExec
             .Height = info.Resolution.y,
             .Format = Format::R32_UINT});
 
-    m_Pass->AddToGraph(renderGraph, {
+    Resource depth = renderGraph.CreateResource("VisibilityBuffer.Depth",
+        GraphTextureDescription{
+            .Width = info.Resolution.x,
+            .Height = info.Resolution.y,
+            .Format = Format::D32_FLOAT});
+
+    m_MultiviewData.UpdateView(0, {
         .Resolution = info.Resolution,
         .Camera = info.Camera,
         .DrawInfo = {
@@ -55,16 +66,18 @@ void VisibilityPass::AddToGraph(RG::Graph& renderGraph, const VisibilityPassExec
                         .OnLoad = AttachmentLoad::Clear,
                         .ClearColor = {.U = glm::uvec4{std::numeric_limits<u32>::max(), 0, 0, 0}}}}},
                 .Depth = DepthStencilAttachment{
-                    .Resource = {},
+                    .Resource = depth,
                     .Description = {
                         .OnLoad = AttachmentLoad::Clear,
                         .ClearDepth = 0.0f,
                         .ClearStencil = 0}}}}});
+    
+    m_Pass->AddToGraph(renderGraph);
 
-    auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
+    auto& output = renderGraph.GetBlackboard().Get<CullMetaMultiviewPass::PassData>(m_Pass->GetNameHash());
     PassData passData = {
-        .ColorOut = output.DrawAttachmentResources.Colors[0],
-        .DepthOut = *output.DrawAttachmentResources.Depth,
-        .HiZOut = output.HiZOut};
+        .ColorOut = output.DrawAttachmentResources[0].Colors[0],
+        .DepthOut = *output.DrawAttachmentResources[0].Depth,
+        .HiZOut = output.HiZOut[0]};
     renderGraph.GetBlackboard().Update(passData);
 }

@@ -105,6 +105,27 @@ void compact(uint id, bool should_draw, uint view_index) {
     }
 }
 
+void compact_combined(uint id, bool should_draw, uint view_index) {
+    const IndirectCommand command = u_commands[u_geometry_index].commands[id];
+
+    const uvec4 is_visible_ballot = subgroupBallot(should_draw);
+
+    const uint total_visible_count = subgroupBallotBitCount(is_visible_ballot);
+
+    uint compacted_buffer_index_base;
+    if (subgroupElect())
+        compacted_buffer_index_base = atomicAdd(u_count.count[view_index], total_visible_count);
+    compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
+
+    const uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_visible_ballot);
+
+    const uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
+
+    if (should_draw) {
+        u_compacted_commands[view_index].commands[compacted_buffer_index] = command;
+    }
+}
+
 void main() {
     const uint id = gl_GlobalInvocationID.x;
     if (id >= u_meshlet_count)
@@ -186,5 +207,5 @@ void main() {
 
     // this is needed for subsequent triangle culling
     if (!REOCCLUSION)
-        compact(id, is_visible_any_view, u_geometry_index + u_view_count);
+        compact_combined(id, is_visible_any_view, u_geometry_index + u_view_count);
 }

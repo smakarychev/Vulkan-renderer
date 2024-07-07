@@ -75,7 +75,7 @@ layout(push_constant) uniform push_constants {
     uint u_command_offset;
     uint u_max_command_index;
     uint u_geometry_index;
-    uint u_view_count;
+    uint u_meshlet_view_count;
 };
 
 vec4 transform_to_NDC_and_get_aabb(inout Triangle triangle) {
@@ -128,7 +128,7 @@ void compact(uint id, uint reference_id, uint8_t triangle_index, uvec3 indices, 
     
     // mark this command as processed; the REOCCLUSION and ordinary stages both process the same set of 
     // commands, so we can update it only once
-    if (!REOCCLUSION) 
+    if (!REOCCLUSION && subgroupElect()) 
         flags_unset_should_triangle_cull(
             u_meshlet_visibility[view_index].visibility[command.firstInstance]);
 
@@ -155,9 +155,8 @@ void compact(uint id, uint reference_id, uint8_t triangle_index, uvec3 indices, 
 
 void main() {
     uint id = gl_GlobalInvocationID.x / gl_WorkGroupSize.x;
-    // todo: remove reference_id at all
-    const uint reference_id = u_geometry_index; 
-    if (id >= u_max_command_index || id + u_command_offset >= u_count.count[reference_id])
+    const uint reference_id = u_geometry_index;
+    if (id >= u_max_command_index || id + u_command_offset >= u_count.count[reference_id + u_meshlet_view_count])
         return;
     id = id + u_command_offset;
 

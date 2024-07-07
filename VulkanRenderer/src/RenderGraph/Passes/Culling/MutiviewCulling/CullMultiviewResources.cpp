@@ -224,8 +224,6 @@ namespace RG::RgUtils
                 u32 index = multiview.ViewCount + i;
                 descriptors.UpdateBinding("u_compacted_commands", resources.GetBuffer(multiview.CompactCommands[index])
                     .BindingInfo(), index);
-
-                descriptors.UpdateBinding("u_count", countBuffer.BindingInfo(), index);
             }
         }
     }
@@ -411,7 +409,7 @@ namespace RG::RgUtils
         for (u32 batch = 0; batch < TriangleCullMultiviewTraits::MAX_BATCHES; batch++)
         {
             multiview.IndicesCulledCount[batch] = graph.Write(
-                multiview.IndicesCulledCount[batch], Compute | Storage);
+                multiview.IndicesCulledCount[batch], Compute | Storage | Upload);
             multiview.IndicesCulledCount[batch] = graph.Read(
                 multiview.IndicesCulledCount[batch], Compute | Storage);
         }

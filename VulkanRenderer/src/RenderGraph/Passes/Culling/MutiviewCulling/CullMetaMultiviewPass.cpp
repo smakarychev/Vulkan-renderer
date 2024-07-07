@@ -151,8 +151,8 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     {
         m_TrianglePrepare->AddToGraph(renderGraph, TriangleCullPrepareMultiviewPassExecutionInfo{
             .MultiviewResource = &m_MultiviewTrianglesResource});
-        //m_TriangleCullDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
-        //    .MultiviewResource = &m_MultiviewTrianglesResource});
+        m_TriangleCullDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
+            .MultiviewResource = &m_MultiviewTrianglesResource});
     }
 
     /* update HiZs, now that all previously visible stuff was drawn */
@@ -176,10 +176,10 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     /* now we have to do triangle reocclusion */
     if (m_MultiviewTrianglesResource.TriangleViewCount > 0)
     {
-        //m_TrianglePrepareReocclusion->AddToGraph(renderGraph, TriangleCullPrepareMultiviewPassExecutionInfo{
-        //    .MultiviewResource = &m_MultiviewTrianglesResource});
-        //m_TriangleReocclusionDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
-        //    .MultiviewResource = &m_MultiviewTrianglesResource});
+        m_TrianglePrepareReocclusion->AddToGraph(renderGraph, TriangleCullPrepareMultiviewPassExecutionInfo{
+            .MultiviewResource = &m_MultiviewTrianglesResource});
+        m_TriangleReocclusionDraw->AddToGraph(renderGraph, TriangleCullMultiviewPassExecutionInfo{
+            .MultiviewResource = &m_MultiviewTrianglesResource});
     }
 
     /* update HiZs with reoccluded triangles */

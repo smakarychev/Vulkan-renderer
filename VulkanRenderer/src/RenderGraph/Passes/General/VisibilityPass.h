@@ -1,9 +1,11 @@
 #pragma once
 
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/Passes/Culling/CullMetaPass.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/CullMultiviewData.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
 
 #include <memory>
+
 
 struct VisibilityPassInitInfo
 {
@@ -30,12 +32,8 @@ public:
 public:
     VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info);
-    HiZPassContext* GetHiZContext() const { return m_Pass->GetHiZContext(); }
+    HiZPassContext* GetHiZContext() const { return m_MultiviewData.Views().front().Static.HiZContext.get(); }
 private:
-    struct DrawPassData
-    {
-        
-    };
-private:
-    std::shared_ptr<CullMetaPass> m_Pass{};
+    CullMultiviewData m_MultiviewData{};
+    std::shared_ptr<CullMetaMultiviewPass> m_Pass{};
 };
