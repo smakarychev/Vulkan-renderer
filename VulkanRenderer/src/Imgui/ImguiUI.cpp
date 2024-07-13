@@ -16,6 +16,9 @@ struct ImGuiUI::Payload
 {
     VkDescriptorPool Pool;
     GLFWwindow* Window;
+
+    u32 FrameNumber{0};
+    std::array<std::vector<ImTextureID>, BUFFERED_FRAMES> Textures;
 };
 
 std::unique_ptr<ImGuiUI::Payload> ImGuiUI::s_Payload = {};
@@ -80,19 +83,25 @@ void ImGuiUI::Init(void* window)
 
 void ImGuiUI::Shutdown()
 {
+    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+        ClearFrameResources(i);
+        
     ImGui_ImplVulkan_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
     vkDestroyDescriptorPool(Driver::DeviceHandle(), s_Payload->Pool, nullptr);
 }
 
-void ImGuiUI::BeginFrame()
+void ImGuiUI::BeginFrame(u32 frameNumber)
 {
     CPU_PROFILE_FRAME("ImGui begin frame")
 
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
+
+    s_Payload->FrameNumber = frameNumber;
+    ClearFrameResources(frameNumber);
 }
 
 void ImGuiUI::EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingInfo)
@@ -106,5 +115,19 @@ void ImGuiUI::EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingI
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), Driver::Resources()[cmd].CommandBuffer);
 
     RenderCommand::EndRendering(cmd);
+}
+
+void ImGuiUI::Texture(const ImageSubresource& texture, Sampler sampler, ImageLayout layout, const glm::uvec2& size)
+{
+    ImTextureID textureId = Driver::CreateImGuiImage(texture, sampler, layout, size);
+    ImGui::Image(textureId, ImVec2{(f32)size.x, (f32)size.y});
+    s_Payload->Textures[s_Payload->FrameNumber].push_back(textureId);
+}
+
+void ImGuiUI::ClearFrameResources(u32 frameNumber)
+{
+    for (auto& texture : s_Payload->Textures[frameNumber])
+        ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)texture);
+    s_Payload->Textures[frameNumber].clear();
 }
 

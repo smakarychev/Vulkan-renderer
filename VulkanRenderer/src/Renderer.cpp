@@ -33,6 +33,7 @@
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
+#include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/VisualizeDepthPass.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
@@ -59,7 +60,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/vokselia_spawn/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -70,7 +71,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{10.0f}}});
+            .Scale = glm::vec3{1.0f}}});
     
     m_GraphOpaqueGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
@@ -154,13 +155,10 @@ void Renderer::InitRenderGraph()
     m_CSMPass = std::make_shared<CSMPass>(*m_Graph, ShadowPassInitInfo{
         .Geometry = &m_GraphOpaqueGeometry});
     m_CSMVisualizePass = std::make_shared<CSMVisualizePass>(*m_Graph);
-    m_BlitCSM = std::make_shared<BlitPass>("Blit.CSM");
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
     m_HiZVisualizePass = std::make_shared<HiZVisualize>(*m_Graph);
-    m_BlitPartialDraw = std::make_shared<BlitPass>("Blit.PartialDraw");
-    m_BlitHiZ = std::make_shared<BlitPass>("Blit.Hiz");
     m_CopyTexturePass = std::make_shared<CopyTexturePass>("Copy.Texture");
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
@@ -240,7 +238,7 @@ void Renderer::SetupRenderGraph()
     m_CSMPass->AddToGraph(*m_Graph, {
         .MainCamera = m_Camera.get(),
         .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
-        .ViewDistance = 400.0f});
+        .ViewDistance = 2.0f});
     auto& csmOutput = m_Graph->GetBlackboard().Get<CSMPass::PassData>();
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
@@ -298,20 +296,15 @@ void Renderer::SetupRenderGraph()
 
     m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<HiZVisualize::PassData>();
-    m_BlitHiZ->AddToGraph(*m_Graph, hizVisualizePassOutput.ColorOut, backbuffer,
-        glm::vec3{0.75f, 0.05f, 0.0f}, 0.2f);
-    auto& blitHiZOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(m_BlitHiZ->GetNameHash());
-    backbuffer = blitHiZOutput.TextureOut;
 
     m_CSMVisualizePass->AddToGraph(*m_Graph, csmOutput, {});
     auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<CSMVisualizePass::PassData>();
 
-    m_BlitCSM->AddToGraph(*m_Graph, visualizeCSMPassOutput.ColorOut, backbuffer,
-        glm::vec3{0.75f, 0.35f, 0.0f}, 0.2f);
-    auto& blitCSMOutput = m_Graph->GetBlackboard().Get<BlitPass::PassData>(
-        m_BlitCSM->GetNameHash());
-    backbuffer = blitCSMOutput.TextureOut;
-        
+    ImGuiTexturePass::AddToGraph("SSAO.Texture", *m_Graph, ssaoBlurVerticalOutput.SsaoOut);
+    ImGuiTexturePass::AddToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
+    ImGuiTexturePass::AddToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
+    ImGuiTexturePass::AddToGraph("BRDF.Texture", *m_Graph, *m_BRDF);
+
     //SetupRenderSlimePasses();
 }
 
@@ -346,7 +339,7 @@ void Renderer::OnRender()
     CPU_PROFILE_FRAME("On render")
 
     BeginFrame();
-    ImGuiUI::BeginFrame();
+    ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
     ProcessPendingCubemaps();
     ProcessPendingPBRTextures();
 

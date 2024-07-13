@@ -5,6 +5,7 @@
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #include <vma/vk_mem_alloc.h>
+#include <imgui/imgui_impl_vulkan.h>
 
 #include "ResourceUploader.h"
 #include "utils/CoreUtils.h"
@@ -730,7 +731,7 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
     std::vector<VkPresentModeKHR> desiredPresentModes = {{
-        VK_PRESENT_MODE_IMMEDIATE_KHR,
+        //VK_PRESENT_MODE_IMMEDIATE_KHR,
         VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
     DeviceSurfaceDetails surfaceDetails = GetSurfaceDetails(*createInfo.Device);
@@ -2730,6 +2731,17 @@ void Driver::DestroyTracyGraphicsContext(TracyVkCtx context)
 VkCommandBuffer Driver::GetProfilerCommandBuffer(ProfilerContext* context)
 {
     return Resources()[*context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
+}
+
+ImTextureID Driver::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout,
+    const glm::uvec2& size)
+{
+    ImageViewHandle viewHandle = texture.Image->GetViewHandle(texture.Description.Pack());
+    VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(Resources()[sampler].Sampler,
+        Resources()[*texture.Image].Views.ViewList[viewHandle.m_Index],
+        vulkanImageLayoutFromImageLayout(layout));
+
+    return ImTextureID{imageDescriptorSet};
 }
 
 VkImageView Driver::CreateVulkanImageView(const ImageSubresource& image, VkFormat format)

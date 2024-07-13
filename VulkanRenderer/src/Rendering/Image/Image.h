@@ -75,6 +75,8 @@ struct ImageDescription
     ImageUsage Usage{ImageUsage::None};
     ImageFilter MipmapFilter{ImageFilter::Linear};
     std::vector<ImageSubresourceDescription::Packed> AdditionalViews;
+
+    f32 AspectRatio() const { return (f32)Width / (f32)Height; }
 };
 using TextureDescription = ImageDescription;
 

@@ -19,6 +19,7 @@
 #include <tracy/TracyVulkan.hpp>
 
 #include "DriverSparseSet.h"
+#include "imgui/imgui.h"
 
 class ProfilerContext;
 class ShaderPipeline;
@@ -617,6 +618,9 @@ public:
     static void DestroyTracyGraphicsContext(TracyVkCtx context);
     // TODO: FIX ME: direct vkapi usage
     static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
+
+    static ImTextureID CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout,
+        const glm::uvec2& size);
 private:
     static VkDevice DeviceHandle() { return Resources().m_Devices[0].Device; }
     static VmaAllocator& Allocator() { return s_State.Allocator; }

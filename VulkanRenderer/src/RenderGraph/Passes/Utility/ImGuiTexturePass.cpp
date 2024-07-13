@@ -1,0 +1,50 @@
+#include "ImGuiTexturePass.h"
+
+#include "imgui/imgui.h"
+#include "Imgui/ImguiUI.h"
+#include "RenderGraph/RenderGraph.h"
+
+void ImGuiTexturePass::AddToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture)
+{
+    AddToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
+}
+
+void ImGuiTexturePass::AddToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn)
+{
+    using namespace RG;
+    using enum ResourceAccessFlags;
+    
+    struct PassData
+    {
+        Resource Texture{};
+        std::string Name{};
+    };
+    renderGraph.AddRenderPass<PassData>(name,
+        [&](Graph& graph, PassData& passData)
+        {
+            passData.Texture = graph.Read(textureIn, Pixel | Sampled);
+            passData.Name = name;
+            graph.HasSideEffect();
+        },
+        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        {
+            CPU_PROFILE_FRAME("ImGui Texture")
+            GPU_PROFILE_FRAME("ImGui Texture")
+
+            const Texture& texture = resources.GetTexture(passData.Texture);
+            
+            ImGui::Begin(passData.Name.c_str());
+            ImVec2 availableRegion = ImGui::GetContentRegionAvail();
+            glm::vec2 size = {availableRegion.x, availableRegion.y};
+            // save the aspect ratio of image
+            f32 aspect = texture.Description().AspectRatio();
+            if (aspect > 1.0f)
+                size.y = size.x / aspect;
+            else
+                size.x = size.y * aspect;
+            
+            ImGuiUI::Texture(texture.Subresource(), Sampler::Builder().Build(), ImageLayout::Readonly,
+                glm::uvec2(size));
+            ImGui::End();
+        });
+}

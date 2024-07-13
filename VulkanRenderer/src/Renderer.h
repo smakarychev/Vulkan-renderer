@@ -101,8 +101,6 @@ private:
     
     std::shared_ptr<HiZVisualize> m_HiZVisualizePass;
     std::shared_ptr<CopyTexturePass> m_CopyTexturePass;
-    std::shared_ptr<BlitPass> m_BlitPartialDraw;
-    std::shared_ptr<BlitPass> m_BlitHiZ;
 
     std::shared_ptr<VisibilityPass> m_VisibilityPass;
     std::shared_ptr<PbrVisibilityBufferIBL> m_PbrVisibilityBufferIBLPass;
@@ -114,7 +112,6 @@ private:
     
     std::shared_ptr<VisualizeBRDFPass> m_VisualizeBRDFPass;
     
-
     Texture m_SkyboxTexture{};
     Texture m_SkyboxIrradianceMap{};
     Texture m_SkyboxPrefilterMap{};
@@ -123,7 +120,6 @@ private:
 
     std::shared_ptr<CSMPass> m_CSMPass;
     std::shared_ptr<CSMVisualizePass> m_CSMVisualizePass;
-    std::shared_ptr<BlitPass> m_BlitCSM;
 
     
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;

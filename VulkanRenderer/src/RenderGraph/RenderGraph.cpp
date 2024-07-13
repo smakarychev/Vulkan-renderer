@@ -276,6 +276,13 @@ namespace RG
         return depthStencilAccess.m_Resource;
     }
 
+    void Graph::HasSideEffect()
+    {
+        ASSERT(m_ResourceTarget, "Call to 'HasSideEffect' outside of 'SetupFn' of render pass")
+
+        m_ResourceTarget->m_CanBeCulled = false;
+    }
+
     const BufferDescription& Graph::GetBufferDescription(Resource buffer)
     {
         ASSERT(buffer.IsBuffer(), "Provided resource is not a buffer")
@@ -613,7 +620,7 @@ namespace RG
 
         // todo: the actual culling. Also this algorithm can be simplified if we account for non-cullable passes
         for (u32 passIndex = 0; passIndex < passRefCount.size(); passIndex++)
-            if (passRefCount[passIndex] == 0)
+            if (passRefCount[passIndex] == 0 && m_RenderPasses[passIndex]->m_CanBeCulled)
                 LOG("TO BE CULLED: {}", m_RenderPasses[passIndex]->m_Name.m_Name);
     }
 

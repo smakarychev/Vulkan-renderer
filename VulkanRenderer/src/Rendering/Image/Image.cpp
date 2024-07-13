@@ -557,7 +557,7 @@ std::vector<ImageViewHandle> Image::GetAdditionalViewHandles() const
 
 ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription::Packed subresource) const
 {
-    if (subresource == ImageSubresourceDescription::Packed{})
+    if (subresource == ImageSubresourceDescription::Packed{} || subresource == Subresource().Description.Pack())
         return 0;
         
     auto it = std::ranges::find(m_Description.AdditionalViews, subresource);

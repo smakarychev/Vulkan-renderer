@@ -235,6 +235,7 @@ namespace RG
         Resource DepthStencilTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
             AttachmentLoad onLoad, AttachmentStore onStore,
             std::optional<DepthBias> depthBias, f32 clearDepth, u32 clearStencil = 0);
+        void HasSideEffect();
 
         const BufferDescription& GetBufferDescription(Resource buffer);
         const TextureDescription& GetTextureDescription(Resource texture);
