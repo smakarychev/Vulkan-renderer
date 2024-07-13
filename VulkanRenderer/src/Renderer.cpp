@@ -71,7 +71,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{1.0f}}});
+            .Scale = glm::vec3{10.0f}}});
     
     m_GraphOpaqueGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
@@ -238,7 +238,7 @@ void Renderer::SetupRenderGraph()
     m_CSMPass->AddToGraph(*m_Graph, {
         .MainCamera = m_Camera.get(),
         .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
-        .ViewDistance = 2.0f});
+        .ViewDistance = 400.0f});
     auto& csmOutput = m_Graph->GetBlackboard().Get<CSMPass::PassData>();
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {

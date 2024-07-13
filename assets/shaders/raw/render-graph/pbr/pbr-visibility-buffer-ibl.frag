@@ -333,15 +333,15 @@ vec3 shade_pbr_ibl(ShadeInfo shade_info) {
     return ambient;
 }
 
-vec3 shade_pbr(ShadeInfo shade_info) {
-    const  float n_dot_v = clamp(dot(shade_info.normal, shade_info.view), 0.0f, 1.0f);
-
+vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     vec3 Lo = vec3(0.0f);
     Lo = shade_pbr_lights(shade_info);
 
     vec3 ambient = shade_pbr_ibl(shade_info);
-
-    return Lo + ambient;
+    
+    vec3 color = Lo * (1.0 - shadow) + ambient;
+    
+    return color * ao;
 }
 
 // the interpolated data (does not actually come from gbuffer)
@@ -436,7 +436,7 @@ float sample_shadow(vec3 normal, float projected_depth, vec2 uv, vec2 delta, flo
     const float normal_bias = mix(bias, 0.0005f, n_dot_l);
     
     const float depth = textureLod(sampler2DArray(u_csm, u_sampler_shadow), vec3(uv + delta, cascade), 0).r;
-    const float shadow = depth < projected_depth + normal_bias ? 0.0f : 0.8f;
+    const float shadow = depth < projected_depth + normal_bias ? 0.0f : 0.9f;
     
     return shadow;
 }
@@ -509,15 +509,14 @@ void main() {
     shade_info.specular_color = specular_color;
     shade_info.alpha = 1.0f; // unused
     
-    vec3 color;
-    color = shade_pbr(shade_info);
-    color = tonemap(color, 2.0f);
-
-    float ambient_occlusion = 1.0f;
-    ambient_occlusion *= gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
+    const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
     
     const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal);
-    color *= ambient_occlusion * (1.0f - shadow);
+
+    vec3 color;
+    color = shade_pbr(shade_info, shadow, ambient_occlusion);
+    color = tonemap(color, 2.0f);
+
     
     color += gbuffer_data.emissive;
     

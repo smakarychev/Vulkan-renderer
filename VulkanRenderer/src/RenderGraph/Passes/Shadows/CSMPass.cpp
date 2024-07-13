@@ -84,6 +84,7 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
                             .OnLoad = AttachmentLoad::Clear,
                             .ClearDepth = 0.0f,
                             .ClearStencil = 0},
+                        /* todo: for some reason DEPTH_CONSTANT_BIAS does not do anything at all */
                         .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}}});
     
     m_Pass->AddToGraph(renderGraph);
