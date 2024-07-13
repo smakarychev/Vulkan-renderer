@@ -91,7 +91,7 @@ Model* Model::LoadFromAsset(std::string_view path)
                 std::vector(tangentsBegin, tangentsEnd),
                 std::vector(uvsBegin, uvsEnd),
                 std::vector(indicesBegin, indicesEnd),
-                meshInfo.BoundingSphere,
+                {.Center = meshInfo.BoundingSphere.Center, .Radius = meshInfo.BoundingSphere.Radius},
                 std::vector(meshletsBegin, meshletsEnd)),
                 material});
     }

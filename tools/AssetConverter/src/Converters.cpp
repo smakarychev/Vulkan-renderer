@@ -210,7 +210,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             
             MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[meshIndex]], path);
             ConvertTextures(initialDirectoryPath, meshData);
-            assetLib::BoundingSphere sphere = Utils::welzlSphere(meshData.VertexGroup.Positions);
+            assetLib::BoundingSphere sphere = Utils::meshBoundingSphere(meshData.Meshlets);
 
             std::lock_guard lock(mutex);
             modelInfo.MeshInfos.push_back({

@@ -112,7 +112,7 @@ Mesh::Mesh(const std::vector<glm::vec3>& positions,
         const std::vector<glm::vec3>& normals,
         const std::vector<glm::vec3>& tangents,
         const std::vector<glm::vec2>& uvs, const std::vector<IndexType>& indices,
-        const BoundingSphere& boundingSphere,
+        const Sphere& boundingSphere,
         const std::vector<Meshlet>& meshlets)
     : m_Positions(positions), m_Normals(normals), m_Tangents(tangents), m_UVs(uvs), m_Indices(indices),
     m_BoundingSphere(boundingSphere),

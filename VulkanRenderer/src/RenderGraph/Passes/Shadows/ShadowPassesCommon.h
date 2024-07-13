@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "Common/Geometry.h"
 
 #include <glm/glm.hpp>
 
@@ -19,6 +20,7 @@ struct ShadowPassExecutionInfo
     const Camera* MainCamera{nullptr};
     const DirectionalLight* DirectionalLight{nullptr};
     f32 ViewDistance{100};
+    AABB GeometryBounds{};
 };
 
 struct ShadowProjectionBounds

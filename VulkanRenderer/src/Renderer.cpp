@@ -1,13 +1,10 @@
 #include "Renderer.h"
 
-#include <volk.h>
-#include <glm/ext/matrix_transform.hpp>
 #include <tracy/Tracy.hpp>
 
 #include "CameraGPU.h"
 #include "Model.h"
 #include "Core/Input.h"
-#include "Core/Random.h"
 
 #include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
@@ -28,13 +25,10 @@
 #include "RenderGraph/Passes/PostProcessing/Sky/SkyGradientPass.h"
 #include "RenderGraph/Passes/Shadows/CSMPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
-#include "RenderGraph/Passes/Shadows/DirectionalShadowPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
-#include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
-#include "RenderGraph/Passes/Utility/VisualizeDepthPass.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
 #include "Rendering/Image/Processing/CubemapProcessor.h"
@@ -234,11 +228,14 @@ void Renderer::SetupRenderGraph()
     directionalLight.Direction = glm::normalize(directionalLight.Direction);
 
     m_SceneLights.SetDirectionalLight(directionalLight);
-    
+
+    static f32 shadowDistance = 400.0f;
+    ImGui::DragFloat("Shadow distance", &shadowDistance, 1e-1f, 0.0f, 400.0f);
     m_CSMPass->AddToGraph(*m_Graph, {
         .MainCamera = m_Camera.get(),
         .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
-        .ViewDistance = 400.0f});
+        .ViewDistance = shadowDistance,
+        .GeometryBounds = m_GraphOpaqueGeometry.GetBounds()});
     auto& csmOutput = m_Graph->GetBlackboard().Get<CSMPass::PassData>();
     
     m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {

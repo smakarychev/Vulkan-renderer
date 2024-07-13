@@ -1,166 +1,31 @@
 ﻿#include "utils.h"
 
-#include <algorithm>
 #include <vector>
-#include <random>
 #include <glm/glm.hpp>
 #include <glm/gtx/norm.hpp>
 #include <meshoptimizer.h>
-
-#include "Core/core.h"
-
+#include <ranges>
 
 namespace
 {
-    assetLib::BoundingSphere sphereBy2Points(const std::vector<glm::vec3>& boundaryPoints)
+    assetLib::BoundingSphere mergeSpheres(const assetLib::BoundingSphere& a, const assetLib::BoundingSphere& b)
     {
-        glm::vec3 center = (boundaryPoints[0] + boundaryPoints[1]) * 0.5f;
+        f32 distance = glm::length(a.Center - b.Center);
 
-        f32 radius = glm::length(boundaryPoints[0] - boundaryPoints[1]) * 0.5f;
+        if (distance <= std::abs(a.Radius - b.Radius)) 
+            return a.Radius > b.Radius ? a : b;
 
-        return {.Center = center, .Radius = radius};
+        glm::vec3 newCenter = (a.Radius * a.Center + b.Radius * b.Center) / (a.Radius + b.Radius);
+        f32 newRadius = (distance + a.Radius + b.Radius) / 2.0f;
+
+        return {newCenter, newRadius};
     }
-    
-    assetLib::BoundingSphere sphereBy3Points(const std::vector<glm::vec3>& boundaryPoints)
-    {
-        glm::vec3 a = boundaryPoints[0] - boundaryPoints[2];
-        glm::vec3 b = boundaryPoints[1] - boundaryPoints[2];
-
-        glm::vec3 cross = glm::cross(a, b);
-
-        glm::vec3 center = boundaryPoints[2] + glm::cross(glm::length2(a) * b - glm::length2(b) * a, cross)
-            / (2.0f * glm::length2(cross));
-
-        f32 radius = glm::distance(boundaryPoints[0], center);
-
-        return {.Center = center, .Radius = radius};
-    }
-
-    assetLib::BoundingSphere sphereBy4Points(const std::vector<glm::vec3>& boundaryPoints)
-    {
-        glm::vec3 a = boundaryPoints[1] - boundaryPoints[0];
-        glm::vec3 b = boundaryPoints[2] - boundaryPoints[0];
-        glm::vec3 c = boundaryPoints[3] - boundaryPoints[0];
-
-        glm::vec3 squares = {
-            glm::length2(a),
-            glm::length2(b),
-            glm::length2(c),
-        };
-        
-        glm::vec3 center = boundaryPoints[0] +
-            (squares[0] * glm::cross(b, c) + squares[1] * glm::cross(c, a) + squares[2] * glm::cross(a, b)) /
-            (2.0f * glm::dot(a, glm::cross(b, c)));
-
-        f32 radius = glm::distance(center, boundaryPoints[0]);
-        
-        return {.Center = center, .Radius = radius};
-    }
-    
-    assetLib::BoundingSphere sphereByPoints(const std::vector<glm::vec3>& boundaryPoints)
-    {
-        if (boundaryPoints.empty())
-            return {.Center = glm::vec3(0.0f), .Radius = 0.0f};
-        if (boundaryPoints.size() == 1)
-            return {.Center = boundaryPoints.front(), .Radius = 0.0f};
-        if (boundaryPoints.size() == 2)
-            return sphereBy2Points(boundaryPoints);
-        if (boundaryPoints.size() == 3)
-            return sphereBy3Points(boundaryPoints);
-       return sphereBy4Points(boundaryPoints);
-    }
-
-    bool isInSphere(const glm::vec3& point, const assetLib::BoundingSphere& sphere)
-    {
-        return glm::distance(point, sphere.Center) - sphere.Radius < 1e-7f;
-    }
-
 }
 
 namespace Utils
 {
-    assetLib::BoundingSphere welzlSphere(std::vector<glm::vec3> points)
-    {
-        static std::random_device device;
-        static std::mt19937 generator{device()};
-        static std::uniform_real_distribution<f32> f32Distribution(0, 1);
-        
-        std::ranges::shuffle(points, generator);
-
-        std::vector<assetLib::BoundingSphere> results;
-        
-        enum class RecursionBranch {First, Second};
-        struct Frame
-        {
-            u32 PointCount;
-            std::optional<glm::vec3> TestPoint;
-            std::vector<glm::vec3> BoundaryPoints;
-            RecursionBranch Branch;
-
-            Frame(u32 pointCount, const std::vector<glm::vec3>& boundary, RecursionBranch branch)
-                : PointCount(pointCount), BoundaryPoints(boundary), Branch(branch) {}
-            Frame(u32 pointCount, const std::vector<glm::vec3>& boundary, const glm::vec3& testPoint, RecursionBranch branch)
-                : PointCount(pointCount), TestPoint(testPoint), BoundaryPoints(boundary), Branch(branch) {}
-        };
-
-        std::vector<Frame> frameStack;
-        frameStack.emplace_back((u32)points.size(), std::vector<glm::vec3>{}, RecursionBranch::First);
-
-        while (!frameStack.empty())
-        {
-            auto [count, testPoint, boundary, branch] = frameStack.back(); frameStack.pop_back();
-            if (branch == RecursionBranch::First)
-            {
-                if (count == 0 || boundary.size() == 4)
-                {
-                    results.push_back(sphereByPoints(boundary));
-                }
-                else
-                {
-                    u32 random = u32(f32Distribution(generator) * (f32)count);
-                    glm::vec3 point = points[random];
-                    std::swap(points[random], points[count - 1]);
-
-                    frameStack.emplace_back(count, boundary, point, RecursionBranch::Second);
-                    frameStack.emplace_back(count - 1, boundary, RecursionBranch::First);
-                }
-            }
-            else
-            {
-                assetLib::BoundingSphere testSphere = results.back(); results.pop_back();
-                if (isInSphere(*testPoint, testSphere))
-                {
-                    results.push_back(testSphere);
-                }
-                else
-                {
-                    boundary.push_back(*testPoint);
-                    frameStack.emplace_back(count - 1, boundary, RecursionBranch::First);
-                }
-            }
-        }
-        
-        return results.back();
-    }
-
-    u32 nextPowerOf2(u32 number)
-    {
-        ASSERT(number != 0, "Number must be positive")
-        number--;
-
-        number |= number >> 1;
-        number |= number >> 2;
-        number |= number >> 4;
-        number |= number >> 8;
-        number |= number >> 16;
-
-        return number + 1;
-    }
-
     void remapMesh(ModelConverter::MeshData& meshData, std::vector<u32>& indices)
     {
-        static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
-
         std::array<meshopt_Stream, (u32)assetLib::VertexElement::MaxVal> vertexElementsStreams = {{
             {meshData.VertexGroup.Positions.data(), sizeof(glm::vec3), sizeof(glm::vec3)},
             {meshData.VertexGroup.Normals.data(), sizeof(glm::vec3), sizeof(glm::vec3)},
@@ -186,19 +51,27 @@ namespace Utils
         remappedMesh.VertexGroup.UVs.resize(vertexCount);
 
         meshopt_remapIndexBuffer(remappedIndices.data(), indices.data(), indices.size(), indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), meshData.VertexGroup.Positions.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), meshData.VertexGroup.Normals.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Tangents.data(), meshData.VertexGroup.Tangents.data(), vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), meshData.VertexGroup.UVs.data(), vertexCountInitial, sizeof(glm::vec2), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), meshData.VertexGroup.Positions.data(),
+            vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), meshData.VertexGroup.Normals.data(),
+            vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Tangents.data(), meshData.VertexGroup.Tangents.data(),
+            vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), meshData.VertexGroup.UVs.data(),
+            vertexCountInitial, sizeof(glm::vec2), indexRemap.data());
 
         meshopt_optimizeVertexCache(remappedIndices.data(), remappedIndices.data(), indexCountInitial, vertexCount);
         meshopt_optimizeVertexFetchRemap(indexRemap.data(), remappedIndices.data(), indexCountInitial, vertexCount);
 
         meshopt_remapIndexBuffer(remappedIndices.data(), remappedIndices.data(), indexCountInitial, indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), remappedMesh.VertexGroup.Positions.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), remappedMesh.VertexGroup.Normals.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Tangents.data(), remappedMesh.VertexGroup.Tangents.data(), vertexCount, sizeof(glm::vec3), indexRemap.data());
-        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), remappedMesh.VertexGroup.UVs.data(), vertexCount, sizeof(glm::vec2), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Positions.data(), remappedMesh.VertexGroup.Positions.data(),
+            vertexCount, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Normals.data(), remappedMesh.VertexGroup.Normals.data(),
+            vertexCount, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.Tangents.data(), remappedMesh.VertexGroup.Tangents.data(),
+            vertexCount, sizeof(glm::vec3), indexRemap.data());
+        meshopt_remapVertexBuffer(remappedMesh.VertexGroup.UVs.data(), remappedMesh.VertexGroup.UVs.data(),
+            vertexCount, sizeof(glm::vec2), indexRemap.data());
 
         indices.clear();
         indices.reserve(remappedIndices.size());
@@ -210,7 +83,8 @@ namespace Utils
         meshData.VertexGroup.UVs = remappedMesh.VertexGroup.UVs;
     }
 
-    std::vector<assetLib::ModelInfo::Meshlet> createMeshlets(ModelConverter::MeshData& meshData, std::vector<u32>& indices)
+    std::vector<assetLib::ModelInfo::Meshlet> createMeshlets(ModelConverter::MeshData& meshData,
+        const std::vector<u32>& indices)
     {
         f32 coneWeight = 0.5f;
 
@@ -219,7 +93,8 @@ namespace Utils
         std::vector<u32> meshletVertices(meshoptMeshlets.size() * assetLib::ModelInfo::VERTICES_PER_MESHLET);
         std::vector<u8> meshletTriangles(meshoptMeshlets.size() * assetLib::ModelInfo::TRIANGLES_PER_MESHLET * 3);
 
-        meshoptMeshlets.resize(meshopt_buildMeshlets(meshoptMeshlets.data(), meshletVertices.data(), meshletTriangles.data(),
+        meshoptMeshlets.resize(meshopt_buildMeshlets(meshoptMeshlets.data(),
+            meshletVertices.data(), meshletTriangles.data(),
             indices.data(), indices.size(),
             (f32*)meshData.VertexGroup.Positions.data(), meshData.VertexGroup.Positions.size(), sizeof(glm::vec3),
             assetLib::ModelInfo::VERTICES_PER_MESHLET, assetLib::ModelInfo::TRIANGLES_PER_MESHLET, coneWeight));
@@ -273,10 +148,14 @@ namespace Utils
             for (u32 localIndex = 0; localIndex < meshlet.vertex_count; localIndex++)
             {
                 u32 vertexIndex = vertexOffset + localIndex;
-                finalMeshData.VertexGroup.Positions[vertexIndex] = meshData.VertexGroup.Positions[meshletVertices[vertexIndex]];
-                finalMeshData.VertexGroup.Normals[vertexIndex] = meshData.VertexGroup.Normals[meshletVertices[vertexIndex]];
-                finalMeshData.VertexGroup.Tangents[vertexIndex] = meshData.VertexGroup.Tangents[meshletVertices[vertexIndex]];
-                finalMeshData.VertexGroup.UVs[vertexIndex] = meshData.VertexGroup.UVs[meshletVertices[vertexIndex]];
+                finalMeshData.VertexGroup.Positions[vertexIndex] =
+                    meshData.VertexGroup.Positions[meshletVertices[vertexIndex]];
+                finalMeshData.VertexGroup.Normals[vertexIndex] =
+                    meshData.VertexGroup.Normals[meshletVertices[vertexIndex]];
+                finalMeshData.VertexGroup.Tangents[vertexIndex] =
+                    meshData.VertexGroup.Tangents[meshletVertices[vertexIndex]];
+                finalMeshData.VertexGroup.UVs[vertexIndex] =
+                    meshData.VertexGroup.UVs[meshletVertices[vertexIndex]];
             }
         }
         
@@ -284,5 +163,17 @@ namespace Utils
         meshData.VertexGroup = finalMeshData.VertexGroup;
 
         return meshlets;
+    }
+
+    assetLib::BoundingSphere meshBoundingSphere(const std::vector<assetLib::ModelInfo::Meshlet>& meshlets)
+    {
+        if (meshlets.empty())
+            return {.Center = glm::vec3{0.0f}, .Radius = 0.0f};
+
+        assetLib::BoundingSphere boundingSphere = meshlets.front().BoundingSphere;
+        for (auto& meshlet : meshlets | std::ranges::views::drop(1))
+            boundingSphere = mergeSpheres(boundingSphere, meshlet.BoundingSphere);
+
+        return boundingSphere;
     }
 }

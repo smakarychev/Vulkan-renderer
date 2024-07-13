@@ -18,7 +18,6 @@ struct VertexP3N3T3UV2
 };
 
 using Meshlet = assetLib::ModelInfo::Meshlet;
-using BoundingSphere = assetLib::BoundingSphere;
 
 class Mesh
 {
@@ -28,7 +27,7 @@ public:
         const std::vector<glm::vec3>& normals,
         const std::vector<glm::vec3>& tangents,
         const std::vector<glm::vec2>& uvs, const std::vector<IndexType>& indices,
-        const BoundingSphere& boundingSphere,
+        const Sphere& boundingSphere,
         const std::vector<Meshlet>& meshlets);
 
     u32 GetVertexCount() const { return (u32)m_Positions.size(); }
@@ -46,7 +45,10 @@ public:
     i32 GetVertexBufferOffset() const { return m_VertexBufferOffset; }
     u32 GetIndexBufferOffset() const { return m_IndexBufferOffset; }
 
-    const BoundingSphere& GetBoundingSphere() const { return m_BoundingSphere; }
+    const Sphere& GetBoundingSphere() const { return m_BoundingSphere; }
+    AABB GetBoundingBox() const { return {
+        .Min = m_BoundingSphere.Center - m_BoundingSphere.Radius,
+        .Max = m_BoundingSphere.Center + m_BoundingSphere.Radius}; }
     const std::vector<Meshlet>& GetMeshlets() const { return m_Meshlets; }
     u32 GetMeshletCount() const { return (u32)m_Meshlets.size(); }
 private:
@@ -59,6 +61,6 @@ private:
     i32 m_VertexBufferOffset{};
     u32 m_IndexBufferOffset{};
 
-    BoundingSphere m_BoundingSphere;
+    Sphere m_BoundingSphere;
     std::vector<Meshlet> m_Meshlets;
 };

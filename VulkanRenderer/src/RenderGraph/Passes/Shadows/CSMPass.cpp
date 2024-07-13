@@ -51,7 +51,7 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
     using enum ResourceAccessFlags;
 
     std::vector cascades = CalculateDepthCascades(*info.MainCamera, info.ViewDistance);
-    m_Cameras = CreateShadowCameras(*info.MainCamera, info.DirectionalLight->Direction, cascades);
+    m_Cameras = CreateShadowCameras(*info.MainCamera, info.DirectionalLight->Direction, cascades, info.GeometryBounds);
 
     std::vector<ImageSubresourceDescription::Packed> cascadeViews(SHADOW_CASCADES);
     for (u32 i = 0;  i < SHADOW_CASCADES; i++)
@@ -160,7 +160,7 @@ std::vector<f32> CSMPass::CalculateDepthCascades(const Camera& mainCamera, f32 v
 }
 
 std::vector<Camera> CSMPass::CreateShadowCameras(const Camera& mainCamera, const glm::vec3& lightDirection,
-        const std::vector<f32>& cascades)
+    const std::vector<f32>& cascades, const AABB& geometryBounds)
 {
     f32 near = mainCamera.GetFrustumPlanes().Near;
 
@@ -176,6 +176,8 @@ std::vector<Camera> CSMPass::CreateShadowCameras(const Camera& mainCamera, const
         
         FrustumCorners corners = mainCamera.GetFrustumCorners(previousDepth, depth);
         ShadowProjectionBounds bounds = ShadowUtils::projectionBoundsSphereWorld(corners);
+        bounds.Min.z = std::max(bounds.Min.z, geometryBounds.Min.z);
+        bounds.Max.z = std::min(bounds.Max.z, geometryBounds.Max.z);
 
         glm::vec3 cameraPosition = bounds.Centroid + lightDirection * bounds.Min.z;
         Camera shadowCamera = Camera::Orthographic({

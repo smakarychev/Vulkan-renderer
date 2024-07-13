@@ -39,6 +39,9 @@ public:
     u32 GetCommandCount() const { return m_CommandCount; }
     u32 GetMeshletCount() const { return m_CommandCount; }
     u32 GetRenderObjectCount() const { return m_RenderObjectCount; }
+    u32 GetTriangleCount() const { return m_TriangleCount; }
+
+    const AABB& GetBounds() const { return m_Bounds; }
 
     bool IsValid() const { return m_CommandCount != 0; }
 private:
@@ -74,6 +77,8 @@ private:
     u32 m_CommandCount{};
     u32 m_RenderObjectCount{};
     u32 m_TriangleCount{};
+
+    AABB m_Bounds{};
 };
 
 template <typename Filter>
@@ -81,32 +86,32 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
     ResourceUploader& resourceUploader, Filter&& filter)
 {
     CountsInfo countsInfo = GetCountsInfo(modelCollection, filter);
-    SceneGeometry renderPassGeometry = {};
-    renderPassGeometry.m_ModelCollection = &modelCollection;
-    renderPassGeometry.m_RenderObjectIndices.reserve(countsInfo.RenderObjectCount);
+    SceneGeometry sceneGeometry = {};
+    sceneGeometry.m_ModelCollection = &modelCollection;
+    sceneGeometry.m_RenderObjectIndices.reserve(countsInfo.RenderObjectCount);
 
     if (countsInfo.RenderObjectCount == 0)
     {
-        renderPassGeometry.m_CommandCount = 0;    
-        renderPassGeometry.m_RenderObjectCount = 0;    
-        renderPassGeometry.m_TriangleCount = 0;
+        sceneGeometry.m_CommandCount = 0;    
+        sceneGeometry.m_RenderObjectCount = 0;    
+        sceneGeometry.m_TriangleCount = 0;
 
-        return renderPassGeometry;
+        return sceneGeometry;
     }
 
-    InitBuffers(renderPassGeometry, countsInfo);
-    renderPassGeometry.m_AttributeBuffers = InitAttributeBuffers(countsInfo);
+    InitBuffers(sceneGeometry, countsInfo);
+    sceneGeometry.m_AttributeBuffers = InitAttributeBuffers(countsInfo);
 
-    u32 mappedCommandsBuffer = resourceUploader.GetMappedBuffer(renderPassGeometry.m_Commands.GetSizeBytes());
+    u32 mappedCommandsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_Commands.GetSizeBytes());
     IndirectDrawCommand* commands = (IndirectDrawCommand*)resourceUploader.GetMappedAddress(mappedCommandsBuffer);
 
-    u32 mappedMeshletsBuffer = resourceUploader.GetMappedBuffer(renderPassGeometry.m_Meshlets.GetSizeBytes());
+    u32 mappedMeshletsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_Meshlets.GetSizeBytes());
     MeshletGPU* meshletsGPU = (MeshletGPU*)resourceUploader.GetMappedAddress(mappedMeshletsBuffer);
 
-    u32 mappedMaterialsBuffer = resourceUploader.GetMappedBuffer(renderPassGeometry.m_Materials.GetSizeBytes());
+    u32 mappedMaterialsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_Materials.GetSizeBytes());
     MaterialGPU* materialsGPU = (MaterialGPU*)resourceUploader.GetMappedAddress(mappedMaterialsBuffer);
 
-    u32 mappedObjectsBuffer = resourceUploader.GetMappedBuffer(renderPassGeometry.m_RenderObjects.GetSizeBytes());
+    u32 mappedObjectsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_RenderObjects.GetSizeBytes());
     RenderObjectGPU* renderObjectsGPU = (RenderObjectGPU*)resourceUploader.GetMappedAddress(mappedObjectsBuffer);
 
     u64 verticesOffset = 0;
@@ -120,19 +125,19 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
     {
         u64 verticesSize = mesh.GetPositions().size();
         u64 indicesSize = mesh.GetIndices().size();
-        resourceUploader.UpdateBuffer(renderPassGeometry.m_AttributeBuffers.Positions, mesh.GetPositions().data(),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Positions, mesh.GetPositions().data(),
             verticesSize * sizeof(glm::vec3),
             verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(renderPassGeometry.m_AttributeBuffers.Normals, mesh.GetNormals().data(),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Normals, mesh.GetNormals().data(),
             verticesSize * sizeof(glm::vec3),
             verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(renderPassGeometry.m_AttributeBuffers.Tangents, mesh.GetTangents().data(),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Tangents, mesh.GetTangents().data(),
             verticesSize * sizeof(glm::vec3),
             verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(renderPassGeometry.m_AttributeBuffers.UVs, mesh.GetUVs().data(),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.UVs, mesh.GetUVs().data(),
             verticesSize * sizeof(glm::vec2),
             verticesOffset * sizeof(glm::vec2));
-        resourceUploader.UpdateBuffer(renderPassGeometry.m_AttributeBuffers.Indices, mesh.GetIndices().data(),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Indices, mesh.GetIndices().data(),
             indicesSize * sizeof(assetLib::ModelInfo::IndexType),
             indicesOffset * sizeof(assetLib::ModelInfo::IndexType));
 
@@ -141,15 +146,22 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
         
         verticesOffset += verticesSize;
         indicesOffset += indicesSize;
+
+        /* here we merge a bounds of the individual meshes to produce a
+         * bounding box for the entire geometry.
+         * !!NOTE!! that because the default bounds have min and max
+         * set to 0, the resulting bounding box will always contain world origin
+         */
+        sceneGeometry.m_Bounds.Merge(mesh.GetBoundingBox());
     };
     auto renderObjectCallback = [&](const RenderObject& renderObject, u32 collectionIndex)
     {
-        renderPassGeometry.m_RenderObjectIndices.push_back(collectionIndex);
+        sceneGeometry.m_RenderObjectIndices.push_back(collectionIndex);
     
         const Mesh& mesh = modelCollection.GetMeshes()[renderObject.Mesh];
         u32 meshIndex = modelCollection.GetMeshes().index_of(renderObject.Mesh);
 
-        renderPassGeometry.m_FirstCommands[renderObjectIndex] = meshletIndex;
+        sceneGeometry.m_FirstCommands[renderObjectIndex] = meshletIndex;
     
         for (auto& meshlet : mesh.GetMeshlets())
         {
@@ -161,16 +173,16 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
                 .FirstInstance = meshletIndex,
                 .RenderObject = renderObjectIndex};
             
-            renderPassGeometry.m_CommandsCPU[meshletIndex] = command;
+            sceneGeometry.m_CommandsCPU[meshletIndex] = command;
             
             commands[meshletIndex] = command;
 
             meshletsGPU[meshletIndex] = {
                 .BoundingCone = meshlet.BoundingCone,
-                .BoundingSphere = meshlet.BoundingSphere};
+                .BoundingSphere = {.Center = meshlet.BoundingSphere.Center, .Radius = meshlet.BoundingSphere.Radius}};
         
             meshletIndex++;
-            renderPassGeometry.m_TriangleCount += meshlet.IndexCount / 3;
+            sceneGeometry.m_TriangleCount += meshlet.IndexCount / 3;
         }
 
         renderObjectsGPU[renderObjectIndex] = {
@@ -186,12 +198,12 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
     modelCollection.FilterMeshes(filter, meshCallback);
     modelCollection.FilterRenderObjects(filter, renderObjectCallback);
 
-    resourceUploader.UpdateBuffer(renderPassGeometry.m_Commands, mappedCommandsBuffer, 0);
-    resourceUploader.UpdateBuffer(renderPassGeometry.m_Meshlets, mappedMeshletsBuffer, 0);
-    resourceUploader.UpdateBuffer(renderPassGeometry.m_RenderObjects, mappedObjectsBuffer, 0);
-    resourceUploader.UpdateBuffer(renderPassGeometry.m_Materials, mappedMaterialsBuffer, 0);
+    resourceUploader.UpdateBuffer(sceneGeometry.m_Commands, mappedCommandsBuffer, 0);
+    resourceUploader.UpdateBuffer(sceneGeometry.m_Meshlets, mappedMeshletsBuffer, 0);
+    resourceUploader.UpdateBuffer(sceneGeometry.m_RenderObjects, mappedObjectsBuffer, 0);
+    resourceUploader.UpdateBuffer(sceneGeometry.m_Materials, mappedMaterialsBuffer, 0);
 
-    return renderPassGeometry;
+    return sceneGeometry;
 }
 
 template <typename Filter>

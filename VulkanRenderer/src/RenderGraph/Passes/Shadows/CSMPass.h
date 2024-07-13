@@ -26,7 +26,7 @@ public:
 private:
     static std::vector<f32> CalculateDepthCascades(const Camera& mainCamera, f32 viewDistance);
     static std::vector<Camera> CreateShadowCameras(const Camera& mainCamera, const glm::vec3& lightDirection,
-        const std::vector<f32>& cascades);
+        const std::vector<f32>& cascades, const AABB& geometryBounds);
 private:
     CullMultiviewData m_MultiviewData{};
     std::shared_ptr<CullMetaMultiviewPass> m_Pass{};

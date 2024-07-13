@@ -6,6 +6,7 @@
 #include "ModelAsset.h"
 #include "Settings.h"
 #include "RenderHandle.h"
+#include "Common/Geometry.h"
 
 class DescriptorSet;
 class Mesh;
@@ -64,11 +65,11 @@ struct RenderObject
 struct RenderObjectGPU
 {
     glm::mat4 Transform;
-    assetLib::BoundingSphere BoundingSphere;
+    Sphere BoundingSphere;
 };
 
 struct MeshletGPU
 {
     assetLib::BoundingCone BoundingCone;
-    assetLib::BoundingSphere BoundingSphere;
+    Sphere BoundingSphere;
 };
