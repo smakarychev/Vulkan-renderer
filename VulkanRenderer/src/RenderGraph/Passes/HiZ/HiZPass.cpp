@@ -108,7 +108,9 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
+                CPU_PROFILE_FRAME("HiZ")
                 GPU_PROFILE_FRAME("HiZ")
+                
                 const Texture& depthIn = resources.GetTexture(passData.DepthIn);
                 const Texture& hizOut = resources.GetTexture(passData.HiZOut);
                 

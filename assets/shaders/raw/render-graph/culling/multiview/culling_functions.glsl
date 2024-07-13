@@ -7,14 +7,29 @@ bool is_backface_meshlet_visible(vec3 sphere_origin, float radius, vec3 cone_axi
     return dot(sphere_origin, cone_axis) < cone_cutoff * length(sphere_origin) + radius;
 }
 
-bool is_frustum_visible(vec3 sphere_origin, float radius, ViewData view) {
+bool is_backface_meshlet_visible_orthographic(vec3 cone_axis, float cone_cutoff) {
+    return -cone_axis.z < cone_cutoff;
+}
+
+bool is_frustum_visible_orthographic(vec3 sphere_origin, float radius, ViewData view) {
     bool visible = true;
-    visible = visible && abs(view.frustum_right_x * sphere_origin.x) < -sphere_origin.z * view.frustum_right_z + radius;
-    visible = visible && abs(view.frustum_top_y * sphere_origin.y) < -sphere_origin.z * view.frustum_top_z + radius;
+    visible = visible && view.frustum_right_x * abs(sphere_origin.x) < 1.0f + view.frustum_right_x * radius;
+    visible = visible && view.frustum_top_y * abs(sphere_origin.y) < 1.0f + view.frustum_right_x * radius;
     visible = visible &&
         sphere_origin.z - radius <= -view.frustum_near &&
         sphere_origin.z + radius >= -view.frustum_far;
-    
+
+    return visible;
+}
+
+bool is_frustum_visible(vec3 sphere_origin, float radius, ViewData view) {
+    bool visible = true;
+    visible = visible && view.frustum_right_x * abs(sphere_origin.x) + sphere_origin.z * view.frustum_right_z < radius;
+    visible = visible && view.frustum_top_y * abs(sphere_origin.y) + sphere_origin.z * view.frustum_top_z < radius;
+    visible = visible &&
+        sphere_origin.z - radius <= -view.frustum_near &&
+        sphere_origin.z + radius >= -view.frustum_far;
+
     return visible;
 }
 

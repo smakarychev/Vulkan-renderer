@@ -39,19 +39,23 @@ layout(push_constant) uniform push_constants {
 
 bool is_visible(vec3 origin, float radius, uint view_index) {
     bool visible = true;
-    visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
-
+    if (is_orthographic(u_views.views[view_index]))
+        visible = visible && is_frustum_visible_orthographic(origin, radius, u_views.views[view_index]);
+    else
+        visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
+    
     return visible;
 }
 
 bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
     bool visible = true;
-    visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
     if (is_orthographic(u_views.views[view_index]))
-        visible = visible && 
+        visible = visible &&
+            is_frustum_visible_orthographic(origin, radius, u_views.views[view_index]) &&
             is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
     else
-        visible = visible && 
+        visible = visible &&
+            is_frustum_visible(origin, radius, u_views.views[view_index]) &&
             is_occlusion_visible(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
     
     return visible;

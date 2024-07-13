@@ -15,7 +15,7 @@ namespace RG::RgUtils
         CullMultiviewResources multiviewResource = {};
         
         multiviewResource.Multiview = &cullMultiviewData;
-        u32 viewCount = (u32)cullMultiviewData.Views().size();
+        u32 viewCount = (u32)cullMultiviewData.ViewCount();
         u32 geometryCount = (u32)cullMultiviewData.Geometries().size();
         multiviewResource.ViewCount = viewCount;
         multiviewResource.GeometryCount = geometryCount;
@@ -35,7 +35,7 @@ namespace RG::RgUtils
             GraphBufferDescription{.SizeBytes = geometryCount * sizeof(CullMultiviewData::ViewSpan)});
         multiviewResource.Views = graph.CreateResource(baseName + ".Views",
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(CullViewDataGPU)});
-        multiviewResource.HiZSampler = cullMultiviewData.Views()[0].Static.HiZContext->GetSampler();
+        multiviewResource.HiZSampler = cullMultiviewData.View(0).Static.HiZContext->GetSampler();
 
         multiviewResource.CompactCommandCount = graph.CreateResource(
             std::format("{}.CompactCommandsCount", baseName),
@@ -59,7 +59,7 @@ namespace RG::RgUtils
         
         for (u32 i = 0; i < viewCount; i++)
         {
-            auto& view = cullMultiviewData.Views()[i];
+            auto& view = cullMultiviewData.View(i);
             auto&& [staticV, dynamicV] = view;
             
             multiviewResource.HiZs.push_back(graph.AddExternal(std::format("{}.HiZ.{}", baseName, i),
@@ -235,7 +235,7 @@ namespace RG::RgUtils
 
         multiviewResource.MeshletCull = &multiview;
         multiviewResource.Multiview = multiview.Multiview;
-        u32 viewCount = (u32)multiview.Multiview->TriangleViews().size();
+        u32 viewCount = multiview.Multiview->TriangleViewCount();
         if (viewCount == 0)
             return multiviewResource;
         
@@ -262,15 +262,13 @@ namespace RG::RgUtils
         multiviewResource.Views = graph.CreateResource(baseName + ".Views",
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(CullViewDataGPU)});
 
-        auto dispatches = std::ranges::views::transform(multiview.Multiview->Views(), [](const CullViewDescription& v)
-        {
-            return TriangleCullMultiviewTraits::MaxDispatches(v.Static.Geometry->GetCommandCount());
-        });
-        multiviewResource.MaxDispatches = std::ranges::max(dispatches);
+        for (u32 i = 0; i < multiview.Multiview->ViewCount(); i++)
+            multiviewResource.MaxDispatches = std::max(multiviewResource.MaxDispatches,
+                multiview.Multiview->View(i).Static.Geometry->GetCommandCount());
         
         for (u32 i = 0; i < multiview.GeometryCount; i++)
         {
-            auto* geometry = multiview.Multiview->Views()[i].Static.Geometry;
+            auto* geometry = multiview.Multiview->View(i).Static.Geometry;
 
             multiviewResource.Indices.push_back(graph.AddExternal(std::format("{}.Indices.{}", baseName, i),
                 geometry->GetAttributeBuffers().Indices));
@@ -286,7 +284,7 @@ namespace RG::RgUtils
         u32 triangleViewIndex = 0;
         for (u32 meshletViewIndex = 0; meshletViewIndex < multiview.ViewCount; meshletViewIndex++)
         {
-            auto& view = multiview.Multiview->Views()[meshletViewIndex];
+            auto& view = multiview.Multiview->View(meshletViewIndex);
             auto&& [staticV, dynamicV] = view;
 
             /* skip all views that do not involve triangle culling */
@@ -428,15 +426,18 @@ namespace RG::RgUtils
          */
         for (u32 i = 0; i < viewCount; i++)
         {
-            auto& view = multiview.MeshletCull->Multiview->TriangleViews()[i];
+            auto& view = multiview.MeshletCull->Multiview->TriangleView(i);
             auto&& [staticV, dynamicV] = view;
             
             multiview.Cameras[i] = graph.Read(multiview.Cameras[i], Vertex | Pixel | Uniform | Upload);
 
+            
             /* read and update attachment handles */
             Utils::updateRecordedAttachmentResources(dynamicV.DrawInfo.Attachments, *multiview.AttachmentsRenames);
+            // todo: this is bad, change it after addition of 'mutableResources'
+            auto attachments = dynamicV.DrawInfo.Attachments;
             multiview.AttachmentResources[i] = readWriteDrawAttachments(dynamicV.DrawInfo.Attachments, graph);
-            Utils::recordUpdatedAttachmentResources(dynamicV.DrawInfo.Attachments, multiview.AttachmentResources[i],
+            Utils::recordUpdatedAttachmentResources(attachments, multiview.AttachmentResources[i],
                 *multiview.AttachmentsRenames);
 
             if (dynamicV.DrawInfo.SceneLights)
@@ -540,7 +541,7 @@ namespace RG::RgUtils
         {
             auto& resourceDescriptors = drawDescriptors[i];
 
-            auto& view = multiview.MeshletCull->Multiview->TriangleViews()[i];
+            auto& view = multiview.MeshletCull->Multiview->TriangleView(i);
             auto&& [staticV, dynamicV] = view;
 
             // todo: this is not the best way i guess

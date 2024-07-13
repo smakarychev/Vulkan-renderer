@@ -60,7 +60,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/armor/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/vokselia_spawn/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -221,8 +221,8 @@ void Renderer::SetupRenderGraph()
     auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().Get<SsaoBlurPass::PassData>(
             m_SsaoBlurVerticalPass->GetNameHash());
         
-    //m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, backbuffer);
-    //backbuffer = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>().ColorOut;
+    m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, {});
+    auto& ssaoVisualizeOutput = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>();
 
     // todo: should not be here obv
     DirectionalLight directionalLight = m_SceneLights.GetDirectionalLight();
@@ -286,21 +286,13 @@ void Renderer::SetupRenderGraph()
     m_CopyTexturePass->AddToGraph(*m_Graph, renderedColor, backbuffer, glm::vec3{}, glm::vec3{1.0f});
     backbuffer = m_Graph->GetBlackboard().Get<CopyTexturePass::PassData>().TextureOut;
     
-    //m_CrtPass->AddToGraph(*m_Graph, skyboxOutput.ColorOut, backbuffer);
-    //auto& crtOut = m_Graph->GetBlackboard().Get<CrtPass::PassData>();
-    //backbuffer = crtOut.ColorOut;
-
-    //m_VisualizeBRDFPass->AddToGraph(*m_Graph, *m_BRDF, backbuffer, GetFrameContext().Resolution);
-    //auto& visualizeBRDFOutput = m_Graph->GetBlackboard().Get<VisualizeBRDFPass::PassData>();
-    //backbuffer = visualizeBRDFOutput.ColorOut;
-
     m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<HiZVisualize::PassData>();
 
     m_CSMVisualizePass->AddToGraph(*m_Graph, csmOutput, {});
     auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<CSMVisualizePass::PassData>();
 
-    ImGuiTexturePass::AddToGraph("SSAO.Texture", *m_Graph, ssaoBlurVerticalOutput.SsaoOut);
+    ImGuiTexturePass::AddToGraph("SSAO.Texture", *m_Graph, ssaoVisualizeOutput.ColorOut);
     ImGuiTexturePass::AddToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
     ImGuiTexturePass::AddToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
     ImGuiTexturePass::AddToGraph("BRDF.Texture", *m_Graph, *m_BRDF);

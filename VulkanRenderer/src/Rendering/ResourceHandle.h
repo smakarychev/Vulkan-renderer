@@ -82,7 +82,7 @@ template <typename T>
 constexpr GenerationalResourceHandle<T> SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Compose(
     u32 generation, u32 value)
 {
-    return Handle((generation << GENERATION_SHIFT) & GENERATION_MASK | value);
+    return Handle(((generation << GENERATION_SHIFT) & GENERATION_MASK) | value);
 }
 
 /* this can be either GenerationalResourceHandle or just ResourceHandle */

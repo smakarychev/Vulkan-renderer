@@ -89,10 +89,15 @@ public:
     void UpdateView(u32 viewIndex, const CullViewDynamicDescription& description);
     void UpdateViewHiZ(u32 viewIndex, std::shared_ptr<HiZPassContext> context);
 
-    const std::vector<CullViewDescription>& Views() const { return m_Views; }
-    std::vector<CullViewDescription>& Views() { return m_Views; }
-    const std::vector<CullViewDescription>& TriangleViews() const { return m_TriangleViews; }
-    std::vector<CullViewDescription>& TriangleViews() { return m_TriangleViews; }
+    u32 ViewCount() const { return (u32)m_Views.size(); }
+    u32 TriangleViewCount() const { return (u32)m_TriangleViews.size(); }
+
+    const CullViewDescription& View(u32 index) const { return m_Views[index]; }
+    CullViewDescription& View(u32 index) { return m_Views[index]; }
+    
+    const CullViewDescription& TriangleView(u32 index) const { return m_Views[m_TriangleViews[index]]; }
+    CullViewDescription& TriangleView(u32 index) { return m_Views[m_TriangleViews[index]]; }
+    
     const std::vector<const SceneGeometry*>& Geometries() const { return m_Geometries; }
     const std::vector<ViewSpan>& ViewSpans() const { return m_ViewSpans; }
     const std::vector<ViewSpan>& TriangleViewSpans() const { return m_TriangleViewSpans; }
@@ -108,15 +113,8 @@ private:
     void ValidateViewRenderingAttachments(u32 lastViewIndex) const;
 private:
     std::vector<CullViewDescription> m_Views;
-    std::vector<CullViewDescription> m_TriangleViews;
-
-    struct IndexData
-    {
-        static constexpr u32 INVALID_INDEX = std::numeric_limits<u32>::max();
-        u32 ViewIndex{INVALID_INDEX};
-        u32 TriangleViewIndex{INVALID_INDEX};
-    };
-    std::vector<IndexData> m_IndexData;
+    /* indices into m_Views */
+    std::vector<u32> m_TriangleViews;
 
     bool m_IsFinalized{false};
     std::vector<const SceneGeometry*> m_Geometries;

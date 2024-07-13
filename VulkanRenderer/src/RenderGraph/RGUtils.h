@@ -29,6 +29,7 @@ namespace RG::RgUtils
     DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
         ResourceAccessFlags shaderStage);
     
+    DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph);
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
 
     SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage);

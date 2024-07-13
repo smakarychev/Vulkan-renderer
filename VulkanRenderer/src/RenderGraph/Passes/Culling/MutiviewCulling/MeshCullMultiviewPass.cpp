@@ -40,7 +40,7 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMul
             if (m_Stage != CullStage::Cull)
                 for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
                     info.MultiviewResource->HiZs[i] =
-                        info.MultiviewResource->Multiview->Views()[i].Static.HiZContext->GetHiZResource();
+                        info.MultiviewResource->Multiview->View(i).Static.HiZContext->GetHiZResource();
 
             RgUtils::readWriteCullMeshMultiview(*info.MultiviewResource, graph);
             
@@ -89,7 +89,7 @@ void MeshCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshCullMul
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {
-                u32 meshCount = multiview->Multiview->Views()[i].Static.Geometry->GetRenderObjectCount();
+                u32 meshCount = multiview->Multiview->View(i).Static.Geometry->GetRenderObjectCount();
                 
                 PushConstant pushConstant = {
                     .ObjectCount = meshCount,

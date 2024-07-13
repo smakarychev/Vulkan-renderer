@@ -62,6 +62,34 @@ namespace RG::RgUtils
         return buffers;
     }
 
+    DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph)
+    {
+        DrawAttachmentResources drawAttachmentResources = {};
+        drawAttachmentResources.Colors.reserve(attachments.Colors.size());
+        
+        for (auto& attachment : attachments.Colors)
+        {
+            attachment.Resource = graph.RenderTarget(
+                attachment.Resource, attachment.Description.Subresource,
+                attachment.Description.OnLoad, attachment.Description.OnStore,
+                attachment.Description.ClearColor.F);
+            drawAttachmentResources.Colors.push_back(attachment.Resource);
+        }
+        if (attachments.Depth.has_value())
+        {
+            auto& attachment = *attachments.Depth;
+            attachment.Resource = graph.DepthStencilTarget(
+                attachment.Resource, attachment.Description.Subresource,
+                attachment.Description.OnLoad, attachment.Description.OnStore,
+                attachment.DepthBias,
+                attachment.Description.ClearDepth,
+                attachment.Description.ClearStencil);
+            drawAttachmentResources.Depth = attachment.Resource;
+        }
+
+        return drawAttachmentResources;
+    }
+
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph)
     {
         DrawAttachmentResources drawAttachmentResources = {};

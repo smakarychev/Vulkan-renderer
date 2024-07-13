@@ -26,16 +26,8 @@ u32 CullMultiviewData::AddView(const CullViewStaticDescription& description)
     u32 index = (u32)m_Views.size();
     m_Views.push_back({.Static = description});
 
-    u32 triangleIndex = IndexData::INVALID_INDEX;
     if (description.CullTriangles)
-    {
-        triangleIndex = (u32)m_TriangleViews.size();
-        m_TriangleViews.push_back({.Static = description});
-    }
-
-    m_IndexData.push_back({
-        .ViewIndex = index,
-        .TriangleViewIndex = triangleIndex});
+        m_TriangleViews.push_back(index);
 
     return index;
 }
@@ -70,7 +62,11 @@ void CullMultiviewData::Finalize()
     };
 
     sortAndCalculateViewSpans(m_Views, m_ViewSpans);
-    sortAndCalculateViewSpans(m_TriangleViews, m_TriangleViewSpans);
+    std::vector<CullViewDescription> triangleViews;
+    triangleViews.reserve(m_TriangleViews.size());
+    for (u32 view : m_TriangleViews)
+        triangleViews.push_back(m_Views[view]);
+    sortAndCalculateViewSpans(triangleViews, m_TriangleViewSpans);
 
     m_Geometries.push_back(m_Views.front().Static.Geometry);
     for (u32 i = 0; i < m_Views.size(); i++)
@@ -96,22 +92,13 @@ void CullMultiviewData::Finalize()
 
 void CullMultiviewData::UpdateView(u32 viewIndex, const CullViewDynamicDescription& description)
 {
-    IndexData indexData = m_IndexData[viewIndex];
-    
-    m_Views[indexData.ViewIndex].Dynamic = description;
-    if (indexData.TriangleViewIndex != IndexData::INVALID_INDEX)
-        m_TriangleViews[indexData.TriangleViewIndex].Dynamic = description;
-    
+    m_Views[viewIndex].Dynamic = description;
     ValidateViewRenderingAttachments(viewIndex);
 }
 
 void CullMultiviewData::UpdateViewHiZ(u32 viewIndex, std::shared_ptr<HiZPassContext> context)
 {
-    IndexData indexData = m_IndexData[viewIndex];
-    
-    m_Views[indexData.ViewIndex].Static.HiZContext = context;
-    if (indexData.TriangleViewIndex != IndexData::INVALID_INDEX)
-        m_TriangleViews[indexData.TriangleViewIndex].Static.HiZContext = context;
+    m_Views[viewIndex].Static.HiZContext = context;
 }
 
 std::vector<CullViewDataGPU> CullMultiviewData::CreateMultiviewGPU() const
@@ -128,8 +115,8 @@ std::vector<CullViewDataGPU> CullMultiviewData::CreateMultiviewGPUTriangles() co
 {
     std::vector<CullViewDataGPU> views;
     views.reserve(m_TriangleViews.size());
-    for (auto& v : m_TriangleViews)
-        views.emplace_back(CullViewDataGPU::FromCullViewDescription(v));
+    for (u32 view : m_TriangleViews)
+        views.emplace_back(CullViewDataGPU::FromCullViewDescription(m_Views[view]));
 
     return views;
 }

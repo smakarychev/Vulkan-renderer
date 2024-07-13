@@ -136,12 +136,14 @@ TriangleCullMultiviewPass::TriangleCullMultiviewPass(RG::Graph& renderGraph, std
     /* init draw data */
     for (u32 i = 0; i < TriangleCullMultiviewTraits::MAX_BATCHES; i++)
     {
-        m_DrawPipelines[i].Pipelines.reserve(info.MultiviewData->Views().size());
-        m_DrawPipelines[i].ImmutableSamplerDescriptors.reserve(info.MultiviewData->Views().size());
-        m_DrawPipelines[i].ResourceDescriptors.reserve(info.MultiviewData->Views().size());
-        m_DrawPipelines[i].MaterialDescriptors.reserve(info.MultiviewData->Views().size());
-        for (auto& view : info.MultiviewData->Views())
+        m_DrawPipelines[i].Pipelines.reserve(info.MultiviewData->ViewCount());
+        m_DrawPipelines[i].ImmutableSamplerDescriptors.reserve(info.MultiviewData->ViewCount());
+        m_DrawPipelines[i].ResourceDescriptors.reserve(info.MultiviewData->ViewCount());
+        m_DrawPipelines[i].MaterialDescriptors.reserve(info.MultiviewData->ViewCount());
+
+        for (u32 viewIndex = 0; viewIndex < info.MultiviewData->ViewCount(); viewIndex++)
         {
+            auto& view = info.MultiviewData->View(viewIndex);
             if (!view.Static.CullTriangles)
                 continue;
             
@@ -200,7 +202,7 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                 {
                     u32 meshletIndex = info.MultiviewResource->MeshletViewIndices[i];
                     info.MultiviewResource->MeshletCull->HiZs[meshletIndex] =
-                        info.MultiviewResource->MeshletCull->Multiview->Views()[meshletIndex]
+                        info.MultiviewResource->MeshletCull->Multiview->View(meshletIndex)
                             .Static.HiZContext->GetHiZResource();
                 }
             }
@@ -213,8 +215,9 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
             // because the execution is deferred, at the moment of execution onLoad equals to load regardless
             // of its original value
             passData.TriangleDrawInfos.reserve(info.MultiviewResource->TriangleViewCount);
-            for (auto& v : info.MultiviewResource->Multiview->TriangleViews())
-                passData.TriangleDrawInfos.push_back(v.Dynamic.DrawInfo);
+            for (u32 i = 0; i < info.MultiviewResource->Multiview->TriangleViewCount(); i++)
+                passData.TriangleDrawInfos.push_back(
+                    info.MultiviewResource->Multiview->TriangleView(i).Dynamic.DrawInfo);
             passData.PreparePipelines = &m_PreparePipelines;
             passData.CullPipelines = &m_CullPipelines;
             passData.DrawPipelines = &m_DrawPipelines;
@@ -239,7 +242,7 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
 
             auto createRenderingInfo = [&](bool canClear, u32 viewIndex)
             {
-                auto& view = multiviewData->TriangleViews()[viewIndex];
+                auto& view = multiviewData->TriangleView(viewIndex);
                 auto&& [staticV, dynamicV] = view;
                 
                 RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
@@ -294,7 +297,7 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                     *frameContext.ResourceUploader);
             for (u32 i = 0; i < multiview->TriangleViewCount; i++)
             {
-                auto& view = multiviewData->TriangleViews()[i];
+                auto& view = multiviewData->TriangleView(i);
                 CameraGPU cameraGPU = CameraGPU::FromCamera(*view.Dynamic.Camera, view.Dynamic.Resolution);
                 resources.GetBuffer(multiview->Cameras[i], cameraGPU, *frameContext.ResourceUploader);
 
@@ -327,7 +330,7 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                 for (u32 i = 0; i < multiview->TriangleViewCount; i++)
                 {
                     u32 meshletIndex = multiview->MeshletViewIndices[i];
-                    auto& view = multiviewData->Views()[meshletIndex];
+                    auto& view = multiviewData->View(meshletIndex);
 
                     RenderCommand::BeginRendering(cmd, createRenderingInfo(true, i));
                     RenderCommand::SetViewport(cmd, view.Dynamic.Resolution);
@@ -414,7 +417,7 @@ void TriangleCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const Triangl
                     /* draw */
                     for (u32 i = 0; i < multiview->TriangleViewCount; i++)
                     {
-                        auto& view = multiviewData->TriangleViews()[i];
+                        auto& view = multiviewData->TriangleView(i);
                         auto&& [staticV, dynamicV] = view;
                         
                         auto& pipeline = passData.DrawPipelines->at(batchIndex).Pipelines[i];
