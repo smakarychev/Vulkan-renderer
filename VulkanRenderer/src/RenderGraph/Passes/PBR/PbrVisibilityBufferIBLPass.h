@@ -36,6 +36,7 @@ public:
         RG::CSMData CSMData{};
         
         RG::Resource Camera{};
+        RG::Resource ShadingSettings{};
         RG::Resource Commands{};
         RG::Resource Objects{};
         RG::Resource Positions{};

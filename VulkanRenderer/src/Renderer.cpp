@@ -4,6 +4,7 @@
 
 #include "CameraGPU.h"
 #include "Model.h"
+#include "ShadingSettingsGPU.h"
 #include "Core/Input.h"
 
 #include "GLFW/glfw3.h"
@@ -193,6 +194,13 @@ void Renderer::SetupRenderGraph()
 
     // update camera
     CameraGPU cameraGPU = CameraGPU::FromCamera(*m_Camera, m_Swapchain.GetResolution());
+    static ShadingSettingsGPU shadingSettingsGPU = {
+        .EnvironmentPower = 1.0f,
+        .SoftShadows = false};
+    ImGui::Begin("Shading Settings");
+    ImGui::DragFloat("Environment power", &shadingSettingsGPU.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
+    ImGui::Checkbox("Soft shadows", (bool*)&shadingSettingsGPU.SoftShadows);
+    ImGui::End();
 
     // todo: should not create and delete every frame
     Buffer mainCameraBuffer = Buffer::Builder({
@@ -200,9 +208,15 @@ void Renderer::SetupRenderGraph()
             .Usage = BufferUsage::Uniform | BufferUsage::Upload | BufferUsage::DeviceAddress})
         .Build(GetFrameContext().DeletionQueue);
     mainCameraBuffer.SetData(&cameraGPU, sizeof(CameraGPU));
+    Buffer shadingSettingsBuffer = Buffer::Builder({
+            .SizeBytes = sizeof(ShadingSettingsGPU),
+            .Usage = BufferUsage::Uniform | BufferUsage::Upload | BufferUsage::DeviceAddress})
+        .Build(GetFrameContext().DeletionQueue);
+    shadingSettingsBuffer.SetData(&shadingSettingsGPU, sizeof(ShadingSettingsGPU));
     
     GlobalResources globalResources = {
-        .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer)};
+        .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer),
+        .ShadingSettings = m_Graph->AddExternal("ShadingSettings", shadingSettingsBuffer)};
     m_Graph->GetBlackboard().Register(globalResources);
 
     m_VisibilityPass->AddToGraph(*m_Graph, {

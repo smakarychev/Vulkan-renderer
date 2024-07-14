@@ -72,6 +72,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
             
             passData.Camera = graph.Read(graphGlobals.MainCameraGPU, Pixel | Uniform);
+            passData.ShadingSettings = graph.Read(graphGlobals.ShadingSettings, Pixel | Uniform);
             passData.Commands = graph.Read(passData.Commands, Pixel | Storage);
             passData.Objects = graph.Read(passData.Objects, Pixel | Storage);
             passData.Positions = graph.Read(passData.Positions, Pixel | Storage);
@@ -94,6 +95,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
 
             const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
             const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera);
+            const Buffer& shadingSettings = resources.GetBuffer(passData.ShadingSettings);
 
             const Buffer& commands = resources.GetBuffer(passData.Commands);
             const Buffer& objects = resources.GetBuffer(passData.Objects);
@@ -115,6 +117,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             RgUtils::updateSSAOBindings(resourceDescriptors, resources, passData.SSAO);
             RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
             resourceDescriptors.UpdateBinding("u_camera", cameraBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_shading", shadingSettings.BindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commands.BindingInfo());
             resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
             resourceDescriptors.UpdateBinding("u_positions", positions.BindingInfo());

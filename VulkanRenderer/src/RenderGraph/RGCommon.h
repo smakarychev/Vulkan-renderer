@@ -10,6 +10,7 @@ namespace RG
     struct GlobalResources
     {
         Resource MainCameraGPU{};
+        Resource ShadingSettings{};
     };
     
     struct PipelineData

@@ -33,42 +33,46 @@ layout(set = 1, binding = 5) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
 
-layout(scalar, set = 1, binding = 6) uniform directional_light {
+layout(set = 1, binding = 6) uniform shading_settings {
+    ShadingSettings settings;
+} u_shading;
+
+layout(scalar, set = 1, binding = 7) uniform directional_light {
     DirectionalLight light;
 } u_directional_light;
 
-layout(std430, set = 1, binding = 7) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 8) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 8) readonly buffer objects_buffer {
+layout(std430, set = 1, binding = 9) readonly buffer objects_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 9) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 10) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 10) readonly buffer normals_buffer {
+layout(std430, set = 1, binding = 11) readonly buffer normals_buffer {
     Normal normals[];
 } u_normals;
 
-layout(std430, set = 1, binding = 11) readonly buffer tangents_buffer {
+layout(std430, set = 1, binding = 12) readonly buffer tangents_buffer {
     Tangent tangents[];
 } u_tangents;
 
-layout(std430, set = 1, binding = 12) readonly buffer uvs_buffer {
+layout(std430, set = 1, binding = 13) readonly buffer uvs_buffer {
     UV uvs[];
 } u_uv;
 
-layout(std430, set = 1, binding = 13) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 14) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
 
 // shadow-related descriptors
-layout(set = 1, binding = 14) uniform texture2DArray u_csm;
-layout(scalar, set = 1, binding = 15) uniform csm_data_buffer {
+layout(set = 1, binding = 15) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 16) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
@@ -340,7 +344,7 @@ vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     vec3 Lo = vec3(0.0f);
     Lo = shade_pbr_lights(shade_info);
 
-    vec3 ambient = shade_pbr_ibl(shade_info);
+    vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
     
     vec3 color = Lo * (1.0 - shadow) + ambient;
     
