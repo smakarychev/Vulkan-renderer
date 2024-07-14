@@ -84,6 +84,9 @@ layout(location = 1) in vec2 vertex_position;
 
 layout(location = 0) out vec4 out_color;
 
+/* the content of this file depends on descriptor names */
+#include "../shadows/shadows.glsl"
+
 uvec3 get_indices(VisibilityInfo visibility_info) {
     IndirectCommand command = u_commands.commands[visibility_info.instance_id];
     uvec3 indices = uvec3(
@@ -428,51 +431,6 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     data.ao = ao;
     
     return data;
-}
-
-float sample_shadow(vec3 normal, float projected_depth, vec2 uv, vec2 delta, float cascade) {
-    const float bias = 0.0025f;
-    const float n_dot_l = dot(normal, -u_directional_light.light.direction);
-    const float normal_bias = mix(bias, 0.0005f, n_dot_l);
-    
-    const float depth = textureLod(sampler2DArray(u_csm, u_sampler_shadow), vec3(uv + delta, cascade), 0).r;
-    const float shadow = depth < projected_depth + normal_bias ? 0.0f : 0.9f;
-    
-    return shadow;
-}
-
-float shadow(vec3 position, vec3 normal) {
-    const ivec2 shadow_size = ivec2(textureSize(u_csm, 0));
-    const float scale = 0.8f;
-    const vec2 delta = vec2(scale) / vec2(shadow_size);
-
-    const vec3 position_view = vec3(u_camera.camera.view * vec4(position, 1.0f));
-    uint cascade_index = 0;
-    for (uint i = 0; i < u_csm_data.csm.cascade_count; i++)
-        if (-position_view.z < u_csm_data.csm.cascades[i]) {
-            cascade_index = i;
-            break;
-        }
-
-    const vec4 shadow_local = u_csm_data.csm.view_projections[cascade_index] * vec4(position, 1.0f);
-    const vec3 ndc = shadow_local.xyz / shadow_local.w;
-    vec2 uv = (ndc.xy * 0.5f) + 0.5f;
-    
-    if (ndc.z < 0.0f)
-        return 0.0f;
-    
-    float shadow_factor = 0.0f;
-    int samples_dim = 1;
-    int samples_count = 0;
-    for (int x = -samples_dim; x <= samples_dim; x++) {
-        for (int y = -samples_dim; y <= samples_dim; y++) {
-            shadow_factor += sample_shadow(normal, ndc.z, uv, vec2(delta.x * x, delta.y * y), float(cascade_index));
-            samples_count++;
-        }
-    }
-    shadow_factor /= float(samples_count);
-
-    return shadow_factor;
 }
 
 void main() {
