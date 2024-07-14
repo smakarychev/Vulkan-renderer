@@ -19,7 +19,8 @@ public:
     DirectionalShadowPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& info);
 private:
-    static Camera CreateShadowCamera(const Camera& mainCamera, const glm::vec3& lightDirection, f32 viewDistance);
+    static Camera CreateShadowCamera(const Camera& mainCamera, const glm::vec3& lightDirection, f32 viewDistance,
+        const AABB& geometryBounds);
 private:
     std::shared_ptr<CullMetaPass> m_Pass{};
 

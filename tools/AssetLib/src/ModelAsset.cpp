@@ -218,6 +218,10 @@ namespace assetLib
             const nlohmann::json& boundingSphere = mesh["bounding_sphere"];
             meshInfo.BoundingSphere.Center = boundingSphere["center"];
             meshInfo.BoundingSphere.Radius = boundingSphere["radius"];
+
+            const nlohmann::json& boundingBox = mesh["bounding_box"];
+            meshInfo.BoundingBox.Min = boundingBox["min"];
+            meshInfo.BoundingBox.Max = boundingBox["max"];
             
             info.MeshInfos.push_back(meshInfo);
         }
@@ -272,6 +276,11 @@ namespace assetLib
             boundingSphere["center"] = mesh.BoundingSphere.Center;
             boundingSphere["radius"] = mesh.BoundingSphere.Radius;
             meshJson["bounding_sphere"] = boundingSphere;
+
+            nlohmann::json boundingBox;
+            boundingBox["min"] = mesh.BoundingBox.Min;
+            boundingBox["max"] = mesh.BoundingBox.Max;
+            meshJson["bounding_box"] = boundingBox;
             
             metadata["meshes_info"].push_back(meshJson);
         }

@@ -7,5 +7,6 @@ namespace ShadowUtils
 {
     void stabilizeShadowProjection(Camera& camera, u32 shadowResolution);
 
-    ShadowProjectionBounds projectionBoundsSphereWorld(const FrustumCorners& frustumCorners);
+    ShadowProjectionBounds projectionBoundsSphereWorld(const FrustumCorners& frustumCorners,
+        const AABB& geometryBounds);
 }

@@ -28,6 +28,7 @@ public:
         const std::vector<glm::vec3>& tangents,
         const std::vector<glm::vec2>& uvs, const std::vector<IndexType>& indices,
         const Sphere& boundingSphere,
+        const AABB& boundingBox,
         const std::vector<Meshlet>& meshlets);
 
     u32 GetVertexCount() const { return (u32)m_Positions.size(); }
@@ -46,9 +47,7 @@ public:
     u32 GetIndexBufferOffset() const { return m_IndexBufferOffset; }
 
     const Sphere& GetBoundingSphere() const { return m_BoundingSphere; }
-    AABB GetBoundingBox() const { return {
-        .Min = m_BoundingSphere.Center - m_BoundingSphere.Radius,
-        .Max = m_BoundingSphere.Center + m_BoundingSphere.Radius}; }
+    AABB GetBoundingBox() const { return m_BoundingBox; }
     const std::vector<Meshlet>& GetMeshlets() const { return m_Meshlets; }
     u32 GetMeshletCount() const { return (u32)m_Meshlets.size(); }
 private:
@@ -62,5 +61,6 @@ private:
     u32 m_IndexBufferOffset{};
 
     Sphere m_BoundingSphere;
+    AABB m_BoundingBox;
     std::vector<Meshlet> m_Meshlets;
 };

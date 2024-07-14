@@ -333,7 +333,7 @@ namespace
 
     constexpr VkPipelineStageFlags2 vulkanPipelineStageFromPipelineStage(PipelineStage stage)
     {
-        std::vector<std::pair<PipelineStage, VkPipelineStageFlags2>> MAPPINGS {
+        const std::vector<std::pair<PipelineStage, VkPipelineStageFlags2>> MAPPINGS {
             {PipelineStage::Top,                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT},
             {PipelineStage::Indirect,               VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT},
             {PipelineStage::VertexInput,            VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT},
@@ -372,7 +372,7 @@ namespace
 
     constexpr VkAccessFlagBits2 vulkanAccessFlagsFromPipelineAccess(PipelineAccess access)
     {
-        std::vector<std::pair<PipelineAccess, VkAccessFlagBits2>> MAPPINGS {
+        const std::vector<std::pair<PipelineAccess, VkAccessFlagBits2>> MAPPINGS {
             {PipelineAccess::ReadIndirect,                  VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT},
             {PipelineAccess::ReadIndex,                     VK_ACCESS_2_INDEX_READ_BIT},
             {PipelineAccess::ReadAttribute,                 VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT},
@@ -409,7 +409,7 @@ namespace
     constexpr VkDependencyFlags vulkanDependencyFlagsFromPipelineDependencyFlags(
         PipelineDependencyFlags dependencyFlags)
     {
-        std::vector<std::pair<PipelineDependencyFlags, VkDependencyFlags>> MAPPINGS {
+        const std::vector<std::pair<PipelineDependencyFlags, VkDependencyFlags>> MAPPINGS {
             {PipelineDependencyFlags::ByRegion,     VK_DEPENDENCY_BY_REGION_BIT},
             {PipelineDependencyFlags::DeviceGroup,  VK_DEPENDENCY_DEVICE_GROUP_BIT},
             {PipelineDependencyFlags::FeedbackLoop, VK_DEPENDENCY_FEEDBACK_LOOP_BIT_EXT},

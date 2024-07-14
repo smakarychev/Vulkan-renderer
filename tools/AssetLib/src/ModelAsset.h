@@ -46,6 +46,12 @@ namespace assetLib
         glm::vec3 Center;
         f32 Radius;
     };
+    
+    struct BoundingBox
+    {
+        glm::vec3 Min;
+        glm::vec3 Max;
+    };
 
     struct BoundingCone
     {
@@ -103,6 +109,7 @@ namespace assetLib
             MaterialPropertiesPBR MaterialPropertiesPBR;
             std::array<MaterialInfo, (u32)MaterialAspect::MaxVal> Materials;
             BoundingSphere BoundingSphere;
+            BoundingBox BoundingBox;
         };
         
         VertexFormat VertexFormat;

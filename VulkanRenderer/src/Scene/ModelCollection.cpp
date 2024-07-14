@@ -47,11 +47,23 @@ void ModelCollection::AddModelInstance(const std::string& modelName, const Model
     }
 
     for (auto& renderObject : GetRenderObjects(modelName))
+    {
         m_RenderObjects.push_back({
             .Mesh = renderObject.Mesh,
             .MaterialGPU = renderObject.MaterialGPU,
             .Material = renderObject.Material,
             .Transform = modelInstanceInfo.Transform});
+
+        /* here we merge a bounds of the individual meshes to produce a
+         * bounding box for the entire geometry.
+         * !!NOTE!! that because the default bounds have min and max
+         * set to 0, the resulting bounding box will always contain world origin
+         */
+        m_BoundingBox.Merge(AABB::Transform(m_Meshes[renderObject.Mesh].GetBoundingBox(),
+            modelInstanceInfo.Transform.Position,
+            modelInstanceInfo.Transform.Orientation,
+            modelInstanceInfo.Transform.Scale));
+    }
 }
 
 void ModelCollection::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const

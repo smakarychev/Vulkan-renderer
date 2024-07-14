@@ -88,6 +88,7 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
     CountsInfo countsInfo = GetCountsInfo(modelCollection, filter);
     SceneGeometry sceneGeometry = {};
     sceneGeometry.m_ModelCollection = &modelCollection;
+    sceneGeometry.m_Bounds = modelCollection.GetBounds();
     sceneGeometry.m_RenderObjectIndices.reserve(countsInfo.RenderObjectCount);
 
     if (countsInfo.RenderObjectCount == 0)
@@ -146,13 +147,6 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
         
         verticesOffset += verticesSize;
         indicesOffset += indicesSize;
-
-        /* here we merge a bounds of the individual meshes to produce a
-         * bounding box for the entire geometry.
-         * !!NOTE!! that because the default bounds have min and max
-         * set to 0, the resulting bounding box will always contain world origin
-         */
-        sceneGeometry.m_Bounds.Merge(mesh.GetBoundingBox());
     };
     auto renderObjectCallback = [&](const RenderObject& renderObject, u32 collectionIndex)
     {

@@ -20,6 +20,20 @@ namespace
 
         return {newCenter, newRadius};
     }
+
+    assetLib::BoundingBox boxFromSphere(const assetLib::BoundingSphere& sphere)
+    {
+        return {
+            .Min = sphere.Center - sphere.Radius,
+            .Max = sphere.Center + sphere.Radius};
+    }
+
+    assetLib::BoundingBox mergeBoxes(const assetLib::BoundingBox& a, const assetLib::BoundingBox& b)
+    {
+        return {
+            .Min = glm::min(a.Min, b.Min),
+            .Max = glm::max(a.Max, b.Max)};
+    }
 }
 
 namespace Utils
@@ -165,15 +179,23 @@ namespace Utils
         return meshlets;
     }
 
-    assetLib::BoundingSphere meshBoundingSphere(const std::vector<assetLib::ModelInfo::Meshlet>& meshlets)
+    BoundingVolumes meshBoundingVolumes(const std::vector<assetLib::ModelInfo::Meshlet>& meshlets)
     {
         if (meshlets.empty())
-            return {.Center = glm::vec3{0.0f}, .Radius = 0.0f};
+            return {
+                {.Center = glm::vec3{0.0f}, .Radius = 0.0f},
+                {.Min = glm::vec3{0.0f}, .Max = glm::vec3{0.0f}}};
 
         assetLib::BoundingSphere boundingSphere = meshlets.front().BoundingSphere;
+        assetLib::BoundingBox boundingBox = boxFromSphere(boundingSphere);
         for (auto& meshlet : meshlets | std::ranges::views::drop(1))
+        {
             boundingSphere = mergeSpheres(boundingSphere, meshlet.BoundingSphere);
+            boundingBox = mergeBoxes(boundingBox, boxFromSphere(meshlet.BoundingSphere));
+        }
 
-        return boundingSphere;
+        return {
+            .Sphere = boundingSphere,
+            .Box = boundingBox};
     }
 }

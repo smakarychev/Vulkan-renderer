@@ -61,6 +61,12 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.RegisterModel(plane, "plane");
+
+    auto corners = m_Camera->GetFrustumCorners(15, 40);
+    for (auto& corner : corners)
+        m_GraphModelCollection.AddModelInstance("helmet", {
+            .Transform = {
+                .Position = corner}});
     
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
@@ -229,7 +235,7 @@ void Renderer::SetupRenderGraph()
 
     m_SceneLights.SetDirectionalLight(directionalLight);
 
-    static f32 shadowDistance = 400.0f;
+    static f32 shadowDistance = 200.0f;
     ImGui::DragFloat("Shadow distance", &shadowDistance, 1e-1f, 0.0f, 400.0f);
     m_CSMPass->AddToGraph(*m_Graph, {
         .MainCamera = m_Camera.get(),

@@ -22,7 +22,7 @@ namespace ShadowUtils
         camera.SetProjection(stabilizedProjection);
     }
 
-    ShadowProjectionBounds projectionBoundsSphereWorld(const FrustumCorners& frustumCorners)
+    ShadowProjectionBounds projectionBoundsSphereWorld(const FrustumCorners& frustumCorners, const AABB& geometryBounds)
     {
         glm::vec3 centroid = {};
         for (auto& p : frustumCorners)
@@ -33,6 +33,15 @@ namespace ShadowUtils
         for (auto& p : frustumCorners)
             boundingSphereRadius = std::max(boundingSphereRadius, glm::distance2(p, centroid));
         boundingSphereRadius = std::sqrt(boundingSphereRadius);
+
+        f32 geometryRadius = glm::distance((geometryBounds.Max + geometryBounds.Min) * 0.5f, geometryBounds.Max);
+
+        if (geometryRadius < boundingSphereRadius)
+        {
+            boundingSphereRadius = geometryRadius;
+            centroid = (geometryBounds.Max + geometryBounds.Min) * 0.5f;
+        }
+        
         static constexpr f32 RADIUS_SNAP = 16.0f;
         boundingSphereRadius = std::ceil(boundingSphereRadius * RADIUS_SNAP) / RADIUS_SNAP;
 

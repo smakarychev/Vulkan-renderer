@@ -210,7 +210,7 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             
             MeshData meshData = ProcessMesh(scene, scene->mMeshes[currentNode->mMeshes[meshIndex]], path);
             ConvertTextures(initialDirectoryPath, meshData);
-            assetLib::BoundingSphere sphere = Utils::meshBoundingSphere(meshData.Meshlets);
+            auto&& [sphere, box] = Utils::meshBoundingVolumes(meshData.Meshlets);
 
             std::lock_guard lock(mutex);
             modelInfo.MeshInfos.push_back({
@@ -221,7 +221,8 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
                 .MaterialType = meshData.MaterialType,
                 .MaterialPropertiesPBR = meshData.MaterialPropertiesPBR,
                 .Materials = meshData.MaterialInfos,
-                .BoundingSphere = sphere});
+                .BoundingSphere = sphere,
+                .BoundingBox = box});
 
             modelData.VertexGroup.Positions.append_range(meshData.VertexGroup.Positions);
             modelData.VertexGroup.Normals.append_range(meshData.VertexGroup.Normals);

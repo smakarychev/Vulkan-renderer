@@ -53,6 +53,8 @@ public:
 
     const std::vector<RenderObject>& GetRenderObjects(const std::string& modelName) const;
 
+    const AABB& GetBounds() const { return m_BoundingBox; }
+
     const RenderHandleArray<Mesh>& GetMeshes() const { return m_Meshes; }
     const RenderHandleArray<MaterialGPU>& GetMaterialsGPU() const { return m_MaterialsGPU; }
     const RenderHandleArray<Material>& GetMaterials() const { return m_Materials; }
@@ -85,6 +87,8 @@ private:
     RenderHandle<Image> m_NormalMapTexture{}; 
     
     std::vector<RenderObject> m_RenderObjects;
+
+    AABB m_BoundingBox{};
 };
 
 template <typename Filter, typename Callback>

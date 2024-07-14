@@ -92,6 +92,7 @@ Model* Model::LoadFromAsset(std::string_view path)
                 std::vector(uvsBegin, uvsEnd),
                 std::vector(indicesBegin, indicesEnd),
                 {.Center = meshInfo.BoundingSphere.Center, .Radius = meshInfo.BoundingSphere.Radius},
+                {.Min = meshInfo.BoundingBox.Min, .Max = meshInfo.BoundingBox.Max},
                 std::vector(meshletsBegin, meshletsEnd)),
                 material});
     }

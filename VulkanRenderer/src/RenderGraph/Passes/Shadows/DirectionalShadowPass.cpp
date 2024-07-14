@@ -43,7 +43,7 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
     using enum ResourceAccessFlags;
 
     m_Camera = std::make_unique<Camera>(CreateShadowCamera(*info.MainCamera,
-        info.DirectionalLight->Direction, info.ViewDistance));
+        info.DirectionalLight->Direction, info.ViewDistance, info.GeometryBounds));
     
     Resource shadow = renderGraph.CreateResource("DirectionalShadow.ShadowMap",
         GraphTextureDescription{
@@ -99,12 +99,12 @@ void DirectionalShadowPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassE
 }
 
 Camera DirectionalShadowPass::CreateShadowCamera(const Camera& mainCamera, const glm::vec3& lightDirection,
-    f32 viewDistance)
+    f32 viewDistance, const AABB& geometryBounds)
 {
     /* get world space location of frustum corners */
     FrustumCorners corners = mainCamera.GetFrustumCorners(viewDistance);
     
-    ShadowProjectionBounds bounds = ShadowUtils::projectionBoundsSphereWorld(corners);
+    ShadowProjectionBounds bounds = ShadowUtils::projectionBoundsSphereWorld(corners, geometryBounds);
 
     glm::vec3 cameraPosition = bounds.Centroid + lightDirection * bounds.Min.z;
 

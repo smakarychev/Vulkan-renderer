@@ -175,9 +175,7 @@ std::vector<Camera> CSMPass::CreateShadowCameras(const Camera& mainCamera, const
         f32 depth = cascades[i];
         
         FrustumCorners corners = mainCamera.GetFrustumCorners(previousDepth, depth);
-        ShadowProjectionBounds bounds = ShadowUtils::projectionBoundsSphereWorld(corners);
-        bounds.Min.z = std::max(bounds.Min.z, geometryBounds.Min.z);
-        bounds.Max.z = std::min(bounds.Max.z, geometryBounds.Max.z);
+        ShadowProjectionBounds bounds = ShadowUtils::projectionBoundsSphereWorld(corners, geometryBounds);
 
         glm::vec3 cameraPosition = bounds.Centroid + lightDirection * bounds.Min.z;
         Camera shadowCamera = Camera::Orthographic({
