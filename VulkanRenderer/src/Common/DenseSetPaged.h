@@ -59,8 +59,7 @@ constexpr void DenseSetPaged<T>::Pop()
     ASSERT(m_Size > 0, "Cannot Pop from empty set")
     m_Size--;
 
-    if ((m_Size >> DENSE_SET_PAGE_SIZE_LOG) < m_LastNonEmptyPage)
-        m_LastNonEmptyPage--;
+    m_LastNonEmptyPage = (m_Size >> DENSE_SET_PAGE_SIZE_LOG);
     
     m_Pages[m_LastNonEmptyPage].back().~T();
     m_Pages[m_LastNonEmptyPage].pop_back();

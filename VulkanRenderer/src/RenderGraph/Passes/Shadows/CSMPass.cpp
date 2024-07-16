@@ -51,7 +51,9 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
     using enum ResourceAccessFlags;
 
     std::vector cascades = CalculateDepthCascades(*info.MainCamera, info.ViewDistance);
-    m_Cameras = CreateShadowCameras(*info.MainCamera, info.DirectionalLight->Direction, cascades, info.GeometryBounds);
+    auto cameras =
+        CreateShadowCameras(*info.MainCamera, info.DirectionalLight->Direction, cascades, info.GeometryBounds);
+    m_Cameras = cameras;
 
     std::vector<ImageSubresourceDescription::Packed> cascadeViews(SHADOW_CASCADES);
     for (u32 i = 0;  i < SHADOW_CASCADES; i++)
@@ -66,10 +68,6 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
         .Kind = ImageKind::Image2dArray,
         .AdditionalViews = cascadeViews});
     
-    std::vector<glm::mat4> matrices(SHADOW_CASCADES);
-    for (u32 i = 0; i < SHADOW_CASCADES; i++)
-        matrices[i] = m_Cameras[i].GetViewProjection();
-
     for (u32 i = 0; i < SHADOW_CASCADES; i++)
         m_MultiviewData.UpdateView(i, {
             .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
@@ -101,7 +99,10 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
     {
         u32 CascadeCount{0};
         std::array<f32, MAX_SHADOW_CASCADES> Cascades{};
-        std::array<glm::mat4, MAX_SHADOW_CASCADES> Matrices{};
+        std::array<glm::mat4, MAX_SHADOW_CASCADES> ViewProjections{};
+        std::array<glm::mat4, MAX_SHADOW_CASCADES> Views{};
+        std::array<f32, MAX_SHADOW_CASCADES> Near{};
+        std::array<f32, MAX_SHADOW_CASCADES> Far{};
     };
     renderGraph.AddRenderPass<PassDataDummy>(PassName{"CSM.Dummy"},
         [&](Graph& graph, PassDataDummy& passData)
@@ -118,7 +119,14 @@ void CSMPass::AddToGraph(RG::Graph& renderGraph, const ShadowPassExecutionInfo& 
             Ubo ubo = {};
             ubo.CascadeCount = SHADOW_CASCADES;
             std::ranges::copy(cascades.begin(), cascades.end(), ubo.Cascades.begin());
-            std::ranges::copy(matrices.begin(), matrices.end(), ubo.Matrices.begin());
+            for (u32 i = 0; i < cameras.size(); i++)
+            {
+                auto& camera = cameras[i];
+                ubo.ViewProjections[i] = camera.GetViewProjection();
+                ubo.Views[i] = camera.GetView();
+                ubo.Near[i] = camera.GetNear();
+                ubo.Far[i] = camera.GetFar();
+            }
             resources.GetBuffer(passData.CSM, ubo, *frameContext.ResourceUploader);
         });
     
@@ -177,13 +185,17 @@ std::vector<Camera> CSMPass::CreateShadowCameras(const Camera& mainCamera, const
         FrustumCorners corners = mainCamera.GetFrustumCorners(previousDepth, depth);
         ShadowProjectionBounds bounds = ShadowUtils::projectionBoundsSphereWorld(corners, geometryBounds);
 
-        glm::vec3 cameraPosition = bounds.Centroid + lightDirection * bounds.Min.z;
+        /* pcss method does not like 0 on a near plane */
+        static constexpr f32 NEAR_RELATIVE_OFFSET = 0.1f;
+
+        f32 cameraCentroidOffset = bounds.Min.z * (1.0f + NEAR_RELATIVE_OFFSET);
+        glm::vec3 cameraPosition = bounds.Centroid + lightDirection * cameraCentroidOffset;
         Camera shadowCamera = Camera::Orthographic({
             .BaseInfo = {
                 .Position = cameraPosition,
                 .Orientation = glm::normalize(glm::quatLookAt(lightDirection, up)),
-                .Near = 0.0f,
-                .Far = bounds.Max.z - bounds.Min.z,
+                .Near = -bounds.Min.z * NEAR_RELATIVE_OFFSET,
+                .Far = bounds.Max.z - cameraCentroidOffset,
                 .ViewportWidth = SHADOW_MAP_RESOLUTION,
                 .ViewportHeight = SHADOW_MAP_RESOLUTION},
             .Left = bounds.Min.x,

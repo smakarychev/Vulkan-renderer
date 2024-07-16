@@ -1022,7 +1022,7 @@ namespace RG
                 .OldLayout = transition.OldLayout,
                 .NewLayout = transition.NewLayout};
 
-            if (longestPath[transition.DestinationPass] - longestPath[transition.SourcePass] > 1)
+            if (false)
                 addLayoutSplitBarrier(
                     *m_RenderPasses[transition.SourcePass], *m_RenderPasses[transition.DestinationPass],
                     transition.Texture, layoutTransitionInfo);
@@ -1105,7 +1105,7 @@ namespace RG
                         .SourceStage = currentAccessInfo.Stage,
                         .DestinationStage = resourceAccess.m_Stage};
 
-                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
+                    if (false)
                         addExecutionSplitBarrier(
                             *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
                             resource, executionDependencyInfo);
@@ -1122,7 +1122,7 @@ namespace RG
                         .SourceAccess = currentAccessInfo.Access,
                         .DestinationAccess = resourceAccess.m_Access};
 
-                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
+                    if (false)
                         addMemorySplitBarrier(
                             *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
                             resource, memoryDependencyInfo);

@@ -82,6 +82,9 @@ public:
     void SetView(const glm::mat4& view);
     void SetProjection(const glm::mat4& projection);
 
+    f32 GetNear() const { return m_NearClipPlane; }
+    f32 GetFar() const { return m_FarClipPlane; }
+
     void SetViewport(u32 width, u32 height);
     u32 GetViewportWidth() const { return m_ViewportWidth; }
     u32 GetViewportHeight() const { return m_ViewportHeight; }

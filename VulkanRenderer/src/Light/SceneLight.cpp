@@ -11,7 +11,8 @@ void SceneLight::SetDirectionalLight(const DirectionalLight& light)
 {
     if (m_DirectionalLight.Direction == light.Direction &&
         m_DirectionalLight.Color == light.Color &&
-        m_DirectionalLight.Intensity == light.Intensity)
+        m_DirectionalLight.Intensity == light.Intensity &&
+        m_DirectionalLight.Size == light.Size)
             return;
     
     m_DirectionalLight = light;

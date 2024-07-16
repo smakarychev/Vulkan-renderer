@@ -473,7 +473,7 @@ void main() {
     
     const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
     
-    const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal);
+    const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_light.light.size);
 
     vec3 color;
     color = shade_pbr(shade_info, shadow, ambient_occlusion);
@@ -483,4 +483,5 @@ void main() {
     color += gbuffer_data.emissive;
     
     out_color = vec4(color, 1.0);
+    //out_color = vec4(vec3(shadow), 1.0);
 }

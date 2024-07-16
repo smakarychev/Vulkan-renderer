@@ -55,7 +55,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/vokselia_spawn/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -63,16 +63,10 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.RegisterModel(plane, "plane");
 
-    auto corners = m_Camera->GetFrustumCorners(15, 40);
-    for (auto& corner : corners)
-        m_GraphModelCollection.AddModelInstance("helmet", {
-            .Transform = {
-                .Position = corner}});
-    
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{10.0f}}});
+            .Scale = glm::vec3{1.0f}}});
     
     m_GraphOpaqueGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
@@ -241,9 +235,10 @@ void Renderer::SetupRenderGraph()
     // todo: should not be here obv
     DirectionalLight directionalLight = m_SceneLights.GetDirectionalLight();
     ImGui::Begin("Directional Light");
-    ImGui::DragFloat3("Light direction", &directionalLight.Direction[0], 1e-2f, -1.0f, 1.0f);
-    ImGui::ColorPicker3("Light color", &directionalLight.Color[0]);
-    ImGui::DragFloat("Light intensity", &directionalLight.Intensity, 1e-1f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Direction", &directionalLight.Direction[0], 1e-2f, -1.0f, 1.0f);
+    ImGui::ColorPicker3("Color", &directionalLight.Color[0]);
+    ImGui::DragFloat("Intensity", &directionalLight.Intensity, 1e-1f, 0.0f, 100.0f);
+    ImGui::DragFloat("Size", &directionalLight.Size, 1e-1f, 0.0f, 100.0f);
     ImGui::End();
     directionalLight.Direction = glm::normalize(directionalLight.Direction);
 
