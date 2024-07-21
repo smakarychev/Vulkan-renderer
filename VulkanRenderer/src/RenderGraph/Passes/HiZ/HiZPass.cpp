@@ -2,6 +2,7 @@
 
 #include "Renderer.h"
 #include "RenderGraph/RenderGraph.h"
+#include "Rendering/ShaderCache.h"
 #include "utils/MathUtils.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -39,34 +40,8 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
         .Build();
 }
 
-HiZPass::HiZPass(RG::Graph& renderGraph, std::string_view baseName)
-    : m_Name(baseName)
-{
-    ShaderPipelineTemplate* hizPassTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
-       {"../assets/shaders/processed/render-graph/culling/hiz-comp.stage"},
-       "Pass.HiZ", renderGraph.GetArenaAllocators());
-
-    ShaderPipeline pipeline = ShaderPipeline::Builder()
-        .SetTemplate(hizPassTemplate)
-        .UseDescriptorBuffer()
-        .Build();
-
-    for (u32 i = 0; i < HiZPassContext::MAX_MIPMAP_COUNT; i++)
-    {
-        m_PipelinesData[i].Pipeline = pipeline;
-        m_PipelinesData[i].SamplerDescriptors = ShaderDescriptors::Builder()
-           .SetTemplate(hizPassTemplate, DescriptorAllocatorKind::Samplers)
-           .ExtractSet(0)
-           .Build();
-        m_PipelinesData[i].ResourceDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(hizPassTemplate, DescriptorAllocatorKind::Resources)
-            .ExtractSet(1)
-            .Build();
-    }
-}
-
-void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubresourceDescription::Packed subresource,
-    HiZPassContext& ctx)
+RG::Pass& Passes::HiZ::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+    ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -76,9 +51,12 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
     u32 height = ctx.GetHiZ().Description().Height;
 
     for (u32 i = 0; i < mipMapCount; i++)
-        m_Passes[i] = &renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", m_Name.Name(), i)},
+    {
+        Pass& pass = renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", name, i)},
             [&](Graph& graph, PassData& passData)
             {
+                graph.SetShader("../assets/shaders/hiz.shader");
+                
                 Resource depthIn = {};
                 Resource depthOut = {};
          
@@ -90,9 +68,8 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
                 }
                 else
                 {
-                    PassData& previousOutput = graph.GetBlackboard().Get<PassData>(m_Name.Hash());
-                    depthIn = previousOutput.HiZOut;
-                    depthOut = previousOutput.HiZOut;
+                    depthIn = ctx.GetHiZResource(); 
+                    depthOut = ctx.GetHiZResource();
                 }
                 passData.DepthIn = graph.Read(depthIn, Compute | Sampled);
                 passData.HiZOut = graph.Write(depthOut, Compute | Storage);
@@ -100,11 +77,9 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
                 passData.MinMaxSampler = ctx.GetSampler();
                 passData.MipmapViewHandles = ctx.GetViewHandles();
 
-                passData.PipelineData = &m_PipelinesData[i];
-
                 ctx.SetHiZResource(passData.HiZOut);
                 
-                graph.GetBlackboard().Update(m_Name.Hash(), passData);
+                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -120,9 +95,10 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
                     depthIn.BindingInfo(passData.MinMaxSampler, ImageLayout::DepthReadonly,
                         depthIn.GetViewHandle(subresource));
 
-                auto& pipeline = passData.PipelineData->Pipeline;
-                auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
-                auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+                const Shader& shader = resources.GetGraph()->GetShader();
+                auto& pipeline = shader.Pipeline(); 
+                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
                 
                 samplerDescriptors.UpdateBinding("u_in_sampler", depthInBinding);
                 resourceDescriptors.UpdateBinding("u_in_image", depthInBinding);
@@ -142,4 +118,10 @@ void HiZPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubres
                     pipeline.GetLayout());
                 RenderCommand::Dispatch(frameContext.Cmd, {(levelWidth + 32 - 1) / 32, (levelHeight + 32 - 1) / 32, 1});
             });
+
+        if (i == mipMapCount - 1)
+            return pass;
+    }
+
+    std::unreachable();
 }

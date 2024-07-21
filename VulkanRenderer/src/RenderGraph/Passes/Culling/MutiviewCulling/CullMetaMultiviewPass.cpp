@@ -1,7 +1,5 @@
 #include "CullMetaMultiviewPass.h"
 
-#include <ranges>
-
 #include "CullMultiviewUtils.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
@@ -10,7 +8,6 @@ CullMetaMultiviewPass::CullMetaMultiviewPass(RG::Graph& renderGraph, std::string
     const CullMetaMultiviewPassInitInfo& info)
         : m_Name(name), m_MultiviewData(info.MultiviewData)
 {
-
     m_MeshletOnlyViewIndices.reserve(info.MultiviewData->ViewCount());
     for (u32 i = 0; i < m_MultiviewData->ViewCount(); i++)
     {
@@ -19,14 +16,6 @@ CullMetaMultiviewPass::CullMetaMultiviewPass(RG::Graph& renderGraph, std::string
             m_MeshletOnlyViewIndices.push_back((u32)i);
     }
     
-    m_HiZs.resize(info.MultiviewData->ViewCount());
-    m_HiZsReocclusion.resize(info.MultiviewData->ViewCount());
-    for (u32 i = 0; i < m_HiZs.size(); i++)
-    {
-        m_HiZs[i] = std::make_unique<HiZPass>(renderGraph, std::format("{}.HiZ.{}", name, i));
-        m_HiZsReocclusion[i] = std::make_unique<HiZPass>(renderGraph, std::format("{}.HiZ.Reocclusion.{}", name, i));
-    }
-
     m_MeshCull = std::make_unique<MeshCullMultiviewPass>(renderGraph, std::format("{}.MeshCull", name),
         MeshCullMultiviewPassInitInfo{
             .MultiviewData = m_MultiviewData,
@@ -162,7 +151,8 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     {
         auto& view = m_MultiviewData->View(i);
         if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-            m_HiZs[i]->AddToGraph(renderGraph, view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+            Passes::HiZ::addToGraph(std::format("{}.HiZ.{}", GetName(), i), renderGraph,
+                view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                 view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
     }
 
@@ -189,7 +179,8 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
     {
         auto& view = m_MultiviewData->TriangleView(i);
         if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-            m_HiZsReocclusion[i]->AddToGraph(renderGraph, view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+            Passes::HiZ::addToGraph(std::format("{}.HiZ.Reocclusion.{}", GetName(), i), renderGraph,
+                view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                 view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
     }
 

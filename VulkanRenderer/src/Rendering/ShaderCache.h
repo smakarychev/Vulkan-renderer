@@ -14,17 +14,18 @@ class Shader
 {
     friend class ShaderCache;
 public:
-    Shader(const ShaderPipeline& pipeline, const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors);
-    const ShaderPipeline& Pipeline() const { return m_Pipeline; }
+    Shader(u32 pipelineIndex, const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors);
+    const ShaderPipeline& Pipeline() const;
     const ShaderDescriptors& Descriptors(ShaderDescriptorsKind kind) const { return m_Descriptors[(u32)(kind)]; }
 private:
-    ShaderPipeline m_Pipeline;
+    u32 m_Pipeline{0};
     std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
     std::string m_FilePath;
 };
 
 class ShaderCache
 {
+    friend class Shader;
 public:
     static void Init();
     static void Shutdown();
@@ -47,8 +48,8 @@ private:
         std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> Descriptors;
         std::vector<std::string> Dependencies;
     };
-    static ShaderProxy ReloadShader(std::string_view path, bool initialLoad);
-
+    enum class ReloadType { PipelineDescriptors, Descriptors, Pipeline };
+    static ShaderProxy ReloadShader(std::string_view path, ReloadType reloadType);
     static void InitFileWatcher();
 private:
     static DescriptorArenaAllocators* s_Allocators;
@@ -64,6 +65,7 @@ private:
     static Utils::StringUnorderedMap<Shader*> s_ShadersMap;
     
     static std::vector<std::unique_ptr<Shader>> s_Shaders;
+    static std::vector<ShaderPipeline> s_Pipelines;
 
     static Utils::StringUnorderedMap<ShaderDescriptors> s_BindlessDescriptors;
 

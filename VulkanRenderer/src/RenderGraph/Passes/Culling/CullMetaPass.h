@@ -59,8 +59,6 @@ private:
     PassData m_PassData;
     RG::DrawFeatures m_DrawFeatures{RG::DrawFeatures::AllAttributes};
 
-    using HiZ = HiZPass;
-    
     using MeshCull = MeshCullPass;
     using MeshReocclusion = MeshCullReocclusionPass;
 
@@ -68,8 +66,6 @@ private:
     using MeshletReocclusion = MeshletCullReocclusionPass;
 
     std::shared_ptr<HiZPassContext> m_HiZContext;
-    std::shared_ptr<HiZ> m_HiZ;
-    std::shared_ptr<HiZ> m_HiZReocclusion;
     
     std::shared_ptr<MeshCullContext> m_MeshContext;
     std::shared_ptr<MeshCull> m_MeshCull;

@@ -11,9 +11,6 @@ CullMetaPass::CullMetaPass(RG::Graph& renderGraph, const CullMetaPassInitInfo& i
     m_TriangleContext = std::make_shared<TriangleCullContext>(*m_MeshletContext);
     m_TriangleDrawContext = std::make_shared<TriangleDrawContext>();
 
-    m_HiZ = std::make_shared<HiZ>(renderGraph, m_Name.Name() + ".HiZ");
-    m_HiZReocclusion = std::make_shared<HiZ>(renderGraph, m_Name.Name() +  ".HiZ.Triangle");
-
     m_MeshCull = std::make_shared<MeshCull>(renderGraph, m_Name.Name() + ".MeshCull", MeshCullPassInitInfo{
         .ClampDepth = info.ClampDepth});
     m_MeshReocclusion = std::make_shared<MeshReocclusion>(renderGraph, m_Name.Name() + ".MeshCull",
@@ -103,7 +100,8 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
     auto& drawOutput = blackboard.Get<TriangleCullDraw::PassData>(m_CullDraw->GetNameHash());
     if (info.DrawInfo.Attachments.Depth.has_value())
     {
-        m_HiZ->AddToGraph(renderGraph, drawOutput.DrawAttachmentResources.Depth.value_or(Resource{}),
+        Passes::HiZ::addToGraph(std::format("{}.HiZ", m_Name.Name()), renderGraph, 
+            drawOutput.DrawAttachmentResources.Depth.value_or(Resource{}),
             info.DrawInfo.Attachments.Depth->Description.Subresource, *m_HiZContext);
         m_PassData.HiZOut = m_HiZContext->GetHiZResource();
     }
@@ -139,7 +137,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
         m_ReoccludeTrianglesDraw->GetNameHash());
     if (info.DrawInfo.Attachments.Depth.has_value())
     {
-        m_HiZReocclusion->AddToGraph(renderGraph,
+        Passes::HiZ::addToGraph(std::format("{}.HiZ.Reocclusion", m_Name.Name()), renderGraph, 
             reoccludeTrianglesOutput.DrawAttachmentResources.Depth.value_or(Resource{}),
             info.DrawInfo.Attachments.Depth->Description.Subresource, *m_HiZContext);
         m_PassData.HiZOut = m_HiZContext->GetHiZResource();

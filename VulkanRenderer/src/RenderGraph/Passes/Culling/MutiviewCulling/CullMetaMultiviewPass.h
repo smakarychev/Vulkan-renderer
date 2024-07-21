@@ -45,9 +45,6 @@ private:
 
     std::vector<u32> m_MeshletOnlyViewIndices;
 
-    std::vector<std::unique_ptr<HiZPass>> m_HiZs;
-    std::vector<std::unique_ptr<HiZPass>> m_HiZsReocclusion;
-
     std::unique_ptr<MeshCull> m_MeshCull;
     std::unique_ptr<MeshCull> m_MeshReocclusion;
     

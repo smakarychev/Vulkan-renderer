@@ -31,9 +31,8 @@ private:
     glm::uvec2 m_HiZResolution{};
 };
 
-class HiZPass
+namespace Passes::HiZ
 {
-public:
     struct PassData
     {
         Sampler MinMaxSampler;
@@ -41,17 +40,7 @@ public:
 
         RG::Resource DepthIn{};
         RG::Resource HiZOut{};
-        
-        RG::PipelineData* PipelineData{nullptr};
     };
-public:
-    HiZPass(RG::Graph& renderGraph, std::string_view baseName);
-    void AddToGraph(RG::Graph& renderGraph, RG::Resource depth, ImageSubresourceDescription::Packed subresource,
-        HiZPassContext& ctx);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
-private:
-    std::array<RG::Pass*, HiZPassContext::MAX_MIPMAP_COUNT> m_Passes{};
-    RG::PassName m_Name;
-
-    std::array<RG::PipelineData, HiZPassContext::MAX_MIPMAP_COUNT> m_PipelinesData;
-};
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+        ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx);
+}

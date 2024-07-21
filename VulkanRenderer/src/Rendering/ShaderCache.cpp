@@ -15,6 +15,7 @@ DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
 Utils::StringUnorderedMap<ShaderCache::Record> ShaderCache::s_Records = {};    
 Utils::StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
 std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
+std::vector<ShaderPipeline> ShaderCache::s_Pipelines = {};
 Utils::StringUnorderedMap<ShaderDescriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
@@ -26,6 +27,11 @@ struct ShaderCache::FileWatcher
     efsw::FileWatcher Watcher;
     std::shared_ptr<efsw::FileWatchListener> Listener;
 
+    FileWatcher() = default;
+    FileWatcher(const FileWatcher&) = delete;
+    FileWatcher& operator=(const FileWatcher&) = delete;
+    FileWatcher(FileWatcher&&) = default;
+    FileWatcher& operator=(FileWatcher&&) = default;
     ~FileWatcher()
     {
         Watcher.removeWatch(std::string{SHADERS_DIRECTORY});
@@ -33,10 +39,15 @@ struct ShaderCache::FileWatcher
 };
 std::unique_ptr<ShaderCache::FileWatcher> ShaderCache::s_FileWatcher = {};
 
-Shader::Shader(const ShaderPipeline& pipeline,
+Shader::Shader(u32 pipelineIndex,
     const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors)
-        : m_Pipeline(pipeline), m_Descriptors(descriptors)
+        : m_Pipeline(pipelineIndex), m_Descriptors(descriptors)
 {
+}
+
+const ShaderPipeline& Shader::Pipeline() const
+{
+    return ShaderCache::s_Pipelines[m_Pipeline];
 }
 
 void ShaderCache::Init()
@@ -46,8 +57,15 @@ void ShaderCache::Init()
 
 void ShaderCache::Shutdown()
 {
+    std::vector deleted(s_Shaders.size(), false);
     for (auto& s : s_Shaders)
+    {
+        if (deleted[s->m_Pipeline])
+            continue;
+
+        deleted[s->m_Pipeline] = true;
         Pipeline::Destroy(s->Pipeline().GetPipeline());
+    }
 }
 
 void ShaderCache::OnFrameBegin(FrameContext& ctx)
@@ -67,23 +85,30 @@ const Shader& ShaderCache::Get(std::string_view name)
 
 void ShaderCache::Register(std::string_view name, std::string_view path)
 {
-    static constexpr bool LOAD_DESCRIPTORS = true;
+    if (s_ShadersMap.contains(name))
+        return;
 
+    ShaderProxy shaderProxy = {};
+    u32 pipeline = {};
     if (!s_Records.contains(path))
     {
-        ShaderProxy shaderProxy = ReloadShader(path, LOAD_DESCRIPTORS);
-        s_Shaders.push_back(std::make_unique<Shader>(shaderProxy.Pipeline, shaderProxy.Descriptors));
-        s_Shaders.back()->m_FilePath = path;
-
-        s_ShadersMap.emplace(name, s_Shaders.back().get());
-
-        for (auto& dependency : shaderProxy.Dependencies)
-            s_Records[dependency].Shaders.push_back(s_Shaders.back().get());
+        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors);
+        pipeline = (u32)s_Pipelines.size();
+        s_Pipelines.push_back(shaderProxy.Pipeline);
     }
     else
     {
-        s_ShadersMap.emplace(name, s_Records.find(path)->second.Shaders.front());
+        shaderProxy = ReloadShader(path, ReloadType::Descriptors);
+        Shader* shader = s_Records.find(path)->second.Shaders.front();
+        pipeline = shader->m_Pipeline;
     }
+
+    s_Shaders.push_back(std::make_unique<Shader>(pipeline, shaderProxy.Descriptors));
+    s_Shaders.back()->m_FilePath = path;
+
+    s_ShadersMap.emplace(name, s_Shaders.back().get());
+    for (auto& dependency : shaderProxy.Dependencies)
+        s_Records[dependency].Shaders.push_back(s_Shaders.back().get());
 }
 
 void ShaderCache::HandleRename(std::string_view newName, std::string_view oldName)
@@ -97,8 +122,6 @@ void ShaderCache::HandleRename(std::string_view newName, std::string_view oldNam
 
 void ShaderCache::HandleModification(std::string_view path)
 {
-    static constexpr bool LOAD_DESCRIPTORS = false;
-    
     const Record& record = s_Records.find(path)->second;
     std::unordered_set<Shader*> handled = {};
     for (auto* shader : record.Shaders)
@@ -107,13 +130,13 @@ void ShaderCache::HandleModification(std::string_view path)
             continue;
         handled.emplace(shader);
 
-        ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, LOAD_DESCRIPTORS);
-        s_FrameDeletionQueue->Enqueue(shader->m_Pipeline);
-        shader->m_Pipeline = shaderProxy.Pipeline;
+        ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline);
+        s_FrameDeletionQueue->Enqueue(s_Pipelines[shader->m_Pipeline]);
+        s_Pipelines[shader->m_Pipeline] = shaderProxy.Pipeline;
     }
 }
 
-ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, bool initialLoad)
+ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, ReloadType reloadType)
 {
     std::ifstream in(path.data());
     nlohmann::json json = nlohmann::json::parse(in);
@@ -129,128 +152,135 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, bool i
     ShaderPipelineTemplate* shaderTemplate =
         ShaderTemplateLibrary::ReloadShaderPipelineTemplate(stages, name, *s_Allocators);
 
-    ShaderPipeline::Builder pipelineBuilder = {};
-    pipelineBuilder
-        .UseDescriptorBuffer()
-        .SetTemplate(shaderTemplate);
-    
-    for (auto& specialization : json["specialization_constants"])
-    {
-        static constexpr std::string_view TYPE_BOOL = "b32";
-        static constexpr std::string_view TYPE_I32 = "i32";
-        static constexpr std::string_view TYPE_U32 = "u32";
-        static constexpr std::string_view TYPE_F32 = "f32";
-        
-        std::string_view specializationName = specialization["name"];
-        std::string_view specializationType = specialization["type"];
-        const auto& value = specialization["value"];
-        if (specializationType == TYPE_BOOL)
-            pipelineBuilder.AddSpecialization<bool>(specializationName, value);
-        else if (specializationType == TYPE_I32)
-            pipelineBuilder.AddSpecialization<i32>(specializationName, value);
-        else if (specializationType == TYPE_U32)
-            pipelineBuilder.AddSpecialization<u32>(specializationName, value);
-        else if (specializationType == TYPE_F32)
-            pipelineBuilder.AddSpecialization<f32>(specializationName, value);
-        else
-            LOG("Ignoring specialization constant {}: unknown type: {}", specializationName, specializationType);
-    }
-
-    DynamicStates dynamicStates = DynamicStates::Default;
-    for (auto& dynamicState : json["dynamic_states"])
-    {
-        static const std::unordered_map<std::string, DynamicStates> NAME_TO_STATE_MAP = {
-            std::make_pair("viewport", DynamicStates::Viewport),
-            std::make_pair("scissor", DynamicStates::Scissor),
-            std::make_pair("depth_bias", DynamicStates::DepthBias),
-            std::make_pair("default", DynamicStates::Default),
-        };
-
-        auto it = NAME_TO_STATE_MAP.find(dynamicState);
-        if (it == NAME_TO_STATE_MAP.end())
-        {
-            LOG("Unrecognized dynamic state: {}", std::string{dynamicState});
-            continue;
-        }
-        dynamicStates |= it->second;
-    }
-    pipelineBuilder.DynamicStates(dynamicStates);
-
-    if (!shaderTemplate->IsComputeTemplate())
-    {
-        static const std::unordered_map<std::string, AlphaBlending> NAME_TO_BLENDING_MAP = {
-            std::make_pair("none", AlphaBlending::None),
-            std::make_pair("over", AlphaBlending::Over),
-        };
-
-        static const std::unordered_map<std::string, DepthMode> NAME_TO_DEPTH_MODE_MAP = {
-            std::make_pair("none",       DepthMode::None),
-            std::make_pair("read",       DepthMode::Read),
-            std::make_pair("read_write", DepthMode::ReadWrite),
-        };
-
-        static const std::unordered_map<std::string, FaceCullMode> NAME_TO_CULL_MODE_MAP = {
-            std::make_pair("none",  FaceCullMode::None),
-            std::make_pair("front", FaceCullMode::Front),
-            std::make_pair("back",  FaceCullMode::Back),
-        };
-
-        static const std::unordered_map<std::string, PrimitiveKind> NAME_TO_PRIMITIVE_MAP = {
-            std::make_pair("triangle",  PrimitiveKind::Triangle),
-            std::make_pair("point",     PrimitiveKind::Point),
-        };
-
-        auto& rasterization = json["rasterization"];
-
-        AlphaBlending blending = AlphaBlending::Over;
-        DepthMode depthMode = DepthMode::ReadWrite;
-        FaceCullMode cullMode = FaceCullMode::None;
-        PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
-        bool depthClamp = false;
-
-        if (rasterization.contains("alpha_blending"))
-            blending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
-        if (rasterization.contains("depth_mode"))
-            depthMode = NAME_TO_DEPTH_MODE_MAP.at(rasterization["depth_mode"]);
-        if (rasterization.contains("cull_mode"))
-            cullMode = NAME_TO_CULL_MODE_MAP.at(rasterization["cull_mode"]);
-        if (rasterization.contains("primitive_kind"))
-            primitiveKind = NAME_TO_PRIMITIVE_MAP.at(rasterization["primitive_kind"]);
-        if (rasterization.contains("depth_clamp"))
-            depthClamp = rasterization["depth_clamp"];
-
-        std::vector<Format> colorFormats;
-        std::optional<Format> depthFormat;
-
-        colorFormats.reserve(rasterization["colors"].size());
-        for (auto& color : rasterization["colors"])
-            colorFormats.push_back(FormatUtils::formatFromString(color));
-        if (rasterization.contains("depth"))
-            depthFormat = FormatUtils::formatFromString(rasterization["depth"]);
-        
-        pipelineBuilder
-            .AlphaBlending(blending)
-            .DepthMode(depthMode)
-            .DepthClamp(depthClamp)
-            .FaceCullMode(cullMode)
-            .PrimitiveKind(primitiveKind)
-            .SetRenderingDetails({
-                .ColorFormats = colorFormats,
-                .DepthFormat = depthFormat ? *depthFormat : Format::Undefined});
-    }
-    
     ShaderProxy shader = {};
-    shader.Pipeline = pipelineBuilder.BuildManualLifetime();
     shader.Dependencies.reserve(shaderTemplate->GetShaderDependencies().size() + 1);
     shader.Dependencies.append_range(shaderTemplate->GetShaderDependencies());
     shader.Dependencies.emplace_back(path);
-    if (!initialLoad)
-        return shader;
 
+    if (reloadType == ReloadType::PipelineDescriptors || reloadType == ReloadType::Pipeline)
+    {
+        ShaderPipeline::Builder pipelineBuilder = {};
+        pipelineBuilder
+            .UseDescriptorBuffer()
+            .SetTemplate(shaderTemplate);
+        
+        for (auto& specialization : json["specialization_constants"])
+        {
+            static constexpr std::string_view TYPE_BOOL = "b32";
+            static constexpr std::string_view TYPE_I32 = "i32";
+            static constexpr std::string_view TYPE_U32 = "u32";
+            static constexpr std::string_view TYPE_F32 = "f32";
+            
+            std::string_view specializationName = specialization["name"];
+            std::string_view specializationType = specialization["type"];
+            const auto& value = specialization["value"];
+            if (specializationType == TYPE_BOOL)
+                pipelineBuilder.AddSpecialization<bool>(specializationName, value);
+            else if (specializationType == TYPE_I32)
+                pipelineBuilder.AddSpecialization<i32>(specializationName, value);
+            else if (specializationType == TYPE_U32)
+                pipelineBuilder.AddSpecialization<u32>(specializationName, value);
+            else if (specializationType == TYPE_F32)
+                pipelineBuilder.AddSpecialization<f32>(specializationName, value);
+            else
+                LOG("Ignoring specialization constant {}: unknown type: {}", specializationName, specializationType);
+        }
+
+        DynamicStates dynamicStates = DynamicStates::Default;
+        for (auto& dynamicState : json["dynamic_states"])
+        {
+            static const std::unordered_map<std::string, DynamicStates> NAME_TO_STATE_MAP = {
+                std::make_pair("viewport", DynamicStates::Viewport),
+                std::make_pair("scissor", DynamicStates::Scissor),
+                std::make_pair("depth_bias", DynamicStates::DepthBias),
+                std::make_pair("default", DynamicStates::Default),
+            };
+
+            auto it = NAME_TO_STATE_MAP.find(dynamicState);
+            if (it == NAME_TO_STATE_MAP.end())
+            {
+                LOG("Unrecognized dynamic state: {}", std::string{dynamicState});
+                continue;
+            }
+            dynamicStates |= it->second;
+        }
+        pipelineBuilder.DynamicStates(dynamicStates);
+
+        if (!shaderTemplate->IsComputeTemplate())
+        {
+            static const std::unordered_map<std::string, AlphaBlending> NAME_TO_BLENDING_MAP = {
+                std::make_pair("none", AlphaBlending::None),
+                std::make_pair("over", AlphaBlending::Over),
+            };
+
+            static const std::unordered_map<std::string, DepthMode> NAME_TO_DEPTH_MODE_MAP = {
+                std::make_pair("none",       DepthMode::None),
+                std::make_pair("read",       DepthMode::Read),
+                std::make_pair("read_write", DepthMode::ReadWrite),
+            };
+
+            static const std::unordered_map<std::string, FaceCullMode> NAME_TO_CULL_MODE_MAP = {
+                std::make_pair("none",  FaceCullMode::None),
+                std::make_pair("front", FaceCullMode::Front),
+                std::make_pair("back",  FaceCullMode::Back),
+            };
+
+            static const std::unordered_map<std::string, PrimitiveKind> NAME_TO_PRIMITIVE_MAP = {
+                std::make_pair("triangle",  PrimitiveKind::Triangle),
+                std::make_pair("point",     PrimitiveKind::Point),
+            };
+
+            auto& rasterization = json["rasterization"];
+
+            AlphaBlending blending = AlphaBlending::Over;
+            DepthMode depthMode = DepthMode::ReadWrite;
+            FaceCullMode cullMode = FaceCullMode::None;
+            PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
+            bool depthClamp = false;
+
+            if (rasterization.contains("alpha_blending"))
+                blending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
+            if (rasterization.contains("depth_mode"))
+                depthMode = NAME_TO_DEPTH_MODE_MAP.at(rasterization["depth_mode"]);
+            if (rasterization.contains("cull_mode"))
+                cullMode = NAME_TO_CULL_MODE_MAP.at(rasterization["cull_mode"]);
+            if (rasterization.contains("primitive_kind"))
+                primitiveKind = NAME_TO_PRIMITIVE_MAP.at(rasterization["primitive_kind"]);
+            if (rasterization.contains("depth_clamp"))
+                depthClamp = rasterization["depth_clamp"];
+
+            std::vector<Format> colorFormats;
+            std::optional<Format> depthFormat;
+
+            colorFormats.reserve(rasterization["colors"].size());
+            for (auto& color : rasterization["colors"])
+                colorFormats.push_back(FormatUtils::formatFromString(color));
+            if (rasterization.contains("depth"))
+                depthFormat = FormatUtils::formatFromString(rasterization["depth"]);
+            
+            pipelineBuilder
+                .AlphaBlending(blending)
+                .DepthMode(depthMode)
+                .DepthClamp(depthClamp)
+                .FaceCullMode(cullMode)
+                .PrimitiveKind(primitiveKind)
+                .SetRenderingDetails({
+                    .ColorFormats = colorFormats,
+                    .DepthFormat = depthFormat ? *depthFormat : Format::Undefined});
+        }
+        
+        shader.Pipeline = pipelineBuilder.BuildManualLifetime();
+    }
+
+    if (reloadType == ReloadType::Pipeline)
+        return shader;
     /* basically there is no way to actually reload descriptors info
-     * the descriptors filled by c++ code, and it is not really possible to make it work
-     * w/o rewriting that code, so the descriptors are loaded once with the shader (no hot-reload for them)
-     */
+    * the descriptors filled by c++ code, and it is not really possible to make it work
+    * w/o rewriting that code, so the descriptors are loaded once with the shader (no hot-reload for them)
+    * changing the descriptors while application is running will lead to undefined behaviour
+    */
+    std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> descriptors = {};
+    
     std::array<ShaderDescriptors::Builder, BINDLESS_DESCRIPTORS_INDEX> descriptorsBuilders = {};
     auto setPresence = shaderTemplate->GetSetPresence();
     for (u32 i = 0; i < BINDLESS_DESCRIPTORS_INDEX; i++)
@@ -273,7 +303,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, bool i
         // todo: this is pretty dangerous line, the templates might not be compatible
         shader.Descriptors[BINDLESS_DESCRIPTORS_INDEX].m_Template = shaderTemplate;
     }
-
+    
     return shader;
 }
 

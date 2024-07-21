@@ -33,8 +33,6 @@ class SlimeMoldContext;
 class HiZPassContext;
 class SkyGradientPass;
 class BlitPass;
-class HiZVisualize;
-class HiZPass;
 class CrtPass;
 class Camera;
 class CameraController;
