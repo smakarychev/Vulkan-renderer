@@ -9,8 +9,8 @@
 CrtPass::CrtPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* crtTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-          "../assets/shaders/processed/render-graph/post/crt-frag.shader"},
+          "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
+          "../assets/shaders/processed/render-graph/post/crt-frag.stage"},
       "Pass.CRT", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

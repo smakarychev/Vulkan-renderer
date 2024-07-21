@@ -30,6 +30,7 @@
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
+#include "Rendering/ShaderCache.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
 #include "Rendering/Image/Processing/CubemapProcessor.h"
@@ -40,6 +41,8 @@ Renderer::Renderer() = default;
 
 void Renderer::Init()
 {
+    Experimental::ShaderCache::Init();
+    
     InitRenderingStructures();
 
     Input::s_MainViewportSize = m_Swapchain.GetResolution();
@@ -47,6 +50,21 @@ void Renderer::Init()
     m_CameraController = std::make_unique<CameraController>(m_Camera);
     for (auto& ctx : m_FrameContexts)
         ctx.MainCamera = m_Camera.get();
+
+    m_Graph = std::make_unique<RG::Graph>();
+
+    auto materialsTemplate = ShaderTemplateLibrary::CreateMaterialsTemplate("materials", m_Graph->GetArenaAllocators());
+    ShaderDescriptors materialDescriptors = ShaderDescriptors::Builder()
+            .SetTemplate(materialsTemplate, DescriptorAllocatorKind::Resources)
+            // todo: make this (2) an enum
+            .ExtractSet(2)
+            .BindlessCount(1024)
+            .Build();
+    Experimental::ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
+    Experimental::ShaderCache::AddBindlessDescriptors("main_materials", materialDescriptors);
+    Experimental::ShaderCache::Register("Visibility.Meshlet", "../assets/shaders/visibility-meshlet.shader");
+    Experimental::ShaderCache::Register("Visibility.Triangle", "../assets/shaders/visibility-triangle.shader");
+    Experimental::ShaderCache::Register("HiZ.Visualize", "../assets/shaders/hiz-visualize.shader");
 
     InitRenderGraph();
 }
@@ -87,12 +105,11 @@ void Renderer::InitRenderGraph()
     DiffuseIrradianceProcessor::Add(m_SkyboxTexture, m_SkyboxIrradianceMap);
     EnvironmentPrefilterProcessor::Add(m_SkyboxTexture, m_SkyboxPrefilterMap);
 
-    m_Graph = std::make_unique<RG::Graph>();
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
 
     auto drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.shader",
-        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.shader",},
+        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.stage",
+        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.stage",},
         "Pass.DrawCulled", m_Graph->GetArenaAllocators());
     
     ShaderDescriptors materialDescriptors = ShaderDescriptors::Builder()

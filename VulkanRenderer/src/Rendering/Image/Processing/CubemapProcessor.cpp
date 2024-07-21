@@ -18,7 +18,7 @@ void CubemapProcessor::Process(const CommandBuffer& cmd)
     static DescriptorArenaAllocators allocators = ProcessingResources::Allocators();
     static ProcessingPipeline pipelineData = ProcessingResources::CreatePipeline(
     ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/cubemap-processor-comp.shader"},
+        "../assets/shaders/processed/cubemap-processor-comp.stage"},
         "CubemapProcessor", allocators));
 
     auto&& [pipeline, samplerDescriptors, resourceDescriptors] = pipelineData;

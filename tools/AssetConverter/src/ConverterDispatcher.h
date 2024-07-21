@@ -9,7 +9,7 @@ public:
         : m_InitialDirectoryPath(&initialDirectoryPath), m_File(&file) {}
 
     template <typename Conv>
-    void Dispatch(const std::vector<std::string_view>& extensions)
+    void Dispatch(const std::vector<std::string>& extensions)
     {
         if (m_IsDispatched)
             return;

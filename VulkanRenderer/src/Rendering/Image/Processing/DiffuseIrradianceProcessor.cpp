@@ -18,7 +18,7 @@ void DiffuseIrradianceProcessor::Process(const CommandBuffer& cmd)
     static DescriptorArenaAllocators allocators = ProcessingResources::Allocators();
     static ProcessingPipeline pipelineData = ProcessingResources::CreatePipeline(
     ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/diffuse-irradiance-comp.shader"},
+        "../assets/shaders/processed/diffuse-irradiance-comp.stage"},
          "DiffuseIrradianceProcessor", allocators));
 
     auto&& [pipeline, samplerDescriptors, resourceDescriptors] = pipelineData;

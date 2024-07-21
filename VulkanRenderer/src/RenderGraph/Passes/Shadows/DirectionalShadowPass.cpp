@@ -7,7 +7,7 @@
 DirectionalShadowPass::DirectionalShadowPass(RG::Graph& renderGraph, const ShadowPassInitInfo& info)
 {
     ShaderPipelineTemplate* shadowTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/shadows/directional-vert.shader"},
+        "../assets/shaders/processed/render-graph/shadows/directional-vert.stage"},
         "Pass.Shadow.Directional", renderGraph.GetArenaAllocators());
 
     ShaderPipeline::Builder pipelineBuilder = ShaderPipeline::Builder()

@@ -2,31 +2,11 @@
 
 #include "Renderer.h"
 #include "imgui/imgui.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 HiZVisualize::HiZVisualize(RG::Graph& renderGraph)
 {
-    ShaderPipelineTemplate* hizVisualizeTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-            "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-            "../assets/shaders/processed/render-graph/culling/hiz-visualize-frag.shader"},
-        "Pass.HiZ.Visualize", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(hizVisualizeTemplate)
-        .SetRenderingDetails({
-           .ColorFormats = {Format::RGBA16_FLOAT}})
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(hizVisualizeTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(hizVisualizeTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
 }
 
 void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
@@ -34,9 +14,9 @@ void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
     using namespace RG;
 
     static ShaderDescriptors::BindingInfo samplerBindingInfo =
-        m_PipelineData.SamplerDescriptors.GetBindingInfo("u_sampler");
+        Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Sampler).GetBindingInfo("u_sampler");
     static ShaderDescriptors::BindingInfo hizBindingInfo =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_hiz");
+        Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Resource).GetBindingInfo("u_hiz");
 
     m_Pass = &renderGraph.AddRenderPass<PassData>({"HiZ.Visualize"},
         [&](Graph& graph, PassData& passData)
@@ -52,7 +32,6 @@ void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 AttachmentLoad::Load, AttachmentStore::Store);
 
-            passData.PipelineData = &m_PipelineData;
             passData.PushConstants = &m_PushConstants;
 
             graph.GetBlackboard().Update(passData);
@@ -68,9 +47,9 @@ void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
             ImGui::DragFloat("intensity", &pushConstants.IntensityScale, 10.0f, 1.0f, 1e+4f);            
             ImGui::End();
 
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            auto& pipeline = Experimental::ShaderCache::Get("HiZ.Visualize").Pipeline(); 
+            auto& samplerDescriptors = Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Sampler);
+            auto& resourceDescriptors = Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Resource);
             
             samplerDescriptors.UpdateBinding(samplerBindingInfo,
                 hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));

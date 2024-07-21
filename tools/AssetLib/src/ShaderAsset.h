@@ -6,7 +6,7 @@
 
 namespace assetLib
 {
-    struct ShaderInfo : AssetInfoBase
+    struct ShaderStageInfo : AssetInfoBase
     {
         struct SpecializationConstant
         {
@@ -67,12 +67,12 @@ namespace assetLib
         std::vector<DescriptorSet> DescriptorSets;
         u64 SourceSizeBytes;
     };
-    CREATE_ENUM_FLAGS_OPERATORS(ShaderInfo::DescriptorSet::DescriptorFlags)
+    CREATE_ENUM_FLAGS_OPERATORS(ShaderStageInfo::DescriptorSet::DescriptorFlags)
 
-    ShaderInfo readShaderInfo(const assetLib::File& file);
+    ShaderStageInfo readShaderStageInfo(const assetLib::File& file);
 
-    assetLib::File packShader(const ShaderInfo& info, const void* source);
-    void unpackShader(ShaderInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv);
+    assetLib::File packShaderStage(const ShaderStageInfo& info, const void* source);
+    void unpackShaderStage(ShaderStageInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv);
 
-    std::string descriptorFlagToString(ShaderInfo::DescriptorSet::DescriptorFlags flag);
+    std::string descriptorFlagToString(ShaderStageInfo::DescriptorSet::DescriptorFlags flag);
 }

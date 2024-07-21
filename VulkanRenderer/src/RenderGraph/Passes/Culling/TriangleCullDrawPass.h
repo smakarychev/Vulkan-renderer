@@ -219,11 +219,11 @@ TriangleCullDrawPass<Stage>::TriangleCullDrawPass(RG::Graph& renderGraph, std::s
         : m_Name(name)
 {
     ShaderPipelineTemplate* triangleCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/triangle-cull-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/triangle-cull-comp.stage"},
         "Pass.TriangleCull", renderGraph.GetArenaAllocators());
 
     ShaderPipelineTemplate* trianglePrepareDrawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/prepare-draw-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/prepare-draw-comp.stage"},
         "Pass.TriangleCull.PrepareDraw", renderGraph.GetArenaAllocators());
 
     ASSERT(!info.MaterialDescriptors.has_value() ||

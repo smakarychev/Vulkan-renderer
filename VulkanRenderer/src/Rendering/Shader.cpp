@@ -114,66 +114,22 @@ namespace
     }
 }
 
-ShaderModule ShaderModule::Builder::Build()
-{
-    return Build(Driver::DeletionQueue());
-}
-
-ShaderModule ShaderModule::Builder::Build(DeletionQueue& deletionQueue)
-{
-    ShaderModule shader = ShaderModule::Create(m_CreateInfo);
-    deletionQueue.Enqueue(shader);
-
-    return shader;
-}
-
-ShaderModule ShaderModule::Builder::BuildManualLifetime()
-{
-    return ShaderModule::Create(m_CreateInfo);
-}
-
-ShaderModule::Builder& ShaderModule::Builder::FromSource(const std::vector<u8>& source)
-{
-    m_CreateInfo.Source = &source;
-
-    return *this;
-}
-
-ShaderModule::Builder& ShaderModule::Builder::SetStage(ShaderStage stage)
-{
-    m_CreateInfo.Stage = stage;
-
-    return *this;
-}
-
-ShaderModule ShaderModule::Create(const Builder::CreateInfo& createInfo)
-{
-    return Driver::Create(createInfo);
-}
-
-void ShaderModule::Destroy(const ShaderModule& shader)
-{
-    Driver::Destroy(shader.Handle());
-}
-
 Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
 {
-    std::string combinedNames;
-    for (auto& path : paths)
-        combinedNames += std::string{path};
-
-    Shader* cachedShader = AssetManager::GetShader(combinedNames);  
+    std::string shaderKey = AssetManager::GetShaderKey(paths);
+    
+    Shader* cachedShader = AssetManager::GetShader(shaderKey);  
     if (cachedShader)
         return cachedShader;
 
     Shader shader;
 
     ShaderStage allStages = ShaderStage::None;
-    assetLib::ShaderInfo mergedShaderInfo = {};
+    assetLib::ShaderStageInfo mergedShaderInfo = {};
     
     for (auto& path : paths)
     {
-        assetLib::ShaderInfo shaderAsset = shader.LoadFromAsset(path);
+        assetLib::ShaderStageInfo shaderAsset = shader.LoadFromAsset(path);
         allStages |= shaderStageFromAssetStage(shaderAsset.ShaderStages);
         mergedShaderInfo = MergeReflections(mergedShaderInfo, shaderAsset);
     }
@@ -201,36 +157,38 @@ Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
         .InputAttributes = mergedShaderInfo.InputAttributes,
         .PushConstants = mergedShaderInfo.PushConstants,
         .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets),
+        .Dependencies = mergedShaderInfo.IncludedFiles
     };
 
-    AssetManager::AddShader(combinedNames, shader);
+    AssetManager::AddShader(shaderKey, shader);
     
-    return AssetManager::GetShader(combinedNames);
+    return AssetManager::GetShader(shaderKey);
 }
 
-assetLib::ShaderInfo Shader::LoadFromAsset(std::string_view path)
+assetLib::ShaderStageInfo Shader::LoadFromAsset(std::string_view path)
 {
     assetLib::File shaderFile;
     assetLib::loadAssetFile(path, shaderFile);
-    assetLib::ShaderInfo shaderInfo = assetLib::readShaderInfo(shaderFile);
+    assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
     
     ShaderModuleSource shaderModule = {};
     shaderModule.Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages);
     shaderModule.Source.resize(shaderInfo.SourceSizeBytes);
-    assetLib::unpackShader(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), shaderModule.Source.data());
+    assetLib::unpackShaderStage(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), shaderModule.Source.data());
     m_Modules.push_back(shaderModule);
 
     return shaderInfo;
 }
 
-assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first, const assetLib::ShaderInfo& second)
+assetLib::ShaderStageInfo Shader::MergeReflections(const assetLib::ShaderStageInfo& first,
+    const assetLib::ShaderStageInfo& second)
 {
     ASSERT(!(first.ShaderStages & second.ShaderStages), "Overlapping shader stages")
     ASSERT(((first.ShaderStages | second.ShaderStages) & VK_SHADER_STAGE_COMPUTE_BIT) == 0 ||
            ((first.ShaderStages | second.ShaderStages) & VK_SHADER_STAGE_COMPUTE_BIT) == VK_SHADER_STAGE_COMPUTE_BIT,
            "Compute shaders cannot be combined with others in pipeline")
 
-    assetLib::ShaderInfo merged = first;
+    assetLib::ShaderStageInfo merged = first;
 
     merged.ShaderStages |= second.ShaderStages;
 
@@ -267,7 +225,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
         },
         [](const auto& a, const auto& b)
         {
-            assetLib::ShaderInfo::PushConstant merged = a;
+            assetLib::ShaderStageInfo::PushConstant merged = a;
             merged.ShaderStages |= b.ShaderStages;
             return merged;
         });
@@ -284,7 +242,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
         },
         [](const auto& a, const auto& b)
         {
-            assetLib::ShaderInfo::DescriptorSet mergedSet = a;
+            assetLib::ShaderStageInfo::DescriptorSet mergedSet = a;
             mergedSet.Descriptors = Utils::mergeSets(mergedSet.Descriptors, b.Descriptors,
                 [](const auto& a, const auto& b)
                 {
@@ -297,7 +255,7 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
                 [](const auto& a, const auto& b)
                 {
                     ASSERT(a.Name == b.Name, "Descriptors have same binding but different names")
-                    assetLib::ShaderInfo::DescriptorSet::DescriptorBinding mergedDescriptor = a;
+                    assetLib::ShaderStageInfo::DescriptorSet::DescriptorBinding mergedDescriptor = a;
                     mergedDescriptor.ShaderStages |= b.ShaderStages;
 
                     return mergedDescriptor;
@@ -306,11 +264,19 @@ assetLib::ShaderInfo Shader::MergeReflections(const assetLib::ShaderInfo& first,
             return mergedSet;
         });
 
+    merged.IncludedFiles.push_back(second.OriginalFile);
+    for (auto& include : second.IncludedFiles)
+    {
+        auto it = std::ranges::find(merged.IncludedFiles, include);
+        if (it == merged.IncludedFiles.end())
+            merged.IncludedFiles.push_back(include);
+    }
+
     return merged;
 }
 
 std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets(
-    const std::vector<assetLib::ShaderInfo::DescriptorSet>& sets)
+    const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& sets)
 {
     std::vector<ReflectionData::DescriptorSet> descriptorSets(sets.size());
     for (u32 setIndex = 0; setIndex < descriptorSets.size(); setIndex++)
@@ -331,7 +297,7 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
             descriptor.Descriptor.DescriptorFlags = sets[setIndex].Descriptors[descriptorIndex].Flags;
 
             if (enumHasAny(sets[setIndex].Descriptors[descriptorIndex].Flags,
-                assetLib::ShaderInfo::DescriptorSet::Bindless))
+                assetLib::ShaderStageInfo::DescriptorSet::Bindless))
             {
                 containsBindlessDescriptors = true;
                 descriptor.Descriptor.Count = bindlessDescriptorCount(
@@ -344,7 +310,7 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
             // every specific version of ImmutableSampler flag also contains the base flag
             containsImmutableSamplers = containsImmutableSamplers ||
                 enumHasAny(descriptor.Descriptor.DescriptorFlags,
-                    assetLib::ShaderInfo::DescriptorSet::ImmutableSampler);
+                    assetLib::ShaderStageInfo::DescriptorSet::ImmutableSampler);
         }
         descriptorSets[setIndex].HasBindless = containsBindlessDescriptors;
         descriptorSets[setIndex].HasImmutableSampler = containsImmutableSamplers;
@@ -354,20 +320,6 @@ std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets
 }
 
 ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build()
-{
-    return Build(Driver::DeletionQueue());
-}
-
-ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build(DeletionQueue& deletionQueue)
-{
-    ShaderPipelineTemplate shaderPipelineTemplate = ShaderPipelineTemplate::Create(m_CreateInfo);
-    for (auto& shader : shaderPipelineTemplate.m_Shaders)
-        deletionQueue.Enqueue(shader);
-
-    return shaderPipelineTemplate;
-}
-
-ShaderPipelineTemplate ShaderPipelineTemplate::Builder::BuildManualLifetime()
 {
     return ShaderPipelineTemplate::Create(m_CreateInfo);
 }
@@ -422,12 +374,14 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     }
     
     const auto& reflectionData = createInfo.ShaderReflection->GetReflectionData();
+
+    shaderPipelineTemplate.m_IsComputeTemplate = enumHasOnly(reflectionData.ShaderStages, ShaderStage::Compute);
     
     shaderPipelineTemplate.m_DescriptorsLayouts = CreateDescriptorLayouts(reflectionData.DescriptorSets,
         shaderPipelineTemplate.m_UseDescriptorBuffer);
     shaderPipelineTemplate.m_VertexInputDescription = CreateInputDescription(reflectionData.InputAttributes);
-    std::vector<ShaderPushConstantDescription> pushConstantDescriptions = CreatePushConstantDescriptions(reflectionData.PushConstants);
-    std::vector<ShaderModule> shaderModules = CreateShaderModules(createInfo.ShaderReflection->GetShadersSource());
+    std::vector<ShaderPushConstantDescription> pushConstantDescriptions =
+        CreatePushConstantDescriptions(reflectionData.PushConstants);
     
     shaderPipelineTemplate.m_PipelineLayout = PipelineLayout::Builder()
         .SetPushConstants(pushConstantDescriptions)
@@ -437,15 +391,10 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     shaderPipelineTemplate.m_PipelineBuilder = Pipeline::Builder()
         .SetLayout(shaderPipelineTemplate.m_PipelineLayout);
 
-    shaderPipelineTemplate.m_Shaders.reserve(shaderModules.size());
-    for (auto& shader : shaderModules)
-    {
+    for (auto& shader : createInfo.ShaderReflection->GetShadersSource())
         shaderPipelineTemplate.m_PipelineBuilder.AddShader(shader);
-        shaderPipelineTemplate.m_Shaders.push_back(shader);
-    }
 
-    if (shaderModules.size() == 1 && shaderModules.front().m_Stage == ShaderStage::Compute)
-        shaderPipelineTemplate.m_PipelineBuilder.IsComputePipeline(true);
+    shaderPipelineTemplate.m_PipelineBuilder.IsComputePipeline(shaderPipelineTemplate.m_IsComputeTemplate);
 
     shaderPipelineTemplate.m_SpecializationConstants.reserve(reflectionData.SpecializationConstants.size());
     for (auto& constant : reflectionData.SpecializationConstants)
@@ -467,14 +416,10 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     }
         
     shaderPipelineTemplate.m_DescriptorSetCount = (u32)reflectionData.DescriptorSets.size();
+
+    shaderPipelineTemplate.m_ShaderDependencies = reflectionData.Dependencies;
     
     return shaderPipelineTemplate;
-}
-
-void ShaderPipelineTemplate::Destroy(const ShaderPipelineTemplate& shaderPipelineTemplate)
-{
-    for (auto& shader : shaderPipelineTemplate.m_Shaders)
-        ShaderModule::Destroy(shader);
 }
 
 const DescriptorBinding& ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
@@ -490,10 +435,8 @@ const DescriptorBinding* ShaderPipelineTemplate::TryGetBinding(u32 set, std::str
 {
     auto& setInfo = m_DescriptorSetsInfo[set];
     for (u32 descriptorIndex = 0; descriptorIndex < setInfo.Bindings.size(); descriptorIndex++)
-    {
         if (setInfo.Names[descriptorIndex] == name)
             return &setInfo.Bindings[descriptorIndex];
-    }
 
     return nullptr;
 }
@@ -521,11 +464,6 @@ std::array<bool, MAX_PIPELINE_DESCRIPTOR_SETS> ShaderPipelineTemplate::GetSetPre
         presence[setIndex] = !m_DescriptorSetsInfo[setIndex].Bindings.empty();
 
     return presence;
-}
-
-bool ShaderPipelineTemplate::IsComputeTemplate() const
-{
-    return m_Shaders.size() == 1 && m_Shaders.front().m_Stage == ShaderStage::Compute;
 }
 
 std::vector<DescriptorsLayout> ShaderPipelineTemplate::CreateDescriptorLayouts(
@@ -637,25 +575,6 @@ std::vector<ShaderPushConstantDescription> ShaderPipelineTemplate::CreatePushCon
     return pushConstants;
 }
 
-std::vector<ShaderModule> ShaderPipelineTemplate::CreateShaderModules(
-    const std::vector<Shader::ShaderModuleSource>& shaders)
-{
-    std::vector<ShaderModule> shaderModules;
-    shaderModules.reserve(shaders.size());
-
-    for (auto& shader : shaders)
-    {
-        ShaderModule module = ShaderModule::Builder()
-            .FromSource(shader.Source)
-            .SetStage(shader.Stage)
-            .BuildManualLifetime();
-
-        shaderModules.push_back(module);
-    }
-
-    return shaderModules;
-}
-
 ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescriptorsAndFlags(
     const ReflectionData::DescriptorSet& descriptorSet, bool useDescriptorBuffer)
 {
@@ -667,7 +586,7 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
     {
         descriptorsFlags.Descriptors.push_back(descriptor.Descriptor);
         DescriptorFlags flags = DescriptorFlags::None;
-        if (enumHasAny(descriptor.Descriptor.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::Bindless))
+        if (enumHasAny(descriptor.Descriptor.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::Bindless))
         {
             flags |= DescriptorFlags::VariableCount;
             if (!useDescriptorBuffer)
@@ -683,8 +602,23 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
 
 ShaderPipeline ShaderPipeline::Builder::Build()
 {
+    return Build(Driver::DeletionQueue());
+}
+
+ShaderPipeline ShaderPipeline::Builder::Build(DeletionQueue& deletionQueue)
+{
     Prebuild();
+
+    ShaderPipeline pipeline = ShaderPipeline::Create(m_CreateInfo);
+    deletionQueue.Enqueue(pipeline.m_Pipeline);
     
+    return pipeline;
+}
+
+ShaderPipeline ShaderPipeline::Builder::BuildManualLifetime()
+{
+    Prebuild();
+
     return ShaderPipeline::Create(m_CreateInfo);
 }
 
@@ -855,9 +789,10 @@ ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
         pipelineBuilder.UseDescriptorBuffer();
     
     if (createInfo.ShaderPipelineTemplate->IsComputeTemplate())
-        shaderPipeline.m_Pipeline = pipelineBuilder.Build();
+        shaderPipeline.m_Pipeline = pipelineBuilder.BuildManualLifetime();
     else
-        shaderPipeline.m_Pipeline = pipelineBuilder.SetRenderingDetails(createInfo.RenderingDetails).Build();    
+        shaderPipeline.m_Pipeline = pipelineBuilder.SetRenderingDetails(createInfo.RenderingDetails)
+            .BuildManualLifetime();    
 
     return shaderPipeline;
 }
@@ -1177,23 +1112,14 @@ ShaderDescriptors::BindingInfo ShaderDescriptors::GetBindingInfo(std::string_vie
     return {.Slot = binding.Binding, .Type = binding.Type};
 }
 
-std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::m_Templates = {};
+std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
 
 ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
     std::string_view templateName, DescriptorAllocator& allocator)
 {
     std::string name = GenerateTemplateName(templateName, allocator);
     if (!GetShaderTemplate(name))
-    {
-        Shader* shaderReflection = Shader::ReflectFrom(paths);
-
-        ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
-            .SetDescriptorAllocator(&allocator)
-            .SetShaderReflection(shaderReflection)
-            .Build();
-        
-        AddShaderTemplate(shaderTemplate, name);
-    }
+        AddShaderTemplate(CreateFromPaths(paths, allocator), name);
     
     return GetShaderTemplate(name);
 }
@@ -1202,19 +1128,8 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const 
     std::string_view templateName, DescriptorArenaAllocators& allocators)
 {
     std::string name = GenerateTemplateName(templateName, allocators);
-    
     if (!GetShaderTemplate(name))
-    {
-        Shader* shaderReflection = Shader::ReflectFrom(paths);
-
-        ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
-            .SetDescriptorArenaResourceAllocator(&allocators.Get(DescriptorAllocatorKind::Resources))
-            .SetDescriptorArenaSamplerAllocator(&allocators.Get(DescriptorAllocatorKind::Samplers))
-            .SetShaderReflection(shaderReflection)
-            .Build();
-        
-        AddShaderTemplate(shaderTemplate, name);
-    }
+        AddShaderTemplate(CreateFromPaths(paths, allocators), name);
     
     return GetShaderTemplate(name);
 }
@@ -1225,10 +1140,22 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::stri
     return GetShaderTemplate(GenerateTemplateName(name, allocators));
 }
 
+ShaderPipelineTemplate* ShaderTemplateLibrary::ReloadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+    std::string_view templateName, DescriptorArenaAllocators& allocators)
+{
+    std::string name = GenerateTemplateName(templateName, allocators);
+    if (s_Templates.contains(name))
+        s_Templates[name] = CreateFromPaths(paths, allocators);
+    else
+        s_Templates.emplace(name, CreateFromPaths(paths, allocators));
+
+    return GetShaderTemplate(name);
+}
+
 ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::string& name)
 {
-    auto it = m_Templates.find(name);
-    return it == m_Templates.end() ? nullptr : &it->second;
+    auto it = s_Templates.find(name);
+    return it == s_Templates.end() ? nullptr : &it->second;
 }
 
 std::string ShaderTemplateLibrary::GenerateTemplateName(std::string_view templateName, DescriptorAllocator& allocator)
@@ -1244,5 +1171,39 @@ std::string ShaderTemplateLibrary::GenerateTemplateName(std::string_view templat
 
 void ShaderTemplateLibrary::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name)
 {
-    m_Templates.emplace(std::make_pair(name, shaderTemplate));
+    s_Templates.emplace(std::make_pair(name, shaderTemplate));
+}
+
+ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(const std::string& templateName,
+    DescriptorArenaAllocators& allocators)
+{
+    return LoadShaderPipelineTemplate({"../assets/shaders/processed/core/material-frag.stage"},
+        templateName, allocators);
+}
+
+ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
+    DescriptorAllocator& allocator)
+{
+    Shader* shaderReflection = Shader::ReflectFrom(paths);
+
+    ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
+        .SetDescriptorAllocator(&allocator)
+        .SetShaderReflection(shaderReflection)
+        .Build();
+
+    return shaderTemplate;
+}
+
+ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
+    DescriptorArenaAllocators& allocators)
+{
+    Shader* shaderReflection = Shader::ReflectFrom(paths);
+
+    ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
+        .SetDescriptorArenaResourceAllocator(&allocators.Get(DescriptorAllocatorKind::Resources))
+        .SetDescriptorArenaSamplerAllocator(&allocators.Get(DescriptorAllocatorKind::Samplers))
+        .SetShaderReflection(shaderReflection)
+        .Build();
+
+    return shaderTemplate;
 }

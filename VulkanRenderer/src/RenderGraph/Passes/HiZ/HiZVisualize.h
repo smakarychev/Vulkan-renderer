@@ -1,6 +1,5 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RGCommon.h"
 
 class HiZVisualize
 {
@@ -15,8 +14,6 @@ public:
         RG::Resource HiZ;
         RG::Resource ColorOut;
 
-        RG::PipelineData* PipelineData{nullptr};
-        
         PushConstants* PushConstants{nullptr};
     };
 public:
@@ -25,6 +22,5 @@ public:
 private:
     RG::Pass* m_Pass{nullptr};
 
-    RG::PipelineData m_PipelineData;
     PushConstants m_PushConstants{};
 };

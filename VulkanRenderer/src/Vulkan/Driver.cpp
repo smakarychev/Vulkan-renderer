@@ -12,6 +12,7 @@
 #include "Rendering/Buffer.h"
 #include "Core/ProfilerContext.h"
 #include "Rendering/FormatTraits.h"
+#include "Rendering/Shader.h"
 #include "utils/utils.h"
 
 #include "GLFW/glfw3.h"
@@ -597,9 +598,6 @@ void DeletionQueue::Flush()
     for (auto handle : m_SplitBarriers)
         Driver::Destroy(handle);
     
-    for (auto handle : m_Shaders)
-        Driver::Destroy(handle);
-    
     for (auto handle : m_Queues)
         Driver::Destroy(handle);
     
@@ -622,7 +620,6 @@ void DeletionQueue::Flush()
     m_Semaphores.clear();
     m_DependencyInfos.clear();
     m_SplitBarriers.clear();
-    m_Shaders.clear();
 }
 
 void DriverResources::MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool)
@@ -1188,30 +1185,6 @@ void Driver::Destroy(ResourceHandleType<RenderingInfo> renderingInfo)
     Resources().RemoveResource(renderingInfo);
 }
 
-ShaderModule Driver::Create(const ShaderModule::Builder::CreateInfo& createInfo)
-{
-    VkShaderModuleCreateInfo moduleCreateInfo = {};
-    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    moduleCreateInfo.codeSize = createInfo.Source->size();
-    moduleCreateInfo.pCode = reinterpret_cast<const u32*>(createInfo.Source->data());
-
-    DriverResources::ShaderModuleResource shaderModuleResource = {};
-    DriverCheck(vkCreateShaderModule(DeviceHandle(), &moduleCreateInfo, nullptr, &shaderModuleResource.Shader),
-        "Failed to create shader module");
-
-    ShaderModule shaderModule = {};
-    shaderModule.m_Stage = createInfo.Stage;
-    shaderModule.m_ResourceHandle = Resources().AddResource(shaderModuleResource);
-
-    return shaderModule;
-}
-
-void Driver::Destroy(ResourceHandleType<ShaderModule> shader)
-{
-    vkDestroyShaderModule(DeviceHandle(), Resources().m_Shaders[shader.m_Id].Shader, nullptr);
-    Resources().RemoveResource(shader);
-}
-
 PipelineLayout Driver::Create(const PipelineLayout::Builder::CreateInfo& createInfo)
 {
     std::vector<VkPushConstantRange> pushConstantRanges;
@@ -1258,13 +1231,25 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
 {
     VkPipelineLayout layout = Resources()[createInfo.PipelineLayout].Layout;
     std::vector<VkPipelineShaderStageCreateInfo> shaders;
+    std::vector<VkShaderModule> modules;
     shaders.reserve(createInfo.Shaders.size());
+    modules.reserve(createInfo.Shaders.size());
     for (auto& shader : createInfo.Shaders)
     {
+        VkShaderModuleCreateInfo moduleCreateInfo = {};
+        moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        moduleCreateInfo.codeSize = shader.Source.size();
+        moduleCreateInfo.pCode = reinterpret_cast<const u32*>(shader.Source.data());
+
+        VkShaderModule shaderModule;
+        DriverCheck(vkCreateShaderModule(DeviceHandle(), &moduleCreateInfo, nullptr, &shaderModule),
+            "Failed to create shader module");
+        modules.push_back(shaderModule);
+
         VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
         shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageCreateInfo.module = Resources()[shader].Shader;
-        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(shader.m_Stage);
+        shaderStageCreateInfo.module = shaderModule;
+        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(shader.Stage);
         shaderStageCreateInfo.pName = "main";
 
         shaders.push_back(shaderStageCreateInfo);
@@ -1278,7 +1263,7 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         auto& shader = shaders[shaderIndex];
         VkSpecializationInfo shaderSpecializationInfo = {};
         for (const auto& specialization : createInfo.ShaderSpecialization.ShaderSpecializations)
-            if (enumHasAny(createInfo.Shaders[shaderIndex].m_Stage, specialization.ShaderStages))
+            if (enumHasAny(createInfo.Shaders[shaderIndex].Stage, specialization.ShaderStages))
                 shaderSpecializationEntries[shaderIndex].push_back({
                     .constantID = specialization.Id,
                     .offset = specialization.Offset,
@@ -1442,6 +1427,10 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
             &pipelineResource.Pipeline), "Failed to create graphics pipeline");
         pipeline.m_ResourceHandle = Resources().AddResource(pipelineResource);
     }
+
+    /* once we have created pipeline, we no longer need shader modules */
+    for (auto& module : modules)
+        vkDestroyShaderModule(DeviceHandle(), module, nullptr);
     
     return pipeline;
 }
@@ -1487,33 +1476,33 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
             .descriptorCount = binding.Count,
             .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders)});
 
-        if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerClampEdge))
+        if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampEdge))
             bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampEdge].Sampler;
 
         else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearestClampEdge))
+            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampEdge))
                 bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampEdge].Sampler;
 
         else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerClampBlack))
+            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampBlack))
                 bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampBlack].Sampler;
 
         else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearestClampBlack))
+            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampBlack))
                 bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampBlack].Sampler;
 
         else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerClampWhite))
+            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampWhite))
                 bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampWhite].Sampler;
         
         else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearestClampWhite))
+            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampWhite))
                 bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampWhite].Sampler;
         
-        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSamplerNearest))
+        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearest))
             bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearest].Sampler;
 
-        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::ImmutableSampler))
+        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSampler))
             bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
     }
     
@@ -1812,7 +1801,7 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
         for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
         {
             auto& binding = bindings.Bindings[bindingIndex];
-            bool isBindless = enumHasAny(binding.DescriptorFlags, assetLib::ShaderInfo::DescriptorSet::Bindless);
+            bool isBindless = enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::Bindless);
             ASSERT(
                 (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
                 (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),

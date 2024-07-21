@@ -9,7 +9,7 @@ TriangleCullPrepareMultiviewPass::TriangleCullPrepareMultiviewPass(RG::Graph& re
     : m_Name(name)
 {
     ShaderPipelineTemplate* prepareDispatchTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/multiview/prepare-dispatches-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/multiview/prepare-dispatches-comp.stage"},
         "Pass.TriangleCull.Multiview.PrepareDispatch", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
@@ -95,11 +95,11 @@ TriangleCullMultiviewPass::TriangleCullMultiviewPass(RG::Graph& renderGraph, std
         : m_Name(name), m_Stage(info.Stage)
 {
     ShaderPipelineTemplate* triangleCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-       "../assets/shaders/processed/render-graph/culling/multiview/triangle-cull-comp.shader"},
+       "../assets/shaders/processed/render-graph/culling/multiview/triangle-cull-comp.stage"},
        "Pass.TriangleCull.Multiview", renderGraph.GetArenaAllocators());
 
     ShaderPipelineTemplate* trianglePrepareDrawsTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/multiview/prepare-draws-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/multiview/prepare-draws-comp.stage"},
         "Pass.TriangleCull.Multiview.PrepareDraw", renderGraph.GetArenaAllocators());
 
     /* init culling data */

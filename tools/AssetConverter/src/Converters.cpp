@@ -25,6 +25,9 @@
 #include "utils.h"
 #include "Core/core.h"
 
+// SPIV-reflect implementation
+#include "spirv_reflect.cpp"
+
 namespace
 {
     struct AssetPaths
@@ -135,8 +138,8 @@ void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath
     textureInfo.Dimensions = {.Width = (u32)width, .Height = (u32)height, .Depth = 1};
     textureInfo.SizeBytes = sizeBytes; 
     textureInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    textureInfo.OriginalFile = path.string();
-    textureInfo.BlobFile = blobPath.string();
+    textureInfo.OriginalFile = path.generic_string();
+    textureInfo.BlobFile = blobPath.generic_string();
     
     assetLib::File textureFile = assetLib::packTexture(textureInfo, pixels);
         
@@ -193,8 +196,8 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     assetLib::ModelInfo modelInfo = {};
     modelInfo.VertexFormat = assetLib::VertexFormat::P3N3T3UV2;
     modelInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    modelInfo.OriginalFile = path.string();
-    modelInfo.BlobFile = blobPath.string();
+    modelInfo.OriginalFile = path.generic_string();
+    modelInfo.BlobFile = blobPath.generic_string();
 
     std::vector<aiNode*> nodesToProcess;
     nodesToProcess.push_back(scene->mRootNode);
@@ -364,7 +367,7 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
         aiString textureName;
         material->GetTexture(textureType, i, &textureName);
         std::filesystem::path texturePath = modelPath.parent_path() / std::filesystem::path(textureName.C_Str());
-        textures[i] = texturePath.string();
+        textures[i] = texturePath.generic_string();
     }
 
     return {.Textures = textures};
@@ -423,12 +426,12 @@ void ModelConverter::ConvertTextures(const std::filesystem::path& initialDirecto
             
             std::filesystem::path texturePath = texture;
             texturePath.replace_extension(TextureConverter::POST_CONVERT_EXTENSION);
-            texture = texturePath.string();
+            texture = texturePath.generic_string();
         }
     }
 }
 
-bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
+bool ShaderStageConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
     const std::filesystem::path& path)
 {
     std::filesystem::path convertedPath = {};
@@ -436,7 +439,7 @@ bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirect
     bool requiresConversion = needsConversion(initialDirectoryPath, path, [&](std::filesystem::path& converted)
     {
         converted.replace_filename(converted.stem().string() + "-" + converted.extension().string().substr(1));
-        converted.replace_extension(ShaderConverter::POST_CONVERT_EXTENSION);
+        converted.replace_extension(ShaderStageConverter::POST_CONVERT_EXTENSION);
         convertedPath = converted;
     });
 
@@ -445,7 +448,7 @@ bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirect
 
     assetLib::File shaderFile;
     assetLib::loadAssetFile(convertedPath.string(), shaderFile);
-    assetLib::ShaderInfo shaderInfo = assetLib::readShaderInfo(shaderFile);
+    assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
 
     for (auto& includedFile : shaderInfo.IncludedFiles)
     {
@@ -459,10 +462,16 @@ bool ShaderConverter::NeedsConversion(const std::filesystem::path& initialDirect
     return false;
 }
 
-void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
+void ShaderStageConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    std::cout << std::format("Converting shader file {}\n", path.string());
-    
+    Bake(initialDirectoryPath, path);
+}
+
+std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::filesystem::path& initialDirectoryPath,
+    const std::filesystem::path& path)
+{
+    std::cout << std::format("Converting shader stage file {}\n", path.string());
+
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
         {
@@ -515,7 +524,7 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
             std::filesystem::path requestedPath = std::filesystem::path{requestingSource}.parent_path() /
                 std::filesystem::path{requestedSource};
 
-            std::string fileName = requestedPath.string();
+            std::string fileName = requestedPath.generic_string();
             std::ifstream fileIn(fileName.data(), std::ios::ate | std::ios::binary);
             if (!fileIn.is_open())
                 return new shaderc_include_result{"", 0,
@@ -558,17 +567,18 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
         path.string().c_str(), options);
     if (module.GetCompilationStatus() != shaderc_compilation_status_success)
     {
-        std::cout << std::format("Shader compilation error:\n {}", module.GetErrorMessage());
-        return;
+        std::cout << std::format("Shader stage compilation error:\n {}", module.GetErrorMessage());
+        return {};
     }
+    
     std::vector<u32> spirv = {module.cbegin(), module.cend()};
 
     // produce reflection on unoptimized code
-    assetLib::ShaderInfo shaderInfo = Reflect(spirv, descriptorFlags, inputBindingsInfo);
+    assetLib::ShaderStageInfo shaderInfo = Reflect(spirv, descriptorFlags, inputBindingsInfo);
     shaderInfo.IncludedFiles = includedFiles;
     shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    shaderInfo.OriginalFile = path.string();
-    shaderInfo.BlobFile = blobPath.string();
+    shaderInfo.OriginalFile = path.generic_string();
+    shaderInfo.BlobFile = blobPath.generic_string();
 
     std::vector<u32> spirvOptimized;
     spirvOptimized.reserve(spirv.size());
@@ -580,18 +590,21 @@ void ShaderConverter::Convert(const std::filesystem::path& initialDirectoryPath,
 
     shaderInfo.SourceSizeBytes = spirv.size() * sizeof(u32);
     
-    assetLib::File shaderFile = assetLib::packShader(shaderInfo, spirv.data());
+
+    assetLib::File shaderFile = assetLib::packShaderStage(shaderInfo, spirv.data());
 
     assetLib::saveAssetFile(assetPath.string(), blobPath.string(), shaderFile);
 
-    std::cout << std::format("Shader file {} converted to {} (blob at {})\n",
+    std::cout << std::format("Shader stage file {} converted to {} (blob at {})\n",
         path.string(), assetPath.string(), blobPath.string());
+
+    return shaderInfo;
 }
 
-std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptorsFlags(std::string_view shaderSource)
+std::vector<ShaderStageConverter::DescriptorFlagInfo> ShaderStageConverter::ReadDescriptorsFlags(std::string_view shaderSource)
 {
     // weird flex but ok
-    std::vector<ShaderConverter::DescriptorFlags> flags = {
+    std::vector<ShaderStageConverter::DescriptorFlags> flags = {
         DescriptorFlags::Dynamic,
         DescriptorFlags::Bindless,
         DescriptorFlags::ImmutableSampler,
@@ -667,7 +680,7 @@ std::vector<ShaderConverter::DescriptorFlagInfo> ShaderConverter::ReadDescriptor
     return descriptorFlags;
 }
 
-std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInputBindings(
+std::vector<ShaderStageConverter::InputAttributeBindingInfo> ShaderStageConverter::ReadInputBindings(
     std::string_view shaderSource)
 {
     struct AttributeInfo
@@ -795,7 +808,7 @@ std::vector<ShaderConverter::InputAttributeBindingInfo> ShaderConverter::ReadInp
     return inputAttributeBindingInfos;
 }
 
-void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
+void ShaderStageConverter::RemoveMetaKeywords(std::string& shaderSource)
 {
     std::vector<std::string> keywords = {
         std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::Dynamic),
@@ -828,12 +841,12 @@ void ShaderConverter::RemoveMetaKeywords(std::string& shaderSource)
     }
 }
 
-assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
+assetLib::ShaderStageInfo ShaderStageConverter::Reflect(const std::vector<u32>& spirV,
         const std::vector<DescriptorFlagInfo>& flags, const std::vector<InputAttributeBindingInfo>& inputBindings)
 {
     static constexpr u32 SPV_INVALID_VAL = (u32)~0;
     
-    assetLib::ShaderInfo shaderInfo = {};
+    assetLib::ShaderStageInfo shaderInfo = {};
     
     SpvReflectShaderModule reflectedModule = {};
     spvReflectCreateShaderModule(spirV.size() * sizeof(u32), spirV.data(), &reflectedModule);
@@ -916,7 +929,7 @@ assetLib::ShaderInfo ShaderConverter::Reflect(const std::vector<u32>& spirV,
     {
         shaderInfo.DescriptorSets.push_back({.Set = set->set});
         
-        assetLib::ShaderInfo::DescriptorSet& descriptorSet = shaderInfo.DescriptorSets.back();
+        assetLib::ShaderStageInfo::DescriptorSet& descriptorSet = shaderInfo.DescriptorSets.back();
         descriptorSet.Descriptors.resize(set->binding_count);
         for (u32 i = 0; i < set->binding_count; i++)
         {

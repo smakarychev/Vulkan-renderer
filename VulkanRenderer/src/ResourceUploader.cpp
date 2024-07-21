@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <tracy/Tracy.hpp>
 
+#include "Rendering/Shader.h"
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 

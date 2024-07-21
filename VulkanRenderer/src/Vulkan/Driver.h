@@ -8,7 +8,6 @@
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/RenderingInfo.h"
-#include "Rendering/Shader.h"
 #include "Rendering/Swapchain.h"
 #include "Rendering/Synchronization.h"
 
@@ -191,11 +190,6 @@ private:
         using ObjectType = SplitBarrier;
         VkEvent Event{VK_NULL_HANDLE};
     };
-    struct ShaderModuleResource
-    {
-        using ObjectType = ShaderModule;
-        VkShaderModule Shader{VK_NULL_HANDLE};
-    };
     
     u64 m_AllocatedCount{0};
     u64 m_DeallocatedCount{0};
@@ -219,7 +213,6 @@ private:
     ResourceContainerType<SemaphoreResource> m_Semaphores;
     ResourceContainerType<DependencyInfoResource> m_DependencyInfos;
     ResourceContainerType<SplitBarrierResource> m_SplitBarriers;
-    ResourceContainerType<ShaderModuleResource> m_Shaders;
 
     std::vector<std::vector<u32>> m_CommandPoolToBuffersMap;
     std::vector<std::vector<u32>> m_DescriptorAllocatorToSetsMap;
@@ -275,8 +268,6 @@ constexpr auto DriverResources::AddResource(Resource&& resource)
         return AddToResourceList(m_DependencyInfos, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<std::decay_t<Resource>, SplitBarrierResource>)
         return AddToResourceList(m_SplitBarriers, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, ShaderModuleResource>)
-        return AddToResourceList(m_Shaders, std::forward<Resource>(resource));
     else 
         static_assert(!sizeof(Resource), "No match for resource");
     std::unreachable();
@@ -325,8 +316,6 @@ constexpr void DriverResources::RemoveResource(ResourceHandleType<Type> handle)
         m_DependencyInfos.Remove(handle);
     else if constexpr(std::is_same_v<Type, SplitBarrier>)
         m_SplitBarriers.Remove(handle);
-    else if constexpr(std::is_same_v<Type, ShaderModule>)
-        m_Shaders.Remove(handle);
     else 
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -378,8 +367,6 @@ constexpr auto& DriverResources::operator[](const Type& type)
         return m_DependencyInfos[type.Handle()];
     else if constexpr(std::is_same_v<Type, SplitBarrier>)
         return m_SplitBarriers[type.Handle()];
-    else if constexpr(std::is_same_v<Type, ShaderModule>)
-        return m_Shaders[type.Handle()];
     else 
         static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
@@ -413,7 +400,6 @@ private:
     std::vector<ResourceHandleType<Semaphore>> m_Semaphores;
     std::vector<ResourceHandleType<DependencyInfo>> m_DependencyInfos;
     std::vector<ResourceHandleType<SplitBarrier>> m_SplitBarriers;
-    std::vector<ResourceHandleType<ShaderModule>> m_Shaders;
 };
 
 
@@ -454,8 +440,6 @@ void DeletionQueue::Enqueue(Type& type)
         m_DependencyInfos.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, SplitBarrier>)
         m_SplitBarriers.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, ShaderModule>)
-        m_Shaders.push_back(type.Handle());
     else 
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -510,9 +494,6 @@ public:
 
     static RenderingInfo Create(const RenderingInfo::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<RenderingInfo> renderingInfo);
-
-    static ShaderModule Create(const ShaderModule::Builder::CreateInfo& createInfo);
-    static void Destroy(ResourceHandleType<ShaderModule> shader);
 
     static PipelineLayout Create(const PipelineLayout::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<PipelineLayout> pipelineLayout);

@@ -1,9 +1,7 @@
 ﻿#include <filesystem>
 #include <iostream>
 
-#include "ConverterDispatcher.h"
-#include "Converters.h"
-#include "types.h"
+#include "AssetConverter.h"
 
 i32 main(i32 argc, char** argv)
 {
@@ -12,22 +10,8 @@ i32 main(i32 argc, char** argv)
     if (argc < 2)
     {
         std::cout << "Usage: AssetConverter <directory>\n";
-        exit(1);
+        return 1;
     }
 
-    fs::path directory{argv[1]};
-    
-    for (const auto& file : fs::recursive_directory_iterator(directory))
-    {
-        if (!file.is_directory())
-        {
-            ConverterDispatcher dispatcher(argv[1], file);
-            dispatcher.Dispatch<ModelConverter>({".obj", ".fbx", ".blend", ".gltf"});
-            dispatcher.Dispatch<TextureConverter>({".png", ".jpg", ".jpeg", ".hdr"});
-            dispatcher.Dispatch<ShaderConverter>({".vert", ".frag", ".comp"});
-        }
-    }
+    AssetConverter::BakeDirectory(argv[1]);
 }
-
-// SPIV-reflect implementation
-#include "spirv_reflect.cpp"

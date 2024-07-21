@@ -20,6 +20,7 @@ include "vendor/glm"
 include "vendor/lz4"
 include "vendor/meshoptimizer"
 include "vendor/imgui"
+include "vendor/efsw"
 
 group "Tools"
 include "tools/AssetLib"

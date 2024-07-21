@@ -8,7 +8,7 @@
 
 namespace
 {
-    using DescriptorFlags = assetLib::ShaderInfo::DescriptorSet::DescriptorFlags;
+    using DescriptorFlags = assetLib::ShaderStageInfo::DescriptorSet::DescriptorFlags;
 
     DescriptorFlags flagsFromStringArray(const std::vector<std::string>& flagsStrings)
     {
@@ -101,9 +101,9 @@ namespace
 
 namespace assetLib
 {
-    ShaderInfo readShaderInfo(const assetLib::File& file)
+    ShaderStageInfo readShaderStageInfo(const assetLib::File& file)
     {
-        ShaderInfo info = {};
+        ShaderStageInfo info = {};
 
         nlohmann::json metadata = nlohmann::json::parse(file.JSON);
 
@@ -121,7 +121,7 @@ namespace assetLib
         info.SpecializationConstants.reserve(constantsCount);
         for (auto& constant : specializationConstants)
         {
-            ShaderInfo::SpecializationConstant specializationConstant = {};
+            ShaderStageInfo::SpecializationConstant specializationConstant = {};
             specializationConstant.Id = constant["id"];
             specializationConstant.Name = constant["name"];
             specializationConstant.ShaderStages = constant["shader_stages"];
@@ -134,7 +134,7 @@ namespace assetLib
         info.InputAttributes.reserve(inputAttributeCount);
         for (auto& input : inputAttributes)
         {
-            ShaderInfo::InputAttribute inputAttribute = {};
+            ShaderStageInfo::InputAttribute inputAttribute = {};
             inputAttribute.Binding = input["binding"];
             inputAttribute.Location = input["location"];
             inputAttribute.Name = input["name"];
@@ -149,7 +149,7 @@ namespace assetLib
         info.PushConstants.reserve(pushConstantCount);
         for (auto& push : pushConstants)
         {
-            ShaderInfo::PushConstant pushConstant = {};
+            ShaderStageInfo::PushConstant pushConstant = {};
             pushConstant.SizeBytes = push["size_bytes"];
             pushConstant.Offset = push["offset"];
             pushConstant.ShaderStages = push["shader_stages"];
@@ -162,14 +162,14 @@ namespace assetLib
         info.DescriptorSets.reserve(descriptorSetCount);
         for (auto& set : descriptorSets)
         {
-            ShaderInfo::DescriptorSet descriptorSet = {};
+            ShaderStageInfo::DescriptorSet descriptorSet = {};
             descriptorSet.Set = set["set"];
             const nlohmann::json& bindings = set["bindings"];
             u32 bindingCount = (u32)bindings.size();
             descriptorSet.Descriptors.reserve(bindingCount);
             for (auto& binding : bindings)
             {
-                ShaderInfo::DescriptorSet::DescriptorBinding descriptorBinding = {};
+                ShaderStageInfo::DescriptorSet::DescriptorBinding descriptorBinding = {};
                 descriptorBinding.Name = binding["name"];
                 descriptorBinding.Count = binding["count"];
                 descriptorBinding.Binding = binding["binding"];
@@ -193,7 +193,7 @@ namespace assetLib
         return info;
     }
 
-    assetLib::File packShader(const ShaderInfo& info, const void* source)
+    assetLib::File packShaderStage(const ShaderStageInfo& info, const void* source)
     {
         nlohmann::json metadata;
 
@@ -276,7 +276,7 @@ namespace assetLib
         return assetFile;
     }
 
-    void unpackShader(ShaderInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv)
+    void unpackShaderStage(ShaderStageInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv)
     {
         if (info.CompressionMode == CompressionMode::LZ4 && sourceSizeBytes != info.SourceSizeBytes)
             LZ4_decompress_safe((const char*)source, (char*)spirv, (i32)sourceSizeBytes, (i32)info.SourceSizeBytes);
@@ -284,7 +284,7 @@ namespace assetLib
             memcpy(spirv, source, info.SourceSizeBytes);
     }
 
-    std::string descriptorFlagToString(ShaderInfo::DescriptorSet::DescriptorFlags flag)
+    std::string descriptorFlagToString(ShaderStageInfo::DescriptorSet::DescriptorFlags flag)
     {
         switch (flag) {
         case DescriptorFlags::None:

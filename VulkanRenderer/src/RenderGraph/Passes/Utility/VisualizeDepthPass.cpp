@@ -8,8 +8,8 @@ VisualizeDepthPass::VisualizeDepthPass(RG::Graph& renderGraph, std::string_view 
     : m_Name(name)
 {
     ShaderPipelineTemplate* depthTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-       "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-       "../assets/shaders/processed/render-graph/general/visualize-depth-frag.shader"},
+       "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
+       "../assets/shaders/processed/render-graph/general/visualize-depth-frag.stage"},
        "Pass.Depth.Visualize", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

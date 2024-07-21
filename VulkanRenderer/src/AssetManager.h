@@ -9,8 +9,10 @@ class Shader;
 class AssetManager
 {
 public:
+    static std::string GetShaderKey(const std::vector<std::string_view>& paths);
     static Shader* GetShader(const std::string& name);
     static void AddShader(const std::string& name, const Shader& shader);
+    static void RemoveShader(const std::string& name);
 
     static Model* GetModel(const std::string& name);
     static void AddModel(const std::string& name, const Model& model);

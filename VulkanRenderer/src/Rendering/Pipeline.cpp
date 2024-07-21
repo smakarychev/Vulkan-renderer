@@ -3,6 +3,7 @@
 #include "Core/core.h"
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
+#include "Rendering/Shader.h"
 
 PipelineLayout PipelineLayout::Builder::Build()
 {
@@ -81,9 +82,9 @@ Pipeline::Builder& Pipeline::Builder::IsComputePipeline(bool isCompute)
     return *this;
 }
 
-Pipeline::Builder& Pipeline::Builder::AddShader(const ShaderModule& shaderModule)
+Pipeline::Builder& Pipeline::Builder::AddShader(const ShaderModuleSource& shader)
 {
-    m_CreateInfo.Shaders.push_back(shaderModule);
+    m_CreateInfo.Shaders.push_back(shader);
 
     return *this;
 }

@@ -9,8 +9,8 @@
 PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RG::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info)
 {
     ShaderPipelineTemplate* pbrTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-          "../assets/shaders/processed/render-graph/pbr/pbr-visibility-buffer-ibl-frag.shader"},
+          "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
+          "../assets/shaders/processed/render-graph/pbr/pbr-visibility-buffer-ibl-frag.stage"},
       "Pass.PBR.Visibility.IBL", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

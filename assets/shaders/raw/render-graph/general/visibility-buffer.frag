@@ -39,7 +39,7 @@ void main() {
         sampler2D(u_textures[material.albedo_texture_index], u_sampler)), vertex_uv).a;
 
     if (alpha < 0.5f)
-        discard;
+        discard; 
 
     uint instance_id;
     uint triangle_id;

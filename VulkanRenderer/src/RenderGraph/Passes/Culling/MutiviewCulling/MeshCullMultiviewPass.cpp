@@ -9,7 +9,7 @@ MeshCullMultiviewPass::MeshCullMultiviewPass(RG::Graph& renderGraph, std::string
         : m_Name(name), m_Stage(info.Stage)
 {
     ShaderPipelineTemplate* cullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/multiview/mesh-cull-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/multiview/mesh-cull-comp.stage"},
         "Pass.Cull.Multiview.Mesh", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

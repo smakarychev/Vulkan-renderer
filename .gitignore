@@ -17,3 +17,4 @@ tools/*/bin-int
 *.blob
 *.tx
 vendor/imgui/bin
+*.stage

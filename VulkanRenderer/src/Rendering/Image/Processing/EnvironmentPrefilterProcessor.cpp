@@ -18,7 +18,7 @@ void EnvironmentPrefilterProcessor::Process(const CommandBuffer& cmd)
 {
     static DescriptorArenaAllocators allocators = ProcessingResources::Allocators();
     static ShaderPipelineTemplate* pipelineTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/environment-prefilter-comp.shader"},
+        "../assets/shaders/processed/environment-prefilter-comp.stage"},
         "EnvironmentPrefilter", allocators);
 
     static const u32 MAX_MIPMAPS = Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});

@@ -11,7 +11,7 @@ MeshletCullMultiviewPass::MeshletCullMultiviewPass(RG::Graph& renderGraph, std::
         : m_Name(name), m_Stage(info.Stage)
 {
     ShaderPipelineTemplate* cullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/multiview/meshlet-cull-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/multiview/meshlet-cull-comp.stage"},
         "Pass.Cull.Multiview.Meshlet", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

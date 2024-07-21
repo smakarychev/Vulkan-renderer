@@ -23,11 +23,18 @@ static constexpr std::string_view PROCESSED_ASSETS_DIRECTORY_NAME = "processed";
 class TextureConverter
 {
 public:
+    static std::vector<std::string> GetWatchedExtensions() { return WATCHED_EXTENSIONS; }
+    static bool WatchesExtension(std::string extension)
+    {
+        return std::ranges::find(WATCHED_EXTENSIONS, extension) != WATCHED_EXTENSIONS.end();
+    }
+    
     static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
     static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
     static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path,
         assetLib::TextureFormat format);
 public:
+    static inline const std::vector<std::string> WATCHED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".hdr"};
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".tx";
 };
 
@@ -46,6 +53,12 @@ public:
         std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialAspect::MaxVal> MaterialInfos;
     };
 public:
+    static std::vector<std::string> GetWatchedExtensions() { return WATCHED_EXTENSIONS; }
+    static bool WatchesExtension(std::string_view extension)
+    {
+        return std::ranges::find(WATCHED_EXTENSIONS, extension) != WATCHED_EXTENSIONS.end();
+    }
+    
     static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
     static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
 private:
@@ -60,12 +73,13 @@ private:
     static void ConvertTextures(const std::filesystem::path& initialDirectoryPath, MeshData& meshData);
     
 public:
+    static inline const std::vector<std::string> WATCHED_EXTENSIONS = {".obj", ".fbx", ".blend", ".gltf"};
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".model";
 };
 
-class ShaderConverter
+class ShaderStageConverter
 {
-    using DescriptorFlags = assetLib::ShaderInfo::DescriptorSet::DescriptorFlags;
+    using DescriptorFlags = assetLib::ShaderStageInfo::DescriptorSet::DescriptorFlags;
     struct DescriptorFlagInfo
     {
         DescriptorFlags Flags;
@@ -77,17 +91,27 @@ class ShaderConverter
         std::string Attribute;
     };
 public:
+    static std::vector<std::string> GetWatchedExtensions() { return WATCHED_EXTENSIONS; }
+    static bool WatchesExtension(std::string_view extension)
+    {
+        return std::ranges::find(WATCHED_EXTENSIONS, extension) != WATCHED_EXTENSIONS.end();
+    }
+    
     static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
     static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
+    static std::optional<assetLib::ShaderStageInfo> Bake(const std::filesystem::path& initialDirectoryPath,
+        const std::filesystem::path& path);
 private:
     static std::vector<DescriptorFlagInfo> ReadDescriptorsFlags(std::string_view shaderSource);
     static std::vector<InputAttributeBindingInfo> ReadInputBindings(std::string_view shaderSource);
     static void RemoveMetaKeywords(std::string& shaderSource);
-    static assetLib::ShaderInfo Reflect(const std::vector<u32>& spirV,
+    static assetLib::ShaderStageInfo Reflect(const std::vector<u32>& spirV,
         const std::vector<DescriptorFlagInfo>& flags, const std::vector<InputAttributeBindingInfo>& inputBindings);
 public:
-    static constexpr std::string_view POST_CONVERT_EXTENSION = ".shader";
-    static constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 3;
+    static inline const std::vector<std::string> WATCHED_EXTENSIONS = {".vert", ".frag", ".comp"};
+    static constexpr std::string_view POST_CONVERT_EXTENSION = ".stage";
+    static constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 4;
 
     static constexpr std::string_view META_KEYWORD_PREFIX = "@";
+
 };

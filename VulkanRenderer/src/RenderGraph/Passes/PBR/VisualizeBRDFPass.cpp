@@ -7,8 +7,8 @@
 VisualizeBRDFPass::VisualizeBRDFPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* brdfTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-        "../assets/shaders/processed/render-graph/pbr/visualize-brdf-frag.shader"},
+        "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
+        "../assets/shaders/processed/render-graph/pbr/visualize-brdf-frag.stage"},
         "Pass.BRDF.Visualize", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

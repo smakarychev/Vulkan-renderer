@@ -43,7 +43,7 @@ HiZPass::HiZPass(RG::Graph& renderGraph, std::string_view baseName)
     : m_Name(baseName)
 {
     ShaderPipelineTemplate* hizPassTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate(
-       {"../assets/shaders/processed/render-graph/culling/hiz-comp.shader"},
+       {"../assets/shaders/processed/render-graph/culling/hiz-comp.stage"},
        "Pass.HiZ", renderGraph.GetArenaAllocators());
 
     ShaderPipeline pipeline = ShaderPipeline::Builder()

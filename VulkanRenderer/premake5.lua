@@ -15,6 +15,7 @@ project "VulkanRenderer"
     {
         "src",
         "%{wks.location}/tools/AssetLib/src",
+        "%{wks.location}/tools/AssetConverter/src",
         IncludeDir["GLFW"],			
         IncludeDir["glm"],			
         IncludeDir["vma"],	
@@ -22,6 +23,8 @@ project "VulkanRenderer"
         IncludeDir["tracy"],    
         IncludeDir["volk"],
         IncludeDir["imgui"],
+        IncludeDir["nlohmann-json"],
+        IncludeDir["efsw"],
         "$(VULKAN_SDK)/Include",
     }
 
@@ -33,7 +36,9 @@ project "VulkanRenderer"
     {
         "glfw",
         "imgui",
+        "efsw",
         "AssetLib",
+        "AssetConverterLib"
     }
 
     defines
@@ -43,7 +48,6 @@ project "VulkanRenderer"
         "TRACY_ENABLE",
         "VK_NO_PROTOTYPES",
 	}
-
 
 	filter "configurations:Debug"
 		runtime "Debug"

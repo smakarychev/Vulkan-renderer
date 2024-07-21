@@ -15,7 +15,7 @@
 
 namespace assetLib
 {
-    struct ShaderInfo;
+    struct ShaderStageInfo;
 }
 
 class DescriptorArenaAllocators;
@@ -33,7 +33,7 @@ class Device;
 
 struct DescriptorBinding
 {
-    using Flags = assetLib::ShaderInfo::DescriptorSet::DescriptorFlags;
+    using Flags = assetLib::ShaderStageInfo::DescriptorSet::DescriptorFlags;
     u32 Binding;
     DescriptorType Type;
     u32 Count;

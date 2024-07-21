@@ -53,7 +53,7 @@ SsaoPass::SsaoPass(RG::Graph& renderGraph, u32 sampleCount)
     m_SamplesBuffer.SetData(samples.data(), m_SamplesBuffer.GetSizeBytes());
 
     ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/ao/ssao-comp.shader"},
+        "../assets/shaders/processed/render-graph/ao/ssao-comp.stage"},
         "Pass.SSAO", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

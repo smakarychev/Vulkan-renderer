@@ -12,7 +12,7 @@ MeshletCullTranslucentPass::MeshletCullTranslucentPass(RG::Graph& renderGraph, s
         : m_Name(name)
 {
     ShaderPipelineTemplate* meshletCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/meshlet-cull-translucent-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/meshlet-cull-translucent-comp.stage"},
         "Pass.MeshletCullTranslucent", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

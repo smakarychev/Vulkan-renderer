@@ -18,7 +18,7 @@ TriangleCullPrepareDispatchPass::TriangleCullPrepareDispatchPass(
         : m_Name(name)
 {
     ShaderPipelineTemplate* prepareDispatchTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/prepare-indirect-dispatches-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/prepare-indirect-dispatches-comp.stage"},
         "Pass.TriangleCull.PrepareDispatch", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

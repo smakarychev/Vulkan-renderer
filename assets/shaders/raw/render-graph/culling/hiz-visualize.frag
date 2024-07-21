@@ -16,5 +16,5 @@ layout(push_constant) uniform push_constants {
 
 void main() {
     float depth = textureLod(sampler2D(u_hiz, u_sampler), vertex_uv, float(mipmap)).r;
-    out_color = vec4(vec3(depth) * intensity, 1.0f);
+    out_color = vec4(vec3(depth / 2, depth, depth / 2) * intensity, 1.0f);
 }

@@ -86,7 +86,7 @@ MeshCullGeneralPass<Stage>::MeshCullGeneralPass(RG::Graph& renderGraph, std::str
         : m_Name(name)
 {
     ShaderPipelineTemplate* meshCullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/mesh-cull-comp.shader"},
+        "../assets/shaders/processed/render-graph/culling/mesh-cull-comp.stage"},
         "Pass.MeshCull", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

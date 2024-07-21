@@ -7,8 +7,8 @@ PbrTCForwardIBLPass::PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwar
         : m_Name(name)
 {
     ShaderPipelineTemplate* pbrTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-vert.shader",
-        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-frag.shader"},
+        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-vert.stage",
+        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-frag.stage"},
         "Pass.Pbr.Forward.IBL", renderGraph.GetArenaAllocators());
 
     ShaderPipeline::Builder pipelineBuilder = ShaderPipeline::Builder()

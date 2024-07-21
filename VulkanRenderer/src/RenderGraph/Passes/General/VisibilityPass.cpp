@@ -3,8 +3,8 @@
 VisibilityPass::VisibilityPass(RG::Graph& renderGraph, const VisibilityPassInitInfo& info)
 {
     ShaderPipelineTemplate* visibilityTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/general/visibility-buffer-vert.shader",
-        "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.shader"},
+        "../assets/shaders/processed/render-graph/general/visibility-buffer-vert.stage",
+        "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.stage"},
         "Pass.Visibility", renderGraph.GetArenaAllocators());
 
     ShaderPipeline::Builder pipelineBuilder = ShaderPipeline::Builder()

@@ -8,8 +8,8 @@
 SkyboxPass::SkyboxPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* skyboxTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/general/skybox-vert.shader",
-          "../assets/shaders/processed/render-graph/general/skybox-frag.shader"},
+          "../assets/shaders/processed/render-graph/general/skybox-vert.stage",
+          "../assets/shaders/processed/render-graph/general/skybox-frag.stage"},
       "Pass.Skybox", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

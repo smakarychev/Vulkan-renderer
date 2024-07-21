@@ -19,8 +19,8 @@ PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGrap
             .CameraType = info.CameraType});
 
     ShaderPipelineTemplate* drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-vert.shader",
-        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-frag.shader"},
+        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-vert.stage",
+        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-frag.stage"},
         name, renderGraph.GetArenaAllocators());
 
     ShaderPipeline drawPipeline = ShaderPipeline::Builder()

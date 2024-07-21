@@ -8,8 +8,8 @@
 CSMVisualizePass::CSMVisualizePass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* visualizeTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-       "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-       "../assets/shaders/processed/render-graph/shadows/visualize-csm-frag.shader"},
+       "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
+       "../assets/shaders/processed/render-graph/shadows/visualize-csm-frag.stage"},
        "Pass.CSM.Visualize", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

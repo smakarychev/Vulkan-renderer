@@ -7,8 +7,8 @@
 SsaoVisualizePass::SsaoVisualizePass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-       "../assets/shaders/processed/render-graph/common/fullscreen-vert.shader",
-       "../assets/shaders/processed/render-graph/ao/ssao-visualize-frag.shader"},
+       "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
+       "../assets/shaders/processed/render-graph/ao/ssao-visualize-frag.stage"},
        "Pass.SSAO.Visualize", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

@@ -8,7 +8,7 @@ SsaoBlurPass::SsaoBlurPass(RG::Graph& renderGraph, SsaoBlurPassKind kind)
     : m_Name(std::string("SSAO.Blur") + (kind == SsaoBlurPassKind::Horizontal ? "Horizontal" : "Vertical"))
 {
     ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/ao/ssao-blur-comp.shader"},
+        "../assets/shaders/processed/render-graph/ao/ssao-blur-comp.stage"},
         "Pass.SSAO.Blur", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()

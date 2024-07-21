@@ -72,7 +72,7 @@ void SlimeMoldContext::UpdateTraits(ResourceUploader& resourceUploader)
 SlimeMoldPass::SlimeMoldPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* slimeTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-            "../assets/shaders/processed/render-graph/extra/slime-mold/slime-comp.shader"},
+            "../assets/shaders/processed/render-graph/extra/slime-mold/slime-comp.stage"},
         "Pass.SlimeMold", renderGraph.GetArenaAllocators());
 
     m_UpdateSlimeMapPipelineData.Pipeline = ShaderPipeline::Builder()

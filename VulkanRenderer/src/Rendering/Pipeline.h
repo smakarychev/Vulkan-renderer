@@ -8,7 +8,7 @@
 #include "DescriptorsTraits.h"
 
 class DeletionQueue;
-class ShaderModule;
+struct ShaderModuleSource;
 class DescriptorsLayout;
 struct ShaderPushConstantDescription;
 class CommandBuffer;
@@ -59,7 +59,7 @@ enum class DynamicStates
 {
     None = 0,
     Viewport    = BIT(1),
-    Scissor    = BIT(2),
+    Scissor     = BIT(2),
     DepthBias   = BIT(3),
 
     Default     = Viewport | Scissor,
@@ -104,7 +104,7 @@ public:
             RenderingDetails RenderingDetails;
             bool IsComputePipeline{false};
             bool UseDescriptorBuffer{false};
-            std::vector<ShaderModule> Shaders;
+            std::vector<ShaderModuleSource> Shaders;
             VertexInputDescription VertexDescription;
             DynamicStates DynamicStates{DynamicStates::Default};
             bool ClampDepth{false};
@@ -121,7 +121,7 @@ public:
         Builder& SetLayout(PipelineLayout layout);
         Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
         Builder& IsComputePipeline(bool isCompute);
-        Builder& AddShader(const ShaderModule& shaderModule);
+        Builder& AddShader(const ShaderModuleSource& shader);
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
         Builder& DynamicStates(DynamicStates states);
         Builder& ClampDepth(bool enable = true);

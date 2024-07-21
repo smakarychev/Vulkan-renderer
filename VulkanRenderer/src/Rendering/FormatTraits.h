@@ -73,4 +73,5 @@ enum class Format : u8
 namespace FormatUtils
 {
     std::string formatToString(Format format);
+    Format formatFromString(std::string_view format);
 }

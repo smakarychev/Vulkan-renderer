@@ -7,7 +7,7 @@
 SkyGradientPass::SkyGradientPass(RG::Graph& renderGraph)
 {
     ShaderPipelineTemplate* skyTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/post/sky-gradient-comp.shader"},
+          "../assets/shaders/processed/render-graph/post/sky-gradient-comp.stage"},
       "Pass.SkyGradient", renderGraph.GetArenaAllocators());
 
     m_PipelineData.Pipeline = ShaderPipeline::Builder()
