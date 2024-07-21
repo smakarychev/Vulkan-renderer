@@ -16,7 +16,7 @@
 
 class CSMVisualizePass;
 class CSMPass;
-class VisualizeDepthPass;
+class DirectionalShadowPass;
 class DirectionalShadowPass;
 class PbrForwardTranslucentIBLPass;
 class PbrTCForwardIBLPass;
@@ -27,7 +27,6 @@ class SsaoPass;
 class SsaoBlurPass;
 class SsaoVisualizePass;
 class PbrVisibilityBufferIBL;
-class CopyTexturePass;
 class SlimeMoldPass;
 class SlimeMoldContext;
 class HiZPassContext;
@@ -97,8 +96,6 @@ private:
     std::shared_ptr<SkyGradientPass> m_SkyGradientPass;
     std::shared_ptr<CrtPass> m_CrtPass;
     
-    std::shared_ptr<CopyTexturePass> m_CopyTexturePass;
-
     std::shared_ptr<VisibilityPass> m_VisibilityPass;
     std::shared_ptr<PbrVisibilityBufferIBL> m_PbrVisibilityBufferIBLPass;
     std::shared_ptr<PbrForwardTranslucentIBLPass> m_PbrForwardIBLTranslucentPass;

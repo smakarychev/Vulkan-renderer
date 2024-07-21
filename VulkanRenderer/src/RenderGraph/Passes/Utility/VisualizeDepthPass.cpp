@@ -2,46 +2,22 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-VisualizeDepthPass::VisualizeDepthPass(RG::Graph& renderGraph, std::string_view name)
-    : m_Name(name)
-{
-    ShaderPipelineTemplate* depthTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-       "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
-       "../assets/shaders/processed/render-graph/general/visualize-depth-frag.stage"},
-       "Pass.Depth.Visualize", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(depthTemplate)
-        .SetRenderingDetails({
-            .ColorFormats = {Format::RGBA16_FLOAT}})
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(depthTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(depthTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-}
-
-void VisualizeDepthPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn, RG::Resource colorIn,
-    f32 near, f32 far, bool isOrthographic)
+RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depthIn,
+    RG::Resource colorIn, f32 near, f32 far, bool isOrthographic)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
-    
-    std::string name = m_Name.Name();
-    m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
+
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            graph.SetShader("../assets/shaders/depth-visualize.shader");
+            
             auto& depthDescription = Resources(graph).GetTextureDescription(depthIn);
-            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, name + ".Color",
+            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, std::string{name} + ".Color",
                 GraphTextureDescription{
                     .Width = depthDescription.Width,
                     .Height = depthDescription.Height,
@@ -50,9 +26,7 @@ void VisualizeDepthPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn
             passData.DepthIn = graph.Read(depthIn, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
 
-            passData.PipelineData = &m_PipelineData;
-
-            graph.GetBlackboard().Update(m_Name.Hash(), passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -60,9 +34,10 @@ void VisualizeDepthPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn
 
             const Texture& depthTexture = resources.GetTexture(passData.DepthIn);
 
-            auto& pipeline = passData.PipelineData->Pipeline;    
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_depth", depthTexture.BindingInfo(
                 ImageFilter::Linear, depthTexture.Description().Format == Format::D32_FLOAT ?
@@ -88,4 +63,6 @@ void VisualizeDepthPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn
             
             RenderCommand::Draw(cmd, 3);
         });
+
+    return pass;
 }

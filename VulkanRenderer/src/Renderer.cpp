@@ -169,7 +169,6 @@ void Renderer::InitRenderGraph()
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
-    m_CopyTexturePass = std::make_shared<CopyTexturePass>("Copy.Texture");
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(m_Swapchain.GetResolution(), 1, 5000000, *GetFrameContext().ResourceUploader));
@@ -182,7 +181,8 @@ void Renderer::SetupRenderSlimePasses()
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::DiffuseSlimeMap, *m_SlimeMoldContext);
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::Gradient, *m_SlimeMoldContext);
     auto& slimeMoldOutput = m_Graph->GetBlackboard().Get<SlimeMoldPass::GradientPassData>();
-    m_CopyTexturePass->AddToGraph(*m_Graph, slimeMoldOutput.GradientMap, m_Graph->GetBackbuffer(),
+    Passes::CopyTexture::addToGraph("CopyTexture.Mold", *m_Graph,
+        slimeMoldOutput.GradientMap, m_Graph->GetBackbuffer(),
         glm::vec3{0.0f}, glm::vec3{1.0f});
     m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
 }
@@ -310,8 +310,9 @@ void Renderer::SetupRenderGraph()
         renderedColor = pbrTranslucentOutput.ColorOut;
     }
 
-    m_CopyTexturePass->AddToGraph(*m_Graph, renderedColor, backbuffer, glm::vec3{}, glm::vec3{1.0f});
-    backbuffer = m_Graph->GetBlackboard().Get<CopyTexturePass::PassData>().TextureOut;
+    auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
+        renderedColor, backbuffer, glm::vec3{}, glm::vec3{1.0f});
+    backbuffer = m_Graph->GetBlackboard().Get<Passes::CopyTexture::PassData>(copyRendered).TextureOut;
 
     auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibility.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<Passes::HiZVisualize::PassData>(hizVisualize);
@@ -319,10 +320,10 @@ void Renderer::SetupRenderGraph()
     m_CSMVisualizePass->AddToGraph(*m_Graph, csmOutput, {});
     auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<CSMVisualizePass::PassData>();
 
-    ImGuiTexturePass::AddToGraph("SSAO.Texture", *m_Graph, ssaoVisualizeOutput.ColorOut);
-    ImGuiTexturePass::AddToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
-    ImGuiTexturePass::AddToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
-    ImGuiTexturePass::AddToGraph("BRDF.Texture", *m_Graph, *m_BRDF);
+    Passes::ImGuiTexture::addToGraph("SSAO.Texture", *m_Graph, ssaoVisualizeOutput.ColorOut);
+    Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
+    Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
+    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, *m_BRDF);
 
     //SetupRenderSlimePasses();
 }

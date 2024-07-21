@@ -3,17 +3,13 @@
 #include "FrameContext.h"
 #include "Vulkan/RenderCommand.h"
 
-CopyTexturePass::CopyTexturePass(std::string_view name)
-    : m_Name(name)
-{
-}
-
-void CopyTexturePass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
-    RG::Resource textureOut, const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType)
+RG::Pass& Passes::CopyTexture::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Resource textureIn, RG::Resource textureOut,
+    const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType)
 {
     using namespace RG;
     
-    m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             passData.TextureIn = graph.Read(textureIn,
@@ -48,4 +44,6 @@ void CopyTexturePass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
             
             RenderCommand::CopyImage(frameContext.Cmd, srcCopy, dstCopy);
         });
+
+    return pass;
 }

@@ -13,7 +13,6 @@ vendor/*/bin-int
 tools/*/bin
 tools/*/bin-int
 *.spv
-*.shader
 *.blob
 *.tx
 vendor/imgui/bin

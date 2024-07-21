@@ -4,12 +4,12 @@
 #include "Imgui/ImguiUI.h"
 #include "RenderGraph/RenderGraph.h"
 
-void ImGuiTexturePass::AddToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture)
+RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture)
 {
-    AddToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
+    return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
 }
 
-void ImGuiTexturePass::AddToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -19,7 +19,7 @@ void ImGuiTexturePass::AddToGraph(std::string_view name, RG::Graph& renderGraph,
         Resource Texture{};
         std::string Name{};
     };
-    renderGraph.AddRenderPass<PassData>(name,
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             passData.Texture = graph.Read(textureIn, Pixel | Sampled);
@@ -47,4 +47,6 @@ void ImGuiTexturePass::AddToGraph(std::string_view name, RG::Graph& renderGraph,
                 glm::uvec2(size));
             ImGui::End();
         });
+
+    return pass;
 }

@@ -107,8 +107,6 @@ SlimeMoldPass::SlimeMoldPass(RG::Graph& renderGraph)
         .SetTemplate(slimeTemplate, DescriptorAllocatorKind::Resources)
         .ExtractSet(1)
         .Build();
-
-    m_CopyDiffuseToMapPass = std::make_shared<CopyTexturePass>("Copy.SlimeDiffuse");
 }
 
 void SlimeMoldPass::AddToGraph(RG::Graph& renderGraph, SlimeMoldPassStage stage, SlimeMoldContext& ctx)
@@ -273,8 +271,8 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldCon
 void SlimeMoldPass::AddCopyDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
     auto& diffuseOutput = renderGraph.GetBlackboard().Get<DiffuseSlimeMapPassData>();
-    m_CopyDiffuseToMapPass->AddToGraph(renderGraph, diffuseOutput.DiffuseMap, diffuseOutput.SlimeMap,
-        glm::vec3{}, glm::vec3{1.0f});
+    Passes::CopyTexture::addToGraph("Copy.SlimeDiffuse", renderGraph,
+        diffuseOutput.DiffuseMap, diffuseOutput.SlimeMap, glm::vec3{}, glm::vec3{1.0f});
 }
 
 void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& ctx)

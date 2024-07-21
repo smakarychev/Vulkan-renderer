@@ -3,17 +3,12 @@
 #include "Renderer.h"
 #include "Vulkan/RenderCommand.h"
 
-BlitPass::BlitPass(std::string_view name)
-    : m_Name(name)
-{
-}
-
-void BlitPass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
+RG::Pass& Passes::Blit::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn,
     RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize)
 {
     using namespace RG;
     
-    m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             passData.TextureIn = graph.Read(textureIn,
@@ -22,7 +17,7 @@ void BlitPass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
             passData.TextureOut = graph.Write(textureOut,
                 ResourceAccessFlags::Blit);
 
-            graph.GetBlackboard().Update(m_Name.Hash(), passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -44,4 +39,6 @@ void BlitPass::AddToGraph(RG::Graph& renderGraph, RG::Resource textureIn,
             
             RenderCommand::BlitImage(frameContext.Cmd, srcBlit, dstBlit, ImageFilter::Linear);
         });
+
+    return pass;
 }

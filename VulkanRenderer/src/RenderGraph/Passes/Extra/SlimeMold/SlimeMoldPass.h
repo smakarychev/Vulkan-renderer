@@ -120,7 +120,6 @@ private:
 private:
     RG::Pass* m_UpdateSlimeMapPass{nullptr};
     RG::Pass* m_DiffuseSlimeMapPass{nullptr};
-    std::shared_ptr<CopyTexturePass> m_CopyDiffuseToMapPass{nullptr};
     RG::Pass* m_GradientSlimeMapPass{nullptr};
 
     RG::PipelineData m_UpdateSlimeMapPipelineData;
