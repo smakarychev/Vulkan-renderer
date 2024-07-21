@@ -18,7 +18,7 @@ RG::Pass& Passes::CopyTexture::addToGraph(std::string_view name, RG::Graph& rend
             passData.TextureOut = graph.Write(textureOut,
                 ResourceAccessFlags::Copy);
 
-            graph.GetBlackboard().Update(passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

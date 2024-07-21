@@ -1,10 +1,8 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RGCommon.h"
 
-class SkyboxPass
+namespace Passes::Skybox
 {
-public:
     struct ProjectionUBO
     {
         glm::mat4 ProjectionInverse{1.0f};
@@ -18,17 +16,10 @@ public:
         RG::Resource Projection{};
 
         f32 LodBias{0.0f};
-
-        RG::PipelineData* PipelineData{nullptr};
     };
-public:
-    SkyboxPass(RG::Graph& renderGraph);
-    void AddToGraph(RG::Graph& renderGraph, const Texture& skybox, RG::Resource colorOut,
+    
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& skybox, RG::Resource colorOut,
         RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
-    void AddToGraph(RG::Graph& renderGraph, RG::Resource skybox, RG::Resource colorOut,
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource skybox, RG::Resource colorOut,
         RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
-private:
-    RG::Pass* m_Pass{nullptr};
-
-    RG::PipelineData m_PipelineData{};
-};
+}

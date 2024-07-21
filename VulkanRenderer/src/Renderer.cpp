@@ -159,9 +159,6 @@ void Renderer::InitRenderGraph()
 
     m_VisualizeBRDFPass = std::make_shared<VisualizeBRDFPass>(*m_Graph);
 
-    m_SkyboxPass = std::make_shared<SkyboxPass>(*m_Graph);
-
-
     // todo: separate geometry for shadow casters
     m_CSMPass = std::make_shared<CSMPass>(*m_Graph, ShadowPassInitInfo{
         .Geometry = &m_GraphOpaqueGeometry});
@@ -284,10 +281,10 @@ void Renderer::SetupRenderGraph()
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = m_Graph->GetBlackboard().Get<PbrVisibilityBufferIBL::PassData>();
 
-    
-    m_SkyboxPass->AddToGraph(*m_Graph,
+
+    auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
         m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibility.DepthOut, GetFrameContext().Resolution, 1.2f);
-    auto& skyboxOutput = m_Graph->GetBlackboard().Get<SkyboxPass::PassData>();
+    auto& skyboxOutput = m_Graph->GetBlackboard().Get<Passes::Skybox::PassData>(skybox);
     Resource renderedColor = skyboxOutput.ColorOut;
     Resource renderedDepth = skyboxOutput.DepthOut;
     

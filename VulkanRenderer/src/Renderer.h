@@ -22,7 +22,6 @@ class PbrForwardTranslucentIBLPass;
 class PbrTCForwardIBLPass;
 class VisibilityPass;
 class VisualizeBRDFPass;
-class SkyboxPass;
 class SsaoPass;
 class SsaoBlurPass;
 class SsaoVisualizePass;
@@ -110,7 +109,6 @@ private:
     Texture m_SkyboxIrradianceMap{};
     Texture m_SkyboxPrefilterMap{};
     std::shared_ptr<Texture> m_BRDF{};
-    std::shared_ptr<SkyboxPass> m_SkyboxPass;
 
     std::shared_ptr<CSMPass> m_CSMPass;
     std::shared_ptr<CSMVisualizePass> m_CSMVisualizePass;

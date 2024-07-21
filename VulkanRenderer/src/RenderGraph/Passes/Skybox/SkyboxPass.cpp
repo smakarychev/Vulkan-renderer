@@ -3,60 +3,35 @@
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RGUtils.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-SkyboxPass::SkyboxPass(RG::Graph& renderGraph)
+RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& skybox,
+    RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
-    ShaderPipelineTemplate* skyboxTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/general/skybox-vert.stage",
-          "../assets/shaders/processed/render-graph/general/skybox-frag.stage"},
-      "Pass.Skybox", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(skyboxTemplate)
-        .SetRenderingDetails({
-            .ColorFormats = {Format::RGBA16_FLOAT},
-            .DepthFormat = Format::D32_FLOAT})
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(skyboxTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(skyboxTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
+    return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".Skybox", skybox),
+        colorOut, depthIn, resolution, lodBias);
 }
 
-void SkyboxPass::AddToGraph(RG::Graph& renderGraph, const Texture& skybox, RG::Resource colorOut,
-    RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
-{
-    using namespace RG;
-    std::string name = "Skybox";
-    AddToGraph(renderGraph, renderGraph.AddExternal(name + ".Skybox", skybox), colorOut, depthIn, resolution, lodBias);
-}
-
-void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
+RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource skybox,
     RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
     
-    std::string name = "Skybox";
-    m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, name + ".Color",
+            graph.SetShader("../assets/shaders/skybox.shader");
+            
+            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".Color",
                 GraphTextureDescription{
                     .Width = resolution.x,
                     .Height = resolution.y,
                     .Format = Format::RGBA16_FLOAT});
             ASSERT(depthIn.IsValid(), "Depth has to be provided")
 
-            passData.Projection = graph.CreateResource(name + ".Projection", GraphBufferDescription{
+            passData.Projection = graph.CreateResource(std::string{name} + ".Projection", GraphBufferDescription{
                 .SizeBytes = sizeof(ProjectionUBO)});
       
             passData.Skybox = graph.Read(skybox, Pixel | Sampled);
@@ -65,13 +40,13 @@ void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
             passData.DepthOut = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
             passData.Projection = graph.Read(passData.Projection, Vertex | Uniform | Upload);
 
-            passData.PipelineData = &m_PipelineData;
             passData.LodBias = lodBias;
 
-            graph.GetBlackboard().Update(passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
+            CPU_PROFILE_FRAME("Skybox")
             GPU_PROFILE_FRAME("Skybox")
 
             const Texture& skyboxTexture = resources.GetTexture(passData.Skybox);
@@ -82,9 +57,11 @@ void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
             const Buffer projectionBuffer = resources.GetBuffer(passData.Projection, projection,
                 *frameContext.ResourceUploader);
 
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_skybox", skyboxTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
@@ -97,4 +74,6 @@ void SkyboxPass::AddToGraph(RG::Graph& renderGraph, RG::Resource skybox,
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::Draw(cmd, 6);
         });
+
+    return pass;
 }
