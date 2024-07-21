@@ -65,7 +65,7 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
             passData.PipelineData = &m_PipelineData;
             passData.SettingsData = &m_SettingsUBO;
 
-            graph.GetBlackboard().Register(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

@@ -37,7 +37,7 @@ void TriangleCullPrepareMultiviewPass::AddToGraph(RG::Graph& renderGraph,
             
             passData.PipelineData = &m_PipelineData;
             
-            graph.GetBlackboard().Register(m_Name.Hash(), passData);
+            graph.GetBlackboard().Update(m_Name.Hash(), passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

@@ -59,7 +59,7 @@ void VisualizeBRDFPass::AddToGraph(RG::Graph& renderGraph, const Texture& brdf, 
 
             passData.BRDFSampler = brdfSampler;
 
-            graph.GetBlackboard().Register(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {   

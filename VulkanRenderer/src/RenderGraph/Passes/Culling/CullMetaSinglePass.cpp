@@ -73,5 +73,5 @@ void CullMetaSinglePass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassEx
     m_PassData.DrawAttachmentResources.Colors = drawOutput.DrawAttachmentResources.Colors;
     m_PassData.DrawAttachmentResources.Depth = drawOutput.DrawAttachmentResources.Depth;
     
-    blackboard.Register(m_Name.Hash(), m_PassData);
+    blackboard.Update(m_Name.Hash(), m_PassData);
 }

@@ -161,7 +161,7 @@ void SlimeMoldPass::AddUpdateSlimeMapStage(RG::Graph& renderGraph, SlimeMoldCont
             passData.PushConstants = &m_PushConstants;
             passData.SlimeMoldContext = &ctx;
 
-            graph.GetBlackboard().Register(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -224,7 +224,7 @@ void SlimeMoldPass::AddDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldCon
             passData.PushConstants = &m_PushConstants;
             passData.SlimeMoldContext = &ctx;
 
-            graph.GetBlackboard().Register(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](DiffuseSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -310,7 +310,7 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
             passData.GradientData = &m_Gradient;
             passData.SlimeMoldContext = &ctx;
 
-            graph.GetBlackboard().Register(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](GradientPassData& passData, FrameContext& frameContext, const Resources& resources)
         {

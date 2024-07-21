@@ -181,7 +181,7 @@ void CullMetaPass::AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutio
 
     m_MeshletContext->NextFrame();
     
-    blackboard.Register(m_Name.Hash(), m_PassData);
+    blackboard.Update(m_Name.Hash(), m_PassData);
 }
 
 std::vector<RG::Resource> CullMetaPass::EnsureColors(RG::Graph& renderGraph,

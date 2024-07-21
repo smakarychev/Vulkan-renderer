@@ -5,22 +5,21 @@
 #include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-HiZVisualize::HiZVisualize(RG::Graph& renderGraph)
-{
-}
-
-void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
+RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource hiz)
 {
     using namespace RG;
 
-    static ShaderDescriptors::BindingInfo samplerBindingInfo =
-        Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Sampler).GetBindingInfo("u_sampler");
-    static ShaderDescriptors::BindingInfo hizBindingInfo =
-        Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Resource).GetBindingInfo("u_hiz");
+    struct PushConstants
+    {
+        u32 MipLevel{0};
+        f32 IntensityScale{10.0f};
+    };
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>({"HiZ.Visualize"},
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            graph.SetShader("../assets/shaders/hiz-visualize.shader");
+            
             passData.HiZ = graph.Read(hiz,
                 ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);
             const TextureDescription& hizDescription = graph.GetTextureDescription(hiz);
@@ -32,28 +31,28 @@ void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 AttachmentLoad::Load, AttachmentStore::Store);
 
-            passData.PushConstants = &m_PushConstants;
-
-            graph.GetBlackboard().Update(passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("HiZ visualize")
             
             const Texture& hizTexture = resources.GetTexture(passData.HiZ);
-            auto& pushConstants = *passData.PushConstants;
+            PushConstants& pushConstants = resources.GetOrCreateValue<PushConstants>();
             ImGui::Begin("HiZ visualize");
             ImGui::DragInt("mip level", (i32*)&pushConstants.MipLevel, 1.0f, 0, 10);            
             ImGui::DragFloat("intensity", &pushConstants.IntensityScale, 10.0f, 1.0f, 1e+4f);            
             ImGui::End();
 
-            auto& pipeline = Experimental::ShaderCache::Get("HiZ.Visualize").Pipeline(); 
-            auto& samplerDescriptors = Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Sampler);
-            auto& resourceDescriptors = Experimental::ShaderCache::Get("HiZ.Visualize").Descriptors(Experimental::DescriptorsKind::Resource);
+            const Shader& shader = resources.GetGraph()->GetShader();
+
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
             
-            samplerDescriptors.UpdateBinding(samplerBindingInfo,
+            samplerDescriptors.UpdateBinding("u_sampler",
                 hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(hizBindingInfo,
+            resourceDescriptors.UpdateBinding("u_hiz",
                 hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
 
             pipeline.BindGraphics(frameContext.Cmd);
@@ -65,4 +64,6 @@ void HiZVisualize::AddToGraph(RG::Graph& renderGraph, RG::Resource hiz)
 
             RenderCommand::Draw(frameContext.Cmd, 3);
         });
+
+    return pass;
 }

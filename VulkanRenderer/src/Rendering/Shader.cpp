@@ -114,15 +114,15 @@ namespace
     }
 }
 
-Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
+ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string_view>& paths)
 {
     std::string shaderKey = AssetManager::GetShaderKey(paths);
     
-    Shader* cachedShader = AssetManager::GetShader(shaderKey);  
+    ShaderReflection* cachedShader = AssetManager::GetShader(shaderKey);  
     if (cachedShader)
         return cachedShader;
 
-    Shader shader;
+    ShaderReflection shader;
 
     ShaderStage allStages = ShaderStage::None;
     assetLib::ShaderStageInfo mergedShaderInfo = {};
@@ -165,7 +165,7 @@ Shader* Shader::ReflectFrom(const std::vector<std::string_view>& paths)
     return AssetManager::GetShader(shaderKey);
 }
 
-assetLib::ShaderStageInfo Shader::LoadFromAsset(std::string_view path)
+assetLib::ShaderStageInfo ShaderReflection::LoadFromAsset(std::string_view path)
 {
     assetLib::File shaderFile;
     assetLib::loadAssetFile(path, shaderFile);
@@ -180,7 +180,7 @@ assetLib::ShaderStageInfo Shader::LoadFromAsset(std::string_view path)
     return shaderInfo;
 }
 
-assetLib::ShaderStageInfo Shader::MergeReflections(const assetLib::ShaderStageInfo& first,
+assetLib::ShaderStageInfo ShaderReflection::MergeReflections(const assetLib::ShaderStageInfo& first,
     const assetLib::ShaderStageInfo& second)
 {
     ASSERT(!(first.ShaderStages & second.ShaderStages), "Overlapping shader stages")
@@ -275,7 +275,7 @@ assetLib::ShaderStageInfo Shader::MergeReflections(const assetLib::ShaderStageIn
     return merged;
 }
 
-std::vector<Shader::ReflectionData::DescriptorSet> Shader::ProcessDescriptorSets(
+std::vector<ShaderReflection::ReflectionData::DescriptorSet> ShaderReflection::ProcessDescriptorSets(
     const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& sets)
 {
     std::vector<ReflectionData::DescriptorSet> descriptorSets(sets.size());
@@ -324,7 +324,7 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build()
     return ShaderPipelineTemplate::Create(m_CreateInfo);
 }
 
-ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetShaderReflection(Shader* shaderReflection)
+ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetShaderReflection(ShaderReflection* shaderReflection)
 {
     m_CreateInfo.ShaderReflection = shaderReflection;
 
@@ -1184,7 +1184,7 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(const std
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
     DescriptorAllocator& allocator)
 {
-    Shader* shaderReflection = Shader::ReflectFrom(paths);
+    ShaderReflection* shaderReflection = ShaderReflection::ReflectFrom(paths);
 
     ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
         .SetDescriptorAllocator(&allocator)
@@ -1197,7 +1197,7 @@ ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
     DescriptorArenaAllocators& allocators)
 {
-    Shader* shaderReflection = Shader::ReflectFrom(paths);
+    ShaderReflection* shaderReflection = ShaderReflection::ReflectFrom(paths);
 
     ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
         .SetDescriptorArenaResourceAllocator(&allocators.Get(DescriptorAllocatorKind::Resources))

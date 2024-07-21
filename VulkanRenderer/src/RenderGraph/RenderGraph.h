@@ -9,6 +9,8 @@
 #include "RGCommon.h"
 #include "Vulkan/Driver.h"
 
+class Shader;
+
 namespace RG
 {
     enum class ResourceAccessFlags
@@ -255,6 +257,19 @@ namespace RG
         void Execute(FrameContext& frameContext);
         void OnCmdBegin(FrameContext& frameContext);
         void OnCmdEnd(FrameContext& frameContext) const;
+
+        template <typename Value>
+        void UpdateBlackboard(Value&& value);
+
+        template <typename Value>
+        Value& GetBlackboardValue();
+        
+        template <typename Value>
+        Value* TryGetBlackboardValue();
+
+        void SetShader(std::string_view path) const;
+        const Shader& GetShader() const;
+        
         std::string MermaidDump() const;
         void MermaidDumpHTML(std::string_view path) const;
     private:
@@ -312,7 +327,7 @@ namespace RG
         std::vector<TextureToExport> m_TexturesToExport;
         std::vector<BufferToExport> m_BuffersToExport;
 
-        Pass* m_ResourceTarget{nullptr};
+        Pass* m_CurrentPass{nullptr};
         Resource m_Backbuffer{};
         std::shared_ptr<GraphTexture> m_BackbufferTexture{};
         ImageLayout m_BackbufferLayout{ImageLayout::Undefined};
@@ -346,6 +361,9 @@ namespace RG
         Texture& GetTexture(Resource resource);
         const TextureDescription& GetTextureDescription(Resource resource) const;
         const Graph* GetGraph() const { return m_Graph; }
+
+        template <typename Value>
+        Value& GetOrCreateValue() const;
     private:
         Graph* m_Graph{nullptr};
     };
@@ -358,7 +376,7 @@ namespace RG
         m_RenderPasses.push_back(std::make_unique<Pass>(passName));
         Pass* pass = m_RenderPasses.back().get();
         
-        m_ResourceTarget = pass;
+        m_CurrentPass = pass;
         
         PassData passData = {};
         setup(*this, passData);
@@ -366,9 +384,27 @@ namespace RG
         pass->m_ExecutionCallback = std::make_unique<Pass::ExecutionCallback<PassData, CallbackFn>>(
             passData, std::forward<CallbackFn>(callback));
 
-        m_ResourceTarget = nullptr;
+        m_CurrentPass = nullptr;
         
         return *pass;
+    }
+
+    template <typename Value>
+    void Graph::UpdateBlackboard(Value&& value)
+    {
+        GetBlackboard().Update(m_CurrentPass->GetNameHash(), std::forward<Value>(value));
+    }
+
+    template <typename Value>
+    Value& Graph::GetBlackboardValue()
+    {
+        return GetBlackboard().Get<Value>(m_CurrentPass->GetNameHash());
+    }
+
+    template <typename Value>
+    Value* Graph::TryGetBlackboardValue()
+    {
+        return GetBlackboard().TryGet<Value>(m_CurrentPass->GetNameHash());
     }
 
     std::vector<u32> Graph::CalculateRenameRemap(auto&& filterLambda)
@@ -414,6 +450,15 @@ namespace RG
         ResourceUploader& resourceUploader) const
     {
         return GetBuffer(resource, (void*)&data, sizeof(T), offset, resourceUploader);
+    }
+
+    template <typename Value>
+    Value& Resources::GetOrCreateValue() const
+    {
+        if (!m_Graph->TryGetBlackboardValue<Value>())
+            m_Graph->UpdateBlackboard(Value{});
+        
+        return m_Graph->GetBlackboardValue<Value>();
     }
 }
 

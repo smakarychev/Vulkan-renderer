@@ -99,7 +99,6 @@ private:
     std::shared_ptr<SkyGradientPass> m_SkyGradientPass;
     std::shared_ptr<CrtPass> m_CrtPass;
     
-    std::shared_ptr<HiZVisualize> m_HiZVisualizePass;
     std::shared_ptr<CopyTexturePass> m_CopyTexturePass;
 
     std::shared_ptr<VisibilityPass> m_VisibilityPass;

@@ -49,7 +49,7 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
             passData.PipelineData = &m_PipelineData;
             passData.SettingsData = &m_Settings;
 
-            graph.GetBlackboard().Register(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

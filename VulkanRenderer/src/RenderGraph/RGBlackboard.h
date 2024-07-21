@@ -2,6 +2,7 @@
 #include <memory>
 #include <unordered_map>
 
+#include "RenderPass.h"
 #include "types.h"
 #include "Core/core.h"
 #include "utils/hash.h"
@@ -24,14 +25,11 @@ namespace RG
             return name.GetHash() ^ Utils::hashString(GENERATOR_PRETTY_FUNCTION);
         }
     };
-    
+
+    // todo: remove all `Utils::StringHasher` variants 
     class Blackboard
     {
     public:
-        template <typename DataType>
-        void Register(const DataType& value);
-        template <typename DataType>
-        void Register(Utils::StringHasher name, const DataType& value);
         template <typename DataType>
         void Update(const DataType& value);
         template <typename DataType>
@@ -44,6 +42,10 @@ namespace RG
         DataType& Get();
         template <typename DataType>
         DataType& Get(Utils::StringHasher name);
+
+        template <typename DataType>
+        DataType& Get(const Pass& pass);
+        
         template <typename DataType>
         const DataType* TryGet() const;
         template <typename DataType>
@@ -54,16 +56,14 @@ namespace RG
         DataType* TryGet(Utils::StringHasher name);
         
         bool Has(u64 key) const;
-        
-        void Clear();
+    private:
+        template <typename DataType>
+        void Register(const DataType& value);
+        template <typename DataType>
+        void Register(Utils::StringHasher name, const DataType& value);
     private:
         std::unordered_map<u64, std::shared_ptr<void>> m_Values;
     };
-
-    inline void Blackboard::Clear()
-    {
-        m_Values.clear();
-    }
 
     template <typename DataType>
     void Blackboard::Register(const DataType& value)
@@ -131,6 +131,12 @@ namespace RG
     DataType& Blackboard::Get(Utils::StringHasher name)
     {
         return const_cast<DataType&>(const_cast<const Blackboard&>(*this).Get<DataType>(name));
+    }
+
+    template <typename DataType>
+    DataType& Blackboard::Get(const Pass& pass)
+    {
+        return const_cast<DataType&>(const_cast<const Blackboard&>(*this).Get<DataType>(pass.GetNameHash()));
     }
 
     template <typename DataType>

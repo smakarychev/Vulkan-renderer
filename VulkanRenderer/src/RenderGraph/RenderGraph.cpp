@@ -7,6 +7,7 @@
 #include <unordered_set>
 
 #include "Renderer.h"
+#include "Rendering/ShaderCache.h"
 #include "Rendering/Synchronization.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -93,8 +94,8 @@ namespace RG
 
     Resource Graph::Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force)
     {
-        ASSERT(m_ResourceTarget, "Call to 'Export' outside of 'SetupFn' of render pass")
-        m_ResourceTarget->m_CanBeCulled = false;
+        ASSERT(m_CurrentPass, "Call to 'Export' outside of 'SetupFn' of render pass")
+        m_CurrentPass->m_CanBeCulled = false;
         
         ASSERT(resource.IsBuffer(), "Provided resource is not a buffer")
         auto it = std::ranges::find_if(m_BuffersToExport, [&buffer](auto& res) { return res.Target == buffer; });
@@ -107,8 +108,8 @@ namespace RG
 
     Resource Graph::Export(Resource resource, std::shared_ptr<Texture>* texture, bool force)
     {
-        ASSERT(m_ResourceTarget, "Call to 'Export' outside of 'SetupFn' of render pass")
-        m_ResourceTarget->m_CanBeCulled = false;
+        ASSERT(m_CurrentPass, "Call to 'Export' outside of 'SetupFn' of render pass")
+        m_CurrentPass->m_CanBeCulled = false;
         
         ASSERT(resource.IsTexture(), "Provided resource is not a texture")
         auto it = std::ranges::find_if(m_TexturesToExport, [&texture](auto& res) { return res.Target == texture; });
@@ -160,7 +161,7 @@ namespace RG
 
     Resource Graph::Read(Resource resource, ResourceAccessFlags readFlags)
     {
-        ASSERT(m_ResourceTarget, "Call to 'Read' outside of 'SetupFn' of render pass")
+        ASSERT(m_CurrentPass, "Call to 'Read' outside of 'SetupFn' of render pass")
 
         std::pair<PipelineStage, PipelineAccess> stageAccess = {};
         if (resource.IsBuffer())
@@ -174,7 +175,7 @@ namespace RG
 
     Resource Graph::Write(Resource resource, ResourceAccessFlags writeFlags)
     {
-        ASSERT(m_ResourceTarget, "Call to 'Write' outside of 'SetupFn' of render pass")
+        ASSERT(m_CurrentPass, "Call to 'Write' outside of 'SetupFn' of render pass")
 
         std::pair<PipelineStage, PipelineAccess> stageAccess = {};
         if (resource.IsBuffer())
@@ -184,7 +185,7 @@ namespace RG
         auto&& [stage, access] = stageAccess;
 
         if (GetResourceTypeBase(resource).m_IsExternal)
-            m_ResourceTarget->m_CanBeCulled = false;
+            m_CurrentPass->m_CanBeCulled = false;
         
         return AddOrCreateAccess(resource, stage, access);
     }
@@ -204,7 +205,7 @@ namespace RG
     Resource Graph::RenderTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
         AttachmentLoad onLoad, AttachmentStore onStore, const glm::vec4& clearColor)
     {
-        ASSERT(m_ResourceTarget, "Call to 'RenderTarget' outside of 'SetupFn' of render pass")
+        ASSERT(m_CurrentPass, "Call to 'RenderTarget' outside of 'SetupFn' of render pass")
 
         RenderTargetAccess renderTargetAccess = {};
         
@@ -220,9 +221,9 @@ namespace RG
         renderTargetAccess.m_OnLoad = onLoad;
         renderTargetAccess.m_OnStore = onStore;
 
-        m_ResourceTarget->m_RenderTargetAttachmentAccess.push_back(renderTargetAccess);
+        m_CurrentPass->m_RenderTargetAttachmentAccess.push_back(renderTargetAccess);
         if (GetResourceTypeBase(resource).m_IsExternal)
-            m_ResourceTarget->m_CanBeCulled = false;
+            m_CurrentPass->m_CanBeCulled = false;
         
         return renderTargetAccess.m_Resource;
     }
@@ -250,7 +251,7 @@ namespace RG
         AttachmentLoad onLoad, AttachmentStore onStore, std::optional<DepthBias> depthBias, f32 clearDepth,
         u32 clearStencil)
     {
-        ASSERT(m_ResourceTarget, "Call to 'DepthStencilTarget' outside of 'SetupFn' of render pass")
+        ASSERT(m_CurrentPass, "Call to 'DepthStencilTarget' outside of 'SetupFn' of render pass")
 
         DepthStencilAccess depthStencilAccess = {};
         
@@ -269,18 +270,18 @@ namespace RG
         depthStencilAccess.m_DepthBias = depthBias;
         depthStencilAccess.m_IsDepthOnly = m_Textures[resource.Index()].m_Description.Format == Format::D32_FLOAT;
 
-        m_ResourceTarget->m_DepthStencilAccess = depthStencilAccess;
+        m_CurrentPass->m_DepthStencilAccess = depthStencilAccess;
         if (GetResourceTypeBase(resource).m_IsExternal)
-            m_ResourceTarget->m_CanBeCulled = false;
+            m_CurrentPass->m_CanBeCulled = false;
 
         return depthStencilAccess.m_Resource;
     }
 
     void Graph::HasSideEffect()
     {
-        ASSERT(m_ResourceTarget, "Call to 'HasSideEffect' outside of 'SetupFn' of render pass")
+        ASSERT(m_CurrentPass, "Call to 'HasSideEffect' outside of 'SetupFn' of render pass")
 
-        m_ResourceTarget->m_CanBeCulled = false;
+        m_CurrentPass->m_CanBeCulled = false;
     }
 
     const BufferDescription& Graph::GetBufferDescription(Resource buffer)
@@ -331,7 +332,6 @@ namespace RG
         
         m_Buffers.clear();
         m_Textures.clear();
-        m_Blackboard.Clear();
         m_RenderPasses.clear();
         m_Pool.ClearExternals();
         m_Pool.ClearUnreferenced();
@@ -372,6 +372,8 @@ namespace RG
         Resources resources = {*this};
         for (auto& pass : m_RenderPasses)
         {
+            m_CurrentPass = pass.get();
+            
             for (auto& barrier : pass->m_Barriers)
                 RenderCommand::WaitOnBarrier(frameContext.Cmd, barrier);
             for (auto& splitWait : pass->m_SplitBarriersToWait)
@@ -479,6 +481,16 @@ namespace RG
     {
         frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
         frameContext.ResourceUploader->StartRecording();
+    }
+
+    void Graph::SetShader(std::string_view path) const
+    {
+        ShaderCache::Register(m_CurrentPass->GetNameString(), path);
+    }
+
+    const Shader& Graph::GetShader() const
+    {
+        return ShaderCache::Get(m_CurrentPass->GetNameString());
     }
 
     void Graph::PreprocessResources()
@@ -1022,7 +1034,7 @@ namespace RG
                 .OldLayout = transition.OldLayout,
                 .NewLayout = transition.NewLayout};
 
-            if (false)
+            if (longestPath[transition.DestinationPass] - longestPath[transition.SourcePass] > 1)
                 addLayoutSplitBarrier(
                     *m_RenderPasses[transition.SourcePass], *m_RenderPasses[transition.DestinationPass],
                     transition.Texture, layoutTransitionInfo);
@@ -1105,7 +1117,7 @@ namespace RG
                         .SourceStage = currentAccessInfo.Stage,
                         .DestinationStage = resourceAccess.m_Stage};
 
-                    if (false)
+                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
                         addExecutionSplitBarrier(
                             *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
                             resource, executionDependencyInfo);
@@ -1122,7 +1134,7 @@ namespace RG
                         .SourceAccess = currentAccessInfo.Access,
                         .DestinationAccess = resourceAccess.m_Access};
 
-                    if (false)
+                    if (longestPath[passIndex] - longestPath[currentAccessInfo.PassIndex] > 1)
                         addMemorySplitBarrier(
                             *m_RenderPasses[currentAccessInfo.PassIndex], *pass,
                             resource, memoryDependencyInfo);
@@ -1591,17 +1603,17 @@ namespace RG
            (ResourceAccess::HasWriteAccess(access) &&
             GetResourceTypeBase(resource).m_Rename.IsValid()), "Cannot write twice to the same resource")
          
-        auto it = std::ranges::find_if(m_ResourceTarget->m_Accesses,
+        auto it = std::ranges::find_if(m_CurrentPass->m_Accesses,
             [resource](auto& resourceAccess) { return resourceAccess.m_Resource == resource; });
 
-        if (it != m_ResourceTarget->m_Accesses.end())
+        if (it != m_CurrentPass->m_Accesses.end())
             return AddAccess(*it, stage, access);
 
         ResourceAccess graphResourceAccess = {};
         graphResourceAccess.m_Resource = resource;
         graphResourceAccess.m_Stage = stage;
         graphResourceAccess.m_Access = access;
-        m_ResourceTarget->m_Accesses.push_back(graphResourceAccess);
+        m_CurrentPass->m_Accesses.push_back(graphResourceAccess);
         
         return resource;
     }
@@ -1624,7 +1636,7 @@ namespace RG
             graphResourceAccess.m_Resource = rename;
             graphResourceAccess.m_Stage |= stage;
             graphResourceAccess.m_Access |= access;
-            m_ResourceTarget->m_Accesses.push_back(graphResourceAccess);
+            m_CurrentPass->m_Accesses.push_back(graphResourceAccess);
 
             return rename;
         }

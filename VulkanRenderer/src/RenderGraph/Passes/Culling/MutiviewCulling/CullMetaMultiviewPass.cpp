@@ -238,7 +238,7 @@ void CullMetaMultiviewPass::AddToGraph(RG::Graph& renderGraph)
         passData.HiZOut[i] = m_MultiviewData->View(i).Static.HiZContext->GetHiZResource();
     }
 
-    renderGraph.GetBlackboard().Register(m_Name.Hash(), passData);
+    renderGraph.GetBlackboard().Update(m_Name.Hash(), passData);
 }
 
 void CullMetaMultiviewPass::EnsureViewAttachments(RG::Graph& renderGraph, CullViewDynamicDescription& view)

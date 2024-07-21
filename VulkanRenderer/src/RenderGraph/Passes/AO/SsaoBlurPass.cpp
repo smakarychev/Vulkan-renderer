@@ -48,7 +48,7 @@ void SsaoBlurPass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Res
 
             passData.PipelineData = &m_PipelineData;
 
-            graph.GetBlackboard().Register(m_Name.Hash(), passData);
+            graph.GetBlackboard().Update(m_Name.Hash(), passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {

@@ -41,7 +41,7 @@ Renderer::Renderer() = default;
 
 void Renderer::Init()
 {
-    Experimental::ShaderCache::Init();
+    ShaderCache::Init();
     
     InitRenderingStructures();
 
@@ -60,11 +60,10 @@ void Renderer::Init()
             .ExtractSet(2)
             .BindlessCount(1024)
             .Build();
-    Experimental::ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
-    Experimental::ShaderCache::AddBindlessDescriptors("main_materials", materialDescriptors);
-    Experimental::ShaderCache::Register("Visibility.Meshlet", "../assets/shaders/visibility-meshlet.shader");
-    Experimental::ShaderCache::Register("Visibility.Triangle", "../assets/shaders/visibility-triangle.shader");
-    Experimental::ShaderCache::Register("HiZ.Visualize", "../assets/shaders/hiz-visualize.shader");
+    ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
+    ShaderCache::AddBindlessDescriptors("main_materials", materialDescriptors);
+    ShaderCache::Register("Visibility.Meshlet", "../assets/shaders/visibility-meshlet.shader");
+    ShaderCache::Register("Visibility.Triangle", "../assets/shaders/visibility-triangle.shader");
 
     InitRenderGraph();
 }
@@ -170,7 +169,6 @@ void Renderer::InitRenderGraph()
 
     m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
     m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
-    m_HiZVisualizePass = std::make_shared<HiZVisualize>(*m_Graph);
     m_CopyTexturePass = std::make_shared<CopyTexturePass>("Copy.Texture");
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
@@ -228,7 +226,7 @@ void Renderer::SetupRenderGraph()
     GlobalResources globalResources = {
         .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer),
         .ShadingSettings = m_Graph->AddExternal("ShadingSettings", shadingSettingsBuffer)};
-    m_Graph->GetBlackboard().Register(globalResources);
+    m_Graph->GetBlackboard().Update(globalResources);
 
     m_VisibilityPass->AddToGraph(*m_Graph, {
         .Resolution = m_Swapchain.GetResolution(),
@@ -314,9 +312,9 @@ void Renderer::SetupRenderGraph()
 
     m_CopyTexturePass->AddToGraph(*m_Graph, renderedColor, backbuffer, glm::vec3{}, glm::vec3{1.0f});
     backbuffer = m_Graph->GetBlackboard().Get<CopyTexturePass::PassData>().TextureOut;
-    
-    m_HiZVisualizePass->AddToGraph(*m_Graph, visibility.HiZOut);
-    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<HiZVisualize::PassData>();
+
+    auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibility.HiZOut);
+    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<Passes::HiZVisualize::PassData>(hizVisualize);
 
     m_CSMVisualizePass->AddToGraph(*m_Graph, csmOutput, {});
     auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<CSMVisualizePass::PassData>();
@@ -360,7 +358,7 @@ void Renderer::OnRender()
     CPU_PROFILE_FRAME("On render")
 
     BeginFrame();
-    Experimental::ShaderCache::OnFrameBegin(GetFrameContext());
+    ShaderCache::OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
     ProcessPendingCubemaps();
     ProcessPendingPBRTextures();
@@ -556,6 +554,7 @@ void Renderer::Shutdown()
 
     m_Graph.reset();
     m_ResourceUploader.Shutdown();
+    ShaderCache::Shutdown();
     for (auto& ctx : m_FrameContexts)
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();

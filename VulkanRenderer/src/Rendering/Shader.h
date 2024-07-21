@@ -39,7 +39,7 @@ struct ShaderModuleSource
     ShaderStage Stage;
 };
 
-class Shader
+class ShaderReflection
 {
 public:
     struct ReflectionData
@@ -70,7 +70,7 @@ public:
         std::vector<std::string> Dependencies;
     };
 public:
-    static Shader* ReflectFrom(const std::vector<std::string_view>& paths);
+    static ShaderReflection* ReflectFrom(const std::vector<std::string_view>& paths);
     const ReflectionData& GetReflectionData() const { return m_ReflectionData; }
     const std::vector<ShaderModuleSource>& GetShadersSource() const { return m_Modules; }
 private:
@@ -95,20 +95,20 @@ private:
         std::vector<DescriptorFlags> Flags;
     };
 public:
-    using ReflectionData = Shader::ReflectionData;
+    using ReflectionData = ShaderReflection::ReflectionData;
     class Builder
     {
         friend class ShaderPipelineTemplate;
         struct CreateInfo
         {
-            Shader* ShaderReflection;
+            ShaderReflection* ShaderReflection;
             DescriptorAllocator* Allocator{nullptr};
             DescriptorArenaAllocator* ResourceAllocator{nullptr};
             DescriptorArenaAllocator* SamplerAllocator{nullptr};
         };
     public:
         ShaderPipelineTemplate Build();
-        Builder& SetShaderReflection(Shader* shaderReflection);
+        Builder& SetShaderReflection(ShaderReflection* shaderReflection);
         Builder& SetDescriptorAllocator(DescriptorAllocator* allocator);
         Builder& SetDescriptorArenaResourceAllocator(DescriptorArenaAllocator* allocator);
         Builder& SetDescriptorArenaSamplerAllocator(DescriptorArenaAllocator* allocator);
@@ -122,7 +122,7 @@ public:
         std::vector<DescriptorBinding> Bindings;
     };
 
-    using SpecializationConstant = Shader::ReflectionData::SpecializationConstant;
+    using SpecializationConstant = ShaderReflection::ReflectionData::SpecializationConstant;
     
 public:
     static ShaderPipelineTemplate Create(const Builder::CreateInfo& createInfo);
@@ -337,17 +337,13 @@ private:
 
 enum class ShaderDescriptorsKind
 {
-    // todo: names here (e.g. 'Samplers', 'Global', 'Pass', 'Material')
+    Sampler = 0, Resource = 1, Materials = 2,
+    MaxVal
 };
-
-namespace Experimental
-{
-    class ShaderCache;
-}
 
 class ShaderDescriptors
 {
-    friend class Experimental::ShaderCache;
+    friend class ShaderCache;
 public:
     using Texture = Image;
     class Builder

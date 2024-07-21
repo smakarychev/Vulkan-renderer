@@ -87,7 +87,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
 
             passData.PipelineData = &m_PipelineData;
             
-            graph.GetBlackboard().Register(passData);
+            graph.GetBlackboard().Update(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
