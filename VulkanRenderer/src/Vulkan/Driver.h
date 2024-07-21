@@ -428,6 +428,8 @@ void DeletionQueue::Enqueue(Type& type)
         m_PipelineLayouts.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, Pipeline>)
         m_Pipelines.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Type, ShaderPipeline>)
+        m_Pipelines.push_back(type.m_Pipeline.Handle());
     else if constexpr(std::is_same_v<Type, RenderingAttachment>)
         m_RenderingAttachments.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, RenderingInfo>)

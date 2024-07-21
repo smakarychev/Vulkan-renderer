@@ -175,6 +175,7 @@ private:
 
 class ShaderPipeline
 {
+    FRIEND_INTERNAL
 public:
     class Builder
     {

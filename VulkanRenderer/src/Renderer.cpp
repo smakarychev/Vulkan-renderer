@@ -360,6 +360,7 @@ void Renderer::OnRender()
     CPU_PROFILE_FRAME("On render")
 
     BeginFrame();
+    Experimental::ShaderCache::OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
     ProcessPendingCubemaps();
     ProcessPendingPBRTextures();

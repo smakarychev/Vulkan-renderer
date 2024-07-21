@@ -19,6 +19,7 @@ namespace Experimental
     Utils::StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
     std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
     Utils::StringUnorderedMap<ShaderDescriptors> ShaderCache::s_BindlessDescriptors = {};
+    DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
     
     struct ShaderCache::FileWatcher
     {
@@ -44,6 +45,11 @@ namespace Experimental
     void ShaderCache::Init()
     {
         InitFileWatcher();
+    }
+
+    void ShaderCache::OnFrameBegin(FrameContext& ctx)
+    {
+        s_FrameDeletionQueue = &ctx.DeletionQueue;
     }
 
     void ShaderCache::AddBindlessDescriptors(std::string_view name, const ShaderDescriptors& descriptors)
@@ -99,6 +105,7 @@ namespace Experimental
             handled.emplace(shader);
 
             ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, LOAD_DESCRIPTORS);
+            s_FrameDeletionQueue->Enqueue(shader->m_Pipeline);
             shader->m_Pipeline = shaderProxy.Pipeline;
         }
     }

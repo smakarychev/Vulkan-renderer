@@ -37,6 +37,7 @@ namespace Experimental
     public:
         static void Init();
         static void SetAllocators(DescriptorArenaAllocators& allocators) { s_Allocators = &allocators; }
+        static void OnFrameBegin(FrameContext& ctx);
 
         static void AddBindlessDescriptors(std::string_view name, const ShaderDescriptors& descriptors);
         
@@ -73,6 +74,8 @@ namespace Experimental
         static std::vector<std::unique_ptr<Shader>> s_Shaders;
 
         static Utils::StringUnorderedMap<ShaderDescriptors> s_BindlessDescriptors;
+
+        static DeletionQueue* s_FrameDeletionQueue;
 
         struct FileWatcher;
         static std::unique_ptr<FileWatcher> s_FileWatcher;
