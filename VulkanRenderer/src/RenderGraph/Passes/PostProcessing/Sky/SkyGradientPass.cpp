@@ -2,40 +2,37 @@
 
 #include "Renderer.h"
 #include "imgui/imgui.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-SkyGradientPass::SkyGradientPass(RG::Graph& renderGraph)
-{
-    ShaderPipelineTemplate* skyTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/post/sky-gradient-comp.stage"},
-      "Pass.SkyGradient", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-       .SetTemplate(skyTemplate)
-       .UseDescriptorBuffer()
-       .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(skyTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(0)
-        .Build();
-}
-
-void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarget)
+RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource renderTarget)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    static ShaderDescriptors::BindingInfo cameraBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_camera");
-    static ShaderDescriptors::BindingInfo settingsBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_settings");
-    static ShaderDescriptors::BindingInfo imageOutBinding =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_out_image");
-    
-    m_Pass = &renderGraph.AddRenderPass<PassData>({"SkyGradient"},
+    struct SettingsUBO
+    {
+        glm::vec4 SkyColorHorizon{0.42f, 0.66f, 0.66f, 1.0f};
+        glm::vec4 SkyColorZenith{0.12f, 0.32f, 0.54f, 1.0f};
+        glm::vec4 GroundColor{0.21f, 0.21f, 0.11f, 1.0f};
+        glm::vec4 SunDirection{0.1f, -0.1f, 0.1f, 0.0f};
+        f32 SunRadius{128.0f};
+        f32 SunIntensity{0.5f};
+        f32 GroundToSkyWidth{0.01f};
+        f32 HorizonToZenithWidth{0.35f};
+        f32 GroundToSkyRate{2.7f};
+        f32 HorizonToZenithRate{2.5f};
+    };
+    struct PushConstants
+    {
+        glm::uvec2 ImageSize;
+    };
+
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            graph.SetShader("../assets/shaders/sky-gradient.shader");
+
             passData.Camera = graph.CreateResource("SkyGradient.Camera", GraphBufferDescription{
                 .SizeBytes = sizeof(passData.Camera)});
             passData.Camera = graph.Read(passData.Camera, Compute | Uniform | Upload);
@@ -46,19 +43,13 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
 
             passData.ColorOut = graph.Write(renderTarget, Compute | Storage);
 
-            passData.PipelineData = &m_PipelineData;
-            passData.SettingsData = &m_Settings;
-
-            graph.GetBlackboard().Update(passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("sky gradient")
-            
-            passData.CameraData.ViewInverse = glm::inverse(frameContext.MainCamera->GetView());
-            passData.CameraData.Position = frameContext.MainCamera->GetPosition();
 
-            auto& settings = *passData.SettingsData;
+            auto& settings = resources.GetOrCreateValue<SettingsUBO>();
             ImGui::Begin("Sky gradient");
             ImGui::ColorEdit3("sky horizon", (f32*)&settings.SkyColorHorizon);
             ImGui::ColorEdit3("sky zenith", (f32*)&settings.SkyColorZenith);
@@ -78,20 +69,23 @@ void SkyGradientPass::AddToGraph(RG::Graph& renderGraph, RG::Resource renderTarg
                 *frameContext.ResourceUploader);
             const Texture& colorOut = resources.GetTexture(passData.ColorOut);
 
-            passData.PushConstants.ImageSize = {colorOut.Description().Width, colorOut.Description().Height};
+            glm::uvec2 imageSize = {colorOut.Description().Width, colorOut.Description().Height};
 
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
             
-            resourceDescriptors.UpdateBinding(cameraBinding, camera.BindingInfo());
-            resourceDescriptors.UpdateBinding(settingsBinding, settingsBuffer.BindingInfo());
-            resourceDescriptors.UpdateBinding(imageOutBinding,
+            resourceDescriptors.UpdateBinding("u_camera", camera.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_settings", settingsBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_out_image",
                 colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             pipeline.BindCompute(frameContext.Cmd);
-            RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), passData.PushConstants);
+            RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), imageSize);
             resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
                 pipeline.GetLayout());
-            RenderCommand::Dispatch(frameContext.Cmd, {passData.PushConstants.ImageSize, 1}, {32, 32, 1});
+            RenderCommand::Dispatch(frameContext.Cmd, {imageSize, 1}, {32, 32, 1});
         });
+
+    return pass;
 }

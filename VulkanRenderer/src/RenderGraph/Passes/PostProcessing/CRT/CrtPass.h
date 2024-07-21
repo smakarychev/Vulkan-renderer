@@ -3,34 +3,15 @@
 #include "RenderGraph/RGResource.h"
 #include "RenderGraph/RGCommon.h"
 
-class CrtPass
+namespace Passes::Crt
 {
-public:
-    struct SettingsUBO
-    {
-        f32 Curvature{0.2f};
-        f32 ColorSplit{0.004f};
-        f32 LinesMultiplier{1.0f};
-        f32 VignettePower{0.64f};
-        f32 VignetteRadius{0.025f};
-    };
     struct PassData
     {
         RG::Resource ColorIn;
         RG::Resource ColorOut{};
         RG::Resource Time{};
         RG::Resource Settings{};
-
-        RG::PipelineData* PipelineData{nullptr};
-        
-        SettingsUBO* SettingsData{nullptr};
     };
-public:
-    CrtPass(RG::Graph& renderGraph);
-    void AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn, RG::Resource colorTarget);
-private:
-    RG::Pass* m_Pass{nullptr};
-
-    RG::PipelineData m_PipelineData;
-    SettingsUBO m_SettingsUBO{};
-};
+    
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource colorIn, RG::Resource colorTarget);
+}

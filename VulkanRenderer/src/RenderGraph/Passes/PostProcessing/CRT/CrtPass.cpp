@@ -4,51 +4,29 @@
 #include "imgui/imgui.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Rendering/Shader.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-CrtPass::CrtPass(RG::Graph& renderGraph)
-{
-    ShaderPipelineTemplate* crtTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
-          "../assets/shaders/processed/render-graph/post/crt-frag.stage"},
-      "Pass.CRT", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-       .SetTemplate(crtTemplate)
-       .SetRenderingDetails({
-           .ColorFormats = {Format::RGBA16_FLOAT}})
-       .UseDescriptorBuffer()
-       .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(crtTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(crtTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-}
-
-void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
+RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource colorIn,
     RG::Resource colorTarget)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
-    
-    static ShaderDescriptors::BindingInfo samplerBindingInfo =
-        m_PipelineData.SamplerDescriptors.GetBindingInfo("u_sampler");
-    static ShaderDescriptors::BindingInfo imageBindingInfo =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_image");
-    static ShaderDescriptors::BindingInfo timeBindingInfo = 
-    m_PipelineData.ResourceDescriptors.GetBindingInfo("u_time");
-    static ShaderDescriptors::BindingInfo settingsBindingInfo =
-        m_PipelineData.ResourceDescriptors.GetBindingInfo("u_settings");
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>({"CRT"},
+    struct SettingsUBO
+    {
+        f32 Curvature{0.2f};
+        f32 ColorSplit{0.004f};
+        f32 LinesMultiplier{1.0f};
+        f32 VignettePower{0.64f};
+        f32 VignetteRadius{0.025f};
+    };
+    
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            graph.SetShader("../assets/shaders/crt.shader");
+            
             passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
             
             passData.ColorOut = graph.RenderTarget(colorTarget,
@@ -62,10 +40,7 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
                 .SizeBytes = sizeof(SettingsUBO)});
             passData.Settings = graph.Read(passData.Settings, Pixel | Uniform | Upload);
 
-            passData.PipelineData = &m_PipelineData;
-            passData.SettingsData = &m_SettingsUBO;
-
-            graph.GetBlackboard().Update(passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -74,7 +49,7 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
             const Buffer& time = resources.GetBuffer(passData.Time, (f32)frameContext.FrameNumberTick,
                 *frameContext.ResourceUploader);
             
-            auto& settings = *passData.SettingsData;
+            auto& settings = resources.GetOrCreateValue<SettingsUBO>();
             ImGui::Begin("CRT settings");
             ImGui::DragFloat("curvature", &settings.Curvature, 1e-2f, 0.0f, 10.0f);            
             ImGui::DragFloat("color split", &settings.ColorSplit, 1e-4f, 0.0f, 0.5f);            
@@ -85,16 +60,18 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
             const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings, settings,
                 *frameContext.ResourceUploader);
 
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
             
-            samplerDescriptors.UpdateBinding(samplerBindingInfo,
+            samplerDescriptors.UpdateBinding("u_sampler",
                 colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(imageBindingInfo,
+            resourceDescriptors.UpdateBinding("u_image",
                 colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(timeBindingInfo, time.BindingInfo());
-            resourceDescriptors.UpdateBinding(settingsBindingInfo, settingsBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_time", time.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_settings", settingsBuffer.BindingInfo());
             
             pipeline.BindGraphics(frameContext.Cmd);
             samplerDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
@@ -104,4 +81,6 @@ void CrtPass::AddToGraph(RG::Graph& renderGraph, RG::Resource colorIn,
 
             RenderCommand::Draw(frameContext.Cmd, 3);
         });
+
+    return pass;
 }

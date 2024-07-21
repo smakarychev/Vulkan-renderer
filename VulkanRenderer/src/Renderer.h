@@ -29,9 +29,6 @@ class PbrVisibilityBufferIBL;
 class SlimeMoldPass;
 class SlimeMoldContext;
 class HiZPassContext;
-class SkyGradientPass;
-class BlitPass;
-class CrtPass;
 class Camera;
 class CameraController;
 
@@ -92,8 +89,6 @@ private:
     SceneLight m_SceneLights{};
     
     std::unique_ptr<RG::Graph> m_Graph;
-    std::shared_ptr<SkyGradientPass> m_SkyGradientPass;
-    std::shared_ptr<CrtPass> m_CrtPass;
     
     std::shared_ptr<VisibilityPass> m_VisibilityPass;
     std::shared_ptr<PbrVisibilityBufferIBL> m_PbrVisibilityBufferIBLPass;

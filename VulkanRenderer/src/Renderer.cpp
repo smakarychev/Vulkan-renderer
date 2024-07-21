@@ -164,9 +164,6 @@ void Renderer::InitRenderGraph()
         .Geometry = &m_GraphOpaqueGeometry});
     m_CSMVisualizePass = std::make_shared<CSMVisualizePass>(*m_Graph);
 
-    m_SkyGradientPass = std::make_shared<SkyGradientPass>(*m_Graph);
-    m_CrtPass = std::make_shared<CrtPass>(*m_Graph);
-
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(m_Swapchain.GetResolution(), 1, 5000000, *GetFrameContext().ResourceUploader));
     m_SlimeMoldPass = std::make_shared<SlimeMoldPass>(*m_Graph);
