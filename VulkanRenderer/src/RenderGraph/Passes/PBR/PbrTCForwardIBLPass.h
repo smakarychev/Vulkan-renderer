@@ -48,7 +48,7 @@ public:
 public:
     PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwardIBLPassInitInfo& info, std::string_view name);
     void AddToGraph(RG::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::PassName m_Name;
     std::shared_ptr<CullMetaPass> m_Pass{};

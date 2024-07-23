@@ -1,62 +1,40 @@
 #include "PbrVisibilityBufferIBLPass.h"
 
 #include "FrameContext.h"
-#include "Core/Camera.h"
 #include "Scene/SceneGeometry.h"
 #include "RenderGraph/RGUtils.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-PbrVisibilityBufferIBL::PbrVisibilityBufferIBL(RG::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info)
-{
-    ShaderPipelineTemplate* pbrTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-          "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
-          "../assets/shaders/processed/render-graph/pbr/pbr-visibility-buffer-ibl-frag.stage"},
-      "Pass.PBR.Visibility.IBL", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(pbrTemplate)
-        .SetRenderingDetails({
-            .ColorFormats = {Format::RGBA16_FLOAT}})
-        .AddSpecialization("MAX_REFLECTION_LOD",
-            (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(pbrTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(pbrTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-    
-    m_PipelineData.MaterialDescriptors = *info.MaterialDescriptors;
-}
-
-void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info)
+RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    const PbrVisibilityBufferExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    std::string name = "Pbr.VisibilityBuffer";
-    m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.Commands = graph.AddExternal(name + ".Commands", info.Geometry->GetCommandsBuffer());
-            passData.Objects = graph.AddExternal(name + ".Objects", info.Geometry->GetRenderObjectsBuffer());
+            graph.SetShader("../assets/shaders/pbr-visibility-ibl.shader",
+                ShaderOverrides{}
+                    .Add(
+                        {"MAX_REFLECTION_LOD"},
+                        (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})));
+            
+            passData.Commands = graph.AddExternal(std::string{name} + ".Commands", info.Geometry->GetCommandsBuffer());
+            passData.Objects = graph.AddExternal(std::string{name} + ".Objects",
+                info.Geometry->GetRenderObjectsBuffer());
             auto& attributes = info.Geometry->GetAttributeBuffers();
-            passData.Positions = graph.AddExternal(name + ".Positions", attributes.Positions);
-            passData.Normals = graph.AddExternal(name + ".Normals", attributes.Normals);
-            passData.Tangents = graph.AddExternal(name + ".Tangents", attributes.Tangents);
-            passData.UVs = graph.AddExternal(name + ".UVs", attributes.UVs);
-            passData.Indices = graph.AddExternal(name + ".Indices", attributes.Indices);
+            passData.Positions = graph.AddExternal(std::string{name} + ".Positions", attributes.Positions);
+            passData.Normals = graph.AddExternal(std::string{name} + ".Normals", attributes.Normals);
+            passData.Tangents = graph.AddExternal(std::string{name} + ".Tangents", attributes.Tangents);
+            passData.UVs = graph.AddExternal(std::string{name} + ".UVs", attributes.UVs);
+            passData.Indices = graph.AddExternal(std::string{name} + ".Indices", attributes.Indices);
 
             const TextureDescription& visibilityDescription =
                 Resources(graph).GetTextureDescription(info.VisibilityTexture);
             
-            Resource color = RgUtils::ensureResource(info.ColorIn, graph, name + ".Color",
+            Resource color = RgUtils::ensureResource(info.ColorIn, graph, std::string{name} + ".Color",
                 GraphTextureDescription{
                    .Width = visibilityDescription.Width,
                    .Height = visibilityDescription.Height,
@@ -85,9 +63,7 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
                 info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
                 AttachmentStore::Store);
 
-            passData.PipelineData = &m_PipelineData;
-            
-            graph.GetBlackboard().Update(passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -105,10 +81,11 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
             const Buffer& uvs = resources.GetBuffer(passData.UVs);
             const Buffer& indices = resources.GetBuffer(passData.Indices);
 
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& samplerDescriptors = passData.PipelineData->ImmutableSamplerDescriptors;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
-            auto& materialDescriptors = passData.PipelineData->MaterialDescriptors;
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            auto& materialDescriptors = shader.Descriptors(ShaderDescriptorsKind::Materials);
 
             resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.BindingInfo(ImageFilter::Nearest,
                 ImageLayout::Readonly));
@@ -136,4 +113,6 @@ void PbrVisibilityBufferIBL::AddToGraph(RG::Graph& renderGraph, const PbrVisibil
 
             RenderCommand::Draw(cmd, 3);
         });
+
+    return pass;
 }

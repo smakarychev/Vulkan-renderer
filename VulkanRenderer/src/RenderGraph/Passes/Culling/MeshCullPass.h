@@ -66,7 +66,7 @@ public:
 public:
     MeshCullGeneralPass(RG::Graph& renderGraph, std::string_view name, const MeshCullPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, MeshCullContext& ctx, const HiZPassContext& hiZPassContext);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;

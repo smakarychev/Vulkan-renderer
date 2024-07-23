@@ -25,7 +25,7 @@ public:
 public:
     CullMetaMultiviewPass(RG::Graph& renderGraph, std::string_view name, const CullMetaMultiviewPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
     const std::string& GetName() const { return m_Name.Name(); }
 private:
     void EnsureViewAttachments(RG::Graph& renderGraph, CullViewDynamicDescription& view);

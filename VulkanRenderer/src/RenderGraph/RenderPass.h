@@ -7,7 +7,7 @@
 
 #include "RGResource.h"
 #include "Rendering/Synchronization.h"
-#include "utils/StringHasher.h"
+#include "utils/HashedString.h"
 
 class DependencyInfo;
 struct FrameContext;
@@ -22,13 +22,13 @@ namespace RG
         friend class Pass;
     public:
         PassName(std::string_view name) :
-            m_Name(name), m_Hash(name) {}
+            m_Name(name), m_Hash(Utils::hashString(name)) {}
         
         const std::string& Name() const { return m_Name; }
-        Utils::StringHasher Hash() const { return m_Hash; }
+        u64 Hash() const { return m_Hash; }
     private:
         std::string m_Name{};
-        Utils::StringHasher m_Hash{};
+        u64 m_Hash{};
     };
     
     class Pass
@@ -71,7 +71,7 @@ namespace RG
         }
 
         std::string_view GetNameString() const { return m_Name.m_Name; }
-        Utils::StringHasher GetNameHash() const { return m_Name.m_Hash; }
+        u64 GetNameHash() const { return m_Name.m_Hash; }
         
     private:
         void Reset()

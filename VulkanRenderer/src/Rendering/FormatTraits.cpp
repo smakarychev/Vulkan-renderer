@@ -2,7 +2,7 @@
 
 #include <unordered_map>
 
-#include "utils/StringHasher.h"
+#include "utils/HashedString.h"
 
 namespace FormatUtils
 {

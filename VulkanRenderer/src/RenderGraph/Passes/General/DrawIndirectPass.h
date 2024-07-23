@@ -32,7 +32,7 @@ public:
 public:
     DrawIndirectPass(RG::Graph& renderGraph, std::string_view name, const DrawIndirectPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const DrawIndirectPassExecutionInfo& info);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
 private:
     struct PassDataPrivate
     {

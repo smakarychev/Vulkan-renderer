@@ -44,7 +44,9 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
+            CPU_PROFILE_FRAME("CRT post-processing")
             GPU_PROFILE_FRAME("CRT post-processing")
+            
             const Texture& colorInTexture = resources.GetTexture(passData.ColorIn);
             const Buffer& time = resources.GetBuffer(passData.Time, (f32)frameContext.FrameNumberTick,
                 *frameContext.ResourceUploader);

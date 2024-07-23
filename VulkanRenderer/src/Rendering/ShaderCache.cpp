@@ -15,7 +15,7 @@ DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
 Utils::StringUnorderedMap<ShaderCache::Record> ShaderCache::s_Records = {};    
 Utils::StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
 std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
-std::vector<ShaderPipeline> ShaderCache::s_Pipelines = {};
+std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
 Utils::StringUnorderedMap<ShaderDescriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
@@ -47,7 +47,7 @@ Shader::Shader(u32 pipelineIndex,
 
 const ShaderPipeline& Shader::Pipeline() const
 {
-    return ShaderCache::s_Pipelines[m_Pipeline];
+    return ShaderCache::s_Pipelines[m_Pipeline].Pipeline;
 }
 
 void ShaderCache::Init()
@@ -83,24 +83,38 @@ const Shader& ShaderCache::Get(std::string_view name)
     return *s_ShadersMap.find(name)->second;
 }
 
-void ShaderCache::Register(std::string_view name, std::string_view path)
+void ShaderCache::Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides)
 {
-    if (s_ShadersMap.contains(name))
+    /* we do not need to reload shader, if it already exists WITH same overrides */
+    if (s_ShadersMap.contains(name) &&
+        s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].OverrideHash == overrides.m_Hash)
         return;
 
     ShaderProxy shaderProxy = {};
     u32 pipeline = {};
     if (!s_Records.contains(path))
     {
-        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors);
+        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, overrides);
         pipeline = (u32)s_Pipelines.size();
-        s_Pipelines.push_back(shaderProxy.Pipeline);
+        s_Pipelines.push_back({.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash});
     }
     else
     {
-        shaderProxy = ReloadShader(path, ReloadType::Descriptors);
         Shader* shader = s_Records.find(path)->second.Shaders.front();
         pipeline = shader->m_Pipeline;
+
+        auto it = s_ShadersMap.find(name);
+        if (it != s_ShadersMap.end())
+        {
+            /* we already have this shader, but specialization overrides have changed
+             * no need to update descriptors, only pipeline
+             */
+            shaderProxy = ReloadShader(path, ReloadType::Pipeline, overrides);
+            s_Pipelines[pipeline] = {.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash};
+            return;
+        }
+        
+        shaderProxy = ReloadShader(path, ReloadType::Descriptors, overrides);
     }
 
     s_Shaders.push_back(std::make_unique<Shader>(pipeline, shaderProxy.Descriptors));
@@ -130,13 +144,28 @@ void ShaderCache::HandleModification(std::string_view path)
             continue;
         handled.emplace(shader);
 
-        ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline);
-        s_FrameDeletionQueue->Enqueue(s_Pipelines[shader->m_Pipeline]);
-        s_Pipelines[shader->m_Pipeline] = shaderProxy.Pipeline;
+        u32 pipelineIndex = shader->m_Pipeline;
+        s_FrameDeletionQueue->Enqueue(s_Pipelines[pipelineIndex].Pipeline);
+        
+        /* when the `ShaderOverride` has non-zero hash, it means that there are some overloads,
+         * so this Reload operation will be useless, as we will have to reload it once more
+         * with correct overloads; so instead we simply set pipeline overload hash to zero, thus
+         * triggering reload on the next access operation
+         */
+        if (s_Pipelines[pipelineIndex].OverrideHash != 0)
+        {
+            s_Pipelines[pipelineIndex].OverrideHash = 0;
+            return;
+        }
+        
+        ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline,
+            ShaderOverrides{0});
+        s_Pipelines[pipelineIndex].Pipeline = shaderProxy.Pipeline;
     }
 }
 
-ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, ReloadType reloadType)
+ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, ReloadType reloadType,
+    const ShaderOverrides& overrides)
 {
     std::ifstream in(path.data());
     nlohmann::json json = nlohmann::json::parse(in);
@@ -172,18 +201,40 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             static constexpr std::string_view TYPE_F32 = "f32";
             
             std::string_view specializationName = specialization["name"];
-            std::string_view specializationType = specialization["type"];
-            const auto& value = specialization["value"];
-            if (specializationType == TYPE_BOOL)
-                pipelineBuilder.AddSpecialization<bool>(specializationName, value);
-            else if (specializationType == TYPE_I32)
-                pipelineBuilder.AddSpecialization<i32>(specializationName, value);
-            else if (specializationType == TYPE_U32)
-                pipelineBuilder.AddSpecialization<u32>(specializationName, value);
-            else if (specializationType == TYPE_F32)
-                pipelineBuilder.AddSpecialization<f32>(specializationName, value);
+
+            auto override = std::ranges::find_if(overrides.m_Overrides,
+                [&specializationName](auto& o){ return o.Name.String() == specializationName; });
+            if (override != overrides.m_Overrides.end())
+            {
+                // todo: std::visit ?
+                ShaderOverrides::Override::ValueType value = override->Value;
+                if (std::holds_alternative<bool>(value))
+                    pipelineBuilder.AddSpecialization<bool>(override->Name.String(), std::get<bool>(value));
+                else if (std::holds_alternative<i32>(value))
+                    pipelineBuilder.AddSpecialization<i32>(override->Name.String(), std::get<i32>(value));
+                else if (std::holds_alternative<u32>(value))
+                    pipelineBuilder.AddSpecialization<u32>(override->Name.String(), std::get<u32>(value));
+                else if (std::holds_alternative<f32>(value))
+                    pipelineBuilder.AddSpecialization<f32>(override->Name.String(), std::get<f32>(value));
+                else
+                    LOG("Ignoring specialization constant {}: unknown type", override->Name.String());
+            }
             else
-                LOG("Ignoring specialization constant {}: unknown type: {}", specializationName, specializationType);
+            {
+                std::string_view specializationType = specialization["type"];
+                const auto& value = specialization["value"];
+                if (specializationType == TYPE_BOOL)
+                    pipelineBuilder.AddSpecialization<bool>(specializationName, value);
+                else if (specializationType == TYPE_I32)
+                    pipelineBuilder.AddSpecialization<i32>(specializationName, value);
+                else if (specializationType == TYPE_U32)
+                    pipelineBuilder.AddSpecialization<u32>(specializationName, value);
+                else if (specializationType == TYPE_F32)
+                    pipelineBuilder.AddSpecialization<f32>(specializationName, value);
+                else
+                    LOG("Ignoring specialization constant {}: unknown type: {}",
+                        specializationName, specializationType);
+            }
         }
 
         DynamicStates dynamicStates = DynamicStates::Default;

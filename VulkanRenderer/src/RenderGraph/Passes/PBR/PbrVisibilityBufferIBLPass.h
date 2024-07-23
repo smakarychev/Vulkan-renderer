@@ -1,15 +1,9 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/RGDrawResources.h"
 
 class SceneLight;
 class SceneGeometry;
-
-struct PbrVisibilityBufferInitInfo
-{
-    const ShaderDescriptors* MaterialDescriptors{nullptr};
-};
 
 struct PbrVisibilityBufferExecutionInfo
 {
@@ -24,9 +18,8 @@ struct PbrVisibilityBufferExecutionInfo
     const SceneGeometry* Geometry{nullptr};
 };
 
-class PbrVisibilityBufferIBL
+namespace Passes::Pbr::VisibilityIbl
 {
-public:
     struct PassData
     {
         RG::Resource VisibilityTexture{};
@@ -46,14 +39,7 @@ public:
         RG::Resource Indices{};
 
         RG::Resource ColorOut{};
-        
-        RG::BindlessTexturesPipelineData* PipelineData{nullptr};        
     };
-public:
-    PbrVisibilityBufferIBL(RG::Graph& renderGraph, const PbrVisibilityBufferInitInfo& info);
-    void AddToGraph(RG::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info);
-private:
-    RG::Pass* m_Pass{nullptr};
 
-    RG::BindlessTexturesPipelineData m_PipelineData;
-};
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const PbrVisibilityBufferExecutionInfo& info);
+}

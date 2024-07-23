@@ -485,7 +485,12 @@ namespace RG
 
     void Graph::SetShader(std::string_view path) const
     {
-        ShaderCache::Register(m_CurrentPass->GetNameString(), path);
+        ShaderCache::Register(m_CurrentPass->GetNameString(), path, {});
+    }
+
+    void Graph::SetShader(std::string_view path, const ShaderOverrides& overrides) const
+    {
+        ShaderCache::Register(m_CurrentPass->GetNameString(), path, overrides);
     }
 
     const Shader& Graph::GetShader() const

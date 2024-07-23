@@ -28,7 +28,7 @@ public:
     CullMetaSinglePass(RG::Graph& renderGraph, const CullMetaSinglePassInitInfo& info, std::string_view name);
     void AddToGraph(RG::Graph& renderGraph, const CullMetaPassExecutionInfo& info,
         HiZPassContext& hiZContext);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
     const std::string& GetName() const { return m_Name.Name(); }
 private:
     RG::PassName m_Name;

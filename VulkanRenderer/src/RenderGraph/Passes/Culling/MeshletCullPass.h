@@ -73,7 +73,7 @@ public:
 public:
     MeshletCullPassGeneral(RG::Graph& renderGraph, std::string_view name, const MeshletCullPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, MeshletCullContext& ctx);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;

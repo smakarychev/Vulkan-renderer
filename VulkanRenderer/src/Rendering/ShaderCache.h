@@ -1,9 +1,11 @@
 ﻿#pragma once
+
 #include <string>
+#include <variant>
 
 #include "FrameContext.h"
 #include "Shader.h"
-#include "utils/StringHasher.h"
+#include "utils/HashedString.h"
 
 static constexpr u32 MAX_DESCRIPTOR_SETS = 3;
 static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
@@ -23,6 +25,46 @@ private:
     std::string m_FilePath;
 };
 
+/* holder for `specialization constants` and `defines` overloads */
+class ShaderOverrides
+{
+    friend class ShaderCache;
+public:
+    constexpr ShaderOverrides() = default;
+    constexpr ShaderOverrides(u64 hash) : m_Hash(hash) {}
+    constexpr ~ShaderOverrides() = default;
+    /* a futile attempt to make sure it does not outlive the `name` */
+    ShaderOverrides(const ShaderOverrides&) = delete;
+    ShaderOverrides& operator=(const ShaderOverrides&) = delete;
+    ShaderOverrides(ShaderOverrides&&) = delete;
+    ShaderOverrides& operator=(ShaderOverrides&&) = delete;
+
+    template <typename T>
+    constexpr ShaderOverrides& Add(Utils::HashedString name, T val);
+private:
+    struct Override
+    {
+        Utils::HashedString Name;
+        /* std::any is another possible option, but we really have a limited number of data types
+         * and this helps to avoid dynamic allocations
+         */
+        using ValueType = std::variant<bool, i32, u32, f32>; 
+        ValueType Value;
+    };
+    u64 m_Hash{0};
+    std::vector<Override> m_Overrides;
+};
+
+template <typename T>
+constexpr ShaderOverrides& ShaderOverrides::Add(Utils::HashedString name, T val)
+{
+    static_assert(std::is_constructible_v<Override::ValueType, T>);
+    m_Overrides.push_back(Override{.Name = name, .Value = val});
+    m_Hash ^= name.Hash() ^ std::bit_cast<u32>(val);
+
+    return *this;
+}
+
 class ShaderCache
 {
     friend class Shader;
@@ -37,7 +79,7 @@ public:
     /* returns shader associated with `name` */
     static const Shader& Get(std::string_view name);
     /* associates shader at `path` with `name` */
-    static void Register(std::string_view name, std::string_view path);
+    static void Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides);
 
     static void HandleRename(std::string_view newName, std::string_view oldName);
     static void HandleModification(std::string_view path);
@@ -49,7 +91,7 @@ private:
         std::vector<std::string> Dependencies;
     };
     enum class ReloadType { PipelineDescriptors, Descriptors, Pipeline };
-    static ShaderProxy ReloadShader(std::string_view path, ReloadType reloadType);
+    static ShaderProxy ReloadShader(std::string_view path, ReloadType reloadType, const ShaderOverrides& overrides);
     static void InitFileWatcher();
 private:
     static DescriptorArenaAllocators* s_Allocators;
@@ -65,7 +107,14 @@ private:
     static Utils::StringUnorderedMap<Shader*> s_ShadersMap;
     
     static std::vector<std::unique_ptr<Shader>> s_Shaders;
-    static std::vector<ShaderPipeline> s_Pipelines;
+
+    /* same shader file may produce different pipelines, based on used-provided overrides */
+    struct PipelineData
+    {
+        ShaderPipeline Pipeline;
+        u64 OverrideHash{0};
+    };
+    static std::vector<PipelineData> s_Pipelines;
 
     static Utils::StringUnorderedMap<ShaderDescriptors> s_BindlessDescriptors;
 

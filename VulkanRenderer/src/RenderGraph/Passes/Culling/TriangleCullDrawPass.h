@@ -121,7 +121,7 @@ public:
 public:
     TriangleCullPrepareDispatchPass(RG::Graph& renderGraph, std::string_view name);
     void AddToGraph(RG::Graph& renderGraph, TriangleCullContext& ctx);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
 private:
     RG::Pass* m_Pass{nullptr};
     RG::PassName m_Name;
@@ -174,7 +174,7 @@ public:
 public:
     TriangleCullDrawPass(RG::Graph& renderGraph, std::string_view name, const TriangleCullDrawPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const TriangleCullDrawPassExecutionInfo& info);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
 private:
     struct PassDataPrivate
     {

@@ -9,6 +9,7 @@
 #include "RGCommon.h"
 #include "Vulkan/Driver.h"
 
+class ShaderOverrides;
 class Shader;
 
 namespace RG
@@ -268,6 +269,7 @@ namespace RG
         Value* TryGetBlackboardValue();
 
         void SetShader(std::string_view path) const;
+        void SetShader(std::string_view path, const ShaderOverrides& overrides) const;
         const Shader& GetShader() const;
         
         std::string MermaidDump() const;

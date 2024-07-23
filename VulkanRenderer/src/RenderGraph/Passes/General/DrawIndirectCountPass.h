@@ -38,7 +38,7 @@ public:
     DrawIndirectCountPass(RG::Graph& renderGraph, std::string_view name, 
         const DrawIndirectCountPassInitInfo& info);
     void AddToGraph(RG::Graph& renderGraph, const DrawIndirectCountPassExecutionInfo& info);
-    Utils::StringHasher GetNameHash() const { return m_Name.Hash(); }
+    u64 GetNameHash() const { return m_Name.Hash(); }
 private:
     struct PassDataPrivate
     {

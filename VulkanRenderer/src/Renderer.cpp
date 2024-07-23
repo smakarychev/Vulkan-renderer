@@ -53,18 +53,6 @@ void Renderer::Init()
 
     m_Graph = std::make_unique<RG::Graph>();
 
-    auto materialsTemplate = ShaderTemplateLibrary::CreateMaterialsTemplate("materials", m_Graph->GetArenaAllocators());
-    ShaderDescriptors materialDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(materialsTemplate, DescriptorAllocatorKind::Resources)
-            // todo: make this (2) an enum
-            .ExtractSet(2)
-            .BindlessCount(1024)
-            .Build();
-    ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
-    ShaderCache::AddBindlessDescriptors("main_materials", materialDescriptors);
-    ShaderCache::Register("Visibility.Meshlet", "../assets/shaders/visibility-meshlet.shader");
-    ShaderCache::Register("Visibility.Triangle", "../assets/shaders/visibility-triangle.shader");
-
     InitRenderGraph();
 }
 
@@ -120,13 +108,14 @@ void Renderer::InitRenderGraph()
     materialDescriptors.UpdateGlobalBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
     m_GraphModelCollection.ApplyMaterialTextures(materialDescriptors);
 
+    ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
+    ShaderCache::AddBindlessDescriptors("main_materials", materialDescriptors);
+    
     m_VisibilityPass = std::make_shared<VisibilityPass>(*m_Graph, VisibilityPassInitInfo{
         .Geometry = &m_GraphOpaqueGeometry,
         .MaterialDescriptors = &materialDescriptors,
         .CameraType = m_Camera->GetType()});
     
-    m_PbrVisibilityBufferIBLPass = std::make_shared<PbrVisibilityBufferIBL>(*m_Graph, PbrVisibilityBufferInitInfo{
-        .MaterialDescriptors = &materialDescriptors});
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
     {
@@ -156,8 +145,6 @@ void Renderer::InitRenderGraph()
     m_SsaoBlurHorizontalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Horizontal);
     m_SsaoBlurVerticalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Vertical);
     m_SsaoVisualizePass = std::make_shared<SsaoVisualizePass>(*m_Graph);
-
-    m_VisualizeBRDFPass = std::make_shared<VisualizeBRDFPass>(*m_Graph);
 
     // todo: separate geometry for shadow casters
     m_CSMPass = std::make_shared<CSMPass>(*m_Graph, ShadowPassInitInfo{
@@ -261,8 +248,8 @@ void Renderer::SetupRenderGraph()
         .ViewDistance = shadowDistance,
         .GeometryBounds = m_GraphOpaqueGeometry.GetBounds()});
     auto& csmOutput = m_Graph->GetBlackboard().Get<CSMPass::PassData>();
-    
-    m_PbrVisibilityBufferIBLPass->AddToGraph(*m_Graph, {
+
+    auto& pbr = Passes::Pbr::VisibilityIbl::addToGraph("Pbr.Visibility.Ibl", *m_Graph, {
         .VisibilityTexture = visibility.ColorOut,
         .ColorIn = {},
         .SceneLights = &m_SceneLights,
@@ -276,7 +263,7 @@ void Renderer::SetupRenderGraph()
             .ShadowMap = csmOutput.ShadowMap,
             .CSM = csmOutput.CSM},
         .Geometry = &m_GraphOpaqueGeometry});
-    auto& pbrOutput = m_Graph->GetBlackboard().Get<PbrVisibilityBufferIBL::PassData>();
+    auto& pbrOutput = m_Graph->GetBlackboard().Get<Passes::Pbr::VisibilityIbl::PassData>(pbr);
 
 
     auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
