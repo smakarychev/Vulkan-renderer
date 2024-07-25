@@ -4,94 +4,109 @@
 #include "Core/Camera.h"
 #include "Core/Random.h"
 #include "imgui/imgui.h"
+#include "Rendering/ShaderCache.h"
 #include "utils/MathUtils.h"
 #include "Vulkan/RenderCommand.h"
 
-SsaoPass::SsaoPass(RG::Graph& renderGraph, u32 sampleCount)
-    : m_SampleCount(sampleCount)
+namespace
 {
-    static constexpr u32 RANDOM_SIZE = 4;
-    std::vector<u32> pixels((u64)RANDOM_SIZE * (u64)RANDOM_SIZE);
-    for (u32& pixel : pixels)
+    constexpr u32 MAX_SAMPLES_COUNT{256};
+    
+    std::pair<Texture, Buffer> generateSamples(u32 count)
     {
-        glm::vec3 randomDir =  {
-            Random::Float(-1.0f, 1.0f),
-            Random::Float(-1.0f, 1.0f),
-            0.0f};
-        randomDir = glm::normalize(randomDir);
-        pixel = ImageUtils::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
+        static constexpr u32 RANDOM_SIZE = 4;
+        std::vector<u32> pixels((u64)RANDOM_SIZE * (u64)RANDOM_SIZE);
+        for (u32& pixel : pixels)
+        {
+            glm::vec3 randomDir =  {
+                Random::Float(-1.0f, 1.0f),
+                Random::Float(-1.0f, 1.0f),
+                0.0f};
+            randomDir = glm::normalize(randomDir);
+            pixel = ImageUtils::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
+        }
+
+        Texture noise = Texture::Builder({
+                .Width = RANDOM_SIZE,
+                .Height = RANDOM_SIZE,
+                .Format = Format::RGBA8_SNORM,
+                .Usage = ImageUsage::Sampled | ImageUsage::Destination})
+            .FromPixels(pixels)
+            .Build();
+
+        // generate samples
+        std::vector<glm::vec4> samples(count);
+        for (u32 i = 0; i < samples.size(); i++)
+        {
+            glm::vec3 sample = glm::vec3{
+                Random::Float(-1.0f, 1.0f),
+                Random::Float(-1.0f, 1.0f),
+                Random::Float(0.0f, 1.0f)};
+            sample = glm::normalize(sample);
+            sample *= Random::Float();
+            f32 scale = (f32)i / samples.size();
+            scale = MathUtils::lerp(0.1f, 1.0f, scale * scale);
+            sample *= scale;
+            samples[i] = glm::vec4{sample, 1.0f};
+        }
+
+        Buffer samplesBuffer = Buffer::Builder({
+                .SizeBytes = samples.size() * sizeof(glm::vec4),
+                .Usage = BufferUsage::Uniform | BufferUsage::DeviceAddress | BufferUsage::Upload})
+            .Build();
+        samplesBuffer.SetData(samples.data(), samplesBuffer.GetSizeBytes());
+
+        return {noise, samplesBuffer};
     }
-
-    m_NoiseTexture = Texture::Builder({
-            .Width = RANDOM_SIZE,
-            .Height = RANDOM_SIZE,
-            .Format = Format::RGBA8_SNORM,
-            .Usage = ImageUsage::Sampled | ImageUsage::Destination})
-        .FromPixels(pixels)
-        .Build();
-
-    // generate samples
-    std::vector<glm::vec4> samples(m_SampleCount);
-    for (u32 i = 0; i < samples.size(); i++)
-    {
-        glm::vec3 sample = glm::vec3{
-            Random::Float(-1.0f, 1.0f),
-            Random::Float(-1.0f, 1.0f),
-            Random::Float(0.0f, 1.0f)};
-        sample = glm::normalize(sample);
-        sample *= Random::Float();
-        f32 scale = (f32)i / samples.size();
-        scale = MathUtils::lerp(0.1f, 1.0f, scale * scale);
-        sample *= scale;
-        samples[i] = glm::vec4{sample, 1.0f};
-    }
-
-    m_SamplesBuffer = Buffer::Builder({
-            .SizeBytes = samples.size() * sizeof(glm::vec4),
-            .Usage = BufferUsage::Uniform | BufferUsage::DeviceAddress | BufferUsage::Upload})
-        .Build();
-    m_SamplesBuffer.SetData(samples.data(), m_SamplesBuffer.GetSizeBytes());
-
-    ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/ao/ssao-comp.stage"},
-        "Pass.SSAO", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(ssaoTemplate)
-        .AddSpecialization("MAX_SAMPLES", MAX_SAMPLES_COUNT)
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(ssaoTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(ssaoTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-
-    m_Settings.Samples = m_SampleCount;
 }
 
-void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
+RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::Graph& renderGraph, RG::Resource depthIn)
 {
+    struct SettingsUBO
+    {
+        f32 Power{1.0f};
+        f32 Radius{0.5f};
+        u32 Samples{32};
+    };
+    struct CameraUBO
+    {
+        glm::mat4 Projection{glm::mat4{1.0f}};
+        glm::mat4 ProjectionInverse{glm::mat4{1.0f}};
+        f32 Near{0.0f};
+        f32 Far{1000.0f};
+    };
+    struct Samples
+    {
+        Texture NoiseTexture{};
+        Buffer SamplesBuffer{};
+    };
+
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    std::string name = "SSAO";
-    m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            graph.SetShader("../assets/shaders/ssao.shader",
+                ShaderOverrides{}
+                    .Add({"MAX_SAMPLES"}, MAX_SAMPLES_COUNT));
+            
+            if (!graph.TryGetBlackboardValue<Samples>())
+            {
+                auto&& [noise, samplesBuffer] = generateSamples(sampleCount);
+                Samples samples = {.NoiseTexture = noise, .SamplesBuffer = samplesBuffer};
+                graph.UpdateBlackboard(samples);
+            }
+            Samples& samples = graph.GetBlackboardValue<Samples>();
+            
             const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(depthIn);
-            passData.NoiseTexture = graph.AddExternal(name + ".NoiseTexture", m_NoiseTexture);
-            passData.Settings = graph.CreateResource(name + ".Settings", GraphBufferDescription{
+            passData.NoiseTexture = graph.AddExternal(std::string{name} + ".NoiseTexture", samples.NoiseTexture);
+            passData.Settings = graph.CreateResource(std::string{name} + ".Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Camera = graph.CreateResource(name + ".Camera", GraphBufferDescription{
+            passData.Camera = graph.CreateResource(std::string{name} + ".Camera", GraphBufferDescription{
                 .SizeBytes = sizeof(CameraUBO)});
-            passData.Samples = graph.AddExternal(name + ".Samples", m_SamplesBuffer);
-            passData.SSAO = graph.CreateResource(name + ".SSAO", GraphTextureDescription{
+            passData.Samples = graph.AddExternal(std::string{name} + ".Samples", samples.SamplesBuffer);
+            passData.SSAO = graph.CreateResource(std::string{name} + ".SSAO", GraphTextureDescription{
                 .Width = depthDescription.Width,
                 .Height = depthDescription.Height,
                 .Format = Format::R8_UNORM});
@@ -103,20 +118,18 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
             passData.Samples = graph.Read(passData.Samples, Compute | Uniform);
             passData.SSAO = graph.Write(passData.SSAO, Compute | Storage);
 
-            passData.PipelineData = &m_PipelineData;
-
-            passData.SettingsData = &m_Settings;
-            passData.SampleCount = m_SampleCount;
-
-            graph.GetBlackboard().Update(passData);
+            passData.MaxSampleCount = sampleCount;
+            
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
+            CPU_PROFILE_FRAME("SSAO")
             GPU_PROFILE_FRAME("SSAO")
 
-            auto& settings = *passData.SettingsData;
+            auto& settings = resources.GetOrCreateValue<SettingsUBO>();
             ImGui::Begin("AO settings");
-            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, passData.SampleCount);
+            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, passData.MaxSampleCount);
             ImGui::DragFloat("Power", &settings.Power, 1e-3f, 0.0f, 5.0f);
             ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
@@ -137,9 +150,10 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
             const Texture& noiseTexture = resources.GetTexture(passData.NoiseTexture);
             const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
             
-            auto& pipeline = passData.PipelineData->Pipeline;    
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;    
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_settings", setting.BindingInfo());
             resourceDescriptors.UpdateBinding("u_camera", cameraBuffer.BindingInfo());
@@ -175,4 +189,6 @@ void SsaoPass::AddToGraph(RG::Graph& renderGraph, RG::Resource depthIn)
                 {ssaoTexture.Description().Width, ssaoTexture.Description().Height, 1},
                 {16, 16, 1});
         });
+
+    return pass;
 }

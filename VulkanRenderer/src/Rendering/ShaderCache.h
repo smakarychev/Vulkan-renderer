@@ -60,7 +60,10 @@ constexpr ShaderOverrides& ShaderOverrides::Add(Utils::HashedString name, T val)
 {
     static_assert(std::is_constructible_v<Override::ValueType, T>);
     m_Overrides.push_back(Override{.Name = name, .Value = val});
-    m_Hash ^= name.Hash() ^ std::bit_cast<u32>(val);
+    if constexpr(std::is_same_v<bool, T>)
+        m_Hash ^= name.Hash() ^ Utils::hashBytes(&val, sizeof(bool));
+    else
+        m_Hash ^= name.Hash() ^ std::bit_cast<u32>(val);
 
     return *this;
 }

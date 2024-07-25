@@ -2,42 +2,24 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-SsaoBlurPass::SsaoBlurPass(RG::Graph& renderGraph, SsaoBlurPassKind kind)
-    : m_Name(std::string("SSAO.Blur") + (kind == SsaoBlurPassKind::Horizontal ? "Horizontal" : "Vertical"))
-{
-    ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/ao/ssao-blur-comp.stage"},
-        "Pass.SSAO.Blur", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(ssaoTemplate)
-        .UseDescriptorBuffer()
-        .AddSpecialization("IS_VERTICAL", kind == SsaoBlurPassKind::Vertical)
-        .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(ssaoTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(ssaoTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-}
-
-void SsaoBlurPass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut)
+RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao,
+    RG::Resource colorOut, SsaoBlurPassKind kind)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            graph.SetShader("../assets/shaders/ssao-blur.shader",
+                ShaderOverrides{}
+                    .Add({"IS_VERTICAL"}, kind == SsaoBlurPassKind::Vertical));
+            
             const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
-            passData.SsaoOut = RgUtils::ensureResource(colorOut, graph, m_Name.Name() + ".ColorOut",
+            passData.SsaoOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".ColorOut",
                 GraphTextureDescription{
                     .Width = ssaoDescription.Width,
                     .Height = ssaoDescription.Height,
@@ -46,20 +28,20 @@ void SsaoBlurPass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Res
             passData.SsaoIn = graph.Read(ssao, Compute | Sampled);
             passData.SsaoOut = graph.Write(passData.SsaoOut, Compute | Storage);
 
-            passData.PipelineData = &m_PipelineData;
-
-            graph.GetBlackboard().Update(m_Name.Hash(), passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
+            CPU_PROFILE_FRAME("SSAO.Blur")
             GPU_PROFILE_FRAME("SSAO.Blur")
             
             const Texture& ssaoIn = resources.GetTexture(passData.SsaoIn);
             const Texture& ssaoOut = resources.GetTexture(passData.SsaoOut);
 
-            auto& pipeline = passData.PipelineData->Pipeline;    
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_ssao", ssaoIn.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
@@ -74,4 +56,6 @@ void SsaoBlurPass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Res
                 {ssaoIn.Description().Width, ssaoIn.Description().Height, 1},
                 {16, 16, 1});
         });
+
+    return pass;
 }

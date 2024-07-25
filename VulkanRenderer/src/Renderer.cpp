@@ -141,11 +141,6 @@ void Renderer::InitRenderGraph()
                 .CameraType = m_Camera->GetType()});
     }
     
-    m_SsaoPass = std::make_shared<SsaoPass>(*m_Graph, 32);
-    m_SsaoBlurHorizontalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Horizontal);
-    m_SsaoBlurVerticalPass = std::make_shared<SsaoBlurPass>(*m_Graph, SsaoBlurPassKind::Vertical);
-    m_SsaoVisualizePass = std::make_shared<SsaoVisualizePass>(*m_Graph);
-
     // todo: separate geometry for shadow casters
     m_CSMPass = std::make_shared<CSMPass>(*m_Graph, ShadowPassInitInfo{
         .Geometry = &m_GraphOpaqueGeometry});
@@ -214,19 +209,21 @@ void Renderer::SetupRenderGraph()
         .Camera = GetFrameContext().MainCamera});
     auto& visibility = m_Graph->GetBlackboard().Get<VisibilityPass::PassData>();
 
-    m_SsaoPass->AddToGraph(*m_Graph, visibility.DepthOut);
-    auto& ssaoOutput = m_Graph->GetBlackboard().Get<SsaoPass::PassData>();
+    auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibility.DepthOut);
+    auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
 
-    m_SsaoBlurHorizontalPass->AddToGraph(*m_Graph, ssaoOutput.SSAO, {});
-    auto& ssaoBlurHorizontalOutput = m_Graph->GetBlackboard().Get<SsaoBlurPass::PassData>(
-        m_SsaoBlurHorizontalPass->GetNameHash());
+    auto& ssaoBlurHorizontal = Passes::SsaoBlur::addToGraph("SSAO.Blur.Horizontal", *m_Graph,
+        ssaoOutput.SSAO, {},
+        SsaoBlurPassKind::Horizontal);
+    auto& ssaoBlurHorizontalOutput = m_Graph->GetBlackboard().Get<Passes::SsaoBlur::PassData>(ssaoBlurHorizontal);
+    auto& ssaoBlurVertical = Passes::SsaoBlur::addToGraph("SSAO.Blur.Vertical", *m_Graph,
+        ssaoBlurHorizontalOutput.SsaoOut, ssaoOutput.SSAO,
+        SsaoBlurPassKind::Vertical);
+    auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().Get<Passes::SsaoBlur::PassData>(ssaoBlurVertical);
 
-    m_SsaoBlurVerticalPass->AddToGraph(*m_Graph, ssaoBlurHorizontalOutput.SsaoOut, ssaoOutput.SSAO);
-    auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().Get<SsaoBlurPass::PassData>(
-            m_SsaoBlurVerticalPass->GetNameHash());
-        
-    m_SsaoVisualizePass->AddToGraph(*m_Graph, ssaoBlurVerticalOutput.SsaoOut, {});
-    auto& ssaoVisualizeOutput = m_Graph->GetBlackboard().Get<SsaoVisualizePass::PassData>();
+    auto& ssaoVisualize = Passes::SsaoVisualize::addToGraph("SSAO.Visualize", *m_Graph,
+        ssaoBlurVerticalOutput.SsaoOut, {});
+    auto& ssaoVisualizeOutput = m_Graph->GetBlackboard().Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
 
     // todo: should not be here obv
     DirectionalLight directionalLight = m_SceneLights.GetDirectionalLight();

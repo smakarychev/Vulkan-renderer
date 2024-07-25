@@ -2,45 +2,22 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-SsaoVisualizePass::SsaoVisualizePass(RG::Graph& renderGraph)
-{
-    ShaderPipelineTemplate* ssaoTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-       "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
-       "../assets/shaders/processed/render-graph/ao/ssao-visualize-frag.stage"},
-       "Pass.SSAO.Visualize", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(ssaoTemplate)
-        .SetRenderingDetails({
-            .ColorFormats = {Format::RGBA16_FLOAT}})
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(ssaoTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(ssaoTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-}
-
-void SsaoVisualizePass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao,
+RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao,
     RG::Resource colorOut)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
     
-    std::string name = "SSAO.Visualize";
-    m_Pass = &renderGraph.AddRenderPass<PassData>(PassName{name},
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            graph.SetShader("../assets/shaders/ssao-visualize.shader");
+            
             auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
-            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, name + ".Color",
+            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".Color",
                 GraphTextureDescription{
                     .Width = ssaoDescription.Width,
                     .Height = ssaoDescription.Height,
@@ -49,19 +26,20 @@ void SsaoVisualizePass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao,
             passData.SSAO = graph.Read(ssao, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
 
-            passData.PipelineData = &m_PipelineData;
-
-            graph.GetBlackboard().Update(passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
+            CPU_PROFILE_FRAME("Visualize SSAO")
             GPU_PROFILE_FRAME("Visualize SSAO")
 
             const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
 
-            auto& pipeline = passData.PipelineData->Pipeline;    
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;    
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_ssao", ssaoTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
@@ -73,4 +51,6 @@ void SsaoVisualizePass::AddToGraph(RG::Graph& renderGraph, RG::Resource ssao,
 
             RenderCommand::Draw(cmd, 3);
         });
+
+    return pass;
 }

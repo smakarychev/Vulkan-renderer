@@ -85,37 +85,57 @@ const Shader& ShaderCache::Get(std::string_view name)
 
 void ShaderCache::Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides)
 {
-    /* we do not need to reload shader, if it already exists WITH same overrides */
-    if (s_ShadersMap.contains(name) &&
-        s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].OverrideHash == overrides.m_Hash)
-        return;
-
     ShaderProxy shaderProxy = {};
     u32 pipeline = {};
+    
     if (!s_Records.contains(path))
     {
-        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, overrides);
+        /* if this is completely new shader */
         pipeline = (u32)s_Pipelines.size();
+        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, overrides);
         s_Pipelines.push_back({.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash});
     }
     else
     {
-        Shader* shader = s_Records.find(path)->second.Shaders.front();
-        pipeline = shader->m_Pipeline;
+        /* if shader already exists in some form, then two cases are possible:
+         * 1) to-be-registered shader is identical to previously loaded one, but has different `name`
+         *   in this case we can copy pipeline of the existing shader, and just allocate descriptors
+         * 2) to-be-registered shader is different (has overrides), in this case we have two more cases:
+         *   2a) to-be-registered was already loaded for `name`, in this case we do not need to allocate descriptors
+         *   2b) to-be-registered was not loaded for `name`, in this case we have to load pipeline and descriptors
+         *
+         *   case 2a) is an early exit, since it does not produce any entries in `s_Shaders` and other arrays
+         */
 
-        auto it = s_ShadersMap.find(name);
-        if (it != s_ShadersMap.end())
+        Shader* shader = s_Records.find(path)->second.Shaders.front();
+
+        /* 2a) */
+        if (s_ShadersMap.contains(name))
         {
-            /* we already have this shader, but specialization overrides have changed
-             * no need to update descriptors, only pipeline
-             */
-            shaderProxy = ReloadShader(path, ReloadType::Pipeline, overrides);
-            s_Pipelines[pipeline] = {.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash};
+            if (s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].OverrideHash == overrides.m_Hash)
+                return;
+            
+            s_Pipelines[shader->m_Pipeline] = {
+                .Pipeline = ReloadShader(path, ReloadType::Pipeline, overrides).Pipeline,
+                .OverrideHash = overrides.m_Hash};
+            
             return;
         }
-        
-        shaderProxy = ReloadShader(path, ReloadType::Descriptors, overrides);
-    }
+
+        /* 1) */
+        if (s_Pipelines[shader->m_Pipeline].OverrideHash == overrides.m_Hash)
+        {
+            pipeline = shader->m_Pipeline;
+            shaderProxy = ReloadShader(path, ReloadType::Descriptors, overrides);
+        }
+        /* 2b) */
+        else
+        {
+            pipeline = (u32)s_Pipelines.size();
+            shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, overrides);
+            s_Pipelines.push_back({.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash});
+        }
+    }   
 
     s_Shaders.push_back(std::make_unique<Shader>(pipeline, shaderProxy.Descriptors));
     s_Shaders.back()->m_FilePath = path;

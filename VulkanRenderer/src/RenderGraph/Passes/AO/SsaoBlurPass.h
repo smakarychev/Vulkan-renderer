@@ -1,29 +1,18 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RGCommon.h"
 
 enum class SsaoBlurPassKind
 {
     Horizontal, Vertical
 };
 
-class SsaoBlurPass
+namespace Passes::SsaoBlur
 {
-public:
     struct PassData
     {
         RG::Resource SsaoIn{};
         RG::Resource SsaoOut{};
-        
-        RG::PipelineData* PipelineData{nullptr};
     };
-public:
-    SsaoBlurPass(RG::Graph& renderGraph, SsaoBlurPassKind kind);
-    void AddToGraph(RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut);
-    u64 GetNameHash() const { return m_Name.Hash(); }
-private:
-    RG::Pass* m_Pass{nullptr};
-    RG::PassName m_Name;
-
-    RG::PipelineData m_PipelineData{};
-};
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut,
+        SsaoBlurPassKind kind);
+}

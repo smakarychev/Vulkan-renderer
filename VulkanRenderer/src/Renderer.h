@@ -21,9 +21,6 @@ class DirectionalShadowPass;
 class PbrForwardTranslucentIBLPass;
 class PbrTCForwardIBLPass;
 class VisibilityPass;
-class SsaoPass;
-class SsaoBlurPass;
-class SsaoVisualizePass;
 class SlimeMoldPass;
 class SlimeMoldContext;
 class HiZPassContext;
@@ -90,10 +87,6 @@ private:
     
     std::shared_ptr<VisibilityPass> m_VisibilityPass;
     std::shared_ptr<PbrForwardTranslucentIBLPass> m_PbrForwardIBLTranslucentPass;
-    std::shared_ptr<SsaoPass> m_SsaoPass;
-    std::shared_ptr<SsaoBlurPass> m_SsaoBlurHorizontalPass;
-    std::shared_ptr<SsaoBlurPass> m_SsaoBlurVerticalPass;
-    std::shared_ptr<SsaoVisualizePass> m_SsaoVisualizePass;
     
     Texture m_SkyboxTexture{};
     Texture m_SkyboxIrradianceMap{};

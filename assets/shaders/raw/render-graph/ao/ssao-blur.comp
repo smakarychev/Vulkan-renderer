@@ -25,7 +25,7 @@ void main() {
 
         ssao += texelFetch(sampler2D(u_ssao, u_sampler), coord + delta, 0).r;
     }
-    ssao /= 2 * kernel_size + 1;
+    ssao /= 2 * kernel_size + 1; 
 
     imageStore(u_ssao_blurred, coord, vec4(ssao));
 }
