@@ -14,6 +14,8 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            CPU_PROFILE_FRAME("SSAO.Visualize.Setup")
+
             graph.SetShader("../assets/shaders/ssao-visualize.shader");
             
             auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
@@ -30,12 +32,11 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Visualize SSAO")
-            GPU_PROFILE_FRAME("Visualize SSAO")
+            CPU_PROFILE_FRAME("SSAO.Visualize")
+            GPU_PROFILE_FRAME("SSAO.Visualize")
 
             const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
 
-            
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);

@@ -1,0 +1,121 @@
+#version 460
+
+#include "common.glsl"
+#include "culling_functions.glsl"
+
+#extension GL_KHR_shader_subgroup_ballot: enable
+#extension GL_EXT_scalar_block_layout: require
+
+layout(local_size_x = 64) in;
+
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
+
+layout(scalar, set = 1, binding = 1) uniform view_buffer {
+    ViewData views[MAX_VIEWS];
+} u_views;
+
+layout(scalar, set = 1, binding = 2) uniform view_spans_buffer {
+    ViewSpan spans[MAX_GEOMETRIES];
+} u_view_spans;
+
+layout(std430, set = 1, binding = 3) readonly buffer object_buffer {
+    object_data objects[];
+} u_objects[MAX_GEOMETRIES];
+
+layout(std430, set = 1, binding = 4) readonly buffer object_visibility_buffer{
+    uint8_t visibility[];
+} u_object_visibility[MAX_VIEWS];
+
+layout(std430, set = 1, binding = 5) readonly buffer meshlet_buffer {
+    Meshlet meshlets[];
+} u_meshlets[MAX_GEOMETRIES];
+
+layout(std430, set = 1, binding = 6) buffer meshlet_visibility_buffer{
+    uint8_t visibility[];
+} u_meshlet_visibility[MAX_VIEWS];
+
+layout(std430, set = 1, binding = 7) readonly buffer command_buffer {
+    IndirectCommand commands[];
+} u_commands[MAX_GEOMETRIES];
+
+layout(std430, set = 1, binding = 8) writeonly buffer compacted_command_buffer {
+    IndirectCommand commands[];
+} u_compacted_commands[MAX_VIEWS];
+
+layout(std430, set = 1, binding = 9) buffer count_buffer {
+    uint count[];
+} u_count;
+
+layout(push_constant) uniform push_constants {
+    uint u_meshlet_count;
+    uint u_geometry_index;
+    uint u_view_count;
+};
+
+bool is_visible(vec3 origin, float radius, vec3 cone_axis, float cone_cutoff, uint view_index) {
+    bool visible = true;
+    if (is_orthographic(u_views.views[view_index]))
+        visible = visible && 
+            is_backface_meshlet_visible_orthographic(cone_axis, cone_cutoff) &&
+            is_frustum_visible_orthographic(origin, radius, u_views.views[view_index]) &&
+            is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+    else
+        visible = visible &&
+            is_backface_meshlet_visible(origin, radius, cone_axis, cone_cutoff) &&
+            is_frustum_visible(origin, radius, u_views.views[view_index]) &&
+            is_occlusion_visible(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+
+    return visible;
+}
+
+void cull(uint id, bool should_draw, uint view_index) {
+    if (should_draw)
+        u_compacted_commands[view_index].commands[id] = u_commands[u_geometry_index].commands[id];
+    else
+        u_compacted_commands[view_index].commands[id].instanceCount = 0;
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (id >= u_meshlet_count)
+        return;
+
+    const IndirectCommand command = u_commands[u_geometry_index].commands[id];
+    const uint meshlet_id = command.firstInstance;
+    const Meshlet meshlet = u_meshlets[u_geometry_index].meshlets[meshlet_id];
+    const object_data object = u_objects[u_geometry_index].objects[command.render_object];
+
+    const vec4 origin_world = object.model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f);
+    const float scale = extract_scale(object.model);
+    const float radius = meshlet.r * scale;
+    
+    const vec4 cone_axis_world = object.model * 
+        vec4(vec3(meshlet.cone_x, meshlet.cone_y, meshlet.cone_z) / 127.0f, 0.0f) / scale;
+    const float cone_cutoff = float(meshlet.cone_cutoff) / 127.0f;
+
+    const uint first_view = u_view_spans.spans[u_geometry_index].first;
+    const uint view_count = u_view_spans.spans[u_geometry_index].count;
+    
+    for (uint i = first_view; i < first_view + view_count; i++) {
+        const ViewData view = u_views.views[i];
+
+        vec3 origin_view = vec3(view.view_matrix * origin_world);
+        if (is_depth_clamped(view))
+            origin_view.z = min(origin_view.z, -view.frustum_near);
+        
+        const vec3 cone_axis = vec3(view.view_matrix * cone_axis_world);
+        
+        const bool is_mesh_drawn = flags_should_draw(u_object_visibility[i].visibility[command.render_object]); 
+        const bool is_mesh_visible = flags_visible(u_object_visibility[i].visibility[command.render_object]);
+        const bool is_last_frame_visible = flags_visible(u_meshlet_visibility[i].visibility[meshlet_id]);
+
+        bool should_be_drawn = false;
+        bool visible = false;
+
+        visible = is_mesh_visible && is_visible(origin_view, radius, cone_axis, cone_cutoff, i);
+        should_be_drawn = visible;
+
+        cull(id, should_be_drawn, i);
+    }
+}

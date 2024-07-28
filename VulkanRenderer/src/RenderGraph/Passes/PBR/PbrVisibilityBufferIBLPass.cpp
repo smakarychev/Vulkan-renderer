@@ -15,6 +15,8 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            CPU_PROFILE_FRAME("Pbr.Visibility.IBL.Setup")
+
             graph.SetShader("../assets/shaders/pbr-visibility-ibl.shader",
                 ShaderOverrides{}
                     .Add(
@@ -67,6 +69,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
+            CPU_PROFILE_FRAME("PBR Visibility pass")
             GPU_PROFILE_FRAME("PBR Visibility pass")
 
             const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
@@ -97,10 +100,10 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             resourceDescriptors.UpdateBinding("u_shading", shadingSettings.BindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commands.BindingInfo());
             resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_positions", positions.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_normals", normals.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_tangents", tangents.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_uv", uvs.BindingInfo());
+            resourceDescriptors.UpdateBinding(UNIFORM_POSITIONS, positions.BindingInfo());
+            resourceDescriptors.UpdateBinding(UNIFORM_NORMALS, normals.BindingInfo());
+            resourceDescriptors.UpdateBinding(UNIFORM_TANGENTS, tangents.BindingInfo());
+            resourceDescriptors.UpdateBinding(UNIFORM_UV, uvs.BindingInfo());
             resourceDescriptors.UpdateBinding("u_indices", indices.BindingInfo());
             
             auto& cmd = frameContext.Cmd;

@@ -55,6 +55,8 @@ RG::Pass& Passes::HiZ::addToGraph(std::string_view name, RG::Graph& renderGraph,
         Pass& pass = renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", name, i)},
             [&](Graph& graph, PassData& passData)
             {
+                CPU_PROFILE_FRAME("HiZ.Setup")
+
                 graph.SetShader("../assets/shaders/hiz.shader");
                 
                 Resource depthIn = {};

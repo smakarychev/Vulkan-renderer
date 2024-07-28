@@ -14,13 +14,6 @@
 #include "Vulkan/Driver.h"
 #include "Rendering/Swapchain.h"
 
-class CSMVisualizePass;
-class CSMPass;
-class DirectionalShadowPass;
-class DirectionalShadowPass;
-class PbrForwardTranslucentIBLPass;
-class PbrTCForwardIBLPass;
-class VisibilityPass;
 class SlimeMoldPass;
 class SlimeMoldContext;
 class HiZPassContext;
@@ -85,18 +78,11 @@ private:
     
     std::unique_ptr<RG::Graph> m_Graph;
     
-    std::shared_ptr<VisibilityPass> m_VisibilityPass;
-    std::shared_ptr<PbrForwardTranslucentIBLPass> m_PbrForwardIBLTranslucentPass;
-    
     Texture m_SkyboxTexture{};
     Texture m_SkyboxIrradianceMap{};
     Texture m_SkyboxPrefilterMap{};
     std::shared_ptr<Texture> m_BRDF{};
 
-    std::shared_ptr<CSMPass> m_CSMPass;
-    std::shared_ptr<CSMVisualizePass> m_CSMVisualizePass;
-
-    
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;
 

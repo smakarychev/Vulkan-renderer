@@ -1,31 +1,25 @@
-#include "MeshCullMultiviewPass.h"
+#include "MeshletCullTranslucentMultiviewPass.h"
 
+#include "CullMultiviewResources.h"
 #include "FrameContext.h"
+#include "RenderGraph/RenderGraph.h"
 #include "Rendering/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
-RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    const MeshCullMultiviewPassExecutionInfo& info, CullStage stage)
+RG::Pass& Passes::Multiview::MeshletCullTranslucent::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    const MeshletCullMultiviewPassExecutionInfo& info)
 {
     using namespace RG;
-    
+
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Mesh.Cull.Multiview.Setup")
+            CPU_PROFILE_FRAME("Meshlet.Cull.Multiview.Translucent.Setup")
 
-            graph.SetShader("../assets/shaders/mesh-cull-multiview.shader",
-                ShaderOverrides{}
-                    .Add({"REOCCLUSION"}, stage == CullStage::Reocclusion)
-                    .Add({"SINGLE_PASS"}, stage == CullStage::Single));
+            graph.SetShader("../assets/shaders/meshlet-cull-translucent-multiview.shader", {});
             
-            if (stage != CullStage::Cull)
-                for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
-                    info.MultiviewResource->HiZs[i] =
-                        info.MultiviewResource->Multiview->View(i).Static.HiZContext->GetHiZResource();
-
-            RgUtils::readWriteCullMeshMultiview(*info.MultiviewResource, graph);
+            RgUtils::readWriteCullMeshletMultiview(*info.MultiviewResource, CullStage::Single, graph);
             
             passData.MultiviewResource = info.MultiviewResource;
             
@@ -33,33 +27,26 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Mesh.Cull.Multiview")
-            GPU_PROFILE_FRAME("Mesh.Cull.Multiview")
+            CPU_PROFILE_FRAME("Meshlet.Cull.Multiview.Translucent")
+            GPU_PROFILE_FRAME("Meshlet.Cull.Multiview.Translucent")
 
             auto* multiview = passData.MultiviewResource;
-            auto* multiviewData = multiview->Multiview;
 
-            resources.GetBuffer(multiview->ViewSpans, multiviewData->ViewSpans().data(),
-                multiviewData->ViewSpans().size() * sizeof(CullMultiviewData::ViewSpan), 0,
-                *frameContext.ResourceUploader);
-            std::vector<CullViewDataGPU> views = multiviewData->CreateMultiviewGPU();
-            resources.GetBuffer(multiview->Views, views.data(), views.size() * sizeof(CullViewDataGPU), 0,
-                *frameContext.ResourceUploader);
+            Sampler hizSampler = multiview->HiZSampler;
             
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
-            Sampler hizSampler = multiview->HiZSampler;
             samplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
-            RgUtils::updateMeshCullMultiviewBindings(resourceDescriptors, resources, *multiview);
+            RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview, CullStage::Single);
 
             struct PushConstant
             {
-                u32 ObjectCount;
+                u32 MeshletCount;
                 u32 GeometryIndex;
                 u32 ViewCount;
             };
@@ -71,17 +58,17 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {
-                u32 meshCount = multiview->Multiview->View(i).Static.Geometry->GetRenderObjectCount();
+                u32 meshletCount = multiview->Multiview->View(i).Static.Geometry->GetMeshletCount();
                 
                 PushConstant pushConstant = {
-                    .ObjectCount = meshCount,
+                    .MeshletCount = meshletCount,
                     .GeometryIndex = i,
                     .ViewCount = info.MultiviewResource->ViewCount};
 
                 RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
 
                 RenderCommand::Dispatch(cmd,
-                    {meshCount, 1, 1},
+                    {meshletCount, 1, 1},
                     {64, 1, 1});
             }
         });

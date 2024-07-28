@@ -14,6 +14,8 @@ RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderG
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            CPU_PROFILE_FRAME("SSAO.Blur.Setup")
+
             graph.SetShader("../assets/shaders/ssao-blur.shader",
                 ShaderOverrides{}
                     .Add({"IS_VERTICAL"}, kind == SsaoBlurPassKind::Vertical));

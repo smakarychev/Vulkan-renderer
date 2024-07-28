@@ -18,6 +18,8 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            CPU_PROFILE_FRAME("HiZ.Visualize.Setup")
+
             graph.SetShader("../assets/shaders/hiz-visualize.shader");
             
             passData.HiZ = graph.Read(hiz,
@@ -35,7 +37,8 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            GPU_PROFILE_FRAME("HiZ visualize")
+            CPU_PROFILE_FRAME("HiZ.Visualize")
+            GPU_PROFILE_FRAME("HiZ.Visualize")
             
             const Texture& hizTexture = resources.GetTexture(passData.HiZ);
             PushConstants& pushConstants = resources.GetOrCreateValue<PushConstants>();

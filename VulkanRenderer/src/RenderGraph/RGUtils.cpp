@@ -197,13 +197,13 @@ namespace RG::RgUtils
         const Buffer& uv = resources.GetBuffer(attributeBuffers.UVs);
 
         if (enumHasAny(features, Positions))
-            descriptors.UpdateBinding("u_positions", positions.BindingInfo());
+            descriptors.UpdateBinding(UNIFORM_POSITIONS, positions.BindingInfo());
         if (enumHasAny(features, Normals))
-            descriptors.UpdateBinding("u_normals", normals.BindingInfo());
+            descriptors.UpdateBinding(UNIFORM_NORMALS, normals.BindingInfo());
         if (enumHasAny(features, Tangents))
-            descriptors.UpdateBinding("u_tangents", tangents.BindingInfo());
+            descriptors.UpdateBinding(UNIFORM_TANGENTS, tangents.BindingInfo());
         if (enumHasAny(features, UV))
-            descriptors.UpdateBinding("u_uv", uv.BindingInfo());
+            descriptors.UpdateBinding(UNIFORM_UV, uv.BindingInfo());
     }
 
     void updateSceneLightBindings(const ShaderDescriptors& descriptors, const Resources& resources,
@@ -220,11 +220,11 @@ namespace RG::RgUtils
         const Texture& prefilter = resources.GetTexture(iblData.PrefilterEnvironment);
         const Texture& brdf = resources.GetTexture(iblData.BRDF);
 
-        descriptors.UpdateBinding("u_irradiance_map", irradiance.BindingInfo(
+        descriptors.UpdateBinding(UNIFORM_IRRADIANCE_MAP, irradiance.BindingInfo(
             ImageFilter::Linear, ImageLayout::Readonly));
-        descriptors.UpdateBinding("u_prefilter_map", prefilter.BindingInfo(
+        descriptors.UpdateBinding(UNIFORM_PREFILTER_MAP, prefilter.BindingInfo(
             ImageFilter::Linear, ImageLayout::Readonly));
-        descriptors.UpdateBinding("u_brdf", brdf.BindingInfo(
+        descriptors.UpdateBinding(UNIFORM_BRDF, brdf.BindingInfo(
             ImageFilter::Linear, ImageLayout::Readonly));
     }
 
@@ -232,7 +232,7 @@ namespace RG::RgUtils
     {
         const Texture& ssao = resources.GetTexture(ssaoData.SSAO);
 
-        descriptors.UpdateBinding("u_ssao_texture", ssao.BindingInfo(
+        descriptors.UpdateBinding(UNIFORM_SSAO_TEXTURE, ssao.BindingInfo(
             ImageFilter::Linear, ImageLayout::Readonly));
     }
 

@@ -267,9 +267,15 @@ namespace RG
         
         template <typename Value>
         Value* TryGetBlackboardValue();
+        
+        template <typename Value>
+        Value& GetOrCreateBlackboardValue();
 
         void SetShader(std::string_view path) const;
         void SetShader(std::string_view path, const ShaderOverrides& overrides) const;
+        void SetShader(const Shader* shader) const;
+        void SetShader(const Shader* shader, const ShaderOverrides& overrides) const;
+        void CopyShader(const Shader* shader) const;
         const Shader& GetShader() const;
         
         std::string MermaidDump() const;
@@ -301,6 +307,8 @@ namespace RG
         ResourceTypeBase& GetResourceTypeBase(Resource resource) const;
         Resource AddOrCreateAccess(Resource resource, PipelineStage stage, PipelineAccess access);
         Resource AddAccess(ResourceAccess& resource, PipelineStage stage, PipelineAccess access);
+
+        Pass* CurrentPass() const;
     private:
         template <typename T>
         struct ExternalResource
@@ -329,7 +337,7 @@ namespace RG
         std::vector<TextureToExport> m_TexturesToExport;
         std::vector<BufferToExport> m_BuffersToExport;
 
-        Pass* m_CurrentPass{nullptr};
+        std::vector<Pass*> m_CurrentPassesStack{};
         Resource m_Backbuffer{};
         std::shared_ptr<GraphTexture> m_BackbufferTexture{};
         ImageLayout m_BackbufferLayout{ImageLayout::Undefined};
@@ -377,8 +385,8 @@ namespace RG
         m_NameToPassIndexMap.emplace(passName.m_Name, (u32)m_RenderPasses.size());
         m_RenderPasses.push_back(std::make_unique<Pass>(passName));
         Pass* pass = m_RenderPasses.back().get();
-        
-        m_CurrentPass = pass;
+
+        m_CurrentPassesStack.push_back(pass);
         
         PassData passData = {};
         setup(*this, passData);
@@ -386,7 +394,7 @@ namespace RG
         pass->m_ExecutionCallback = std::make_unique<Pass::ExecutionCallback<PassData, CallbackFn>>(
             passData, std::forward<CallbackFn>(callback));
 
-        m_CurrentPass = nullptr;
+        m_CurrentPassesStack.pop_back();
         
         return *pass;
     }
@@ -394,19 +402,28 @@ namespace RG
     template <typename Value>
     void Graph::UpdateBlackboard(Value&& value)
     {
-        GetBlackboard().Update(m_CurrentPass->GetNameHash(), std::forward<Value>(value));
+        GetBlackboard().Update(m_CurrentPassesStack.back()->GetNameHash(), std::forward<Value>(value));
     }
 
     template <typename Value>
     Value& Graph::GetBlackboardValue()
     {
-        return GetBlackboard().Get<Value>(m_CurrentPass->GetNameHash());
+        return GetBlackboard().Get<Value>(m_CurrentPassesStack.back()->GetNameHash());
     }
 
     template <typename Value>
     Value* Graph::TryGetBlackboardValue()
     {
-        return GetBlackboard().TryGet<Value>(m_CurrentPass->GetNameHash());
+        return GetBlackboard().TryGet<Value>(m_CurrentPassesStack.back()->GetNameHash());
+    }
+
+    template <typename Value>
+    Value& Graph::GetOrCreateBlackboardValue()
+    {
+        if (!TryGetBlackboardValue<Value>())
+            UpdateBlackboard(Value{});
+
+        return GetBlackboardValue<Value>();
     }
 
     std::vector<u32> Graph::CalculateRenameRemap(auto&& filterLambda)
@@ -457,10 +474,7 @@ namespace RG
     template <typename Value>
     Value& Resources::GetOrCreateValue() const
     {
-        if (!m_Graph->TryGetBlackboardValue<Value>())
-            m_Graph->UpdateBlackboard(Value{});
-        
-        return m_Graph->GetBlackboardValue<Value>();
+        return m_Graph->GetOrCreateBlackboardValue<Value>();
     }
 }
 

@@ -16,12 +16,12 @@ struct MeshletCullMultiviewPassExecutionInfo
     RG::CullMultiviewResources* MultiviewResource{nullptr};
 };
 
-namespace Passes::Multiview::MeshletCull
+namespace Passes::Multiview::MeshletCullTranslucent
 {
     struct PassData
     {
         RG::CullMultiviewResources* MultiviewResource{nullptr};
     };
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
-        const MeshletCullMultiviewPassExecutionInfo& info, CullStage stage);
+        const MeshletCullMultiviewPassExecutionInfo& info);
 }

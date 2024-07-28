@@ -3,75 +3,70 @@
 #include "CameraGPU.h"
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "Rendering/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
-DrawIndirectCountPass::DrawIndirectCountPass(RG::Graph& renderGraph, std::string_view name, 
-    const DrawIndirectCountPassInitInfo& info)
-        : m_Name(name), m_Features(info.DrawFeatures)
-{
-    m_PipelineData.Pipeline = info.DrawPipeline;
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-
-    if (enumHasAny(m_Features, RG::DrawFeatures::Textures))
-    {
-        ASSERT(info.MaterialDescriptors.has_value(), "Material desciptors are not provided")
-        
-        m_PipelineData.ImmutableSamplerDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(info.DrawPipeline.GetTemplate(), DescriptorAllocatorKind::Samplers)
-            .ExtractSet(0)
-            .Build();
-        
-        m_PipelineData.MaterialDescriptors = **info.MaterialDescriptors;
-    }
-}
-
-void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirectCountPassExecutionInfo& info)
+RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    const DrawIndirectCountPassExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    m_Pass = &renderGraph.AddRenderPass<PassDataPrivate>(m_Name,
+    struct PassDataPrivate
+    {
+        Resource Camera{};
+        DrawAttributeBuffers AttributeBuffers{};
+        Resource Objects{};
+        Resource Commands{};
+        Resource Count{};
+        
+        DrawAttachmentResources DrawAttachmentResources{};
+
+        std::optional<IBLData> IBL{};
+        std::optional<SSAOData> SSAO{};
+    };
+    
+    Pass& pass = renderGraph.AddRenderPass<PassDataPrivate>(name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
+            CPU_PROFILE_FRAME("Draw.Indirect.Count.Setup")
+
+            graph.CopyShader(info.Shader);
+            
             passData.Camera = graph.CreateResource(
-                m_Name.Name() + ".Camera", GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
+                std::string{name} + ".Camera", GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
             passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform | Upload);
 
-            passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, m_Name.Name(), Vertex);
+            passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, std::string{name}, Vertex);
 
-            passData.Objects = graph.AddExternal(m_Name.Name() + ".Objects",
+            passData.Objects = graph.AddExternal(std::string{name} + ".Objects",
                 info.Geometry->GetRenderObjectsBuffer());
             passData.Commands = graph.Read(info.Commands, Vertex | Indirect);
             passData.Count = graph.Read(info.CommandCount, Vertex | Indirect);
 
             passData.DrawAttachmentResources = RgUtils::readWriteDrawAttachments(info.DrawInfo.Attachments, graph);
 
-            if (enumHasAny(m_Features, DrawFeatures::IBL))
+            if (enumHasAny(info.Shader->Features(), DrawFeatures::IBL))
             {
                 ASSERT(info.DrawInfo.IBL.has_value(), "IBL data is not provided")
                 passData.IBL = RgUtils::readIBLData(*info.DrawInfo.IBL, graph, Pixel);
             }
-            if (enumHasAny(m_Features, DrawFeatures::SSAO))
+            if (enumHasAny(info.Shader->Features(), DrawFeatures::SSAO))
             {
                 ASSERT(info.DrawInfo.SSAO.has_value(), "SSAO data is not provided")
                 passData.SSAO = RgUtils::readSSAOData(*info.DrawInfo.SSAO, graph, Pixel);
             }
-            
-            passData.PipelineData = &m_PipelineData;
-            passData.DrawFeatures = m_Features;
-            
+
             PassData passDataPublic = {};
             passDataPublic.DrawAttachmentResources  = passData.DrawAttachmentResources;
-            graph.GetBlackboard().Update(m_Name.Hash(), passDataPublic);
+            
+            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
-            GPU_PROFILE_FRAME("Draw indirect count")
+            CPU_PROFILE_FRAME("Draw.Indirect.Count")
+            GPU_PROFILE_FRAME("Draw.Indirect.Count")
 
             using enum DrawFeatures;
 
@@ -82,29 +77,30 @@ void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirec
             const Buffer& commandsDraw = resources.GetBuffer(passData.Commands);
             const Buffer& countDraw = resources.GetBuffer(passData.Count);
 
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            auto& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline();
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_camera", camera.BindingInfo());
 
             RgUtils::updateDrawAttributeBindings(resourceDescriptors, resources,
-                passData.AttributeBuffers, passData.DrawFeatures);
+                passData.AttributeBuffers, shader.Features());
             
             resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
             resourceDescriptors.UpdateBinding("u_commands", commandsDraw.BindingInfo());
 
-            if (enumHasAny(passData.DrawFeatures, IBL))
+            if (enumHasAny(shader.Features(), IBL))
                 RgUtils::updateIBLBindings(resourceDescriptors, resources, *passData.IBL);
                 
-            if (enumHasAny(passData.DrawFeatures, SSAO))
+            if (enumHasAny(shader.Features(), SSAO))
                 RgUtils::updateSSAOBindings(resourceDescriptors, resources, *passData.SSAO);
 
-            if (enumHasAny(passData.DrawFeatures, Textures))
+            if (enumHasAny(shader.Features(), Textures))
             {
                 pipeline.BindGraphics(frameContext.Cmd);
-                passData.PipelineData->ImmutableSamplerDescriptors.BindGraphicsImmutableSamplers(
+                shader.Descriptors(ShaderDescriptorsKind::Sampler).BindGraphicsImmutableSamplers(
                     frameContext.Cmd, pipeline.GetLayout());
-                passData.PipelineData->MaterialDescriptors.BindGraphics(frameContext.Cmd,
+                shader.Descriptors(ShaderDescriptorsKind::Materials).BindGraphics(frameContext.Cmd,
                     resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             }
 
@@ -122,4 +118,6 @@ void DrawIndirectCountPass::AddToGraph(RG::Graph& renderGraph, const DrawIndirec
                 countDraw, info.CountOffset * sizeof(u32),
                 toDrawCommands);
         });
+
+    return pass;
 }

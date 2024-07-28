@@ -26,6 +26,23 @@ enum class DescriptorKind : u32
     Material = 2
 };
 
+
+// todo: these probably should not be here, but having them as constexpr is quite useful
+// since we can use them in constexpr hash map, which is not used currently, but might be used in the future,
+// otherwise having them as CVars is preferable
+// also it may be possible, that these should be somewhere in the AssetLib, to generate shader code for us,
+static constexpr std::string_view UNIFORM_POSITIONS         = "u_positions";
+static constexpr std::string_view UNIFORM_NORMALS           = "u_normals";
+static constexpr std::string_view UNIFORM_TANGENTS          = "u_tangents";
+static constexpr std::string_view UNIFORM_UV                = "u_uv";
+static constexpr std::string_view UNIFORM_MATERIALS         = "u_materials";
+static constexpr std::string_view UNIFORM_TEXTURES          = "u_textures";
+static constexpr std::string_view UNIFORM_SSAO_TEXTURE      = "u_ssao_texture";
+static constexpr std::string_view UNIFORM_IRRADIANCE_MAP    = "u_irradiance_map";
+static constexpr std::string_view UNIFORM_PREFILTER_MAP     = "u_prefilter_map";
+static constexpr std::string_view UNIFORM_BRDF              = "u_brdf";
+static constexpr std::string_view UNIFORM_TRIANGLES         = "u_triangles";
+
 struct ShaderPushConstantDescription
 {
     u32 SizeBytes{};
@@ -68,6 +85,8 @@ public:
 
         /* the file dependencies of a shader */
         std::vector<std::string> Dependencies;
+
+        DrawFeatures Features{};
     };
 public:
     static ShaderReflection* ReflectFrom(const std::vector<std::string_view>& paths);
@@ -75,9 +94,12 @@ public:
     const std::vector<ShaderModuleSource>& GetShadersSource() const { return m_Modules; }
 private:
     assetLib::ShaderStageInfo LoadFromAsset(std::string_view path);
-    static assetLib::ShaderStageInfo MergeReflections(const assetLib::ShaderStageInfo& first, const assetLib::ShaderStageInfo& second);
+    static assetLib::ShaderStageInfo MergeReflections(const assetLib::ShaderStageInfo& first,
+        const assetLib::ShaderStageInfo& second);
     static std::vector<ReflectionData::DescriptorSet> ProcessDescriptorSets(
         const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& sets);
+    static DrawFeatures ExtractDrawFeatures(const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& descriptorSets,
+        const std::vector<ReflectionData::InputAttribute>& inputs);
 private:
     std::vector<ShaderModuleSource> m_Modules;
     ReflectionData m_ReflectionData{};
@@ -138,6 +160,8 @@ public:
     bool IsComputeTemplate() const { return m_IsComputeTemplate; }
 
     const std::vector<std::string>& GetShaderDependencies() const { return m_ShaderDependencies; }
+
+    DrawFeatures GetDrawFeatures() const { return m_Features; }
     
 private:
     static std::vector<DescriptorsLayout> CreateDescriptorLayouts(
@@ -171,6 +195,7 @@ private:
     bool m_IsComputeTemplate{false};
 
     std::vector<std::string> m_ShaderDependencies;
+    DrawFeatures m_Features{};
 };
 
 class ShaderPipeline

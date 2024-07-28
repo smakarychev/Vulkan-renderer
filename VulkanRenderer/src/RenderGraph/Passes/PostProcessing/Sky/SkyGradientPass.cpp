@@ -31,6 +31,8 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            CPU_PROFILE_FRAME("Sky.Gradient.Setup")
+
             graph.SetShader("../assets/shaders/sky-gradient.shader");
 
             passData.Camera = graph.CreateResource("SkyGradient.Camera", GraphBufferDescription{
@@ -47,7 +49,8 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            GPU_PROFILE_FRAME("sky gradient")
+            CPU_PROFILE_FRAME("Sky.Gradient")
+            GPU_PROFILE_FRAME("Sky.Gradient")
 
             auto& settings = resources.GetOrCreateValue<SettingsUBO>();
             ImGui::Begin("Sky gradient");

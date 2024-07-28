@@ -5,6 +5,7 @@
 #include "CameraGPU.h"
 #include "CullMultiviewData.h"
 #include "RenderGraph/RGUtils.h"
+#include "Rendering/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 
 namespace RG::RgUtils
@@ -15,7 +16,7 @@ namespace RG::RgUtils
         CullMultiviewResources multiviewResource = {};
         
         multiviewResource.Multiview = &cullMultiviewData;
-        u32 viewCount = (u32)cullMultiviewData.ViewCount();
+        u32 viewCount = cullMultiviewData.ViewCount();
         u32 geometryCount = (u32)cullMultiviewData.Geometries().size();
         multiviewResource.ViewCount = viewCount;
         multiviewResource.GeometryCount = geometryCount;
@@ -430,7 +431,6 @@ namespace RG::RgUtils
             auto&& [staticV, dynamicV] = view;
             
             multiview.Cameras[i] = graph.Read(multiview.Cameras[i], Vertex | Pixel | Uniform | Upload);
-
             
             /* read and update attachment handles */
             Utils::updateRecordedAttachmentResources(dynamicV.DrawInfo.Attachments, *multiview.AttachmentsRenames);
@@ -442,12 +442,12 @@ namespace RG::RgUtils
 
             if (dynamicV.DrawInfo.SceneLights)
                 multiview.SceneLights[i] = readSceneLight(*dynamicV.DrawInfo.SceneLights, graph, Pixel);
-            if (enumHasAny(staticV.DrawFeatures, DrawFeatures::IBL))
+            if (enumHasAny(staticV.DrawTrianglesShader->Features(), DrawFeatures::IBL))
             {
                 ASSERT(dynamicV.DrawInfo.IBL.has_value(), "IBL data is not provided")
                 multiview.IBLs[i] = readIBLData(*dynamicV.DrawInfo.IBL, graph, Pixel);
             }
-            if (enumHasAny(staticV.DrawFeatures, DrawFeatures::SSAO))
+            if (enumHasAny(staticV.DrawTrianglesShader->Features(), DrawFeatures::SSAO))
             {
                 ASSERT(dynamicV.DrawInfo.SSAO.has_value(), "SSAO data is not provided")
                 multiview.SSAOs[i] = readSSAOData(*dynamicV.DrawInfo.SSAO, graph, Pixel);
@@ -493,7 +493,7 @@ namespace RG::RgUtils
         {
             cullDescriptors.UpdateBinding("u_objects", resources.GetBuffer(
                 multiview.MeshletCull->Objects[i]).BindingInfo(), i);
-            cullDescriptors.UpdateBinding("u_positions", resources.GetBuffer(
+            cullDescriptors.UpdateBinding(UNIFORM_POSITIONS, resources.GetBuffer(
                 multiview.AttributeBuffers[i].Positions).BindingInfo(), i);
             cullDescriptors.UpdateBinding("u_indices", resources.GetBuffer(
                 multiview.Indices[i]).BindingInfo(), i);
@@ -511,7 +511,7 @@ namespace RG::RgUtils
             cullDescriptors.UpdateBinding("u_meshlet_visibility", resources.GetBuffer(
                 multiview.MeshletCull->MeshletVisibility[meshletIndex]).BindingInfo(), i);
 
-            cullDescriptors.UpdateBinding("u_triangles", resources.GetBuffer(
+            cullDescriptors.UpdateBinding(UNIFORM_TRIANGLES, resources.GetBuffer(
                 multiview.Triangles[i][batchIndex]).BindingInfo(), i);
             cullDescriptors.UpdateBinding("u_triangle_visibility", resources.GetBuffer(
                 multiview.TriangleVisibility[i]).BindingInfo(), i);
@@ -556,18 +556,18 @@ namespace RG::RgUtils
             resourceDescriptors.UpdateBinding("u_commands", resources.GetBuffer(
                 multiview.MeshletCull->Commands[geometryIndex]).BindingInfo());
 
-            if (enumHasAny(staticV.DrawFeatures, Triangles))
-                resourceDescriptors.UpdateBinding("u_triangles", resources.GetBuffer(
+            if (enumHasAny(staticV.DrawTrianglesShader->Features(), Triangles))
+                resourceDescriptors.UpdateBinding(UNIFORM_TRIANGLES, resources.GetBuffer(
                 multiview.Triangles[i][batchIndex]).BindingInfo());
 
             updateDrawAttributeBindings(resourceDescriptors, resources,
-                multiview.AttributeBuffers[geometryIndex], staticV.DrawFeatures);
+                multiview.AttributeBuffers[geometryIndex], staticV.DrawTrianglesShader->Features());
 
             if (dynamicV.DrawInfo.SceneLights)
                 updateSceneLightBindings(resourceDescriptors, resources, multiview.SceneLights[i]);
-            if (enumHasAny(staticV.DrawFeatures, IBL))
+            if (enumHasAny(staticV.DrawTrianglesShader->Features(), IBL))
                 updateIBLBindings(resourceDescriptors, resources, multiview.IBLs[i]);
-            if (enumHasAny(staticV.DrawFeatures, SSAO))
+            if (enumHasAny(staticV.DrawTrianglesShader->Features(), SSAO))
                 updateSSAOBindings(resourceDescriptors, resources, multiview.SSAOs[i]);
             if (dynamicV.DrawInfo.CSMData.has_value())
                 updateCSMBindings(resourceDescriptors, resources, multiview.CSMs[i]);

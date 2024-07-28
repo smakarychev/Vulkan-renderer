@@ -50,6 +50,11 @@ const ShaderPipeline& Shader::Pipeline() const
     return ShaderCache::s_Pipelines[m_Pipeline].Pipeline;
 }
 
+ShaderOverrides Shader::CopyOverrides() const
+{
+    return ShaderOverrides{ShaderCache::s_Pipelines[m_Pipeline].OverrideHash};
+}
+
 void ShaderCache::Init()
 {
     InitFileWatcher();
@@ -83,7 +88,7 @@ const Shader& ShaderCache::Get(std::string_view name)
     return *s_ShadersMap.find(name)->second;
 }
 
-void ShaderCache::Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides)
+const Shader& ShaderCache::Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides)
 {
     ShaderProxy shaderProxy = {};
     u32 pipeline = {};
@@ -97,52 +102,70 @@ void ShaderCache::Register(std::string_view name, std::string_view path, const S
     }
     else
     {
-        /* if shader already exists in some form, then two cases are possible:
-         * 1) to-be-registered shader is identical to previously loaded one, but has different `name`
-         *   in this case we can copy pipeline of the existing shader, and just allocate descriptors
-         * 2) to-be-registered shader is different (has overrides), in this case we have two more cases:
-         *   2a) to-be-registered was already loaded for `name`, in this case we do not need to allocate descriptors
-         *   2b) to-be-registered was not loaded for `name`, in this case we have to load pipeline and descriptors
-         *
-         *   case 2a) is an early exit, since it does not produce any entries in `s_Shaders` and other arrays
-         */
-
-        Shader* shader = s_Records.find(path)->second.Shaders.front();
-
-        /* 2a) */
-        if (s_ShadersMap.contains(name))
-        {
-            if (s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].OverrideHash == overrides.m_Hash)
-                return;
-            
-            s_Pipelines[shader->m_Pipeline] = {
-                .Pipeline = ReloadShader(path, ReloadType::Pipeline, overrides).Pipeline,
-                .OverrideHash = overrides.m_Hash};
-            
-            return;
-        }
-
-        /* 1) */
-        if (s_Pipelines[shader->m_Pipeline].OverrideHash == overrides.m_Hash)
-        {
-            pipeline = shader->m_Pipeline;
-            shaderProxy = ReloadShader(path, ReloadType::Descriptors, overrides);
-        }
-        /* 2b) */
-        else
-        {
-            pipeline = (u32)s_Pipelines.size();
-            shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, overrides);
-            s_Pipelines.push_back({.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash});
-        }
+        auto& shaders = s_Records.find(path)->second.Shaders;
+        
+        return Register(name, shaders.front(), overrides);
     }   
 
-    s_Shaders.push_back(std::make_unique<Shader>(pipeline, shaderProxy.Descriptors));
+    return AddShader(name, pipeline, shaderProxy, path);
+}
+
+const Shader& ShaderCache::Register(std::string_view name, const Shader* shader, const ShaderOverrides& overrides)
+{
+    /* if shader already exists in some form, then two cases are possible:
+     * 1) to-be-registered shader is identical to previously loaded one, but has different `name`
+     *   in this case we can copy pipeline of the existing shader, and just allocate descriptors
+     * 2) to-be-registered shader is different (has overrides), in this case we have two more cases:
+     *   2a) to-be-registered was already loaded for `name`, in this case we do not need to allocate descriptors
+     *   2b) to-be-registered was not loaded for `name`, in this case we have to load pipeline and descriptors
+     *
+     *   case 2a) is an early exit, since it does not produce any entries in `s_Shaders` and other arrays
+     */
+
+    /* 2a) */
+    if (s_ShadersMap.contains(name))
+    {
+        if (s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].OverrideHash == overrides.m_Hash)
+            return *s_ShadersMap.find(name)->second;
+            
+        s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline] = {
+            .Pipeline = ReloadShader(shader->m_FilePath, ReloadType::Pipeline, overrides).Pipeline,
+            .OverrideHash = overrides.m_Hash};
+            
+        return *s_ShadersMap.find(name)->second;
+    }
+
+    ShaderProxy shaderProxy = {};
+    u32 pipeline = {};
+
+    /* 1) */
+    if (s_Pipelines[shader->m_Pipeline].OverrideHash == overrides.m_Hash)
+    {
+        pipeline = shader->m_Pipeline;
+        shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Descriptors, overrides);
+    }
+    /* 2b) */
+    else
+    {
+        pipeline = (u32)s_Pipelines.size();
+        shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::PipelineDescriptors, overrides);
+        s_Pipelines.push_back({.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash});
+    }
+
+    return AddShader(name, pipeline, shaderProxy, shader->m_FilePath);
+}
+
+const Shader& ShaderCache::AddShader(std::string_view name, u32 pipeline, const ShaderProxy& proxy, std::string_view path)
+{
+    s_Shaders.push_back(std::make_unique<Shader>(pipeline, proxy.Descriptors));
     s_Shaders.back()->m_FilePath = path;
+    s_Shaders.back()->m_Features = proxy.Features;
 
     s_ShadersMap.emplace(name, s_Shaders.back().get());
-    for (auto& dependency : shaderProxy.Dependencies)
+    for (auto& dependency : proxy.Dependencies)
         s_Records[dependency].Shaders.push_back(s_Shaders.back().get());
+
+    return *s_Shaders.back();
 }
 
 void ShaderCache::HandleRename(std::string_view newName, std::string_view oldName)
@@ -158,6 +181,7 @@ void ShaderCache::HandleModification(std::string_view path)
 {
     const Record& record = s_Records.find(path)->second;
     std::unordered_set<Shader*> handled = {};
+    std::vector deletedPipelines(s_Pipelines.size(), false);
     for (auto* shader : record.Shaders)
     {
         if (handled.contains(shader))
@@ -165,6 +189,9 @@ void ShaderCache::HandleModification(std::string_view path)
         handled.emplace(shader);
 
         u32 pipelineIndex = shader->m_Pipeline;
+        if (deletedPipelines[pipelineIndex])
+            continue;
+        deletedPipelines[pipelineIndex] = true;
         s_FrameDeletionQueue->Enqueue(s_Pipelines[pipelineIndex].Pipeline);
         
         /* when the `ShaderOverride` has non-zero hash, it means that there are some overloads,
@@ -175,7 +202,7 @@ void ShaderCache::HandleModification(std::string_view path)
         if (s_Pipelines[pipelineIndex].OverrideHash != 0)
         {
             s_Pipelines[pipelineIndex].OverrideHash = 0;
-            return;
+            continue;
         }
         
         ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline,
@@ -205,6 +232,8 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
     shader.Dependencies.reserve(shaderTemplate->GetShaderDependencies().size() + 1);
     shader.Dependencies.append_range(shaderTemplate->GetShaderDependencies());
     shader.Dependencies.emplace_back(path);
+    
+    shader.Features = shaderTemplate->GetDrawFeatures();
 
     if (reloadType == ReloadType::PipelineDescriptors || reloadType == ReloadType::Pipeline)
     {

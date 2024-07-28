@@ -1,5 +1,5 @@
 {
-    "name": "visibility-meshlet",
+    "name": "visibility",
     "rasterization":
     {
         "colors": [

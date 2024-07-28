@@ -10,6 +10,7 @@
 #include "Light/SceneLight.h"
 #include "RenderGraph/RGDrawResources.h"
 
+class Shader;
 class SceneGeometry;
 
 /* cull view description has 2 parts:
@@ -23,10 +24,8 @@ struct CullViewStaticDescription
     const SceneGeometry* Geometry{nullptr};
     /* the user is not expected to set HiZContext manually, but it is possible */
     std::shared_ptr<HiZPassContext> HiZContext{};
-    RG::DrawFeatures DrawFeatures{RG::DrawFeatures::None};
-    const ShaderPipeline* DrawMeshletsPipeline{nullptr};
-    const ShaderPipeline* DrawTrianglesPipeline{nullptr};
-    std::optional<const ShaderDescriptors*> MaterialDescriptors{};
+    const Shader* DrawShader{nullptr};
+    const Shader* DrawTrianglesShader{nullptr};
     bool CullTriangles{false};
 };
 

@@ -1,80 +1,81 @@
 #include "PbrForwardTranslucentIBLPass.h"
 
-#include "RenderGraph/Passes/Culling/MeshletCullPass.h"
-#include "RenderGraph/Passes/Culling/MeshletCullTranslucentPass.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/MeshCullMultiviewPass.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/MeshletCullTranslucentMultiviewPass.h"
 #include "RenderGraph/Passes/General/DrawIndirectPass.h"
+#include "Rendering/ShaderCache.h"
 
-PbrForwardTranslucentIBLPass::PbrForwardTranslucentIBLPass(RG::Graph& renderGraph,
-    const PbrForwardTranslucentIBLPassInitInfo& info)
-{
-    m_MeshContext = std::make_shared<MeshCullContext>(*info.Geometry);
-    m_MeshletContext = std::make_shared<MeshletCullTranslucentContext>(*m_MeshContext);
-
-    std::string name = "PBR.Forward.Translucent";
-    m_MeshCull = std::make_shared<MeshCullSinglePass>(renderGraph, name + ".MeshCull", MeshCullPassInitInfo{
-        .ClampDepth = false});
-    m_MeshletCull = std::make_shared<MeshletCullTranslucentPass>(renderGraph, name + ".MeshletCull",
-        MeshletCullPassInitInfo{
-            .ClampDepth = false,
-            .CameraType = info.CameraType});
-
-    ShaderPipelineTemplate* drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-vert.stage",
-        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-frag.stage"},
-        name, renderGraph.GetArenaAllocators());
-
-    ShaderPipeline drawPipeline = ShaderPipeline::Builder()
-        .SetTemplate(drawTemplate)
-        .DepthMode(DepthMode::Read)
-        .FaceCullMode(FaceCullMode::Back)
-        .SetRenderingDetails({
-            .ColorFormats = {Format::RGBA16_FLOAT},
-            .DepthFormat = Format::D32_FLOAT})
-        .UseDescriptorBuffer()
-        .Build();
-    
-    m_Draw = std::make_shared<DrawIndirectPass>(renderGraph, name + ".Draw", DrawIndirectPassInitInfo{
-        .DrawFeatures = RG::DrawFeatures::ShadedIBL,
-        .DrawPipeline = drawPipeline,
-        .MaterialDescriptors = info.MaterialDescriptors});
-}
-
-void PbrForwardTranslucentIBLPass::AddToGraph(RG::Graph& renderGraph,
+RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const PbrForwardTranslucentIBLPassExecutionInfo& info)
 {
     using namespace RG;
 
-    m_MeshContext->SetCamera(info.Camera);
+    //todo: this should be shader between all multiview passes obv.
+    struct CullResources
+    {
+        CullMultiviewData MultiviewData{};
+        CullMultiviewResources MultiviewResource{};
+    };
     
-    auto& blackboard = renderGraph.GetBlackboard();
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+        [&](Graph& graph, PassData& passData)
+        {
+            CPU_PROFILE_FRAME("Pbr.Forward.Translucent.IBL.Setup")
+            
+            if (!graph.TryGetBlackboardValue<CullResources>())
+            {
+                CullResources cullResources = {};
+                cullResources.MultiviewData.AddView({
+                    .Geometry = info.Geometry,
+                    .HiZContext = info.HiZContext,
+                    .DrawShader = &ShaderCache::Register(std::format("{}.Draw", name),
+                        "../assets/shaders/pbr-forward-translucent.shader", {}),
+                    .DrawTrianglesShader = nullptr,
+                    .CullTriangles = false});
 
-    m_MeshCull->AddToGraph(renderGraph, *m_MeshContext, *info.HiZContext);
-    m_MeshletCull->AddToGraph(renderGraph, *m_MeshletContext);
-    auto& meshletOutput = blackboard.Get<MeshletCullTranslucentPass::PassData>(m_MeshletCull->GetNameHash());
+                cullResources.MultiviewData.Finalize();
+            }
 
-    m_Draw->AddToGraph(renderGraph, {
-        .Geometry = &m_MeshContext->Geometry(),
-        .Commands = meshletOutput.MeshletResources.Commands,
-        .Resolution = info.Resolution,
-        .Camera = info.Camera,
-        .DrawInfo = {
-            .Attachments = {
-            .Colors = {DrawAttachment{
-                .Resource = info.ColorIn,
-                .Description = {
-                    .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                    .ClearColor = {.F = {0.1f, 0.1f, 0.1f, 1.0f}}}}},
-            .Depth = DepthStencilAttachment{
-                .Resource = info.DepthIn,
-                .Description = {
-                    .OnLoad = AttachmentLoad::Load}}},
-            .SceneLights = info.SceneLights,
-            .IBL = info.IBL}
+            auto& resources = graph.GetBlackboardValue<CullResources>();
+            resources.MultiviewResource = RgUtils::createCullMultiview(resources.MultiviewData, graph,
+                std::string{name});
+
+            Multiview::MeshCull::addToGraph(std::format("{}.Mesh.Cull", name),
+                renderGraph, {.MultiviewResource = &resources.MultiviewResource}, CullStage::Single);
+            auto& meshletCull = Multiview::MeshletCullTranslucent::addToGraph(std::format("{}.Meshlet.Cull", name),
+                renderGraph, {.MultiviewResource = &resources.MultiviewResource});
+            auto& meshletCullOutput = renderGraph.GetBlackboard().Get<Multiview::MeshletCullTranslucent::PassData>(
+                meshletCull);
+
+            auto& draw = Draw::Indirect::addToGraph(std::format("{}.Draw", name),
+                renderGraph, {
+                    .Geometry = info.Geometry,
+                    .Commands = meshletCullOutput.MultiviewResource->CompactCommands[0],
+                    .Resolution = info.Resolution,
+                    .Camera = info.Camera,
+                    .DrawInfo = {
+                        .Attachments = {
+                        .Colors = {DrawAttachment{
+                            .Resource = info.ColorIn,
+                            .Description = {
+                                .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                                .ClearColor = {.F = {0.1f, 0.1f, 0.1f, 1.0f}}}}},
+                        .Depth = DepthStencilAttachment{
+                            .Resource = info.DepthIn,
+                            .Description = {
+                                .OnLoad = AttachmentLoad::Load}}},
+                        .SceneLights = info.SceneLights,
+                        .IBL = info.IBL},
+                    .Shader = resources.MultiviewData.View(0).Static.DrawShader});
+            auto& drawOutput = renderGraph.GetBlackboard().Get<Draw::Indirect::PassData>(draw);
+            passData.ColorOut = drawOutput.DrawAttachmentResources.Colors[0];
+            passData.DepthOut = *drawOutput.DrawAttachmentResources.Depth;
+            renderGraph.UpdateBlackboard(passData);
+        },
+        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        {
         });
-    auto& drawOutput = blackboard.Get<DrawIndirectPass::PassData>(m_Draw->GetNameHash());
 
-    m_PassData.ColorOut = drawOutput.DrawAttachmentResources.Colors[0];
-    m_PassData.DepthOut = *drawOutput.DrawAttachmentResources.Depth;
-    
-    blackboard.Update(m_PassData);
+    return pass;
 }

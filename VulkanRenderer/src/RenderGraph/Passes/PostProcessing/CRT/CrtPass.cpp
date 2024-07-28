@@ -25,6 +25,8 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
+            CPU_PROFILE_FRAME("CRT.Setup")
+
             graph.SetShader("../assets/shaders/crt.shader");
             
             passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
@@ -44,8 +46,8 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("CRT post-processing")
-            GPU_PROFILE_FRAME("CRT post-processing")
+            CPU_PROFILE_FRAME("CRT")
+            GPU_PROFILE_FRAME("CRT")
             
             const Texture& colorInTexture = resources.GetTexture(passData.ColorIn);
             const Buffer& time = resources.GetBuffer(passData.Time, (f32)frameContext.FrameNumberTick,

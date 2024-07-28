@@ -1,69 +1,75 @@
 #include "PbrTCForwardIBLPass.h"
 
-#include "RenderGraph/Passes/Culling/CullMetaPass.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
+#include "RenderGraph/Passes/Culling/MutiviewCulling/CullMultiviewData.h"
+#include "Rendering/ShaderCache.h"
 
-PbrTCForwardIBLPass::PbrTCForwardIBLPass(RG::Graph& renderGraph, const PbrForwardIBLPassInitInfo& info,
-    std::string_view name)
-        : m_Name(name)
-{
-    ShaderPipelineTemplate* pbrTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-vert.stage",
-        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-frag.stage"},
-        "Pass.Pbr.Forward.IBL", renderGraph.GetArenaAllocators());
-
-    ShaderPipeline::Builder pipelineBuilder = ShaderPipeline::Builder()
-        .SetTemplate(pbrTemplate)
-        .AddSpecialization("MAX_REFLECTION_LOD",
-            (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
-        .SetRenderingDetails({
-            .ColorFormats = {Format::RGBA16_FLOAT},
-            .DepthFormat = Format::D32_FLOAT})
-        .UseDescriptorBuffer();
-    
-    ShaderPipeline trianglePipeline = pipelineBuilder
-        .Build();
-    ShaderPipeline meshletPipeline = pipelineBuilder
-        .AddSpecialization("COMPOUND_INDEX", false)
-        .Build();
-
-    CullMetaPassInitInfo pbrPassInitInfo = {
-        .Geometry = info.Geometry,
-        .DrawTrianglesPipeline = &trianglePipeline,
-        .DrawMeshletsPipeline = &meshletPipeline,
-        .MaterialDescriptors = info.MaterialDescriptors,
-        .DrawFeatures = RG::DrawFeatures::ShadedIBL,
-        .CameraType = info.CameraType};
-
-    m_Pass = std::make_shared<CullMetaPass>(renderGraph, pbrPassInitInfo, name);
-}
-
-void PbrTCForwardIBLPass::AddToGraph(RG::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info)
+RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    const PbrForwardIBLPassExecutionInfo& info)
 {
     using namespace RG;
 
-    CullMetaPassExecutionInfo executionInfo = {
-        .Resolution = info.Resolution,
-        .Camera = info.Camera,
-        .DrawInfo = {
-            .Attachments = {
-                .Colors = {DrawAttachment{
-                    .Resource = info.ColorIn,
-                    .Description = {
-                        .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                        .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
-                .Depth = DepthStencilAttachment{
-                    .Resource = info.DepthIn,
-                    .Description = {
-                        .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                        .ClearDepth = 0.0f,
-                        .ClearStencil = 0}}},
-            .SceneLights = info.SceneLights,
-            .IBL = info.IBL}};
+    //todo: this should be shader between all multiview passes obv.
+    struct Multiview
+    {
+        CullMultiviewData MultiviewData{};
+    };
+    
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+        [&](Graph& graph, PassData& passData)
+        {
+            CPU_PROFILE_FRAME("Pbr.Forward.IBL.Setup")
 
-    m_Pass->AddToGraph(renderGraph, executionInfo);
-    auto& output = renderGraph.GetBlackboard().Get<CullMetaPass::PassData>(m_Pass->GetNameHash());
-    PassData passData = {
-        .ColorOut = output.DrawAttachmentResources.Colors[0],
-        .DepthOut = *output.DrawAttachmentResources.Depth};
-    renderGraph.GetBlackboard().Update(m_Name.Hash(), passData);
+            if (!graph.TryGetBlackboardValue<Multiview>())
+            {
+                Multiview multiview = {};
+                multiview.MultiviewData.AddView({
+                    .Geometry = info.Geometry,
+                    .DrawShader = &ShaderCache::Register(std::format("{}.Draw", name),
+                        "../assets/shaders/pbr-forward.shader",
+                        ShaderOverrides{}
+                            .Add({"MAX_REFLECTION_LOD"},
+                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))),
+                    .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.Draw.Triangles", name),
+                        "../assets/shaders/pbr-forward.shader", 
+                        ShaderOverrides{}
+                            .Add({"MAX_REFLECTION_LOD"},
+                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
+                            .Add({"COMPOUND_INDEX"}, true)),
+                    .CullTriangles = true});
+
+                multiview.MultiviewData.Finalize();
+            }
+
+            auto& multiview = graph.GetBlackboardValue<Multiview>();
+            multiview.MultiviewData.UpdateView(0, {
+                .Resolution = info.Resolution,
+                .Camera = info.Camera,
+                .DrawInfo = {
+                    .Attachments = {
+                        .Colors = {DrawAttachment{
+                            .Resource = info.ColorIn,
+                            .Description = {
+                                .OnLoad = info.ColorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                                .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
+                        .Depth = DepthStencilAttachment{
+                            .Resource = info.DepthIn,
+                            .Description = {
+                                .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
+                                .ClearDepth = 0.0f,
+                                .ClearStencil = 0}}},
+                    .SceneLights = info.SceneLights,
+                    .IBL = info.IBL}});
+
+            auto& meta = Meta::CullMultiview::addToGraph("Visibility", renderGraph, multiview.MultiviewData);
+            auto& metaOutput = renderGraph.GetBlackboard().Get<Meta::CullMultiview::PassData>(meta);
+            passData.ColorOut = metaOutput.DrawAttachmentResources[0].Colors[0];
+            passData.DepthOut = *metaOutput.DrawAttachmentResources[0].Depth;
+            renderGraph.UpdateBlackboard(passData);
+        },
+        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        {
+        });
+
+    return pass;
 }

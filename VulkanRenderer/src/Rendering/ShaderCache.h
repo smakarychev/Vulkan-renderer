@@ -12,19 +12,6 @@ static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
 static_assert(MAX_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
 static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expected to be at index 2");
 
-class Shader
-{
-    friend class ShaderCache;
-public:
-    Shader(u32 pipelineIndex, const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors);
-    const ShaderPipeline& Pipeline() const;
-    const ShaderDescriptors& Descriptors(ShaderDescriptorsKind kind) const { return m_Descriptors[(u32)(kind)]; }
-private:
-    u32 m_Pipeline{0};
-    std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
-    std::string m_FilePath;
-};
-
 /* holder for `specialization constants` and `defines` overloads */
 class ShaderOverrides
 {
@@ -38,7 +25,7 @@ public:
     ShaderOverrides& operator=(const ShaderOverrides&) = delete;
     ShaderOverrides(ShaderOverrides&&) = delete;
     ShaderOverrides& operator=(ShaderOverrides&&) = delete;
-
+    
     template <typename T>
     constexpr ShaderOverrides& Add(Utils::HashedString name, T val);
 private:
@@ -68,6 +55,23 @@ constexpr ShaderOverrides& ShaderOverrides::Add(Utils::HashedString name, T val)
     return *this;
 }
 
+class Shader
+{
+    friend class ShaderCache;
+public:
+    Shader(u32 pipelineIndex, const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors);
+    const ShaderPipeline& Pipeline() const;
+    const ShaderDescriptors& Descriptors(ShaderDescriptorsKind kind) const { return m_Descriptors[(u32)kind]; }
+    DrawFeatures Features() const { return m_Features; }
+
+    ShaderOverrides CopyOverrides() const;
+private:
+    u32 m_Pipeline{0};
+    std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
+    DrawFeatures m_Features{};
+    std::string m_FilePath;
+};
+
 class ShaderCache
 {
     friend class Shader;
@@ -82,7 +86,9 @@ public:
     /* returns shader associated with `name` */
     static const Shader& Get(std::string_view name);
     /* associates shader at `path` with `name` */
-    static void Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides);
+    static const Shader& Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides);
+    /* associates shader with another `name` */
+    static const Shader& Register(std::string_view name, const Shader* shader, const ShaderOverrides& overrides);
 
     static void HandleRename(std::string_view newName, std::string_view oldName);
     static void HandleModification(std::string_view path);
@@ -92,7 +98,10 @@ private:
         ShaderPipeline Pipeline;
         std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> Descriptors;
         std::vector<std::string> Dependencies;
+        DrawFeatures Features{};
     };
+    static const Shader& AddShader(std::string_view name, u32 pipeline, const ShaderProxy& proxy,
+        std::string_view path);
     enum class ReloadType { PipelineDescriptors, Descriptors, Pipeline };
     static ShaderProxy ReloadShader(std::string_view path, ReloadType reloadType, const ShaderOverrides& overrides);
     static void InitFileWatcher();

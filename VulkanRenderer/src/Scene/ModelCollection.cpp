@@ -71,13 +71,13 @@ void ModelCollection::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescrip
     for (u32 textureIndex = 0; textureIndex < m_Textures.size(); textureIndex++)
     {
         const Texture& texture = m_Textures[textureIndex];
-        bindlessDescriptorSet.SetTexture("u_textures", texture, textureIndex);
+        bindlessDescriptorSet.SetTexture(UNIFORM_TEXTURES, texture, textureIndex);
     }
 }
 
 void ModelCollection::ApplyMaterialTextures(ShaderDescriptors& bindlessDescriptors) const
 {
-    ShaderDescriptors::BindingInfo bindingInfo = bindlessDescriptors.GetBindingInfo("u_textures");
+    ShaderDescriptors::BindingInfo bindingInfo = bindlessDescriptors.GetBindingInfo(UNIFORM_TEXTURES);
     
     for (u32 textureIndex = 0; textureIndex < m_Textures.size(); textureIndex++)
     {

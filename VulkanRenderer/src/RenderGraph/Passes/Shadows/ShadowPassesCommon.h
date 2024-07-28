@@ -16,7 +16,8 @@ struct ShadowPassInitInfo
 
 struct ShadowPassExecutionInfo
 {
-    /* DirectionalShadowPass will construct the suitable shadow camera based on main camera frustum */
+    const SceneGeometry* Geometry{nullptr};
+    /* pass will construct the suitable shadow camera based on main camera frustum */
     const Camera* MainCamera{nullptr};
     const DirectionalLight* DirectionalLight{nullptr};
     f32 ViewDistance{100};

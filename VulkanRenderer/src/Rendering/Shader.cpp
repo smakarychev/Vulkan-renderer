@@ -157,7 +157,8 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string_vi
         .InputAttributes = mergedShaderInfo.InputAttributes,
         .PushConstants = mergedShaderInfo.PushConstants,
         .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets),
-        .Dependencies = mergedShaderInfo.IncludedFiles
+        .Dependencies = mergedShaderInfo.IncludedFiles,
+        .Features = ExtractDrawFeatures(mergedShaderInfo.DescriptorSets, mergedShaderInfo.InputAttributes)
     };
 
     AssetManager::AddShader(shaderKey, shader);
@@ -319,6 +320,40 @@ std::vector<ShaderReflection::ReflectionData::DescriptorSet> ShaderReflection::P
     return descriptorSets;
 }
 
+DrawFeatures ShaderReflection::ExtractDrawFeatures(
+    const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& descriptorSets,
+    const std::vector<ReflectionData::InputAttribute>& inputs)
+{
+    // todo: there exists a static constexpr map, might use that here
+    // todo: document these special names somewhere somehow
+    static const std::unordered_map NAME_TO_FEATURE_MAP = {
+        std::make_pair(UNIFORM_POSITIONS, DrawFeatures::Positions),
+        std::make_pair(UNIFORM_NORMALS, DrawFeatures::Normals),
+        std::make_pair(UNIFORM_TANGENTS, DrawFeatures::Tangents),
+        std::make_pair(UNIFORM_UV, DrawFeatures::UV),
+        std::make_pair(UNIFORM_MATERIALS, DrawFeatures::Materials),
+        std::make_pair(UNIFORM_TEXTURES, DrawFeatures::Textures),
+        std::make_pair(UNIFORM_SSAO_TEXTURE, DrawFeatures::SSAO),
+        std::make_pair(UNIFORM_IRRADIANCE_MAP, DrawFeatures::IBL),
+        std::make_pair(UNIFORM_PREFILTER_MAP, DrawFeatures::IBL),
+        std::make_pair(UNIFORM_BRDF, DrawFeatures::IBL),
+        std::make_pair(UNIFORM_TRIANGLES, DrawFeatures::Triangles),
+    };
+    
+    DrawFeatures features = DrawFeatures::None;
+
+    for (auto& set : descriptorSets)
+        for (auto& descriptor : set.Descriptors)
+            if (NAME_TO_FEATURE_MAP.contains(descriptor.Name))
+                features |= NAME_TO_FEATURE_MAP.at(descriptor.Name);
+
+    for (auto& input : inputs)
+        if (NAME_TO_FEATURE_MAP.contains(input.Name))
+            features |= NAME_TO_FEATURE_MAP.at(input.Name);
+
+    return features;
+}
+
 ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build()
 {
     return ShaderPipelineTemplate::Create(m_CreateInfo);
@@ -418,6 +453,7 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     shaderPipelineTemplate.m_DescriptorSetCount = (u32)reflectionData.DescriptorSets.size();
 
     shaderPipelineTemplate.m_ShaderDependencies = reflectionData.Dependencies;
+    shaderPipelineTemplate.m_Features = reflectionData.Features;
     
     return shaderPipelineTemplate;
 }

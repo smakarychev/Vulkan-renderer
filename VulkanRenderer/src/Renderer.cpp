@@ -15,16 +15,12 @@
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"
 #include "RenderGraph/Passes/AO/SsaoPass.h"
 #include "RenderGraph/Passes/AO/SsaoVisualizePass.h"
-#include "RenderGraph/Passes/Culling/MeshletCullPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
-#include "RenderGraph/Passes/PBR/VisualizeBRDFPass.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/Passes/PBR/Translucency/PbrForwardTranslucentIBLPass.h"
 #include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
-#include "RenderGraph/Passes/PostProcessing/Sky/SkyGradientPass.h"
-#include "RenderGraph/Passes/Shadows/CSMPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
@@ -105,16 +101,11 @@ void Renderer::InitRenderGraph()
             .ExtractSet(2)
             .BindlessCount(1024)
             .Build();
-    materialDescriptors.UpdateGlobalBinding("u_materials", m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
+    materialDescriptors.UpdateGlobalBinding(UNIFORM_MATERIALS, m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
     m_GraphModelCollection.ApplyMaterialTextures(materialDescriptors);
 
     ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
     ShaderCache::AddBindlessDescriptors("main_materials", materialDescriptors);
-    
-    m_VisibilityPass = std::make_shared<VisibilityPass>(*m_Graph, VisibilityPassInitInfo{
-        .Geometry = &m_GraphOpaqueGeometry,
-        .MaterialDescriptors = &materialDescriptors,
-        .CameraType = m_Camera->GetType()});
     
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
@@ -130,21 +121,12 @@ void Renderer::InitRenderGraph()
                 .ExtractSet(2)
                 .BindlessCount(1024)
                 .Build();
-        translucentMaterialDescriptors.UpdateGlobalBinding("u_materials",
+        translucentMaterialDescriptors.UpdateGlobalBinding(UNIFORM_MATERIALS,
             m_GraphTranslucentGeometry.GetMaterialsBuffer().BindingInfo());
         m_GraphModelCollection.ApplyMaterialTextures(translucentMaterialDescriptors);
-        
-        m_PbrForwardIBLTranslucentPass = std::make_shared<PbrForwardTranslucentIBLPass>(*m_Graph,
-            PbrForwardTranslucentIBLPassInitInfo{
-                .Geometry = &m_GraphTranslucentGeometry,
-                .MaterialDescriptors = &translucentMaterialDescriptors,
-                .CameraType = m_Camera->GetType()});
     }
     
     // todo: separate geometry for shadow casters
-    m_CSMPass = std::make_shared<CSMPass>(*m_Graph, ShadowPassInitInfo{
-        .Geometry = &m_GraphOpaqueGeometry});
-    m_CSMVisualizePass = std::make_shared<CSMVisualizePass>(*m_Graph);
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(m_Swapchain.GetResolution(), 1, 5000000, *GetFrameContext().ResourceUploader));
@@ -204,12 +186,13 @@ void Renderer::SetupRenderGraph()
         .ShadingSettings = m_Graph->AddExternal("ShadingSettings", shadingSettingsBuffer)};
     m_Graph->GetBlackboard().Update(globalResources);
 
-    m_VisibilityPass->AddToGraph(*m_Graph, {
+    auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
+        .Geometry = &m_GraphOpaqueGeometry,
         .Resolution = m_Swapchain.GetResolution(),
         .Camera = GetFrameContext().MainCamera});
-    auto& visibility = m_Graph->GetBlackboard().Get<VisibilityPass::PassData>();
+    auto& visibilityOutput = m_Graph->GetBlackboard().Get<Passes::Draw::Visibility::PassData>(visibility);
 
-    auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibility.DepthOut);
+    auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
 
     auto& ssaoBlurHorizontal = Passes::SsaoBlur::addToGraph("SSAO.Blur.Horizontal", *m_Graph,
@@ -239,15 +222,16 @@ void Renderer::SetupRenderGraph()
 
     static f32 shadowDistance = 200.0f;
     ImGui::DragFloat("Shadow distance", &shadowDistance, 1e-1f, 0.0f, 400.0f);
-    m_CSMPass->AddToGraph(*m_Graph, {
+    auto& csm = Passes::CSM::addToGraph("CSM", *m_Graph, {
+        .Geometry = &m_GraphOpaqueGeometry,
         .MainCamera = m_Camera.get(),
         .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
         .ViewDistance = shadowDistance,
         .GeometryBounds = m_GraphOpaqueGeometry.GetBounds()});
-    auto& csmOutput = m_Graph->GetBlackboard().Get<CSMPass::PassData>();
+    auto& csmOutput = m_Graph->GetBlackboard().Get<Passes::CSM::PassData>(csm);
 
     auto& pbr = Passes::Pbr::VisibilityIbl::addToGraph("Pbr.Visibility.Ibl", *m_Graph, {
-        .VisibilityTexture = visibility.ColorOut,
+        .VisibilityTexture = visibilityOutput.ColorOut,
         .ColorIn = {},
         .SceneLights = &m_SceneLights,
         .IBL = {
@@ -262,9 +246,8 @@ void Renderer::SetupRenderGraph()
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = m_Graph->GetBlackboard().Get<Passes::Pbr::VisibilityIbl::PassData>(pbr);
 
-
     auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
-        m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibility.DepthOut, GetFrameContext().Resolution, 1.2f);
+        m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibilityOutput.DepthOut, GetFrameContext().Resolution, 1.2f);
     auto& skyboxOutput = m_Graph->GetBlackboard().Get<Passes::Skybox::PassData>(skybox);
     Resource renderedColor = skyboxOutput.ColorOut;
     Resource renderedDepth = skyboxOutput.DepthOut;
@@ -272,7 +255,8 @@ void Renderer::SetupRenderGraph()
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
     {
-        m_PbrForwardIBLTranslucentPass->AddToGraph(*m_Graph, {
+        /*Passes::Pbr::ForwardTranslucentIbl::addToGraph("Pbr.Translucent.Ibl", *m_Graph, {
+            .Geometry = m_GraphTranslucentGeometry,
             .Resolution = m_Swapchain.GetResolution(),
             .Camera = GetFrameContext().MainCamera,
             .ColorIn = renderedColor,
@@ -282,21 +266,21 @@ void Renderer::SetupRenderGraph()
                  .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
                  .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
                  .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
-            .HiZContext = m_VisibilityPass->GetHiZContext()});
+            .HiZContext = m_VisibilityPass->GetHiZContext()})
         auto& pbrTranslucentOutput = m_Graph->GetBlackboard().Get<PbrForwardTranslucentIBLPass::PassData>();
         
-        renderedColor = pbrTranslucentOutput.ColorOut;
+        renderedColor = pbrTranslucentOutput.ColorOut;*/
     }
 
     auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
         renderedColor, backbuffer, glm::vec3{}, glm::vec3{1.0f});
     backbuffer = m_Graph->GetBlackboard().Get<Passes::CopyTexture::PassData>(copyRendered).TextureOut;
 
-    auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibility.HiZOut);
+    auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibilityOutput.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<Passes::HiZVisualize::PassData>(hizVisualize);
 
-    m_CSMVisualizePass->AddToGraph(*m_Graph, csmOutput, {});
-    auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<CSMVisualizePass::PassData>();
+    auto& csmVisualize = Passes::VisualizeCSM::addToGraph("CSM.Visualize", *m_Graph, csmOutput, {});
+    auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<Passes::VisualizeCSM::PassData>(csmVisualize);
 
     Passes::ImGuiTexture::addToGraph("SSAO.Texture", *m_Graph, ssaoVisualizeOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);

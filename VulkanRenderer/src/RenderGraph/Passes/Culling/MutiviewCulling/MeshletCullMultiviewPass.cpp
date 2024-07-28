@@ -3,59 +3,39 @@
 #include "CullMultiviewResources.h"
 #include "FrameContext.h"
 #include "RenderGraph/RenderGraph.h"
+#include "Rendering/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 #include "Vulkan/RenderCommand.h"
 
-MeshletCullMultiviewPass::MeshletCullMultiviewPass(RG::Graph& renderGraph, std::string_view name,
-    const MeshletCullMultiviewPassInitInfo& info)
-        : m_Name(name), m_Stage(info.Stage)
-{
-    ShaderPipelineTemplate* cullTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/culling/multiview/meshlet-cull-comp.stage"},
-        "Pass.Cull.Multiview.Meshlet", renderGraph.GetArenaAllocators());
-
-    m_PipelineData.Pipeline = ShaderPipeline::Builder()
-        .SetTemplate(cullTemplate)
-        .AddSpecialization("REOCCLUSION", m_Stage == CullStage::Reocclusion)
-        .AddSpecialization("SINGLE_PASS", m_Stage == CullStage::Single)
-        .UseDescriptorBuffer()
-        .Build();
-
-    m_PipelineData.SamplerDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(cullTemplate, DescriptorAllocatorKind::Samplers)
-        .ExtractSet(0)
-        .Build();
-
-    m_PipelineData.ResourceDescriptors = ShaderDescriptors::Builder()
-        .SetTemplate(cullTemplate, DescriptorAllocatorKind::Resources)
-        .ExtractSet(1)
-        .Build();
-}
-
-void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletCullMultiviewPassExecutionInfo& info)
+RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    const MeshletCullMultiviewPassExecutionInfo& info, CullStage stage)
 {
     using namespace RG;
 
-    m_Pass = &renderGraph.AddRenderPass<PassData>(m_Name,
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            RgUtils::readWriteCullMeshletMultiview(*info.MultiviewResource, m_Stage, graph);
+            CPU_PROFILE_FRAME("Meshlet.Cull.Multiview.Setup")
+
+            graph.SetShader("../assets/shaders/meshlet-cull-multiview.shader",
+                ShaderOverrides{}
+                    .Add({"REOCCLUSION"}, stage == CullStage::Reocclusion)
+                    .Add({"SINGLE_PASS"}, stage == CullStage::Single));
+            
+            RgUtils::readWriteCullMeshletMultiview(*info.MultiviewResource, stage, graph);
             
             passData.MultiviewResource = info.MultiviewResource;
             
-            passData.PipelineData = &m_PipelineData;
-            passData.CullStage = m_Stage;
-
-            graph.GetBlackboard().Update(m_Name.Hash(), passData);
+            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Meshlet Cull Multiview")
-            GPU_PROFILE_FRAME("Meshlet Cull Multiview")
+            CPU_PROFILE_FRAME("Meshlet.Cull.Multiview")
+            GPU_PROFILE_FRAME("Meshlet.Cull.Multiview")
 
             auto* multiview = passData.MultiviewResource;
 
-            if (passData.CullStage == CullStage::Reocclusion)
+            if (stage == CullStage::Reocclusion)
                 for (u32 i = 0; i < multiview->ViewCount; i++)
                     resources.GetBuffer(multiview->CompactCommandCountReocclusion, 0u, i * sizeof(u32),
                         *frameContext.ResourceUploader);
@@ -66,14 +46,15 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
 
             Sampler hizSampler = multiview->HiZSampler;
             
-            auto& pipeline = passData.PipelineData->Pipeline;
-            auto& samplerDescriptors = passData.PipelineData->SamplerDescriptors;
-            auto& resourceDescriptors = passData.PipelineData->ResourceDescriptors;
+            const Shader& shader = resources.GetGraph()->GetShader();
+            auto& pipeline = shader.Pipeline(); 
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
+            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             samplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
-            RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview, passData.CullStage);
+            RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview, stage);
 
             struct PushConstant
             {
@@ -103,4 +84,6 @@ void MeshletCullMultiviewPass::AddToGraph(RG::Graph& renderGraph, const MeshletC
                     {64, 1, 1});
             }
         });
+
+    return pass;
 }

@@ -14,6 +14,8 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
     Pass& pass = renderGraph.AddRenderPass<PassData>(PassName{"BRDF.Visualize"},
         [&](Graph& graph, PassData& passData)
         {
+            CPU_PROFILE_FRAME("BRDF.Visualize.Setup");
+
             graph.SetShader("../assets/shaders/brdf-visualize.shader");
             
             passData.ColorOut = RG::RgUtils::ensureResource(colorIn, graph, "BRDF.Visualize.ColorOut",
@@ -39,8 +41,8 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {   
-            CPU_PROFILE_FRAME("BRDF Visualize");
-            GPU_PROFILE_FRAME("BRDF Visualize");
+            CPU_PROFILE_FRAME("BRDF.Visualize");
+            GPU_PROFILE_FRAME("BRDF.Visualize");
 
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline(); 
@@ -49,7 +51,7 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
 
             samplerDescriptors.UpdateBinding("u_sampler", brdf.BindingInfo(passData.BRDFSampler,
                 ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_brdf", brdf.BindingInfo(passData.BRDFSampler, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding(UNIFORM_BRDF, brdf.BindingInfo(passData.BRDFSampler, ImageLayout::Readonly));
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindGraphics(cmd);

@@ -32,7 +32,7 @@ Texture BRDFProcessor::CreateBRDF(const CommandBuffer& cmd)
     
     DeletionQueue deletionQueue = {};
     
-    resourceDescriptors.UpdateBinding("u_brdf", brdf.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+    resourceDescriptors.UpdateBinding(UNIFORM_BRDF, brdf.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
     RenderCommand::WaitOnBarrier(cmd, DependencyInfo::Builder().LayoutTransition({
             .ImageSubresource = brdf.Subresource(),
