@@ -10,5 +10,5 @@ namespace Passes::Blit
     };
 
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn, RG::Resource textureOut,
-        const glm::vec3& offset, f32 relativeSize);
+        const glm::vec3& offset, f32 relativeSize, ImageFilter filter);
 }

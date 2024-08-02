@@ -4,7 +4,7 @@
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Blit::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn,
-    RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize)
+    RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize, ImageFilter filter)
 {
     using namespace RG;
     
@@ -37,7 +37,7 @@ RG::Pass& Passes::Blit::addToGraph(std::string_view name, RG::Graph& renderGraph
             ImageCopyInfo srcBlit = src.CopyInfo();
             ImageCopyInfo dstBlit = dst.BlitInfo(bottom, top, 0, 0, 1);
             
-            RenderCommand::BlitImage(frameContext.Cmd, srcBlit, dstBlit, ImageFilter::Linear);
+            RenderCommand::BlitImage(frameContext.Cmd, srcBlit, dstBlit, filter);
         });
 
     return pass;

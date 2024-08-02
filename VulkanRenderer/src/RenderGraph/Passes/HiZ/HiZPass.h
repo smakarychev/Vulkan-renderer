@@ -5,7 +5,7 @@
 class HiZPassContext
 {
 public:
-    static constexpr u16 MAX_MIPMAP_COUNT = 12;
+    static constexpr u16 MAX_MIPMAP_COUNT = 16;
     HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue);
 
     void SetHiZResource(RG::Resource hiz) { m_HiZResource = hiz; }

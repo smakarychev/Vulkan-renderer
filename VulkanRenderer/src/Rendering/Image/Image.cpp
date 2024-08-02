@@ -578,7 +578,7 @@ u16 Image::CalculateMipmapCount(const glm::uvec3& resolution)
 {
     u32 maxDimension = std::max(resolution.x, std::max(resolution.y, resolution.z));
 
-    return (u16)std::log2(maxDimension) + 1;    
+    return (u16)std::log2(maxDimension) + (u16)!MathUtils::isPowerOf2(maxDimension);    
 }
 
 void Image::CreateMipmaps(ImageLayout currentLayout)

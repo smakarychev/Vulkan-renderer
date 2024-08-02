@@ -5,6 +5,7 @@
 #include "MeshletCullMultiviewPass.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/General/DrawIndirectCountPass.h"
+#include "RenderGraph/Passes/HiZ/HiZNVPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 
 namespace
@@ -145,7 +146,7 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
             {
                 auto& view = multiviewData.View(i);
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-                    HiZ::addToGraph(std::format("{}.HiZ.{}", name, i), graph,
+                    HiZNV::addToGraph(std::format("{}.HiZ.{}", name, i), graph,
                         view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                         view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
             }
@@ -171,7 +172,7 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
             {
                 auto& view = multiviewData.TriangleView(i);
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-                    HiZ::addToGraph(std::format("{}.HiZ.Reocclusion.{}", name, i), graph,
+                    HiZNV::addToGraph(std::format("{}.HiZ.Reocclusion.{}", name, i), graph,
                         view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                         view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
             }

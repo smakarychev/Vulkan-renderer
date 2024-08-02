@@ -34,7 +34,7 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
 
     m_MinMaxSampler = Sampler::Builder()
         .Filters(ImageFilter::Linear, ImageFilter::Linear)
-        .MaxLod((f32)MAX_MIPMAP_COUNT)
+        .MaxLod(MAX_MIPMAP_COUNT)
         .WithAnisotropy(false)
         .ReductionMode(SamplerReductionMode::Min)
         .Build();
