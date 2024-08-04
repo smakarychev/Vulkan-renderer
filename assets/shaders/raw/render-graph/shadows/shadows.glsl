@@ -124,5 +124,4 @@ float shadow(vec3 position, vec3 normal, float light_size) {
     }
 
     return shadow;
-
 }

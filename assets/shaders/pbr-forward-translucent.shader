@@ -22,7 +22,7 @@
 	    },
         {
             "name": "MAX_REFLECTION_LOD",
-            "value": "5.0",
+            "value": 5.0,
             "type": "f32"
         }
     ],

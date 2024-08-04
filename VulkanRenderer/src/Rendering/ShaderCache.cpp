@@ -11,7 +11,8 @@
 #include "Core/core.h"
 #include "Converters.h"
 
-DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};    
+DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
+Utils::StringUnorderedMap<ShaderCache::FileNode> ShaderCache::s_FileGraph = {};
 Utils::StringUnorderedMap<ShaderCache::Record> ShaderCache::s_Records = {};    
 Utils::StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
 std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
@@ -58,6 +59,7 @@ ShaderOverrides Shader::CopyOverrides() const
 void ShaderCache::Init()
 {
     InitFileWatcher();
+    CreateFileGraph();
 }
 
 void ShaderCache::Shutdown()
@@ -177,9 +179,9 @@ void ShaderCache::HandleRename(std::string_view newName, std::string_view oldNam
     s_Records.insert(std::move(records));
 }
 
-void ShaderCache::HandleModification(std::string_view path)
+void ShaderCache::HandleShaderModification(std::string_view name)
 {
-    const Record& record = s_Records.find(path)->second;
+    const Record& record = s_Records.find(name)->second;
     std::unordered_set<Shader*> handled = {};
     std::vector deletedPipelines(s_Pipelines.size(), false);
     for (auto* shader : record.Shaders)
@@ -211,6 +213,53 @@ void ShaderCache::HandleModification(std::string_view path)
     }
 }
 
+void ShaderCache::HandleStageModification(std::string_view name)
+{
+    auto& stages = s_FileGraph.find(name)->second.Files;
+    ASSERT(stages.size() == 1, "Only .gsl files are meant to be used as includes")
+    
+    auto baked = ShaderStageConverter::Bake(FileWatcher::SHADERS_DIRECTORY, name);
+    if (baked.has_value())
+        HandleShaderModification(stages.front().Processed);
+}
+
+void ShaderCache::HandleHeaderModification(std::string_view name)
+{
+    auto& stages = s_FileGraph.find(name)->second.Files;
+    for (auto& stage : stages)
+    {
+        auto baked = ShaderStageConverter::Bake(FileWatcher::SHADERS_DIRECTORY, stage.Raw);
+        if (baked.has_value())
+            HandleShaderModification(stage.Processed);
+    }
+}
+
+void ShaderCache::CreateFileGraph()
+{
+    // todo: read from file
+    for (auto& file : std::filesystem::recursive_directory_iterator(FileWatcher::SHADERS_DIRECTORY))
+    {
+        if (file.is_directory())
+            continue;
+
+        auto& path = file.path();
+        if (path.extension().string() != ShaderStageConverter::POST_CONVERT_EXTENSION)
+            continue;
+
+        assetLib::File shaderFile;
+        assetLib::loadAssetFile(path.string(), shaderFile);
+        assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
+
+        for (auto& include : shaderInfo.IncludedFiles)
+            s_FileGraph[include].Files.push_back({
+                .Raw = shaderInfo.OriginalFile,
+                .Processed = path.generic_string()});
+        s_FileGraph[shaderInfo.OriginalFile].Files.push_back({
+            .Raw = shaderInfo.OriginalFile,
+            .Processed = path.generic_string()});
+    }
+}
+
 ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, ReloadType reloadType,
     const ShaderOverrides& overrides)
 {
@@ -229,8 +278,9 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         ShaderTemplateLibrary::ReloadShaderPipelineTemplate(stages, name, *s_Allocators);
 
     ShaderProxy shader = {};
-    shader.Dependencies.reserve(shaderTemplate->GetShaderDependencies().size() + 1);
-    shader.Dependencies.append_range(shaderTemplate->GetShaderDependencies());
+    shader.Dependencies.reserve(stages.size() + 1);
+    for (auto& stage : stages)
+        shader.Dependencies.emplace_back(stage);
     shader.Dependencies.emplace_back(path);
     
     shader.Features = shaderTemplate->GetDrawFeatures();
@@ -423,7 +473,7 @@ void ShaderCache::InitFileWatcher()
         void handleFileAction(efsw::WatchID watchId, const std::string& directory, const std::string& filename,
             efsw::Action action, std::string oldFilename) override
         {
-            std::string filePath = std::filesystem::path(directory + filename).generic_string();
+            std::string filePath = std::filesystem::weakly_canonical(directory + filename).generic_string();
             switch (action)
             {
             /* `moved` is a rename (the efsw comment seems to be wrong) */
@@ -436,7 +486,7 @@ void ShaderCache::InitFileWatcher()
                     m_PendingFileNames.emplace(filePath);
                     m_FilesToProcess.push({
                         .FileName = filePath,
-                        .OldFileName = std::filesystem::path(directory + oldFilename).generic_string(),
+                        .OldFileName = std::filesystem::weakly_canonical(directory + oldFilename).generic_string(),
                         .Action = action,
                         .TimePoint = std::chrono::high_resolution_clock::now()});
                 }
@@ -497,7 +547,6 @@ void ShaderCache::InitFileWatcher()
         void ProcessResource(const FileUpdateData& fileUpdateData)
         {
             std::filesystem::path filePath = fileUpdateData.FileName;
-            LOG("filename: {}", fileUpdateData.FileName);
 
             /* is it possible that file is deleted or renamed before we begin to process it */
             if (!std::filesystem::exists(filePath) || std::filesystem::is_directory(filePath))
@@ -510,22 +559,13 @@ void ShaderCache::InitFileWatcher()
             }
 
             ASSERT(fileUpdateData.Action == efsw::Action::Modified, "Unexpected file update action")
-            
-            static constexpr std::string_view SHADER_EXTENSION = ".shader";
             std::string extension = filePath.extension().string();
-            if (ShaderStageConverter::WatchesExtension(extension))
-            {
-                std::optional<assetLib::ShaderStageInfo> stageInfo =
-                    ShaderStageConverter::Bake(FileWatcher::SHADERS_DIRECTORY, filePath);
-                if (!stageInfo.has_value())
-                    return;
-
-                ShaderCache::HandleModification(fileUpdateData.FileName);
-            }
-            else if (extension == SHADER_EXTENSION)
-            {
-                ShaderCache::HandleModification(fileUpdateData.FileName);
-            }
+            if (extension == SHADER_EXTENSION)
+                ShaderCache::HandleShaderModification(fileUpdateData.FileName);
+            else if (ShaderStageConverter::WatchesExtension(extension))
+                ShaderCache::HandleStageModification(fileUpdateData.FileName);
+            else if (extension == SHADER_HEADER_EXTENSION)
+                ShaderCache::HandleHeaderModification(fileUpdateData.FileName);
         }
     private:
         /* some editors (like vs code) do something strange when file is updated

@@ -138,8 +138,8 @@ void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath
     textureInfo.Dimensions = {.Width = (u32)width, .Height = (u32)height, .Depth = 1};
     textureInfo.SizeBytes = sizeBytes; 
     textureInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    textureInfo.OriginalFile = path.generic_string();
-    textureInfo.BlobFile = blobPath.generic_string();
+    textureInfo.OriginalFile = std::filesystem::weakly_canonical(path).generic_string();
+    textureInfo.BlobFile = std::filesystem::weakly_canonical(blobPath).generic_string();
     
     assetLib::File textureFile = assetLib::packTexture(textureInfo, pixels);
         
@@ -196,8 +196,8 @@ void ModelConverter::Convert(const std::filesystem::path& initialDirectoryPath,
     assetLib::ModelInfo modelInfo = {};
     modelInfo.VertexFormat = assetLib::VertexFormat::P3N3T3UV2;
     modelInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    modelInfo.OriginalFile = path.generic_string();
-    modelInfo.BlobFile = blobPath.generic_string();
+    modelInfo.OriginalFile = std::filesystem::weakly_canonical(path).generic_string();
+    modelInfo.BlobFile = std::filesystem::weakly_canonical(blobPath).generic_string();
 
     std::vector<aiNode*> nodesToProcess;
     nodesToProcess.push_back(scene->mRootNode);
@@ -367,7 +367,7 @@ assetLib::ModelInfo::MaterialInfo ModelConverter::GetMaterialInfo(const aiMateri
         aiString textureName;
         material->GetTexture(textureType, i, &textureName);
         std::filesystem::path texturePath = modelPath.parent_path() / std::filesystem::path(textureName.C_Str());
-        textures[i] = texturePath.generic_string();
+        textures[i] = std::filesystem::weakly_canonical(texturePath).generic_string();
     }
 
     return {.Textures = textures};
@@ -426,7 +426,7 @@ void ModelConverter::ConvertTextures(const std::filesystem::path& initialDirecto
             
             std::filesystem::path texturePath = texture;
             texturePath.replace_extension(TextureConverter::POST_CONVERT_EXTENSION);
-            texture = texturePath.generic_string();
+            texture = std::filesystem::weakly_canonical(texturePath).generic_string();
         }
     }
 }
@@ -524,7 +524,7 @@ std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::f
             std::filesystem::path requestedPath = std::filesystem::path{requestingSource}.parent_path() /
                 std::filesystem::path{requestedSource};
 
-            std::string fileName = requestedPath.generic_string();
+            std::string fileName = std::filesystem::weakly_canonical(requestedPath).generic_string();
             std::ifstream fileIn(fileName.data(), std::ios::ate | std::ios::binary);
             if (!fileIn.is_open())
                 return new shaderc_include_result{"", 0,
@@ -577,8 +577,8 @@ std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::f
     assetLib::ShaderStageInfo shaderInfo = Reflect(spirv, descriptorFlags, inputBindingsInfo);
     shaderInfo.IncludedFiles = includedFiles;
     shaderInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    shaderInfo.OriginalFile = path.generic_string();
-    shaderInfo.BlobFile = blobPath.generic_string();
+    shaderInfo.OriginalFile = std::filesystem::weakly_canonical(path).generic_string();
+    shaderInfo.BlobFile = std::filesystem::weakly_canonical(blobPath).generic_string();
 
     std::vector<u32> spirvOptimized;
     spirvOptimized.reserve(spirv.size());

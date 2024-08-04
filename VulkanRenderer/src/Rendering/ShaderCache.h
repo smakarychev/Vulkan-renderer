@@ -75,6 +75,8 @@ private:
 class ShaderCache
 {
     friend class Shader;
+    static constexpr std::string_view SHADER_EXTENSION = ".shader";
+    static constexpr std::string_view SHADER_HEADER_EXTENSION = ".glsl";
 public:
     static void Init();
     static void Shutdown();
@@ -90,9 +92,12 @@ public:
     /* associates shader with another `name` */
     static const Shader& Register(std::string_view name, const Shader* shader, const ShaderOverrides& overrides);
 
-    static void HandleRename(std::string_view newName, std::string_view oldName);
-    static void HandleModification(std::string_view path);
 private:
+    static void HandleRename(std::string_view newName, std::string_view oldName);
+    static void HandleShaderModification(std::string_view name);
+    static void HandleStageModification(std::string_view name);
+    static void HandleHeaderModification(std::string_view name);
+    static void CreateFileGraph();
     struct ShaderProxy
     {
         ShaderPipeline Pipeline;
@@ -107,6 +112,18 @@ private:
     static void InitFileWatcher();
 private:
     static DescriptorArenaAllocators* s_Allocators;
+
+    /* each .glsl, .vert, .frag, etc. has a list of other files that depend on it */
+    struct FileNode
+    {
+        struct ShaderFile
+        {
+            std::string Raw;
+            std::string Processed;
+        };
+        std::vector<ShaderFile> Files;
+    };
+    static Utils::StringUnorderedMap<FileNode> s_FileGraph;
     
     struct Record
     {

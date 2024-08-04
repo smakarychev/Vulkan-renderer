@@ -83,9 +83,6 @@ public:
         std::vector<PushConstant> PushConstants;
         std::vector<DescriptorSet> DescriptorSets;
 
-        /* the file dependencies of a shader */
-        std::vector<std::string> Dependencies;
-
         DrawFeatures Features{};
     };
 public:
@@ -159,8 +156,6 @@ public:
     
     bool IsComputeTemplate() const { return m_IsComputeTemplate; }
 
-    const std::vector<std::string>& GetShaderDependencies() const { return m_ShaderDependencies; }
-
     DrawFeatures GetDrawFeatures() const { return m_Features; }
     
 private:
@@ -194,7 +189,6 @@ private:
 
     bool m_IsComputeTemplate{false};
 
-    std::vector<std::string> m_ShaderDependencies;
     DrawFeatures m_Features{};
 };
 

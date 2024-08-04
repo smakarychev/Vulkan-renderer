@@ -157,7 +157,6 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string_vi
         .InputAttributes = mergedShaderInfo.InputAttributes,
         .PushConstants = mergedShaderInfo.PushConstants,
         .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets),
-        .Dependencies = mergedShaderInfo.IncludedFiles,
         .Features = ExtractDrawFeatures(mergedShaderInfo.DescriptorSets, mergedShaderInfo.InputAttributes)
     };
 
@@ -452,7 +451,6 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
         
     shaderPipelineTemplate.m_DescriptorSetCount = (u32)reflectionData.DescriptorSets.size();
 
-    shaderPipelineTemplate.m_ShaderDependencies = reflectionData.Dependencies;
     shaderPipelineTemplate.m_Features = reflectionData.Features;
     
     return shaderPipelineTemplate;
