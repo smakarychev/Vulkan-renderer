@@ -504,7 +504,7 @@ void ShaderCache::InitFileWatcher()
             using namespace std::chrono;
             using namespace std::chrono_literals;
 
-            static constexpr milliseconds DEBOUNCE_TIME = 150ms;
+            static constexpr milliseconds DEBOUNCE_TIME = 85ms;
 
             std::thread debounce([listener]()
             {

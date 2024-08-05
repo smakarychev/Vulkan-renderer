@@ -21,4 +21,4 @@ static constexpr u32 MAX_SHADOW_CASCADES = 5;
 static constexpr u32 SHADOW_CASCADES = 4;
 
 static constexpr f32 DEPTH_CONSTANT_BIAS = -1.0f;
-static constexpr f32 DEPTH_SLOPE_BIAS = -1.5f;
+static constexpr f32 DEPTH_SLOPE_BIAS = -1.75f;
