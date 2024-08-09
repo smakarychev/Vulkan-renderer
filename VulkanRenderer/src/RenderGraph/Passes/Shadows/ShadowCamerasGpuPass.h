@@ -1,0 +1,16 @@
+#pragma once
+#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGResource.h"
+
+// todo: finish me! so far the greatest problem is that I did not account for a fact that camera might come from gpu...
+namespace Passes::ShadowCamerasGpu
+{
+    struct PassData
+    {
+        RG::Resource DepthMinMax;
+        RG::Resource PrimaryCamera;
+        RG::Resource CsmDataOut;
+    };
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depthMinMax,
+        RG::Resource primaryCamera, const glm::vec3& lightDirection);
+}

@@ -141,7 +141,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                     u32 meshletIndex = info.MultiviewResource->MeshletViewIndices[i];
                     info.MultiviewResource->MeshletCull->HiZs[meshletIndex] =
                         info.MultiviewResource->MeshletCull->Multiview->View(meshletIndex)
-                            .Static.HiZContext->GetHiZResource();
+                            .Static.HiZContext->GetHiZResource(HiZReductionMode::Min);
                 }
             }
 

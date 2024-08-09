@@ -64,7 +64,6 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings, settings,
                 *frameContext.ResourceUploader);
 
-
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);

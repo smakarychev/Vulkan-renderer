@@ -5,6 +5,7 @@
 #include "MeshletCullMultiviewPass.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/General/DrawIndirectCountPass.h"
+#include "RenderGraph/Passes/HiZ/DepthReductionPass.h"
 #include "RenderGraph/Passes/HiZ/HiZNVPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 
@@ -145,10 +146,15 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
             for (u32 i = 0; i < multiviewData.ViewCount(); i++)
             {
                 auto& view = multiviewData.View(i);
+                /* if we do not cull triangles, this is the last moment we can reduce depth */
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-                    HiZNV::addToGraph(std::format("{}.HiZ.{}", name, i), graph,
-                        view.Dynamic.DrawInfo.Attachments.Depth->Resource,
-                        view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
+                    multiviewData.IsPrimaryView(i) && !view.Static.CullTriangles ?
+                        DepthReduction::addToGraph(std::format("{}.DepthReduction", name), graph,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext) :
+                        HiZNV::addToGraph(std::format("{}.HiZ.{}", name, i), graph,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
             }
 
             /* update attachment on load operation */
@@ -172,9 +178,13 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
             {
                 auto& view = multiviewData.TriangleView(i);
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-                    HiZNV::addToGraph(std::format("{}.HiZ.Reocclusion.{}", name, i), graph,
-                        view.Dynamic.DrawInfo.Attachments.Depth->Resource,
-                        view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
+                    multiviewData.IsPrimaryTriangleView(i) ?
+                        DepthReduction::addToGraph(std::format("{}.DepthReduction", name), graph,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext) :
+                        HiZNV::addToGraph(std::format("{}.HiZ.Reocclusion.{}", name, i), graph,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
             }
 
             /* finally, reocclude and draw meshlets for each view */
@@ -210,7 +220,7 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
                         .Shader = view.Static.DrawShader});
                 auto& drawOutput = graph.GetBlackboard().Get<Draw::IndirectCount::PassData>(draw);
                 passData.DrawAttachmentResources[i] = drawOutput.DrawAttachmentResources;
-                passData.HiZOut[i] = view.Static.HiZContext->GetHiZResource();
+                passData.HiZOut[i] = view.Static.HiZContext->GetHiZResource(HiZReductionMode::Min);
                 
                 Utils::recordUpdatedAttachmentResources(
                     view.Dynamic.DrawInfo.Attachments, drawOutput.DrawAttachmentResources,

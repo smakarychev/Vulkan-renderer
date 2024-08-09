@@ -65,7 +65,7 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
     struct SettingsUBO
     {
         f32 Power{1.0f};
-        f32 Radius{0.5f};
+        f32 Radius{0.075f};
         u32 Samples{32};
     };
     struct CameraUBO

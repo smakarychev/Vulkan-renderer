@@ -23,7 +23,8 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
             if (stage != CullStage::Cull)
                 for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
                     info.MultiviewResource->HiZs[i] =
-                        info.MultiviewResource->Multiview->View(i).Static.HiZContext->GetHiZResource();
+                        info.MultiviewResource->Multiview->View(i).Static.HiZContext->GetHiZResource(
+                            HiZReductionMode::Min);
 
             RgUtils::readWriteCullMeshMultiview(*info.MultiviewResource, graph);
             

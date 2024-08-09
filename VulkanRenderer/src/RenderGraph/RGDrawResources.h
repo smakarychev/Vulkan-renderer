@@ -2,12 +2,14 @@
 
 #include "RGCommon.h"
 #include "RGResource.h"
+#include "Core/Camera.h"
 #include "Rendering/RenderingInfo.h"
 
 /* Draw resources that are commonly used by different draw passes
  * Draw features control what resources are actually used 
  */
 
+class Camera;
 class SceneLight;
 
 namespace RG
@@ -73,7 +75,6 @@ namespace RG
         Resource DirectionalLight{};
     };
 
-    
     struct DrawInitInfo
     {
         DrawFeatures DrawFeatures{DrawFeatures::AllAttributes};

@@ -36,7 +36,8 @@ namespace RG::RgUtils
             GraphBufferDescription{.SizeBytes = geometryCount * sizeof(CullMultiviewData::ViewSpan)});
         multiviewResource.Views = graph.CreateResource(baseName + ".Views",
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(CullViewDataGPU)});
-        multiviewResource.HiZSampler = cullMultiviewData.View(0).Static.HiZContext->GetSampler();
+        multiviewResource.HiZSampler = cullMultiviewData.View(0).Static.HiZContext->GetMinMaxSampler(
+            HiZReductionMode::Min);
 
         multiviewResource.CompactCommandCount = graph.CreateResource(
             std::format("{}.CompactCommandsCount", baseName),
@@ -64,7 +65,7 @@ namespace RG::RgUtils
             auto&& [staticV, dynamicV] = view;
             
             multiviewResource.HiZs.push_back(graph.AddExternal(std::format("{}.HiZ.{}", baseName, i),
-                staticV.HiZContext->GetHiZPrevious()->get(),
+                staticV.HiZContext->GetHiZPrevious(HiZReductionMode::Min)->get(),
                 ImageUtils::DefaultTexture::Black));
 
             multiviewResource.MeshVisibility.push_back(graph.AddExternal(

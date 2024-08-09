@@ -181,7 +181,11 @@ void ShaderCache::HandleRename(std::string_view newName, std::string_view oldNam
 
 void ShaderCache::HandleShaderModification(std::string_view name)
 {
-    const Record& record = s_Records.find(name)->second;
+    auto it = s_Records.find(name);
+    if (it == s_Records.end())
+        return;
+    
+    const Record& record = it->second;
     std::unordered_set<Shader*> handled = {};
     std::vector deletedPipelines(s_Pipelines.size(), false);
     for (auto* shader : record.Shaders)

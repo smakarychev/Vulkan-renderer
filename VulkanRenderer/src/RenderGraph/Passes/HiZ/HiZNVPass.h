@@ -1,6 +1,7 @@
 #pragma once
-#include "HiZPass.h"
 #include "RenderGraph/RGResource.h"
+
+class HiZPassContext;
 
 namespace Passes::HiZNV
 {

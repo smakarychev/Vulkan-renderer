@@ -15,8 +15,8 @@ namespace
         if (distance <= std::abs(a.Radius - b.Radius)) 
             return a.Radius > b.Radius ? a : b;
 
-        glm::vec3 newCenter = (a.Radius * a.Center + b.Radius * b.Center) / (a.Radius + b.Radius);
         f32 newRadius = (distance + a.Radius + b.Radius) / 2.0f;
+        glm::vec3 newCenter = a.Center + (b.Center - a.Center) * (newRadius - a.Radius) / distance;
 
         return {newCenter, newRadius};
     }

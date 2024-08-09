@@ -31,7 +31,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                         ShaderOverrides{}
                             .Add({"COMPOUND_INDEX"}, true)),
                     .CullTriangles = true});
-
+                multiview.MultiviewData.SetPrimaryView(0);
                 multiview.MultiviewData.Finalize();
             }
             

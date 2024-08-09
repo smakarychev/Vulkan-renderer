@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core/Camera.h"
-#include "RenderGraph/Passes/HiZ/HiZPass.h"
+#include "RenderGraph/Passes/HiZ/HiZPassContext.h"
 
 #include <vector>
 
@@ -83,6 +83,7 @@ public:
     };
 public:
     u32 AddView(const CullViewStaticDescription& description);
+    void SetPrimaryView(u32 index) { m_PrimaryView = index; }
     void Finalize();
     
     void UpdateView(u32 viewIndex, const CullViewDynamicDescription& description);
@@ -106,11 +107,15 @@ public:
     std::vector<CullViewDataGPU> CreateMultiviewGPU() const;
     std::vector<CullViewDataGPU> CreateMultiviewGPUTriangles() const;
 
+    bool IsPrimaryView(u32 index) const { return index == m_PrimaryView; }
+    bool IsPrimaryTriangleView(u32 index) const { return m_TriangleViews[index] == m_PrimaryView; }
+
     void UpdateBatchIterationCount();
     u32 GetBatchIterationCount() const;
 private:
     void ValidateViewRenderingAttachments(u32 lastViewIndex) const;
 private:
+    u32 m_PrimaryView{std::numeric_limits<u32>::max()};
     std::vector<CullViewDescription> m_Views;
     /* indices into m_Views */
     std::vector<u32> m_TriangleViews;

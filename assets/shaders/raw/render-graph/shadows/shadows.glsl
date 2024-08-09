@@ -50,7 +50,7 @@ float sample_shadow_for_pcf(vec2 base_uv, float u, float v, vec2 shadow_size_inv
     return sample_shadow(vec3(base_uv, depth), vec2(u, v) * shadow_size_inv * 0.5, cascade_index);
 }
 
-#define FILTER_SIZE 5
+#define FILTER_SIZE 7
 float pcf_optimized_shadow(vec3 uvz, uint cascade_index) {
     // implementation is almost identical to https://github.com/TheRealMJP/Shadows
     
