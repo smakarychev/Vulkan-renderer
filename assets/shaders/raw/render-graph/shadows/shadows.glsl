@@ -216,9 +216,8 @@ float shadow(vec3 position, vec3 normal, float light_size) {
     const float light_size_uv = light_size / max(shadow_size.x, shadow_size.y);
     const vec2 delta = vec2(1.0f) / vec2(shadow_size);
 
-    const vec3 position_view = vec3(u_camera.camera.view * vec4(position, 1.0f));
     vec4 position_local;
-    uint cascade_index = 0;
+    uint cascade_index = u_csm_data.csm.cascade_count - 1;
     for (uint i = 0; i < u_csm_data.csm.cascade_count; i++) {
         position_local = u_csm_data.csm.view_projections[i] * vec4(position, 1.0f);
         const vec3 offset = abs(vec3(position_local.xy, position_local.z - 0.5f));
@@ -227,7 +226,7 @@ float shadow(vec3 position, vec3 normal, float light_size) {
             break;
         }
     }
-
+   
     const float shadow = sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, cascade_index);
     // blend between cascades, if too close to the end of current cascade
     const float cascade_relative_distance = cascade_index + 1 < u_csm_data.csm.cascade_count ? 
