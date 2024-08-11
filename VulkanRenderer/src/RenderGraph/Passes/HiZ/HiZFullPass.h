@@ -3,16 +3,11 @@
 
 class HiZPassContext;
 
-namespace Passes::DepthReduction
+namespace Passes::HiZFull
 {
-    struct MinMaxDepth
-    {
-        f32 Min{1.0f};
-        f32 Max{0.0f};
-    };
     struct PassData
     {
-        RG::Resource MinMaxDepth;
+        RG::Resource MinMaxDepth{};
         Sampler MinSampler;
         Sampler MaxSampler;
         std::vector<ImageViewHandle> MipmapViewHandles;

@@ -3,14 +3,10 @@
 layout(set = 0, binding = 0) uniform sampler u_min_sampler;
 layout(set = 0, binding = 1) uniform sampler u_max_sampler;
 
-layout(set = 1, binding = 0) buffer min_max {
-    float min;
-    float max;
-} u_min_max;
-layout(set = 1, binding = 1) uniform texture2D u_min_image;
-layout(set = 1, binding = 2) uniform texture2D u_max_image;
-layout(set = 1, binding = 3, r32f) uniform writeonly image2D u_output_min[16];
-layout(set = 1, binding = 4, r32f) uniform writeonly image2D u_output_max[16];
+layout(set = 1, binding = 0) uniform texture2D u_min_image;
+layout(set = 1, binding = 1) uniform texture2D u_max_image;
+layout(set = 1, binding = 2, r32f) uniform writeonly image2D u_output_min[16];
+layout(set = 1, binding = 3, r32f) uniform writeonly image2D u_output_max[16];
 
 #define NVPRO_PYRAMID_TYPE vec2
 
@@ -28,11 +24,6 @@ vec2 reduce4(vec2 v00, vec2 v01, vec2 v10, vec2 v11) {
     reduced.x = min(min(v00.x, v01.x), min(v10.x, v11.x));
     reduced.y = max(max(v00.y, v01.y), max(v10.y, v11.y));
     
-    if (reduced.x > 0.0) {
-        u_min_max.min = min(u_min_max.min, reduced.x);
-        u_min_max.max = max(u_min_max.max, reduced.y);
-    }
-    
     return reduced;
 }
 #define NVPRO_PYRAMID_REDUCE4(v00, v01, v10, v11, out_) \
@@ -42,16 +33,12 @@ void loadReduce4(in ivec2 coord, in int level, out vec2 out_) {
     vec2 normalized_coord = (vec2(coord) + vec2(1)) / levelSize(level);
     out_.x = textureLod(sampler2D(u_min_image, u_min_sampler), normalized_coord, level).r;
     out_.y = textureLod(sampler2D(u_max_image, u_max_sampler), normalized_coord, level).r;
-    
-    if (out_.x > 0.0) {
-        u_min_max.min = min(u_min_max.min, out_.x);
-        u_min_max.max = max(u_min_max.max, out_.y);
-    }
 }
 #define NVPRO_PYRAMID_LOAD_REDUCE4 loadReduce4
 
 #extension GL_KHR_shader_subgroup_ballot: enable
 #extension GL_KHR_shader_subgroup_shuffle: enable
+#extension GL_KHR_shader_subgroup_arithmetic: enable
 
 #define NVPRO_PYRAMID_IS_FAST_PIPELINE 1
 #include "../../../nvpro/nvpro_pyramid.glsl"

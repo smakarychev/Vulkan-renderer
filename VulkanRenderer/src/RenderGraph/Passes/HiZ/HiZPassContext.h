@@ -20,11 +20,22 @@ public:
     /* NOTE: this is not hiz resolution (which is a power of 2), but the resolution that was passed into constructor */
     const glm::uvec2& GetDrawResolution() const { return m_DrawResolution; }
     const glm::uvec2& GetHiZResolution() const { return m_HiZResolution; }
+
+    const Buffer& GetMinMaxDepthBuffer() const { return m_MinMaxDepth[m_FrameNumber]; }
+    const Buffer& GetPreviousMinMaxDepthBuffer() const { return m_MinMaxDepth[PreviousFrame()]; }
+    
+    void NextFrame() { m_FrameNumber = (m_FrameNumber + 1) % BUFFERED_FRAMES; }
+private:
+    u32 PreviousFrame() const { return (m_FrameNumber + BUFFERED_FRAMES - 1) % BUFFERED_FRAMES; }
 private:
     std::array<RG::Resource, (u32)HiZReductionMode::MaxVal> m_HiZResources;
     std::array<Texture, (u32)HiZReductionMode::MaxVal> m_HiZs;
     std::array<std::shared_ptr<Texture>, (u32)HiZReductionMode::MaxVal> m_HiZsPrevious;
     std::array<Sampler, (u32)HiZReductionMode::MaxVal> m_MinMaxSamplers;
+
+    /* is detached from real frame number */
+    u32 m_FrameNumber{0};
+    std::array<Buffer, BUFFERED_FRAMES> m_MinMaxDepth;
     
     std::vector<ImageViewHandle> m_MipmapViewHandles;
     

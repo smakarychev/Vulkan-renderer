@@ -10,15 +10,15 @@
 
 namespace
 {
-    std::vector<f32> calculateDepthCascades(const Camera& mainCamera, f32 viewDistance)
+    std::vector<f32> calculateDepthCascades(const Camera& mainCamera, f32 shadowMin, f32 shadowMax)
     {
         static f32 SPLIT_LAMBDA = 0.0f;
         ImGui::Begin("CSM lambda");
         ImGui::DragFloat("Lambda", &SPLIT_LAMBDA, 1e-2f, 0.0f, 1.0f);
         ImGui::End();
 
-        f32 near = mainCamera.GetFrustumPlanes().Near;
-        f32 far = std::min(mainCamera.GetFrustumPlanes().Far, viewDistance);
+        f32 near = std::max(mainCamera.GetFrustumPlanes().Near, shadowMin);
+        f32 far = std::min(mainCamera.GetFrustumPlanes().Far, shadowMax);
 
         f32 depthRange = far - near;
         f32 depthRatio = far / near;
@@ -40,45 +40,23 @@ namespace
     }
 
     std::vector<Camera> createShadowCameras(const Camera& mainCamera, const glm::vec3& lightDirection,
-        const std::vector<f32>& cascades, const AABB& geometryBounds)
+        const std::vector<f32>& cascades, f32 shadowMin, const AABB& geometryBounds, bool stabilizeCascades)
     {
-        f32 near = mainCamera.GetFrustumPlanes().Near;
-
         /* create shadow cameras */
         std::vector<Camera> cameras;
         cameras.reserve(SHADOW_CASCADES);
         
         glm::vec3 up = abs(lightDirection.y) < 0.999f ? glm::vec3(0.0f, 1.0f, 0.0f) : glm::vec3(0.0f, 0.0f, 1.0f);
+        
         for (u32 i = 0; i < SHADOW_CASCADES; i++)
         {
-            f32 previousDepth = i > 0 ? cascades[i - 1] : near;
+            f32 previousDepth = i > 0 ? cascades[i - 1] : shadowMin;
             f32 depth = cascades[i];
-            
             FrustumCorners corners = mainCamera.GetFrustumCorners(previousDepth, depth);
-            ShadowProjectionBounds bounds = ShadowUtils::projectionBoundsSphereWorld(corners, geometryBounds);
-
-            /* pcss method does not like 0 on a near plane */
-            static constexpr f32 NEAR_RELATIVE_OFFSET = 0.1f;
-
-            f32 cameraCentroidOffset = bounds.Min.z * (1.0f + NEAR_RELATIVE_OFFSET);
-            glm::vec3 cameraPosition = bounds.Centroid + lightDirection * cameraCentroidOffset;
-            Camera shadowCamera = Camera::Orthographic({
-                .BaseInfo = {
-                    .Position = cameraPosition,
-                    .Orientation = glm::normalize(glm::quatLookAt(lightDirection, up)),
-                    .Near = -bounds.Min.z * NEAR_RELATIVE_OFFSET,
-                    .Far = bounds.Max.z - cameraCentroidOffset,
-                    .ViewportWidth = SHADOW_MAP_RESOLUTION,
-                    .ViewportHeight = SHADOW_MAP_RESOLUTION},
-                .Left = bounds.Min.x,
-                .Right = bounds.Max.x,
-                .Bottom = bounds.Min.y,
-                .Top = bounds.Max.y});
-
-            /* stabilize the camera */
-            ShadowUtils::stabilizeShadowProjection(shadowCamera, SHADOW_MAP_RESOLUTION);
-
-            cameras.push_back(shadowCamera);
+            if (stabilizeCascades)
+                cameras.push_back(ShadowUtils::shadowCameraStable(corners, geometryBounds, lightDirection, up));
+            else
+                cameras.push_back(ShadowUtils::shadowCamera(corners, geometryBounds, lightDirection, up));
         }
         
         return cameras;
@@ -134,9 +112,11 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
             }
 
             Cameras& cameras = graph.GetOrCreateBlackboardValue<Cameras>();
-            std::vector cascades = calculateDepthCascades(*info.MainCamera, info.ViewDistance);
+            std::vector cascades = calculateDepthCascades(*info.MainCamera, info.ShadowMin, info.ShadowMax);
             cameras.ShadowCameras =
-                createShadowCameras(*info.MainCamera, info.DirectionalLight->Direction, cascades, info.GeometryBounds);
+                createShadowCameras(*info.MainCamera, info.DirectionalLight->Direction, cascades,
+                    std::max(info.ShadowMin, info.MainCamera->GetNear()),
+                    info.GeometryBounds, info.StabilizeCascades);
 
             Ubo& ubo = graph.GetOrCreateBlackboardValue<Ubo>();
             ubo.CascadeCount = SHADOW_CASCADES;

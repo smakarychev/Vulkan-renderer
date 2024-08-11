@@ -11,6 +11,7 @@
 
 layout(local_size_x = MAX_CASCADES) in;
 
+// todo: fix me (I am probably a uint, not a float)
 layout(set = 1, binding = 0) buffer min_max {
     float min;
     float max;

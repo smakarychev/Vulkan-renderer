@@ -22,6 +22,7 @@
 #include "RenderGraph/Passes/PBR/Translucency/PbrForwardTranslucentIBLPass.h"
 #include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
+#include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
@@ -64,7 +65,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.RegisterModel(plane, "plane");
 
-    m_GraphModelCollection.AddModelInstance("car", {
+    m_GraphModelCollection.AddModelInstance("helmet", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
             .Scale = glm::vec3{1.0f}}});
@@ -191,7 +192,7 @@ void Renderer::SetupRenderGraph()
         .Resolution = m_Swapchain.GetResolution(),
         .Camera = GetFrameContext().MainCamera});
     auto& visibilityOutput = m_Graph->GetBlackboard().Get<Passes::Draw::Visibility::PassData>(visibility);
-
+    
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
 
@@ -220,13 +221,30 @@ void Renderer::SetupRenderGraph()
 
     m_SceneLights.SetDirectionalLight(directionalLight);
 
-    static f32 shadowDistance = 200.0f;
-    ImGui::DragFloat("Shadow distance", &shadowDistance, 1e-1f, 0.0f, 400.0f);
+    static bool useDepthReduction = false;
+    static bool stabilizeCascades = false;
+    ImGui::Begin("Shadow settings");
+    ImGui::Checkbox("Use depth reduction", &useDepthReduction);
+    ImGui::Checkbox("Stabilize cascades", &stabilizeCascades);
+    ImGui::End();
+    f32 shadowMin = 0.0f;
+    f32 shadowMax = 200.0f;
+    if (visibilityOutput.MinMaxDepth.IsValid() && useDepthReduction)
+    {
+        auto& minMaxDepthReadback = Passes::DepthReductionReadback::addToGraph("Visibility.Readback.Depth", *m_Graph,
+        visibilityOutput.PreviousMinMaxDepth, GetFrameContext().MainCamera);
+        auto& minMaxDepthReadbackOutput = m_Graph->GetBlackboard().Get<Passes::DepthReductionReadback::PassData>(
+            minMaxDepthReadback);
+        shadowMin = minMaxDepthReadbackOutput.Min;
+        shadowMax = minMaxDepthReadbackOutput.Max;
+    }
     auto& csm = Passes::CSM::addToGraph("CSM", *m_Graph, {
         .Geometry = &m_GraphOpaqueGeometry,
         .MainCamera = m_Camera.get(),
         .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
-        .ViewDistance = shadowDistance,
+        .ShadowMin = shadowMin,
+        .ShadowMax = shadowMax,
+        .StabilizeCascades = stabilizeCascades,
         .GeometryBounds = m_GraphOpaqueGeometry.GetBounds()});
     auto& csmOutput = m_Graph->GetBlackboard().Get<Passes::CSM::PassData>(csm);
 
@@ -278,12 +296,15 @@ void Renderer::SetupRenderGraph()
 
     auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibilityOutput.HiZOut);
     auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<Passes::HiZVisualize::PassData>(hizVisualize);
+    auto& hizMaxVisualize = Passes::HiZVisualize::addToGraph("HiZ.Max.Visualize", *m_Graph, visibilityOutput.HiZMaxOut);
+    auto& hizMaxVisualizePassOutput = m_Graph->GetBlackboard().Get<Passes::HiZVisualize::PassData>(hizMaxVisualize);
 
     auto& csmVisualize = Passes::VisualizeCSM::addToGraph("CSM.Visualize", *m_Graph, csmOutput, {});
     auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<Passes::VisualizeCSM::PassData>(csmVisualize);
 
     Passes::ImGuiTexture::addToGraph("SSAO.Texture", *m_Graph, ssaoVisualizeOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
+    Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Max.Texture", *m_Graph, hizMaxVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, *m_BRDF);
 

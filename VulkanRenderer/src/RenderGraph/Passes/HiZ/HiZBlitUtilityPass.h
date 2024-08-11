@@ -7,9 +7,23 @@
 
 namespace Passes::HiZBlit
 {
-    template <typename PassData>
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
-        ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx, HiZReductionMode mode)
+    struct MinMaxDepth
+    {
+        u32 Min{std::bit_cast<u32>(1.0f)};
+        u32 Max{std::bit_cast<u32>(0.0f)};
+    };
+    struct PassData
+    {
+        Sampler MinMaxSampler;
+        std::vector<ImageViewHandle> MipmapViewHandles;
+        
+        RG::Resource MinMaxDepth{};
+        RG::Resource DepthIn{};
+        RG::Resource HiZOut{};
+    };
+    inline RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+        ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx, HiZReductionMode mode,
+        bool minMaxDepth = false)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -22,11 +36,21 @@ namespace Passes::HiZBlit
             {
                 CPU_PROFILE_FRAME("HiZ.Blit.Setup")
 
-                graph.SetShader("../assets/shaders/hiz.shader");
+                graph.SetShader("../assets/shaders/hiz.shader",
+                    ShaderOverrides{}
+                        .Add({"DEPTH_MIN_MAX"}, minMaxDepth));
                 
                 Resource depthIn = depth;
                 Resource depthOut = graph.AddExternal("Hiz.Out", ctx.GetHiZ(mode));
                 graph.Export(depthOut, ctx.GetHiZPrevious(mode), true);
+
+                if (minMaxDepth)
+                {
+                    passData.MinMaxDepth = graph.AddExternal(std::format("{}.MinMaxDepth", name),
+                        ctx.GetMinMaxDepthBuffer());
+                    passData.MinMaxDepth = graph.Read(passData.MinMaxDepth, Compute | Storage | Upload);
+                    passData.MinMaxDepth = graph.Write(passData.MinMaxDepth, Compute | Storage);
+                }
                 
                 passData.DepthIn = graph.Read(depthIn, Compute | Sampled);
                 passData.HiZOut = graph.Write(depthOut, Compute | Storage);
@@ -59,6 +83,10 @@ namespace Passes::HiZBlit
                 resourceDescriptors.UpdateBinding("u_out_image",
                     hizOut.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[0]));
+                if (minMaxDepth)
+                    resourceDescriptors.UpdateBinding("u_min_max",
+                        resources.GetBuffer(
+                            passData.MinMaxDepth, MinMaxDepth{}, *frameContext.ResourceUploader).BindingInfo());
                 
                 glm::uvec2 levels = {width, height};
                 pipeline.BindCompute(frameContext.Cmd);

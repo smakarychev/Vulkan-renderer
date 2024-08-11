@@ -17,6 +17,9 @@ namespace Passes::Draw::Visibility
         RG::Resource ColorOut{};
         RG::Resource DepthOut{};
         RG::Resource HiZOut{};
+        RG::Resource HiZMaxOut{};
+        RG::Resource MinMaxDepth{};
+        RG::Resource PreviousMinMaxDepth{};
     };
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info);
 }

@@ -478,10 +478,8 @@ void main() {
     vec3 color;
     color = shade_pbr(shade_info, shadow, ambient_occlusion);
     color = tonemap(color, 2.0f);
-
     
     color += gbuffer_data.emissive;
     
     out_color = vec4(color, 1.0);
-    //out_color = vec4(vec3(shadow), 1.0);
 }

@@ -2,7 +2,9 @@
 
 #include <array>
 
-namespace ShadowUtils
+#include "Settings.h"
+
+namespace
 {
     void stabilizeShadowProjection(Camera& camera, u32 shadowResolution)
     {
@@ -38,8 +40,8 @@ namespace ShadowUtils
 
         if (geometryRadius < boundingSphereRadius)
         {
-            boundingSphereRadius = geometryRadius;
-            centroid = (geometryBounds.Max + geometryBounds.Min) * 0.5f;
+            //boundingSphereRadius = geometryRadius;
+            //centroid = (geometryBounds.Max + geometryBounds.Min) * 0.5f;
         }
         
         static constexpr f32 RADIUS_SNAP = 16.0f;
@@ -52,6 +54,79 @@ namespace ShadowUtils
             .Min = min,
             .Max = max,
             .Centroid = centroid};
+    }
+}
+
+namespace ShadowUtils
+{
+    Camera shadowCameraStable(const FrustumCorners& frustumCorners, const AABB& geometryBounds,
+        const glm::vec3& lightDirection, const glm::vec3& up)
+    {
+        ShadowProjectionBounds bounds = projectionBoundsSphereWorld(frustumCorners, geometryBounds);
+
+        /* pcss method does not like 0 on a near plane */
+        static constexpr f32 NEAR_RELATIVE_OFFSET = 0.1f;
+
+        f32 cameraCentroidOffset = bounds.Min.z * (1.0f + NEAR_RELATIVE_OFFSET);
+        glm::vec3 cameraPosition = bounds.Centroid + lightDirection * cameraCentroidOffset;
+        Camera shadowCamera = Camera::Orthographic({
+            .BaseInfo = {
+                .Position = cameraPosition,
+                .Orientation = glm::normalize(glm::quatLookAt(lightDirection, up)),
+                .Near = -bounds.Min.z * NEAR_RELATIVE_OFFSET,
+                .Far = bounds.Max.z - cameraCentroidOffset,
+                .ViewportWidth = SHADOW_MAP_RESOLUTION,
+                .ViewportHeight = SHADOW_MAP_RESOLUTION},
+            .Left = bounds.Min.x,
+            .Right = bounds.Max.x,
+            .Bottom = bounds.Min.y,
+            .Top = bounds.Max.y});
+
+        /* stabilize the camera */
+        stabilizeShadowProjection(shadowCamera, SHADOW_MAP_RESOLUTION);
+
+        return shadowCamera;
+    }
+
+    Camera shadowCamera(const FrustumCorners& frustumCorners, const AABB& geometryBounds,
+        const glm::vec3& lightDirection, const glm::vec3& up)
+    {
+        glm::vec3 centroid = {};
+        for (auto& p : frustumCorners)
+            centroid += p;
+        centroid /= (f32)frustumCorners.size();
+
+        glm::mat4 lightView = glm::lookAtRH(centroid, centroid - lightDirection, up);
+
+        glm::vec3 min = glm::vec3{std::numeric_limits<f32>::max()};
+        glm::vec3 max = -min;
+        for (auto& c : frustumCorners)
+        {
+            min = glm::min(min, glm::vec3{lightView * glm::vec4{c, 1.0f}});
+            max = glm::max(max, glm::vec3{lightView * glm::vec4{c, 1.0f}});
+        }
+        f32 scale = ((f32)SHADOW_MAP_RESOLUTION + 7.0f) / (f32)SHADOW_MAP_RESOLUTION;
+        min.x *= scale;
+        min.y *= scale;
+        max.x *= scale;
+        max.y *= scale;
+
+        glm::vec3 cascadeExtents = max - min;
+        glm::vec3 shadowPosition = centroid + lightDirection * min.z;
+        Camera shadowCamera = Camera::Orthographic({
+            .BaseInfo = {
+                .Position = shadowPosition,
+                .Orientation = glm::normalize(glm::quatLookAt(lightDirection, up)),
+                .Near = 0.0f,
+                .Far = cascadeExtents.z,
+                .ViewportWidth = SHADOW_MAP_RESOLUTION,
+                .ViewportHeight = SHADOW_MAP_RESOLUTION},
+            .Left = min.x,
+            .Right = max.x,
+            .Bottom = min.y,
+            .Top = max.y});
+
+        return shadowCamera;
     }
 }
 

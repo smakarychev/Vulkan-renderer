@@ -1,5 +1,7 @@
 #include "HiZPassContext.h"
 
+#include "HiZBlitUtilityPass.h"
+#include "HiZFullPass.h"
 #include "utils/MathUtils.h"
 
 HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue)
@@ -33,6 +35,15 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
             .MaxLod(MAX_MIPMAP_COUNT)
             .WithAnisotropy(false)
             .ReductionMode(SamplerReductionMode::Min)
+            .Build();
+    }
+
+    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+    {
+        using enum BufferUsage;
+        m_MinMaxDepth[i] = Buffer::Builder({
+                .SizeBytes = sizeof(Passes::HiZBlit::MinMaxDepth),
+                .Usage = Storage | Uniform | Upload | Readback | DeviceAddress})
             .Build();
     }
     

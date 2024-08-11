@@ -90,6 +90,14 @@ void CullMultiviewData::Finalize()
     }
 }
 
+void CullMultiviewData::NextFrame()
+{
+    for (auto& visibility : m_CullVisibilities)
+        visibility.NextFrame();
+    for (auto& view : m_Views)
+        view.Static.HiZContext->NextFrame();
+}
+
 void CullMultiviewData::UpdateView(u32 viewIndex, const CullViewDynamicDescription& description)
 {
     m_Views[viewIndex].Dynamic = description;

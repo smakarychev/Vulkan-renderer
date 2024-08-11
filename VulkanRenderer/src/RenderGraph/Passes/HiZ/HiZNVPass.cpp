@@ -29,7 +29,7 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
      * it cannot be done by api call, and we have to use a compute shader for that
      * todo: it is possible to change nvpro shader to do that
      */
-    HiZBlit::addToGraph<PassData>(name, renderGraph, depth, subresource, ctx, HiZReductionMode::Min);
+    HiZBlit::addToGraph(name, renderGraph, depth, subresource, ctx, HiZReductionMode::Min);
     
     u32 mipmapsRemaining = mipmapCount - 1;
     u32 currentMipmap = 0;

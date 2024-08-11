@@ -17,6 +17,8 @@ namespace Passes::Meta::CullMultiview
     {
         std::vector<RG::DrawAttachmentResources> DrawAttachmentResources{};
         std::vector<RG::Resource> HiZOut{};
+        RG::Resource HiZMaxOut{};
+        RG::Resource MinMaxDepth{};
     };
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, CullMultiviewData& multiviewData);
 }

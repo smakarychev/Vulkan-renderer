@@ -86,6 +86,7 @@ public:
     void SetPrimaryView(u32 index) { m_PrimaryView = index; }
     void Finalize();
     
+    void NextFrame();
     void UpdateView(u32 viewIndex, const CullViewDynamicDescription& description);
     void UpdateViewHiZ(u32 viewIndex, std::shared_ptr<HiZPassContext> context);
 
@@ -103,6 +104,7 @@ public:
     const std::vector<ViewSpan>& TriangleViewSpans() const { return m_TriangleViewSpans; }
     const std::vector<CullViewVisibility>& Visibilities() const { return m_CullVisibilities; }
     const std::vector<CullViewTriangleVisibility>& TriangleVisibilities() const { return m_CullTriangleVisibilities; }
+
     
     std::vector<CullViewDataGPU> CreateMultiviewGPU() const;
     std::vector<CullViewDataGPU> CreateMultiviewGPUTriangles() const;

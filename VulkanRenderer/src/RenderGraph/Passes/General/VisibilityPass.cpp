@@ -71,6 +71,10 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
             passData.ColorOut = metaOutput.DrawAttachmentResources[0].Colors[0];
             passData.DepthOut = *metaOutput.DrawAttachmentResources[0].Depth;
             passData.HiZOut = metaOutput.HiZOut[0];
+            passData.HiZMaxOut = metaOutput.HiZMaxOut;
+            passData.MinMaxDepth = metaOutput.MinMaxDepth;
+            passData.PreviousMinMaxDepth = graph.AddExternal(std::format("{}.PreviousMinMaxDepth", name),
+                multiview.MultiviewData.View(0).Static.HiZContext->GetPreviousMinMaxDepthBuffer());
             renderGraph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
