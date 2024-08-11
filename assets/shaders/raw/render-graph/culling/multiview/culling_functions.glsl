@@ -13,8 +13,8 @@ bool is_backface_meshlet_visible_orthographic(vec3 cone_axis, float cone_cutoff)
 
 bool is_frustum_visible_orthographic(vec3 sphere_origin, float radius, ViewData view) {
     bool visible = true;
-    visible = visible && view.frustum_right_x * abs(sphere_origin.x) < 1.0f + view.frustum_right_x * radius;
-    visible = visible && view.frustum_top_y * abs(sphere_origin.y) < 1.0f + view.frustum_right_x * radius;
+    visible = visible && abs(view.frustum_right_x * sphere_origin.x + view.projection_bias_x) < 1.0f + view.frustum_right_x * radius;
+    visible = visible && abs(view.frustum_top_y * sphere_origin.y + view.projection_bias_y) < 1.0f + view.frustum_top_y * radius;
     visible = visible &&
         sphere_origin.z - radius <= -view.frustum_near &&
         sphere_origin.z + radius >= -view.frustum_far;
