@@ -9,6 +9,7 @@
 
 #include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
+#include "RenderGraph/Passes/AA/FxaaPass.h"
 #include "Vulkan/RenderCommand.h"
 #include "Scene/ModelCollection.h"
 #include "Scene/SceneGeometry.h"
@@ -57,7 +58,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/bistro/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -290,8 +291,12 @@ void Renderer::SetupRenderGraph()
         renderedColor = pbrTranslucentOutput.ColorOut;*/
     }
 
+    auto& fxaa = Passes::Fxaa::addToGraph("FXAA", *m_Graph, renderedColor);
+    auto& fxaaOutput = m_Graph->GetBlackboard().Get<Passes::Fxaa::PassData>(fxaa);
+    //Passes::ImGuiTexture::addToGraph("FXAA.Texture", *m_Graph, fxaaOutput.AntiAliased);
+    
     auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
-        renderedColor, backbuffer, glm::vec3{}, glm::vec3{1.0f});
+        fxaaOutput.AntiAliased, backbuffer, glm::vec3{}, glm::vec3{1.0f});
     backbuffer = m_Graph->GetBlackboard().Get<Passes::CopyTexture::PassData>(copyRendered).TextureOut;
 
     auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibilityOutput.HiZOut);

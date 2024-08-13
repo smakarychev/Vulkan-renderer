@@ -1,0 +1,206 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions: require
+#extension GL_EXT_control_flow_attributes: require
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+@immutable_sampler_clamp_edge
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_color;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D u_antialiased;
+
+const float EDGE_THRESHOLD_MIN = 0.0312f;
+const float EDGE_THRESHOLD_MAX = 0.125f;
+const float SUBPIXEL_QUALITY = 0.75f;
+const uint MAX_STEPS = 12;
+const float STEP_SIZES[MAX_STEPS] = float[MAX_STEPS](
+    1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+    1.5f, 2.0f, 2.0f, 2.0f, 2.0f, 4.0f, 8.0f);
+const float LAST_STEP_SIZE = 8.0f;
+
+vec3 get_color(vec2 uv) {
+    return textureLod(sampler2D(u_color, u_sampler), uv, 0).rgb;
+}
+
+float luminance(vec2 uv) {
+    return dot(get_color(uv), vec3(0.2126729f,  0.7151522f, 0.0721750f));
+}
+
+struct Luma {
+    float m, l, r, b, t, bl, br, tl, tr; 
+    float min, max, contrast;  
+};
+
+Luma calculate_luma(vec2 uv, vec2 delta) {
+    Luma luma;
+    luma.m = luminance(uv);
+    luma.l = luminance(uv + vec2(-delta.x, 0.0f));
+    luma.r = luminance(uv + vec2( delta.x, 0.0f));
+    luma.b = luminance(uv + vec2(0.0f, -delta.y));
+    luma.t = luminance(uv + vec2(0.0f,  delta.y));
+    luma.bl = luminance(uv + vec2(-delta.x, -delta.y));
+    luma.br = luminance(uv + vec2( delta.x, -delta.y));
+    luma.tl = luminance(uv + vec2(-delta.x,  delta.y));
+    luma.tr = luminance(uv + vec2( delta.x,  delta.y));
+    luma.min = min(luma.m, min(min(luma.l, luma.r), min(luma.b, luma.t)));
+    luma.max = max(luma.m, max(max(luma.l, luma.r), max(luma.b, luma.t)));
+    luma.contrast = luma.max - luma.min;
+    
+    return luma;
+}
+
+float get_subpixel_blend_factor(Luma luma) {
+    float factor = 2.0f * (luma.b + luma.t + luma.l + luma.r);
+    factor += luma.bl + luma.br + luma.tl + luma.tr;
+    factor *= 1.0f / 12.0f;
+    factor = abs(factor - luma.m) / luma.contrast;
+    factor = clamp(factor, 0.0f, 1.0f);
+    factor = smoothstep(0, 1, factor);
+    return factor * factor * SUBPIXEL_QUALITY;
+}
+
+bool is_horizontal(Luma luma) {
+    const float horizontal = 
+        2.0f * abs(luma.b + luma.t - 2.0f * luma.m) +
+        abs(luma.bl + luma.tl - 2.0f * luma.l) +
+        abs(luma.br + luma.tr - 2.0f * luma.r);
+    const float vertical =
+        2.0f * abs(luma.l + luma.r - 2.0f * luma.m) +
+        abs(luma.bl + luma.br - 2.0f * luma.b) +
+        abs(luma.tl + luma.tr - 2.0f * luma.t);
+    
+    return horizontal >= vertical;
+}
+
+struct Edge {
+    bool is_horizontal;
+    float step;
+    float gradient;
+    float other_luma;
+};
+
+Edge calculate_edge(Luma luma, vec2 delta) {
+    Edge edge;
+    edge.is_horizontal = is_horizontal(luma);
+    float luma_positive, luma_negative;
+    if (edge.is_horizontal) {
+        edge.step = delta.y;
+        luma_positive = luma.t;
+        luma_negative = luma.b;
+    } else {
+        edge.step = delta.x;
+        luma_positive = luma.r;
+        luma_negative = luma.l;
+    }
+    const float gradient_positive = abs(luma_positive - luma.m);
+    const float gradient_negative = abs(luma_negative - luma.m);
+    
+    if (gradient_positive < gradient_negative) {
+        edge.step = -edge.step;
+        edge.gradient = gradient_negative;
+        edge.other_luma = luma_negative;
+    } else {
+        edge.gradient = gradient_negative;
+        edge.other_luma = luma_positive;
+    }
+    
+    return edge;
+}
+
+float get_edge_blend_factor(Luma luma, Edge edge, vec2 uv, vec2 delta) {
+    vec2 edge_uv = uv;
+    vec2 edge_delta = vec2(0.0f);
+    if (edge.is_horizontal) {
+        edge_uv.y += 0.5f * edge.step;
+        edge_delta.x = delta.x;
+    } else {
+        edge_uv.x += 0.5f * edge.step;
+        edge_delta.y = delta.y;
+    }
+    
+    const float edge_luma = (edge.other_luma + luma.m) * 0.5f;
+    const float gradient_threshold = edge_luma * 0.25f;
+    
+    vec2 uv_positive = edge_uv + edge_delta;
+    vec2 uv_negative = edge_uv - edge_delta;
+    float luma_delta_positive = luminance(uv_positive) - edge_luma;
+    float luma_delta_negative = luminance(uv_negative) - edge_luma;
+    bool positive_end = abs(luma_delta_positive) > gradient_threshold;
+    bool negative_end = abs(luma_delta_negative) > gradient_threshold;
+    [[unroll]]
+    for (uint i = 0; i < MAX_STEPS; i++) {
+        if (!positive_end) {
+            uv_positive += edge_delta * STEP_SIZES[i];
+            luma_delta_positive = luminance(uv_positive - edge_luma);
+            positive_end = abs(luma_delta_positive) > gradient_threshold;    
+        }
+        if (!negative_end) {
+            uv_negative -= edge_delta * STEP_SIZES[i];
+            luma_delta_negative = luminance(uv_negative - edge_luma);
+            negative_end = abs(luma_delta_negative) > gradient_threshold;
+        }
+        
+        if (positive_end && negative_end) {
+            break;
+        }
+    }
+    if (!positive_end) {
+        uv_positive += edge_delta * LAST_STEP_SIZE;
+    }
+    if (!negative_end) {
+        uv_negative -= edge_delta * LAST_STEP_SIZE;
+    }
+    
+    float distance_positive;
+    float distance_negative;
+    if (edge.is_horizontal) {
+        distance_positive = uv_positive.x - uv.x;
+        distance_negative = uv.x - uv_negative.x;
+    } else {
+        distance_positive = uv_positive.y - uv.y;
+        distance_negative = uv.y - uv_negative.y;
+    }
+    
+    float distance;
+    bool sign;
+    if (distance_positive < distance_negative) {
+        distance = distance_positive;
+        sign = luma_delta_positive > 0;
+    } else {
+        distance = distance_negative;
+        sign = luma_delta_negative > 0;
+    }
+    
+    if (sign == (luma.m - edge_luma >= 0)) {
+        return 0;
+    }
+    return 0.5f - distance / (distance_positive + distance_negative);
+}
+
+void main() {
+    const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    const vec2 texture_size_inv = 1.0f / textureSize(u_color, 0);
+    const vec2 uv = (vec2(coord) + 0.5f) * texture_size_inv;
+    const vec2 delta = texture_size_inv;
+    
+    const Luma luma = calculate_luma(uv, delta);
+    if (luma.contrast < max(EDGE_THRESHOLD_MIN, luma.max * EDGE_THRESHOLD_MAX)) {
+        imageStore(u_antialiased, coord, vec4(get_color(uv), 1.0f));
+        return;
+    }
+    
+    const float subpixel_blender_factor = get_subpixel_blend_factor(luma);
+    const Edge edge = calculate_edge(luma, delta);
+    const float edge_blend_factor = get_edge_blend_factor(luma, edge, uv, delta);
+    const float blend_factor = max(subpixel_blender_factor, edge_blend_factor);
+    
+    vec2 blend_uv = uv;
+    if (edge.is_horizontal) {
+        blend_uv.y += blend_factor * edge.step;
+    } else {
+        blend_uv.x += blend_factor * edge.step;
+    }
+    vec3 color = get_color(blend_uv);
+    imageStore(u_antialiased, coord, vec4(color, 1.0f));
+}
