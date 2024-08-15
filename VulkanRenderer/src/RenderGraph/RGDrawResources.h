@@ -73,6 +73,8 @@ namespace RG
     struct SceneLightResources
     {
         Resource DirectionalLight{};
+        Resource PointLights{};
+        Resource LightsInfo{};
     };
 
     struct DrawInitInfo

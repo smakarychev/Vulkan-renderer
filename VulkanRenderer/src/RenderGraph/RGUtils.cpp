@@ -127,6 +127,15 @@ namespace RG::RgUtils
         resources.DirectionalLight = graph.AddExternal("Light.Directional",
             light.GetBuffers().DirectionalLight);
         resources.DirectionalLight = graph.Read(resources.DirectionalLight, shaderStage | Uniform);
+
+        resources.LightsInfo = graph.AddExternal("Light.LightsInfo", light.GetBuffers().LightsInfo);
+        resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
+
+        if (light.GetPointLightCount() > 0)
+        {
+            resources.PointLights = graph.AddExternal("Light.PointLights", light.GetBuffers().PointLights);
+            resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
+        }
         
         return resources;
     }
@@ -210,8 +219,12 @@ namespace RG::RgUtils
         const SceneLightResources& lights)
     {
         const Buffer& directionalLight = resources.GetBuffer(lights.DirectionalLight);
+        const Buffer& pointLights = resources.GetBuffer(lights.PointLights);
+        const Buffer& lightsInfo = resources.GetBuffer(lights.LightsInfo);
 
         descriptors.UpdateBinding("u_directional_light", directionalLight.BindingInfo());
+        descriptors.UpdateBinding("u_point_lights", pointLights.BindingInfo());
+        descriptors.UpdateBinding("u_lights_info", lightsInfo.BindingInfo());
     }
 
     void updateIBLBindings(const ShaderDescriptors& descriptors, const Resources& resources, const IBLData& iblData)

@@ -20,8 +20,6 @@
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
-#include "RenderGraph/Passes/PBR/Translucency/PbrForwardTranslucentIBLPass.h"
-#include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
@@ -52,6 +50,15 @@ void Renderer::Init()
     m_Graph = std::make_unique<RG::Graph>();
 
     InitRenderGraph();
+
+    // todo: this is temp (almost the entire file is)
+    constexpr u32 POINT_LIGHT_COUNT = 4;
+    for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
+        m_SceneLights.AddPointLight({
+            .Position = Random::Float3(-1.0f, 1.0f),
+            .Color = Random::Float3(0.0f, 1.0f),
+            .Intensity = Random::Float(0.8f, 1.6f),
+            .Radius = 1.0});
 }
 
 void Renderer::InitRenderGraph()
@@ -335,9 +342,8 @@ void Renderer::Run()
 
         // todo: move to OnUpdate
         m_CameraController->OnUpdate(1.0f / 60.0f);
-        m_SceneLights.UpdateBuffers(*GetFrameContext().ResourceUploader);    
+        m_SceneLights.UpdateBuffers(GetFrameContext());    
 
-        
         OnRender();
     }
 }

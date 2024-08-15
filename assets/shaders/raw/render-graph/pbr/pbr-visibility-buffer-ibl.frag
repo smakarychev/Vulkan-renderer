@@ -41,38 +41,46 @@ layout(scalar, set = 1, binding = 7) uniform directional_light {
     DirectionalLight light;
 } u_directional_light;
 
-layout(std430, set = 1, binding = 8) readonly buffer command_buffer {
+layout(scalar, set = 1, binding = 8) buffer point_light {
+    PointLight lights[];
+} u_point_lights;
+
+layout(scalar, set = 1, binding = 9) uniform lights_info {
+    LightsInfo info;
+} u_lights_info;
+
+layout(std430, set = 1, binding = 10) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 9) readonly buffer objects_buffer {
+layout(std430, set = 1, binding = 11) readonly buffer objects_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 10) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 12) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 11) readonly buffer normals_buffer {
+layout(std430, set = 1, binding = 13) readonly buffer normals_buffer {
     Normal normals[];
 } u_normals;
 
-layout(std430, set = 1, binding = 12) readonly buffer tangents_buffer {
+layout(std430, set = 1, binding = 14) readonly buffer tangents_buffer {
     Tangent tangents[];
 } u_tangents;
 
-layout(std430, set = 1, binding = 13) readonly buffer uvs_buffer {
+layout(std430, set = 1, binding = 15) readonly buffer uvs_buffer {
     UV uvs[];
 } u_uv;
 
-layout(std430, set = 1, binding = 14) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 16) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
 
 // shadow-related descriptors
-layout(set = 1, binding = 15) uniform texture2DArray u_csm;
-layout(scalar, set = 1, binding = 16) uniform csm_data_buffer {
+layout(set = 1, binding = 17) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 18) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
@@ -318,6 +326,34 @@ vec3 shade_pbr_lights(ShadeInfo shade_info) {
         const vec3 specular = D * V * F;
 
         Lo += (specular + diffuse) * radiance * n_dot_l;
+    }
+    // calculate point lighs
+    {
+        for (uint i = 0; i < u_lights_info.info.point_light_count; i++) {
+            const PointLight light = u_point_lights.lights[i];
+            
+            vec3 light_dir = light.position - shade_info.position;
+            const float distance2 = dot(light_dir, light_dir);
+            const float falloff = pbr_falloff(distance2, light.radius);
+            light_dir = normalize(light_dir);
+            
+            const vec3 radiance = light.color * light.intensity * falloff;
+
+            const vec3 halfway_dir = normalize(light_dir + shade_info.view);
+
+            const float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
+            const float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
+            const float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
+
+            const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
+            const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
+            const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
+
+            const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
+            const vec3 specular = D * V * F;
+
+            Lo += (specular + diffuse) * radiance * n_dot_l;        
+        }
     }
     
     return Lo;
