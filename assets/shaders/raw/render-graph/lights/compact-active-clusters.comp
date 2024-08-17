@@ -55,6 +55,7 @@ void identify_active_clusters() {
     const uint cluster_index = get_cluster_index(coord, slice);
     u_cluster_visibility.visibility[cluster_index] = 1;
 }
+
 void compact_active_clusters() {
     const uint x = gl_GlobalInvocationID.x;
     const uint y = gl_GlobalInvocationID.y % LIGHT_CLUSTER_BINS_Y;
@@ -66,10 +67,19 @@ void compact_active_clusters() {
 
     const bool is_active = u_cluster_visibility.visibility[cluster_index] == 1;
     u_cluster_visibility.visibility[cluster_index] = 0;
-    if (is_active) {
-        const uint index = atomicAdd(u_count.count, 1);
-        u_active_clusters.clusters[index] = u_clusters.clusters[cluster_index];
-    }
+
+    const uvec4 is_active_ballot = subgroupBallot(is_active);
+    const uint total_active_count = subgroupBallotBitCount(is_active_ballot);
+
+    uint compacted_buffer_index_base;
+    if (subgroupElect())
+        compacted_buffer_index_base = atomicAdd(u_count.count, total_active_count);
+    compacted_buffer_index_base = subgroupBroadcastFirst(compacted_buffer_index_base);
+    const uint compacted_buffer_offset = subgroupBallotExclusiveBitCount(is_active_ballot);
+    const uint compacted_buffer_index = compacted_buffer_index_base + compacted_buffer_offset;
+
+    if (is_active) 
+        u_active_clusters.clusters[compacted_buffer_index] = u_clusters.clusters[cluster_index];
 }
 
 void main() {
