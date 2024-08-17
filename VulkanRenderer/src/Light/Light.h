@@ -26,3 +26,9 @@ struct LightsInfo
 {
     u32 PointLightCount;
 };
+
+struct LightCluster
+{
+    glm::vec4 Min;
+    glm::vec4 Max;
+};

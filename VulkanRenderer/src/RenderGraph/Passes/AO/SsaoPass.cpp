@@ -101,13 +101,13 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             }
             Samples& samples = graph.GetBlackboardValue<Samples>();
             
-            const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(depthIn);
             passData.NoiseTexture = graph.AddExternal(std::string{name} + ".NoiseTexture", samples.NoiseTexture);
             passData.Settings = graph.CreateResource(std::string{name} + ".Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
             passData.Camera = graph.CreateResource(std::string{name} + ".Camera", GraphBufferDescription{
                 .SizeBytes = sizeof(CameraUBO)});
             passData.Samples = graph.AddExternal(std::string{name} + ".Samples", samples.SamplesBuffer);
+            const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(depthIn);
             passData.SSAO = graph.CreateResource(std::string{name} + ".SSAO", GraphTextureDescription{
                 .Width = depthDescription.Width,
                 .Height = depthDescription.Height,
@@ -139,10 +139,10 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
                 *frameContext.ResourceUploader);
 
             CameraUBO camera = {
-                .Projection = frameContext.MainCamera->GetProjection(),
-                .ProjectionInverse = glm::inverse(frameContext.MainCamera->GetProjection()),
-                .Near = frameContext.MainCamera->GetFrustumPlanes().Near,
-                .Far = frameContext.MainCamera->GetFrustumPlanes().Far};
+                .Projection = frameContext.PrimaryCamera->GetProjection(),
+                .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection()),
+                .Near = frameContext.PrimaryCamera->GetFrustumPlanes().Near,
+                .Far = frameContext.PrimaryCamera->GetFrustumPlanes().Far};
             const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera, camera,
                 *frameContext.ResourceUploader);
 

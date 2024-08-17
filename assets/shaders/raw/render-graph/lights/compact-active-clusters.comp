@@ -1,0 +1,80 @@
+#version 460
+
+#include "common.glsl"
+
+#extension GL_EXT_samplerless_texture_functions: require
+#extension GL_KHR_shader_subgroup_ballot: enable
+#extension GL_EXT_scalar_block_layout: require
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(constant_id = 0) const bool IDENTIFY = false;
+layout(constant_id = 1) const bool COMPACT = false;
+
+@immutable_sampler
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_depth;
+
+layout(set = 1, binding = 1) readonly buffer clusters {
+    Cluster clusters[];
+} u_clusters;
+
+layout(set = 1, binding = 2) writeonly buffer active_clusters {
+    Cluster clusters[];
+} u_active_clusters;
+
+layout(set = 1, binding = 3) buffer cluster_visibility {
+    uint visibility[];  
+} u_cluster_visibility;
+
+layout(set = 1, binding = 4) buffer active_clusters_count {
+    uint count;
+} u_count;
+
+layout(push_constant) uniform push_constants {
+    float u_near;
+    float u_far;
+};
+
+uint get_cluster_index(uvec2 coord, uint slice) {  
+    const uvec2 cluster_size = uvec2(
+        textureSize(u_depth, 0) / uvec2(LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y));
+    const uvec3 indices = uvec3(coord / cluster_size, slice);
+    
+    return indices.x +
+        indices.y * LIGHT_CLUSTER_BINS_X +
+        indices.z * LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y;
+}
+
+void identify_active_clusters() {
+    const uvec2 coord = gl_GlobalInvocationID.xy;
+    const vec2 uv = (vec2(coord) + vec2(0.5f, 0.5f)) / textureSize(u_depth, 0);
+    const float depth = textureLod(sampler2D(u_depth, u_sampler), uv, 0).r;
+    const uint slice = slice_index(depth, u_near, u_far, LIGHT_CLUSTER_BINS_Z);
+
+    const uint cluster_index = get_cluster_index(coord, slice);
+    u_cluster_visibility.visibility[cluster_index] = 1;
+}
+void compact_active_clusters() {
+    const uint x = gl_GlobalInvocationID.x;
+    const uint y = gl_GlobalInvocationID.y % LIGHT_CLUSTER_BINS_Y;
+    const uint z = gl_GlobalInvocationID.y / LIGHT_CLUSTER_BINS_Y;
+    
+    const uint cluster_index = x + y * LIGHT_CLUSTER_BINS_X + z * LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y;
+    if (cluster_index >= LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z)
+        return;
+
+    const bool is_active = u_cluster_visibility.visibility[cluster_index] == 1;
+    u_cluster_visibility.visibility[cluster_index] = 0;
+    if (is_active) {
+        const uint index = atomicAdd(u_count.count, 1);
+        u_active_clusters.clusters[index] = u_clusters.clusters[cluster_index];
+    }
+}
+
+void main() {
+    if (IDENTIFY)
+        identify_active_clusters();
+    else if (COMPACT)
+        compact_active_clusters();
+}

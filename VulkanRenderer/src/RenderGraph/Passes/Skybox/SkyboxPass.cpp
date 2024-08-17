@@ -54,8 +54,8 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             const Texture& skyboxTexture = resources.GetTexture(passData.Skybox);
 
             ProjectionUBO projection = {
-                .ProjectionInverse = glm::inverse(frameContext.MainCamera->GetProjection()),
-                .ViewInverse = glm::inverse(frameContext.MainCamera->GetView())};
+                .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection()),
+                .ViewInverse = glm::inverse(frameContext.PrimaryCamera->GetView())};
             const Buffer projectionBuffer = resources.GetBuffer(passData.Projection, projection,
                 *frameContext.ResourceUploader);
 

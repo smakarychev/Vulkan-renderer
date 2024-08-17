@@ -18,3 +18,8 @@ struct PointLight {
 struct LightsInfo {
     uint point_light_count;
 };
+
+struct Cluster {
+    vec4 min;
+    vec4 max;
+};

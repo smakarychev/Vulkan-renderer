@@ -1,0 +1,60 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 1) in;
+
+layout(set = 1, binding = 0) writeonly buffer clusters {
+    Cluster clusters[];
+} u_clusters;
+
+layout(push_constant) uniform u_push_constants {
+    vec2 u_render_size; 
+    mat4 u_view_projection_inverse;
+    float u_near;
+    float u_far;
+};
+
+vec3 convert_to_view(vec4 screen) {
+    const vec2 ndc = screen.xy / u_render_size;
+    const vec4 clip = vec4((ndc - 0.5f) * 2.0f, screen.z, screen.w);
+    const vec4 view = u_view_projection_inverse * clip;
+    
+    return view.xyz / view.w;
+}
+
+float get_cascade_depth(uint z_index) {
+    return -u_near * pow(u_far / u_near, float(z_index) / float(gl_NumWorkGroups.z));
+}
+
+vec3 line_plane_intersection(vec3 dir, float z) {
+    return vec3(dir.xy * z / dir.z, z);
+}
+
+void main() { 
+    const uvec3 cluster_size = uvec3(vec3(u_render_size, u_far - u_near) / 
+        uvec3(LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z));
+    const uvec3 cluster = gl_GlobalInvocationID;
+    
+    // get min and max point in screen space at near plane
+    // the depth is 1, because of reverse-z
+    const vec4 min_screen = vec4(vec2(cluster.xy * cluster_size.xy), 1.0f, 1.0f);
+    const vec4 max_screen = vec4(vec2((cluster.xy + uvec2(1, 1)) * cluster_size.xy), 1.0f, 1.0f);
+    
+    const vec3 min_view = convert_to_view(min_screen);
+    const vec3 max_view = convert_to_view(max_screen);
+    
+    const float cluster_near = get_cascade_depth(gl_WorkGroupID.z);
+    const float cluster_far = get_cascade_depth(gl_WorkGroupID.z + 1);
+    
+    const vec3 min_near = line_plane_intersection(min_view, cluster_near);
+    const vec3 max_near = line_plane_intersection(max_view, cluster_near);
+    const vec3 min_far = line_plane_intersection(min_view, cluster_far);
+    const vec3 max_far = line_plane_intersection(max_view, cluster_far);
+    
+    const vec3 aabb_min = min(min(min_near, min_far), min(max_near, max_far));
+    const vec3 aabb_max = max(max(min_near, min_far), max(max_near, max_far));
+
+    u_clusters.clusters[gl_LocalInvocationIndex].min = vec4(aabb_min, 0.0);
+    u_clusters.clusters[gl_LocalInvocationIndex].max = vec4(aabb_max, 0.0);
+}

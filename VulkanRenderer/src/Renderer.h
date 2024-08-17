@@ -74,7 +74,7 @@ private:
     SceneGeometry m_GraphOpaqueGeometry;
     SceneGeometry m_GraphTranslucentGeometry;
 
-    SceneLight m_SceneLights{};
+    std::unique_ptr<SceneLight> m_SceneLights{};
     
     std::unique_ptr<RG::Graph> m_Graph;
     

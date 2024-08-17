@@ -641,9 +641,9 @@ namespace RG
         }
 
         // todo: the actual culling. Also this algorithm can be simplified if we account for non-cullable passes
-        for (u32 passIndex = 0; passIndex < passRefCount.size(); passIndex++)
-            if (passRefCount[passIndex] == 0 && m_RenderPasses[passIndex]->m_CanBeCulled)
-                LOG("TO BE CULLED: {}", m_RenderPasses[passIndex]->m_Name.m_Name);
+        //for (u32 passIndex = 0; passIndex < passRefCount.size(); passIndex++)
+        //    if (passRefCount[passIndex] == 0 && m_RenderPasses[passIndex]->m_CanBeCulled)
+        //        LOG("TO BE CULLED: {}", m_RenderPasses[passIndex]->m_Name.m_Name);
     }
 
     // todo: use for barriers

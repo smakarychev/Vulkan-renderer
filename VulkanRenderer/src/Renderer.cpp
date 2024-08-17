@@ -19,6 +19,9 @@
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
+#include "RenderGraph/Passes/Lights/LightClustersCompactPass.h"
+#include "RenderGraph/Passes/Lights/LightClustersSetupPass.h"
+#include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
@@ -45,16 +48,17 @@ void Renderer::Init()
     m_Camera = std::make_shared<Camera>(CameraType::Perspective);
     m_CameraController = std::make_unique<CameraController>(m_Camera);
     for (auto& ctx : m_FrameContexts)
-        ctx.MainCamera = m_Camera.get();
+        ctx.PrimaryCamera = m_Camera.get();
 
     m_Graph = std::make_unique<RG::Graph>();
 
     InitRenderGraph();
 
     // todo: this is temp (almost the entire file is)
+    m_SceneLights = std::make_unique<SceneLight>();
     constexpr u32 POINT_LIGHT_COUNT = 4;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
-        m_SceneLights.AddPointLight({
+        m_SceneLights->AddPointLight({
             .Position = Random::Float3(-1.0f, 1.0f),
             .Color = Random::Float3(0.0f, 1.0f),
             .Intensity = Random::Float(0.8f, 1.6f),
@@ -73,7 +77,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.RegisterModel(plane, "plane");
 
-    m_GraphModelCollection.AddModelInstance("helmet", {
+    m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
             .Scale = glm::vec3{1.0f}}});
@@ -198,8 +202,22 @@ void Renderer::SetupRenderGraph()
     auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
         .Geometry = &m_GraphOpaqueGeometry,
         .Resolution = m_Swapchain.GetResolution(),
-        .Camera = GetFrameContext().MainCamera});
+        .Camera = GetFrameContext().PrimaryCamera});
     auto& visibilityOutput = m_Graph->GetBlackboard().Get<Passes::Draw::Visibility::PassData>(visibility);
+
+    auto& lightClustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
+    auto& lightClustersSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersSetup::PassData>(
+        lightClustersSetup);
+    auto& lightClustersCompact = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
+        lightClustersSetupOutput.Clusters, visibilityOutput.DepthOut);
+    auto& lightClustersCompactOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersCompact::PassData>(
+        lightClustersCompact);
+    
+    auto& lightClustersVisualize = Passes::LightClustersVisualize::addToGraph("Clusters.Visualize", *m_Graph,
+        visibilityOutput.DepthOut);
+    auto& lightClustersVisualizeOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersVisualize::PassData>(
+        lightClustersVisualize);
+    Passes::ImGuiTexture::addToGraph("LightClusters.Texture", *m_Graph, lightClustersVisualizeOutput.ColorOut);
     
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
@@ -218,7 +236,7 @@ void Renderer::SetupRenderGraph()
     auto& ssaoVisualizeOutput = m_Graph->GetBlackboard().Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
 
     // todo: should not be here obv
-    DirectionalLight directionalLight = m_SceneLights.GetDirectionalLight();
+    DirectionalLight directionalLight = m_SceneLights->GetDirectionalLight();
     ImGui::Begin("Directional Light");
     ImGui::DragFloat3("Direction", &directionalLight.Direction[0], 1e-2f, -1.0f, 1.0f);
     ImGui::ColorPicker3("Color", &directionalLight.Color[0]);
@@ -227,7 +245,7 @@ void Renderer::SetupRenderGraph()
     ImGui::End();
     directionalLight.Direction = glm::normalize(directionalLight.Direction);
 
-    m_SceneLights.SetDirectionalLight(directionalLight);
+    m_SceneLights->SetDirectionalLight(directionalLight);
 
     static bool useDepthReduction = false;
     static bool stabilizeCascades = false;
@@ -240,7 +258,7 @@ void Renderer::SetupRenderGraph()
     if (visibilityOutput.MinMaxDepth.IsValid() && useDepthReduction)
     {
         auto& minMaxDepthReadback = Passes::DepthReductionReadback::addToGraph("Visibility.Readback.Depth", *m_Graph,
-        visibilityOutput.PreviousMinMaxDepth, GetFrameContext().MainCamera);
+        visibilityOutput.PreviousMinMaxDepth, GetFrameContext().PrimaryCamera);
         auto& minMaxDepthReadbackOutput = m_Graph->GetBlackboard().Get<Passes::DepthReductionReadback::PassData>(
             minMaxDepthReadback);
         shadowMin = minMaxDepthReadbackOutput.Min;
@@ -249,7 +267,7 @@ void Renderer::SetupRenderGraph()
     auto& csm = Passes::CSM::addToGraph("CSM", *m_Graph, {
         .Geometry = &m_GraphOpaqueGeometry,
         .MainCamera = m_Camera.get(),
-        .DirectionalLight = &m_SceneLights.GetDirectionalLight(),
+        .DirectionalLight = &m_SceneLights->GetDirectionalLight(),
         .ShadowMin = shadowMin,
         .ShadowMax = shadowMax,
         .StabilizeCascades = stabilizeCascades,
@@ -259,7 +277,7 @@ void Renderer::SetupRenderGraph()
     auto& pbr = Passes::Pbr::VisibilityIbl::addToGraph("Pbr.Visibility.Ibl", *m_Graph, {
         .VisibilityTexture = visibilityOutput.ColorOut,
         .ColorIn = {},
-        .SceneLights = &m_SceneLights,
+        .SceneLights = m_SceneLights.get(),
         .IBL = {
             .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
@@ -284,7 +302,7 @@ void Renderer::SetupRenderGraph()
         /*Passes::Pbr::ForwardTranslucentIbl::addToGraph("Pbr.Translucent.Ibl", *m_Graph, {
             .Geometry = m_GraphTranslucentGeometry,
             .Resolution = m_Swapchain.GetResolution(),
-            .Camera = GetFrameContext().MainCamera,
+            .Camera = GetFrameContext().PrimaryCamera,
             .ColorIn = renderedColor,
             .DepthIn = renderedDepth,
             .SceneLights = &m_SceneLights,
@@ -342,7 +360,7 @@ void Renderer::Run()
 
         // todo: move to OnUpdate
         m_CameraController->OnUpdate(1.0f / 60.0f);
-        m_SceneLights.UpdateBuffers(GetFrameContext());    
+        m_SceneLights->UpdateBuffers(GetFrameContext());    
 
         OnRender();
     }
@@ -547,6 +565,7 @@ void Renderer::Shutdown()
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
 
+    m_SceneLights.reset();
     m_Graph.reset();
     m_ResourceUploader.Shutdown();
     ShaderCache::Shutdown();
