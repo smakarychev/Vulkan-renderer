@@ -150,7 +150,10 @@ void ResourceUploader::ManageLifeTime()
     }
 
     auto it = std::ranges::remove_if(m_StageBuffers,
-        [](const auto& stageBufferInfo) { return stageBufferInfo.LifeTime > MAX_PIPELINE_DESCRIPTOR_SETS; }).begin();
+        [](const auto& stageBufferInfo)
+        {
+            return stageBufferInfo.LifeTime > STAGING_BUFFER_MAX_IDLE_LIFE_TIME_FRAMES;
+        }).begin();
 
     for (auto toDelete = it; toDelete != m_StageBuffers.end(); toDelete++)
         Buffer::Destroy(toDelete->Buffer);
