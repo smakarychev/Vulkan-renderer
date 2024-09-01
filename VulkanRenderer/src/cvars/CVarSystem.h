@@ -13,12 +13,12 @@ enum class CVarFlags : u32
     None = 0,
 };
 
-class CVarSystem
+class CVars
 {
 public:
-    virtual ~CVarSystem() = default;
+    virtual ~CVars() = default;
     
-    static CVarSystem& Get();
+    static CVars& Get();
 
     virtual CVarParameter* GetCVar(Utils::HashedString name) = 0;
     

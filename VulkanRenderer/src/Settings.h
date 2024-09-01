@@ -4,6 +4,11 @@
 
 // todo: should be read as CVARs from config
 
+namespace Settings
+{
+    void initCvars();
+}
+
 static constexpr u32 BUFFERED_FRAMES = 2;
 
 static constexpr u32 MAX_CULL_VIEWS = 64;
