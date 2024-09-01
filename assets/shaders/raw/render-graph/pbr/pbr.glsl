@@ -43,7 +43,7 @@ vec3 fresnel_schlick_roughness(float cos_theta, vec3 F0, float roughness) {
 
 float pbr_falloff(float distance2, float light_radius) {
     const float distance2_over_radius2 = distance2 / (light_radius * light_radius);
-    const float nom = 1.0f - distance2_over_radius2 * distance2_over_radius2;
+    const float nom = clamp(1.0f - distance2_over_radius2 * distance2_over_radius2, 0.0f, 1.0f);
     
-    return clamp(nom * nom, 0.0f, 1.0f) / (distance2 + 1.0f);
+    return nom * nom / (distance2 + 1.0f);
 }

@@ -35,15 +35,6 @@ RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::
 
             auto* multiview = passData.MultiviewResource;
 
-            if (stage == CullStage::Reocclusion)
-                for (u32 i = 0; i < multiview->ViewCount; i++)
-                    resources.GetBuffer(multiview->CompactCommandCountReocclusion, 0u, i * sizeof(u32),
-                        *frameContext.ResourceUploader);
-            else
-                for (u32 i = 0; i < multiview->ViewCount + multiview->GeometryCount; i++)
-                    resources.GetBuffer(multiview->CompactCommandCount, 0u, i * sizeof(u32),
-                        *frameContext.ResourceUploader);
-
             Sampler hizSampler = multiview->HiZSampler;
             
             const Shader& shader = resources.GetGraph()->GetShader();

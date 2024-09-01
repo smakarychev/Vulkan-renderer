@@ -192,7 +192,7 @@ float pcss_sample_shadow(vec3 position, vec3 uvz, vec3 normal, float light_size_
 
 float get_oriented_bias(vec3 normal, vec3 light_direction) {
     // see FFXVIShadowTechPaper (Shadow Techniques from Final Fantasy XVI)
-    const float bias = 0.01f;
+    const float bias = 0.1f;
     bool is_facing_light = dot(normal, light_direction) > 0;
     
     return is_facing_light ? -bias : bias;

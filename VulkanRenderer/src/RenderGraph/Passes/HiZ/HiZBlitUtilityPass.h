@@ -48,8 +48,10 @@ namespace Passes::HiZBlit
                 {
                     passData.MinMaxDepth = graph.AddExternal(std::format("{}.MinMaxDepth", name),
                         ctx.GetMinMaxDepthBuffer());
-                    passData.MinMaxDepth = graph.Read(passData.MinMaxDepth, Compute | Storage | Upload);
+                    passData.MinMaxDepth = graph.Read(passData.MinMaxDepth, Compute | Storage);
                     passData.MinMaxDepth = graph.Write(passData.MinMaxDepth, Compute | Storage);
+
+                    graph.Upload(passData.MinMaxDepth, MinMaxDepth{});
                 }
                 
                 passData.DepthIn = graph.Read(depthIn, Compute | Sampled);
@@ -85,8 +87,7 @@ namespace Passes::HiZBlit
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[0]));
                 if (minMaxDepth)
                     resourceDescriptors.UpdateBinding("u_min_max",
-                        resources.GetBuffer(
-                            passData.MinMaxDepth, MinMaxDepth{}, *frameContext.ResourceUploader).BindingInfo());
+                        resources.GetBuffer(passData.MinMaxDepth).BindingInfo());
                 
                 glm::uvec2 levels = {width, height};
                 pipeline.BindCompute(frameContext.Cmd);

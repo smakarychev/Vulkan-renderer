@@ -7,6 +7,7 @@
 #include <unordered_set>
 
 #include "Renderer.h"
+#include "RGResourceUploader.h"
 #include "Rendering/ShaderCache.h"
 #include "Rendering/Synchronization.h"
 #include "Vulkan/RenderCommand.h"
@@ -356,17 +357,20 @@ namespace RG
     void Graph::Execute(FrameContext& frameContext)
     {
         OnCmdBegin(frameContext);
-        
+
         Resources resources = {*this};
         for (auto& pass : m_RenderPasses)
         {
             m_CurrentPassesStack.push_back(pass.get());
+
+            /* submit everything gathered at `setup` stage */
+            SubmitPassUploads(frameContext);
             
             for (auto& barrier : pass->m_Barriers)
                 RenderCommand::WaitOnBarrier(frameContext.Cmd, barrier);
             for (auto& splitWait : pass->m_SplitBarriersToWait)
                 RenderCommand::WaitOnSplitBarrier(frameContext.Cmd, splitWait.Barrier, splitWait.Dependency);
-
+            
             if (pass->m_IsRasterizationPass)
             {
                 glm::uvec2 resolution = pass->m_RenderTargetAttachmentAccess.empty() ?
@@ -467,10 +471,31 @@ namespace RG
         GetArenaAllocators().Bind(frameContext.Cmd, frameContext.FrameNumber);
     }
 
-    void Graph::OnCmdEnd(FrameContext& frameContext) const
+    void Graph::OnCmdEnd(FrameContext& frameContext)
     {
+        SubmitPassUploads(frameContext);
+    }
+
+    void Graph::SubmitPassUploads(FrameContext& frameContext)
+    {
+        /* avoid barriers if there is no data to upload */
+        if (!m_ResourceUploader.HasUploads(CurrentPass()))
+            return;
+
+        RenderCommand::WaitOnBarrier(frameContext.Cmd, DependencyInfo::Builder()
+            .ExecutionDependency({
+                .SourceStage = PipelineStage::AllCommands,
+                .DestinationStage = PipelineStage::AllTransfer})
+            .Build(frameContext.DeletionQueue));
+        m_ResourceUploader.Upload(CurrentPass(), Resources{*this}, *frameContext.ResourceUploader);
         frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
-        frameContext.ResourceUploader->StartRecording();
+        RenderCommand::WaitOnBarrier(frameContext.Cmd, DependencyInfo::Builder()
+            .MemoryDependency({
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllCommands,
+                .SourceAccess = PipelineAccess::WriteAll,
+                .DestinationAccess = PipelineAccess::ReadAll})
+            .Build(frameContext.DeletionQueue));
     }
 
     void Graph::SetShader(std::string_view path) const
@@ -507,10 +532,7 @@ namespace RG
     {
         CPU_PROFILE_FRAME("RenderGraph.Preprocess")
         for (auto& buffer : m_Buffers)
-        {
-            if (!enumHasAny(buffer.m_Description.Usage, BufferUsage::Upload))
-                buffer.m_Description.Usage |= BufferUsage::Destination;
-        }
+            buffer.m_Description.Usage |= BufferUsage::Destination;
     }
 
     void Graph::CullPasses()
@@ -1318,11 +1340,6 @@ namespace RG
                     .Usage = BufferUsage::Source}
             },
             {
-                ResourceAccessFlags::Upload,
-                ResourceSubAccess{
-                    .Usage = BufferUsage::Upload}
-            },
-            {
                 ResourceAccessFlags::Readback,
                 ResourceSubAccess{
                     .Stage = PipelineStage::Host,
@@ -1354,7 +1371,7 @@ namespace RG
             ResourceAccessFlags::Attribute |
             ResourceAccessFlags::Index | ResourceAccessFlags::Indirect | ResourceAccessFlags::Conditional |
             ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform |
-            ResourceAccessFlags::Upload | ResourceAccessFlags::Readback),
+            ResourceAccessFlags::Readback),
             "Image read has inappropriate flags")
         ASSERT(
             enumHasAny(readFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
@@ -1488,13 +1505,6 @@ namespace RG
                     .Access = PipelineAccess::WriteTransfer,
                     .Usage = BufferUsage::Destination}
             },
-            {
-                ResourceAccessFlags::Upload,
-                ResourceSubAccess{
-                    .Stage = PipelineStage::Host,
-                    .Access = PipelineAccess::WriteHost,
-                    .Usage = BufferUsage::Upload}
-            },
         }; 
         
         PipelineStage stage = PipelineStage::None;
@@ -1520,8 +1530,7 @@ namespace RG
         ASSERT(!enumHasAny(writeFlags,
            ResourceAccessFlags::Attribute |
            ResourceAccessFlags::Index | ResourceAccessFlags::Indirect | ResourceAccessFlags::Conditional |
-           ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform |
-           ResourceAccessFlags::Upload),
+           ResourceAccessFlags::Attribute | ResourceAccessFlags::Uniform),
            "Image write has inappropriate flags")
        ASSERT(
            enumHasAny(writeFlags, ResourceAccessFlags::Blit | ResourceAccessFlags::Copy) ||
@@ -1664,33 +1673,21 @@ namespace RG
         return m_CurrentPassesStack.back();
     }
 
+    bool Resources::IsAllocated(Resource resource) const
+    {
+        if (!resource.IsValid())
+            return false;
+
+        return resource.IsBuffer() ?
+            m_Graph->m_Buffers[resource.Index()].m_Resource != nullptr :
+            m_Graph->m_Textures[resource.Index()].m_Resource != nullptr;
+    }
+
     const Buffer& Resources::GetBuffer(Resource resource) const
     {
         ASSERT(resource.IsBuffer(), "Provided resource handle is not a buffer")
 
         return *m_Graph->m_Buffers[resource.Index()].m_Resource;
-    }
-
-    const Buffer& Resources::GetBuffer(Resource resource, const void* data, u64 sizeBytes,
-        ResourceUploader& resourceUploader) const
-    {
-        return GetBuffer(resource, data, sizeBytes, 0, resourceUploader);
-    }
-
-    const Buffer& Resources::GetBuffer(Resource resource, const void* data, u64 sizeBytes, u64 offset,
-        ResourceUploader& resourceUploader) const
-    {
-        ASSERT(resource.IsBuffer(), "Provided resource handle is not a buffer")
-
-        GraphBuffer& bufferResource = m_Graph->m_Buffers[resource.Index()];
-        ASSERT(bufferResource.m_IsExternal || enumHasAny(bufferResource.m_Description.Usage, BufferUsage::Upload),
-            "GetBuffer with resource upload can be used only on external buffers, "
-            "or buffers created with 'Upload' usage")
-        
-        Buffer& buffer = const_cast<Buffer&>(GetBuffer(resource));
-        resourceUploader.UpdateBuffer(buffer, data, sizeBytes, offset);
-
-        return buffer;
     }
 
     const Texture& Resources::GetTexture(Resource resource) const

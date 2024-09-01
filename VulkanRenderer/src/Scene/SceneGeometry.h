@@ -103,17 +103,10 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
     InitBuffers(sceneGeometry, countsInfo);
     sceneGeometry.m_AttributeBuffers = InitAttributeBuffers(countsInfo);
 
-    u32 mappedCommandsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_Commands.GetSizeBytes());
-    IndirectDrawCommand* commands = (IndirectDrawCommand*)resourceUploader.GetMappedAddress(mappedCommandsBuffer);
-
-    u32 mappedMeshletsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_Meshlets.GetSizeBytes());
-    MeshletGPU* meshletsGPU = (MeshletGPU*)resourceUploader.GetMappedAddress(mappedMeshletsBuffer);
-
-    u32 mappedMaterialsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_Materials.GetSizeBytes());
-    MaterialGPU* materialsGPU = (MaterialGPU*)resourceUploader.GetMappedAddress(mappedMaterialsBuffer);
-
-    u32 mappedObjectsBuffer = resourceUploader.GetMappedBuffer(sceneGeometry.m_RenderObjects.GetSizeBytes());
-    RenderObjectGPU* renderObjectsGPU = (RenderObjectGPU*)resourceUploader.GetMappedAddress(mappedObjectsBuffer);
+    IndirectDrawCommand* commands = resourceUploader.MapBuffer<IndirectDrawCommand>(sceneGeometry.m_Commands);
+    MeshletGPU* meshletsGPU = resourceUploader.MapBuffer<MeshletGPU>(sceneGeometry.m_Meshlets);
+    MaterialGPU* materialsGPU = resourceUploader.MapBuffer<MaterialGPU>(sceneGeometry.m_Materials);
+    RenderObjectGPU* renderObjectsGPU = resourceUploader.MapBuffer<RenderObjectGPU>(sceneGeometry.m_RenderObjects);
 
     u64 verticesOffset = 0;
     u64 indicesOffset = 0;
@@ -126,20 +119,15 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
     {
         u64 verticesSize = mesh.GetPositions().size();
         u64 indicesSize = mesh.GetIndices().size();
-        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Positions, mesh.GetPositions().data(),
-            verticesSize * sizeof(glm::vec3),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Positions, mesh.GetPositions(),
             verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Normals, mesh.GetNormals().data(),
-            verticesSize * sizeof(glm::vec3),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Normals, mesh.GetNormals(),
             verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Tangents, mesh.GetTangents().data(),
-            verticesSize * sizeof(glm::vec3),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Tangents, mesh.GetTangents(),
             verticesOffset * sizeof(glm::vec3));
-        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.UVs, mesh.GetUVs().data(),
-            verticesSize * sizeof(glm::vec2),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.UVs, mesh.GetUVs(),
             verticesOffset * sizeof(glm::vec2));
-        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Indices, mesh.GetIndices().data(),
-            indicesSize * sizeof(assetLib::ModelInfo::IndexType),
+        resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Indices, mesh.GetIndices(),
             indicesOffset * sizeof(assetLib::ModelInfo::IndexType));
 
         verticesOffsets[meshIndex] = verticesOffset;
@@ -191,11 +179,6 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
 
     modelCollection.FilterMeshes(filter, meshCallback);
     modelCollection.FilterRenderObjects(filter, renderObjectCallback);
-
-    resourceUploader.UpdateBuffer(sceneGeometry.m_Commands, mappedCommandsBuffer, 0);
-    resourceUploader.UpdateBuffer(sceneGeometry.m_Meshlets, mappedMeshletsBuffer, 0);
-    resourceUploader.UpdateBuffer(sceneGeometry.m_RenderObjects, mappedObjectsBuffer, 0);
-    resourceUploader.UpdateBuffer(sceneGeometry.m_Materials, mappedMaterialsBuffer, 0);
 
     return sceneGeometry;
 }

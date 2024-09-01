@@ -3,13 +3,16 @@
 #include "RGResource.h"
 #include "Rendering/Shader.h"
 
+class Camera;
 class CommandBuffer;
 
 namespace RG
 {
     struct GlobalResources
     {
-        Resource MainCameraGPU{};
+        u64 FrameNumberTick{0};
+        const Camera* PrimaryCamera{nullptr}; 
+        Resource PrimaryCameraGPU{};
         Resource ShadingSettings{};
     };
     

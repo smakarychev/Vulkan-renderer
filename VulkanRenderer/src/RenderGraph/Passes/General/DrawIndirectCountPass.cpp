@@ -36,7 +36,9 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
             
             passData.Camera = graph.CreateResource(
                 std::string{name} + ".Camera", GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
-            passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform | Upload);
+            passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform);
+            CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
+            graph.Upload(passData.Camera, cameraGPU);
 
             passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, std::string{name}, Vertex);
 
@@ -70,9 +72,7 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
 
             using enum DrawFeatures;
 
-            CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
-            const Buffer& camera = resources.GetBuffer(passData.Camera, cameraGPU,
-               *frameContext.ResourceUploader);
+            const Buffer& camera = resources.GetBuffer(passData.Camera);
             const Buffer& objects = resources.GetBuffer(passData.Objects);
             const Buffer& commandsDraw = resources.GetBuffer(passData.Commands);
             const Buffer& countDraw = resources.GetBuffer(passData.Count);

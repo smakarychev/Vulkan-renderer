@@ -97,8 +97,9 @@ namespace
                 passData.ClustersVisibility = graph.Read(clusterVisibility, Compute | Storage);
                 passData.ClustersVisibility = graph.Write(clusterVisibility, Compute | Storage);
                 passData.ActiveClusters = graph.Write(passData.ActiveClusters, Compute | Storage);
-                passData.ActiveClustersCount = graph.Read(passData.ActiveClustersCount, Compute | Storage | Upload);
+                passData.ActiveClustersCount = graph.Read(passData.ActiveClustersCount, Compute | Storage);
                 passData.ActiveClustersCount = graph.Write(passData.ActiveClustersCount, Compute | Storage);
+                graph.Upload(passData.ActiveClustersCount, 0);
 
                 graph.UpdateBlackboard(passData);
             },
@@ -117,7 +118,7 @@ namespace
                 resourceDescriptors.UpdateBinding("u_active_clusters", resources.GetBuffer(
                     passData.ActiveClusters).BindingInfo());
                 resourceDescriptors.UpdateBinding("u_count", resources.GetBuffer(
-                    passData.ActiveClustersCount, 0, *frameContext.ResourceUploader).BindingInfo());
+                    passData.ActiveClustersCount).BindingInfo());
 
                 auto& cmd = frameContext.Cmd;
                 pipeline.BindCompute(cmd);

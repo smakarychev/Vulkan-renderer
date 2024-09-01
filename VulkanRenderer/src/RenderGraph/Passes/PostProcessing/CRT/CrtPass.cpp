@@ -34,13 +34,25 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             passData.ColorOut = graph.RenderTarget(colorTarget,
                 AttachmentLoad::Load, AttachmentStore::Store);
 
+            auto& globalResources = graph.GetGlobalResources();
+            
             passData.Time = graph.CreateResource("CRT.Time", GraphBufferDescription{
                 .SizeBytes = sizeof(f32)});
-            passData.Time = graph.Read(passData.Time, Pixel | Uniform | Upload);
+            passData.Time = graph.Read(passData.Time, Pixel | Uniform);
+            graph.Upload(passData.Time, (f32)globalResources.FrameNumberTick);
 
             passData.Settings = graph.CreateResource("CRT.Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Settings = graph.Read(passData.Settings, Pixel | Uniform | Upload);
+            passData.Settings = graph.Read(passData.Settings, Pixel | Uniform);
+            auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
+            ImGui::Begin("CRT settings");
+            ImGui::DragFloat("curvature", &settings.Curvature, 1e-2f, 0.0f, 10.0f);            
+            ImGui::DragFloat("color split", &settings.ColorSplit, 1e-4f, 0.0f, 0.5f);            
+            ImGui::DragFloat("lines multiplier", &settings.LinesMultiplier, 1e-1f, 0.0f, 10.0f);            
+            ImGui::DragFloat("vignette power", &settings.VignettePower, 1e-2f, 0.0f, 5.0f);            
+            ImGui::DragFloat("vignette clear radius", &settings.VignetteRadius, 1e-3f, 0.0f, 1.0f);            
+            ImGui::End();
+            graph.Upload(passData.Settings, settings);
 
             graph.UpdateBlackboard(passData);
         },
@@ -50,19 +62,9 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             GPU_PROFILE_FRAME("CRT")
             
             const Texture& colorInTexture = resources.GetTexture(passData.ColorIn);
-            const Buffer& time = resources.GetBuffer(passData.Time, (f32)frameContext.FrameNumberTick,
-                *frameContext.ResourceUploader);
+            const Buffer& time = resources.GetBuffer(passData.Time);
             
-            auto& settings = resources.GetOrCreateValue<SettingsUBO>();
-            ImGui::Begin("CRT settings");
-            ImGui::DragFloat("curvature", &settings.Curvature, 1e-2f, 0.0f, 10.0f);            
-            ImGui::DragFloat("color split", &settings.ColorSplit, 1e-4f, 0.0f, 0.5f);            
-            ImGui::DragFloat("lines multiplier", &settings.LinesMultiplier, 1e-1f, 0.0f, 10.0f);            
-            ImGui::DragFloat("vignette power", &settings.VignettePower, 1e-2f, 0.0f, 5.0f);            
-            ImGui::DragFloat("vignette clear radius", &settings.VignetteRadius, 1e-3f, 0.0f, 1.0f);            
-            ImGui::End();
-            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings, settings,
-                *frameContext.ResourceUploader);
+            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline(); 

@@ -7,7 +7,6 @@
 
 #extension GL_EXT_nonuniform_qualifier: require
 #extension GL_EXT_samplerless_texture_functions: require
-#extension GL_EXT_scalar_block_layout: require
 
 layout(constant_id = 0) const float MAX_REFLECTION_LOD = 5.0f;
 
@@ -41,7 +40,7 @@ layout(scalar, set = 1, binding = 7) uniform directional_light {
     DirectionalLight light;
 } u_directional_light;
 
-layout(scalar, set = 1, binding = 8) buffer point_light {
+layout(scalar, set = 1, binding = 8) readonly buffer point_light {
     PointLight lights[];
 } u_point_lights;
 
@@ -303,7 +302,7 @@ mat3 interpolate_with_derivatives_3d(InterpolationData interpolation, mat3 attri
     return mat3(vec3(ax, ay, az), vec3(addxx, addxy, addxz), vec3(addyx, addyy, addyz));
 }
 
-vec3 shade_pbr_lights(ShadeInfo shade_info) {
+vec3 shade_pbr_lights(ShadeInfo shade_info, float directional_shadow) {
 
     vec3 Lo = vec3(0.0f);
     
@@ -325,7 +324,7 @@ vec3 shade_pbr_lights(ShadeInfo shade_info) {
         const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
         const vec3 specular = D * V * F;
 
-        Lo += (specular + diffuse) * radiance * n_dot_l;
+        Lo += (specular + diffuse) * radiance * n_dot_l * (1.0f - directional_shadow);
     }
     // calculate point lighs
     {
@@ -378,11 +377,11 @@ vec3 shade_pbr_ibl(ShadeInfo shade_info) {
 
 vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     vec3 Lo = vec3(0.0f);
-    Lo = shade_pbr_lights(shade_info);
+    Lo = shade_pbr_lights(shade_info, shadow);
 
     vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
     
-    vec3 color = Lo * (1.0 - shadow) + ambient;
+    vec3 color = Lo + ambient;
     
     return color * ao;
 }

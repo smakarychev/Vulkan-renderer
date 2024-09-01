@@ -4,7 +4,7 @@
 
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
-#include <vma/vk_mem_alloc.h>
+#include "vk_mem_alloc.h"
 #include <imgui/imgui_impl_vulkan.h>
 
 #include "ResourceUploader.h"
@@ -19,8 +19,10 @@
 
 namespace
 {
-    static_assert(ImageSubresourceDescription::ALL_MIPMAPS == VK_REMAINING_MIP_LEVELS, "Incorrect value for `ALL_MIPMAPS`");
-    static_assert(ImageSubresourceDescription::ALL_LAYERS == VK_REMAINING_ARRAY_LAYERS, "Incorrect value for `ALL_LAYERS`");
+    static_assert(ImageSubresourceDescription::ALL_MIPMAPS == VK_REMAINING_MIP_LEVELS,
+        "Incorrect value for `ALL_MIPMAPS`");
+    static_assert(ImageSubresourceDescription::ALL_LAYERS == VK_REMAINING_ARRAY_LAYERS,
+        "Incorrect value for `ALL_LAYERS`");
     static_assert(Sampler::LOD_MAX == VK_LOD_CLAMP_NONE, "Incorrect value for `LOD_MAX`");
     
     constexpr VkFormat vulkanFormatFromFormat(Format format)
@@ -956,9 +958,9 @@ void Driver::Destroy(ResourceHandleType<CommandPool> commandPool)
 Buffer Driver::Create(const Buffer::Builder::CreateInfo& createInfo)
 {
     VmaAllocationCreateFlags flags = 0;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Upload))
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::UploadRandomAccess | BufferUsage::Readback))
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::MappableRandomAccess))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 
     if (createInfo.CreateMapped)
@@ -999,11 +1001,7 @@ void Driver::UnmapBuffer(const Buffer& buffer)
 void Driver::SetBufferData(Buffer& buffer, const void* data, u64 dataSizeBytes, u64 offsetBytes)
 {
     const DriverResources::BufferResource& resource = Resources()[buffer];
-    void* mappedData = nullptr;
-    vmaMapMemory(Allocator(), resource.Allocation, &mappedData);
-    mappedData = (void*)((u8*)mappedData + offsetBytes);
-    std::memcpy(mappedData, data, dataSizeBytes);
-    vmaUnmapMemory(Allocator(), resource.Allocation);
+    vmaCopyMemoryToAllocation(Allocator(), data, resource.Allocation, offsetBytes, dataSizeBytes);
 }
 
 void Driver::SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBytes, u64 offsetBytes)

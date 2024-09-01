@@ -19,8 +19,7 @@ CullViewVisibility::CullViewVisibility(const SceneGeometry& geometry)
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
         m_CompactCount[i] = Buffer::Builder({
                 .SizeBytes = sizeof(u32),
-                .Usage = BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::DeviceAddress |
-                    BufferUsage::Upload | BufferUsage::Readback})
+                .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Readback})
             .Build();
 }
 

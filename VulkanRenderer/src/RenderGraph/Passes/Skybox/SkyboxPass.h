@@ -14,7 +14,8 @@ namespace Passes::Skybox
         RG::Resource DepthOut{};
         RG::Resource ColorOut{};
         RG::Resource Projection{};
-
+        RG::Resource ShadingSettings{};
+        
         f32 LodBias{0.0f};
     };
     

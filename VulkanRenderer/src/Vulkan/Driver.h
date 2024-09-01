@@ -11,7 +11,7 @@
 #include "Rendering/Swapchain.h"
 #include "Rendering/Synchronization.h"
 
-#include <vma/vk_mem_alloc.h>
+#include "vk_mem_alloc.h"
 #include <functional>
 
 #include <volk.h>

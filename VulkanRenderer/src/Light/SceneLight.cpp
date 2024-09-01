@@ -1,8 +1,32 @@
 #include "SceneLight.h"
 
+#include <numeric>
+
 #include "FrameContext.h"
 #include "ResourceUploader.h"
 #include "Vulkan/RenderCommand.h"
+
+namespace
+{
+    Buffer resizeLightBuffer(u64 newSizeBytes, Buffer& old, FrameContext& ctx, bool copyOld)
+    {
+        Buffer newBuffer = Buffer::Builder({
+                .SizeBytes = std::max(newSizeBytes, old.GetSizeBytes()),
+                .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Storage})
+            .CreateMapped()
+            .BuildManualLifetime();
+
+        ctx.DeletionQueue.Enqueue(old);
+        
+        if (copyOld)
+            RenderCommand::CopyBuffer(ctx.Cmd, old, newBuffer, {
+                .SizeBytes = old.GetSizeBytes(),
+                .SourceOffset = 0,
+                .DestinationOffset = 0});
+
+        return newBuffer;
+    }
+}
 
 SceneLight::SceneLight()
 {
@@ -13,6 +37,8 @@ SceneLight::~SceneLight()
 {
     if (m_BufferedPointLightCount != 0)
         Buffer::Destroy(m_Buffers.PointLights);
+    if (m_BufferedVisiblePointLightCount != 0)
+        Buffer::Destroy(m_Buffers.VisiblePointLights);
 }
 
 void SceneLight::SetDirectionalLight(const DirectionalLight& light)
@@ -32,7 +58,7 @@ void SceneLight::AddPointLight(const PointLight& light)
 {
     m_PointLights.push_back(light);
     
-    m_DirtyPointLights.push_back((u32)m_PointLights.size() - 1);
+    m_DirtyPointLights.emplace((u32)m_PointLights.size() - 1);
 }
 
 void SceneLight::UpdatePointLight(u32 index, const PointLight& light)
@@ -47,7 +73,13 @@ void SceneLight::UpdatePointLight(u32 index, const PointLight& light)
 
     current = light;
 
-    m_DirtyPointLights.push_back(index);
+    m_DirtyPointLights.emplace(index);
+}
+
+void SceneLight::SetVisiblePointLights(const std::vector<PointLight>& lights)
+{
+    m_VisiblePointLights = lights;
+    m_IsVisiblePointLightsDirty = true;
 }
 
 void SceneLight::UpdateBuffers(FrameContext& ctx)
@@ -59,15 +91,24 @@ void SceneLight::UpdateBuffers(FrameContext& ctx)
         return;
 
     ctx.ResourceUploader->UpdateBuffer(m_Buffers.DirectionalLight, m_DirectionalLight);
-    UpdatePointLightsBuffer(ctx);
+
+    ResizePointLightsBuffer(ctx);
     for (auto& light : m_DirtyPointLights)
         ctx.ResourceUploader->UpdateBuffer(m_Buffers.PointLights, m_PointLights[light], light * sizeof(PointLight));
-
+    
+    ResizeVisiblePointLightsBuffer(ctx);
+    for (u32 light = 0; light < m_VisiblePointLights.size(); light++)
+        ctx.ResourceUploader->UpdateBuffer(m_Buffers.VisiblePointLights, m_VisiblePointLights[light],
+            light * sizeof(PointLight));
+    
     LightsInfo info = {
-        .PointLightCount = m_BufferedPointLightCount};
+        .PointLightCount = LIGHT_CULLING ? m_BufferedVisiblePointLightCount : m_BufferedPointLightCount};
     ctx.ResourceUploader->UpdateBuffer(m_Buffers.LightsInfo, info);
     
+    ctx.ResourceUploader->SubmitUpload(ctx.Cmd);
+    
     m_IsDirty = false;
+    m_IsVisiblePointLightsDirty = false;
     m_DirtyPointLights.clear();
 }
 
@@ -77,33 +118,45 @@ void SceneLight::Initialize()
     
     m_Buffers.DirectionalLight = Buffer::Builder({
             .SizeBytes = sizeof(DirectionalLight),
-            .Usage = BufferUsage::Uniform | BufferUsage::Upload | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
         .Build();
+    m_Buffers.PointLights = Buffer::Builder({
+            .SizeBytes = sizeof(PointLight),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source})
+        .CreateMapped()
+        .BuildManualLifetime();
+    m_Buffers.VisiblePointLights = Buffer::Builder({
+            .SizeBytes = sizeof(PointLight),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source})
+        .CreateMapped()
+        .BuildManualLifetime();
 
     m_Buffers.LightsInfo = Buffer::Builder({
             .SizeBytes = sizeof(LightsInfo),
-            .Usage = BufferUsage::Uniform | BufferUsage::Upload | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
         .Build();
 }
 
-void SceneLight::UpdatePointLightsBuffer(FrameContext& ctx)
+void SceneLight::ResizePointLightsBuffer(FrameContext& ctx)
 {
-    if ((u32)m_PointLights.size() == m_BufferedPointLightCount)
-        return;
-    
-    Buffer newBuffer = Buffer::Builder({
-            .SizeBytes = sizeof(PointLight) * (u32)m_PointLights.size(),
-            .Usage = BufferUsage::Storage | BufferUsage::Upload | BufferUsage::DeviceAddress})
-        .BuildManualLifetime();
-
-    if (m_BufferedPointLightCount != 0)
-    {
-        ctx.DeletionQueue.Enqueue(m_Buffers.PointLights);
-        RenderCommand::CopyBuffer(ctx.Cmd, m_Buffers.PointLights, newBuffer, {
-            .SizeBytes = m_Buffers.PointLights.GetSizeBytes()});
-    }
-    
-    m_Buffers.PointLights = newBuffer;
-    
     m_BufferedPointLightCount = (u32)m_PointLights.size();
+
+    if ((u32)m_PointLights.size() <= m_Buffers.PointLights.GetSizeBytes() / sizeof(PointLight))
+        return;
+
+    static constexpr bool COPY_OLD = true;
+    m_Buffers.PointLights = resizeLightBuffer(sizeof(PointLight) * m_BufferedPointLightCount,
+        m_Buffers.PointLights, ctx, COPY_OLD);
+}
+
+void SceneLight::ResizeVisiblePointLightsBuffer(FrameContext& ctx)
+{
+    m_BufferedVisiblePointLightCount = (u32)m_VisiblePointLights.size();
+
+    if ((u32)m_VisiblePointLights.size() <= m_Buffers.VisiblePointLights.GetSizeBytes() / sizeof(PointLight))
+        return;
+
+    static constexpr bool COPY_OLD = false;
+    m_Buffers.VisiblePointLights = resizeLightBuffer(sizeof(PointLight) * m_BufferedVisiblePointLightCount,
+        m_Buffers.VisiblePointLights, ctx, COPY_OLD);
 }

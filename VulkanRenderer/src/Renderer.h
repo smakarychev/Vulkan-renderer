@@ -42,6 +42,8 @@ private:
     void SetupRenderSlimePasses();
     void SetupRenderGraph();
 
+    void UpdateLights();
+
     void Shutdown();
 
     RenderingInfo GetImGuiUIRenderingInfo();

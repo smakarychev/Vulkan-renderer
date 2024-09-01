@@ -9,6 +9,7 @@
 
 #include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
+#include "Light/LightFrustumCuller.h"
 #include "RenderGraph/Passes/AA/FxaaPass.h"
 #include "Vulkan/RenderCommand.h"
 #include "Scene/ModelCollection.h"
@@ -56,20 +57,25 @@ void Renderer::Init()
 
     // todo: this is temp (almost the entire file is)
     m_SceneLights = std::make_unique<SceneLight>();
-    constexpr u32 POINT_LIGHT_COUNT = 4;
+    m_SceneLights->AddPointLight({
+            .Position = glm::vec3{-1.0, 1.0, -1.0},
+            .Color = glm::vec3{1.0, 1.0, 1.0},
+            .Intensity = Random::Float(0.8f, 3.6f),
+            .Radius = 12.0f});
+    constexpr u32 POINT_LIGHT_COUNT = 40;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         m_SceneLights->AddPointLight({
-            .Position = Random::Float3(-1.0f, 1.0f),
+            .Position = glm::vec3{Random::Float(-3.0f, 3.0f), Random::Float(0.0f, 2.0f), Random::Float(-3.0f, 3.0f)},
             .Color = Random::Float3(0.0f, 1.0f),
-            .Intensity = Random::Float(0.8f, 1.6f),
-            .Radius = 1.0});
+            .Intensity = Random::Float(0.8f, 3.6f),
+            .Radius = Random::Float(1.0f, 3.6f)});
 }
 
 void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/bistro/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -92,7 +98,7 @@ void Renderer::InitRenderGraph()
         [this](const Mesh&, const Material& material) {
             return material.Type == assetLib::ModelInfo::MaterialType::Translucent;
         });
-    
+
     m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
         .FromEquirectangular("../assets/textures/forest.tx")
         .Build();
@@ -144,6 +150,12 @@ void Renderer::InitRenderGraph()
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(m_Swapchain.GetResolution(), 1, 5000000, *GetFrameContext().ResourceUploader));
     m_SlimeMoldPass = std::make_shared<SlimeMoldPass>(*m_Graph);
+
+    /* initial submit */
+    Driver::ImmediateSubmit([&](const CommandBuffer& cmd)
+    {
+        GetFrameContext().ResourceUploader->SubmitUpload(cmd);
+    });
 }
 
 void Renderer::SetupRenderSlimePasses()
@@ -165,13 +177,6 @@ void Renderer::SetupRenderGraph()
     m_Graph->Reset(GetFrameContext());
     Resource backbuffer = m_Graph->GetBackbuffer();
 
-    // todo: move to proper place (this is just testing atm)
-    if (m_GraphTranslucentGeometry.IsValid())
-    {
-        DepthGeometrySorter translucentSorter(m_Camera->GetPosition(), m_Camera->GetForward());
-        translucentSorter.Sort(m_GraphTranslucentGeometry, *GetFrameContext().ResourceUploader);
-    }
-
     // update camera
     CameraGPU cameraGPU = CameraGPU::FromCamera(*m_Camera, m_Swapchain.GetResolution());
     static ShadingSettingsGPU shadingSettingsGPU = {
@@ -181,23 +186,32 @@ void Renderer::SetupRenderGraph()
     ImGui::DragFloat("Environment power", &shadingSettingsGPU.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
     ImGui::Checkbox("Soft shadows", (bool*)&shadingSettingsGPU.SoftShadows);
     ImGui::End();
-
+    
     // todo: should not create and delete every frame
     Buffer mainCameraBuffer = Buffer::Builder({
             .SizeBytes = sizeof(CameraGPU),
-            .Usage = BufferUsage::Uniform | BufferUsage::Upload | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
         .Build(GetFrameContext().DeletionQueue);
-    mainCameraBuffer.SetData(&cameraGPU, sizeof(CameraGPU));
+    GetFrameContext().ResourceUploader->UpdateBuffer(mainCameraBuffer, cameraGPU);
     Buffer shadingSettingsBuffer = Buffer::Builder({
             .SizeBytes = sizeof(ShadingSettingsGPU),
-            .Usage = BufferUsage::Uniform | BufferUsage::Upload | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
         .Build(GetFrameContext().DeletionQueue);
-    shadingSettingsBuffer.SetData(&shadingSettingsGPU, sizeof(ShadingSettingsGPU));
-    
+    GetFrameContext().ResourceUploader->UpdateBuffer(shadingSettingsBuffer, shadingSettingsGPU);
+
     GlobalResources globalResources = {
-        .MainCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer),
+        .FrameNumberTick = GetFrameContext().FrameNumberTick,
+        .PrimaryCamera = m_Camera.get(),
+        .PrimaryCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer),
         .ShadingSettings = m_Graph->AddExternal("ShadingSettings", shadingSettingsBuffer)};
     m_Graph->GetBlackboard().Update(globalResources);
+
+    // todo: move to proper place (this is just testing atm)
+    if (m_GraphTranslucentGeometry.IsValid())
+    {
+        DepthGeometrySorter translucentSorter(m_Camera->GetPosition(), m_Camera->GetForward());
+        translucentSorter.Sort(m_GraphTranslucentGeometry, *GetFrameContext().ResourceUploader);
+    }
 
     auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
         .Geometry = &m_GraphOpaqueGeometry,
@@ -205,19 +219,6 @@ void Renderer::SetupRenderGraph()
         .Camera = GetFrameContext().PrimaryCamera});
     auto& visibilityOutput = m_Graph->GetBlackboard().Get<Passes::Draw::Visibility::PassData>(visibility);
 
-    auto& lightClustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
-    auto& lightClustersSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersSetup::PassData>(
-        lightClustersSetup);
-    auto& lightClustersCompact = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
-        lightClustersSetupOutput.Clusters, visibilityOutput.DepthOut);
-    auto& lightClustersCompactOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersCompact::PassData>(
-        lightClustersCompact);
-    
-    auto& lightClustersVisualize = Passes::LightClustersVisualize::addToGraph("Clusters.Visualize", *m_Graph,
-        visibilityOutput.DepthOut);
-    auto& lightClustersVisualizeOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersVisualize::PassData>(
-        lightClustersVisualize);
-    Passes::ImGuiTexture::addToGraph("LightClusters.Texture", *m_Graph, lightClustersVisualizeOutput.ColorOut);
     
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
@@ -234,18 +235,6 @@ void Renderer::SetupRenderGraph()
     auto& ssaoVisualize = Passes::SsaoVisualize::addToGraph("SSAO.Visualize", *m_Graph,
         ssaoBlurVerticalOutput.SsaoOut, {});
     auto& ssaoVisualizeOutput = m_Graph->GetBlackboard().Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
-
-    // todo: should not be here obv
-    DirectionalLight directionalLight = m_SceneLights->GetDirectionalLight();
-    ImGui::Begin("Directional Light");
-    ImGui::DragFloat3("Direction", &directionalLight.Direction[0], 1e-2f, -1.0f, 1.0f);
-    ImGui::ColorPicker3("Color", &directionalLight.Color[0]);
-    ImGui::DragFloat("Intensity", &directionalLight.Intensity, 1e-1f, 0.0f, 100.0f);
-    ImGui::DragFloat("Size", &directionalLight.Size, 1e-1f, 0.0f, 100.0f);
-    ImGui::End();
-    directionalLight.Direction = glm::normalize(directionalLight.Direction);
-
-    m_SceneLights->SetDirectionalLight(directionalLight);
 
     static bool useDepthReduction = false;
     static bool stabilizeCascades = false;
@@ -341,6 +330,24 @@ void Renderer::SetupRenderGraph()
     //SetupRenderSlimePasses();
 }
 
+void Renderer::UpdateLights()
+{
+    // todo: should not be here obv
+    DirectionalLight directionalLight = m_SceneLights->GetDirectionalLight();
+    ImGui::Begin("Directional Light");
+    ImGui::DragFloat3("Direction", &directionalLight.Direction[0], 1e-2f, -1.0f, 1.0f);
+    ImGui::ColorPicker3("Color", &directionalLight.Color[0]);
+    ImGui::DragFloat("Intensity", &directionalLight.Intensity, 1e-1f, 0.0f, 100.0f);
+    ImGui::DragFloat("Size", &directionalLight.Size, 1e-1f, 0.0f, 100.0f);
+    ImGui::End();
+    directionalLight.Direction = glm::normalize(directionalLight.Direction);
+    m_SceneLights->SetDirectionalLight(directionalLight);
+
+    LightFrustumCuller::CullDepthSort(*m_SceneLights, *GetFrameContext().PrimaryCamera);
+    
+    m_SceneLights->UpdateBuffers(GetFrameContext());    
+}
+
 Renderer* Renderer::Get()
 {
     static Renderer renderer = {};
@@ -360,8 +367,7 @@ void Renderer::Run()
 
         // todo: move to OnUpdate
         m_CameraController->OnUpdate(1.0f / 60.0f);
-        m_SceneLights->UpdateBuffers(GetFrameContext());    
-
+        
         OnRender();
     }
 }
@@ -371,10 +377,13 @@ void Renderer::OnRender()
     CPU_PROFILE_FRAME("On render")
 
     BeginFrame();
+    m_ResourceUploader.BeginFrame(GetFrameContext());
     ShaderCache::OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
     ProcessPendingCubemaps();
     ProcessPendingPBRTextures();
+    /* light update requires cmd in recording state */
+    UpdateLights();
 
     {
         CPU_PROFILE_FRAME("Setup Render Graph")
@@ -430,6 +439,15 @@ void Renderer::BeginFrame()
     CommandBuffer& cmd = GetFrameContext().Cmd;
     cmd.Reset();
     cmd.Begin();
+
+    DependencyInfo di = DependencyInfo::Builder()
+        .MemoryDependency({
+            .SourceStage = PipelineStage::AllCommands,
+            .DestinationStage = PipelineStage::AllCommands,
+            .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
+            .DestinationAccess = PipelineAccess::ReadAll})
+        .Build(GetFrameContext().DeletionQueue);
+    RenderCommand::WaitOnBarrier(cmd, di);
 }
 
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
@@ -500,8 +518,6 @@ void Renderer::EndFrame()
     m_CurrentFrameContext->FrameNumberTick = m_FrameNumber;
     
     ProfilerContext::Get()->NextFrame();
-
-    m_ResourceUploader.StartRecording();
 }
 
 void Renderer::InitRenderingStructures()

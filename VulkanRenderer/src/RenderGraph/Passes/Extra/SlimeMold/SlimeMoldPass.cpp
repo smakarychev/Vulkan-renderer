@@ -29,12 +29,12 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
 
     ctx.m_TraitsBuffer = Buffer::Builder({
             .SizeBytes = (u32)ctx.m_Traits.size() * sizeof(Traits),
-            .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress | BufferUsage::Destination})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
 
     ctx.m_SlimeBuffer = Buffer::Builder({
             .SizeBytes = (u32)ctx.m_Slime.size() * sizeof(Slime),
-            .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress | BufferUsage::Destination})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
 
     ctx.m_SlimeMap = Texture::Builder({
@@ -44,10 +44,8 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
             .Usage = ImageUsage::Storage | ImageUsage::Destination})
         .Build();
 
-    resourceUploader.UpdateBuffer(ctx.m_TraitsBuffer, ctx.m_Traits.data(),
-        ctx.m_TraitsBuffer.GetSizeBytes(), 0);
-    resourceUploader.UpdateBuffer(ctx.m_SlimeBuffer, ctx.m_Slime.data(),
-        ctx.m_SlimeBuffer.GetSizeBytes(), 0);
+    resourceUploader.UpdateBuffer(ctx.m_TraitsBuffer, ctx.m_Traits);
+    resourceUploader.UpdateBuffer(ctx.m_SlimeBuffer, ctx.m_Slime);
 
     return ctx;
 }
@@ -66,7 +64,7 @@ SlimeMoldContext::Traits SlimeMoldContext::RandomTrait()
 
 void SlimeMoldContext::UpdateTraits(ResourceUploader& resourceUploader)
 {
-    resourceUploader.UpdateBuffer(m_TraitsBuffer, m_Traits.data(), m_TraitsBuffer.GetSizeBytes(), 0);
+    resourceUploader.UpdateBuffer(m_TraitsBuffer, m_Traits);
 }
 
 SlimeMoldPass::SlimeMoldPass(RG::Graph& renderGraph)
@@ -301,7 +299,22 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
 
             passData.Gradient = graph.CreateResource("Slime.Gradient.Colors", GraphBufferDescription{
                 .SizeBytes = sizeof(GradientUBO)});
-            passData.Gradient = graph.Read(passData.Gradient, Compute | Uniform | Upload);
+            passData.Gradient = graph.Read(passData.Gradient, Compute | Uniform);
+
+            ImGui::Begin("slime gradient");
+            ImGui::ColorEdit4("A", (f32*)&m_Gradient.A);
+            ImGui::ColorEdit4("B", (f32*)&m_Gradient.B);
+            ImGui::ColorEdit4("C", (f32*)&m_Gradient.C);
+            ImGui::ColorEdit4("D", (f32*)&m_Gradient.D);
+            if (ImGui::Button("Randomize"))
+            {
+                m_Gradient.A = Random::Float4();
+                m_Gradient.B = Random::Float4();
+                m_Gradient.C = Random::Float4();
+                m_Gradient.D = Random::Float4();
+            }
+            ImGui::End();
+            graph.Upload(passData.Gradient, m_Gradient);
 
             passData.PipelineData = &m_GradientSlimeMapPipelineData;
             passData.PushConstants = &m_PushConstants;
@@ -315,25 +328,8 @@ void SlimeMoldPass::AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& c
             GPU_PROFILE_FRAME("Gradient slime");
             const Texture& diffuseMap = resources.GetTexture(passData.DiffuseMap);
             const Texture& gradientMap = resources.GetTexture(passData.GradientMap);
-
-            auto& colors = *passData.GradientData;
-            ImGui::Begin("slime gradient");
-            ImGui::ColorEdit4("A", (f32*)&colors.A);
-            ImGui::ColorEdit4("B", (f32*)&colors.B);
-            ImGui::ColorEdit4("C", (f32*)&colors.C);
-            ImGui::ColorEdit4("D", (f32*)&colors.D);
-            if (ImGui::Button("Randomize"))
-            {
-                colors.A = Random::Float4();
-                colors.B = Random::Float4();
-                colors.C = Random::Float4();
-                colors.D = Random::Float4();
-            }
-            ImGui::End();
-            const Buffer& gradient = resources.GetBuffer(passData.Gradient, (void*)&colors, sizeof(GradientUBO), 0,
-                *frameContext.ResourceUploader);
-            frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
-            frameContext.ResourceUploader->StartRecording();
+            
+            const Buffer& gradient = resources.GetBuffer(passData.Gradient);
             
             auto& pushConstant = *passData.PushConstants;
             auto& pipeline = passData.PipelineData->Pipeline;

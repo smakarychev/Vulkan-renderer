@@ -43,7 +43,7 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
         using enum BufferUsage;
         m_MinMaxDepth[i] = Buffer::Builder({
                 .SizeBytes = sizeof(Passes::HiZBlit::MinMaxDepth),
-                .Usage = Storage | Uniform | Upload | Readback | DeviceAddress})
+                .Usage = Ordinary | Storage | Uniform | Readback})
             .Build();
     }
     

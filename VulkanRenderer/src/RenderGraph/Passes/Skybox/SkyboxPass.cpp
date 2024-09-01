@@ -35,12 +35,19 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
 
             passData.Projection = graph.CreateResource(std::string{name} + ".Projection", GraphBufferDescription{
                 .SizeBytes = sizeof(ProjectionUBO)});
+            
+            auto& globalResources = graph.GetGlobalResources();
       
             passData.Skybox = graph.Read(skybox, Pixel | Sampled);
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut,
-                AttachmentLoad::Load, AttachmentStore::Store);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
             passData.DepthOut = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.Projection = graph.Read(passData.Projection, Vertex | Uniform | Upload);
+            passData.Projection = graph.Read(passData.Projection, Vertex | Uniform);
+            ProjectionUBO projection = {
+                .ProjectionInverse = glm::inverse(globalResources.PrimaryCamera->GetProjection()),
+                .ViewInverse = glm::inverse(globalResources.PrimaryCamera->GetView())};
+            graph.Upload(passData.Projection, projection);
+
+            passData.ShadingSettings = graph.Read(globalResources.ShadingSettings, Pixel | Uniform);
 
             passData.LodBias = lodBias;
 
@@ -52,13 +59,7 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             GPU_PROFILE_FRAME("Skybox")
 
             const Texture& skyboxTexture = resources.GetTexture(passData.Skybox);
-
-            ProjectionUBO projection = {
-                .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection()),
-                .ViewInverse = glm::inverse(frameContext.PrimaryCamera->GetView())};
-            const Buffer projectionBuffer = resources.GetBuffer(passData.Projection, projection,
-                *frameContext.ResourceUploader);
-
+            const Buffer projectionBuffer = resources.GetBuffer(passData.Projection);
             
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline(); 
@@ -68,6 +69,7 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             resourceDescriptors.UpdateBinding("u_skybox", skyboxTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_projection", projectionBuffer.BindingInfo());
+            resourceDescriptors.UpdateBinding("u_shading", resources.GetBuffer(passData.ShadingSettings).BindingInfo());
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());

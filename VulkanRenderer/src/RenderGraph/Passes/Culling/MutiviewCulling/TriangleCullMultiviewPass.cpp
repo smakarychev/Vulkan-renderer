@@ -225,23 +225,6 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                 barriers.SplitBarriers[batchIndex].Signal(frameContext.Cmd, barriers.SplitBarrierDependency);
             };
 
-            resources.GetBuffer(multiview->ViewSpans, multiviewData->TriangleViewSpans().data(),
-                multiviewData->TriangleViewSpans().size() * sizeof(CullMultiviewData::ViewSpan), 0,
-                *frameContext.ResourceUploader);
-            std::vector<CullViewDataGPU> views = multiviewData->CreateMultiviewGPUTriangles();
-                resources.GetBuffer(multiview->Views, views.data(), views.size() * sizeof(CullViewDataGPU), 0,
-                    *frameContext.ResourceUploader);
-            for (u32 i = 0; i < multiview->TriangleViewCount; i++)
-            {
-                auto& view = multiviewData->TriangleView(i);
-                CameraGPU cameraGPU = CameraGPU::FromCamera(*view.Dynamic.Camera, view.Dynamic.Resolution);
-                resources.GetBuffer(multiview->Cameras[i], cameraGPU, *frameContext.ResourceUploader);
-
-                for (u32 batchIndex = 0; batchIndex < TriangleCullMultiviewTraits::MAX_BATCHES; batchIndex++)
-                    resources.GetBuffer(multiview->IndicesCulledCount[batchIndex], 0, i * sizeof(u32),
-                        *frameContext.ResourceUploader);
-            }
-
             /* update all bindings */
             for (u32 i = 0; i < TriangleCullMultiviewTraits::MAX_BATCHES; i++)
             {

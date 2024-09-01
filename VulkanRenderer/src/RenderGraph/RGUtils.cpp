@@ -131,11 +131,9 @@ namespace RG::RgUtils
         resources.LightsInfo = graph.AddExternal("Light.LightsInfo", light.GetBuffers().LightsInfo);
         resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
 
-        if (light.GetPointLightCount() > 0)
-        {
-            resources.PointLights = graph.AddExternal("Light.PointLights", light.GetBuffers().PointLights);
-            resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
-        }
+        resources.PointLights = graph.AddExternal("Light.PointLights", LIGHT_CULLING ?
+                light.GetBuffers().VisiblePointLights : light.GetBuffers().PointLights);
+        resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
         
         return resources;
     }

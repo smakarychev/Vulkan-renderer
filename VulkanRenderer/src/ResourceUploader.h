@@ -1,116 +1,151 @@
 ﻿#pragma once
-#include <vector>
 
+#include "Core/Traits.h"
 #include "Rendering/Buffer.h"
 #include "Rendering/CommandBuffer.h"
 
+#include <vector>
+
+struct FrameContext;
 // todo: use cvars for that, but need to load config first
 static constexpr u64 STAGING_BUFFER_DEFAULT_SIZE_BYTES = 16llu * 1024 * 1024;
 static constexpr u32 STAGING_BUFFER_MAX_IDLE_LIFE_TIME_FRAMES = 300;
 
-// used for uploading data by staging buffers
+namespace UploadUtils
+{
+    template <typename T>
+    std::pair<const void*, u64> getAddressAndSize(T&& data)
+    {
+        const void* address;
+        u64 sizeBytes;
+        if constexpr(is_vector_v<T> || is_span_v<T> || is_array_v<T>)
+        {
+            sizeBytes = data.size() * sizeof(std::decay_t<T>::value_type);
+            address = data.data();
+        }
+        else
+        {
+            sizeBytes = sizeof(T);
+            address = &data;
+        }
+
+        return {address, sizeBytes};
+    }
+}
+
+/* used for uploading data by staging buffers */
 class ResourceUploader
 {
     static constexpr u32 INVALID_INDEX = std::numeric_limits<u32>::max();
-    
+
     struct StagingBufferInfo
     {
         Buffer Buffer;
-        void* MappedAddress{nullptr};
         u32 LifeTime{0};
     };
-    
     struct BufferUploadInfo
     {
         u32 SourceIndex;
         Buffer Destination;
         BufferCopyInfo CopyInfo;
     };
-
     struct BufferMappingInfo
     {
         u32 BufferIndex;
         u32 BufferUploadIndex;
     };
-
-    struct BufferDirectUploadInfo
-    {
-        Buffer Destination;
-        BufferCopyInfo CopyInfo;
-    };
 public:
     void Init();
     void Shutdown();
-    
-    void StartRecording();
+
+    void BeginFrame(const FrameContext& ctx);
     void SubmitUpload(const CommandBuffer& cmd);
 
     template <typename T>
-    void UpdateBuffer(Buffer& buffer, const T& data);
+    void UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOffset = 0);
     template <typename T>
-    void UpdateBuffer(Buffer& buffer, const T& data, u64 bufferOffset);
-    void UpdateBuffer(Buffer& buffer, const void* data);
-    void UpdateBuffer(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
-    void UpdateBuffer(Buffer& buffer, u32 mappedBufferIndex, u64 bufferOffset);
-        u32 GetMappedBuffer(u64 sizeBytes);
+    void UpdateBufferImmediately(const Buffer& buffer, T&& data, u64 bufferOffset = 0);
+
     template <typename T>
-    void UpdateBufferImmediately(Buffer& buffer, const T& data);
-    template <typename T>
-    void UpdateBufferImmediately(Buffer& buffer, const T& data, u64 bufferOffset);
-    void UpdateBufferImmediately(Buffer& buffer, const void* data, u64 sizeBytes, u64 bufferOffset);
-    void* GetMappedAddress(u32 mappedBufferIndex);
+    T* MapBuffer(const Buffer& buffer, u64 bufferOffset = 0);
 private:
+    void SubmitImmediateBuffer(const Buffer& buffer, u64 sizeBytes, u64 offset);
+    
     void ManageLifeTime();
     StagingBufferInfo CreateStagingBuffer(u64 sizeBytes);
     u64 EnsureCapacity(u64 sizeBytes);
-    bool MergeIsPossible(Buffer& buffer, u64 bufferOffset) const;
-    bool ShouldBeUpdatedDirectly(Buffer& buffer);
+    bool MergeIsPossible(const Buffer& buffer, u64 bufferOffset) const;
 private:
-    // array of used stage buffers
-    std::vector<StagingBufferInfo> m_StageBuffers;
-    // index of the last used stage buffer on this frame
-    u32 m_LastUsedBuffer{INVALID_INDEX};
-    // info about every copy on this frame
-    std::vector<BufferUploadInfo> m_BufferUploads;
-
-    // arrays of all mappings done on this frame
-    std::vector<BufferMappingInfo> m_ActiveMappings;
-
-    // info about every update on buffers that can be updated directly
-    std::vector<BufferDirectUploadInfo> m_BufferDirectUploads;
-    std::vector<u8> m_BufferDirectUploadData;
-    
-    Buffer m_ImmediateUploadBuffer;
+    struct State
+    {
+        /* array of used stage buffers */
+        std::vector<StagingBufferInfo> StageBuffers;
+        /* index of the last used stage buffer on this frame */
+        u32 LastUsedBuffer{INVALID_INDEX};
+        /* info about every copy on this frame */
+        std::vector<BufferUploadInfo> BufferUploads;
+        /* because of multiple in-frame submits, we have to keep track of already submitted data */
+        u32 UploadsOffset{0};
+        
+        Buffer ImmediateUploadBuffer;
+    };
+    std::array<State, BUFFERED_FRAMES> m_PerFrameState;
+    u32 m_CurrentFrame{0};
 };
 
 template <typename T>
-void ResourceUploader::UpdateBuffer(Buffer& buffer, const T& data)
+void ResourceUploader::UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOffset)
 {
     if constexpr(std::is_pointer_v<T>)
         LOG("Warning: passing a pointer to `UpdateBuffer`");
-    UpdateBuffer(buffer, data, 0);
+    
+    auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
+        
+    u64 stagingOffset = EnsureCapacity(sizeBytes);
+    auto& state = m_PerFrameState[m_CurrentFrame];
+    auto& staging = state.StageBuffers[state.LastUsedBuffer].Buffer;
+    staging.SetData(staging.GetHostAddress(), address, sizeBytes, stagingOffset);
+
+    if (MergeIsPossible(buffer, bufferOffset))
+        state.BufferUploads.back().CopyInfo.SizeBytes += sizeBytes;
+    else
+        state.BufferUploads.push_back({
+            .SourceIndex = state.LastUsedBuffer,
+            .Destination = buffer,
+            .CopyInfo = {.SizeBytes = sizeBytes, .SourceOffset = stagingOffset, .DestinationOffset = bufferOffset}});
 }
 
 template <typename T>
-void ResourceUploader::UpdateBuffer(Buffer& buffer, const T& data, u64 bufferOffset)
+void ResourceUploader::UpdateBufferImmediately(const Buffer& buffer, T&& data, u64 bufferOffset)
 {
     if constexpr(std::is_pointer_v<T>)
         LOG("Warning: passing a pointer to `UpdateBuffer`");
-    UpdateBuffer(buffer, (void*)&data, sizeof(T), bufferOffset);
+    
+    auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
+
+    auto& state = m_PerFrameState[m_CurrentFrame];
+    if (sizeBytes > state.ImmediateUploadBuffer.GetSizeBytes())
+    {
+        Buffer::Destroy(state.ImmediateUploadBuffer);
+        state.ImmediateUploadBuffer = CreateStagingBuffer(sizeBytes).Buffer;
+    }
+
+    state.ImmediateUploadBuffer.SetData(data, sizeBytes);
+
+    SubmitImmediateBuffer(buffer, sizeBytes, bufferOffset);
 }
 
 template <typename T>
-void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const T& data)
+T* ResourceUploader::MapBuffer(const Buffer& buffer, u64 bufferOffset)
 {
-    if constexpr(std::is_pointer_v<T>)
-        LOG("Warning: passing a pointer to `UpdateBufferImmediately`");
-    UpdateBufferImmediately(buffer, (void*)&data, sizeof(T), 0);
+    u64 stagingOffset = EnsureCapacity(buffer.GetSizeBytes());
+    auto& state = m_PerFrameState[m_CurrentFrame];
+    state.BufferUploads.push_back({
+        .SourceIndex = state.LastUsedBuffer,
+        .Destination = buffer,
+        .CopyInfo = {
+            .SizeBytes = buffer.GetSizeBytes(), .SourceOffset = stagingOffset, .DestinationOffset = bufferOffset}});
+
+    return (T*)((std::byte*)state.StageBuffers[state.LastUsedBuffer].Buffer.GetHostAddress() + stagingOffset);      
 }
 
-template <typename T>
-void ResourceUploader::UpdateBufferImmediately(Buffer& buffer, const T& data, u64 bufferOffset)
-{
-    if constexpr(std::is_pointer_v<T>)
-        LOG("Warning: passing a pointer to `UpdateBufferImmediately`");
-    UpdateBufferImmediately(buffer, (void*)&data, sizeof(T), bufferOffset);
-}

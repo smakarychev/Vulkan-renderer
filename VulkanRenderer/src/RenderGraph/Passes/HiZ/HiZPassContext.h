@@ -1,5 +1,6 @@
 #pragma once
-#include "RenderGraph/RGCommon.h"
+#include "Settings.h"
+#include "RenderGraph/RGResource.h"
 
 enum class HiZReductionMode { Min = 0, Max = 1, MaxVal };
 

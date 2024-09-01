@@ -52,7 +52,7 @@ namespace
 
         Buffer samplesBuffer = Buffer::Builder({
                 .SizeBytes = samples.size() * sizeof(glm::vec4),
-                .Usage = BufferUsage::Uniform | BufferUsage::DeviceAddress | BufferUsage::Upload})
+                .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform})
             .Build();
         samplesBuffer.SetData(samples.data(), samplesBuffer.GetSizeBytes());
 
@@ -115,12 +115,29 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
 
             passData.DepthIn = graph.Read(depthIn, Compute | Sampled);
             passData.NoiseTexture = graph.Read(passData.NoiseTexture, Compute | Sampled);
-            passData.Settings = graph.Read(passData.Settings, Compute | Uniform | Upload);
-            passData.Camera = graph.Read(passData.Camera, Compute | Uniform | Upload);
+            passData.Settings = graph.Read(passData.Settings, Compute | Uniform);
+            passData.Camera = graph.Read(passData.Camera, Compute | Uniform);
             passData.Samples = graph.Read(passData.Samples, Compute | Uniform);
             passData.SSAO = graph.Write(passData.SSAO, Compute | Storage);
 
             passData.MaxSampleCount = sampleCount;
+
+            auto& globalResources = graph.GetGlobalResources();
+            
+            auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
+            ImGui::Begin("AO settings");
+            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, passData.MaxSampleCount);
+            ImGui::DragFloat("Power", &settings.Power, 1e-3f, 0.0f, 5.0f);
+            ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
+            ImGui::End();
+            graph.Upload(passData.Settings, settings);
+            
+            CameraUBO camera = {
+                .Projection = globalResources.PrimaryCamera->GetProjection(),
+                .ProjectionInverse = glm::inverse(globalResources.PrimaryCamera->GetProjection()),
+                .Near = globalResources.PrimaryCamera->GetFrustumPlanes().Near,
+                .Far = globalResources.PrimaryCamera->GetFrustumPlanes().Far};
+            graph.Upload(passData.Camera, camera);
             
             graph.UpdateBlackboard(passData);
         },
@@ -129,23 +146,8 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             CPU_PROFILE_FRAME("SSAO")
             GPU_PROFILE_FRAME("SSAO")
 
-            auto& settings = resources.GetOrCreateValue<SettingsUBO>();
-            ImGui::Begin("AO settings");
-            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, passData.MaxSampleCount);
-            ImGui::DragFloat("Power", &settings.Power, 1e-3f, 0.0f, 5.0f);
-            ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
-            ImGui::End();
-            const Buffer& setting = resources.GetBuffer(passData.Settings, settings,
-                *frameContext.ResourceUploader);
-
-            CameraUBO camera = {
-                .Projection = frameContext.PrimaryCamera->GetProjection(),
-                .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection()),
-                .Near = frameContext.PrimaryCamera->GetFrustumPlanes().Near,
-                .Far = frameContext.PrimaryCamera->GetFrustumPlanes().Far};
-            const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera, camera,
-                *frameContext.ResourceUploader);
-
+            const Buffer& setting = resources.GetBuffer(passData.Settings);
+            const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera);
             const Buffer& samples = resources.GetBuffer(passData.Samples);
 
             const Texture& depthTexture = resources.GetTexture(passData.DepthIn);

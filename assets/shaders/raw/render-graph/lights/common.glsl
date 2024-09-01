@@ -11,3 +11,5 @@ uint slice_index(float depth, float n, float f, uint count) {
 const uint LIGHT_CLUSTER_BINS_X = 16;
 const uint LIGHT_CLUSTER_BINS_Y = 9;
 const uint LIGHT_CLUSTER_BINS_Z = 24;
+
+const uint VIEW_MAX_LIGHTS = 1024;

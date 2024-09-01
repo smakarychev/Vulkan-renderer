@@ -166,7 +166,9 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
             auto& metaOutput = renderGraph.GetBlackboard().Get<Meta::CullMultiview::PassData>(meta);
 
             passData.CSM = graph.CreateResource("CSM.Data", GraphBufferDescription{.SizeBytes = sizeof(Ubo)});
-            passData.CSM = graph.Write(passData.CSM, Vertex | Uniform | Upload);
+            passData.CSM = graph.Write(passData.CSM, Vertex | Uniform | Copy);
+            graph.Upload(passData.CSM, ubo);
+            
             passData.ShadowMap = *metaOutput.DrawAttachmentResources.back().Depth;
             passData.Far = cameras.ShadowCameras.back().GetFrustumPlanes().Far;
             
@@ -174,8 +176,6 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            auto& ubo = resources.GetOrCreateValue<Ubo>();
-            resources.GetBuffer(passData.CSM, ubo, *frameContext.ResourceUploader);
         });
 
     return pass;

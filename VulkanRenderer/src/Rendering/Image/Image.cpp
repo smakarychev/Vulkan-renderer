@@ -334,7 +334,7 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
     
         m_CreateInfo.DataBuffer = Buffer::Builder({
                 .SizeBytes = textureInfo.SizeBytes,
-                .Usage = BufferUsage::Source | BufferUsage::UploadRandomAccess})
+                .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess})
             .BuildManualLifetime();
     
         void* destination = m_CreateInfo.DataBuffer.Map();
@@ -360,7 +360,7 @@ Image::Builder& Image::Builder::FromPixels(const void* pixels, u64 sizeBytes)
 
     m_CreateInfo.DataBuffer = Buffer::Builder({
             .SizeBytes = sizeBytes,
-            .Usage = BufferUsage::Source | BufferUsage::Upload})
+            .Usage = BufferUsage::Source | BufferUsage::Staging})
         .BuildManualLifetime();
 
     m_CreateInfo.DataBuffer.SetData(pixels, sizeBytes);

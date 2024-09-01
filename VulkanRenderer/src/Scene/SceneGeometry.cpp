@@ -3,8 +3,7 @@
 void SceneGeometry::ApplyRenderObjectPermutation(const ModelCollection::RenderObjectPermutation& permutation,
     ResourceUploader& resourceUploader)
 {
-    u32 mappedCommandsBuffer = resourceUploader.GetMappedBuffer(m_Commands.GetSizeBytes());
-    IndirectDrawCommand* commands = (IndirectDrawCommand*)resourceUploader.GetMappedAddress(mappedCommandsBuffer);
+    IndirectDrawCommand* commands = resourceUploader.MapBuffer<IndirectDrawCommand>(m_Commands);
 
     u32 meshletIndex = 0;
     m_ModelCollection->IterateRenderObjects(m_RenderObjectIndices, permutation,
@@ -21,8 +20,6 @@ void SceneGeometry::ApplyRenderObjectPermutation(const ModelCollection::RenderOb
                 meshletIndex++;
             }
         });      
-    
-    resourceUploader.UpdateBuffer(m_Commands, mappedCommandsBuffer, 0);
 }
 
 SceneGeometry::AttributeBuffers SceneGeometry::InitAttributeBuffers(const CountsInfo& countsInfo)
@@ -34,9 +31,9 @@ SceneGeometry::AttributeBuffers SceneGeometry::InitAttributeBuffers(const Counts
     u64 totalIndicesSizeBytes = countsInfo.IndexCount * sizeof(assetLib::ModelInfo::IndexType);
 
     BufferUsage vertexUsage =
-        BufferUsage::Vertex | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress;
+        BufferUsage::Ordinary | BufferUsage::Vertex | BufferUsage::Storage;
     BufferUsage indexUsage =
-        BufferUsage::Index | BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress;
+        BufferUsage::Ordinary | BufferUsage::Index | BufferUsage::Storage;
 
     AttributeBuffers attributeBuffers = {};
 
@@ -60,20 +57,19 @@ void SceneGeometry::InitBuffers(SceneGeometry& renderPassGeometry, const CountsI
     renderPassGeometry.m_RenderObjectCount = countsInfo.RenderObjectCount;
     renderPassGeometry.m_Commands = Buffer::Builder({
             .SizeBytes = countsInfo.CommandCount * sizeof(IndirectDrawCommand),
-            .Usage = BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Destination |
-            BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage})
         .Build();
     renderPassGeometry.m_RenderObjects = Buffer::Builder({
             .SizeBytes = countsInfo.RenderObjectCount * sizeof(RenderObjectGPU),
-            .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
     renderPassGeometry.m_Materials = Buffer::Builder({
             .SizeBytes = countsInfo.RenderObjectCount * sizeof(MaterialGPU),
-            .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
     renderPassGeometry.m_Meshlets = Buffer::Builder({
             .SizeBytes = countsInfo.CommandCount * sizeof(MeshletGPU),
-            .Usage = BufferUsage::Storage | BufferUsage::Destination | BufferUsage::DeviceAddress})
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
 
     renderPassGeometry.m_CommandsCPU.resize(countsInfo.CommandCount);

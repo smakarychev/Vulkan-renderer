@@ -1,5 +1,6 @@
 #include "SkyGradientPass.h"
 
+#include "CameraGPU.h"
 #include "Renderer.h"
 #include "imgui/imgui.h"
 #include "Rendering/ShaderCache.h"
@@ -35,24 +36,14 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
 
             graph.SetShader("../assets/shaders/sky-gradient.shader");
 
-            passData.Camera = graph.CreateResource("SkyGradient.Camera", GraphBufferDescription{
-                .SizeBytes = sizeof(passData.Camera)});
-            passData.Camera = graph.Read(passData.Camera, Compute | Uniform | Upload);
+            auto& globalResources = graph.GetGlobalResources();
+            
+            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
             
             passData.Settings = graph.CreateResource("SkyGradient.Settings", GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Settings = graph.Read(passData.Settings, Compute | Uniform | Upload);
-
-            passData.ColorOut = graph.Write(renderTarget, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
-        },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
-        {
-            CPU_PROFILE_FRAME("Sky.Gradient")
-            GPU_PROFILE_FRAME("Sky.Gradient")
-
-            auto& settings = resources.GetOrCreateValue<SettingsUBO>();
+            passData.Settings = graph.Read(passData.Settings, Compute | Uniform);
+            auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("Sky gradient");
             ImGui::ColorEdit3("sky horizon", (f32*)&settings.SkyColorHorizon);
             ImGui::ColorEdit3("sky zenith", (f32*)&settings.SkyColorZenith);
@@ -65,11 +56,19 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
             ImGui::DragFloat("sun radius", &settings.SunRadius, 1e-1f, 1.0f, 1024.0f);
             ImGui::DragFloat("sun intensity", &settings.SunIntensity, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
-            
-            const Buffer& camera = resources.GetBuffer(passData.Camera, passData.Camera,
-                *frameContext.ResourceUploader);
-            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings, settings,
-                *frameContext.ResourceUploader);
+            graph.Upload(passData.Settings, settings);
+
+            passData.ColorOut = graph.Write(renderTarget, Compute | Storage);
+
+            graph.UpdateBlackboard(passData);
+        },
+        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        {
+            CPU_PROFILE_FRAME("Sky.Gradient")
+            GPU_PROFILE_FRAME("Sky.Gradient")
+
+            const Buffer& camera = resources.GetBuffer(passData.Camera);
+            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings);
             const Texture& colorOut = resources.GetTexture(passData.ColorOut);
 
             glm::uvec2 imageSize = {colorOut.Description().Width, colorOut.Description().Height};

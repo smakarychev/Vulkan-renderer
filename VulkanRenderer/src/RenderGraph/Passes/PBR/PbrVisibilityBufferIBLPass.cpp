@@ -51,7 +51,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
             
-            passData.Camera = graph.Read(graphGlobals.MainCameraGPU, Pixel | Uniform);
+            passData.Camera = graph.Read(graphGlobals.PrimaryCameraGPU, Pixel | Uniform);
             passData.ShadingSettings = graph.Read(graphGlobals.ShadingSettings, Pixel | Uniform);
             passData.Commands = graph.Read(passData.Commands, Pixel | Storage);
             passData.Objects = graph.Read(passData.Objects, Pixel | Storage);

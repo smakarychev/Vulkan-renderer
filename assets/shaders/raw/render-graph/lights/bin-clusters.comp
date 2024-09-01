@@ -1,0 +1,85 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(set = 1, binding = 0) writeonly buffer clusters {
+    Cluster clusters[];
+} u_clusters;
+
+layout(set = 1, binding = 1) uniform clusters_count {
+    uint count;
+} u_count;
+
+layout(scalar, set = 1, binding = 2) buffer point_light {
+    PointLight lights[];
+} u_point_lights;
+
+layout(scalar, set = 1, binding = 3) uniform lights_info {
+    LightsInfo info;
+} u_lights_info;
+
+layout(push_constant) uniform push_constants {
+    mat4 u_view_matrix;
+};
+
+const uint SHARED_LIGHT_COUNT = 1024;
+const uint LIGHT_BATCH = SHARED_LIGHT_COUNT / local_size_x;
+shared PointLight shared_lights[SHARED_LIGHT_COUNT];
+
+bool is_in_cluster(uint light_index, Cluster cluster) {
+    const float radius = shared_lights[light_index].radius;
+    vec3 position = shared_lights[light_index].position;
+    position = u_view_matrix * vec4(position, 1.0f);
+    const float distance2 = distance_squared(position, cluster);
+    
+    return distance2  <= radius * radius;
+}
+
+float distance_squared(vec3 point, Cluster cluster) {
+    float distance2 = 0.0f;
+    for (uint i = 0; i < 3; i++) {
+        const float c = point[i];
+        if (c < cluster.min[i])
+            distance2 += (cluster.min[i] - v) * (cluster.min[i] - v);
+        if (c > cluster.max[i])
+            distance2 += (cluster.max[i] - v) * (cluster.max[i] - v);
+    }
+    
+    return distance2;
+}
+
+void main() {
+    const uint cluster_index = gl_GlobalInvocationID.x;
+    if (cluster_index >= u_count.count) 
+        return;
+    const Cluster cluster = u_clusters.clusters[cluster_index];
+    
+    uint visible_lights[LIGHT_CLUSTER_MAX_LIGHTS];
+    uint visible_light_count = 0;
+    
+    uint processed_lights = 0;
+    while(processed_lights < u_count.count) {
+        for (uint i = cluster_index; i < LIGHT_BATCH; i += local_size_x) {
+            if (i >= u_count.count)
+                break;
+
+            shared_lights[i] = u_point_lights.lights[i + processed_lights];
+        }
+        barrier();
+        
+        for (uint i = 0; i < SHARED_LIGHT_COUNT; i++) {
+            // currently we have only point lights
+            if (is_in_cluster(i, cluster)) {
+                visible_light_count = min(visible_light_count + 1, LIGHT_CLUSTER_MAX_LIGHTS - 1);
+                visible_lights[visible_light_count] = i + processed_lights;
+            }
+        }
+        
+        processed_lights += SHARED_LIGHT_COUNT;
+    }
+    barrier();
+
+    
+}

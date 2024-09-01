@@ -7,6 +7,7 @@
 #include "RGResource.h"
 #include "RenderPass.h"
 #include "RGCommon.h"
+#include "RGResourceUploader.h"
 #include "Vulkan/Driver.h"
 
 class ShaderOverrides;
@@ -35,9 +36,9 @@ namespace RG
         Blit        = BIT(11),
         Copy        = BIT(12),
 
-        Upload      = BIT(13),
-        Readback    = BIT(14),
+        Readback    = BIT(13),
     };
+    
     CREATE_ENUM_FLAGS_OPERATORS(ResourceAccessFlags)
 
     template <typename T>
@@ -51,7 +52,6 @@ namespace RG
         {
             bool canAlias =
                 (
-                !enumHasAny(description.Usage, BufferUsage::Upload) &&
                 !enumHasAny(description.Usage, BufferUsage::Readback)
                 || otherFrame >= BUFFERED_FRAMES) &&
                 description.SizeBytes == other.SizeBytes && description.Usage == other.Usage;
@@ -239,6 +239,9 @@ namespace RG
             AttachmentLoad onLoad, AttachmentStore onStore,
             std::optional<DepthBias> depthBias, f32 clearDepth, u32 clearStencil = 0);
         void HasSideEffect();
+ 
+        template <typename T>
+        void Upload(Resource buffer, T&& data, u64 bufferOffset = 0);
 
         const BufferDescription& GetBufferDescription(Resource buffer);
         const TextureDescription& GetTextureDescription(Resource texture);
@@ -257,8 +260,9 @@ namespace RG
         void Compile(FrameContext& frameContext);
         void Execute(FrameContext& frameContext);
         void OnCmdBegin(FrameContext& frameContext);
-        void OnCmdEnd(FrameContext& frameContext) const;
-
+        void OnCmdEnd(FrameContext& frameContext);
+        void SubmitPassUploads(FrameContext& frameContext);
+        
         template <typename Value>
         void UpdateBlackboard(Value&& value);
 
@@ -342,6 +346,7 @@ namespace RG
         std::shared_ptr<GraphTexture> m_BackbufferTexture{};
         ImageLayout m_BackbufferLayout{ImageLayout::Undefined};
 
+        RG::ResourceUploader m_ResourceUploader;
         RenderGraphPool m_Pool;
         DeletionQueue* m_FrameDeletionQueue{nullptr};
         DeletionQueue m_ResolutionDeletionQueue{};
@@ -358,15 +363,9 @@ namespace RG
         Resources(Graph& graph)
             : m_Graph(&graph) {}
 
+        bool IsAllocated(Resource resource) const;
+        
         const Buffer& GetBuffer(Resource resource) const;
-        template <typename T>
-        const Buffer& GetBuffer(Resource resource, const T& data, ResourceUploader& resourceUploader) const;
-        template <typename T>
-        const Buffer& GetBuffer(Resource resource, const T& data, u64 offset, ResourceUploader& resourceUploader) const;
-        const Buffer& GetBuffer(Resource resource, const void* data, u64 sizeBytes,
-            ResourceUploader& resourceUploader) const;
-        const Buffer& GetBuffer(Resource resource, const void* data, u64 sizeBytes, u64 offset,
-            ResourceUploader& resourceUploader) const;
         const Texture& GetTexture(Resource resource) const;
         Texture& GetTexture(Resource resource);
         const TextureDescription& GetTextureDescription(Resource resource) const;
@@ -397,6 +396,12 @@ namespace RG
         m_CurrentPassesStack.pop_back();
         
         return *pass;
+    }
+
+    template <typename T>
+    void Graph::Upload(Resource buffer, T&& data, u64 bufferOffset)
+    {
+        m_ResourceUploader.UpdateBuffer(CurrentPass(), buffer, std::forward<T>(data), bufferOffset);
     }
 
     template <typename Value>
@@ -456,19 +461,6 @@ namespace RG
         }
         
         return remap;
-    }
-
-    template <typename T>
-    const Buffer& Resources::GetBuffer(Resource resource, const T& data, ResourceUploader& resourceUploader) const
-    {
-        return GetBuffer(resource, data, 0, resourceUploader);
-    }
-
-    template <typename T>
-    const Buffer& Resources::GetBuffer(Resource resource, const T& data, u64 offset,
-        ResourceUploader& resourceUploader) const
-    {
-        return GetBuffer(resource, (void*)&data, sizeof(T), offset, resourceUploader);
     }
 
     template <typename Value>

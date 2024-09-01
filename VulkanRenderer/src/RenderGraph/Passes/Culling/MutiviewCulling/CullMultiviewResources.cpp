@@ -96,8 +96,8 @@ namespace RG::RgUtils
     {
         using enum ResourceAccessFlags;
 
-        multiview.ViewSpans = graph.Read(multiview.ViewSpans, Compute | Uniform | Upload);
-        multiview.Views = graph.Read(multiview.Views, Compute | Uniform | Upload);
+        multiview.ViewSpans = graph.Read(multiview.ViewSpans, Compute | Uniform);
+        multiview.Views = graph.Read(multiview.Views, Compute | Uniform);
         
         for (u32 i = 0; i < multiview.GeometryCount; i++)
             multiview.Objects[i] = graph.Read(multiview.Objects[i], Compute | Storage);
@@ -108,6 +108,11 @@ namespace RG::RgUtils
             multiview.MeshVisibility[i] = graph.Read(multiview.MeshVisibility[i], Compute | Storage);
             multiview.MeshVisibility[i] = graph.Write(multiview.MeshVisibility[i], Compute | Storage);
         }
+
+        /* init view buffers */
+        graph.Upload(multiview.ViewSpans, multiview.Multiview->ViewSpans());
+        std::vector<CullViewDataGPU> views = multiview.Multiview->CreateMultiviewGPU();
+        graph.Upload(multiview.Views, views);
     }
 
     void updateMeshCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
@@ -141,13 +146,13 @@ namespace RG::RgUtils
 
         if (cullStage != CullStage::Reocclusion)
         {
-            multiview.CompactCommandCount = graph.Read(multiview.CompactCommandCount, Compute | Storage | Upload);
+            multiview.CompactCommandCount = graph.Read(multiview.CompactCommandCount, Compute | Storage);
             multiview.CompactCommandCount = graph.Write(multiview.CompactCommandCount, Compute | Storage);
         }
         else
         {
             multiview.CompactCommandCountReocclusion = graph.Read(
-                multiview.CompactCommandCountReocclusion, Compute | Storage | Upload);
+                multiview.CompactCommandCountReocclusion, Compute | Storage);
             multiview.CompactCommandCountReocclusion = graph.Write(
                 multiview.CompactCommandCountReocclusion, Compute | Storage);
         }
@@ -180,6 +185,14 @@ namespace RG::RgUtils
                 multiview.CompactCommands[index] = graph.Write(multiview.CompactCommands[index], Compute | Storage);
             }
         }
+
+        /* initialize count with zeros */
+        if (cullStage == CullStage::Reocclusion)
+            for (u32 i = 0; i < multiview.ViewCount; i++)
+                graph.Upload(multiview.CompactCommandCountReocclusion, 0u, i * sizeof(u32));
+        else
+            for (u32 i = 0; i < multiview.ViewCount + multiview.GeometryCount; i++)
+                graph.Upload(multiview.CompactCommandCount, 0u, i * sizeof(u32));
     }
 
     void updateCullMeshletMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
@@ -363,8 +376,8 @@ namespace RG::RgUtils
         u32 geometryCount = multiview.MeshletCull->GeometryCount;
         u32 viewCount = multiview.TriangleViewCount;
 
-        multiview.ViewSpans = graph.Read(multiview.ViewSpans, Compute | Uniform | Upload);
-        multiview.Views = graph.Read(multiview.Views, Compute | Uniform | Upload);
+        multiview.ViewSpans = graph.Read(multiview.ViewSpans, Compute | Uniform);
+        multiview.Views = graph.Read(multiview.Views, Compute | Uniform);
 
         multiview.MeshletCull->CompactCommandCount = graph.Read(
             multiview.MeshletCull->CompactCommandCount, Compute | Storage);
@@ -408,10 +421,8 @@ namespace RG::RgUtils
 
         for (u32 batch = 0; batch < TriangleCullMultiviewTraits::MAX_BATCHES; batch++)
         {
-            multiview.IndicesCulledCount[batch] = graph.Write(
-                multiview.IndicesCulledCount[batch], Compute | Storage | Upload);
-            multiview.IndicesCulledCount[batch] = graph.Read(
-                multiview.IndicesCulledCount[batch], Compute | Storage);
+            multiview.IndicesCulledCount[batch] = graph.Write(multiview.IndicesCulledCount[batch], Compute | Storage);
+            multiview.IndicesCulledCount[batch] = graph.Read(multiview.IndicesCulledCount[batch], Compute | Storage);
         }
 
         /* read-write `geometryCount` additional command and command count buffers for triangle culling */
@@ -431,7 +442,7 @@ namespace RG::RgUtils
             auto& view = multiview.MeshletCull->Multiview->TriangleView(i);
             auto&& [staticV, dynamicV] = view;
             
-            multiview.Cameras[i] = graph.Read(multiview.Cameras[i], Vertex | Pixel | Uniform | Upload);
+            multiview.Cameras[i] = graph.Read(multiview.Cameras[i], Vertex | Pixel | Uniform);
             
             /* read and update attachment handles */
             Utils::updateRecordedAttachmentResources(dynamicV.DrawInfo.Attachments, *multiview.AttachmentsRenames);
@@ -469,6 +480,20 @@ namespace RG::RgUtils
             readDrawAttributes(multiview.AttributeBuffers[i], graph, Vertex);
             multiview.MeshletCull->Commands[i] = graph.Read(multiview.MeshletCull->Commands[i],
                 Vertex | Pixel | Storage);
+        }
+
+        /* upload view data */
+        graph.Upload(multiview.ViewSpans, multiview.Multiview->TriangleViewSpans());
+        std::vector<CullViewDataGPU> views = multiview.Multiview->CreateMultiviewGPUTriangles();
+        graph.Upload(multiview.Views, views);
+        for (u32 i = 0; i < multiview.TriangleViewCount; i++)
+        {
+            auto& view = multiview.Multiview->TriangleView(i);
+            CameraGPU cameraGPU = CameraGPU::FromCamera(*view.Dynamic.Camera, view.Dynamic.Resolution);
+            graph.Upload(multiview.Cameras[i], cameraGPU);
+
+            for (u32 batchIndex = 0; batchIndex < TriangleCullMultiviewTraits::MAX_BATCHES; batchIndex++)
+                graph.Upload(multiview.IndicesCulledCount[batchIndex], 0, i * sizeof(u32));
         }
     }
 

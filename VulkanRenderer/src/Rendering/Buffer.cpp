@@ -5,7 +5,7 @@
 std::string BufferUtils::bufferUsageToString(BufferUsage usage)
 {
     std::string usageString = "";
-    
+
     if (enumHasAny(usage, BufferUsage::Vertex))
         usageString += usageString.empty() ? "Vertex" : " | Vertex";
     if (enumHasAny(usage, BufferUsage::Index))
@@ -16,12 +16,10 @@ std::string BufferUtils::bufferUsageToString(BufferUsage usage)
         usageString += usageString.empty() ? "Storage" : " | Storage";
     if (enumHasAny(usage, BufferUsage::Indirect))
         usageString += usageString.empty() ? "Indirect" : " | Indirect";
-    if (enumHasAny(usage, BufferUsage::Upload))
-        usageString += usageString.empty() ? "Upload" : " | Upload";
-    if (enumHasAny(usage, BufferUsage::UploadRandomAccess))
-        usageString += usageString.empty() ? "UploadRandomAccess" : " | UploadRandomAccess";
-    if (enumHasAny(usage, BufferUsage::Readback))
-        usageString += usageString.empty() ? "Readback" : " | Readback";
+    if (enumHasAny(usage, BufferUsage::Mappable))
+        usageString += usageString.empty() ? "Mappable" : " | Mappable";
+    if (enumHasAny(usage, BufferUsage::MappableRandomAccess))
+        usageString += usageString.empty() ? "MappableRandomAccess" : " | MappableRandomAccess";
     if (enumHasAny(usage, BufferUsage::Source))
         usageString += usageString.empty() ? "Source" : " | Source";
     if (enumHasAny(usage, BufferUsage::Destination))
@@ -59,6 +57,15 @@ Buffer Buffer::Builder::BuildManualLifetime()
 
 Buffer::Builder& Buffer::Builder::CreateMapped()
 {
+    m_CreateInfo.Description.Usage |= BufferUsage::Mappable;
+    m_CreateInfo.CreateMapped = true;
+
+    return *this;
+}
+
+Buffer::Builder& Buffer::Builder::CreateMappedRandomAccess()
+{
+    m_CreateInfo.Description.Usage |= BufferUsage::MappableRandomAccess;
     m_CreateInfo.CreateMapped = true;
 
     return *this;

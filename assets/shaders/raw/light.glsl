@@ -1,3 +1,5 @@
+#extension GL_EXT_scalar_block_layout: require
+
 /* must have a scalar layout */
 struct DirectionalLight {
     vec3 direction;
