@@ -2,11 +2,13 @@
 
 #include "types.h"
 
+#include <array>
 #include <string>
 #include <unordered_map>
 
 enum class CVarType : u8
 {
+    None,
     Int,
     Float,
     String
@@ -14,7 +16,7 @@ enum class CVarType : u8
 
 class CVarParameter
 {
-public: 
+public:
     friend class CVarSystemImpl;
 
     u32 ArrayIndex;
@@ -25,7 +27,7 @@ public:
 };
 
 template <typename T>
-struct CVarStorage
+struct CVarRecord
 {
     T InitialValue;
     T Value;
@@ -34,31 +36,45 @@ struct CVarStorage
 };
 
 template <typename T>
+struct CVarArrayTraits
+{
+    static constexpr u32 SIZE = 0;
+    static constexpr auto TYPE = CVarType::None;
+};
+
+template <>
+struct CVarArrayTraits<i32>
+{
+    static constexpr u32 SIZE = 256;
+    static constexpr auto TYPE = CVarType::Int;
+};
+
+template <>
+struct CVarArrayTraits<f32>
+{
+    static constexpr u32 SIZE = 256;
+    static constexpr auto TYPE = CVarType::Float;
+};
+
+template <>
+struct CVarArrayTraits<std::string>
+{
+    static constexpr u32 SIZE = 256;
+    static constexpr auto TYPE = CVarType::String;
+};
+
+template <typename T>
 struct CVarArray
 {
-    CVarArray(u32 sizeElements);
-    ~CVarArray();
-
     const T& GetValue(u32 index) const;
     T* GetValuePtr(u32 index);
     void SetValue(const T& val, u32 index);
     u32 AddValue(const T& initialVal, const T& val, CVarParameter* parameter);
+
 public:
-    CVarStorage<T>* Storage{nullptr};
+    std::array<CVarRecord<T>, CVarArrayTraits<T>::SIZE> Storage;
     u32 CurrentCVar{0};
 };
-
-template <typename T>
-CVarArray<T>::CVarArray(u32 sizeElements)
-{
-    Storage = new CVarStorage<T>[sizeElements]();
-}
-
-template <typename T>
-CVarArray<T>::~CVarArray()
-{
-    delete[] Storage;
-}
 
 template <typename T>
 const T& CVarArray<T>::GetValue(u32 index) const
@@ -86,105 +102,164 @@ u32 CVarArray<T>::AddValue(const T& initialVal, const T& val, CVarParameter* par
     Storage[index].Value = val;
     Storage[index].Parameter = parameter;
     parameter->ArrayIndex = index;
+    parameter->Type = CVarArrayTraits<T>::TYPE;
 
     CurrentCVar++;
+
     return index;
 }
 
 class CVarSystemImpl : public CVarSystem
 {
 public:
-    static constexpr u32 MAX_INT_CVARS = 256; 
-    static constexpr u32 MAX_FLOAT_CVARS = 256; 
-    static constexpr u32 MAX_STRING_CVARS = 256;
-
-    CVarArray<i32> IntCVars{MAX_INT_CVARS};
-    CVarArray<f32> FloatCVars{MAX_FLOAT_CVARS};
-    CVarArray<std::string> StringCVars{MAX_STRING_CVARS};
+    CVarArray<i32> IntCVars{};
+    CVarArray<f32> FloatCVars{};
+    CVarArray<std::string> StringCVars{};
 
     template <typename T>
     CVarArray<T>& GetCVarArray();
 
-    template<>
-    CVarArray<i32>& GetCVarArray() { return IntCVars; }
-    template<>
-    CVarArray<f32>& GetCVarArray() { return FloatCVars; }
-    template<>
-    CVarArray<std::string>& GetCVarArray() { return StringCVars; }
+    CVarParameter* GetCVar(Utils::HashedString name) final;
 
-    CVarParameter* GetCVar(std::string_view name) final;
-    CVarParameter* CreateFloatCVar(std::string_view name, std::string_view description, f32 initialVal, f32 val) final;
-    f32* GetF32CVar(std::string_view name) final;
-    void SetF32CVar(std::string_view name, f32 value) final;
+    CVarParameter* CreateFloatCVar(Utils::HashedString name, std::string_view description,
+        f32 initialVal, f32 val) final;
+    std::optional<f32> GetF32CVar(Utils::HashedString name) final;
+    void SetF32CVar(Utils::HashedString name, f32 value) final;
+
+    CVarParameter* CreateIntCVar(Utils::HashedString name, std::string_view description,
+        i32 initialVal, i32 val) override;
+    std::optional<i32> GetI32CVar(Utils::HashedString name) override;
+    void SetI32CVar(Utils::HashedString name, i32 value) override;
+
+    CVarParameter* CreateStringCVar(Utils::HashedString name, std::string_view description,
+        const std::string& initialVal, const std::string& val) override;
+    std::optional<std::string> GetStringCVar(Utils::HashedString name) override;
+    void SetStringCVar(Utils::HashedString name, const std::string& value) override;
+
 private:
-    CVarParameter* InitCVar(std::string_view name, std::string_view description);
+    CVarParameter* InitCVar(Utils::HashedString name, std::string_view description);
+    template <typename T>
+    CVarParameter* CreateCVar(Utils::HashedString name, std::string_view description,
+        const T& initialVal, const T& val);
 
     template <typename T>
-    T* GetCVarValue(std::string_view name);
+    std::optional<T> GetCVarValue(Utils::HashedString name);
 
     template <typename T>
-    void SetCVarValue(std::string_view name, const T& val);
+    void SetCVarValue(Utils::HashedString name, const T& val);
+
 private:
-    std::unordered_map<std::string, CVarParameter> m_CVars; 
+    std::unordered_map<u64, CVarParameter> m_CVars;
 };
 
-CVarParameter* CVarSystemImpl::GetCVar(std::string_view name)
+template <>
+CVarArray<i32>& CVarSystemImpl::GetCVarArray() { return IntCVars; }
+
+template <>
+CVarArray<f32>& CVarSystemImpl::GetCVarArray() { return FloatCVars; }
+
+template <>
+CVarArray<std::string>& CVarSystemImpl::GetCVarArray() { return StringCVars; }
+
+CVarParameter* CVarSystemImpl::GetCVar(Utils::HashedString name)
 {
-    if (m_CVars.contains(std::string{name}))
-        return &m_CVars.at(std::string{name});
+    if (m_CVars.contains(name.Hash()))
+        return &m_CVars.at(name.Hash());
+
     return nullptr;
 }
 
-CVarParameter* CVarSystemImpl::CreateFloatCVar(std::string_view name, std::string_view description, f32 initialVal, f32 val)
+CVarParameter* CVarSystemImpl::CreateFloatCVar(Utils::HashedString name, std::string_view description,
+    f32 initialVal, f32 val)
 {
-    CVarParameter* parameter = InitCVar(name, description);
-    if (parameter == nullptr)
-        return nullptr;
-
-    parameter->Type = CVarType::Float;
-    GetCVarArray<f32>().AddValue(initialVal, val, parameter);
-
-    return parameter;
+    return CreateCVar(name, description, initialVal, val);
 }
 
-f32* CVarSystemImpl::GetF32CVar(std::string_view name)
+std::optional<f32> CVarSystemImpl::GetF32CVar(Utils::HashedString name)
 {
     return GetCVarValue<f32>(name);
 }
 
-void CVarSystemImpl::SetF32CVar(std::string_view name, f32 value)
+void CVarSystemImpl::SetF32CVar(Utils::HashedString name, f32 value)
 {
     SetCVarValue(name, value);
 }
 
-CVarParameter* CVarSystemImpl::InitCVar(std::string_view name, std::string_view description)
+CVarParameter* CVarSystemImpl::CreateIntCVar(Utils::HashedString name, std::string_view description, i32 initialVal,
+    i32 val)
+{
+    return CreateCVar(name, description, initialVal, val);
+}
+
+std::optional<i32> CVarSystemImpl::GetI32CVar(Utils::HashedString name)
+{
+    return GetCVarValue<i32>(name);
+}
+
+void CVarSystemImpl::SetI32CVar(Utils::HashedString name, i32 value)
+{
+    SetCVarValue(name, value);
+}
+
+CVarParameter* CVarSystemImpl::CreateStringCVar(Utils::HashedString name, std::string_view description,
+    const std::string& initialVal, const std::string& val)
+{
+    return CreateCVar(name, description, initialVal, val);
+}
+
+std::optional<std::string> CVarSystemImpl::GetStringCVar(Utils::HashedString name)
+{
+    return GetCVarValue<std::string>(name);
+}
+
+void CVarSystemImpl::SetStringCVar(Utils::HashedString name, const std::string& value)
+{
+    SetCVarValue(name, value);
+}
+
+CVarParameter* CVarSystemImpl::InitCVar(Utils::HashedString name, std::string_view description)
 {
     if (GetCVar(name))
         return nullptr;
 
     CVarParameter newCVar = {};
-    newCVar.Name = name;
+    newCVar.Name = std::string{name.String()};
     newCVar.Description = description;
-    m_CVars.emplace(std::make_pair(name, newCVar));
-    
-    return &m_CVars.at(std::string{name});
+    m_CVars.emplace(std::make_pair(name.Hash(), newCVar));
+
+    return &m_CVars.at(name.Hash());
 }
 
-CVarSystem* CVarSystem::Get()
+template <typename T>
+CVarParameter* CVarSystemImpl::CreateCVar(Utils::HashedString name, std::string_view description,
+    const T& initialVal, const T& val)
+{
+    CVarParameter* parameter = InitCVar(name, description);
+    if (parameter == nullptr)
+        return nullptr;
+
+    GetCVarArray<T>().AddValue(initialVal, val, parameter);
+
+    return parameter;
+}
+
+CVarSystem& CVarSystem::Get()
 {
     static CVarSystemImpl system = {};
-    return &system;
+
+    return system;
 }
 
 template <typename T>
-T* CVarSystemImpl::GetCVarValue(std::string_view name)
+std::optional<T> CVarSystemImpl::GetCVarValue(Utils::HashedString name)
 {
     CVarParameter* parameter = GetCVar(name);
-    return parameter ? GetCVarArray<T>().GetValuePtr(parameter->ArrayIndex) : nullptr; 
+
+    return parameter ? std::optional(GetCVarArray<T>().GetValue(parameter->ArrayIndex)) : std::nullopt;
 }
 
 template <typename T>
-void CVarSystemImpl::SetCVarValue(std::string_view name, const T& val)
+void CVarSystemImpl::SetCVarValue(Utils::HashedString name, const T& val)
 {
     CVarParameter* parameter = GetCVar(name);
     if (parameter != nullptr)
@@ -197,29 +272,64 @@ namespace
     template <typename T>
     T getCVarValueByIndex(u32 index)
     {
-        return ((CVarSystemImpl*)CVarSystemImpl::Get())->GetCVarArray<T>().GetValue(index);
+        return ((CVarSystemImpl&)CVarSystemImpl::Get()).GetCVarArray<T>().GetValue(index);
     }
 
     template <typename T>
     void setCVarValueByIndex(u32 index, const T& val)
     {
-        ((CVarSystemImpl*)CVarSystemImpl::Get())->GetCVarArray<T>().SetValue(val, index);
+        ((CVarSystemImpl&)CVarSystemImpl::Get()).GetCVarArray<T>().SetValue(val, index);
     }
 }
 
-CVarFloat::CVarFloat(std::string_view name, std::string_view description, f32 initialVal, CVarFlags flags)
+CVarF32::CVarF32(Utils::HashedString name, std::string_view description, f32 initialVal, CVarFlags flags)
 {
-    CVarParameter* cvar = CVarSystem::Get()->CreateFloatCVar(name, description, initialVal, initialVal);
+    CVarParameter* cvar = CVarSystem::Get().CreateFloatCVar(name, description, initialVal, initialVal);
     cvar->Flags = flags;
-    Index = cvar->ArrayIndex;
+    m_Index = cvar->ArrayIndex;
 }
 
-f32 CVarFloat::Get()
+f32 CVarF32::Get() const
 {
-    return getCVarValueByIndex<CVarType>(Index);
+    return getCVarValueByIndex<CVarType>(m_Index);
 }
 
-void CVarFloat::Set(f32 val)
+void CVarF32::Set(f32 val) const
 {
-    setCVarValueByIndex<CVarType>(Index, val);
+    setCVarValueByIndex<CVarType>(m_Index, val);
+}
+
+CVarI32::CVarI32(Utils::HashedString name, std::string_view description, i32 initialVal, CVarFlags flags)
+{
+    CVarParameter* cvar = CVarSystem::Get().CreateIntCVar(name, description, initialVal, initialVal);
+    cvar->Flags = flags;
+    m_Index = cvar->ArrayIndex;
+}
+
+i32 CVarI32::Get() const
+{
+    return getCVarValueByIndex<CVarType>(m_Index);
+}
+
+void CVarI32::Set(i32 val) const
+{
+    setCVarValueByIndex<CVarType>(m_Index, val);
+}
+
+CVarString::CVarString(Utils::HashedString name, std::string_view description, const std::string& initialVal,
+    CVarFlags flags)
+{
+    CVarParameter* cvar = CVarSystem::Get().CreateStringCVar(name, description, initialVal, initialVal);
+    cvar->Flags = flags;
+    m_Index = cvar->ArrayIndex;
+}
+
+std::string CVarString::Get() const
+{
+    return getCVarValueByIndex<CVarType>(m_Index);
+}
+
+void CVarString::Set(const std::string& val) const
+{
+    setCVarValueByIndex<CVarType>(m_Index, val);
 }
