@@ -20,7 +20,7 @@ namespace UploadUtils
         u64 sizeBytes;
         if constexpr(is_vector_v<T> || is_span_v<T> || is_array_v<T>)
         {
-            sizeBytes = data.size() * sizeof(std::decay_t<T>::value_type);
+            sizeBytes = data.size() * sizeof(typename std::decay_t<T>::value_type);
             address = data.data();
         }
         else
