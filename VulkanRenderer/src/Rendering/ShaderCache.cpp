@@ -10,6 +10,7 @@
 #include "AssetManager.h"
 #include "Core/core.h"
 #include "Converters.h"
+#include "cvars/CVarSystem.h"
 
 DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
 Utils::StringUnorderedMap<ShaderCache::FileNode> ShaderCache::s_FileGraph = {};
@@ -22,9 +23,6 @@ DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
 struct ShaderCache::FileWatcher
 {
-    // todo: move me to cvars
-    static constexpr std::string_view SHADERS_DIRECTORY = "../assets/shaders";
-    
     efsw::FileWatcher Watcher;
     std::shared_ptr<efsw::FileWatchListener> Listener;
 
@@ -35,7 +33,7 @@ struct ShaderCache::FileWatcher
     FileWatcher& operator=(FileWatcher&&) = default;
     ~FileWatcher()
     {
-        Watcher.removeWatch(std::string{SHADERS_DIRECTORY});
+        Watcher.removeWatch(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}));
     }
 };
 std::unique_ptr<ShaderCache::FileWatcher> ShaderCache::s_FileWatcher = {};
@@ -222,7 +220,7 @@ void ShaderCache::HandleStageModification(std::string_view name)
     auto& stages = s_FileGraph.find(name)->second.Files;
     ASSERT(stages.size() == 1, "Only .gsl files are meant to be used as includes")
     
-    auto baked = ShaderStageConverter::Bake(FileWatcher::SHADERS_DIRECTORY, name);
+    auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}), name);
     if (baked.has_value())
         HandleShaderModification(stages.front().Processed);
 }
@@ -232,7 +230,7 @@ void ShaderCache::HandleHeaderModification(std::string_view name)
     auto& stages = s_FileGraph.find(name)->second.Files;
     for (auto& stage : stages)
     {
-        auto baked = ShaderStageConverter::Bake(FileWatcher::SHADERS_DIRECTORY, stage.Raw);
+        auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}), stage.Raw);
         if (baked.has_value())
             HandleShaderModification(stage.Processed);
     }
@@ -241,7 +239,7 @@ void ShaderCache::HandleHeaderModification(std::string_view name)
 void ShaderCache::CreateFileGraph()
 {
     // todo: read from file
-    for (auto& file : std::filesystem::recursive_directory_iterator(FileWatcher::SHADERS_DIRECTORY))
+    for (auto& file : std::filesystem::recursive_directory_iterator(*CVars::Get().GetStringCVar({"Path.Shaders.Full"})))
     {
         if (file.is_directory())
             continue;
@@ -588,7 +586,7 @@ void ShaderCache::InitFileWatcher()
     std::shared_ptr<Listener> listener = std::make_shared<Listener>();
     s_FileWatcher->Listener = listener;
     Listener::StartDebounceThread(listener);
-    s_FileWatcher->Watcher.addWatch(std::string{FileWatcher::SHADERS_DIRECTORY},
+    s_FileWatcher->Watcher.addWatch(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}),
         s_FileWatcher->Listener.get(), IS_RECURSIVE);
     s_FileWatcher->Watcher.watch();
 }
