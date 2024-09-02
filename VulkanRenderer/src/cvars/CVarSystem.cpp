@@ -121,23 +121,23 @@ public:
 
     CVarParameter* GetCVar(Utils::HashedString name) final;
 
-    CVarParameter* CreateFloatCVar(Utils::HashedString name, std::string_view description,
+    CVarParameter* CreateF32CVar(Utils::HashedString name, std::string_view description,
         f32 initialVal, f32 val) final;
     std::optional<f32> GetF32CVar(Utils::HashedString name) final;
-    f32 GetF32CVar(Utils::HashedString name, f32 fallback) override;
+    f32 GetF32CVar(Utils::HashedString name, f32 fallback) final;
     void SetF32CVar(Utils::HashedString name, f32 value) final;
 
-    CVarParameter* CreateIntCVar(Utils::HashedString name, std::string_view description,
+    CVarParameter* CreateI32CVar(Utils::HashedString name, std::string_view description,
         i32 initialVal, i32 val) override;
-    std::optional<i32> GetI32CVar(Utils::HashedString name) override;
-    i32 GetI32CVar(Utils::HashedString name, i32 fallback) override;
-    void SetI32CVar(Utils::HashedString name, i32 value) override;
+    std::optional<i32> GetI32CVar(Utils::HashedString name) final;
+    i32 GetI32CVar(Utils::HashedString name, i32 fallback) final;
+    void SetI32CVar(Utils::HashedString name, i32 value) final;
 
     CVarParameter* CreateStringCVar(Utils::HashedString name, std::string_view description,
-        const std::string& initialVal, const std::string& val) override;
-    std::optional<std::string> GetStringCVar(Utils::HashedString name) override;
-    std::string GetStringCVar(Utils::HashedString name, const std::string& fallback) override;
-    void SetStringCVar(Utils::HashedString name, const std::string& value) override;
+        const std::string& initialVal, const std::string& val) final;
+    std::optional<std::string> GetStringCVar(Utils::HashedString name) final;
+    std::string GetStringCVar(Utils::HashedString name, const std::string& fallback) final;
+    void SetStringCVar(Utils::HashedString name, const std::string& value) final;
 
 private:
     CVarParameter* InitCVar(Utils::HashedString name, std::string_view description);
@@ -171,7 +171,7 @@ CVarParameter* CVarsImpl::GetCVar(Utils::HashedString name)
     return nullptr;
 }
 
-CVarParameter* CVarsImpl::CreateFloatCVar(Utils::HashedString name, std::string_view description,
+CVarParameter* CVarsImpl::CreateF32CVar(Utils::HashedString name, std::string_view description,
     f32 initialVal, f32 val)
 {
     return CreateCVar(name, description, initialVal, val);
@@ -194,8 +194,8 @@ void CVarsImpl::SetF32CVar(Utils::HashedString name, f32 value)
     SetCVarValue(name, value);
 }
 
-CVarParameter* CVarsImpl::CreateIntCVar(Utils::HashedString name, std::string_view description, i32 initialVal,
-    i32 val)
+CVarParameter* CVarsImpl::CreateI32CVar(Utils::HashedString name, std::string_view description,
+    i32 initialVal, i32 val)
 {
     return CreateCVar(name, description, initialVal, val);
 }
@@ -307,7 +307,7 @@ namespace
 
 CVarF32::CVarF32(Utils::HashedString name, std::string_view description, f32 initialVal, CVarFlags flags)
 {
-    CVarParameter* cvar = CVars::Get().CreateFloatCVar(name, description, initialVal, initialVal);
+    CVarParameter* cvar = CVars::Get().CreateF32CVar(name, description, initialVal, initialVal);
     cvar->Flags = flags;
     m_Index = cvar->ArrayIndex;
 }
@@ -324,7 +324,7 @@ void CVarF32::Set(f32 val) const
 
 CVarI32::CVarI32(Utils::HashedString name, std::string_view description, i32 initialVal, CVarFlags flags)
 {
-    CVarParameter* cvar = CVars::Get().CreateIntCVar(name, description, initialVal, initialVal);
+    CVarParameter* cvar = CVars::Get().CreateI32CVar(name, description, initialVal, initialVal);
     cvar->Flags = flags;
     m_Index = cvar->ArrayIndex;
 }

@@ -5,16 +5,18 @@
 #include <tracy/Tracy.hpp>
 
 #include "FrameContext.h"
+#include "cvars/CVarSystem.h"
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 
 void ResourceUploader::Init()
 {
+    static constexpr u64 USE_DEFAULT_SIZE = 0;
     for (auto& state : m_PerFrameState)
     {
         state.StageBuffers.reserve(1);
-        state.StageBuffers.push_back(CreateStagingBuffer(STAGING_BUFFER_DEFAULT_SIZE_BYTES));
-        state.ImmediateUploadBuffer = CreateStagingBuffer(STAGING_BUFFER_DEFAULT_SIZE_BYTES).Buffer;
+        state.StageBuffers.push_back(CreateStagingBuffer(USE_DEFAULT_SIZE));
+        state.ImmediateUploadBuffer = CreateStagingBuffer(USE_DEFAULT_SIZE).Buffer;
     }
 }
 
@@ -79,7 +81,9 @@ void ResourceUploader::ManageLifeTime()
     auto it = std::ranges::remove_if(state.StageBuffers,
         [](const auto& stageBufferInfo)
         {
-            return stageBufferInfo.LifeTime > STAGING_BUFFER_MAX_IDLE_LIFE_TIME_FRAMES;
+            static u64 lifeTime = CVars::Get().GetI32CVar({"Uploader.StagingLifetime"},
+                STAGING_BUFFER_MAX_IDLE_LIFE_TIME_FRAMES);
+            return stageBufferInfo.LifeTime > lifeTime;
         }).begin();
 
     for (auto toDelete = it; toDelete != state.StageBuffers.end(); toDelete++)
@@ -90,8 +94,10 @@ void ResourceUploader::ManageLifeTime()
 
 ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 sizeBytes)
 {
+    static u64 minSizeBytes = CVars::Get().GetI32CVar({"Uploader.StagingSizeBytes"}, STAGING_BUFFER_DEFAULT_SIZE_BYTES);
+
     Buffer stagingBuffer = Buffer::Builder({
-            .SizeBytes = sizeBytes,
+            .SizeBytes = std::max(minSizeBytes, sizeBytes),
             .Usage = BufferUsage::Staging})
         .CreateMapped()
         .BuildManualLifetime();
@@ -119,7 +125,7 @@ u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
     {
         state.LastUsedBuffer++;
         if (state.LastUsedBuffer == state.StageBuffers.size())
-            state.StageBuffers.push_back(CreateStagingBuffer(std::max(sizeBytes, STAGING_BUFFER_DEFAULT_SIZE_BYTES)));
+            state.StageBuffers.push_back(CreateStagingBuffer(sizeBytes));
 
         if (state.StageBuffers[state.LastUsedBuffer].Buffer.GetSizeBytes() < sizeBytes)
         {

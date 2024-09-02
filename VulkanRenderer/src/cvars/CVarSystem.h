@@ -22,13 +22,13 @@ public:
 
     virtual CVarParameter* GetCVar(Utils::HashedString name) = 0;
     
-    virtual CVarParameter* CreateFloatCVar(Utils::HashedString name, std::string_view description,
+    virtual CVarParameter* CreateF32CVar(Utils::HashedString name, std::string_view description,
         f32 initialVal, f32 val) = 0;
     virtual std::optional<f32> GetF32CVar(Utils::HashedString name) = 0;
     virtual f32 GetF32CVar(Utils::HashedString name, f32 fallback) = 0;
     virtual void SetF32CVar(Utils::HashedString name, f32 value) = 0;
     
-    virtual CVarParameter* CreateIntCVar(Utils::HashedString name, std::string_view description,
+    virtual CVarParameter* CreateI32CVar(Utils::HashedString name, std::string_view description,
         i32 initialVal, i32 val) = 0;
     virtual std::optional<i32> GetI32CVar(Utils::HashedString name) = 0;
     virtual i32 GetI32CVar(Utils::HashedString name, i32 fallback) = 0;

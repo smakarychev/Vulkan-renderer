@@ -71,6 +71,7 @@ void ShaderCache::Shutdown()
         deleted[s->m_Pipeline] = true;
         Pipeline::Destroy(s->Pipeline().GetPipeline());
     }
+    s_FileWatcher.reset();
 }
 
 void ShaderCache::OnFrameBegin(FrameContext& ctx)
