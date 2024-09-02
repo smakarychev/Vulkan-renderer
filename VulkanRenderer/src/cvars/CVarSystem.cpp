@@ -124,16 +124,19 @@ public:
     CVarParameter* CreateFloatCVar(Utils::HashedString name, std::string_view description,
         f32 initialVal, f32 val) final;
     std::optional<f32> GetF32CVar(Utils::HashedString name) final;
+    f32 GetF32CVar(Utils::HashedString name, f32 fallback) override;
     void SetF32CVar(Utils::HashedString name, f32 value) final;
 
     CVarParameter* CreateIntCVar(Utils::HashedString name, std::string_view description,
         i32 initialVal, i32 val) override;
     std::optional<i32> GetI32CVar(Utils::HashedString name) override;
+    i32 GetI32CVar(Utils::HashedString name, i32 fallback) override;
     void SetI32CVar(Utils::HashedString name, i32 value) override;
 
     CVarParameter* CreateStringCVar(Utils::HashedString name, std::string_view description,
         const std::string& initialVal, const std::string& val) override;
     std::optional<std::string> GetStringCVar(Utils::HashedString name) override;
+    std::string GetStringCVar(Utils::HashedString name, const std::string& fallback) override;
     void SetStringCVar(Utils::HashedString name, const std::string& value) override;
 
 private:
@@ -147,7 +150,6 @@ private:
 
     template <typename T>
     void SetCVarValue(Utils::HashedString name, const T& val);
-
 private:
     std::unordered_map<u64, CVarParameter> m_CVars;
 };
@@ -180,6 +182,13 @@ std::optional<f32> CVarsImpl::GetF32CVar(Utils::HashedString name)
     return GetCVarValue<f32>(name);
 }
 
+f32 CVarsImpl::GetF32CVar(Utils::HashedString name, f32 fallback)
+{
+    auto var = GetF32CVar(name);
+    
+    return var.has_value() ? *var : fallback;
+}
+
 void CVarsImpl::SetF32CVar(Utils::HashedString name, f32 value)
 {
     SetCVarValue(name, value);
@@ -196,6 +205,13 @@ std::optional<i32> CVarsImpl::GetI32CVar(Utils::HashedString name)
     return GetCVarValue<i32>(name);
 }
 
+i32 CVarsImpl::GetI32CVar(Utils::HashedString name, i32 fallback)
+{
+    auto var = GetI32CVar(name);
+    
+    return var.has_value() ? *var : fallback;
+}
+
 void CVarsImpl::SetI32CVar(Utils::HashedString name, i32 value)
 {
     SetCVarValue(name, value);
@@ -210,6 +226,13 @@ CVarParameter* CVarsImpl::CreateStringCVar(Utils::HashedString name, std::string
 std::optional<std::string> CVarsImpl::GetStringCVar(Utils::HashedString name)
 {
     return GetCVarValue<std::string>(name);
+}
+
+std::string CVarsImpl::GetStringCVar(Utils::HashedString name, const std::string& fallback)
+{
+    auto var = GetStringCVar(name);
+    
+    return var.has_value() ? *var : fallback;
 }
 
 void CVarsImpl::SetStringCVar(Utils::HashedString name, const std::string& value)
