@@ -119,7 +119,6 @@ public:
     template <typename T>
     CVarArray<T>& GetCVarArray();
 
-    CVarParameter* GetCVar(Utils::HashedString name) final;
 
     CVarParameter* CreateF32CVar(Utils::HashedString name, std::string_view description,
         f32 initialVal, f32 val) final;
@@ -140,6 +139,7 @@ public:
     void SetStringCVar(Utils::HashedString name, const std::string& value) final;
 
 private:
+    CVarParameter* GetCVar(Utils::HashedString name);
     CVarParameter* InitCVar(Utils::HashedString name, std::string_view description);
     template <typename T>
     CVarParameter* CreateCVar(Utils::HashedString name, std::string_view description,

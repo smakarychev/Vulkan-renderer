@@ -20,8 +20,6 @@ public:
     
     static CVars& Get();
 
-    virtual CVarParameter* GetCVar(Utils::HashedString name) = 0;
-    
     virtual CVarParameter* CreateF32CVar(Utils::HashedString name, std::string_view description,
         f32 initialVal, f32 val) = 0;
     virtual std::optional<f32> GetF32CVar(Utils::HashedString name) = 0;
