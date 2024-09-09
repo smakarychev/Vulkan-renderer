@@ -33,4 +33,9 @@ static constexpr u32 LIGHT_CLUSTER_BINS_Y = 9;
 static constexpr u32 LIGHT_CLUSTER_BINS_Z = 24;
 static constexpr u32 LIGHT_CLUSTER_BINS = LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z;
 
+// todo: I actually have cvar for that
+static constexpr u32 VIEW_MAX_LIGHTS = 1024;
+static constexpr u32 BIN_BIT_SIZE = 32;
+static constexpr u32 BIN_COUNT = VIEW_MAX_LIGHTS / BIN_BIT_SIZE;
+
 static constexpr bool LIGHT_CULLING = true;

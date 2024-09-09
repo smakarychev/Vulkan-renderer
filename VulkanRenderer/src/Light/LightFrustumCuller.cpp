@@ -6,6 +6,7 @@
 #include "Light.h"
 #include "SceneLight.h"
 #include "Common/Geometry.h"
+#include "cvars/CVarSystem.h"
 
 namespace
 {
@@ -38,7 +39,9 @@ namespace
 
             return visible;
         };
-    
+
+        u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar({"Lights.FrustumMax"});
+        
         FrustumPlanes frustum = camera.GetFrustumPlanes();
         ProjectionData projection = camera.GetProjectionData();
 
@@ -56,6 +59,8 @@ namespace
                 isVisibleOrthographic(sphere, frustum, projection);
             if (isVisible)
                 visibleLights.push_back(pointLight);
+            if (visibleLights.size() == maxLightsPerFrustum)
+                break;
         }
 
         return visibleLights;

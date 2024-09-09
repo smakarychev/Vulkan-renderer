@@ -8,17 +8,22 @@ layout(set = 1, binding = 0) writeonly buffer clusters {
     Cluster clusters[];
 } u_clusters;
 
+layout(set = 1, binding = 1) buffer cluster_visibility {
+    uint visibility[];
+} u_cluster_visibility;
+
 layout(push_constant) uniform u_push_constants {
     vec2 u_render_size; 
-    mat4 u_view_projection_inverse;
     float u_near;
     float u_far;
+    mat4 u_projection_inverse;
 };
 
 vec3 convert_to_view(vec4 screen) {
     const vec2 ndc = screen.xy / u_render_size;
-    const vec4 clip = vec4((ndc - 0.5f) * 2.0f, screen.z, screen.w);
-    const vec4 view = u_view_projection_inverse * clip;
+    vec4 clip = vec4((ndc - 0.5f) * 2.0f, screen.z, screen.w);
+    clip.y = -clip.y;
+    const vec4 view = u_projection_inverse * clip;
     
     return view.xyz / view.w;
 }
@@ -40,7 +45,7 @@ void main() {
     // the depth is 1, because of reverse-z
     const vec4 min_screen = vec4(vec2(cluster.xy * cluster_size.xy), 1.0f, 1.0f);
     const vec4 max_screen = vec4(vec2((cluster.xy + uvec2(1, 1)) * cluster_size.xy), 1.0f, 1.0f);
-    
+
     const vec3 min_view = convert_to_view(min_screen);
     const vec3 max_view = convert_to_view(max_screen);
     
@@ -54,7 +59,13 @@ void main() {
     
     const vec3 aabb_min = min(min(min_near, min_far), min(max_near, max_far));
     const vec3 aabb_max = max(max(min_near, min_far), max(max_near, max_far));
-
-    u_clusters.clusters[gl_LocalInvocationIndex].min = vec4(aabb_min, 0.0);
-    u_clusters.clusters[gl_LocalInvocationIndex].max = vec4(aabb_max, 0.0);
+    const uint cluster_index = cluster.x +
+        cluster.y * LIGHT_CLUSTER_BINS_X +
+        cluster.z * LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y;
+    u_clusters.clusters[cluster_index].min = vec4(aabb_min, 0.0);
+    u_clusters.clusters[cluster_index].max = vec4(aabb_max, 0.0);
+    u_cluster_visibility.visibility[cluster_index] = 0;
+    for (uint i = 0; i < BIN_COUNT; i++) {
+        u_clusters.clusters[cluster_index].bins[i] = 0;
+    }
 }

@@ -20,8 +20,10 @@
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
+#include "RenderGraph/Passes/Lights/LightClustersBinPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersCompactPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersSetupPass.h"
+#include "RenderGraph/Passes/Lights/VisualizeLightClustersDepthLayersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
@@ -58,17 +60,27 @@ void Renderer::Init()
     // todo: this is temp (almost the entire file is)
     m_SceneLights = std::make_unique<SceneLight>();
     m_SceneLights->AddPointLight({
-            .Position = glm::vec3{-1.0, 1.0, -1.0},
-            .Color = glm::vec3{1.0, 1.0, 1.0},
-            .Intensity = Random::Float(0.8f, 3.6f),
-            .Radius = 12.0f});
-    constexpr u32 POINT_LIGHT_COUNT = 40;
+            .Position = glm::vec3{-0.8, 0.8, 1.0},
+            .Color = glm::vec3{0.8, 0.2, 0.2},
+            .Intensity = 8.0f,
+            .Radius = 1.0f});
+    m_SceneLights->AddPointLight({
+            .Position = glm::vec3{0.0, 0.8, 1.0},
+            .Color = glm::vec3{0.2, 0.8, 0.2},
+            .Intensity = 8.0f,
+            .Radius = 1.0f});
+    m_SceneLights->AddPointLight({
+            .Position = glm::vec3{0.8, 0.8, 1.0},
+            .Color = glm::vec3{0.2, 0.2, 0.8},
+            .Intensity = 8.0f,
+            .Radius = 1.0f});
+    constexpr u32 POINT_LIGHT_COUNT = 64;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         m_SceneLights->AddPointLight({
-            .Position = glm::vec3{Random::Float(-3.0f, 3.0f), Random::Float(0.0f, 2.0f), Random::Float(-3.0f, 3.0f)},
+            .Position = glm::vec3{Random::Float(-9.0f, 9.0f), Random::Float(0.0f, 4.0f), Random::Float(-9.0f, 9.0f)},
             .Color = Random::Float3(0.0f, 1.0f),
-            .Intensity = Random::Float(0.8f, 3.6f),
-            .Radius = Random::Float(1.0f, 3.6f)});
+            .Intensity = Random::Float(0.8f, 1.6f),
+            .Radius = Random::Float(0.5f, 8.6f)});
 }
 
 void Renderer::InitRenderGraph()
@@ -201,6 +213,7 @@ void Renderer::SetupRenderGraph()
 
     GlobalResources globalResources = {
         .FrameNumberTick = GetFrameContext().FrameNumberTick,
+        .Resolution = GetFrameContext().Resolution,
         .PrimaryCamera = m_Camera.get(),
         .PrimaryCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer),
         .ShadingSettings = m_Graph->AddExternal("ShadingSettings", shadingSettingsBuffer)};
@@ -219,7 +232,24 @@ void Renderer::SetupRenderGraph()
         .Camera = GetFrameContext().PrimaryCamera});
     auto& visibilityOutput = m_Graph->GetBlackboard().Get<Passes::Draw::Visibility::PassData>(visibility);
 
-    
+    /* light clustering: */
+    auto& clustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
+    auto& clustersSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersSetup::PassData>(clustersSetup);
+    auto& compactClusters = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
+        clustersSetupOutput.Clusters, clustersSetupOutput.ClusterVisibility, visibilityOutput.DepthOut);
+    auto& compactClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersCompact::PassData>(compactClusters);
+    auto& binLightsClusters = Passes::LightClustersBin::addToGraph("Clusters.Bin", *m_Graph,
+        compactClustersOutput.DispatchIndirect,
+        compactClustersOutput.Clusters, compactClustersOutput.ActiveClusters, compactClustersOutput.ActiveClustersCount,
+        *m_SceneLights);
+    auto& binLightsClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersBin::PassData>(binLightsClusters);
+    auto& visualizeClusters = Passes::VisualizeLightClusters::addToGraph("Clusters.Visualize", *m_Graph,
+        visibilityOutput.DepthOut, binLightsClustersOutput.Clusters);
+    auto& visualizeClustersOutput = m_Graph->GetBlackboard().Get<Passes::VisualizeLightClusters::PassData>(
+        visualizeClusters);
+    Passes::ImGuiTexture::addToGraph("Clusters.Visualize.Texture", *m_Graph, visualizeClustersOutput.ColorOut);
+
+
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
 

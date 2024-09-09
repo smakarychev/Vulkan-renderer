@@ -20,6 +20,8 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
 
             passData.Clusters = graph.CreateResource(std::format("{}.Clusters", name), GraphBufferDescription{
                 .SizeBytes = LIGHT_CLUSTER_BINS * sizeof(LightCluster)});
+            passData.ClusterVisibility = graph.CreateResource(std::format("{}.Cluster.Visibility", name),
+                GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u32)});
             passData.Clusters = graph.Write(passData.Clusters, Compute | Storage);
 
             graph.UpdateBlackboard(passData);
@@ -34,19 +36,21 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
+            resourceDescriptors.UpdateBinding("u_cluster_visibility", resources.GetBuffer(
+                passData.ClusterVisibility).BindingInfo());
 
             struct PushConstant
             {
                 glm::vec2 RenderSize;
-                glm::mat4 ViewProjectionInverse;
                 f32 Near;
                 f32 Far;
+                glm::mat4 ProjectionInverse;
             };
             PushConstant pushConstant = {
                 .RenderSize = frameContext.Resolution,
-                .ViewProjectionInverse = frameContext.PrimaryCamera->GetViewProjection(),
                 .Near = frameContext.PrimaryCamera->GetNear(),
-                .Far = frameContext.PrimaryCamera->GetFar()};
+                .Far = frameContext.PrimaryCamera->GetFar(),
+                .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);

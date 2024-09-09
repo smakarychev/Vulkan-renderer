@@ -13,6 +13,11 @@
             "name": "COMPACT",
             "value": false,
             "type": "b32"
+        },
+        {
+            "name": "CREATE_DISPATCH",
+            "value": false,
+            "type": "b32"
         }
     ]
 }

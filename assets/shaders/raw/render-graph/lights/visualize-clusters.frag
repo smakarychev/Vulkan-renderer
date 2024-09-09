@@ -1,3 +1,5 @@
+// this is definitely not the fastest shader...
+
 #version 460
 
 #include "common.glsl"
@@ -10,29 +12,34 @@ layout(location = 0) in vec2 vertex_uv;
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_depth;
 
-layout(push_constant) uniform push_constants {
-    float u_near;
-    float u_far;
-};
+layout(set = 1, binding = 1) readonly buffer clusters {
+    Cluster clusters[];
+} u_clusters;
 
-uint hash(uint x) {
-    uint state = x * 747796405u + 2891336453u;
-    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-    
-    return (word >> 22u) ^ word;
-}
+layout(set = 1, binding = 2) uniform camera {
+    CameraGPU camera;
+} u_camera;
 
-vec3 color_hash(uint x) {
-    const uint hash_val = hash(x);
+vec3 color(float t) {
+    const vec3 a = vec3(0.5f, 0.5f, 0.5f);		
+    const vec3 b = vec3(0.5f, 0.5f, 0.5f);	
+    const vec3 c = vec3(1.0f, 1.0f, 1.0f);	
+    const vec3 d = vec3(0.3f, 0.2f, 0.2f);
     
-    return vec3(
-        float(hash_val & 255u) / 255.0f,
-        float((hash_val >> 8) & 255u) / 255.0f,
-        float((hash_val >> 16) & 255u) / 255.0f); 
+    return a + b * cos(2.0f * 3.1415f * (c * t + d));
 }
 
 void main() {
     const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
-    const uint slice = slice_index(depth, u_near, u_far, LIGHT_CLUSTER_BINS_Z);
-    out_color = vec4(color_hash(slice), 1.0f);
+    const uint slice = slice_index(depth, u_camera.camera.near, u_camera.camera.far, LIGHT_CLUSTER_BINS_Z);
+    const uint cluster_index = get_cluster_index(vertex_uv, slice);
+
+    const Cluster cluster = u_clusters.clusters[cluster_index];
+    uint light_count = 0;
+    for (uint i = 0; i < BIN_COUNT; i++) {
+        light_count += bitCount(cluster.bins[i]);
+    }
+    
+    const uint MAX_LIGHTS_TO_COLOR = 64;
+    out_color = vec4(color(clamp(float(light_count) / MAX_LIGHTS_TO_COLOR, 0.0f, 1.0f)), 1.0f);
 }

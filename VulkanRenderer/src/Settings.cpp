@@ -7,8 +7,8 @@
 void Settings::initCvars()
 {
     // todo: mark as readonly once i know how to enforce it 
-    CVarString assetsPath({"Path.Assets"}, "Base path to assets", "../assets");
-    CVarString shadersPath({"Path.Shaders"}, "Relative path to shaders", "shaders");
+    CVarString assetsPath({"Path.Assets"}, "Base path to assets", "../assets/");
+    CVarString shadersPath({"Path.Shaders"}, "Relative path to shaders", "shaders/");
     CVarString shadersPathFull({"Path.Shaders.Full"}, "Full path to shaders", 
         (std::filesystem::path(assetsPath.Get()) / shadersPath.Get()).generic_string());
 
@@ -18,4 +18,12 @@ void Settings::initCvars()
     CVarI32 resourceUploaderStagingLifetime({"Uploader.StagingLifetime"},
         "The lifetime of staging buffer, in frames",
         300);
+
+
+    /* lights */
+    CVarI32 maxLightsPerFrustum({"Lights.FrustumMax"},
+        "The maximum amount of point light sources per frustum (view)",
+        1024);
+
+    
 }

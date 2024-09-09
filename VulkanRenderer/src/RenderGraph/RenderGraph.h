@@ -10,6 +10,7 @@
 #include "RGResourceUploader.h"
 #include "Vulkan/Driver.h"
 
+struct CVarParameter;
 class ShaderOverrides;
 class Shader;
 

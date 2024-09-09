@@ -6,7 +6,7 @@
 #include "types.h"
 #include "utils/HashedString.h"
 
-class CVarParameter;
+struct CVarParameter;
 
 enum class CVarFlags : u32
 {

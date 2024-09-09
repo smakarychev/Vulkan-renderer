@@ -21,7 +21,13 @@ struct LightsInfo {
     uint point_light_count;
 };
 
+const uint VIEW_MAX_LIGHTS = 1024;
+// each bin is 32 bits
+const uint BIN_BIT_SIZE = 32;
+const uint BIN_COUNT = VIEW_MAX_LIGHTS / BIN_BIT_SIZE;
+
 struct Cluster {
     vec4 min;
     vec4 max;
+    uint bins[BIN_COUNT];
 };

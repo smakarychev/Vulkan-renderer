@@ -8,8 +8,10 @@ namespace Passes::LightClustersCompact
         RG::Resource Clusters;
         RG::Resource ActiveClusters;
         RG::Resource ActiveClustersCount;
-        RG::Resource ClustersVisibility;
+        RG::Resource ClusterVisibility;
         RG::Resource Depth;
+        RG::Resource DispatchIndirect;
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource clusters, RG::Resource& depth);
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource clusters,
+        RG::Resource clusterVisibility, RG::Resource depth);
 }

@@ -1,11 +1,11 @@
-#include "VisualizeLightClustersPass.h"
+#include "VisualizeLightClustersDepthLayersPass.h"
 
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGUtils.h"
 #include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-RG::Pass& Passes::VisualizeLightClusters::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
-    RG::Resource clusters)
+RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -13,47 +13,52 @@ RG::Pass& Passes::VisualizeLightClusters::addToGraph(std::string_view name, RG::
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Setup")
+            CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth.Setup")
 
-            graph.SetShader("../assets/shaders/light-clusters-visualize.shader");
-
-            auto& globalResources = graph.GetGlobalResources();
-
+            graph.SetShader("../assets/shaders/light-clusters-depth-layers-visualize.shader");
+            
+            auto& depthDescription = Resources(graph).GetTextureDescription(depth);
             passData.ColorOut = graph.CreateResource(std::string{name} + ".Color",
                 GraphTextureDescription{
-                    .Width = globalResources.Resolution.x,
-                    .Height = globalResources.Resolution.y,
+                    .Width = depthDescription.Width,
+                    .Height = depthDescription.Height,
                     .Format = Format::RGBA16_FLOAT});
-            
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
+
             passData.Depth = graph.Read(depth, Pixel | Sampled);
-            
-            passData.Clusters = graph.Read(clusters, Pixel | Storage);
-            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
 
             graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Lights.Clusters.Visualize")
-            GPU_PROFILE_FRAME("Lights.Clusters.Visualize")
+            CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth")
+            GPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth")
+
+            const Texture& depthTexture = resources.GetTexture(passData.Depth);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline();
+            auto& pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
-            const Texture& depthTexture = resources.GetTexture(depth);
             resourceDescriptors.UpdateBinding("u_depth", depthTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
 
-            resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
+            struct PushConstant
+            {
+                f32 Near;
+                f32 Far;
+            };
+            PushConstant pushConstant = {
+                .Near = frameContext.PrimaryCamera->GetNear(),
+                .Far = frameContext.PrimaryCamera->GetFar()};
 
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
             pipeline.BindGraphics(cmd);
+            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+
             RenderCommand::Draw(cmd, 3);
         });
 }

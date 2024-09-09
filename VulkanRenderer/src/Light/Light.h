@@ -3,6 +3,9 @@
 #include "types.h"
 
 #include <glm/glm.hpp>
+#include <array>
+
+#include "Settings.h"
 
 struct DirectionalLight
 {
@@ -31,4 +34,5 @@ struct LightCluster
 {
     glm::vec4 Min;
     glm::vec4 Max;
+    std::array<u32, BIN_COUNT> Bins;
 };
