@@ -40,6 +40,6 @@ void main() {
         light_count += bitCount(cluster.bins[i]);
     }
     
-    const uint MAX_LIGHTS_TO_COLOR = 64;
+    const uint MAX_LIGHTS_TO_COLOR = 256;
     out_color = vec4(color(clamp(float(light_count) / MAX_LIGHTS_TO_COLOR, 0.0f, 1.0f)), 1.0f);
 }

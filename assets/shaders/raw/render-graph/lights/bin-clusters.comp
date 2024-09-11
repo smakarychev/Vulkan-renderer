@@ -28,7 +28,7 @@ layout(push_constant) uniform push_constants {
     mat4 u_view_matrix;
 };
 
-const uint LIGHT_BATCH_SIZE = gl_WorkGroupSize.x;
+const uint LIGHT_BATCH_SIZE = BIN_DISPATCH_SIZE;
 shared vec3 s_point_lights_position[LIGHT_BATCH_SIZE];
 shared float s_point_lights_radius[LIGHT_BATCH_SIZE];
 
@@ -57,34 +57,34 @@ bool is_in_cluster(uint light_index, uint cluster_index) {
 void main() {
     const uint id = gl_GlobalInvocationID.x;
     const uint cluster_index = u_active_clusters.indices[id];
-    
+
     // load lights into shared memory in batches
     const uint batch_count = (
-        min(VIEW_MAX_LIGHTS, u_lights_info.info.point_light_count) +
-        LIGHT_BATCH_SIZE - 1) / LIGHT_BATCH_SIZE;
+        min(VIEW_MAX_LIGHTS,
+            u_lights_info.info.point_light_count) + LIGHT_BATCH_SIZE - 1) / LIGHT_BATCH_SIZE;
     for (uint batch = 0; batch < batch_count; batch++) {
         const uint light_offset = batch * LIGHT_BATCH_SIZE;
-        const uint light_fetch_index = id + light_offset;
+        const uint light_fetch_index = gl_LocalInvocationID.x + light_offset;
         if (light_fetch_index < u_lights_info.info.point_light_count) {
             s_point_lights_position[gl_LocalInvocationID.x] = u_point_lights.lights[light_fetch_index].position;
             s_point_lights_radius[gl_LocalInvocationID.x] = u_point_lights.lights[light_fetch_index].radius;
         }
         barrier();
         
-        if (id >= u_count.count) 
-            continue;
-        
-        // go through each light, determine the cluster it belongs to
-        uint light_count = min(LIGHT_BATCH_SIZE, u_lights_info.info.point_light_count - light_offset);
-        for (uint light_index = light_offset; light_index < light_offset + light_count; light_index++) {
-            // test light sphere againts cluster aabb volume
-            const bool in_cluster = is_in_cluster(light_index, cluster_index);
-            if (in_cluster) {
-                const uint bin_index = light_index / BIN_BIT_SIZE;
-                const uint bin_index_min = light_index % BIN_BIT_SIZE;
-                u_clusters.clusters[cluster_index].bins[bin_index] |= 1 << bin_index_min;
+        if (id < u_count.count) {
+            // go through each light, determine the cluster it belongs to
+            uint light_count = min(LIGHT_BATCH_SIZE, u_lights_info.info.point_light_count - light_offset);
+            for (uint light_index = light_offset; light_index < light_offset + light_count; light_index++) {
+                // test light sphere againts cluster aabb volume
+                const bool in_cluster = is_in_cluster(light_index - light_offset, cluster_index);
+                if (in_cluster) {
+                    const uint bin_index = light_index / BIN_BIT_SIZE;
+                    const uint bin_index_min = light_index % BIN_BIT_SIZE;
+                    u_clusters.clusters[cluster_index].bins[bin_index] |= 1 << bin_index_min;
+                }
             }
-        }
+        }        
+        
         barrier();
     }
 }

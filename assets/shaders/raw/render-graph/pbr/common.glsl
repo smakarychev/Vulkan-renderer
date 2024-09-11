@@ -1,6 +1,4 @@
-#include "../common.glsl"
-#include "../../camera.glsl"
-#include "../../light.glsl"
+#include "../lights/common.glsl"
 #include "../../shadow.glsl"
 
 struct VisibilityInfo {

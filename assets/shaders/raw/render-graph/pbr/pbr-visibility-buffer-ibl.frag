@@ -7,6 +7,7 @@
 
 #extension GL_EXT_nonuniform_qualifier: require
 #extension GL_EXT_samplerless_texture_functions: require
+#extension GL_KHR_shader_subgroup_arithmetic: require
 
 layout(constant_id = 0) const float MAX_REFLECTION_LOD = 5.0f;
 
@@ -48,38 +49,41 @@ layout(scalar, set = 1, binding = 9) uniform lights_info {
     LightsInfo info;
 } u_lights_info;
 
-layout(std430, set = 1, binding = 10) readonly buffer command_buffer {
+layout(set = 1, binding = 10) readonly buffer clusters {
+    Cluster clusters[];
+} u_clusters;
+
+layout(std430, set = 1, binding = 11) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 11) readonly buffer objects_buffer {
+layout(std430, set = 1, binding = 12) readonly buffer objects_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 12) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 13) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 13) readonly buffer normals_buffer {
+layout(std430, set = 1, binding = 14) readonly buffer normals_buffer {
     Normal normals[];
 } u_normals;
 
-layout(std430, set = 1, binding = 14) readonly buffer tangents_buffer {
+layout(std430, set = 1, binding = 15) readonly buffer tangents_buffer {
     Tangent tangents[];
 } u_tangents;
 
-layout(std430, set = 1, binding = 15) readonly buffer uvs_buffer {
+layout(std430, set = 1, binding = 16) readonly buffer uvs_buffer {
     UV uvs[];
 } u_uv;
 
-layout(std430, set = 1, binding = 16) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 17) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
-
 // shadow-related descriptors
-layout(set = 1, binding = 17) uniform texture2DArray u_csm;
-layout(scalar, set = 1, binding = 18) uniform csm_data_buffer {
+layout(set = 1, binding = 18) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 19) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
@@ -157,9 +161,9 @@ void convert_to_world_space_normal(inout vec3 normal, VisibilityInfo visibility_
 }
 
 void convert_to_world_space_normal_tangents(
-        inout vec3 normal, vec3 normal_dx, vec3 normal_dy,
-        inout vec3 tangent, vec3 tangent_dx, vec3 tangent_dy,
-        inout vec3 bitangent, inout vec3 bitangent_dx, inout vec3 bitangent_dy, VisibilityInfo visibility_info) {
+    inout vec3 normal, vec3 normal_dx, vec3 normal_dy,
+    inout vec3 tangent, vec3 tangent_dx, vec3 tangent_dy,
+    inout vec3 bitangent, inout vec3 bitangent_dx, inout vec3 bitangent_dy, VisibilityInfo visibility_info) {
     IndirectCommand command = u_commands.commands[visibility_info.instance_id];
     object_data object = u_objects.objects[command.render_object];
 
@@ -302,10 +306,52 @@ mat3 interpolate_with_derivatives_3d(InterpolationData interpolation, mat3 attri
     return mat3(vec3(ax, ay, az), vec3(addxx, addxy, addxz), vec3(addyx, addyy, addyz));
 }
 
+uint hash(uint x) {
+    uint state = x * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+
+    return (word >> 22u) ^ word;
+}
+
+vec3 color_hash(uint x) {
+    const uint hash_val = hash(x);
+
+    return vec3(
+        float(hash_val & 255u) / 255.0f,
+        float((hash_val >> 8) & 255u) / 255.0f,
+        float((hash_val >> 16) & 255u) / 255.0f);
+}
+
+vec3 shade_pbr_point_light(ShadeInfo shade_info, uint light_index) {
+    const PointLight light = u_point_lights.lights[light_index];
+
+    vec3 light_dir = light.position - shade_info.position;
+    const float distance2 = dot(light_dir, light_dir);
+    const float falloff = pbr_falloff(distance2, light.radius);
+    light_dir = normalize(light_dir);
+
+    const vec3 radiance = light.color * light.intensity * falloff;
+
+    const vec3 halfway_dir = normalize(light_dir + shade_info.view);
+
+    const float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
+    const float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
+    const float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
+
+    const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
+    const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
+    const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
+
+    const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
+    const vec3 specular = D * V * F;
+
+    return (specular + diffuse) * radiance * n_dot_l;
+}
+
 vec3 shade_pbr_lights(ShadeInfo shade_info, float directional_shadow) {
 
     vec3 Lo = vec3(0.0f);
-    
+
     // calculate directional light
     {
         const vec3 light_dir = -u_directional_light.light.direction;
@@ -328,50 +374,38 @@ vec3 shade_pbr_lights(ShadeInfo shade_info, float directional_shadow) {
     }
     // calculate point lighs
     {
-        for (uint i = 0; i < u_lights_info.info.point_light_count; i++) {
-            const PointLight light = u_point_lights.lights[i];
-            
-            vec3 light_dir = light.position - shade_info.position;
-            const float distance2 = dot(light_dir, light_dir);
-            const float falloff = pbr_falloff(distance2, light.radius);
-            light_dir = normalize(light_dir);
-            
-            const vec3 radiance = light.color * light.intensity * falloff;
-
-            const vec3 halfway_dir = normalize(light_dir + shade_info.view);
-
-            const float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
-            const float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
-            const float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
-
-            const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
-            const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
-            const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
-
-            const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
-            const vec3 specular = D * V * F;
-
-            Lo += (specular + diffuse) * radiance * n_dot_l;        
+        const uint slice = slice_index_depth_linear(shade_info.z_view, u_camera.camera.near, u_camera.camera.far, LIGHT_CLUSTER_BINS_Z);
+        const uint cluster_index = get_cluster_index(vertex_uv, slice);
+        Cluster cluster = u_clusters.clusters[cluster_index];
+        for (uint bin = 0; bin < BIN_COUNT; bin++) {
+            const uint bin_bits = cluster.bins[bin];
+            uint bin_bits_group = subgroupOr(bin_bits);
+            while (bin_bits_group > 0) {
+                const uint bit_index = findLSB(bin_bits_group);
+                const uint light_index = bin * BIN_BIT_SIZE + bit_index;
+                Lo += shade_pbr_point_light(shade_info, light_index);
+                bin_bits_group = bin_bits_group & ~(1u << bit_index);
+            }
         }
     }
-    
+
     return Lo;
 }
 
 vec3 shade_pbr_ibl(ShadeInfo shade_info) {
     const vec3 R = reflect(-shade_info.view, shade_info.normal);
     const vec3 irradiance = textureLod(samplerCube(u_irradiance_map, u_sampler), shade_info.normal, 0).rgb;
-    
+
     const float lod = shade_info.perceptual_roughness * MAX_REFLECTION_LOD;
     const vec3 prefiltered = textureLod(samplerCube(u_prefilter_map, u_sampler), R, lod).rgb;
-    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_brdf), 
-        vec2(shade_info.n_dot_v, shade_info.perceptual_roughness), 0).rg;
-    
+    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_brdf),
+    vec2(shade_info.n_dot_v, shade_info.perceptual_roughness), 0).rg;
+
     const vec3 diffuse = irradiance * shade_info.diffuse_color;
-    const vec3 specular = (shade_info.F0 * brdf.x + shade_info.F90 * brdf.y) * prefiltered; 
-    
+    const vec3 specular = (shade_info.F0 * brdf.x + shade_info.F90 * brdf.y) * prefiltered;
+
     const vec3 ambient = specular + diffuse;
-    
+
     return ambient;
 }
 
@@ -380,9 +414,9 @@ vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     Lo = shade_pbr_lights(shade_info, shadow);
 
     vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
-    
+
     vec3 color = Lo + ambient;
-    
+
     return color * ao;
 }
 
@@ -398,6 +432,7 @@ struct GBufferData {
     vec3 emissive;
     vec2 metallic_roughness;
     float ao;
+    float z_view;
 };
 
 GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
@@ -408,7 +443,9 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
 
     const float w = dot(vec3(triangle.a.w, triangle.b.w, triangle.c.w), interpolation_data.barycentric);
     const float z = -w * u_camera.camera.projection[2][2] + u_camera.camera.projection[3][2];
-    const vec3 position = (u_camera.camera.inv_view_projection * vec4(vertex_position * w, z, w)).xyz;
+    vec4 position = u_camera.camera.inv_projection * vec4(vertex_position * w, z, w);
+    const float z_view = position.z;
+    position = u_camera.camera.inv_view * position;
 
     const mat3x2 uvs = get_uvs(indices);
     const mat3x2 uvs_interpolated = interpolate_with_derivatives_2d(interpolation_data, uvs);
@@ -420,16 +457,16 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
 
     vec3 albedo = material.albedo_color.rgb;
     albedo *= textureGrad(nonuniformEXT(sampler2D(u_textures[
-        material.albedo_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
-    
+    material.albedo_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
+
     vec3 emissive = textureGrad(nonuniformEXT(sampler2D(u_textures[
-        material.emissive_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
+    material.emissive_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
 
     vec2 metallic_roughness = textureGrad(nonuniformEXT(sampler2D(u_textures[
-        material.metallic_roughness_texture_index], u_sampler)), uv, uv_dx, uv_dy).bg;
-    
+    material.metallic_roughness_texture_index], u_sampler)), uv, uv_dx, uv_dy).bg;
+
     float ao = textureGrad(nonuniformEXT(sampler2D(u_textures[
-        material.ambient_occlusion_texture_index], u_sampler)), uv, uv_dx, uv_dy).r;
+    material.ambient_occlusion_texture_index], u_sampler)), uv, uv_dx, uv_dy).r;
 
     const mat3 normals = get_normals(indices);
     const mat3 normals_interpolated = interpolate_with_derivatives_3d(interpolation_data, normals);
@@ -453,12 +490,12 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
         visibility_info);
 
     vec3 normal_from_map = textureGrad(nonuniformEXT(sampler2D(u_textures[
-        material.normal_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
+    material.normal_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
     normal_from_map = normalize(normal_from_map * 2.0f - 1.0f);
     normal = tangent * normal_from_map.x + bitangent * normal_from_map.y + normal * normal_from_map.z;
-    
+
     GBufferData data;
-    data.position = position;
+    data.position = position.xyz;
     data.uv = uv;
     data.uv_dx = uv_dx;
     data.uv_dy = uv_dy;
@@ -468,18 +505,19 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     data.emissive = emissive;
     data.metallic_roughness = vec2(material.metallic, material.roughness) * metallic_roughness;
     data.ao = ao;
-    
+    data.z_view = z_view;
+
     return data;
 }
 
 void main() {
     uint visibility_packed = textureLod(usampler2D(u_visibility_texture, u_sampler_visibility), vertex_uv, 0).r;
-    if (visibility_packed == (~0)) 
+    if (visibility_packed == (~0))
         return;
 
     const VisibilityInfo visibility_info = unpack_visibility(visibility_packed);
     const GBufferData gbuffer_data = get_gbuffer_data(visibility_info);
-    
+
     float metallic = gbuffer_data.metallic_roughness.r;
     metallic = clamp(metallic, MIN_ROUGHNESS, 1.0f);
     const float perceptual_roughness = gbuffer_data.metallic_roughness.g;
@@ -488,10 +526,10 @@ void main() {
     const float reflectance = 0.5f;
     const vec3 F0 = mix(vec3(0.16f * reflectance * reflectance), gbuffer_data.albedo, metallic);
     const vec3 F90 = vec3(1.0f);
-    
+
     vec3 diffuse_color = (1.0f - metallic) * gbuffer_data.albedo * (vec3(1.0f) - F0);
     vec3 specular_color = F0;
-    
+
     ShadeInfo shade_info;
     shade_info.position = gbuffer_data.position;
     shade_info.normal = gbuffer_data.normal;
@@ -505,16 +543,17 @@ void main() {
     shade_info.diffuse_color = diffuse_color;
     shade_info.specular_color = specular_color;
     shade_info.alpha = 1.0f; // unused
+    shade_info.z_view = gbuffer_data.z_view;
     
     const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
-    
+
     const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_light.light.size);
 
     vec3 color;
     color = shade_pbr(shade_info, shadow, ambient_occlusion);
     color = tonemap(color, 2.0f);
-    
+
     color += gbuffer_data.emissive;
-    
+
     out_color = vec4(color, 1.0);
 }

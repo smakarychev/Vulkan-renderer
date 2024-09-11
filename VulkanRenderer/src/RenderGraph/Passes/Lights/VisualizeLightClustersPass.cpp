@@ -4,7 +4,7 @@
 #include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-RG::Pass& Passes::VisualizeLightClusters::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
     RG::Resource clusters)
 {
     using namespace RG;

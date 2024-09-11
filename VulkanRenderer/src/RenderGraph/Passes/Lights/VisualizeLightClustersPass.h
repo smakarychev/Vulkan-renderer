@@ -1,7 +1,7 @@
 #pragma once
 #include "RenderGraph/RGResource.h"
 
-namespace Passes::VisualizeLightClusters
+namespace Passes::LightClustersVisualize
 {
     struct PassData
     {

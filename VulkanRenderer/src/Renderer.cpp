@@ -74,12 +74,12 @@ void Renderer::Init()
             .Color = glm::vec3{0.2, 0.2, 0.8},
             .Intensity = 8.0f,
             .Radius = 1.0f});
-    constexpr u32 POINT_LIGHT_COUNT = 64;
+    constexpr u32 POINT_LIGHT_COUNT = 312;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         m_SceneLights->AddPointLight({
             .Position = glm::vec3{Random::Float(-9.0f, 9.0f), Random::Float(0.0f, 4.0f), Random::Float(-9.0f, 9.0f)},
             .Color = Random::Float3(0.0f, 1.0f),
-            .Intensity = Random::Float(0.8f, 1.6f),
+            .Intensity = Random::Float(0.5f, 1.7f),
             .Radius = Random::Float(0.5f, 8.6f)});
 }
 
@@ -243,12 +243,12 @@ void Renderer::SetupRenderGraph()
         compactClustersOutput.Clusters, compactClustersOutput.ActiveClusters, compactClustersOutput.ActiveClustersCount,
         *m_SceneLights);
     auto& binLightsClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersBin::PassData>(binLightsClusters);
-    auto& visualizeClusters = Passes::VisualizeLightClusters::addToGraph("Clusters.Visualize", *m_Graph,
+
+    auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph("Clusters.Visualize", *m_Graph,
         visibilityOutput.DepthOut, binLightsClustersOutput.Clusters);
-    auto& visualizeClustersOutput = m_Graph->GetBlackboard().Get<Passes::VisualizeLightClusters::PassData>(
+    auto& visualizeClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersVisualize::PassData>(
         visualizeClusters);
     Passes::ImGuiTexture::addToGraph("Clusters.Visualize.Texture", *m_Graph, visualizeClustersOutput.ColorOut);
-
 
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
@@ -297,6 +297,7 @@ void Renderer::SetupRenderGraph()
         .VisibilityTexture = visibilityOutput.ColorOut,
         .ColorIn = {},
         .SceneLights = m_SceneLights.get(),
+        .Clusters = binLightsClustersOutput.Clusters,
         .IBL = {
             .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),

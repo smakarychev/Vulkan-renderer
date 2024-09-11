@@ -43,6 +43,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
                    .Format = Format::RGBA16_FLOAT});
 
             passData.LightsResources = RgUtils::readSceneLight(*info.SceneLights, graph, Pixel);
+            passData.Clusters = graph.Read(info.Clusters, Pixel | Storage);
             passData.IBL = RgUtils::readIBLData(info.IBL, graph, Pixel);
             passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
             passData.CSMData = RgUtils::readCSMData(info.CSMData, graph, Pixel);
@@ -93,6 +94,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.BindingInfo(ImageFilter::Nearest,
                 ImageLayout::Readonly));
             RgUtils::updateSceneLightBindings(resourceDescriptors, resources, passData.LightsResources);
+            resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
             RgUtils::updateIBLBindings(resourceDescriptors, resources, passData.IBL);
             RgUtils::updateSSAOBindings(resourceDescriptors, resources, passData.SSAO);
             RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
