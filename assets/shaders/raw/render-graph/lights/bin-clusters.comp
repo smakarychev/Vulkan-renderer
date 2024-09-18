@@ -9,7 +9,7 @@ layout(set = 1, binding = 0) buffer clusters {
 } u_clusters;
 
 layout(set = 1, binding = 1) readonly buffer active_clusters {
-    uint indices[];
+    uint16_t indices[];
 } u_active_clusters;
 
 layout(set = 1, binding = 2) uniform clusters_count {
@@ -32,31 +32,20 @@ const uint LIGHT_BATCH_SIZE = BIN_DISPATCH_SIZE;
 shared vec3 s_point_lights_position[LIGHT_BATCH_SIZE];
 shared float s_point_lights_radius[LIGHT_BATCH_SIZE];
 
-float distance_squared(vec3 point, Cluster cluster) {
-    float distance2 = 0.0f;
-    for (uint i = 0; i < 3; i++) {
-        const float c = point[i];
-        if (c < cluster.min[i])
-            distance2 += (cluster.min[i] - c) * (cluster.min[i] - c);
-        if (c > cluster.max[i])
-            distance2 += (cluster.max[i] - c) * (cluster.max[i] - c);
-    }
-
-    return distance2;
-}
-
 bool is_in_cluster(uint light_index, uint cluster_index) {
     const float radius = s_point_lights_radius[light_index];
     vec3 position = s_point_lights_position[light_index];
     position = vec3(u_view_matrix * vec4(position, 1.0f));
-    const float distance2 = distance_squared(position, u_clusters.clusters[cluster_index]);
+    const float distance2 = distance_aabb_squared(position,
+        u_clusters.clusters[cluster_index].min,
+        u_clusters.clusters[cluster_index].max);
 
     return distance2  <= radius * radius;
 }
 
 void main() {
     const uint id = gl_GlobalInvocationID.x;
-    const uint cluster_index = u_active_clusters.indices[id];
+    const uint cluster_index = uint(u_active_clusters.indices[id]);
 
     // load lights into shared memory in batches
     const uint batch_count = (

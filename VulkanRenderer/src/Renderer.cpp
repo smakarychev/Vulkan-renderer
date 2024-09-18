@@ -23,8 +23,11 @@
 #include "RenderGraph/Passes/Lights/LightClustersBinPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersCompactPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersSetupPass.h"
+#include "RenderGraph/Passes/Lights/LightTilesBinPass.h"
+#include "RenderGraph/Passes/Lights/LightTilesSetupPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersDepthLayersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
+#include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
@@ -74,7 +77,7 @@ void Renderer::Init()
             .Color = glm::vec3{0.2, 0.2, 0.8},
             .Intensity = 8.0f,
             .Radius = 1.0f});
-    constexpr u32 POINT_LIGHT_COUNT = 312;
+    constexpr u32 POINT_LIGHT_COUNT = 64;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         m_SceneLights->AddPointLight({
             .Position = glm::vec3{Random::Float(-9.0f, 9.0f), Random::Float(0.0f, 4.0f), Random::Float(-9.0f, 9.0f)},
@@ -249,6 +252,20 @@ void Renderer::SetupRenderGraph()
     auto& visualizeClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersVisualize::PassData>(
         visualizeClusters);
     Passes::ImGuiTexture::addToGraph("Clusters.Visualize.Texture", *m_Graph, visualizeClustersOutput.ColorOut);
+
+    
+    /* light tiling */
+    auto& tilesSetup = Passes::LightTilesSetup::addToGraph("Tiles.Setup", *m_Graph);
+    auto& tilesSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesSetup::PassData>(tilesSetup);
+    auto& binLightsTiles = Passes::LightTilesBin::addToGraph("Tiles.Bin", *m_Graph, tilesSetupOutput.Tiles,
+        visibilityOutput.DepthOut, *m_SceneLights);
+    auto& binLightsTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesBin::PassData>(binLightsTiles);
+    auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph("Tiles.Visualize", *m_Graph,
+        binLightsTilesOutput.Tiles);
+    auto& visualizeTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesVisualize::PassData>(
+        visualizeTiles);
+    Passes::ImGuiTexture::addToGraph("Tiles.Visualize.Texture", *m_Graph, visualizeTilesOutput.ColorOut);
+
 
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);

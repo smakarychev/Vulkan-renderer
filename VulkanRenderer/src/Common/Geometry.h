@@ -76,3 +76,23 @@ struct Sphere
         Radius = (distance + Radius + Radius) / 2.0f;
     }
 };
+
+struct Plane
+{
+    glm::vec3 Normal{0.0f};
+    f32 Offset{0.0f};
+
+    constexpr f32 SignedDistance(const glm::vec3& point) const
+    {
+        return glm::dot(Normal, point) + Offset;
+    }
+
+    static Plane ByPointAndNormal(const glm::vec3& point, const glm::vec3& normal)
+    {
+        Plane plane = {};
+        plane.Normal = glm::normalize(normal);
+        plane.Offset = -glm::dot(plane.Normal, point);
+
+        return plane;
+    }
+};

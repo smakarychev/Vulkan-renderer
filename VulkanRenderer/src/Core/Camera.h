@@ -7,6 +7,8 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
 
+#include "Common/Geometry.h"
+
 struct FrustumPlanes
 {
     f32 TopY;
@@ -98,6 +100,9 @@ public:
     FrustumCorners GetFrustumCorners(f32 maxDistance) const;
     FrustumCorners GetFrustumCorners(f32 minDistance, f32 maxDistance) const;
     ProjectionData GetProjectionData() const;
+
+    /* return near camera plane with normal equal to the `Forward` vector */
+    Plane GetNearViewPlane() const;
 private:
     void UpdateViewMatrix();
     void UpdateProjectionMatrix();

@@ -219,7 +219,7 @@ void ShaderCache::HandleShaderModification(std::string_view name)
 void ShaderCache::HandleStageModification(std::string_view name)
 {
     auto& stages = s_FileGraph.find(name)->second.Files;
-    ASSERT(stages.size() == 1, "Only .gsl files are meant to be used as includes")
+    ASSERT(stages.size() == 1, "Only .glsl files are meant to be used as includes")
     
     auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}), name);
     if (baked.has_value())
@@ -239,7 +239,6 @@ void ShaderCache::HandleHeaderModification(std::string_view name)
 
 void ShaderCache::CreateFileGraph()
 {
-    // todo: read from file
     for (auto& file : std::filesystem::recursive_directory_iterator(*CVars::Get().GetStringCVar({"Path.Shaders.Full"})))
     {
         if (file.is_directory())

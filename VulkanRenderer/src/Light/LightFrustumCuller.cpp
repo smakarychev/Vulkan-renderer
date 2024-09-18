@@ -6,6 +6,7 @@
 #include "Light.h"
 #include "SceneLight.h"
 #include "Common/Geometry.h"
+#include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
 
 namespace
@@ -68,14 +69,11 @@ namespace
 
     void sortByDepth(std::vector<PointLight>& pointLights, const Camera& camera)
     {
-        glm::vec3 planeNormal = camera.GetForward();
-        f32 planeOffset = -glm::dot(planeNormal, camera.GetPosition());
+        Plane sortPlane = camera.GetNearViewPlane();
 
-        std::ranges::sort(pointLights, std::less<>{}, [&planeNormal, &planeOffset](auto& light)
+        std::ranges::sort(pointLights, std::less<>{}, [&sortPlane](auto& light)
         {
-            f32 planeDistance = glm::dot(planeNormal, light.Position) + planeOffset;
-            
-            return planeDistance;
+            return sortPlane.SignedDistance(light.Position);
         });
     }
 }

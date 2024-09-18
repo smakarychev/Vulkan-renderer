@@ -84,7 +84,7 @@ namespace
                         .Add({"COMPACT"}, true));
 
                 passData.ActiveClusters = graph.CreateResource(std::format("{}.Clusters.Active", name),
-                    GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u32)});
+                    GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u16)});
                 passData.ActiveClustersCount = graph.CreateResource(std::format("{}.Clusters.ActiveCount", name),
                     GraphBufferDescription{.SizeBytes = sizeof(u32)});
 

@@ -19,21 +19,10 @@ layout(push_constant) uniform u_push_constants {
     mat4 u_projection_inverse;
 };
 
-vec3 convert_to_view(vec4 screen) {
-    const vec2 ndc = screen.xy / u_render_size;
-    vec4 clip = vec4((ndc - 0.5f) * 2.0f, screen.z, screen.w);
-    clip.y = -clip.y;
-    const vec4 view = u_projection_inverse * clip;
-    
-    return view.xyz / view.w;
-}
+#include "utility.glsl"
 
 float get_cascade_depth(uint z_index) {
     return -u_near * pow(u_far / u_near, float(z_index) / float(gl_NumWorkGroups.z));
-}
-
-vec3 line_plane_intersection(vec3 dir, float z) {
-    return vec3(dir.xy * z / dir.z, z);
 }
 
 void main() { 
@@ -46,8 +35,8 @@ void main() {
     const vec4 min_screen = vec4(vec2(cluster.xy * cluster_size.xy), 1.0f, 1.0f);
     const vec4 max_screen = vec4(vec2((cluster.xy + uvec2(1, 1)) * cluster_size.xy), 1.0f, 1.0f);
 
-    const vec3 min_view = convert_to_view(min_screen);
-    const vec3 max_view = convert_to_view(max_screen);
+    const vec3 min_view = convert_to_view(min_screen, u_projection_inverse);
+    const vec3 max_view = convert_to_view(max_screen, u_projection_inverse);
     
     const float cluster_near = get_cascade_depth(gl_WorkGroupID.z);
     const float cluster_far = get_cascade_depth(gl_WorkGroupID.z + 1);
@@ -65,7 +54,6 @@ void main() {
     u_clusters.clusters[cluster_index].min = vec4(aabb_min, 0.0);
     u_clusters.clusters[cluster_index].max = vec4(aabb_max, 0.0);
     u_cluster_visibility.visibility[cluster_index] = 0;
-    for (uint i = 0; i < BIN_COUNT; i++) {
+    for (uint i = 0; i < BIN_COUNT; i++) 
         u_clusters.clusters[cluster_index].bins[i] = 0;
-    }
 }

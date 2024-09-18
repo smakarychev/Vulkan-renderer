@@ -6,6 +6,7 @@
 #include <array>
 
 #include "Settings.h"
+#include "common/Geometry.h"
 
 struct DirectionalLight
 {
@@ -34,5 +35,11 @@ struct LightCluster
 {
     glm::vec4 Min;
     glm::vec4 Max;
+    std::array<u32, BIN_COUNT> Bins;
+};
+
+struct LightTile
+{
+    std::array<Plane, 4> Planes;
     std::array<u32, BIN_COUNT> Bins;
 };

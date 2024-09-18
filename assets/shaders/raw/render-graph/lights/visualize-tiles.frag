@@ -6,15 +6,11 @@ layout(location = 0) out vec4 out_color;
 
 layout(location = 0) in vec2 vertex_uv;
 
-@immutable_sampler
-layout(set = 0, binding = 0) uniform sampler u_sampler;
-layout(set = 1, binding = 0) uniform texture2D u_depth;
+layout(set = 1, binding = 0) readonly buffer tiles {
+    Tile tiles[];
+} u_tiles;
 
-layout(set = 1, binding = 1) readonly buffer clusters {
-    Cluster clusters[];
-} u_clusters;
-
-layout(set = 1, binding = 2) uniform camera {
+layout(scalar, set = 1, binding = 1) uniform camera {
     CameraGPU camera;
 } u_camera;
 
@@ -33,16 +29,15 @@ vec3 color_heatmap(float t) {
 }
 
 void main() {
-    const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
-    const uint slice = slice_index(depth, u_camera.camera.near, u_camera.camera.far, LIGHT_CLUSTER_BINS_Z);
-    const uint cluster_index = get_cluster_index(vertex_uv, slice);
+    const uvec2 tile_count = uvec2(ceil(u_camera.camera.resolution.xy / uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y)));
+    const uvec2 tile_index = uvec2(vec2(vertex_uv.x, 1.0f - vertex_uv.y) * uvec2(tile_count.x, tile_count.y));
 
-    const Cluster cluster = u_clusters.clusters[cluster_index];
+    const Tile tile = u_tiles.tiles[tile_index.x + tile_index.y * tile_count.x];
     uint light_count = 0;
     for (uint i = 0; i < BIN_COUNT; i++) {
-        light_count += bitCount(cluster.bins[i]);
+        light_count += bitCount(tile.bins[i]);
     }
-    
-    const uint MAX_LIGHTS_TO_COLOR = 100;
+
+    const uint MAX_LIGHTS_TO_COLOR = 25;
     out_color = vec4(color_heatmap(clamp(float(light_count) / MAX_LIGHTS_TO_COLOR, 0.0f, 1.0f)), 1.0f);
 }

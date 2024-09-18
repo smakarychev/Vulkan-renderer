@@ -7,7 +7,7 @@
 #include "Scene/SceneGeometry.h"
 
 DepthGeometrySorter::DepthGeometrySorter(const glm::vec3& sortingPoint, const glm::vec3& sortingDirection)
-    : m_PlaneOffset(-glm::dot(sortingDirection, sortingPoint)), m_PlaneNormal(sortingDirection)
+    : m_SortPlane(Plane::ByPointAndNormal(sortingPoint, sortingDirection))
 {
 }
 
@@ -20,7 +20,7 @@ void DepthGeometrySorter::Sort(SceneGeometry& geometry, ResourceUploader& resour
         [this, &geometry, &depths](const RenderObject& renderObject, u32)
         {
             const Mesh& mesh = geometry.GetModelCollection().GetMeshes()[renderObject.Mesh];
-            f32 planeDistance = glm::dot(m_PlaneNormal, mesh.GetBoundingSphere().Center) + m_PlaneOffset;
+            f32 planeDistance = m_SortPlane.SignedDistance(mesh.GetBoundingSphere().Center);
             /* we do not care about negative distance, clamping it at 0 keeps the order of every
              * object behind the sorting plane
              */

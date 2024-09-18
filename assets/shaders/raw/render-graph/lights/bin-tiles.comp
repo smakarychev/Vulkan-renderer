@@ -1,0 +1,172 @@
+#version 460
+
+#include "common.glsl"
+
+#extension GL_KHR_shader_subgroup_arithmetic: require
+
+const uint WORKGROUP_SIZE = 8;
+
+layout(local_size_x = WORKGROUP_SIZE, local_size_y = WORKGROUP_SIZE) in;
+
+@immutable_sampler
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_depth;
+
+layout(set = 1, binding = 1) buffer tiles {
+    Tile tiles[];
+} u_tiles;
+
+layout(scalar, set = 1, binding = 2) readonly buffer point_light {
+    PointLight lights[];
+} u_point_lights;   
+
+layout(scalar, set = 1, binding = 3) uniform lights_info {
+    LightsInfo info;
+} u_lights_info;
+
+layout(scalar, set = 1, binding = 4) uniform camera {
+    CameraGPU camera;
+} u_camera;
+
+layout(push_constant) uniform push_constants {
+    vec2 u_render_size;
+};
+
+#include "utility.glsl"
+
+struct AABB {
+    vec4 min;
+    vec4 max;
+};
+
+shared uvec2 s_depth_range;
+shared AABB s_aabb;
+shared uint s_depth_mask;
+
+bool is_inside_plane(Plane plane, vec3 position, float radius) {
+    return dot(plane.plane.xyz, position) - plane.plane.w < radius;
+}
+
+#extension GL_EXT_debug_printf : enable
+
+bool is_in_tile_frustum(uint tile_index, vec3 position, float radius) {
+    const Tile tile = u_tiles.tiles[tile_index];
+    
+    bool is_in_tile = true;
+    is_in_tile = is_in_tile && position.z - radius < -u_camera.camera.near;
+    is_in_tile = is_in_tile && position.z + radius > -u_camera.camera.far;
+    is_in_tile = is_in_tile && is_inside_plane(tile.planes[0], position, radius);
+    is_in_tile = is_in_tile && is_inside_plane(tile.planes[1], position, radius);
+    is_in_tile = is_in_tile && is_inside_plane(tile.planes[2], position, radius);
+    is_in_tile = is_in_tile && is_inside_plane(tile.planes[3], position, radius);
+    
+    return is_in_tile;
+}
+
+uint light_mask(vec3 position, float radius, float depth_aabb_min, float depth_range_inverse) {
+    const float depth_min = position.z + radius;
+    const float depth_max = position.z - radius;
+    
+    const uint depth_mask_min = uint(max(0.0f, min(31.0f, floor((depth_min - depth_aabb_min) * depth_range_inverse))));
+    const uint depth_mask_max = uint(max(0.0f, min(31.0f, floor((depth_max - depth_aabb_min) * depth_range_inverse))));
+    
+    uint mask = ~0;
+    mask = mask >> 31 - (depth_mask_max - depth_mask_min);
+    mask = mask << depth_mask_min;
+    
+    return mask;
+}
+
+void main() {
+    const uvec2 tile_size = uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y);
+    const uvec2 workgroup_per_tile = min(uvec2(1), tile_size / WORKGROUP_SIZE);
+    
+    if (gl_LocalInvocationIndex == 0) {
+        s_depth_range = uvec2(~0, 0);
+        s_depth_mask = 0;
+    }
+    
+    // determine the min and max depth per tile
+    float depth_min = 1.0f;
+    float depth_max = 0.0f;
+    
+    const uint max_samples = 8;
+    float depth_samples_local[max_samples];
+    uint sample_count = 0;
+    for (uint y = gl_LocalInvocationID.y; y < tile_size.y; y += WORKGROUP_SIZE) {
+        for (uint x = gl_LocalInvocationID.x; x  < tile_size.x; x += WORKGROUP_SIZE) {
+            const vec2 coord = min(vec2(tile_size * gl_WorkGroupID.xy + uvec2(x, y)), u_render_size - 1);
+            vec2 uv = (coord + 0.5f) / u_render_size;
+            uv.y = 1.0f - uv.y;
+            const float depth = textureLod(sampler2D(u_depth, u_sampler), uv, 0).r;
+        
+            depth_min = min(depth_min, subgroupMin(depth));
+            depth_max = max(depth_max, subgroupMax(depth));
+
+            depth_samples_local[sample_count++] = depth;
+            sample_count = min(sample_count, max_samples - 1);
+        }
+    }
+    atomicMin(s_depth_range.x, floatBitsToUint(depth_min));
+    atomicMax(s_depth_range.y, floatBitsToUint(depth_max));
+    barrier();
+    
+    depth_min = uintBitsToFloat(s_depth_range.y);
+    depth_max = uintBitsToFloat(s_depth_range.x);
+    
+    // form aabb
+    const float depth_min_view = convert_to_view(vec4(0.0f, 0.0f, depth_min, 1.0), u_camera.camera.inv_projection).z;
+    const float depth_max_view = convert_to_view(vec4(0.0f, 0.0f, depth_max, 1.0), u_camera.camera.inv_projection).z;
+    
+    if (gl_LocalInvocationIndex == 0) {
+        const vec4 min_screen = vec4(vec2(gl_WorkGroupID.xy * tile_size), 1.0f, 1.0f);
+        const vec4 max_screen = vec4(vec2((gl_WorkGroupID.xy + uvec2(1, 1)) * tile_size), 1.0f, 1.0f);
+
+        const vec3 min_view = convert_to_view(min_screen, u_camera.camera.inv_projection);
+        const vec3 max_view = convert_to_view(max_screen, u_camera.camera.inv_projection);
+
+        const vec3 min_near = line_plane_intersection(min_view, depth_min_view);
+        const vec3 max_near = line_plane_intersection(max_view, depth_min_view);
+        const vec3 min_far = line_plane_intersection(min_view, depth_max_view);
+        const vec3 max_far = line_plane_intersection(max_view, depth_max_view);
+
+        const vec3 aabb_min = min(min(min_near, min_far), min(max_near, max_far));
+        const vec3 aabb_max = max(max(min_near, min_far), max(max_near, max_far));
+        
+        s_aabb.min = vec4(aabb_min, 0.0f);
+        s_aabb.max = vec4(aabb_max, 0.0f);
+    }
+    
+    // 2.5d culling
+    const float depth_range_inverse = 31.0f / (depth_max_view - depth_min_view);
+    for (uint i = 0; i < sample_count; i++) {
+        const float depth_view = convert_to_view(vec4(0.0f, 0.0f, depth_samples_local[i], 1.0f), 
+            u_camera.camera.inv_projection).z;
+        const uint depth_bit = uint(max(0.0f, min(31.0f, floor((depth_view - depth_min_view) * depth_range_inverse))));
+        const uint subgoup_mask = subgroupOr(1 << depth_bit);
+        if (subgroupElect())
+            atomicOr(s_depth_mask, subgoup_mask);
+    }
+    barrier();
+    
+    const uvec2 tile_count = uvec2(ceil(uvec2(u_render_size) / tile_size));
+    const uint tile_index = gl_WorkGroupID.x + gl_WorkGroupID.y * tile_count.x;
+    
+    // finally, cull the ligths
+    for (uint i = gl_LocalInvocationIndex; i < u_lights_info.info.point_light_count; i += WORKGROUP_SIZE * WORKGROUP_SIZE) {
+        const PointLight light = u_point_lights.lights[i];
+        const float radius = light.radius;
+        vec3 position = light.position;
+        position = vec3(u_camera.camera.view * vec4(position, 1.0f));
+        
+        if (is_in_tile_frustum(tile_index, position, radius)) {
+            const uint bin_index = i / BIN_BIT_SIZE;
+            const uint bin_index_min = i % BIN_BIT_SIZE;
+            if (distance_aabb_squared(position, s_aabb.min, s_aabb.max) <= radius * radius) {
+                if ((light_mask(position, radius, depth_min_view, depth_range_inverse) & s_depth_mask) != 0) {
+                    atomicOr(u_tiles.tiles[tile_index].bins[bin_index], 1 << bin_index_min);
+                }
+            }
+        }
+    }
+}

@@ -313,13 +313,17 @@ uint hash(uint x) {
     return (word >> 22u) ^ word;
 }
 
+vec3 to_color(uint value) {
+    return vec3(
+        float(value & 255u) / 255.0f,
+        float((value >> 8) & 255u) / 255.0f,
+        float((value >> 16) & 255u) / 255.0f);
+}
+
 vec3 color_hash(uint x) {
     const uint hash_val = hash(x);
 
-    return vec3(
-        float(hash_val & 255u) / 255.0f,
-        float((hash_val >> 8) & 255u) / 255.0f,
-        float((hash_val >> 16) & 255u) / 255.0f);
+    return to_color(hash_val);
 }
 
 vec3 shade_pbr_point_light(ShadeInfo shade_info, uint light_index) {
@@ -376,7 +380,7 @@ vec3 shade_pbr_lights(ShadeInfo shade_info, float directional_shadow) {
     {
         const uint slice = slice_index_depth_linear(shade_info.z_view, u_camera.camera.near, u_camera.camera.far, LIGHT_CLUSTER_BINS_Z);
         const uint cluster_index = get_cluster_index(vertex_uv, slice);
-        Cluster cluster = u_clusters.clusters[cluster_index];
+        const Cluster cluster = u_clusters.clusters[cluster_index];
         for (uint bin = 0; bin < BIN_COUNT; bin++) {
             const uint bin_bits = cluster.bins[bin];
             uint bin_bits_group = subgroupOr(bin_bits);

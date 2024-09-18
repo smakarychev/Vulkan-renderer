@@ -1,0 +1,51 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 1) in;
+
+layout(set = 1, binding = 0) writeonly buffer tiles {
+    Tile tiles[];
+} u_tiles;
+
+layout(push_constant) uniform u_push_constants {
+    vec2 u_render_size;
+    float u_near;
+    float u_far;
+    mat4 u_projection_inverse;
+};
+
+#include "utility.glsl"
+
+void main() {
+    const uvec2 tile_id = gl_GlobalInvocationID.xy;
+    const uvec2 tile_count = uvec2(ceil(vec2(u_render_size) / uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y)));
+    if (tile_id.x >= tile_count.x || tile_id.y >= tile_count.y) 
+        return;
+
+    const uvec2 tile_size = uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y);
+    
+    const vec4 min_screen = vec4(vec2(tile_id * tile_size), 1.0f, 1.0f);
+    const vec4 max_screen = vec4(vec2((tile_id + uvec2(1, 1)) * tile_size), 1.0f, 1.0f);
+
+    const vec3 min_view = convert_to_view(min_screen, u_projection_inverse);
+    const vec3 max_view = convert_to_view(max_screen, u_projection_inverse);
+
+    const vec3 min_near = line_plane_intersection(min_view, -u_near);
+    const vec3 max_near = line_plane_intersection(max_view, -u_near);
+    const vec3 min_far = line_plane_intersection(min_view, -u_far);
+    const vec3 max_far = line_plane_intersection(max_view, -u_far);
+    
+    Tile tile;
+    // left
+    tile.planes[0] = plane_by_points(min_near, vec3(min_near.x, max_near.yz), min_far);
+    // right
+    tile.planes[1] = plane_by_points(vec3(max_near.x, min_near.yz), max_far, max_near);
+    // bottom
+    tile.planes[2] = plane_by_points(min_near, min_far, vec3(max_near.x, min_near.yz));
+    // top
+    tile.planes[3] = plane_by_points(max_far, vec3(min_far.x, max_far.yz), max_near);
+    for (uint i = 0; i < BIN_COUNT; i++)
+        tile.bins[i] = 0;
+    u_tiles.tiles[tile_id.x + tile_id.y * tile_count.x] = tile;
+}

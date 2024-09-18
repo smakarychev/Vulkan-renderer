@@ -4,6 +4,7 @@
 
 #include "GeometrySorter.h"
 #include "types.h"
+#include "Common/Geometry.h"
 
 class ResourceUploader;
 
@@ -14,6 +15,5 @@ public:
     DepthGeometrySorter(const glm::vec3& sortingPoint, const glm::vec3& sortingDirection);
     void Sort(SceneGeometry& geometry, ResourceUploader& resourceUploader) override;
 private:
-    f32 m_PlaneOffset;
-    glm::vec3 m_PlaneNormal{};
+    Plane m_SortPlane{};
 };

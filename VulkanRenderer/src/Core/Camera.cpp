@@ -219,6 +219,13 @@ ProjectionData Camera::GetProjectionData() const
     return {mat[0][0], -mat[1][1], mat[3][0], -mat[3][1]};
 }
 
+Plane Camera::GetNearViewPlane() const
+{
+    return Plane{
+        .Normal = GetForward(),
+        .Offset = -glm::dot(GetForward(), GetPosition())};
+}
+
 void Camera::UpdateViewMatrix()
 {
     m_ViewMatrix = glm::toMat4(glm::inverse(m_Orientation)) * glm::translate(glm::mat4(1.0f), -m_Position);

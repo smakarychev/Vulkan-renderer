@@ -31,3 +31,25 @@ struct Cluster {
     vec4 max;
     uint bins[BIN_COUNT];
 };
+
+struct Plane {
+    // xyz components for normal, w for offset
+    vec4 plane;
+};
+
+struct Tile {
+    // tile is 4 planes, near and far are computed separately
+    Plane planes[4];
+    uint bins[BIN_COUNT];
+};
+
+Plane plane_by_points(vec3 a, vec3 b, vec3 c) {
+    vec3 v0 = b - a;
+    vec3 v1 = c - a;
+    
+    Plane plane;
+    plane.plane.xyz = normalize(cross(v0, v1));
+    plane.plane.w = dot(plane.plane.xyz, a);
+    
+    return plane;
+}

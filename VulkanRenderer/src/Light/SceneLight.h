@@ -26,6 +26,7 @@ public:
     void UpdatePointLight(u32 index, const PointLight& light);
     void SetVisiblePointLights(const std::vector<PointLight>& lights);
     const std::vector<PointLight>& GetPointLights() const { return m_PointLights; }
+    const std::vector<PointLight>& GetVisiblePointLights() const { return m_VisiblePointLights; }
     
     void UpdateBuffers(FrameContext& ctx);
     const Buffers& GetBuffers() const { return m_Buffers; }

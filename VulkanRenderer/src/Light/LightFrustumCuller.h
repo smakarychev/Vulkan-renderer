@@ -1,6 +1,6 @@
 #pragma once
-#include "Core/Camera.h"
 
+class Camera;
 class SceneLight;
 
 class LightFrustumCuller

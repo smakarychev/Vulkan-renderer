@@ -22,7 +22,7 @@ RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph&
             passData.Dispatch = graph.Read(dispatchIndirect, Indirect);
 
             passData.Clusters = graph.Read(clusters, Compute | Storage);
-            passData.Clusters = graph.Write(clusters, Compute | Storage);
+            passData.Clusters = graph.Write(passData.Clusters, Compute | Storage);
             
             passData.ActiveClusters = graph.Read(activeClusters, Compute | Storage);
 
