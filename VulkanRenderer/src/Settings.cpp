@@ -24,6 +24,10 @@ void Settings::initCvars()
     CVarI32 maxLightsPerFrustum({"Lights.FrustumMax"},
         "The maximum amount of point light sources per frustum (view)",
         1024);
-
-    
+    CVarI32 binLightTile({"Lights.Bin.Tiles"},
+        "Bin lights into tiles (with z-binning)",
+        1);
+    CVarI32 binLightCluster({"Lights.Bin.Clusters"},
+        "Bin lights into clusters",
+        0);
 }

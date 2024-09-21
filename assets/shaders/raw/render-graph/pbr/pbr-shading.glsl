@@ -139,12 +139,6 @@ vec3 shade_pbr_point_lights_hybrid(ShadeInfo shade_info) {
     return Lo;
 }
 
-vec3 shade_pbr_point_lights(ShadeInfo shade_info) {
-    //return shade_pbr_point_lights_clustered(shade_info);
-    //return shade_pbr_point_lights_tiled(shade_info);
-    return shade_pbr_point_lights_hybrid(shade_info);
-}
-
 vec3 shade_pbr_directional_light(ShadeInfo shade_info, float directional_shadow) {
     const vec3 light_dir = -u_directional_light.light.direction;
     const vec3 radiance = u_directional_light.light.color * u_directional_light.light.intensity;

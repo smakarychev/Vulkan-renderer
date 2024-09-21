@@ -15,6 +15,21 @@
             "name": "MAX_REFLECTION_LOD",
             "value": 5.0,
             "type": "f32"
+        },
+        {
+            "name": "USE_TILED_LIGHTING",
+            "value": false,
+            "type": "b32"
+        },
+        {
+            "name": "USE_CLUSTERED_LIGHTING",
+            "value": false,
+            "type": "b32"
+        },
+        {
+            "name": "USE_HYBRID_LIGHTING",
+            "value": false,
+            "type": "b32"
         }
     ],
     "bindless": "main_materials" 

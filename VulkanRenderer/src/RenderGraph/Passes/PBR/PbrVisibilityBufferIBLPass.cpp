@@ -17,12 +17,19 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
         {
             CPU_PROFILE_FRAME("Pbr.Visibility.IBL.Setup")
 
+            bool useHybrid = info.Tiles.IsValid() && info.Clusters.IsValid();
+            bool useTiled = !useHybrid && info.Tiles.IsValid();
+            bool useClustered = !useHybrid &&  info.Clusters.IsValid();
+
             graph.SetShader("../assets/shaders/pbr-visibility-ibl.shader",
                 ShaderOverrides{}
                     .Add(
                         {"MAX_REFLECTION_LOD"},
-                        (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})));
-            
+                        (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
+                    .Add({"USE_TILED_LIGHTING"}, useTiled)
+                    .Add({"USE_CLUSTERED_LIGHTING"}, useClustered)
+                    .Add({"USE_HYBRID_LIGHTING"}, useHybrid));
+
             passData.Commands = graph.AddExternal(std::string{name} + ".Commands", info.Geometry->GetCommandsBuffer());
             passData.Objects = graph.AddExternal(std::string{name} + ".Objects",
                 info.Geometry->GetRenderObjectsBuffer());
@@ -43,9 +50,13 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
                    .Format = Format::RGBA16_FLOAT});
 
             passData.LightsResources = RgUtils::readSceneLight(*info.SceneLights, graph, Pixel);
-            passData.Clusters = graph.Read(info.Clusters, Pixel | Storage);
-            passData.Tiles = graph.Read(info.Tiles, Pixel | Storage);
-            passData.ZBins = graph.Read(info.ZBins, Pixel | Storage);
+            if (info.Clusters.IsValid())
+                passData.Clusters = graph.Read(info.Clusters, Pixel | Storage);
+            if (info.Tiles.IsValid())
+            {
+                passData.Tiles = graph.Read(info.Tiles, Pixel | Storage);
+                passData.ZBins = graph.Read(info.ZBins, Pixel | Storage);
+            }
             passData.IBL = RgUtils::readIBLData(info.IBL, graph, Pixel);
             passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
             passData.CSMData = RgUtils::readCSMData(info.CSMData, graph, Pixel);
@@ -96,9 +107,13 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.BindingInfo(ImageFilter::Nearest,
                 ImageLayout::Readonly));
             RgUtils::updateSceneLightBindings(resourceDescriptors, resources, passData.LightsResources);
-            resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_zbins", resources.GetBuffer(passData.ZBins).BindingInfo());
+            if (passData.Clusters.IsValid())
+                resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
+            if (passData.Tiles.IsValid())
+            {
+                resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
+                resourceDescriptors.UpdateBinding("u_zbins", resources.GetBuffer(passData.ZBins).BindingInfo());
+            }
             RgUtils::updateIBLBindings(resourceDescriptors, resources, passData.IBL);
             RgUtils::updateSSAOBindings(resourceDescriptors, resources, passData.SSAO);
             RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);

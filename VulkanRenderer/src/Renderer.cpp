@@ -6,6 +6,7 @@
 #include "Model.h"
 #include "ShadingSettingsGPU.h"
 #include "Core/Input.h"
+#include "cvars/CVarSystem.h"
 
 #include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
@@ -228,40 +229,64 @@ void Renderer::SetupRenderGraph()
         .Camera = GetFrameContext().PrimaryCamera});
     auto& visibilityOutput = m_Graph->GetBlackboard().Get<Passes::Draw::Visibility::PassData>(visibility);
 
-    /* light clustering: */
-    auto& clustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
-    auto& clustersSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersSetup::PassData>(clustersSetup);
-    auto& compactClusters = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
-        clustersSetupOutput.Clusters, clustersSetupOutput.ClusterVisibility, visibilityOutput.DepthOut);
-    auto& compactClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersCompact::PassData>(compactClusters);
-    auto& binLightsClusters = Passes::LightClustersBin::addToGraph("Clusters.Bin", *m_Graph,
-        compactClustersOutput.DispatchIndirect,
-        compactClustersOutput.Clusters, compactClustersOutput.ActiveClusters, compactClustersOutput.ActiveClustersCount,
-        *m_SceneLights);
-    auto& binLightsClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersBin::PassData>(binLightsClusters);
+    bool tileLights = *CVars::Get().GetI32CVar({"Lights.Bin.Tiles"}) == 1;
+    bool clusterLights = *CVars::Get().GetI32CVar({"Lights.Bin.Clusters"}) == 1;
 
-    auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph("Clusters.Visualize", *m_Graph,
-        visibilityOutput.DepthOut, binLightsClustersOutput.Clusters);
-    auto& visualizeClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersVisualize::PassData>(
-        visualizeClusters);
-    Passes::ImGuiTexture::addToGraph("Clusters.Visualize.Texture", *m_Graph, visualizeClustersOutput.ColorOut);
+    struct TileLightsInfo
+    {
+        Resource Tiles{};
+        Resource ZBins{};
+    };
+    if (tileLights)
+    {
+        auto zbins = LightZBinner::ZBinLights(*m_SceneLights, *GetFrameContext().PrimaryCamera);
+        Resource zbinsResource = Passes::Upload::addToGraph("Upload.Light.ZBins", *m_Graph, zbins.Bins);
+        auto& tilesSetup = Passes::LightTilesSetup::addToGraph("Tiles.Setup", *m_Graph);
+        auto& tilesSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesSetup::PassData>(tilesSetup);
+        auto& binLightsTiles = Passes::LightTilesBin::addToGraph("Tiles.Bin", *m_Graph, tilesSetupOutput.Tiles,
+            visibilityOutput.DepthOut, *m_SceneLights);
+        auto& binLightsTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesBin::PassData>(binLightsTiles);
+        auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph("Tiles.Visualize", *m_Graph,
+            binLightsTilesOutput.Tiles, visibilityOutput.DepthOut,
+            zbinsResource);
+        auto& visualizeTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesVisualize::PassData>(
+            visualizeTiles);
+        Passes::ImGuiTexture::addToGraph("Tiles.Visualize.Texture", *m_Graph, visualizeTilesOutput.ColorOut);
 
-    
-    /* light tiling */
-    auto zbins = LightZBinner::ZBinLights(*m_SceneLights, *GetFrameContext().PrimaryCamera);
-    Resource zbinsResource = Passes::Upload::addToGraph("Upload.Light.ZBins", *m_Graph, zbins.Bins);
-    auto& tilesSetup = Passes::LightTilesSetup::addToGraph("Tiles.Setup", *m_Graph);
-    auto& tilesSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesSetup::PassData>(tilesSetup);
-    auto& binLightsTiles = Passes::LightTilesBin::addToGraph("Tiles.Bin", *m_Graph, tilesSetupOutput.Tiles,
-        visibilityOutput.DepthOut, *m_SceneLights);
-    auto& binLightsTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesBin::PassData>(binLightsTiles);
-    auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph("Tiles.Visualize", *m_Graph,
-        binLightsTilesOutput.Tiles, visibilityOutput.DepthOut,
-        zbinsResource);
-    auto& visualizeTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesVisualize::PassData>(
-        visualizeTiles);
-    Passes::ImGuiTexture::addToGraph("Tiles.Visualize.Texture", *m_Graph, visualizeTilesOutput.ColorOut);
+        TileLightsInfo info = {
+            .Tiles = binLightsTilesOutput.Tiles,
+            .ZBins = zbinsResource};
+        m_Graph->GetBlackboard().Update(info);
+    }
 
+    struct ClusterLightsInfo
+    {
+        Resource Clusters{};
+    };
+    if (clusterLights)
+    {
+        /* light clustering: */
+        auto& clustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
+        auto& clustersSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersSetup::PassData>(clustersSetup);
+        auto& compactClusters = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
+            clustersSetupOutput.Clusters, clustersSetupOutput.ClusterVisibility, visibilityOutput.DepthOut);
+        auto& compactClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersCompact::PassData>(compactClusters);
+        auto& binLightsClusters = Passes::LightClustersBin::addToGraph("Clusters.Bin", *m_Graph,
+            compactClustersOutput.DispatchIndirect,
+            compactClustersOutput.Clusters, compactClustersOutput.ActiveClusters, compactClustersOutput.ActiveClustersCount,
+            *m_SceneLights);
+        auto& binLightsClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersBin::PassData>(binLightsClusters);
+
+        auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph("Clusters.Visualize", *m_Graph,
+            visibilityOutput.DepthOut, binLightsClustersOutput.Clusters);
+        auto& visualizeClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersVisualize::PassData>(
+            visualizeClusters);
+        Passes::ImGuiTexture::addToGraph("Clusters.Visualize.Texture", *m_Graph, visualizeClustersOutput.ColorOut);
+
+        ClusterLightsInfo info = {
+            .Clusters = binLightsClustersOutput.Clusters};
+        m_Graph->GetBlackboard().Update(info);
+    }
 
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
     auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
@@ -310,9 +335,9 @@ void Renderer::SetupRenderGraph()
         .VisibilityTexture = visibilityOutput.ColorOut,
         .ColorIn = {},
         .SceneLights = m_SceneLights.get(),
-        .Clusters = binLightsClustersOutput.Clusters,
-        .Tiles = binLightsTilesOutput.Tiles,
-        .ZBins = zbinsResource,
+        .Clusters = clusterLights ? m_Graph->GetBlackboard().Get<ClusterLightsInfo>().Clusters : Resource{},
+        .Tiles = tileLights ? m_Graph->GetBlackboard().Get<TileLightsInfo>().Tiles : Resource{},
+        .ZBins = tileLights ? m_Graph->GetBlackboard().Get<TileLightsInfo>().ZBins : Resource{},
         .IBL = {
             .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),

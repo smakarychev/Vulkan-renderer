@@ -10,6 +10,9 @@
 #extension GL_KHR_shader_subgroup_arithmetic: require
 
 layout(constant_id = 0) const float MAX_REFLECTION_LOD = 5.0f;
+layout(constant_id = 1) const bool USE_TILED_LIGHTING = false;
+layout(constant_id = 2) const bool USE_CLUSTERED_LIGHTING = false;
+layout(constant_id = 3) const bool USE_HYBRID_LIGHTING = false;
 
 @immutable_sampler_nearest
 layout(set = 0, binding = 0) uniform sampler u_sampler_visibility;
@@ -136,9 +139,15 @@ vec3 color_hash(uint x) {
 
 vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     vec3 Lo = vec3(0.0f);
-    Lo = 
-        shade_pbr_directional_light(shade_info, shadow) +
-        shade_pbr_point_lights(shade_info);
+    
+    if (USE_TILED_LIGHTING) 
+        Lo += shade_pbr_point_lights_tiled(shade_info);
+    else if (USE_CLUSTERED_LIGHTING)
+        Lo += shade_pbr_point_lights_clustered(shade_info);
+    else if (USE_HYBRID_LIGHTING)
+        Lo += shade_pbr_point_lights_hybrid(shade_info);
+    
+    Lo += shade_pbr_directional_light(shade_info, shadow);
 
     vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
 
