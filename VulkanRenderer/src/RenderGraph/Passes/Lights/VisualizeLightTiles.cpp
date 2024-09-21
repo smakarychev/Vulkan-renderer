@@ -11,7 +11,7 @@ namespace RG
 }
 
 RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource tiles,
-    RG::Resource depth, std::optional<ZBins> bins)
+    RG::Resource depth, RG::Resource bins)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -32,13 +32,8 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
                     .Format = Format::RGBA16_FLOAT});
 
             passData.ZBins = {};
-            if (bins.has_value())
-            {
-                passData.ZBins = graph.CreateResource(std::string{name} + ".ZBins",
-                    GraphBufferDescription{.SizeBytes = bins->Bins.size() * sizeof(ZBins::Bin)});
-                passData.ZBins = graph.Read(passData.ZBins, Pixel | Storage);
-                graph.Upload(passData.ZBins, bins->Bins);
-            }
+            if (bins.IsValid())
+                passData.ZBins = graph.Read(bins, Pixel | Storage);
             
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
             passData.Depth = graph.Read(depth, Pixel | Sampled);

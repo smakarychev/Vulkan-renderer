@@ -15,5 +15,5 @@ namespace Passes::LightTilesVisualize
     };
     
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource tiles, RG::Resource depth,
-        std::optional<ZBins> bins);
+        RG::Resource bins);
 }

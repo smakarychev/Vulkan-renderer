@@ -30,9 +30,9 @@ static constexpr u32 SHADOW_CASCADES = 4;
 static constexpr f32 DEPTH_CONSTANT_BIAS = -1.0f;
 static constexpr f32 DEPTH_SLOPE_BIAS = -1.75f;
 
-static constexpr u32 LIGHT_CLUSTER_BINS_X = 16;
-static constexpr u32 LIGHT_CLUSTER_BINS_Y = 9;
-static constexpr u32 LIGHT_CLUSTER_BINS_Z = 24;
+static constexpr u32 LIGHT_CLUSTER_BINS_X = 60;
+static constexpr u32 LIGHT_CLUSTER_BINS_Y = 32;
+static constexpr u32 LIGHT_CLUSTER_BINS_Z = 18;
 static constexpr u32 LIGHT_CLUSTER_BINS = LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z;
 static_assert(LIGHT_CLUSTER_BINS < std::numeric_limits<u16>::max(),
     "Shaders assume that there are less than 1 << 16 clusters. It is possible to change `active_clusters` type to u32");

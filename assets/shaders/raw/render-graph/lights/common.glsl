@@ -4,9 +4,9 @@
 #include "../common.glsl"
 
 // todo: make defines, so i can set them on compilation
-const uint LIGHT_CLUSTER_BINS_X = 16;
-const uint LIGHT_CLUSTER_BINS_Y = 9;
-const uint LIGHT_CLUSTER_BINS_Z = 24;
+const uint LIGHT_CLUSTER_BINS_X = 60;
+const uint LIGHT_CLUSTER_BINS_Y = 32;
+const uint LIGHT_CLUSTER_BINS_Z = 18;
 
 const uint LIGHT_TILE_SIZE_X = 8;
 const uint LIGHT_TILE_SIZE_Y = 8;
@@ -21,10 +21,11 @@ uint slice_index(float depth, float n, float f, uint count) {
     return uint(floor(log(f) * count * log_f_n_inv - log(-z) * count * log_f_n_inv));
 }
 
-uint slice_index_depth_linear(float depth, float n, float f, uint count) {
+uint slice_index_depth_linear(float z, float n, float f) {
     const float log_f_n_inv = 1.0f / log(f / n);
 
-    return count - uint(floor(log(f) * count * log_f_n_inv - log(-depth) * count * log_f_n_inv)) - 1;
+    return LIGHT_CLUSTER_BINS_Z -
+        uint(floor(log(f) * LIGHT_CLUSTER_BINS_Z * log_f_n_inv - log(-z) * LIGHT_CLUSTER_BINS_Z * log_f_n_inv)) - 1;
 }
 
 uint get_cluster_index(vec2 uv, uint slice) {
@@ -33,6 +34,20 @@ uint get_cluster_index(vec2 uv, uint slice) {
     return indices.x +
         indices.y * LIGHT_CLUSTER_BINS_X +
         indices.z * LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y;
+}
+
+uint get_zbin_index(float depth, float near, float far) {
+    const float z = -linearize_reverse_z(depth, near, far);
+    const float depth_range = far - near;
+    
+    return uint(z / depth_range * LIGHT_TILE_BINS_Z);
+}
+
+uint get_tile_index(vec2 uv, vec2 resolution) {
+    const uvec2 tile_size = uvec2(ceil(resolution / vec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y)));
+    const uvec2 tile_index = uvec2(floor(vec2(uv.x, 1.0f - uv.y) * tile_size));
+
+    return tile_index.x + tile_index.y * tile_size.x;
 }
 
 vec3 line_plane_intersection(vec3 dir, float z) {

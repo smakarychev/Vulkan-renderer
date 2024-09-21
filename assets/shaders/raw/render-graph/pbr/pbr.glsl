@@ -18,6 +18,7 @@ struct ShadeInfo {
     vec3 specular_color;
     float alpha;
     float z_view;
+    float depth;
 };
 
 float d_ggx(float n_dot_h, float roughness) {

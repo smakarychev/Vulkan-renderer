@@ -36,6 +36,7 @@
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
+#include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Rendering/ShaderCache.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
@@ -78,10 +79,10 @@ void Renderer::Init()
             .Color = glm::vec3{0.2, 0.2, 0.8},
             .Intensity = 8.0f,
             .Radius = 1.0f});
-    constexpr u32 POINT_LIGHT_COUNT = 64;
+    constexpr u32 POINT_LIGHT_COUNT = 568;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         m_SceneLights->AddPointLight({
-            .Position = glm::vec3{Random::Float(-9.0f, 9.0f), Random::Float(0.0f, 4.0f), Random::Float(-9.0f, 9.0f)},
+            .Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
             .Color = Random::Float3(0.0f, 1.0f),
             .Intensity = Random::Float(0.5f, 1.7f),
             .Radius = Random::Float(0.5f, 8.6f)});
@@ -202,25 +203,16 @@ void Renderer::SetupRenderGraph()
     ImGui::DragFloat("Environment power", &shadingSettingsGPU.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
     ImGui::Checkbox("Soft shadows", (bool*)&shadingSettingsGPU.SoftShadows);
     ImGui::End();
-    
-    // todo: should not create and delete every frame
-    Buffer mainCameraBuffer = Buffer::Builder({
-            .SizeBytes = sizeof(CameraGPU),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
-        .Build(GetFrameContext().DeletionQueue);
-    GetFrameContext().ResourceUploader->UpdateBuffer(mainCameraBuffer, cameraGPU);
-    Buffer shadingSettingsBuffer = Buffer::Builder({
-            .SizeBytes = sizeof(ShadingSettingsGPU),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
-        .Build(GetFrameContext().DeletionQueue);
-    GetFrameContext().ResourceUploader->UpdateBuffer(shadingSettingsBuffer, shadingSettingsGPU);
 
+    Resource shadingSettings = Passes::Upload::addToGraph("Upload.ShadingSettings", *m_Graph, shadingSettingsGPU);
+    Resource primaryCamera = Passes::Upload::addToGraph("Upload.PrimaryCamera", *m_Graph, cameraGPU);
+    
     GlobalResources globalResources = {
         .FrameNumberTick = GetFrameContext().FrameNumberTick,
         .Resolution = GetFrameContext().Resolution,
         .PrimaryCamera = m_Camera.get(),
-        .PrimaryCameraGPU = m_Graph->AddExternal("MainCamera", mainCameraBuffer),
-        .ShadingSettings = m_Graph->AddExternal("ShadingSettings", shadingSettingsBuffer)};
+        .PrimaryCameraGPU = primaryCamera,
+        .ShadingSettings = shadingSettings};
     m_Graph->GetBlackboard().Update(globalResources);
 
     // todo: move to proper place (this is just testing atm)
@@ -256,6 +248,8 @@ void Renderer::SetupRenderGraph()
 
     
     /* light tiling */
+    auto zbins = LightZBinner::ZBinLights(*m_SceneLights, *GetFrameContext().PrimaryCamera);
+    Resource zbinsResource = Passes::Upload::addToGraph("Upload.Light.ZBins", *m_Graph, zbins.Bins);
     auto& tilesSetup = Passes::LightTilesSetup::addToGraph("Tiles.Setup", *m_Graph);
     auto& tilesSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesSetup::PassData>(tilesSetup);
     auto& binLightsTiles = Passes::LightTilesBin::addToGraph("Tiles.Bin", *m_Graph, tilesSetupOutput.Tiles,
@@ -263,7 +257,7 @@ void Renderer::SetupRenderGraph()
     auto& binLightsTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesBin::PassData>(binLightsTiles);
     auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph("Tiles.Visualize", *m_Graph,
         binLightsTilesOutput.Tiles, visibilityOutput.DepthOut,
-        LightZBinner::ZBinLights(*m_SceneLights, *GetFrameContext().PrimaryCamera));
+        zbinsResource);
     auto& visualizeTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesVisualize::PassData>(
         visualizeTiles);
     Passes::ImGuiTexture::addToGraph("Tiles.Visualize.Texture", *m_Graph, visualizeTilesOutput.ColorOut);
@@ -317,6 +311,8 @@ void Renderer::SetupRenderGraph()
         .ColorIn = {},
         .SceneLights = m_SceneLights.get(),
         .Clusters = binLightsClustersOutput.Clusters,
+        .Tiles = binLightsTilesOutput.Tiles,
+        .ZBins = zbinsResource,
         .IBL = {
             .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),

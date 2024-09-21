@@ -22,5 +22,7 @@ struct ZBins
 class LightZBinner
 {
 public:
+    // todo: this allocates 32 KiB every frame... maybe this is not the best way, although I doubt it matters at all
+    // todo: maybe keep bins on a stack inside of std::array?
     static ZBins ZBinLights(SceneLight& light, const Camera& camera);
 };

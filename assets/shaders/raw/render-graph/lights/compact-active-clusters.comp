@@ -43,8 +43,8 @@ layout(push_constant) uniform push_constants {
 };
 
 void identify_active_clusters() {
-    const uvec2 coord = gl_GlobalInvocationID.xy;
-    const vec2 uv = (vec2(coord) + vec2(0.5f, 0.5f)) / textureSize(u_depth, 0);
+    const vec2 coord = min(gl_GlobalInvocationID.xy, textureSize(u_depth, 0) - 1);
+    const vec2 uv = (coord + vec2(0.5f, 0.5f)) / textureSize(u_depth, 0);
     const float depth = textureLod(sampler2D(u_depth, u_sampler), uv, 0).r;
     if (depth == 0) 
         return;
@@ -60,11 +60,12 @@ void compact_active_clusters() {
     const uint y = gl_GlobalInvocationID.y % LIGHT_CLUSTER_BINS_Y;
     const uint z = gl_GlobalInvocationID.y / LIGHT_CLUSTER_BINS_Y;
     
+    if (x >= LIGHT_CLUSTER_BINS_X || y >= LIGHT_CLUSTER_BINS_Y || z >= LIGHT_CLUSTER_BINS_Z)
+        return;
+    
     const uint cluster_index = x +
         y * LIGHT_CLUSTER_BINS_X +
         z * LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y;
-    if (cluster_index >= LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z)
-        return;
 
     const bool is_active = u_cluster_visibility.visibility[cluster_index] == uint8_t(1);
 

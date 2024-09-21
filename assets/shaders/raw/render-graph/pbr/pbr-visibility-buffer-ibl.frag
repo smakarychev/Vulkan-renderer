@@ -53,37 +53,45 @@ layout(set = 1, binding = 10) readonly buffer clusters {
     Cluster clusters[];
 } u_clusters;
 
-layout(std430, set = 1, binding = 11) readonly buffer command_buffer {
+layout(set = 1, binding = 11) readonly buffer tiles {
+    Tile tiles[];
+} u_tiles;
+
+layout(scalar, set = 1, binding = 12) readonly buffer zbins {
+    ZBin bins[];
+} u_zbins;
+
+layout(std430, set = 1, binding = 13) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 1, binding = 12) readonly buffer objects_buffer {
+layout(std430, set = 1, binding = 14) readonly buffer objects_buffer {
     object_data objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 13) readonly buffer positions_buffer {
+layout(std430, set = 1, binding = 15) readonly buffer positions_buffer {
     Position positions[];
 } u_positions;
 
-layout(std430, set = 1, binding = 14) readonly buffer normals_buffer {
+layout(std430, set = 1, binding = 16) readonly buffer normals_buffer {
     Normal normals[];
 } u_normals;
 
-layout(std430, set = 1, binding = 15) readonly buffer tangents_buffer {
+layout(std430, set = 1, binding = 17) readonly buffer tangents_buffer {
     Tangent tangents[];
 } u_tangents;
 
-layout(std430, set = 1, binding = 16) readonly buffer uvs_buffer {
+layout(std430, set = 1, binding = 18) readonly buffer uvs_buffer {
     UV uvs[];
 } u_uv;
 
-layout(std430, set = 1, binding = 17) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 19) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
 // shadow-related descriptors
-layout(set = 1, binding = 18) uniform texture2DArray u_csm;
-layout(scalar, set = 1, binding = 19) uniform csm_data_buffer {
+layout(set = 1, binding = 20) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 21) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
@@ -101,210 +109,10 @@ layout(location = 0) out vec4 out_color;
 
 /* the content of this file depends on descriptor names */
 #include "../shadows/shadows.glsl"
-
-uvec3 get_indices(VisibilityInfo visibility_info) {
-    IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    uvec3 indices = uvec3(
-    command.vertexOffset + uint(u_indices.indices[command.firstIndex + visibility_info.triangle_id * 3 + 0]),
-    command.vertexOffset + uint(u_indices.indices[command.firstIndex + visibility_info.triangle_id * 3 + 1]),
-    command.vertexOffset + uint(u_indices.indices[command.firstIndex + visibility_info.triangle_id * 3 + 2]));
-
-    return indices;
-}
-
-Triangle get_triangle_local(uvec3 indices) {
-    Triangle triangle;
-    triangle.a = vec4_from_position(u_positions.positions[indices.x]);
-    triangle.b = vec4_from_position(u_positions.positions[indices.y]);
-    triangle.c = vec4_from_position(u_positions.positions[indices.z]);
-
-    return triangle;
-}
-
-void transform_to_clip_space(inout Triangle triangle, VisibilityInfo visibility_info) {
-    IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    object_data object = u_objects.objects[command.render_object];
-    triangle.a = u_camera.camera.view_projection * object.model * triangle.a;
-    triangle.b = u_camera.camera.view_projection * object.model * triangle.b;
-    triangle.c = u_camera.camera.view_projection * object.model * triangle.c;
-}
-
-mat3x2 get_uvs(uvec3 indices) {
-    vec2 uv_a = vec2(u_uv.uvs[indices.x].u, u_uv.uvs[indices.x].v);
-    vec2 uv_b = vec2(u_uv.uvs[indices.y].u, u_uv.uvs[indices.y].v);
-    vec2 uv_c = vec2(u_uv.uvs[indices.z].u, u_uv.uvs[indices.z].v);
-
-    return mat3x2(uv_a, uv_b, uv_c);
-}
-
-mat3 get_normals(uvec3 indices) {
-    vec3 normal_a = vec3(u_normals.normals[indices.x].x, u_normals.normals[indices.x].y, u_normals.normals[indices.x].z);
-    vec3 normal_b = vec3(u_normals.normals[indices.y].x, u_normals.normals[indices.y].y, u_normals.normals[indices.y].z);
-    vec3 normal_c = vec3(u_normals.normals[indices.z].x, u_normals.normals[indices.z].y, u_normals.normals[indices.z].z);
-
-    return mat3(normal_a, normal_b, normal_c);
-}
-
-mat3 get_tangents(uvec3 indices) {
-    vec3 tangent_a = vec3(u_tangents.tangents[indices.x].x, u_tangents.tangents[indices.x].y, u_tangents.tangents[indices.x].z);
-    vec3 tangent_b = vec3(u_tangents.tangents[indices.y].x, u_tangents.tangents[indices.y].y, u_tangents.tangents[indices.y].z);
-    vec3 tangent_c = vec3(u_tangents.tangents[indices.z].x, u_tangents.tangents[indices.z].y, u_tangents.tangents[indices.z].z);
-
-    return mat3(tangent_a, tangent_b, tangent_c);
-}
-
-void convert_to_world_space_normal(inout vec3 normal, VisibilityInfo visibility_info) {
-    IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    object_data object = u_objects.objects[command.render_object];
-
-    normal = normalize((transpose(inverse(object.model)) * vec4(normal, 0.0f)).xyz);
-}
-
-void convert_to_world_space_normal_tangents(
-    inout vec3 normal, vec3 normal_dx, vec3 normal_dy,
-    inout vec3 tangent, vec3 tangent_dx, vec3 tangent_dy,
-    inout vec3 bitangent, inout vec3 bitangent_dx, inout vec3 bitangent_dy, VisibilityInfo visibility_info) {
-    IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    object_data object = u_objects.objects[command.render_object];
-
-    tangent = normalize((transpose(inverse(object.model)) * vec4(tangent, 0.0f)).xyz);
-    normal = normalize((transpose(inverse(object.model)) * vec4(normal, 0.0f)).xyz);
-    // re-orthogonalize
-    tangent = normalize(tangent - dot(tangent, normal) * normal);
-    bitangent = normalize(cross(normal, tangent));
-
-    bitangent_dx = cross(normal_dx, tangent) - cross(tangent_dx, normal);
-    bitangent_dy = cross(normal_dy, tangent) - cross(tangent_dy, normal);
-}
-
-Material get_material(VisibilityInfo visibility_info) {
-    IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    uint object_index = command.render_object;
-    Material material = u_materials.materials[object_index];
-
-    return material;
-}
-
-struct InterpolationData {
-    vec3 barycentric;
-    vec3 ddx;
-    vec3 ddy;
-};
-
-InterpolationData get_interpolation_data(Triangle triangle, vec2 screen_pos, vec2 resolution) {
-    vec3 one_over_w = 1.0f / vec3(triangle.a.w, triangle.b.w, triangle.c.w);
-
-    vec2 ndc_a = triangle.a.xy * one_over_w.x;
-    vec2 ndc_b = triangle.b.xy * one_over_w.y;
-    vec2 ndc_c = triangle.c.xy * one_over_w.z;
-
-    float inverse_det = 1.0f / determinant(mat2(ndc_c - ndc_b, ndc_a - ndc_b));
-    vec3 ddx = vec3(ndc_b.y - ndc_c.y, ndc_c.y - ndc_a.y, ndc_a.y - ndc_b.y) * inverse_det * one_over_w;
-    vec3 ddy = vec3(ndc_c.x - ndc_b.x, ndc_a.x - ndc_c.x, ndc_b.x - ndc_a.x) * inverse_det * one_over_w;
-    float ddx_sum = dot(ddx, vec3(1.0f, 1.0f, 1.0f));
-    float ddy_sum = dot(ddy, vec3(1.0f, 1.0f, 1.0f));
-
-    vec2 delta_vec = screen_pos - ndc_a;
-    float interpolated_inv_w = one_over_w.x + delta_vec.x * ddx_sum + delta_vec.y * ddy_sum;
-    float interpolated_w = 1.0f / interpolated_inv_w;
-
-    vec3 lambda;
-    lambda.x = interpolated_w * (one_over_w.x + delta_vec.x * ddx.x + delta_vec.y * ddy.x);
-    lambda.y = interpolated_w * (0.0f         + delta_vec.x * ddx.y + delta_vec.y * ddy.y);
-    lambda.z = interpolated_w * (0.0f         + delta_vec.x * ddx.z + delta_vec.y * ddy.z);
-    // todo: isn't it better?
-    //lambda.z = 1.0 - lambda.x - lambda.y; 
-
-    ddx *= (2.0f / resolution.x);
-    ddy *= (2.0f / resolution.y);
-    ddx_sum *= (2.0f / resolution.x);
-    ddy_sum *= (2.0f / resolution.y);
-
-    float interpolated_w_ddx = 1.0f / (interpolated_inv_w + ddx_sum);
-    float interpolated_w_ddy = 1.0f / (interpolated_inv_w + ddy_sum);
-
-    ddx = interpolated_w_ddx * (lambda * interpolated_inv_w + ddx) - lambda;
-    ddy = interpolated_w_ddy * (lambda * interpolated_inv_w + ddy) - lambda;
-
-    InterpolationData interpolation_data;
-    interpolation_data.barycentric = lambda;
-    interpolation_data.ddx = ddx;
-    interpolation_data.ddy = ddy;
-
-    return interpolation_data;
-}
-
-float interpolate(InterpolationData interpolation, vec3 attribute_vec) {
-    return dot(attribute_vec, interpolation.barycentric);
-}
-
-float interpolate(InterpolationData interpolation, float a, float b, float c) {
-    return interpolate(interpolation, vec3(a, b, c));
-}
-
-vec3 interpolate_with_derivatives(InterpolationData interpolation, vec3 attribute_vec) {
-    vec3 result;
-    result[0] = dot(attribute_vec, interpolation.barycentric);
-    result[1] = dot(attribute_vec, interpolation.ddx);
-    result[2] = dot(attribute_vec, interpolation.ddy);
-
-    return result;
-}
-
-mat3x2 interpolate_with_derivatives_2d(InterpolationData interpolation, mat3x2 attributes) {
-    vec3 attribute_x = vec3(attributes[0].x, attributes[1].x, attributes[2].x);
-    vec3 attribute_y = vec3(attributes[0].y, attributes[1].y, attributes[2].y);
-
-    vec3 attribute_x_interpolated = interpolate_with_derivatives(interpolation, attribute_x);
-    vec3 attribute_y_interpolated = interpolate_with_derivatives(interpolation, attribute_y);
-
-    float ax = attribute_x_interpolated[0];
-    float ay = attribute_y_interpolated[0];
-
-    float addxx = attribute_x_interpolated[1];
-    float addxy = attribute_y_interpolated[1];
-
-    float addyx = attribute_x_interpolated[2];
-    float addyy = attribute_y_interpolated[2];
-
-    return mat3x2(vec2(ax, ay), vec2(addxx, addxy), vec2(addyx, addyy));
-}
-
-vec3 interpolate_3d(InterpolationData interpolation, mat3 attributes) {
-    vec3 attribute_x = vec3(attributes[0].x, attributes[1].x, attributes[2].x);
-    vec3 attribute_y = vec3(attributes[0].y, attributes[1].y, attributes[2].y);
-    vec3 attribute_z = vec3(attributes[0].z, attributes[1].z, attributes[2].z);
-
-    float attribute_x_interpolated = interpolate(interpolation, attribute_x);
-    float attribute_y_interpolated = interpolate(interpolation, attribute_y);
-    float attribute_z_interpolated = interpolate(interpolation, attribute_z);
-
-    return vec3(attribute_x_interpolated, attribute_y_interpolated, attribute_z_interpolated);
-}
-
-mat3 interpolate_with_derivatives_3d(InterpolationData interpolation, mat3 attributes) {
-    vec3 attribute_x = vec3(attributes[0].x, attributes[1].x, attributes[2].x);
-    vec3 attribute_y = vec3(attributes[0].y, attributes[1].y, attributes[2].y);
-    vec3 attribute_z = vec3(attributes[0].z, attributes[1].z, attributes[2].z);
-
-    vec3 attribute_x_interpolated = interpolate_with_derivatives(interpolation, attribute_x);
-    vec3 attribute_y_interpolated = interpolate_with_derivatives(interpolation, attribute_y);
-    vec3 attribute_z_interpolated = interpolate_with_derivatives(interpolation, attribute_z);
-
-    float ax = attribute_x_interpolated[0];
-    float ay = attribute_y_interpolated[0];
-    float az = attribute_z_interpolated[0];
-
-    float addxx = attribute_x_interpolated[1];
-    float addxy = attribute_y_interpolated[1];
-    float addxz = attribute_z_interpolated[1];
-
-    float addyx = attribute_x_interpolated[2];
-    float addyy = attribute_y_interpolated[2];
-    float addyz = attribute_z_interpolated[2];
-
-    return mat3(vec3(ax, ay, az), vec3(addxx, addxy, addxz), vec3(addyx, addyy, addyz));
-}
+/* the content of this file depends on descriptor names */
+#include "visiblity-buffer-utils.glsl"
+/* the content of this file depends on descriptor names */
+#include "pbr-shading.glsl"
 
 uint hash(uint x) {
     uint state = x * 747796405u + 2891336453u;
@@ -326,192 +134,17 @@ vec3 color_hash(uint x) {
     return to_color(hash_val);
 }
 
-vec3 shade_pbr_point_light(ShadeInfo shade_info, uint light_index) {
-    const PointLight light = u_point_lights.lights[light_index];
-
-    vec3 light_dir = light.position - shade_info.position;
-    const float distance2 = dot(light_dir, light_dir);
-    const float falloff = pbr_falloff(distance2, light.radius);
-    light_dir = normalize(light_dir);
-
-    const vec3 radiance = light.color * light.intensity * falloff;
-
-    const vec3 halfway_dir = normalize(light_dir + shade_info.view);
-
-    const float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
-    const float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
-    const float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
-
-    const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
-    const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
-    const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
-
-    const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
-    const vec3 specular = D * V * F;
-
-    return (specular + diffuse) * radiance * n_dot_l;
-}
-
-vec3 shade_pbr_lights(ShadeInfo shade_info, float directional_shadow) {
-
-    vec3 Lo = vec3(0.0f);
-
-    // calculate directional light
-    {
-        const vec3 light_dir = -u_directional_light.light.direction;
-        const vec3 radiance = u_directional_light.light.color * u_directional_light.light.intensity;
-
-        const vec3 halfway_dir = normalize(light_dir + shade_info.view);
-
-        const float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
-        const float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
-        const float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
-
-        const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
-        const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
-        const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
-
-        const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
-        const vec3 specular = D * V * F;
-
-        Lo += (specular + diffuse) * radiance * n_dot_l * (1.0f - directional_shadow);
-    }
-    // calculate point lighs
-    {
-        const uint slice = slice_index_depth_linear(shade_info.z_view, u_camera.camera.near, u_camera.camera.far, LIGHT_CLUSTER_BINS_Z);
-        const uint cluster_index = get_cluster_index(vertex_uv, slice);
-        const Cluster cluster = u_clusters.clusters[cluster_index];
-        for (uint bin = 0; bin < BIN_COUNT; bin++) {
-            const uint bin_bits = cluster.bins[bin];
-            uint bin_bits_group = subgroupOr(bin_bits);
-            while (bin_bits_group > 0) {
-                const uint bit_index = findLSB(bin_bits_group);
-                const uint light_index = bin * BIN_BIT_SIZE + bit_index;
-                Lo += shade_pbr_point_light(shade_info, light_index);
-                bin_bits_group = bin_bits_group & ~(1u << bit_index);
-            }
-        }
-    }
-
-    return Lo;
-}
-
-vec3 shade_pbr_ibl(ShadeInfo shade_info) {
-    const vec3 R = reflect(-shade_info.view, shade_info.normal);
-    const vec3 irradiance = textureLod(samplerCube(u_irradiance_map, u_sampler), shade_info.normal, 0).rgb;
-
-    const float lod = shade_info.perceptual_roughness * MAX_REFLECTION_LOD;
-    const vec3 prefiltered = textureLod(samplerCube(u_prefilter_map, u_sampler), R, lod).rgb;
-    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_brdf),
-    vec2(shade_info.n_dot_v, shade_info.perceptual_roughness), 0).rg;
-
-    const vec3 diffuse = irradiance * shade_info.diffuse_color;
-    const vec3 specular = (shade_info.F0 * brdf.x + shade_info.F90 * brdf.y) * prefiltered;
-
-    const vec3 ambient = specular + diffuse;
-
-    return ambient;
-}
-
 vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     vec3 Lo = vec3(0.0f);
-    Lo = shade_pbr_lights(shade_info, shadow);
+    Lo = 
+        shade_pbr_directional_light(shade_info, shadow) +
+        shade_pbr_point_lights(shade_info);
 
     vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
 
     vec3 color = Lo + ambient;
 
     return color * ao;
-}
-
-// the interpolated data (does not actually come from gbuffer)
-struct GBufferData {
-    vec3 position;
-    vec2 uv;
-    vec2 uv_dx;
-    vec2 uv_dy;
-    vec3 normal;
-    vec3 flat_normal;
-    vec3 albedo;
-    vec3 emissive;
-    vec2 metallic_roughness;
-    float ao;
-    float z_view;
-};
-
-GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
-    const uvec3 indices = get_indices(visibility_info);
-    Triangle triangle = get_triangle_local(indices);
-    transform_to_clip_space(triangle, visibility_info);
-    const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.camera.resolution);
-
-    const float w = dot(vec3(triangle.a.w, triangle.b.w, triangle.c.w), interpolation_data.barycentric);
-    const float z = -w * u_camera.camera.projection[2][2] + u_camera.camera.projection[3][2];
-    vec4 position = u_camera.camera.inv_projection * vec4(vertex_position * w, z, w);
-    const float z_view = position.z;
-    position = u_camera.camera.inv_view * position;
-
-    const mat3x2 uvs = get_uvs(indices);
-    const mat3x2 uvs_interpolated = interpolate_with_derivatives_2d(interpolation_data, uvs);
-    const vec2 uv = vec2(uvs_interpolated[0][0], uvs_interpolated[0][1]);
-    const vec2 uv_dx = vec2(uvs_interpolated[1][0], uvs_interpolated[1][1]);
-    const vec2 uv_dy = vec2(uvs_interpolated[2][0], uvs_interpolated[2][1]);
-
-    const Material material = get_material(visibility_info);
-
-    vec3 albedo = material.albedo_color.rgb;
-    albedo *= textureGrad(nonuniformEXT(sampler2D(u_textures[
-    material.albedo_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
-
-    vec3 emissive = textureGrad(nonuniformEXT(sampler2D(u_textures[
-    material.emissive_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
-
-    vec2 metallic_roughness = textureGrad(nonuniformEXT(sampler2D(u_textures[
-    material.metallic_roughness_texture_index], u_sampler)), uv, uv_dx, uv_dy).bg;
-
-    float ao = textureGrad(nonuniformEXT(sampler2D(u_textures[
-    material.ambient_occlusion_texture_index], u_sampler)), uv, uv_dx, uv_dy).r;
-
-    const mat3 normals = get_normals(indices);
-    const mat3 normals_interpolated = interpolate_with_derivatives_3d(interpolation_data, normals);
-    const vec3 flat_normal = vec3(normals_interpolated[0][0], normals_interpolated[0][1], normals_interpolated[0][2]);
-    vec3 normal = flat_normal;
-    const vec3 normal_dx = vec3(normals_interpolated[1][0], normals_interpolated[1][1], normals_interpolated[1][2]);
-    const vec3 normal_dy = vec3(normals_interpolated[2][0], normals_interpolated[2][1], normals_interpolated[2][2]);
-
-    const mat3 tangents = get_tangents(indices);
-    const mat3 tangents_interpolated = interpolate_with_derivatives_3d(interpolation_data, tangents);
-    vec3 tangent = vec3(tangents_interpolated[0][0], tangents_interpolated[0][1], tangents_interpolated[0][2]);
-    const vec3 tangent_dx = vec3(tangents_interpolated[1][0], tangents_interpolated[1][1], tangents_interpolated[1][2]);
-    const vec3 tangent_dy = vec3(tangents_interpolated[2][0], tangents_interpolated[2][1], tangents_interpolated[2][2]);
-    vec3 bitangent;
-    vec3 bitangent_dx;
-    vec3 bitangent_dy;
-    convert_to_world_space_normal_tangents(
-        normal, normal_dx, normal_dy,
-        tangent, tangent_dx, tangent_dy,
-        bitangent, bitangent_dx, bitangent_dy,
-        visibility_info);
-
-    vec3 normal_from_map = textureGrad(nonuniformEXT(sampler2D(u_textures[
-    material.normal_texture_index], u_sampler)), uv, uv_dx, uv_dy).rgb;
-    normal_from_map = normalize(normal_from_map * 2.0f - 1.0f);
-    normal = tangent * normal_from_map.x + bitangent * normal_from_map.y + normal * normal_from_map.z;
-
-    GBufferData data;
-    data.position = position.xyz;
-    data.uv = uv;
-    data.uv_dx = uv_dx;
-    data.uv_dy = uv_dy;
-    data.normal = normal;
-    data.flat_normal = flat_normal;
-    data.albedo = albedo;
-    data.emissive = emissive;
-    data.metallic_roughness = vec2(material.metallic, material.roughness) * metallic_roughness;
-    data.ao = ao;
-    data.z_view = z_view;
-
-    return data;
 }
 
 void main() {
@@ -548,6 +181,7 @@ void main() {
     shade_info.specular_color = specular_color;
     shade_info.alpha = 1.0f; // unused
     shade_info.z_view = gbuffer_data.z_view;
+    shade_info.depth = gbuffer_data.depth;
     
     const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
 

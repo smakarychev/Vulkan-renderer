@@ -29,6 +29,11 @@ void main() {
     const uvec3 cluster_size = uvec3(vec3(u_render_size, u_far - u_near) / 
         uvec3(LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z));
     const uvec3 cluster = gl_GlobalInvocationID;
+    if (
+        cluster.x >= LIGHT_CLUSTER_BINS_X || 
+        cluster.y >= LIGHT_CLUSTER_BINS_Y ||
+        cluster.z >= LIGHT_CLUSTER_BINS_Z)
+        return;
     
     // get min and max point in screen space at near plane
     // the depth is 1, because of reverse-z

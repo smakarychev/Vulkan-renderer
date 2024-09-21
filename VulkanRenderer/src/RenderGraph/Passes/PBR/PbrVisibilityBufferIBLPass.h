@@ -12,6 +12,8 @@ struct PbrVisibilityBufferExecutionInfo
 
     const SceneLight* SceneLights{nullptr};
     RG::Resource Clusters{};
+    RG::Resource Tiles{};
+    RG::Resource ZBins{};
     RG::IBLData IBL{};
     RG::SSAOData SSAO{};
     RG::CSMData CSMData{};
@@ -26,6 +28,8 @@ namespace Passes::Pbr::VisibilityIbl
         RG::Resource VisibilityTexture{};
         RG::SceneLightResources LightsResources{};
         RG::Resource Clusters{};
+        RG::Resource Tiles{};
+        RG::Resource ZBins{};
         RG::IBLData IBL{};
         RG::SSAOData SSAO{};
         RG::CSMData CSMData{};

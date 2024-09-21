@@ -123,7 +123,6 @@ namespace RG
     Resource Graph::CreateResource(const std::string& name, const GraphBufferDescription& description)
     {
         // all buffers require device address
-        
         return CreateResource(name, BufferDescription{
             .SizeBytes = description.SizeBytes,
             .Usage = BufferUsage::DeviceAddress});

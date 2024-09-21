@@ -40,40 +40,18 @@ vec3 color_heatmap(float t) {
     return vec3(sin(t), sin(2.0f * t), cos(t));
 }
 
-uint hash(uint x) {
-    uint state = x * 747796405u + 2891336453u;
-    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-
-    return (word >> 22u) ^ word;
-}
-
-vec3 color_hash(uint x) {
-    const uint hash_val = hash(x);
-
-    return vec3(
-    float(hash_val & 255u) / 255.0f,
-    float((hash_val >> 8) & 255u) / 255.0f,
-    float((hash_val >> 16) & 255u) / 255.0f);
-}
-
 void main() {
-    const float depth = -linearize_reverse_z(
-        textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r,
-        u_camera.camera.near,
-        u_camera.camera.far);
-    const float depth_range = u_camera.camera.far - u_camera.camera.near;
-    const uint z_bin_index = uint(depth / depth_range * LIGHT_TILE_BINS_Z);
+    const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
+    const uint zbin_index = get_zbin_index(depth, u_camera.camera.near, u_camera.camera.far);
     
-    const uint light_min = uint(u_zbins.bins[z_bin_index].min);
-    const uint light_max = uint(u_zbins.bins[z_bin_index].max);
+    const uint light_min = uint(u_zbins.bins[zbin_index].min);
+    const uint light_max = uint(u_zbins.bins[zbin_index].max);
     
     const uint bin_min = u_use_zbins ? light_min / BIN_BIT_SIZE : 0;
     const uint bin_max = u_use_zbins ? light_max / BIN_BIT_SIZE : BIN_COUNT - 1;
     
-    const uvec2 tile_size = uvec2(ceil(u_camera.camera.resolution / vec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y)));
-    const uvec2 tile_index = uvec2(floor(vec2(vertex_uv.x, 1.0f - vertex_uv.y) * tile_size));
-    
-    const Tile tile = u_tiles.tiles[tile_index.x + tile_index.y * tile_size.x];
+    const uint tile_index = get_tile_index(vertex_uv, u_camera.camera.resolution);
+    const Tile tile = u_tiles.tiles[tile_index];
     uint light_count = 0;
     for (uint i = bin_min; i <= bin_max; i++) {
         light_count += bitCount(tile.bins[i]);
