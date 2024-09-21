@@ -10,6 +10,7 @@
 #include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
 #include "Light/LightFrustumCuller.h"
+#include "Light/LightZBinner.h"
 #include "RenderGraph/Passes/AA/FxaaPass.h"
 #include "Vulkan/RenderCommand.h"
 #include "Scene/ModelCollection.h"
@@ -90,7 +91,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/bistro/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -261,7 +262,8 @@ void Renderer::SetupRenderGraph()
         visibilityOutput.DepthOut, *m_SceneLights);
     auto& binLightsTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesBin::PassData>(binLightsTiles);
     auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph("Tiles.Visualize", *m_Graph,
-        binLightsTilesOutput.Tiles);
+        binLightsTilesOutput.Tiles, visibilityOutput.DepthOut,
+        LightZBinner::ZBinLights(*m_SceneLights, *GetFrameContext().PrimaryCamera));
     auto& visualizeTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesVisualize::PassData>(
         visualizeTiles);
     Passes::ImGuiTexture::addToGraph("Tiles.Visualize.Texture", *m_Graph, visualizeTilesOutput.ColorOut);

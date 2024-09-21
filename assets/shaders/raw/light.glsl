@@ -1,4 +1,5 @@
 #extension GL_EXT_scalar_block_layout: require
+#extension GL_EXT_shader_16bit_storage: require
 
 /* must have a scalar layout */
 struct DirectionalLight {
@@ -53,3 +54,8 @@ Plane plane_by_points(vec3 a, vec3 b, vec3 c) {
     
     return plane;
 }
+
+struct ZBin {
+    uint16_t min;
+    uint16_t max;
+};

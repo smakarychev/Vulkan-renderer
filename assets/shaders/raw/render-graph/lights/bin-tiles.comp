@@ -115,8 +115,8 @@ void main() {
     depth_max = uintBitsToFloat(s_depth_range.x);
     
     // form aabb
-    const float depth_min_view = convert_to_view(vec4(0.0f, 0.0f, depth_min, 1.0), u_camera.camera.inv_projection).z;
-    const float depth_max_view = convert_to_view(vec4(0.0f, 0.0f, depth_max, 1.0), u_camera.camera.inv_projection).z;
+    const float depth_min_view = linearize_reverse_z(depth_min, u_camera.camera.near, u_camera.camera.far);
+    const float depth_max_view = linearize_reverse_z(depth_max, u_camera.camera.near, u_camera.camera.far);
     
     if (gl_LocalInvocationIndex == 0) {
         const vec4 min_screen = vec4(vec2(gl_WorkGroupID.xy * tile_size), 1.0f, 1.0f);
@@ -140,8 +140,7 @@ void main() {
     // 2.5d culling
     const float depth_range_inverse = 31.0f / (depth_max_view - depth_min_view);
     for (uint i = 0; i < sample_count; i++) {
-        const float depth_view = convert_to_view(vec4(0.0f, 0.0f, depth_samples_local[i], 1.0f), 
-            u_camera.camera.inv_projection).z;
+        const float depth_view = linearize_reverse_z(depth_samples_local[i], u_camera.camera.near, u_camera.camera.far);
         const uint depth_bit = uint(max(0.0f, min(31.0f, floor((depth_view - depth_min_view) * depth_range_inverse))));
         const uint subgoup_mask = subgroupOr(1 << depth_bit);
         if (subgroupElect())
@@ -149,9 +148,8 @@ void main() {
     }
     barrier();
     
-    const uvec2 tile_count = uvec2(ceil(uvec2(u_render_size) / tile_size));
-    const uint tile_index = gl_WorkGroupID.x + gl_WorkGroupID.y * tile_count.x;
-    
+    const uint tile_index = gl_WorkGroupID.x + gl_WorkGroupID.y * gl_NumWorkGroups.x;
+
     // finally, cull the ligths
     for (uint i = gl_LocalInvocationIndex; i < u_lights_info.info.point_light_count; i += WORKGROUP_SIZE * WORKGROUP_SIZE) {
         const PointLight light = u_point_lights.lights[i];

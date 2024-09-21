@@ -1,5 +1,6 @@
 #include "VisualizeLightTiles.h"
 
+#include "Light/LightZBinner.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
@@ -9,7 +10,8 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource tiles)
+RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource tiles,
+    RG::Resource depth, std::optional<ZBins> bins)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -28,8 +30,18 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
                     .Width = globalResources.Resolution.x,
                     .Height = globalResources.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
+
+            passData.ZBins = {};
+            if (bins.has_value())
+            {
+                passData.ZBins = graph.CreateResource(std::string{name} + ".ZBins",
+                    GraphBufferDescription{.SizeBytes = bins->Bins.size() * sizeof(ZBins::Bin)});
+                passData.ZBins = graph.Read(passData.ZBins, Pixel | Storage);
+                graph.Upload(passData.ZBins, bins->Bins);
+            }
             
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.Depth = graph.Read(depth, Pixel | Sampled);
             passData.Tiles = graph.Read(tiles, Pixel | Storage);
 
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
@@ -43,13 +55,22 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
 
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline();
+            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
+            resourceDescriptors.UpdateBinding("u_depth", resources.GetTexture(depth).BindingInfo(
+                ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
             resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
 
+            bool useZBins = passData.ZBins.IsValid();
+            if (useZBins)
+                resourceDescriptors.UpdateBinding("u_zbins", resources.GetBuffer(passData.ZBins).BindingInfo());
+
             auto& cmd = frameContext.Cmd;
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
             pipeline.BindGraphics(cmd);
+            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), useZBins);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::Draw(cmd, 3);
         });

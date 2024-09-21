@@ -1,5 +1,6 @@
 #include "../../light.glsl"
 #include "../../camera.glsl"
+#include "../../utility.glsl"
 #include "../common.glsl"
 
 // todo: make defines, so i can set them on compilation

@@ -43,8 +43,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
-            const Texture& depthTexture = resources.GetTexture(depth);
-            resourceDescriptors.UpdateBinding("u_depth", depthTexture.BindingInfo(
+            resourceDescriptors.UpdateBinding("u_depth", resources.GetTexture(depth).BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
 
             resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
