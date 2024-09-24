@@ -151,4 +151,8 @@ private:
 
     struct FileWatcher;
     static std::unique_ptr<FileWatcher> s_FileWatcher;
+
+    /* these arrays are filled by file watcher thread, but processed by the main thread to avoid race-conditions */
+    static std::vector<std::pair<std::string, std::string>> s_ToRename;
+    static std::vector<std::filesystem::path> s_ToReload;
 };

@@ -21,6 +21,9 @@ std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
 Utils::StringUnorderedMap<ShaderDescriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
+std::vector<std::pair<std::string, std::string>> ShaderCache::s_ToRename = {};
+std::vector<std::filesystem::path> ShaderCache::s_ToReload = {};
+
 struct ShaderCache::FileWatcher
 {
     efsw::FileWatcher Watcher;
@@ -77,6 +80,23 @@ void ShaderCache::Shutdown()
 void ShaderCache::OnFrameBegin(FrameContext& ctx)
 {
     s_FrameDeletionQueue = &ctx.DeletionQueue;
+
+    for (auto&& [newName, oldName] : s_ToRename)
+        HandleRename(newName, oldName);
+
+    for (auto& path : s_ToReload)
+    {
+        std::string extension = path.extension().string();
+        if (extension == SHADER_EXTENSION)
+            HandleShaderModification(path.string());
+        else if (ShaderStageConverter::WatchesExtension(extension))
+            HandleStageModification(path.string());
+        else if (extension == SHADER_HEADER_EXTENSION)
+            HandleHeaderModification(path.string());
+    }
+
+    s_ToRename.clear();
+    s_ToReload.clear();
 }
 
 void ShaderCache::AddBindlessDescriptors(std::string_view name, const ShaderDescriptors& descriptors)
@@ -556,18 +576,12 @@ void ShaderCache::InitFileWatcher()
 
             if (fileUpdateData.Action == efsw::Action::Moved)
             {
-                ShaderCache::HandleRename(fileUpdateData.FileName, fileUpdateData.OldFileName);
+                s_ToRename.emplace_back(fileUpdateData.FileName, fileUpdateData.OldFileName);
                 return;
             }
 
             ASSERT(fileUpdateData.Action == efsw::Action::Modified, "Unexpected file update action")
-            std::string extension = filePath.extension().string();
-            if (extension == SHADER_EXTENSION)
-                ShaderCache::HandleShaderModification(fileUpdateData.FileName);
-            else if (ShaderStageConverter::WatchesExtension(extension))
-                ShaderCache::HandleStageModification(fileUpdateData.FileName);
-            else if (extension == SHADER_HEADER_EXTENSION)
-                ShaderCache::HandleHeaderModification(fileUpdateData.FileName);
+            s_ToReload.emplace_back(filePath);
         }
     private:
         /* some editors (like vs code) do something strange when file is updated
