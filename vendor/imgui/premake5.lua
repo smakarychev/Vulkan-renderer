@@ -3,9 +3,9 @@ project "imgui"
     language "C"
 
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-	objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
-	systemversion "latest"
-	staticruntime "On"
+    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    systemversion "latest"
+    staticruntime "On"
 
     files
     {
@@ -20,14 +20,14 @@ project "imgui"
 
     
     defines
-	{
+    {
         "VK_NO_PROTOTYPES",
-	}
+    }
 
     filter "configurations:Debug"
-		runtime "Debug"
-		symbols "on"
+        runtime "Debug"
+        symbols "on"
 
-	filter "configurations:Release"
-		runtime "Release"
-		optimize "on"
+    filter "configurations:Release"
+        runtime "Release"
+        optimize "on"

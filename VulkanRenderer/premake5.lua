@@ -1,11 +1,11 @@
 project "VulkanRenderer"
-	kind "ConsoleApp"
-	language "C++"
+    kind "ConsoleApp"
+    language "C++"
     cppdialect "C++20"
-	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
+    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
 
-	files
+    files
     {
         "src/**.h",
         "src/**.cpp",
@@ -29,8 +29,8 @@ project "VulkanRenderer"
     }
 
     libdirs
-	{
-	}
+    {
+    }
 
     links
     {
@@ -42,22 +42,22 @@ project "VulkanRenderer"
     }
 
     defines
-	{
-		"_CRT_SECURE_NO_WARNINGS",
-		"GLFW_INCLUDE_NONE",
+    {
+        "_CRT_SECURE_NO_WARNINGS",
+        "GLFW_INCLUDE_NONE",
         "TRACY_ENABLE",
         "VK_NO_PROTOTYPES",
-	}
+    }
 
-	filter "configurations:Debug"
-		runtime "Debug"
-		symbols "on"
-		defines { "VULKAN_VAL_LAYERS" }
+    filter "configurations:Debug"
+        runtime "Debug"
+        symbols "on"
+        defines { "VULKAN_VAL_LAYERS" }
         links {
         }
 
-	filter "configurations:Release"
-		runtime "Release"
-		optimize "on"
+    filter "configurations:Release"
+        runtime "Release"
+        optimize "on"
         links {
         }
