@@ -2682,8 +2682,8 @@ void Driver::Shutdown()
 void Driver::ShutdownResources()
 {
     vmaDestroyAllocator(s_State.Allocator);
-        for (auto device : DeletionQueue().m_Devices)
-            Destroy(device);
+    for (auto device : DeletionQueue().m_Devices)
+        Destroy(device);
     DeletionQueue().m_Devices.clear();
     
     ASSERT(Resources().m_AllocatedCount == Resources().m_DeallocatedCount,

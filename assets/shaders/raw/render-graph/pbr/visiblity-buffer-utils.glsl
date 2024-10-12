@@ -294,6 +294,7 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     data.albedo = albedo;
     data.emissive = emissive;
     data.metallic_roughness = vec2(material.metallic, material.roughness) * metallic_roughness;
+    data.metallic_roughness.g = max(data.metallic_roughness.g, 0.015625f);
     data.ao = ao;
     data.z_view = z_view;
     data.depth = z / w;

@@ -48,4 +48,5 @@ static constexpr u32 VIEW_MAX_LIGHTS = 1024;
 static constexpr u32 BIN_BIT_SIZE = 32;
 static constexpr u32 BIN_COUNT = VIEW_MAX_LIGHTS / BIN_BIT_SIZE;
 
+// todo: cvar
 static constexpr bool LIGHT_CULLING = true;

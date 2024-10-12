@@ -30,4 +30,12 @@ void Settings::initCvars()
     CVarI32 binLightCluster({"Lights.Bin.Clusters"},
         "Bin lights into clusters",
         0);
+
+    /* atmosphere */
+    CVarI32 transmittanceLutWidth({"Atmosphere.Transmittance.Width"},
+        "Width of the atmosphere transmittance LUT",
+        256);
+    CVarI32 transmittanceLutHeight({"Atmosphere.Transmittance.Height"},
+        "Height of the atmosphere transmittance LUT",
+        64);
 }
