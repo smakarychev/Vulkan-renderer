@@ -4,12 +4,17 @@
 #define TRANSMITTANCE_LUT_WIDTH 256
 #define TRANSMITTANCE_LUT_HEIGHT 64
 
+#define SKY_VIEW_LUT_WIDTH 200
+#define SKY_VIEW_LUT_HEIGHT 100
+
 #define PI 3.14159265359f
 
 #define NO_HIT 3.402823466e+38f
 
 #define TRANSMITTANCE_STEPS 40.0f
-#define SKY_STEPS 16.0f
+#define SKY_STEPS 30.0f
+
+#include "../../light.glsl"
 
 // needs scalar layout
 struct AtmosphereSettings {
@@ -101,4 +106,41 @@ vec3 calculate_transmittance(vec3 ro, vec3 rd, float len, vec3 center, Atmospher
     }
 
     return exp(-total_extinction * step_size);
+}
+
+// https://ebruneton.github.io/precomputed_atmospheric_scattering/atmosphere/functions.glsl.html
+float distance_to_atmosphere_top(AtmosphereSettings atmosphere, float r, float mu) {
+    const float discriminant = r * r * (mu * mu - 1.0f) + atmosphere.atmosphere * atmosphere.atmosphere;
+    
+    return max(0.0f, -r * mu + sqrt(max(0.0, discriminant)));
+}
+
+vec2 transmittance_uv_from_r_mu(AtmosphereSettings atmosphere, float r, float mu) {
+    const float H = sqrt(atmosphere.atmosphere * atmosphere.atmosphere - atmosphere.surface * atmosphere.surface);
+    const float rho = sqrt(max(r * r - atmosphere.surface * atmosphere.surface, 0.0f));
+    
+    const float d = distance_to_atmosphere_top(atmosphere, r, mu);
+    const float d_min = atmosphere.atmosphere - r;
+    const float d_max = H + rho;
+    
+    const float x_mu = (d - d_min) / (d_max - d_min);
+    const float x_r = rho / H;
+    
+    return vec2(x_mu, x_r);
+}
+
+vec2 transmittance_r_mu_from_uv(AtmosphereSettings atmosphere, vec2 uv) {
+    const float x_mu = uv.x;
+    const float x_r = uv.y;
+
+    const float H = sqrt(atmosphere.atmosphere * atmosphere.atmosphere - atmosphere.surface * atmosphere.surface);
+    const float rho = H * x_r;
+    const float r = sqrt(rho * rho + atmosphere.surface * atmosphere.surface);
+
+    const float d_min = atmosphere.atmosphere - r;
+    const float d_max = H + rho;
+    const float d = d_min + x_mu * (d_max - d_min);
+    const float mu = clamp(d == 0.0 ? 1.0f : (H * H - rho * rho - d * d) / (2.0f * r * d), -1.0f, 1.0f);
+    
+    return vec2(r, mu);
 }

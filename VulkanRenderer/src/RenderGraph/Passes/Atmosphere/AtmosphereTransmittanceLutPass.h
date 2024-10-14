@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Light/SceneLight.h"
 #include "RenderGraph/RGResource.h"
 
 namespace Passes::Atmosphere::TransmittanceLut

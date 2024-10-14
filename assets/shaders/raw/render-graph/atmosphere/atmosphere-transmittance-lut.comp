@@ -15,25 +15,16 @@ void main() {
     if (coord.x >= TRANSMITTANCE_LUT_WIDTH || coord.y >= TRANSMITTANCE_LUT_HEIGHT) 
         return;
     
-    const vec2 uv = vec2(coord + 0.5f) / vec2(TRANSMITTANCE_LUT_WIDTH, TRANSMITTANCE_LUT_HEIGHT);
-    
     const AtmosphereSettings atm = u_atmosphere_settings.settings;
+    
+    const vec2 uv = vec2(coord) / vec2(TRANSMITTANCE_LUT_WIDTH, TRANSMITTANCE_LUT_HEIGHT);
+    const vec2 r_mu = transmittance_r_mu_from_uv(atm, uv);
 
-    const float sun_cos_theta = uv.x * 2.0f - 1.0f;
-    const float sun_sin_theta = sqrt(1.0f - clamp(sun_cos_theta * sun_cos_theta, 0.0f, 1.0f));
-    const float view_height = mix(atm.surface, atm.atmosphere, 1.0f - uv.y);
-
-    const vec3 sun_dir = normalize(vec3(0.0f, sun_cos_theta, sun_sin_theta));
-    const vec3 view_pos = vec3(0.0f, view_height, 0.0f);
-    const vec3 center = vec3(0.0f);
-
-    if (intersect_sphere(view_pos, sun_dir, vec3(0.0f), atm.surface).t != NO_HIT) {
-        imageStore(u_lut, coord, vec4(vec3(0.0f), 1.0f));
-        return;
-    }
-
-    const Intersection to_sun = intersect_sphere(view_pos, sun_dir, center, atm.atmosphere);
-    const vec3 transmittance = calculate_transmittance(view_pos, sun_dir, to_sun.depth, center, atm);
+    const vec3 view_pos = vec3(0.0f, r_mu.x, 0.0f);
+    const vec3 view_dir = vec3(0.0f, r_mu.y, sqrt(1.0f - r_mu.y * r_mu.y));
+    
+    const float d = distance_to_atmosphere_top(atm, r_mu.x, r_mu.y);
+    const vec3 transmittance = calculate_transmittance(view_pos, view_dir, d, vec3(0.0f), atm);
 
     imageStore(u_lut, coord, vec4(transmittance, 1.0f));
 }
