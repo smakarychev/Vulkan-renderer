@@ -61,12 +61,12 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
             passData.CSMData = RgUtils::readCSMData(info.CSMData, graph, Pixel);
 
-            auto& graphGlobals = graph.GetGlobalResources();
+            auto& globalResources = graph.GetGlobalResources();
             
             passData.VisibilityTexture = graph.Read(info.VisibilityTexture, Pixel | Sampled);
             
-            passData.Camera = graph.Read(graphGlobals.PrimaryCameraGPU, Pixel | Uniform);
-            passData.ShadingSettings = graph.Read(graphGlobals.ShadingSettings, Pixel | Uniform);
+            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.ShadingSettings = graph.Read(globalResources.ShadingSettings, Pixel | Uniform);
             passData.Commands = graph.Read(passData.Commands, Pixel | Storage);
             passData.Objects = graph.Read(passData.Objects, Pixel | Storage);
             passData.Positions = graph.Read(passData.Positions, Pixel | Storage);

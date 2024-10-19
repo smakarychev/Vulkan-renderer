@@ -7,7 +7,11 @@ layout(location = 0) out vec4 out_color;
 
 layout(location = 0) in vec2 vertex_uv;
 
-layout(set = 1, binding = 0) uniform camera_buffer {
+@immutable_sampler_clamp_edge
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
+
+layout(set = 1, binding = 1) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
 
@@ -22,7 +26,8 @@ const float no_hit = 3.402823466e+38f;
 
 vec3 light_dir = normalize(vec3(
     0,  
-    1 - sin(u_frame_tick / 100), 
+    1 - sin(u_frame_tick / 100),
+    //1, 
     1));
 
 
@@ -39,7 +44,34 @@ const float mie_absorption_base = 4.4f;
 const vec3  ozone_absorption_base = vec3(0.650f, 1.881f, 0.085f);
 
 const float transmittance_steps = 40.0f;
-const float sky_steps = 16.0f;
+const float sky_steps = 12.0f;
+
+// todo: remove me
+#extension GL_EXT_debug_printf : enable
+float distance_to_atmosphere_top(float r, float mu) {
+    if (r < surface_radius || r > atmosphere_radius || mu < -1 || mu > 1)
+        debugPrintfEXT("%f %f\n", r, mu);
+    const float discriminant = r * r * (mu * mu - 1.0f) + atmosphere_radius * atmosphere_radius;
+
+    return max(0.0f, -r * mu + sqrt(max(0.0, discriminant)));
+}
+
+
+vec2 transmittance_uv_from_r_mu(float r, float mu) {
+    const float H = sqrt(atmosphere_radius * atmosphere_radius - surface_radius * surface_radius);
+    const float rho = sqrt(max(r * r - surface_radius * surface_radius, 0.0f));
+
+    const float d = distance_to_atmosphere_top(r, mu);
+    const float d_min = atmosphere_radius - r;
+    const float d_max = H + rho;
+
+    const float x_mu = (d - d_min) / (d_max - d_min);
+    const float x_r = rho / H;
+    if (d > d_max) {
+        debugPrintfEXT("%f %f %f %f %f %f\n", d, d_max, r, mu, H, rho);
+    }
+    return vec2(x_mu, x_r);
+}
 
 struct Intersection {
     float t;
@@ -121,20 +153,24 @@ vec3 calculate_transmittance(vec3 ro, vec3 rd, float len, vec3 center) {
     return exp(-total_extinction * step_size);
 }
 
-vec3 calculate_s(vec3 x, vec3 light_dir, float depth, vec3 center) {
-    return calculate_visibility(x, light_dir) * calculate_transmittance(x, light_dir, depth, center);
+vec3 calculate_s(vec3 x, vec3 light_dir, vec3 center) {
+    const vec3 rel = x - center;
+    const float r = min(length(rel), atmosphere_radius);
+    const vec3 up = rel / r;
+    const float mu = dot(light_dir, up);
+    const vec2 uv = transmittance_uv_from_r_mu(r, mu);
+    return calculate_visibility(x, light_dir) * textureLod(sampler2D(u_transmittance_lut, u_sampler), uv, 0).rgb; 
 }
 
 vec3 calculate_in_scattering(vec3 ro, vec3 rd, vec3 x, vec3 light_dir) {
     const ScatteringCoefficientsData scattering_data = calculate_scattering(x, center);
-    const Intersection to_light = intersect_sphere(x, light_dir, center, atmosphere_radius);
     const vec3 scattering = 
         scattering_data.rayleigh * rayleigh_phase(dot(rd, light_dir)) +
         scattering_data.mie * mie_phase(dot(rd, light_dir));
     return 
         calculate_transmittance(ro, rd, length(x - ro), center) *
         scattering * 
-        calculate_s(x, light_dir, to_light.depth, center) * 40;
+        calculate_s(x, light_dir, center) * 40;
 }
 
 vec3 sky_color(vec3 ro, vec3 rd, vec3 light_dir, float depth) {
@@ -143,7 +179,6 @@ vec3 sky_color(vec3 ro, vec3 rd, vec3 light_dir, float depth) {
     for (float i = 0.0; i < sky_steps; i += 1.0f) {
         const float dt = depth / sky_steps;
         const vec3 x = ro + rd * dt * i;
-        const Intersection to_light = intersect_sphere(x, light_dir, center, atmosphere_radius);
         scattering += calculate_in_scattering(ro, rd, x, light_dir) * dt;
     }
     
@@ -237,11 +272,6 @@ void main() {
     if (atmosphere_intersection.depth == no_hit) {
         out_color = vec4(vec3(0.0f), 1.0f);
 
-        // todo: remove
-        if (intersect_sphere(ro, rd, light_dir * 100, 2).t != no_hit) {
-            out_color = vec4(vec3(1.0f, 1.0f, 0.2f), 1.0f);
-        }
-        
         return;
     }
     

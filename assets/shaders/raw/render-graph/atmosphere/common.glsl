@@ -1,3 +1,6 @@
+// based on "A Scalable and Production Ready Sky and Atmosphere Rendering Technique by Sébastien Hillaire (Epic Games, Inc)"
+// https://github.com/sebh/UnrealEngineSkyAtmosphere
+
 #extension GL_EXT_scalar_block_layout: require
 
 // todo: read these from cvars once I support it
@@ -14,7 +17,10 @@
 #define TRANSMITTANCE_STEPS 40.0f
 #define SKY_STEPS 30.0f
 
+#define PLANET_RADIUS_OFFSET 0.01f
+
 #include "../../light.glsl"
+#include "../../camera.glsl"
 
 // needs scalar layout
 struct AtmosphereSettings {
@@ -143,4 +149,68 @@ vec2 transmittance_r_mu_from_uv(AtmosphereSettings atmosphere, vec2 uv) {
     const float mu = clamp(d == 0.0 ? 1.0f : (H * H - rho * rho - d * d) / (2.0f * r * d), -1.0f, 1.0f);
     
     return vec2(r, mu);
+}
+
+vec2 unit_to_sub_uv_sky_view(vec2 uv) {
+    const vec2 res = vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT);
+    return vec2(uv + 0.5f / res) * (res / (res + 1.0f));
+}
+vec2 sub_uv_to_unit_sky_view(vec2 uv) {
+    const vec2 res = vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT);
+    return vec2(uv - 0.5f / res) * (res / (res - 1.0f));
+}
+
+vec2 sky_view_zen_view_cos_from_uv(AtmosphereSettings atmosphere, vec2 uv, float r) {
+    uv = sub_uv_to_unit_sky_view(uv);
+
+    const float rho = sqrt(max(r * r - atmosphere.surface * atmosphere.surface, 0.0f));
+    const float cos_theta = rho / r;
+    const float theta = acos(cos_theta);
+    const float mu_angle = PI - theta;
+    
+    float cos_zenith = 0.0f;
+    float cos_view = 0.0f;
+    if (uv.y < 0.5f) {
+        float coord = 1.0f - 2.0f * uv.y;
+        coord = 1.0f - coord * coord;
+        cos_zenith = cos(mu_angle * coord);
+    } else {
+        float coord = 1.0f - 2.0f * uv.y;
+        coord = coord * coord;
+        cos_zenith = cos(mu_angle + theta * coord);
+    }
+    
+    cos_view = -(uv.x * uv.x * 2.0f - 1.0f);
+    
+    return vec2(cos_zenith, cos_view);
+}
+
+vec2 sky_view_uv_from_zen_view_cos(AtmosphereSettings atmosphere, bool intersects_surface,
+    float cos_zenith, float cos_view, float r) {
+    
+    const float rho = sqrt(max(r * r - atmosphere.surface * atmosphere.surface, 0.0f));
+    const float cos_theta = rho / r;
+    const float theta = acos(cos_theta);
+    const float mu_angle = PI - theta;
+    
+    vec2 uv = vec2(0.0f);
+    
+    if (!intersects_surface) {
+        float coord = acos(cos_zenith) / mu_angle;
+        coord = 1.0f - coord;
+        coord = 1.0f - sqrt(coord);
+        uv.y = coord * 0.5f;
+    } else {
+        float coord = (acos(cos_zenith) - mu_angle) / theta;
+        coord = sqrt(coord) + 1.0f;
+        uv.y = coord * 0.5f;
+    }
+    
+    float coord = -cos_view * 0.5f + 0.5f;
+    coord = sqrt(coord);
+    uv.x = coord;
+    
+    uv = unit_to_sub_uv_sky_view(uv);
+    
+    return uv;
 }

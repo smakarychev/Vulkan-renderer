@@ -38,4 +38,10 @@ void Settings::initCvars()
     CVarI32 transmittanceLutHeight({"Atmosphere.Transmittance.Height"},
         "Height of the atmosphere transmittance LUT",
         64);
+    CVarI32 skyViewLutWidth({"Atmosphere.SkyView.Width"},
+        "Width of the atmosphere sky-view LUT",
+        200);
+    CVarI32 skyViewLutHeight({"Atmosphere.SkyView.Height"},
+        "Height of the atmosphere sky-view LUT",
+        100);
 }

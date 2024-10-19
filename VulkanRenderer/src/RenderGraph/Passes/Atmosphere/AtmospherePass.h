@@ -1,6 +1,8 @@
 #pragma once
 #include "RenderGraph/RGResource.h"
 
+class SceneLight;
+
 struct AtmosphereSettings
 {
     f32 Surface{};
@@ -24,7 +26,11 @@ namespace Passes::Atmosphere
     struct PassData
     {
         RG::Resource AtmosphereSettings{};
+        RG::Resource TransmittanceLut{};
+        RG::Resource SkyViewLut{};
+        RG::Resource ColorOut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const AtmosphereSettings& atmosphereSettings);
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const AtmosphereSettings& atmosphereSettings,
+        const SceneLight& light);
 }
 

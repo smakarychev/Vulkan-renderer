@@ -42,8 +42,9 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
                 size.y = size.x / aspect;
             else
                 size.x = size.y * aspect;
-            
-            ImGuiUI::Texture(texture.Subresource(), Sampler::Builder().Build(), ImageLayout::Readonly,
+
+            Sampler sampler = Sampler::Builder().WrapMode(SamplerWrapMode::ClampEdge).Build();
+            ImGuiUI::Texture(texture.Subresource(), sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
         });

@@ -1,3 +1,6 @@
+// based on "A Scalable and Production Ready Sky and Atmosphere Rendering Technique by Sébastien Hillaire (Epic Games, Inc)"
+// https://github.com/sebh/UnrealEngineSkyAtmosphere
+
 #version 460
 
 #include "common.glsl"

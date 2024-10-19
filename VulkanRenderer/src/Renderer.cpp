@@ -19,6 +19,8 @@
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"
 #include "RenderGraph/Passes/AO/SsaoPass.h"
 #include "RenderGraph/Passes/AO/SsaoVisualizePass.h"
+#include "RenderGraph/Passes/Atmosphere/AtmospherePass.h"
+#include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
@@ -35,6 +37,7 @@
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
+#include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
@@ -80,7 +83,7 @@ void Renderer::Init()
             .Color = glm::vec3{0.2, 0.2, 0.8},
             .Intensity = 8.0f,
             .Radius = 1.0f});
-    constexpr u32 POINT_LIGHT_COUNT = 568;
+    constexpr u32 POINT_LIGHT_COUNT = 0;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         m_SceneLights->AddPointLight({
             .Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
@@ -93,7 +96,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/bistro/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -193,6 +196,7 @@ void Renderer::SetupRenderGraph()
     using namespace RG;
     
     m_Graph->Reset(GetFrameContext());
+    auto& blackboard = m_Graph->GetBlackboard();
     Resource backbuffer = m_Graph->GetBackbuffer();
 
     // update camera
@@ -214,7 +218,7 @@ void Renderer::SetupRenderGraph()
         .PrimaryCamera = m_Camera.get(),
         .PrimaryCameraGPU = primaryCamera,
         .ShadingSettings = shadingSettings};
-    m_Graph->GetBlackboard().Update(globalResources);
+    blackboard.Update(globalResources);
 
     // todo: move to proper place (this is just testing atm)
     if (m_GraphTranslucentGeometry.IsValid())
@@ -223,11 +227,11 @@ void Renderer::SetupRenderGraph()
         translucentSorter.Sort(m_GraphTranslucentGeometry, *GetFrameContext().ResourceUploader);
     }
 
-    auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
+    /*auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
         .Geometry = &m_GraphOpaqueGeometry,
         .Resolution = m_Swapchain.GetResolution(),
         .Camera = GetFrameContext().PrimaryCamera});
-    auto& visibilityOutput = m_Graph->GetBlackboard().Get<Passes::Draw::Visibility::PassData>(visibility);
+    auto& visibilityOutput = blackboard.Get<Passes::Draw::Visibility::PassData>(visibility);
 
     bool tileLights = *CVars::Get().GetI32CVar({"Lights.Bin.Tiles"}) == 1;
     bool clusterLights = *CVars::Get().GetI32CVar({"Lights.Bin.Clusters"}) == 1;
@@ -242,21 +246,21 @@ void Renderer::SetupRenderGraph()
         auto zbins = LightZBinner::ZBinLights(*m_SceneLights, *GetFrameContext().PrimaryCamera);
         Resource zbinsResource = Passes::Upload::addToGraph("Upload.Light.ZBins", *m_Graph, zbins.Bins);
         auto& tilesSetup = Passes::LightTilesSetup::addToGraph("Tiles.Setup", *m_Graph);
-        auto& tilesSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesSetup::PassData>(tilesSetup);
+        auto& tilesSetupOutput = blackboard.Get<Passes::LightTilesSetup::PassData>(tilesSetup);
         auto& binLightsTiles = Passes::LightTilesBin::addToGraph("Tiles.Bin", *m_Graph, tilesSetupOutput.Tiles,
             visibilityOutput.DepthOut, *m_SceneLights);
-        auto& binLightsTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesBin::PassData>(binLightsTiles);
+        auto& binLightsTilesOutput = blackboard.Get<Passes::LightTilesBin::PassData>(binLightsTiles);
         auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph("Tiles.Visualize", *m_Graph,
             binLightsTilesOutput.Tiles, visibilityOutput.DepthOut,
             zbinsResource);
-        auto& visualizeTilesOutput = m_Graph->GetBlackboard().Get<Passes::LightTilesVisualize::PassData>(
+        auto& visualizeTilesOutput = blackboard.Get<Passes::LightTilesVisualize::PassData>(
             visualizeTiles);
         Passes::ImGuiTexture::addToGraph("Tiles.Visualize.Texture", *m_Graph, visualizeTilesOutput.ColorOut);
 
         TileLightsInfo info = {
             .Tiles = binLightsTilesOutput.Tiles,
             .ZBins = zbinsResource};
-        m_Graph->GetBlackboard().Update(info);
+        blackboard.Update(info);
     }
 
     struct ClusterLightsInfo
@@ -265,44 +269,44 @@ void Renderer::SetupRenderGraph()
     };
     if (clusterLights)
     {
-        /* light clustering: */
+        /* light clustering: #1#
         auto& clustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
-        auto& clustersSetupOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersSetup::PassData>(clustersSetup);
+        auto& clustersSetupOutput = blackboard.Get<Passes::LightClustersSetup::PassData>(clustersSetup);
         auto& compactClusters = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
             clustersSetupOutput.Clusters, clustersSetupOutput.ClusterVisibility, visibilityOutput.DepthOut);
-        auto& compactClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersCompact::PassData>(compactClusters);
+        auto& compactClustersOutput = blackboard.Get<Passes::LightClustersCompact::PassData>(compactClusters);
         auto& binLightsClusters = Passes::LightClustersBin::addToGraph("Clusters.Bin", *m_Graph,
             compactClustersOutput.DispatchIndirect,
             compactClustersOutput.Clusters, compactClustersOutput.ActiveClusters, compactClustersOutput.ActiveClustersCount,
             *m_SceneLights);
-        auto& binLightsClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersBin::PassData>(binLightsClusters);
+        auto& binLightsClustersOutput = blackboard.Get<Passes::LightClustersBin::PassData>(binLightsClusters);
 
         auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph("Clusters.Visualize", *m_Graph,
             visibilityOutput.DepthOut, binLightsClustersOutput.Clusters);
-        auto& visualizeClustersOutput = m_Graph->GetBlackboard().Get<Passes::LightClustersVisualize::PassData>(
+        auto& visualizeClustersOutput = blackboard.Get<Passes::LightClustersVisualize::PassData>(
             visualizeClusters);
         Passes::ImGuiTexture::addToGraph("Clusters.Visualize.Texture", *m_Graph, visualizeClustersOutput.ColorOut);
 
         ClusterLightsInfo info = {
             .Clusters = binLightsClustersOutput.Clusters};
-        m_Graph->GetBlackboard().Update(info);
+        blackboard.Update(info);
     }
 
     auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
-    auto& ssaoOutput = m_Graph->GetBlackboard().Get<Passes::Ssao::PassData>(ssao);
+    auto& ssaoOutput = blackboard.Get<Passes::Ssao::PassData>(ssao);
 
     auto& ssaoBlurHorizontal = Passes::SsaoBlur::addToGraph("SSAO.Blur.Horizontal", *m_Graph,
         ssaoOutput.SSAO, {},
         SsaoBlurPassKind::Horizontal);
-    auto& ssaoBlurHorizontalOutput = m_Graph->GetBlackboard().Get<Passes::SsaoBlur::PassData>(ssaoBlurHorizontal);
+    auto& ssaoBlurHorizontalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurHorizontal);
     auto& ssaoBlurVertical = Passes::SsaoBlur::addToGraph("SSAO.Blur.Vertical", *m_Graph,
         ssaoBlurHorizontalOutput.SsaoOut, ssaoOutput.SSAO,
         SsaoBlurPassKind::Vertical);
-    auto& ssaoBlurVerticalOutput = m_Graph->GetBlackboard().Get<Passes::SsaoBlur::PassData>(ssaoBlurVertical);
+    auto& ssaoBlurVerticalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurVertical);
 
     auto& ssaoVisualize = Passes::SsaoVisualize::addToGraph("SSAO.Visualize", *m_Graph,
         ssaoBlurVerticalOutput.SsaoOut, {});
-    auto& ssaoVisualizeOutput = m_Graph->GetBlackboard().Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
+    auto& ssaoVisualizeOutput = blackboard.Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
 
     static bool useDepthReduction = false;
     static bool stabilizeCascades = false;
@@ -316,7 +320,7 @@ void Renderer::SetupRenderGraph()
     {
         auto& minMaxDepthReadback = Passes::DepthReductionReadback::addToGraph("Visibility.Readback.Depth", *m_Graph,
         visibilityOutput.PreviousMinMaxDepth, GetFrameContext().PrimaryCamera);
-        auto& minMaxDepthReadbackOutput = m_Graph->GetBlackboard().Get<Passes::DepthReductionReadback::PassData>(
+        auto& minMaxDepthReadbackOutput = blackboard.Get<Passes::DepthReductionReadback::PassData>(
             minMaxDepthReadback);
         shadowMin = minMaxDepthReadbackOutput.Min;
         shadowMax = minMaxDepthReadbackOutput.Max;
@@ -329,15 +333,15 @@ void Renderer::SetupRenderGraph()
         .ShadowMax = shadowMax,
         .StabilizeCascades = stabilizeCascades,
         .GeometryBounds = m_GraphOpaqueGeometry.GetBounds()});
-    auto& csmOutput = m_Graph->GetBlackboard().Get<Passes::CSM::PassData>(csm);
+    auto& csmOutput = blackboard.Get<Passes::CSM::PassData>(csm);
 
     auto& pbr = Passes::Pbr::VisibilityIbl::addToGraph("Pbr.Visibility.Ibl", *m_Graph, {
         .VisibilityTexture = visibilityOutput.ColorOut,
         .ColorIn = {},
         .SceneLights = m_SceneLights.get(),
-        .Clusters = clusterLights ? m_Graph->GetBlackboard().Get<ClusterLightsInfo>().Clusters : Resource{},
-        .Tiles = tileLights ? m_Graph->GetBlackboard().Get<TileLightsInfo>().Tiles : Resource{},
-        .ZBins = tileLights ? m_Graph->GetBlackboard().Get<TileLightsInfo>().ZBins : Resource{},
+        .Clusters = clusterLights ? blackboard.Get<ClusterLightsInfo>().Clusters : Resource{},
+        .Tiles = tileLights ? blackboard.Get<TileLightsInfo>().Tiles : Resource{},
+        .ZBins = tileLights ? blackboard.Get<TileLightsInfo>().ZBins : Resource{},
         .IBL = {
             .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
@@ -348,11 +352,11 @@ void Renderer::SetupRenderGraph()
             .ShadowMap = csmOutput.ShadowMap,
             .CSM = csmOutput.CSM},
         .Geometry = &m_GraphOpaqueGeometry});
-    auto& pbrOutput = m_Graph->GetBlackboard().Get<Passes::Pbr::VisibilityIbl::PassData>(pbr);
+    auto& pbrOutput = blackboard.Get<Passes::Pbr::VisibilityIbl::PassData>(pbr);
 
     auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
         m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibilityOutput.DepthOut, GetFrameContext().Resolution, 1.2f);
-    auto& skyboxOutput = m_Graph->GetBlackboard().Get<Passes::Skybox::PassData>(skybox);
+    auto& skyboxOutput = blackboard.Get<Passes::Skybox::PassData>(skybox);
     Resource renderedColor = skyboxOutput.ColorOut;
     Resource renderedDepth = skyboxOutput.DepthOut;
     
@@ -371,33 +375,49 @@ void Renderer::SetupRenderGraph()
                  .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
                  .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
             .HiZContext = m_VisibilityPass->GetHiZContext()})
-        auto& pbrTranslucentOutput = m_Graph->GetBlackboard().Get<PbrForwardTranslucentIBLPass::PassData>();
+        auto& pbrTranslucentOutput = blackboard.Get<PbrForwardTranslucentIBLPass::PassData>();
         
-        renderedColor = pbrTranslucentOutput.ColorOut;*/
+        renderedColor = pbrTranslucentOutput.ColorOut;#1#
     }
 
     auto& fxaa = Passes::Fxaa::addToGraph("FXAA", *m_Graph, renderedColor);
-    auto& fxaaOutput = m_Graph->GetBlackboard().Get<Passes::Fxaa::PassData>(fxaa);
+    auto& fxaaOutput = blackboard.Get<Passes::Fxaa::PassData>(fxaa);
     //Passes::ImGuiTexture::addToGraph("FXAA.Texture", *m_Graph, fxaaOutput.AntiAliased);
     
     auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
         fxaaOutput.AntiAliased, backbuffer, glm::vec3{}, glm::vec3{1.0f});
-    backbuffer = m_Graph->GetBlackboard().Get<Passes::CopyTexture::PassData>(copyRendered).TextureOut;
+    backbuffer = blackboard.Get<Passes::CopyTexture::PassData>(copyRendered).TextureOut;
 
     auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibilityOutput.HiZOut);
-    auto& hizVisualizePassOutput = m_Graph->GetBlackboard().Get<Passes::HiZVisualize::PassData>(hizVisualize);
+    auto& hizVisualizePassOutput = blackboard.Get<Passes::HiZVisualize::PassData>(hizVisualize);
     auto& hizMaxVisualize = Passes::HiZVisualize::addToGraph("HiZ.Max.Visualize", *m_Graph, visibilityOutput.HiZMaxOut);
-    auto& hizMaxVisualizePassOutput = m_Graph->GetBlackboard().Get<Passes::HiZVisualize::PassData>(hizMaxVisualize);
+    auto& hizMaxVisualizePassOutput = blackboard.Get<Passes::HiZVisualize::PassData>(hizMaxVisualize);
 
     auto& csmVisualize = Passes::VisualizeCSM::addToGraph("CSM.Visualize", *m_Graph, csmOutput, {});
-    auto& visualizeCSMPassOutput = m_Graph->GetBlackboard().Get<Passes::VisualizeCSM::PassData>(csmVisualize);
+    auto& visualizeCSMPassOutput = blackboard.Get<Passes::VisualizeCSM::PassData>(csmVisualize);
 
     Passes::ImGuiTexture::addToGraph("SSAO.Texture", *m_Graph, ssaoVisualizeOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Max.Texture", *m_Graph, hizMaxVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, *m_BRDF);
+    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, *m_BRDF);*/
 
+
+    // todo: this is temp
+    {
+        AtmosphereSettings settings = AtmosphereSettings::EarthDefault();
+        auto& atmosphere = Passes::Atmosphere::addToGraph("Atmosphere", *m_Graph, settings, *m_SceneLights);
+        auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.ColorOut);
+
+        auto& atmosphereSimple = Passes::AtmosphereSimple::addToGraph("Atmosphere.Simple", *m_Graph, atmosphereOutput.TransmittanceLut);
+        auto& atmosphereSimpleOutput = blackboard.Get<Passes::AtmosphereSimple::PassData>(atmosphereSimple);
+        auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
+            atmosphereSimpleOutput.ColorOut, backbuffer, glm::vec3{}, glm::vec3{1.0f});
+    }
+    
     //SetupRenderSlimePasses();
 }
 
