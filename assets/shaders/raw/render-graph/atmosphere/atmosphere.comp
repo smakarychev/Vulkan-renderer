@@ -42,7 +42,7 @@ void main() {
     
     const AtmosphereSettings atm = u_atmosphere_settings.settings;
 
-    const vec3 pos = u_camera.camera.position * 1e-4f + vec3(0.0f, atm.surface, 0.0f);
+    const vec3 pos = u_camera.camera.position * 1e-6f + vec3(0.0f, atm.surface, 0.0f);
     const vec3 sun_dir = u_directional_light.light.direction;
     
     vec3 L = vec3(0.0f);

@@ -47,10 +47,7 @@ const float transmittance_steps = 40.0f;
 const float sky_steps = 12.0f;
 
 // todo: remove me
-#extension GL_EXT_debug_printf : enable
 float distance_to_atmosphere_top(float r, float mu) {
-    if (r < surface_radius || r > atmosphere_radius || mu < -1 || mu > 1)
-        debugPrintfEXT("%f %f\n", r, mu);
     const float discriminant = r * r * (mu * mu - 1.0f) + atmosphere_radius * atmosphere_radius;
 
     return max(0.0f, -r * mu + sqrt(max(0.0, discriminant)));
@@ -67,9 +64,6 @@ vec2 transmittance_uv_from_r_mu(float r, float mu) {
 
     const float x_mu = (d - d_min) / (d_max - d_min);
     const float x_r = rho / H;
-    if (d > d_max) {
-        debugPrintfEXT("%f %f %f %f %f %f\n", d, d_max, r, mu, H, rho);
-    }
     return vec2(x_mu, x_r);
 }
 

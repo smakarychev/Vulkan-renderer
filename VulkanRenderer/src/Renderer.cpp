@@ -409,6 +409,7 @@ void Renderer::SetupRenderGraph()
         auto& atmosphere = Passes::Atmosphere::addToGraph("Atmosphere", *m_Graph, settings, *m_SceneLights);
         auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
         Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut", *m_Graph, atmosphereOutput.MultiscatteringLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.ColorOut);
 

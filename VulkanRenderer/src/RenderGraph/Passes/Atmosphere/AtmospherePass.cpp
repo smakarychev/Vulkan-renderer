@@ -1,5 +1,6 @@
 #include "AtmospherePass.h"
 
+#include "AtmosphereMultiscatteringPass.h"
 #include "AtmosphereSkyViewLutPass.h"
 #include "AtmosphereTransmittanceLutPass.h"
 #include "Light/SceneLight.h"
@@ -15,13 +16,14 @@ namespace RG
 AtmosphereSettings AtmosphereSettings::EarthDefault()
 {
     return {
+        .RayleighScattering = glm::vec4{5.802f, 13.558f, 33.1f, 1.0f},
+        .RayleighAbsorption = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f},
+        .MieScattering = glm::vec4{3.996f, 3.996f, 3.996f, 1.0f},
+        .MieAbsorption = glm::vec4{4.4f, 4.4f, 4.4f, 1.0f},
+        .OzoneAbsorption = glm::vec4{0.650f, 1.881f, 0.085f, 1.0f},
+        .SurfaceAlbedo = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f},
         .Surface = 6.360f,
         .Atmosphere = 6.460f,
-        .RayleighScattering = glm::vec3{5.802f, 13.558f, 33.1f},
-        .RayleighAbsorption = glm::vec3{0.0f},
-        .MieScattering = glm::vec3{3.996f},
-        .MieAbsorption = glm::vec3{4.4f},
-        .OzoneAbsorption = glm::vec3{0.650f, 1.881f, 0.085f},
         .RayleighDensity = 1.0f,
         .MieDensity = 1.0f,
         .OzoneDensity = 1.0f};
@@ -126,6 +128,11 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
             auto& transmittance = TransmittanceLut::addToGraph(std::format("{}.Transmittance", name), graph,
                 passData.AtmosphereSettings);
             auto& transmittanceOutput = graph.GetBlackboard().Get<TransmittanceLut::PassData>(transmittance);
+            
+            auto& multiscattering = Multiscattering::addToGraph(std::format("{}.Multiscattering", name), graph,
+                transmittanceOutput.Lut, passData.AtmosphereSettings);
+            auto& multiscatteringOutput = graph.GetBlackboard().Get<Multiscattering::PassData>(multiscattering);
+
             auto& skyView = SkyView::addToGraph(std::format("{}.SkyView", name), graph,
                 transmittanceOutput.Lut, passData.AtmosphereSettings, light);
             auto& skyViewOutput = graph.GetBlackboard().Get<SkyView::PassData>(skyView);
@@ -134,6 +141,7 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
                 passData.AtmosphereSettings, light, skyViewOutput.Lut);
             auto& atmosphereOutput = graph.GetBlackboard().Get<RayMarchPassData>(atmosphere);
             passData.TransmittanceLut = transmittanceOutput.Lut;
+            passData.MultiscatteringLut = multiscatteringOutput.Lut;
             passData.SkyViewLut = atmosphereOutput.SkyViewLut;
             passData.ColorOut = atmosphereOutput.ColorOut;
             passData.AtmosphereSettings = atmosphereOutput.AtmosphereSettings;

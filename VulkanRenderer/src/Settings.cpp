@@ -44,4 +44,7 @@ void Settings::initCvars()
     CVarI32 skyViewLutHeight({"Atmosphere.SkyView.Height"},
         "Height of the atmosphere sky-view LUT",
         100);
+    CVarI32 multiscatteringLutSize({"Atmosphere.Multiscattering.Size"},
+        "Size of the atmosphere multiscattering LUT",
+        32);
 }

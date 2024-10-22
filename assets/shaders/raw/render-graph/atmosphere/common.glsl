@@ -10,29 +10,32 @@
 #define SKY_VIEW_LUT_WIDTH 200
 #define SKY_VIEW_LUT_HEIGHT 100
 
+#define MULTISCATTERING_LUT_RES 32
+
 #define PI 3.14159265359f
 
 #define NO_HIT 3.402823466e+38f
 
 #define TRANSMITTANCE_STEPS 40.0f
 #define SKY_STEPS 30.0f
+#define MULTISCATTERING_SPHERE_SAMPLES 64
+#define MULTISCATTERING_STEPS 20.0f
 
 #define PLANET_RADIUS_OFFSET 0.01f
 
 #include "../../light.glsl"
 #include "../../camera.glsl"
 
-// needs scalar layout
 struct AtmosphereSettings {
+    vec4 rayleigh_scattering;
+    vec4 rayleigh_absorption;
+    vec4 mie_scattering;
+    vec4 mie_absorption;
+    vec4 ozone_absorption;
+    vec4 surface_albedo;
+    
     float surface;
     float atmosphere;
-    
-    vec3 rayleigh_scattering;
-    vec3 rayleigh_absorption;
-    vec3 mie_scattering;
-    vec3 mie_absorption;
-    vec3 ozone_absorption;
-    
     float rayleigh_density;
     float mie_density;
     float ozone_density;
@@ -86,12 +89,12 @@ MediaSample sample_media(vec3 x, vec3 center, AtmosphereSettings atmosphere) {
     const float mie_density = exp(-atmosphere.mie_density * altitude_km / 1.2f);
 
     MediaSample media;
-    media.rayleigh = atmosphere.rayleigh_scattering * rayleigh_density;
-    media.mie = atmosphere.mie_scattering * mie_density;
-    const vec3 rayleigh_absorption = atmosphere.rayleigh_absorption * rayleigh_density;
-    const vec3 mie_absorption = atmosphere.mie_absorption * mie_density;
+    media.rayleigh = atmosphere.rayleigh_scattering.rgb * rayleigh_density;
+    media.mie = atmosphere.mie_scattering.rgb * mie_density;
+    const vec3 rayleigh_absorption = atmosphere.rayleigh_absorption.rgb * rayleigh_density;
+    const vec3 mie_absorption = atmosphere.mie_absorption.rgb * mie_density;
 
-    const vec3 ozone_absorption = atmosphere.ozone_absorption * max(0.0f, 1.0f - abs(altitude_km - 25.0f) / 15.0f);
+    const vec3 ozone_absorption = atmosphere.ozone_absorption.rgb * max(0.0f, 1.0f - abs(altitude_km - 25.0f) / 15.0f);
 
     media.extinction =
         media.rayleigh + rayleigh_absorption +
@@ -99,19 +102,6 @@ MediaSample sample_media(vec3 x, vec3 center, AtmosphereSettings atmosphere) {
         ozone_absorption;
     
     return media;
-}
-
-vec3 calculate_transmittance(vec3 ro, vec3 rd, float len, vec3 center, AtmosphereSettings atmosphere) {
-    // e^(-integral(extinction(x) * dx))
-    vec3 total_extinction = vec3(0.0f);
-    const float step_size = len / TRANSMITTANCE_STEPS;
-    for (float i = 0.0f; i < TRANSMITTANCE_STEPS; i += 1.0f) {
-        const vec3 x = ro + rd * step_size * i;
-        const vec3 extinction = sample_media(x, center, atmosphere).extinction;
-        total_extinction += extinction;
-    }
-
-    return exp(-total_extinction * step_size);
 }
 
 // https://ebruneton.github.io/precomputed_atmospheric_scattering/atmosphere/functions.glsl.html
@@ -213,4 +203,11 @@ vec2 sky_view_uv_from_zen_view_cos(AtmosphereSettings atmosphere, bool intersect
     uv = unit_to_sub_uv_sky_view(uv);
     
     return uv;
+}
+
+float get_visibility(AtmosphereSettings atmosphere, vec3 ro, vec3 rd) {
+    const float surface = intersect_sphere(ro, rd, vec3(0.0f), atmosphere.surface).t;
+    const Intersection atmosphere_intersection = intersect_sphere(ro, rd, vec3(0.0f), atmosphere.atmosphere);
+
+    return (surface == NO_HIT || atmosphere_intersection.t + atmosphere_intersection.depth < surface) ? 1.0f : 0.0f;
 }

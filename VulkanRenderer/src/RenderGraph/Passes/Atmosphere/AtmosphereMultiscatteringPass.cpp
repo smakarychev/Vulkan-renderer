@@ -1,13 +1,17 @@
-#include "AtmosphereSkyViewLutPass.h"
+#include "AtmosphereMultiscatteringPass.h"
 
 #include "cvars/CVarSystem.h"
-#include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    RG::Resource transmittanceLut, RG::Resource atmosphereSettings, const SceneLight& light)
+namespace RG
+{
+    enum class ResourceAccessFlags;
+}
+
+RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Resource transmittanceLut, RG::Resource atmosphereSettings)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -15,31 +19,25 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Atmosphere.SkyView.Setup")
+            CPU_PROFILE_FRAME("Atmosphere.Multiscattering.Setup")
 
-            graph.SetShader("../assets/shaders/atmosphere-sky-view-lut.shader");
+            graph.SetShader("../assets/shaders/atmosphere-multiscattering-lut.shader");
 
-            auto& globalResources = graph.GetGlobalResources();
-            
             passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
-                .Width = (u32)*CVars::Get().GetI32CVar({"Atmosphere.SkyView.Width"}),
-                .Height = (u32)*CVars::Get().GetI32CVar({"Atmosphere.SkyView.Height"}),
+                .Width = (u32)*CVars::Get().GetI32CVar({"Atmosphere.Multiscattering.Size"}),
+                .Height = (u32)*CVars::Get().GetI32CVar({"Atmosphere.Multiscattering.Size"}),
                 .Format = Format::RGBA16_FLOAT});
-            passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),
-                light.GetBuffers().DirectionalLight);
             
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
             passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);
-            passData.DirectionalLight = graph.Read(passData.DirectionalLight, Compute | Uniform);
-            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
 
             graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Atmosphere.SkyView")
-            GPU_PROFILE_FRAME("Atmosphere.SkyView")
+            CPU_PROFILE_FRAME("Atmosphere.Multiscattering")
+            GPU_PROFILE_FRAME("Atmosphere.Multiscattering")
 
             const Shader& shader = resources.GetGraph()->GetShader();
             auto& pipeline = shader.Pipeline(); 
@@ -50,14 +48,10 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
             
             resourceDescriptors.UpdateBinding("u_atmosphere_settings",
                 resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_directional_light",
-                resources.GetBuffer(passData.DirectionalLight).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera",
-                resources.GetBuffer(passData.Camera).BindingInfo());
             resourceDescriptors.UpdateBinding("u_transmittance_lut",
                 resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                     ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_sky_view_lut",
+            resourceDescriptors.UpdateBinding("u_multiscattering_lut",
                 lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
@@ -65,7 +59,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
             pipeline.BindCompute(cmd);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
             RenderCommand::Dispatch(cmd,
-                {lutTexture.Description().Width, lutTexture.Description().Height, 1},
-                {16, 16, 1});
+                {lutTexture.Description().Width, lutTexture.Description().Height, 64},
+                {1, 1, 64});
         });
 }

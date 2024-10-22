@@ -1,0 +1,91 @@
+// based on "A Scalable and Production Ready Sky and Atmosphere Rendering Technique by Sébastien Hillaire (Epic Games, Inc)"
+// https://github.com/sebh/UnrealEngineSkyAtmosphere
+
+#version 460
+
+#include "common.glsl"
+
+#extension GL_KHR_shader_subgroup_arithmetic: require
+
+layout(local_size_x = 1, local_size_y = 1, local_size_z = MULTISCATTERING_SPHERE_SAMPLES) in;
+
+@immutable_sampler_clamp_edge
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
+layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D u_multiscattering_lut;
+
+layout(scalar, set = 1, binding = 2) uniform atmosphere_settings {
+    AtmosphereSettings settings;
+} u_atmosphere_settings;
+
+#include "integrate_scattered_luminance.glsl"
+
+shared vec3 s_multiscattering[2];
+shared vec3 s_L[2];
+
+void main() {
+    const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    if (coord.x >= MULTISCATTERING_LUT_RES || coord.y >= MULTISCATTERING_LUT_RES || gl_GlobalInvocationID.z >= MULTISCATTERING_SPHERE_SAMPLES)
+        return;
+
+    const vec2 uv = vec2(coord) / vec2(MULTISCATTERING_LUT_RES);
+
+    AtmosphereSettings atm = u_atmosphere_settings.settings;
+    
+    const float mu = uv.x * 2.0f - 1.0f;
+    const vec3 sun_dir = normalize(vec3(0.0f, mu, sqrt(1.0f - mu * mu)));
+    
+    const float r = atm.surface +
+        clamp(uv.y + PLANET_RADIUS_OFFSET, 0.0f, 1.0f) * (atm.atmosphere - atm.surface - PLANET_RADIUS_OFFSET);
+    const vec3 ro = vec3(0.0f, r, 0.0f);
+    vec3 rd;
+
+    const float sphere_solid_angle = 4.0f * PI;
+    const float uniform_phase = 1.0f / sphere_solid_angle;
+    
+    const float samples_sqrt = sqrt(MULTISCATTERING_SPHERE_SAMPLES);
+
+    vec3 multiscattering;
+    vec3 L;
+    {
+        const float i = 0.5f + float(gl_GlobalInvocationID.z / samples_sqrt);
+        const float j = 0.5f + float(gl_GlobalInvocationID.z - float((gl_GlobalInvocationID.z / samples_sqrt) * samples_sqrt));
+        const float rand_a = i / samples_sqrt;
+        const float rand_b = j / samples_sqrt;
+        const float theta = 2.0f * PI * rand_a;
+        const float phi = acos(1.0f - 2.0f * rand_b);	
+        const float cos_phi = cos(phi);
+        const float sin_phi = sin(phi);
+        const float cos_theta = cos(theta);
+        const float sin_theta = sin(theta);
+        rd.x = cos_theta * sin_phi;
+        rd.y = cos_phi;
+        rd.z = sin_theta * sin_phi;
+
+        const bool surface = true;
+        const bool use_uniform_phase = true;
+        const vec3 global_l = vec3(1.0f);
+        const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm, MULTISCATTERING_STEPS,
+            surface, global_l, use_uniform_phase);
+
+        if (gl_SubgroupSize == 64) {
+            multiscattering = uniform_phase * subgroupAdd(scattering.Multiscattering * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
+            L = uniform_phase * subgroupAdd(scattering.L * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
+        } else {
+            s_multiscattering[gl_SubgroupID] = uniform_phase * subgroupAdd(scattering.Multiscattering * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
+            s_L[gl_SubgroupID] = uniform_phase * subgroupAdd(scattering.Multiscattering * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
+            barrier();
+            multiscattering = s_multiscattering[0] + s_multiscattering[1];
+            L = s_L[0] + s_L[1];
+        }
+    }
+    
+    if (gl_GlobalInvocationID.z != 0)
+        return;
+    
+    const vec3 MS_r = multiscattering;
+    const vec3 geom_sum = 1.0f / (1.0f - MS_r);
+    L = L * geom_sum;
+
+    imageStore(u_multiscattering_lut, coord, vec4(L * 50, 1.0f));
+}
