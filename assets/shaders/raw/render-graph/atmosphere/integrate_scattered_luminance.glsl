@@ -63,12 +63,20 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
             phase_scattering = media.rayleigh * rayleigh + media.mie * mie;
 
         // todo: earth shadow
+        
+        vec3 multiscattering_luminance = vec3(0.0f);
+        #ifdef WITH_MULTISCATTERING
+            const vec2 multiscattering_uv = multiscattering_uv_from_r_mu(atmosphere, r, mu);
+            multiscattering_luminance = textureLod(sampler2D(u_multiscattering_lut, u_sampler), multiscattering_uv, 0).rgb;
+        #endif
 
         const vec3 MS = (media.rayleigh + media.mie) * 1;
         const vec3 MS_integral = (MS - MS * sample_transmittance) / media.extinction;
         scattering.Multiscattering += throughput * MS_integral;
         
-        const vec3 S = global_l * get_visibility(atmosphere, x, sun_dir) * phase_scattering * transmittance;
+        const vec3 S = global_l * (
+            get_visibility(atmosphere, x, sun_dir) * phase_scattering * transmittance +
+            multiscattering_luminance * (media.rayleigh + media.mie));
         const vec3 S_integral = (S - S * sample_transmittance) / media.extinction;
         luminance += throughput * S_integral;
 

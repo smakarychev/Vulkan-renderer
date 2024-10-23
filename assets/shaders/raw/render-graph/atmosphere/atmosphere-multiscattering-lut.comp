@@ -28,7 +28,7 @@ void main() {
     if (coord.x >= MULTISCATTERING_LUT_RES || coord.y >= MULTISCATTERING_LUT_RES || gl_GlobalInvocationID.z >= MULTISCATTERING_SPHERE_SAMPLES)
         return;
 
-    const vec2 uv = vec2(coord) / vec2(MULTISCATTERING_LUT_RES);
+    const vec2 uv = sub_uv_to_unit(vec2(coord) / vec2(MULTISCATTERING_LUT_RES), vec2(MULTISCATTERING_LUT_RES));
 
     AtmosphereSettings atm = u_atmosphere_settings.settings;
     
@@ -87,5 +87,5 @@ void main() {
     const vec3 geom_sum = 1.0f / (1.0f - MS_r);
     L = L * geom_sum;
 
-    imageStore(u_multiscattering_lut, coord, vec4(L * 50, 1.0f));
+    imageStore(u_multiscattering_lut, coord, vec4(L, 1.0f));
 }

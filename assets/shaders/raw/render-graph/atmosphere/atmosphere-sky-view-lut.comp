@@ -10,21 +10,24 @@ layout(local_size_x = 16, local_size_y = 16) in;
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D u_sky_view_lut;
+layout(set = 1, binding = 1) uniform texture2D u_multiscattering_lut;
+layout(set = 1, binding = 2, rgba16f) uniform writeonly image2D u_sky_view_lut;
 
-layout(scalar, set = 1, binding = 2) uniform atmosphere_settings {
+layout(scalar, set = 1, binding = 3) uniform atmosphere_settings {
     AtmosphereSettings settings;
 } u_atmosphere_settings;
 
-layout(scalar, set = 1, binding = 3) uniform directional_light {
+layout(scalar, set = 1, binding = 4) uniform directional_light {
     DirectionalLight light;
 } u_directional_light;
 
-layout(set = 1, binding = 4) uniform camera_buffer {
+layout(set = 1, binding = 5) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
 
+#define WITH_MULTISCATTERING
 #include "integrate_scattered_luminance.glsl"
+#undef WITH_MULTISCATTERING
 
 void main() {
     const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);

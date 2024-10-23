@@ -7,7 +7,8 @@
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    RG::Resource transmittanceLut, RG::Resource atmosphereSettings, const SceneLight& light)
+    RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
+    RG::Resource atmosphereSettings, const SceneLight& light)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -30,6 +31,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
             
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
             passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);
+            passData.MultiscatteringLut = graph.Read(multiscatteringLut, Compute | Sampled);
             passData.DirectionalLight = graph.Read(passData.DirectionalLight, Compute | Uniform);
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
@@ -56,6 +58,9 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
                 resources.GetBuffer(passData.Camera).BindingInfo());
             resourceDescriptors.UpdateBinding("u_transmittance_lut",
                 resources.GetTexture(passData.TransmittanceLut).BindingInfo(
+                    ImageFilter::Linear, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_multiscattering_lut",
+                resources.GetTexture(passData.MultiscatteringLut).BindingInfo(
                     ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_sky_view_lut",
                 lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));

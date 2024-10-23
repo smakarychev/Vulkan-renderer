@@ -141,17 +141,15 @@ vec2 transmittance_r_mu_from_uv(AtmosphereSettings atmosphere, vec2 uv) {
     return vec2(r, mu);
 }
 
-vec2 unit_to_sub_uv_sky_view(vec2 uv) {
-    const vec2 res = vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT);
+vec2 unit_to_sub_uv(vec2 uv, vec2 res) {
     return vec2(uv + 0.5f / res) * (res / (res + 1.0f));
 }
-vec2 sub_uv_to_unit_sky_view(vec2 uv) {
-    const vec2 res = vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT);
+vec2 sub_uv_to_unit(vec2 uv, vec2 res) {
     return vec2(uv - 0.5f / res) * (res / (res - 1.0f));
 }
 
 vec2 sky_view_zen_view_cos_from_uv(AtmosphereSettings atmosphere, vec2 uv, float r) {
-    uv = sub_uv_to_unit_sky_view(uv);
+    uv = sub_uv_to_unit(uv, vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT));
 
     const float rho = sqrt(max(r * r - atmosphere.surface * atmosphere.surface, 0.0f));
     const float cos_theta = rho / r;
@@ -200,7 +198,7 @@ vec2 sky_view_uv_from_zen_view_cos(AtmosphereSettings atmosphere, bool intersect
     coord = sqrt(coord);
     uv.x = coord;
     
-    uv = unit_to_sub_uv_sky_view(uv);
+    uv = unit_to_sub_uv(uv, vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT));
     
     return uv;
 }
@@ -210,4 +208,11 @@ float get_visibility(AtmosphereSettings atmosphere, vec3 ro, vec3 rd) {
     const Intersection atmosphere_intersection = intersect_sphere(ro, rd, vec3(0.0f), atmosphere.atmosphere);
 
     return (surface == NO_HIT || atmosphere_intersection.t + atmosphere_intersection.depth < surface) ? 1.0f : 0.0f;
+}
+
+vec2 multiscattering_uv_from_r_mu(AtmosphereSettings atmosphere, float r, float mu) {
+    vec2 uv = vec2(mu * 0.5f + 0.5f, (r - atmosphere.surface) / (atmosphere.atmosphere - atmosphere.surface));
+    uv = unit_to_sub_uv(clamp(uv, 0.0f, 1.0f), vec2(MULTISCATTERING_LUT_RES));
+    
+    return uv;
 }

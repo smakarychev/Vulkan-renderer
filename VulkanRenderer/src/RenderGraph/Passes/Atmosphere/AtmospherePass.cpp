@@ -134,7 +134,7 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
             auto& multiscatteringOutput = graph.GetBlackboard().Get<Multiscattering::PassData>(multiscattering);
 
             auto& skyView = SkyView::addToGraph(std::format("{}.SkyView", name), graph,
-                transmittanceOutput.Lut, passData.AtmosphereSettings, light);
+                transmittanceOutput.Lut, multiscatteringOutput.Lut, passData.AtmosphereSettings, light);
             auto& skyViewOutput = graph.GetBlackboard().Get<SkyView::PassData>(skyView);
 
             auto& atmosphere = raymarchAtmospherePass(std::format("{}.Raymarch", name), graph,
