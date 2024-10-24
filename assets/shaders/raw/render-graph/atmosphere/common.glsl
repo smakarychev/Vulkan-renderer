@@ -85,8 +85,8 @@ struct MediaSample {
 
 MediaSample sample_media(vec3 x, vec3 center, AtmosphereSettings atmosphere) {
     const float altitude_km = (length(x - center) - atmosphere.surface) * 1000;
-    const float rayleigh_density = exp(-atmosphere.rayleigh_density * altitude_km / 8.0f);
-    const float mie_density = exp(-atmosphere.mie_density * altitude_km / 1.2f);
+    const float rayleigh_density = exp(-altitude_km / (8.0f * atmosphere.rayleigh_density));
+    const float mie_density = exp(-altitude_km / (1.2f * atmosphere.mie_density));
 
     MediaSample media;
     media.rayleigh = atmosphere.rayleigh_scattering.rgb * rayleigh_density;
@@ -215,4 +215,17 @@ vec2 multiscattering_uv_from_r_mu(AtmosphereSettings atmosphere, float r, float 
     uv = unit_to_sub_uv(clamp(uv, 0.0f, 1.0f), vec2(MULTISCATTERING_LUT_RES));
     
     return uv;
+}
+
+vec3 get_sun_luminance(vec3 ro, vec3 rd, vec3 sun_dir, float surface_radius) {
+    const float aperture_degrees = 0.545f;
+    const vec3 sun_luminance = vec3(8e+4f);
+    if (dot(rd, sun_dir) > cos(0.5f * aperture_degrees * PI / 180.0f)) {
+        const float t_surface = intersect_sphere(ro, rd, vec3(0.0f), surface_radius).t;
+        if (t_surface == NO_HIT) {
+            return sun_luminance;
+        }
+    }
+    
+    return vec3(0.0f);
 }

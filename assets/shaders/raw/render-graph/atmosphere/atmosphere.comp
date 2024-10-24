@@ -11,17 +11,18 @@ layout(local_size_x = 16, local_size_y = 16) in;
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_sky_view_lut;
-layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D u_atmosphere;
+layout(set = 1, binding = 1) uniform texture2D u_transmittance_lut;
+layout(set = 1, binding = 2, rgba16f) uniform writeonly image2D u_atmosphere;
 
-layout(scalar, set = 1, binding = 2) uniform atmosphere_settings {
+layout(scalar, set = 1, binding = 3) uniform atmosphere_settings {
     AtmosphereSettings settings;
 } u_atmosphere_settings;
 
-layout(scalar, set = 1, binding = 3) uniform directional_light {
+layout(scalar, set = 1, binding = 4) uniform directional_light {
     DirectionalLight light;
 } u_directional_light;
 
-layout(set = 1, binding = 4) uniform camera_buffer {
+layout(set = 1, binding = 5) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
 
@@ -58,8 +59,12 @@ void main() {
         const bool intersects_surface = intersect_sphere(pos, rd, vec3(0.0f), atm.surface).t != NO_HIT;
         
         const vec2 sky_view_uv = sky_view_uv_from_zen_view_cos(atm, intersects_surface, mu, light_view_cos, r);
-
-        L = textureLod(sampler2D(u_sky_view_lut, u_sampler), sky_view_uv, 0).rgb * 40;
+        const vec2 transmittance_uv = transmittance_uv_from_r_mu(atm, r, dot(up, sun_dir));
+        
+        L = 
+            40 * textureLod(sampler2D(u_sky_view_lut, u_sampler), sky_view_uv, 0).rgb +
+            get_sun_luminance(pos, rd, sun_dir, atm.surface) * 
+                textureLod(sampler2D(u_transmittance_lut, u_sampler), transmittance_uv, 0).rgb;
     }
 
     imageStore(u_atmosphere, coord, vec4(tonemap(L, 2.0f), 1.0f));

@@ -35,12 +35,14 @@ namespace
     {
         RG::Resource AtmosphereSettings{};
         RG::Resource SkyViewLut{};
+        RG::Resource TransmittanceLut{};
         RG::Resource Camera{};
         RG::Resource DirectionalLight{};
         RG::Resource ColorOut{};
     };
     RG::Pass& raymarchAtmospherePass(std::string_view name, RG::Graph& renderGraph,
-        RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)
+        RG::Resource atmosphereSettings, const SceneLight& light,
+        RG::Resource skyViewLut, RG::Resource transmittanceLut)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -61,6 +63,7 @@ namespace
                 .Format = Format::RGBA16_FLOAT});
 
             passData.SkyViewLut = graph.Read(skyViewLut, Compute | Sampled);
+            passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
             passData.DirectionalLight = graph.Read(passData.DirectionalLight, Compute | Uniform);
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
@@ -88,6 +91,9 @@ namespace
                 resources.GetBuffer(passData.Camera).BindingInfo());
             resourceDescriptors.UpdateBinding("u_sky_view_lut",
                 resources.GetTexture(passData.SkyViewLut).BindingInfo(
+                   ImageFilter::Linear, ImageLayout::Readonly));
+            resourceDescriptors.UpdateBinding("u_transmittance_lut",
+                resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                    ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_atmosphere",
                 atmosphere.BindingInfo(ImageFilter::Linear, ImageLayout::General));
@@ -138,7 +144,7 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
             auto& skyViewOutput = graph.GetBlackboard().Get<SkyView::PassData>(skyView);
 
             auto& atmosphere = raymarchAtmospherePass(std::format("{}.Raymarch", name), graph,
-                passData.AtmosphereSettings, light, skyViewOutput.Lut);
+                passData.AtmosphereSettings, light, skyViewOutput.Lut, multiscatteringOutput.TransmittanceLut);
             auto& atmosphereOutput = graph.GetBlackboard().Get<RayMarchPassData>(atmosphere);
             passData.TransmittanceLut = transmittanceOutput.Lut;
             passData.MultiscatteringLut = multiscatteringOutput.Lut;

@@ -405,7 +405,24 @@ void Renderer::SetupRenderGraph()
 
     // todo: this is temp
     {
-        AtmosphereSettings settings = AtmosphereSettings::EarthDefault();
+        if (!blackboard.TryGet<AtmosphereSettings>())
+            blackboard.Update(AtmosphereSettings::EarthDefault());
+
+        AtmosphereSettings& settings = blackboard.Get<AtmosphereSettings>();
+        ImGui::Begin("Atmosphere settings");
+        ImGui::DragFloat3("Rayleigh scattering", &settings.RayleighScattering[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Rayleigh absorption", &settings.RayleighAbsorption[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Mie scattering", &settings.MieScattering[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Mie absorption", &settings.MieAbsorption[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Ozone absorption", &settings.OzoneAbsorption[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::ColorEdit3("Surface albedo", &settings.SurfaceAlbedo[0]);
+        ImGui::DragFloat("Surface", &settings.Surface, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Atmosphere", &settings.Atmosphere, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Rayleigh density", &settings.RayleighDensity, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Mie density", &settings.MieDensity, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Ozone density", &settings.OzoneDensity, 1e-2f, 0.0f, 100.0f);
+        ImGui::End();
+        
         auto& atmosphere = Passes::Atmosphere::addToGraph("Atmosphere", *m_Graph, settings, *m_SceneLights);
         auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
         Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
