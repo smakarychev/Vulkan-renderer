@@ -7,3 +7,9 @@ namespace Passes::ImGuiTexture
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture);
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn);
 }
+
+namespace Passes::ImGuiTexture3d
+{
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture);
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn);
+}
