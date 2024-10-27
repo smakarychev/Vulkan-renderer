@@ -326,7 +326,7 @@ namespace RG
         m_Pool.ClearUnreferenced();
         m_BuffersToExport.clear();
         m_TexturesToExport.clear();
-        m_NameToPassIndexMap.clear();
+        m_PassNameSet.clear();
 
         if (m_Backbuffer.IsValid())
             m_Textures.push_back(*m_BackbufferTexture);

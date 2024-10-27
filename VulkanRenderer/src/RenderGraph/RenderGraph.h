@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <unordered_set>
 #include <vector>
 
 #include "RGBlackboard.h"
@@ -327,7 +328,7 @@ namespace RG
         std::vector<GraphTexture> m_Textures;
         std::vector<std::unique_ptr<Pass>> m_RenderPasses;
         std::vector<std::vector<u32>> m_AdjacencyList;
-        std::unordered_map<std::string, u32> m_NameToPassIndexMap;
+        std::unordered_set<std::string> m_PassNameSet;
         // storing a shared_ptr we make sure that it will not be aliased
         struct TextureToExport
         {
@@ -381,12 +382,11 @@ namespace RG
     template <typename PassData, typename SetupFn, typename CallbackFn>
     Pass& Graph::AddRenderPass(const PassName& passName, SetupFn&& setup, CallbackFn&& callback)
     {
-        ASSERT(!m_NameToPassIndexMap.contains(passName.m_Name), "Pass with such name already exists")
-        m_NameToPassIndexMap.emplace(passName.m_Name, (u32)m_RenderPasses.size());
-        m_RenderPasses.push_back(std::make_unique<Pass>(passName));
-        Pass* pass = m_RenderPasses.back().get();
+        ASSERT(!m_PassNameSet.contains(passName.m_Name), "Pass with such name already exists")
+        m_PassNameSet.emplace(passName.m_Name);
+        std::unique_ptr<Pass> pass = std::make_unique<Pass>(passName);
 
-        m_CurrentPassesStack.push_back(pass);
+        m_CurrentPassesStack.push_back(pass.get());
         
         PassData passData = {};
         setup(*this, passData);
@@ -394,9 +394,10 @@ namespace RG
         pass->m_ExecutionCallback = std::make_unique<Pass::ExecutionCallback<PassData, CallbackFn>>(
             passData, std::forward<CallbackFn>(callback));
 
+        m_RenderPasses.push_back(std::move(pass));
         m_CurrentPassesStack.pop_back();
         
-        return *pass;
+        return *m_RenderPasses.back().get();
     }
 
     template <typename T>
