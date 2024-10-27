@@ -1012,8 +1012,8 @@ void Driver::SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBy
 
 Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
 {
-    u32 depth = createInfo.Description.Kind != ImageKind::Image3d ? 1u : createInfo.Description.Layers;
-    u32 layers = createInfo.Description.Kind != ImageKind::Image3d ? createInfo.Description.Layers : 1u;
+    u32 depth = ImageDescription::GetDepth(createInfo.Description);
+    u32 layers = ImageDescription::GetLayers(createInfo.Description);
     
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1472,7 +1472,8 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
             .binding = binding.Binding,
             .descriptorType = vulkanDescriptorTypeFromDescriptorType(binding.Type),
             .descriptorCount = binding.Count,
-            .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders)});
+            .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders),
+            .pImmutableSamplers = nullptr});
 
         if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampEdge))
             bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampEdge].Sampler;
@@ -2853,8 +2854,7 @@ VkBufferImageCopy2 Driver::CreateVulkanImageCopyInfo(const ImageSubresource& sub
     bufferImageCopy.imageExtent = {
         .width = subresource.Image->m_Description.Width,
         .height = subresource.Image->m_Description.Height,
-        .depth = subresource.Image->m_Description.Kind == ImageKind::Image3d ?
-            (i32)subresource.Image->m_Description.Layers : 1u};
+        .depth = ImageDescription::GetDepth(subresource.Image->m_Description)};
     bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(
         subresource.Image->m_Description.Usage);
     bufferImageCopy.imageSubresource.mipLevel = subresource.Description.MipmapBase;

@@ -74,9 +74,12 @@ struct ImageDescription
     ImageKind Kind{ImageKind::Image2d};
     ImageUsage Usage{ImageUsage::None};
     ImageFilter MipmapFilter{ImageFilter::Linear};
-    std::vector<ImageSubresourceDescription::Packed> AdditionalViews;
+    std::vector<ImageSubresourceDescription::Packed> AdditionalViews{};
 
     f32 AspectRatio() const { return (f32)Width / (f32)Height; }
+
+    static u32 GetDepth(const ImageDescription& description);
+    static u32 GetLayers(const ImageDescription& description);
 };
 using TextureDescription = ImageDescription;
 

@@ -260,6 +260,18 @@ ImageSubresourceDescription ImageSubresourceDescription::Unpack(Packed packed)
         .Layers = (u32)layers};
 }
 
+u32 ImageDescription::GetDepth(const ImageDescription& description)
+{
+    const bool is3dImage = description.Kind == ImageKind::Image3d;
+    return is3dImage ? description.Layers : 1;
+}
+
+u32 ImageDescription::GetLayers(const ImageDescription& description)
+{
+    const bool is3dImage = description.Kind == ImageKind::Image3d;
+    return is3dImage ? 1 : description.Layers;
+}
+
 Image::Builder::Builder(const ImageDescription& description)
 {
     m_CreateInfo.Description = description;
@@ -443,7 +455,7 @@ ImageSubresource Image::Subresource() const
             .MipmapBase = 0,
             .Mipmaps = m_Description.Mipmaps,
             .LayerBase = 0,
-            .Layers = m_Description.Layers}};
+            .Layers = ImageDescription::GetLayers(m_Description)}};
     
     return imageSubresource;
 }
@@ -478,8 +490,8 @@ ImageBlitInfo Image::BlitInfo() const
     return BlitInfo(glm::uvec3{}, glm::uvec3{
         m_Description.Width,
         m_Description.Height,
-        m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers},
-        0, 0, m_Description.Kind != ImageKind::Image3d ? m_Description.Layers : 1u);
+        ImageDescription::GetDepth(m_Description)},
+        0, 0, ImageDescription::GetLayers(m_Description));
 }
 
 ImageBlitInfo Image::BlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const
@@ -487,7 +499,7 @@ ImageBlitInfo Image::BlitInfo(u32 mipBase, u32 layerBase, u32 layerCount) const
     return BlitInfo(glm::uvec3{}, glm::uvec3{
         m_Description.Width,
         m_Description.Height,
-        m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers},
+        ImageDescription::GetDepth(m_Description)},
         mipBase, layerBase, layerCount);
 }
 
@@ -586,12 +598,10 @@ void Image::CreateMipmaps(ImageLayout currentLayout)
     if (m_Description.Mipmaps == 1)
         return;
 
-    bool is3dImage = m_Description.Kind == ImageKind::Image3d;
-
     i32 width = (i32)m_Description.Width;
     i32 height = (i32)m_Description.Height;
-    i32 depth = is3dImage ? (i32)m_Description.Layers : 1;
-    u32 layers = is3dImage ? 1 : m_Description.Layers;
+    i32 depth = (i32)ImageDescription::GetDepth(m_Description);
+    u32 layers = ImageDescription::GetLayers(m_Description);
     
     ImageSubresource imageSubresource = Subresource(0, 1, 0, layers);
     PrepareForMipmapSource(imageSubresource, currentLayout);
@@ -627,7 +637,7 @@ glm::uvec3 Image::GetPixelCoordinate(const glm::vec3& coordinate, ImageSizeType 
     glm::uvec3 size = {
         m_Description.Width,
         m_Description.Height,
-        m_Description.Kind != ImageKind::Image3d ? 1u : m_Description.Layers};
+        ImageDescription::GetDepth(m_Description)};
 
     return glm::uvec3 {
         (u32)((f32)size.x * coordinate.x), (u32)((f32)size.y * coordinate.y), (u32)((f32)size.z * coordinate.z)};
