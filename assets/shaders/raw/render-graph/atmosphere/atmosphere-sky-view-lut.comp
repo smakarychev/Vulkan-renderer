@@ -37,13 +37,13 @@ void main() {
     const vec2 uv = vec2(coord) / vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT);
     
     const AtmosphereSettings atm = u_atmosphere_settings.settings;
-    
-    const vec3 pos = u_camera.camera.position * 1e-6f + vec3(0.0f, atm.surface, 0.0f);
+
+    const vec3 pos = get_view_pos(u_camera.camera.position, atm.surface);
     const float r = length(pos);
     
     const vec2 zenith_view_cos = sky_view_zen_view_cos_from_uv(atm, uv, r);
     const vec3 up = pos / r;
-    const float mu = dot(u_directional_light.light.direction, up);
+    const float mu = dot(-u_directional_light.light.direction, up);
     const vec3 sun_dir = normalize(vec3(sqrt(1.0f - mu * mu), mu, 0.0f));
     
     const vec3 ro = vec3(0.0f, r, 0.0f);
@@ -57,7 +57,7 @@ void main() {
     const vec3 global_l = vec3(1.0f);
     const bool use_uniform_phase = false;
     const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm, SKY_STEPS,
-        surface, global_l, use_uniform_phase);
+        surface, global_l, use_uniform_phase, MAX_DEPTH);
     
     imageStore(u_sky_view_lut, coord, vec4(scattering.L, 1.0f));
 }

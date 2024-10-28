@@ -429,6 +429,7 @@ void Renderer::SetupRenderGraph()
         Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut", *m_Graph, atmosphereOutput.MultiscatteringLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.ColorOut);
+        Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective.Lut", *m_Graph, atmosphereOutput.AerialPerspectiveLut);
 
         auto& atmosphereSimple = Passes::AtmosphereSimple::addToGraph("Atmosphere.Simple", *m_Graph, atmosphereOutput.TransmittanceLut);
         auto& atmosphereSimpleOutput = blackboard.Get<Passes::AtmosphereSimple::PassData>(atmosphereSimple);

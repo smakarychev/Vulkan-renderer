@@ -1,5 +1,6 @@
 #include "AtmospherePass.h"
 
+#include "AtmosphereAerialPerspectiveLutPass.h"
 #include "AtmosphereMultiscatteringPass.h"
 #include "AtmosphereSkyViewLutPass.h"
 #include "AtmosphereTransmittanceLutPass.h"
@@ -16,14 +17,14 @@ namespace RG
 AtmosphereSettings AtmosphereSettings::EarthDefault()
 {
     return {
-        .RayleighScattering = glm::vec4{5.802f, 13.558f, 33.1f, 1.0f},
+        .RayleighScattering = glm::vec4{0.005802f, 0.013558f, 0.0331f, 1.0f},
         .RayleighAbsorption = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f},
-        .MieScattering = glm::vec4{3.996f, 3.996f, 3.996f, 1.0f},
-        .MieAbsorption = glm::vec4{4.4f, 4.4f, 4.4f, 1.0f},
-        .OzoneAbsorption = glm::vec4{0.650f, 1.881f, 0.085f, 1.0f},
+        .MieScattering = glm::vec4{0.003996f, 0.003996f, 0.003996f, 1.0f},
+        .MieAbsorption = glm::vec4{0.0044f, 0.0044f, 0.0044f, 1.0f},
+        .OzoneAbsorption = glm::vec4{0.000650f, 0.001881f, 0.000085f, 1.0f},
         .SurfaceAlbedo = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f},
-        .Surface = 6.360f,
-        .Atmosphere = 6.460f,
+        .Surface = 6360.0f,
+        .Atmosphere = 6460.0f,
         .RayleighDensity = 1.0f,
         .MieDensity = 1.0f,
         .OzoneDensity = 1.0f};
@@ -131,9 +132,9 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
                 .Height = globalResources.Resolution.y,
                 .Format = Format::RGBA16_FLOAT});
 
-            auto& transmittance = TransmittanceLut::addToGraph(std::format("{}.Transmittance", name), graph,
+            auto& transmittance = Transmittance::addToGraph(std::format("{}.Transmittance", name), graph,
                 passData.AtmosphereSettings);
-            auto& transmittanceOutput = graph.GetBlackboard().Get<TransmittanceLut::PassData>(transmittance);
+            auto& transmittanceOutput = graph.GetBlackboard().Get<Transmittance::PassData>(transmittance);
             
             auto& multiscattering = Multiscattering::addToGraph(std::format("{}.Multiscattering", name), graph,
                 transmittanceOutput.Lut, passData.AtmosphereSettings);
@@ -143,12 +144,17 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
                 transmittanceOutput.Lut, multiscatteringOutput.Lut, passData.AtmosphereSettings, light);
             auto& skyViewOutput = graph.GetBlackboard().Get<SkyView::PassData>(skyView);
 
+            auto& aerialPerspective = AerialPerspective::addToGraph(std::format("{}.AerialPerspective", name), graph,
+                multiscatteringOutput.TransmittanceLut, multiscatteringOutput.Lut, passData.AtmosphereSettings, light);
+            auto& aerialPerspectiveOutput = graph.GetBlackboard().Get<AerialPerspective::PassData>(aerialPerspective);
+
             auto& atmosphere = raymarchAtmospherePass(std::format("{}.Raymarch", name), graph,
                 passData.AtmosphereSettings, light, skyViewOutput.Lut, multiscatteringOutput.TransmittanceLut);
             auto& atmosphereOutput = graph.GetBlackboard().Get<RayMarchPassData>(atmosphere);
             passData.TransmittanceLut = transmittanceOutput.Lut;
             passData.MultiscatteringLut = multiscatteringOutput.Lut;
-            passData.SkyViewLut = atmosphereOutput.SkyViewLut;
+            passData.SkyViewLut = skyViewOutput.Lut;
+            passData.AerialPerspectiveLut = aerialPerspectiveOutput.Lut;
             passData.ColorOut = atmosphereOutput.ColorOut;
             passData.AtmosphereSettings = atmosphereOutput.AtmosphereSettings;
 

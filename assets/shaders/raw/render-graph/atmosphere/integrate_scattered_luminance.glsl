@@ -9,7 +9,7 @@ struct Scattering {
 };
 
 Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir, AtmosphereSettings atmosphere,
-    float sample_count, bool surface, vec3 global_l, bool use_uniform_phase) {
+    float sample_count, bool surface, vec3 global_l, bool use_uniform_phase, float max_depth) {
     Scattering scattering;
 
     const vec3 center = vec3(0.0f);
@@ -20,10 +20,11 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
     const float to_surface_depth = surface_intersection.t - atmosphere_intersection.t;
     if (surface_intersection.t == NO_HIT) {
         if (atmosphere_intersection.t == NO_HIT)
-        return scattering;
+            return scattering;
     } else {
         depth = min(depth, to_surface_depth);
     }
+    depth = min(depth, max_depth);
     // todo: also read from depth buffer
 
 
@@ -62,7 +63,7 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
         else
             phase_scattering = media.rayleigh * rayleigh + media.mie * mie;
 
-        // todo: earth shadow
+        const float surface_shadow = get_visibility(atmosphere, x, sun_dir, vec3(0.0f) + PLANET_RADIUS_OFFSET_KM * up);
         
         vec3 multiscattering_luminance = vec3(0.0f);
         #ifdef WITH_MULTISCATTERING
@@ -75,8 +76,8 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
         scattering.Multiscattering += throughput * MS_integral;
         
         const vec3 S = global_l * (
-            get_visibility(atmosphere, x, sun_dir) * phase_scattering * transmittance +
-            multiscattering_luminance * (media.rayleigh + media.mie));
+            surface_shadow * phase_scattering * transmittance +
+            multiscattering_luminance * MS);
         const vec3 S_integral = (S - S * sample_transmittance) / media.extinction;
         luminance += throughput * S_integral;
 

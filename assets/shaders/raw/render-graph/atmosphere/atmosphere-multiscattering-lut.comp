@@ -28,7 +28,7 @@ void main() {
     if (coord.x >= MULTISCATTERING_LUT_RES || coord.y >= MULTISCATTERING_LUT_RES || gl_GlobalInvocationID.z >= MULTISCATTERING_SPHERE_SAMPLES)
         return;
 
-    const vec2 uv = sub_uv_to_unit(vec2(coord) / vec2(MULTISCATTERING_LUT_RES), vec2(MULTISCATTERING_LUT_RES));
+    const vec2 uv = sub_uv_to_unit(vec2(coord + 0.5f) / vec2(MULTISCATTERING_LUT_RES), vec2(MULTISCATTERING_LUT_RES));
 
     AtmosphereSettings atm = u_atmosphere_settings.settings;
     
@@ -36,7 +36,7 @@ void main() {
     const vec3 sun_dir = normalize(vec3(0.0f, mu, sqrt(1.0f - mu * mu)));
     
     const float r = atm.surface +
-        clamp(uv.y + PLANET_RADIUS_OFFSET, 0.0f, 1.0f) * (atm.atmosphere - atm.surface - PLANET_RADIUS_OFFSET);
+        clamp(uv.y + PLANET_RADIUS_OFFSET_UV, 0.0f, 1.0f) * (atm.atmosphere - atm.surface - PLANET_RADIUS_OFFSET_UV);
     const vec3 ro = vec3(0.0f, r, 0.0f);
     vec3 rd;
 
@@ -66,14 +66,14 @@ void main() {
         const bool use_uniform_phase = true;
         const vec3 global_l = vec3(1.0f);
         const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm, MULTISCATTERING_STEPS,
-            surface, global_l, use_uniform_phase);
+            surface, global_l, use_uniform_phase, MAX_DEPTH);
 
         if (gl_SubgroupSize == 64) {
             multiscattering = uniform_phase * subgroupAdd(scattering.Multiscattering * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
             L = uniform_phase * subgroupAdd(scattering.L * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
         } else {
             s_multiscattering[gl_SubgroupID] = uniform_phase * subgroupAdd(scattering.Multiscattering * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
-            s_L[gl_SubgroupID] = uniform_phase * subgroupAdd(scattering.Multiscattering * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
+            s_L[gl_SubgroupID] = uniform_phase * subgroupAdd(scattering.L * sphere_solid_angle / float(MULTISCATTERING_SPHERE_SAMPLES));
             barrier();
             multiscattering = s_multiscattering[0] + s_multiscattering[1];
             L = s_L[0] + s_L[1];

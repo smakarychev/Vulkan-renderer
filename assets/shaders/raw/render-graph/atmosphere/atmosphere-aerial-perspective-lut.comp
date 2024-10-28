@@ -1,0 +1,68 @@
+// based on "A Scalable and Production Ready Sky and Atmosphere Rendering Technique by Sébastien Hillaire (Epic Games, Inc)"
+// https://github.com/sebh/UnrealEngineSkyAtmosphere
+
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+@immutable_sampler_clamp_edge
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
+layout(set = 1, binding = 1) uniform texture2D u_multiscattering_lut;
+layout(set = 1, binding = 2, rgba16f) uniform writeonly image3D u_aerial_perspective_lut;
+
+layout(scalar, set = 1, binding = 3) uniform atmosphere_settings {
+    AtmosphereSettings settings;
+} u_atmosphere_settings;
+
+layout(scalar, set = 1, binding = 4) uniform directional_light {
+    DirectionalLight light;
+} u_directional_light;
+
+layout(set = 1, binding = 5) uniform camera_buffer {
+    CameraGPU camera;
+} u_camera;
+
+#define WITH_MULTISCATTERING
+#include "integrate_scattered_luminance.glsl"
+#undef WITH_MULTISCATTERING
+
+void main() {
+    const ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    const vec2 uv = vec2(coord.xy) / vec2(AERIAL_PERSPECTIVE_LUT_RES);
+    const vec3 clip = vec3(uv * 2.0f - 1.0f, -0.5f);
+    vec4 unprojected = u_camera.camera.inv_projection * vec4(clip, 1.0f);
+    unprojected.xyz /= unprojected.w;
+    vec3 rd = normalize(u_camera.camera.inv_view * vec4(unprojected.xyz, 0.0f)).xyz * vec3(1, -1, 1);
+
+    const AtmosphereSettings atm = u_atmosphere_settings.settings;
+ 
+    const vec3 ro = get_view_pos(u_camera.camera.position, atm.surface);
+    
+    // redistribute the slices so that they follow a square distribution
+    float slice = (float(coord.z) + 0.5f) / AERIAL_PERSPECTIVE_LUT_RES;
+    slice = (slice * slice) * AERIAL_PERSPECTIVE_LUT_RES;
+    
+    float slice_km = aerial_perspective_slice_to_km(slice);
+    vec3 voxel_center = ro + slice_km * rd;
+    // offset voxel to be on the ground
+    const float voxel_height = length(voxel_center);
+    if (voxel_height <= atm.surface + PLANET_RADIUS_OFFSET_KM) {
+        voxel_center = normalize(voxel_center) * (atm.surface + PLANET_RADIUS_OFFSET_KM + 1e-3f);
+        slice_km = length(voxel_center - ro);
+        rd = normalize(voxel_center - ro);
+    }
+
+    const vec3 sun_dir = -u_directional_light.light.direction;
+
+    const bool surface = false;
+    const vec3 global_l = vec3(1.0f);
+    const bool use_uniform_phase = false;
+    const float samples = max(1.0f, float(coord.z + 1.0f) * 2.0f);
+
+    const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm,
+        samples, surface, global_l, use_uniform_phase, slice_km);
+    imageStore(u_aerial_perspective_lut, coord, vec4(scattering.L, 1.0f));
+}

@@ -11,17 +11,20 @@
 #define SKY_VIEW_LUT_HEIGHT 100
 
 #define MULTISCATTERING_LUT_RES 32
+#define AERIAL_PERSPECTIVE_LUT_RES 32
 
 #define PI 3.14159265359f
 
 #define NO_HIT 3.402823466e+38f
+#define MAX_DEPTH 3.402823466e+38f
 
 #define TRANSMITTANCE_STEPS 40.0f
 #define SKY_STEPS 30.0f
 #define MULTISCATTERING_SPHERE_SAMPLES 64
 #define MULTISCATTERING_STEPS 20.0f
 
-#define PLANET_RADIUS_OFFSET 0.01f
+#define PLANET_RADIUS_OFFSET_UV 0.01f
+#define PLANET_RADIUS_OFFSET_KM 0.01f
 
 #include "../../light.glsl"
 #include "../../camera.glsl"
@@ -65,6 +68,12 @@ Intersection intersect_sphere(vec3 ro, vec3 rd, vec3 center, float radius) {
     return Intersection(0.0f, -b + tsqrt);
 }
 
+vec3 get_view_pos(vec3 camera_pos, float surface_radius) {
+    // add a default view_height of 200m
+    const float base_view_height = 200.0f * 1e-3f;
+    return camera_pos * 1e-3f + vec3(0.0f, surface_radius + base_view_height, 0.0f);
+}
+
 float rayleigh_phase(float cos_theta) {
     return 3.0f / (16.0f * PI) * (1.0f + cos_theta * cos_theta);
 }
@@ -84,7 +93,7 @@ struct MediaSample {
 
 
 MediaSample sample_media(vec3 x, vec3 center, AtmosphereSettings atmosphere) {
-    const float altitude_km = (length(x - center) - atmosphere.surface) * 1000;
+    const float altitude_km = length(x - center) - atmosphere.surface;
     const float rayleigh_density = exp(-altitude_km / (8.0f * atmosphere.rayleigh_density));
     const float mie_density = exp(-altitude_km / (1.2f * atmosphere.mie_density));
 
@@ -203,11 +212,10 @@ vec2 sky_view_uv_from_zen_view_cos(AtmosphereSettings atmosphere, bool intersect
     return uv;
 }
 
-float get_visibility(AtmosphereSettings atmosphere, vec3 ro, vec3 rd) {
-    const float surface = intersect_sphere(ro, rd, vec3(0.0f), atmosphere.surface).t;
-    const Intersection atmosphere_intersection = intersect_sphere(ro, rd, vec3(0.0f), atmosphere.atmosphere);
+float get_visibility(AtmosphereSettings atmosphere, vec3 ro, vec3 rd, vec3 center) {
+    const float surface = intersect_sphere(ro, rd, center, atmosphere.surface).t;
 
-    return (surface == NO_HIT || atmosphere_intersection.t + atmosphere_intersection.depth < surface) ? 1.0f : 0.0f;
+    return surface == NO_HIT ? 1.0f : 0.0f;
 }
 
 vec2 multiscattering_uv_from_r_mu(AtmosphereSettings atmosphere, float r, float mu) {
@@ -228,4 +236,15 @@ vec3 get_sun_luminance(vec3 ro, vec3 rd, vec3 sun_dir, float surface_radius) {
     }
     
     return vec3(0.0f);
+}
+
+
+#define AERIAL_MM_PER_SLICE 1.0f
+
+float aerial_perspective_slice_to_km(float slice) {
+    return slice * AERIAL_MM_PER_SLICE;
+}
+
+float aerial_perspective_km_to_slice(float km) {
+    return km / AERIAL_MM_PER_SLICE;
 }

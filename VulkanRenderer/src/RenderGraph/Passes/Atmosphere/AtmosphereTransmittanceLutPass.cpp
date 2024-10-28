@@ -10,7 +10,7 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::Atmosphere::TransmittanceLut::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource atmosphereSettings)
 {
     using namespace RG;

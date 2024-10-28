@@ -2,7 +2,7 @@
 
 #include "RenderGraph/RGResource.h"
 
-namespace Passes::Atmosphere::TransmittanceLut
+namespace Passes::Atmosphere::Transmittance
 {
     struct PassData
     {

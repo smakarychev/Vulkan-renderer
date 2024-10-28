@@ -30,6 +30,7 @@ namespace Passes::Atmosphere
         RG::Resource TransmittanceLut{};
         RG::Resource MultiscatteringLut{};
         RG::Resource SkyViewLut{};
+        RG::Resource AerialPerspectiveLut{};
         RG::Resource ColorOut{};
     };
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const AtmosphereSettings& atmosphereSettings,
