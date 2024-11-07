@@ -67,7 +67,7 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
         
         float shadow_map = 0.0f;
         #ifdef WITH_SHADOW_MAP
-            shadow_map = shadow(u_camera.camera.position + rd * depth * vec3(-1, 1, -1), vec3(0, 0, 0), u_directional_light.light.size);
+            shadow_map = shadow(u_camera.camera.position + rd * t * vec3(-1, 1, -1), vec3(0, 0, 0), u_directional_light.light.size);
             shadow_map = float(shadow_map > 0.0);
         #endif // WITH_SHADOW_MAP
         
