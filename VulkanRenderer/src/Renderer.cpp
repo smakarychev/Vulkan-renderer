@@ -96,7 +96,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/death_valley/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -227,7 +227,7 @@ void Renderer::SetupRenderGraph()
         translucentSorter.Sort(m_GraphTranslucentGeometry, *GetFrameContext().ResourceUploader);
     }
 
-    /*auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
+    auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
         .Geometry = &m_GraphOpaqueGeometry,
         .Resolution = m_Swapchain.GetResolution(),
         .Camera = GetFrameContext().PrimaryCamera});
@@ -269,7 +269,7 @@ void Renderer::SetupRenderGraph()
     };
     if (clusterLights)
     {
-        /* light clustering: #1#
+        // light clustering:
         auto& clustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
         auto& clustersSetupOutput = blackboard.Get<Passes::LightClustersSetup::PassData>(clustersSetup);
         auto& compactClusters = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
@@ -354,11 +354,53 @@ void Renderer::SetupRenderGraph()
         .Geometry = &m_GraphOpaqueGeometry});
     auto& pbrOutput = blackboard.Get<Passes::Pbr::VisibilityIbl::PassData>(pbr);
 
-    auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
-        m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibilityOutput.DepthOut, GetFrameContext().Resolution, 1.2f);
-    auto& skyboxOutput = blackboard.Get<Passes::Skybox::PassData>(skybox);
-    Resource renderedColor = skyboxOutput.ColorOut;
-    Resource renderedDepth = skyboxOutput.DepthOut;
+    Resource renderedColor = {};
+    Resource renderedDepth = {};
+    
+    // todo: this is temp
+    {
+        if (!blackboard.TryGet<AtmosphereSettings>())
+            blackboard.Update(AtmosphereSettings::EarthDefault());
+
+        AtmosphereSettings& settings = blackboard.Get<AtmosphereSettings>();
+        ImGui::Begin("Atmosphere settings");
+        ImGui::DragFloat3("Rayleigh scattering", &settings.RayleighScattering[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Rayleigh absorption", &settings.RayleighAbsorption[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Mie scattering", &settings.MieScattering[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Mie absorption", &settings.MieAbsorption[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat3("Ozone absorption", &settings.OzoneAbsorption[0], 1e-2f, 0.0f, 100.0f);
+        ImGui::ColorEdit3("Surface albedo", &settings.SurfaceAlbedo[0]);
+        ImGui::DragFloat("Surface", &settings.Surface, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Atmosphere", &settings.Atmosphere, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Rayleigh density", &settings.RayleighDensity, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Mie density", &settings.MieDensity, 1e-2f, 0.0f, 100.0f);
+        ImGui::DragFloat("Ozone density", &settings.OzoneDensity, 1e-2f, 0.0f, 100.0f);
+        ImGui::End();
+        
+        auto& atmosphere = Passes::Atmosphere::addToGraph("Atmosphere", *m_Graph, settings, *m_SceneLights,
+            pbrOutput.ColorOut, visibilityOutput.DepthOut,
+            CSMData{
+                .ShadowMap = csmOutput.ShadowMap,
+                .CSM = csmOutput.CSM});
+        auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut", *m_Graph, atmosphereOutput.MultiscatteringLut);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.ColorOut);
+        Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective.Lut", *m_Graph, atmosphereOutput.AerialPerspectiveLut);
+
+        renderedColor = atmosphereOutput.ColorOut;
+
+        auto& atmosphereSimple = Passes::AtmosphereSimple::addToGraph("Atmosphere.Simple", *m_Graph, atmosphereOutput.TransmittanceLut);
+        auto& atmosphereSimpleOutput = blackboard.Get<Passes::AtmosphereSimple::PassData>(atmosphereSimple);
+        //auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
+        //    atmosphereSimpleOutput.ColorOut, backbuffer, glm::vec3{}, glm::vec3{1.0f});
+    }
+    
+    //auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
+    //    m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibilityOutput.DepthOut, GetFrameContext().Resolution, 1.2f);
+    //auto& skyboxOutput = blackboard.Get<Passes::Skybox::PassData>(skybox);
+
     
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
@@ -377,7 +419,7 @@ void Renderer::SetupRenderGraph()
             .HiZContext = m_VisibilityPass->GetHiZContext()})
         auto& pbrTranslucentOutput = blackboard.Get<PbrForwardTranslucentIBLPass::PassData>();
         
-        renderedColor = pbrTranslucentOutput.ColorOut;#1#
+        renderedColor = pbrTranslucentOutput.ColorOut; */
     }
 
     auto& fxaa = Passes::Fxaa::addToGraph("FXAA", *m_Graph, renderedColor);
@@ -400,42 +442,7 @@ void Renderer::SetupRenderGraph()
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Max.Texture", *m_Graph, hizMaxVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, *m_BRDF);*/
-
-
-    // todo: this is temp
-    {
-        if (!blackboard.TryGet<AtmosphereSettings>())
-            blackboard.Update(AtmosphereSettings::EarthDefault());
-
-        AtmosphereSettings& settings = blackboard.Get<AtmosphereSettings>();
-        ImGui::Begin("Atmosphere settings");
-        ImGui::DragFloat3("Rayleigh scattering", &settings.RayleighScattering[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Rayleigh absorption", &settings.RayleighAbsorption[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Mie scattering", &settings.MieScattering[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Mie absorption", &settings.MieAbsorption[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Ozone absorption", &settings.OzoneAbsorption[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::ColorEdit3("Surface albedo", &settings.SurfaceAlbedo[0]);
-        ImGui::DragFloat("Surface", &settings.Surface, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Atmosphere", &settings.Atmosphere, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Rayleigh density", &settings.RayleighDensity, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Mie density", &settings.MieDensity, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Ozone density", &settings.OzoneDensity, 1e-2f, 0.0f, 100.0f);
-        ImGui::End();
-        
-        auto& atmosphere = Passes::Atmosphere::addToGraph("Atmosphere", *m_Graph, settings, *m_SceneLights);
-        auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut", *m_Graph, atmosphereOutput.MultiscatteringLut);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.ColorOut);
-        Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective.Lut", *m_Graph, atmosphereOutput.AerialPerspectiveLut);
-
-        auto& atmosphereSimple = Passes::AtmosphereSimple::addToGraph("Atmosphere.Simple", *m_Graph, atmosphereOutput.TransmittanceLut);
-        auto& atmosphereSimpleOutput = blackboard.Get<Passes::AtmosphereSimple::PassData>(atmosphereSimple);
-        auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
-            atmosphereSimpleOutput.ColorOut, backbuffer, glm::vec3{}, glm::vec3{1.0f});
-    }
+    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, *m_BRDF);
     
     //SetupRenderSlimePasses();
 }

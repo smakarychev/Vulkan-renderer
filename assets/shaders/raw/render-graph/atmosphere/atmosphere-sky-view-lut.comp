@@ -43,7 +43,7 @@ void main() {
     
     const vec2 zenith_view_cos = sky_view_zen_view_cos_from_uv(atm, uv, r);
     const vec3 up = pos / r;
-    const float mu = dot(-u_directional_light.light.direction, up);
+    const float mu = dot(u_directional_light.light.direction * vec3(1, -1, 1), up);
     const vec3 sun_dir = normalize(vec3(sqrt(1.0f - mu * mu), mu, 0.0f));
     
     const vec3 ro = vec3(0.0f, r, 0.0f);

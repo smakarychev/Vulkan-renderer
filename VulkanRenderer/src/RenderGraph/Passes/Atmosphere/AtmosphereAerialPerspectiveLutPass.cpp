@@ -3,12 +3,13 @@
 #include "cvars/CVarSystem.h"
 #include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGUtils.h"
 #include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-    RG::Resource atmosphereSettings, const SceneLight& light)
+    RG::Resource atmosphereSettings, const SceneLight& light, const RG::CSMData& csmData)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -36,6 +37,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             passData.MultiscatteringLut = graph.Read(multiscatteringLut, Compute | Sampled);
             passData.DirectionalLight = graph.Read(passData.DirectionalLight, Compute | Uniform);
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
+            passData.CSMData = RgUtils::readCSMData(csmData, graph, Compute);
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
 
             graph.UpdateBlackboard(passData);
@@ -66,6 +68,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
                     ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_aerial_perspective_lut",
                 lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
 
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());

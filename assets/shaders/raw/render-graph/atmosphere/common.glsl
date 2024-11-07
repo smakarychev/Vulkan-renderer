@@ -74,6 +74,11 @@ vec3 get_view_pos(vec3 camera_pos, float surface_radius) {
     return camera_pos * 1e-3f + vec3(0.0f, surface_radius + base_view_height, 0.0f);
 }
 
+vec3 get_world_pos(vec3 view_pos, float surface_radius) {
+    const float base_view_height = 200.0f * 1e-3f;
+    return (view_pos - vec3(0.0f, surface_radius + base_view_height, 0.0f)) * 1e+3f;
+}
+
 float rayleigh_phase(float cos_theta) {
     return 3.0f / (16.0f * PI) * (1.0f + cos_theta * cos_theta);
 }
@@ -239,7 +244,7 @@ vec3 get_sun_luminance(vec3 ro, vec3 rd, vec3 sun_dir, float surface_radius) {
 }
 
 
-#define AERIAL_MM_PER_SLICE 1.0f
+#define AERIAL_MM_PER_SLICE 4.0f
 
 float aerial_perspective_slice_to_km(float slice) {
     return slice * AERIAL_MM_PER_SLICE;

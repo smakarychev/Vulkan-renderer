@@ -1,5 +1,7 @@
 #include "poisson_samples.glsl"
 
+#extension GL_EXT_samplerless_texture_functions: require
+
 float linearize_depth(float z, uint cascade_index) {
     const float f = u_csm_data.csm.far[cascade_index];
     const float n = u_csm_data.csm.near[cascade_index];
@@ -50,7 +52,10 @@ float sample_shadow_for_pcf(vec2 base_uv, float u, float v, vec2 shadow_size_inv
     return sample_shadow(vec3(base_uv, depth), vec2(u, v) * shadow_size_inv * 0.5, cascade_index);
 }
 
+#ifndef FILTER_SIZE
 #define FILTER_SIZE 7
+#endif // FILTER_SIZE
+
 float pcf_optimized_shadow(vec3 uvz, uint cascade_index) {
     // implementation is almost identical to https://github.com/TheRealMJP/Shadows
     
@@ -192,7 +197,7 @@ float pcss_sample_shadow(vec3 position, vec3 uvz, vec3 normal, float light_size_
 
 float get_oriented_bias(vec3 normal, vec3 light_direction) {
     // see FFXVIShadowTechPaper (Shadow Techniques from Final Fantasy XVI)
-    const float bias = 0.1f;
+    const float bias = 0.01f;
     bool is_facing_light = dot(normal, light_direction) > 0;
     
     return is_facing_light ? -bias : bias;
@@ -226,7 +231,7 @@ float shadow(vec3 position, vec3 normal, float light_size) {
             break;
         }
     }
-   
+
     const float shadow = sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, cascade_index);
     // blend between cascades, if too close to the end of current cascade
     const float cascade_relative_distance = cascade_index + 1 < u_csm_data.csm.cascade_count ? 

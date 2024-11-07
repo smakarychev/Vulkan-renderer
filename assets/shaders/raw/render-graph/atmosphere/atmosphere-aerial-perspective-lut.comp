@@ -4,11 +4,15 @@
 #version 460
 
 #include "common.glsl"
+#include "../../shadow.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 0) uniform sampler u_sampler;
+@immutable_sampler_nearest_clamp_black
+layout(set = 0, binding = 1) uniform sampler u_sampler_shadow;
+
 layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
 layout(set = 1, binding = 1) uniform texture2D u_multiscattering_lut;
 layout(set = 1, binding = 2, rgba16f) uniform writeonly image3D u_aerial_perspective_lut;
@@ -25,8 +29,19 @@ layout(set = 1, binding = 5) uniform camera_buffer {
     CameraGPU camera;
 } u_camera;
 
+layout(set = 1, binding = 6) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 7) uniform csm_data_buffer {
+    CSMData csm;
+} u_csm_data;
+
+#define FILTER_SIZE 2
+#include "../shadows/shadows.glsl"
+#undef FILTER_SIZE
+
 #define WITH_MULTISCATTERING
+#define WITH_SHADOW_MAP
 #include "integrate_scattered_luminance.glsl"
+#undef WITH_SHADOW_MAP
 #undef WITH_MULTISCATTERING
 
 void main() {
@@ -55,7 +70,7 @@ void main() {
         rd = normalize(voxel_center - ro);
     }
 
-    const vec3 sun_dir = -u_directional_light.light.direction;
+    const vec3 sun_dir = u_directional_light.light.direction * vec3(1, -1, 1);
 
     const bool surface = false;
     const vec3 global_l = vec3(1.0f);
@@ -64,5 +79,7 @@ void main() {
 
     const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm,
         samples, surface, global_l, use_uniform_phase, slice_km);
-    imageStore(u_aerial_perspective_lut, coord, vec4(scattering.L, 1.0f));
+    const float transmittance = dot(scattering.Transmittance, vec3(1.0f / 3.0f));
+    
+    imageStore(u_aerial_perspective_lut, coord, vec4(scattering.L, 1.0f - transmittance)); 
 }

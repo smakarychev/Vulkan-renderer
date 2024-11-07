@@ -6,6 +6,7 @@
 #include "AtmosphereTransmittanceLutPass.h"
 #include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGUtils.h"
 #include "Rendering/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -34,16 +35,19 @@ namespace
 {
     struct RayMarchPassData
     {
+        RG::Resource DepthIn{};
         RG::Resource AtmosphereSettings{};
         RG::Resource SkyViewLut{};
         RG::Resource TransmittanceLut{};
+        RG::Resource AerialPerspectiveLut{};
         RG::Resource Camera{};
         RG::Resource DirectionalLight{};
         RG::Resource ColorOut{};
     };
     RG::Pass& raymarchAtmospherePass(std::string_view name, RG::Graph& renderGraph,
         RG::Resource atmosphereSettings, const SceneLight& light,
-        RG::Resource skyViewLut, RG::Resource transmittanceLut)
+        RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
+        RG::Resource colorIn, RG::Resource depthIn)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -58,17 +62,22 @@ namespace
             passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),
                 light.GetBuffers().DirectionalLight);
             auto& globalResources = graph.GetGlobalResources();
-            passData.ColorOut = graph.CreateResource(std::format("{}.ColorOut", name), GraphTextureDescription{
-                .Width = globalResources.Resolution.x,
-                .Height = globalResources.Resolution.y,
-                .Format = Format::RGBA16_FLOAT});
+            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, std::format("{}.ColorOut", name),
+                GraphTextureDescription{
+                    .Width = globalResources.Resolution.x,
+                    .Height = globalResources.Resolution.y,
+                    .Format = Format::RGBA16_FLOAT});
 
-            passData.SkyViewLut = graph.Read(skyViewLut, Compute | Sampled);
-            passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);
-            passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
-            passData.DirectionalLight = graph.Read(passData.DirectionalLight, Compute | Uniform);
-            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
-            passData.ColorOut = graph.Write(passData.ColorOut, Compute | Storage);
+            if (depthIn.IsValid())
+                passData.DepthIn = graph.Read(depthIn, Pixel | Sampled);
+
+            passData.SkyViewLut = graph.Read(skyViewLut, Pixel | Sampled);
+            passData.TransmittanceLut = graph.Read(transmittanceLut, Pixel | Sampled);
+            passData.AerialPerspectiveLut = graph.Read(aerialPerspectiveLut, Pixel | Sampled);
+            passData.AtmosphereSettings = graph.Read(atmosphereSettings, Pixel | Uniform);
+            passData.DirectionalLight = graph.Read(passData.DirectionalLight, Pixel | Uniform);
+            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
 
             graph.UpdateBlackboard(passData);
         },
@@ -82,8 +91,10 @@ namespace
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
-            const Texture& atmosphere = resources.GetTexture(passData.ColorOut);
-
+            if (passData.DepthIn.IsValid())
+                resourceDescriptors.UpdateBinding("u_depth", resources.GetTexture(passData.DepthIn).BindingInfo(
+                    ImageFilter::Linear, ImageLayout::DepthReadonly));
+            
             resourceDescriptors.UpdateBinding("u_atmosphere_settings",
                 resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
             resourceDescriptors.UpdateBinding("u_directional_light",
@@ -96,23 +107,23 @@ namespace
             resourceDescriptors.UpdateBinding("u_transmittance_lut",
                 resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                    ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_atmosphere",
-                atmosphere.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            resourceDescriptors.UpdateBinding("u_aerial_perspective_lut",
+                resources.GetTexture(passData.AerialPerspectiveLut).BindingInfo(
+                   ImageFilter::Linear, ImageLayout::Readonly));
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
-            pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), glm::vec2{frameContext.Resolution});
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
-            RenderCommand::Dispatch(cmd,
-                {atmosphere.Description().Width, atmosphere.Description().Height, 1},
-                {16, 16, 1});
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            pipeline.BindGraphics(cmd);
+            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), passData.DepthIn.IsValid());
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::Draw(cmd, 3);
         });
     }
 }
 
 RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    const AtmosphereSettings& atmosphereSettings, const SceneLight& light)
+    const AtmosphereSettings& atmosphereSettings, const SceneLight& light, RG::Resource colorIn, RG::Resource depthIn,
+    const RG::CSMData& csmData)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -125,12 +136,6 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
             passData.AtmosphereSettings = graph.CreateResource(std::format("{}.Settings", name), GraphBufferDescription{
                 .SizeBytes = sizeof(AtmosphereSettings)});
             graph.Upload(passData.AtmosphereSettings, atmosphereSettings);
-
-            auto& globalResources = graph.GetGlobalResources();
-            passData.ColorOut = graph.CreateResource(std::format("{}.ColorOut", name), GraphTextureDescription{
-                .Width = globalResources.Resolution.x,
-                .Height = globalResources.Resolution.y,
-                .Format = Format::RGBA16_FLOAT});
 
             auto& transmittance = Transmittance::addToGraph(std::format("{}.Transmittance", name), graph,
                 passData.AtmosphereSettings);
@@ -145,11 +150,14 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
             auto& skyViewOutput = graph.GetBlackboard().Get<SkyView::PassData>(skyView);
 
             auto& aerialPerspective = AerialPerspective::addToGraph(std::format("{}.AerialPerspective", name), graph,
-                multiscatteringOutput.TransmittanceLut, multiscatteringOutput.Lut, passData.AtmosphereSettings, light);
+                multiscatteringOutput.TransmittanceLut, multiscatteringOutput.Lut, passData.AtmosphereSettings, light,
+                csmData);
             auto& aerialPerspectiveOutput = graph.GetBlackboard().Get<AerialPerspective::PassData>(aerialPerspective);
 
             auto& atmosphere = raymarchAtmospherePass(std::format("{}.Raymarch", name), graph,
-                passData.AtmosphereSettings, light, skyViewOutput.Lut, multiscatteringOutput.TransmittanceLut);
+                passData.AtmosphereSettings, light,
+                skyViewOutput.Lut, multiscatteringOutput.TransmittanceLut, aerialPerspectiveOutput.Lut,
+                colorIn, depthIn);
             auto& atmosphereOutput = graph.GetBlackboard().Get<RayMarchPassData>(atmosphere);
             passData.TransmittanceLut = transmittanceOutput.Lut;
             passData.MultiscatteringLut = multiscatteringOutput.Lut;

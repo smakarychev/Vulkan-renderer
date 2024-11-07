@@ -13,6 +13,6 @@ layout(push_constant) uniform push_constants {
 };
 
 void main() {
-    const vec4 color = textureLod(sampler3D(u_texture, u_sampler), vec3(vertex_uv, u_slice_normalized), 0).rgba;
-    out_color = vec4(color);
+    const vec3 color = textureLod(sampler3D(u_texture, u_sampler), vec3(vertex_uv, u_slice_normalized), 0).rgb;
+    out_color = vec4(color, 1.0f);
 }
