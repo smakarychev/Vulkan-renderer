@@ -120,7 +120,10 @@ Tiled z-binned lights culling. The screenshot below shows light heatmap for 512 
 ![light-binning](./images/light-z-bins.png)
 
 ### Atmospheric scattering
+Realistic atmosphere with multiscattering and aerial perspective
+
+https://github.com/user-attachments/assets/44603006-8958-4e81-bf0b-3596bd198956
+
 
 
 [Models used in the pictures above](./images/models.md)
-[models.md](images%2Fmodels.md)
