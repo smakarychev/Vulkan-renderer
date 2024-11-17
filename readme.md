@@ -20,12 +20,19 @@ smallest possible G-Buffer with one and only render target being a 32-bit primit
   (although for deformable meshes, positions and QTangents are also necessary)
 - Separate **Forward rendering** pass for translucent geometry (it also can be used as a 
 main pass instead of Visibility buffer)
+- Lights culling
+  - clustered 
+  - z-binned (SIGGRAPH 2017 Improved Culling for Tiled and Clustered Rendering)
+  - hybrid (WIP)
 - Pipelines and descriptor sets creation is almost completely automated via GLSL-shader reflection
   (or rather a very small superset of GLSL with additional attributes such as
   `@dynamic` or `@bindless` and some more, but this will change in the future updates)
 - Full metallic-roughness **PBR** (with IBL)
 - CSM (cascaded shadow maps, still WIP)
+  - With tight depth bounds read-back
 - SSAO
+- Atmospheric scattering (WIP) (A Scalable and Production Ready Sky and Atmosphere Rendering Technique by
+Sébastien Hillaire, Epic Games, Inc)
 - [Dear ImGui](https://github.com/ocornut/imgui) debug interface 
 - CPU and GPU profiling via [Tracy profiler](https://github.com/wolfpld/tracy)
 
@@ -66,10 +73,6 @@ original file extensions:
 - **Shaders**: `.shader`
 - **Textures**: `.tx`
 - **Models**: `.model`
-
-Finally, please note that one particular culling shader is GPU vendor-specific, 
-and the application **WAS NOT** tested on NVIDIA's hardware, but the difference is
-rather tiny, so it probably should be OK.
 
 Also notice, that application is provided without any models, but the links to them
 is provided at the bottom of this page. At the time of writing all
@@ -112,4 +115,12 @@ predictable. After culling each batch is rasterized to the visibility buffer
 using a single `vkCmdDrawIndexedIndirectCount` command.
 ![culling](./images/cull_freeze.png)
 
+### Light binning
+Tiled z-binned lights culling. The screenshot below shows light heatmap for 512 lights in 'Bistro' scene 
+![light-binning](./images/light-z-bins.png)
+
+### Atmospheric scattering
+
+
 [Models used in the pictures above](./images/models.md)
+[models.md](images%2Fmodels.md)
