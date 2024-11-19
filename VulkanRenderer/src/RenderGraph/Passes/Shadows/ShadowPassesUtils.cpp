@@ -64,6 +64,7 @@ namespace ShadowUtils
     {
         ShadowProjectionBounds bounds = projectionBoundsSphereWorld(frustumCorners, geometryBounds);
 
+        // todo: I believe it no longer
         /* pcss method does not like 0 on a near plane */
         static constexpr f32 NEAR_RELATIVE_OFFSET = 0.1f;
 
@@ -96,7 +97,7 @@ namespace ShadowUtils
             centroid += p;
         centroid /= (f32)frustumCorners.size();
 
-        glm::mat4 lightView = glm::lookAtRH(centroid, centroid - lightDirection, up);
+        glm::mat4 lightView = glm::lookAtRH(centroid, centroid + lightDirection, up);
 
         glm::vec3 min = glm::vec3{std::numeric_limits<f32>::max()};
         glm::vec3 max = -min;
@@ -112,7 +113,7 @@ namespace ShadowUtils
         max.y *= scale;
 
         glm::vec3 cascadeExtents = max - min;
-        glm::vec3 shadowPosition = centroid + lightDirection * min.z;
+        glm::vec3 shadowPosition = centroid - lightDirection * max.z;
         Camera shadowCamera = Camera::Orthographic({
             .BaseInfo = {
                 .Position = shadowPosition,

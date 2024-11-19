@@ -75,6 +75,7 @@ Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
     camera.m_ProjectionMatrix = glm::orthoRH_ZO(info.Left, info.Right, info.Bottom, info.Top,
         info.BaseInfo.Far, info.BaseInfo.Near);
     camera.m_ProjectionMatrix[1][1] *= -1.0f;
+    camera.m_ProjectionMatrix[3][1] *= -1.0f;
     camera.UpdateViewProjection();
 
     return camera;
@@ -249,6 +250,7 @@ void Camera::UpdateProjectionMatrix()
         f32 x = orthoWidth * 0.5f;
         f32 y = orthoHeight * 0.5f;
         m_ProjectionMatrix = glm::orthoRH_ZO(-x, x, -y, y, m_FarClipPlane, m_NearClipPlane);
+        m_ProjectionMatrix[3][1] *= -1.0f;
         break;
     }
     }

@@ -17,3 +17,4 @@ tools/*/bin-int
 *.tx
 vendor/imgui/bin
 *.stage
+assets/models

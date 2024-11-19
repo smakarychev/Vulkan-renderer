@@ -78,6 +78,7 @@ public:
     const glm::quat& GetOrientation() const { return m_Orientation; }
     
     const glm::mat4& GetViewProjection() const { return m_ViewProjection; }
+    const glm::mat4& GetViewProjectionInverse() const { return m_ViewProjectionInverse; }
     const glm::mat4& GetView() const { return m_ViewMatrix; }
     const glm::mat4& GetProjection() const { return m_ProjectionMatrix; }
 
