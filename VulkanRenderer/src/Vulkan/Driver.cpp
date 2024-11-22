@@ -261,6 +261,27 @@ namespace
         std::unreachable();
     }
 
+    constexpr VkCompareOp vulkanSamplerCompareOpFromSamplerDepthCompareMode(SamplerDepthCompareMode mode)
+    {
+        switch (mode)
+        {
+        case SamplerDepthCompareMode::None:
+            return VK_COMPARE_OP_NEVER;
+        case SamplerDepthCompareMode::Less:
+            return VK_COMPARE_OP_LESS_OR_EQUAL;
+        case SamplerDepthCompareMode::Greater:
+            return VK_COMPARE_OP_GREATER_OR_EQUAL;
+        default:
+            ASSERT(false, "Unsupported sampler depth compare mode")
+        }
+        std::unreachable();
+    }
+
+    constexpr bool isVulkanSamplerCompareOpEnabledFromSamplerDepthCompareMode(SamplerDepthCompareMode mode)
+    {
+        return mode != SamplerDepthCompareMode::None;
+    }
+
     constexpr VkSamplerAddressMode vulkanSamplerAddressModeFromSamplerWrapMode(SamplerWrapMode mode)
     {
         switch (mode)
@@ -561,6 +582,28 @@ namespace
             break;
         }
         std::unreachable();
+    }
+
+    Sampler getImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
+    {
+        Sampler sampler = Sampler::Builder()
+            .Filters(filter, filter)
+            .WrapMode(wrapMode)
+            .BorderColor(borderColor)
+            .Build();
+
+        return sampler;
+    }
+    Sampler getImmutableShadowSampler(ImageFilter filter, SamplerDepthCompareMode depthCompareMode)
+    {
+        Sampler sampler = Sampler::Builder()
+            .Filters(filter, filter)
+            .WrapMode(SamplerWrapMode::ClampBorder)
+            .BorderColor(SamplerBorderColor::Black)
+            .DepthCompareMode(depthCompareMode)
+            .Build();
+
+        return sampler;
     }
 }
 
@@ -1086,7 +1129,6 @@ void Driver::CreateViews(const ImageSubresource& image,
 
 Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
 {
-    
     VkSamplerCreateInfo samplerCreateInfo = {};
     samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerCreateInfo.magFilter = vulkanFilterFromImageFilter(createInfo.MagnificationFilter);
@@ -1100,7 +1142,9 @@ Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
     samplerCreateInfo.maxAnisotropy = GetAnisotropyLevel();
     samplerCreateInfo.anisotropyEnable = (u32)createInfo.WithAnisotropy;
     samplerCreateInfo.mipLodBias = 0.0f;
-    samplerCreateInfo.compareOp = VK_COMPARE_OP_NEVER;
+    samplerCreateInfo.compareEnable =
+        isVulkanSamplerCompareOpEnabledFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
+    samplerCreateInfo.compareOp = vulkanSamplerCompareOpFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
     samplerCreateInfo.borderColor = vulkanBorderColorFromBorderColor(createInfo.BorderColor);
 
     VkSamplerReductionModeCreateInfo reductionModeCreateInfo = {};
@@ -1443,20 +1487,26 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
 {
     static SamplerBorderColor black = SamplerBorderColor::Black;
     static SamplerBorderColor white = SamplerBorderColor::White;
-    static Sampler immutableSampler = GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::Repeat, black);
-    static Sampler immutableSamplerNearest = GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::Repeat, black);
+    static Sampler immutableSampler = getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::Repeat, black);
+    static Sampler immutableSamplerNearest = getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::Repeat, black);
     static Sampler immutableSamplerClampEdge =
-        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampEdge, black);
+        getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampEdge, black);
     static Sampler immutableSamplerNearestClampEdge =
-        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampEdge, black);
+        getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampEdge, black);
     static Sampler immutableSamplerClampBlack =
-        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, black);
+        getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, black);
     static Sampler immutableSamplerNearestClampBlack =
-        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, black);
+        getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, black);
     static Sampler immutableSamplerClampWhite =
-        GetImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, white);
+        getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, white);
     static Sampler immutableSamplerNearestClampWhite =
-        GetImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, white);
+        getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, white);
+    
+    static Sampler immutableShadowSampler =
+        getImmutableShadowSampler(ImageFilter::Linear, SamplerDepthCompareMode::Less); 
+    static Sampler immutableShadowNearestSampler =
+        getImmutableShadowSampler(ImageFilter::Nearest, SamplerDepthCompareMode::Less); 
+
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     bindingFlags.reserve(createInfo.BindingFlags.size());
@@ -1500,6 +1550,14 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
         
         else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearest))
             bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearest].Sampler;
+        
+        else if (enumHasAny(binding.DescriptorFlags,
+            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerShadow))
+                bindings.back().pImmutableSamplers = &Resources()[immutableShadowSampler].Sampler;
+        
+        else if (enumHasAny(binding.DescriptorFlags,
+            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerShadowNearest))
+            bindings.back().pImmutableSamplers = &Resources()[immutableShadowNearestSampler].Sampler;
 
         else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSampler))
             bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
@@ -2689,17 +2747,6 @@ void Driver::ShutdownResources()
     
     ASSERT(Resources().m_AllocatedCount == Resources().m_DeallocatedCount,
         "Not all driver resources are destroyed")
-}
-
-Sampler Driver::GetImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
-{
-    Sampler sampler = Sampler::Builder()
-        .Filters(filter, filter)
-        .WrapMode(wrapMode)
-        .BorderColor(borderColor)
-        .Build();
-
-    return sampler;
 }
 
 TracyVkCtx Driver::CreateTracyGraphicsContext(const CommandBuffer& cmd)

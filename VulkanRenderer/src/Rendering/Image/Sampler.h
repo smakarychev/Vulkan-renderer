@@ -26,6 +26,7 @@ public:
             SamplerWrapMode AddressMode{SamplerWrapMode::Repeat};
             SamplerBorderColor BorderColor{SamplerBorderColor::White};
             std::optional<SamplerReductionMode> ReductionMode;
+            SamplerDepthCompareMode DepthCompareMode{SamplerDepthCompareMode::None};
             f32 MaxLod{LOD_MAX};
             bool WithAnisotropy{true};
         };
@@ -35,6 +36,7 @@ public:
         Builder& WrapMode(SamplerWrapMode mode);
         Builder& BorderColor(SamplerBorderColor color);
         Builder& ReductionMode(SamplerReductionMode mode);
+        Builder& DepthCompareMode(SamplerDepthCompareMode mode);
         Builder& MaxLod(f32 lod);
         Builder& WithAnisotropy(bool enabled);
     private:

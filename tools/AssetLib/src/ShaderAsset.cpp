@@ -50,6 +50,14 @@ namespace
                 DescriptorFlags::ImmutableSamplerNearestClampWhite))
                     flags |= DescriptorFlags::ImmutableSamplerNearestClampWhite;
 
+            else if (flagString == assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerShadow))
+                    flags |= DescriptorFlags::ImmutableSamplerShadow;
+
+            else if (flagString == assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerShadowNearest))
+                    flags |= DescriptorFlags::ImmutableSamplerShadowNearest;
+
             else
                 ASSERT(false, "Unrecogrinzed flag {}", flagString)
         }
@@ -94,6 +102,14 @@ namespace
         if (flags & DescriptorFlags::ImmutableSamplerNearestClampWhite)
             flagsStrings.push_back(assetLib::descriptorFlagToString(
                 DescriptorFlags::ImmutableSamplerNearestClampWhite));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerShadow)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerShadow));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerShadowNearest)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(
+                DescriptorFlags::ImmutableSamplerShadowNearest));
 
         return flagsStrings;
     }
@@ -309,6 +325,10 @@ namespace assetLib
             return "immutable_sampler_clamp_white";
         case DescriptorFlags::ImmutableSamplerNearestClampWhite:
             return "immutable_sampler_nearest_clamp_white";
+        case DescriptorFlags::ImmutableSamplerShadow:
+            return "immutable_sampler_shadow";
+        case DescriptorFlags::ImmutableSamplerShadowNearest:
+            return "immutable_sampler_shadow_nearest";
         default:
             ASSERT(false, "Unsupported flag")
         }

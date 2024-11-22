@@ -96,7 +96,7 @@ void Renderer::InitRenderGraph()
 {
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/death_valley/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -319,7 +319,7 @@ void Renderer::SetupRenderGraph()
     if (visibilityOutput.MinMaxDepth.IsValid() && useDepthReduction)
     {
         auto& minMaxDepthReadback = Passes::DepthReductionReadback::addToGraph("Visibility.Readback.Depth", *m_Graph,
-        visibilityOutput.PreviousMinMaxDepth, GetFrameContext().PrimaryCamera);
+            visibilityOutput.PreviousMinMaxDepth, GetFrameContext().PrimaryCamera);
         auto& minMaxDepthReadbackOutput = blackboard.Get<Passes::DepthReductionReadback::PassData>(
             minMaxDepthReadback);
         shadowMin = minMaxDepthReadbackOutput.Min;

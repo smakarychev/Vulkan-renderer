@@ -23,7 +23,7 @@ layout(set = 0, binding = 1) uniform sampler u_sampler;
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 2) uniform sampler u_sampler_brdf;
 
-@immutable_sampler_nearest_clamp_black
+@immutable_sampler_shadow
 layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
 
 layout(set = 1, binding = 0) uniform utexture2D u_visibility_texture;
@@ -195,7 +195,6 @@ void main() {
     const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
 
     const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_light.light.size);
-
     vec3 color;
     color = shade_pbr(shade_info, shadow, ambient_occlusion);
     color = tonemap(color, 2.0f);

@@ -1,6 +1,7 @@
 #include "poisson_samples.glsl"
 
 #extension GL_EXT_samplerless_texture_functions: require
+#extension GL_EXT_texture_shadow_lod: require
 
 float linearize_depth(float z, uint cascade_index) {
     const float f = u_csm_data.csm.far[cascade_index];
@@ -42,14 +43,14 @@ vec2 find_occluder(float receiver_z, vec3 uvz, float light_size_uv, uint cascade
 }
 
 float sample_shadow(vec3 uvz, vec2 delta, float cascade) {
-    const float depth = textureLod(sampler2DArray(u_csm, u_sampler_shadow), vec3(uvz.xy + delta, cascade), 0).r;
-    const float shadow = depth < uvz.z ? 0.0f : 0.9f;
+    const float shadow = textureLod(
+        sampler2DArrayShadow(u_csm, u_sampler_shadow), vec4(uvz.xy + delta, cascade, uvz.z), 0).r;
 
     return shadow;
 }
 
 float sample_shadow_for_pcf(vec2 base_uv, float u, float v, vec2 shadow_size_inv, float depth, uint cascade_index) {
-    return sample_shadow(vec3(base_uv, depth), vec2(u, v) * shadow_size_inv * 0.5, cascade_index);
+    return sample_shadow(vec3(base_uv, depth), vec2(u, v) * shadow_size_inv, cascade_index);
 }
 
 #ifndef FILTER_SIZE
@@ -233,13 +234,12 @@ float shadow(vec3 position, vec3 normal, float light_size) {
         }
     }
     const float shadow = sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, cascade_index);
-    
     // blend between cascades, if too close to the end of current cascade
     const uint next_cascade = cascade_index + 1;
     if (next_cascade >= u_csm_data.csm.cascade_count) {
         return shadow;
     }
-    
+
     const float next_cascade_split = u_csm_data.csm.cascades[cascade_index];
     const float cascade_size = next_cascade_split - 
         (cascade_index == 0 ? 0.0f : u_csm_data.csm.cascades[cascade_index - 1]);

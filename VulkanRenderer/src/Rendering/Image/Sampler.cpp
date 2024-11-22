@@ -36,6 +36,13 @@ Sampler::Builder& Sampler::Builder::ReductionMode(SamplerReductionMode mode)
     return *this;
 }
 
+Sampler::Builder& Sampler::Builder::DepthCompareMode(SamplerDepthCompareMode mode)
+{
+    m_CreateInfo.DepthCompareMode = mode;
+
+    return *this;
+}
+
 Sampler::Builder& Sampler::Builder::MaxLod(f32 lod)
 {
     m_CreateInfo.MaxLod = lod;
@@ -84,6 +91,7 @@ bool SamplerCache::CacheKey::operator==(const CacheKey& other) const
         CreateInfo.AddressMode == other.CreateInfo.AddressMode &&
         CreateInfo.BorderColor == other.CreateInfo.BorderColor &&
         CreateInfo.ReductionMode == other.CreateInfo.ReductionMode &&
+        CreateInfo.DepthCompareMode == other.CreateInfo.DepthCompareMode &&
         CreateInfo.MaxLod == other.CreateInfo.MaxLod &&
         CreateInfo.WithAnisotropy == other.CreateInfo.WithAnisotropy;
 }
@@ -91,12 +99,13 @@ bool SamplerCache::CacheKey::operator==(const CacheKey& other) const
 u64 SamplerCache::SamplerKeyHash::operator()(const CacheKey& cacheKey) const
 {
     u64 hashKey =
-        (u32)cacheKey.CreateInfo.MagnificationFilter |
-        ((u32)cacheKey.CreateInfo.MagnificationFilter << 1) |
+        (u8)cacheKey.CreateInfo.MagnificationFilter |
+        ((u8)cacheKey.CreateInfo.MagnificationFilter << 1) |
         (cacheKey.CreateInfo.WithAnisotropy << 2) |
-        ((u32)cacheKey.CreateInfo.BorderColor << 3) |
+        ((u8)cacheKey.CreateInfo.BorderColor << 3) |
         (cacheKey.CreateInfo.ReductionMode.has_value() << 4) |
-        ((cacheKey.CreateInfo.ReductionMode.has_value() ? (u32)*cacheKey.CreateInfo.ReductionMode : 0) << 5) |
+        ((cacheKey.CreateInfo.ReductionMode.has_value() ? (u8)*cacheKey.CreateInfo.ReductionMode : 0) << 5) |
+        ((u8)cacheKey.CreateInfo.DepthCompareMode << 6) |
         ((u64)std::bit_cast<u32>(cacheKey.CreateInfo.MaxLod) << 32);
     u64 hash = std::hash<u64>()(hashKey);
     

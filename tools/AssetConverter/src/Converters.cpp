@@ -615,6 +615,8 @@ std::vector<ShaderStageConverter::DescriptorFlagInfo> ShaderStageConverter::Read
         DescriptorFlags::ImmutableSamplerNearestClampBlack,
         DescriptorFlags::ImmutableSamplerClampWhite,
         DescriptorFlags::ImmutableSamplerNearestClampWhite,
+        DescriptorFlags::ImmutableSamplerShadow,
+        DescriptorFlags::ImmutableSamplerShadowNearest,
     };
 
     std::vector<DescriptorFlagInfo> descriptorFlagsUnmerged = {};
@@ -827,6 +829,10 @@ void ShaderStageConverter::RemoveMetaKeywords(std::string& shaderSource)
             assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampWhite),
         std::string{META_KEYWORD_PREFIX} +
             assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampWhite),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadow),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadowNearest),
         std::string{META_KEYWORD_PREFIX} + "binding",
     };
 

@@ -25,8 +25,6 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
         depth = min(depth, to_surface_depth);
     }
     depth = min(depth, max_depth);
-    // todo: also read from depth buffer
-
 
     vec3 luminance = vec3(0.0f);
     vec3 optical_depth = vec3(0.0f);
@@ -68,7 +66,6 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
         float shadow_map = 0.0f;
         #ifdef WITH_SHADOW_MAP
             shadow_map = shadow(u_camera.camera.position + rd * t * vec3(-1, 1, -1), vec3(0, 0, 0), u_directional_light.light.size);
-            shadow_map = float(shadow_map > 0.0);
         #endif // WITH_SHADOW_MAP
         
         vec3 multiscattering_luminance = vec3(0.0f);

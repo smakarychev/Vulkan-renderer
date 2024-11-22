@@ -67,6 +67,11 @@ enum class SamplerReductionMode : u8
     Average, Min, Max
 };
 
+enum class SamplerDepthCompareMode : u8
+{
+    None, Greater, Less
+};
+
 enum class AttachmentLoad : u8
 {
     Unspecified = 0,
