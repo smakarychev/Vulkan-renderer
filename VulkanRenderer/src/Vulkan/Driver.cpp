@@ -601,6 +601,8 @@ namespace
             .WrapMode(SamplerWrapMode::ClampBorder)
             .BorderColor(SamplerBorderColor::Black)
             .DepthCompareMode(depthCompareMode)
+            .WithAnisotropy(false)
+            .MaxLod(0)
             .Build();
 
         return sampler;

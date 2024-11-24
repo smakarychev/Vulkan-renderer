@@ -1,7 +1,6 @@
 #include "poisson_samples.glsl"
 
 #extension GL_EXT_samplerless_texture_functions: require
-#extension GL_EXT_texture_shadow_lod: require
 
 float linearize_depth(float z, uint cascade_index) {
     const float f = u_csm_data.csm.far[cascade_index];
@@ -43,8 +42,8 @@ vec2 find_occluder(float receiver_z, vec3 uvz, float light_size_uv, uint cascade
 }
 
 float sample_shadow(vec3 uvz, vec2 delta, float cascade) {
-    const float shadow = textureLod(
-        sampler2DArrayShadow(u_csm, u_sampler_shadow), vec4(uvz.xy + delta, cascade, uvz.z), 0).r;
+    const float shadow = texture(
+        sampler2DArrayShadow(u_csm, u_sampler_shadow), vec4(uvz.xy + delta, cascade, uvz.z)).r;
 
     return shadow;
 }
@@ -196,68 +195,62 @@ float pcss_sample_shadow(vec3 position, vec3 uvz, vec3 normal, float light_size_
     return pcf_sample_shadow_poisson(uvz, normal, filter_radius, cascade_index);
 }
 
-float get_oriented_bias(vec3 normal, vec3 light_direction) {
-    // see FFXVIShadowTechPaper (Shadow Techniques from Final Fantasy XVI)
-    const float bias = 0.005f;
-    bool is_facing_light = dot(normal, light_direction) > 0;
+vec3 get_shadow_offset(vec3 normal, vec3 light_direction) {
+    const vec2 shadow_size = vec2(textureSize(u_csm, 0));
+    const float texel_size = 2.0f / shadow_size.x;
+    const float normal_offset_scale = clamp(1.0f - dot(normal, light_direction), 0.0f, 1.0f);
     
-    // todo: this causes visible seams between cascades
-    return is_facing_light ? -bias : bias;
+    return texel_size * normal_offset_scale * normal;
 }
 
 float sample_shadow_cascade(vec3 ndc, vec3 normal, float light_size_uv, vec2 delta, uint cascade_index) {
-    const float n_dot_l = dot(normal, -u_directional_light.light.direction);
-    
+    const float const_bias = 5e-3f;
     vec3 uvz = vec3(vec2(ndc.xy * 0.5f) + 0.5f, ndc.z);
-
-    const float oriented_bias = get_oriented_bias(normal, u_directional_light.light.direction);
-    uvz.z += oriented_bias / u_csm_data.csm.cascades[cascade_index];
-
+    uvz.z += const_bias;
     return pcf_optimized_shadow(uvz, cascade_index);
 }
 
-float shadow(vec3 position, vec3 normal, float light_size) {
+float shadow(vec3 position, vec3 normal, float light_size, float z_view) {
     const float SEEMS_THRESHOLD = 0.9f;
+
+    z_view = -z_view;
     
     const ivec2 shadow_size = ivec2(textureSize(u_csm, 0));
     const float light_size_uv = light_size / max(shadow_size.x, shadow_size.y);
     const vec2 delta = vec2(1.0f) / vec2(shadow_size);
 
-    vec4 position_local;
-    uint cascade_index = u_csm_data.csm.cascade_count; 
+    uint cascade_index = u_csm_data.csm.cascade_count - 1; 
+    
     for (uint i = 0; i < u_csm_data.csm.cascade_count; i++) {
-        position_local = u_csm_data.csm.view_projections[i] * vec4(position, 1.0f);
-        const vec3 offset = abs(vec3(position_local.xy, position_local.z - 0.5f));
-        if (all(bvec3(offset.x <= 1.0f, offset.y <= 1.0f, offset.z <= 0.5f))) {
+        if (z_view < u_csm_data.csm.cascades[i]) {
             cascade_index = i;
             break;
         }
     }
-    const float shadow = sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, cascade_index);
+    const vec3 position_offset = 
+        get_shadow_offset(normal, u_directional_light.light.direction) / u_csm_data.csm.cascades[cascade_index];
+    vec4 position_local = u_csm_data.csm.view_projections[cascade_index] * vec4(position + position_offset, 1.0f);
+    const float shadow = 
+        sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, cascade_index);
     // blend between cascades, if too close to the end of current cascade
     const uint next_cascade = cascade_index + 1;
     if (next_cascade >= u_csm_data.csm.cascade_count) {
         return shadow;
     }
 
-    const float next_cascade_split = u_csm_data.csm.cascades[cascade_index];
-    const float cascade_size = next_cascade_split - 
-        (cascade_index == 0 ? 0.0f : u_csm_data.csm.cascades[cascade_index - 1]);
-    // calculate position in next cascade projection
-    float cascade_relative_distance = 0.0f;                                 
-    {
-        position_local = u_csm_data.csm.view_projections[cascade_index] * vec4(position, 1.0f);
-        const vec3 offset = abs(vec3(position_local.xy, 2.0f * position_local.z - 1.0f));
-        cascade_relative_distance = max(offset.x, max(offset.y, offset.z));
-    }
+    const float cascade_split = u_csm_data.csm.cascades[cascade_index];
+    const float cascade_size = cascade_split - (cascade_index == 0 ?
+        0.0f : u_csm_data.csm.cascades[cascade_index - 1]);
+    const float cascade_relative_distance = 1.0 - (cascade_split - z_view) / cascade_size;
+
     if (cascade_relative_distance > SEEMS_THRESHOLD) {
-        position_local = u_csm_data.csm.view_projections[cascade_index + 1] * vec4(position, 1.0f);
-        const vec3 offset = abs(vec3(position_local.xy, position_local.z - 0.5f));
-        if (all(bvec3(offset.x <= 1.0f, offset.y <= 1.0f, offset.z <= 0.5f))) {
-            const float shadow_next = sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, cascade_index + 1);
-            return mix(shadow, shadow_next,
-                (cascade_relative_distance - SEEMS_THRESHOLD) / (1.0f - SEEMS_THRESHOLD));
-        }
+        const vec3 position_offset_next =
+            get_shadow_offset(normal, u_directional_light.light.direction) / u_csm_data.csm.cascades[next_cascade];
+        position_local = u_csm_data.csm.view_projections[next_cascade] * vec4(position + position_offset_next, 1.0f);
+        const float shadow_next = 
+            sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, next_cascade);
+        return mix(shadow, shadow_next,
+            (cascade_relative_distance - SEEMS_THRESHOLD) / (1.0f - SEEMS_THRESHOLD));
     }
 
     return shadow;

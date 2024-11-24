@@ -84,7 +84,7 @@ void main() {
     float weigth = 1.0f;
     if (slice < 0.5f) {
         // fade to 0 at 0 depth
-        weigth = clamp(slice * 0.5f, 0.0f, 1.0f);
+        weigth = clamp(slice * 2.0f, 0.0f, 1.0f);
         slice = 0.5f;
     }
     const float aerial_slice_w = sqrt(slice / AERIAL_PERSPECTIVE_LUT_RES);

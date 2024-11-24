@@ -194,7 +194,9 @@ void main() {
     
     const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
 
-    const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_light.light.size);
+    const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_light.light.size,
+        gbuffer_data.z_view);
+ 
     vec3 color;
     color = shade_pbr(shade_info, shadow, ambient_occlusion);
     color = tonemap(color, 2.0f);

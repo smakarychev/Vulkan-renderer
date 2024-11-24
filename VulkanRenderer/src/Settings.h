@@ -27,8 +27,8 @@ static constexpr u32 SHADOW_MAP_RESOLUTION = 2048;
 static constexpr u32 MAX_SHADOW_CASCADES = 5;
 static constexpr u32 SHADOW_CASCADES = 4;
 
-static constexpr f32 DEPTH_CONSTANT_BIAS = -1.0f;
-static constexpr f32 DEPTH_SLOPE_BIAS = -1.75f;
+static constexpr f32 DEPTH_CONSTANT_BIAS = 0.0f;
+static constexpr f32 DEPTH_SLOPE_BIAS = -3.0f;
 
 static constexpr u32 LIGHT_CLUSTER_BINS_X = 60;
 static constexpr u32 LIGHT_CLUSTER_BINS_Y = 32;
