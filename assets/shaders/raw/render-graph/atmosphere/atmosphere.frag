@@ -64,13 +64,12 @@ void main() {
             const vec2 sky_view_uv = sky_view_uv_from_zen_view_cos(atm, intersects_surface, mu, light_view_cos, r);
             const vec2 transmittance_uv = transmittance_uv_from_r_mu(atm, r, dot(up, sun_dir));
 
-            // todo: remove this "40 * ..."
             L =
-                40 * textureLod(sampler2D(u_sky_view_lut, u_sampler), sky_view_uv, 0).rgb +
+                textureLod(sampler2D(u_sky_view_lut, u_sampler), sky_view_uv, 0).rgb +
                 get_sun_luminance(pos, rd, sun_dir, atm.surface) *
                 textureLod(sampler2D(u_transmittance_lut, u_sampler), transmittance_uv, 0).rgb;
 
-            out_color = vec4(tonemap(L, 2.0f), 1.0f);
+            out_color = vec4(L, 1.0);
             return;
         }
     }

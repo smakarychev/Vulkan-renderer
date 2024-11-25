@@ -81,5 +81,5 @@ void main() {
         samples, surface, global_l, use_uniform_phase, slice_km);
     const float transmittance = dot(scattering.Transmittance, vec3(1.0f / 3.0f));
     
-    imageStore(u_aerial_perspective_lut, coord, vec4(scattering.L, 1.0f - transmittance)); 
+    imageStore(u_aerial_perspective_lut, coord, vec4(expose(scattering.L), 1.0f - transmittance)); 
 }
