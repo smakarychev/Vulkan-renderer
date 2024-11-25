@@ -247,6 +247,8 @@ float shadow(vec3 position, vec3 normal, float light_size, float z_view) {
         const vec3 position_offset_next =
             get_shadow_offset(normal, u_directional_light.light.direction) / u_csm_data.csm.cascades[next_cascade];
         position_local = u_csm_data.csm.view_projections[next_cascade] * vec4(position + position_offset_next, 1.0f);
+        if (!all(bvec3(abs(position_local.x) < 0.99f, abs(position_local.y) < 0.99f, abs(position_local.z - 0.499f) < 0.499f)))
+            return shadow;
         const float shadow_next = 
             sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, next_cascade);
         return mix(shadow, shadow_next,
