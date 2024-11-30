@@ -222,6 +222,7 @@ namespace
         {
         case ImageViewKind::Inherit:
             return vulkanImageViewTypeFromImageKind(kind);
+        case ImageViewKind::Image2d:
         case ImageViewKind::Image3d:
         case ImageViewKind::Cubemap:
         case ImageViewKind::Image2dArray:

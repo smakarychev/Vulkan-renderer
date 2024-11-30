@@ -32,11 +32,19 @@ enum class ImageKind : u8
 
 enum class ImageViewKind : u8
 {
-    /* inherit view kind from image kind */
-    Inherit,
     Image2d, Image3d, Cubemap,
     Image2dArray,
+    /* inherit view kind from image kind */
+    Inherit,
 };
+static_assert((u8)ImageViewKind::Image2d == (u8)ImageKind::Image2d,
+    "Enum values of image kind and image view kind have to match");
+static_assert((u8)ImageViewKind::Image3d == (u8)ImageKind::Image3d,
+    "Enum values of image kind and image view kind have to match");
+static_assert((u8)ImageViewKind::Cubemap == (u8)ImageKind::Cubemap,
+    "Enum values of image kind and image view kind have to match");
+static_assert((u8)ImageViewKind::Image2dArray == (u8)ImageKind::Image2dArray,
+    "Enum values of image kind and image view kind have to match");
 
 enum class ImageUsage : u16
 {

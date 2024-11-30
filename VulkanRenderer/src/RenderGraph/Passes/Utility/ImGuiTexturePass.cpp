@@ -63,6 +63,57 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
     return pass;
 }
 
+RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture)
+{
+    return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
+}
+
+RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn)
+{
+    using namespace RG;
+    using enum ResourceAccessFlags;
+    
+    struct PassData
+    {
+        Resource Texture{};
+        std::string Name{};
+    };
+    struct Context
+    {
+        u32 Layer{0};
+    };
+    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+        [&](Graph& graph, PassData& passData)
+        {
+            passData.Texture = graph.Read(textureIn, Pixel | Sampled);
+            passData.Name = name;
+            graph.HasSideEffect();
+        },
+        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        {
+            CPU_PROFILE_FRAME("ImGui Texture")
+            GPU_PROFILE_FRAME("ImGui Texture")
+
+            Context& context = resources.GetOrCreateValue<Context>();
+            const Texture& texture = resources.GetTexture(passData.Texture);
+            ASSERT(texture.Description().Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
+            
+            ImGui::Begin(passData.Name.c_str());
+            ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, texture.Description().Layers - 1);
+            glm::vec2 size = getTextureWindowSize(texture.Description());
+            Sampler sampler = Sampler::Builder().WrapMode(SamplerWrapMode::ClampEdge).Build();
+            ImGuiUI::Texture(texture.Subresource(ImageSubresourceDescription{
+                .ImageViewKind = ImageViewKind::Image2d,
+                .LayerBase = (u8)context.Layer,
+                .Layers = 1}),
+                sampler, ImageLayout::Readonly,
+                glm::uvec2(size));
+            ImGui::End();
+        });
+
+    return pass;
+}
+
 namespace
 {
     RG::Resource texture3dTo2dSlicePass(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn,
