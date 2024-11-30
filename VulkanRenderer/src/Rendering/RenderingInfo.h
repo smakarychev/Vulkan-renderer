@@ -30,7 +30,7 @@ struct RenderingAttachmentDescription
         DepthStencil DepthStencil;
     };
 
-    ImageSubresourceDescription::Packed Subresource{};
+    ImageSubresourceDescription Subresource{};
     RenderingAttachmentType Type;
     ClearValue Clear{};
     AttachmentLoad OnLoad{AttachmentLoad::Unspecified};
@@ -45,7 +45,7 @@ struct ColorAttachmentDescription
         glm::uvec4 U;
         glm::ivec4 I;
     };
-    ImageSubresourceDescription::Packed Subresource{};
+    ImageSubresourceDescription Subresource{};
     AttachmentLoad OnLoad{AttachmentLoad::Load};
     AttachmentStore OnStore{AttachmentStore::Store};
     Color ClearColor{};
@@ -53,7 +53,7 @@ struct ColorAttachmentDescription
 
 struct DepthStencilAttachmentDescription
 {
-    ImageSubresourceDescription::Packed Subresource{};
+    ImageSubresourceDescription Subresource{};
     AttachmentLoad OnLoad{AttachmentLoad::Load};
     AttachmentStore OnStore{AttachmentStore::Store};
     f32 ClearDepth{};
@@ -84,7 +84,7 @@ public:
         RenderingAttachment Build(DeletionQueue& deletionQueue);
         Builder& SetType(RenderingAttachmentType type);
         Builder& FromImage(const Image& image, ImageLayout imageLayout);
-        Builder& View(ImageSubresourceDescription::Packed subresource);
+        Builder& View(ImageSubresourceDescription subresource);
         Builder& LoadStoreOperations(AttachmentLoad onLoad, AttachmentStore onStore);
         Builder& ClearValue(const glm::vec4& value);
         Builder& ClearValue(const glm::uvec4& value);

@@ -95,7 +95,7 @@ namespace RG
         friend class Pass;
     private:
         Resource m_Resource{};
-        ImageSubresourceDescription::Packed m_ViewSubresource{};
+        ImageSubresourceDescription m_ViewSubresource{};
         AttachmentLoad m_OnLoad{AttachmentLoad::Unspecified};
         AttachmentStore m_OnStore{AttachmentStore::Unspecified};
         glm::vec4 m_ClearColor{};
@@ -107,7 +107,7 @@ namespace RG
         friend class Pass;
     private:
         Resource m_Resource{};
-        ImageSubresourceDescription::Packed m_ViewSubresource{};
+        ImageSubresourceDescription m_ViewSubresource{};
         AttachmentLoad m_OnLoad{AttachmentLoad::Unspecified};
         AttachmentStore m_OnStore{AttachmentStore::Unspecified};
         f32 m_ClearDepth{};
@@ -189,11 +189,11 @@ namespace RG
         u32 Width;
         u32 Height;
         u32 Layers{1};
-        u32 Mipmaps{1};
+        i8 Mipmaps{1};
         Format Format;
         ImageKind Kind{ImageKind::Image2d};
         ImageFilter MipmapFilter{ImageFilter::Linear};
-        std::vector<ImageSubresourceDescription::Packed> AdditionalViews;
+        std::vector<ImageSubresourceDescription> AdditionalViews;
     };
 }
 

@@ -8,7 +8,7 @@
 
 RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut, RG::Resource transmittanceLut,
-    RG::Resource aerialPerspectiveLut, RG::Resource colorIn, RG::Resource depthIn)
+    RG::Resource aerialPerspectiveLut, RG::Resource colorIn, RG::Resource depthIn, bool useSunLuminance)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -72,6 +72,15 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
             resources.GetTexture(passData.AerialPerspectiveLut).BindingInfo(
                ImageFilter::Linear, ImageLayout::Readonly));
 
+        struct PushConstant
+        {
+            bool UseDepthBuffer;
+            bool UseSunLuminance;
+        };
+        PushConstant PushConstant = {
+            .UseDepthBuffer = passData.DepthIn.IsValid(),
+            .UseSunLuminance = useSunLuminance};
+        
         auto& cmd = frameContext.Cmd;
         samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
         pipeline.BindGraphics(cmd);

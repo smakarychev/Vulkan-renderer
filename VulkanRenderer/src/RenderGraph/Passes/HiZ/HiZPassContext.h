@@ -7,7 +7,7 @@ enum class HiZReductionMode { Min = 0, Max = 1, MaxVal };
 class HiZPassContext
 {
 public:
-    static constexpr u16 MAX_MIPMAP_COUNT = 16;
+    static constexpr i8 MAX_MIPMAP_COUNT = 16;
     HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue);
 
     void SetHiZResource(RG::Resource hiz, HiZReductionMode mode) { m_HiZResources[(u32)mode] = hiz; }

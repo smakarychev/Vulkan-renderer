@@ -17,5 +17,5 @@ namespace Passes::HiZFull
         RG::Resource HiZMaxOut{};
     };
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
-        ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx);
+        ImageSubresourceDescription subresource, HiZPassContext& ctx);
 }

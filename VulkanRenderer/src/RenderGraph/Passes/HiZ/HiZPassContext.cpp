@@ -12,12 +12,12 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
 
     m_HiZResolution = glm::uvec2{width, height};
     
-    u32 mipmapCount = std::min(MAX_MIPMAP_COUNT, Image::CalculateMipmapCount({width, height}));
+    i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, Image::CalculateMipmapCount({width, height}));
 
-    std::vector<ImageSubresourceDescription::Packed> additionalViews(mipmapCount);
-    for (u32 i = 0; i < mipmapCount; i++)
-        additionalViews[i] = ImageSubresourceDescription::Pack({
-            .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1});
+    std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
+    for (i8 i = 0; i < mipmapCount; i++)
+        additionalViews[i] = ImageSubresourceDescription{
+            .MipmapBase = (u8)i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1};
 
     for (u32 i = 0; i < (u32)HiZReductionMode::MaxVal; i++)
     {

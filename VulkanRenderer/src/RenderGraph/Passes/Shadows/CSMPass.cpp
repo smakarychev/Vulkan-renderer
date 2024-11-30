@@ -130,10 +130,10 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                 ubo.Far[i] = camera.GetFar();
             }
 
-            std::vector<ImageSubresourceDescription::Packed> cascadeViews(SHADOW_CASCADES);
+            std::vector<ImageSubresourceDescription> cascadeViews(SHADOW_CASCADES);
             for (u32 i = 0;  i < SHADOW_CASCADES; i++)
-                cascadeViews[i] = ImageSubresourceDescription::Pack({
-                    .MipmapBase = 0, .Mipmaps = 1, .LayerBase = i, .Layers = 1});
+                cascadeViews[i] = ImageSubresourceDescription{
+                    .MipmapBase = 0, .Mipmaps = 1, .LayerBase = (u8)i, .Layers = 1};
             
             Resource shadow = renderGraph.CreateResource("CSM.ShadowMap", GraphTextureDescription{
                 .Width = SHADOW_MAP_RESOLUTION,

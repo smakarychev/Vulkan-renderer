@@ -19,6 +19,6 @@ namespace Passes::Atmosphere::Raymarch
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
         RG::Resource atmosphereSettings, const SceneLight& light,
         RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
-        RG::Resource colorIn, RG::Resource depthIn);
+        RG::Resource colorIn, RG::Resource depthIn, bool useSunLuminance);
 }
 

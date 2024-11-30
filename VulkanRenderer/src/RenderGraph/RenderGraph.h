@@ -228,7 +228,7 @@ namespace RG
         Resource RenderTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore);
         Resource RenderTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore,
             const glm::vec4& clearColor);
-        Resource RenderTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
+        Resource RenderTarget(Resource resource, ImageSubresourceDescription subresource,
             AttachmentLoad onLoad, AttachmentStore onStore, const glm::vec4& clearColor);
         Resource DepthStencilTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore);
         Resource DepthStencilTarget(Resource resource,
@@ -237,7 +237,7 @@ namespace RG
         Resource DepthStencilTarget(Resource resource,
             AttachmentLoad onLoad, AttachmentStore onStore,
             std::optional<DepthBias> depthBias, f32 clearDepth, u32 clearStencil = 0);
-        Resource DepthStencilTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
+        Resource DepthStencilTarget(Resource resource, ImageSubresourceDescription subresource,
             AttachmentLoad onLoad, AttachmentStore onStore,
             std::optional<DepthBias> depthBias, f32 clearDepth, u32 clearStencil = 0);
         void HasSideEffect();

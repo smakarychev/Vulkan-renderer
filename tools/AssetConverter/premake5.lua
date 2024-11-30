@@ -5,14 +5,12 @@ project "AssetConverter"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
 
-	files
-    {
+	files {
         "src/**.h",
         "src/**.cpp",
     }
 
-    includedirs
-    {
+    includedirs {
         "src",
         "$(VULKAN_SDK)/Include",
         "%{wks.location}/tools/AssetLib/src",
@@ -24,14 +22,12 @@ project "AssetConverter"
         IncludeDir["meshoptimizer"],    
     }
 
-    libdirs
-	{
+    libdirs {
 		"$(VULKAN_SDK)/Lib",
         "%{wks.location}/vendor/assimp/lib",
 	}
 
-    links
-    {
+    links {
         "AssetLib",
         "assimp-vc143-mt.lib",
         "meshoptimizer"
@@ -64,18 +60,15 @@ project "AssetConverterLib"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
 
-	files
-    {
+	files {
         "src/**.h",
         "src/**.cpp",
     }
-    removefiles
-    {
+    removefiles {
         "src/main.cpp",
     }
 
-    includedirs
-    {
+    includedirs {
         "src",
         "$(VULKAN_SDK)/Include",
         "%{wks.location}/tools/AssetLib/src",
@@ -87,14 +80,12 @@ project "AssetConverterLib"
         IncludeDir["meshoptimizer"],    
     }
 
-    libdirs
-	{
+    libdirs {
 		"$(VULKAN_SDK)/Lib",
         "%{wks.location}/vendor/assimp/lib",
 	}
 
-    links
-    {
+    links {
         "AssetLib",
         "assimp-vc143-mt.lib",
         "meshoptimizer"

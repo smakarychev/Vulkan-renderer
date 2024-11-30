@@ -197,7 +197,7 @@ namespace RG
         return RenderTarget(resource, {}, onLoad, onStore, clearColor);
     }
 
-    Resource Graph::RenderTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
+    Resource Graph::RenderTarget(Resource resource, ImageSubresourceDescription subresource,
         AttachmentLoad onLoad, AttachmentStore onStore, const glm::vec4& clearColor)
     {
         RenderTargetAccess renderTargetAccess = {};
@@ -240,7 +240,7 @@ namespace RG
 
     }
 
-    Resource Graph::DepthStencilTarget(Resource resource, ImageSubresourceDescription::Packed subresource,
+    Resource Graph::DepthStencilTarget(Resource resource, ImageSubresourceDescription subresource,
         AttachmentLoad onLoad, AttachmentStore onStore, std::optional<DepthBias> depthBias, f32 clearDepth,
         u32 clearStencil)
     {

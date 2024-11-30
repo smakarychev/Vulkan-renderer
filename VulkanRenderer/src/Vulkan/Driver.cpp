@@ -196,7 +196,7 @@ namespace
 
         return flags;
     }
-    
+
     constexpr VkImageViewType vulkanImageViewTypeFromImageKind(ImageKind kind)
     {
         switch (kind)
@@ -211,6 +211,23 @@ namespace
             return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
         default:
             ASSERT(false, "Unsupported image kind")
+            break;
+        }
+        std::unreachable();
+    }
+    
+    constexpr VkImageViewType vulkanImageViewTypeFromImageAndViewKind(ImageKind kind, ImageViewKind viewKind)
+    {
+        switch (viewKind)
+        {
+        case ImageViewKind::Inherit:
+            return vulkanImageViewTypeFromImageKind(kind);
+        case ImageViewKind::Image3d:
+        case ImageViewKind::Cubemap:
+        case ImageViewKind::Image2dArray:
+            return vulkanImageViewTypeFromImageKind((ImageKind)viewKind);
+        default:
+            ASSERT(false, "Unsupported image view kind")
             break;
         }
         std::unreachable();
@@ -924,7 +941,6 @@ std::vector<Image> Driver::CreateSwapchainImages(const Swapchain& swapchain)
     for (auto& image : colorImages)
         image.m_Description = description;
     
-    
     std::vector<VkImageView> imageViews(imageCount);
     for (u32 i = 0; i < imageCount; i++)
     {
@@ -1058,7 +1074,7 @@ void Driver::SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBy
 Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
 {
     u32 depth = ImageDescription::GetDepth(createInfo.Description);
-    u32 layers = ImageDescription::GetLayers(createInfo.Description);
+    u32 layers = (u32)(u8)ImageDescription::GetLayers(createInfo.Description);
     
     VkImageCreateInfo imageCreateInfo = {};
     imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -1071,7 +1087,7 @@ Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
     imageCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     imageCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     imageCreateInfo.imageType = vulkanImageTypeFromImageKind(createInfo.Description.Kind);
-    imageCreateInfo.mipLevels = createInfo.Description.Mipmaps;
+    imageCreateInfo.mipLevels = (u32)(u8)createInfo.Description.Mipmaps;
     imageCreateInfo.arrayLayers = layers;
     imageCreateInfo.flags = vulkanImageFlagsFromImageKind(createInfo.Description.Kind);
 
@@ -2198,9 +2214,9 @@ DependencyInfo Driver::Create(const DependencyInfo::Builder::CreateInfo& createI
             .aspectMask = vulkanImageAspectFromImageUsage(
                 createInfo.LayoutTransitionInfo->ImageSubresource.Image->m_Description.Usage),
             .baseMipLevel = createInfo.LayoutTransitionInfo->ImageSubresource.Description.MipmapBase,
-            .levelCount = createInfo.LayoutTransitionInfo->ImageSubresource.Description.Mipmaps,
+            .levelCount = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.Mipmaps,
             .baseArrayLayer = createInfo.LayoutTransitionInfo->ImageSubresource.Description.LayerBase,
-            .layerCount = createInfo.LayoutTransitionInfo->ImageSubresource.Description.Layers};
+            .layerCount = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.Layers};
 
         dependencyInfoResource.LayoutTransitionsInfo.push_back(imageMemoryBarrier);
     }
@@ -2773,7 +2789,7 @@ VkCommandBuffer Driver::GetProfilerCommandBuffer(ProfilerContext* context)
 ImTextureID Driver::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout,
     const glm::uvec2& size)
 {
-    ImageViewHandle viewHandle = texture.Image->GetViewHandle(texture.Description.Pack());
+    ImageViewHandle viewHandle = texture.Image->GetViewHandle(texture.Description);
     VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(Resources()[sampler].Sampler,
         Resources()[*texture.Image].Views.ViewList[viewHandle.m_Index],
         vulkanImageLayoutFromImageLayout(layout));
@@ -2787,7 +2803,8 @@ VkImageView Driver::CreateVulkanImageView(const ImageSubresource& image, VkForma
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     createInfo.image = Resources()[*image.Image].Image;
     createInfo.format = format;
-    createInfo.viewType = vulkanImageViewTypeFromImageKind(image.Image->m_Description.Kind);
+    createInfo.viewType = vulkanImageViewTypeFromImageAndViewKind(image.Image->m_Description.Kind,
+        image.Description.ImageViewKind);
     createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
@@ -2796,9 +2813,9 @@ VkImageView Driver::CreateVulkanImageView(const ImageSubresource& image, VkForma
     createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(
         image.Image->m_Description.Usage);
     createInfo.subresourceRange.baseMipLevel = image.Description.MipmapBase;
-    createInfo.subresourceRange.levelCount = image.Description.Mipmaps;
+    createInfo.subresourceRange.levelCount = (u32)image.Description.Mipmaps;
     createInfo.subresourceRange.baseArrayLayer = image.Description.LayerBase;
-    createInfo.subresourceRange.layerCount = image.Description.Layers;
+    createInfo.subresourceRange.layerCount = (u32)image.Description.Layers;
 
     VkImageView imageView;
 

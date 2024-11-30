@@ -36,26 +36,16 @@ private:
 
 struct ImageSubresourceDescription
 {
-    static constexpr u32 ALL_MIPMAPS = ~0u;
-    static constexpr u32 ALL_LAYERS = ~0u;
-    
-    u32 MipmapBase;
-    u32 Mipmaps{ALL_MIPMAPS};
-    u32 LayerBase;
-    u32 Layers{ALL_LAYERS};
+    static constexpr i8 ALL_MIPMAPS = -1;
+    static constexpr i8 ALL_LAYERS = -1;
 
-    class Packed
-    {
-        friend struct ImageSubresourceDescription;
-    public:
-        auto operator<=>(const Packed& other) const = default; 
-    private:
-        u32 m_Data{0};
-    };
+    ImageViewKind ImageViewKind{ImageViewKind::Inherit};
+    u8 MipmapBase;
+    i8 Mipmaps{ALL_MIPMAPS};
+    u8 LayerBase;
+    i8 Layers{ALL_LAYERS};
 
-    Packed Pack() const;
-    static Packed Pack(const ImageSubresourceDescription& description);
-    static ImageSubresourceDescription Unpack(Packed packed);
+    auto operator<=>(const ImageSubresourceDescription&) const = default;
 };
 
 struct ImageSubresource
@@ -69,17 +59,17 @@ struct ImageDescription
     u32 Width{0};
     u32 Height{0};
     u32 Layers{1};
-    u32 Mipmaps{1};
+    i8 Mipmaps{1};
     Format Format{Format::Undefined};
     ImageKind Kind{ImageKind::Image2d};
     ImageUsage Usage{ImageUsage::None};
     ImageFilter MipmapFilter{ImageFilter::Linear};
-    std::vector<ImageSubresourceDescription::Packed> AdditionalViews{};
+    std::vector<ImageSubresourceDescription> AdditionalViews{};
 
     f32 AspectRatio() const { return (f32)Width / (f32)Height; }
 
     static u32 GetDepth(const ImageDescription& description);
-    static u32 GetLayers(const ImageDescription& description);
+    static i8 GetLayers(const ImageDescription& description);
 };
 using TextureDescription = ImageDescription;
 
@@ -88,7 +78,7 @@ struct ImageBlitInfo
     const Image* Image;
     u32 MipmapBase;
     u32 LayerBase;
-    u32 Layers{ImageSubresourceDescription::ALL_LAYERS};
+    u32 Layers{(u32)ImageSubresourceDescription::ALL_LAYERS};
     glm::uvec3 Bottom;
     glm::uvec3 Top;
 };
@@ -164,8 +154,8 @@ public:
     const ImageDescription& Description() const { return m_Description; }
     
     ImageSubresource Subresource() const;
-    ImageSubresource Subresource(u32 mipCount, u32 layerCount) const;
-    ImageSubresource Subresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const;
+    ImageSubresource Subresource(i8 mipCount, i8 layerCount) const;
+    ImageSubresource Subresource(u8 mipBase, i8 mipCount, u8 layerBase, i8 layerCount) const;
     ImageSubresource Subresource(const ImageSubresourceDescription& description) const;
 
     ImageBlitInfo BlitInfo() const;
@@ -184,10 +174,10 @@ public:
     ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
 
     std::vector<ImageViewHandle> GetAdditionalViewHandles() const;
-    ImageViewHandle GetViewHandle(ImageSubresourceDescription::Packed subresource) const;
+    ImageViewHandle GetViewHandle(ImageSubresourceDescription subresource) const;
 
-    static u16 CalculateMipmapCount(const glm::uvec2& resolution);
-    static u16 CalculateMipmapCount(const glm::uvec3& resolution);
+    static i8 CalculateMipmapCount(const glm::uvec2& resolution);
+    static i8 CalculateMipmapCount(const glm::uvec3& resolution);
     void CreateMipmaps(ImageLayout currentLayout);
 
     glm::uvec3 GetPixelCoordinate(const glm::vec3& coordinate, ImageSizeType sizeType) const;
@@ -225,6 +215,7 @@ using Texture = Image;
 namespace ImageUtils
 {
     std::string imageKindToString(ImageKind kind);
+    std::string imageViewKindToString(ImageViewKind kind);
     std::string imageUsageToString(ImageUsage usage);
     std::string imageFilterToString(ImageFilter filter);
     std::string imageLayoutToString(ImageLayout layout);

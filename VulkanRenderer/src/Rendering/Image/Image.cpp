@@ -51,6 +51,25 @@ namespace ImageUtils
         }
     }
 
+    std::string imageViewKindToString(ImageViewKind kind)
+    {
+        switch (kind)
+        {
+        case ImageViewKind::Inherit:
+            return "Inherit";
+        case ImageViewKind::Image2d:
+            return "Image2d";
+        case ImageViewKind::Image3d:
+            return "Image3d";
+        case ImageViewKind::Cubemap:
+            return "Cubemap";
+        case ImageViewKind::Image2dArray:
+            return "Image2dArray";
+        default:
+            return "";
+        }
+    }
+
     std::string imageUsageToString(ImageUsage usage)
     {
         std::string usageString;
@@ -224,52 +243,16 @@ namespace ImageUtils
     }
 }
 
-ImageSubresourceDescription::Packed ImageSubresourceDescription::Pack() const
-{
-    u8 mipBase = (u8)MipmapBase;
-    // this should conveniently convert ALL_MIPMAPS to -1
-    i8 mipmaps = (i8)Mipmaps;
-    u8 layerBase = (u8)LayerBase;
-    // this should conveniently convert ALL_LAYERS to -1
-    i8 layers = (i8)Layers;
-
-    Packed packed;
-    packed.m_Data = mipBase | *(u8*)&mipmaps << 8 | layerBase << 16 | *(u8*)&layers << 24;
-    
-    return packed;
-}
-
-ImageSubresourceDescription::Packed ImageSubresourceDescription::Pack(const ImageSubresourceDescription& description)
-{
-    return description.Pack();
-}
-
-ImageSubresourceDescription ImageSubresourceDescription::Unpack(Packed packed)
-{
-    static constexpr u32 MASK = (1 << 8) - 1;
-    u32 data = packed.m_Data;
-    u8 mipBase = data & MASK;
-    i8 mipmaps = (i8)(data >> 8 & MASK);
-    u8 layerBase = data >> 16 & MASK;
-    i8 layers = (i8)(data >> 24 & MASK);
-
-    return {
-        .MipmapBase = mipBase,
-        .Mipmaps = (u32)mipmaps,
-        .LayerBase = layerBase,
-        .Layers = (u32)layers};
-}
-
 u32 ImageDescription::GetDepth(const ImageDescription& description)
 {
     const bool is3dImage = description.Kind == ImageKind::Image3d;
     return is3dImage ? description.Layers : 1;
 }
 
-u32 ImageDescription::GetLayers(const ImageDescription& description)
+i8 ImageDescription::GetLayers(const ImageDescription& description)
 {
     const bool is3dImage = description.Kind == ImageKind::Image3d;
-    return is3dImage ? 1 : description.Layers;
+    return is3dImage ? (i8)1 : (i8)description.Layers;
 }
 
 Image::Builder::Builder(const ImageDescription& description)
@@ -413,7 +396,7 @@ void Image::Builder::PreBuild()
 
     m_CreateInfo.AdditionalViews.reserve(m_CreateInfo.Description.AdditionalViews.size());
     for (auto& view : m_CreateInfo.Description.AdditionalViews)
-        m_CreateInfo.AdditionalViews.push_back(ImageSubresourceDescription::Unpack(view));
+        m_CreateInfo.AdditionalViews.push_back(view);
 }
 
 Image Image::Create(const Builder::CreateInfo& createInfo)
@@ -453,19 +436,19 @@ ImageSubresource Image::Subresource() const
         .Image = this,
         .Description = {
             .MipmapBase = 0,
-            .Mipmaps = m_Description.Mipmaps,
+            .Mipmaps = (i8)m_Description.Mipmaps,
             .LayerBase = 0,
-            .Layers = ImageDescription::GetLayers(m_Description)}};
+            .Layers = (i8)ImageDescription::GetLayers(m_Description)}};
     
     return imageSubresource;
 }
 
-ImageSubresource Image::Subresource(u32 mipCount, u32 layerCount) const
+ImageSubresource Image::Subresource(i8 mipCount, i8 layerCount) const
 {
     return Subresource(0, mipCount, 0, layerCount);
 }
 
-ImageSubresource Image::Subresource(u32 mipBase, u32 mipCount, u32 layerBase, u32 layerCount) const
+ImageSubresource Image::Subresource(u8 mipBase, i8 mipCount, u8 layerBase, i8 layerCount) const
 {
     ImageSubresource imageSubresource = {
         .Image = this,
@@ -567,9 +550,9 @@ std::vector<ImageViewHandle> Image::GetAdditionalViewHandles() const
     return handles;
 }
 
-ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription::Packed subresource) const
+ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription subresource) const
 {
-    if (subresource == ImageSubresourceDescription::Packed{} || subresource == Subresource().Description.Pack())
+    if (subresource == ImageSubresourceDescription{} || subresource == Subresource().Description)
         return 0;
         
     auto it = std::ranges::find(m_Description.AdditionalViews, subresource);
@@ -581,16 +564,16 @@ ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription::Packed subreso
     return ImageViewHandle{};
 }
 
-u16 Image::CalculateMipmapCount(const glm::uvec2& resolution)
+i8 Image::CalculateMipmapCount(const glm::uvec2& resolution)
 {
     return CalculateMipmapCount({resolution.x, resolution.y, 1});
 }
 
-u16 Image::CalculateMipmapCount(const glm::uvec3& resolution)
+i8 Image::CalculateMipmapCount(const glm::uvec3& resolution)
 {
     u32 maxDimension = std::max(resolution.x, std::max(resolution.y, resolution.z));
 
-    return (u16)std::max(1, (u16)std::log2(maxDimension) + (u16)!MathUtils::isPowerOf2(maxDimension));    
+    return (i8)std::max(1, (i8)std::log2(maxDimension) + (i8)!MathUtils::isPowerOf2(maxDimension));    
 }
 
 void Image::CreateMipmaps(ImageLayout currentLayout)
@@ -601,11 +584,11 @@ void Image::CreateMipmaps(ImageLayout currentLayout)
     i32 width = (i32)m_Description.Width;
     i32 height = (i32)m_Description.Height;
     i32 depth = (i32)ImageDescription::GetDepth(m_Description);
-    u32 layers = ImageDescription::GetLayers(m_Description);
+    i8 layers = ImageDescription::GetLayers(m_Description);
     
     ImageSubresource imageSubresource = Subresource(0, 1, 0, layers);
     PrepareForMipmapSource(imageSubresource, currentLayout);
-    for (u32 mip = 1; mip < m_Description.Mipmaps; mip++)
+    for (i8 mip = 1; mip < m_Description.Mipmaps; mip++)
     {
         ImageBlitInfo source = BlitInfo({}, {
             width, height, depth},
@@ -760,7 +743,8 @@ void Image::CopyBufferToImage(const Buffer& buffer, const Image& image)
 {
     Driver::ImmediateSubmit([&buffer, &image](const CommandBuffer& cmd)
     {
-        RenderCommand::CopyBufferToImage(cmd, buffer, image.Subresource(0, 1, 0, image.m_Description.Layers));
+        RenderCommand::CopyBufferToImage(cmd, buffer,
+            image.Subresource(0, 1, 0, ImageDescription::GetLayers(image.m_Description)));
     });
     
     Buffer::Destroy(buffer);
@@ -773,7 +757,7 @@ void Image::CreateImageView(const ImageSubresource& imageSubresource,
         imageSubresource.Image->m_Description.Mipmaps,
         "Incorrect mipmap range for image view")
     ASSERT(imageSubresource.Description.LayerBase + imageSubresource.Description.Layers <=
-        imageSubresource.Image->m_Description.Layers,
+        ImageDescription::GetLayers(imageSubresource.Image->m_Description),
         "Incorrect layer range for image view")
 
     Driver::CreateViews(imageSubresource, additionalViews);

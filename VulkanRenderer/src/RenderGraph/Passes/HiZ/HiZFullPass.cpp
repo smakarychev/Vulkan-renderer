@@ -7,7 +7,7 @@
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
-    ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx)
+    ImageSubresourceDescription subresource, HiZPassContext& ctx)
 {
     static constexpr u32 MAX_DISPATCH_MIPMAPS = 6;
     static constexpr u32 MIPMAP_LEVEL_SHIFT = 5;

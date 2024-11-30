@@ -78,7 +78,7 @@ void EnvironmentPrefilterProcessor::Process(const CommandBuffer& cmd)
             .LayoutTransition(toGeneral)
             .SetFlags(PipelineDependencyFlags::ByRegion)
             .Build(deletionQueue));
-        for (u32 mipmap = 0; mipmap < prefilter.Description().Mipmaps; mipmap++)
+        for (i8 mipmap = 0; mipmap < prefilter.Description().Mipmaps; mipmap++)
         {
             resourceDescriptors[mipmap].UpdateBinding("u_env", source.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
@@ -131,11 +131,11 @@ void EnvironmentPrefilterProcessor::Process(const CommandBuffer& cmd)
 
 Texture EnvironmentPrefilterProcessor::CreateEmptyTexture()
 {
-    u32 mipmapCount = Texture::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});
-    std::vector<ImageSubresourceDescription::Packed> additionalViews(mipmapCount);
-    for (u32 i = 0; i < mipmapCount; i++)
-        additionalViews[i] = ImageSubresourceDescription::Pack({
-            .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 6});
+    i8 mipmapCount = Texture::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});
+    std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
+    for (i8 i = 0; i < mipmapCount; i++)
+        additionalViews[i] = ImageSubresourceDescription{
+            .MipmapBase = (u8)i, .Mipmaps = 1, .LayerBase = 0, .Layers = 6};
 
     return Texture::Builder({
             .Width = PREFILTER_RESOLUTION,

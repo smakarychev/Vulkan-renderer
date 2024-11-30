@@ -65,10 +65,11 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
                 csmData);
             auto& aerialPerspectiveOutput = graph.GetBlackboard().Get<AerialPerspective::PassData>(aerialPerspective);
 
+            static constexpr bool USE_SUN_LUMINANCE = true;
             auto& atmosphere = Raymarch::addToGraph(std::format("{}.Raymarch", name), graph,
                 passData.AtmosphereSettings, light,
                 skyViewOutput.Lut, multiscatteringOutput.TransmittanceLut, aerialPerspectiveOutput.Lut,
-                colorIn, depthIn);
+                colorIn, depthIn, USE_SUN_LUMINANCE);
             auto& atmosphereOutput = graph.GetBlackboard().Get<Raymarch::PassData>(atmosphere);
             
             passData.TransmittanceLut = transmittanceOutput.Lut;

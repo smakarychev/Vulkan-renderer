@@ -22,7 +22,7 @@ namespace Passes::HiZBlit
         RG::Resource HiZOut{};
     };
     inline RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
-        ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx, HiZReductionMode mode,
+        ImageSubresourceDescription subresource, HiZPassContext& ctx, HiZReductionMode mode,
         bool minMaxDepth = false)
     {
         using namespace RG;

@@ -5,8 +5,7 @@ workspace "VulkanRenderer"
     configurations { "Debug", "Release"}
     architecture "x86_64"
     editandcontinue "Off"
-    flags
-	{
+    flags {
 		"MultiProcessorCompile"
 	}
     startproject "VulkanRenderer"

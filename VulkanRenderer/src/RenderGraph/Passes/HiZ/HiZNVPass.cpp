@@ -12,7 +12,7 @@ namespace RG
 }
 
 RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
-    ImageSubresourceDescription::Packed subresource, HiZPassContext& ctx)
+    ImageSubresourceDescription subresource, HiZPassContext& ctx)
 {
     /* https://github.com/nvpro-samples/vk_compute_mipmaps */
     static constexpr u32 MAX_DISPATCH_MIPMAPS = 6;

@@ -5,14 +5,12 @@ project "VulkanRenderer"
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
 
-    files
-    {
+    files {
         "src/**.h",
         "src/**.cpp",
     }
 
-    includedirs
-    {
+    includedirs {
         "src",
         "%{wks.location}/tools/AssetLib/src",
         "%{wks.location}/tools/AssetConverter/src",
@@ -28,12 +26,10 @@ project "VulkanRenderer"
         "$(VULKAN_SDK)/Include",
     }
 
-    libdirs
-    {
+    libdirs {
     }
 
-    links
-    {
+    links {
         "glfw",
         "imgui",
         "efsw",
@@ -41,8 +37,7 @@ project "VulkanRenderer"
         "AssetConverterLib"
     }
 
-    defines
-    {
+    defines {
         "_CRT_SECURE_NO_WARNINGS",
         "GLFW_INCLUDE_NONE",
         "TRACY_ENABLE",
@@ -52,7 +47,9 @@ project "VulkanRenderer"
     filter "configurations:Debug"
         runtime "Debug"
         symbols "on"
-        defines { "VULKAN_VAL_LAYERS" }
+        defines { 
+            "VULKAN_VAL_LAYERS",
+        }
         links {
         }
 

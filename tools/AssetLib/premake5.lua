@@ -5,14 +5,12 @@ project "AssetLib"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
-    files
-    {
+    files {
         "src/**.h",
         "src/**.cpp",
     }
 
-    includedirs 
-	{
+    includedirs {
         "%{wks.location}/VulkanRenderer/src",
         IncludeDir["lz4"],
         IncludeDir["nlohmann-json"],
@@ -21,13 +19,11 @@ project "AssetLib"
         "$(VULKAN_SDK)/Include",
     }
 
-    defines 
-    {
+    defines {
         "VK_NO_PROTOTYPES",
     }
 
-    links
-    {
+    links {
         "lz4",
     }
 

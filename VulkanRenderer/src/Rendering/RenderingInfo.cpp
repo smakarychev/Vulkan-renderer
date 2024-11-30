@@ -56,7 +56,7 @@ RenderingAttachment::Builder& RenderingAttachment::Builder::FromImage(const Imag
     return *this;
 }
 
-RenderingAttachment::Builder& RenderingAttachment::Builder::View(ImageSubresourceDescription::Packed subresource)
+RenderingAttachment::Builder& RenderingAttachment::Builder::View(ImageSubresourceDescription subresource)
 {
     m_CreateInfo.Description.Subresource = subresource;
 
