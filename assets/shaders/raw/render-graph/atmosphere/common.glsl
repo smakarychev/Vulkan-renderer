@@ -256,6 +256,6 @@ float aerial_perspective_km_to_slice(float km) {
 
 vec3 expose(vec3 color) {
     const vec3 white_point = vec3(1.08241f, 0.96756f, 0.95003f);
-    const float exposure = 10.0f;
+    const float exposure = 15.0f;
     return vec3(1.0 - exp(-color.rgb / white_point * exposure));
 }
