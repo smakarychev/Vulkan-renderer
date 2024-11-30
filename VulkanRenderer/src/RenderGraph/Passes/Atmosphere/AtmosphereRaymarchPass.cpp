@@ -1,5 +1,6 @@
 #include "AtmosphereRaymarchPass.h"
 
+#include "CameraGPU.h"
 #include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
@@ -7,8 +8,10 @@
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut, RG::Resource transmittanceLut,
-    RG::Resource aerialPerspectiveLut, RG::Resource colorIn, RG::Resource depthIn, bool useSunLuminance)
+    RG::Resource atmosphereSettings, const Camera& camera, const SceneLight& light,
+    RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
+    RG::Resource colorIn, const ImageSubresourceDescription& colorSubresource,
+    RG::Resource depthIn, bool useSunLuminance)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -29,16 +32,23 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
                 .Height = globalResources.Resolution.y,
                 .Format = Format::RGBA16_FLOAT});
 
+        passData.Camera = graph.CreateResource(std::format("{}.Camera", name), GraphBufferDescription{
+            .SizeBytes = sizeof(CameraGPU)});
+        graph.Upload(passData.Camera, CameraGPU::FromCamera(camera, globalResources.Resolution));
+
         if (depthIn.IsValid())
             passData.DepthIn = graph.Read(depthIn, Pixel | Sampled);
 
         passData.SkyViewLut = graph.Read(skyViewLut, Pixel | Sampled);
-        passData.TransmittanceLut = graph.Read(transmittanceLut, Pixel | Sampled);
-        passData.AerialPerspectiveLut = graph.Read(aerialPerspectiveLut, Pixel | Sampled);
+        if (transmittanceLut.IsValid())
+            passData.TransmittanceLut = graph.Read(transmittanceLut, Pixel | Sampled);
+        if (aerialPerspectiveLut.IsValid())
+            passData.AerialPerspectiveLut = graph.Read(aerialPerspectiveLut, Pixel | Sampled);
         passData.AtmosphereSettings = graph.Read(atmosphereSettings, Pixel | Uniform);
         passData.DirectionalLight = graph.Read(passData.DirectionalLight, Pixel | Uniform);
-        passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
-        passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
+        passData.Camera = graph.Read(passData.Camera, Pixel | Uniform);
+        passData.ColorOut = graph.RenderTarget(passData.ColorOut, colorSubresource,
+            AttachmentLoad::Load, AttachmentStore::Store, {});
 
         graph.UpdateBlackboard(passData);
     },
@@ -65,26 +75,28 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
         resourceDescriptors.UpdateBinding("u_sky_view_lut",
             resources.GetTexture(passData.SkyViewLut).BindingInfo(
                ImageFilter::Linear, ImageLayout::Readonly));
-        resourceDescriptors.UpdateBinding("u_transmittance_lut",
-            resources.GetTexture(passData.TransmittanceLut).BindingInfo(
-               ImageFilter::Linear, ImageLayout::Readonly));
-        resourceDescriptors.UpdateBinding("u_aerial_perspective_lut",
-            resources.GetTexture(passData.AerialPerspectiveLut).BindingInfo(
-               ImageFilter::Linear, ImageLayout::Readonly));
+        if (passData.TransmittanceLut.IsValid())
+            resourceDescriptors.UpdateBinding("u_transmittance_lut",
+                resources.GetTexture(passData.TransmittanceLut).BindingInfo(
+                   ImageFilter::Linear, ImageLayout::Readonly));
+        if (passData.AerialPerspectiveLut.IsValid())
+            resourceDescriptors.UpdateBinding("u_aerial_perspective_lut",
+                resources.GetTexture(passData.AerialPerspectiveLut).BindingInfo(
+                   ImageFilter::Linear, ImageLayout::Readonly));
 
         struct PushConstant
         {
             bool UseDepthBuffer;
             bool UseSunLuminance;
         };
-        PushConstant PushConstant = {
+        PushConstant pushConstant = {
             .UseDepthBuffer = passData.DepthIn.IsValid(),
             .UseSunLuminance = useSunLuminance};
         
         auto& cmd = frameContext.Cmd;
         samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
         pipeline.BindGraphics(cmd);
-        RenderCommand::PushConstants(cmd, pipeline.GetLayout(), passData.DepthIn.IsValid());
+        RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
         resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
         RenderCommand::Draw(cmd, 3);
     });

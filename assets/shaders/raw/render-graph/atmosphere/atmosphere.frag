@@ -32,6 +32,7 @@ layout(set = 1, binding = 6) uniform camera_buffer {
 
 layout(push_constant) uniform push_constants {
     bool u_use_depth_buffer;
+    bool u_use_sun_luminance;
 };
 
 void main() {
@@ -62,13 +63,15 @@ void main() {
             const bool intersects_surface = intersect_sphere(pos, rd, vec3(0.0f), atm.surface).t != NO_HIT;
 
             const vec2 sky_view_uv = sky_view_uv_from_zen_view_cos(atm, intersects_surface, mu, light_view_cos, r);
-            const vec2 transmittance_uv = transmittance_uv_from_r_mu(atm, r, dot(up, sun_dir));
-
-            L =
-                textureLod(sampler2D(u_sky_view_lut, u_sampler), sky_view_uv, 0).rgb +
-                get_sun_luminance(pos, rd, sun_dir, atm.surface) *
-                textureLod(sampler2D(u_transmittance_lut, u_sampler), transmittance_uv, 0).rgb;
-
+            
+            L = textureLod(sampler2D(u_sky_view_lut, u_sampler), sky_view_uv, 0).rgb;
+            if (u_use_sun_luminance) {
+                const vec2 transmittance_uv = transmittance_uv_from_r_mu(atm, r, dot(up, sun_dir));
+                L += 
+                    get_sun_luminance(pos, rd, sun_dir, atm.surface) *
+                    textureLod(sampler2D(u_transmittance_lut, u_sampler), transmittance_uv, 0).rgb;
+            }
+                
             out_color = vec4(L, 1.0);
             return;
         }

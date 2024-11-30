@@ -50,4 +50,7 @@ void Settings::initCvars()
     CVarI32 aerialPerspectiveLutSize({"Atmosphere.AerialPerspective.Size"},
         "Size of the atmosphere aerial perspective LUT",
         32);
+    CVarI32 atmosphereEnvironmentSize({"Atmosphere.Environment.Size"},
+        "Size of the each face of atmosphere environment skybox",
+        128);
 }

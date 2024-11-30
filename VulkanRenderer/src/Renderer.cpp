@@ -21,6 +21,7 @@
 #include "RenderGraph/Passes/AO/SsaoVisualizePass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
+#include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
@@ -383,13 +384,15 @@ void Renderer::SetupRenderGraph()
                 .ShadowMap = csmOutput.ShadowMap,
                 .CSM = csmOutput.CSM});
         auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
+        
         Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut", *m_Graph, atmosphereOutput.MultiscatteringLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.ColorOut);
+        Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.Atmosphere);
         Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective.Lut", *m_Graph, atmosphereOutput.AerialPerspectiveLut);
+        Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut", *m_Graph, atmosphereOutput.EnvironmentOut);
 
-        renderedColor = atmosphereOutput.ColorOut;
+        renderedColor = atmosphereOutput.Atmosphere;
 
         auto& atmosphereSimple = Passes::AtmosphereSimple::addToGraph("Atmosphere.Simple", *m_Graph, atmosphereOutput.TransmittanceLut);
         auto& atmosphereSimpleOutput = blackboard.Get<Passes::AtmosphereSimple::PassData>(atmosphereSimple);

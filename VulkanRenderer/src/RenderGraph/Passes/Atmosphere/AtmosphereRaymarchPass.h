@@ -1,6 +1,7 @@
 #pragma once
 #include "RenderGraph/RGResource.h"
 
+class Camera;
 class SceneLight;
 
 namespace Passes::Atmosphere::Raymarch
@@ -17,8 +18,9 @@ namespace Passes::Atmosphere::Raymarch
         RG::Resource ColorOut{};
     };
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
-        RG::Resource atmosphereSettings, const SceneLight& light,
+        RG::Resource atmosphereSettings, const Camera& camera, const SceneLight& light,
         RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
-        RG::Resource colorIn, RG::Resource depthIn, bool useSunLuminance);
+        RG::Resource colorIn, const ImageSubresourceDescription& colorSubresource, RG::Resource depthIn,
+        bool useSunLuminance);
 }
 

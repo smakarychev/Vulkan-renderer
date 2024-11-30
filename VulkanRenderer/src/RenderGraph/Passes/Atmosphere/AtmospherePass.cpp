@@ -5,6 +5,7 @@
 #include "AtmosphereRaymarchPass.h"
 #include "AtmosphereSkyViewLutPass.h"
 #include "AtmosphereTransmittanceLutPass.h"
+#include "Environment/AtmosphereEnvironmentPass.h"
 #include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
@@ -43,6 +44,8 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("Atmosphere.Setup")
+            
+            auto& globalResources = graph.GetGlobalResources();
 
             passData.AtmosphereSettings = graph.CreateResource(std::format("{}.Settings", name), GraphBufferDescription{
                 .SizeBytes = sizeof(AtmosphereSettings)});
@@ -67,17 +70,23 @@ RG::Pass& Passes::Atmosphere::addToGraph(std::string_view name, RG::Graph& rende
 
             static constexpr bool USE_SUN_LUMINANCE = true;
             auto& atmosphere = Raymarch::addToGraph(std::format("{}.Raymarch", name), graph,
-                passData.AtmosphereSettings, light,
+                passData.AtmosphereSettings, *globalResources.PrimaryCamera, light,
                 skyViewOutput.Lut, multiscatteringOutput.TransmittanceLut, aerialPerspectiveOutput.Lut,
-                colorIn, depthIn, USE_SUN_LUMINANCE);
+                colorIn, {}, depthIn, USE_SUN_LUMINANCE);
             auto& atmosphereOutput = graph.GetBlackboard().Get<Raymarch::PassData>(atmosphere);
             
+            auto& environment = Environment::addToGraph(std::format("{}.Environment", name), graph,
+                    passData.AtmosphereSettings, light, skyViewOutput.Lut);
+            auto& environmentOutput = graph.GetBlackboard().Get<Environment::PassData>(environment);
+
+
             passData.TransmittanceLut = transmittanceOutput.Lut;
             passData.MultiscatteringLut = multiscatteringOutput.Lut;
             passData.SkyViewLut = skyViewOutput.Lut;
             passData.AerialPerspectiveLut = aerialPerspectiveOutput.Lut;
-            passData.ColorOut = atmosphereOutput.ColorOut;
+            passData.Atmosphere = atmosphereOutput.ColorOut;
             passData.AtmosphereSettings = atmosphereOutput.AtmosphereSettings;
+            passData.EnvironmentOut = environmentOutput.ColorOut;
 
             graph.UpdateBlackboard(passData);
         },

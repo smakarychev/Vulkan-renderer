@@ -47,7 +47,7 @@ Camera Camera::Perspective(const PerspectiveCameraCreateInfo& info)
     camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
 
     camera.m_FieldOfView = info.Fov;
-    camera.m_Aspect = info.Aspect;
+    camera.m_Aspect = (f32)camera.m_ViewportWidth / (f32)camera.m_ViewportHeight;
 
     camera.UpdateViewMatrix();
     camera.UpdateProjectionMatrix();
@@ -234,7 +234,7 @@ void Camera::UpdateViewMatrix()
 
 void Camera::UpdateProjectionMatrix()
 {
-    m_Aspect = f32(m_ViewportWidth) / f32(m_ViewportHeight);
+    m_Aspect = (f32)m_ViewportWidth / (f32)m_ViewportHeight;
 
     switch (m_CameraType)
     {

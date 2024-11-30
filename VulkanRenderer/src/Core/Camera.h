@@ -47,7 +47,6 @@ struct PerspectiveCameraCreateInfo
 {
     CameraCreateInfo BaseInfo{};
     f32 Fov{glm::radians(45.0f)};
-    f32 Aspect{16.0f / 9.0f};
 };
 struct OrthographicCameraCreateInfo
 {

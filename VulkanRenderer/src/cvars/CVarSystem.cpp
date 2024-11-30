@@ -14,11 +14,8 @@ enum class CVarType : u8
     String
 };
 
-class CVarParameter
+struct CVarParameter
 {
-public:
-    friend class CVarsImpl;
-
     u32 ArrayIndex;
     CVarType Type;
     CVarFlags Flags;
