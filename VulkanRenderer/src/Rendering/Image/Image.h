@@ -178,7 +178,7 @@ public:
 
     static i8 CalculateMipmapCount(const glm::uvec2& resolution);
     static i8 CalculateMipmapCount(const glm::uvec3& resolution);
-    void CreateMipmaps(ImageLayout currentLayout);
+    void CreateMipmaps(const CommandBuffer& cmd, ImageLayout currentLayout) const;
 
     glm::uvec3 GetPixelCoordinate(const glm::vec3& coordinate, ImageSizeType sizeType) const;
 
@@ -192,14 +192,16 @@ private:
     static Image CreateImageFromPixelData(const CreateInfo& createInfo);
     static Image CreateImageFromBuffer(const CreateInfo& createInfo);
     static Image AllocateImage(const CreateInfo& createInfo);
-    static void PrepareForMipmapDestination(const ImageSubresource& imageSubresource);
-    static void PrepareForMipmapSource(const ImageSubresource& imageSubresource, ImageLayout currentLayout);
-    static void PrepareForShaderRead(const ImageSubresource& imageSubresource);
-    static void PrepareImageGeneral(const ImageSubresource& imageSubresource,
+    static void PrepareForMipmapDestination(const CommandBuffer& cmd, const ImageSubresource& imageSubresource);
+    static void PrepareForMipmapSource(const CommandBuffer& cmd, const ImageSubresource& imageSubresource,
+        ImageLayout currentLayout);
+    static void PrepareForShaderRead(const CommandBuffer& cmd, const ImageSubresource& imageSubresource);
+    static void PrepareImageGeneral(const CommandBuffer& cmd,
+        const ImageSubresource& imageSubresource,
         ImageLayout current, ImageLayout target,
         PipelineAccess srcAccess, PipelineAccess dstAccess,
         PipelineStage srcStage, PipelineStage dstStage);
-    static void CopyBufferToImage(const Buffer& buffer, const Image& image);
+    static void CopyBufferToImage(const CommandBuffer& cmd, const Buffer& buffer, const Image& image);
 
     static void CreateImageView(const ImageSubresource& imageSubresource,
         const std::vector<ImageSubresourceDescription>& additionalViews);

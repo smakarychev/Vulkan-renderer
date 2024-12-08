@@ -87,7 +87,10 @@ void CubemapProcessor::Process(const CommandBuffer& cmd)
 
     // create mipmaps
     for (auto&& [path, cubemap] : s_PendingTextures)
-        cubemap.CreateMipmaps(ImageLayout::Readonly);
+        Driver::ImmediateSubmit([&](const CommandBuffer& cmd)
+        {
+            cubemap.CreateMipmaps(cmd, ImageLayout::Readonly);
+        });
 
     s_PendingTextures.clear();
 }

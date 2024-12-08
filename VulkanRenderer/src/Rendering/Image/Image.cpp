@@ -576,7 +576,7 @@ i8 Image::CalculateMipmapCount(const glm::uvec3& resolution)
     return (i8)std::max(1, (i8)std::log2(maxDimension) + (i8)!MathUtils::isPowerOf2(maxDimension));    
 }
 
-void Image::CreateMipmaps(ImageLayout currentLayout)
+void Image::CreateMipmaps(const CommandBuffer& cmd, ImageLayout currentLayout) const
 {
     if (m_Description.Mipmaps == 1)
         return;
@@ -587,7 +587,7 @@ void Image::CreateMipmaps(ImageLayout currentLayout)
     i8 layers = ImageDescription::GetLayers(m_Description);
     
     ImageSubresource imageSubresource = Subresource(0, 1, 0, layers);
-    PrepareForMipmapSource(imageSubresource, currentLayout);
+    PrepareForMipmapSource(cmd, imageSubresource, currentLayout);
     for (i8 mip = 1; mip < m_Description.Mipmaps; mip++)
     {
         ImageBlitInfo source = BlitInfo({}, {
@@ -603,12 +603,9 @@ void Image::CreateMipmaps(ImageLayout currentLayout)
             mip, 0, layers);
 
         ImageSubresource mipmapSubresource = Subresource(mip, 1, 0, layers);
-        PrepareForMipmapDestination(mipmapSubresource);
-        Driver::ImmediateSubmit([this, &source, destination](const CommandBuffer& cmd)
-        {
-            RenderCommand::BlitImage(cmd, source, destination, m_Description.MipmapFilter);
-        });
-        PrepareForMipmapSource(mipmapSubresource, ImageLayout::Destination);
+        PrepareForMipmapDestination(cmd, mipmapSubresource);
+        RenderCommand::BlitImage(cmd, source, destination, m_Description.MipmapFilter);
+        PrepareForMipmapSource(cmd, mipmapSubresource, ImageLayout::Destination);
     }
 }
 
@@ -675,12 +672,17 @@ Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
     CreateImageView(image.Subresource(), createInfo.AdditionalViews);
     
     ImageSubresource imageSubresource = image.Subresource(0, 1, 0, 1);
-    PrepareForMipmapDestination(imageSubresource);
-    CopyBufferToImage(createInfo.DataBuffer, image);
-    if (!createInfo.NoMips)
-        image.CreateMipmaps(ImageLayout::Destination);
-    imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
-    PrepareForShaderRead(imageSubresource);
+
+    Driver::ImmediateSubmit([&](const CommandBuffer& cmd)
+    {
+        PrepareForMipmapDestination(cmd, imageSubresource);
+        CopyBufferToImage(cmd, createInfo.DataBuffer, image);
+        if (!createInfo.NoMips)
+            image.CreateMipmaps(cmd, ImageLayout::Destination);
+        imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
+        PrepareForShaderRead(cmd, imageSubresource);
+    });
+    Buffer::Destroy(createInfo.DataBuffer);
     
     return image;
 }
@@ -690,32 +692,34 @@ Image Image::AllocateImage(const CreateInfo& createInfo)
     return Driver::AllocateImage(createInfo);
 }
 
-void Image::PrepareForMipmapDestination(const ImageSubresource& imageSubresource)
+void Image::PrepareForMipmapDestination(const CommandBuffer& cmd, const ImageSubresource& imageSubresource)
 {
-    PrepareImageGeneral(imageSubresource,
+    PrepareImageGeneral(cmd, imageSubresource,
         ImageLayout::Undefined, ImageLayout::Destination,
         PipelineAccess::None, PipelineAccess::WriteTransfer,
         PipelineStage::AllTransfer, PipelineStage::AllTransfer);
 }
 
-void Image::PrepareForMipmapSource(const ImageSubresource& imageSubresource, ImageLayout currentLayout)
+void Image::PrepareForMipmapSource(const CommandBuffer& cmd, const ImageSubresource& imageSubresource,
+    ImageLayout currentLayout)
 {
-    PrepareImageGeneral(imageSubresource,
+    PrepareImageGeneral(cmd, imageSubresource,
         currentLayout, ImageLayout::Source,
         PipelineAccess::WriteAll, PipelineAccess::ReadTransfer,
         PipelineStage::AllCommands, PipelineStage::AllTransfer);
 }
 
-void Image::PrepareForShaderRead(const ImageSubresource& imageSubresource)
+void Image::PrepareForShaderRead(const CommandBuffer& cmd, const ImageSubresource& imageSubresource)
 {
     ImageLayout current = imageSubresource.Description.Mipmaps > 1 ? ImageLayout::Source : ImageLayout::Destination;
-    PrepareImageGeneral(imageSubresource,
+    PrepareImageGeneral(cmd, imageSubresource,
        current, ImageLayout::Readonly,
        PipelineAccess::ReadTransfer, PipelineAccess::ReadShader,
        PipelineStage::AllTransfer, PipelineStage::PixelShader | PipelineStage::ComputeShader);
 }
 
-void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
+void Image::PrepareImageGeneral(const CommandBuffer& cmd,
+    const ImageSubresource& imageSubresource,
     ImageLayout current, ImageLayout target,
     PipelineAccess srcAccess, PipelineAccess dstAccess,
     PipelineStage srcStage, PipelineStage dstStage)
@@ -733,21 +737,13 @@ void Image::PrepareImageGeneral(const ImageSubresource& imageSubresource,
             .NewLayout = target})
         .Build(deletionQueue);
     
-    Driver::ImmediateSubmit([&layoutTransition](const CommandBuffer& cmd)
-    {
-       RenderCommand::WaitOnBarrier(cmd, layoutTransition);
-    });
+    RenderCommand::WaitOnBarrier(cmd, layoutTransition);
 }
 
-void Image::CopyBufferToImage(const Buffer& buffer, const Image& image)
+void Image::CopyBufferToImage(const CommandBuffer& cmd, const Buffer& buffer, const Image& image)
 {
-    Driver::ImmediateSubmit([&buffer, &image](const CommandBuffer& cmd)
-    {
-        RenderCommand::CopyBufferToImage(cmd, buffer,
-            image.Subresource(0, 1, 0, ImageDescription::GetLayers(image.m_Description)));
-    });
-    
-    Buffer::Destroy(buffer);
+    RenderCommand::CopyBufferToImage(cmd, buffer,
+        image.Subresource(0, 1, 0, ImageDescription::GetLayers(image.m_Description)));
 }
 
 void Image::CreateImageView(const ImageSubresource& imageSubresource,
