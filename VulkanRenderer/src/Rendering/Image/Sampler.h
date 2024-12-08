@@ -27,8 +27,11 @@ public:
             SamplerBorderColor BorderColor{SamplerBorderColor::White};
             std::optional<SamplerReductionMode> ReductionMode;
             SamplerDepthCompareMode DepthCompareMode{SamplerDepthCompareMode::None};
+            f32 LodBias{0.0f};
             f32 MaxLod{LOD_MAX};
             bool WithAnisotropy{true};
+
+            auto operator<=>(const CreateInfo&) const = default;
         };
     public:
         Sampler Build();
@@ -37,6 +40,7 @@ public:
         Builder& BorderColor(SamplerBorderColor color);
         Builder& ReductionMode(SamplerReductionMode mode);
         Builder& DepthCompareMode(SamplerDepthCompareMode mode);
+        Builder& LodBias(f32 bias);
         Builder& MaxLod(f32 lod);
         Builder& WithAnisotropy(bool enabled);
     private:
@@ -59,7 +63,7 @@ private:
     struct CacheKey
     {
         Sampler::Builder::CreateInfo CreateInfo;
-        bool operator==(const CacheKey& other) const;
+        auto operator<=>(const CacheKey&) const = default;
     };
     struct SamplerKeyHash
     {

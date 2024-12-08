@@ -1156,11 +1156,11 @@ Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
     samplerCreateInfo.addressModeU = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.AddressMode);
     samplerCreateInfo.addressModeV = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.AddressMode);
     samplerCreateInfo.addressModeW = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.AddressMode);
-    samplerCreateInfo.minLod = 0;
+    samplerCreateInfo.minLod = 0.0f;
     samplerCreateInfo.maxLod = createInfo.MaxLod;
     samplerCreateInfo.maxAnisotropy = GetAnisotropyLevel();
     samplerCreateInfo.anisotropyEnable = (u32)createInfo.WithAnisotropy;
-    samplerCreateInfo.mipLodBias = 0.0f;
+    samplerCreateInfo.mipLodBias = createInfo.LodBias;
     samplerCreateInfo.compareEnable =
         isVulkanSamplerCompareOpEnabledFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
     samplerCreateInfo.compareOp = vulkanSamplerCompareOpFromSamplerDepthCompareMode(createInfo.DepthCompareMode);
