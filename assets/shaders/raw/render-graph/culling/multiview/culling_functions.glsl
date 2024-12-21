@@ -1,6 +1,8 @@
 float extract_scale(mat4 matrix) {
-    const vec3 scales = vec3(dot(matrix[0], matrix[0]), dot(matrix[1], matrix[1]), dot(matrix[2], matrix[2]));
-    return max(scales.x, max(scales.y, scales.z));
+    return sqrt(
+        matrix[0][0] * matrix[0][0] + 
+        matrix[1][1] * matrix[1][1] + 
+        matrix[2][2] * matrix[2][2]); 
 }
 
 bool is_backface_meshlet_visible(vec3 sphere_origin, float radius, vec3 cone_axis, float cone_cutoff) {
