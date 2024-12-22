@@ -24,7 +24,7 @@ vec4 compute_irradiance(vec3 normal) {
         
         irradiance += textureLod(samplerCube(u_env, u_sampler), sample_dir, 0).rgb * cos_theta;
     }
-    irradiance = PI * irradiance / vec3(n);
+    irradiance = 2.0 * irradiance / vec3(n);
     
     return vec4(irradiance, 1.0f);
 }
