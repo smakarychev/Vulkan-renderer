@@ -2444,7 +2444,7 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
             physicalDeviceDescriptorBufferFeaturesExt.sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_FEATURES_EXT;
             physicalDeviceDescriptorBufferFeaturesExt.pNext = &physicalDeviceIndexTypeUint8FeaturesExt;
-            
+
             VkPhysicalDeviceFeatures2 features = {};
             features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
             features.pNext = &physicalDeviceDescriptorBufferFeaturesExt;
@@ -2470,6 +2470,7 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
                     deviceVulkan12Features.samplerFilterMinmax == VK_TRUE &&
                     deviceVulkan12Features.drawIndirectCount == VK_TRUE &&
                     deviceVulkan12Features.subgroupBroadcastDynamicId == VK_TRUE &&
+                    deviceVulkan12Features.shaderFloat16 == VK_TRUE &&
                     deviceVulkan12Features.shaderInt8 == VK_TRUE &&
                     deviceVulkan12Features.storageBuffer8BitAccess  == VK_TRUE &&
                     deviceVulkan12Features.uniformAndStorageBuffer8BitAccess == VK_TRUE &&
@@ -2579,6 +2580,7 @@ void Driver::CreateDevice(const Device::Builder::CreateInfo& createInfo,
     vulkan12Features.samplerFilterMinmax = VK_TRUE;
     vulkan12Features.drawIndirectCount = VK_TRUE;
     vulkan12Features.subgroupBroadcastDynamicId = VK_TRUE;
+    vulkan12Features.shaderFloat16 = VK_TRUE;
     vulkan12Features.shaderInt8 = VK_TRUE;
     vulkan12Features.storageBuffer8BitAccess  = VK_TRUE;
     vulkan12Features.shaderBufferInt64Atomics = VK_TRUE;
@@ -2814,9 +2816,9 @@ VkImageView Driver::CreateVulkanImageView(const ImageSubresource& image, VkForma
     createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(
         image.Image->m_Description.Usage);
     createInfo.subresourceRange.baseMipLevel = image.Description.MipmapBase;
-    createInfo.subresourceRange.levelCount = (u32)image.Description.Mipmaps;
+    createInfo.subresourceRange.levelCount = (u32)(i32)image.Description.Mipmaps;
     createInfo.subresourceRange.baseArrayLayer = image.Description.LayerBase;
-    createInfo.subresourceRange.layerCount = (u32)image.Description.Layers;
+    createInfo.subresourceRange.layerCount = (u32)(i32)image.Description.Layers;
 
     VkImageView imageView;
 
@@ -2926,7 +2928,7 @@ VkBufferImageCopy2 Driver::CreateVulkanImageCopyInfo(const ImageSubresource& sub
         subresource.Image->m_Description.Usage);
     bufferImageCopy.imageSubresource.mipLevel = subresource.Description.MipmapBase;
     bufferImageCopy.imageSubresource.baseArrayLayer = subresource.Description.LayerBase;
-    bufferImageCopy.imageSubresource.layerCount = subresource.Description.Layers;
+    bufferImageCopy.imageSubresource.layerCount = (u32)(i32)subresource.Description.Layers;
 
     return bufferImageCopy;
 }

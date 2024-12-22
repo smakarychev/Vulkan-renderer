@@ -1,0 +1,104 @@
+#version 460
+
+#include "globals.glsl"
+#include "sh.glsl"
+
+#define THREADGROUP_SIZE 8
+#define UNIFORM_SAMPLE_SOLID_ANGLE 4.0 * PI / (THREADGROUP_SIZE * THREADGROUP_SIZE)
+
+#define SAMPLES_NOT_REALTIME_SIZE_PER_INVOCATION_SIZE 32
+#define SAMPLES_NOT_REALTIME_SIZE SAMPLES_NOT_REALTIME_SIZE_PER_INVOCATION_SIZE * THREADGROUP_SIZE
+#define UNIFORM_SAMPLE_SOLID_ANGLE_NOT_REALTIME 4.0 * PI / (SAMPLES_NOT_REALTIME_SIZE * SAMPLES_NOT_REALTIME_SIZE)
+
+layout(local_size_x = THREADGROUP_SIZE, local_size_y = THREADGROUP_SIZE) in;
+
+layout(constant_id = 0) const bool REAL_TIME = false;
+
+@immutable_sampler
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform textureCube u_env;
+layout(set = 1, binding = 1) buffer sh {
+    SH9Irradiance irradiance;
+} u_sh;
+
+layout(push_constant) uniform push_constants {
+    uint u_mip_index;
+};
+
+shared SH9RGB s_sampled_irradiance[THREADGROUP_SIZE * THREADGROUP_SIZE];
+
+SH9RGB sample_irradiance(vec3 dir, float mip_index, float16_t weight) {
+    const f16vec3 color = f16vec3(textureLod(samplerCube(u_env, u_sampler), dir, mip_index).rgb);
+    
+    return SH_multiply(SH_evaluate_irradiance_prenormalized(f16vec3(dir)), color * weight);
+}
+
+void project_common() {
+    const uint invocation_id = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * THREADGROUP_SIZE;
+
+    if (invocation_id < 32) {
+        s_sampled_irradiance[invocation_id] = SH_add(s_sampled_irradiance[invocation_id], s_sampled_irradiance[invocation_id + 32]);
+    }
+    barrier();
+    if (invocation_id < 16) {
+        s_sampled_irradiance[invocation_id] = SH_add(s_sampled_irradiance[invocation_id], s_sampled_irradiance[invocation_id + 16]);
+    }
+    barrier();
+    if (invocation_id < 8) {
+        s_sampled_irradiance[invocation_id] = SH_add(s_sampled_irradiance[invocation_id], s_sampled_irradiance[invocation_id + 8]);
+    }
+    barrier();
+    if (invocation_id < 4) {
+        s_sampled_irradiance[invocation_id] = SH_add(s_sampled_irradiance[invocation_id], s_sampled_irradiance[invocation_id + 4]);
+    }
+    barrier();
+    if (invocation_id < 2) {
+        s_sampled_irradiance[invocation_id] = SH_add(s_sampled_irradiance[invocation_id], s_sampled_irradiance[invocation_id + 2]);
+    }
+    barrier();
+    if (invocation_id < 1) {
+        SH9RGB irradiance = SH_add(s_sampled_irradiance[invocation_id], s_sampled_irradiance[invocation_id + 1]);
+        u_sh.irradiance = SH_irradiance_map(irradiance);
+    }
+}
+
+void project_realtime() {
+    const uint invocation_id = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * THREADGROUP_SIZE;
+    vec2 face_uv = vec2(gl_GlobalInvocationID.xy + 0.5f) / vec2(THREADGROUP_SIZE);
+    const vec3 sphere_sample = uniform_sphere_sample(face_uv);
+
+    s_sampled_irradiance[invocation_id] = sample_irradiance(sphere_sample, float(u_mip_index), float16_t(UNIFORM_SAMPLE_SOLID_ANGLE));
+    barrier();
+
+    project_common();
+}
+
+void project() {
+    const uint invocation_id = gl_GlobalInvocationID.x + gl_GlobalInvocationID.y * THREADGROUP_SIZE;
+    s_sampled_irradiance[invocation_id] = SH9RGB(
+        SH9(float16_t[9](float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0))),
+        SH9(float16_t[9](float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0))),
+        SH9(float16_t[9](float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0), float16_t(0))));
+    
+    for (uint v = 0; v < SAMPLES_NOT_REALTIME_SIZE_PER_INVOCATION_SIZE; v++) {
+        for (uint u = 0; u < SAMPLES_NOT_REALTIME_SIZE_PER_INVOCATION_SIZE; u++) {
+            vec2 face_uv = 
+                vec2(gl_GlobalInvocationID.xy * SAMPLES_NOT_REALTIME_SIZE_PER_INVOCATION_SIZE + vec2(u, v) + 0.5f) /
+                vec2(SAMPLES_NOT_REALTIME_SIZE);
+            const vec3 sphere_sample = uniform_sphere_sample(face_uv);
+            s_sampled_irradiance[invocation_id] = SH_add(
+                s_sampled_irradiance[invocation_id],
+                sample_irradiance(sphere_sample, float(u_mip_index), float16_t(UNIFORM_SAMPLE_SOLID_ANGLE_NOT_REALTIME)));
+        }
+    }
+    barrier();
+
+    project_common();
+}
+
+void main() {
+    if (REAL_TIME)
+        project_realtime();
+    else 
+        project();
+}

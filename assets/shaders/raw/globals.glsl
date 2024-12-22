@@ -24,6 +24,19 @@ vec3 cubemap_normal_vector(uvec3 global_invocation, vec2 size_inv) {
     return normalize(ret);
 }
 
+vec3 uniform_sphere_sample(vec2 p) {
+    const float phi = 2 * PI * p.x;
+    const float cos_theta = 1 - 2 * p.y;
+    const float sin_theta = sqrt(1 - cos_theta * cos_theta);
+
+    vec3 sample_point;
+    sample_point.x = sin_theta * cos(phi);
+    sample_point.y = cos_theta;
+    sample_point.z = sin_theta * sin(phi);
+
+    return sample_point;
+}
+
 vec2 hammersley2d(uint i, uint n) {
     // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
     
