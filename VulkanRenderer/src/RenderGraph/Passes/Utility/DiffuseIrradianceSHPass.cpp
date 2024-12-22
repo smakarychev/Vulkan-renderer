@@ -51,7 +51,7 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
             resourceDescriptors.UpdateBinding("u_env", cubemapTexture.BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
 
-            const u32 realTimeMipmapsCount = std::log(16.0);
+            const u32 realTimeMipmapsCount = (u32)std::log(16.0);
             const u32 targetMipmap = realTime ?
                 std::min(cubemapTexture.Description().Mipmaps, (i8)realTimeMipmapsCount) - realTimeMipmapsCount :
                 0;

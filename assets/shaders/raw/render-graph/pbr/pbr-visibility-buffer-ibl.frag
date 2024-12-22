@@ -28,7 +28,9 @@ layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
 
 layout(set = 1, binding = 0) uniform utexture2D u_visibility_texture;
 layout(set = 1, binding = 1) uniform texture2D u_ssao_texture;
-layout(set = 1, binding = 2) uniform textureCube u_irradiance_map;
+layout(set = 1, binding = 2) uniform irradiance_sh {
+    SH9Irradiance sh;
+} u_irradiance_SH;
 layout(set = 1, binding = 3) uniform textureCube u_prefilter_map;
 layout(set = 1, binding = 4) uniform texture2D u_brdf;
 

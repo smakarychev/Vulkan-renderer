@@ -16,7 +16,7 @@ namespace RG
 {
     struct IBLData
     {
-        Resource Irradiance{};
+        Resource IrradianceSH{};
         Resource PrefilterEnvironment{};
         Resource BRDF{};
     };

@@ -142,13 +142,13 @@ namespace RG::RgUtils
     {
         using enum ResourceAccessFlags;
         
-        ASSERT(ibl.Irradiance.IsValid(), "Must provide irradiance map")
+        ASSERT(ibl.IrradianceSH.IsValid(), "Must provide irradiance spherical harmonics")
         ASSERT(ibl.PrefilterEnvironment.IsValid(), "Must provide prefilter map")
         ASSERT(ibl.BRDF.IsValid(), "Must provide brdf")
         
         IBLData iblData = {};
         
-        iblData.Irradiance = graph.Read(ibl.Irradiance, shaderStage | Sampled);
+        iblData.IrradianceSH = graph.Read(ibl.IrradianceSH, shaderStage | Uniform);
         iblData.PrefilterEnvironment = graph.Read(ibl.PrefilterEnvironment, shaderStage | Sampled);
         iblData.BRDF = graph.Read(ibl.BRDF, shaderStage | Sampled);
 
@@ -227,12 +227,11 @@ namespace RG::RgUtils
 
     void updateIBLBindings(const ShaderDescriptors& descriptors, const Resources& resources, const IBLData& iblData)
     {
-        const Texture& irradiance = resources.GetTexture(iblData.Irradiance);
+        const Buffer& irradianceSh = resources.GetBuffer(iblData.IrradianceSH);
         const Texture& prefilter = resources.GetTexture(iblData.PrefilterEnvironment);
         const Texture& brdf = resources.GetTexture(iblData.BRDF);
 
-        descriptors.UpdateBinding(UNIFORM_IRRADIANCE_MAP, irradiance.BindingInfo(
-            ImageFilter::Linear, ImageLayout::Readonly));
+        descriptors.UpdateBinding(UNIFORM_IRRADIANCE_SH, irradianceSh.BindingInfo());
         descriptors.UpdateBinding(UNIFORM_PREFILTER_MAP, prefilter.BindingInfo(
             ImageFilter::Linear, ImageLayout::Readonly));
         descriptors.UpdateBinding(UNIFORM_BRDF, brdf.BindingInfo(

@@ -12,6 +12,7 @@
 #include "Imgui/ImguiUI.h"
 #include "Light/LightFrustumCuller.h"
 #include "Light/LightZBinner.h"
+#include "Light/SH.h"
 #include "RenderGraph/Passes/AA/FxaaPass.h"
 #include "Vulkan/RenderCommand.h"
 #include "Scene/ModelCollection.h"
@@ -40,6 +41,7 @@
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
+#include "RenderGraph/Passes/Utility/DiffuseIrradianceSHPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Rendering/ShaderCache.h"
@@ -121,14 +123,6 @@ void Renderer::InitRenderGraph()
             return material.Type == assetLib::ModelInfo::MaterialType::Translucent;
         });
 
-    m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
-        .FromEquirectangular("../assets/textures/forest.tx")
-        .Build();
-    m_SkyboxIrradianceMap = DiffuseIrradianceProcessor::CreateEmptyTexture();
-    m_SkyboxPrefilterMap = EnvironmentPrefilterProcessor::CreateEmptyTexture();
-    DiffuseIrradianceProcessor::Add(m_SkyboxTexture, m_SkyboxIrradianceMap);
-    EnvironmentPrefilterProcessor::Add(m_SkyboxTexture, m_SkyboxPrefilterMap);
-
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
 
     auto drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
@@ -178,6 +172,31 @@ void Renderer::InitRenderGraph()
     {
         GetFrameContext().ResourceUploader->SubmitUpload(cmd);
     });
+}
+
+void Renderer::ExecuteSingleTimePasses()
+{
+    m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
+        .FromEquirectangular("../assets/textures/kloofendal_43d_clear_puresky_4k.tx")
+        .Build();
+    m_SkyboxPrefilterMap = EnvironmentPrefilterProcessor::CreateEmptyTexture();
+    EnvironmentPrefilterProcessor::Add(m_SkyboxTexture, m_SkyboxPrefilterMap);
+
+    m_IrradianceSH = Buffer::Builder(
+        {.SizeBytes = sizeof(SH9Irradiance), .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
+        .Build();
+    
+    m_Graph->Reset(GetFrameContext());
+
+    // todo: convert the rest to be passes too, basically everything in the Image/Processing should become a pass
+    ProcessPendingCubemaps();
+    ProcessPendingPBRTextures();
+    
+    Passes::DiffuseIrradianceSH::addToGraph(
+        "Scene.DiffuseIrradianceSH", *m_Graph, m_SkyboxTexture, m_IrradianceSH, true);
+
+    m_Graph->Compile(GetFrameContext());
+    m_Graph->Execute(GetFrameContext());
 }
 
 void Renderer::SetupRenderSlimePasses()
@@ -344,7 +363,7 @@ void Renderer::SetupRenderGraph()
         .Tiles = tileLights ? blackboard.Get<TileLightsInfo>().Tiles : Resource{},
         .ZBins = tileLights ? blackboard.Get<TileLightsInfo>().ZBins : Resource{},
         .IBL = {
-            .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
+            .IrradianceSH = m_Graph->AddExternal("IrradianceSH", m_IrradianceSH),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
             .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
         .SSAO = {
@@ -500,10 +519,18 @@ void Renderer::OnRender()
     m_ResourceUploader.BeginFrame(GetFrameContext());
     ShaderCache::OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
-    ProcessPendingCubemaps();
-    ProcessPendingPBRTextures();
     /* light update requires cmd in recording state */
     UpdateLights();
+
+    {
+        // todo: as always everything in this file is somewhat temporary
+        // todo: what I really want here is a single-time render graph, that can be queried to check if it has pending passes
+        if (!m_HasExecutedSingleTimePasses)
+        {
+            ExecuteSingleTimePasses();
+            m_HasExecutedSingleTimePasses = true;   
+        }
+    }
 
     {
         CPU_PROFILE_FRAME("Setup Render Graph")

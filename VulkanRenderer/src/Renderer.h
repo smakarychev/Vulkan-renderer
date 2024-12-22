@@ -39,6 +39,7 @@ private:
     Renderer();
     void InitRenderingStructures();
     void InitRenderGraph();
+    void ExecuteSingleTimePasses();
     void SetupRenderSlimePasses();
     void SetupRenderGraph();
 
@@ -81,13 +82,15 @@ private:
     std::unique_ptr<RG::Graph> m_Graph;
     
     Texture m_SkyboxTexture{};
-    Texture m_SkyboxIrradianceMap{};
     Texture m_SkyboxPrefilterMap{};
     std::shared_ptr<Texture> m_BRDF{};
+    Buffer m_IrradianceSH{};
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
+
+    bool m_HasExecutedSingleTimePasses{false};
 };

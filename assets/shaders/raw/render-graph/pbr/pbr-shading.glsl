@@ -161,7 +161,7 @@ vec3 shade_pbr_directional_light(ShadeInfo shade_info, float directional_shadow)
 
 vec3 shade_pbr_ibl(ShadeInfo shade_info) {
     const vec3 R = reflect(-shade_info.view, shade_info.normal);
-    const vec3 irradiance = textureLod(samplerCube(u_irradiance_map, u_sampler), shade_info.normal, 0).rgb;
+    const vec3 irradiance = SH_irradiance_shade(u_irradiance_SH.sh, shade_info.normal).rgb;
 
     const float lod = shade_info.perceptual_roughness * MAX_REFLECTION_LOD;
     const vec3 prefiltered = textureLod(samplerCube(u_prefilter_map, u_sampler), R, lod).rgb;

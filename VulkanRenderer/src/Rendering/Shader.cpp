@@ -333,7 +333,6 @@ DrawFeatures ShaderReflection::ExtractDrawFeatures(
         std::make_pair(UNIFORM_MATERIALS, DrawFeatures::Materials),
         std::make_pair(UNIFORM_TEXTURES, DrawFeatures::Textures),
         std::make_pair(UNIFORM_SSAO_TEXTURE, DrawFeatures::SSAO),
-        std::make_pair(UNIFORM_IRRADIANCE_MAP, DrawFeatures::IBL),
         std::make_pair(UNIFORM_PREFILTER_MAP, DrawFeatures::IBL),
         std::make_pair(UNIFORM_BRDF, DrawFeatures::IBL),
         std::make_pair(UNIFORM_TRIANGLES, DrawFeatures::Triangles),
