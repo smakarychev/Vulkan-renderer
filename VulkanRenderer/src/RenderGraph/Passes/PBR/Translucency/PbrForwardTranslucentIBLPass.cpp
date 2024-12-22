@@ -11,7 +11,7 @@ RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(std::string_view name, 
 {
     using namespace RG;
 
-    //todo: this should be shader between all multiview passes obv.
+    //todo: this should be shared between all multiview passes obv.
     struct CullResources
     {
         CullMultiviewData MultiviewData{};

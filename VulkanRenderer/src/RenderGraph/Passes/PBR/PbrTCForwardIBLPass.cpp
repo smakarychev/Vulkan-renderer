@@ -9,7 +9,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
 {
     using namespace RG;
 
-    //todo: this should be shader between all multiview passes obv.
+    //todo: this should be shared between all multiview passes obv.
     struct Multiview
     {
         CullMultiviewData MultiviewData{};

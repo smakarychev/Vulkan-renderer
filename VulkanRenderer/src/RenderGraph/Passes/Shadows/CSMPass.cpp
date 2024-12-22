@@ -68,7 +68,7 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    //todo: this should be shader between all multiview passes obv.
+    //todo: this should be shared between all multiview passes obv.
     struct Multiview
     {
         CullMultiviewData MultiviewData{};
