@@ -171,6 +171,8 @@ namespace RG
         }
     private:
         // store both ref count and raw pointer to be able to alias resources
+        // todo: this is bad, and i should do something else
+        // todo: this is also the reason, why exported textures are stored as std::shared_ptr*
         std::shared_ptr<T> m_ResourceRef{};
         T* m_Resource{};
         Desc m_Description{};
