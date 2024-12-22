@@ -2,7 +2,6 @@
 
 #include "RGCommon.h"
 #include "RGResource.h"
-#include "Core/Camera.h"
 #include "Rendering/RenderingInfo.h"
 
 /* Draw resources that are commonly used by different draw passes

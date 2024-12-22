@@ -1,5 +1,6 @@
 #include "VisualizeLightClustersDepthLayersPass.h"
 
+#include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "Rendering/ShaderCache.h"
