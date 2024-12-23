@@ -5,53 +5,8 @@
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
+#include "RenderGraph/Passes/Utility/MipMapPass.h"
 #include "Vulkan/RenderCommand.h"
-
-namespace
-{
-    RG::Resource environmentMipMap(std::string_view name, RG::Graph& renderGraph, RG::Resource environment)
-    {
-        using namespace RG;
-        using enum ResourceAccessFlags;
-
-        struct PassData
-        {
-            Resource Environment;
-        };
-
-        auto& pass = renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
-        {
-            CPU_PROFILE_FRAME("Atmosphere.Environment.MipMap.Setup")
-
-            passData.Environment = graph.Write(environment, Blit);
-
-            graph.UpdateBlackboard(passData);
-        },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
-        {
-            CPU_PROFILE_FRAME("Atmosphere.Environment.MipMap")
-            GPU_PROFILE_FRAME("Atmosphere.Environment.MipMap")
-
-            // todo: nvpro mipmap software generation?
-            const Texture& cubemap = resources.GetTexture(passData.Environment);
-            cubemap.CreateMipmaps(frameContext.Cmd, ImageLayout::Destination);
-            DependencyInfo layoutTransition = DependencyInfo::Builder()
-                .LayoutTransition({
-                    .ImageSubresource = cubemap.Subresource(),
-                    .SourceStage = PipelineStage::Blit,
-                    .DestinationStage = PipelineStage::Blit,
-                    .SourceAccess = PipelineAccess::ReadTransfer,
-                    .DestinationAccess = PipelineAccess::WriteTransfer,
-                    .OldLayout = ImageLayout::Source,
-                    .NewLayout = ImageLayout::Destination})
-                .Build(frameContext.DeletionQueue);
-            RenderCommand::WaitOnBarrier(frameContext.Cmd, layoutTransition);
-        });
-
-        return renderGraph.GetBlackboard().Get<PassData>(pass).Environment;
-    }
-}
 
 RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)
@@ -113,6 +68,7 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG:
                         .ViewportWidth = environmentSize,
                         .ViewportHeight = environmentSize},
                     .Fov = glm::radians(90.0f)});
+                
                 auto& atmosphere = Raymarch::addToGraph(std::format("{}.{}.Raymarch", name, face), graph,
                     atmosphereSettings, camera, light, skyViewLut, {}, {},
                     passData.ColorOut, faceViews[face], {}, USE_SUN_LUMINANCE);
@@ -120,7 +76,8 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG:
                 passData.ColorOut = atmosphereOutput.ColorOut;
             }
 
-            passData.ColorOut = environmentMipMap(std::format("{}.Mipmaps", name), renderGraph, passData.ColorOut);
+            auto& mipmapped = Mipmap::addToGraph(std::format("{}.Mipmaps", name), graph, passData.ColorOut);
+            passData.ColorOut = graph.GetBlackboard().Get<Mipmap::PassData>(mipmapped).Texture;
 
             graph.UpdateBlackboard(passData);
         },
