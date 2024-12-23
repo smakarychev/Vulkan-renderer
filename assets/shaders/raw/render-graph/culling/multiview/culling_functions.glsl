@@ -105,7 +105,7 @@ bool is_backface_triangle_visible(Triangle triangle) {
 }
 
 bool is_screen_size_visible(vec4 aabb, float width, float height) {
-    aabb = aabb * vec4(width, height, width, height);
+    aabb = aabb * vec4(width, height, width, height) + vec4(-0.5f, 0.5f, 0.5f, -0.5f);
     return round(aabb.x) != round(aabb.z) && round(aabb.y) != round(aabb.w);
 }
 
