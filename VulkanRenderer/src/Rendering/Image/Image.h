@@ -129,7 +129,7 @@ public:
         Image Build();
         Image Build(DeletionQueue& deletionQueue);
         Image BuildManualLifetime();
-        Builder& FromEquirectangular(std::string_view path);
+        Builder& FromEquirectangular(const Image& texture);
         Builder& FromAssetFile(std::string_view path);
         template <typename T>
         Builder& FromPixels(const std::vector<T>& pixels)

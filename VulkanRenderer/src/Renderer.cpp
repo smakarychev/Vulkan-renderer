@@ -42,6 +42,7 @@
 #include "RenderGraph/Passes/Utility/BlitPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/Utility/DiffuseIrradianceSHPass.h"
+#include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Rendering/ShaderCache.h"
@@ -176,8 +177,14 @@ void Renderer::InitRenderGraph()
 
 void Renderer::ExecuteSingleTimePasses()
 {
+    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/kloofendal_43d_clear_puresky_4k.tx";
+    Texture equirectangular = Texture::Builder({.Usage = ImageUsage::Sampled})
+        .FromAssetFile(SKYBOX_PATH)
+        .NoMips()
+        .Build(GetFrameContext().DeletionQueue);
+    
     m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
-        .FromEquirectangular("../assets/textures/kloofendal_43d_clear_puresky_4k.tx")
+        .FromEquirectangular(equirectangular)
         .Build();
     m_SkyboxPrefilterMap = EnvironmentPrefilterProcessor::CreateEmptyTexture();
     EnvironmentPrefilterProcessor::Add(m_SkyboxTexture, m_SkyboxPrefilterMap);
@@ -189,9 +196,10 @@ void Renderer::ExecuteSingleTimePasses()
     m_Graph->Reset(GetFrameContext());
 
     // todo: convert the rest to be passes too, basically everything in the Image/Processing should become a pass
-    ProcessPendingCubemaps();
     ProcessPendingPBRTextures();
-    
+
+    Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox", *m_Graph,
+        equirectangular, m_SkyboxTexture);
     Passes::DiffuseIrradianceSH::addToGraph(
         "Scene.DiffuseIrradianceSH", *m_Graph, m_SkyboxTexture, m_IrradianceSH, true);
 
@@ -611,14 +619,6 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
         .Build(GetFrameContext().DeletionQueue);
 
     return info;
-}
-
-void Renderer::ProcessPendingCubemaps()
-{
-    CPU_PROFILE_FRAME("ProcessPendingCubemaps")
-
-    if (CubemapProcessor::HasPending())
-        CubemapProcessor::Process(GetFrameContext().Cmd);
 }
 
 void Renderer::ProcessPendingPBRTextures()

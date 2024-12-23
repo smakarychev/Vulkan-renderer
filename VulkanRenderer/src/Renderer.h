@@ -49,7 +49,6 @@ private:
 
     RenderingInfo GetImGuiUIRenderingInfo();
 
-    void ProcessPendingCubemaps();
     void ProcessPendingPBRTextures();
 
     void OnWindowResize();

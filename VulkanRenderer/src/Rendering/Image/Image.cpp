@@ -7,7 +7,6 @@
 #include "Vulkan/RenderCommand.h"
 #include "AssetLib.h"
 #include "AssetManager.h"
-#include "Processing/CubemapProcessor.h"
 #include "TextureAsset.h"
 
 namespace
@@ -283,20 +282,14 @@ Image Image::Builder::BuildManualLifetime()
     return Image::Create(m_CreateInfo);
 }
 
-Image::Builder& Image::Builder::FromEquirectangular(std::string_view path)
+Image::Builder& Image::Builder::FromEquirectangular(const Image& texture)
 {
     // Equirectangular images have to be converted to cubemaps before using them in shader,
-    // this conversion happens in compute shader, and the actual conversion is postponed
-    // Here we only create an empty cube map, and store the path to the equirectangular image in static map;
+    // Here we only create an empty cube map, it has to be generated using Passes::EquirectangularToCubemap
 
     SetSource(CreateInfo::SourceInfo::Equirectangular);
-    m_CreateInfo.AssetInfo.AssetPath = path;
 
-    assetLib::File textureFile;
-    assetLib::loadAssetFile(path, textureFile);
-    assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
-
-    u32 textureHeight = textureInfo.Dimensions.Height / 2;
+    u32 textureHeight = texture.Description().Height / 2;
     u32 textureWidth = textureHeight;
     m_CreateInfo.Description.Width = textureWidth;
     m_CreateInfo.Description.Height = textureHeight;
@@ -653,8 +646,6 @@ Image Image::CreateImageFromAsset(const CreateInfo& createInfo)
 Image Image::CreateImageFromEquirectangular(const CreateInfo& createInfo)
 {
     Image image = CreateImage(createInfo);
-
-    CubemapProcessor::Add(createInfo.AssetInfo.AssetPath, image);
 
     return image;
 }
