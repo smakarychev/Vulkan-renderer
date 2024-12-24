@@ -48,7 +48,6 @@
 #include "Rendering/ShaderCache.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
-#include "Rendering/Image/Processing/EnvironmentPrefilterProcessor.h"
 
 Renderer::Renderer() = default;
 
@@ -184,9 +183,10 @@ void Renderer::ExecuteSingleTimePasses()
     m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
         .FromEquirectangular(equirectangular)
         .Build();
-    m_SkyboxPrefilterMap = EnvironmentPrefilterProcessor::CreateEmptyTexture();
-    EnvironmentPrefilterProcessor::Add(m_SkyboxTexture, m_SkyboxPrefilterMap);
-
+    
+    m_SkyboxPrefilterMap = Texture::Builder({Passes::EnvironmentPrefilter::getPrefilteredTextureDescription()})
+        .Build();
+    
     m_IrradianceSH = Buffer::Builder(
         {.SizeBytes = sizeof(SH9Irradiance), .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
@@ -623,8 +623,6 @@ void Renderer::ProcessPendingPBRTextures()
 {
     CPU_PROFILE_FRAME("ProcessPendingPBRTextures")
 
-    if (EnvironmentPrefilterProcessor::HasPending())
-        EnvironmentPrefilterProcessor::Process(GetFrameContext().Cmd);
     if (!m_BRDF)
         m_BRDF = std::make_shared<Texture>(BRDFProcessor::CreateBRDF(GetFrameContext().Cmd));
 }
