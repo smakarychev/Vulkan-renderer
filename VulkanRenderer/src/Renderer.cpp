@@ -48,7 +48,6 @@
 #include "Rendering/ShaderCache.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
-#include "Rendering/Image/Processing/DiffuseIrradianceProcessor.h"
 #include "Rendering/Image/Processing/EnvironmentPrefilterProcessor.h"
 
 Renderer::Renderer() = default;
@@ -624,8 +623,6 @@ void Renderer::ProcessPendingPBRTextures()
 {
     CPU_PROFILE_FRAME("ProcessPendingPBRTextures")
 
-    if (DiffuseIrradianceProcessor::HasPending())
-        DiffuseIrradianceProcessor::Process(GetFrameContext().Cmd);
     if (EnvironmentPrefilterProcessor::HasPending())
         EnvironmentPrefilterProcessor::Process(GetFrameContext().Cmd);
     if (!m_BRDF)
