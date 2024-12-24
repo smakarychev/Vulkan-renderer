@@ -49,8 +49,6 @@ private:
 
     RenderingInfo GetImGuiUIRenderingInfo();
 
-    void ProcessPendingPBRTextures();
-
     void OnWindowResize();
     void RecreateSwapchain();
     
@@ -82,7 +80,7 @@ private:
     
     Texture m_SkyboxTexture{};
     Texture m_SkyboxPrefilterMap{};
-    std::shared_ptr<Texture> m_BRDF{};
+    Texture m_BRDFLut{};
     Buffer m_IrradianceSH{};
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;

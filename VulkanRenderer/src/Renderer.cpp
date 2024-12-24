@@ -40,14 +40,15 @@
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
 #include "RenderGraph/Passes/Utility/BlitPass.h"
+#include "RenderGraph/Passes/Utility/BRDFLutPass.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/Utility/DiffuseIrradianceSHPass.h"
+#include "RenderGraph/Passes/Utility/EnvironmentPrefilterPass.h"
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Rendering/ShaderCache.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
-#include "Rendering/Image/Processing/BRDFProcessor.h"
 
 Renderer::Renderer() = default;
 
@@ -184,22 +185,26 @@ void Renderer::ExecuteSingleTimePasses()
         .FromEquirectangular(equirectangular)
         .Build();
     
-    m_SkyboxPrefilterMap = Texture::Builder({Passes::EnvironmentPrefilter::getPrefilteredTextureDescription()})
+    m_SkyboxPrefilterMap = Texture::Builder(Passes::EnvironmentPrefilter::getPrefilteredTextureDescription())
         .Build();
     
     m_IrradianceSH = Buffer::Builder(
         {.SizeBytes = sizeof(SH9Irradiance), .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
+
+    m_BRDFLut = Texture::Builder(Passes::BRDFLut::getLutDescription())
+        .Build();
     
     m_Graph->Reset(GetFrameContext());
-
-    // todo: convert the rest to be passes too, basically everything in the Image/Processing should become a pass
-    ProcessPendingPBRTextures();
 
     Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox", *m_Graph,
         equirectangular, m_SkyboxTexture);
     Passes::DiffuseIrradianceSH::addToGraph(
         "Scene.DiffuseIrradianceSH", *m_Graph, m_SkyboxTexture, m_IrradianceSH, true);
+    Passes::EnvironmentPrefilter::addToGraph(
+        "Scene.EnvironmentPrefilter", *m_Graph, m_SkyboxTexture, m_SkyboxPrefilterMap);
+    Passes::BRDFLut::addToGraph(
+        "Scene.BRDFLut", *m_Graph, m_BRDFLut);
 
     m_Graph->Compile(GetFrameContext());
     m_Graph->Execute(GetFrameContext());
@@ -371,7 +376,7 @@ void Renderer::SetupRenderGraph()
         .IBL = {
             .IrradianceSH = m_Graph->AddExternal("IrradianceSH", m_IrradianceSH),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
-            .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
+            .BRDF = m_Graph->AddExternal("BRDF", m_BRDFLut)},
         .SSAO = {
             .SSAO = ssaoBlurVerticalOutput.SsaoOut},
         .CSMData = {
@@ -443,7 +448,7 @@ void Renderer::SetupRenderGraph()
             .IBL = {
                  .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
                  .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
-                 .BRDF = m_Graph->AddExternal("BRDF", *m_BRDF)},
+                 .BRDF = m_Graph->AddExternal("BRDF", *m_BRDFLut)},
             .HiZContext = m_VisibilityPass->GetHiZContext()})
         auto& pbrTranslucentOutput = blackboard.Get<PbrForwardTranslucentIBLPass::PassData>();
         
@@ -470,7 +475,7 @@ void Renderer::SetupRenderGraph()
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Max.Texture", *m_Graph, hizMaxVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, *m_BRDF);
+    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, m_BRDFLut);
     
     //SetupRenderSlimePasses();
 }
@@ -617,14 +622,6 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
         .Build(GetFrameContext().DeletionQueue);
 
     return info;
-}
-
-void Renderer::ProcessPendingPBRTextures()
-{
-    CPU_PROFILE_FRAME("ProcessPendingPBRTextures")
-
-    if (!m_BRDF)
-        m_BRDF = std::make_shared<Texture>(BRDFProcessor::CreateBRDF(GetFrameContext().Cmd));
 }
 
 void Renderer::EndFrame()
