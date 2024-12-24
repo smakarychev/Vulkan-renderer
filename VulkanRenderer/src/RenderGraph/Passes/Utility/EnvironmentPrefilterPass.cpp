@@ -82,8 +82,6 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                 RenderCommand::Dispatch(cmd,
                     {resolution, resolution, 6},
                     {32, 32, 1});
-
-                resolution = std::max(1u, resolution >> 1);
             });
 
         if (mipmap == prefiltered.Description().Mipmaps - 1)
