@@ -671,7 +671,6 @@ Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
         if (!createInfo.NoMips)
             image.CreateMipmaps(cmd, ImageLayout::Destination);
         imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
-        PrepareForShaderRead(cmd, imageSubresource);
     });
     Buffer::Destroy(createInfo.DataBuffer);
     
@@ -698,15 +697,6 @@ void Image::PrepareForMipmapSource(const CommandBuffer& cmd, const ImageSubresou
         currentLayout, ImageLayout::Source,
         PipelineAccess::WriteAll, PipelineAccess::ReadTransfer,
         PipelineStage::AllCommands, PipelineStage::AllTransfer);
-}
-
-void Image::PrepareForShaderRead(const CommandBuffer& cmd, const ImageSubresource& imageSubresource)
-{
-    ImageLayout current = imageSubresource.Description.Mipmaps > 1 ? ImageLayout::Source : ImageLayout::Destination;
-    PrepareImageGeneral(cmd, imageSubresource,
-       current, ImageLayout::Readonly,
-       PipelineAccess::ReadTransfer, PipelineAccess::ReadShader,
-       PipelineStage::AllTransfer, PipelineStage::PixelShader | PipelineStage::ComputeShader);
 }
 
 void Image::PrepareImageGeneral(const CommandBuffer& cmd,

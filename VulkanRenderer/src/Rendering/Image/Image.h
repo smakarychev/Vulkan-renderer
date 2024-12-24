@@ -195,7 +195,6 @@ private:
     static void PrepareForMipmapDestination(const CommandBuffer& cmd, const ImageSubresource& imageSubresource);
     static void PrepareForMipmapSource(const CommandBuffer& cmd, const ImageSubresource& imageSubresource,
         ImageLayout currentLayout);
-    static void PrepareForShaderRead(const CommandBuffer& cmd, const ImageSubresource& imageSubresource);
     static void PrepareImageGeneral(const CommandBuffer& cmd,
         const ImageSubresource& imageSubresource,
         ImageLayout current, ImageLayout target,
