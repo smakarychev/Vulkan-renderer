@@ -11,7 +11,7 @@ namespace
     {};
     
     RG::Pass& convertEquirectangularToCubemapPass(std::string_view name, RG::Graph& renderGraph,
-        const Texture& equirectangular, const Texture& cubemap)
+        RG::Resource equirectangular, const Texture& cubemap)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -24,10 +24,9 @@ namespace
                 graph.SetShader("../assets/shaders/equirectangular-to-cubemap.shader");
                 
                 passData.Cubemap = graph.AddExternal(std::format("{}.Cubemap", name), cubemap);
-                passData.Equirectangular = graph.AddExternal(std::format("{}.Equirectangular", name), equirectangular);
                 
                 passData.Cubemap = graph.Write(passData.Cubemap, Compute | Storage);
-                passData.Equirectangular = graph.Read(passData.Equirectangular, Compute | Sampled);
+                passData.Equirectangular = graph.Read(equirectangular, Compute | Sampled);
                 
                 graph.UpdateBlackboard(passData);
             },
@@ -71,6 +70,14 @@ namespace
 
 RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const Texture& equirectangular, const Texture& cubemap)
+{
+    return addToGraph(name, renderGraph,
+        renderGraph.AddExternal(std::format("{}.Equirectangular", name), equirectangular),
+        cubemap);
+}
+
+RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Resource equirectangular, const Texture& cubemap)
 {
     using namespace RG;
     using enum ResourceAccessFlags;

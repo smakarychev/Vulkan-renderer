@@ -48,7 +48,6 @@
 #include "Rendering/ShaderCache.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 #include "Rendering/Image/Processing/BRDFProcessor.h"
-#include "Rendering/Image/Processing/CubemapProcessor.h"
 #include "Rendering/Image/Processing/DiffuseIrradianceProcessor.h"
 #include "Rendering/Image/Processing/EnvironmentPrefilterProcessor.h"
 

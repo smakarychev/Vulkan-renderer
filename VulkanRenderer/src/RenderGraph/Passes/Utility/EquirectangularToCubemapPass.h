@@ -10,5 +10,7 @@ namespace Passes::EquirectangularToCubemap
     };
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& equirectangular,
         const Texture& cubemap);
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource equirectangular,
+        const Texture& cubemap);
 }
 
