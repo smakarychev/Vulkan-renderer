@@ -106,8 +106,7 @@ float geometry_schlick_ggx(float n_dot_v, float roughness) {
     return nom / denom;
 }
 
-float geometry_smith(vec3 N, vec3 V, vec3 L, float roughness)
-{
+float geometry_smith(vec3 N, vec3 V, vec3 L, float roughness) {
     float n_dot_v = max(dot(N, V), 0.0);
     float n_dot_l = max(dot(N, L), 0.0);
     float ggx2 = geometry_schlick_ggx(n_dot_v, roughness);
