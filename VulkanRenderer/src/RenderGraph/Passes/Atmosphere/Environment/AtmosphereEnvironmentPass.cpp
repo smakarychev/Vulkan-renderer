@@ -66,7 +66,8 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG:
                         .Near = NEAR,
                         .Far = FAR,
                         .ViewportWidth = environmentSize,
-                        .ViewportHeight = environmentSize},
+                        .ViewportHeight = environmentSize,
+                        .FlipY = false},
                     .Fov = glm::radians(90.0f)});
                 
                 auto& atmosphere = Raymarch::addToGraph(std::format("{}.{}.Raymarch", name, face), graph,
