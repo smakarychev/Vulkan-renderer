@@ -233,10 +233,13 @@ vec2 multiscattering_uv_from_r_mu(AtmosphereSettings atmosphere, float r, float 
 vec3 get_sun_luminance(vec3 ro, vec3 rd, vec3 sun_dir, float surface_radius) {
     const float aperture_degrees = 0.545f;
     const vec3 sun_luminance = vec3(8e+4f);
-    if (dot(rd, sun_dir) > cos(0.5f * aperture_degrees * PI / 180.0f)) {
+    const float cos_half_apex = cos(0.5f * aperture_degrees * PI / 180.0f);
+    const float cos_view_sun = dot(rd, sun_dir);
+    
+    if (cos_view_sun > cos_half_apex) {
         const float t_surface = intersect_sphere(ro, rd, vec3(0.0f), surface_radius).t;
         if (t_surface == NO_HIT) {
-            return sun_luminance;
+            return sun_luminance * clamp(3 * (cos_view_sun - cos_half_apex) / (cos_half_apex), 0.0, 1.0f);
         }
     }
     
