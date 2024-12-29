@@ -41,6 +41,8 @@ struct CameraCreateInfo
 
     u32 ViewportWidth{1600};
     u32 ViewportHeight{900};
+
+    bool FlipY{true};
 };
 
 struct PerspectiveCameraCreateInfo
@@ -107,6 +109,7 @@ private:
     void UpdateViewMatrix();
     void UpdateProjectionMatrix();
     void UpdateViewProjection();
+    void FlipProjectionVertically();
 private:
     CameraType m_CameraType{};
     glm::vec3 m_Position;
@@ -121,6 +124,8 @@ private:
     f32 m_NearClipPlane, m_FarClipPlane;
     f32 m_FieldOfView;
     u32 m_ViewportWidth = 1600, m_ViewportHeight = 900;
+
+    bool m_FlipY{true};
 };
 
 class CameraController

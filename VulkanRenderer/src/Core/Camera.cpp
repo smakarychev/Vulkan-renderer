@@ -45,10 +45,10 @@ Camera Camera::Perspective(const PerspectiveCameraCreateInfo& info)
     camera.m_FarClipPlane = info.BaseInfo.Far;
     camera.m_ViewportWidth = info.BaseInfo.ViewportWidth;
     camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
+    camera.m_FlipY = info.BaseInfo.FlipY;
 
     camera.m_FieldOfView = info.Fov;
     camera.m_Aspect = (f32)camera.m_ViewportWidth / (f32)camera.m_ViewportHeight;
-
     camera.UpdateViewMatrix();
     camera.UpdateProjectionMatrix();
     camera.UpdateViewProjection();
@@ -65,6 +65,7 @@ Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
     camera.m_FarClipPlane = info.BaseInfo.Far;
     camera.m_ViewportWidth = info.BaseInfo.ViewportWidth;
     camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
+    camera.m_FlipY = info.BaseInfo.FlipY;
 
     f32 halfHeight = (info.Top - info.Bottom) * 0.5f;
     f32 halfWidth = (info.Right - info.Left) * 0.5f;
@@ -74,8 +75,8 @@ Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
     camera.UpdateViewMatrix();
     camera.m_ProjectionMatrix = glm::orthoRH_ZO(info.Left, info.Right, info.Bottom, info.Top,
         info.BaseInfo.Far, info.BaseInfo.Near);
-    camera.m_ProjectionMatrix[1][1] *= -1.0f;
-    camera.m_ProjectionMatrix[3][1] *= -1.0f;
+    if (camera.m_FlipY)
+        camera.FlipProjectionVertically();
     camera.UpdateViewProjection();
 
     return camera;
@@ -110,12 +111,14 @@ void Camera::SetOrientation(const glm::quat& orientation)
 
 void Camera::SetView(const glm::mat4& view)
 {
-    m_ViewMatrix = view; UpdateViewProjection();
+    m_ViewMatrix = view;
+    UpdateViewProjection();
 }
 
 void Camera::SetProjection(const glm::mat4& projection)
 {
-    m_ProjectionMatrix = projection; UpdateViewProjection();
+    m_ProjectionMatrix = projection;
+    UpdateViewProjection();
 }
 
 void Camera::SetViewport(u32 width, u32 height)
@@ -158,7 +161,7 @@ FrustumPlanes Camera::GetFrustumPlanes() const
 
         frustumPlanes.RightX = mat[0][0] * rightLengthInverse;
         frustumPlanes.RightZ = rightLengthInverse;
-        frustumPlanes.TopY = -mat[1][1] * topLengthInverse;
+        frustumPlanes.TopY = std::abs(mat[1][1]) * topLengthInverse;
         frustumPlanes.TopZ = topLengthInverse;
         break;
     }
@@ -166,7 +169,7 @@ FrustumPlanes Camera::GetFrustumPlanes() const
     {
         frustumPlanes.RightX = mat[0][0];
         frustumPlanes.RightZ = 0.0f;
-        frustumPlanes.TopY = -mat[1][1];
+        frustumPlanes.TopY = std::abs(mat[1][1]);
         frustumPlanes.TopZ = 0.0f;
         break;
     }
@@ -217,7 +220,7 @@ ProjectionData Camera::GetProjectionData() const
 {
     const glm::mat4& mat = GetProjection();
     
-    return {mat[0][0], -mat[1][1], mat[3][0], -mat[3][1]};
+    return {mat[0][0], std::abs(mat[1][1]), mat[3][0], std::abs(mat[3][1])};
 }
 
 Plane Camera::GetNearViewPlane() const
@@ -250,18 +253,24 @@ void Camera::UpdateProjectionMatrix()
         f32 x = orthoWidth * 0.5f;
         f32 y = orthoHeight * 0.5f;
         m_ProjectionMatrix = glm::orthoRH_ZO(-x, x, -y, y, m_FarClipPlane, m_NearClipPlane);
-        m_ProjectionMatrix[3][1] *= -1.0f;
         break;
     }
     }
-    
-    m_ProjectionMatrix[1][1] *= -1.0f;
+
+    if (m_FlipY)
+        FlipProjectionVertically();
 }
 
 void Camera::UpdateViewProjection()
 {
     m_ViewProjection = m_ProjectionMatrix * m_ViewMatrix;
     m_ViewProjectionInverse = glm::inverse(m_ViewProjection);
+}
+
+void Camera::FlipProjectionVertically()
+{
+    m_ProjectionMatrix[1][1] *= -1.0f;
+    m_ProjectionMatrix[3][1] *= -1.0f;
 }
 
 static constexpr f32 DEFAULT_TRANSLATION_SPEED	         = 0.1f;
