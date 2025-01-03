@@ -1,29 +1,34 @@
 #include "ModelCollection.h"
 
+#include "BindlessTextureDescriptorsRingBuffer.h"
 #include "Model.h"
 #include "Rendering/Image/Image.h"
-#include "Rendering/Shader.h"
 #include "Vulkan/Driver.h"
+
+void ModelCollection::SetBindlessTextureDescriptorsRingBuffer(BindlessTextureDescriptorsRingBuffer& buffer)
+{
+    m_TextureDescriptorsRingBuffer = &buffer;
+}
 
 void ModelCollection::CreateDefaultTextures()
 {
     // add default white texture, so that every material has a texture (to avoid branching in shaders)
-    m_WhiteTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::White, Driver::DeletionQueue()),
-        m_Textures);
+    m_WhiteTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
+        ImageUtils::DefaultTexture::White, Driver::DeletionQueue()));
 
     // black is default emissive texture
-    m_BlackTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::Black, Driver::DeletionQueue()),
-        m_Textures);
+    m_BlackTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
+        ImageUtils::DefaultTexture::Black, Driver::DeletionQueue()));
 
-    m_NormalMapTexture = AddRenderHandle(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::NormalMap, Driver::DeletionQueue()),
-        m_Textures);
+    m_NormalMapTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
+        ImageUtils::DefaultTexture::NormalMap, Driver::DeletionQueue()));
 }
 
 void ModelCollection::RegisterModel(Model* model, const std::string& name)
 {
+    ASSERT(m_TextureDescriptorsRingBuffer,
+        "It is necessary to set BindlessTextureDescriptorsRingBuffer before registering any models")
+    
     if (m_Models.contains(name))
     {
         if (m_Models.at(name).Model != model)
@@ -63,27 +68,6 @@ void ModelCollection::AddModelInstance(const std::string& modelName, const Model
             modelInstanceInfo.Transform.Position,
             modelInstanceInfo.Transform.Orientation,
             modelInstanceInfo.Transform.Scale));
-    }
-}
-
-void ModelCollection::ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const
-{
-    for (u32 textureIndex = 0; textureIndex < m_Textures.size(); textureIndex++)
-    {
-        const Texture& texture = m_Textures[textureIndex];
-        bindlessDescriptorSet.SetTexture(UNIFORM_TEXTURES, texture, textureIndex);
-    }
-}
-
-void ModelCollection::ApplyMaterialTextures(ShaderDescriptors& bindlessDescriptors) const
-{
-    ShaderDescriptors::BindingInfo bindingInfo = bindlessDescriptors.GetBindingInfo(UNIFORM_TEXTURES);
-    
-    for (u32 textureIndex = 0; textureIndex < m_Textures.size(); textureIndex++)
-    {
-        const Texture& texture = m_Textures[textureIndex];
-        bindlessDescriptors.UpdateGlobalBinding(bindingInfo,
-            texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly), textureIndex);
     }
 }
 
@@ -186,5 +170,7 @@ RenderHandle<Mesh> ModelCollection::AddMesh(const Mesh& mesh)
 
 RenderHandle<Texture> ModelCollection::AddTexture(const Texture& texture)
 {
-    return AddRenderHandle(texture, m_Textures);
+    u32 textureDescriptorIndex = m_TextureDescriptorsRingBuffer->AddTexture(texture);
+    
+    return m_Textures.insert(textureDescriptorIndex, texture); 
 }

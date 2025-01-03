@@ -48,6 +48,7 @@
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Rendering/ShaderCache.h"
+#include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 
 Renderer::Renderer() = default;
@@ -96,9 +97,14 @@ void Renderer::Init()
 
 void Renderer::InitRenderGraph()
 {
+    m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
+        1024,
+        ShaderTemplateLibrary::CreateMaterialsTemplate("Core.Materials", m_Graph->GetArenaAllocators()));
+    m_GraphModelCollection.SetBindlessTextureDescriptorsRingBuffer(*m_BindlessTextureDescriptorsRingBuffer);
+    
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
     Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/shadow/scene.model");
+    Model* car = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
     Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
     m_GraphModelCollection.CreateDefaultTextures();
     m_GraphModelCollection.RegisterModel(helmet, "helmet");
@@ -109,7 +115,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.AddModelInstance("car", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{1.0f}}});
+            .Scale = glm::vec3{0.2f}}});
     
     m_GraphOpaqueGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
         *GetFrameContext().ResourceUploader,
@@ -124,22 +130,12 @@ void Renderer::InitRenderGraph()
 
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
 
-    auto drawTemplate = ShaderTemplateLibrary::LoadShaderPipelineTemplate({
-        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-vert.stage",
-        "../assets/shaders/processed/render-graph/general/draw-indirect-culled-frag.stage",},
-        "Pass.DrawCulled", m_Graph->GetArenaAllocators());
-    
-    ShaderDescriptors materialDescriptors = ShaderDescriptors::Builder()
-            .SetTemplate(drawTemplate, DescriptorAllocatorKind::Resources)
-            // todo: make this (2) an enum
-            .ExtractSet(2)
-            .BindlessCount(1024)
-            .Build();
-    materialDescriptors.UpdateGlobalBinding(UNIFORM_MATERIALS, m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
-    m_GraphModelCollection.ApplyMaterialTextures(materialDescriptors);
+
+    m_BindlessTextureDescriptorsRingBuffer->GetDescriptors()
+        .UpdateGlobalBinding(UNIFORM_MATERIALS, m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
 
     ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
-    ShaderCache::AddBindlessDescriptors("main_materials", materialDescriptors);
+    ShaderCache::AddBindlessDescriptors("main_materials", m_BindlessTextureDescriptorsRingBuffer->GetDescriptors());
     
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
@@ -149,15 +145,16 @@ void Renderer::InitRenderGraph()
          * - have both `u_materials` and `u_translucent_materials` (not so bad)
          * - have two different descriptors: set (2) for materials and set (3) for bindless textures
          */
-        ShaderDescriptors translucentMaterialDescriptors = ShaderDescriptors::Builder()
+        // todo: fix me once i fix api
+        /*ShaderDescriptors translucentMaterialDescriptors = ShaderDescriptors::Builder()
                 .SetTemplate(drawTemplate, DescriptorAllocatorKind::Resources)
                 // todo: make this (2) an enum
                 .ExtractSet(2)
                 .BindlessCount(1024)
                 .Build();
         translucentMaterialDescriptors.UpdateGlobalBinding(UNIFORM_MATERIALS,
-            m_GraphTranslucentGeometry.GetMaterialsBuffer().BindingInfo());
-        m_GraphModelCollection.ApplyMaterialTextures(translucentMaterialDescriptors);
+            m_GraphTranslucentGeometry.GetMaterialsBuffer().BindingInfo());*/
+        //m_GraphModelCollection.ApplyMaterialTextures(translucentMaterialDescriptors);
     }
     
     // todo: separate geometry for shadow casters
@@ -175,7 +172,7 @@ void Renderer::InitRenderGraph()
 
 void Renderer::ExecuteSingleTimePasses()
 {
-    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/kloofendal_43d_clear_puresky_4k.tx";
+    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/autumn_field_puresky_4k.tx";
     Texture equirectangular = Texture::Builder({.Usage = ImageUsage::Sampled})
         .FromAssetFile(SKYBOX_PATH)
         .NoMips()
@@ -191,6 +188,9 @@ void Renderer::ExecuteSingleTimePasses()
     m_IrradianceSH = Buffer::Builder(
         {.SizeBytes = sizeof(SH9Irradiance), .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
         .Build();
+    m_SkyIrradianceSH = Buffer::Builder(
+        {.SizeBytes = sizeof(SH9Irradiance), .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
+        .Build();
 
     m_BRDFLut = Texture::Builder(Passes::BRDFLut::getLutDescription())
         .Build();
@@ -200,7 +200,7 @@ void Renderer::ExecuteSingleTimePasses()
     Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox", *m_Graph,
         equirectangular, m_SkyboxTexture);
     Passes::DiffuseIrradianceSH::addToGraph(
-        "Scene.DiffuseIrradianceSH", *m_Graph, m_SkyboxTexture, m_IrradianceSH, true);
+        "Scene.DiffuseIrradianceSH", *m_Graph, m_SkyboxTexture, m_IrradianceSH, false);
     Passes::EnvironmentPrefilter::addToGraph(
         "Scene.EnvironmentPrefilter", *m_Graph, m_SkyboxTexture, m_SkyboxPrefilterMap);
     Passes::BRDFLut::addToGraph(
@@ -366,6 +366,11 @@ void Renderer::SetupRenderGraph()
         .GeometryBounds = m_GraphOpaqueGeometry.GetBounds()});
     auto& csmOutput = blackboard.Get<Passes::CSM::PassData>(csm);
 
+    static bool useSky = false;
+    ImGui::Begin("Use sky as env");
+    ImGui::Checkbox("Sky", &useSky);
+    ImGui::End();
+
     auto& pbr = Passes::Pbr::VisibilityIbl::addToGraph("Pbr.Visibility.Ibl", *m_Graph, {
         .VisibilityTexture = visibilityOutput.ColorOut,
         .ColorIn = {},
@@ -374,7 +379,7 @@ void Renderer::SetupRenderGraph()
         .Tiles = tileLights ? blackboard.Get<TileLightsInfo>().Tiles : Resource{},
         .ZBins = tileLights ? blackboard.Get<TileLightsInfo>().ZBins : Resource{},
         .IBL = {
-            .IrradianceSH = m_Graph->AddExternal("IrradianceSH", m_IrradianceSH),
+            .IrradianceSH = m_Graph->AddExternal("IrradianceSH", useSky ? m_SkyIrradianceSH : m_IrradianceSH),
             .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
             .BRDF = m_Graph->AddExternal("BRDF", m_BRDFLut)},
         .SSAO = {
@@ -415,6 +420,14 @@ void Renderer::SetupRenderGraph()
                 .CSM = csmOutput.CSM});
         auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
         
+        
+        // todo: this is a temp place for it obv
+        {
+            if (useSky)
+                Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH", *m_Graph,
+                    atmosphereOutput.EnvironmentOut, m_SkyIrradianceSH, false);
+        }
+        
         Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut", *m_Graph, atmosphereOutput.MultiscatteringLut);
         Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
@@ -424,16 +437,14 @@ void Renderer::SetupRenderGraph()
 
         renderedColor = atmosphereOutput.Atmosphere;
 
-        auto& atmosphereSimple = Passes::AtmosphereSimple::addToGraph("Atmosphere.Simple", *m_Graph, atmosphereOutput.TransmittanceLut);
-        auto& atmosphereSimpleOutput = blackboard.Get<Passes::AtmosphereSimple::PassData>(atmosphereSimple);
-        //auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
-        //    atmosphereSimpleOutput.ColorOut, backbuffer, glm::vec3{}, glm::vec3{1.0f});
+        if (!useSky)
+        {
+            auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
+                atmosphereOutput.EnvironmentOut, renderedColor, visibilityOutput.DepthOut, GetFrameContext().Resolution, 1.2f);
+            auto& skyboxOutput = blackboard.Get<Passes::Skybox::PassData>(skybox);
+            renderedColor = skyboxOutput.ColorOut;
+        }
     }
-    
-    //auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
-    //    m_SkyboxPrefilterMap, pbrOutput.ColorOut, visibilityOutput.DepthOut, GetFrameContext().Resolution, 1.2f);
-    //auto& skyboxOutput = blackboard.Get<Passes::Skybox::PassData>(skybox);
-
     
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
@@ -527,9 +538,6 @@ void Renderer::OnRender()
     CPU_PROFILE_FRAME("On render")
 
     BeginFrame();
-    m_ResourceUploader.BeginFrame(GetFrameContext());
-    ShaderCache::OnFrameBegin(GetFrameContext());
-    ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
     /* light update requires cmd in recording state */
     UpdateLights();
 
@@ -561,7 +569,6 @@ void Renderer::OnRender()
         m_Graph->Compile(GetFrameContext());
         m_Graph->Execute(GetFrameContext());
         
-        ImGuiUI::EndFrame(GetFrameContext().Cmd, GetImGuiUIRenderingInfo());
         EndFrame();
         
         FrameMark; // tracy
@@ -606,6 +613,10 @@ void Renderer::BeginFrame()
             .DestinationAccess = PipelineAccess::ReadAll})
         .Build(GetFrameContext().DeletionQueue);
     RenderCommand::WaitOnBarrier(cmd, di);
+    
+    m_ResourceUploader.BeginFrame(GetFrameContext());
+    ShaderCache::OnFrameBegin(GetFrameContext());
+    ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
 }
 
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
@@ -626,6 +637,8 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 
 void Renderer::EndFrame()
 {
+    ImGuiUI::EndFrame(GetFrameContext().Cmd, GetImGuiUIRenderingInfo());
+
     CommandBuffer& cmd = GetFrameContext().Cmd;
     m_Swapchain.PreparePresent(cmd, m_SwapchainImageIndex);
     

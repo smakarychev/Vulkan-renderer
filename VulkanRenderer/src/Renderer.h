@@ -70,6 +70,7 @@ private:
     
     ResourceUploader m_ResourceUploader;
 
+    std::unique_ptr<BindlessTextureDescriptorsRingBuffer> m_BindlessTextureDescriptorsRingBuffer;
     ModelCollection m_GraphModelCollection;
     SceneGeometry m_GraphOpaqueGeometry;
     SceneGeometry m_GraphTranslucentGeometry;
@@ -82,6 +83,7 @@ private:
     Texture m_SkyboxPrefilterMap{};
     Texture m_BRDFLut{};
     Buffer m_IrradianceSH{};
+    Buffer m_SkyIrradianceSH{};
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
     std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;

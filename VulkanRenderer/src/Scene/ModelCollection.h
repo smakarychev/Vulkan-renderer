@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
+class BindlessTextureDescriptorsRingBuffer;
 class ShaderDescriptors;
 class Image;
 class Mesh;
@@ -28,11 +29,10 @@ public:
     using RenderObjectIndices = std::vector<u32>;
     using RenderObjectPermutation = std::vector<u32>;
 public:
+    void SetBindlessTextureDescriptorsRingBuffer(BindlessTextureDescriptorsRingBuffer& buffer);
     void CreateDefaultTextures();
     void RegisterModel(Model* model, const std::string& name);
     void AddModelInstance(const std::string& modelName, const ModelInstanceInfo& modelInstanceInfo);
-    void ApplyMaterialTextures(ShaderDescriptorSet& bindlessDescriptorSet) const;
-    void ApplyMaterialTextures(ShaderDescriptors& bindlessDescriptors) const;
 
     /* Filter is (const Mesh&, const Material&) -> bool; Callback is (const RenderObject&, u32 index) */ 
     template <typename Filter, typename Callback>
@@ -77,6 +77,7 @@ private:
     std::unordered_map<std::string, ModelInfo> m_Models;
     RenderHandleArray<Mesh> m_Meshes;
     RenderHandleArray<Image> m_Textures;
+    BindlessTextureDescriptorsRingBuffer* m_TextureDescriptorsRingBuffer{nullptr};
     /* is used to not push identical textures into `m_Textures` array */
     std::unordered_map<std::string, RenderHandle<Image>> m_TexturesMap;
     RenderHandleArray<MaterialGPU> m_MaterialsGPU;
