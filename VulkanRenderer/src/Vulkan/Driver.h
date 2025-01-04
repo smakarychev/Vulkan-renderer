@@ -495,7 +495,6 @@ void DeletionQueue::Enqueue(Type& type)
 class Driver
 {
     friend class RenderCommand;
-    friend class ImGuiUI;
 public:
     static void Destroy(ResourceHandleType<QueueInfo> queue);
 
