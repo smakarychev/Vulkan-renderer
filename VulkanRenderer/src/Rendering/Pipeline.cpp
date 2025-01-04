@@ -1,14 +1,14 @@
 ﻿#include "Pipeline.h"
 
 #include "Core/core.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 #include "Rendering/Shader.h"
 
 PipelineLayout PipelineLayout::Builder::Build()
 {
     PipelineLayout layout = PipelineLayout::Create(m_CreateInfo);
-    Driver::DeletionQueue().Enqueue(layout);
+    Device::DeletionQueue().Enqueue(layout);
 
     return layout;
 }
@@ -30,17 +30,17 @@ PipelineLayout::Builder& PipelineLayout::Builder::SetDescriptorLayouts(const std
 
 PipelineLayout PipelineLayout::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void PipelineLayout::Destroy(const PipelineLayout& pipelineLayout)
 {
-    Driver::Destroy(pipelineLayout.Handle());
+    Device::Destroy(pipelineLayout.Handle());
 }
 
 Pipeline Pipeline::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 Pipeline Pipeline::Builder::Build(DeletionQueue& deletionQueue)
@@ -162,12 +162,12 @@ void Pipeline::Builder::PreBuild()
 
 Pipeline Pipeline::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void Pipeline::Destroy(const Pipeline& pipeline)
 {
-    Driver::Destroy(pipeline.Handle());
+    Device::Destroy(pipeline.Handle());
 }
 
 void Pipeline::BindGraphics(const CommandBuffer& commandBuffer) const

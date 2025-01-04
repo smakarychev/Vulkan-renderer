@@ -4,14 +4,14 @@
 #include "Common/SparseSetGenerationTraits.h"
 
 template <typename T>
-class DriverFreelist;
+class DeviceFreelist;
 
 template <typename T>
 class ResourceHandle
 {
     FRIEND_INTERNAL
     template <typename U>
-    friend class DriverFreelist;
+    friend class DeviceFreelist;
 public:
     friend auto constexpr operator<=>(const ResourceHandle& a, const ResourceHandle& b) = default;
 

@@ -9,7 +9,7 @@
 #include "RenderPass.h"
 #include "RGCommon.h"
 #include "RGResourceUploader.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 struct CVarParameter;
 class ShaderOverrides;

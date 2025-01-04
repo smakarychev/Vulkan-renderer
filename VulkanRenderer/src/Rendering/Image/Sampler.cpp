@@ -1,6 +1,6 @@
 #include "Sampler.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 Sampler Sampler::Builder::Build()
 {
@@ -66,12 +66,12 @@ Sampler::Builder& Sampler::Builder::WithAnisotropy(bool enabled)
 
 Sampler Sampler::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void Sampler::Destroy(const Sampler& sampler)
 {
-    Driver::Destroy(sampler.Handle());
+    Device::Destroy(sampler.Handle());
 }
 
 
@@ -85,7 +85,7 @@ Sampler SamplerCache::CreateSampler(const Sampler::Builder::CreateInfo& createIn
     Sampler newSampler = Sampler::Create(createInfo);
     s_SamplerCache.emplace(key, newSampler);
     
-    Driver::DeletionQueue().Enqueue(newSampler);
+    Device::DeletionQueue().Enqueue(newSampler);
 
     return newSampler;
 }

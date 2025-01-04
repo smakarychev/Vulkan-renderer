@@ -12,7 +12,7 @@
  */
 
 template <typename T>
-class DriverFreelist
+class DeviceFreelist
 {
     using OnResizeCallback = void (*)(T* oldMem, T* newMem);
     using OnSwapCallback = void (*)(T& a, T& b);
@@ -22,7 +22,7 @@ class DriverFreelist
 public:
     using ValueType = T;
 
-    ~DriverFreelist();
+    ~DeviceFreelist();
     
     template <typename ... Args>
     constexpr ResourceHandleType<typename T::ObjectType> Add(Args&&... args);
@@ -54,14 +54,14 @@ private:
 };
 
 template <typename T>
-DriverFreelist<T>::~DriverFreelist()
+DeviceFreelist<T>::~DeviceFreelist()
 {
     ASSERT(m_Size == 0, "Free list is not empty at the moment of destruction")
     delete[] (u8*)m_DataStart;
 }
 
 template <typename T>
-constexpr const T& DriverFreelist<T>::operator[](ResourceHandleType<typename T::ObjectType> handle) const
+constexpr const T& DeviceFreelist<T>::operator[](ResourceHandleType<typename T::ObjectType> handle) const
 {
     ASSERT(handle.m_Id < Capacity(), "Element handle out of bounds")
 
@@ -69,14 +69,14 @@ constexpr const T& DriverFreelist<T>::operator[](ResourceHandleType<typename T::
 }
 
 template <typename T>
-constexpr T& DriverFreelist<T>::operator[](ResourceHandleType<typename T::ObjectType> handle)
+constexpr T& DeviceFreelist<T>::operator[](ResourceHandleType<typename T::ObjectType> handle)
 {
-    return const_cast<T&>(const_cast<const DriverFreelist&>(*this)[handle.m_Id]);
+    return const_cast<T&>(const_cast<const DeviceFreelist&>(*this)[handle.m_Id]);
 }
 
 template <typename T>
 template <typename ... Args>
-constexpr ResourceHandleType<typename T::ObjectType> DriverFreelist<T>::Add(Args&&... args)
+constexpr ResourceHandleType<typename T::ObjectType> DeviceFreelist<T>::Add(Args&&... args)
 {
     u32 index;  
     if (m_FirstFree != NON_INDEX)
@@ -100,7 +100,7 @@ constexpr ResourceHandleType<typename T::ObjectType> DriverFreelist<T>::Add(Args
 
 template <typename T>
 template <typename ... Args>
-constexpr void DriverFreelist<T>::EmplaceBack(Args&&... args)
+constexpr void DeviceFreelist<T>::EmplaceBack(Args&&... args)
 {
     if (m_DataCurrent == m_DataEnd)
     {
@@ -112,7 +112,7 @@ constexpr void DriverFreelist<T>::EmplaceBack(Args&&... args)
 }
 
 template <typename T>
-constexpr void DriverFreelist<T>::Resize(u32 oldSize, u32 newSize)
+constexpr void DeviceFreelist<T>::Resize(u32 oldSize, u32 newSize)
 {
     T* newData = (T*)new u8[newSize * sizeof(T)];
     // remember: if you silence an UB warning then it is UB no longer
@@ -127,7 +127,7 @@ constexpr void DriverFreelist<T>::Resize(u32 oldSize, u32 newSize)
 }
 
 template <typename T>
-constexpr void DriverFreelist<T>::Remove(ResourceHandleType<typename T::ObjectType> handle)
+constexpr void DeviceFreelist<T>::Remove(ResourceHandleType<typename T::ObjectType> handle)
 {
     ASSERT(handle.m_Id < Capacity(), "Element handle out of bounds")
 

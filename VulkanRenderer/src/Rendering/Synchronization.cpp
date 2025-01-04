@@ -1,11 +1,11 @@
 ﻿#include "Synchronization.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
 Fence Fence::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 Fence Fence::Builder::Build(DeletionQueue& deletionQueue)
@@ -30,32 +30,32 @@ Fence::Builder& Fence::Builder::StartSignaled(bool isSignaled)
 
 Fence Fence::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void Fence::Destroy(const Fence& fence)
 {
-    Driver::Destroy(fence.Handle());
+    Device::Destroy(fence.Handle());
 }
 
 void Fence::Reset() const
 {
-    Driver::ResetFence(*this);
+    Device::ResetFence(*this);
 }
 
 void Fence::Wait() const
 {
-    Driver::WaitForFence(*this);
+    Device::WaitForFence(*this);
 }
 
 bool Fence::Check() const
 {
-    return Driver::CheckFence(*this);
+    return Device::CheckFence(*this);
 }
 
 Semaphore Semaphore::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 Semaphore Semaphore::Builder::Build(DeletionQueue& deletionQueue)
@@ -73,17 +73,17 @@ Semaphore Semaphore::Builder::BuildManualLifetime()
 
 Semaphore Semaphore::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void Semaphore::Destroy(const Semaphore& semaphore)
 {
-    Driver::Destroy(semaphore.Handle());
+    Device::Destroy(semaphore.Handle());
 }
 
 TimelineSemaphore TimelineSemaphore::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 TimelineSemaphore TimelineSemaphore::Builder::Build(DeletionQueue& deletionQueue)
@@ -108,28 +108,28 @@ TimelineSemaphore::Builder& TimelineSemaphore::Builder::InitialValue(u64 value)
 
 TimelineSemaphore TimelineSemaphore::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void TimelineSemaphore::Destroy(const TimelineSemaphore& semaphore)
 {
-    Driver::Destroy(semaphore.Handle());
+    Device::Destroy(semaphore.Handle());
 }
 
 void TimelineSemaphore::WaitCPU(u64 value) const
 {
-    Driver::TimelineSemaphoreWaitCPU(*this, value);
+    Device::TimelineSemaphoreWaitCPU(*this, value);
 }
 
 void TimelineSemaphore::SignalCPU(u64 value)
 {
-    Driver::TimelineSemaphoreSignalCPU(*this, value);
+    Device::TimelineSemaphoreSignalCPU(*this, value);
 }
 
 
 DependencyInfo DependencyInfo::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 DependencyInfo DependencyInfo::Builder::Build(DeletionQueue& deletionQueue)
@@ -171,12 +171,12 @@ DependencyInfo::Builder& DependencyInfo::Builder::LayoutTransition(const LayoutT
 
 DependencyInfo DependencyInfo::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void DependencyInfo::Destroy(const DependencyInfo& dependencyInfo)
 {
-    Driver::Destroy(dependencyInfo.Handle());
+    Device::Destroy(dependencyInfo.Handle());
 }
 
 
@@ -187,7 +187,7 @@ void Barrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInf
 
 SplitBarrier SplitBarrier::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 SplitBarrier SplitBarrier::Builder::Build(DeletionQueue& deletionQueue)
@@ -205,12 +205,12 @@ SplitBarrier SplitBarrier::Builder::BuildManualLifetime()
 
 SplitBarrier SplitBarrier::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void SplitBarrier::Destroy(const SplitBarrier& splitBarrier)
 {
-    Driver::Destroy(splitBarrier.Handle());
+    Device::Destroy(splitBarrier.Handle());
 }
 
 void SplitBarrier::Signal(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const

@@ -6,7 +6,7 @@
 #include "Rendering/ResourceHandle.h"
 
 template <typename T>
-class DriverSparseSet
+class DeviceSparseSet
 {
     using OnResizeCallback = void (*)(T* oldMem, T* newMem);
     using OnSwapCallback = void (*)(T& a, T& b);
@@ -39,7 +39,7 @@ private:
 
 template <typename T>
 template <typename ... Args>
-constexpr GenerationalResourceHandle<typename T::ObjectType> DriverSparseSet<T>::Add(Args&&... args)
+constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>::Add(Args&&... args)
 {
     Handle handle = {};
     
@@ -60,7 +60,7 @@ constexpr GenerationalResourceHandle<typename T::ObjectType> DriverSparseSet<T>:
 }
 
 template <typename T>
-constexpr void DriverSparseSet<T>::Remove(GenerationalResourceHandle<typename T::ObjectType> handle)
+constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T::ObjectType> handle)
 {
     auto&& [gen, index] = Traits::Decompose(handle);
     auto popCallback = [this, gen, index]()
@@ -79,7 +79,7 @@ constexpr void DriverSparseSet<T>::Remove(GenerationalResourceHandle<typename T:
 }
 
 template <typename T>
-constexpr const T& DriverSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle) const
+constexpr const T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle) const
 {
     u32 index = m_SparseSet.GetIndexOf(handle);
     
@@ -87,7 +87,7 @@ constexpr const T& DriverSparseSet<T>::operator[](GenerationalResourceHandle<typ
 }
 
 template <typename T>
-constexpr T& DriverSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle)
+constexpr T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle)
 {
-    return const_cast<T&>(const_cast<const DriverSparseSet&>(*this)[handle]);
+    return const_cast<T&>(const_cast<const DeviceSparseSet&>(*this)[handle]);
 }

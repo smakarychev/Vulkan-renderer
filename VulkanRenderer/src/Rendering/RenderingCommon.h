@@ -10,12 +10,12 @@
 #include "Core/core.h"
 
 #define FRIEND_INTERNAL \
-    friend class Driver; \
-    friend class DriverResources; \
+    friend class Device; \
+    friend class DeviceResources; \
     friend class DeletionQueue; \
     friend class RenderCommand;
 
-#define GPU_PROFILE_FRAME(name) TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()), name)
+#define GPU_PROFILE_FRAME(name) TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Device::GetProfilerCommandBuffer(ProfilerContext::Get()), name)
 #define CPU_PROFILE_FRAME(name) ZoneScopedN(name);
 
 class Buffer;

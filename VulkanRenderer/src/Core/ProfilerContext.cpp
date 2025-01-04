@@ -1,6 +1,6 @@
 ﻿#include "ProfilerContext.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Rendering/CommandBuffer.h"
 
 ProfilerContext* ProfilerContext::Get()
@@ -12,14 +12,14 @@ ProfilerContext* ProfilerContext::Get()
 void ProfilerContext::Init(const std::array<CommandBuffer*, BUFFERED_FRAMES>& cmds)
 {
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        m_GraphicsContexts[i] = Driver::CreateTracyGraphicsContext(*cmds[i]);
+        m_GraphicsContexts[i] = Device::CreateTracyGraphicsContext(*cmds[i]);
     m_GraphicsCommandBuffers = cmds;
 }
 
 void ProfilerContext::Shutdown()
 {
     for (auto ctx : m_GraphicsContexts)
-        Driver::DestroyTracyGraphicsContext(ctx);
+        Device::DestroyTracyGraphicsContext(ctx);
 }
 
 TracyVkCtx ProfilerContext::GraphicsContext()

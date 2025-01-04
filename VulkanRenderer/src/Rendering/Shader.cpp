@@ -10,7 +10,7 @@
 #include "Buffer.h"
 #include "Core/core.h"
 #include "Descriptors.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Pipeline.h"
 #include "Vulkan/RenderCommand.h"
 #include "utils/utils.h"
@@ -101,11 +101,11 @@ namespace
         {
         case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:                
         case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:          
-        case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return Driver::GetMaxIndexingImages();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:         return Driver::GetMaxIndexingUniformBuffers();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:         return Driver::GetMaxIndexingStorageBuffers();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return Driver::GetMaxIndexingUniformBuffersDynamic();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return Driver::GetMaxIndexingStorageBuffersDynamic();
+        case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return Device::GetMaxIndexingImages();
+        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:         return Device::GetMaxIndexingUniformBuffers();
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:         return Device::GetMaxIndexingStorageBuffers();
+        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return Device::GetMaxIndexingUniformBuffersDynamic();
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return Device::GetMaxIndexingStorageBuffersDynamic();
         default:
             ASSERT(false, "Unsupported descriptor bindless type")
             break;
@@ -635,7 +635,7 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
 
 ShaderPipeline ShaderPipeline::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 ShaderPipeline ShaderPipeline::Builder::Build(DeletionQueue& deletionQueue)

@@ -11,7 +11,7 @@
 #include "Scene/SceneGeometry.h"
 #include "FrameContext.h"
 #include "Light/SceneLight.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
 
 class SlimeMoldPass;

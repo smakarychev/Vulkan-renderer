@@ -1,6 +1,6 @@
 ﻿#include "Swapchain.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 #include "utils/utils.h"
 
@@ -9,7 +9,7 @@ Swapchain Swapchain::Builder::Build()
     PreBuild();
     
     Swapchain swapchain = Swapchain::Create(m_CreateInfo);
-    Driver::DeletionQueue().Enqueue(swapchain);
+    Device::DeletionQueue().Enqueue(swapchain);
 
     return swapchain;
 }
@@ -82,27 +82,27 @@ std::vector<SwapchainFrameSync> Swapchain::Builder::CreateSynchronizationStructu
 
 Swapchain Swapchain::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void Swapchain::Destroy(const Swapchain& swapchain)
 {
-    Driver::Destroy(swapchain.Handle());
+    Device::Destroy(swapchain.Handle());
 }
 
 void Swapchain::DestroyImages(const Swapchain& swapchain)
 {
-    Driver::DestroySwapchainImages(swapchain);
+    Device::DestroySwapchainImages(swapchain);
 }
 
 u32 Swapchain::AcquireImage(u32 frameNumber)
 {
-    return Driver::AcquireNextImage(*this, m_SwapchainFrameSync[frameNumber]);
+    return Device::AcquireNextImage(*this, m_SwapchainFrameSync[frameNumber]);
 }
 
 bool Swapchain::PresentImage(QueueKind queueKind, u32 imageIndex, u32 frameNumber)
 {
-    return Driver::Present(*this, queueKind, m_SwapchainFrameSync[frameNumber], imageIndex);
+    return Device::Present(*this, queueKind, m_SwapchainFrameSync[frameNumber], imageIndex);
 }
 
 void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
@@ -159,7 +159,7 @@ const std::vector<SwapchainFrameSync>& Swapchain::GetFrameSync() const
 
 std::vector<Image> Swapchain::CreateColorImages() const
 {
-    return Driver::CreateSwapchainImages(*this);
+    return Device::CreateSwapchainImages(*this);
 }
 
 Image Swapchain::CreateDrawImage()

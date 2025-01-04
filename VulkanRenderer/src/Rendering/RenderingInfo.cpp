@@ -1,6 +1,6 @@
 #include "RenderingInfo.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 RenderingAttachment::Builder::Builder(const RenderingAttachmentDescription& description)
 {
@@ -30,7 +30,7 @@ RenderingAttachment::Builder::Builder(const DepthStencilAttachmentDescription& d
 
 RenderingAttachment RenderingAttachment::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 RenderingAttachment RenderingAttachment::Builder::Build(DeletionQueue& deletionQueue)
@@ -109,17 +109,17 @@ RenderingAttachment::Builder& RenderingAttachment::Builder::ClearValue(f32 depth
 
 RenderingAttachment RenderingAttachment::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void RenderingAttachment::Destroy(const RenderingAttachment& renderingAttachment)
 {
-    Driver::Destroy(renderingAttachment.Handle());
+    Device::Destroy(renderingAttachment.Handle());
 }
 
 RenderingInfo RenderingInfo::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 RenderingInfo RenderingInfo::Builder::Build(DeletionQueue& deletionQueue)
@@ -152,10 +152,10 @@ RenderingInfo::Builder& RenderingInfo::Builder::SetResolution(const glm::uvec2& 
 
 RenderingInfo RenderingInfo::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void RenderingInfo::Destroy(const RenderingInfo& renderingInfo)
 {
-    Driver::Destroy(renderingInfo.Handle());
+    Device::Destroy(renderingInfo.Handle());
 }

@@ -1,6 +1,6 @@
 ﻿#include "CommandBuffer.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
 CommandBuffer CommandBuffer::Builder::Build()
@@ -24,12 +24,12 @@ CommandBuffer::Builder& CommandBuffer::Builder::SetKind(CommandBufferKind kind)
 
 CommandBuffer CommandBuffer::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void CommandBuffer::Reset() const
 {
-    Driver::ResetCommandBuffer(*this);
+    Device::ResetCommandBuffer(*this);
 }
 
 void CommandBuffer::Begin() const
@@ -39,39 +39,39 @@ void CommandBuffer::Begin() const
 
 void CommandBuffer::Begin(CommandBufferUsage commandBufferUsage) const
 {
-    Driver::BeginCommandBuffer(*this, commandBufferUsage);
+    Device::BeginCommandBuffer(*this, commandBufferUsage);
 }
 
 void CommandBuffer::End() const
 {
-    Driver::EndCommandBuffer(*this);
+    Device::EndCommandBuffer(*this);
 }
 
 void CommandBuffer::Submit(QueueKind queueKind, const BufferSubmitSyncInfo& submitSync) const
 {
-   Driver::SubmitCommandBuffer(*this, queueKind, submitSync);
+   Device::SubmitCommandBuffer(*this, queueKind, submitSync);
 }
 
 void CommandBuffer::Submit(QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync) const
 {
-    Driver::SubmitCommandBuffer(*this, queueKind, submitSync);
+    Device::SubmitCommandBuffer(*this, queueKind, submitSync);
 }
 
 void CommandBuffer::Submit(QueueKind queueKind, const Fence& fence) const
 {
-    Driver::SubmitCommandBuffer(*this, queueKind, fence);
+    Device::SubmitCommandBuffer(*this, queueKind, fence);
 }
 
 void CommandBuffer::Submit(QueueKind queueKind, const Fence* fence) const
 {
-    Driver::SubmitCommandBuffer(*this, queueKind, fence);
+    Device::SubmitCommandBuffer(*this, queueKind, fence);
 }
 
 
 
 CommandPool CommandPool::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 CommandPool CommandPool::Builder::Build(DeletionQueue& deletionQueue)
@@ -103,12 +103,12 @@ CommandPool::Builder& CommandPool::Builder::PerBufferReset(bool enabled)
 
 CommandPool CommandPool::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void CommandPool::Destroy(const CommandPool& commandPool)
 {
-    return Driver::Destroy(commandPool.Handle());
+    return Device::Destroy(commandPool.Handle());
 }
 
 CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
@@ -123,7 +123,7 @@ CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
 
 void CommandPool::Reset() const
 {
-    Driver::ResetPool(*this);
+    Device::ResetPool(*this);
 }
 
 

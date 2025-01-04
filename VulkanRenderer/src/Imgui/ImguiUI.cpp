@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
 u32 ImGuiUI::s_FrameNumber{0};
@@ -27,7 +27,7 @@ void ImGuiUI::EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingI
 
 void ImGuiUI::Texture(const ImageSubresource& texture, Sampler sampler, ImageLayout layout, const glm::uvec2& size)
 {
-    ImTextureID textureId = Driver::CreateImGuiImage(texture, sampler, layout);
+    ImTextureID textureId = Device::CreateImGuiImage(texture, sampler, layout);
     ImGui::Image(textureId, ImVec2{(f32)size.x, (f32)size.y});
     s_Textures[s_FrameNumber].push_back(textureId);
 }
@@ -35,7 +35,7 @@ void ImGuiUI::Texture(const ImageSubresource& texture, Sampler sampler, ImageLay
 void ImGuiUI::ClearFrameResources(u32 frameNumber)
 {
     for (auto& texture : s_Textures[frameNumber])
-        Driver::DestroyImGuiImage(texture);
+        Device::DestroyImGuiImage(texture);
     s_Textures[frameNumber].clear();
 }
 

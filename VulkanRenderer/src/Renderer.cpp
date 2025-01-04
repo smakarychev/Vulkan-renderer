@@ -164,7 +164,7 @@ void Renderer::InitRenderGraph()
     m_SlimeMoldPass = std::make_shared<SlimeMoldPass>(*m_Graph);
 
     /* initial submit */
-    Driver::ImmediateSubmit([&](const CommandBuffer& cmd)
+    Device::ImmediateSubmit([&](const CommandBuffer& cmd)
     {
         GetFrameContext().ResourceUploader->SubmitUpload(cmd);
     });
@@ -645,7 +645,7 @@ void Renderer::EndFrame()
     u32 frameNumber = GetFrameContext().FrameNumber;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
 
-    TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Driver::GetProfilerCommandBuffer(ProfilerContext::Get()))
+    TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Device::GetProfilerCommandBuffer(ProfilerContext::Get()))
 
     m_ResourceUploader.SubmitUpload(cmd);
     
@@ -685,7 +685,7 @@ void Renderer::InitRenderingStructures()
     });
 
     static constexpr bool ASYNC_COMPUTE = true;
-    Driver::Init(DriverCreateInfo::Default(m_Window, ASYNC_COMPUTE));
+    Device::Init(DeviceCreateInfo::Default(m_Window, ASYNC_COMPUTE));
     ImageUtils::DefaultTextures::Init();
 
     m_ResourceUploader.Init();
@@ -720,7 +720,7 @@ void Renderer::InitRenderingStructures()
 
 void Renderer::Shutdown()
 {
-    Driver::WaitIdle();
+    Device::WaitIdle();
 
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
@@ -733,7 +733,7 @@ void Renderer::Shutdown()
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();
 
-    Driver::Shutdown();
+    Device::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();
 }
@@ -754,7 +754,7 @@ void Renderer::RecreateSwapchain()
         glfwWaitEvents();
     }
     
-    Driver::WaitIdle();
+    Device::WaitIdle();
     
     Swapchain::Builder newSwapchainBuilder = Swapchain::Builder()
         .BufferedFrames(BUFFERED_FRAMES)

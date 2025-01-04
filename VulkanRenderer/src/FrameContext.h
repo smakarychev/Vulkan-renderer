@@ -3,7 +3,7 @@
 #include "types.h"
 #include "Rendering/CommandBuffer.h"
 #include "Rendering/Swapchain.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 class ResourceUploader;
 class Camera;

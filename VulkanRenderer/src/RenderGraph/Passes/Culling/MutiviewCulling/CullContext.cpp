@@ -1,7 +1,7 @@
 #include "CullContext.h"
 
 #include "Scene/SceneGeometry.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 CullViewVisibility::CullViewVisibility(const SceneGeometry& geometry)
     : m_Geometry(&geometry)
@@ -32,9 +32,9 @@ u32 CullViewVisibility::ReadbackCompactCountValue()
 
 u32 CullViewVisibility::ReadbackCount(const Buffer& buffer) const
 {
-    const void* address = Driver::MapBuffer(buffer);
+    const void* address = Device::MapBuffer(buffer);
     u32 visibleMeshletsValue = *(const u32*)address;
-    Driver::UnmapBuffer(buffer);
+    Device::UnmapBuffer(buffer);
 
     return std::min(m_Geometry->GetMeshletCount(), visibleMeshletsValue);
 }

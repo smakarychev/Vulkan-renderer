@@ -1,7 +1,7 @@
 ﻿#include "Image.h"
 
 #include "Core/core.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 #include "Rendering/Buffer.h"
 #include "Vulkan/RenderCommand.h"
@@ -261,7 +261,7 @@ Image::Builder::Builder(const ImageDescription& description)
 
 Image Image::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 Image Image::Builder::Build(DeletionQueue& deletionQueue)
@@ -420,7 +420,7 @@ Image Image::Create(const Builder::CreateInfo& createInfo)
 
 void Image::Destroy(const Image& image)
 {
-    Driver::Destroy(image.Handle());
+    Device::Destroy(image.Handle());
 }
 
 ImageSubresource Image::Subresource() const
@@ -664,7 +664,7 @@ Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
     
     ImageSubresource imageSubresource = image.Subresource(0, 1, 0, 1);
 
-    Driver::ImmediateSubmit([&](const CommandBuffer& cmd)
+    Device::ImmediateSubmit([&](const CommandBuffer& cmd)
     {
         PrepareForMipmapDestination(cmd, imageSubresource);
         CopyBufferToImage(cmd, createInfo.DataBuffer, image);
@@ -679,7 +679,7 @@ Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
 
 Image Image::AllocateImage(const CreateInfo& createInfo)
 {
-    return Driver::AllocateImage(createInfo);
+    return Device::AllocateImage(createInfo);
 }
 
 void Image::PrepareForMipmapDestination(const CommandBuffer& cmd, const ImageSubresource& imageSubresource)
@@ -737,7 +737,7 @@ void Image::CreateImageView(const ImageSubresource& imageSubresource,
         ImageDescription::GetLayers(imageSubresource.Image->m_Description),
         "Incorrect layer range for image view")
 
-    Driver::CreateViews(imageSubresource, additionalViews);
+    Device::CreateViews(imageSubresource, additionalViews);
 }
 
 

@@ -3,7 +3,7 @@
 #include "BindlessTextureDescriptorsRingBuffer.h"
 #include "Model.h"
 #include "Rendering/Image/Image.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 void ModelCollection::SetBindlessTextureDescriptorsRingBuffer(BindlessTextureDescriptorsRingBuffer& buffer)
 {
@@ -14,14 +14,14 @@ void ModelCollection::CreateDefaultTextures()
 {
     // add default white texture, so that every material has a texture (to avoid branching in shaders)
     m_WhiteTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::White, Driver::DeletionQueue()));
+        ImageUtils::DefaultTexture::White, Device::DeletionQueue()));
 
     // black is default emissive texture
     m_BlackTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::Black, Driver::DeletionQueue()));
+        ImageUtils::DefaultTexture::Black, Device::DeletionQueue()));
 
     m_NormalMapTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::NormalMap, Driver::DeletionQueue()));
+        ImageUtils::DefaultTexture::NormalMap, Device::DeletionQueue()));
 }
 
 void ModelCollection::RegisterModel(Model* model, const std::string& name)

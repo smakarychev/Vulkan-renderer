@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
 DescriptorsLayout DescriptorsLayout::Builder::Build()
@@ -44,12 +44,12 @@ void DescriptorsLayout::Builder::PreBuild()
 
 DescriptorsLayout DescriptorsLayout::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void DescriptorsLayout::Destroy(const DescriptorsLayout& layout)
 {
-    Driver::Destroy(layout.Handle());
+    Device::Destroy(layout.Handle());
 }
 
 DescriptorSet DescriptorSet::Builder::Build()
@@ -114,7 +114,7 @@ DescriptorSet::Builder& DescriptorSet::Builder::AddVariableBinding(const Variabl
 
 DescriptorSet DescriptorSet::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void DescriptorSet::BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex)
@@ -141,12 +141,12 @@ void DescriptorSet::BindCompute(const CommandBuffer& cmd, PipelineLayout pipelin
 
 void DescriptorSet::SetTexture(u32 slot, const Texture& texture, DescriptorType descriptor, u32 arrayIndex)
 {
-    Driver::UpdateDescriptorSet(*this, slot, texture, descriptor, arrayIndex);
+    Device::UpdateDescriptorSet(*this, slot, texture, descriptor, arrayIndex);
 }
 
 DescriptorAllocator DescriptorAllocator::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 DescriptorAllocator DescriptorAllocator::Builder::Build(DeletionQueue& deletionQueue)
@@ -171,69 +171,69 @@ DescriptorAllocator::Builder& DescriptorAllocator::Builder::SetMaxSetsPerPool(u3
 
 DescriptorAllocator DescriptorAllocator::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void DescriptorAllocator::Destroy(const DescriptorAllocator& allocator)
 {
-    Driver::Destroy(allocator.Handle());
+    Device::Destroy(allocator.Handle());
 }
 
 void DescriptorAllocator::Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags,
     const std::vector<u32>& variableBindingCounts)
 {
-    return Driver::AllocateDescriptorSet(*this, set, poolFlags, variableBindingCounts);
+    return Device::AllocateDescriptorSet(*this, set, poolFlags, variableBindingCounts);
 }
 
 void DescriptorAllocator::Deallocate(ResourceHandleType<DescriptorSet> set)
 {
-    Driver::DeallocateDescriptorSet(Handle(), set);
+    Device::DeallocateDescriptorSet(Handle(), set);
 }
 
 void DescriptorAllocator::ResetPools()
 {
-    Driver::ResetAllocator(*this);
+    Device::ResetAllocator(*this);
 }
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
-    Driver::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
+    Device::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
 }
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
 {
-    Driver::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
+    Device::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
 }
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
 {
-    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
+    Device::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
 }
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const
 {
-    Driver::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
+    Device::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
 }
 
 void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
-    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
+    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
 }
 
 void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
 {
-    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
+    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
 }
 
 void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
 {
-    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
+    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
 }
 
 void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
     u32 index) const
 {
-    Driver::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
+    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
 }
 
 void Descriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
@@ -262,7 +262,7 @@ void Descriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, Pipelin
 
 DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build(DeletionQueue& deletionQueue)
@@ -320,7 +320,7 @@ void DescriptorArenaAllocator::Builder::PreBuild()
 
 DescriptorArenaAllocator DescriptorArenaAllocator::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 Descriptors DescriptorArenaAllocator::Allocate(DescriptorsLayout layout,
@@ -329,7 +329,7 @@ Descriptors DescriptorArenaAllocator::Allocate(DescriptorsLayout layout,
     ASSERT(m_Residence == DescriptorAllocatorResidence::CPU, "GPU allocators need ResourceUploader to be provided")
     ValidateBindings(bindings);
 
-    std::optional<Descriptors> descriptors = Driver::Allocate(*this, layout, bindings);
+    std::optional<Descriptors> descriptors = Device::Allocate(*this, layout, bindings);
     ASSERT(descriptors.has_value(), "Increase allocator size")
     
     return *descriptors; 
@@ -431,7 +431,7 @@ DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
     DescriptorsLayout newLayout = DescriptorsLayout::Create(createInfo);
     s_LayoutCache.emplace(key, newLayout);
 
-    Driver::DeletionQueue().Enqueue(newLayout);
+    Device::DeletionQueue().Enqueue(newLayout);
     
     return newLayout;
 }

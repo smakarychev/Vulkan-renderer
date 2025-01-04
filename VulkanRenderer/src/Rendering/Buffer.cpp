@@ -1,6 +1,6 @@
 ﻿#include "Buffer.h"
 
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 
 std::string BufferUtils::bufferUsageToString(BufferUsage usage)
 {
@@ -39,7 +39,7 @@ Buffer::Builder::Builder(const BufferDescription& description)
 
 Buffer Buffer::Builder::Build()
 {
-    return Build(Driver::DeletionQueue());
+    return Build(Device::DeletionQueue());
 }
 
 Buffer Buffer::Builder::Build(DeletionQueue& deletionQueue)
@@ -73,38 +73,38 @@ Buffer::Builder& Buffer::Builder::CreateMappedRandomAccess()
 
 Buffer Buffer::Create(const Builder::CreateInfo& createInfo)
 {
-    return Driver::Create(createInfo);
+    return Device::Create(createInfo);
 }
 
 void Buffer::Destroy(const Buffer& buffer)
 {
-    Driver::Destroy(buffer.Handle());
+    Device::Destroy(buffer.Handle());
 }
 
 void Buffer::SetData(const void* data, u64 dataSizeBytes)
 {
     ASSERT(dataSizeBytes <= m_Description.SizeBytes,
         "Attempt to write data outside of buffer region")
-    Driver::SetBufferData(*this, data, dataSizeBytes, 0);
+    Device::SetBufferData(*this, data, dataSizeBytes, 0);
 }
 
 void Buffer::SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes)
 {
     ASSERT(dataSizeBytes + offsetBytes <= m_Description.SizeBytes,
         "Attempt to write data outside of buffer region")
-    Driver::SetBufferData(*this, data, dataSizeBytes, offsetBytes);
+    Device::SetBufferData(*this, data, dataSizeBytes, offsetBytes);
 }
 
 void Buffer::SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes)
 {
     ASSERT((u64)((const u8*)mapped + dataSizeBytes + offsetBytes - (const u8*)m_HostAddress) <= m_Description.SizeBytes,
         "Attempt to write data outside of buffer region")
-    Driver::SetBufferData(mapped, data, dataSizeBytes, offsetBytes);
+    Device::SetBufferData(mapped, data, dataSizeBytes, offsetBytes);
 }
 
 void* Buffer::Map()
 {
-    m_HostAddress = Driver::MapBuffer(*this);
+    m_HostAddress = Device::MapBuffer(*this);
     
     return m_HostAddress;
 }
@@ -113,7 +113,7 @@ void Buffer::Unmap()
 {
     m_HostAddress = nullptr;
     
-    Driver::UnmapBuffer(*this);
+    Device::UnmapBuffer(*this);
 }
 
 BufferSubresource Buffer::Subresource() const

@@ -6,7 +6,7 @@
 
 #include "FrameContext.h"
 #include "cvars/CVarSystem.h"
-#include "Vulkan/Driver.h"
+#include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
 void ResourceUploader::Init()
@@ -61,7 +61,7 @@ void ResourceUploader::SubmitUpload(const CommandBuffer& cmd)
 
 void ResourceUploader::SubmitImmediateBuffer(const Buffer& buffer, u64 sizeBytes, u64 offset)
 {
-    Driver::ImmediateSubmit([&](const CommandBuffer& cmd)
+    Device::ImmediateSubmit([&](const CommandBuffer& cmd)
     {
         RenderCommand::CopyBuffer(cmd, m_PerFrameState[m_CurrentFrame].ImmediateUploadBuffer, buffer,
             {.SizeBytes = sizeBytes, .SourceOffset = 0, .DestinationOffset = offset});        

@@ -12,7 +12,7 @@ class CommandBuffer;
 
 class ProfilerContext
 {
-    friend class Driver;
+    friend class Device;
     using TracyVkCtx = tracy::VkCtx*;
 public:
     static ProfilerContext* Get();

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "DriverFreelist.h"
+#include "DeviceFreelist.h"
 #include "Core/ProfilerContext.h"
 
 #include "Rendering/CommandBuffer.h"
@@ -16,7 +16,7 @@
 #include <volk.h>
 #include <tracy/TracyVulkan.hpp>
 
-#include "DriverSparseSet.h"
+#include "DeviceSparseSet.h"
 #include "imgui/imgui.h"
 
 class ProfilerContext;
@@ -25,7 +25,6 @@ class ShaderPipeline;
 class QueueInfo
 {
     FRIEND_INTERNAL
-    friend class Device;
 public:
     // technically any family index is possible;
     // practically GPUs have only a few
@@ -80,8 +79,7 @@ public:
     QueueInfo Compute;
 };
 
-// todo: rename to Device once builds
-struct DriverCreateInfo
+struct DeviceCreateInfo
 {
     std::string_view AppName;
     u32 ApiVersion;
@@ -91,7 +89,7 @@ struct DriverCreateInfo
     GLFWwindow* Window;
     bool AsyncCompute{false};
 
-    static DriverCreateInfo Default(GLFWwindow* window, bool asyncCompute);
+    static DeviceCreateInfo Default(GLFWwindow* window, bool asyncCompute);
 };
 
 struct ImmediateSubmitContext
@@ -102,12 +100,12 @@ struct ImmediateSubmitContext
     QueueKind QueueKind;
 };
 
-class DriverResources
+class DeviceResources
 {
     FRIEND_INTERNAL
 
     template <typename T>
-    using ResourceContainerType = DriverSparseSet<T>;
+    using ResourceContainerType = DeviceSparseSet<T>;
 private:
     template <typename ResourceList, typename Resource>
     constexpr auto AddToResourceList(ResourceList& list, Resource&& value);
@@ -274,14 +272,14 @@ private:
 };
 
 template <typename ResourceList, typename Resource>
-constexpr auto DriverResources::AddToResourceList(ResourceList& list, Resource&& value)
+constexpr auto DeviceResources::AddToResourceList(ResourceList& list, Resource&& value)
 {
     static_assert(std::is_same_v<std::decay_t<Resource>, typename ResourceList::ValueType>);
     return list.Add(std::forward<typename ResourceList::ValueType>(value));
 }
 
 template <typename Resource>
-constexpr auto DriverResources::AddResource(Resource&& resource)
+constexpr auto DeviceResources::AddResource(Resource&& resource)
 {
     m_AllocatedCount++;
     
@@ -327,7 +325,7 @@ constexpr auto DriverResources::AddResource(Resource&& resource)
 }
 
 template <typename Type>
-constexpr void DriverResources::RemoveResource(ResourceHandleType<Type> handle)
+constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 {
     m_DeallocatedCount++;
 
@@ -372,13 +370,13 @@ constexpr void DriverResources::RemoveResource(ResourceHandleType<Type> handle)
 }
 
 template <typename Type>
-constexpr const auto& DriverResources::operator[](const Type& type) const
+constexpr const auto& DeviceResources::operator[](const Type& type) const
 {
-    return const_cast<DriverResources&>(*this)[type];
+    return const_cast<DeviceResources&>(*this)[type];
 }
 
 template <typename Type>
-constexpr auto& DriverResources::operator[](const Type& type)
+constexpr auto& DeviceResources::operator[](const Type& type)
 {
     if constexpr(std::is_same_v<Type, Swapchain>)
         return m_Swapchains[type.Handle()];
@@ -492,7 +490,7 @@ void DeletionQueue::Enqueue(Type& type)
         static_assert(!sizeof(Type), "No match for type");
 }
 
-class Driver
+class Device
 {
     friend class RenderCommand;
 public:
@@ -605,7 +603,7 @@ public:
 
     static void WaitIdle();
     
-    static void Init(DriverCreateInfo&& createInfo);
+    static void Init(DeviceCreateInfo&& createInfo);
     static void Shutdown();
 
     static DeletionQueue& DeletionQueue();
@@ -636,7 +634,7 @@ public:
 private:
     static VmaAllocator& Allocator();
 
-    static void DriverCheck(VkResult res, std::string_view message)
+    static void DeviceCheck(VkResult res, std::string_view message)
     {
         if (res != VK_SUCCESS)
         {
@@ -645,7 +643,7 @@ private:
         }
     }
     
-    static DriverResources& Resources();
+    static DeviceResources& Resources();
     static void ShutdownResources();
 
     static void InitImGuiUI();
@@ -653,17 +651,17 @@ private:
 
     static u32 GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, DescriptorPoolFlags poolFlags);
 
-    static void CreateInstance(const DriverCreateInfo& createInfo);
-    static void CreateSurface(const DriverCreateInfo& createInfo);
-    static void ChooseGPU(const DriverCreateInfo& createInfo);
-    static void CreateDevice(const DriverCreateInfo& createInfo);
+    static void CreateInstance(const DeviceCreateInfo& createInfo);
+    static void CreateSurface(const DeviceCreateInfo& createInfo);
+    static void ChooseGPU(const DeviceCreateInfo& createInfo);
+    static void CreateDevice(const DeviceCreateInfo& createInfo);
     static void RetrieveDeviceQueues();
     static void CreateDebugUtilsMessenger();
     static void DestroyDebugUtilsMessenger();
 
     static u32 GetDescriptorSizeBytes(DescriptorType type);
 
-    static DriverResources::BufferResource CreateBufferResource(u64 sizeBytes, VkBufferUsageFlags usage,
+    static DeviceResources::BufferResource CreateBufferResource(u64 sizeBytes, VkBufferUsageFlags usage,
         VmaAllocationCreateFlags allocationFlags);
     
     static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
@@ -679,12 +677,12 @@ private:
         const std::vector<TimelineSemaphore*>& semaphores,
         const std::vector<u64>& waitValues, const std::vector<PipelineStage>& waitStages);
 private:
-    struct DriverState;
-    static DriverState s_State;
+    struct State;
+    static State s_State;
 };
 
 template <typename Fn>
-void Driver::ImmediateSubmit(Fn&& uploadFunction)
+void Device::ImmediateSubmit(Fn&& uploadFunction)
 {
     auto&& [pool, cmd, fence, queue] = *SubmitContext();
     
