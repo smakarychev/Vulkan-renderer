@@ -282,42 +282,44 @@ template <typename Resource>
 constexpr auto DeviceResources::AddResource(Resource&& resource)
 {
     m_AllocatedCount++;
+
+    using Decayed = std::decay_t<Resource>;
     
-    if constexpr(std::is_same_v<std::decay_t<Resource>, SwapchainResource>)
+    if constexpr(std::is_same_v<Decayed, SwapchainResource>)
         return AddToResourceList(m_Swapchains, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, BufferResource>)
+    else if constexpr(std::is_same_v<Decayed, BufferResource>)
         return AddToResourceList(m_Buffers, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, ImageResource>)
+    else if constexpr(std::is_same_v<Decayed, ImageResource>)
         return AddToResourceList(m_Images, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, SamplerResource>)
+    else if constexpr(std::is_same_v<Decayed, SamplerResource>)
         return AddToResourceList(m_Samplers, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, CommandPoolResource>)
+    else if constexpr(std::is_same_v<Decayed, CommandPoolResource>)
         return AddToResourceList(m_CommandPools, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, CommandBufferResource>)
+    else if constexpr(std::is_same_v<Decayed, CommandBufferResource>)
         return AddToResourceList(m_CommandBuffers, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, QueueResource>)
+    else if constexpr(std::is_same_v<Decayed, QueueResource>)
         return AddToResourceList(m_Queues, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, DescriptorSetLayoutResource>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorSetLayoutResource>)
         return AddToResourceList(m_DescriptorLayouts, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, DescriptorSetResource>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorSetResource>)
         return AddToResourceList(m_DescriptorSets, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, DescriptorAllocatorResource>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorAllocatorResource>)
         return AddToResourceList(m_DescriptorAllocators, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, PipelineLayoutResource>)
+    else if constexpr(std::is_same_v<Decayed, PipelineLayoutResource>)
         return AddToResourceList(m_PipelineLayouts, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, PipelineResource>)
+    else if constexpr(std::is_same_v<Decayed, PipelineResource>)
         return AddToResourceList(m_Pipelines, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, RenderingAttachmentResource>)
+    else if constexpr(std::is_same_v<Decayed, RenderingAttachmentResource>)
         return AddToResourceList(m_RenderingAttachments, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, RenderingInfoResource>)
+    else if constexpr(std::is_same_v<Decayed, RenderingInfoResource>)
         return AddToResourceList(m_RenderingInfos, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, FenceResource>)
+    else if constexpr(std::is_same_v<Decayed, FenceResource>)
         return AddToResourceList(m_Fences, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, SemaphoreResource>)
+    else if constexpr(std::is_same_v<Decayed, SemaphoreResource>)
         return AddToResourceList(m_Semaphores, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, DependencyInfoResource>)
+    else if constexpr(std::is_same_v<Decayed, DependencyInfoResource>)
         return AddToResourceList(m_DependencyInfos, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, SplitBarrierResource>)
+    else if constexpr(std::is_same_v<Decayed, SplitBarrierResource>)
         return AddToResourceList(m_SplitBarriers, std::forward<Resource>(resource));
     else 
         static_assert(!sizeof(Resource), "No match for resource");
@@ -329,41 +331,43 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 {
     m_DeallocatedCount++;
 
-    if constexpr(std::is_same_v<Type, Swapchain>)
+    using Decayed = std::decay_t<Type>;
+
+    if constexpr(std::is_same_v<Decayed, Swapchain>)
         m_Swapchains.Remove(handle);
-    else if constexpr(std::is_same_v<Type, Buffer>)
+    else if constexpr(std::is_same_v<Decayed, Buffer>)
         m_Buffers.Remove(handle);
-    else if constexpr(std::is_same_v<Type, Image>)
+    else if constexpr(std::is_same_v<Decayed, Image>)
         m_Images.Remove(handle);
-    else if constexpr(std::is_same_v<Type, Sampler>)
+    else if constexpr(std::is_same_v<Decayed, Sampler>)
         m_Samplers.Remove(handle);
-    else if constexpr(std::is_same_v<Type, CommandPool>)
+    else if constexpr(std::is_same_v<Decayed, CommandPool>)
         m_CommandPools.Remove(handle);
-    else if constexpr(std::is_same_v<Type, CommandBuffer>)
+    else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
         m_CommandBuffers.Remove(handle);
-    else if constexpr(std::is_same_v<Type, QueueInfo>)
+    else if constexpr(std::is_same_v<Decayed, QueueInfo>)
         m_Queues.Remove(handle);
-    else if constexpr(std::is_same_v<Type, DescriptorsLayout>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         m_DescriptorLayouts.Remove(handle);
-    else if constexpr(std::is_same_v<Type, DescriptorSet>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorSet>)
         m_DescriptorSets.Remove(handle);
-    else if constexpr(std::is_same_v<Type, DescriptorAllocator>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
         m_DescriptorAllocators.Remove(handle);
-    else if constexpr(std::is_same_v<Type, PipelineLayout>)
+    else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         m_PipelineLayouts.Remove(handle);
-    else if constexpr(std::is_same_v<Type, Pipeline>)
+    else if constexpr(std::is_same_v<Decayed, Pipeline>)
         m_Pipelines.Remove(handle);
-    else if constexpr(std::is_same_v<Type, RenderingAttachment>)
+    else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         m_RenderingAttachments.Remove(handle);
-    else if constexpr(std::is_same_v<Type, RenderingInfo>)
+    else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         m_RenderingInfos.Remove(handle);
-    else if constexpr(std::is_same_v<Type, Fence>)
+    else if constexpr(std::is_same_v<Decayed, Fence>)
         m_Fences.Remove(handle);
-    else if constexpr(std::is_same_v<Type, Semaphore> || std::is_same_v<Type, TimelineSemaphore>)
+    else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
         m_Semaphores.Remove(std::bit_cast<ResourceHandleType<Semaphore>>(handle));
-    else if constexpr(std::is_same_v<Type, DependencyInfo>)
+    else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         m_DependencyInfos.Remove(handle);
-    else if constexpr(std::is_same_v<Type, SplitBarrier>)
+    else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
         m_SplitBarriers.Remove(handle);
     else 
         static_assert(!sizeof(Type), "No match for type");
@@ -378,41 +382,43 @@ constexpr const auto& DeviceResources::operator[](const Type& type) const
 template <typename Type>
 constexpr auto& DeviceResources::operator[](const Type& type)
 {
-    if constexpr(std::is_same_v<Type, Swapchain>)
+    using Decayed = std::decay_t<Type>;
+    
+    if constexpr(std::is_same_v<Decayed, Swapchain>)
         return m_Swapchains[type.Handle()];
-    else if constexpr(std::is_same_v<Type, Buffer>)
+    else if constexpr(std::is_same_v<Decayed, Buffer>)
         return m_Buffers[type.Handle()];
-    else if constexpr(std::is_same_v<Type, Image>)
+    else if constexpr(std::is_same_v<Decayed, Image>)
         return m_Images[type.Handle()];
-    else if constexpr(std::is_same_v<Type, Sampler>)
+    else if constexpr(std::is_same_v<Decayed, Sampler>)
         return m_Samplers[type.Handle()];
-    else if constexpr(std::is_same_v<Type, CommandPool>)
+    else if constexpr(std::is_same_v<Decayed, CommandPool>)
         return m_CommandPools[type.Handle()];
-    else if constexpr(std::is_same_v<Type, CommandBuffer>)
+    else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
         return m_CommandBuffers[type.Handle()];
-    else if constexpr(std::is_same_v<Type, QueueInfo>)
+    else if constexpr(std::is_same_v<Decayed, QueueInfo>)
         return m_Queues[type.Handle()];
-    else if constexpr(std::is_same_v<Type, DescriptorsLayout>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         return m_DescriptorLayouts[type.Handle()];
-    else if constexpr(std::is_same_v<Type, DescriptorSet>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorSet>)
         return m_DescriptorSets[type.Handle()];
-    else if constexpr(std::is_same_v<Type, DescriptorAllocator>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
         return m_DescriptorAllocators[type.Handle()];
-    else if constexpr(std::is_same_v<Type, PipelineLayout>)
+    else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         return m_PipelineLayouts[type.Handle()];
-    else if constexpr(std::is_same_v<Type, Pipeline>)
+    else if constexpr(std::is_same_v<Decayed, Pipeline>)
         return m_Pipelines[type.Handle()];
-    else if constexpr(std::is_same_v<Type, RenderingAttachment>)
+    else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         return m_RenderingAttachments[type.Handle()];
-    else if constexpr(std::is_same_v<Type, RenderingInfo>)
+    else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         return m_RenderingInfos[type.Handle()];
-    else if constexpr(std::is_same_v<Type, Fence>)
+    else if constexpr(std::is_same_v<Decayed, Fence>)
         return m_Fences[type.Handle()];
-    else if constexpr(std::is_same_v<Type, Semaphore> || std::is_same_v<Type, TimelineSemaphore>)
+    else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
         return m_Semaphores[type.Handle()];
-    else if constexpr(std::is_same_v<Type, DependencyInfo>)
+    else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         return m_DependencyInfos[type.Handle()];
-    else if constexpr(std::is_same_v<Type, SplitBarrier>)
+    else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
         return m_SplitBarriers[type.Handle()];
     else 
         static_assert(!sizeof(Type), "No match for type");
@@ -452,39 +458,41 @@ private:
 template <typename Type>
 void DeletionQueue::Enqueue(Type& type)
 {
-    if constexpr(std::is_same_v<Type, Swapchain>)
+    using Decayed = std::decay_t<Type>;
+    
+    if constexpr(std::is_same_v<Decayed, Swapchain>)
         m_Swapchains.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, Buffer>)
+    else if constexpr(std::is_same_v<Decayed, Buffer>)
         m_Buffers.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, Image>)
+    else if constexpr(std::is_same_v<Decayed, Image>)
         m_Images.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, Sampler>)
+    else if constexpr(std::is_same_v<Decayed, Sampler>)
         m_Samplers.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, CommandPool>)
+    else if constexpr(std::is_same_v<Decayed, CommandPool>)
         m_CommandPools.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, QueueInfo>)
+    else if constexpr(std::is_same_v<Decayed, QueueInfo>)
         m_Queues.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, DescriptorsLayout>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         m_DescriptorLayouts.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, DescriptorAllocator>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
         m_DescriptorAllocators.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, PipelineLayout>)
+    else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         m_PipelineLayouts.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, Pipeline>)
+    else if constexpr(std::is_same_v<Decayed, Pipeline>)
         m_Pipelines.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, ShaderPipeline>)
+    else if constexpr(std::is_same_v<Decayed, ShaderPipeline>)
         m_Pipelines.push_back(type.m_Pipeline.Handle());
-    else if constexpr(std::is_same_v<Type, RenderingAttachment>)
+    else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         m_RenderingAttachments.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, RenderingInfo>)
+    else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         m_RenderingInfos.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, Fence>)
+    else if constexpr(std::is_same_v<Decayed, Fence>)
         m_Fences.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, Semaphore> || std::is_same_v<Type, TimelineSemaphore>)
+    else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
         m_Semaphores.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, DependencyInfo>)
+    else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         m_DependencyInfos.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, SplitBarrier>)
+    else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
         m_SplitBarriers.push_back(type.Handle());
     else 
         static_assert(!sizeof(Type), "No match for type");
