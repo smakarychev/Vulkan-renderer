@@ -29,7 +29,6 @@ class Pipeline;
 class Buffer;
 class DescriptorsLayout;
 class DescriptorPool;
-class Device;
 
 struct DescriptorBinding
 {

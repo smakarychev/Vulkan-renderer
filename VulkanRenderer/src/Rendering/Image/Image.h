@@ -20,7 +20,6 @@ namespace assetLib
 struct ImmediateSubmitContext;
 class Buffer;
 class Swapchain;
-class Device;
 
 class ImageViewHandle
 {

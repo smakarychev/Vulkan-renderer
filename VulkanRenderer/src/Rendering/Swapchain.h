@@ -9,7 +9,6 @@
 
 class QueueInfo;
 class ShaderPipelineTemplate;
-class Device;
 struct DeviceQueues;
 
 struct GLFWwindow;

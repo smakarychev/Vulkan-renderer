@@ -10,7 +10,6 @@ class Semaphore;
 class Fence;
 struct SwapchainFrameSync;
 class CommandPool;
-class Device;
 
 enum class CommandBufferKind {Primary, Secondary};
 enum class CommandBufferUsage

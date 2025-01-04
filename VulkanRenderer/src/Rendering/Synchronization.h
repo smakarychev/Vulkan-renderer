@@ -13,7 +13,6 @@ class DeletionQueue;
 struct ImageSubresource;
 struct BufferSubresource;
 class CommandBuffer;
-class Device;
 
 class Fence
 {
