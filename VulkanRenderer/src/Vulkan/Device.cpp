@@ -1017,8 +1017,7 @@ bool Device::Present(const Swapchain& swapchain, QueueKind queueKind, const Swap
     return result == VK_SUCCESS;
 }
 
-
-CommandBuffer Device::Create(const CommandBuffer::Builder::CreateInfo& createInfo)
+CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
 {
     VkCommandBufferAllocateInfo allocateInfo = {};
     allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;

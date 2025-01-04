@@ -38,29 +38,17 @@ struct BufferSubmitTimelineSyncInfo
     Fence* Fence;
 };
 
+struct CommandBufferCreateInfo
+{
+    // todo: change to handle, once everything is handle
+    const CommandPool* Pool{nullptr};
+    CommandBufferKind Kind{CommandBufferKind::Primary};
+};
+
 class CommandBuffer
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class CommandBuffer;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            const CommandPool* Pool{nullptr};
-            CommandBufferKind Kind;
-        };
-    public:
-        CommandBuffer Build();
-        Builder& SetPool(const CommandPool& pool);
-        Builder& SetKind(CommandBufferKind kind);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static CommandBuffer Create(const Builder::CreateInfo& createInfo);
-
     void Reset() const;
     void Begin() const;
     void Begin(CommandBufferUsage commandBufferUsage) const;

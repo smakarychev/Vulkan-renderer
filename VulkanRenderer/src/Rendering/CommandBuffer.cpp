@@ -3,30 +3,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-CommandBuffer CommandBuffer::Builder::Build()
-{
-    return CommandBuffer::Create(m_CreateInfo);
-}
-
-CommandBuffer::Builder& CommandBuffer::Builder::SetPool(const CommandPool& pool)
-{
-    m_CreateInfo.Pool = &pool;
-
-    return *this;
-}
-
-CommandBuffer::Builder& CommandBuffer::Builder::SetKind(CommandBufferKind kind)
-{
-    m_CreateInfo.Kind = kind;
-
-    return *this;
-}
-
-CommandBuffer CommandBuffer::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 void CommandBuffer::Reset() const
 {
     Device::ResetCommandBuffer(*this);
@@ -113,10 +89,9 @@ void CommandPool::Destroy(const CommandPool& commandPool)
 
 CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
 {
-    CommandBuffer buffer = CommandBuffer::Builder()
-        .SetPool(*this)
-        .SetKind(kind)
-        .Build();
+    CommandBuffer buffer = Device::CreateCommandBuffer({
+        .Pool = this,
+        .Kind = kind});
 
     return buffer;
 }

@@ -504,7 +504,7 @@ public:
     static bool Present(const Swapchain& swapchain, QueueKind queueKind, const SwapchainFrameSync& swapchainFrameSync,
         u32 imageIndex);
     
-    static CommandBuffer Create(const CommandBuffer::Builder::CreateInfo& createInfo);
+    static CommandBuffer CreateCommandBuffer(CommandBufferCreateInfo&& createInfo);
     static CommandPool Create(const CommandPool::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<CommandPool> commandPool);
     static void ResetPool(const CommandPool& pool);
