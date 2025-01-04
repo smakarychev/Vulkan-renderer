@@ -2,12 +2,6 @@
 
 #include "types.h"
 
-#include <array>
-
-#include <volk.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/imgui_impl_vulkan.h>
-
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -18,9 +12,7 @@ void ImGuiUI::BeginFrame(u32 frameNumber)
 {
     CPU_PROFILE_FRAME("ImGui begin frame")
 
-    ImGui_ImplVulkan_NewFrame();
-    ImGui_ImplGlfw_NewFrame();
-    ImGui::NewFrame();
+    RenderCommand::ImGuiBeginFrame();
 
     s_FrameNumber = frameNumber;
     ClearFrameResources(frameNumber);
@@ -30,13 +22,7 @@ void ImGuiUI::EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingI
 {
     CPU_PROFILE_FRAME("ImGui end frame")
 
-    ImGui::Render();
-    
-    RenderCommand::BeginRendering(cmd, renderingInfo);
-    
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), Driver::Resources()[cmd].CommandBuffer);
-
-    RenderCommand::EndRendering(cmd);
+    RenderCommand::DrawImGui(cmd, renderingInfo);
 }
 
 void ImGuiUI::Texture(const ImageSubresource& texture, Sampler sampler, ImageLayout layout, const glm::uvec2& size)

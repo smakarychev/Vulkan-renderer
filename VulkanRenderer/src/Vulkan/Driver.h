@@ -105,7 +105,6 @@ struct ImmediateSubmitContext
 class DriverResources
 {
     FRIEND_INTERNAL
-    friend class ImGuiUI;
 
     template <typename T>
     using ResourceContainerType = DriverSparseSet<T>;

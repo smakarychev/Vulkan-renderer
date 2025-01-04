@@ -4,8 +4,10 @@
 
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
-#include "vk_mem_alloc.h"
+#include <vk_mem_alloc.h>
 #include <imgui/imgui_impl_vulkan.h>
+#include <GLFW/glfw3.h>
+#include <imgui/imgui_impl_glfw.h>
 
 #include "ResourceUploader.h"
 #include "utils/CoreUtils.h"
@@ -15,9 +17,7 @@
 #include "Rendering/Shader.h"
 #include "utils/utils.h"
 
-#include "GLFW/glfw3.h"
 #include "Imgui/ImguiUI.h"
-#include "imgui/imgui_impl_glfw.h"
 
 namespace
 {

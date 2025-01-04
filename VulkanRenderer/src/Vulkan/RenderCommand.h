@@ -109,26 +109,10 @@ public:
     static void SetViewport(const CommandBuffer& cmd, const glm::vec2& size);
     static void SetScissors(const CommandBuffer& cmd, const glm::vec2& offset, const glm::vec2& size);
     static void SetDepthBias(const CommandBuffer& cmd, const DepthBias& depthBias);
+
+    static void ImGuiBeginFrame();
+    static void DrawImGui(const CommandBuffer& cmd, const RenderingInfo& renderingInfo);
 private:
-    static VkResult WaitForFenceStatus(const Fence& fence);
-    static VkResult CheckFenceStatus(const Fence& fence);
-    static VkResult ResetFenceStatus(const Fence& fence);
-
-    static VkResult ResetPoolStatus(const CommandPool& pool);
-    static VkResult ResetCommandBufferStatus(const CommandBuffer& cmd);
-    static VkResult BeginCommandBufferStatus(const CommandBuffer& cmd, CommandBufferUsage usage);
-    static VkResult EndCommandBufferStatus(const CommandBuffer& cmd);
-    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo,
-        const BufferSubmitSyncInfo& submitSync);
-    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo,
-        const BufferSubmitTimelineSyncInfo& submitSync);
-    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
-    static VkResult SubmitCommandBufferStatus(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence);
-    static VkResult SubmitCommandBuffersStatus(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
-        const BufferSubmitSyncInfo& submitSync);
-    static VkResult SubmitCommandBuffersStatus(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
-        const BufferSubmitTimelineSyncInfo& submitSync);
-
     static void BindDescriptors(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
 };

@@ -1,19 +1,15 @@
 ﻿#include "RenderCommand.h"
 
 #include <volk.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_vulkan.h>
 
 #include "Driver.h"
 #include "Rendering/Buffer.h"
 #include "Rendering/CommandBuffer.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/Swapchain.h"
-#include "Rendering/Synchronization.h"
 #include "Rendering/Descriptors.h"
-
-namespace
-{
-
-}
 
 void RenderCommand::BeginRendering(const CommandBuffer& cmd, const RenderingInfo& renderingInfo)
 {
@@ -392,4 +388,19 @@ void RenderCommand::SetScissors(const CommandBuffer& cmd, const glm::vec2& offse
 void RenderCommand::SetDepthBias(const CommandBuffer& cmd, const DepthBias& depthBias)
 {
     vkCmdSetDepthBias(Driver::Resources()[cmd].CommandBuffer, depthBias.Constant, 0.0f, depthBias.Slope);
+}
+
+void RenderCommand::ImGuiBeginFrame()
+{
+    ImGui_ImplVulkan_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+}
+
+void RenderCommand::DrawImGui(const CommandBuffer& cmd, const RenderingInfo& renderingInfo)
+{
+    ImGui::Render();
+    BeginRendering(cmd, renderingInfo);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), Driver::Resources()[cmd].CommandBuffer);
+    EndRendering(cmd);
 }
