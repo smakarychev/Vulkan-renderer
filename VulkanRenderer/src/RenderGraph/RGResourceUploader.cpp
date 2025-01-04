@@ -1,7 +1,5 @@
 #include "RGResourceUploader.h"
 
-#include <span>
-
 #include "RenderGraph.h"
 #include "ResourceUploader.h"
 
@@ -18,7 +16,7 @@ namespace RG
                 continue;
 
             uploader.UpdateBuffer(resources.GetBuffer(upload.Resource),
-                std::span(&m_Uploads[pass].UploadData[upload.CopyInfo.SourceOffset],
+                Span(&m_Uploads[pass].UploadData[upload.CopyInfo.SourceOffset],
                     upload.CopyInfo.SizeBytes), upload.CopyInfo.DestinationOffset);
         }
 

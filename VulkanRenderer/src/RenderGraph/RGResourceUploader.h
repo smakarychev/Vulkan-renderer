@@ -1,7 +1,8 @@
 #pragma once
+
+#include "Core/Traits.h"
 #include "ResourceUploader.h"
 #include "RGResource.h"
-#include "Core/Traits.h"
 
 class ResourceUploader;
 

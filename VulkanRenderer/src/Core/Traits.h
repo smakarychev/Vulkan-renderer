@@ -2,10 +2,14 @@
 #include <span>
 #include <vector>
 
+#include "Common/Span.h"
+
 template <typename T>
 struct is_span : std::false_type {};
 template <typename ElementType, std::size_t Extent>
 struct is_span<std::span<ElementType, Extent>> : std::true_type {};
+template <typename ElementType>
+struct is_span<Span<ElementType>> : std::true_type {};
 template <typename T>
 inline constexpr bool is_span_v = is_span<std::decay_t<T>>::value;
 
