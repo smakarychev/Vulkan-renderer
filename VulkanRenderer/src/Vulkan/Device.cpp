@@ -1037,7 +1037,7 @@ CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
     return cmd;
 }
 
-CommandPool Device::Create(const CommandPool::Builder::CreateInfo& createInfo)
+CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo)
 {
     VkCommandPoolCreateFlags flags = 0;
     if (createInfo.PerBufferReset)
@@ -2937,9 +2937,9 @@ void Device::Init(DeviceCreateInfo&& createInfo)
     
     vmaCreateAllocator(&vmaCreateInfo, &s_State.Allocator);
 
-    s_State.SubmitContext.CommandPool = CommandPool::Builder()
-        .SetQueue(QueueKind::Graphics)
-        .Build();
+    s_State.SubmitContext.CommandPool = CreateCommandPool({
+        .QueueKind = QueueKind::Graphics});
+    DeletionQueue().Enqueue(s_State.SubmitContext.CommandPool);
     s_State.SubmitContext.CommandBuffer = s_State.SubmitContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
     s_State.SubmitContext.Fence = Fence::Builder().Build();
     s_State.SubmitContext.QueueKind = QueueKind::Graphics;

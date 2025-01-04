@@ -65,33 +65,16 @@ private:
     ResourceHandleType<CommandBuffer> m_ResourceHandle{};
 };
 
+struct CommandPoolCreateInfo
+{
+    QueueKind QueueKind{QueueKind::Graphics};
+    bool PerBufferReset{false};
+};
 
 class CommandPool
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class CommandPool;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            QueueKind QueueKind;
-            bool PerBufferReset{false};
-        };
-    public:
-        CommandPool Build();
-        CommandPool Build(DeletionQueue& deletionQueue);
-        CommandPool BuildManualLifetime();
-        Builder& SetQueue(QueueKind queueKind);
-        Builder& PerBufferReset(bool enabled = true);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static CommandPool Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const CommandPool& commandPool);
-
     CommandBuffer AllocateBuffer(CommandBufferKind kind);
     void Reset() const;
 private:

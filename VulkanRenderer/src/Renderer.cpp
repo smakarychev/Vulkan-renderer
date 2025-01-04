@@ -699,10 +699,10 @@ void Renderer::InitRenderingStructures()
     m_FrameContexts.resize(BUFFERED_FRAMES);
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
-        CommandPool pool = CommandPool::Builder()
-            .SetQueue(QueueKind::Graphics)
-            .PerBufferReset(true)
-            .Build();
+        CommandPool pool = Device::CreateCommandPool({
+            .QueueKind = QueueKind::Graphics,
+            .PerBufferReset = true});
+        Device::DeletionQueue().Enqueue(pool);
 
         m_FrameContexts[i].FrameSync = m_Swapchain.GetFrameSync(i);
         m_FrameContexts[i].FrameNumber = i;

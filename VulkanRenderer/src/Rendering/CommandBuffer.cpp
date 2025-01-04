@@ -45,48 +45,6 @@ void CommandBuffer::Submit(QueueKind queueKind, const Fence* fence) const
 
 
 
-CommandPool CommandPool::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-CommandPool CommandPool::Builder::Build(DeletionQueue& deletionQueue)
-{
-    CommandPool commandPool = CommandPool::Create(m_CreateInfo);
-    deletionQueue.Enqueue(commandPool);
-
-    return commandPool;
-}
-
-CommandPool CommandPool::Builder::BuildManualLifetime()
-{
-    return CommandPool::Create(m_CreateInfo);
-}
-
-CommandPool::Builder& CommandPool::Builder::SetQueue(QueueKind queueKind)
-{
-    m_CreateInfo.QueueKind = queueKind;
-    
-    return *this;
-}
-
-CommandPool::Builder& CommandPool::Builder::PerBufferReset(bool enabled)
-{
-    m_CreateInfo.PerBufferReset = enabled;
-    
-    return *this;
-}
-
-CommandPool CommandPool::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
-void CommandPool::Destroy(const CommandPool& commandPool)
-{
-    return Device::Destroy(commandPool.Handle());
-}
-
 CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
 {
     CommandBuffer buffer = Device::CreateCommandBuffer({
@@ -105,10 +63,10 @@ void CommandPool::Reset() const
 
 CommandBufferArray::CommandBufferArray(QueueKind queueKind, bool individualReset)
 {
-    m_Pool = CommandPool::Builder()
-        .SetQueue(queueKind)
-        .PerBufferReset(individualReset)
-        .Build();
+    m_Pool = Device::CreateCommandPool({
+        .QueueKind = queueKind,
+        .PerBufferReset = individualReset});
+    Device::DeletionQueue().Enqueue(m_Pool);
 
     m_Buffers.push_back(m_Pool.AllocateBuffer(CommandBufferKind::Primary));
 }

@@ -505,7 +505,7 @@ public:
         u32 imageIndex);
     
     static CommandBuffer CreateCommandBuffer(CommandBufferCreateInfo&& createInfo);
-    static CommandPool Create(const CommandPool::Builder::CreateInfo& createInfo);
+    static CommandPool CreateCommandPool(CommandPoolCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<CommandPool> commandPool);
     static void ResetPool(const CommandPool& pool);
     static void ResetCommandBuffer(const CommandBuffer& cmd);
