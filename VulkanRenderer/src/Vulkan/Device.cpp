@@ -9,6 +9,7 @@
 #include <GLFW/glfw3.h>
 #include <imgui/imgui_impl_glfw.h>
 
+#include "RenderCommand.h"
 #include "ResourceUploader.h"
 #include "utils/CoreUtils.h"
 #include "Rendering/Buffer.h"
@@ -1201,25 +1202,47 @@ void Device::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueK
         "Error while submitting command buffers");    
 }
 
-Buffer Device::Create(const Buffer::Builder::CreateInfo& createInfo)
+Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo)
 {
     VmaAllocationCreateFlags flags = 0;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable))
+    if (enumHasAny(createInfo.Usage, BufferUsage::Mappable))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    if (enumHasAny(createInfo.Description.Usage, BufferUsage::MappableRandomAccess))
+    if (enumHasAny(createInfo.Usage, BufferUsage::MappableRandomAccess))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 
     if (createInfo.CreateMapped)
         flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
     
-    DeviceResources::BufferResource bufferResource = CreateBufferResource(createInfo.Description.SizeBytes,
-        vulkanBufferUsageFromUsage(createInfo.Description.Usage), flags);
+    DeviceResources::BufferResource bufferResource = CreateBufferResource(createInfo.SizeBytes,
+        vulkanBufferUsageFromUsage(createInfo.Usage), flags);
 
     Buffer buffer = {};
-    buffer.m_Description = createInfo.Description;
+    buffer.m_Description.Usage = createInfo.Usage;
+    buffer.m_Description.SizeBytes = createInfo.SizeBytes;
     if (createInfo.CreateMapped)
         buffer.m_HostAddress = bufferResource.Allocation->GetMappedData();
+    
     buffer.m_ResourceHandle = Resources().AddResource(bufferResource);    
+
+    if (!createInfo.InitialData.empty())
+    {
+        if (enumHasAny(createInfo.Usage, BufferUsage::Mappable | BufferUsage::MappableRandomAccess))
+        {
+            SetBufferData(buffer, createInfo.InitialData, 0);
+        }
+        else
+        {
+            Buffer stagingBuffer = CreateStagingBuffer(createInfo.InitialData.size());
+            SetBufferData(stagingBuffer, createInfo.InitialData, 0);
+            ImmediateSubmit([&](const CommandBuffer& cmd)
+            {
+                RenderCommand::CopyBuffer(cmd, stagingBuffer, buffer,
+                    {.SizeBytes = createInfo.InitialData.size(), .SourceOffset = 0, .DestinationOffset = 0});        
+            });
+            Destroy(stagingBuffer.Handle());
+        }
+    }
+    
     return buffer;
 }
 
@@ -1228,6 +1251,14 @@ void Device::Destroy(ResourceHandleType<Buffer> buffer)
     const DeviceResources::BufferResource& resource = Resources().m_Buffers[buffer.m_Id];
     vmaDestroyBuffer(Allocator(), resource.Buffer, resource.Allocation);
     Resources().RemoveResource(buffer);
+}
+
+Buffer Device::CreateStagingBuffer(u64 sizeBytes)
+{
+    return CreateBuffer({
+        .SizeBytes = sizeBytes,
+        .Usage = BufferUsage::Staging | BufferUsage::Mappable,
+        .CreateMapped = true});
 }
 
 void* Device::MapBuffer(const Buffer& buffer)
@@ -1244,16 +1275,16 @@ void Device::UnmapBuffer(const Buffer& buffer)
     vmaUnmapMemory(Allocator(), resource.Allocation);
 }
 
-void Device::SetBufferData(Buffer& buffer, const void* data, u64 dataSizeBytes, u64 offsetBytes)
+void Device::SetBufferData(Buffer& buffer, Span<std::byte> data, u64 offsetBytes)
 {
     const DeviceResources::BufferResource& resource = Resources()[buffer];
-    vmaCopyMemoryToAllocation(Allocator(), data, resource.Allocation, offsetBytes, dataSizeBytes);
+    vmaCopyMemoryToAllocation(Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
 }
 
-void Device::SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBytes, u64 offsetBytes)
+void Device::SetBufferData(void* mappedAddress, Span<std::byte> data, u64 offsetBytes)
 {
     mappedAddress = (void*)((u8*)mappedAddress + offsetBytes);
-    std::memcpy(mappedAddress, data, dataSizeBytes);
+    std::memcpy(mappedAddress, data.data(), data.size());
 }
 
 u64 Device::GetDeviceAddress(const Buffer& buffer)

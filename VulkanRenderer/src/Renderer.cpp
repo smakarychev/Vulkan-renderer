@@ -112,7 +112,7 @@ void Renderer::InitRenderGraph()
     m_GraphModelCollection.RegisterModel(car, "car");
     m_GraphModelCollection.RegisterModel(plane, "plane");
 
-    m_GraphModelCollection.AddModelInstance("car", {
+    m_GraphModelCollection.AddModelInstance("helmet", {
         .Transform = {
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
             .Scale = glm::vec3{0.2f}}});
@@ -185,12 +185,14 @@ void Renderer::ExecuteSingleTimePasses()
     m_SkyboxPrefilterMap = Texture::Builder(Passes::EnvironmentPrefilter::getPrefilteredTextureDescription())
         .Build();
     
-    m_IrradianceSH = Buffer::Builder(
-        {.SizeBytes = sizeof(SH9Irradiance), .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
-        .Build();
-    m_SkyIrradianceSH = Buffer::Builder(
-        {.SizeBytes = sizeof(SH9Irradiance), .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
-        .Build();
+    m_IrradianceSH = Device::CreateBuffer({
+        .SizeBytes = sizeof(SH9Irradiance),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage});
+    m_SkyIrradianceSH = Device::CreateBuffer({
+        .SizeBytes = sizeof(SH9Irradiance),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage});
+    Device::DeletionQueue().Enqueue(m_IrradianceSH);
+    Device::DeletionQueue().Enqueue(m_SkyIrradianceSH);
 
     m_BRDFLut = Texture::Builder(Passes::BRDFLut::getLutDescription())
         .Build();

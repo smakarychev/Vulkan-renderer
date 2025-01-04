@@ -522,12 +522,13 @@ public:
     static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
         const BufferSubmitTimelineSyncInfo& submitSync);
 
-    static Buffer Create(const Buffer::Builder::CreateInfo& createInfo);
+    static Buffer CreateBuffer(BufferCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Buffer> buffer);
+    static Buffer CreateStagingBuffer(u64 sizeBytes);
     static void* MapBuffer(const Buffer& buffer);
     static void UnmapBuffer(const Buffer& buffer);
-    static void SetBufferData(Buffer& buffer, const void* data, u64 dataSizeBytes, u64 offsetBytes);
-    static void SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBytes, u64 offsetBytes);
+    static void SetBufferData(Buffer& buffer, Span<std::byte> data, u64 offsetBytes);
+    static void SetBufferData(void* mappedAddress, Span<std::byte> data, u64 offsetBytes);
     static u64 GetDeviceAddress(const Buffer& buffer);
     
     static Image AllocateImage(const Image::Builder::CreateInfo& createInfo);

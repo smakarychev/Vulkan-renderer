@@ -187,9 +187,21 @@ namespace RG
                 }
 
                 // allocate new resource
-                Resources.push_back({
-                    .Resource = std::make_shared<T>(T::Builder(description).BuildManualLifetime()),
-                    .LastFrame = 0});
+                // todo: remove once builder is gone
+                if constexpr (std::is_same_v<T, Buffer>)
+                {
+                    Resources.push_back({
+                        .Resource = std::make_shared<T>(Device::CreateBuffer({
+                            .SizeBytes = description.SizeBytes,
+                            .Usage = description.Usage})),
+                        .LastFrame = 0});
+                }
+                else
+                {
+                    Resources.push_back({
+                        .Resource = std::make_shared<T>(T::Builder(description).BuildManualLifetime()),
+                        .LastFrame = 0});
+                }
                 
                 return Resources.back().Resource;
             }

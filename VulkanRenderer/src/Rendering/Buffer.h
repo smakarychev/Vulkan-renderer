@@ -3,6 +3,7 @@
 #include "types.h"
 
 #include "ResourceHandle.h"
+#include "Common/Span.h"
 #include "Core/core.h"
 
 class DeletionQueue;
@@ -59,39 +60,25 @@ struct BufferSubresource
 };
 using BufferBindingInfo = BufferSubresource;
 
+struct BufferCreateInfo
+{
+    u64 SizeBytes{0};
+    BufferUsage Usage{BufferUsage::None};
+    bool CreateMapped{false};
+    Span<std::byte> InitialData{};
+};
+
 class Buffer
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class Buffer;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            BufferDescription Description{};
-            bool CreateMapped{false};
-        };
-    public:
-        Builder() = default;
-        Builder(const BufferDescription& description);
-        Buffer Build();
-        Buffer Build(DeletionQueue& deletionQueue);
-        Buffer BuildManualLifetime();
-        Builder& CreateMapped();
-        Builder& CreateMappedRandomAccess();
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static Buffer Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Buffer& buffer);
 
     const BufferDescription& Description() const { return m_Description; }
     
-    void SetData(const void* data, u64 dataSizeBytes);
-    void SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes);
-    void SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes);
+    void SetData(Span<std::byte> data);
+    void SetData(Span<std::byte>, u64 offsetBytes);
+    void SetData(void* mapped, Span<std::byte>, u64 offsetBytes);
     void* Map();
     void Unmap();
     

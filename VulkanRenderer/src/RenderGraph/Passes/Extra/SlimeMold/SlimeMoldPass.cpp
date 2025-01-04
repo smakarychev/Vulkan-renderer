@@ -27,15 +27,17 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
             .TraitsIndex = Random::UInt32(0, traitCount - 1),
             .ContagionStepsLeft = 0};
 
-    ctx.m_TraitsBuffer = Buffer::Builder({
-            .SizeBytes = (u32)ctx.m_Traits.size() * sizeof(Traits),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
-        .Build();
+    ctx.m_TraitsBuffer = Device::CreateBuffer({
+        .SizeBytes = (u32)ctx.m_Traits.size() * sizeof(Traits),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
+        .InitialData = Span{(std::byte*)ctx.m_Traits.data(), ctx.m_Traits.size() * sizeof(Traits)}});
+    Device::DeletionQueue().Enqueue(ctx.m_TraitsBuffer);
 
-    ctx.m_SlimeBuffer = Buffer::Builder({
-            .SizeBytes = (u32)ctx.m_Slime.size() * sizeof(Slime),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage})
-        .Build();
+    ctx.m_SlimeBuffer = Device::CreateBuffer({
+        .SizeBytes = (u32)ctx.m_Slime.size() * sizeof(Slime),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
+        .InitialData = Span{(std::byte*)ctx.m_Slime.data(), ctx.m_Slime.size() * sizeof(Slime)}});
+    Device::DeletionQueue().Enqueue(ctx.m_SlimeBuffer);
 
     ctx.m_SlimeMap = Texture::Builder({
             .Width = bounds.x,
@@ -44,7 +46,6 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
             .Usage = ImageUsage::Storage | ImageUsage::Destination})
         .Build();
 
-    resourceUploader.UpdateBuffer(ctx.m_TraitsBuffer, ctx.m_Traits);
     resourceUploader.UpdateBuffer(ctx.m_SlimeBuffer, ctx.m_Slime);
 
     return ctx;

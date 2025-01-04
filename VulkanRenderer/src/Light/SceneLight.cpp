@@ -10,11 +10,10 @@ namespace
 {
     Buffer resizeLightBuffer(u64 newSizeBytes, Buffer& old, FrameContext& ctx, bool copyOld)
     {
-        Buffer newBuffer = Buffer::Builder({
-                .SizeBytes = std::max(newSizeBytes, old.GetSizeBytes()),
-                .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Storage})
-            .CreateMapped()
-            .BuildManualLifetime();
+        Buffer newBuffer = Device::CreateBuffer({
+            .SizeBytes = std::max(newSizeBytes, old.GetSizeBytes()),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Storage | BufferUsage::Mappable,
+            .CreateMapped = true});
 
         ctx.DeletionQueue.Enqueue(old);
         
@@ -123,25 +122,24 @@ void SceneLight::Initialize()
 {
     m_IsInitialized = true;
     
-    m_Buffers.DirectionalLight = Buffer::Builder({
-            .SizeBytes = sizeof(DirectionalLight),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
-        .Build();
-    m_Buffers.PointLights = Buffer::Builder({
-            .SizeBytes = sizeof(PointLight),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source})
-        .CreateMapped()
-        .BuildManualLifetime();
-    m_Buffers.VisiblePointLights = Buffer::Builder({
-            .SizeBytes = sizeof(PointLight),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source})
-        .CreateMapped()
-        .BuildManualLifetime();
+    m_Buffers.DirectionalLight = Device::CreateBuffer({
+        .SizeBytes = sizeof(DirectionalLight),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Uniform});
+    Device::DeletionQueue().Enqueue(m_Buffers.DirectionalLight);
+    
+    m_Buffers.PointLights = Device::CreateBuffer({
+        .SizeBytes = sizeof(PointLight),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source | BufferUsage::Mappable,
+        .CreateMapped = true});
+    m_Buffers.VisiblePointLights = Device::CreateBuffer({
+        .SizeBytes = sizeof(PointLight),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source | BufferUsage::Mappable,
+        .CreateMapped = true});
 
-    m_Buffers.LightsInfo = Buffer::Builder({
+    m_Buffers.LightsInfo = Device::CreateBuffer({
             .SizeBytes = sizeof(LightsInfo),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform})
-        .Build();
+            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform});
+    Device::DeletionQueue().Enqueue(m_Buffers.LightsInfo);
 }
 
 void SceneLight::ResizePointLightsBuffer(FrameContext& ctx)

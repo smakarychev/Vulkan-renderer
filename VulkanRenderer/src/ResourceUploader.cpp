@@ -96,13 +96,7 @@ ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 si
 {
     static u64 minSizeBytes = CVars::Get().GetI32CVar({"Uploader.StagingSizeBytes"}, STAGING_BUFFER_DEFAULT_SIZE_BYTES);
 
-    Buffer stagingBuffer = Buffer::Builder({
-            .SizeBytes = std::max(minSizeBytes, sizeBytes),
-            .Usage = BufferUsage::Staging})
-        .CreateMapped()
-        .BuildManualLifetime();
-
-    return {.Buffer = stagingBuffer};
+    return {.Buffer = Device::CreateStagingBuffer(std::max(minSizeBytes, sizeBytes))};
 }
 
 u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)

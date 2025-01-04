@@ -50,11 +50,11 @@ namespace
             samples[i] = glm::vec4{sample, 1.0f};
         }
 
-        Buffer samplesBuffer = Buffer::Builder({
-                .SizeBytes = samples.size() * sizeof(glm::vec4),
-                .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform})
-            .Build();
-        samplesBuffer.SetData(samples.data(), samplesBuffer.GetSizeBytes());
+        Buffer samplesBuffer = Device::CreateBuffer({
+            .SizeBytes = samples.size() * sizeof(glm::vec4),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
+            .InitialData = Span{(std::byte*)samples.data(), samples.size() * sizeof(glm::vec4)}});
+        Device::DeletionQueue().Enqueue(samplesBuffer);
 
         return {noise, samplesBuffer};
     }

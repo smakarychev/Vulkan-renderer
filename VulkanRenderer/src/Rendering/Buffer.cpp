@@ -32,74 +32,28 @@ std::string BufferUtils::bufferUsageToString(BufferUsage usage)
     return usageString;
 }
 
-Buffer::Builder::Builder(const BufferDescription& description)
-{
-    m_CreateInfo.Description = description;
-}
-
-Buffer Buffer::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-Buffer Buffer::Builder::Build(DeletionQueue& deletionQueue)
-{
-    Buffer buffer = Buffer::Create(m_CreateInfo);
-    deletionQueue.Enqueue(buffer);
-
-    return buffer;
-}
-
-Buffer Buffer::Builder::BuildManualLifetime()
-{
-    return Buffer::Create(m_CreateInfo);
-}
-
-Buffer::Builder& Buffer::Builder::CreateMapped()
-{
-    m_CreateInfo.Description.Usage |= BufferUsage::Mappable;
-    m_CreateInfo.CreateMapped = true;
-
-    return *this;
-}
-
-Buffer::Builder& Buffer::Builder::CreateMappedRandomAccess()
-{
-    m_CreateInfo.Description.Usage |= BufferUsage::MappableRandomAccess;
-    m_CreateInfo.CreateMapped = true;
-
-    return *this;
-}
-
-Buffer Buffer::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 void Buffer::Destroy(const Buffer& buffer)
 {
     Device::Destroy(buffer.Handle());
 }
 
-void Buffer::SetData(const void* data, u64 dataSizeBytes)
+void Buffer::SetData(Span<std::byte> data)
 {
-    ASSERT(dataSizeBytes <= m_Description.SizeBytes,
-        "Attempt to write data outside of buffer region")
-    Device::SetBufferData(*this, data, dataSizeBytes, 0);
+    ASSERT(data.size() <= m_Description.SizeBytes, "Attempt to write data outside of buffer region")
+    Device::SetBufferData(*this, data, 0);
 }
 
-void Buffer::SetData(const void* data, u64 dataSizeBytes, u64 offsetBytes)
+void Buffer::SetData(Span<std::byte> data, u64 offsetBytes)
 {
-    ASSERT(dataSizeBytes + offsetBytes <= m_Description.SizeBytes,
-        "Attempt to write data outside of buffer region")
-    Device::SetBufferData(*this, data, dataSizeBytes, offsetBytes);
+    ASSERT(data.size() + offsetBytes <= m_Description.SizeBytes, "Attempt to write data outside of buffer region")
+    Device::SetBufferData(*this, data, offsetBytes);
 }
 
-void Buffer::SetData(void* mapped, const void* data, u64 dataSizeBytes, u64 offsetBytes)
+void Buffer::SetData(void* mapped, Span<std::byte> data, u64 offsetBytes)
 {
-    ASSERT((u64)((const u8*)mapped + dataSizeBytes + offsetBytes - (const u8*)m_HostAddress) <= m_Description.SizeBytes,
+    ASSERT((u64)((const u8*)mapped + data.size() + offsetBytes - (const u8*)m_HostAddress) <= m_Description.SizeBytes,
         "Attempt to write data outside of buffer region")
-    Device::SetBufferData(mapped, data, dataSizeBytes, offsetBytes);
+    Device::SetBufferData(mapped, data, offsetBytes);
 }
 
 void* Buffer::Map()

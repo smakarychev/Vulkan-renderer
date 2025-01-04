@@ -103,7 +103,7 @@ void ResourceUploader::UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOf
     u64 stagingOffset = EnsureCapacity(sizeBytes);
     auto& state = m_PerFrameState[m_CurrentFrame];
     auto& staging = state.StageBuffers[state.LastUsedBuffer].Buffer;
-    staging.SetData(staging.GetHostAddress(), address, sizeBytes, stagingOffset);
+    staging.SetData(staging.GetHostAddress(), Span{(std::byte*)address, sizeBytes}, stagingOffset);
 
     if (MergeIsPossible(buffer, bufferOffset))
         state.BufferUploads.back().CopyInfo.SizeBytes += sizeBytes;

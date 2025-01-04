@@ -320,10 +320,9 @@ Image::Builder& Image::Builder::FromAssetFile(std::string_view path)
         assetLib::loadAssetFile(path, textureFile);
         assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
     
-        m_CreateInfo.DataBuffer = Buffer::Builder({
-                .SizeBytes = textureInfo.SizeBytes,
-                .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess})
-            .BuildManualLifetime();
+        m_CreateInfo.DataBuffer = Device::CreateBuffer({
+            .SizeBytes = textureInfo.SizeBytes,
+            .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess});
     
         void* destination = m_CreateInfo.DataBuffer.Map();
         assetLib::unpackTexture(textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)destination);
@@ -346,12 +345,11 @@ Image::Builder& Image::Builder::FromPixels(const void* pixels, u64 sizeBytes)
 {
     SetSource(CreateInfo::SourceInfo::Pixels);
 
-    m_CreateInfo.DataBuffer = Buffer::Builder({
+    m_CreateInfo.DataBuffer = Device::CreateBuffer({
             .SizeBytes = sizeBytes,
-            .Usage = BufferUsage::Source | BufferUsage::Staging})
-        .BuildManualLifetime();
+            .Usage = BufferUsage::Source | BufferUsage::Staging});
 
-    m_CreateInfo.DataBuffer.SetData(pixels, sizeBytes);
+    m_CreateInfo.DataBuffer.SetData(Span{(std::byte*)pixels, sizeBytes});
 
     return *this;
 }
