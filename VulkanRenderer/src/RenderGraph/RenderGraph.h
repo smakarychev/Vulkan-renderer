@@ -98,7 +98,7 @@ namespace RG
         ~RenderGraphPool()
         {
             for (auto& buffer : m_Buffers.Resources)
-                Buffer::Destroy(*buffer.Resource);
+                Device::Destroy(buffer.Resource->Handle());
             for (auto& texture : m_Textures.Resources)
                 Texture::Destroy(*texture.Resource);
         }
@@ -160,7 +160,7 @@ namespace RG
                 collection.Resources.erase(toRemoveIt, collection.Resources.end());
             };
 
-            unorderedRemove(m_Buffers, [](const Buffer& buffer) { Buffer::Destroy(buffer); });
+            unorderedRemove(m_Buffers, [](const Buffer& buffer) { Device::Destroy(buffer.Handle()); });
             unorderedRemove(m_Textures, [](const Texture& texture) { Texture::Destroy(texture); });
         }
     private:

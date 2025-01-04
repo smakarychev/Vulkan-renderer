@@ -670,7 +670,7 @@ Image Image::CreateImageFromBuffer(const CreateInfo& createInfo)
             image.CreateMipmaps(cmd, ImageLayout::Destination);
         imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
     });
-    Buffer::Destroy(createInfo.DataBuffer);
+    Device::Destroy(createInfo.DataBuffer.Handle());
     
     return image;
 }

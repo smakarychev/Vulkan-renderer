@@ -25,8 +25,8 @@ void ResourceUploader::Shutdown()
     for (auto& state : m_PerFrameState)
     {
         for (auto& buffer : state.StageBuffers)
-            Buffer::Destroy(buffer.Buffer);
-        Buffer::Destroy(state.ImmediateUploadBuffer);
+            Device::Destroy(buffer.Buffer.Handle());
+        Device::Destroy(state.ImmediateUploadBuffer.Handle());
     }
 }
 
@@ -87,7 +87,7 @@ void ResourceUploader::ManageLifeTime()
         }).begin();
 
     for (auto toDelete = it; toDelete != state.StageBuffers.end(); toDelete++)
-        Buffer::Destroy(toDelete->Buffer);
+        Device::Destroy(toDelete->Buffer.Handle());
 
     state.StageBuffers.erase(it, state.StageBuffers.end());
 }
@@ -123,7 +123,7 @@ u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
 
         if (state.StageBuffers[state.LastUsedBuffer].Buffer.GetSizeBytes() < sizeBytes)
         {
-            Buffer::Destroy(state.StageBuffers[state.LastUsedBuffer].Buffer);
+            Device::Destroy(state.StageBuffers[state.LastUsedBuffer].Buffer.Handle());
             state.StageBuffers[state.LastUsedBuffer] = CreateStagingBuffer(sizeBytes);
         }
     

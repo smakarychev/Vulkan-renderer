@@ -32,11 +32,6 @@ std::string BufferUtils::bufferUsageToString(BufferUsage usage)
     return usageString;
 }
 
-void Buffer::Destroy(const Buffer& buffer)
-{
-    Device::Destroy(buffer.Handle());
-}
-
 void Buffer::SetData(Span<std::byte> data)
 {
     ASSERT(data.size() <= m_Description.SizeBytes, "Attempt to write data outside of buffer region")

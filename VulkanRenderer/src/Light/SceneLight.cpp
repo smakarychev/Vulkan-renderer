@@ -35,9 +35,9 @@ SceneLight::SceneLight()
 SceneLight::~SceneLight()
 {
     if (m_BufferedPointLightCount != 0)
-        Buffer::Destroy(m_Buffers.PointLights);
+        Device::Destroy(m_Buffers.PointLights.Handle());
     if (m_BufferedVisiblePointLightCount != 0)
-        Buffer::Destroy(m_Buffers.VisiblePointLights);
+        Device::Destroy(m_Buffers.VisiblePointLights.Handle());
 }
 
 void SceneLight::SetDirectionalLight(const DirectionalLight& light)

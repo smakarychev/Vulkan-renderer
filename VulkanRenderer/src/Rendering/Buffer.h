@@ -72,8 +72,6 @@ class Buffer
 {
     FRIEND_INTERNAL
 public:
-    static void Destroy(const Buffer& buffer);
-
     const BufferDescription& Description() const { return m_Description; }
     
     void SetData(Span<std::byte> data);
@@ -103,7 +101,6 @@ public:
 
     bool operator==(const Buffer& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(const Buffer& other) const { return !(*this == other); }
-private:
     ResourceHandleType<Buffer> Handle() const { return m_ResourceHandle; }
 private:
     BufferDescription m_Description{};
