@@ -40,17 +40,17 @@ void Fence::Destroy(const Fence& fence)
 
 void Fence::Reset() const
 {
-    RenderCommand::ResetFence(*this);
+    Driver::ResetFence(*this);
 }
 
 void Fence::Wait() const
 {
-    RenderCommand::WaitForFence(*this);
+    Driver::WaitForFence(*this);
 }
 
 bool Fence::Check() const
 {
-    return RenderCommand::CheckFence(*this);
+    return Driver::CheckFence(*this);
 }
 
 Semaphore Semaphore::Builder::Build()

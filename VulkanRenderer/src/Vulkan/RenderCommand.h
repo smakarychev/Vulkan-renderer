@@ -33,29 +33,6 @@ class RenderCommand
 public:
     static void BeginRendering(const CommandBuffer& cmd, const RenderingInfo& renderingInfo);
     static void EndRendering(const CommandBuffer& cmd);
-    
-    
-    static void WaitForFence(const Fence& fence);
-    static bool CheckFence(const Fence& fence);
-    static void ResetFence(const Fence& fence);
-    static u32 AcquireNextImage(const Swapchain& swapchain,
-        const SwapchainFrameSync& swapchainFrameSync);
-    static bool Present(const Swapchain& swapchain, const QueueInfo& queueInfo,
-        const SwapchainFrameSync& swapchainFrameSync, u32 imageIndex);
-    static void ResetPool(const CommandPool& pool);
-    static void ResetCommandBuffer(const CommandBuffer& cmd);
-    static void BeginCommandBuffer(const CommandBuffer& cmd, CommandBufferUsage usage);
-    static void EndCommandBuffer(const CommandBuffer& cmd);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
-        const BufferSubmitSyncInfo& submitSync);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo,
-        const BufferSubmitTimelineSyncInfo& submitSync);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence& fence);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, const QueueInfo& queueInfo, const Fence* fence);
-    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
-        const BufferSubmitSyncInfo& submitSync);
-    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, const QueueInfo& queueInfo,
-        const BufferSubmitTimelineSyncInfo& submitSync);
 
 
     static void ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary);

@@ -8,89 +8,11 @@
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_vulkan.h>
 
-#include "Rendering/Device.h"
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 
-struct ImGuiUI::Payload
-{
-    VkDescriptorPool Pool;
-    GLFWwindow* Window;
-
-    u32 FrameNumber{0};
-    std::array<std::vector<ImTextureID>, BUFFERED_FRAMES> Textures;
-};
-
-std::unique_ptr<ImGuiUI::Payload> ImGuiUI::s_Payload = {};
-
-void ImGuiUI::Init(void* window)
-{
-    std::array poolSizes = {
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
-        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
-
-    VkDescriptorPoolCreateInfo poolCreateInfo = {};
-    poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-    poolCreateInfo.maxSets = 1000;
-    poolCreateInfo.poolSizeCount = (u32)poolSizes.size();
-    poolCreateInfo.pPoolSizes = poolSizes.data();
-
-    s_Payload = std::make_unique<Payload>();
-    s_Payload->Window = (GLFWwindow*)window;
-    vkCreateDescriptorPool(Driver::DeviceHandle(), &poolCreateInfo, nullptr, &s_Payload->Pool);
-
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; 
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;    
-    ImGui_ImplGlfw_InitForVulkan((GLFWwindow*)window, true);
-
-    DriverResources::DeviceResource& deviceResource = Driver::Resources()[Driver::GetDevice()];
-    DriverResources::QueueResource& queueResource = Driver::Resources()[Driver::GetDevice().GetQueues().Graphics];
-    ImGui_ImplVulkan_InitInfo imguiInitInfo = {};
-    imguiInitInfo.Instance = deviceResource.Instance;
-    imguiInitInfo.PhysicalDevice = deviceResource.GPU;
-    imguiInitInfo.Device = deviceResource.Device;
-    imguiInitInfo.QueueFamily = Driver::GetDevice().GetQueues().Graphics.Family;
-    imguiInitInfo.Queue = queueResource.Queue;
-    imguiInitInfo.DescriptorPool = s_Payload->Pool;
-    imguiInitInfo.MinImageCount = 3;
-    imguiInitInfo.ImageCount = 3;
-    imguiInitInfo.UseDynamicRendering = true;
-    imguiInitInfo.PipelineRenderingCreateInfo = {};
-    imguiInitInfo.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
-    imguiInitInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
-    VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
-    imguiInitInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &format;
-    ImGui_ImplVulkan_LoadFunctions([](const char* functionName, void* instance)
-    {
-        return vkGetInstanceProcAddr(*(VkInstance*)instance, functionName);
-    }, &deviceResource.Instance);
-    ImGui_ImplVulkan_Init(&imguiInitInfo);
-    ImGui_ImplVulkan_CreateFontsTexture();
-}
-
-void ImGuiUI::Shutdown()
-{
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        ClearFrameResources(i);
-        
-    ImGui_ImplVulkan_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
-    vkDestroyDescriptorPool(Driver::DeviceHandle(), s_Payload->Pool, nullptr);
-}
+u32 ImGuiUI::s_FrameNumber{0};
+std::array<std::vector<ImTextureID>, BUFFERED_FRAMES> ImGuiUI::s_Textures{};
 
 void ImGuiUI::BeginFrame(u32 frameNumber)
 {
@@ -100,7 +22,7 @@ void ImGuiUI::BeginFrame(u32 frameNumber)
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    s_Payload->FrameNumber = frameNumber;
+    s_FrameNumber = frameNumber;
     ClearFrameResources(frameNumber);
 }
 
@@ -119,15 +41,15 @@ void ImGuiUI::EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingI
 
 void ImGuiUI::Texture(const ImageSubresource& texture, Sampler sampler, ImageLayout layout, const glm::uvec2& size)
 {
-    ImTextureID textureId = Driver::CreateImGuiImage(texture, sampler, layout, size);
+    ImTextureID textureId = Driver::CreateImGuiImage(texture, sampler, layout);
     ImGui::Image(textureId, ImVec2{(f32)size.x, (f32)size.y});
-    s_Payload->Textures[s_Payload->FrameNumber].push_back(textureId);
+    s_Textures[s_FrameNumber].push_back(textureId);
 }
 
 void ImGuiUI::ClearFrameResources(u32 frameNumber)
 {
-    for (auto& texture : s_Payload->Textures[frameNumber])
-        ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)texture);
-    s_Payload->Textures[frameNumber].clear();
+    for (auto& texture : s_Textures[frameNumber])
+        Driver::DestroyImGuiImage(texture);
+    s_Textures[frameNumber].clear();
 }
 

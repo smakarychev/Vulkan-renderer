@@ -67,10 +67,10 @@ public:
     void Begin(CommandBufferUsage commandBufferUsage) const;
     void End() const;
 
-    void Submit(const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync) const;
-    void Submit(const QueueInfo& queueInfo, const BufferSubmitTimelineSyncInfo& submitSync) const;
-    void Submit(const QueueInfo& queueInfo, const Fence& fence) const;
-    void Submit(const QueueInfo& queueInfo, const Fence* fence) const;
+    void Submit(QueueKind queueKind, const BufferSubmitSyncInfo& submitSync) const;
+    void Submit(QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync) const;
+    void Submit(QueueKind queueKind, const Fence& fence) const;
+    void Submit(QueueKind queueKind, const Fence* fence) const;
 private:
     ResourceHandleType<CommandBuffer> Handle() const { return m_ResourceHandle; }
 private:
@@ -89,7 +89,7 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            u32 QueueFamily;
+            QueueKind QueueKind;
             bool PerBufferReset{false};
         };
     public:

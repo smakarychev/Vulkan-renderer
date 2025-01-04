@@ -651,14 +651,14 @@ void Renderer::EndFrame()
     
     cmd.End();
 
-    cmd.Submit(m_Device.GetQueues().Graphics,
+    cmd.Submit(QueueKind::Graphics,
         BufferSubmitSyncInfo{
             .WaitStages = {PipelineStage::ColorOutput},
             .WaitSemaphores = {&sync.PresentSemaphore},
             .SignalSemaphores = {&sync.RenderSemaphore},
             .Fence = &sync.RenderFence});
     
-    bool isFramePresentSuccessful = m_Swapchain.PresentImage(m_Device.GetQueues().Presentation, m_SwapchainImageIndex,
+    bool isFramePresentSuccessful = m_Swapchain.PresentImage(QueueKind::Presentation, m_SwapchainImageIndex,
         frameNumber); 
     bool shouldRecreateSwapchain = m_IsWindowResized || !isFramePresentSuccessful;
     if (shouldRecreateSwapchain)
@@ -684,20 +684,13 @@ void Renderer::InitRenderingStructures()
         renderer->OnWindowResize();
     });
 
-    m_Device = Device::Builder()
-        .Defaults()
-        .SetWindow(m_Window)
-        .AsyncCompute()
-        .Build();
-
-    Driver::Init(m_Device);
-    ImGuiUI::Init(m_Window);
+    static constexpr bool ASYNC_COMPUTE = true;
+    Driver::Init(DriverCreateInfo::Default(m_Window, ASYNC_COMPUTE));
     ImageUtils::DefaultTextures::Init();
 
     m_ResourceUploader.Init();
     
     m_Swapchain = Swapchain::Builder()
-        .SetDevice(m_Device)
         .BufferedFrames(BUFFERED_FRAMES)
         .BuildManualLifetime();
 
@@ -727,7 +720,7 @@ void Renderer::InitRenderingStructures()
 
 void Renderer::Shutdown()
 {
-    m_Device.WaitIdle();
+    Driver::WaitIdle();
 
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
@@ -740,7 +733,6 @@ void Renderer::Shutdown()
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();
 
-    ImGuiUI::Shutdown();
     Driver::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();
@@ -762,10 +754,9 @@ void Renderer::RecreateSwapchain()
         glfwWaitEvents();
     }
     
-    m_Device.WaitIdle();
+    Driver::WaitIdle();
     
     Swapchain::Builder newSwapchainBuilder = Swapchain::Builder()
-        .SetDevice(m_Device)
         .BufferedFrames(BUFFERED_FRAMES)
         .SetSyncStructures(m_Swapchain.GetFrameSync());
 

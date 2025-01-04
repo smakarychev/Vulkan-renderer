@@ -33,7 +33,6 @@ public:
         FRIEND_INTERNAL
         struct CreateInfo
         {
-            const Device* Device{nullptr};
             bool UseDefaultHint{true};
             glm::uvec2 DrawResolution;
             Format DrawFormat;
@@ -44,7 +43,6 @@ public:
         Swapchain Build();
         Swapchain BuildManualLifetime();
         Builder& SetDrawResolution(const glm::uvec2& resolution);
-        Builder& SetDevice(const Device& device);
         Builder& BufferedFrames(u32 count);
         Builder& SetSyncStructures(const std::vector<SwapchainFrameSync>& syncs);
     private:
@@ -61,7 +59,7 @@ public:
     static void DestroyImages(const Swapchain& swapchain);
     
     u32 AcquireImage(u32 frameNumber);
-    bool PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber);
+    bool PresentImage(QueueKind queueKind, u32 imageIndex, u32 frameNumber);
 
     void PreparePresent(const CommandBuffer& cmd, u32 imageIndex);
 

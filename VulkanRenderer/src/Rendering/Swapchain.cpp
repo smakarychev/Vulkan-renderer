@@ -1,6 +1,5 @@
 ﻿#include "Swapchain.h"
 
-#include "Device.h"
 #include "Vulkan/Driver.h"
 #include "Vulkan/RenderCommand.h"
 #include "utils/utils.h"
@@ -30,13 +29,6 @@ Swapchain::Builder& Swapchain::Builder::SetDrawResolution(const glm::uvec2& reso
     return *this;
 }
 
-Swapchain::Builder& Swapchain::Builder::SetDevice(const Device& device)
-{
-    m_CreateInfo.Device = &device;
-    
-    return *this;
-}
-
 Swapchain::Builder& Swapchain::Builder::BufferedFrames(u32 count)
 {
     m_BufferedFrames = count;
@@ -53,8 +45,6 @@ Swapchain::Builder& Swapchain::Builder::SetSyncStructures(const std::vector<Swap
 
 void Swapchain::Builder::PreBuild()
 {
-    ASSERT(m_CreateInfo.Device, "Device is unset")
-    
     m_CreateInfo.DrawFormat = Format::RGBA16_FLOAT;
     m_CreateInfo.DepthStencilFormat = ChooseDepthFormat();
     
@@ -107,12 +97,12 @@ void Swapchain::DestroyImages(const Swapchain& swapchain)
 
 u32 Swapchain::AcquireImage(u32 frameNumber)
 {
-    return RenderCommand::AcquireNextImage(*this, m_SwapchainFrameSync[frameNumber]);
+    return Driver::AcquireNextImage(*this, m_SwapchainFrameSync[frameNumber]);
 }
 
-bool Swapchain::PresentImage(const QueueInfo& queueInfo, u32 imageIndex, u32 frameNumber)
+bool Swapchain::PresentImage(QueueKind queueKind, u32 imageIndex, u32 frameNumber)
 {
-    return RenderCommand::Present(*this, queueInfo, m_SwapchainFrameSync[frameNumber], imageIndex);
+    return Driver::Present(*this, queueKind, m_SwapchainFrameSync[frameNumber], imageIndex);
 }
 
 void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)

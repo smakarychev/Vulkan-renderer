@@ -29,7 +29,7 @@ CommandBuffer CommandBuffer::Create(const Builder::CreateInfo& createInfo)
 
 void CommandBuffer::Reset() const
 {
-    RenderCommand::ResetCommandBuffer(*this);
+    Driver::ResetCommandBuffer(*this);
 }
 
 void CommandBuffer::Begin() const
@@ -39,32 +39,32 @@ void CommandBuffer::Begin() const
 
 void CommandBuffer::Begin(CommandBufferUsage commandBufferUsage) const
 {
-    RenderCommand::BeginCommandBuffer(*this, commandBufferUsage);
+    Driver::BeginCommandBuffer(*this, commandBufferUsage);
 }
 
 void CommandBuffer::End() const
 {
-    RenderCommand::EndCommandBuffer(*this);
+    Driver::EndCommandBuffer(*this);
 }
 
-void CommandBuffer::Submit(const QueueInfo& queueInfo, const BufferSubmitSyncInfo& submitSync) const
+void CommandBuffer::Submit(QueueKind queueKind, const BufferSubmitSyncInfo& submitSync) const
 {
-   RenderCommand::SubmitCommandBuffer(*this, queueInfo, submitSync);
+   Driver::SubmitCommandBuffer(*this, queueKind, submitSync);
 }
 
-void CommandBuffer::Submit(const QueueInfo& queueInfo, const BufferSubmitTimelineSyncInfo& submitSync) const
+void CommandBuffer::Submit(QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync) const
 {
-    RenderCommand::SubmitCommandBuffer(*this, queueInfo, submitSync);
+    Driver::SubmitCommandBuffer(*this, queueKind, submitSync);
 }
 
-void CommandBuffer::Submit(const QueueInfo& queueInfo, const Fence& fence) const
+void CommandBuffer::Submit(QueueKind queueKind, const Fence& fence) const
 {
-    RenderCommand::SubmitCommandBuffer(*this, queueInfo, fence);
+    Driver::SubmitCommandBuffer(*this, queueKind, fence);
 }
 
-void CommandBuffer::Submit(const QueueInfo& queueInfo, const Fence* fence) const
+void CommandBuffer::Submit(QueueKind queueKind, const Fence* fence) const
 {
-    RenderCommand::SubmitCommandBuffer(*this, queueInfo, fence);
+    Driver::SubmitCommandBuffer(*this, queueKind, fence);
 }
 
 
@@ -89,8 +89,7 @@ CommandPool CommandPool::Builder::BuildManualLifetime()
 
 CommandPool::Builder& CommandPool::Builder::SetQueue(QueueKind queueKind)
 {
-    const DeviceQueues& queues = Driver::GetDevice().GetQueues();
-    m_CreateInfo.QueueFamily = queues.GetFamilyByKind(queueKind);
+    m_CreateInfo.QueueKind = queueKind;
     
     return *this;
 }
@@ -124,7 +123,7 @@ CommandBuffer CommandPool::AllocateBuffer(CommandBufferKind kind)
 
 void CommandPool::Reset() const
 {
-    RenderCommand::ResetPool(*this);
+    Driver::ResetPool(*this);
 }
 
 

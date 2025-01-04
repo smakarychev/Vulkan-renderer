@@ -4,7 +4,6 @@
 #include "Core/ProfilerContext.h"
 
 #include "Rendering/CommandBuffer.h"
-#include "Rendering/Device.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/RenderingInfo.h"
@@ -23,12 +22,84 @@
 class ProfilerContext;
 class ShaderPipeline;
 
+class QueueInfo
+{
+    FRIEND_INTERNAL
+    friend class Device;
+public:
+    // technically any family index is possible;
+    // practically GPUs have only a few
+    static constexpr u32 UNSET_FAMILY = std::numeric_limits<u32>::max();
+    u32 Family{UNSET_FAMILY};
+private:
+    ResourceHandleType<QueueInfo> Handle() const { return m_ResourceHandle; }
+private:
+    ResourceHandleType<QueueInfo> m_ResourceHandle{};
+};
+
+struct DeviceQueues
+{
+public:
+    bool IsComplete() const
+    {
+        return
+            Graphics.Family != QueueInfo::UNSET_FAMILY &&
+            Presentation.Family != QueueInfo::UNSET_FAMILY &&
+            Compute.Family != QueueInfo::UNSET_FAMILY;
+    }
+    std::vector<u32> AsFamilySet() const
+    {
+        std::vector<u32> familySet{Graphics.Family};
+        if (Presentation.Family != Graphics.Family)
+            familySet.push_back(Presentation.Family);
+        if (Compute.Family != Graphics.Family && Compute.Family != Presentation.Family)
+            familySet.push_back(Compute.Family);
+
+        return familySet;
+    }
+    QueueInfo GetQueueByKind(QueueKind queueKind) const
+    {
+        switch (queueKind)
+        {
+        case QueueKind::Graphics:       return Graphics;
+        case QueueKind::Presentation:   return Presentation;
+        case QueueKind::Compute:        return Compute;
+        default:
+            ASSERT(false, "Unrecognized queue kind")
+            break;
+        }
+        std::unreachable();
+    }
+    u32 GetFamilyByKind(QueueKind queueKind) const
+    {
+        return GetQueueByKind(queueKind).Family;
+    }
+public:
+    QueueInfo Graphics;
+    QueueInfo Presentation;
+    QueueInfo Compute;
+};
+
+// todo: rename to Device once builds
+struct DriverCreateInfo
+{
+    std::string_view AppName;
+    u32 ApiVersion;
+    std::vector<const char*> InstanceExtensions;
+    std::vector<const char*> InstanceValidationLayers;
+    std::vector<const char*> DeviceExtensions;
+    GLFWwindow* Window;
+    bool AsyncCompute{false};
+
+    static DriverCreateInfo Default(GLFWwindow* window, bool asyncCompute);
+};
+
 struct ImmediateSubmitContext
 {
     CommandPool CommandPool;
     CommandBuffer CommandBuffer;
     Fence Fence;
-    QueueInfo QueueInfo;
+    QueueKind QueueKind;
 };
 
 class DriverResources
@@ -57,20 +128,6 @@ private:
     void DestroyDescriptorSetsOfAllocator(ResourceHandleType<DescriptorAllocator> allocator);
     
 private:
-    // this one is a little strange
-    struct DeviceResource
-    {
-        using ObjectType = Device;
-        VkInstance Instance{VK_NULL_HANDLE};
-        VkSurfaceKHR Surface{VK_NULL_HANDLE};
-        VkPhysicalDevice GPU{VK_NULL_HANDLE};
-        VkDevice Device{VK_NULL_HANDLE};
-        VkPhysicalDeviceProperties GPUProperties;
-        VkPhysicalDeviceDescriptorIndexingProperties GPUDescriptorIndexingProperties;
-        VkPhysicalDeviceSubgroupProperties GPUSubgroupProperties;
-        VkPhysicalDeviceDescriptorBufferPropertiesEXT GPUDescriptorBufferProperties;
-        VkDebugUtilsMessengerEXT DebugUtilsMessenger;
-    };
     struct SwapchainResource
     {
         using ObjectType = Swapchain;
@@ -194,7 +251,6 @@ private:
     u64 m_AllocatedCount{0};
     u64 m_DeallocatedCount{0};
     
-    ResourceContainerType<DeviceResource> m_Devices;
     ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<BufferResource> m_Buffers;
     ResourceContainerType<ImageResource> m_Images;
@@ -230,9 +286,7 @@ constexpr auto DriverResources::AddResource(Resource&& resource)
 {
     m_AllocatedCount++;
     
-    if constexpr(std::is_same_v<std::decay_t<Resource>, DeviceResource>)
-        return AddToResourceList(m_Devices, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<std::decay_t<Resource>, SwapchainResource>)
+    if constexpr(std::is_same_v<std::decay_t<Resource>, SwapchainResource>)
         return AddToResourceList(m_Swapchains, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<std::decay_t<Resource>, BufferResource>)
         return AddToResourceList(m_Buffers, std::forward<Resource>(resource));
@@ -278,9 +332,7 @@ constexpr void DriverResources::RemoveResource(ResourceHandleType<Type> handle)
 {
     m_DeallocatedCount++;
 
-    if constexpr(std::is_same_v<Type, Device>)
-        m_Devices.Remove(handle);
-    else if constexpr(std::is_same_v<Type, Swapchain>)
+    if constexpr(std::is_same_v<Type, Swapchain>)
         m_Swapchains.Remove(handle);
     else if constexpr(std::is_same_v<Type, Buffer>)
         m_Buffers.Remove(handle);
@@ -329,9 +381,7 @@ constexpr const auto& DriverResources::operator[](const Type& type) const
 template <typename Type>
 constexpr auto& DriverResources::operator[](const Type& type)
 {
-    if constexpr(std::is_same_v<Type, Device>)
-        return m_Devices[type.Handle()];
-    else if constexpr(std::is_same_v<Type, Swapchain>)
+    if constexpr(std::is_same_v<Type, Swapchain>)
         return m_Swapchains[type.Handle()];
     else if constexpr(std::is_same_v<Type, Buffer>)
         return m_Buffers[type.Handle()];
@@ -383,7 +433,6 @@ public:
 
     void Flush();
 private:
-    std::vector<ResourceHandleType<Device>> m_Devices;
     std::vector<ResourceHandleType<Swapchain>> m_Swapchains;
     std::vector<ResourceHandleType<Buffer>> m_Buffers;
     std::vector<ResourceHandleType<Image>> m_Images;
@@ -406,9 +455,7 @@ private:
 template <typename Type>
 void DeletionQueue::Enqueue(Type& type)
 {
-    if constexpr(std::is_same_v<Type, Device>)
-        m_Devices.push_back(type.Handle());
-    else if constexpr(std::is_same_v<Type, Swapchain>)
+    if constexpr(std::is_same_v<Type, Swapchain>)
         m_Swapchains.push_back(type.Handle());
     else if constexpr(std::is_same_v<Type, Buffer>)
         m_Buffers.push_back(type.Handle());
@@ -446,35 +493,38 @@ void DeletionQueue::Enqueue(Type& type)
         static_assert(!sizeof(Type), "No match for type");
 }
 
-struct DriverState
-{
-    const Device* Device; 
-    VmaAllocator Allocator;
-    DeletionQueue DeletionQueue;
-    ImmediateSubmitContext SubmitContext;
-
-    DriverResources Resources;
-};
-
 class Driver
 {
     friend class RenderCommand;
     friend class ImGuiUI;
 public:
-    static Device Create(const Device::Builder::CreateInfo& createInfo);
-    static void Destroy(ResourceHandleType<Device> device);
-    static void DeviceBuilderDefaults(Device::Builder::CreateInfo& createInfo);
-
     static void Destroy(ResourceHandleType<QueueInfo> queue);
 
     static Swapchain Create(const Swapchain::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Swapchain> swapchain);
     static std::vector<Image> CreateSwapchainImages(const Swapchain& swapchain);
     static void DestroySwapchainImages(const Swapchain& swapchain);
+    static u32 AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync);
+    static bool Present(const Swapchain& swapchain, QueueKind queueKind, const SwapchainFrameSync& swapchainFrameSync,
+        u32 imageIndex);
     
     static CommandBuffer Create(const CommandBuffer::Builder::CreateInfo& createInfo);
     static CommandPool Create(const CommandPool::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<CommandPool> commandPool);
+    static void ResetPool(const CommandPool& pool);
+    static void ResetCommandBuffer(const CommandBuffer& cmd);
+    static void BeginCommandBuffer(const CommandBuffer& cmd, CommandBufferUsage usage);
+    static void EndCommandBuffer(const CommandBuffer& cmd);
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
+        const BufferSubmitSyncInfo& submitSync);
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
+        const BufferSubmitTimelineSyncInfo& submitSync);
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence& fence);
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence* fence);
+    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+        const BufferSubmitSyncInfo& submitSync);
+    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+        const BufferSubmitTimelineSyncInfo& submitSync);
 
     static Buffer Create(const Buffer::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Buffer> buffer);
@@ -482,6 +532,7 @@ public:
     static void UnmapBuffer(const Buffer& buffer);
     static void SetBufferData(Buffer& buffer, const void* data, u64 dataSizeBytes, u64 offsetBytes);
     static void SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBytes, u64 offsetBytes);
+    static u64 GetDeviceAddress(const Buffer& buffer);
     
     static Image AllocateImage(const Image::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Image> image);
@@ -533,6 +584,9 @@ public:
 
     static Fence Create(const Fence::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Fence> fence);
+    static void WaitForFence(const Fence& fence);
+    static bool CheckFence(const Fence& fence);
+    static void ResetFence(const Fence& fence);
     
     static Semaphore Create(const Semaphore::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Semaphore> semaphore);
@@ -553,58 +607,37 @@ public:
 
     static void WaitIdle();
     
-    static void Init(const Device& device);
+    static void Init(DriverCreateInfo&& createInfo);
     static void Shutdown();
 
-    static const Device& GetDevice() { return *s_State.Device; }
-    static DeletionQueue& DeletionQueue() { return s_State.DeletionQueue; }
-    
-    static u64 GetUniformBufferAlignment()
-    {
-        return Resources().m_Devices[0].GPUProperties.limits.minUniformBufferOffsetAlignment;
-    }
-    static f32 GetAnisotropyLevel()
-    {
-        return Resources().m_Devices[0].GPUProperties.limits.maxSamplerAnisotropy;
-    }
-    static u32 GetMaxIndexingImages()
-    {
-        return Resources().m_Devices[0].GPUDescriptorIndexingProperties.
-            maxDescriptorSetUpdateAfterBindSampledImages;
-    }
-    static u32 GetMaxIndexingUniformBuffers()
-    {
-        return Resources().m_Devices[0].GPUDescriptorIndexingProperties.
-            maxDescriptorSetUpdateAfterBindUniformBuffers;
-    }
-    static u32 GetMaxIndexingUniformBuffersDynamic()
-    {
-        return Resources().m_Devices[0].GPUDescriptorIndexingProperties.
-            maxDescriptorSetUpdateAfterBindUniformBuffers;
-    }
-    static u32 GetMaxIndexingStorageBuffers()
-    {
-        return Resources().m_Devices[0].GPUDescriptorIndexingProperties.
-            maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
-    }
-    static u32 GetMaxIndexingStorageBuffersDynamic()
-    {
-        return Resources().m_Devices[0].GPUDescriptorIndexingProperties.
-            maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
-    }
-    static u32 GetSubgroupSize() { return Resources().m_Devices[0].GPUSubgroupProperties.subgroupSize; }
-    static ImmediateSubmitContext* SubmitContext() { return &s_State.SubmitContext; }
-    
+    static DeletionQueue& DeletionQueue();
+
+    static u64 GetUniformBufferAlignment();
+
+    static f32 GetAnisotropyLevel();
+
+    static u32 GetMaxIndexingImages();
+
+    static u32 GetMaxIndexingUniformBuffers();
+
+    static u32 GetMaxIndexingUniformBuffersDynamic();
+
+    static u32 GetMaxIndexingStorageBuffers();
+
+    static u32 GetMaxIndexingStorageBuffersDynamic();
+    static u32 GetSubgroupSize();
+    static ImmediateSubmitContext* SubmitContext();
+
     static TracyVkCtx CreateTracyGraphicsContext(const CommandBuffer& cmd);
     static void DestroyTracyGraphicsContext(TracyVkCtx context);
     // TODO: FIX ME: direct vkapi usage
     static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
 
-    static ImTextureID CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout,
-        const glm::uvec2& size);
+    static ImTextureID CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout);
+    static void DestroyImGuiImage(ImTextureID image);
 private:
-    static VkDevice DeviceHandle() { return Resources().m_Devices[0].Device; }
-    static VmaAllocator& Allocator() { return s_State.Allocator; }
+    static VmaAllocator& Allocator();
+
     static void DriverCheck(VkResult res, std::string_view message)
     {
         if (res != VK_SUCCESS)
@@ -614,34 +647,21 @@ private:
         }
     }
     
-    static DriverResources& Resources() { return s_State.Resources; }
+    static DriverResources& Resources();
     static void ShutdownResources();
+
+    static void InitImGuiUI();
+    static void ShutdownImGuiUI();
 
     static u32 GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, DescriptorPoolFlags poolFlags);
 
-    static void CreateInstance(const Device::Builder::CreateInfo& createInfo,
-        DriverResources::DeviceResource& deviceResource);
-    static void CreateSurface(const Device::Builder::CreateInfo& createInfo,
-        DriverResources::DeviceResource& deviceResource, Device& device);
-    static void ChooseGPU(const Device::Builder::CreateInfo& createInfo,
-        DriverResources::DeviceResource& deviceResource, Device& device);
-    static void CreateDevice(const Device::Builder::CreateInfo& createInfo,
-        DriverResources::DeviceResource& deviceResource, Device& device);
-    static void RetrieveDeviceQueues(DriverResources::DeviceResource& deviceResource, Device& device);
-    static void CreateDebugUtilsMessenger(DriverResources::DeviceResource& deviceResource);
-    static void DestroyDebugUtilsMessenger(DriverResources::DeviceResource& deviceResource);
-
-    struct DeviceSurfaceDetails
-    {
-        VkSurfaceCapabilitiesKHR Capabilities;
-        std::vector<VkSurfaceFormatKHR> Formats;
-        std::vector<VkPresentModeKHR> PresentModes;
-        bool IsSufficient()
-        {
-            return !(Formats.empty() || PresentModes.empty());
-        }
-    };
-    static DeviceSurfaceDetails GetSurfaceDetails(const Device& device);
+    static void CreateInstance(const DriverCreateInfo& createInfo);
+    static void CreateSurface(const DriverCreateInfo& createInfo);
+    static void ChooseGPU(const DriverCreateInfo& createInfo);
+    static void CreateDevice(const DriverCreateInfo& createInfo);
+    static void RetrieveDeviceQueues();
+    static void CreateDebugUtilsMessenger();
+    static void DestroyDebugUtilsMessenger();
 
     static u32 GetDescriptorSizeBytes(DescriptorType type);
 
@@ -661,6 +681,7 @@ private:
         const std::vector<TimelineSemaphore*>& semaphores,
         const std::vector<u64>& waitValues, const std::vector<PipelineStage>& waitStages);
 private:
+    struct DriverState;
     static DriverState s_State;
 };
 

@@ -13,10 +13,8 @@ class CommandBuffer;
 
 class ImGuiUI
 {
+    FRIEND_INTERNAL
 public:
-    static void Init(void* window);
-    static void Shutdown();
-
     static void BeginFrame(u32 frameNumber);
     static void EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingInfo);
 
@@ -24,6 +22,6 @@ public:
 private:
     static void ClearFrameResources(u32 frameNumber);
 private:
-    struct Payload;
-    static std::unique_ptr<Payload> s_Payload;
+    static u32 s_FrameNumber;
+    static std::array<std::vector<ImTextureID>, BUFFERED_FRAMES> s_Textures;
 };

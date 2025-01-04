@@ -16,6 +16,8 @@
 #include "utils/utils.h"
 
 #include "GLFW/glfw3.h"
+#include "Imgui/ImguiUI.h"
+#include "imgui/imgui_impl_glfw.h"
 
 namespace
 {
@@ -373,6 +375,17 @@ namespace
         std::unreachable();
     }
 
+    VkCommandBufferUsageFlags vulkanCommandBufferFlagsFromUsage(CommandBufferUsage usage)
+    {
+        VkCommandBufferUsageFlags flags = 0;
+        if ((usage & CommandBufferUsage::SingleSubmit) == CommandBufferUsage::SingleSubmit)
+            flags |= VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        if ((usage & CommandBufferUsage::SimultaneousUse) == CommandBufferUsage::SimultaneousUse)
+            flags |= VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+
+        return flags;
+    }
+
     constexpr VkPipelineStageFlags2 vulkanPipelineStageFromPipelineStage(PipelineStage stage)
     {
         const std::vector<std::pair<PipelineStage, VkPipelineStageFlags2>> MAPPINGS {
@@ -625,6 +638,40 @@ namespace
 
         return sampler;
     }
+
+    struct SurfaceDetails
+    {
+        VkSurfaceCapabilitiesKHR Capabilities;
+        std::vector<VkSurfaceFormatKHR> Formats;
+        std::vector<VkPresentModeKHR> PresentModes;
+        bool IsSufficient()
+        {
+            return !(Formats.empty() || PresentModes.empty());
+        }
+    };
+    SurfaceDetails getSurfaceDetails(VkPhysicalDevice gpu, VkSurfaceKHR surface)
+    {
+        SurfaceDetails details = {};
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &details.Capabilities);
+
+        u32 formatCount = 0;
+        vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, nullptr);
+        if (formatCount != 0)
+        {
+            details.Formats.resize(formatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, details.Formats.data());
+        }
+
+        u32 presentModeCount = 0;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, nullptr);
+        if (presentModeCount != 0)
+        {
+            details.PresentModes.resize(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, details.PresentModes.data());
+        }
+    
+        return details;
+    }
 }
 
 void DeletionQueue::Flush()
@@ -687,6 +734,44 @@ void DeletionQueue::Flush()
     m_SplitBarriers.clear();
 }
 
+DriverCreateInfo DriverCreateInfo::Default(GLFWwindow* window, bool asyncCompute)
+{
+    DriverCreateInfo createInfo = {};
+    createInfo.AppName = "Vulkan-app";
+    createInfo.ApiVersion = VK_API_VERSION_1_3;
+    u32 instanceExtensionsCount = 0;
+    
+    const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsCount);
+    createInfo.InstanceExtensions = std::vector(instanceExtensions + 0, instanceExtensions + instanceExtensionsCount);
+    createInfo.InstanceExtensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
+    
+#ifdef VULKAN_VAL_LAYERS
+    createInfo.InstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+
+#ifdef VULKAN_VAL_LAYERS
+    createInfo.InstanceValidationLayers = {
+        "VK_LAYER_KHRONOS_validation",
+    };
+#endif
+    
+    createInfo.DeviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE3_EXTENSION_NAME,
+        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
+        VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
+        VK_EXT_INDEX_TYPE_UINT8_EXTENSION_NAME,
+        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
+        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+    };
+
+    createInfo.Window = window;
+    createInfo.AsyncCompute = asyncCompute;
+
+    return createInfo;
+}
+
 void DriverResources::MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool)
 {
     m_CommandPoolToBuffersMap[pool.Handle().m_Id].push_back(cmd.Handle().m_Id);
@@ -714,74 +799,31 @@ void DriverResources::DestroyDescriptorSetsOfAllocator(ResourceHandleType<Descri
     m_DescriptorAllocatorToSetsMap[allocator.m_Id].clear();
 }
 
-DriverState Driver::s_State = DriverState{};
-
-Device Driver::Create(const Device::Builder::CreateInfo& createInfo)
+struct Driver::DriverState
 {
-    DriverCheck(volkInitialize(), "Failed to initialize volk");
-
-    DriverResources::DeviceResource deviceResource = {};
+    VkDevice Device{VK_NULL_HANDLE};
+    DriverResources Resources;
+    VmaAllocator Allocator;
+    DeviceQueues Queues;
+    ::DeletionQueue DeletionQueue;
     
-    Device device = {};
-    CreateInstance(createInfo, deviceResource);
-    CreateSurface(createInfo, deviceResource, device);
-    ChooseGPU(createInfo, deviceResource, device);
-    CreateDevice(createInfo, deviceResource, device);
-    RetrieveDeviceQueues(deviceResource, device);
-
-#ifdef VULKAN_VAL_LAYERS
-    CreateDebugUtilsMessenger(deviceResource);
-#endif
-
-    device.m_ResourceHandle = Resources().AddResource(deviceResource);
-    return device;
-}
-
-void Driver::Destroy(ResourceHandleType<Device> device)
-{
-    DriverResources::DeviceResource& deviceResource = Resources().m_Devices[device.m_Id];
-#ifdef VULKAN_VAL_LAYERS
-    DestroyDebugUtilsMessenger(deviceResource);
-#endif
+    GLFWwindow* Window{nullptr};
     
-    vkDestroyDevice(deviceResource.Device, nullptr);
-    vkDestroySurfaceKHR(deviceResource.Instance, deviceResource.Surface, nullptr);
-    vkDestroyInstance(deviceResource.Instance, nullptr);
+    ImmediateSubmitContext SubmitContext;
 
-    Resources().RemoveResource(device);
-}
+    VkDescriptorPool ImGuiPool;
+    
+    VkInstance Instance{VK_NULL_HANDLE};
+    VkSurfaceKHR Surface{VK_NULL_HANDLE};
+    VkPhysicalDevice GPU{VK_NULL_HANDLE};
+    VkPhysicalDeviceProperties GPUProperties;
+    VkPhysicalDeviceDescriptorIndexingProperties GPUDescriptorIndexingProperties;
+    VkPhysicalDeviceSubgroupProperties GPUSubgroupProperties;
+    VkPhysicalDeviceDescriptorBufferPropertiesEXT GPUDescriptorBufferProperties;
+    VkDebugUtilsMessengerEXT DebugUtilsMessenger;
+};
 
-void Driver::DeviceBuilderDefaults(Device::Builder::CreateInfo& createInfo)
-{
-    createInfo.AppName = "Vulkan-app";
-    createInfo.APIVersion = VK_API_VERSION_1_3;
-    u32 instanceExtensionsCount = 0;
-    
-    const char** instanceExtensions = glfwGetRequiredInstanceExtensions(&instanceExtensionsCount);
-    createInfo.InstanceExtensions = std::vector(instanceExtensions + 0, instanceExtensions + instanceExtensionsCount);
-    createInfo.InstanceExtensions.emplace_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-    
-#ifdef VULKAN_VAL_LAYERS
-    createInfo.InstanceExtensions.emplace_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-#endif
-
-#ifdef VULKAN_VAL_LAYERS
-    createInfo.InstanceValidationLayers = {
-        "VK_LAYER_KHRONOS_validation",
-    };
-#endif
-    
-    createInfo.DeviceExtensions = {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-        VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-        VK_KHR_MAINTENANCE3_EXTENSION_NAME,
-        VK_KHR_MAINTENANCE1_EXTENSION_NAME,
-        VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME,
-        VK_EXT_INDEX_TYPE_UINT8_EXTENSION_NAME,
-        VK_EXT_DESCRIPTOR_BUFFER_EXTENSION_NAME,
-        VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-    };
-}
+Driver::DriverState Driver::s_State = DriverState{};
 
 void Driver::Destroy(ResourceHandleType<QueueInfo> queue)
 {
@@ -796,7 +838,7 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
         //VK_PRESENT_MODE_IMMEDIATE_KHR,
         VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
-    DeviceSurfaceDetails surfaceDetails = GetSurfaceDetails(*createInfo.Device);
+    SurfaceDetails surfaceDetails = getSurfaceDetails(s_State.GPU, s_State.Surface);
     VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
     VkSurfaceFormatKHR colorFormat = Utils::getIntersectionOrDefault(
         desiredFormats, surfaceDetails.Formats,
@@ -839,27 +881,25 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
     
     u32 imageCount = chooseImageCount(capabilities);
     
-    const DriverResources::DeviceResource& deviceResource = Resources()[*createInfo.Device]; 
-    
     VkSwapchainCreateInfoKHR swapchainCreateInfo = {};
     swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-    swapchainCreateInfo.surface = deviceResource.Surface;
+    swapchainCreateInfo.surface = s_State.Surface;
     swapchainCreateInfo.imageColorSpace = colorFormat.colorSpace;
     swapchainCreateInfo.imageFormat = colorFormat.format;
-    VkExtent2D extent = chooseExtent(createInfo.Device->m_Window, capabilities);
+    VkExtent2D extent = chooseExtent(s_State.Window, capabilities);
     swapchainCreateInfo.imageExtent = extent;
     swapchainCreateInfo.imageArrayLayers = 1;
     swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     swapchainCreateInfo.minImageCount = imageCount;
     swapchainCreateInfo.presentMode = presentMode;
 
-    if (createInfo.Device->GetQueues().Graphics.Family == createInfo.Device->GetQueues().Presentation.Family)
+    if (s_State.Queues.Graphics.Family == s_State.Queues.Presentation.Family)
     {
         swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
     }
     else
     {
-        std::vector<u32> queueFamilies = createInfo.Device->GetQueues().AsFamilySet();
+        std::vector<u32> queueFamilies = s_State.Queues.AsFamilySet();
         swapchainCreateInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
         swapchainCreateInfo.queueFamilyIndexCount = (u32)queueFamilies.size();
         swapchainCreateInfo.pQueueFamilyIndices = queueFamilies.data();
@@ -871,7 +911,7 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
 
     DriverResources::SwapchainResource swapchainResource = {};
     swapchainResource.ColorFormat = colorFormat.format;
-    DriverCheck(vkCreateSwapchainKHR(DeviceHandle(), &swapchainCreateInfo, nullptr, &swapchainResource.Swapchain),
+    DriverCheck(vkCreateSwapchainKHR(s_State.Device, &swapchainCreateInfo, nullptr, &swapchainResource.Swapchain),
         "Failed to create swapchain");
     
     Swapchain swapchain = {};
@@ -886,50 +926,23 @@ Swapchain Driver::Create(const Swapchain::Builder::CreateInfo& createInfo)
     swapchain.m_DepthImage = swapchain.CreateDepthImage();
     swapchain.m_ColorImageCount = imageCount;
     swapchain.m_SwapchainFrameSync = createInfo.FrameSyncs;
-    swapchain.m_Window = createInfo.Device->m_Window;
+    swapchain.m_Window = s_State.Window;
 
     return swapchain;
 }
 
 void Driver::Destroy(ResourceHandleType<Swapchain> swapchain)
 {
-    vkDestroySwapchainKHR(DeviceHandle(), Resources().m_Swapchains[swapchain.m_Id].Swapchain, nullptr);
+    vkDestroySwapchainKHR(s_State.Device, Resources().m_Swapchains[swapchain.m_Id].Swapchain, nullptr);
     Resources().RemoveResource(swapchain);
-}
-
-Driver::DeviceSurfaceDetails Driver::GetSurfaceDetails(const Device& device)
-{
-    VkPhysicalDevice gpu = Resources()[device].GPU;
-    VkSurfaceKHR surface = Resources()[device].Surface;
-    
-    DeviceSurfaceDetails details = {};
-    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &details.Capabilities);
-
-    u32 formatCount = 0;
-    vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, nullptr);
-    if (formatCount != 0)
-    {
-        details.Formats.resize(formatCount);
-        vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, details.Formats.data());
-    }
-
-    u32 presentModeCount = 0;
-    vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, nullptr);
-    if (presentModeCount != 0)
-    {
-        details.PresentModes.resize(presentModeCount);
-        vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, details.PresentModes.data());
-    }
-    
-    return details;
 }
 
 std::vector<Image> Driver::CreateSwapchainImages(const Swapchain& swapchain)
 {
     u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(DeviceHandle(), Resources()[swapchain].Swapchain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(s_State.Device, Resources()[swapchain].Swapchain, &imageCount, nullptr);
     std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(DeviceHandle(), Resources()[swapchain].Swapchain, &imageCount, images.data());
+    vkGetSwapchainImagesKHR(s_State.Device, Resources()[swapchain].Swapchain, &imageCount, images.data());
 
     ImageDescription description = {
         .Width = swapchain.m_SwapchainResolution.x,
@@ -959,11 +972,48 @@ void Driver::DestroySwapchainImages(const Swapchain& swapchain)
 {
     for (const auto& colorImage : swapchain.m_ColorImages)
     {
-        vkDestroyImageView(DeviceHandle(), *Resources()[colorImage].Views.ViewList, nullptr);
+        vkDestroyImageView(s_State.Device, *Resources()[colorImage].Views.ViewList, nullptr);
         Resources().RemoveResource(colorImage.Handle());
     }
     Image::Destroy(swapchain.m_DrawImage);
     Image::Destroy(swapchain.m_DepthImage);
+}
+
+u32 Driver::AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync)
+{
+    WaitForFence(swapchainFrameSync.RenderFence);
+
+    u32 imageIndex;
+    VkResult res = vkAcquireNextImageKHR(s_State.Device, Resources()[swapchain].Swapchain,
+        10'000'000'000, Resources()[swapchainFrameSync.PresentSemaphore].Semaphore, VK_NULL_HANDLE,
+        &imageIndex);
+    if (res == VK_ERROR_OUT_OF_DATE_KHR)
+        return INVALID_SWAPCHAIN_IMAGE;
+    
+    ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
+
+    ResetFence(swapchainFrameSync.RenderFence);
+    
+    return imageIndex;
+}
+
+bool Driver::Present(const Swapchain& swapchain, QueueKind queueKind, const SwapchainFrameSync& swapchainFrameSync,
+    u32 imageIndex)
+{
+    VkPresentInfoKHR presentInfo = {};
+    presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    presentInfo.swapchainCount = 1;
+    presentInfo.pSwapchains = &Resources()[swapchain].Swapchain;
+    presentInfo.pImageIndices = &imageIndex;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores = &Resources()[swapchainFrameSync.RenderSemaphore].Semaphore;
+
+    VkResult result = vkQueuePresentKHR(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, &presentInfo);
+    
+    ASSERT(result == VK_SUCCESS || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR,
+        "Failed to present image")
+
+    return result == VK_SUCCESS;
 }
 
 
@@ -976,7 +1026,7 @@ CommandBuffer Driver::Create(const CommandBuffer::Builder::CreateInfo& createInf
     allocateInfo.commandBufferCount = 1;
 
     DriverResources::CommandBufferResource commandBufferResource = {};
-    DriverCheck(vkAllocateCommandBuffers(DeviceHandle(), &allocateInfo, &commandBufferResource.CommandBuffer),
+    DriverCheck(vkAllocateCommandBuffers(s_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
         "Failed to allocate command buffer");
     
     CommandBuffer cmd = {};
@@ -996,10 +1046,10 @@ CommandPool Driver::Create(const CommandPool::Builder::CreateInfo& createInfo)
     VkCommandPoolCreateInfo poolCreateInfo = {};
     poolCreateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolCreateInfo.flags = flags;
-    poolCreateInfo.queueFamilyIndex = createInfo.QueueFamily;
+    poolCreateInfo.queueFamilyIndex = s_State.Queues.GetFamilyByKind(createInfo.QueueKind);
 
     DriverResources::CommandPoolResource commandPoolResource = {};
-    DriverCheck(vkCreateCommandPool(DeviceHandle(), &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
+    DriverCheck(vkCreateCommandPool(s_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
         "Failed to create command pool");
     
     CommandPool commandPool = {};
@@ -1012,9 +1062,143 @@ CommandPool Driver::Create(const CommandPool::Builder::CreateInfo& createInfo)
 
 void Driver::Destroy(ResourceHandleType<CommandPool> commandPool)
 {
-    vkDestroyCommandPool(DeviceHandle(), Resources().m_CommandPools[commandPool.m_Id].CommandPool, nullptr);
+    vkDestroyCommandPool(s_State.Device, Resources().m_CommandPools[commandPool.m_Id].CommandPool, nullptr);
     Resources().DestroyCmdsOfPool(commandPool);
     Resources().RemoveResource(commandPool);
+}
+
+void Driver::ResetPool(const CommandPool& pool)
+{
+    DriverCheck(vkResetCommandPool(s_State.Device, Resources()[pool].CommandPool, 0),
+        "Error while resetting command pool");
+}
+
+void Driver::ResetCommandBuffer(const CommandBuffer& cmd)
+{
+    DriverCheck(vkResetCommandBuffer(Resources()[cmd].CommandBuffer, 0), "Error while resetting command buffer");
+}
+
+void Driver::BeginCommandBuffer(const CommandBuffer& cmd, CommandBufferUsage usage)
+{
+    VkCommandBufferInheritanceInfo inheritanceInfo = {};
+    inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
+    VkCommandBufferBeginInfo beginInfo = {};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = vulkanCommandBufferFlagsFromUsage(usage);
+    if (cmd.m_Kind == CommandBufferKind::Secondary)
+        beginInfo.pInheritanceInfo = &inheritanceInfo;
+    
+    DriverCheck(vkBeginCommandBuffer(Resources()[cmd].CommandBuffer, &beginInfo),
+        "Error while beginning command buffer");
+}
+
+void Driver::EndCommandBuffer(const CommandBuffer& cmd)
+{
+    DriverCheck(vkEndCommandBuffer(Resources()[cmd].CommandBuffer), "Error while ending command buffer");
+}
+
+void Driver::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
+{
+    SubmitCommandBuffers({cmd}, queueKind, submitSync);
+}
+
+void Driver::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
+    const BufferSubmitTimelineSyncInfo& submitSync)
+{
+    SubmitCommandBuffers({cmd}, queueKind, submitSync);
+}
+
+void Driver::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence& fence)
+{
+    SubmitCommandBuffer(cmd, queueKind, &fence);
+}
+
+void Driver::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence* fence)
+{
+    VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
+    commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+    commandBufferSubmitInfo.commandBuffer = Resources()[cmd].CommandBuffer;
+
+    VkSubmitInfo2 submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = 1;
+    submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
+    
+    DriverCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
+        fence ? Resources()[*fence].Fence : VK_NULL_HANDLE),
+        "Error while submitting command buffer");
+}
+
+void Driver::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+    const BufferSubmitSyncInfo& submitSync)
+{
+    std::vector<VkCommandBufferSubmitInfo> commandBufferSubmitInfos;
+    commandBufferSubmitInfos.reserve(cmds.size());
+    for (auto& cmd : cmds)
+        commandBufferSubmitInfos.push_back({
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+            .commandBuffer = Resources()[cmd].CommandBuffer});
+
+    std::vector<VkSemaphoreSubmitInfo> signalSemaphoreSubmitInfos;
+    signalSemaphoreSubmitInfos.reserve(submitSync.SignalSemaphores.size());
+    for (auto& semaphore : submitSync.SignalSemaphores)
+        signalSemaphoreSubmitInfos.push_back({
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+            .semaphore = Resources()[*semaphore].Semaphore});
+
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
+        submitSync.WaitSemaphores, submitSync.WaitStages);
+    
+    VkSubmitInfo2  submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
+    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
+    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
+    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
+    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
+    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
+
+    DriverCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
+        submitSync.Fence ? Resources()[*submitSync.Fence].Fence : VK_NULL_HANDLE),
+        "Error while submitting command buffers");
+}
+
+void Driver::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+    const BufferSubmitTimelineSyncInfo& submitSync)
+{
+    for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
+        submitSync.SignalSemaphores[i]->SetTimeline(submitSync.SignalValues[i]);
+
+    std::vector<VkCommandBufferSubmitInfo> commandBufferSubmitInfos;
+    commandBufferSubmitInfos.reserve(cmds.size());
+    for (auto& cmd : cmds)
+        commandBufferSubmitInfos.push_back({
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
+            .commandBuffer = Resources()[cmd].CommandBuffer});
+
+    std::vector<VkSemaphoreSubmitInfo> signalSemaphoreSubmitInfos;
+    signalSemaphoreSubmitInfos.reserve(submitSync.SignalSemaphores.size());
+    for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
+        signalSemaphoreSubmitInfos.push_back({
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+            .semaphore = Resources()[*submitSync.SignalSemaphores[i]].Semaphore,
+            .value = submitSync.SignalValues[i]});
+
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
+        submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
+    
+    VkSubmitInfo2  submitInfo = {};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+    submitInfo.commandBufferInfoCount = (u32)commandBufferSubmitInfos.size();
+    submitInfo.pCommandBufferInfos = commandBufferSubmitInfos.data();
+    submitInfo.signalSemaphoreInfoCount = (u32)signalSemaphoreSubmitInfos.size();
+    submitInfo.pSignalSemaphoreInfos = signalSemaphoreSubmitInfos.data();
+    submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
+    submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
+
+    DriverCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
+        submitSync.Fence ? Resources()[*submitSync.Fence].Fence : VK_NULL_HANDLE),
+        "Error while submitting command buffers");    
 }
 
 Buffer Driver::Create(const Buffer::Builder::CreateInfo& createInfo)
@@ -1072,6 +1256,15 @@ void Driver::SetBufferData(void* mappedAddress, const void* data, u64 dataSizeBy
     std::memcpy(mappedAddress, data, dataSizeBytes);
 }
 
+u64 Driver::GetDeviceAddress(const Buffer& buffer)
+{
+    VkBufferDeviceAddressInfo deviceAddressInfo = {};
+    deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
+    deviceAddressInfo.buffer = Resources()[buffer].Buffer;
+    
+    return vkGetBufferDeviceAddress(s_State.Device, &deviceAddressInfo);
+}
+
 Image Driver::AllocateImage(const Image::Builder::CreateInfo& createInfo)
 {
     u32 depth = ImageDescription::GetDepth(createInfo.Description);
@@ -1114,12 +1307,12 @@ void Driver::Destroy(ResourceHandleType<Image> image)
     const DriverResources::ImageResource& imageResource = Resources().m_Images[image.m_Id];
     if (imageResource.Views.ViewList == &imageResource.Views.ViewType.View)
     {
-        vkDestroyImageView(DeviceHandle(), imageResource.Views.ViewType.View, nullptr);
+        vkDestroyImageView(s_State.Device, imageResource.Views.ViewType.View, nullptr);
     }
     else
     {
         for (u32 viewIndex = 0; viewIndex < imageResource.Views.ViewType.ViewCount; viewIndex++)
-            vkDestroyImageView(DeviceHandle(), imageResource.Views.ViewList[viewIndex], nullptr);
+            vkDestroyImageView(s_State.Device, imageResource.Views.ViewList[viewIndex], nullptr);
         delete[] imageResource.Views.ViewList;
     }
     vmaDestroyImage(Allocator(), imageResource.Image, imageResource.Allocation);
@@ -1176,7 +1369,7 @@ Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
     }
     
     DriverResources::SamplerResource samplerResource = {};
-    DriverCheck(vkCreateSampler(DeviceHandle(), &samplerCreateInfo, nullptr, &samplerResource.Sampler),
+    DriverCheck(vkCreateSampler(s_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
         "Failed to create depth pyramid sampler");
 
     Sampler sampler = {};
@@ -1186,7 +1379,7 @@ Sampler Driver::Create(const Sampler::Builder::CreateInfo& createInfo)
 
 void Driver::Destroy(ResourceHandleType<Sampler> sampler)
 {
-    vkDestroySampler(DeviceHandle(), Resources().m_Samplers[sampler.m_Id].Sampler, nullptr);
+    vkDestroySampler(s_State.Device, Resources().m_Samplers[sampler.m_Id].Sampler, nullptr);
     Resources().RemoveResource(sampler);
 }
 
@@ -1273,7 +1466,7 @@ PipelineLayout Driver::Create(const PipelineLayout::Builder::CreateInfo& createI
 
     DriverResources::PipelineLayoutResource pipelineLayoutResource = {};
     pipelineLayoutResource.PushConstants = pushConstantRanges;
-    DriverCheck(vkCreatePipelineLayout(DeviceHandle(), &layoutCreateInfo, nullptr, &pipelineLayoutResource.Layout),
+    DriverCheck(vkCreatePipelineLayout(s_State.Device, &layoutCreateInfo, nullptr, &pipelineLayoutResource.Layout),
         "Failed to create pipeline layout");
 
     PipelineLayout layout = {};
@@ -1284,7 +1477,7 @@ PipelineLayout Driver::Create(const PipelineLayout::Builder::CreateInfo& createI
 
 void Driver::Destroy(ResourceHandleType<PipelineLayout> pipelineLayout)
 {
-    vkDestroyPipelineLayout(DeviceHandle(), Resources().m_PipelineLayouts[pipelineLayout.m_Id].Layout, nullptr);
+    vkDestroyPipelineLayout(s_State.Device, Resources().m_PipelineLayouts[pipelineLayout.m_Id].Layout, nullptr);
     Resources().RemoveResource(pipelineLayout);
 }
 
@@ -1303,7 +1496,7 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
         moduleCreateInfo.pCode = reinterpret_cast<const u32*>(shader.Source.data());
 
         VkShaderModule shaderModule;
-        DriverCheck(vkCreateShaderModule(DeviceHandle(), &moduleCreateInfo, nullptr, &shaderModule),
+        DriverCheck(vkCreateShaderModule(s_State.Device, &moduleCreateInfo, nullptr, &shaderModule),
             "Failed to create shader module");
         modules.push_back(shaderModule);
 
@@ -1350,7 +1543,7 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
             pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
         DriverResources::PipelineResource pipelineResource = {};
-        DriverCheck(vkCreateComputePipelines(DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+        DriverCheck(vkCreateComputePipelines(s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
             &pipelineResource.Pipeline), "Failed to create compute pipeline");
         pipeline.m_ResourceHandle = Resources().AddResource(pipelineResource);
     }
@@ -1484,21 +1677,21 @@ Pipeline Driver::Create(const Pipeline::Builder::CreateInfo& createInfo)
             pipelineCreateInfo.flags |= VK_PIPELINE_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
 
         DriverResources::PipelineResource pipelineResource = {};
-        DriverCheck(vkCreateGraphicsPipelines(DeviceHandle(), VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
+        DriverCheck(vkCreateGraphicsPipelines(s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
             &pipelineResource.Pipeline), "Failed to create graphics pipeline");
         pipeline.m_ResourceHandle = Resources().AddResource(pipelineResource);
     }
 
     /* once we have created pipeline, we no longer need shader modules */
     for (auto& module : modules)
-        vkDestroyShaderModule(DeviceHandle(), module, nullptr);
+        vkDestroyShaderModule(s_State.Device, module, nullptr);
     
     return pipeline;
 }
 
 void Driver::Destroy(ResourceHandleType<Pipeline> pipeline)
 {
-    vkDestroyPipeline(DeviceHandle(), Resources().m_Pipelines[pipeline.m_Id].Pipeline, nullptr);
+    vkDestroyPipeline(s_State.Device, Resources().m_Pipelines[pipeline.m_Id].Pipeline, nullptr);
     Resources().RemoveResource(pipeline);
 }
 
@@ -1595,7 +1788,7 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
     layoutCreateInfo.pNext = &bindingFlagsCreateInfo;
 
     DriverResources::DescriptorSetLayoutResource descriptorSetLayoutResource = {};
-    DriverCheck(vkCreateDescriptorSetLayout(DeviceHandle(), &layoutCreateInfo, nullptr,
+    DriverCheck(vkCreateDescriptorSetLayout(s_State.Device, &layoutCreateInfo, nullptr,
         &descriptorSetLayoutResource.Layout), "Failed to create descriptor set layout");
     
     DescriptorsLayout layout = {};
@@ -1606,7 +1799,7 @@ DescriptorsLayout Driver::Create(const DescriptorsLayout::Builder::CreateInfo& c
 
 void Driver::Destroy(ResourceHandleType<DescriptorsLayout> layout)
 {
-    vkDestroyDescriptorSetLayout(DeviceHandle(), Resources().m_DescriptorLayouts[layout.m_Id].Layout, nullptr);
+    vkDestroyDescriptorSetLayout(s_State.Device, Resources().m_DescriptorLayouts[layout.m_Id].Layout, nullptr);
     Resources().RemoveResource(layout);
 }
 
@@ -1682,7 +1875,7 @@ DescriptorSet Driver::Create(const DescriptorSet::Builder::CreateInfo& createInf
         writes.push_back(write);
     }
     
-    vkUpdateDescriptorSets(DeviceHandle(), (u32)writes.size(), writes.data(), 0, nullptr);
+    vkUpdateDescriptorSets(s_State.Device, (u32)writes.size(), writes.data(), 0, nullptr);
 
     return descriptorSet;
 }
@@ -1707,7 +1900,7 @@ void Driver::AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet
     allocateInfo.pNext = &vulkanVariableBindingCounts;
 
     DriverResources::DescriptorSetResource descriptorSetResource = {};
-    vkAllocateDescriptorSets(DeviceHandle(), &allocateInfo, &descriptorSetResource.DescriptorSet);
+    vkAllocateDescriptorSets(s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet);
     descriptorSetResource.Pool = pool;
 
     if (descriptorSetResource.DescriptorSet == VK_NULL_HANDLE)
@@ -1719,7 +1912,7 @@ void Driver::AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet
         pool = allocatorResource.FreePools[poolIndex].Pool;
         allocateInfo.descriptorPool = pool;
         allocateInfo.pSetLayouts = &Resources()[set.m_Layout].Layout;
-        DriverCheck(vkAllocateDescriptorSets(DeviceHandle(), &allocateInfo, &descriptorSetResource.DescriptorSet),
+        DriverCheck(vkAllocateDescriptorSets(s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet),
             "Failed to allocate descriptor set");
         descriptorSetResource.Pool = pool;
     }
@@ -1752,7 +1945,7 @@ void Driver::DeallocateDescriptorSet(ResourceHandleType<DescriptorAllocator> all
         allocatorResource.UsedPools.erase(it);
     }
     
-    vkFreeDescriptorSets(DeviceHandle(), pool, 1, &Resources().m_DescriptorSets[set.m_Id].DescriptorSet);
+    vkFreeDescriptorSets(s_State.Device, pool, 1, &Resources().m_DescriptorSets[set.m_Id].DescriptorSet);
     Resources().RemoveResource(set);
 }
 
@@ -1774,7 +1967,7 @@ void Driver::UpdateDescriptorSet(DescriptorSet& descriptorSet,
     write.dstArrayElement = arrayIndex;
     write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
 
-    vkUpdateDescriptorSets(DeviceHandle(), 1, &write, 0, nullptr);
+    vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);
 }
 
 DescriptorAllocator Driver::Create(const DescriptorAllocator::Builder::CreateInfo& createInfo)
@@ -1795,9 +1988,9 @@ void Driver::Destroy(ResourceHandleType<DescriptorAllocator> allocator)
     DriverResources::DescriptorAllocatorResource& allocatorResource =
         Resources().m_DescriptorAllocators[allocator.m_Id];
     for (auto& pool : allocatorResource.FreePools)
-        vkDestroyDescriptorPool(DeviceHandle(), pool.Pool, nullptr);
+        vkDestroyDescriptorPool(s_State.Device, pool.Pool, nullptr);
     for (auto& pool : allocatorResource.UsedPools)
-        vkDestroyDescriptorPool(DeviceHandle(), pool.Pool, nullptr);
+        vkDestroyDescriptorPool(s_State.Device, pool.Pool, nullptr);
 
     Resources().DestroyDescriptorSetsOfAllocator(allocator);
     Resources().RemoveResource(allocator);
@@ -1807,10 +2000,10 @@ void Driver::ResetAllocator(DescriptorAllocator& allocator)
 {
     DriverResources::DescriptorAllocatorResource& allocatorResource = Resources()[allocator];
     for (auto& pool : allocatorResource.FreePools)
-        vkResetDescriptorPool(DeviceHandle(), pool.Pool, 0);
+        vkResetDescriptorPool(s_State.Device, pool.Pool, 0);
     for (auto pool : allocatorResource.UsedPools)
     {
-        vkResetDescriptorPool(DeviceHandle(), pool.Pool, 0);
+        vkResetDescriptorPool(s_State.Device, pool.Pool, 0);
         allocatorResource.FreePools.push_back(pool);
     }
     allocatorResource.UsedPools.clear();
@@ -1864,13 +2057,13 @@ DescriptorArenaAllocator Driver::Create(const DescriptorArenaAllocator::Builder:
 std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings)
 {
-    auto& descriptorBufferProps = Resources().m_Devices[0].GPUDescriptorBufferProperties;
+    auto& descriptorBufferProps = s_State.GPUDescriptorBufferProperties;
 
     // if we have bindless binding, we have to calculate layout size as a sum of bindings sizes
     u64 layoutSizeBytes = 0;
     if (bindings.BindlessCount == 0)
     {
-        vkGetDescriptorSetLayoutSizeEXT(DeviceHandle(), Resources()[layout].Layout, &layoutSizeBytes);    
+        vkGetDescriptorSetLayoutSizeEXT(s_State.Device, Resources()[layout].Layout, &layoutSizeBytes);    
     }    
     else
     {
@@ -1896,7 +2089,7 @@ std::optional<Descriptors> Driver::Allocate(DescriptorArenaAllocator& allocator,
     for (u32 offsetIndex = 0; offsetIndex < bindingOffsets.size(); offsetIndex++)
     {
         auto& binding = bindings.Bindings[offsetIndex];
-        vkGetDescriptorSetLayoutBindingOffsetEXT(DeviceHandle(), Resources()[layout].Layout, binding.Binding,
+        vkGetDescriptorSetLayoutBindingOffsetEXT(s_State.Device, Resources()[layout].Layout, binding.Binding,
             &bindingOffsets[offsetIndex]);
         bindingOffsets[offsetIndex] += allocator.m_CurrentOffset;
     }
@@ -1922,7 +2115,7 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const B
     VkBufferDeviceAddressInfo deviceAddressInfo = {};
     deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
     deviceAddressInfo.buffer = Resources()[*buffer.Buffer].Buffer;
-    u64 deviceAddress = vkGetBufferDeviceAddress(DeviceHandle(), &deviceAddressInfo);
+    u64 deviceAddress = vkGetBufferDeviceAddress(s_State.Device, &deviceAddressInfo);
 
     VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
     descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
@@ -1942,7 +2135,7 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const B
         "Trying to write descriptor outside of the allocated region")
 
     u64 offsetBytes = descriptors.m_Offsets[slot] + innerOffsetBytes;
-    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, descriptorSizeBytes,
+    vkGetDescriptorEXT(s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)descriptors.m_Allocator->GetCurrentBuffer().m_HostAddress + offsetBytes);
 }
 
@@ -1971,7 +2164,7 @@ void Driver::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
         "Trying to write descriptor outside of the allocated region")
     
     u64 offsetBytes = descriptors.m_Offsets[slot] + innerOffsetBytes;
-    vkGetDescriptorEXT(DeviceHandle(), &descriptorGetInfo, descriptorSizeBytes,
+    vkGetDescriptorEXT(s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)descriptors.m_Allocator->GetCurrentBuffer().m_HostAddress + offsetBytes);
 }
 
@@ -2003,7 +2196,7 @@ void Driver::UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, c
 
 u32 Driver::GetDescriptorSizeBytes(DescriptorType type)
 {
-    auto& props = Resources().m_Devices[0].GPUDescriptorBufferProperties;
+    auto& props = s_State.GPUDescriptorBufferProperties;
     switch (type)
     {
     case DescriptorType::Sampler:       return (u32)props.samplerDescriptorSize;
@@ -2049,7 +2242,7 @@ Fence Driver::Create(const Fence::Builder::CreateInfo& createInfo)
         fenceCreateInfo.flags &= ~VK_FENCE_CREATE_SIGNALED_BIT;
 
     DriverResources::FenceResource fenceResource = {};    
-    DriverCheck(vkCreateFence(DeviceHandle(), &fenceCreateInfo, nullptr, &fenceResource.Fence),
+    DriverCheck(vkCreateFence(s_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
         "Failed to create fence");
     
     Fence fence = {};
@@ -2060,8 +2253,25 @@ Fence Driver::Create(const Fence::Builder::CreateInfo& createInfo)
 
 void Driver::Destroy(ResourceHandleType<Fence> fence)
 {
-    vkDestroyFence(DeviceHandle(), Resources().m_Fences[fence.m_Id].Fence, nullptr);
+    vkDestroyFence(s_State.Device, Resources().m_Fences[fence.m_Id].Fence, nullptr);
     Resources().RemoveResource(fence);
+}
+
+void Driver::WaitForFence(const Fence& fence)
+{
+    DriverCheck(vkWaitForFences(s_State.Device, 1, &Resources()[fence].Fence, true, 10'000'000'000),
+        "Error while waiting for fences");
+}
+
+bool Driver::CheckFence(const Fence& fence)
+{
+    const VkResult result = vkGetFenceStatus(s_State.Device, Resources()[fence].Fence);
+    return result == VK_SUCCESS;
+}
+
+void Driver::ResetFence(const Fence& fence)
+{
+    DriverCheck(vkResetFences(s_State.Device, 1, &Resources()[fence].Fence), "Error while resetting fences");
 }
 
 Semaphore Driver::Create(const Semaphore::Builder::CreateInfo& createInfo)
@@ -2070,7 +2280,7 @@ Semaphore Driver::Create(const Semaphore::Builder::CreateInfo& createInfo)
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
     DriverResources::SemaphoreResource semaphoreResource = {};
-    DriverCheck(vkCreateSemaphore(DeviceHandle(), &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
+    DriverCheck(vkCreateSemaphore(s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
         "Failed to create semaphore");
     
     Semaphore semaphore = {};
@@ -2081,7 +2291,7 @@ Semaphore Driver::Create(const Semaphore::Builder::CreateInfo& createInfo)
 
 void Driver::Destroy(ResourceHandleType<Semaphore> semaphore)
 {
-    vkDestroySemaphore(DeviceHandle(), Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
+    vkDestroySemaphore(s_State.Device, Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
     Resources().RemoveResource(semaphore);
 }
 
@@ -2097,7 +2307,7 @@ TimelineSemaphore Driver::Create(const TimelineSemaphore::Builder::CreateInfo& c
     semaphoreCreateInfo.pNext = &timelineCreateInfo;
 
     DriverResources::SemaphoreResource semaphoreResource = {};
-    vkCreateSemaphore(DeviceHandle(), &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
+    vkCreateSemaphore(s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
 
     TimelineSemaphore semaphore = {};
     semaphore.m_Timeline = createInfo.InitialValue;
@@ -2108,7 +2318,7 @@ TimelineSemaphore Driver::Create(const TimelineSemaphore::Builder::CreateInfo& c
 
 void Driver::Destroy(ResourceHandleType<TimelineSemaphore> semaphore)
 {
-    vkDestroySemaphore(DeviceHandle(), Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
+    vkDestroySemaphore(s_State.Device, Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
     Resources().RemoveResource(semaphore);
 }
 
@@ -2120,7 +2330,7 @@ void Driver::TimelineSemaphoreWaitCPU(const TimelineSemaphore& semaphore, u64 va
     waitInfo.pSemaphores = &Resources()[semaphore].Semaphore;
     waitInfo.pValues = &value;
     
-    DriverCheck(vkWaitSemaphores(DeviceHandle(), &waitInfo, UINT64_MAX),
+    DriverCheck(vkWaitSemaphores(s_State.Device, &waitInfo, UINT64_MAX),
         "Failed to wait for timeline semaphore");
 }
 
@@ -2131,7 +2341,7 @@ void Driver::TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value)
     signalInfo.semaphore = Resources()[semaphore].Semaphore;
     signalInfo.value = value;
 
-    DriverCheck(vkSignalSemaphore(DeviceHandle(), &signalInfo),
+    DriverCheck(vkSignalSemaphore(s_State.Device, &signalInfo),
         "Failed to signal semaphore");
 
     semaphore.m_Timeline = value;
@@ -2143,7 +2353,7 @@ SplitBarrier Driver::Create(const SplitBarrier::Builder::CreateInfo& createInfo)
     eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
 
     DriverResources::SplitBarrierResource splitBarrierResource = {};
-    DriverCheck(vkCreateEvent(DeviceHandle(), &eventCreateInfo, nullptr, &splitBarrierResource.Event),
+    DriverCheck(vkCreateEvent(s_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
         "Failed to create split barrier");
 
     SplitBarrier splitBarrier = {};
@@ -2155,7 +2365,7 @@ SplitBarrier Driver::Create(const SplitBarrier::Builder::CreateInfo& createInfo)
 
 void Driver::Destroy(ResourceHandleType<SplitBarrier> splitBarrier)
 {
-    vkDestroyEvent(DeviceHandle(), Resources().m_SplitBarriers[splitBarrier.m_Id].Event, nullptr);
+    vkDestroyEvent(s_State.Device, Resources().m_SplitBarriers[splitBarrier.m_Id].Event, nullptr);
     Resources().RemoveResource(splitBarrier);
 }
 
@@ -2257,7 +2467,7 @@ u32 Driver::GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, Descri
     poolCreateInfo.pPoolSizes = sizes.data();
     poolCreateInfo.flags = vulkanDescriptorPoolFlagsFromDescriptorPoolFlags(poolFlags);
 
-    DriverCheck(vkCreateDescriptorPool(DeviceHandle(), &poolCreateInfo, nullptr, &pool),
+    DriverCheck(vkCreateDescriptorPool(s_State.Device, &poolCreateInfo, nullptr, &pool),
         "Failed to create descriptor pool");
 
     allocatorResource.FreePools.push_back({.Pool = pool, .Flags = poolFlags});
@@ -2265,10 +2475,9 @@ u32 Driver::GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, Descri
     return index;
 }
 
-void Driver::CreateInstance(const Device::Builder::CreateInfo& createInfo,
-                            DriverResources::DeviceResource& deviceResource)
+void Driver::CreateInstance(const DriverCreateInfo& createInfo)
 {
-    auto checkInstanceExtensions = [](const Device::Builder::CreateInfo& createInfo)
+    auto checkInstanceExtensions = [](const DriverCreateInfo& createInfo)
     {
         u32 availableExtensionCount = 0;
         vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, nullptr);
@@ -2279,7 +2488,7 @@ void Driver::CreateInstance(const Device::Builder::CreateInfo& createInfo,
             [](const char* req, const VkExtensionProperties& avail) { return std::strcmp(req, avail.extensionName); },
             [](const char* req) { LOG("Unsupported instance extension: {}\n", req); });
     };
-    auto checkInstanceValidationLayers = [](const Device::Builder::CreateInfo& createInfo)
+    auto checkInstanceValidationLayers = [](const DriverCreateInfo& createInfo)
     {
         u32 availableValidationLayerCount = 0;
         vkEnumerateInstanceLayerProperties(&availableValidationLayerCount, nullptr);
@@ -2297,7 +2506,7 @@ void Driver::CreateInstance(const Device::Builder::CreateInfo& createInfo,
     applicationInfo.applicationVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
     applicationInfo.pEngineName = "No engine";
     applicationInfo.engineVersion = VK_MAKE_API_VERSION(0, 1, 0, 0);
-    applicationInfo.apiVersion = createInfo.APIVersion;
+    applicationInfo.apiVersion = createInfo.ApiVersion;
 
     VkInstanceCreateInfo instanceCreateInfo = {};
     instanceCreateInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -2315,25 +2524,23 @@ void Driver::CreateInstance(const Device::Builder::CreateInfo& createInfo,
 #endif
     ASSERT(isEveryExtensionSupported && isEveryValidationLayerSupported,
         "Failed to create instance")
-    DriverCheck(vkCreateInstance(&instanceCreateInfo, nullptr, &deviceResource.Instance),
+    DriverCheck(vkCreateInstance(&instanceCreateInfo, nullptr, &s_State.Instance),
         "Failed to create instance\n");
 
-    volkLoadInstance(deviceResource.Instance);
+    volkLoadInstance(s_State.Instance);
 }
 
-void Driver::CreateSurface(const Device::Builder::CreateInfo& createInfo,
-    DriverResources::DeviceResource& deviceResource, Device& device)
+void Driver::CreateSurface(const DriverCreateInfo& createInfo)
 {
     ASSERT(createInfo.Window != nullptr, "Window pointer is unset")
-    device.m_Window = createInfo.Window;
-    DriverCheck(glfwCreateWindowSurface(deviceResource.Instance, createInfo.Window, nullptr, &deviceResource.Surface),
+    s_State.Window = createInfo.Window;
+    DriverCheck(glfwCreateWindowSurface(s_State.Instance, createInfo.Window, nullptr, &s_State.Surface),
         "Failed to create surface\n");
 }
 
-void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
-    DriverResources::DeviceResource& deviceResource, Device& device)
+void Driver::ChooseGPU(const DriverCreateInfo& createInfo)
 {
-    auto findQueueFamilies = [&deviceResource](VkPhysicalDevice gpu, bool dedicatedCompute)
+    auto findQueueFamilies = [](VkPhysicalDevice gpu, bool dedicatedCompute)
     {
         u32 queueFamilyCount = 0;
         vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queueFamilyCount, nullptr);
@@ -2355,7 +2562,7 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
                     queues.Compute.Family = i;
         
             VkBool32 isPresentationSupported = VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, deviceResource.Surface, &isPresentationSupported);
+            vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, s_State.Surface, &isPresentationSupported);
             if (isPresentationSupported && queues.Presentation.Family == QueueInfo::UNSET_FAMILY)
                 queues.Presentation.Family = i;
 
@@ -2366,10 +2573,10 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
         return queues;
     };
     
-    auto isGPUSuitable = [&deviceResource, &findQueueFamilies](VkPhysicalDevice gpu,
-        const Device::Builder::CreateInfo& createInfo)
+    auto isGPUSuitable = [&findQueueFamilies](VkPhysicalDevice gpu,
+        const DriverCreateInfo& createInfo)
     {
-        auto checkGPUExtensions = [](VkPhysicalDevice gpu, const Device::Builder::CreateInfo& createInfo)
+        auto checkGPUExtensions = [](VkPhysicalDevice gpu, const DriverCreateInfo& createInfo)
         {
             u32 availableExtensionCount = 0;
             vkEnumerateDeviceExtensionProperties(gpu, nullptr, &availableExtensionCount, nullptr);
@@ -2382,31 +2589,6 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
                     return std::strcmp(req, avail.extensionName);
                 },
                 [](const char* req) { LOG("Unsupported device extension: {}\n", req); });
-        };
-
-        auto getSurfaceDetails = [](VkPhysicalDevice gpu, VkSurfaceKHR surface)
-        {
-            DeviceSurfaceDetails details = {};
-            vkGetPhysicalDeviceSurfaceCapabilitiesKHR(gpu, surface, &details.Capabilities);
-
-            u32 formatCount = 0;
-            vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, nullptr);
-            if (formatCount != 0)
-            {
-                details.Formats.resize(formatCount);
-                vkGetPhysicalDeviceSurfaceFormatsKHR(gpu, surface, &formatCount, details.Formats.data());
-            }
-
-            u32 presentModeCount = 0;
-            vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount, nullptr);
-            if (presentModeCount != 0)
-            {
-                details.PresentModes.resize(presentModeCount);
-                vkGetPhysicalDeviceSurfacePresentModesKHR(gpu, surface, &presentModeCount,
-                    details.PresentModes.data());
-            }
-    
-            return details;
         };
 
         auto checkGPUFeatures = [](VkPhysicalDevice gpu)
@@ -2494,7 +2676,7 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
         if (!isEveryExtensionSupported)
             return false;
     
-        DeviceSurfaceDetails surfaceDetails = getSurfaceDetails(gpu, deviceResource.Surface);
+        SurfaceDetails surfaceDetails = getSurfaceDetails(gpu, s_State.Surface);
         if (!surfaceDetails.IsSufficient())
             return false;
 
@@ -2506,43 +2688,42 @@ void Driver::ChooseGPU(const Device::Builder::CreateInfo& createInfo,
     };
     
     u32 availableGPUCount = 0;
-    vkEnumeratePhysicalDevices(deviceResource.Instance, &availableGPUCount, nullptr);
+    vkEnumeratePhysicalDevices(s_State.Instance, &availableGPUCount, nullptr);
     std::vector<VkPhysicalDevice> availableGPUs(availableGPUCount);
-    vkEnumeratePhysicalDevices(deviceResource.Instance, &availableGPUCount, availableGPUs.data());
+    vkEnumeratePhysicalDevices(s_State.Instance, &availableGPUCount, availableGPUs.data());
 
     for (auto candidate : availableGPUs)
     {
         if (isGPUSuitable(candidate, createInfo))
         {
-            deviceResource.GPU = candidate;
-            device.m_Queues = findQueueFamilies(candidate, createInfo.AsyncCompute);
+            s_State.GPU = candidate;
+            s_State.Queues = findQueueFamilies(candidate, createInfo.AsyncCompute);
             break;
         }
     }
     
-    ASSERT(deviceResource.GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
+    ASSERT(s_State.GPU != VK_NULL_HANDLE, "Failed to find suitable gpu device")
 
-    deviceResource.GPUDescriptorIndexingProperties.sType =
+    s_State.GPUDescriptorIndexingProperties.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES;
 
-    deviceResource.GPUSubgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
-    deviceResource.GPUSubgroupProperties.pNext = &deviceResource.GPUDescriptorIndexingProperties;
+    s_State.GPUSubgroupProperties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SUBGROUP_PROPERTIES;
+    s_State.GPUSubgroupProperties.pNext = &s_State.GPUDescriptorIndexingProperties;
 
-    deviceResource.GPUDescriptorBufferProperties.sType =
+    s_State.GPUDescriptorBufferProperties.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_BUFFER_PROPERTIES_EXT;
-    deviceResource.GPUDescriptorBufferProperties.pNext = &deviceResource.GPUSubgroupProperties;
+    s_State.GPUDescriptorBufferProperties.pNext = &s_State.GPUSubgroupProperties;
     
     VkPhysicalDeviceProperties2 deviceProperties2 = {};
     deviceProperties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
-    deviceProperties2.pNext = &deviceResource.GPUDescriptorBufferProperties;
-    vkGetPhysicalDeviceProperties2(deviceResource.GPU, &deviceProperties2);
-    deviceResource.GPUProperties = deviceProperties2.properties;
+    deviceProperties2.pNext = &s_State.GPUDescriptorBufferProperties;
+    vkGetPhysicalDeviceProperties2(s_State.GPU, &deviceProperties2);
+    s_State.GPUProperties = deviceProperties2.properties;
 }
 
-void Driver::CreateDevice(const Device::Builder::CreateInfo& createInfo,
-    DriverResources::DeviceResource& deviceResource, Device& device)
+void Driver::CreateDevice(const DriverCreateInfo& createInfo)
 {
-    std::vector<u32> queueFamilies = device.m_Queues.AsFamilySet();
+    std::vector<u32> queueFamilies = s_State.Queues.AsFamilySet();
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos(queueFamilies.size());
     f32 queuePriority = 1.0f;
     for (u32 i = 0; i < queueFamilies.size(); i++)
@@ -2619,28 +2800,28 @@ void Driver::CreateDevice(const Device::Builder::CreateInfo& createInfo,
     deviceCreateInfo.ppEnabledExtensionNames = createInfo.DeviceExtensions.data();
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
-    DriverCheck(vkCreateDevice(deviceResource.GPU, &deviceCreateInfo, nullptr, &deviceResource.Device),
+    DriverCheck(vkCreateDevice(s_State.GPU, &deviceCreateInfo, nullptr, &s_State.Device),
         "Failed to create device\n");
 
-    volkLoadDevice(deviceResource.Device);
+    volkLoadDevice(s_State.Device);
 }
 
-void Driver::RetrieveDeviceQueues(DriverResources::DeviceResource& deviceResource, Device& device)
+void Driver::RetrieveDeviceQueues()
 {
-    device.m_Queues.Graphics.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
-    device.m_Queues.Presentation.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
-    device.m_Queues.Compute.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
+    s_State.Queues.Graphics.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
+    s_State.Queues.Presentation.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
+    s_State.Queues.Compute.m_ResourceHandle = Resources().AddResource(DriverResources::QueueResource{});
 
-    DeletionQueue().Enqueue(device.m_Queues.Graphics);
-    DeletionQueue().Enqueue(device.m_Queues.Presentation);
-    DeletionQueue().Enqueue(device.m_Queues.Compute);
+    DeletionQueue().Enqueue(s_State.Queues.Graphics);
+    DeletionQueue().Enqueue(s_State.Queues.Presentation);
+    DeletionQueue().Enqueue(s_State.Queues.Compute);
     
-    vkGetDeviceQueue(deviceResource.Device, device.m_Queues.Graphics.Family, 0,
-        &Resources()[device.m_Queues.Graphics].Queue);
-    vkGetDeviceQueue(deviceResource.Device, device.m_Queues.Presentation.Family, 0,
-        &Resources()[device.m_Queues.Presentation].Queue);
-    vkGetDeviceQueue(deviceResource.Device, device.m_Queues.Compute.Family, 0,
-        &Resources()[device.m_Queues.Compute].Queue);
+    vkGetDeviceQueue(s_State.Device, s_State.Queues.Graphics.Family, 0,
+        &Resources()[s_State.Queues.Graphics].Queue);
+    vkGetDeviceQueue(s_State.Device, s_State.Queues.Presentation.Family, 0,
+        &Resources()[s_State.Queues.Presentation].Queue);
+    vkGetDeviceQueue(s_State.Device, s_State.Queues.Compute.Family, 0,
+        &Resources()[s_State.Queues.Compute].Queue);
 }
 
 namespace
@@ -2654,7 +2835,7 @@ namespace
     }
 }
 
-void Driver::CreateDebugUtilsMessenger(DriverResources::DeviceResource& deviceResource)
+void Driver::CreateDebugUtilsMessenger()
 {
     VkDebugUtilsMessengerCreateInfoEXT debugUtilsMessengerCreateInfo = {};
     debugUtilsMessengerCreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
@@ -2664,22 +2845,32 @@ void Driver::CreateDebugUtilsMessenger(DriverResources::DeviceResource& deviceRe
         VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     debugUtilsMessengerCreateInfo.pfnUserCallback = debugCallback;
     vkCreateDebugUtilsMessengerEXT(
-        deviceResource.Instance, &debugUtilsMessengerCreateInfo, nullptr, &deviceResource.DebugUtilsMessenger);
+        s_State.Instance, &debugUtilsMessengerCreateInfo, nullptr, &s_State.DebugUtilsMessenger);
 }
 
-void Driver::DestroyDebugUtilsMessenger(DriverResources::DeviceResource& deviceResource)
+void Driver::DestroyDebugUtilsMessenger()
 {
-    vkDestroyDebugUtilsMessengerEXT(deviceResource.Instance, deviceResource.DebugUtilsMessenger, nullptr);
+    vkDestroyDebugUtilsMessengerEXT(s_State.Instance, s_State.DebugUtilsMessenger, nullptr);
 }
 
 void Driver::WaitIdle()
 {
-    vkDeviceWaitIdle(DeviceHandle());
+    vkDeviceWaitIdle(s_State.Device);
 }
 
-void Driver::Init(const Device& device)
+void Driver::Init(DriverCreateInfo&& createInfo)
 {
-    s_State.Device = &device;
+    DriverCheck(volkInitialize(), "Failed to initialize volk");
+
+    CreateInstance(createInfo);
+    CreateSurface(createInfo);
+    ChooseGPU(createInfo);
+    CreateDevice(createInfo);
+    RetrieveDeviceQueues();
+
+#ifdef VULKAN_VAL_LAYERS
+    CreateDebugUtilsMessenger();
+#endif
 
     VmaVulkanFunctions vulkanFunctions;
     vulkanFunctions.vkGetPhysicalDeviceProperties = vkGetPhysicalDeviceProperties;
@@ -2706,24 +2897,22 @@ void Driver::Init(const Device& device)
     vulkanFunctions.vkGetPhysicalDeviceMemoryProperties2KHR = vkGetPhysicalDeviceMemoryProperties2KHR;
     vulkanFunctions.vkGetInstanceProcAddr = vkGetInstanceProcAddr;
     vulkanFunctions.vkGetDeviceProcAddr = vkGetDeviceProcAddr;
-    VmaAllocatorCreateInfo createInfo = {};
 
-    const DriverResources::DeviceResource& deviceResource = Resources()[device];
+    VmaAllocatorCreateInfo vmaCreateInfo = {};
+    vmaCreateInfo.instance = s_State.Instance;
+    vmaCreateInfo.physicalDevice = s_State.GPU;
+    vmaCreateInfo.device = s_State.Device;
+    vmaCreateInfo.pVulkanFunctions = (const VmaVulkanFunctions*)&vulkanFunctions;
+    vmaCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
     
-    createInfo.instance = deviceResource.Instance;
-    createInfo.physicalDevice = deviceResource.GPU;
-    createInfo.device = deviceResource.Device;
-    createInfo.pVulkanFunctions = (const VmaVulkanFunctions*)&vulkanFunctions;
-    createInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-    
-    vmaCreateAllocator(&createInfo, &s_State.Allocator);
+    vmaCreateAllocator(&vmaCreateInfo, &s_State.Allocator);
 
     s_State.SubmitContext.CommandPool = CommandPool::Builder()
         .SetQueue(QueueKind::Graphics)
         .Build();
     s_State.SubmitContext.CommandBuffer = s_State.SubmitContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
     s_State.SubmitContext.Fence = Fence::Builder().Build();
-    s_State.SubmitContext.QueueInfo = s_State.Device->GetQueues().Graphics;
+    s_State.SubmitContext.QueueKind = QueueKind::Graphics;
 
     if constexpr(std::is_same_v<DriverFreelist<Image>, DriverResources::ResourceContainerType<Image>>)
     {
@@ -2750,32 +2939,159 @@ void Driver::Init(const Device& device)
                     b.Views.ViewList = &a.Views.ViewType.View;
             });
     }
+
+    InitImGuiUI();
 }
 
 void Driver::Shutdown()
 {
-    vkDeviceWaitIdle(DeviceHandle());
+    vkDeviceWaitIdle(s_State.Device);
+
+    ShutdownImGuiUI();
     s_State.DeletionQueue.Flush();
     ShutdownResources();
+
+#ifdef VULKAN_VAL_LAYERS
+    DestroyDebugUtilsMessenger();
+#endif
+    
+    vkDestroyDevice(s_State.Device, nullptr);
+    vkDestroySurfaceKHR(s_State.Instance, s_State.Surface, nullptr);
+    vkDestroyInstance(s_State.Instance, nullptr);
+}
+
+DeletionQueue& Driver::DeletionQueue()
+{
+    return s_State.DeletionQueue;
+}
+
+u64 Driver::GetUniformBufferAlignment()
+{
+    return s_State.GPUProperties.limits.minUniformBufferOffsetAlignment;
+}
+
+f32 Driver::GetAnisotropyLevel()
+{
+    return s_State.GPUProperties.limits.maxSamplerAnisotropy;
+}
+
+u32 Driver::GetMaxIndexingImages()
+{
+    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindSampledImages;
+}
+
+u32 Driver::GetMaxIndexingUniformBuffers()
+{
+    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers;
+}
+
+u32 Driver::GetMaxIndexingUniformBuffersDynamic()
+{
+    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindUniformBuffers;
+}
+
+u32 Driver::GetMaxIndexingStorageBuffers()
+{
+    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
+}
+
+u32 Driver::GetMaxIndexingStorageBuffersDynamic()
+{
+    return s_State.GPUDescriptorIndexingProperties.maxDescriptorSetUpdateAfterBindStorageBuffersDynamic;
+}
+
+u32 Driver::GetSubgroupSize()
+{
+    return s_State.GPUSubgroupProperties.subgroupSize;
+}
+
+ImmediateSubmitContext* Driver::SubmitContext()
+{
+    return &s_State.SubmitContext;
+}
+
+DriverResources& Driver::Resources()
+{
+    return s_State.Resources;
 }
 
 void Driver::ShutdownResources()
 {
     vmaDestroyAllocator(s_State.Allocator);
-    for (auto device : DeletionQueue().m_Devices)
-        Destroy(device);
-    DeletionQueue().m_Devices.clear();
     
     ASSERT(Resources().m_AllocatedCount == Resources().m_DeallocatedCount,
         "Not all driver resources are destroyed")
 }
 
+void Driver::InitImGuiUI()
+{
+    std::array poolSizes = {
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000},
+        VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000}};
+
+    VkDescriptorPoolCreateInfo poolCreateInfo = {};
+    poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    poolCreateInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+    poolCreateInfo.maxSets = 1000;
+    poolCreateInfo.poolSizeCount = (u32)poolSizes.size();
+    poolCreateInfo.pPoolSizes = poolSizes.data();
+
+    vkCreateDescriptorPool(s_State.Device, &poolCreateInfo, nullptr, &s_State.ImGuiPool);
+
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; 
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;    
+    ImGui_ImplGlfw_InitForVulkan(s_State.Window, true);
+
+    ImGui_ImplVulkan_InitInfo imguiInitInfo = {};
+    imguiInitInfo.Instance = s_State.Instance;
+    imguiInitInfo.PhysicalDevice = s_State.GPU;
+    imguiInitInfo.Device = s_State.Device;
+    imguiInitInfo.QueueFamily = s_State.Queues.Graphics.Family;
+    imguiInitInfo.Queue = Resources()[s_State.Queues.Graphics].Queue;
+    imguiInitInfo.DescriptorPool = s_State.ImGuiPool;
+    imguiInitInfo.MinImageCount = 3;
+    imguiInitInfo.ImageCount = 3;
+    imguiInitInfo.UseDynamicRendering = true;
+    imguiInitInfo.PipelineRenderingCreateInfo = {};
+    imguiInitInfo.PipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
+    imguiInitInfo.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    VkFormat format = VK_FORMAT_R16G16B16A16_SFLOAT;
+    imguiInitInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &format;
+    ImGui_ImplVulkan_LoadFunctions([](const char* functionName, void* instance)
+    {
+        return vkGetInstanceProcAddr(*(VkInstance*)instance, functionName);
+    }, &s_State.Instance);
+    ImGui_ImplVulkan_Init(&imguiInitInfo);
+    ImGui_ImplVulkan_CreateFontsTexture();
+}
+
+void Driver::ShutdownImGuiUI()
+{
+    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+        ImGuiUI::ClearFrameResources(i);
+        
+    ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+    vkDestroyDescriptorPool(s_State.Device, s_State.ImGuiPool, nullptr);
+}
+
 TracyVkCtx Driver::CreateTracyGraphicsContext(const CommandBuffer& cmd)
 {
-    const DriverResources::DeviceResource& deviceResource = Resources()[GetDevice()];
-   
-    TracyVkCtx context = TracyVkContext(deviceResource.GPU, deviceResource.Device,
-        Resources()[GetDevice().GetQueues().Graphics].Queue, Resources()[cmd].CommandBuffer)
+    TracyVkCtx context = TracyVkContext(s_State.GPU, s_State.Device,
+        Resources()[s_State.Queues.Graphics].Queue, Resources()[cmd].CommandBuffer)
     return context;
 }
 
@@ -2789,8 +3105,7 @@ VkCommandBuffer Driver::GetProfilerCommandBuffer(ProfilerContext* context)
     return Resources()[*context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
 }
 
-ImTextureID Driver::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout,
-    const glm::uvec2& size)
+ImTextureID Driver::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)
 {
     ImageViewHandle viewHandle = texture.Image->GetViewHandle(texture.Description);
     VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(Resources()[sampler].Sampler,
@@ -2798,6 +3113,16 @@ ImTextureID Driver::CreateImGuiImage(const ImageSubresource& texture, Sampler sa
         vulkanImageLayoutFromImageLayout(layout));
 
     return ImTextureID{imageDescriptorSet};
+}
+
+void Driver::DestroyImGuiImage(ImTextureID image)
+{
+    ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)image);
+}
+
+VmaAllocator& Driver::Allocator()
+{
+    return s_State.Allocator;
 }
 
 VkImageView Driver::CreateVulkanImageView(const ImageSubresource& image, VkFormat format)
@@ -2822,7 +3147,7 @@ VkImageView Driver::CreateVulkanImageView(const ImageSubresource& image, VkForma
 
     VkImageView imageView;
 
-    DriverCheck(vkCreateImageView(DeviceHandle(), &createInfo, nullptr, &imageView),
+    DriverCheck(vkCreateImageView(s_State.Device, &createInfo, nullptr, &imageView),
         "Failed to create image view");
 
     return imageView;

@@ -59,7 +59,6 @@ private:
     std::unique_ptr<CameraController> m_CameraController;
     std::shared_ptr<Camera> m_Camera;
 
-    Device m_Device;
     Swapchain m_Swapchain;
     
     u64 m_FrameNumber{0};
