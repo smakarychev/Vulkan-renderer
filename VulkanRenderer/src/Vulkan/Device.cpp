@@ -8,6 +8,8 @@
 #include <imgui/imgui_impl_vulkan.h>
 #include <GLFW/glfw3.h>
 #include <imgui/imgui_impl_glfw.h>
+#include <fstream>
+#include <print>
 
 #include "RenderCommand.h"
 #include "ResourceUploader.h"
@@ -3148,6 +3150,18 @@ ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sa
 void Device::DestroyImGuiImage(ImTextureID image)
 {
     ImGui_ImplVulkan_RemoveTexture((VkDescriptorSet)image);
+}
+
+void Device::DumpMemoryStats(const std::filesystem::path& path)
+{
+    static constexpr VkBool32 DETAILED_MAP = true;
+    char* statsString = nullptr;
+    vmaBuildStatsString(s_State.Allocator, &statsString, DETAILED_MAP);
+    if (!exists(path.parent_path()))
+        create_directories(path.parent_path());
+    std::ofstream out(path);
+    std::print(out, "{}", statsString);
+    vmaFreeStatsString(s_State.Allocator, statsString);
 }
 
 VmaAllocator& Device::Allocator()

@@ -640,6 +640,8 @@ public:
 
     static ImTextureID CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout);
     static void DestroyImGuiImage(ImTextureID image);
+
+    static void DumpMemoryStats(const std::filesystem::path& path);
 private:
     static VmaAllocator& Allocator();
 
