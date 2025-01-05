@@ -562,7 +562,7 @@ public:
     static DescriptorsLayout CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<DescriptorsLayout> layout);
     
-    static DescriptorSet Create(const DescriptorSet::Builder::CreateInfo& createInfo);
+    static DescriptorSet CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo);
     static void AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet& set, DescriptorPoolFlags poolFlags,
         const std::vector<u32>& variableBindingCounts);
     static void DeallocateDescriptorSet(ResourceHandleType<DescriptorAllocator> allocator,

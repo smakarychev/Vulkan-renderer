@@ -847,106 +847,26 @@ void ShaderPipeline::BindCompute(const CommandBuffer& cmd) const
     m_Pipeline.BindCompute(cmd);
 }
 
-ShaderDescriptorSet ShaderDescriptorSet::Builder::Build()
+ShaderDescriptorSet::ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo)
 {
-    PreBuild();
-    ShaderDescriptorSet descriptorSet = ShaderDescriptorSet::Create(m_CreateInfo);
-    m_CreateInfo.DescriptorBuilders = {};
-
-    return descriptorSet;
-}
-
-ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate)
-{
-    m_CreateInfo.ShaderPipelineTemplate = shaderPipelineTemplate;
-
-    return *this;
-}
-
-ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::string_view name, const Buffer& buffer)
-{
-    AddBinding(name, buffer, buffer.GetSizeBytes(), 0);
-
-    return *this;
-}
-
-ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::string_view name,
-    const Buffer& buffer, u64 sizeBytes, u64 offset)
-{
-    auto&& [set, descriptorBinding] = m_CreateInfo.ShaderPipelineTemplate->GetSetAndBinding(name);
-
-    m_CreateInfo.DescriptorBuilders[set].AddBufferBinding(
-        descriptorBinding.Binding, buffer.Subresource(sizeBytes, offset), descriptorBinding.Type);
-
-    return *this;
-}
-
-ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::string_view name,
-    const DescriptorSet::TextureBindingInfo& texture)
-{
-    auto&& [set, descriptorBinding] = m_CreateInfo.ShaderPipelineTemplate->GetSetAndBinding(name);
-
-    m_CreateInfo.DescriptorBuilders[set].AddTextureBinding(
-        descriptorBinding.Binding,
-        texture,
-        descriptorBinding.Type);
-
-    return *this;
-}
-
-ShaderDescriptorSet::Builder& ShaderDescriptorSet::Builder::AddBinding(std::string_view name, u32 variableBindingCount)
-{
-    auto&& [set, descriptorBinding] = m_CreateInfo.ShaderPipelineTemplate->GetSetAndBinding(name);
-
-    m_CreateInfo.DescriptorBuilders[set].AddVariableBinding({
-        .Slot = descriptorBinding.Binding,
-        .Count = variableBindingCount});
-
-    return *this;
-}
-
-void ShaderDescriptorSet::Builder::PreBuild()
-{
-    ASSERT(!m_CreateInfo.ShaderPipelineTemplate->m_UseDescriptorBuffer,
+    ASSERT(!createInfo.ShaderPipelineTemplate->m_UseDescriptorBuffer,
         "ShaderPipelineTemplate was configured to use descriptor buffer, and therefore cannot be used to create"
         " shader descriptor set")
-    m_CreateInfo.SetPresence = m_CreateInfo.ShaderPipelineTemplate->GetSetPresence();
     
-    u32 descriptorCount = m_CreateInfo.ShaderPipelineTemplate->m_DescriptorSetCount;
-    for (u32 i = 0; i < descriptorCount; i++)
-    {
-        m_CreateInfo.DescriptorBuilders[i].SetAllocator(
-            m_CreateInfo.ShaderPipelineTemplate->m_Allocator.DescriptorAllocator);
-        if (m_CreateInfo.SetPresence[i])
-        {
-            m_CreateInfo.DescriptorBuilders[i].SetLayout(
-                m_CreateInfo.ShaderPipelineTemplate->GetDescriptorsLayout(i));
-            m_CreateInfo.DescriptorBuilders[i].SetPoolFlags(
-                m_CreateInfo.ShaderPipelineTemplate->m_DescriptorPoolFlags[i]);
-        }
-    }
-}
-
-ShaderDescriptorSet ShaderDescriptorSet::Create(const Builder::CreateInfo& createInfo)
-{
-    ShaderDescriptorSet descriptorSet = {};
-
-    descriptorSet.m_Template = createInfo.ShaderPipelineTemplate;
+    m_Template = createInfo.ShaderPipelineTemplate;
 
     u32 setCount = 0;
     for (u32 i = 0; i < MAX_PIPELINE_DESCRIPTOR_SETS; i++)
     {
-        if (createInfo.SetPresence[i] == 0)
+        if (!createInfo.DescriptorInfos[i])
             continue;
         
-        descriptorSet.m_DescriptorSetsInfo.DescriptorSets[i].IsPresent = true;
-        descriptorSet.m_DescriptorSetsInfo.DescriptorSets[i].Set = const_cast<DescriptorSet::Builder&>(
-            createInfo.DescriptorBuilders[i]).Build();
+        m_DescriptorSetsInfo.DescriptorSets[i].IsPresent = true;
+        m_DescriptorSetsInfo.DescriptorSets[i].Set =
+            Device::CreateDescriptorSet(std::move(*createInfo.DescriptorInfos[i]));
         setCount++;
     }
-    descriptorSet.m_DescriptorSetsInfo.DescriptorCount = setCount;
-
-    return descriptorSet;
+    m_DescriptorSetsInfo.DescriptorCount = setCount;
 }
 
 void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,

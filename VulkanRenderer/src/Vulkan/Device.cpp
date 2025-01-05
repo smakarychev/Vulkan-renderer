@@ -1837,19 +1837,15 @@ void Device::Destroy(ResourceHandleType<DescriptorsLayout> layout)
     Resources().RemoveResource(layout);
 }
 
-DescriptorSet Device::Create(const DescriptorSet::Builder::CreateInfo& createInfo)
+DescriptorSet Device::CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo)
 {
     // prepare 'bindless' descriptors info
-    std::vector<DescriptorSet::Builder::VariableBindingInfo> variableBindingInfos(
-        createInfo.VariableBindingSlots.size());
-    for (u32 i = 0; i < variableBindingInfos.size(); i++)
-        variableBindingInfos[i] = {
-            .Slot = createInfo.VariableBindingSlots[i],
-            .Count = createInfo.VariableBindingCounts[i]};
+    std::vector<DescriptorSetCreateInfo::VariableBindingInfo> variableBindingInfos;
+    variableBindingInfos.assign(createInfo.VariableBindings.begin(), createInfo.VariableBindings.end());
     std::ranges::sort(variableBindingInfos,
         [](u32 a, u32 b) { return a < b; },
-        [](const DescriptorSet::Builder::VariableBindingInfo& v) { return v.Slot; });
-    std::vector<u32> variableBindingCounts(createInfo.VariableBindingCounts.size());
+        [](const DescriptorSetCreateInfo::VariableBindingInfo& v) { return v.Slot; });
+    std::vector<u32> variableBindingCounts(variableBindingInfos.size());
     for (u32 i = 0; i < variableBindingInfos.size(); i++)
         variableBindingCounts[i] = variableBindingInfos[i].Count;
     

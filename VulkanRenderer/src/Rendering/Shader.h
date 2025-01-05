@@ -204,7 +204,7 @@ public:
         {
             ShaderPipelineTemplate* ShaderPipelineTemplate;
             RenderingDetails RenderingDetails;
-            std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
+            std::array<DescriptorSetCreateInfo, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorInfos;
             PipelineSpecializationInfo PipelineSpecializationInfo;
             bool UseDescriptorBuffer{false};
         };
@@ -291,33 +291,16 @@ ShaderPipeline::Builder& ShaderPipeline::Builder::AddSpecialization(std::string_
     return *this;
 }
 
+struct ShaderDescriptorSetCreateInfo
+{
+    ShaderPipelineTemplate* ShaderPipelineTemplate;
+    std::array<std::optional<DescriptorSetCreateInfo>, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorInfos;
+};
+
 class ShaderDescriptorSet
 {
     using Texture = Image;
 public:
-    class Builder
-    {
-        friend class ShaderDescriptorSet;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            ShaderPipelineTemplate* ShaderPipelineTemplate;
-            std::array<DescriptorSet::Builder, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorBuilders;
-            std::array<bool, MAX_PIPELINE_DESCRIPTOR_SETS> SetPresence{};
-        };
-    public:
-        ShaderDescriptorSet Build();
-        Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
-        Builder& AddBinding(std::string_view name, const Buffer& buffer);
-        Builder& AddBinding(std::string_view name, const Buffer& buffer, u64 sizeBytes, u64 offset);
-        Builder& AddBinding(std::string_view name, const DescriptorSet::TextureBindingInfo& texture);
-        Builder& AddBinding(std::string_view name, u32 variableBindingCount);
-    private:
-        void PreBuild();
-    private:
-        CreateInfo m_CreateInfo;
-    };
-
     struct DescriptorSetsInfo
     {
         struct SetInfo
@@ -329,7 +312,7 @@ public:
         u32 DescriptorCount{0};
     };
 public:
-    static ShaderDescriptorSet Create(const Builder::CreateInfo& createInfo);
+    ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo);
     
     void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
         const;

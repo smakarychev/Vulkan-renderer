@@ -13,6 +13,8 @@
 #include "Image/Image.h"
 #include "ShaderAsset.h"
 
+class DescriptorAllocator;
+
 namespace assetLib
 {
     struct ShaderStageInfo;
@@ -56,58 +58,38 @@ private:
     ResourceHandleType<DescriptorsLayout> m_ResourceHandle{};
 };
 
+struct DescriptorSetCreateInfo
+{
+    struct VariableBindingInfo
+    {
+        u32 Slot;
+        u32 Count;
+    };
+    template <typename Binding>
+    struct BoundResource
+    {
+        Binding BindingInfo;
+        u32 Slot;
+        DescriptorType Type;
+    };
+    using BoundBuffer = BoundResource<BufferBindingInfo>;
+    using BoundTexture = BoundResource<TextureBindingInfo>;
+
+    DescriptorPoolFlags PoolFlags{0};
+    std::span<const BoundBuffer> Buffers;
+    std::span<const BoundTexture> Textures;
+    // todo: change to handles once ready
+    DescriptorAllocator* Allocator;
+    DescriptorsLayout Layout;
+    std::span<const VariableBindingInfo> VariableBindings;
+};
+
 class DescriptorSet
 {
     using Texture = Image;
     FRIEND_INTERNAL
     friend class DescriptorAllocator;
 public:
-    using TextureBindingInfo = ImageBindingInfo;
-    class Builder
-    {
-        friend class DescriptorSet;
-        friend class DescriptorLayoutCache;
-        FRIEND_INTERNAL
-        struct VariableBindingInfo
-        {
-            u32 Slot;
-            u32 Count;
-        };
-        struct CreateInfo
-        {
-            template <typename Binding>
-            struct BoundResource
-            {
-                Binding BindingInfo;
-                u32 Slot;
-                DescriptorType Type;
-            };
-            using BoundBuffer = BoundResource<BufferBindingInfo>;
-            using BoundTexture = BoundResource<TextureBindingInfo>;
-
-            DescriptorPoolFlags PoolFlags{0};
-            std::vector<BoundBuffer> Buffers;
-            std::vector<BoundTexture> Textures;
-            DescriptorAllocator* Allocator;
-            DescriptorsLayout Layout;
-            std::vector<u32> VariableBindingSlots;
-            std::vector<u32> VariableBindingCounts;
-        };
-    public:
-        DescriptorSet Build();
-        
-        Builder& SetAllocator(DescriptorAllocator* allocator);
-        Builder& SetLayout(DescriptorsLayout layout);
-        Builder& SetPoolFlags(DescriptorPoolFlags flags);
-        Builder& AddBufferBinding(u32 slot, const BufferBindingInfo& bindingInfo, DescriptorType descriptor);
-        Builder& AddTextureBinding(u32 slot, const TextureBindingInfo& texture, DescriptorType descriptor);
-        Builder& AddVariableBinding(const VariableBindingInfo& variableBindingInfo);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static DescriptorSet Create(const Builder::CreateInfo& createInfo);
-
     void BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex);
     void BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex,
         const std::vector<u32>& dynamicOffsets);
