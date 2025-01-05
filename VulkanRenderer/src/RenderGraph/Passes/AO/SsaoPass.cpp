@@ -53,7 +53,7 @@ namespace
         Buffer samplesBuffer = Device::CreateBuffer({
             .SizeBytes = samples.size() * sizeof(glm::vec4),
             .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
-            .InitialData = Span{(std::byte*)samples.data(), samples.size() * sizeof(glm::vec4)}});
+            .InitialData = samples});
         Device::DeletionQueue().Enqueue(samplesBuffer);
 
         return {noise, samplesBuffer};
