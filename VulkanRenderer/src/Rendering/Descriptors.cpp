@@ -5,53 +5,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-DescriptorsLayout DescriptorsLayout::Builder::Build()
-{
-    PreBuild();
-
-    return DescriptorLayoutCache::CreateDescriptorSetLayout(m_CreateInfo);
-}
-
-DescriptorsLayout::Builder& DescriptorsLayout::Builder::SetBindings(
-    const std::vector<DescriptorBinding>& bindings)
-{
-    m_CreateInfo.Bindings = bindings;
-
-    return *this;
-}
-
-DescriptorsLayout::Builder& DescriptorsLayout::Builder::SetBindingFlags(const std::vector<DescriptorFlags>& flags)
-{
-    m_CreateInfo.BindingFlags = flags;
-
-    return *this;
-}
-
-DescriptorsLayout::Builder& DescriptorsLayout::Builder::SetFlags(DescriptorLayoutFlags flags)
-{
-    m_CreateInfo.Flags |= flags;
-
-    return *this;
-}
-
-void DescriptorsLayout::Builder::PreBuild()
-{
-    if (m_CreateInfo.BindingFlags.empty())
-        m_CreateInfo.BindingFlags.resize(m_CreateInfo.Bindings.size());
-    ASSERT(m_CreateInfo.BindingFlags.size() == m_CreateInfo.Bindings.size(),
-        "If any element of binding flags is set, every element has to be set")
-}
-
-DescriptorsLayout DescriptorsLayout::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
-void DescriptorsLayout::Destroy(const DescriptorsLayout& layout)
-{
-    Device::Destroy(layout.Handle());
-}
-
 DescriptorSet DescriptorSet::Builder::Build()
 {
     DescriptorSet set = DescriptorSet::Create(m_CreateInfo);
@@ -393,42 +346,44 @@ void DescriptorArenaAllocators::Bind(const CommandBuffer& cmd, u32 bufferIndex)
 
 bool DescriptorLayoutCache::CacheKey::operator==(const CacheKey& other) const
 {
-    if (CreateInfo.Flags != other.CreateInfo.Flags)
+    if (Flags != other.Flags)
         return false;
     
-    if (CreateInfo.Bindings.size() != other.CreateInfo.Bindings.size())
+    if (Bindings.size() != other.Bindings.size())
         return false;
 
-    for (u32 i = 0; i < CreateInfo.Bindings.size(); i++)
+    for (u32 i = 0; i < Bindings.size(); i++)
     {
-        if (CreateInfo.Bindings[i].Binding != other.CreateInfo.Bindings[i].Binding)
+        if (Bindings[i].Binding != other.Bindings[i].Binding)
             return false;
-        if (CreateInfo.Bindings[i].Type != other.CreateInfo.Bindings[i].Type)
+        if (Bindings[i].Type != other.Bindings[i].Type)
             return false;
-        if (CreateInfo.Bindings[i].Count != other.CreateInfo.Bindings[i].Count)
+        if (Bindings[i].Count != other.Bindings[i].Count)
             return false;
-        if (CreateInfo.Bindings[i].Shaders != other.CreateInfo.Bindings[i].Shaders)
+        if (Bindings[i].Shaders != other.Bindings[i].Shaders)
             return false;
-        if (CreateInfo.Bindings[i].DescriptorFlags != other.CreateInfo.Bindings[i].DescriptorFlags)
+        if (Bindings[i].DescriptorFlags != other.Bindings[i].DescriptorFlags)
             return false;
         
-        if (CreateInfo.BindingFlags[i] != other.CreateInfo.BindingFlags[i])
+        if (BindingFlags[i] != other.BindingFlags[i])
             return false;
     }
     
     return true;
 }
 
-DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
-    const DescriptorsLayout::Builder::CreateInfo& createInfo)
+DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
-    CacheKey key = {.CreateInfo = createInfo};
+    CacheKey key = {};
+    key.Flags = createInfo.Flags;
+    key.Bindings.assign(createInfo.Bindings.begin(), createInfo.Bindings.end());
+    key.BindingFlags.assign(createInfo.BindingFlags.begin(), createInfo.BindingFlags.end());
     SortBindings(key);
 
     if (s_LayoutCache.contains(key))
         return s_LayoutCache.at(key);
 
-    DescriptorsLayout newLayout = DescriptorsLayout::Create(createInfo);
+    DescriptorsLayout newLayout = Device::CreateDescriptorsLayout(std::move(createInfo));
     s_LayoutCache.emplace(key, newLayout);
 
     Device::DeletionQueue().Enqueue(newLayout);
@@ -438,22 +393,22 @@ DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(
 
 void DescriptorLayoutCache::SortBindings(CacheKey& cacheKey)
 {
-    std::sort(cacheKey.CreateInfo.Bindings.begin(), cacheKey.CreateInfo.Bindings.end(),
+    std::sort(cacheKey.Bindings.begin(), cacheKey.Bindings.end(),
         [](const auto& a, const auto& b) { return a.Binding < b.Binding; });
 }
 
 u64 DescriptorLayoutCache::DescriptorSetLayoutKeyHash::operator()(const CacheKey& cacheKey) const
 {
     u64 hash = 0;
-    for (auto& binding : cacheKey.CreateInfo.Bindings)
+    for (auto& binding : cacheKey.Bindings)
     {
         u64 hashKey = binding.Binding | binding.Count << 8 | (u32)binding.Type << 16 | (u32)binding.Shaders << 24;
         hash ^= std::hash<u64>()(hashKey);
     }
-    for (auto& bindingFlag : cacheKey.CreateInfo.BindingFlags)
+    for (auto& bindingFlag : cacheKey.BindingFlags)
         hash ^= std::hash<u64>()((u64)bindingFlag);
 
-    hash ^= std::hash<u64>()((u64)cacheKey.CreateInfo.Flags);
+    hash ^= std::hash<u64>()((u64)cacheKey.Flags);
     
     return hash;
 }

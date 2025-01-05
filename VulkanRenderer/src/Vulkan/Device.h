@@ -559,7 +559,7 @@ public:
     static Pipeline Create(const Pipeline::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Pipeline> pipeline);
     
-    static DescriptorsLayout Create(const DescriptorsLayout::Builder::CreateInfo& createInfo);
+    static DescriptorsLayout CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<DescriptorsLayout> layout);
     
     static DescriptorSet Create(const DescriptorSet::Builder::CreateInfo& createInfo);

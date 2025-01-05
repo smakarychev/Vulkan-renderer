@@ -40,35 +40,17 @@ struct DescriptorBinding
     Flags DescriptorFlags{Flags::None};
 };
 
+struct DescriptorsLayoutCreateInfo
+{
+    Span<const DescriptorBinding> Bindings{};
+    Span<const DescriptorFlags> BindingFlags{};
+    DescriptorLayoutFlags Flags{DescriptorLayoutFlags::None};
+};
+
 class DescriptorsLayout
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class DescriptorsLayout;
-        friend class DescriptorLayoutCache;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            std::vector<DescriptorBinding> Bindings;
-            std::vector<DescriptorFlags> BindingFlags;
-            DescriptorLayoutFlags Flags;
-        };
-    public:
-        DescriptorsLayout Build();
-        Builder& SetBindings(const std::vector<DescriptorBinding>& bindings);
-        Builder& SetBindingFlags(const std::vector<DescriptorFlags>& flags);
-        Builder& SetFlags(DescriptorLayoutFlags flags);
-    private:
-        void PreBuild();
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static DescriptorsLayout Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const DescriptorsLayout& layout);
-private:
     ResourceHandleType<DescriptorsLayout> Handle() const { return m_ResourceHandle; }
 private:
     ResourceHandleType<DescriptorsLayout> m_ResourceHandle{};
@@ -329,11 +311,13 @@ class DescriptorLayoutCache
     friend class ShaderPipelineTemplate;
     struct CacheKey
     {
-        DescriptorsLayout::Builder::CreateInfo CreateInfo;
+        std::vector<DescriptorBinding> Bindings{};
+        std::vector<DescriptorFlags> BindingFlags{};
+        DescriptorLayoutFlags Flags{DescriptorLayoutFlags::None};
         bool operator==(const CacheKey& other) const;
     };
 public:
-    static DescriptorsLayout CreateDescriptorSetLayout(const DescriptorsLayout::Builder::CreateInfo& createInfo);
+    static DescriptorsLayout CreateDescriptorSetLayout(DescriptorsLayoutCreateInfo&& createInfo);
 private:
     static void SortBindings(CacheKey& cacheKey);
 private:

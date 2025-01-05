@@ -1727,7 +1727,7 @@ void Device::Destroy(ResourceHandleType<Pipeline> pipeline)
     Resources().RemoveResource(pipeline);
 }
 
-DescriptorsLayout Device::Create(const DescriptorsLayout::Builder::CreateInfo& createInfo)
+DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
     static SamplerBorderColor black = SamplerBorderColor::Black;
     static SamplerBorderColor white = SamplerBorderColor::White;
@@ -1749,8 +1749,10 @@ DescriptorsLayout Device::Create(const DescriptorsLayout::Builder::CreateInfo& c
     static Sampler immutableShadowSampler =
         getImmutableShadowSampler(ImageFilter::Linear, SamplerDepthCompareMode::Less); 
     static Sampler immutableShadowNearestSampler =
-        getImmutableShadowSampler(ImageFilter::Nearest, SamplerDepthCompareMode::Less); 
+        getImmutableShadowSampler(ImageFilter::Nearest, SamplerDepthCompareMode::Less);
 
+    ASSERT(createInfo.BindingFlags.size() == createInfo.Bindings.size(),
+        "If any element of binding flags is set, every element has to be set")
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     bindingFlags.reserve(createInfo.BindingFlags.size());

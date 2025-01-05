@@ -508,10 +508,16 @@ std::vector<DescriptorsLayout> ShaderPipelineTemplate::CreateDescriptorLayouts(
     std::vector<DescriptorsLayout> layouts;
     layouts.reserve(descriptorSetReflections.size());
 
-    static const DescriptorsLayout EMPTY_LAYOUT_ORDINARY = DescriptorsLayout::Builder().Build(); 
-    static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = DescriptorsLayout::Builder()
-        .SetFlags(DescriptorLayoutFlags::DescriptorBuffer)
-        .Build();
+    static const DescriptorsLayout EMPTY_LAYOUT_ORDINARY = Device::CreateDescriptorsLayout({}); 
+    static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = Device::CreateDescriptorsLayout({
+        .Flags = DescriptorLayoutFlags::DescriptorBuffer});
+    static bool once = true;
+    if (once)
+    {
+        Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_ORDINARY);
+        Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_DESCRIPTOR_BUFFER);
+        once = false;
+    }
 
     const DescriptorsLayout* EMPTY_LAYOUT = useDescriptorBuffer ?
         &EMPTY_LAYOUT_DESCRIPTOR_BUFFER : &EMPTY_LAYOUT_ORDINARY;
@@ -529,11 +535,12 @@ std::vector<DescriptorsLayout> ShaderPipelineTemplate::CreateDescriptorLayouts(
         else if (set.HasBindless)
             layoutFlags |= DescriptorLayoutFlags::UpdateAfterBind;
         
-        DescriptorsLayout layout = DescriptorsLayout::Builder()
-            .SetBindings(descriptorsFlags.Descriptors)
-            .SetBindingFlags(descriptorsFlags.Flags)
-            .SetFlags(layoutFlags)
-            .Build();
+        DescriptorsLayout layout = Device::CreateDescriptorsLayout({
+            .Bindings = descriptorsFlags.Descriptors,
+            .BindingFlags = descriptorsFlags.Flags,
+            .Flags = layoutFlags});
+        Device::DeletionQueue().Enqueue(layout);
+        
         layouts.push_back(layout);
     }
 
