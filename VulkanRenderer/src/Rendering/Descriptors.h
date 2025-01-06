@@ -1,17 +1,14 @@
 ﻿#pragma once
 
-#include <optional>
-#include <unordered_map>
-
 #include "RenderingCommon.h"
-#include "types.h"
-
-#include <vector>
 
 #include "Buffer.h"
 #include "DescriptorsTraits.h"
 #include "Image/Image.h"
 #include "ShaderAsset.h"
+
+#include <vector>
+#include <unordered_map>
 
 class DescriptorAllocator;
 
