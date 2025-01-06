@@ -203,38 +203,19 @@ struct DescriptorAllocatorAllocationBindings
     u32 BindlessCount{0};
 };
 
-// todo: name is temp, `DescriptorAllocator` is currently an existing entity
+struct DescriptorArenaAllocatorCreateInfo
+{
+    DescriptorAllocatorKind Kind{DescriptorAllocatorKind::Resources};
+    DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
+    Span<const DescriptorType> UsedTypes;
+    u32 DescriptorCount{0};
+};
+
 class DescriptorArenaAllocator
 {
     FRIEND_INTERNAL
     friend class DescriptorArenaAllocators;
 public:
-    class Builder
-    {
-        friend class DescriptorArenaAllocator;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            DescriptorAllocatorKind Kind{DescriptorAllocatorKind::Resources};
-            DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
-            std::vector<DescriptorType> UsedTypes;
-            u32 DescriptorCount;
-        };
-    public:
-        DescriptorArenaAllocator Build();
-        DescriptorArenaAllocator Build(DeletionQueue& deletionQueue);
-        Builder& Kind(DescriptorAllocatorKind kind);
-        Builder& Residence(DescriptorAllocatorResidence residence);
-        Builder& Count(u32 count);
-        Builder& ForTypes(const std::vector<DescriptorType>& types);
-    private:
-        void PreBuild();
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static DescriptorArenaAllocator Create(const Builder::CreateInfo& createInfo);
-
     Descriptors Allocate(DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
     void Reset();
 
@@ -252,7 +233,6 @@ private:
     u64 m_CurrentOffset{0};
     DescriptorAllocatorKind m_Kind{DescriptorAllocatorKind::Resources};
     DescriptorAllocatorResidence m_Residence{DescriptorAllocatorResidence::CPU};
-    std::vector<DescriptorType> m_UsedTypes;
 };
 
 class DescriptorArenaAllocators

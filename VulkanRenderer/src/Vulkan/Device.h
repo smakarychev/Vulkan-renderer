@@ -574,7 +574,7 @@ public:
     static void Destroy(ResourceHandleType<DescriptorAllocator> allocator);
     static void ResetAllocator(DescriptorAllocator& allocator);
 
-    static DescriptorArenaAllocator Create(const DescriptorArenaAllocator::Builder::CreateInfo& createInfo);
+    static DescriptorArenaAllocator CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo);
     static std::optional<Descriptors> Allocate(DescriptorArenaAllocator& allocator,
         DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
         

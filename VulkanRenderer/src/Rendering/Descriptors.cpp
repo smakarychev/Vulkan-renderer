@@ -113,69 +113,6 @@ void Descriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, Pipelin
     RenderCommand::BindComputeImmutableSamplers(cmd, pipelineLayout, firstSet);
 }
 
-DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-DescriptorArenaAllocator DescriptorArenaAllocator::Builder::Build(DeletionQueue& deletionQueue)
-{
-    PreBuild();
-    
-    DescriptorArenaAllocator allocator = DescriptorArenaAllocator::Create(m_CreateInfo);
-    for (auto& buffer : allocator.m_Buffers)
-        deletionQueue.Enqueue(buffer);
-
-    return allocator;
-}
-
-DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::Kind(DescriptorAllocatorKind kind)
-{
-    m_CreateInfo.Kind = kind;
-
-    return *this;
-}
-
-DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::Residence(DescriptorAllocatorResidence residence)
-{
-    m_CreateInfo.Residence = residence;
-
-    return *this;
-}
-
-DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::Count(u32 count)
-{
-    m_CreateInfo.DescriptorCount = count;
-
-    return *this;
-}
-
-DescriptorArenaAllocator::Builder& DescriptorArenaAllocator::Builder::ForTypes(const std::vector<DescriptorType>& types)
-{
-    m_CreateInfo.UsedTypes = types;
-
-    return *this;
-}
-
-void DescriptorArenaAllocator::Builder::PreBuild()
-{
-    ASSERT(!m_CreateInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
-    
-    if (m_CreateInfo.Kind == DescriptorAllocatorKind::Resources)
-        for (auto type : m_CreateInfo.UsedTypes)
-            ASSERT(type != DescriptorType::Sampler,
-                "Cannot use allocator of this kind for requested descriptor kinds")
-    else
-        for (auto type : m_CreateInfo.UsedTypes)
-            ASSERT(type == DescriptorType::Sampler,
-                "Cannot use allocator of this kind for requested descriptor kinds")
-}
-
-DescriptorArenaAllocator DescriptorArenaAllocator::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 Descriptors DescriptorArenaAllocator::Allocate(DescriptorsLayout layout,
     const DescriptorAllocatorAllocationBindings& bindings)
 {

@@ -2040,8 +2040,19 @@ void Device::ResetAllocator(DescriptorAllocator& allocator)
     Resources().DestroyDescriptorSetsOfAllocator(allocator.Handle());
 }
 
-DescriptorArenaAllocator Device::Create(const DescriptorArenaAllocator::Builder::CreateInfo& createInfo)
+DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo)
 {
+    ASSERT(!createInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
+    
+    if (createInfo.Kind == DescriptorAllocatorKind::Resources)
+        for (auto type : createInfo.UsedTypes)
+            ASSERT(type != DescriptorType::Sampler,
+                "Cannot use allocator of this kind for requested descriptor kinds")
+    else
+        for (auto type : createInfo.UsedTypes)
+            ASSERT(type == DescriptorType::Sampler,
+                "Cannot use allocator of this kind for requested descriptor kinds")
+    
     u32 maxDescriptorSize = 0;
     for (auto type : createInfo.UsedTypes)
         maxDescriptorSize = std::max(maxDescriptorSize, GetDescriptorSizeBytes(type));
@@ -2078,8 +2089,11 @@ DescriptorArenaAllocator Device::Create(const DescriptorArenaAllocator::Builder:
     DescriptorArenaAllocator descriptorArenaAllocator = {};
     descriptorArenaAllocator.m_Kind = createInfo.Kind;
     descriptorArenaAllocator.m_Residence = createInfo.Residence;
-    descriptorArenaAllocator.m_UsedTypes = createInfo.UsedTypes;
     descriptorArenaAllocator.m_Buffers = arenas;
+
+    // todo: this is actually the place for it, but device queue should come as separate parameter
+    for (auto& buffer : arenas)
+        DeletionQueue().Enqueue(buffer);
 
     return descriptorArenaAllocator;
 }
