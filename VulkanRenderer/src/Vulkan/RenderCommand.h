@@ -21,7 +21,7 @@ class Image;
 class CommandPool;
 struct SwapchainFrameSync;
 class DescriptorSet;
-struct ShaderPushConstantDescription;
+struct PushConstantDescription;
 class Buffer;
 class CommandBuffer;
 class Semaphore;

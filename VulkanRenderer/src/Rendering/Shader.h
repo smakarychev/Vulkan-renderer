@@ -10,7 +10,7 @@
 #include "types.h"
 
 class DescriptorSet;
-struct ShaderPushConstantDescription;
+struct PushConstantDescription;
 class DescriptorsLayout;
 class DescriptorLayoutCache;
 class DescriptorAllocator;
@@ -42,13 +42,6 @@ static constexpr std::string_view UNIFORM_IRRADIANCE_SH     = "u_irradiance_SH";
 static constexpr std::string_view UNIFORM_PREFILTER_MAP     = "u_prefilter_map";
 static constexpr std::string_view UNIFORM_BRDF              = "u_brdf";
 static constexpr std::string_view UNIFORM_TRIANGLES         = "u_triangles";
-
-struct ShaderPushConstantDescription
-{
-    u32 SizeBytes{};
-    u32 Offset{};
-    ShaderStage StageFlags{};
-};
 
 struct ShaderModuleSource
 {
@@ -163,7 +156,7 @@ private:
         const std::vector<ReflectionData::DescriptorSet>& descriptorSetReflections, bool useDescriptorBuffer);
     static VertexInputDescription CreateInputDescription(
         const std::vector<ReflectionData::InputAttribute>& inputAttributeReflections);
-    static std::vector<ShaderPushConstantDescription> CreatePushConstantDescriptions(
+    static std::vector<PushConstantDescription> CreatePushConstantDescriptions(
         const std::vector<ReflectionData::PushConstant>& pushConstantReflections);
     static DescriptorsFlags ExtractDescriptorsAndFlags(const ReflectionData::DescriptorSet& descriptorSet,
         bool useDescriptorBuffer);

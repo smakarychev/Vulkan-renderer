@@ -1471,7 +1471,7 @@ void Device::Destroy(ResourceHandleType<RenderingInfo> renderingInfo)
     Resources().RemoveResource(renderingInfo);
 }
 
-PipelineLayout Device::Create(const PipelineLayout::Builder::CreateInfo& createInfo)
+PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo)
 {
     std::vector<VkPushConstantRange> pushConstantRanges;
     pushConstantRanges.reserve(createInfo.PushConstants.size());

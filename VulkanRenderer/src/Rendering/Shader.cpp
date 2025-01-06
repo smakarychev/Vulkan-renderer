@@ -413,13 +413,13 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     shaderPipelineTemplate.m_DescriptorsLayouts = CreateDescriptorLayouts(reflectionData.DescriptorSets,
         shaderPipelineTemplate.m_UseDescriptorBuffer);
     shaderPipelineTemplate.m_VertexInputDescription = CreateInputDescription(reflectionData.InputAttributes);
-    std::vector<ShaderPushConstantDescription> pushConstantDescriptions =
+    std::vector<PushConstantDescription> pushConstantDescriptions =
         CreatePushConstantDescriptions(reflectionData.PushConstants);
     
-    shaderPipelineTemplate.m_PipelineLayout = PipelineLayout::Builder()
-        .SetPushConstants(pushConstantDescriptions)
-        .SetDescriptorLayouts(shaderPipelineTemplate.m_DescriptorsLayouts)
-        .Build();
+    shaderPipelineTemplate.m_PipelineLayout = Device::CreatePipelineLayout({
+        .PushConstants = pushConstantDescriptions,
+        .DescriptorSetLayouts = shaderPipelineTemplate.m_DescriptorsLayouts});
+    Device::DeletionQueue().Enqueue(shaderPipelineTemplate.m_PipelineLayout);
     
     shaderPipelineTemplate.m_PipelineBuilder = Pipeline::Builder()
         .SetLayout(shaderPipelineTemplate.m_PipelineLayout);
@@ -596,15 +596,15 @@ VertexInputDescription ShaderPipelineTemplate::CreateInputDescription(
     return inputDescription;
 }
 
-std::vector<ShaderPushConstantDescription> ShaderPipelineTemplate::CreatePushConstantDescriptions(
+std::vector<PushConstantDescription> ShaderPipelineTemplate::CreatePushConstantDescriptions(
     const std::vector<ReflectionData::PushConstant>& pushConstantReflections)
 {
-    std::vector<ShaderPushConstantDescription> pushConstants;
+    std::vector<PushConstantDescription> pushConstants;
     pushConstants.reserve(pushConstantReflections.size());
 
     for (auto& pushConstant : pushConstantReflections)
     {
-        ShaderPushConstantDescription description = {};
+        PushConstantDescription description = {};
         description.SizeBytes = pushConstant.SizeBytes;
         description.Offset = pushConstant.Offset;
         description.StageFlags = shaderStageFromMultipleAssetStages(pushConstant.ShaderStages);

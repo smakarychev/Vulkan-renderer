@@ -553,7 +553,7 @@ public:
     static RenderingInfo Create(const RenderingInfo::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<RenderingInfo> renderingInfo);
 
-    static PipelineLayout Create(const PipelineLayout::Builder::CreateInfo& createInfo);
+    static PipelineLayout CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<PipelineLayout> pipelineLayout);
 
     static Pipeline Create(const Pipeline::Builder::CreateInfo& createInfo);

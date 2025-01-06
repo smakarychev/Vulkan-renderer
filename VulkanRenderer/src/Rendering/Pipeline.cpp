@@ -5,39 +5,6 @@
 #include "Vulkan/RenderCommand.h"
 #include "Rendering/Shader.h"
 
-PipelineLayout PipelineLayout::Builder::Build()
-{
-    PipelineLayout layout = PipelineLayout::Create(m_CreateInfo);
-    Device::DeletionQueue().Enqueue(layout);
-
-    return layout;
-}
-
-PipelineLayout::Builder& PipelineLayout::Builder::SetPushConstants(
-    const std::vector<ShaderPushConstantDescription>& pushConstants)
-{
-    m_CreateInfo.PushConstants = pushConstants;
-
-    return *this;
-}
-
-PipelineLayout::Builder& PipelineLayout::Builder::SetDescriptorLayouts(const std::vector<DescriptorsLayout>& layouts)
-{
-    m_CreateInfo.DescriptorSetLayouts = layouts;
-    
-    return *this;
-}
-
-PipelineLayout PipelineLayout::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
-void PipelineLayout::Destroy(const PipelineLayout& pipelineLayout)
-{
-    Device::Destroy(pipelineLayout.Handle());
-}
-
 Pipeline Pipeline::Builder::Build()
 {
     return Build(Device::DeletionQueue());

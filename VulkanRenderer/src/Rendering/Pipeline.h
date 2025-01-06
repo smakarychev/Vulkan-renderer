@@ -1,41 +1,33 @@
 ﻿#pragma once
 
-#include "types.h"
 #include "ResourceHandle.h"
+
+#include "Descriptors.h"
+#include "DescriptorsTraits.h"
+#include "Common/Span.h"
 
 #include <vector>
 
-#include "DescriptorsTraits.h"
-
 class DeletionQueue;
 struct ShaderModuleSource;
-class DescriptorsLayout;
-struct ShaderPushConstantDescription;
 class CommandBuffer;
+
+struct PushConstantDescription
+{
+    u32 SizeBytes{};
+    u32 Offset{};
+    ShaderStage StageFlags{};
+};
+
+struct PipelineLayoutCreateInfo
+{
+    Span<const PushConstantDescription> PushConstants;
+    Span<const DescriptorsLayout> DescriptorSetLayouts;
+};
 
 class PipelineLayout
 {
     FRIEND_INTERNAL
-public:
-    class Builder
-    {
-        friend class PipelineLayout;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            std::vector<ShaderPushConstantDescription> PushConstants;
-            std::vector<DescriptorsLayout> DescriptorSetLayouts;
-        };
-    public:
-        PipelineLayout Build();
-        Builder& SetPushConstants(const std::vector<ShaderPushConstantDescription>& pushConstants);
-        Builder& SetDescriptorLayouts(const std::vector<DescriptorsLayout>& layouts);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static PipelineLayout Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const PipelineLayout& pipelineLayout);
 private:
     ResourceHandleType<PipelineLayout> Handle() const { return m_ResourceHandle; }
 private:
