@@ -570,7 +570,7 @@ public:
     static void UpdateDescriptorSet(DescriptorSet& descriptorSet, u32 slot, const Texture& texture,
         DescriptorType type, u32 arrayIndex);
 
-    static DescriptorAllocator Create(const DescriptorAllocator::Builder::CreateInfo& createInfo);
+    static DescriptorAllocator CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<DescriptorAllocator> allocator);
     static void ResetAllocator(DescriptorAllocator& allocator);
 

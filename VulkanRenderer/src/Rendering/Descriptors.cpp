@@ -32,41 +32,6 @@ void DescriptorSet::SetTexture(u32 slot, const Texture& texture, DescriptorType 
     Device::UpdateDescriptorSet(*this, slot, texture, descriptor, arrayIndex);
 }
 
-DescriptorAllocator DescriptorAllocator::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-DescriptorAllocator DescriptorAllocator::Builder::Build(DeletionQueue& deletionQueue)
-{
-    DescriptorAllocator allocator = DescriptorAllocator::Create(m_CreateInfo);
-    deletionQueue.Enqueue(allocator);
-
-    return allocator;
-}
-
-DescriptorAllocator DescriptorAllocator::Builder::BuildManualLifetime()
-{
-    return DescriptorAllocator::Create(m_CreateInfo);
-}
-
-DescriptorAllocator::Builder& DescriptorAllocator::Builder::SetMaxSetsPerPool(u32 maxSets)
-{
-    m_CreateInfo.MaxSets = maxSets;
-
-    return *this;
-}
-
-DescriptorAllocator DescriptorAllocator::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
-void DescriptorAllocator::Destroy(const DescriptorAllocator& allocator)
-{
-    Device::Destroy(allocator.Handle());
-}
-
 void DescriptorAllocator::Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags,
     const std::vector<u32>& variableBindingCounts)
 {

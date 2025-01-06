@@ -2000,7 +2000,7 @@ void Device::UpdateDescriptorSet(DescriptorSet& descriptorSet,
     vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);
 }
 
-DescriptorAllocator Device::Create(const DescriptorAllocator::Builder::CreateInfo& createInfo)
+DescriptorAllocator Device::CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo)
 {
     DeviceResources::DescriptorAllocatorResource descriptorAllocatorResource = {};
     

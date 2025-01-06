@@ -108,37 +108,15 @@ private:
     ResourceHandleType<DescriptorSet> m_ResourceHandle{};
 };
 
+struct DescriptorAllocatorCreateInfo
+{
+    u32 MaxSets{0};
+};
+
 class DescriptorAllocator
 {
-    friend class DescriptorSet;
     FRIEND_INTERNAL
-    struct PoolSize
-    {
-        DescriptorType DescriptorType;
-        f32 SetSizeMultiplier;
-    };
-    using PoolSizes = std::vector<PoolSize>;
 public:
-    class Builder
-    {
-        friend class DescriptorAllocator;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            u32 MaxSets;
-        };
-    public:
-        DescriptorAllocator Build();
-        DescriptorAllocator Build(DeletionQueue& deletionQueue);
-        DescriptorAllocator BuildManualLifetime();
-        Builder& SetMaxSetsPerPool(u32 maxSets);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static DescriptorAllocator Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const DescriptorAllocator& allocator);
-
     void Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
     void Deallocate(ResourceHandleType<DescriptorSet> set);
 
@@ -146,7 +124,12 @@ public:
 private:
     ResourceHandleType<DescriptorAllocator> Handle() const { return m_ResourceHandle; }
 private:
-    PoolSizes m_PoolSizes = {
+    struct PoolSize
+    {
+        DescriptorType DescriptorType;
+        f32 SetSizeMultiplier;
+    };
+    std::vector<PoolSize> m_PoolSizes = {
         { DescriptorType::Sampler, 0.5f },
         { DescriptorType::Image, 4.f },
         { DescriptorType::ImageStorage, 1.f },
