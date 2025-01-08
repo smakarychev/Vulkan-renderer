@@ -1,6 +1,5 @@
 #pragma once
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RGCommon.h"
 
 class CopyTexturePass;
 
@@ -35,97 +34,30 @@ public:
     std::vector<Traits>& GetTraits() { return m_Traits; }
     std::vector<Slime>& GetSlime() { return m_Slime; }
 
+    f32& GetDiffuseRate() { return m_DiffuseRate; }
+    f32& GetDecayRate() { return m_DecayRate; }
+
     const Buffer& GetTraitsBuffer() const { return m_TraitsBuffer; }
     const Buffer& GetSlimeBuffer() const { return m_SlimeBuffer; }
 
     const Texture& GetSlimeMap() const { return m_SlimeMap; }
-
-    void UpdateTraits(ResourceUploader& resourceUploader);
 private:
     glm::uvec2 m_Resolution{};
     std::vector<Traits> m_Traits;
     std::vector<Slime> m_Slime;
+    f32 m_DiffuseRate{10.0f};
+    f32 m_DecayRate{0.02f};
 
     Buffer m_TraitsBuffer;
     Buffer m_SlimeBuffer;
     Texture m_SlimeMap;
 };
 
-enum class SlimeMoldPassStage
+namespace Passes::SlimeMold
 {
-    UpdateSlimeMap, DiffuseSlimeMap, CopyDiffuse, Gradient,
-};
-
-class SlimeMoldPass
-{
-public:
-    struct PushConstants
+    struct PassData
     {
-        f32 Width;
-        f32 Height;
-        u32 SlimeCount;
-        f32 Dt;
-        f32 Time;
-        f32 DiffuseRate{10.0f};
-        f32 DecayRate{0.02f};
+        RG::Resource ColorOut{};
     };
-    struct GradientUBO
-    {
-        glm::vec4 A{0.5f, 0.5f, 0.5f, 1.0f};
-        glm::vec4 B{0.5f, 0.5f, 0.5f, 1.0f};
-        glm::vec4 C{1.0f, 1.0f, 1.0f, 1.0f};
-        glm::vec4 D{0.0f, 0.1f, 0.2f, 1.0f};
-    };
-    struct UpdateSlimeMapPassData
-    {
-        RG::Resource Traits;
-        RG::Resource Slime;
-        RG::Resource SlimeMap;
-        
-        RG::PipelineData* PipelineData{nullptr};
-        
-        PushConstants* PushConstants{nullptr};
-        SlimeMoldContext* SlimeMoldContext{ nullptr };
-    };
-    struct DiffuseSlimeMapPassData
-    {
-        RG::Resource SlimeMap;
-        RG::Resource DiffuseMap;
-
-        RG::PipelineData* PipelineData{nullptr};
-        
-        PushConstants* PushConstants{nullptr};
-        SlimeMoldContext* SlimeMoldContext{nullptr};
-    };
-    struct GradientPassData
-    {
-        RG::Resource DiffuseMap;
-        RG::Resource GradientMap;
-        RG::Resource Gradient;
-
-        RG::PipelineData* PipelineData{nullptr};
-        
-        PushConstants* PushConstants{nullptr};
-        SlimeMoldContext* SlimeMoldContext{ nullptr };
-        GradientUBO* GradientData{nullptr};
-    };
-public:
-    SlimeMoldPass(RG::Graph& renderGraph);
-    void AddToGraph(RG::Graph& renderGraph, SlimeMoldPassStage stage, SlimeMoldContext& ctx);
-private:
-    void AddUpdateSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
-    void AddDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
-    void AddCopyDiffuseSlimeMapStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
-    void AddGradientStage(RG::Graph& renderGraph, SlimeMoldContext& ctx);
-private:
-    RG::Pass* m_UpdateSlimeMapPass{nullptr};
-    RG::Pass* m_DiffuseSlimeMapPass{nullptr};
-    RG::Pass* m_GradientSlimeMapPass{nullptr};
-
-    RG::PipelineData m_UpdateSlimeMapPipelineData;
-    RG::PipelineData m_DiffuseSlimeMapPipelineData;
-    RG::PipelineData m_GradientSlimeMapPipelineData;
-
-    PushConstants m_PushConstants{};
-    GradientUBO m_Gradient{};
-};
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, SlimeMoldContext& ctx);
+}

@@ -161,7 +161,6 @@ void Renderer::InitRenderGraph()
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(m_Swapchain.GetResolution(), 1, 5000000, *GetFrameContext().ResourceUploader));
-    m_SlimeMoldPass = std::make_shared<SlimeMoldPass>(*m_Graph);
 
     /* initial submit */
     Device::ImmediateSubmit([&](const CommandBuffer& cmd)
@@ -214,14 +213,9 @@ void Renderer::ExecuteSingleTimePasses()
 
 void Renderer::SetupRenderSlimePasses()
 {
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::UpdateSlimeMap, *m_SlimeMoldContext);
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::DiffuseSlimeMap, *m_SlimeMoldContext);
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::Gradient, *m_SlimeMoldContext);
-    auto& slimeMoldOutput = m_Graph->GetBlackboard().Get<SlimeMoldPass::GradientPassData>();
-    Passes::CopyTexture::addToGraph("CopyTexture.Mold", *m_Graph,
-        slimeMoldOutput.GradientMap, m_Graph->GetBackbuffer(),
-        glm::vec3{0.0f}, glm::vec3{1.0f});
-    m_SlimeMoldPass->AddToGraph(*m_Graph, SlimeMoldPassStage::CopyDiffuse, *m_SlimeMoldContext);
+    auto& slime = Passes::SlimeMold::addToGraph("Slime", *m_Graph, *m_SlimeMoldContext);
+    auto& slimeOutput = m_Graph->GetBlackboard().Get<Passes::SlimeMold::PassData>(slime);
+    Passes::ImGuiTexture::addToGraph("ImGuiTexture.Mold", *m_Graph, slimeOutput.ColorOut);
 }
 
 void Renderer::SetupRenderGraph()

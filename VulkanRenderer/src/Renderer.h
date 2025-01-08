@@ -85,7 +85,6 @@ private:
     Buffer m_SkyIrradianceSH{};
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
-    std::shared_ptr<SlimeMoldPass> m_SlimeMoldPass;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
