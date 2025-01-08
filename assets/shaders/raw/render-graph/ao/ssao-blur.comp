@@ -2,7 +2,7 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(constant_id = 0) const bool IS_VERTICAL = false;
+layout(constant_id = 0) const bool IS_VERTICAL = true;
 
 @immutable_sampler
 layout(set = 0, binding = 0) uniform sampler u_sampler;

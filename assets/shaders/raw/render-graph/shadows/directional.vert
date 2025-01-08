@@ -5,7 +5,7 @@
 
 #extension GL_ARB_shader_draw_parameters: enable
 
-layout(constant_id = 0) const bool COMPOUND_INDEX = true;
+layout(constant_id = 0) const bool COMPOUND_INDEX = false;
 
 layout(set = 1, binding = 0) uniform camera {
     CameraGPU camera;

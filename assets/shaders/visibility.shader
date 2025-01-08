@@ -12,12 +12,5 @@
         "../assets/shaders/processed/render-graph/general/visibility-buffer-vert.stage",
         "../assets/shaders/processed/render-graph/general/visibility-buffer-frag.stage"
     ],
-    "specialization_constants": [
-        {
-		    "name": "COMPOUND_INDEX",
-		    "value": false,
-		    "type": "b32" 
-	    }
-    ],
     "bindless": "main_materials" 
 }

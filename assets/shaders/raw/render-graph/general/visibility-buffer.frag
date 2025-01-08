@@ -4,7 +4,7 @@
 
 #extension GL_EXT_nonuniform_qualifier: require
 
-layout(constant_id = 0) const bool COMPOUND_INDEX = true;
+layout(constant_id = 0) const bool COMPOUND_INDEX = false;
 
 layout(location = 0) in flat uint vertex_command_id;
 layout(location = 1) in vec2 vertex_uv;

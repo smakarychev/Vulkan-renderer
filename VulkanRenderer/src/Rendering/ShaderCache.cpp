@@ -313,49 +313,20 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         pipelineBuilder
             .UseDescriptorBuffer()
             .SetTemplate(shaderTemplate);
-        
-        for (auto& specialization : json["specialization_constants"])
-        {
-            static constexpr std::string_view TYPE_BOOL = "b32";
-            static constexpr std::string_view TYPE_I32 = "i32";
-            static constexpr std::string_view TYPE_U32 = "u32";
-            static constexpr std::string_view TYPE_F32 = "f32";
-            
-            std::string_view specializationName = specialization["name"];
 
-            auto override = std::ranges::find_if(overrides.m_Overrides,
-                [&specializationName](auto& o){ return o.Name.String() == specializationName; });
-            if (override != overrides.m_Overrides.end())
-            {
-                // todo: std::visit ?
-                ShaderOverrides::Override::ValueType value = override->Value;
-                if (std::holds_alternative<bool>(value))
-                    pipelineBuilder.AddSpecialization<bool>(override->Name.String(), std::get<bool>(value));
-                else if (std::holds_alternative<i32>(value))
-                    pipelineBuilder.AddSpecialization<i32>(override->Name.String(), std::get<i32>(value));
-                else if (std::holds_alternative<u32>(value))
-                    pipelineBuilder.AddSpecialization<u32>(override->Name.String(), std::get<u32>(value));
-                else if (std::holds_alternative<f32>(value))
-                    pipelineBuilder.AddSpecialization<f32>(override->Name.String(), std::get<f32>(value));
-                else
-                    LOG("Ignoring specialization constant {}: unknown type", override->Name.String());
-            }
+        for (auto& override : overrides.m_Overrides)
+        {
+            ShaderOverrides::Override::ValueType value = override.Value;
+            if (std::holds_alternative<bool>(value))
+                pipelineBuilder.AddSpecialization<bool>(override.Name.String(), std::get<bool>(value));
+            else if (std::holds_alternative<i32>(value))
+                pipelineBuilder.AddSpecialization<i32>(override.Name.String(), std::get<i32>(value));
+            else if (std::holds_alternative<u32>(value))
+                pipelineBuilder.AddSpecialization<u32>(override.Name.String(), std::get<u32>(value));
+            else if (std::holds_alternative<f32>(value))
+                pipelineBuilder.AddSpecialization<f32>(override.Name.String(), std::get<f32>(value));
             else
-            {
-                std::string_view specializationType = specialization["type"];
-                const auto& value = specialization["value"];
-                if (specializationType == TYPE_BOOL)
-                    pipelineBuilder.AddSpecialization<bool>(specializationName, value);
-                else if (specializationType == TYPE_I32)
-                    pipelineBuilder.AddSpecialization<i32>(specializationName, value);
-                else if (specializationType == TYPE_U32)
-                    pipelineBuilder.AddSpecialization<u32>(specializationName, value);
-                else if (specializationType == TYPE_F32)
-                    pipelineBuilder.AddSpecialization<f32>(specializationName, value);
-                else
-                    LOG("Ignoring specialization constant {}: unknown type: {}",
-                        specializationName, specializationType);
-            }
+                LOG("Ignoring specialization constant {}: unknown type", override.Name.String());
         }
 
         DynamicStates dynamicStates = DynamicStates::Default;
