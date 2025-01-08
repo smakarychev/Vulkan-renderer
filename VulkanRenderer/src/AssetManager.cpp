@@ -7,6 +7,13 @@ std::unordered_map<std::string, ShaderReflection> AssetManager::s_Shaders = {};
 std::unordered_map<std::string, Model> AssetManager::s_Models = {};
 std::unordered_map<std::string, Image> AssetManager::s_Images = {};
 
+void AssetManager::Shutdown()
+{
+    s_Shaders.clear();
+    s_Models.clear();
+    s_Images.clear();
+}
+
 std::string AssetManager::GetShaderKey(const std::vector<std::string_view>& paths)
 {
     std::string key;
@@ -23,9 +30,9 @@ ShaderReflection* AssetManager::GetShader(const std::string& name)
     return it == s_Shaders.end() ? nullptr : &it->second;
 }
 
-void AssetManager::AddShader(const std::string& name, const ShaderReflection& shader)
+void AssetManager::AddShader(const std::string& name, ShaderReflection&& shader)
 {
-    s_Shaders.emplace(name, shader);
+    s_Shaders.emplace(name, std::move(shader));
 }
 
 void AssetManager::RemoveShader(const std::string& name)

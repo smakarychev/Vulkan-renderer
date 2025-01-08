@@ -2,6 +2,7 @@
 
 #include <tracy/Tracy.hpp>
 
+#include "AssetManager.h"
 #include "CameraGPU.h"
 #include "Model.h"
 #include "ShadingSettingsGPU.h"
@@ -729,6 +730,7 @@ void Renderer::Shutdown()
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();
 
+    AssetManager::Shutdown();
     Device::Shutdown();
     glfwDestroyWindow(m_Window); // optional (glfwTerminate does same thing)
     glfwTerminate();

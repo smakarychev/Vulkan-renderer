@@ -74,7 +74,7 @@ namespace assetLib
     ShaderStageInfo readShaderStageInfo(const assetLib::File& file);
 
     assetLib::File packShaderStage(const ShaderStageInfo& info, const void* source);
-    void unpackShaderStage(ShaderStageInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv);
+    void unpackShaderStage(ShaderStageInfo& info, const u8* source, u64 sourceSizeBytes, std::byte* spirv);
 
     std::string descriptorFlagToString(ShaderStageInfo::DescriptorSet::DescriptorFlags flag);
 }

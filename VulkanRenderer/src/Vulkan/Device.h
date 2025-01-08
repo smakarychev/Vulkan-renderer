@@ -18,6 +18,7 @@
 
 #include "DeviceSparseSet.h"
 #include "imgui/imgui.h"
+#include "Rendering/Shader.h"
 
 class ProfilerContext;
 class ShaderPipeline;
@@ -211,6 +212,12 @@ private:
         using ObjectType = Pipeline;
         VkPipeline Pipeline{VK_NULL_HANDLE};
     };
+    struct ShaderModuleResource
+    {
+        using ObjectType = ShaderModule;
+        VkShaderModule Module{VK_NULL_HANDLE};
+        VkShaderStageFlagBits Stage{};
+    };
     struct RenderingAttachmentResource
     {
         using ObjectType = RenderingAttachment;
@@ -260,6 +267,7 @@ private:
     ResourceContainerType<DescriptorAllocatorResource> m_DescriptorAllocators;
     ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
     ResourceContainerType<PipelineResource> m_Pipelines;
+    ResourceContainerType<ShaderModuleResource> m_ShaderModules;
     ResourceContainerType<RenderingAttachmentResource> m_RenderingAttachments;
     ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
     ResourceContainerType<FenceResource> m_Fences;
@@ -309,6 +317,8 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_PipelineLayouts, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, PipelineResource>)
         return AddToResourceList(m_Pipelines, std::forward<Resource>(resource));
+    else if constexpr(std::is_same_v<Decayed, ShaderModuleResource>)
+        return AddToResourceList(m_ShaderModules, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, RenderingAttachmentResource>)
         return AddToResourceList(m_RenderingAttachments, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, RenderingInfoResource>)
@@ -357,6 +367,8 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_PipelineLayouts.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
         m_Pipelines.Remove(handle);
+    else if constexpr(std::is_same_v<Decayed, ShaderModule>)
+        m_ShaderModules.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         m_RenderingAttachments.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
@@ -408,6 +420,8 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_PipelineLayouts[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
         return m_Pipelines[type.Handle()];
+    else if constexpr(std::is_same_v<Decayed, ShaderModule>)
+        return m_ShaderModules[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         return m_RenderingAttachments[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
@@ -446,6 +460,7 @@ private:
     std::vector<ResourceHandleType<DescriptorAllocator>> m_DescriptorAllocators;
     std::vector<ResourceHandleType<PipelineLayout>> m_PipelineLayouts;
     std::vector<ResourceHandleType<Pipeline>> m_Pipelines;
+    std::vector<ResourceHandleType<ShaderModule>> m_ShaderModules;
     std::vector<ResourceHandleType<RenderingAttachment>> m_RenderingAttachments;
     std::vector<ResourceHandleType<RenderingInfo>> m_RenderingInfos;
     std::vector<ResourceHandleType<Fence>> m_Fences;
@@ -482,6 +497,8 @@ void DeletionQueue::Enqueue(Type& type)
         m_Pipelines.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, ShaderPipeline>)
         m_Pipelines.push_back(type.m_Pipeline.Handle());
+    else if constexpr(std::is_same_v<Decayed, ShaderModule>)
+        m_ShaderModules.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         m_RenderingAttachments.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
@@ -558,6 +575,9 @@ public:
 
     static Pipeline Create(const Pipeline::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Pipeline> pipeline);
+
+    static ShaderModule CreateShaderModule(ShaderModuleCreateInfo&& createInfo);
+    static void Destroy(ResourceHandleType<ShaderModule> shaderModule);
     
     static DescriptorsLayout CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<DescriptorsLayout> layout);

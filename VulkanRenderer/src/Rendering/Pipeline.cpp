@@ -49,7 +49,7 @@ Pipeline::Builder& Pipeline::Builder::IsComputePipeline(bool isCompute)
     return *this;
 }
 
-Pipeline::Builder& Pipeline::Builder::AddShader(const ShaderModuleSource& shader)
+Pipeline::Builder& Pipeline::Builder::AddShader(const ShaderModule& shader)
 {
     m_CreateInfo.Shaders.push_back(shader);
 

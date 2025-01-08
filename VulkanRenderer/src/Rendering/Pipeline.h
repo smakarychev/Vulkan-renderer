@@ -8,8 +8,8 @@
 
 #include <vector>
 
+class ShaderModule;
 class DeletionQueue;
-struct ShaderModuleSource;
 class CommandBuffer;
 
 struct PushConstantDescription
@@ -96,7 +96,7 @@ public:
             RenderingDetails RenderingDetails;
             bool IsComputePipeline{false};
             bool UseDescriptorBuffer{false};
-            std::vector<ShaderModuleSource> Shaders;
+            std::vector<ShaderModule> Shaders;
             VertexInputDescription VertexDescription;
             DynamicStates DynamicStates{DynamicStates::Default};
             bool ClampDepth{false};
@@ -113,7 +113,7 @@ public:
         Builder& SetLayout(PipelineLayout layout);
         Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
         Builder& IsComputePipeline(bool isCompute);
-        Builder& AddShader(const ShaderModuleSource& shader);
+        Builder& AddShader(const ShaderModule& shader);
         Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
         Builder& DynamicStates(DynamicStates states);
         Builder& ClampDepth(bool enable = true);

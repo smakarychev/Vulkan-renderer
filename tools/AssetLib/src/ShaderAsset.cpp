@@ -292,7 +292,7 @@ namespace assetLib
         return assetFile;
     }
 
-    void unpackShaderStage(ShaderStageInfo& info, const u8* source, u64 sourceSizeBytes, u8* spirv)
+    void unpackShaderStage(ShaderStageInfo& info, const u8* source, u64 sourceSizeBytes, std::byte* spirv)
     {
         if (info.CompressionMode == CompressionMode::LZ4 && sourceSizeBytes != info.SourceSizeBytes)
             LZ4_decompress_safe((const char*)source, (char*)spirv, (i32)sourceSizeBytes, (i32)info.SourceSizeBytes);

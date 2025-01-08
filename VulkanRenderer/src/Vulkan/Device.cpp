@@ -698,6 +698,8 @@ void DeletionQueue::Flush()
         Device::Destroy(handle);
     for (auto handle : m_Pipelines)
         Device::Destroy(handle);
+    for (auto handle : m_ShaderModules)
+        Device::Destroy(handle);
     
     for (auto handle : m_RenderingAttachments)
         Device::Destroy(handle);
@@ -729,6 +731,7 @@ void DeletionQueue::Flush()
     m_DescriptorAllocators.clear();
     m_PipelineLayouts.clear();
     m_Pipelines.clear();
+    m_ShaderModules.clear();
     m_RenderingAttachments.clear();
     m_RenderingInfos.clear();
     m_Fences.clear();
@@ -1517,25 +1520,15 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
 {
     VkPipelineLayout layout = Resources()[createInfo.PipelineLayout].Layout;
     std::vector<VkPipelineShaderStageCreateInfo> shaders;
-    std::vector<VkShaderModule> modules;
     shaders.reserve(createInfo.Shaders.size());
-    modules.reserve(createInfo.Shaders.size());
     for (auto& shader : createInfo.Shaders)
     {
-        VkShaderModuleCreateInfo moduleCreateInfo = {};
-        moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        moduleCreateInfo.codeSize = shader.Source.size();
-        moduleCreateInfo.pCode = reinterpret_cast<const u32*>(shader.Source.data());
-
-        VkShaderModule shaderModule;
-        DeviceCheck(vkCreateShaderModule(s_State.Device, &moduleCreateInfo, nullptr, &shaderModule),
-            "Failed to create shader module");
-        modules.push_back(shaderModule);
+        auto& module = Resources()[shader];
 
         VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
         shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageCreateInfo.module = shaderModule;
-        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(shader.Stage);
+        shaderStageCreateInfo.module = module.Module;
+        shaderStageCreateInfo.stage = module.Stage;
         shaderStageCreateInfo.pName = "main";
 
         shaders.push_back(shaderStageCreateInfo);
@@ -1549,7 +1542,8 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
         auto& shader = shaders[shaderIndex];
         VkSpecializationInfo shaderSpecializationInfo = {};
         for (const auto& specialization : createInfo.ShaderSpecialization.ShaderSpecializations)
-            if (enumHasAny(createInfo.Shaders[shaderIndex].Stage, specialization.ShaderStages))
+            if (enumHasAny(
+                    shader.stage, (VkShaderStageFlagBits)vulkanShaderStageFromShaderStage(specialization.ShaderStages)))
                 shaderSpecializationEntries[shaderIndex].push_back({
                     .constantID = specialization.Id,
                     .offset = specialization.Offset,
@@ -1714,10 +1708,6 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
         pipeline.m_ResourceHandle = Resources().AddResource(pipelineResource);
     }
 
-    /* once we have created pipeline, we no longer need shader modules */
-    for (auto& module : modules)
-        vkDestroyShaderModule(s_State.Device, module, nullptr);
-    
     return pipeline;
 }
 
@@ -1725,6 +1715,30 @@ void Device::Destroy(ResourceHandleType<Pipeline> pipeline)
 {
     vkDestroyPipeline(s_State.Device, Resources().m_Pipelines[pipeline.m_Id].Pipeline, nullptr);
     Resources().RemoveResource(pipeline);
+}
+
+ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo)
+{
+    VkShaderModuleCreateInfo moduleCreateInfo = {};
+    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    moduleCreateInfo.codeSize = createInfo.Source.size();
+    moduleCreateInfo.pCode = reinterpret_cast<const u32*>(createInfo.Source.data());
+
+    DeviceResources::ShaderModuleResource shaderModuleResource = {};
+    DeviceCheck(vkCreateShaderModule(s_State.Device, &moduleCreateInfo, nullptr, &shaderModuleResource.Module),
+         "Failed to create shader module");
+    shaderModuleResource.Stage = vulkanStageBitFromShaderStage(createInfo.Stage);
+    
+    ShaderModule module = {};
+    module.m_ResourceHandle = Resources().AddResource(shaderModuleResource);
+
+    return module;
+}
+
+void Device::Destroy(ResourceHandleType<ShaderModule> shaderModule)
+{
+    vkDestroyShaderModule(s_State.Device, Resources().m_ShaderModules[shaderModule.m_Id].Module, nullptr);
+    Resources().RemoveResource(shaderModule);
 }
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)

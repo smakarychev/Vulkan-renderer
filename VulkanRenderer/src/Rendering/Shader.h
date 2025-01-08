@@ -43,10 +43,20 @@ static constexpr std::string_view UNIFORM_PREFILTER_MAP     = "u_prefilter_map";
 static constexpr std::string_view UNIFORM_BRDF              = "u_brdf";
 static constexpr std::string_view UNIFORM_TRIANGLES         = "u_triangles";
 
-struct ShaderModuleSource
+struct ShaderModuleCreateInfo
 {
-    std::vector<u8> Source;
-    ShaderStage Stage;
+    Span<const std::byte> Source{};
+    ShaderStage Stage{ShaderStage::None};
+};
+
+class ShaderModule
+{
+    FRIEND_INTERNAL
+public:
+    ResourceHandleType<ShaderModule> Handle() const { return m_ResourceHandle; }
+private:
+    // todo: change once handles are ready
+    ResourceHandleType<ShaderModule> m_ResourceHandle{};
 };
 
 class ShaderReflection
@@ -80,8 +90,15 @@ public:
     };
 public:
     static ShaderReflection* ReflectFrom(const std::vector<std::string_view>& paths);
+    ShaderReflection() = default;
+    ShaderReflection(const ShaderReflection&) = delete;
+    ShaderReflection(ShaderReflection&&) = default;
+    ShaderReflection& operator=(const ShaderReflection&) = delete;
+    ShaderReflection& operator=(ShaderReflection&&) = default;
+    ~ShaderReflection();
+    
     const ReflectionData& GetReflectionData() const { return m_ReflectionData; }
-    const std::vector<ShaderModuleSource>& GetShadersSource() const { return m_Modules; }
+    const std::vector<ShaderModule>& GetShaders() const { return m_Modules; }
 private:
     assetLib::ShaderStageInfo LoadFromAsset(std::string_view path);
     static assetLib::ShaderStageInfo MergeReflections(const assetLib::ShaderStageInfo& first,
@@ -91,7 +108,7 @@ private:
     static DrawFeatures ExtractDrawFeatures(const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& descriptorSets,
         const std::vector<ReflectionData::InputAttribute>& inputs);
 private:
-    std::vector<ShaderModuleSource> m_Modules;
+    std::vector<ShaderModule> m_Modules;
     ReflectionData m_ReflectionData{};
 };
 

@@ -160,9 +160,15 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string_vi
         .Features = ExtractDrawFeatures(mergedShaderInfo.DescriptorSets, mergedShaderInfo.InputAttributes)
     };
 
-    AssetManager::AddShader(shaderKey, shader);
+    AssetManager::AddShader(shaderKey, std::move(shader));
     
     return AssetManager::GetShader(shaderKey);
+}
+
+ShaderReflection::~ShaderReflection()
+{
+    for (auto& module : m_Modules)
+        Device::DeletionQueue().Enqueue(module);
 }
 
 assetLib::ShaderStageInfo ShaderReflection::LoadFromAsset(std::string_view path)
@@ -170,11 +176,14 @@ assetLib::ShaderStageInfo ShaderReflection::LoadFromAsset(std::string_view path)
     assetLib::File shaderFile;
     assetLib::loadAssetFile(path, shaderFile);
     assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
+
+    std::vector<std::byte> source;
+    source.resize(shaderInfo.SourceSizeBytes);
+    assetLib::unpackShaderStage(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), source.data());
     
-    ShaderModuleSource shaderModule = {};
-    shaderModule.Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages);
-    shaderModule.Source.resize(shaderInfo.SourceSizeBytes);
-    assetLib::unpackShaderStage(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), shaderModule.Source.data());
+    ShaderModule shaderModule = Device::CreateShaderModule({
+        .Source = source,
+        .Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages)});
     m_Modules.push_back(shaderModule);
 
     return shaderInfo;
@@ -424,7 +433,7 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
     shaderPipelineTemplate.m_PipelineBuilder = Pipeline::Builder()
         .SetLayout(shaderPipelineTemplate.m_PipelineLayout);
 
-    for (auto& shader : createInfo.ShaderReflection->GetShadersSource())
+    for (auto& shader : createInfo.ShaderReflection->GetShaders())
         shaderPipelineTemplate.m_PipelineBuilder.AddShader(shader);
 
     shaderPipelineTemplate.m_PipelineBuilder.IsComputePipeline(shaderPipelineTemplate.m_IsComputeTemplate);
