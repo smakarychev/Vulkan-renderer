@@ -1516,7 +1516,7 @@ void Device::Destroy(ResourceHandleType<PipelineLayout> pipelineLayout)
     Resources().RemoveResource(pipelineLayout);
 }
 
-Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
+Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo)
 {
     VkPipelineLayout layout = Resources()[createInfo.PipelineLayout].Layout;
     std::vector<VkPipelineShaderStageCreateInfo> shaders;
@@ -1541,7 +1541,7 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
     {
         auto& shader = shaders[shaderIndex];
         VkSpecializationInfo shaderSpecializationInfo = {};
-        for (const auto& specialization : createInfo.ShaderSpecialization.ShaderSpecializations)
+        for (const auto& specialization : createInfo.Specialization.Descriptions)
             if (enumHasAny(
                     shader.stage, (VkShaderStageFlagBits)vulkanShaderStageFromShaderStage(specialization.ShaderStages)))
                 shaderSpecializationEntries[shaderIndex].push_back({
@@ -1549,8 +1549,8 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
                     .offset = specialization.Offset,
                     .size = specialization.SizeBytes});
 
-        shaderSpecializationInfo.dataSize = createInfo.ShaderSpecialization.Buffer.size();
-        shaderSpecializationInfo.pData = createInfo.ShaderSpecialization.Buffer.data();
+        shaderSpecializationInfo.dataSize = createInfo.Specialization.Data.size();
+        shaderSpecializationInfo.pData = createInfo.Specialization.Data.data();
         shaderSpecializationInfo.mapEntryCount = (u32)shaderSpecializationEntries[shaderIndex].size();
         shaderSpecializationInfo.pMapEntries = shaderSpecializationEntries[shaderIndex].data();
 
@@ -1575,6 +1575,10 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
     }
     else
     {
+        ASSERT(
+                !createInfo.ColorFormats.empty() ||
+                createInfo.DepthFormat != Format::Undefined, "No rendering details provided")
+        
         std::vector<VkDynamicState> dynamicStates = vulkanDynamicStatesFromDynamicStates(createInfo.DynamicStates);
         
         VkPipelineDynamicStateCreateInfo dynamicStateInfo = {};
@@ -1591,7 +1595,6 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
         inputAssemblyState.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         inputAssemblyState.primitiveRestartEnable = VK_FALSE;
         inputAssemblyState.topology = vulkanTopologyFromPrimitiveKind(createInfo.PrimitiveKind);
-
         
         VkPipelineVertexInputStateCreateInfo vertexInputState = {};
         vertexInputState.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -1671,17 +1674,17 @@ Pipeline Device::Create(const Pipeline::Builder::CreateInfo& createInfo)
         colorBlendState.pAttachments = &colorBlendAttachmentState;
         
         std::vector<VkFormat> colorFormats;
-        colorFormats.resize(createInfo.RenderingDetails.ColorFormats.size());
+        colorFormats.resize(createInfo.ColorFormats.size());
 
-        for (u32 colorIndex = 0; colorIndex < createInfo.RenderingDetails.ColorFormats.size(); colorIndex++)
-            colorFormats[colorIndex] = vulkanFormatFromFormat(createInfo.RenderingDetails.ColorFormats[colorIndex]);
+        for (u32 colorIndex = 0; colorIndex < createInfo.ColorFormats.size(); colorIndex++)
+            colorFormats[colorIndex] = vulkanFormatFromFormat(createInfo.ColorFormats[colorIndex]);
         
         VkPipelineRenderingCreateInfo pipelineRenderingCreateInfo = {};
         pipelineRenderingCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
         pipelineRenderingCreateInfo.colorAttachmentCount = (u32)colorFormats.size();
         pipelineRenderingCreateInfo.pColorAttachmentFormats = colorFormats.data();
         pipelineRenderingCreateInfo.depthAttachmentFormat = vulkanFormatFromFormat(
-            createInfo.RenderingDetails.DepthFormat);
+            createInfo.DepthFormat);
 
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = {};
         pipelineCreateInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;

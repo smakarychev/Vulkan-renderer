@@ -63,10 +63,10 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
                 resourceDescriptors.UpdateBinding("u_zbins", resources.GetBuffer(passData.ZBins).BindingInfo());
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), useZBins);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), useZBins);
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 3);
         });
 }

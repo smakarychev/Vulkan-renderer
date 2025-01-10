@@ -66,9 +66,9 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
                 lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindCompute(cmd);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, 1},
                 {16, 16, 1});

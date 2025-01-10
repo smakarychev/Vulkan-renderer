@@ -71,9 +71,9 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindCompute(cmd);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, lutTexture.Description().Layers},
                 {16, 16, 1});

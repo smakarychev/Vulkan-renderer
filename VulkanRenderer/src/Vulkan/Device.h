@@ -573,7 +573,7 @@ public:
     static PipelineLayout CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<PipelineLayout> pipelineLayout);
 
-    static Pipeline Create(const Pipeline::Builder::CreateInfo& createInfo);
+    static Pipeline CreatePipeline(PipelineCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Pipeline> pipeline);
 
     static ShaderModule CreateShaderModule(ShaderModuleCreateInfo&& createInfo);

@@ -55,8 +55,8 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindGraphics(cmd);
-            samplerDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            samplerDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 3);
         });
 

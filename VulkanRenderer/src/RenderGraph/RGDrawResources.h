@@ -79,7 +79,7 @@ namespace RG
     struct DrawInitInfo
     {
         DrawFeatures DrawFeatures{DrawFeatures::AllAttributes};
-        ShaderPipeline DrawPipeline{};
+        Pipeline DrawPipeline{};
         std::optional<const ShaderDescriptors*> MaterialDescriptors{};
     };
     

@@ -17,8 +17,8 @@ RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderG
             CPU_PROFILE_FRAME("SSAO.Blur.Setup")
 
             graph.SetShader("../assets/shaders/ssao-blur.shader",
-                ShaderOverrides{}
-                    .Add({"IS_VERTICAL"}, kind == SsaoBlurPassKind::Vertical));
+                ShaderOverrides{
+                    ShaderOverride{{"IS_VERTICAL"}, kind == SsaoBlurPassKind::Vertical}});
             
             const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
             passData.SsaoOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".ColorOut",
@@ -51,9 +51,9 @@ RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderG
                 ImageFilter::Linear, ImageLayout::General));
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindCompute(cmd);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {ssaoIn.Description().Width, ssaoIn.Description().Height, 1},
                 {16, 16, 1});

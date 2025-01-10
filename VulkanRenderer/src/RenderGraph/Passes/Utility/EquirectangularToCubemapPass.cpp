@@ -56,10 +56,10 @@ namespace
                     .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapTexture.Description().Width}};
                 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+                samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
                 pipeline.BindCompute(cmd);
-                RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
                 RenderCommand::Dispatch(cmd,
                     {cubemap.Description().Width, cubemap.Description().Width, 6},

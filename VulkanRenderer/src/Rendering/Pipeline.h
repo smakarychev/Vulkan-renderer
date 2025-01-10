@@ -5,8 +5,11 @@
 #include "Descriptors.h"
 #include "DescriptorsTraits.h"
 #include "Common/Span.h"
+#include "ShaderModule.h"
 
 #include <vector>
+
+#include "utils/hash.h"
 
 class ShaderModule;
 class DeletionQueue;
@@ -34,22 +37,28 @@ private:
     ResourceHandleType<PipelineLayout> m_ResourceHandle{};
 };
 
-struct PipelineSpecializationInfo
+struct PipelineSpecializationDescription
 {
-    struct ShaderSpecialization
-    {
-        u32 Id;
-        u32 SizeBytes;
-        u32 Offset;
-        ShaderStage ShaderStages;
-    };
-    std::vector<ShaderSpecialization> ShaderSpecializations;
-    std::vector<u8> Buffer;
+    u32 Id{};
+    u32 SizeBytes{};
+    u32 Offset{};
+    ShaderStage ShaderStages{};
+};
+
+struct PipelineSpecializationsView
+{
+    Span<const std::byte> Data{};
+    Span<const PipelineSpecializationDescription> Descriptions{};
+
+    constexpr PipelineSpecializationsView() = default;
+    constexpr PipelineSpecializationsView(
+        Span<const std::byte> data, Span<PipelineSpecializationDescription> descriptions)
+        : Data(data), Descriptions(descriptions) {}
 };
 
 enum class DynamicStates
 {
-    None = 0,
+    None        = 0,
     Viewport    = BIT(1),
     Scissor     = BIT(2),
     DepthBias   = BIT(3),
@@ -62,7 +71,6 @@ enum class DepthMode {Read, ReadWrite, None};
 enum class FaceCullMode {Front, Back, None};
 
 enum class PrimitiveKind {Triangle, Point};
-
 
 struct VertexInputDescription
 {
@@ -82,61 +90,46 @@ struct VertexInputDescription
     std::vector<Attribute> Attributes;
 };
 
+// todo: maybe it is possible to remove VertexInputDescription and leave only this struct
+// it is hard to tell, because no pipeline uses it atm
+struct VertexInputDescriptionView
+{
+    Span<const VertexInputDescription::Binding> Bindings;
+    Span<const VertexInputDescription::Attribute> Attributes;
+
+    VertexInputDescriptionView() = default;
+    VertexInputDescriptionView(const VertexInputDescription& description)
+        : Bindings(description.Bindings), Attributes(description.Attributes) {}
+};
+
+struct PipelineCreateInfo
+{
+    // todo: change to handle once ready
+    PipelineLayout PipelineLayout{};
+    Span<const ShaderModule> Shaders{};
+    Span<const Format> ColorFormats{};
+    Format DepthFormat{Format::Undefined};
+    VertexInputDescriptionView VertexDescription{};
+    DynamicStates DynamicStates{DynamicStates::Default};
+    DepthMode DepthMode{DepthMode::ReadWrite};
+    FaceCullMode CullMode{FaceCullMode::None};
+    AlphaBlending AlphaBlending{AlphaBlending::Over};
+    PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
+    PipelineSpecializationsView Specialization{};
+    bool IsComputePipeline{false};
+    bool UseDescriptorBuffer{false};
+    bool ClampDepth{false};
+};
+
 class Pipeline
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class Pipeline;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            PipelineLayout PipelineLayout;
-            RenderingDetails RenderingDetails;
-            bool IsComputePipeline{false};
-            bool UseDescriptorBuffer{false};
-            std::vector<ShaderModule> Shaders;
-            VertexInputDescription VertexDescription;
-            DynamicStates DynamicStates{DynamicStates::Default};
-            bool ClampDepth{false};
-            DepthMode DepthMode{DepthMode::ReadWrite};
-            FaceCullMode CullMode{FaceCullMode::None};
-            PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
-            AlphaBlending AlphaBlending{AlphaBlending::Over};
-            PipelineSpecializationInfo ShaderSpecialization;
-        };
-    public:
-        Pipeline Build();
-        Pipeline Build(DeletionQueue& deletionQueue);
-        Pipeline BuildManualLifetime();
-        Builder& SetLayout(PipelineLayout layout);
-        Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
-        Builder& IsComputePipeline(bool isCompute);
-        Builder& AddShader(const ShaderModule& shader);
-        Builder& SetVertexDescription(const VertexInputDescription& vertexDescription);
-        Builder& DynamicStates(DynamicStates states);
-        Builder& ClampDepth(bool enable = true);
-        Builder& DepthMode(DepthMode depthMode);
-        Builder& FaceCullMode(FaceCullMode cullMode);
-        Builder& PrimitiveKind(PrimitiveKind primitiveKind);
-        Builder& AlphaBlending(AlphaBlending alphaBlending);
-        Builder& UseSpecialization(const PipelineSpecializationInfo& pipelineSpecializationInfo);
-        Builder& UseDescriptorBuffer();
-    private:
-        void PreBuild();
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static Pipeline Create(const Builder::CreateInfo& createInfo);
-    static void Destroy(const Pipeline& pipeline);
     void BindGraphics(const CommandBuffer& commandBuffer) const;
     void BindCompute(const CommandBuffer& commandBuffer) const;
 
     bool operator==(Pipeline other) const { return m_ResourceHandle == other.m_ResourceHandle; }
     bool operator!=(Pipeline other) const { return !(*this == other); }
-private:
     ResourceHandleType<Pipeline> Handle() const { return m_ResourceHandle; }
 private:
     ResourceHandleType<Pipeline> m_ResourceHandle{};

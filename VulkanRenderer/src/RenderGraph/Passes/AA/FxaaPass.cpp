@@ -43,10 +43,10 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
             resourceDescriptors.UpdateBinding("u_antialiased", resources.GetTexture(passData.AntiAliased).BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
 
-            samplerDescriptors.BindComputeImmutableSamplers(frameContext.Cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(frameContext.Cmd, shader.GetLayout());
             pipeline.BindCompute(frameContext.Cmd);
             resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
             RenderCommand::Dispatch(frameContext.Cmd,
                 {input.Description().Width, input.Description().Height, 1},
                 {16, 16, 1});

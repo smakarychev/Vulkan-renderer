@@ -74,10 +74,10 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                     .Roughness = (f32)mipmap / (f32)prefilteredTexture.Description().Mipmaps};
 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+                samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
                 pipeline.BindCompute(cmd);
-                RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
                 RenderCommand::Dispatch(cmd,
                     {resolution, resolution, 6},

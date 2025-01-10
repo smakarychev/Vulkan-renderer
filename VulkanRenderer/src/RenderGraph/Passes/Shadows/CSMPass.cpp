@@ -104,8 +104,8 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                             "../assets/shaders/shadow.shader", {}),
                         .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.{}.Triangles", name, i),
                             "../assets/shaders/shadow.shader", 
-                            ShaderOverrides{}
-                                .Add({"COMPOUND_INDEX"}, true)),
+                            ShaderOverrides{
+                                ShaderOverride{{"COMPOUND_INDEX"}, true}}),
                         .CullTriangles = true}); 
 
                 multiview.MultiviewData.Finalize();

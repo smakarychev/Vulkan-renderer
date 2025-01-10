@@ -160,10 +160,10 @@ namespace
                     resources.GetTexture(passData.Texture3d).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+                samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
                 pipeline.BindGraphics(cmd);
-                RenderCommand::PushConstants(cmd, pipeline.GetLayout(), sliceNormalized);
-                resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), sliceNormalized);
+                resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
                 
                 RenderCommand::Draw(cmd, 3);
             });

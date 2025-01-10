@@ -12,7 +12,8 @@
 #include "Vulkan/Device.h"
 
 struct CVarParameter;
-class ShaderOverrides;
+
+struct ShaderOverridesView;
 class Shader;
 
 namespace RG
@@ -290,9 +291,9 @@ namespace RG
         Value& GetOrCreateBlackboardValue();
 
         void SetShader(std::string_view path) const;
-        void SetShader(std::string_view path, const ShaderOverrides& overrides) const;
+        void SetShader(std::string_view path, ShaderOverridesView&& overrides) const;
         void SetShader(const Shader* shader) const;
-        void SetShader(const Shader* shader, const ShaderOverrides& overrides) const;
+        void SetShader(const Shader* shader, ShaderOverridesView&& overrides) const;
         void CopyShader(const Shader* shader) const;
         const Shader& GetShader() const;
         

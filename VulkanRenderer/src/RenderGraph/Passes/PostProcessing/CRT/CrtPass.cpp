@@ -80,9 +80,9 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             
             pipeline.BindGraphics(frameContext.Cmd);
             samplerDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
             resourceDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
 
             RenderCommand::Draw(frameContext.Cmd, 3);
         });

@@ -56,10 +56,10 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
                 .IsOrthographic = isOrthographic};
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             
             RenderCommand::Draw(cmd, 3);
         });

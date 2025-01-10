@@ -83,9 +83,9 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
                 colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             pipeline.BindCompute(frameContext.Cmd);
-            RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), imageSize);
+            RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), imageSize);
             resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
             RenderCommand::Dispatch(frameContext.Cmd, {imageSize, 1}, {32, 32, 1});
         });
 

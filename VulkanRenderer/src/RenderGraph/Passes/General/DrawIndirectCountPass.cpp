@@ -99,20 +99,20 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
             {
                 pipeline.BindGraphics(frameContext.Cmd);
                 shader.Descriptors(ShaderDescriptorsKind::Sampler).BindGraphicsImmutableSamplers(
-                    frameContext.Cmd, pipeline.GetLayout());
+                    frameContext.Cmd, shader.GetLayout());
                 shader.Descriptors(ShaderDescriptorsKind::Materials).BindGraphics(frameContext.Cmd,
-                    resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                    resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             }
 
             auto& cmd = frameContext.Cmd;
             RenderCommand::BindIndexU8Buffer(cmd, info.Geometry->GetAttributeBuffers().Indices, 0);
             
             pipeline.BindGraphics(cmd);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             u32 offsetCommands = std::min(info.CommandsOffset, info.Geometry->GetMeshletCount());
             u32 toDrawCommands = info.Geometry->GetMeshletCount() - offsetCommands;
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), offsetCommands);
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), offsetCommands);
             RenderCommand::DrawIndexedIndirectCount(cmd,
                 commandsDraw, offsetCommands * sizeof(IndirectDrawCommand),
                 countDraw, info.CountOffset * sizeof(u32),

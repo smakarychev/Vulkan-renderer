@@ -49,22 +49,17 @@ struct ShaderModuleCreateInfo
     ShaderStage Stage{ShaderStage::None};
 };
 
-class ShaderModule
-{
-    FRIEND_INTERNAL
-public:
-    ResourceHandleType<ShaderModule> Handle() const { return m_ResourceHandle; }
-private:
-    // todo: change once handles are ready
-    ResourceHandleType<ShaderModule> m_ResourceHandle{};
-};
-
 class ShaderReflection
 {
 public:
     struct ReflectionData
     {
-        using SpecializationConstant = assetLib::ShaderStageInfo::SpecializationConstant;
+        struct SpecializationConstant
+        {
+            std::string Name;
+            u32 Id;
+            ShaderStage ShaderStages;
+        };
         using InputAttribute = assetLib::ShaderStageInfo::InputAttribute;
         using PushConstant = assetLib::ShaderStageInfo::PushConstant;
         struct DescriptorSet
@@ -167,6 +162,14 @@ public:
     bool IsComputeTemplate() const { return m_IsComputeTemplate; }
 
     DrawFeatures GetDrawFeatures() const { return m_Features; }
+
+    VertexInputDescription CreateCompatibleVertexDescription(const VertexInputDescription& compatibleTo) const;
+
+    const std::vector<ShaderModule>& GetShaders() const { return m_ShaderReflection->GetShaders(); }
+    const std::vector<SpecializationConstant>& GetSpecializations() const
+    {
+        return m_ShaderReflection->GetReflectionData().SpecializationConstants;
+    }
     
 private:
     static std::vector<DescriptorsLayout> CreateDescriptorLayouts(
@@ -187,9 +190,10 @@ private:
     Allocator m_Allocator{};
     bool m_UseDescriptorBuffer{false};
 
-    VertexInputDescription m_VertexInputDescription;
-    Pipeline::Builder m_PipelineBuilder{};
+    // todo: change to handles once ready
     PipelineLayout m_PipelineLayout;
+    ShaderReflection* m_ShaderReflection{nullptr};
+    VertexInputDescription m_VertexInputDescription;
     std::vector<DescriptorsLayout> m_DescriptorsLayouts;
 
     std::vector<SpecializationConstant> m_SpecializationConstants;
@@ -201,105 +205,6 @@ private:
 
     DrawFeatures m_Features{};
 };
-
-class ShaderPipeline
-{
-    FRIEND_INTERNAL
-public:
-    class Builder
-    {
-        friend class ShaderPipeline;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            ShaderPipelineTemplate* ShaderPipelineTemplate;
-            RenderingDetails RenderingDetails;
-            std::array<DescriptorSetCreateInfo, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorInfos;
-            PipelineSpecializationInfo PipelineSpecializationInfo;
-            bool UseDescriptorBuffer{false};
-        };
-    public:
-        ShaderPipeline Build();
-        ShaderPipeline Build(DeletionQueue& deletionQueue);
-        ShaderPipeline BuildManualLifetime();
-        Builder& SetRenderingDetails(const RenderingDetails& renderingDetails);
-        Builder& DynamicStates(DynamicStates states);
-        Builder& DepthClamp(bool enable = true);
-        Builder& DepthMode(DepthMode depthMode);
-        Builder& FaceCullMode(FaceCullMode cullMode);
-        Builder& PrimitiveKind(PrimitiveKind primitiveKind);
-        Builder& AlphaBlending(AlphaBlending alphaBlending);
-        Builder& SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate);
-        Builder& CompatibleWithVertex(const VertexInputDescription& vertexInputDescription);
-        template <typename T>
-        Builder& AddSpecialization(std::string_view name, const T& specializationData);
-        Builder& UseDescriptorBuffer();
-    private:
-        void Prebuild();
-        void CreateCompatibleLayout();
-        void FinishSpecializationConstants();
-    private:
-        CreateInfo m_CreateInfo;
-        VertexInputDescription m_CompatibleVertexDescription;
-        ::DynamicStates m_DynamicStates{DynamicStates::Default};
-        bool m_ClampDepth{false};
-        ::DepthMode m_DepthMode{DepthMode::ReadWrite};
-        ::FaceCullMode m_CullMode{FaceCullMode::None};
-        ::PrimitiveKind m_PrimitiveKind{PrimitiveKind::Triangle};
-        ::AlphaBlending m_AlphaBlending{AlphaBlending::Over};
-        PipelineSpecializationInfo m_PipelineSpecializationInfo;
-        std::vector<std::string> m_SpecializationConstantNames;
-    };
-public:
-    static ShaderPipeline Create(const Builder::CreateInfo& createInfo);
-
-    void BindGraphics(const CommandBuffer& cmd) const;
-    void BindCompute(const CommandBuffer& cmd) const;
-    
-    Pipeline GetPipeline() const { return m_Pipeline; }
-    PipelineLayout GetLayout() const { return m_Template->GetPipelineLayout(); }
-
-    const ShaderPipelineTemplate* GetTemplate() const { return m_Template; }
-    ShaderPipelineTemplate* GetTemplate() { return m_Template; }
-
-    bool operator==(const ShaderPipeline& other) const { return m_Pipeline == other.m_Pipeline; }
-    bool operator!=(const ShaderPipeline& other) const { return !(*this == other); }
-private:
-    ShaderPipelineTemplate* m_Template{nullptr};
-
-    Pipeline m_Pipeline;
-};
-
-template <typename T>
-ShaderPipeline::Builder& ShaderPipeline::Builder::AddSpecialization(std::string_view name, const T& specializationData)
-{
-    u32 dataSizeBytes;
-    // vulkan spec says that bool specialization constant must have the size of VkBool32
-    if constexpr (std::is_same_v<T, bool>)
-        dataSizeBytes = sizeof(u32);
-    else
-        dataSizeBytes = sizeof(specializationData);
-    
-    // template might not be set yet, so we have to delay it until the very end
-    m_SpecializationConstantNames.emplace_back(name);
-    u32 bufferStart = (u32)m_PipelineSpecializationInfo.Buffer.size();
-    m_PipelineSpecializationInfo.Buffer.resize(bufferStart + dataSizeBytes);
-    if constexpr (std::is_same_v<T, bool>)
-    {
-        u32 data = (u32)specializationData;
-        std::memcpy(m_PipelineSpecializationInfo.Buffer.data() + bufferStart, &data, dataSizeBytes);
-    }
-    else
-    {
-        std::memcpy(m_PipelineSpecializationInfo.Buffer.data() + bufferStart, &specializationData, dataSizeBytes);
-    }
-    
-    m_PipelineSpecializationInfo.ShaderSpecializations.push_back({
-        .SizeBytes = dataSizeBytes,
-        .Offset = bufferStart});
-
-    return *this;
-}
 
 struct ShaderDescriptorSetCreateInfo
 {

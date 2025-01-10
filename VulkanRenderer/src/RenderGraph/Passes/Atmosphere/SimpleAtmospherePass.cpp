@@ -46,10 +46,10 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph&
             resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), (f32)frameContext.FrameNumberTick);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), (f32)frameContext.FrameNumberTick);
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 3);
         });
 }

@@ -186,8 +186,3 @@ Image Swapchain::CreateDepthImage()
     return depth;
 }
 
-RenderingDetails Swapchain::GetRenderingDetails() const
-{
-    return {{m_DrawFormat}, m_DepthFormat};
-}
-

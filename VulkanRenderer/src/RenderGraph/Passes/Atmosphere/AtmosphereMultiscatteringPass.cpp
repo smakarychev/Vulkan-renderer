@@ -55,9 +55,9 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
                 lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindCompute(cmd);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, 64},
                 {1, 1, 64});

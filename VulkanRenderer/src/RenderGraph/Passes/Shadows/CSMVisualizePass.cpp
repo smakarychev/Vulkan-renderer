@@ -65,10 +65,10 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             ImGui::End();
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), cascadeIndex.Index);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), cascadeIndex.Index);
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             
             RenderCommand::Draw(cmd, 3);
         });

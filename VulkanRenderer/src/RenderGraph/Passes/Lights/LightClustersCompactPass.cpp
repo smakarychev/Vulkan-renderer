@@ -21,8 +21,8 @@ namespace
                 CPU_PROFILE_FRAME("Lights.Clusters.Identify.Setup")
 
                 graph.SetShader("../assets/shaders/light-clusters-compact.shader",
-                    ShaderOverrides{}
-                        .Add({"IDENTIFY"}, true));
+                    ShaderOverrides{
+                        ShaderOverride{{"IDENTIFY"}, true}});
 
                 passData.ClusterVisibility = graph.Write(clusterVisibility, Compute | Storage);
                 passData.Depth = graph.Read(depth, Compute | Sampled);
@@ -56,10 +56,10 @@ namespace
                     .Far = frameContext.PrimaryCamera->GetFar()};
 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+                samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
                 pipeline.BindCompute(cmd);
-                RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
                 RenderCommand::Dispatch(cmd,
                     {depthTexture.Description().Width, depthTexture.Description().Height, 1},
@@ -80,8 +80,8 @@ namespace
                 CPU_PROFILE_FRAME("Lights.Clusters.Compact.Setup")
 
                 graph.SetShader("../assets/shaders/light-clusters-compact.shader",
-                    ShaderOverrides{}
-                        .Add({"COMPACT"}, true));
+                    ShaderOverrides{
+                        ShaderOverride{{"COMPACT"}, true}});
 
                 passData.ActiveClusters = graph.CreateResource(std::format("{}.Clusters.Active", name),
                     GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u16)});
@@ -117,7 +117,7 @@ namespace
 
                 auto& cmd = frameContext.Cmd;
                 pipeline.BindCompute(cmd);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
                 RenderCommand::Dispatch(cmd,
                     {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
@@ -137,8 +137,8 @@ namespace
                 CPU_PROFILE_FRAME("Lights.Clusters.CreateDisptach.Setup")
 
                 graph.SetShader("../assets/shaders/light-clusters-compact.shader",
-                    ShaderOverrides{}
-                        .Add({"CREATE_DISPATCH"}, true));
+                    ShaderOverrides{
+                        ShaderOverride{{"CREATE_DISPATCH"}, true}});
 
                 passData.DispatchIndirect = graph.CreateResource(std::format("{}.DispatchIndirect", name),
                     GraphBufferDescription{.SizeBytes = sizeof(IndirectDispatchCommand)});
@@ -164,7 +164,7 @@ namespace
 
                 auto& cmd = frameContext.Cmd;
                 pipeline.BindCompute(cmd);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
                 RenderCommand::Dispatch(cmd, {1, 1, 1});
             });

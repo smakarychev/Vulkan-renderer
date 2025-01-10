@@ -54,8 +54,8 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             RenderCommand::Dispatch(cmd,
                 {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z},

@@ -58,11 +58,11 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
                 hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
 
             pipeline.BindGraphics(frameContext.Cmd);
-            RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), pushConstants);
+            RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), pushConstants);
             samplerDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
             resourceDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
 
             RenderCommand::Draw(frameContext.Cmd, 3);
         });

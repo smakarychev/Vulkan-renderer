@@ -24,8 +24,8 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
             CPU_PROFILE_FRAME("DiffuseIrradianceSH.Setup")
 
             graph.SetShader("../assets/shaders/diffuse-irradiance-sh.shader",
-                ShaderOverrides{}
-                    .Add({"REAL_TIME"}, realTime));
+                ShaderOverrides{
+                    ShaderOverride{{"REAL_TIME"}, realTime}});
             
             passData.DiffuseIrradiance = graph.AddExternal(std::format("{}.DiffuseIrradianceSH", name), irradianceSH);
             
@@ -57,10 +57,10 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
                 0;
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), targetMipmap);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), targetMipmap);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             RenderCommand::Dispatch(cmd, {1, 1, 1});
         });

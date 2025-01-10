@@ -90,8 +90,8 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             CPU_PROFILE_FRAME("SSAO.Setup")
             
             graph.SetShader("../assets/shaders/ssao.shader",
-                ShaderOverrides{}
-                    .Add({"MAX_SAMPLES"}, MAX_SAMPLES_COUNT));
+                ShaderOverrides{
+                    ShaderOverride{{"MAX_SAMPLES"}, MAX_SAMPLES_COUNT}});
             
             if (!graph.TryGetBlackboardValue<Samples>())
             {
@@ -184,10 +184,10 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
                     (f32)noiseTexture.Description().Width, (f32)noiseTexture.Description().Height)};
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             RenderCommand::Dispatch(cmd,
                 {ssaoTexture.Description().Width, ssaoTexture.Description().Height, 1},

@@ -88,11 +88,11 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 pipeline.BindCompute(frameContext.Cmd);
-                RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), pushConstant);
+                RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), pushConstant);
                 samplerDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                    pipeline.GetLayout());
+                    shader.GetLayout());
                 resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                    pipeline.GetLayout());
+                    shader.GetLayout());
                 u32 shift = toBeProcessed > 5 ? 12 : 10;
                 u32 mask = toBeProcessed > 5 ? 4095 : 1023;
                 u32 samples = width * height;

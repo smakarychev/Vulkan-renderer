@@ -51,9 +51,9 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
                 .LightDirection = lightDirection};
             
             pipeline.BindCompute(frameContext.Cmd);
-            RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), pushConstant);
+            RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), pushConstant);
             resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
             RenderCommand::Dispatch(frameContext.Cmd,
                 {SHADOW_CASCADES, 1, 1},
                 {MAX_SHADOW_CASCADES, 1, 1});

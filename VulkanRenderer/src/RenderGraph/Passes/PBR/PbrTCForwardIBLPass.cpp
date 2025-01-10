@@ -27,16 +27,16 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                     .Geometry = info.Geometry,
                     .DrawShader = &ShaderCache::Register(std::format("{}.Draw", name),
                         "../assets/shaders/pbr-forward.shader",
-                        ShaderOverrides{}
-                            .Add({"MAX_REFLECTION_LOD"},
-                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))),
+                        ShaderOverrides{
+                            ShaderOverride{{"MAX_REFLECTION_LOD"},
+                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})}}),
                     .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.Draw.Triangles", name),
-                        "../assets/shaders/pbr-forward.shader", 
-                        ShaderOverrides{}
-                            .Add({"MAX_REFLECTION_LOD"},
-                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
-                            .Add({"COMPOUND_INDEX"}, true)),
-                    .CullTriangles = true});
+                        "../assets/shaders/pbr-forward.shader",
+                        ShaderOverrides{
+                            ShaderOverride{{"MAX_REFLECTION_LOD"},
+                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                            ShaderOverride{{"COMPOUND_INDEX"}, true}}),
+                        .CullTriangles = true});
 
                 multiview.MultiviewData.Finalize();
             }

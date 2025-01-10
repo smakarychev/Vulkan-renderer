@@ -59,10 +59,10 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), glm::vec2{frameContext.Resolution});
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), glm::vec2{frameContext.Resolution});
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {depthTexture.Description().Width, depthTexture.Description().Height, 1},
                 {8, 8, 1});

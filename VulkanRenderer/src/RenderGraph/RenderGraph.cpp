@@ -501,9 +501,9 @@ namespace RG
         ShaderCache::Register(CurrentPass()->GetNameString(), path, {});
     }
 
-    void Graph::SetShader(std::string_view path, const ShaderOverrides& overrides) const
+    void Graph::SetShader(std::string_view path, ShaderOverridesView&& overrides) const
     {
-        ShaderCache::Register(CurrentPass()->GetNameString(), path, overrides);
+        ShaderCache::Register(CurrentPass()->GetNameString(), path, std::move(overrides));
     }
 
     void Graph::SetShader(const Shader* shader) const
@@ -511,9 +511,9 @@ namespace RG
         ShaderCache::Register(CurrentPass()->GetNameString(), shader, {});
     }
 
-    void Graph::SetShader(const Shader* shader, const ShaderOverrides& overrides) const
+    void Graph::SetShader(const Shader* shader, ShaderOverridesView&& overrides) const
     {
-        ShaderCache::Register(CurrentPass()->GetNameString(), shader, overrides);
+        ShaderCache::Register(CurrentPass()->GetNameString(), shader, std::move(overrides));
     }
 
     void Graph::CopyShader(const Shader* shader) const

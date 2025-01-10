@@ -68,11 +68,8 @@ public:
     glm::uvec2 GetResolution() const { return m_SwapchainResolution; }
     glm::uvec2 GetDrawResolution() const { return m_DrawResolution; }
 
-    RenderingDetails GetRenderingDetails() const;
-    
     const Image& GetDrawImage() const { return m_DrawImage; }
     const Image& GetDepthImage() const { return m_DepthImage; }
-
 private:
     std::vector<Image> CreateColorImages() const;
     Image CreateDrawImage();

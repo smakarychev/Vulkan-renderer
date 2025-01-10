@@ -50,9 +50,9 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
             resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 3);
         });
 }

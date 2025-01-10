@@ -10,6 +10,22 @@ namespace Utils
     static constexpr auto FNV_OFFSET_BASIS_32 = 0x811c9dc5;
     static constexpr auto FNV_PRIME_32 = 0x01000193;
 
+    /* taken from boost > 1.51 */
+    constexpr void hashCombine(u64& h, u64 k)
+    {
+        constexpr u64 m = 0xc6a4a7935bd1e995uLL;
+        constexpr i32 r = 47;
+
+        k *= m;
+        k ^= k >> r;
+        k *= m;
+
+        h ^= k;
+        h *= m;
+
+        h += 0xe6546b64;
+    }
+
     inline u64 hashBytes(const void* data, u32 sizeBytes, u64 offsetBasis = FNV_OFFSET_BASIS)
     {
         u64 hash = offsetBasis;

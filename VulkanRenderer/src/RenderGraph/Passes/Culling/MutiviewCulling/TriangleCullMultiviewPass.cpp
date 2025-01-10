@@ -46,7 +46,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             PushConstants pushConstants = {
                 .CommandsPerBatchCount = TriangleCullMultiviewTraits::CommandCount(),
@@ -56,7 +56,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
                 .MeshletViewCount = multiview->MeshletCull->ViewCount,
                 .MaxDispatches = multiview->MaxDispatches};
             
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             
             RenderCommand::Dispatch(cmd,
                 {multiview->MaxDispatches, 1, 1},
@@ -104,9 +104,9 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             {
                 ShaderCache::Register(std::format("{}.{}", name, i),
                     "../assets/shaders/triangle-cull-multiview.shader",
-                    ShaderOverrides{}
-                        .Add({"REOCCLUSION"}, stage == CullStage::Reocclusion)
-                        .Add({"SINGLE_PASS"}, stage == CullStage::Single));
+                    ShaderOverrides{
+                        ShaderOverride{{"REOCCLUSION"}, stage == CullStage::Reocclusion},
+                        ShaderOverride{{"SINGLE_PASS"}, stage == CullStage::Single}});
                 ShaderCache::Register(std::format("{}.PrepareDraw.{}", name, i),
                         "../assets/shaders/prepare-draws-multiview.shader", {});
 
@@ -299,11 +299,11 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .MeshletViewCount = multiview->MeshletCull->ViewCount};
                         auto& cmd = frameContext.Cmd;
                         pipeline.BindCompute(cmd);
-                        RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
+                        RenderCommand::PushConstants(cmd, cullShader.GetLayout(), pushConstants);
                         samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            pipeline.GetLayout());
+                            cullShader.GetLayout());
                         resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            pipeline.GetLayout());
+                            cullShader.GetLayout());
                         RenderCommand::DispatchIndirect(cmd,
                             resources.GetBuffer(multiview->BatchDispatches[geometryIndex]),
                             batchIteration * sizeof(IndirectDispatchCommand));
@@ -328,8 +328,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                        
                         pipeline.BindCompute(cmd);
                         resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            pipeline.GetLayout());
-                        RenderCommand::PushConstants(cmd, pipeline.GetLayout(), multiview->TriangleViewCount);
+                            prepareShader.GetLayout());
+                        RenderCommand::PushConstants(cmd, prepareShader.GetLayout(), multiview->TriangleViewCount);
                         RenderCommand::Dispatch(cmd,
                             {multiview->TriangleViewCount, 1, 1},
                             {MAX_CULL_VIEWS, 1, 1});
@@ -357,10 +357,10 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         if (enumHasAny(drawShader.Features(), Textures))
                         {
                             drawShader.Descriptors(ShaderDescriptorsKind::Sampler)
-                                .BindGraphicsImmutableSamplers(frameContext.Cmd, pipeline.GetLayout());
+                                .BindGraphicsImmutableSamplers(frameContext.Cmd, drawShader.GetLayout());
                             drawShader.Descriptors(ShaderDescriptorsKind::Materials)
                                 .BindGraphics(frameContext.Cmd,
-                                    resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+                                    resources.GetGraph()->GetArenaAllocators(), drawShader.GetLayout());
                         }
 
                         auto& cmd = frameContext.Cmd;
@@ -378,7 +378,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             resources.GetBuffer(multiview->IndicesCulled[i][batchIndex]), 0);
                         pipeline.BindGraphics(cmd);
                         resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            pipeline.GetLayout());
+                            drawShader.GetLayout());
 
                         RenderCommand::DrawIndexedIndirect(cmd,
                             resources.GetBuffer(multiview->Draws[batchIndex]), i * sizeof(IndirectDrawCommand), 1);                    

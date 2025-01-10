@@ -41,20 +41,42 @@ struct ShaderCache::FileWatcher
 };
 std::unique_ptr<ShaderCache::FileWatcher> ShaderCache::s_FileWatcher = {};
 
+PipelineSpecializationsView ShaderOverridesView::ToPipelineSpecializationsView(ShaderPipelineTemplate& shaderTemplate)
+{
+    for (u32 i = 0; i < Descriptions.size(); i++)
+    {
+        auto spec = std::ranges::find(shaderTemplate.GetSpecializations(), Names[i].String(),
+            [](auto& constant) { return constant.Name; });
+        ASSERT(spec != shaderTemplate.GetSpecializations().end(), "Unrecognized specialization name")
+        Descriptions[i].Id = spec->Id;
+        Descriptions[i].ShaderStages = spec->ShaderStages;
+    }
+
+    return PipelineSpecializationsView(Data, Descriptions);
+}
+
 Shader::Shader(u32 pipelineIndex,
     const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors)
         : m_Pipeline(pipelineIndex), m_Descriptors(descriptors)
 {
 }
 
-const ShaderPipeline& Shader::Pipeline() const
+const Pipeline& Shader::Pipeline() const
 {
     return ShaderCache::s_Pipelines[m_Pipeline].Pipeline;
 }
 
-ShaderOverrides Shader::CopyOverrides() const
+const PipelineLayout& Shader::GetLayout() const
 {
-    return ShaderOverrides{ShaderCache::s_Pipelines[m_Pipeline].OverrideHash};
+    return ShaderCache::s_Pipelines[m_Pipeline].PipelineLayout;
+}
+
+ShaderOverridesView Shader::CopyOverrides() const
+{
+    ShaderOverridesView view = {};
+    view.Hash = ShaderCache::s_Pipelines[m_Pipeline].SpecializationsHash;
+    
+    return view;
 }
 
 void ShaderCache::Init()
@@ -72,7 +94,7 @@ void ShaderCache::Shutdown()
             continue;
 
         deleted[s->m_Pipeline] = true;
-        Pipeline::Destroy(s->Pipeline().GetPipeline());
+        Device::Destroy(s->Pipeline().Handle());
     }
     s_FileWatcher.reset();
 }
@@ -109,7 +131,8 @@ const Shader& ShaderCache::Get(std::string_view name)
     return *s_ShadersMap.find(name)->second;
 }
 
-const Shader& ShaderCache::Register(std::string_view name, std::string_view path, const ShaderOverrides& overrides)
+const Shader& ShaderCache::Register(std::string_view name, std::string_view path,
+    ShaderOverridesView&& overrides)
 {
     ShaderProxy shaderProxy = {};
     u32 pipeline = {};
@@ -118,20 +141,25 @@ const Shader& ShaderCache::Register(std::string_view name, std::string_view path
     {
         /* if this is completely new shader */
         pipeline = (u32)s_Pipelines.size();
-        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, overrides);
-        s_Pipelines.push_back({.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash});
+        const u64 specializationsHash = overrides.Hash;
+        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, std::move(overrides));
+        s_Pipelines.push_back({
+            .Pipeline = shaderProxy.Pipeline,
+            .PipelineLayout = shaderProxy.PipelineLayout,
+            .SpecializationsHash = specializationsHash});
     }
     else
     {
         auto& shaders = s_Records.find(path)->second.Shaders;
         
-        return Register(name, shaders.front(), overrides);
+        return Register(name, shaders.front(), std::move(overrides));
     }   
 
     return AddShader(name, pipeline, shaderProxy, path);
 }
 
-const Shader& ShaderCache::Register(std::string_view name, const Shader* shader, const ShaderOverrides& overrides)
+const Shader& ShaderCache::Register(std::string_view name, const Shader* shader,
+    ShaderOverridesView&& overrides)
 {
     /* if shader already exists in some form, then two cases are possible:
      * 1) to-be-registered shader is identical to previously loaded one, but has different `name`
@@ -143,40 +171,48 @@ const Shader& ShaderCache::Register(std::string_view name, const Shader* shader,
      *   case 2a) is an early exit, since it does not produce any entries in `s_Shaders` and other arrays
      */
 
+    const u64 specializationsHash = overrides.Hash;
+    ShaderProxy shaderProxy = {};
     /* 2a) */
     if (s_ShadersMap.contains(name))
     {
-        if (s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].OverrideHash == overrides.m_Hash)
+        if (s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].SpecializationsHash == specializationsHash)
             return *s_ShadersMap.find(name)->second;
-            
+
+        shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline, std::move(overrides));
+        
         s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline] = {
-            .Pipeline = ReloadShader(shader->m_FilePath, ReloadType::Pipeline, overrides).Pipeline,
-            .OverrideHash = overrides.m_Hash};
+            .Pipeline = shaderProxy.Pipeline,
+            .PipelineLayout = shaderProxy.PipelineLayout,
+            .SpecializationsHash = specializationsHash};
             
         return *s_ShadersMap.find(name)->second;
     }
 
-    ShaderProxy shaderProxy = {};
     u32 pipeline = {};
 
     /* 1) */
-    if (s_Pipelines[shader->m_Pipeline].OverrideHash == overrides.m_Hash)
+    if (s_Pipelines[shader->m_Pipeline].SpecializationsHash == specializationsHash)
     {
         pipeline = shader->m_Pipeline;
-        shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Descriptors, overrides);
+        shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Descriptors, std::move(overrides));
     }
     /* 2b) */
     else
     {
         pipeline = (u32)s_Pipelines.size();
-        shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::PipelineDescriptors, overrides);
-        s_Pipelines.push_back({.Pipeline = shaderProxy.Pipeline, .OverrideHash = overrides.m_Hash});
+        shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::PipelineDescriptors, std::move(overrides));
+        s_Pipelines.push_back({
+            .Pipeline = shaderProxy.Pipeline,
+            .PipelineLayout = shaderProxy.PipelineLayout,
+            .SpecializationsHash = specializationsHash});
     }
 
     return AddShader(name, pipeline, shaderProxy, shader->m_FilePath);
 }
 
-const Shader& ShaderCache::AddShader(std::string_view name, u32 pipeline, const ShaderProxy& proxy, std::string_view path)
+const Shader& ShaderCache::AddShader(std::string_view name, u32 pipeline, const ShaderProxy& proxy,
+    std::string_view path)
 {
     s_Shaders.push_back(std::make_unique<Shader>(pipeline, proxy.Descriptors));
     s_Shaders.back()->m_FilePath = path;
@@ -224,15 +260,15 @@ void ShaderCache::HandleShaderModification(std::string_view name)
          * with correct overloads; so instead we simply set pipeline overload hash to zero, thus
          * triggering reload on the next access operation
          */
-        if (s_Pipelines[pipelineIndex].OverrideHash != 0)
+        if (s_Pipelines[pipelineIndex].SpecializationsHash != 0)
         {
-            s_Pipelines[pipelineIndex].OverrideHash = 0;
+            s_Pipelines[pipelineIndex].SpecializationsHash = 0;
             continue;
         }
         
-        ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline,
-            ShaderOverrides{0});
+        ShaderProxy shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline, {});
         s_Pipelines[pipelineIndex].Pipeline = shaderProxy.Pipeline;
+        s_Pipelines[pipelineIndex].PipelineLayout = shaderProxy.PipelineLayout;
     }
 }
 
@@ -283,7 +319,7 @@ void ShaderCache::CreateFileGraph()
 }
 
 ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, ReloadType reloadType,
-    const ShaderOverrides& overrides)
+    ShaderOverridesView&& overrides)
 {
     std::ifstream in(path.data());
     nlohmann::json json = nlohmann::json::parse(in);
@@ -309,27 +345,15 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
 
     if (reloadType == ReloadType::PipelineDescriptors || reloadType == ReloadType::Pipeline)
     {
-        ShaderPipeline::Builder pipelineBuilder = {};
-        pipelineBuilder
-            .UseDescriptorBuffer()
-            .SetTemplate(shaderTemplate);
-
-        for (auto& override : overrides.m_Overrides)
-        {
-            ShaderOverrides::Override::ValueType value = override.Value;
-            if (std::holds_alternative<bool>(value))
-                pipelineBuilder.AddSpecialization<bool>(override.Name.String(), std::get<bool>(value));
-            else if (std::holds_alternative<i32>(value))
-                pipelineBuilder.AddSpecialization<i32>(override.Name.String(), std::get<i32>(value));
-            else if (std::holds_alternative<u32>(value))
-                pipelineBuilder.AddSpecialization<u32>(override.Name.String(), std::get<u32>(value));
-            else if (std::holds_alternative<f32>(value))
-                pipelineBuilder.AddSpecialization<f32>(override.Name.String(), std::get<f32>(value));
-            else
-                LOG("Ignoring specialization constant {}: unknown type", override.Name.String());
-        }
-
+        std::vector<Format> colorFormats;
+        std::optional<Format> depthFormat;
         DynamicStates dynamicStates = DynamicStates::Default;
+        AlphaBlending alphaBlending = AlphaBlending::Over;
+        DepthMode depthMode = DepthMode::ReadWrite;
+        FaceCullMode cullMode = FaceCullMode::None;
+        PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
+        bool clampDepth = false;
+        
         for (auto& dynamicState : json["dynamic_states"])
         {
             static const std::unordered_map<std::string, DynamicStates> NAME_TO_STATE_MAP = {
@@ -347,7 +371,6 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             }
             dynamicStates |= it->second;
         }
-        pipelineBuilder.DynamicStates(dynamicStates);
 
         if (!shaderTemplate->IsComputeTemplate())
         {
@@ -375,14 +398,8 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
 
             auto& rasterization = json["rasterization"];
 
-            AlphaBlending blending = AlphaBlending::Over;
-            DepthMode depthMode = DepthMode::ReadWrite;
-            FaceCullMode cullMode = FaceCullMode::None;
-            PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
-            bool depthClamp = false;
-
             if (rasterization.contains("alpha_blending"))
-                blending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
+                alphaBlending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
             if (rasterization.contains("depth_mode"))
                 depthMode = NAME_TO_DEPTH_MODE_MAP.at(rasterization["depth_mode"]);
             if (rasterization.contains("cull_mode"))
@@ -390,29 +407,30 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             if (rasterization.contains("primitive_kind"))
                 primitiveKind = NAME_TO_PRIMITIVE_MAP.at(rasterization["primitive_kind"]);
             if (rasterization.contains("depth_clamp"))
-                depthClamp = rasterization["depth_clamp"];
-
-            std::vector<Format> colorFormats;
-            std::optional<Format> depthFormat;
+                clampDepth = rasterization["depth_clamp"];
 
             colorFormats.reserve(rasterization["colors"].size());
             for (auto& color : rasterization["colors"])
                 colorFormats.push_back(FormatUtils::formatFromString(color));
             if (rasterization.contains("depth"))
                 depthFormat = FormatUtils::formatFromString(rasterization["depth"]);
-            
-            pipelineBuilder
-                .AlphaBlending(blending)
-                .DepthMode(depthMode)
-                .DepthClamp(depthClamp)
-                .FaceCullMode(cullMode)
-                .PrimitiveKind(primitiveKind)
-                .SetRenderingDetails({
-                    .ColorFormats = colorFormats,
-                    .DepthFormat = depthFormat ? *depthFormat : Format::Undefined});
         }
-        
-        shader.Pipeline = pipelineBuilder.BuildManualLifetime();
+
+        shader.PipelineLayout = shaderTemplate->GetPipelineLayout();
+        shader.Pipeline = Device::CreatePipeline({
+            .PipelineLayout = shader.PipelineLayout,
+            .Shaders = shaderTemplate->GetShaders(),
+            .ColorFormats = colorFormats,
+            .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
+            .DynamicStates = dynamicStates,
+            .DepthMode = depthMode,
+            .CullMode = cullMode,
+            .AlphaBlending = alphaBlending,
+            .PrimitiveKind = primitiveKind,
+            .Specialization = overrides.ToPipelineSpecializationsView(*shaderTemplate),
+            .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
+            .UseDescriptorBuffer = true,
+            .ClampDepth = clampDepth});
     }
 
     if (reloadType == ReloadType::Pipeline)

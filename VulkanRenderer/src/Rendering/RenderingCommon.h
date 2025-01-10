@@ -49,13 +49,6 @@ struct BufferCopyInfo
     u64 DestinationOffset;
 };
 
-struct RenderingDetails
-{
-    std::vector<Format> ColorFormats;
-    // todo: make it an std::optional?
-    Format DepthFormat;
-};
-
 struct DepthBias
 {
     f32 Constant{0.0f};

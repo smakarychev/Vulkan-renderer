@@ -28,8 +28,8 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                         "../assets/shaders/visibility.shader", {}),
                     .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.Draw.Triangles", name),
                         "../assets/shaders/visibility.shader", 
-                        ShaderOverrides{}
-                            .Add({"COMPOUND_INDEX"}, true)),
+                        ShaderOverrides{
+                            ShaderOverride{{"COMPOUND_INDEX"}, true}}),
                     .CullTriangles = true});
                 multiview.MultiviewData.SetPrimaryView(0);
                 multiview.MultiviewData.Finalize();

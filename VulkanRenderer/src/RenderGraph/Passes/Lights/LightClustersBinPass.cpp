@@ -53,8 +53,8 @@ RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph&
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), frameContext.PrimaryCamera->GetView());
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), frameContext.PrimaryCamera->GetView());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::DispatchIndirect(cmd, resources.GetBuffer(passData.Dispatch), 0);
         });
 }

@@ -53,8 +53,8 @@ RG::Pass& Passes::Multiview::MeshletCullTranslucent::addToGraph(std::string_view
                        
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {
@@ -65,7 +65,7 @@ RG::Pass& Passes::Multiview::MeshletCullTranslucent::addToGraph(std::string_view
                     .GeometryIndex = i,
                     .ViewCount = info.MultiviewResource->ViewCount};
 
-                RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
 
                 RenderCommand::Dispatch(cmd,
                     {meshletCount, 1, 1},

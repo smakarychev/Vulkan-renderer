@@ -40,7 +40,7 @@ namespace
         u32 typedStage = (SpvReflectShaderStageFlagBits)assetStage;
         ShaderStage stage = ShaderStage::None;
         if ((typedStage & SPV_REFLECT_SHADER_STAGE_VERTEX_BIT) != 0)
-            stage |= ShaderStage::Vertex ;
+            stage |= ShaderStage::Vertex;
         if ((typedStage & SPV_REFLECT_SHADER_STAGE_FRAGMENT_BIT) != 0)
             stage |= ShaderStage::Pixel;
         if ((typedStage & SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT) != 0)
@@ -151,9 +151,17 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string_vi
 
     ASSERT(mergedShaderInfo.PushConstants.size() <= 1, "Only one push constant is supported")
 
+    std::vector<ReflectionData::SpecializationConstant> specializationConstants;
+    specializationConstants.reserve(mergedShaderInfo.SpecializationConstants.size());
+    for (auto& spec : mergedShaderInfo.SpecializationConstants)
+        specializationConstants.push_back({
+            .Name = spec.Name,
+            .Id = spec.Id,
+            .ShaderStages = shaderStageFromMultipleAssetStages(spec.ShaderStages)});
+    
     shader.m_ReflectionData = {
         .ShaderStages = allStages,
-        .SpecializationConstants = mergedShaderInfo.SpecializationConstants,
+        .SpecializationConstants = specializationConstants,
         .InputAttributes = mergedShaderInfo.InputAttributes,
         .PushConstants = mergedShaderInfo.PushConstants,
         .DescriptorSets = ProcessDescriptorSets(mergedShaderInfo.DescriptorSets),
@@ -214,7 +222,7 @@ assetLib::ShaderStageInfo ShaderReflection::MergeReflections(const assetLib::Sha
         [](const auto& a, const auto& b)
         {
             ASSERT(a.Name == b.Name, "Specialization constants have same id but different name")
-            ReflectionData::SpecializationConstant merged = a;
+            assetLib::ShaderStageInfo::SpecializationConstant merged = a;
             merged.ShaderStages |= b.ShaderStages;
             return merged;
         });
@@ -366,7 +374,8 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build()
     return ShaderPipelineTemplate::Create(m_CreateInfo);
 }
 
-ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetShaderReflection(ShaderReflection* shaderReflection)
+ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetShaderReflection(
+    ShaderReflection* shaderReflection)
 {
     m_CreateInfo.ShaderReflection = shaderReflection;
 
@@ -403,6 +412,8 @@ ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetDescriptorA
 ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo& createInfo)
 {
     ShaderPipelineTemplate shaderPipelineTemplate = {};
+    
+    shaderPipelineTemplate.m_ShaderReflection = createInfo.ShaderReflection;
 
     if (createInfo.Allocator == nullptr)
     {
@@ -430,14 +441,6 @@ ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo&
         .DescriptorSetLayouts = shaderPipelineTemplate.m_DescriptorsLayouts});
     Device::DeletionQueue().Enqueue(shaderPipelineTemplate.m_PipelineLayout);
     
-    shaderPipelineTemplate.m_PipelineBuilder = Pipeline::Builder()
-        .SetLayout(shaderPipelineTemplate.m_PipelineLayout);
-
-    for (auto& shader : createInfo.ShaderReflection->GetShaders())
-        shaderPipelineTemplate.m_PipelineBuilder.AddShader(shader);
-
-    shaderPipelineTemplate.m_PipelineBuilder.IsComputePipeline(shaderPipelineTemplate.m_IsComputeTemplate);
-
     shaderPipelineTemplate.m_SpecializationConstants.reserve(reflectionData.SpecializationConstants.size());
     for (auto& constant : reflectionData.SpecializationConstants)
         shaderPipelineTemplate.m_SpecializationConstants.push_back(constant);
@@ -506,6 +509,51 @@ std::array<bool, MAX_PIPELINE_DESCRIPTOR_SETS> ShaderPipelineTemplate::GetSetPre
         presence[setIndex] = !m_DescriptorSetsInfo[setIndex].Bindings.empty();
 
     return presence;
+}
+
+VertexInputDescription ShaderPipelineTemplate::CreateCompatibleVertexDescription(
+    const VertexInputDescription& compatibleTo) const
+{
+    // adapt vertex input layout
+    const VertexInputDescription& available = m_VertexInputDescription;
+    const VertexInputDescription& compatible = compatibleTo;
+    ASSERT(available.Bindings.size() <= compatible.Bindings.size(), "Incompatible vertex inputs")
+    
+    VertexInputDescription adapted;
+    adapted.Bindings = compatible.Bindings;
+    adapted.Attributes.reserve(compatible.Attributes.size());
+
+    for (u32 availableIndex = 0; availableIndex < available.Attributes.size(); availableIndex++)
+    {
+        const auto& avail = available.Attributes[availableIndex];
+        std::vector<VertexInputDescription::Attribute> candidates;
+        candidates.reserve(compatible.Attributes.size());
+        for (u32 compatibleIndex = availableIndex; compatibleIndex < compatible.Attributes.size(); compatibleIndex++)
+        {
+            const auto& comp = compatible.Attributes[compatibleIndex];
+            if (comp.Index == avail.Index && comp.Format == avail.Format)
+                candidates.push_back(comp);
+        }
+        for (u32 candidateIndex = 0; candidateIndex < candidates.size(); candidateIndex++)
+        {
+            const auto& candidate = candidates[candidateIndex];
+            if (candidate.BindingIndex == avail.BindingIndex)
+            {
+                adapted.Attributes.push_back(candidate);
+                break;
+            }
+            if (candidateIndex == candidates.size() - 1)
+            {
+                LOG("WARNING: compatible attribute found, but binding mismatch detected: expected {} but got {}",
+                    avail.BindingIndex, candidate.BindingIndex);
+                adapted.Attributes.push_back(candidate);
+                break;
+            }
+        }
+        ASSERT(adapted.Attributes.size() == availableIndex + 1, "Incompatible vertex inputs")
+    }
+
+    return adapted;
 }
 
 std::vector<DescriptorsLayout> ShaderPipelineTemplate::CreateDescriptorLayouts(
@@ -647,213 +695,6 @@ ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescript
     }
 
     return descriptorsFlags;
-}
-
-ShaderPipeline ShaderPipeline::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-ShaderPipeline ShaderPipeline::Builder::Build(DeletionQueue& deletionQueue)
-{
-    Prebuild();
-
-    ShaderPipeline pipeline = ShaderPipeline::Create(m_CreateInfo);
-    deletionQueue.Enqueue(pipeline.m_Pipeline);
-    
-    return pipeline;
-}
-
-ShaderPipeline ShaderPipeline::Builder::BuildManualLifetime()
-{
-    Prebuild();
-
-    return ShaderPipeline::Create(m_CreateInfo);
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::SetRenderingDetails(const RenderingDetails& renderingDetails)
-{
-    m_CreateInfo.RenderingDetails = renderingDetails;
-    
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::DynamicStates(::DynamicStates states)
-{
-    m_DynamicStates = states;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::DepthClamp(bool enable)
-{
-    m_ClampDepth = enable;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::DepthMode(::DepthMode depthMode)
-{
-    m_DepthMode = depthMode;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::FaceCullMode(::FaceCullMode cullMode)
-{
-    m_CullMode = cullMode;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::PrimitiveKind(::PrimitiveKind primitiveKind)
-{
-    m_PrimitiveKind = primitiveKind;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::AlphaBlending(::AlphaBlending alphaBlending)
-{
-    m_AlphaBlending = alphaBlending;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::SetTemplate(ShaderPipelineTemplate* shaderPipelineTemplate)
-{
-    m_CreateInfo.ShaderPipelineTemplate = shaderPipelineTemplate;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::CompatibleWithVertex(
-    const VertexInputDescription& vertexInputDescription)
-{
-    m_CompatibleVertexDescription = vertexInputDescription;
-
-    return *this;
-}
-
-ShaderPipeline::Builder& ShaderPipeline::Builder::UseDescriptorBuffer()
-{
-    m_CreateInfo.UseDescriptorBuffer = true;
-
-    return *this;
-}
-
-void ShaderPipeline::Builder::Prebuild()
-{
-    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.DynamicStates(m_DynamicStates);
-    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.ClampDepth(m_ClampDepth);
-    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.DepthMode(m_DepthMode);
-    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.FaceCullMode(m_CullMode);
-    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.PrimitiveKind(m_PrimitiveKind);
-    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.AlphaBlending(m_AlphaBlending);
-    
-    if (!m_CompatibleVertexDescription.Bindings.empty())
-        CreateCompatibleLayout();
-
-    if (m_CreateInfo.ShaderPipelineTemplate->IsComputeTemplate())
-        ASSERT(m_CreateInfo.RenderingDetails.ColorFormats.empty(),
-            "Compute shader pipeline does not need rendering details")
-
-    FinishSpecializationConstants();
-}
-
-void ShaderPipeline::Builder::CreateCompatibleLayout()
-{
-    // adapt vertex input layout
-    const VertexInputDescription& available = m_CreateInfo.ShaderPipelineTemplate->m_VertexInputDescription;
-    const VertexInputDescription& compatible = m_CompatibleVertexDescription;
-    ASSERT(available.Bindings.size() <= compatible.Bindings.size(), "Incompatible vertex inputs")
-    
-    VertexInputDescription adapted;
-    adapted.Bindings = compatible.Bindings;
-    adapted.Attributes.reserve(compatible.Attributes.size());
-
-    for (u32 availableIndex = 0; availableIndex < available.Attributes.size(); availableIndex++)
-    {
-        const auto& avail = available.Attributes[availableIndex];
-        std::vector<VertexInputDescription::Attribute> candidates;
-        candidates.reserve(compatible.Attributes.size());
-        for (u32 compatibleIndex = availableIndex; compatibleIndex < compatible.Attributes.size(); compatibleIndex++)
-        {
-            const auto& comp = compatible.Attributes[compatibleIndex];
-            if (comp.Index == avail.Index && comp.Format == avail.Format)
-                candidates.push_back(comp);
-        }
-        for (u32 candidateIndex = 0; candidateIndex < candidates.size(); candidateIndex++)
-        {
-            const auto& candidate = candidates[candidateIndex];
-            if (candidate.BindingIndex == avail.BindingIndex)
-            {
-                adapted.Attributes.push_back(candidate);
-                break;
-            }
-            if (candidateIndex == candidates.size() - 1)
-            {
-                LOG("WARNING: compatible attribute found, but binding mismatch detected: expected {} but got {}",
-                    avail.BindingIndex, candidate.BindingIndex);
-                adapted.Attributes.push_back(candidate);
-                break;
-            }
-        }
-        ASSERT(adapted.Attributes.size() == availableIndex + 1, "Incompatible vertex inputs")
-    }
-
-    m_CreateInfo.ShaderPipelineTemplate->m_PipelineBuilder.SetVertexDescription(adapted);
-}
-
-void ShaderPipeline::Builder::FinishSpecializationConstants()
-{
-    for (u32 specializationIndex = 0; specializationIndex < m_SpecializationConstantNames.size(); specializationIndex++)
-    {
-        std::string_view name = m_SpecializationConstantNames[specializationIndex];
-        auto it = std::ranges::find(m_CreateInfo.ShaderPipelineTemplate->m_SpecializationConstants, name,
-            [](auto& constant) { return constant.Name; });
-        ASSERT(it != m_CreateInfo.ShaderPipelineTemplate->m_SpecializationConstants.end(),
-            "Unrecognized specialization name")
-        m_PipelineSpecializationInfo.ShaderSpecializations[specializationIndex].Id = it->Id;
-        m_PipelineSpecializationInfo.ShaderSpecializations[specializationIndex].ShaderStages =
-            shaderStageFromMultipleAssetStages(it->ShaderStages);
-    }
-
-    m_CreateInfo.PipelineSpecializationInfo = m_PipelineSpecializationInfo;
-}
-
-ShaderPipeline ShaderPipeline::Create(const Builder::CreateInfo& createInfo)
-{
-    ShaderPipeline shaderPipeline = {};
-    
-    shaderPipeline.m_Template = createInfo.ShaderPipelineTemplate;
-
-    // use local builder to not worry about state
-    Pipeline::Builder pipelineBuilder = shaderPipeline.m_Template->m_PipelineBuilder;
-    if (!createInfo.ShaderPipelineTemplate->IsComputeTemplate())
-        pipelineBuilder.SetRenderingDetails(createInfo.RenderingDetails);
-
-    pipelineBuilder.UseSpecialization(createInfo.PipelineSpecializationInfo);
-    if (createInfo.UseDescriptorBuffer)
-        pipelineBuilder.UseDescriptorBuffer();
-    
-    if (createInfo.ShaderPipelineTemplate->IsComputeTemplate())
-        shaderPipeline.m_Pipeline = pipelineBuilder.BuildManualLifetime();
-    else
-        shaderPipeline.m_Pipeline = pipelineBuilder.SetRenderingDetails(createInfo.RenderingDetails)
-            .BuildManualLifetime();    
-
-    return shaderPipeline;
-}
-
-void ShaderPipeline::BindGraphics(const CommandBuffer& cmd) const
-{
-    m_Pipeline.BindGraphics(cmd);
-}
-
-void ShaderPipeline::BindCompute(const CommandBuffer& cmd) const
-{
-    m_Pipeline.BindCompute(cmd);
 }
 
 ShaderDescriptorSet::ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo)

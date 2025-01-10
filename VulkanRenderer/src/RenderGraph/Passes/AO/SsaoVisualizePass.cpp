@@ -46,9 +46,9 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
                 ImageFilter::Linear, ImageLayout::Readonly));
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             RenderCommand::Draw(cmd, 3);
         });

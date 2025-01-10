@@ -22,13 +22,13 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             bool useClustered = !useHybrid &&  info.Clusters.IsValid();
 
             graph.SetShader("../assets/shaders/pbr-visibility-ibl.shader",
-                ShaderOverrides{}
-                    .Add(
+                ShaderOverrides{
+                    ShaderOverride{
                         {"MAX_REFLECTION_LOD"},
-                        (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION}))
-                    .Add({"USE_TILED_LIGHTING"}, useTiled)
-                    .Add({"USE_CLUSTERED_LIGHTING"}, useClustered)
-                    .Add({"USE_HYBRID_LIGHTING"}, useHybrid));
+                        (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                    ShaderOverride{{"USE_TILED_LIGHTING"}, useTiled},
+                    ShaderOverride{{"USE_CLUSTERED_LIGHTING"}, useClustered},
+                    ShaderOverride{{"USE_HYBRID_LIGHTING"}, useHybrid}});
 
             passData.Commands = graph.AddExternal(std::string{name} + ".Commands", info.Geometry->GetCommandsBuffer());
             passData.Objects = graph.AddExternal(std::string{name} + ".Objects",
@@ -128,12 +128,12 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             resourceDescriptors.UpdateBinding("u_indices", indices.BindingInfo());
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
             materialDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                pipeline.GetLayout());
+                shader.GetLayout());
 
             RenderCommand::Draw(cmd, 3);
         });

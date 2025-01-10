@@ -18,9 +18,9 @@ RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::
             CPU_PROFILE_FRAME("Meshlet.Cull.Multiview.Setup")
 
             graph.SetShader("../assets/shaders/meshlet-cull-multiview.shader",
-                ShaderOverrides{}
-                    .Add({"REOCCLUSION"}, stage == CullStage::Reocclusion)
-                    .Add({"SINGLE_PASS"}, stage == CullStage::Single));
+                ShaderOverrides{
+                    ShaderOverride{{"REOCCLUSION"}, stage == CullStage::Reocclusion},
+                    ShaderOverride{{"SINGLE_PASS"}, stage == CullStage::Single}});
             
             RgUtils::readWriteCullMeshletMultiview(*info.MultiviewResource, stage, graph);
             
@@ -56,8 +56,8 @@ RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::
                        
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {
@@ -68,7 +68,7 @@ RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::
                     .GeometryIndex = i,
                     .ViewCount = info.MultiviewResource->ViewCount};
 
-                RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
 
                 RenderCommand::Dispatch(cmd,
                     {meshletCount, 1, 1},

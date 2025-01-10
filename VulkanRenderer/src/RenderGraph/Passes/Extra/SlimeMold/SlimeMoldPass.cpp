@@ -131,8 +131,8 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
             CPU_PROFILE_FRAME("Slime.Update.Setup");
             
             graph.SetShader("../assets/shaders/slime.shader",
-                ShaderOverrides{}
-                    .Add({"SLIME_MAP_STAGE"}, true));
+                ShaderOverrides{
+                    ShaderOverride{{"SLIME_MAP_STAGE"}, true}});
             
             passData.Traits = graph.AddExternal("Slime.Update.Traits", ctx.GetTraitsBuffer());
             passData.Traits = graph.Read(passData.Traits, Compute | Storage);
@@ -193,8 +193,8 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
                         
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, {slimeCountDimension + 1, slimeCountDimension, 1}, {16, 16, 1});
         });
 }
@@ -211,8 +211,8 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
             CPU_PROFILE_FRAME("Slime.Diffuse.Setup");
             
             graph.SetShader("../assets/shaders/slime.shader",
-                ShaderOverrides{}
-                    .Add({"SLIME_DIFFUSE_STAGE"}, true));
+                ShaderOverrides{
+                    ShaderOverride{{"SLIME_DIFFUSE_STAGE"}, true}});
 
             passData.SlimeMap = updateOutput.SlimeMap;
             passData.SlimeMap = graph.Read(passData.SlimeMap, Compute | Storage);
@@ -249,8 +249,8 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});
         });
 }
@@ -274,8 +274,8 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
             CPU_PROFILE_FRAME("Gradient.Slime.Setup");
 
             graph.SetShader("../assets/shaders/slime.shader",
-                ShaderOverrides{}
-                    .Add({"SLIME_GRADIENT_STAGE"}, true));
+                ShaderOverrides{
+                    ShaderOverride{{"SLIME_GRADIENT_STAGE"}, true}});
 
             passData.DiffuseMap = diffuseOutput.DiffuseMap;
             passData.DiffuseMap = graph.Read(passData.DiffuseMap, Compute | Storage);
@@ -333,8 +333,8 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});
         });
 }

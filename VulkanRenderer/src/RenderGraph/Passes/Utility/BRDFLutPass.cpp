@@ -45,8 +45,8 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
             
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             RenderCommand::Dispatch(cmd,
                 {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},

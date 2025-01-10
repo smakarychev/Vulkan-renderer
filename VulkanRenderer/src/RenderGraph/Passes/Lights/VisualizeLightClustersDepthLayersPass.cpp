@@ -55,10 +55,10 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(std::string_view
                 .Far = frameContext.PrimaryCamera->GetFar()};
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, pipeline.GetLayout());
+            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
             pipeline.BindGraphics(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             RenderCommand::Draw(cmd, 3);
         });

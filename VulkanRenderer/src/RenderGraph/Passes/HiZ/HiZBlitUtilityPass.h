@@ -37,8 +37,8 @@ namespace Passes::HiZBlit
                 CPU_PROFILE_FRAME("HiZ.Blit.Setup")
 
                 graph.SetShader("../assets/shaders/hiz.shader",
-                    ShaderOverrides{}
-                        .Add({"DEPTH_MIN_MAX"}, minMaxDepth));
+                    ShaderOverrides{
+                        ShaderOverride{{"DEPTH_MIN_MAX"}, minMaxDepth}});
                 
                 Resource depthIn = depth;
                 Resource depthOut = graph.AddExternal("Hiz.Out", ctx.GetHiZ(mode));
@@ -91,11 +91,11 @@ namespace Passes::HiZBlit
                 
                 glm::uvec2 levels = {width, height};
                 pipeline.BindCompute(frameContext.Cmd);
-                RenderCommand::PushConstants(frameContext.Cmd, pipeline.GetLayout(), levels);
+                RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), levels);
                 samplerDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                    pipeline.GetLayout());
+                    shader.GetLayout());
                 resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
-                    pipeline.GetLayout());
+                    shader.GetLayout());
                 RenderCommand::Dispatch(frameContext.Cmd, {(width + 32 - 1) / 32, (height + 32 - 1) / 32, 1});
             });
     }

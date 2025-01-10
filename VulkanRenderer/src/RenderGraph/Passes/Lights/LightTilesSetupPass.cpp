@@ -54,8 +54,8 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            RenderCommand::PushConstants(cmd, pipeline.GetLayout(), pushConstant);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             glm::uvec2 bins = glm::ceil(
                 glm::vec2{frameContext.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
             RenderCommand::Dispatch(cmd,

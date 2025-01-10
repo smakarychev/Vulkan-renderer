@@ -51,7 +51,7 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
 
             auto& cmd = frameContext.Cmd;
             pipeline.BindCompute(cmd);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), pipeline.GetLayout());
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, 1},
                 {16, 16, 1});
