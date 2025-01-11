@@ -12,74 +12,123 @@
 #include "Rendering/Pipeline.h"
 #include "utils/utils.h"
 
-ShaderPipelineTemplate ShaderPipelineTemplate::Builder::Build()
+namespace
 {
-    return ShaderPipelineTemplate::Create(m_CreateInfo);
+    struct DescriptorsFlags
+    {
+        std::vector<DescriptorBinding> Descriptors;
+        std::vector<DescriptorFlags> Flags;
+    };
+
+    DescriptorsFlags extractDescriptorsAndFlags(
+        const ShaderReflection::DescriptorSetInfo& descriptorSet, bool useDescriptorBuffer)
+    {
+        DescriptorsFlags descriptorsFlags;
+        descriptorsFlags.Descriptors.reserve(descriptorSet.Descriptors.size());
+        descriptorsFlags.Flags.reserve(descriptorSet.Descriptors.size());
+        
+        for (auto& descriptor : descriptorSet.Descriptors)
+        {
+            descriptorsFlags.Descriptors.push_back(descriptor);
+            DescriptorFlags flags = DescriptorFlags::None;
+            if (enumHasAny(descriptor.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::Bindless))
+            {
+                flags |= DescriptorFlags::VariableCount;
+                if (!useDescriptorBuffer)
+                    flags |= DescriptorFlags::PartiallyBound |
+                        DescriptorFlags::UpdateAfterBind |
+                        DescriptorFlags::UpdateUnusedPending;
+            }
+            descriptorsFlags.Flags.push_back(flags);
+        }
+
+        return descriptorsFlags;
+    }
+
+    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> createDescriptorLayouts(
+        const std::array<ShaderReflection::DescriptorSetInfo, MAX_DESCRIPTOR_SETS>& descriptorSetReflections,
+        bool useDescriptorBuffer)
+    {
+        std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> layouts;
+
+        static const DescriptorsLayout EMPTY_LAYOUT_ORDINARY = Device::CreateDescriptorsLayout({}); 
+        static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = Device::CreateDescriptorsLayout({
+            .Flags = DescriptorLayoutFlags::DescriptorBuffer});
+        static bool once = true;
+        if (once)
+        {
+            Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_ORDINARY);
+            Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_DESCRIPTOR_BUFFER);
+            once = false;
+        }
+
+        const DescriptorsLayout* EMPTY_LAYOUT = useDescriptorBuffer ?
+            &EMPTY_LAYOUT_DESCRIPTOR_BUFFER : &EMPTY_LAYOUT_ORDINARY;
+
+        for (u32 i = 0; i < descriptorSetReflections.size(); i++)
+        {
+            auto& set = descriptorSetReflections[i];
+            if (set.Descriptors.empty())
+            {
+                layouts[i] = *EMPTY_LAYOUT;
+                continue;
+            }
+            
+            DescriptorsFlags descriptorsFlags = extractDescriptorsAndFlags(set, useDescriptorBuffer);
+        
+            DescriptorLayoutFlags layoutFlags = set.HasImmutableSampler ?
+                DescriptorLayoutFlags::EmbeddedImmutableSamplers : DescriptorLayoutFlags::None;
+            if (useDescriptorBuffer)
+                layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
+            else if (set.HasBindless)
+                layoutFlags |= DescriptorLayoutFlags::UpdateAfterBind;
+            
+            DescriptorsLayout layout = Device::CreateDescriptorsLayout({
+                .Bindings = descriptorsFlags.Descriptors,
+                .BindingFlags = descriptorsFlags.Flags,
+                .Flags = layoutFlags});
+            Device::DeletionQueue().Enqueue(layout);
+            
+            layouts[i] = layout;
+        }
+
+        return layouts;
+    }
 }
 
-ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetShaderReflection(
-    ShaderReflection* shaderReflection)
-{
-    m_CreateInfo.ShaderReflection = shaderReflection;
 
-    return *this;
-}
-
-ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetDescriptorAllocator(DescriptorAllocator* allocator)
+ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo)
 {
-    ASSERT(m_CreateInfo.ResourceAllocator == nullptr && m_CreateInfo.SamplerAllocator == nullptr,
+    ASSERT(
+        createInfo.ResourceAllocator || createInfo.SamplerAllocator || createInfo.Allocator,
+        "Allocators are unset")
+    ASSERT(
+        !createInfo.ResourceAllocator && !createInfo.SamplerAllocator ||
+        !createInfo.Allocator,
         "Cannot set both allocator and arena allocator")
-    m_CreateInfo.Allocator = allocator;
-
-    return *this;
-}
-
-ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetDescriptorArenaResourceAllocator(
-    DescriptorArenaAllocator* allocator)
-{
-    ASSERT(m_CreateInfo.Allocator == nullptr, "Cannot set both allocator and arena allocator")
-    m_CreateInfo.ResourceAllocator = allocator;
-
-    return *this;
-}
-
-ShaderPipelineTemplate::Builder& ShaderPipelineTemplate::Builder::SetDescriptorArenaSamplerAllocator(
-    DescriptorArenaAllocator* allocator)
-{
-    ASSERT(m_CreateInfo.Allocator == nullptr, "Cannot set both allocator and arena allocator")
-    m_CreateInfo.SamplerAllocator = allocator;
-
-    return *this;
-}
-
-ShaderPipelineTemplate ShaderPipelineTemplate::Create(const Builder::CreateInfo& createInfo)
-{
-    ShaderPipelineTemplate shaderPipelineTemplate = {};
-
+    
     auto& reflection = *createInfo.ShaderReflection;
-    shaderPipelineTemplate.m_ShaderReflection = createInfo.ShaderReflection;
+    m_ShaderReflection = createInfo.ShaderReflection;
 
     if (createInfo.Allocator == nullptr)
     {
-        shaderPipelineTemplate.m_UseDescriptorBuffer = true;
-        shaderPipelineTemplate.m_Allocator.ResourceAllocator = createInfo.ResourceAllocator;
-        shaderPipelineTemplate.m_Allocator.SamplerAllocator = createInfo.SamplerAllocator;
+        m_UseDescriptorBuffer = true;
+        m_Allocator.ResourceAllocator = createInfo.ResourceAllocator;
+        m_Allocator.SamplerAllocator = createInfo.SamplerAllocator;
     }
     else
     {
-        shaderPipelineTemplate.m_Allocator.DescriptorAllocator = createInfo.Allocator;
+        m_Allocator.DescriptorAllocator = createInfo.Allocator;
     }
     
-    shaderPipelineTemplate.m_DescriptorsLayouts = CreateDescriptorLayouts(
+    m_DescriptorsLayouts = createDescriptorLayouts(
         reflection.DescriptorSetsInfo(),
-        shaderPipelineTemplate.m_UseDescriptorBuffer);
+        m_UseDescriptorBuffer);
     
-    shaderPipelineTemplate.m_PipelineLayout = Device::CreatePipelineLayout({
+    m_PipelineLayout = Device::CreatePipelineLayout({
         .PushConstants = reflection.PushConstants(),
-        .DescriptorSetLayouts = shaderPipelineTemplate.m_DescriptorsLayouts});
-    Device::DeletionQueue().Enqueue(shaderPipelineTemplate.m_PipelineLayout);
-        
-    return shaderPipelineTemplate;
+        .DescriptorSetLayouts = m_DescriptorsLayouts});
+    Device::DeletionQueue().Enqueue(m_PipelineLayout);
 }
 
 const DescriptorBinding& ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
@@ -174,81 +223,6 @@ VertexInputDescription ShaderPipelineTemplate::CreateCompatibleVertexDescription
     }
 
     return adapted;
-}
-
-std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> ShaderPipelineTemplate::CreateDescriptorLayouts(
-    const std::array<ShaderReflection::DescriptorSetInfo, MAX_DESCRIPTOR_SETS>& descriptorSetReflections,
-    bool useDescriptorBuffer)
-{
-    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> layouts;
-
-    static const DescriptorsLayout EMPTY_LAYOUT_ORDINARY = Device::CreateDescriptorsLayout({}); 
-    static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = Device::CreateDescriptorsLayout({
-        .Flags = DescriptorLayoutFlags::DescriptorBuffer});
-    static bool once = true;
-    if (once)
-    {
-        Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_ORDINARY);
-        Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_DESCRIPTOR_BUFFER);
-        once = false;
-    }
-
-    const DescriptorsLayout* EMPTY_LAYOUT = useDescriptorBuffer ?
-        &EMPTY_LAYOUT_DESCRIPTOR_BUFFER : &EMPTY_LAYOUT_ORDINARY;
-
-    for (u32 i = 0; i < descriptorSetReflections.size(); i++)
-    {
-        auto& set = descriptorSetReflections[i];
-        if (set.Descriptors.empty())
-        {
-            layouts[i] = *EMPTY_LAYOUT;
-            continue;
-        }
-        
-        DescriptorsFlags descriptorsFlags = ExtractDescriptorsAndFlags(set, useDescriptorBuffer);
-    
-        DescriptorLayoutFlags layoutFlags = set.HasImmutableSampler ?
-            DescriptorLayoutFlags::EmbeddedImmutableSamplers : DescriptorLayoutFlags::None;
-        if (useDescriptorBuffer)
-            layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
-        else if (set.HasBindless)
-            layoutFlags |= DescriptorLayoutFlags::UpdateAfterBind;
-        
-        DescriptorsLayout layout = Device::CreateDescriptorsLayout({
-            .Bindings = descriptorsFlags.Descriptors,
-            .BindingFlags = descriptorsFlags.Flags,
-            .Flags = layoutFlags});
-        Device::DeletionQueue().Enqueue(layout);
-        
-        layouts[i] = layout;
-    }
-
-    return layouts;
-}
-
-ShaderPipelineTemplate::DescriptorsFlags ShaderPipelineTemplate::ExtractDescriptorsAndFlags(
-    const ShaderReflection::DescriptorSetInfo& descriptorSet, bool useDescriptorBuffer)
-{
-    DescriptorsFlags descriptorsFlags;
-    descriptorsFlags.Descriptors.reserve(descriptorSet.Descriptors.size());
-    descriptorsFlags.Flags.reserve(descriptorSet.Descriptors.size());
-    
-    for (auto& descriptor : descriptorSet.Descriptors)
-    {
-        descriptorsFlags.Descriptors.push_back(descriptor);
-        DescriptorFlags flags = DescriptorFlags::None;
-        if (enumHasAny(descriptor.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::Bindless))
-        {
-            flags |= DescriptorFlags::VariableCount;
-            if (!useDescriptorBuffer)
-                flags |= DescriptorFlags::PartiallyBound |
-                    DescriptorFlags::UpdateAfterBind |
-                    DescriptorFlags::UpdateUnusedPending;
-        }
-        descriptorsFlags.Flags.push_back(flags);
-    }
-
-    return descriptorsFlags;
 }
 
 ShaderDescriptorSet::ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo)
@@ -548,26 +522,16 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(const std
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
     DescriptorAllocator& allocator)
 {
-    ShaderReflection* shaderReflection = ShaderReflection::ReflectFrom(paths);
-
-    ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
-        .SetDescriptorAllocator(&allocator)
-        .SetShaderReflection(shaderReflection)
-        .Build();
-
-    return shaderTemplate;
+    return ShaderPipelineTemplate({
+        .ShaderReflection = ShaderReflection::ReflectFrom(paths),
+        .Allocator = &allocator});
 }
 
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
     DescriptorArenaAllocators& allocators)
 {
-    ShaderReflection* shaderReflection = ShaderReflection::ReflectFrom(paths);
-
-    ShaderPipelineTemplate shaderTemplate = ShaderPipelineTemplate::Builder()
-        .SetDescriptorArenaResourceAllocator(&allocators.Get(DescriptorAllocatorKind::Resources))
-        .SetDescriptorArenaSamplerAllocator(&allocators.Get(DescriptorAllocatorKind::Samplers))
-        .SetShaderReflection(shaderReflection)
-        .Build();
-
-    return shaderTemplate;
+    return ShaderPipelineTemplate({
+        .ShaderReflection = ShaderReflection::ReflectFrom(paths),
+        .ResourceAllocator = &allocators.Get(DescriptorAllocatorKind::Resources),
+        .SamplerAllocator = &allocators.Get(DescriptorAllocatorKind::Samplers)});
 }

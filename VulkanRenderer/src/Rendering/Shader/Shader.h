@@ -39,41 +39,23 @@ static constexpr std::string_view UNIFORM_PREFILTER_MAP     = "u_prefilter_map";
 static constexpr std::string_view UNIFORM_BRDF              = "u_brdf";
 static constexpr std::string_view UNIFORM_TRIANGLES         = "u_triangles";
 
+struct ShaderPipelineTemplateCreateInfo
+{
+    ShaderReflection* ShaderReflection{nullptr};
+    DescriptorAllocator* Allocator{nullptr};
+    DescriptorArenaAllocator* ResourceAllocator{nullptr};
+    DescriptorArenaAllocator* SamplerAllocator{nullptr};
+};
+
 class ShaderPipelineTemplate
 {
     friend class ShaderPipeline;
     friend class ShaderDescriptorSet;
     friend class ShaderDescriptors;
-private:
-    struct DescriptorsFlags
-    {
-        std::vector<DescriptorBinding> Descriptors;
-        std::vector<DescriptorFlags> Flags;
-    };
 public:
-    class Builder
-    {
-        friend class ShaderPipelineTemplate;
-        struct CreateInfo
-        {
-            ShaderReflection* ShaderReflection;
-            DescriptorAllocator* Allocator{nullptr};
-            DescriptorArenaAllocator* ResourceAllocator{nullptr};
-            DescriptorArenaAllocator* SamplerAllocator{nullptr};
-        };
-    public:
-        ShaderPipelineTemplate Build();
-        Builder& SetShaderReflection(ShaderReflection* shaderReflection);
-        Builder& SetDescriptorAllocator(DescriptorAllocator* allocator);
-        Builder& SetDescriptorArenaResourceAllocator(DescriptorArenaAllocator* allocator);
-        Builder& SetDescriptorArenaSamplerAllocator(DescriptorArenaAllocator* allocator);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-
-public:
-    static ShaderPipelineTemplate Create(const Builder::CreateInfo& createInfo);
-
+    ShaderPipelineTemplate() = default;
+    ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo);
+    
     PipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
     const DescriptorsLayout GetDescriptorsLayout(u32 index) const { return m_DescriptorsLayouts[index]; }
 
@@ -87,12 +69,6 @@ public:
     VertexInputDescription CreateCompatibleVertexDescription(const VertexInputDescription& compatibleTo) const;
 
     const ShaderReflection& GetReflection() const { return *m_ShaderReflection; }
-private:
-    static std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> CreateDescriptorLayouts(
-        const std::array<ShaderReflection::DescriptorSetInfo, MAX_DESCRIPTOR_SETS>&,
-        bool useDescriptorBuffer);
-    static DescriptorsFlags ExtractDescriptorsAndFlags(const ShaderReflection::DescriptorSetInfo& descriptorSet,
-        bool useDescriptorBuffer);
 private:
     struct Allocator
     {
@@ -130,6 +106,7 @@ public:
         u32 DescriptorCount{0};
     };
 public:
+    ShaderDescriptorSet() = default;
     ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo);
     
     void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
