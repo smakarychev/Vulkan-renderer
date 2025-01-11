@@ -618,16 +618,19 @@ void Renderer::BeginFrame()
 
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 {
-    RenderingAttachment color = RenderingAttachment::Builder()
-      .SetType(RenderingAttachmentType::Color)
-      .FromImage(m_Swapchain.GetDrawImage(), ImageLayout::General)
-      .LoadStoreOperations(AttachmentLoad::Load, AttachmentStore::Store)
-      .Build(GetFrameContext().DeletionQueue);
-
-    RenderingInfo info = RenderingInfo::Builder()
-        .AddAttachment(color)
-        .SetResolution(m_Swapchain.GetResolution())
-        .Build(GetFrameContext().DeletionQueue);
+    // todo: embed into Device::CreateRenderingInfo once i have api to provide deletion queue in create method
+    RenderingAttachment color = Device::CreateRenderingAttachment({
+        .Description = ColorAttachmentDescription{
+            .OnLoad = AttachmentLoad::Load,
+            .OnStore = AttachmentStore::Store},
+        .Image = &m_Swapchain.GetDrawImage(),
+        .Layout = ImageLayout::General});
+    GetFrameContext().DeletionQueue.Enqueue(color);
+    
+    RenderingInfo info = Device::CreateRenderingInfo({
+        .RenderArea = m_Swapchain.GetResolution(),
+        .ColorAttachments = {color}});
+    GetFrameContext().DeletionQueue.Enqueue(info);
 
     return info;
 }

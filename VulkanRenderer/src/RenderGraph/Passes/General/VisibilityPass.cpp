@@ -62,8 +62,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                             .Resource = depth,
                             .Description = {
                                 .OnLoad = AttachmentLoad::Clear,
-                                .ClearDepth = 0.0f,
-                                .ClearStencil = 0}}}}});
+                                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}}});
 
             auto& meta = Meta::CullMultiview::addToGraph(std::format("{}.Meta", name), renderGraph,
                 multiview.MultiviewData);

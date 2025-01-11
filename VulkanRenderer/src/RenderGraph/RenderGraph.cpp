@@ -383,18 +383,22 @@ namespace RG
                     
                 std::optional<DepthBias> depthBias{};
 
-                std::vector<RenderingAttachment> attachments;
-                attachments.reserve(pass->m_RenderTargetAttachmentAccess.size() +
-                    (u32)pass->m_DepthStencilAccess.has_value());
+                std::vector<RenderingAttachment> colorAttachments;
+                std::optional<RenderingAttachment> depthAttachment;
+                colorAttachments.reserve(pass->m_RenderTargetAttachmentAccess.size());
                 for (auto& target : pass->m_RenderTargetAttachmentAccess)
-                    attachments.push_back(RenderingAttachment::Builder()
-                        .ClearValue(target.m_ClearColor)
-                        .SetType(RenderingAttachmentType::Color)
-                        .LoadStoreOperations(target.m_OnLoad, target.m_OnStore)
-                        .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource,
-                            ImageLayout::ColorAttachment)
-                        .View(target.m_ViewSubresource)
-                        .Build(*m_FrameDeletionQueue));
+                {
+                    RenderingAttachment attachment = Device::CreateRenderingAttachment({
+                        .Description = ColorAttachmentDescription{
+                            .Subresource = target.m_ViewSubresource,
+                            .OnLoad = target.m_OnLoad,
+                            .OnStore = target.m_OnStore,
+                            .ClearColor = target.m_ClearColor},
+                        .Image = m_Textures[target.m_Resource.Index()].m_Resource,
+                        .Layout = ImageLayout::ColorAttachment});
+                    colorAttachments.push_back(attachment);
+                    m_FrameDeletionQueue->Enqueue(attachment);
+                }
                 if (pass->m_DepthStencilAccess.has_value())
                 {
                     auto& target = *pass->m_DepthStencilAccess;
@@ -402,24 +406,25 @@ namespace RG
                     ImageLayout layout = target.m_IsDepthOnly ?
                         ImageLayout::DepthAttachment : ImageLayout::DepthStencilAttachment;
                     
-                    attachments.push_back(RenderingAttachment::Builder()
-                       .ClearValue(target.m_ClearDepth, target.m_ClearStencil)
-                       .SetType(RenderingAttachmentType::Depth)
-                       .LoadStoreOperations(target.m_OnLoad, target.m_OnStore)
-                       .FromImage(*m_Textures[target.m_Resource.Index()].m_Resource, layout)
-                       .View(target.m_ViewSubresource)
-                       .Build(*m_FrameDeletionQueue));
+                    depthAttachment = Device::CreateRenderingAttachment({
+                        .Description = DepthStencilAttachmentDescription{
+                            .Subresource = target.m_ViewSubresource,
+                            .OnLoad = target.m_OnLoad,
+                            .OnStore = target.m_OnStore,
+                            .ClearDepthStencil = {.Depth = target.m_ClearDepth, .Stencil = target.m_ClearStencil}},
+                        .Image = m_Textures[target.m_Resource.Index()].m_Resource,
+                        .Layout = layout});
+                    m_FrameDeletionQueue->Enqueue(*depthAttachment);
 
                     /* add a depth bias, if depth target was created with it */
                     if (target.m_DepthBias.has_value())
                         depthBias = *target.m_DepthBias;
                 }
-                RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
-                    .SetResolution(resolution);
-                for (auto& attachment : attachments)
-                    renderingInfoBuilder.AddAttachment(attachment);
-
-                RenderingInfo renderingInfo = renderingInfoBuilder.Build(*m_FrameDeletionQueue);
+                RenderingInfo renderingInfo = Device::CreateRenderingInfo({
+                    .RenderArea = resolution,
+                    .ColorAttachments = colorAttachments,
+                    .DepthAttachment = depthAttachment});
+                m_FrameDeletionQueue->Enqueue(renderingInfo);
                 
                 RenderCommand::BeginRendering(frameContext.Cmd, renderingInfo);
 

@@ -1418,7 +1418,7 @@ void Device::Destroy(ResourceHandleType<Sampler> sampler)
     Resources().RemoveResource(sampler);
 }
 
-RenderingAttachment Device::Create(const RenderingAttachment::Builder::CreateInfo& createInfo)
+RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo)
 {
     DeviceResources::RenderingAttachmentResource renderingAttachmentResource = {};
 
@@ -1452,7 +1452,7 @@ void Device::Destroy(ResourceHandleType<RenderingAttachment> renderingAttachment
     Resources().RemoveResource(renderingAttachment);
 }
 
-RenderingInfo Device::Create(const RenderingInfo::Builder::CreateInfo& createInfo)
+RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo)
 {
     DeviceResources::RenderingInfoResource renderingInfoResource = {};
     renderingInfoResource.ColorAttachments.reserve(createInfo.ColorAttachments.size());

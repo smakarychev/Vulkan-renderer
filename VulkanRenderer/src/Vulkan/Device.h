@@ -564,10 +564,10 @@ public:
     static Sampler Create(const Sampler::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<Sampler> sampler);
 
-    static RenderingAttachment Create(const RenderingAttachment::Builder::CreateInfo& createInfo);
+    static RenderingAttachment CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<RenderingAttachment> renderingAttachment);
 
-    static RenderingInfo Create(const RenderingInfo::Builder::CreateInfo& createInfo);
+    static RenderingInfo CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<RenderingInfo> renderingInfo);
 
     static PipelineLayout CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo);

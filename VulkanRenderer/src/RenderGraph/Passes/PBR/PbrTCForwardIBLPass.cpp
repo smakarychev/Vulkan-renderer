@@ -56,8 +56,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                             .Resource = info.DepthIn,
                             .Description = {
                                 .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                                .ClearDepth = 0.0f,
-                                .ClearStencil = 0}}},
+                                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}},
                     .SceneLights = info.SceneLights,
                     .IBL = info.IBL}});
 

@@ -180,11 +180,13 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             {
                 auto& view = multiviewData->TriangleView(viewIndex);
                 auto&& [staticV, dynamicV] = view;
-                
-                RenderingInfo::Builder renderingInfoBuilder = RenderingInfo::Builder()
-                    .SetResolution(dynamicV.Resolution);
+
                 auto& colors = passData.TriangleDrawInfos[viewIndex].Attachments.Colors;
                 auto& depth = passData.TriangleDrawInfos[viewIndex].Attachments.Depth;
+                
+                std::vector<RenderingAttachment> colorAttachments;
+                colorAttachments.reserve(colors.size());
+                std::optional<RenderingAttachment> depthAttachment;
                 for (u32 attachmentIndex = 0; attachmentIndex < colors.size(); attachmentIndex++)
                 {
                     auto description = colors[attachmentIndex].Description;
@@ -192,9 +194,12 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         description.OnLoad = AttachmentLoad::Load;
 
                     const Texture& colorTexture = resources.GetTexture(colors[attachmentIndex].Resource);
-                    renderingInfoBuilder.AddAttachment(RenderingAttachment::Builder(description)
-                        .FromImage(colorTexture, ImageLayout::Attachment)
-                        .Build(frameContext.DeletionQueue));
+                    RenderingAttachment attachment = Device::CreateRenderingAttachment({
+                        .Description = description,
+                        .Image = &colorTexture,
+                        .Layout = ImageLayout::Attachment});
+                    colorAttachments.push_back(attachment);
+                    frameContext.DeletionQueue.Enqueue(attachment);
                 }
                 if (depth.has_value())
                 {
@@ -203,12 +208,19 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         description.OnLoad = AttachmentLoad::Load;
 
                     const Texture& depthTexture = resources.GetTexture(depth->Resource);
-                    renderingInfoBuilder.AddAttachment(RenderingAttachment::Builder(description)
-                        .FromImage(depthTexture, ImageLayout::DepthAttachment)
-                        .Build(frameContext.DeletionQueue));
+                    RenderingAttachment attachment = Device::CreateRenderingAttachment({
+                        .Description = description,
+                        .Image = &depthTexture,
+                        .Layout = ImageLayout::DepthAttachment});
+                    depthAttachment = attachment;
+                    frameContext.DeletionQueue.Enqueue(attachment);
                 }
-
-                RenderingInfo renderingInfo = renderingInfoBuilder.Build(frameContext.DeletionQueue);
+                
+                RenderingInfo renderingInfo = Device::CreateRenderingInfo({
+                    .RenderArea = dynamicV.Resolution,
+                    .ColorAttachments = colorAttachments,
+                    .DepthAttachment = depthAttachment});
+                frameContext.DeletionQueue.Enqueue(renderingInfo);
 
                 return renderingInfo;
             };

@@ -82,8 +82,8 @@ namespace RG::RgUtils
                 attachment.Resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
                 attachment.DepthBias,
-                attachment.Description.ClearDepth,
-                attachment.Description.ClearStencil);
+                attachment.Description.ClearDepthStencil.Depth,
+                attachment.Description.ClearDepthStencil.Stencil);
             drawAttachmentResources.Depth = attachment.Resource;
         }
 
@@ -111,8 +111,8 @@ namespace RG::RgUtils
                 resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
                 attachment.DepthBias,
-                attachment.Description.ClearDepth,
-                attachment.Description.ClearStencil);
+                attachment.Description.ClearDepthStencil.Depth,
+                attachment.Description.ClearDepthStencil.Stencil);
         }
 
         return drawAttachmentResources;

@@ -156,8 +156,7 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                                 .Description = {
                                     .Subresource = cascadeViews[i],
                                     .OnLoad = AttachmentLoad::Clear,
-                                    .ClearDepth = 0.0f,
-                                    .ClearStencil = 0},
+                                    .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}},
                                 /* todo: for some reason DEPTH_CONSTANT_BIAS does not do anything at all */
                                 .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}}});
 
