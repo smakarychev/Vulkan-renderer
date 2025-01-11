@@ -520,7 +520,7 @@ class Device
 public:
     static void Destroy(ResourceHandleType<QueueInfo> queue);
 
-    static Swapchain Create(const Swapchain::Builder::CreateInfo& createInfo);
+    static Swapchain CreateSwapchain(SwapchainCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Swapchain> swapchain);
     static std::vector<Image> CreateSwapchainImages(const Swapchain& swapchain);
     static void DestroySwapchainImages(const Swapchain& swapchain);

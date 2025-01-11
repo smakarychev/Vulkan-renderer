@@ -690,9 +690,7 @@ void Renderer::InitRenderingStructures()
 
     m_ResourceUploader.Init();
     
-    m_Swapchain = Swapchain::Builder()
-        .BufferedFrames(BUFFERED_FRAMES)
-        .BuildManualLifetime();
+    m_Swapchain = Device::CreateSwapchain({});
 
     m_FrameContexts.resize(BUFFERED_FRAMES);
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
@@ -756,15 +754,14 @@ void Renderer::RecreateSwapchain()
     }
     
     Device::WaitIdle();
-    
-    Swapchain::Builder newSwapchainBuilder = Swapchain::Builder()
-        .BufferedFrames(BUFFERED_FRAMES)
-        .SetSyncStructures(m_Swapchain.GetFrameSync());
 
+
+    auto frameSync = m_Swapchain.GetFrameSync();
     Swapchain::DestroyImages(m_Swapchain);
     Swapchain::Destroy(m_Swapchain);
     
-    m_Swapchain = newSwapchainBuilder.BuildManualLifetime();
+    m_Swapchain = Device::CreateSwapchain({
+        .FrameSyncs = frameSync});
 
     m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
     // todo: to multicast delegate

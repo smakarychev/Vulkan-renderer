@@ -5,7 +5,6 @@
 
 #include "ShaderReflection.h"
 #include "Rendering/Descriptors.h"
-#include "Rendering/DescriptorsTraits.h"
 #include "Rendering/Pipeline.h"
 #include "types.h"
 

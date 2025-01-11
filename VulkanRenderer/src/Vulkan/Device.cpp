@@ -835,7 +835,7 @@ void Device::Destroy(ResourceHandleType<QueueInfo> queue)
     Resources().RemoveResource(queue);
 }
 
-Swapchain Device::Create(const Swapchain::Builder::CreateInfo& createInfo)
+Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
 {
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
@@ -930,8 +930,29 @@ Swapchain Device::Create(const Swapchain::Builder::CreateInfo& createInfo)
     swapchain.m_DrawImage = swapchain.CreateDrawImage();
     swapchain.m_DepthImage = swapchain.CreateDepthImage();
     swapchain.m_ColorImageCount = imageCount;
-    swapchain.m_SwapchainFrameSync = createInfo.FrameSyncs;
+    swapchain.m_SwapchainFrameSync.assign_range(createInfo.FrameSyncs);
     swapchain.m_Window = s_State.Window;
+
+    if (swapchain.m_SwapchainFrameSync.empty())
+    {
+        swapchain.m_SwapchainFrameSync.reserve(BUFFERED_FRAMES);
+        for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+        {
+            Fence renderFence = Fence::Builder()
+                .StartSignaled(true)
+                .Build();
+            Semaphore renderSemaphore = Semaphore::Builder().Build();
+            Semaphore presentSemaphore = Semaphore::Builder().Build();
+
+            swapchain.m_SwapchainFrameSync.push_back({
+                .RenderFence = renderFence,
+                .RenderSemaphore = renderSemaphore,
+                .PresentSemaphore = presentSemaphore});
+        }
+    }
+    ASSERT(swapchain.m_SwapchainFrameSync.size() == BUFFERED_FRAMES,
+        "Frame synchronization structures for swapchain have to be provided for every frame-in-flight ({})",
+        BUFFERED_FRAMES)
 
     return swapchain;
 }
@@ -1857,7 +1878,7 @@ DescriptorSet Device::CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo)
 {
     // prepare 'bindless' descriptors info
     std::vector<DescriptorSetCreateInfo::VariableBindingInfo> variableBindingInfos;
-    variableBindingInfos.assign(createInfo.VariableBindings.begin(), createInfo.VariableBindings.end());
+    variableBindingInfos.assign_range(createInfo.VariableBindings);
     std::ranges::sort(variableBindingInfos,
         [](u32 a, u32 b) { return a < b; },
         [](const DescriptorSetCreateInfo::VariableBindingInfo& v) { return v.Slot; });

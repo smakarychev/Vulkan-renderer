@@ -22,38 +22,18 @@ struct SwapchainFrameSync
 
 static constexpr u32 INVALID_SWAPCHAIN_IMAGE = std::numeric_limits<u32>::max();
 
+struct SwapchainCreateInfo
+{
+    glm::uvec2 DrawResolution{};
+    Format DrawFormat{Format::RGBA16_FLOAT};
+    Format DepthStencilFormat{Format::D32_FLOAT};
+    Span<const SwapchainFrameSync> FrameSyncs{};
+};
+
 class Swapchain
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class Swapchain;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            bool UseDefaultHint{true};
-            glm::uvec2 DrawResolution;
-            Format DrawFormat;
-            Format DepthStencilFormat;
-            std::vector<SwapchainFrameSync> FrameSyncs;
-        };
-    public:
-        Swapchain Build();
-        Swapchain BuildManualLifetime();
-        Builder& SetDrawResolution(const glm::uvec2& resolution);
-        Builder& BufferedFrames(u32 count);
-        Builder& SetSyncStructures(const std::vector<SwapchainFrameSync>& syncs);
-    private:
-        void PreBuild();
-        static Format ChooseDepthFormat();
-        std::vector<SwapchainFrameSync> CreateSynchronizationStructures();
-    private:
-        CreateInfo m_CreateInfo;
-        u32 m_BufferedFrames;
-    };
-public:
-    static Swapchain Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Swapchain& swapchain);
     static void DestroyImages(const Swapchain& swapchain);
     

@@ -213,8 +213,8 @@ DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(DescriptorsLa
 {
     CacheKey key = {};
     key.Flags = createInfo.Flags;
-    key.Bindings.assign(createInfo.Bindings.begin(), createInfo.Bindings.end());
-    key.BindingFlags.assign(createInfo.BindingFlags.begin(), createInfo.BindingFlags.end());
+    key.Bindings.assign_range(createInfo.Bindings);
+    key.BindingFlags.assign_range(createInfo.BindingFlags);
     SortBindings(key);
 
     if (s_LayoutCache.contains(key))
