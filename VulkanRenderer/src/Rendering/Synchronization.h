@@ -14,28 +14,15 @@ struct ImageSubresource;
 struct BufferSubresource;
 class CommandBuffer;
 
+struct FenceCreateInfo
+{
+    bool IsSignaled{false};
+};
+
 class Fence
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class Fence;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            bool IsSignaled{false};
-        };
-    public:
-        Builder& StartSignaled(bool isSignaled = true);
-        Fence Build();
-        Fence Build(DeletionQueue& deletionQueue);
-        Fence BuildManualLifetime();
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static Fence Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Fence& fence);
 
     void Reset() const;

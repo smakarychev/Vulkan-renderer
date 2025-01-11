@@ -938,9 +938,9 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
         swapchain.m_SwapchainFrameSync.reserve(BUFFERED_FRAMES);
         for (u32 i = 0; i < BUFFERED_FRAMES; i++)
         {
-            Fence renderFence = Fence::Builder()
-                .StartSignaled(true)
-                .Build();
+            Fence renderFence = CreateFence({
+                .IsSignaled = true});
+            DeletionQueue().Enqueue(renderFence);
             Semaphore renderSemaphore = Semaphore::Builder().Build();
             Semaphore presentSemaphore = Semaphore::Builder().Build();
 
@@ -2313,7 +2313,7 @@ DeviceResources::BufferResource Device::CreateBufferResource(u64 sizeBytes, VkBu
     return bufferResource;
 }
 
-Fence Device::Create(const Fence::Builder::CreateInfo& createInfo)
+Fence Device::CreateFence(FenceCreateInfo&& createInfo)
 {
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -2992,7 +2992,8 @@ void Device::Init(DeviceCreateInfo&& createInfo)
         .QueueKind = QueueKind::Graphics});
     DeletionQueue().Enqueue(s_State.SubmitContext.CommandPool);
     s_State.SubmitContext.CommandBuffer = s_State.SubmitContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
-    s_State.SubmitContext.Fence = Fence::Builder().Build();
+    s_State.SubmitContext.Fence = CreateFence({});
+    DeletionQueue().Enqueue(s_State.SubmitContext.Fence);
     s_State.SubmitContext.QueueKind = QueueKind::Graphics;
 
     if constexpr(std::is_same_v<DeviceFreelist<Image>, DeviceResources::ResourceContainerType<Image>>)

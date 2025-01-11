@@ -3,36 +3,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-Fence Fence::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-Fence Fence::Builder::Build(DeletionQueue& deletionQueue)
-{
-    Fence fence = Fence::Create(m_CreateInfo);
-    deletionQueue.Enqueue(fence);
-
-    return fence;
-}
-
-Fence Fence::Builder::BuildManualLifetime()
-{
-    return Fence::Create(m_CreateInfo);
-}
-
-Fence::Builder& Fence::Builder::StartSignaled(bool isSignaled)
-{
-    m_CreateInfo.IsSignaled = isSignaled;
-    
-    return *this;
-}
-
-Fence Fence::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 void Fence::Destroy(const Fence& fence)
 {
     Device::Destroy(fence.Handle());

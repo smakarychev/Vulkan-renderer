@@ -606,7 +606,7 @@ public:
     static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
         DescriptorType type, u32 index);
 
-    static Fence Create(const Fence::Builder::CreateInfo& createInfo);
+    static Fence CreateFence(FenceCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Fence> fence);
     static void WaitForFence(const Fence& fence);
     static bool CheckFence(const Fence& fence);
