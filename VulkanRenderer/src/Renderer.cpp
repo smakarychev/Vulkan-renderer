@@ -48,7 +48,7 @@
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 

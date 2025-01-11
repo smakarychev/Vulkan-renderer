@@ -1,7 +1,7 @@
 #include "ShadowCamerasGpuPass.h"
 
 #include "RenderGraph/RGDrawResources.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depthMinMax,

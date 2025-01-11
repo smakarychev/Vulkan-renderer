@@ -2,7 +2,7 @@
 
 #include "Renderer.h"
 #include "imgui/imgui.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource hiz)

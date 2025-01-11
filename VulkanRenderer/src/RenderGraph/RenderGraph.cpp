@@ -9,7 +9,7 @@
 #include "Renderer.h"
 #include "RGResourceUploader.h"
 #include "cvars/CVarSystem.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Rendering/Synchronization.h"
 #include "Vulkan/RenderCommand.h"
 

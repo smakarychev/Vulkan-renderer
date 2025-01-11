@@ -5,7 +5,7 @@
 #include "CameraGPU.h"
 #include "CullMultiviewData.h"
 #include "RenderGraph/RGUtils.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 
 namespace RG::RgUtils

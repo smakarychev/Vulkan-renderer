@@ -5,7 +5,7 @@
 #include "Descriptors.h"
 #include "DescriptorsTraits.h"
 #include "Common/Span.h"
-#include "ShaderModule.h"
+#include "Shader/ShaderModule.h"
 
 #include <vector>
 

@@ -3,7 +3,7 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph& renderGraph,

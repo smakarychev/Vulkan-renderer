@@ -2,7 +2,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depthIn,

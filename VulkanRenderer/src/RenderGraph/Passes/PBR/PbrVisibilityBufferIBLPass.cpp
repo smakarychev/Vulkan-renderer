@@ -3,7 +3,7 @@
 #include "FrameContext.h"
 #include "Scene/SceneGeometry.h"
 #include "RenderGraph/RGUtils.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,

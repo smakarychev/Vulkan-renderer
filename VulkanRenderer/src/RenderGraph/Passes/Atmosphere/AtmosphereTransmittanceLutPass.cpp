@@ -2,7 +2,7 @@
 
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RenderGraph.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 namespace RG

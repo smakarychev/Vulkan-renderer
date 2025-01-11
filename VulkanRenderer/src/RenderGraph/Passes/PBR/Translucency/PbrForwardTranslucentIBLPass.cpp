@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Culling/MutiviewCulling/MeshCullMultiviewPass.h"
 #include "RenderGraph/Passes/Culling/MutiviewCulling/MeshletCullTranslucentMultiviewPass.h"
 #include "RenderGraph/Passes/General/DrawIndirectPass.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 
 RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const PbrForwardTranslucentIBLPassExecutionInfo& info)

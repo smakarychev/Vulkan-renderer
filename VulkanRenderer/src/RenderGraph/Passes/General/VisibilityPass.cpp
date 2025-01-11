@@ -1,7 +1,7 @@
 #include "VisibilityPass.h"
 
 #include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 
 RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const VisibilityPassExecutionInfo& info)

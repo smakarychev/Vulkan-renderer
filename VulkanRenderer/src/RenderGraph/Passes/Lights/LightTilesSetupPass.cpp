@@ -3,7 +3,7 @@
 #include "Core/Camera.h"
 #include "Light/Light.h"
 #include "RenderGraph/RenderGraph.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& renderGraph)

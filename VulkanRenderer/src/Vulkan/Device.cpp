@@ -17,7 +17,6 @@
 #include "Rendering/Buffer.h"
 #include "Core/ProfilerContext.h"
 #include "Rendering/FormatTraits.h"
-#include "Rendering/Shader.h"
 #include "utils/utils.h"
 
 #include "Imgui/ImguiUI.h"

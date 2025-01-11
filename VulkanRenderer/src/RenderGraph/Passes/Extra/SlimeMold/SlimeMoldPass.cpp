@@ -5,7 +5,7 @@
 #include "Core/Random.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitCount, u32 slimeCount,

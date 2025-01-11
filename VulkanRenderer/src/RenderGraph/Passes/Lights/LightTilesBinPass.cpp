@@ -4,7 +4,7 @@
 
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 namespace RG

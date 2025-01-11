@@ -1,16 +1,16 @@
 ﻿#include "ShaderCache.h"
 
+#include "AssetManager.h"
+#include "Core/core.h"
+#include "Converters.h"
+#include "cvars/CVarSystem.h"
+
 #include <fstream>
 #include <nlm_json.hpp>
 #include <queue>
 #include <memory>
 #include <unordered_set>
 #include <efsw/efsw.hpp>
-
-#include "AssetManager.h"
-#include "Core/core.h"
-#include "Converters.h"
-#include "cvars/CVarSystem.h"
 
 DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
 Utils::StringUnorderedMap<ShaderCache::FileNode> ShaderCache::s_FileGraph = {};
@@ -45,9 +45,10 @@ PipelineSpecializationsView ShaderOverridesView::ToPipelineSpecializationsView(S
 {
     for (u32 i = 0; i < Descriptions.size(); i++)
     {
-        auto spec = std::ranges::find(shaderTemplate.GetSpecializations(), Names[i].String(),
+        auto spec = std::ranges::find(shaderTemplate.GetReflection().SpecializationConstants(), Names[i].String(),
             [](auto& constant) { return constant.Name; });
-        ASSERT(spec != shaderTemplate.GetSpecializations().end(), "Unrecognized specialization name")
+        ASSERT(spec != shaderTemplate.GetReflection().SpecializationConstants().end(),
+            "Unrecognized specialization name")
         Descriptions[i].Id = spec->Id;
         Descriptions[i].ShaderStages = spec->ShaderStages;
     }
@@ -341,7 +342,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         shader.Dependencies.emplace_back(stage);
     shader.Dependencies.emplace_back(path);
     
-    shader.Features = shaderTemplate->GetDrawFeatures();
+    shader.Features = shaderTemplate->GetReflection().Features();
 
     if (reloadType == ReloadType::PipelineDescriptors || reloadType == ReloadType::Pipeline)
     {
@@ -419,7 +420,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         shader.PipelineLayout = shaderTemplate->GetPipelineLayout();
         shader.Pipeline = Device::CreatePipeline({
             .PipelineLayout = shader.PipelineLayout,
-            .Shaders = shaderTemplate->GetShaders(),
+            .Shaders = shaderTemplate->GetReflection().Shaders(),
             .ColorFormats = colorFormats,
             .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
             .DynamicStates = dynamicStates,
@@ -440,24 +441,20 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
     * w/o rewriting that code, so the descriptors are loaded once with the shader (no hot-reload for them)
     * changing the descriptors while application is running will lead to undefined behaviour
     */
-    std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> descriptors = {};
-    
-    std::array<ShaderDescriptors::Builder, BINDLESS_DESCRIPTORS_INDEX> descriptorsBuilders = {};
     auto setPresence = shaderTemplate->GetSetPresence();
     for (u32 i = 0; i < BINDLESS_DESCRIPTORS_INDEX; i++)
     {
         if (!setPresence[i])
             continue;
 
-        descriptorsBuilders[i]
-            .SetTemplate(shaderTemplate, i == 0 ?
+        shader.Descriptors[i] = ShaderDescriptors::Builder()
+            .SetTemplate(shaderTemplate,
+                i == (u32)ShaderDescriptorsKind::Sampler ?
                 DescriptorAllocatorKind::Samplers : DescriptorAllocatorKind::Resources)
-            .ExtractSet(i);
+            .ExtractSet(i)
+            .Build();
     }
 
-    for (u32 i = 0; i < BINDLESS_DESCRIPTORS_INDEX; i++)
-        if (setPresence[i])
-            shader.Descriptors[i] = descriptorsBuilders[i].Build();
     if (json.contains("bindless"))
     {
         shader.Descriptors[BINDLESS_DESCRIPTORS_INDEX] = s_BindlessDescriptors.at(json["bindless"]);

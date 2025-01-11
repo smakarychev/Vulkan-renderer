@@ -1,7 +1,7 @@
 ﻿#include "AssetManager.h"
 
 #include "Model.h"
-#include "Rendering/Shader.h"
+#include "Rendering/Shader/Shader.h"
 
 std::unordered_map<std::string, ShaderReflection> AssetManager::s_Shaders = {};
 std::unordered_map<std::string, Model> AssetManager::s_Models = {};

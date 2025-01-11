@@ -1,6 +1,6 @@
 #pragma once
 #include "types.h"
-#include "Rendering/Shader.h"
+#include "Rendering/Shader/Shader.h"
 
 /* This class manages descriptor set for bindless textures.
  * The max amount of textures is fixed on creation,

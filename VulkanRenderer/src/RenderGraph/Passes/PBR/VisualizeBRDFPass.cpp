@@ -2,7 +2,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& brdf,

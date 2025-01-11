@@ -3,10 +3,10 @@
 #include <array>
 #include <vector>
 
-#include "Descriptors.h"
-#include "DescriptorsTraits.h"
-#include "Pipeline.h"
-#include "ShaderAsset.h"
+#include "ShaderReflection.h"
+#include "Rendering/Descriptors.h"
+#include "Rendering/DescriptorsTraits.h"
+#include "Rendering/Pipeline.h"
 #include "types.h"
 
 class DescriptorSet;
@@ -16,16 +16,12 @@ class DescriptorLayoutCache;
 class DescriptorAllocator;
 class Image;
 
-// todo: this is probably deprecated
-static constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 3;
-static_assert(MAX_PIPELINE_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
 enum class DescriptorKind : u32
 {
     Global = 0,
     Pass = 1,
     Material = 2
 };
-
 
 // todo: these probably should not be here, but having them as constexpr is quite useful
 // since we can use them in constexpr hash map, which is not used currently, but might be used in the future,
@@ -43,70 +39,6 @@ static constexpr std::string_view UNIFORM_PREFILTER_MAP     = "u_prefilter_map";
 static constexpr std::string_view UNIFORM_BRDF              = "u_brdf";
 static constexpr std::string_view UNIFORM_TRIANGLES         = "u_triangles";
 
-struct ShaderModuleCreateInfo
-{
-    Span<const std::byte> Source{};
-    ShaderStage Stage{ShaderStage::None};
-};
-
-class ShaderReflection
-{
-public:
-    struct ReflectionData
-    {
-        struct SpecializationConstant
-        {
-            std::string Name;
-            u32 Id;
-            ShaderStage ShaderStages;
-        };
-        using InputAttribute = assetLib::ShaderStageInfo::InputAttribute;
-        using PushConstant = assetLib::ShaderStageInfo::PushConstant;
-        struct DescriptorSet
-        {
-            struct DescriptorSetBindingNamedFlagged
-            {
-                std::string Name;
-                DescriptorBinding Descriptor;
-            };
-            u32 Set; 
-            bool HasBindless{false};
-            bool HasImmutableSampler{false};
-            std::vector<DescriptorSetBindingNamedFlagged> Descriptors;
-        };
-
-        ShaderStage ShaderStages;
-        std::vector<SpecializationConstant> SpecializationConstants;
-        std::vector<InputAttribute> InputAttributes;
-        std::vector<PushConstant> PushConstants;
-        std::vector<DescriptorSet> DescriptorSets;
-
-        DrawFeatures Features{};
-    };
-public:
-    static ShaderReflection* ReflectFrom(const std::vector<std::string_view>& paths);
-    ShaderReflection() = default;
-    ShaderReflection(const ShaderReflection&) = delete;
-    ShaderReflection(ShaderReflection&&) = default;
-    ShaderReflection& operator=(const ShaderReflection&) = delete;
-    ShaderReflection& operator=(ShaderReflection&&) = default;
-    ~ShaderReflection();
-    
-    const ReflectionData& GetReflectionData() const { return m_ReflectionData; }
-    const std::vector<ShaderModule>& GetShaders() const { return m_Modules; }
-private:
-    assetLib::ShaderStageInfo LoadFromAsset(std::string_view path);
-    static assetLib::ShaderStageInfo MergeReflections(const assetLib::ShaderStageInfo& first,
-        const assetLib::ShaderStageInfo& second);
-    static std::vector<ReflectionData::DescriptorSet> ProcessDescriptorSets(
-        const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& sets);
-    static DrawFeatures ExtractDrawFeatures(const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& descriptorSets,
-        const std::vector<ReflectionData::InputAttribute>& inputs);
-private:
-    std::vector<ShaderModule> m_Modules;
-    ReflectionData m_ReflectionData{};
-};
-
 class ShaderPipelineTemplate
 {
     friend class ShaderPipeline;
@@ -119,7 +51,6 @@ private:
         std::vector<DescriptorFlags> Flags;
     };
 public:
-    using ReflectionData = ShaderReflection::ReflectionData;
     class Builder
     {
         friend class ShaderPipelineTemplate;
@@ -140,14 +71,6 @@ public:
         CreateInfo m_CreateInfo;
     };
 
-    struct DescriptorSetInfo
-    {
-        std::vector<std::string> Names;
-        std::vector<DescriptorBinding> Bindings;
-    };
-
-    using SpecializationConstant = ShaderReflection::ReflectionData::SpecializationConstant;
-    
 public:
     static ShaderPipelineTemplate Create(const Builder::CreateInfo& createInfo);
 
@@ -157,28 +80,18 @@ public:
     const DescriptorBinding& GetBinding(u32 set, std::string_view name) const;
     const DescriptorBinding* TryGetBinding(u32 set, std::string_view name) const;
     std::pair<u32, const DescriptorBinding&> GetSetAndBinding(std::string_view name) const;
-    std::array<bool, MAX_PIPELINE_DESCRIPTOR_SETS> GetSetPresence() const;
+    std::array<bool, MAX_DESCRIPTOR_SETS> GetSetPresence() const;
     
-    bool IsComputeTemplate() const { return m_IsComputeTemplate; }
-
-    DrawFeatures GetDrawFeatures() const { return m_Features; }
+    bool IsComputeTemplate() const;
 
     VertexInputDescription CreateCompatibleVertexDescription(const VertexInputDescription& compatibleTo) const;
 
-    const std::vector<ShaderModule>& GetShaders() const { return m_ShaderReflection->GetShaders(); }
-    const std::vector<SpecializationConstant>& GetSpecializations() const
-    {
-        return m_ShaderReflection->GetReflectionData().SpecializationConstants;
-    }
-    
+    const ShaderReflection& GetReflection() const { return *m_ShaderReflection; }
 private:
-    static std::vector<DescriptorsLayout> CreateDescriptorLayouts(
-        const std::vector<ReflectionData::DescriptorSet>& descriptorSetReflections, bool useDescriptorBuffer);
-    static VertexInputDescription CreateInputDescription(
-        const std::vector<ReflectionData::InputAttribute>& inputAttributeReflections);
-    static std::vector<PushConstantDescription> CreatePushConstantDescriptions(
-        const std::vector<ReflectionData::PushConstant>& pushConstantReflections);
-    static DescriptorsFlags ExtractDescriptorsAndFlags(const ReflectionData::DescriptorSet& descriptorSet,
+    static std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> CreateDescriptorLayouts(
+        const std::array<ShaderReflection::DescriptorSetInfo, MAX_DESCRIPTOR_SETS>&,
+        bool useDescriptorBuffer);
+    static DescriptorsFlags ExtractDescriptorsAndFlags(const ShaderReflection::DescriptorSetInfo& descriptorSet,
         bool useDescriptorBuffer);
 private:
     struct Allocator
@@ -193,23 +106,13 @@ private:
     // todo: change to handles once ready
     PipelineLayout m_PipelineLayout;
     ShaderReflection* m_ShaderReflection{nullptr};
-    VertexInputDescription m_VertexInputDescription;
-    std::vector<DescriptorsLayout> m_DescriptorsLayouts;
-
-    std::vector<SpecializationConstant> m_SpecializationConstants;
-    std::array<DescriptorSetInfo, MAX_PIPELINE_DESCRIPTOR_SETS> m_DescriptorSetsInfo;
-    std::vector<DescriptorPoolFlags> m_DescriptorPoolFlags;
-    u32 m_DescriptorSetCount;
-
-    bool m_IsComputeTemplate{false};
-
-    DrawFeatures m_Features{};
+    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorsLayouts;
 };
 
 struct ShaderDescriptorSetCreateInfo
 {
     ShaderPipelineTemplate* ShaderPipelineTemplate;
-    std::array<std::optional<DescriptorSetCreateInfo>, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorInfos;
+    std::array<std::optional<DescriptorSetCreateInfo>, MAX_DESCRIPTOR_SETS> DescriptorInfos;
 };
 
 class ShaderDescriptorSet
@@ -223,7 +126,7 @@ public:
             bool IsPresent{false};
             DescriptorSet Set; 
         };
-        std::array<SetInfo, MAX_PIPELINE_DESCRIPTOR_SETS> DescriptorSets;
+        std::array<SetInfo, MAX_DESCRIPTOR_SETS> DescriptorSets;
         u32 DescriptorCount{0};
     };
 public:

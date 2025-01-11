@@ -1,7 +1,7 @@
 #include "BRDFLutPass.h"
 
 #include "RenderGraph/RenderGraph.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& lut)

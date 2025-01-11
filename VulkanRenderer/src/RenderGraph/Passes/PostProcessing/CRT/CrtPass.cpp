@@ -3,8 +3,7 @@
 #include "Renderer.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/RenderGraph.h"
-#include "Rendering/Shader.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource colorIn,

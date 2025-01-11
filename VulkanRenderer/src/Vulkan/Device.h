@@ -18,7 +18,6 @@
 
 #include "DeviceSparseSet.h"
 #include "imgui/imgui.h"
-#include "Rendering/Shader.h"
 
 class ProfilerContext;
 class ShaderPipeline;

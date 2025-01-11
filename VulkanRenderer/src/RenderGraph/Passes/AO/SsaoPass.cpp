@@ -4,7 +4,7 @@
 #include "Core/Camera.h"
 #include "Core/Random.h"
 #include "imgui/imgui.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "utils/MathUtils.h"
 #include "Vulkan/RenderCommand.h"
 

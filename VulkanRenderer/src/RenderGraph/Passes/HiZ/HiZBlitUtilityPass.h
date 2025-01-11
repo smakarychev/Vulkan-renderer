@@ -2,7 +2,7 @@
 #include "HiZPassContext.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RenderPass.h"
-#include "Rendering/ShaderCache.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
 namespace Passes::HiZBlit

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RGResource.h"
-#include "Rendering/Shader.h"
+#include "Rendering/Shader/Shader.h"
 
 class Camera;
 class CommandBuffer;
