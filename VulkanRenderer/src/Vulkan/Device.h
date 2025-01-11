@@ -612,7 +612,7 @@ public:
     static bool CheckFence(const Fence& fence);
     static void ResetFence(const Fence& fence);
     
-    static Semaphore Create(const Semaphore::Builder::CreateInfo& createInfo);
+    static Semaphore CreateSemaphore();
     static void Destroy(ResourceHandleType<Semaphore> semaphore);
 
     static TimelineSemaphore Create(const TimelineSemaphore::Builder::CreateInfo& createInfo);

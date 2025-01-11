@@ -23,29 +23,6 @@ bool Fence::Check() const
     return Device::CheckFence(*this);
 }
 
-Semaphore Semaphore::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-Semaphore Semaphore::Builder::Build(DeletionQueue& deletionQueue)
-{
-    Semaphore semaphore = Semaphore::Create({});
-    deletionQueue.Enqueue(semaphore);
-
-    return semaphore;
-}
-
-Semaphore Semaphore::Builder::BuildManualLifetime()
-{
-    return Semaphore::Create({});
-}
-
-Semaphore Semaphore::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 void Semaphore::Destroy(const Semaphore& semaphore)
 {
     Device::Destroy(semaphore.Handle());

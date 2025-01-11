@@ -941,8 +941,10 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
             Fence renderFence = CreateFence({
                 .IsSignaled = true});
             DeletionQueue().Enqueue(renderFence);
-            Semaphore renderSemaphore = Semaphore::Builder().Build();
-            Semaphore presentSemaphore = Semaphore::Builder().Build();
+            Semaphore renderSemaphore = CreateSemaphore();
+            Semaphore presentSemaphore = CreateSemaphore();
+            DeletionQueue().Enqueue(renderSemaphore);
+            DeletionQueue().Enqueue(presentSemaphore);
 
             swapchain.m_SwapchainFrameSync.push_back({
                 .RenderFence = renderFence,
@@ -2355,7 +2357,7 @@ void Device::ResetFence(const Fence& fence)
     DeviceCheck(vkResetFences(s_State.Device, 1, &Resources()[fence].Fence), "Error while resetting fences");
 }
 
-Semaphore Device::Create(const Semaphore::Builder::CreateInfo& createInfo)
+Semaphore Device::CreateSemaphore()
 {
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;

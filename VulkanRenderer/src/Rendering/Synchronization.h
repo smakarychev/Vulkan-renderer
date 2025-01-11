@@ -38,18 +38,6 @@ class Semaphore
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class Semaphore;
-        FRIEND_INTERNAL
-        struct CreateInfo{};
-    public:
-        Semaphore Build();
-        Semaphore Build(DeletionQueue& deletionQueue);
-        Semaphore BuildManualLifetime();
-    };
-public:
-    static Semaphore Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Semaphore& semaphore);
 private:
     ResourceHandleType<Semaphore> Handle() const { return m_ResourceHandle; }
