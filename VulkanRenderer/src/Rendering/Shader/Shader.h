@@ -23,6 +23,9 @@ enum class DescriptorKind : u32
     Material = 2
 };
 
+static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
+static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expected to be at index 2");
+
 // todo: these probably should not be here, but having them as constexpr is quite useful
 // since we can use them in constexpr hash map, which is not used currently, but might be used in the future,
 // otherwise having them as CVars is preferable
@@ -138,35 +141,22 @@ enum class ShaderDescriptorsKind
     MaxVal
 };
 
+struct ShaderDescriptorsCreateInfo
+{
+    const ShaderPipelineTemplate* ShaderPipelineTemplate{nullptr};
+    DescriptorAllocatorKind AllocatorKind{DescriptorAllocatorKind::Resources};
+    u32 Set{0};
+    u32 BindlessCount{0};
+};
+
 class ShaderDescriptors
 {
     friend class ShaderCache;
 public:
-    using Texture = Image;
-    class Builder
-    {
-        friend class ShaderDescriptors;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            const ShaderPipelineTemplate* ShaderPipelineTemplate{nullptr};
-            DescriptorArenaAllocator* Allocator{nullptr};
-            u32 Set{0};
-            u32 BindlessCount{0};
-        };
-    public:
-        ShaderDescriptors Build();
-        Builder& SetTemplate(const ShaderPipelineTemplate* shaderPipelineTemplate,
-            DescriptorAllocatorKind allocatorKind);
-        Builder& ExtractSet(u32 set);
-        Builder& BindlessCount(u32 count);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
     using BindingInfo = Descriptors::BindingInfo;
-    
-    static ShaderDescriptors Create(const Builder::CreateInfo& createInfo);
+
+    ShaderDescriptors() = default;
+    ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo);
 
     void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout) const;

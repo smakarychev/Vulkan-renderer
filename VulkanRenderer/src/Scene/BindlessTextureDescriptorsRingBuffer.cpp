@@ -3,12 +3,11 @@
 BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, const ShaderPipelineTemplate* pipelineTemplate)
     : m_MaxBindlessCount(maxCount)
 {
-    m_BindlessDescriptorSet = ShaderDescriptors::Builder()
-        .SetTemplate(pipelineTemplate, DescriptorAllocatorKind::Resources)
-        // todo: make this (2) an enum
-        .ExtractSet(2)
-        .BindlessCount(maxCount)
-        .Build();
+    m_BindlessDescriptorSet = ShaderDescriptors({
+        .ShaderPipelineTemplate = pipelineTemplate,
+        .AllocatorKind = DescriptorAllocatorKind::Resources,
+        .Set = BINDLESS_DESCRIPTORS_INDEX,
+        .BindlessCount = maxCount});
 }
 
 u32 BindlessTextureDescriptorsRingBuffer::Size() const

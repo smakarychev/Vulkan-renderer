@@ -7,9 +7,6 @@
 #include <string>
 #include <variant>
 
-static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
-static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expected to be at index 2");
-
 template <typename T>
 struct ShaderOverride
 {

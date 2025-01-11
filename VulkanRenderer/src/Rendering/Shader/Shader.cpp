@@ -287,54 +287,25 @@ void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& textu
         arrayIndex);
 }
 
-ShaderDescriptors ShaderDescriptors::Builder::Build()
-{
-    return ShaderDescriptors::Create(m_CreateInfo);
-}
-
-ShaderDescriptors::Builder& ShaderDescriptors::Builder::SetTemplate(
-    const ShaderPipelineTemplate* shaderPipelineTemplate, DescriptorAllocatorKind allocatorKind)
-{
-    ASSERT(shaderPipelineTemplate->m_UseDescriptorBuffer,
-        "Shader pipeline template is not configured to be used with descriptor buffer")
-    m_CreateInfo.ShaderPipelineTemplate = shaderPipelineTemplate;
-    m_CreateInfo.Allocator = allocatorKind == DescriptorAllocatorKind::Resources ?
-        shaderPipelineTemplate->m_Allocator.ResourceAllocator : 
-        shaderPipelineTemplate->m_Allocator.SamplerAllocator;
-    ASSERT(m_CreateInfo.Allocator, "Allocator is unset")
-
-    return *this;
-}
-
-ShaderDescriptors::Builder& ShaderDescriptors::Builder::ExtractSet(u32 set)
-{
-    m_CreateInfo.Set = set;
-
-    return *this;
-}
-
-ShaderDescriptors::Builder& ShaderDescriptors::Builder::BindlessCount(u32 count)
-{
-    m_CreateInfo.BindlessCount = count;
-
-    return *this;
-}
-
-ShaderDescriptors ShaderDescriptors::Create(const Builder::CreateInfo& createInfo)
+ShaderDescriptors::ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo)
 {
     auto* shaderTemplate = createInfo.ShaderPipelineTemplate;
 
-    Descriptors descriptors = createInfo.Allocator->Allocate(
+    ASSERT(shaderTemplate->m_UseDescriptorBuffer,
+        "Shader pipeline template is not configured to be used with descriptor buffer")
+
+    auto* allocator = createInfo.AllocatorKind == DescriptorAllocatorKind::Resources ?
+        shaderTemplate->m_Allocator.ResourceAllocator : 
+        shaderTemplate->m_Allocator.SamplerAllocator;
+    
+    Descriptors descriptors = allocator->Allocate(
         shaderTemplate->GetDescriptorsLayout(createInfo.Set), {
             .Bindings = shaderTemplate->GetReflection().DescriptorSetsInfo()[createInfo.Set].Descriptors,
             .BindlessCount = createInfo.BindlessCount});
 
-    ShaderDescriptors shaderDescriptors = {};
-    shaderDescriptors.m_Descriptors = descriptors;
-    shaderDescriptors.m_SetNumber = createInfo.Set;
-    shaderDescriptors.m_Template = createInfo.ShaderPipelineTemplate;
-    
-    return shaderDescriptors;
+    m_Descriptors = descriptors;
+    m_SetNumber = createInfo.Set;
+    m_Template = createInfo.ShaderPipelineTemplate;
 }
 
 void ShaderDescriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,

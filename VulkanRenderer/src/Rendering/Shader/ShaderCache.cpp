@@ -447,12 +447,11 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         if (!setPresence[i])
             continue;
 
-        shader.Descriptors[i] = ShaderDescriptors::Builder()
-            .SetTemplate(shaderTemplate,
-                i == (u32)ShaderDescriptorsKind::Sampler ?
-                DescriptorAllocatorKind::Samplers : DescriptorAllocatorKind::Resources)
-            .ExtractSet(i)
-            .Build();
+        shader.Descriptors[i] = ShaderDescriptors({
+            .ShaderPipelineTemplate = shaderTemplate,
+            .AllocatorKind =  i == (u32)ShaderDescriptorsKind::Sampler ?
+                DescriptorAllocatorKind::Samplers : DescriptorAllocatorKind::Resources,
+            .Set = i});
     }
 
     if (json.contains("bindless"))
