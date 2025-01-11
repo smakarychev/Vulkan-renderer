@@ -32,6 +32,11 @@ public:
     constexpr bool Empty() const { return m_Span.empty(); }
     constexpr bool empty() const { return Empty(); }
 
+    constexpr T& Front() const { return m_Span.front(); }
+    constexpr T& front() const { return Front(); }
+    constexpr T& Back() const { return m_Span.back(); }
+    constexpr T& back() const { return Back(); }
+    
     constexpr T& operator[](usize index) { return m_Span[index]; }
     constexpr const T& operator[](usize index) const { return m_Span[index]; }
 
