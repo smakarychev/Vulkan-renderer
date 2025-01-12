@@ -30,10 +30,8 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 AttachmentLoad::Load, AttachmentStore::Store);
             
-            Sampler brdfSampler = Sampler::Builder()
-                .Filters(ImageFilter::Linear, ImageFilter::Linear)
-                .WrapMode(SamplerWrapMode::ClampBorder)
-                .Build();
+            Sampler brdfSampler = Device::CreateSampler({
+                .WrapMode = SamplerWrapMode::ClampBorder});
 
             passData.BRDFSampler = brdfSampler;
 

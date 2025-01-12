@@ -30,12 +30,10 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
                 .AdditionalViews = additionalViews})
             .Build(deletionQueue);
 
-        m_MinMaxSamplers[i] = Sampler::Builder()
-            .Filters(ImageFilter::Linear, ImageFilter::Linear)
-            .MaxLod(MAX_MIPMAP_COUNT)
-            .WithAnisotropy(false)
-            .ReductionMode(SamplerReductionMode::Min)
-            .Build();
+        m_MinMaxSamplers[i] = Device::CreateSampler({
+            .ReductionMode = SamplerReductionMode::Min,
+            .MaxLod = MAX_MIPMAP_COUNT,
+            .WithAnisotropy = false});
     }
 
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)

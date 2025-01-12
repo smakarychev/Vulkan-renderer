@@ -560,7 +560,7 @@ public:
     static void CreateViews(const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
 
-    static Sampler Create(const Sampler::Builder::CreateInfo& createInfo);
+    static Sampler CreateSampler(SamplerCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Sampler> sampler);
 
     static RenderingAttachment CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo);

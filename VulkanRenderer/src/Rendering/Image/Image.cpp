@@ -507,7 +507,11 @@ ImageBlitInfo Image::CopyInfo(const glm::uvec3& bottom, const glm::uvec3& size, 
 
 ImageBindingInfo Image::BindingInfo(ImageFilter filter, ImageLayout layout) const
 {
-    return BindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout);
+    return BindingInfo(
+        Device::CreateSampler({
+            .MinificationFilter = filter,
+            .MagnificationFilter = filter}),
+        layout);
 }
 
 ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout) const
@@ -520,7 +524,12 @@ ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout) const
 
 ImageBindingInfo Image::BindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const
 {
-    return BindingInfo(Sampler::Builder().Filters(filter, filter).Build(), layout, handle);
+    return BindingInfo(
+        Device::CreateSampler({
+            .MinificationFilter = filter,
+            .MagnificationFilter = filter}),
+        layout,
+        handle);
 }
 
 ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const

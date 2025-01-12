@@ -54,7 +54,8 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
             
             ImGui::Begin(passData.Name.c_str());
             glm::vec2 size = getTextureWindowSize(texture.Description());
-            Sampler sampler = Sampler::Builder().WrapMode(SamplerWrapMode::ClampEdge).Build();
+            Sampler sampler = Device::CreateSampler({
+                .WrapMode = SamplerWrapMode::ClampEdge});
             ImGuiUI::Texture(texture.Subresource(), sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
@@ -101,7 +102,8 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph&
             ImGui::Begin(passData.Name.c_str());
             ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, texture.Description().Layers - 1);
             glm::vec2 size = getTextureWindowSize(texture.Description());
-            Sampler sampler = Sampler::Builder().WrapMode(SamplerWrapMode::ClampEdge).Build();
+            Sampler sampler = Device::CreateSampler({
+                .WrapMode = SamplerWrapMode::ClampEdge});
             ImGuiUI::Texture(texture.Subresource(ImageSubresourceDescription{
                 .ImageViewKind = ImageViewKind::Image2d,
                 .LayerBase = (u8)context.Layer,
@@ -219,7 +221,8 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& r
             ImGui::Begin(passData.Name.c_str());
             ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, passData.Depth - 1);
             glm::vec2 size = getTextureWindowSize(slice.Description());
-            Sampler sampler = Sampler::Builder().WrapMode(SamplerWrapMode::ClampEdge).Build();
+            Sampler sampler = Device::CreateSampler({
+                .WrapMode = SamplerWrapMode::ClampEdge});
             ImGuiUI::Texture(slice.Subresource(), sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();

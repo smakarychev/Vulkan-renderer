@@ -27,7 +27,7 @@ namespace
         "Incorrect value for `ALL_MIPMAPS`");
     static_assert(ImageSubresourceDescription::ALL_LAYERS == VK_REMAINING_ARRAY_LAYERS,
         "Incorrect value for `ALL_LAYERS`");
-    static_assert(Sampler::LOD_MAX == VK_LOD_CLAMP_NONE, "Incorrect value for `LOD_MAX`");
+    static_assert(SamplerCreateInfo::LOD_MAX == VK_LOD_CLAMP_NONE, "Incorrect value for `LOD_MAX`");
     
     constexpr VkFormat vulkanFormatFromFormat(Format format)
     {
@@ -619,24 +619,23 @@ namespace
 
     Sampler getImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
     {
-        Sampler sampler = Sampler::Builder()
-            .Filters(filter, filter)
-            .WrapMode(wrapMode)
-            .BorderColor(borderColor)
-            .Build();
+        Sampler sampler = Device::CreateSampler({
+            .MinificationFilter = filter,
+            .MagnificationFilter = filter,
+            .WrapMode = wrapMode,
+            .BorderColor = borderColor});
 
         return sampler;
     }
     Sampler getImmutableShadowSampler(ImageFilter filter, SamplerDepthCompareMode depthCompareMode)
     {
-        Sampler sampler = Sampler::Builder()
-            .Filters(filter, filter)
-            .WrapMode(SamplerWrapMode::ClampBorder)
-            .BorderColor(SamplerBorderColor::Black)
-            .DepthCompareMode(depthCompareMode)
-            .WithAnisotropy(false)
-            .MaxLod(0)
-            .Build();
+        Sampler sampler = Device::CreateSampler({
+            .MinificationFilter = filter,
+            .MagnificationFilter = filter,
+            .WrapMode = SamplerWrapMode::ClampBorder,
+            .BorderColor = SamplerBorderColor::Black,
+            .DepthCompareMode = depthCompareMode,
+            .WithAnisotropy = false});
 
         return sampler;
     }
@@ -1396,16 +1395,21 @@ void Device::CreateViews(const ImageSubresource& image,
             image.Image->Subresource(additionalViews[viewIndex]), viewFormat);
 }
 
-Sampler Device::Create(const Sampler::Builder::CreateInfo& createInfo)
+Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
 {
+    const SamplerCache::CacheKey key = SamplerCache::CreateCacheKey(createInfo);
+    Sampler* cached = SamplerCache::Find(key);
+    if (cached)
+        return *cached;
+    
     VkSamplerCreateInfo samplerCreateInfo = {};
     samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
     samplerCreateInfo.magFilter = vulkanFilterFromImageFilter(createInfo.MagnificationFilter);
     samplerCreateInfo.minFilter = vulkanFilterFromImageFilter(createInfo.MinificationFilter);
     samplerCreateInfo.mipmapMode = vulkanMipmapModeFromSamplerFilter(samplerCreateInfo.minFilter);
-    samplerCreateInfo.addressModeU = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.AddressMode);
-    samplerCreateInfo.addressModeV = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.AddressMode);
-    samplerCreateInfo.addressModeW = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.AddressMode);
+    samplerCreateInfo.addressModeU = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.addressModeV = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
+    samplerCreateInfo.addressModeW = vulkanSamplerAddressModeFromSamplerWrapMode(createInfo.WrapMode);
     samplerCreateInfo.minLod = 0.0f;
     samplerCreateInfo.maxLod = createInfo.MaxLod;
     samplerCreateInfo.maxAnisotropy = GetAnisotropyLevel();
@@ -1431,6 +1435,10 @@ Sampler Device::Create(const Sampler::Builder::CreateInfo& createInfo)
 
     Sampler sampler = {};
     sampler.m_ResourceHandle = Resources().AddResource(samplerResource);
+    DeletionQueue().Enqueue(sampler);
+
+    SamplerCache::Emplace(key, sampler);
+    
     return sampler;
 }
 

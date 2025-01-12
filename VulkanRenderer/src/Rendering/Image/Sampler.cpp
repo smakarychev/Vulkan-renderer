@@ -2,106 +2,53 @@
 
 #include "Vulkan/Device.h"
 
-Sampler Sampler::Builder::Build()
-{
-    return SamplerCache::CreateSampler(m_CreateInfo);
-}
-
-Sampler::Builder& Sampler::Builder::Filters(ImageFilter minification, ImageFilter magnification)
-{
-    m_CreateInfo.MinificationFilter = minification;
-    m_CreateInfo.MagnificationFilter = magnification;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::WrapMode(SamplerWrapMode mode)
-{
-    m_CreateInfo.AddressMode = mode;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::BorderColor(SamplerBorderColor color)
-{
-    m_CreateInfo.BorderColor = color;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::ReductionMode(SamplerReductionMode mode)
-{
-    m_CreateInfo.ReductionMode = mode;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::DepthCompareMode(SamplerDepthCompareMode mode)
-{
-    m_CreateInfo.DepthCompareMode = mode;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::LodBias(f32 bias)
-{
-    m_CreateInfo.LodBias = bias;
-
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::MaxLod(f32 lod)
-{
-    m_CreateInfo.MaxLod = lod;
-    
-    return *this;
-}
-
-Sampler::Builder& Sampler::Builder::WithAnisotropy(bool enabled)
-{
-    m_CreateInfo.WithAnisotropy = enabled;
-
-    return *this;
-}
-
-Sampler Sampler::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 void Sampler::Destroy(const Sampler& sampler)
 {
     Device::Destroy(sampler.Handle());
 }
 
-
-Sampler SamplerCache::CreateSampler(const Sampler::Builder::CreateInfo& createInfo)
+SamplerCache::CacheKey SamplerCache::CreateCacheKey(const SamplerCreateInfo& createInfo)
 {
-    CacheKey key = {.CreateInfo = createInfo};
+    CacheKey key = {};
+    key.m_MinificationFilter = createInfo.MinificationFilter;
+    key.m_MagnificationFilter = createInfo.MagnificationFilter;
+    key.m_WrapMode = createInfo.WrapMode;
+    key.m_BorderColor = createInfo.BorderColor;
+    key.m_ReductionMode = createInfo.ReductionMode;
+    key.m_DepthCompareMode = createInfo.DepthCompareMode;
+    key.m_LodBias = createInfo.LodBias;
+    key.m_MaxLod = createInfo.MaxLod;
+    key.m_WithAnisotropy = createInfo.WithAnisotropy;
 
+    return key;
+}
+
+Sampler* SamplerCache::Find(const CacheKey& key)
+{
     if (s_SamplerCache.contains(key))
-        return s_SamplerCache.at(key);
+        return &s_SamplerCache.at(key);
 
-    Sampler newSampler = Sampler::Create(createInfo);
-    s_SamplerCache.emplace(key, newSampler);
-    
-    Device::DeletionQueue().Enqueue(newSampler);
+    return nullptr;
+}
 
-    return newSampler;
+void SamplerCache::Emplace(const CacheKey& key, Sampler sampler)
+{
+    s_SamplerCache.emplace(key, sampler);
 }
 
 u64 SamplerCache::SamplerKeyHash::operator()(const CacheKey& cacheKey) const
 {
     u64 hashKey =
-        (u8)cacheKey.CreateInfo.MagnificationFilter |
-        ((u8)cacheKey.CreateInfo.MagnificationFilter << 1) |
-        (cacheKey.CreateInfo.WithAnisotropy << 2) |
-        ((u8)cacheKey.CreateInfo.BorderColor << 3) |
-        (cacheKey.CreateInfo.ReductionMode.has_value() << 4) |
-        ((cacheKey.CreateInfo.ReductionMode.has_value() ? (u8)*cacheKey.CreateInfo.ReductionMode : 0) << 5) |
-        ((u8)cacheKey.CreateInfo.DepthCompareMode << 6) |
-        (std::hash<u32>{}(std::bit_cast<u32>(cacheKey.CreateInfo.LodBias)) ^
-         std::hash<u32>{}(std::bit_cast<u32>(cacheKey.CreateInfo.MaxLod))) << 32;
+        (u8)cacheKey.m_MagnificationFilter |
+        ((u8)cacheKey.m_MagnificationFilter << 1) |
+        ((u8)cacheKey.m_WrapMode << 2) |
+        ((u8)cacheKey.m_BorderColor << 3) |
+        (cacheKey.m_ReductionMode.has_value() << 4) |
+        ((cacheKey.m_ReductionMode.has_value() ? (u8)*cacheKey.m_ReductionMode : 0) << 5) |
+        ((u8)cacheKey.m_DepthCompareMode << 6) |
+        (cacheKey.m_WithAnisotropy << 7) |
+        (std::hash<u32>{}(std::bit_cast<u32>(cacheKey.m_LodBias)) ^
+         std::hash<u32>{}(std::bit_cast<u32>(cacheKey.m_MaxLod))) << 32;
     u64 hash = std::hash<u64>()(hashKey);
     
     return hash;

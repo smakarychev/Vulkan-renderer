@@ -1,10 +1,26 @@
 #pragma once
-#include <optional>
-#include <unordered_map>
 
 #include "ImageTraits.h"
 #include "types.h"
 #include "Rendering/ResourceHandle.h"
+
+#include <optional>
+#include <unordered_map>
+
+struct SamplerCreateInfo
+{
+    static constexpr f32 LOD_MAX = 1000.0f;
+
+    ImageFilter MinificationFilter{ImageFilter::Linear};
+    ImageFilter MagnificationFilter{ImageFilter::Linear};
+    SamplerWrapMode WrapMode{SamplerWrapMode::Repeat};
+    SamplerBorderColor BorderColor{SamplerBorderColor::White};
+    std::optional<SamplerReductionMode> ReductionMode{};
+    SamplerDepthCompareMode DepthCompareMode{SamplerDepthCompareMode::None};
+    f32 LodBias{0.0f};
+    f32 MaxLod{LOD_MAX};
+    bool WithAnisotropy{true};
+};
 
 class Sampler
 {
@@ -12,42 +28,6 @@ class Sampler
     friend class Image;
     friend class SamplerCache;
 public:
-    static constexpr f32 LOD_MAX = 1000.0f;
-    
-    class Builder
-    {
-        friend class Sampler;
-        friend class SamplerCache;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            ImageFilter MinificationFilter{ImageFilter::Linear};
-            ImageFilter MagnificationFilter{ImageFilter::Linear};
-            SamplerWrapMode AddressMode{SamplerWrapMode::Repeat};
-            SamplerBorderColor BorderColor{SamplerBorderColor::White};
-            std::optional<SamplerReductionMode> ReductionMode;
-            SamplerDepthCompareMode DepthCompareMode{SamplerDepthCompareMode::None};
-            f32 LodBias{0.0f};
-            f32 MaxLod{LOD_MAX};
-            bool WithAnisotropy{true};
-
-            auto operator<=>(const CreateInfo&) const = default;
-        };
-    public:
-        Sampler Build();
-        Builder& Filters(ImageFilter minification, ImageFilter magnification);
-        Builder& WrapMode(SamplerWrapMode mode);
-        Builder& BorderColor(SamplerBorderColor color);
-        Builder& ReductionMode(SamplerReductionMode mode);
-        Builder& DepthCompareMode(SamplerDepthCompareMode mode);
-        Builder& LodBias(f32 bias);
-        Builder& MaxLod(f32 lod);
-        Builder& WithAnisotropy(bool enabled);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static Sampler Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const Sampler& sampler);
 private:
     ResourceHandleType<Sampler> Handle() const { return m_ResourceHandle; }
@@ -58,13 +38,27 @@ private:
 class SamplerCache
 {
 public:
-    static Sampler CreateSampler(const Sampler::Builder::CreateInfo& createInfo);
-private:
-    struct CacheKey
+    class CacheKey
     {
-        Sampler::Builder::CreateInfo CreateInfo;
+        friend class SamplerCache;
+    public:
         auto operator<=>(const CacheKey&) const = default;
+    private:
+        ImageFilter m_MinificationFilter{ImageFilter::Linear};
+        ImageFilter m_MagnificationFilter{ImageFilter::Linear};
+        SamplerWrapMode m_WrapMode{SamplerWrapMode::Repeat};
+        SamplerBorderColor m_BorderColor{SamplerBorderColor::White};
+        std::optional<SamplerReductionMode> m_ReductionMode{};
+        SamplerDepthCompareMode m_DepthCompareMode{SamplerDepthCompareMode::None};
+        f32 m_LodBias{0.0f};
+        f32 m_MaxLod{SamplerCreateInfo::LOD_MAX};
+        bool m_WithAnisotropy{true};
     };
+public:
+    static CacheKey CreateCacheKey(const SamplerCreateInfo& createInfo);
+    static Sampler* Find(const CacheKey& key);
+    static void Emplace(const CacheKey& key, Sampler sampler);
+private:
     struct SamplerKeyHash
     {
         u64 operator()(const CacheKey& cacheKey) const;
