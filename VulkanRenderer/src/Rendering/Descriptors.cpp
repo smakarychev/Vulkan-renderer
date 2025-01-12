@@ -180,72 +180,48 @@ void DescriptorArenaAllocators::Bind(const CommandBuffer& cmd, u32 bufferIndex)
     RenderCommand::Bind(cmd, *this);
 }
 
-
-bool DescriptorLayoutCache::CacheKey::operator==(const CacheKey& other) const
-{
-    if (Flags != other.Flags)
-        return false;
-    
-    if (Bindings.size() != other.Bindings.size())
-        return false;
-
-    for (u32 i = 0; i < Bindings.size(); i++)
-    {
-        if (Bindings[i].Binding != other.Bindings[i].Binding)
-            return false;
-        if (Bindings[i].Type != other.Bindings[i].Type)
-            return false;
-        if (Bindings[i].Count != other.Bindings[i].Count)
-            return false;
-        if (Bindings[i].Shaders != other.Bindings[i].Shaders)
-            return false;
-        if (Bindings[i].DescriptorFlags != other.Bindings[i].DescriptorFlags)
-            return false;
-        
-        if (BindingFlags[i] != other.BindingFlags[i])
-            return false;
-    }
-    
-    return true;
-}
-
-DescriptorsLayout DescriptorLayoutCache::CreateDescriptorSetLayout(DescriptorsLayoutCreateInfo&& createInfo)
+DescriptorLayoutCache::CacheKey DescriptorLayoutCache::CreateCacheKey(const DescriptorsLayoutCreateInfo& createInfo)
 {
     CacheKey key = {};
-    key.Flags = createInfo.Flags;
-    key.Bindings.assign_range(createInfo.Bindings);
-    key.BindingFlags.assign_range(createInfo.BindingFlags);
+    key.m_Flags = createInfo.Flags;
+    key.m_Bindings.assign_range(createInfo.Bindings);
+    key.m_BindingFlags.assign_range(createInfo.BindingFlags);
     SortBindings(key);
 
+    return key;
+}
+
+DescriptorsLayout* DescriptorLayoutCache::Find(const CacheKey& key)
+{
     if (s_LayoutCache.contains(key))
-        return s_LayoutCache.at(key);
+        return &s_LayoutCache.at(key);
 
-    DescriptorsLayout newLayout = Device::CreateDescriptorsLayout(std::move(createInfo));
-    s_LayoutCache.emplace(key, newLayout);
+    return nullptr;
+}
 
-    Device::DeletionQueue().Enqueue(newLayout);
-    
-    return newLayout;
+void DescriptorLayoutCache::Emplace(const CacheKey& key, DescriptorsLayout layout)
+{
+    s_LayoutCache.emplace(key, layout);
 }
 
 void DescriptorLayoutCache::SortBindings(CacheKey& cacheKey)
 {
-    std::sort(cacheKey.Bindings.begin(), cacheKey.Bindings.end(),
+    std::sort(cacheKey.m_Bindings.begin(), cacheKey.m_Bindings.end(),
         [](const auto& a, const auto& b) { return a.Binding < b.Binding; });
 }
 
 u64 DescriptorLayoutCache::DescriptorSetLayoutKeyHash::operator()(const CacheKey& cacheKey) const
 {
     u64 hash = 0;
-    for (auto& binding : cacheKey.Bindings)
+    for (auto& binding : cacheKey.m_Bindings)
     {
         u64 hashKey = binding.Binding | binding.Count << 8 | (u32)binding.Type << 16 | (u32)binding.Shaders << 24;
         hash ^= std::hash<u64>()(hashKey);
     }
-    for (auto& bindingFlag : cacheKey.BindingFlags)
+    for (auto& bindingFlag : cacheKey.m_BindingFlags)
         hash ^= std::hash<u64>()((u64)bindingFlag);
 
-    hash ^= std::hash<u64>()((u64)cacheKey.Flags);
+    hash ^= std::hash<u64>()((u64)cacheKey.m_Flags);
     
     return hash;
 }

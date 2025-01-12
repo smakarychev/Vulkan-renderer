@@ -1792,6 +1792,12 @@ DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& 
 
     ASSERT(createInfo.BindingFlags.size() == createInfo.Bindings.size(),
         "If any element of binding flags is set, every element has to be set")
+
+
+    const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
+    DescriptorsLayout* cached = DescriptorLayoutCache::Find(key);
+    if (cached)
+        return *cached;
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     bindingFlags.reserve(createInfo.BindingFlags.size());
@@ -1866,7 +1872,10 @@ DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& 
     
     DescriptorsLayout layout = {};
     layout.m_ResourceHandle = Resources().AddResource(descriptorSetLayoutResource);
+    DeletionQueue().Enqueue(layout);
 
+    DescriptorLayoutCache::Emplace(key, layout);
+    
     return layout;
 }
 

@@ -54,13 +54,6 @@ namespace
         static const DescriptorsLayout EMPTY_LAYOUT_ORDINARY = Device::CreateDescriptorsLayout({}); 
         static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = Device::CreateDescriptorsLayout({
             .Flags = DescriptorLayoutFlags::DescriptorBuffer});
-        static bool once = true;
-        if (once)
-        {
-            Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_ORDINARY);
-            Device::DeletionQueue().Enqueue(EMPTY_LAYOUT_DESCRIPTOR_BUFFER);
-            once = false;
-        }
 
         const DescriptorsLayout* EMPTY_LAYOUT = useDescriptorBuffer ?
             &EMPTY_LAYOUT_DESCRIPTOR_BUFFER : &EMPTY_LAYOUT_ORDINARY;
@@ -87,7 +80,6 @@ namespace
                 .Bindings = descriptorsFlags.Descriptors,
                 .BindingFlags = descriptorsFlags.Flags,
                 .Flags = layoutFlags});
-            Device::DeletionQueue().Enqueue(layout);
             
             layouts[i] = layout;
         }

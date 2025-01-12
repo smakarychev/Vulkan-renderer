@@ -37,6 +37,8 @@ struct DescriptorBinding
     u32 Count;
     ShaderStage Shaders;
     Flags DescriptorFlags{Flags::None};
+
+    auto operator<=>(const DescriptorBinding&) const = default;
 };
 
 struct DescriptorsLayoutCreateInfo
@@ -251,15 +253,21 @@ private:
 class DescriptorLayoutCache
 {
     friend class ShaderPipelineTemplate;
-    struct CacheKey
+public:
+    class CacheKey
     {
-        std::vector<DescriptorBinding> Bindings{};
-        std::vector<DescriptorFlags> BindingFlags{};
-        DescriptorLayoutFlags Flags{DescriptorLayoutFlags::None};
-        bool operator==(const CacheKey& other) const;
+        friend class DescriptorLayoutCache;
+    public:
+        auto operator<=>(const CacheKey&) const = default;
+    private:
+        std::vector<DescriptorBinding> m_Bindings{};
+        std::vector<DescriptorFlags> m_BindingFlags{};
+        DescriptorLayoutFlags m_Flags{DescriptorLayoutFlags::None};
     };
 public:
-    static DescriptorsLayout CreateDescriptorSetLayout(DescriptorsLayoutCreateInfo&& createInfo);
+    static CacheKey CreateCacheKey(const DescriptorsLayoutCreateInfo& createInfo);
+    static DescriptorsLayout* Find(const CacheKey& key);
+    static void Emplace(const CacheKey& key, DescriptorsLayout layout);
 private:
     static void SortBindings(CacheKey& cacheKey);
 private:
