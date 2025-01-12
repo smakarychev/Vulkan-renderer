@@ -123,18 +123,6 @@ class SplitBarrier
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class SplitBarrier;
-        FRIEND_INTERNAL
-        struct CreateInfo{};
-    public:
-        SplitBarrier Build();
-        SplitBarrier Build(DeletionQueue& deletionQueue);
-        SplitBarrier BuildManualLifetime();
-    };
-public:
-    static SplitBarrier Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const SplitBarrier& splitBarrier);
 
     void Signal(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const;

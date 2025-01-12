@@ -124,7 +124,10 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             {
                 Barriers barriers = {};
                 for (auto& splitBarrier : barriers.SplitBarriers)
-                    splitBarrier = SplitBarrier::Builder().Build();
+                {
+                    splitBarrier = Device::CreateSplitBarrier();
+                    Device::DeletionQueue().Enqueue(splitBarrier);
+                }
                 barriers.SplitBarrierDependency = Device::CreateDependencyInfo({
                     .MemoryDependencyInfo = MemoryDependencyInfo{
                         .SourceStage = PipelineStage::ComputeShader,

@@ -978,7 +978,8 @@ namespace RG
             DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
                 .ExecutionDependencyInfo = dependency});
             m_FrameDeletionQueue->Enqueue(dependencyInfo);
-            SplitBarrier splitBarrier = SplitBarrier::Builder().Build(*m_FrameDeletionQueue);
+            SplitBarrier splitBarrier = Device::CreateSplitBarrier();
+            m_FrameDeletionQueue->Enqueue(splitBarrier);
             passSignal.m_SplitBarriersToSignal.push_back({
                 .Dependency = dependencyInfo,
                 .Barrier = splitBarrier});
@@ -1011,7 +1012,8 @@ namespace RG
             DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
                 .MemoryDependencyInfo = dependency});
             m_FrameDeletionQueue->Enqueue(dependencyInfo);
-            SplitBarrier splitBarrier = SplitBarrier::Builder().Build(*m_FrameDeletionQueue);
+            SplitBarrier splitBarrier = Device::CreateSplitBarrier();
+            m_FrameDeletionQueue->Enqueue(splitBarrier);
             passSignal.m_SplitBarriersToSignal.push_back({
                 .Dependency = dependencyInfo,
                 .Barrier = splitBarrier});
@@ -1043,7 +1045,8 @@ namespace RG
             DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
                 .LayoutTransitionInfo = dependency});
             m_FrameDeletionQueue->Enqueue(dependencyInfo);
-            SplitBarrier splitBarrier = SplitBarrier::Builder().Build(*m_FrameDeletionQueue);
+            SplitBarrier splitBarrier = Device::CreateSplitBarrier();
+            m_FrameDeletionQueue->Enqueue(splitBarrier);
             passSignal.m_SplitBarriersToSignal.push_back({
                 .Dependency = dependencyInfo,
                 .Barrier = splitBarrier});

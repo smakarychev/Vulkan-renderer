@@ -2504,7 +2504,7 @@ void Device::Destroy(ResourceHandleType<DependencyInfo> dependencyInfo)
     Resources().RemoveResource(dependencyInfo);
 }
 
-SplitBarrier Device::Create(const SplitBarrier::Builder::CreateInfo& createInfo)
+SplitBarrier Device::CreateSplitBarrier()
 {
     VkEventCreateInfo eventCreateInfo = {};
     eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;

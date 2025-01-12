@@ -623,7 +623,7 @@ public:
     static DependencyInfo CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<DependencyInfo> dependencyInfo);
 
-    static SplitBarrier Create(const SplitBarrier::Builder::CreateInfo& createInfo);
+    static SplitBarrier CreateSplitBarrier();
     static void Destroy(ResourceHandleType<SplitBarrier> splitBarrier);
     
     template <typename Fn>

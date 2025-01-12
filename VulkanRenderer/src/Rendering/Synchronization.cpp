@@ -54,29 +54,6 @@ void Barrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInf
     RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
 }
 
-SplitBarrier SplitBarrier::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-SplitBarrier SplitBarrier::Builder::Build(DeletionQueue& deletionQueue)
-{
-    SplitBarrier splitBarrier = SplitBarrier::Create({});
-    deletionQueue.Enqueue(splitBarrier);
-
-    return splitBarrier;
-}
-
-SplitBarrier SplitBarrier::Builder::BuildManualLifetime()
-{
-    return SplitBarrier::Create({});
-}
-
-SplitBarrier SplitBarrier::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 void SplitBarrier::Destroy(const SplitBarrier& splitBarrier)
 {
     Device::Destroy(splitBarrier.Handle());
