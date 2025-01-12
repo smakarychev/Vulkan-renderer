@@ -615,16 +615,16 @@ public:
     static Semaphore CreateSemaphore();
     static void Destroy(ResourceHandleType<Semaphore> semaphore);
 
-    static TimelineSemaphore Create(const TimelineSemaphore::Builder::CreateInfo& createInfo);
+    static TimelineSemaphore CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<TimelineSemaphore> semaphore);
     static void TimelineSemaphoreWaitCPU(const TimelineSemaphore& semaphore, u64 value);
     static void TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value);
 
+    static DependencyInfo CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo);
+    static void Destroy(ResourceHandleType<DependencyInfo> dependencyInfo);
+
     static SplitBarrier Create(const SplitBarrier::Builder::CreateInfo& createInfo);
     static void Destroy(ResourceHandleType<SplitBarrier> splitBarrier);
-
-    static DependencyInfo Create(const DependencyInfo::Builder::CreateInfo& createInfo);
-    static void Destroy(ResourceHandleType<DependencyInfo> dependencyInfo);
     
     template <typename Fn>
     static void ImmediateSubmit(Fn&& uploadFunction);

@@ -705,16 +705,16 @@ void Image::PrepareImageGeneral(const CommandBuffer& cmd,
 {
     DeletionQueue deletionQueue = {};
     
-    DependencyInfo layoutTransition = DependencyInfo::Builder()
-        .LayoutTransition({
+    DependencyInfo layoutTransition = Device::CreateDependencyInfo({
+        .LayoutTransitionInfo = LayoutTransitionInfo{
             .ImageSubresource = imageSubresource,
             .SourceStage = srcStage,
             .DestinationStage = dstStage,
             .SourceAccess = srcAccess,
             .DestinationAccess = dstAccess,
             .OldLayout = current,
-            .NewLayout = target})
-        .Build(deletionQueue);
+            .NewLayout = target}});
+    deletionQueue.Enqueue(layoutTransition);
     
     RenderCommand::WaitOnBarrier(cmd, layoutTransition);
 }

@@ -45,28 +45,15 @@ private:
     ResourceHandleType<Semaphore> m_ResourceHandle{};
 };
 
+struct TimelineSemaphoreCreateInfo
+{
+    u64 InitialValue{0};
+};
+
 class TimelineSemaphore
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class TimelineSemaphore;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            u64 InitialValue{0};
-        };
-    public:
-        TimelineSemaphore Build();
-        TimelineSemaphore Build(DeletionQueue& deletionQueue);
-        TimelineSemaphore BuildManualLifetime();
-        Builder& InitialValue(u64 value);
-    private:
-        CreateInfo m_CreateInfo;
-    };
-public:
-    static TimelineSemaphore Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const TimelineSemaphore& semaphore);
     
     void WaitCPU(u64 value) const;
@@ -84,56 +71,41 @@ private:
 // todo: add queue transfer somewhere
 struct ExecutionDependencyInfo
 {
-    PipelineStage SourceStage;
-    PipelineStage DestinationStage;
+    PipelineStage SourceStage{PipelineStage::None};
+    PipelineStage DestinationStage{PipelineStage::None};
 };
 
 struct MemoryDependencyInfo
 {
-    PipelineStage SourceStage;
-    PipelineStage DestinationStage;
-    PipelineAccess SourceAccess;   
-    PipelineAccess DestinationAccess;
+    PipelineStage SourceStage{PipelineStage::None};
+    PipelineStage DestinationStage{PipelineStage::None};
+    PipelineAccess SourceAccess{PipelineAccess::None};   
+    PipelineAccess DestinationAccess{PipelineAccess::None};
 };
 
 struct LayoutTransitionInfo
 {
-    ImageSubresource ImageSubresource;
-    PipelineStage SourceStage;
-    PipelineStage DestinationStage;
-    PipelineAccess SourceAccess;   
-    PipelineAccess DestinationAccess;
-    ImageLayout OldLayout;
-    ImageLayout NewLayout;
+    ImageSubresource ImageSubresource{};
+    PipelineStage SourceStage{PipelineStage::None};
+    PipelineStage DestinationStage{PipelineStage::None};
+    PipelineAccess SourceAccess{PipelineAccess::None};   
+    PipelineAccess DestinationAccess{PipelineAccess::None};
+    ImageLayout OldLayout{ImageLayout::Undefined};
+    ImageLayout NewLayout{ImageLayout::Undefined};
+};
+
+struct DependencyInfoCreateInfo
+{
+    PipelineDependencyFlags Flags{PipelineDependencyFlags::None};
+    std::optional<ExecutionDependencyInfo> ExecutionDependencyInfo{};
+    std::optional<MemoryDependencyInfo> MemoryDependencyInfo{};
+    std::optional<LayoutTransitionInfo> LayoutTransitionInfo{};
 };
 
 class DependencyInfo
 {
     FRIEND_INTERNAL
 public:
-    class Builder
-    {
-        friend class DependencyInfo;
-        FRIEND_INTERNAL
-        struct CreateInfo
-        {
-            PipelineDependencyFlags Flags;
-            std::optional<ExecutionDependencyInfo> ExecutionDependencyInfo;
-            std::optional<MemoryDependencyInfo> MemoryDependencyInfo;
-            std::optional<LayoutTransitionInfo> LayoutTransitionInfo;
-        };
-    public:
-        DependencyInfo Build();
-        DependencyInfo Build(DeletionQueue& deletionQueue);
-        Builder& SetFlags(PipelineDependencyFlags flags);
-        Builder& ExecutionDependency(const ExecutionDependencyInfo& executionDependencyInfo);
-        Builder& MemoryDependency(const MemoryDependencyInfo& memoryDependencyInfo);
-        Builder& LayoutTransition(const LayoutTransitionInfo& layoutTransitionInfo);
-    private:
-        CreateInfo m_CreateInfo{};
-    };
-public:
-    static DependencyInfo Create(const Builder::CreateInfo& createInfo);
     static void Destroy(const DependencyInfo& dependencyInfo);
 private:
     ResourceHandleType<DependencyInfo> Handle() const { return m_ResourceHandle; }

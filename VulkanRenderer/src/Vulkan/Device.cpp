@@ -2378,7 +2378,7 @@ void Device::Destroy(ResourceHandleType<Semaphore> semaphore)
     Resources().RemoveResource(semaphore);
 }
 
-TimelineSemaphore Device::Create(const TimelineSemaphore::Builder::CreateInfo& createInfo)
+TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo)
 {
     VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
     timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
@@ -2430,29 +2430,7 @@ void Device::TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value)
     semaphore.m_Timeline = value;
 }
 
-SplitBarrier Device::Create(const SplitBarrier::Builder::CreateInfo& createInfo)
-{
-    VkEventCreateInfo eventCreateInfo = {};
-    eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
-
-    DeviceResources::SplitBarrierResource splitBarrierResource = {};
-    DeviceCheck(vkCreateEvent(s_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
-        "Failed to create split barrier");
-
-    SplitBarrier splitBarrier = {};
-    splitBarrier.m_ResourceHandle = Resources().AddResource(splitBarrierResource);
-    
-    return splitBarrier;
-    
-}
-
-void Device::Destroy(ResourceHandleType<SplitBarrier> splitBarrier)
-{
-    vkDestroyEvent(s_State.Device, Resources().m_SplitBarriers[splitBarrier.m_Id].Event, nullptr);
-    Resources().RemoveResource(splitBarrier);
-}
-
-DependencyInfo Device::Create(const DependencyInfo::Builder::CreateInfo& createInfo)
+DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo)
 {
     DeviceResources::DependencyInfoResource dependencyInfoResource = {};
     dependencyInfoResource.DependencyInfo = {};
@@ -2524,6 +2502,28 @@ DependencyInfo Device::Create(const DependencyInfo::Builder::CreateInfo& createI
 void Device::Destroy(ResourceHandleType<DependencyInfo> dependencyInfo)
 {
     Resources().RemoveResource(dependencyInfo);
+}
+
+SplitBarrier Device::Create(const SplitBarrier::Builder::CreateInfo& createInfo)
+{
+    VkEventCreateInfo eventCreateInfo = {};
+    eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
+
+    DeviceResources::SplitBarrierResource splitBarrierResource = {};
+    DeviceCheck(vkCreateEvent(s_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
+        "Failed to create split barrier");
+
+    SplitBarrier splitBarrier = {};
+    splitBarrier.m_ResourceHandle = Resources().AddResource(splitBarrierResource);
+    
+    return splitBarrier;
+    
+}
+
+void Device::Destroy(ResourceHandleType<SplitBarrier> splitBarrier)
+{
+    vkDestroyEvent(s_State.Device, Resources().m_SplitBarriers[splitBarrier.m_Id].Event, nullptr);
+    Resources().RemoveResource(splitBarrier);
 }
 
 u32 Device::GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, DescriptorPoolFlags poolFlags)

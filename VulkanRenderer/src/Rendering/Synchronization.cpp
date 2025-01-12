@@ -28,36 +28,6 @@ void Semaphore::Destroy(const Semaphore& semaphore)
     Device::Destroy(semaphore.Handle());
 }
 
-TimelineSemaphore TimelineSemaphore::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-TimelineSemaphore TimelineSemaphore::Builder::Build(DeletionQueue& deletionQueue)
-{
-    TimelineSemaphore semaphore = TimelineSemaphore::Create(m_CreateInfo);
-    deletionQueue.Enqueue(semaphore);
-
-    return semaphore;
-}
-
-TimelineSemaphore TimelineSemaphore::Builder::BuildManualLifetime()
-{
-    return TimelineSemaphore::Create(m_CreateInfo);
-}
-
-TimelineSemaphore::Builder& TimelineSemaphore::Builder::InitialValue(u64 value)
-{
-    m_CreateInfo.InitialValue = value;
-
-    return *this;
-}
-
-TimelineSemaphore TimelineSemaphore::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
-}
-
 void TimelineSemaphore::Destroy(const TimelineSemaphore& semaphore)
 {
     Device::Destroy(semaphore.Handle());
@@ -71,54 +41,6 @@ void TimelineSemaphore::WaitCPU(u64 value) const
 void TimelineSemaphore::SignalCPU(u64 value)
 {
     Device::TimelineSemaphoreSignalCPU(*this, value);
-}
-
-
-DependencyInfo DependencyInfo::Builder::Build()
-{
-    return Build(Device::DeletionQueue());
-}
-
-DependencyInfo DependencyInfo::Builder::Build(DeletionQueue& deletionQueue)
-{
-    DependencyInfo dependencyInfo = DependencyInfo::Create(m_CreateInfo);
-    deletionQueue.Enqueue(dependencyInfo);
-
-    return dependencyInfo;
-}
-
-DependencyInfo::Builder& DependencyInfo::Builder::SetFlags(PipelineDependencyFlags flags)
-{
-    m_CreateInfo.Flags = flags;
-
-    return *this;
-}
-
-DependencyInfo::Builder& DependencyInfo::Builder::ExecutionDependency(
-    const ExecutionDependencyInfo& executionDependencyInfo)
-{
-    m_CreateInfo.ExecutionDependencyInfo = executionDependencyInfo;
-
-    return *this;
-}
-
-DependencyInfo::Builder& DependencyInfo::Builder::MemoryDependency(const MemoryDependencyInfo& memoryDependencyInfo)
-{
-    m_CreateInfo.MemoryDependencyInfo = memoryDependencyInfo;
-
-    return *this;
-}
-
-DependencyInfo::Builder& DependencyInfo::Builder::LayoutTransition(const LayoutTransitionInfo& layoutTransitionInfo)
-{
-    m_CreateInfo.LayoutTransitionInfo = layoutTransitionInfo;
-
-    return *this;
-}
-
-DependencyInfo DependencyInfo::Create(const Builder::CreateInfo& createInfo)
-{
-    return Device::Create(createInfo);
 }
 
 void DependencyInfo::Destroy(const DependencyInfo& dependencyInfo)

@@ -602,13 +602,13 @@ void Renderer::BeginFrame()
     cmd.Reset();
     cmd.Begin();
 
-    DependencyInfo di = DependencyInfo::Builder()
-        .MemoryDependency({
+    DependencyInfo di = Device::CreateDependencyInfo({
+        .MemoryDependencyInfo = MemoryDependencyInfo{
             .SourceStage = PipelineStage::AllCommands,
             .DestinationStage = PipelineStage::AllCommands,
             .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
-            .DestinationAccess = PipelineAccess::ReadAll})
-        .Build(GetFrameContext().DeletionQueue);
+            .DestinationAccess = PipelineAccess::ReadAll}});
+    GetFrameContext().DeletionQueue.Enqueue(di);
     RenderCommand::WaitOnBarrier(cmd, di);
     
     m_ResourceUploader.BeginFrame(GetFrameContext());

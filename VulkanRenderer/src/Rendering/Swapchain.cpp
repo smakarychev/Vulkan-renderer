@@ -45,12 +45,12 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
     destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
 
-    DependencyInfo presentToDestinationTransition = DependencyInfo::Builder()
-        .LayoutTransition(presentToDestinationTransitionInfo)
-        .Build(deletionQueue);
-    DependencyInfo destinationToPresentTransition = DependencyInfo::Builder()
-        .LayoutTransition(destinationToPresentTransitionInfo)
-        .Build(deletionQueue);
+    DependencyInfo presentToDestinationTransition = Device::CreateDependencyInfo({
+        .LayoutTransitionInfo = presentToDestinationTransitionInfo});
+    DependencyInfo destinationToPresentTransition = Device::CreateDependencyInfo({
+        .LayoutTransitionInfo = destinationToPresentTransitionInfo});
+    deletionQueue.Enqueue(presentToDestinationTransition);
+    deletionQueue.Enqueue(destinationToPresentTransition);
 
     barrier.Wait(cmd, presentToDestinationTransition);
 
