@@ -173,17 +173,25 @@ void Renderer::InitRenderGraph()
 void Renderer::ExecuteSingleTimePasses()
 {
     static constexpr std::string_view SKYBOX_PATH = "../assets/textures/autumn_field_puresky_4k.tx";
-    Texture equirectangular = Texture::Builder({.Usage = ImageUsage::Sampled})
-        .FromAssetFile(SKYBOX_PATH)
-        .NoMips()
-        .Build(GetFrameContext().DeletionQueue);
+    Texture equirectangular = Device::CreateImage({
+        .DataSource = SKYBOX_PATH,
+        .Description = ImageDescription{
+            .Usage = ImageUsage::Sampled},
+        .CalculateMipmaps = false},
+        GetFrameContext().DeletionQueue);
+    m_SkyboxTexture = Device::CreateImage(ImageCreateInfo{
+        .Description = ImageDescription{
+            .Width = equirectangular.Description().Width / 2,
+            .Height = equirectangular.Description().Width / 2,
+            .Mipmaps = Image::CalculateMipmapCount(glm::uvec2{equirectangular.Description().Width / 2}),
+            .Format = Format::RGBA16_FLOAT,
+            .Kind = ImageKind::Cubemap,
+            .Usage = ImageUsage::Sampled | ImageUsage::Storage},
+        .CalculateMipmaps = false});
     
-    m_SkyboxTexture = Texture::Builder({.Usage = ImageUsage::Sampled | ImageUsage::Storage})
-        .FromEquirectangular(equirectangular)
-        .Build();
-    
-    m_SkyboxPrefilterMap = Texture::Builder(Passes::EnvironmentPrefilter::getPrefilteredTextureDescription())
-        .Build();
+    m_SkyboxPrefilterMap = Device::CreateImage({
+        .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(),
+        .CalculateMipmaps = false});
     
     m_IrradianceSH = Device::CreateBuffer({
         .SizeBytes = sizeof(SH9Irradiance),
@@ -194,8 +202,9 @@ void Renderer::ExecuteSingleTimePasses()
     Device::DeletionQueue().Enqueue(m_IrradianceSH);
     Device::DeletionQueue().Enqueue(m_SkyIrradianceSH);
 
-    m_BRDFLut = Texture::Builder(Passes::BRDFLut::getLutDescription())
-        .Build();
+    m_BRDFLut = Device::CreateImage({
+        .Description = Passes::BRDFLut::getLutDescription(),
+        .CalculateMipmaps = false});
     
     m_Graph->Reset(GetFrameContext());
 

@@ -75,7 +75,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             pipeline.BindCompute(cmd);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
-                {lutTexture.Description().Width, lutTexture.Description().Height, lutTexture.Description().Layers},
+                {lutTexture.Description().Width, lutTexture.Description().Height, lutTexture.Description().GetDepth()},
                 {16, 16, 1});
         });
 }

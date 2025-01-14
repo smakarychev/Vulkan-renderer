@@ -97,12 +97,12 @@ TextureDescription Passes::EnvironmentPrefilter::getPrefilteredTextureDescriptio
     std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
     for (i8 i = 0; i < mipmapCount; i++)
         additionalViews[i] = ImageSubresourceDescription{
-            .MipmapBase = (u8)i, .Mipmaps = 1, .LayerBase = 0, .Layers = 6};
+            .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 6};
 
     return {
         .Width = PREFILTER_RESOLUTION,
         .Height = PREFILTER_RESOLUTION,
-        .Layers = 6,
+        .LayersDepth = 6,
         .Mipmaps = mipmapCount,
         .Format = Format::RGBA16_FLOAT,
         .Kind = ImageKind::Cubemap,

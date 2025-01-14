@@ -17,6 +17,11 @@ public:
     constexpr Span(T* pointer, std::size_t size) : m_Span(pointer, size) {}
     constexpr Span(const std::vector<std::remove_const_t<T>>& vector)
         : m_Span(const_cast<T*>(vector.data()), vector.size()) {}
+
+    template <typename R>
+    constexpr Span(std::initializer_list<R> initializerList)
+        requires std::is_same_v<std::decay_t<T>, std::byte>
+        : m_Span(const_cast<T*>((const T*)initializerList.begin()), initializerList.size() * sizeof(R)) {}
     template <typename R>
     constexpr Span(const std::vector<R>& vector)
         requires std::is_same_v<std::decay_t<T>, std::byte>

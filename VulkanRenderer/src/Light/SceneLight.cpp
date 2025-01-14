@@ -13,7 +13,7 @@ namespace
         Buffer newBuffer = Device::CreateBuffer({
             .SizeBytes = std::max(newSizeBytes, old.GetSizeBytes()),
             .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Storage | BufferUsage::Mappable,
-            .CreateMapped = true});
+            .PersistentMapping = true});
 
         ctx.DeletionQueue.Enqueue(old);
         
@@ -131,11 +131,11 @@ void SceneLight::Initialize()
     m_Buffers.PointLights = Device::CreateBuffer({
         .SizeBytes = sizeof(PointLight),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source | BufferUsage::Mappable,
-        .CreateMapped = true});
+        .PersistentMapping = true});
     m_Buffers.VisiblePointLights = Device::CreateBuffer({
         .SizeBytes = sizeof(PointLight),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source | BufferUsage::Mappable,
-        .CreateMapped = true});
+        .PersistentMapping = true});
 
     m_Buffers.LightsInfo = Device::CreateBuffer({
             .SizeBytes = sizeof(LightsInfo),

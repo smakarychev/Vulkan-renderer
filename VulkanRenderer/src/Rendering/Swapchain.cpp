@@ -26,8 +26,12 @@ bool Swapchain::PresentImage(QueueKind queueKind, u32 imageIndex, u32 frameNumbe
 
 void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
 {
-    ImageSubresource drawSubresource = m_DrawImage.Subresource(0, 1, 0, 1);
-    ImageSubresource presentSubresource = m_ColorImages[imageIndex].Subresource(0, 1, 0, 1);
+    ImageSubresource drawSubresource = {
+        .Image = &m_DrawImage,
+        .Description = {.Mipmaps = 1, .Layers = 1}};
+    ImageSubresource presentSubresource = {
+        .Image = &m_ColorImages[imageIndex],
+        .Description = {.Mipmaps = 1, .Layers = 1}};
     Barrier barrier = {};
     DeletionQueue deletionQueue = {};
 
@@ -54,12 +58,18 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
 
     barrier.Wait(cmd, presentToDestinationTransition);
 
-    ImageBlitInfo source = m_DrawImage.BlitInfo(
-        drawSubresource.Description.MipmapBase, drawSubresource.Description.LayerBase,
-        drawSubresource.Description.Layers);
-    ImageBlitInfo destination = m_ColorImages[imageIndex].BlitInfo(
-        presentSubresource.Description.MipmapBase, presentSubresource.Description.LayerBase,
-        presentSubresource.Description.Layers);
+    ImageBlitInfo source = {
+        .Image = &m_DrawImage,
+        .MipmapBase = (u32)drawSubresource.Description.MipmapBase,
+        .LayerBase = (u32)drawSubresource.Description.LayerBase,
+        .Layers = (u32)drawSubresource.Description.Layers,
+        .Top = m_DrawImage.Description().Dimensions()};
+    ImageBlitInfo destination = {
+        .Image = &m_ColorImages[imageIndex],
+        .MipmapBase = (u32)presentSubresource.Description.MipmapBase,
+        .LayerBase = (u32)presentSubresource.Description.LayerBase,
+        .Layers = (u32)presentSubresource.Description.Layers,
+        .Top = m_ColorImages[imageIndex].Description().Dimensions()};
     
     RenderCommand::BlitImage(cmd, source, destination, ImageFilter::Linear);
 
@@ -83,24 +93,26 @@ std::vector<Image> Swapchain::CreateColorImages() const
 
 Image Swapchain::CreateDrawImage()
 {
-    m_DrawImage = Image::Builder({
+    m_DrawImage = Device::CreateImage({
+        .Description = ImageDescription{
             .Width = m_DrawResolution.x,
             .Height = m_DrawResolution.y,
             .Format = m_DrawFormat,
-            .Usage = ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color})
-        .BuildManualLifetime();
+            .Usage = ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color}},
+        Device::DummyDeletionQueue());
 
     return m_DrawImage;
 }
 
 Image Swapchain::CreateDepthImage()
 {
-    Image depth = Image::Builder({
+    Image depth = Device::CreateImage({
+        .Description = ImageDescription{
             .Width = m_DrawResolution.x,
             .Height = m_DrawResolution.y,
             .Format = m_DepthFormat,
-            .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled})
-        .BuildManualLifetime();
+            .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled}},
+        Device::DummyDeletionQueue());
 
     return depth;
 }

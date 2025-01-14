@@ -34,8 +34,15 @@ RG::Pass& Passes::Blit::addToGraph(std::string_view name, RG::Graph& renderGraph
             f32 height = relativeSize / srcAspect * dstAspect;
             glm::uvec3 top = dst.GetPixelCoordinate(offset + glm::vec3{width, height, 1.0f}, ImageSizeType::Relative);
             
-            ImageCopyInfo srcBlit = src.CopyInfo();
-            ImageCopyInfo dstBlit = dst.BlitInfo(bottom, top, 0, 0, 1);
+            ImageCopyInfo srcBlit = {
+                .Image = &src,
+                .Layers = 1,
+                .Top = src.Description().Dimensions()};
+            ImageCopyInfo dstBlit = {
+                .Image = &dst,
+                .Layers = 1,
+                .Bottom = bottom,
+                .Top = top};
             
             RenderCommand::BlitImage(frameContext.Cmd, srcBlit, dstBlit, filter);
         });

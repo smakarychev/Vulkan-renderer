@@ -27,18 +27,27 @@ RG::Pass& Passes::CopyTexture::addToGraph(std::string_view name, RG::Graph& rend
             const Texture& src = resources.GetTexture(passData.TextureIn);
             const Texture& dst = resources.GetTexture(passData.TextureOut);
 
-            ImageCopyInfo srcCopy = src.CopyInfo();
+            ImageCopyInfo srcCopy = {
+                .Image = &src,
+                .Layers = 1,
+                .Top = src.Description().Dimensions()};
             ImageCopyInfo dstCopy = {};
             
             switch (sizeType)
             {
             case ImageSizeType::Absolute:
-                dstCopy = dst.CopyInfo(offset, offset + size, 0, 0, 1);
+                dstCopy = {
+                    .Image = &dst,
+                    .Layers = 1,
+                    .Bottom = offset,
+                    .Top = offset + size};
                 break;
             case ImageSizeType::Relative:
-                dstCopy = dst.CopyInfo(
-                    dst.GetPixelCoordinate(offset, ImageSizeType::Relative),
-                    dst.GetPixelCoordinate(offset + size, ImageSizeType::Relative), 0, 0, 1);
+                dstCopy = {
+                    .Image = &dst,
+                    .Layers = 1,
+                    .Bottom = dst.GetPixelCoordinate(offset, ImageSizeType::Relative),
+                    .Top = dst.GetPixelCoordinate(offset + size, ImageSizeType::Relative)};
                 break;
             }
             

@@ -3,9 +3,9 @@
 #include "Model.h"
 #include "Rendering/Shader/Shader.h"
 
-std::unordered_map<std::string, ShaderReflection> AssetManager::s_Shaders = {};
-std::unordered_map<std::string, Model> AssetManager::s_Models = {};
-std::unordered_map<std::string, Image> AssetManager::s_Images = {};
+Utils::StringUnorderedMap<ShaderReflection> AssetManager::s_Shaders = {};
+Utils::StringUnorderedMap<Model> AssetManager::s_Models = {};
+Utils::StringUnorderedMap<Image> AssetManager::s_Images = {};
 
 void AssetManager::Shutdown()
 {
@@ -23,43 +23,43 @@ std::string AssetManager::GetShaderKey(const std::vector<std::string_view>& path
     return key;
 }
 
-ShaderReflection* AssetManager::GetShader(const std::string& name)
+ShaderReflection* AssetManager::GetShader(std::string_view name)
 {
     auto it = s_Shaders.find(name);
 
     return it == s_Shaders.end() ? nullptr : &it->second;
 }
 
-void AssetManager::AddShader(const std::string& name, ShaderReflection&& shader)
+void AssetManager::AddShader(std::string_view name, ShaderReflection&& shader)
 {
     s_Shaders.emplace(name, std::move(shader));
 }
 
-void AssetManager::RemoveShader(const std::string& name)
+void AssetManager::RemoveShader(std::string_view name)
 {
     s_Shaders.erase(name);
 }
 
-Model* AssetManager::GetModel(const std::string& name)
+Model* AssetManager::GetModel(std::string_view name)
 {
     auto it = s_Models.find(name);
 
     return it == s_Models.end() ? nullptr : &it->second;
 }
 
-void AssetManager::AddModel(const std::string& name, const Model& model)
+void AssetManager::AddModel(std::string_view name, const Model& model)
 {
     s_Models.emplace(name, model);
 }
 
-Image* AssetManager::GetImage(const std::string& name)
+Image* AssetManager::GetImage(std::string_view name)
 {
     auto it = s_Images.find(name);
 
     return it == s_Images.end() ? nullptr : &it->second;
 }
 
-void AssetManager::AddImage(const std::string& name, const Image& image)
+void AssetManager::AddImage(std::string_view name, const Image& image)
 {
     s_Images.emplace(name, image);
 }

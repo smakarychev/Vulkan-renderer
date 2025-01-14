@@ -22,7 +22,7 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG:
             static constexpr bool USE_SUN_LUMINANCE = false;
 
             std::vector<ImageSubresourceDescription> faceViews(6);
-            for (u8 i = 0; i < 6; i++)
+            for (i8 i = 0; i < 6; i++)
                 faceViews[i] = ImageSubresourceDescription{
                     .ImageViewKind = ImageViewKind::Image2d, .LayerBase = i, .Layers = 1};    
             

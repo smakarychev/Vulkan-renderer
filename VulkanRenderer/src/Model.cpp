@@ -8,7 +8,7 @@
 
 Model* Model::LoadFromAsset(std::string_view path)
 {
-    Model* cachedModel = AssetManager::GetModel(std::string{path});
+    Model* cachedModel = AssetManager::GetModel(path);
     if (cachedModel)
         return cachedModel;
     
@@ -99,6 +99,6 @@ Model* Model::LoadFromAsset(std::string_view path)
 
     model.m_Meshes = meshes;
 
-    AssetManager::AddModel(std::string{path}, model);
-    return AssetManager::GetModel(std::string{path}); 
+    AssetManager::AddModel(path, model);
+    return AssetManager::GetModel(path); 
 }

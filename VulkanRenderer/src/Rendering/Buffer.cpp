@@ -32,19 +32,19 @@ std::string BufferUtils::bufferUsageToString(BufferUsage usage)
     return usageString;
 }
 
-void Buffer::SetData(Span<std::byte> data)
+void Buffer::SetData(Span<const std::byte> data)
 {
     ASSERT(data.size() <= m_Description.SizeBytes, "Attempt to write data outside of buffer region")
     Device::SetBufferData(*this, data, 0);
 }
 
-void Buffer::SetData(Span<std::byte> data, u64 offsetBytes)
+void Buffer::SetData(Span<const std::byte> data, u64 offsetBytes)
 {
     ASSERT(data.size() + offsetBytes <= m_Description.SizeBytes, "Attempt to write data outside of buffer region")
     Device::SetBufferData(*this, data, offsetBytes);
 }
 
-void Buffer::SetData(void* mapped, Span<std::byte> data, u64 offsetBytes)
+void Buffer::SetData(void* mapped, Span<const std::byte> data, u64 offsetBytes)
 {
     ASSERT((u64)((const u8*)mapped + data.size() + offsetBytes - (const u8*)m_HostAddress) <= m_Description.SizeBytes,
         "Attempt to write data outside of buffer region")
@@ -63,25 +63,4 @@ void Buffer::Unmap()
     m_HostAddress = nullptr;
     
     Device::UnmapBuffer(*this);
-}
-
-BufferSubresource Buffer::Subresource() const
-{
-    return Subresource(m_Description.SizeBytes, 0);
-}
-
-BufferSubresource Buffer::Subresource(u64 sizeBytes, u64 offset) const
-{
-    return Subresource({
-        .SizeBytes = sizeBytes,
-        .Offset = offset});
-}
-
-BufferSubresource Buffer::Subresource(const BufferSubresourceDescription& description) const
-{
-    ASSERT(description.Offset + description.SizeBytes <= m_Description.SizeBytes, "Invalid subresource range")
-
-    return BufferSubresource{
-        .Buffer = this,
-        .Description = description};
 }

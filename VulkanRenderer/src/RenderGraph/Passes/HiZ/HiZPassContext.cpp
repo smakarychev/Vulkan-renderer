@@ -17,18 +17,19 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
     std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
     for (i8 i = 0; i < mipmapCount; i++)
         additionalViews[i] = ImageSubresourceDescription{
-            .MipmapBase = (u8)i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1};
+            .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1};
 
     for (u32 i = 0; i < (u32)HiZReductionMode::MaxVal; i++)
     {
-        m_HiZs[i] = Texture::Builder({
+        m_HiZs[i] = Device::CreateImage({
+            .Description = ImageDescription{
                 .Width = width,
                 .Height = height,
                 .Mipmaps = mipmapCount,
                 .Format = Format::R32_FLOAT,
                 .Usage = ImageUsage::Sampled | ImageUsage::Storage,
-                .AdditionalViews = additionalViews})
-            .Build(deletionQueue);
+                .AdditionalViews = additionalViews}},
+            deletionQueue);
 
         m_MinMaxSamplers[i] = Device::CreateSampler({
             .ReductionMode = SamplerReductionMode::Min,

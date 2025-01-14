@@ -40,12 +40,12 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
         .InitialData = ctx.m_Slime});
     Device::DeletionQueue().Enqueue(ctx.m_SlimeBuffer);
 
-    ctx.m_SlimeMap = Texture::Builder({
-            .Width = bounds.x,
-            .Height = bounds.y,
-            .Format = Format::RGBA16_FLOAT,
-            .Usage = ImageUsage::Storage | ImageUsage::Destination})
-        .Build();
+    ctx.m_SlimeMap = Device::CreateImage({
+            .Description = ImageDescription{
+                .Width = bounds.x,
+                .Height =  bounds.y,
+                .Format = Format::RGBA16_FLOAT,
+                .Usage = ImageUsage::Storage | ImageUsage::Destination}});
 
     resourceUploader.UpdateBuffer(ctx.m_SlimeBuffer, ctx.m_Slime);
 

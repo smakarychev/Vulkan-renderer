@@ -56,7 +56,7 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
             glm::vec2 size = getTextureWindowSize(texture.Description());
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
-            ImGuiUI::Texture(texture.Subresource(), sampler, ImageLayout::Readonly,
+            ImGuiUI::Texture(ImageSubresource{.Image = &texture}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
         });
@@ -100,14 +100,16 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph&
             ASSERT(texture.Description().Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
             
             ImGui::Begin(passData.Name.c_str());
-            ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, texture.Description().Layers - 1);
+            ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, texture.Description().LayersDepth - 1);
             glm::vec2 size = getTextureWindowSize(texture.Description());
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
-            ImGuiUI::Texture(texture.Subresource(ImageSubresourceDescription{
-                .ImageViewKind = ImageViewKind::Image2d,
-                .LayerBase = (u8)context.Layer,
-                .Layers = 1}),
+            ImGuiUI::Texture(ImageSubresource{
+                .Image = &texture,
+                .Description = ImageSubresourceDescription{
+                    .ImageViewKind = ImageViewKind::Image2d,
+                    .LayerBase = (i8)context.Layer,
+                    .Layers = 1}},
                 sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
@@ -199,7 +201,7 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& r
         {
             Context& context = graph.GetOrCreateBlackboardValue<Context>();
             auto& texture3dDescription = Resources(graph).GetTextureDescription(textureIn);
-            u32 depth = TextureDescription::GetDepth(texture3dDescription);
+            u32 depth = texture3dDescription.GetDepth();
             f32 sliceNormalized = ((f32)context.Slice + 0.5f) / (f32)depth;
             Resource slice = texture3dTo2dSlicePass(std::format("{}.ToSlice", name),
                 renderGraph, textureIn, sliceNormalized);
@@ -223,7 +225,7 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& r
             glm::vec2 size = getTextureWindowSize(slice.Description());
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
-            ImGuiUI::Texture(slice.Subresource(), sampler, ImageLayout::Readonly,
+            ImGuiUI::Texture(ImageSubresource{.Image = &slice}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
         });

@@ -131,7 +131,7 @@ namespace RG
         return CreateResource(name, TextureDescription{
             .Width = description.Width,
             .Height = description.Height,
-            .Layers = description.Layers,
+            .LayersDepth = description.Layers,
             .Mipmaps = description.Mipmaps,
             .Format = description.Format,
             .Kind = description.Kind,
@@ -454,7 +454,9 @@ namespace RG
         
         // transition backbuffer to the layout that swapchain expects
         const Texture& backbuffer = *m_Textures[m_Backbuffer.Index()].m_Resource;
-        ImageSubresource backbufferSubresource = backbuffer.Subresource(0, 1, 0, 1);
+        ImageSubresource backbufferSubresource = {
+            .Image = &backbuffer,
+            .Description = {.Mipmaps = 1, .Layers = 1}};
         LayoutTransitionInfo backbufferTransition = {
             .ImageSubresource = backbufferSubresource,
             .SourceStage = PipelineStage::AllCommands,
@@ -1066,7 +1068,7 @@ namespace RG
         {
             auto& texture = m_Textures[transition.Texture.Index()];
                 
-            ImageSubresource subresource = texture.m_Resource->Subresource();
+            ImageSubresource subresource = ImageSubresource{.Image = texture.m_Resource};
             LayoutTransitionInfo layoutTransitionInfo = {
                 .ImageSubresource = subresource,
                 .SourceStage = transition.SourceStage,
@@ -1774,7 +1776,7 @@ namespace RG
                     
                     const TextureDescription& description = descriptionHolder->m_Description;
                     ss << std::format("\t({} x {} x {})\n\t{}\n\t{}\n\t{}\n\t{}\"]\n",
-                        description.Width, description.Height, description.Layers,
+                        description.Width, description.Height, description.LayersDepth,
                         ImageUtils::imageKindToString(description.Kind),
                         FormatUtils::formatToString(description.Format),
                         ImageUtils::imageUsageToString(description.Usage),

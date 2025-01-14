@@ -26,13 +26,13 @@ namespace
             pixel = ImageUtils::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
         }
 
-        Texture noise = Texture::Builder({
+        Texture noise = Device::CreateImage({
+            .DataSource = Span<const std::byte>(pixels),
+            .Description = ImageDescription{
                 .Width = RANDOM_SIZE,
                 .Height = RANDOM_SIZE,
                 .Format = Format::RGBA8_SNORM,
-                .Usage = ImageUsage::Sampled | ImageUsage::Destination})
-            .FromPixels(pixels)
-            .Build();
+                .Usage = ImageUsage::Sampled | ImageUsage::Destination}});
 
         // generate samples
         std::vector<glm::vec4> samples(count);

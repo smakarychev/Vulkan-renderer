@@ -103,9 +103,10 @@ std::vector<RenderObject> ModelCollection::CreateRenderObjects(const Model* mode
                 }
                 else
                 {
-                    Image texture = Image::Builder({.Usage = ImageUsage::Sampled})
-                        .FromAssetFile(textures.front())
-                        .Build();
+                    Image texture = Device::CreateImage({
+                        .DataSource = textures.front(),
+                        .Description = ImageDescription{
+                            .Usage = ImageUsage::Sampled}});
                     
                     *fn(materialGPU) = AddTexture(texture);
                     m_TexturesMap.emplace(textures.front(), *fn(materialGPU));

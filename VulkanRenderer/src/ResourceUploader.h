@@ -2,7 +2,7 @@
 
 #include "Core/Traits.h"
 #include "Rendering/Buffer.h"
-#include "Rendering/CommandBuffer.h"
+#include "Vulkan/Device.h"
 
 #include <vector>
 
@@ -103,7 +103,7 @@ void ResourceUploader::UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOf
     u64 stagingOffset = EnsureCapacity(sizeBytes);
     auto& state = m_PerFrameState[m_CurrentFrame];
     auto& staging = state.StageBuffers[state.LastUsedBuffer].Buffer;
-    staging.SetData(staging.GetHostAddress(), Span{(std::byte*)address, sizeBytes}, stagingOffset);
+    staging.SetData(staging.GetHostAddress(), Span{(const std::byte*)address, sizeBytes}, stagingOffset);
 
     if (MergeIsPossible(buffer, bufferOffset))
         state.BufferUploads.back().CopyInfo.SizeBytes += sizeBytes;
@@ -125,7 +125,7 @@ void ResourceUploader::UpdateBufferImmediately(const Buffer& buffer, T&& data, u
     auto& state = m_PerFrameState[m_CurrentFrame];
     if (sizeBytes > state.ImmediateUploadBuffer.GetSizeBytes())
     {
-        Buffer::Destroy(state.ImmediateUploadBuffer);
+        Device::Destroy(state.ImmediateUploadBuffer.Handle());
         state.ImmediateUploadBuffer = CreateStagingBuffer(sizeBytes).Buffer;
     }
 

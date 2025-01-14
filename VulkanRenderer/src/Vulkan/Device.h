@@ -449,6 +449,7 @@ public:
 
     void Flush();
 private:
+    bool m_IsDummy{false};
     std::vector<ResourceHandleType<Swapchain>> m_Swapchains;
     std::vector<ResourceHandleType<Buffer>> m_Buffers;
     std::vector<ResourceHandleType<Image>> m_Images;
@@ -473,6 +474,9 @@ template <typename Type>
 void DeletionQueue::Enqueue(Type& type)
 {
     using Decayed = std::decay_t<Type>;
+    
+    if (m_IsDummy)
+        return;
     
     if constexpr(std::is_same_v<Decayed, Swapchain>)
         m_Swapchains.push_back(type.Handle());
@@ -551,14 +555,15 @@ public:
     static Buffer CreateStagingBuffer(u64 sizeBytes);
     static void* MapBuffer(const Buffer& buffer);
     static void UnmapBuffer(const Buffer& buffer);
-    static void SetBufferData(Buffer& buffer, Span<std::byte> data, u64 offsetBytes);
-    static void SetBufferData(void* mappedAddress, Span<std::byte> data, u64 offsetBytes);
+    static void SetBufferData(Buffer& buffer, Span<const std::byte> data, u64 offsetBytes);
+    static void SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 offsetBytes);
     static u64 GetDeviceAddress(const Buffer& buffer);
     
-    static Image AllocateImage(const Image::Builder::CreateInfo& createInfo);
+    static Image CreateImage(ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(ResourceHandleType<Image> image);
     static void CreateViews(const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
+    static void CalculateMipmaps(const Image& image, const CommandBuffer& cmd, ImageLayout currentLayout);
 
     static Sampler CreateSampler(SamplerCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Sampler> sampler);
@@ -635,6 +640,7 @@ public:
     static void Shutdown();
 
     static DeletionQueue& DeletionQueue();
+    static ::DeletionQueue& DummyDeletionQueue();
 
     static u64 GetUniformBufferAlignment();
 
@@ -693,7 +699,12 @@ private:
 
     static DeviceResources::BufferResource CreateBufferResource(u64 sizeBytes, VkBufferUsageFlags usage,
         VmaAllocationCreateFlags allocationFlags);
-    
+
+    static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPath assetPath);
+    static Image CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std::byte> pixels);
+    static Image CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer);
+    static void PreprocessCreateInfo(ImageCreateInfo& createInfo);
+    static DeviceResources::ImageResource CreateImageResource(ImageCreateInfo& createInfo);
     static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
     static std::pair<VkBlitImageInfo2, VkImageBlit2> CreateVulkanBlitInfo(
         const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter);

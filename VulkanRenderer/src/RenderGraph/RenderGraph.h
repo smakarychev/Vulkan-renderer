@@ -72,7 +72,7 @@ namespace RG
             bool canAlias =
                 description.Height == other.Height &&
                 description.Width == other.Width &&
-                description.Layers == other.Layers &&
+                description.LayersDepth == other.LayersDepth &&
                 description.Mipmaps == other.Mipmaps &&
                 description.Format == other.Format &&
                 description.Kind == other.Kind &&
@@ -200,7 +200,10 @@ namespace RG
                 else
                 {
                     Resources.push_back({
-                        .Resource = std::make_shared<T>(T::Builder(description).BuildManualLifetime()),
+                        .Resource = std::make_shared<T>(Device::CreateImage({
+                            .Description = description,
+                            .CalculateMipmaps = false},
+                            Device::DummyDeletionQueue())),
                         .LastFrame = 0});
                 }
                 

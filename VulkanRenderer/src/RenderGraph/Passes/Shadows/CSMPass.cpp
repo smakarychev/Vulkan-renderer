@@ -133,7 +133,7 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
             std::vector<ImageSubresourceDescription> cascadeViews(SHADOW_CASCADES);
             for (u32 i = 0;  i < SHADOW_CASCADES; i++)
                 cascadeViews[i] = ImageSubresourceDescription{
-                    .MipmapBase = 0, .Mipmaps = 1, .LayerBase = (u8)i, .Layers = 1};
+                    .MipmapBase = 0, .Mipmaps = 1, .LayerBase = (i8)i, .Layers = 1};
             
             Resource shadow = renderGraph.CreateResource("CSM.ShadowMap", GraphTextureDescription{
                 .Width = SHADOW_MAP_RESOLUTION,

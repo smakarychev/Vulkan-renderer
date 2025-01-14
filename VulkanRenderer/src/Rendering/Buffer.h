@@ -49,14 +49,14 @@ struct BufferDescription
 
 struct BufferSubresourceDescription
 {
-    u64 SizeBytes;
-    u64 Offset;
+    u64 SizeBytes{0};
+    u64 Offset{0};
 };
 
 struct BufferSubresource
 {
-    const Buffer* Buffer;
-    BufferSubresourceDescription Description;
+    const Buffer* Buffer{nullptr};
+    BufferSubresourceDescription Description{};
 };
 using BufferBindingInfo = BufferSubresource;
 
@@ -64,8 +64,8 @@ struct BufferCreateInfo
 {
     u64 SizeBytes{0};
     BufferUsage Usage{BufferUsage::None};
-    bool CreateMapped{false};
-    Span<std::byte> InitialData{};
+    bool PersistentMapping{false};
+    Span<const std::byte> InitialData{};
 };
 
 class Buffer
@@ -74,26 +74,29 @@ class Buffer
 public:
     const BufferDescription& Description() const { return m_Description; }
     
-    void SetData(Span<std::byte> data);
-    void SetData(Span<std::byte>, u64 offsetBytes);
-    void SetData(void* mapped, Span<std::byte>, u64 offsetBytes);
+    void SetData(Span<const std::byte> data);
+    void SetData(Span<const std::byte>, u64 offsetBytes);
+    void SetData(void* mapped, Span<const std::byte>, u64 offsetBytes);
     void* Map();
     void Unmap();
     
     u64 GetSizeBytes() const { return m_Description.SizeBytes; }
     BufferUsage GetKind() const { return m_Description.Usage; }
 
-    BufferSubresource Subresource() const;
-    BufferSubresource Subresource(u64 sizeBytes, u64 offset) const;
-    BufferSubresource Subresource(const BufferSubresourceDescription& description) const;
-    
     BufferBindingInfo BindingInfo() const
     {
-        return Subresource();
+        return BufferSubresource{
+            .Buffer = this,
+            .Description = {
+                .SizeBytes = m_Description.SizeBytes}};
     }
     BufferBindingInfo BindingInfo(u64 sizeBytes, u64 offset) const
     {
-        return Subresource(sizeBytes, offset);
+        return BufferSubresource{
+            .Buffer = this,
+            .Description = {
+                .SizeBytes = sizeBytes,
+                .Offset = offset}};
     }
 
     const void* GetHostAddress() const { return m_HostAddress; }
