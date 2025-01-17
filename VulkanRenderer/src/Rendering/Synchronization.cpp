@@ -3,12 +3,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-void DependencyInfo::Destroy(const DependencyInfo& dependencyInfo)
-{
-    Device::Destroy(dependencyInfo.Handle());
-}
-
-
 void Barrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const
 {
     RenderCommand::WaitOnBarrier(cmd, dependencyInfo);

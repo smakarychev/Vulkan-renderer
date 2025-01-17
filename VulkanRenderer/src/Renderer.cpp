@@ -611,14 +611,13 @@ void Renderer::BeginFrame()
     cmd.Reset();
     cmd.Begin();
 
-    DependencyInfo di = Device::CreateDependencyInfo({
+    RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
         .MemoryDependencyInfo = MemoryDependencyInfo{
             .SourceStage = PipelineStage::AllCommands,
             .DestinationStage = PipelineStage::AllCommands,
             .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
-            .DestinationAccess = PipelineAccess::ReadAll}});
-    GetFrameContext().DeletionQueue.Enqueue(di);
-    RenderCommand::WaitOnBarrier(cmd, di);
+            .DestinationAccess = PipelineAccess::ReadAll}},
+        GetFrameContext().DeletionQueue));
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
     ShaderCache::OnFrameBegin(GetFrameContext());

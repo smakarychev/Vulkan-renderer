@@ -14,7 +14,6 @@ class DescriptorArenaAllocator;
 struct ImageSubresource;
 struct ImageBlitInfo;
 class SplitBarrier;
-class DependencyInfo;
 class RenderingInfo;
 class Image;
 class CommandPool;

@@ -67,16 +67,8 @@ struct DependencyInfoCreateInfo
     std::optional<LayoutTransitionInfo> LayoutTransitionInfo{};
 };
 
-class DependencyInfo
-{
-    FRIEND_INTERNAL
-public:
-    static void Destroy(const DependencyInfo& dependencyInfo);
-private:
-    ResourceHandleType<DependencyInfo> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<DependencyInfo> m_ResourceHandle{};
-};
+struct DependencyInfoTag{};
+using DependencyInfo = ResourceHandleType<DependencyInfoTag>;
 
 class Barrier
 {

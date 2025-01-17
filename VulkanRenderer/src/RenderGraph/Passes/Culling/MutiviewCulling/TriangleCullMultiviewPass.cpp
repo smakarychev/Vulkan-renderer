@@ -62,14 +62,13 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
                 {multiview->MaxDispatches, 1, 1},
                 {64, 1, 1});
 
-            DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
+            RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
                 .MemoryDependencyInfo = MemoryDependencyInfo{
                     .SourceStage = PipelineStage::ComputeShader,
                     .DestinationStage = PipelineStage::Host,
                     .SourceAccess = PipelineAccess::WriteShader,
-                    .DestinationAccess = PipelineAccess::ReadHost}});
-            frameContext.DeletionQueue.Enqueue(dependencyInfo);
-            RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
+                    .DestinationAccess = PipelineAccess::ReadHost}},
+                frameContext.DeletionQueue));
 
             multiview->MeshletCull->Multiview->UpdateBatchIterationCount();
         });
@@ -134,7 +133,6 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         .DestinationStage = PipelineStage::PixelShader,
                         .SourceAccess = PipelineAccess::WriteShader,
                         .DestinationAccess = PipelineAccess::ReadStorage}});
-                Device::DeletionQueue().Enqueue(barriers.SplitBarrierDependency);
                 graph.UpdateBlackboard(barriers);
             }
             
@@ -324,14 +322,13 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             resources.GetBuffer(multiview->BatchDispatches[geometryIndex]),
                             batchIteration * sizeof(IndirectDispatchCommand));
 
-                        DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
+                        RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
                             .MemoryDependencyInfo = MemoryDependencyInfo {
                             .SourceStage = PipelineStage::ComputeShader,
                             .DestinationStage = PipelineStage::ComputeShader,
                             .SourceAccess = PipelineAccess::WriteShader,
-                            .DestinationAccess = PipelineAccess::ReadShader}});
-                        frameContext.DeletionQueue.Enqueue(dependencyInfo);
-                        RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
+                            .DestinationAccess = PipelineAccess::ReadShader}},
+                            frameContext.DeletionQueue));
                     }
 
                     /* prepare draws */
@@ -355,8 +352,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .SourceStage = PipelineStage::ComputeShader,
                             .DestinationStage = PipelineStage::Indirect,
                             .SourceAccess = PipelineAccess::WriteShader,
-                            .DestinationAccess = PipelineAccess::ReadIndirect}});
-                        frameContext.DeletionQueue.Enqueue(dependencyInfo);
+                            .DestinationAccess = PipelineAccess::ReadIndirect}},
+                            frameContext.DeletionQueue);
                         RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
                     }
                 

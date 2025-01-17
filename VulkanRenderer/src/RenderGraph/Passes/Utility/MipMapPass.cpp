@@ -26,7 +26,7 @@ RG::Pass& Passes::Mipmap::addToGraph(std::string_view name, RG::Graph& renderGra
         // todo: nvpro mipmap software generation?
         const Texture& sourceTexture = resources.GetTexture(passData.Texture);
         Device::CalculateMipmaps(sourceTexture, frameContext.Cmd, ImageLayout::Destination);
-        DependencyInfo layoutTransition = Device::CreateDependencyInfo({
+        RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
             .LayoutTransitionInfo = LayoutTransitionInfo{
                 .ImageSubresource = ImageSubresource{.Image = &sourceTexture},
                 .SourceStage = PipelineStage::Blit,
@@ -34,8 +34,7 @@ RG::Pass& Passes::Mipmap::addToGraph(std::string_view name, RG::Graph& renderGra
                 .SourceAccess = PipelineAccess::ReadTransfer,
                 .DestinationAccess = PipelineAccess::WriteTransfer,
                 .OldLayout = ImageLayout::Source,
-                .NewLayout = ImageLayout::Destination}});
-        frameContext.DeletionQueue.Enqueue(layoutTransition);
-        RenderCommand::WaitOnBarrier(frameContext.Cmd, layoutTransition);
+                .NewLayout = ImageLayout::Destination}},
+            frameContext.DeletionQueue));
     });
 }

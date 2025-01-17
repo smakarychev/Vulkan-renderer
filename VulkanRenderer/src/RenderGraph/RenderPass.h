@@ -9,7 +9,6 @@
 #include "Rendering/Synchronization.h"
 #include "utils/HashedString.h"
 
-class DependencyInfo;
 struct FrameContext;
 
 namespace RG

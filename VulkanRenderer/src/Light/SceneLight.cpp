@@ -105,14 +105,13 @@ void SceneLight::UpdateBuffers(FrameContext& ctx)
     ctx.ResourceUploader->UpdateBuffer(m_Buffers.LightsInfo, info);
     
     ctx.ResourceUploader->SubmitUpload(ctx.Cmd);
-    DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
+    RenderCommand::WaitOnBarrier(ctx.Cmd, Device::CreateDependencyInfo({
         .MemoryDependencyInfo = MemoryDependencyInfo{
             .SourceStage = PipelineStage::AllTransfer,
             .DestinationStage = PipelineStage::AllCommands,
             .SourceAccess = PipelineAccess::WriteAll,
-            .DestinationAccess = PipelineAccess::ReadAll}});
-    ctx.DeletionQueue.Enqueue(dependencyInfo);
-    RenderCommand::WaitOnBarrier(ctx.Cmd, dependencyInfo);
+            .DestinationAccess = PipelineAccess::ReadAll}},
+        ctx.DeletionQueue));
     
     m_IsDirty = false;
     m_IsVisiblePointLightsDirty = false;

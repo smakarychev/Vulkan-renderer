@@ -49,14 +49,8 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
     destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
 
-    DependencyInfo presentToDestinationTransition = Device::CreateDependencyInfo({
-        .LayoutTransitionInfo = presentToDestinationTransitionInfo});
-    DependencyInfo destinationToPresentTransition = Device::CreateDependencyInfo({
-        .LayoutTransitionInfo = destinationToPresentTransitionInfo});
-    deletionQueue.Enqueue(presentToDestinationTransition);
-    deletionQueue.Enqueue(destinationToPresentTransition);
-
-    barrier.Wait(cmd, presentToDestinationTransition);
+    barrier.Wait(cmd, Device::CreateDependencyInfo({
+        .LayoutTransitionInfo = presentToDestinationTransitionInfo}, deletionQueue));
 
     ImageBlitInfo source = {
         .Image = &m_DrawImage,
@@ -73,7 +67,8 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     
     RenderCommand::BlitImage(cmd, source, destination, ImageFilter::Linear);
 
-    barrier.Wait(cmd, destinationToPresentTransition);
+    barrier.Wait(cmd, Device::CreateDependencyInfo({
+        .LayoutTransitionInfo = destinationToPresentTransitionInfo}, deletionQueue));
 }
 
 const SwapchainFrameSync& Swapchain::GetFrameSync(u32 frameNumber) const

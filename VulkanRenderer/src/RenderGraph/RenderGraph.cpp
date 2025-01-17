@@ -465,10 +465,9 @@ namespace RG
             .DestinationAccess = PipelineAccess::None,
             .OldLayout = m_BackbufferLayout,
             .NewLayout = ImageLayout::Source};
-        DependencyInfo transitionDependency = Device::CreateDependencyInfo({
-            .LayoutTransitionInfo = backbufferTransition});
-        m_FrameDeletionQueue->Enqueue(transitionDependency);
-        RenderCommand::WaitOnBarrier(frameContext.Cmd, transitionDependency);
+        RenderCommand::WaitOnBarrier(frameContext.Cmd,  Device::CreateDependencyInfo({
+            .LayoutTransitionInfo = backbufferTransition},
+            *m_FrameDeletionQueue));
     }
 
     void Graph::OnCmdBegin(FrameContext& frameContext)
@@ -487,24 +486,22 @@ namespace RG
         if (!m_ResourceUploader.HasUploads(CurrentPass()))
             return;
 
-        DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
+        RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
             .ExecutionDependencyInfo = ExecutionDependencyInfo{
                 .SourceStage = PipelineStage::AllCommands,
-                .DestinationStage = PipelineStage::AllTransfer}});
-        frameContext.DeletionQueue.Enqueue(dependencyInfo);
-        RenderCommand::WaitOnBarrier(frameContext.Cmd, dependencyInfo);
+                .DestinationStage = PipelineStage::AllTransfer}},
+            frameContext.DeletionQueue));
         
         m_ResourceUploader.Upload(CurrentPass(), Resources{*this}, *frameContext.ResourceUploader);
         frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
 
-        dependencyInfo = Device::CreateDependencyInfo({
+        RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
             .MemoryDependencyInfo = MemoryDependencyInfo{
                 .SourceStage = PipelineStage::AllTransfer,
                 .DestinationStage = PipelineStage::AllCommands,
                 .SourceAccess = PipelineAccess::WriteAll,
-                .DestinationAccess = PipelineAccess::ReadAll}});
-        frameContext.DeletionQueue.Enqueue(dependencyInfo);
-        RenderCommand::WaitOnBarrier(frameContext.Cmd, dependencyInfo);
+                .DestinationAccess = PipelineAccess::ReadAll}},
+            frameContext.DeletionQueue));
     }
 
     void Graph::SetShader(std::string_view path) const
@@ -966,10 +963,9 @@ namespace RG
         };
         auto addExecutionDependency = [this](Pass& pass, Resource resource, const ExecutionDependencyInfo& dependency)
         {
-            DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
-                .ExecutionDependencyInfo = dependency});
-            m_FrameDeletionQueue->Enqueue(dependencyInfo);
-            pass.m_Barriers.push_back(dependencyInfo);
+            pass.m_Barriers.push_back(Device::CreateDependencyInfo({
+                .ExecutionDependencyInfo = dependency},
+                *m_FrameDeletionQueue));
             pass.m_BarrierDependencyInfos.push_back({
                 .Resource = resource,
                 .ExecutionDependency = dependency});
@@ -978,8 +974,8 @@ namespace RG
             const ExecutionDependencyInfo& dependency)
         {
             DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
-                .ExecutionDependencyInfo = dependency});
-            m_FrameDeletionQueue->Enqueue(dependencyInfo);
+                .ExecutionDependencyInfo = dependency},
+                *m_FrameDeletionQueue);
             SplitBarrier splitBarrier = Device::CreateSplitBarrier();
             m_FrameDeletionQueue->Enqueue(splitBarrier);
             passSignal.m_SplitBarriersToSignal.push_back({
@@ -998,12 +994,11 @@ namespace RG
         };
         auto addMemoryDependency = [this](Pass& pass, Resource resource, const MemoryDependencyInfo& dependency)
         {
-            DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
+            pass.m_Barriers.push_back(Device::CreateDependencyInfo({
                 .Flags = resource.IsTexture() ?
                         PipelineDependencyFlags::ByRegion : PipelineDependencyFlags::None,
-                .MemoryDependencyInfo = dependency});
-            m_FrameDeletionQueue->Enqueue(dependencyInfo);
-            pass.m_Barriers.push_back(dependencyInfo);
+                .MemoryDependencyInfo = dependency},
+                *m_FrameDeletionQueue));
             pass.m_BarrierDependencyInfos.push_back({
                 .Resource = resource,
                 .MemoryDependency = dependency});
@@ -1012,8 +1007,8 @@ namespace RG
             const MemoryDependencyInfo& dependency)
         {
             DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
-                .MemoryDependencyInfo = dependency});
-            m_FrameDeletionQueue->Enqueue(dependencyInfo);
+                .MemoryDependencyInfo = dependency},
+                *m_FrameDeletionQueue);
             SplitBarrier splitBarrier = Device::CreateSplitBarrier();
             m_FrameDeletionQueue->Enqueue(splitBarrier);
             passSignal.m_SplitBarriersToSignal.push_back({
@@ -1032,11 +1027,10 @@ namespace RG
         };
         auto addLayoutDependency = [this](Pass& pass, Resource resource, const LayoutTransitionInfo& dependency)
         {
-            DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
+            pass.m_Barriers.push_back(Device::CreateDependencyInfo({
                 .Flags = PipelineDependencyFlags::ByRegion,
-                .LayoutTransitionInfo = dependency});
-            m_FrameDeletionQueue->Enqueue(dependencyInfo);
-            pass.m_Barriers.push_back(dependencyInfo);
+                .LayoutTransitionInfo = dependency},
+                *m_FrameDeletionQueue));
             pass.m_BarrierDependencyInfos.push_back({
                 .Resource = resource,
                 .LayoutTransition = dependency});
@@ -1045,8 +1039,8 @@ namespace RG
             const LayoutTransitionInfo& dependency)
         {
             DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
-                .LayoutTransitionInfo = dependency});
-            m_FrameDeletionQueue->Enqueue(dependencyInfo);
+                .LayoutTransitionInfo = dependency},
+                *m_FrameDeletionQueue);
             SplitBarrier splitBarrier = Device::CreateSplitBarrier();
             m_FrameDeletionQueue->Enqueue(splitBarrier);
             passSignal.m_SplitBarriersToSignal.push_back({

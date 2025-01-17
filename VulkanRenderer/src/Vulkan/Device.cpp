@@ -1455,7 +1455,7 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
     ImmediateSubmit([&](const CommandBuffer& cmd)
     {
         ::DeletionQueue deletionQueue = {};
-        DependencyInfo layoutTransition = CreateDependencyInfo({
+        RenderCommand::WaitOnBarrier(cmd, CreateDependencyInfo({
             .LayoutTransitionInfo = LayoutTransitionInfo{
                 .ImageSubresource = imageSubresource,
                 .SourceStage = PipelineStage::AllTransfer,
@@ -1463,9 +1463,8 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
                 .SourceAccess = PipelineAccess::None,
                 .DestinationAccess = PipelineAccess::WriteTransfer,
                 .OldLayout = ImageLayout::Undefined,
-                .NewLayout = ImageLayout::Destination}});
-        deletionQueue.Enqueue(layoutTransition);
-        RenderCommand::WaitOnBarrier(cmd, layoutTransition);
+                .NewLayout = ImageLayout::Destination}},
+            deletionQueue));
 
         RenderCommand::CopyBufferToImage(cmd, buffer,
             ImageSubresource{
@@ -1507,10 +1506,8 @@ void Device::CalculateMipmaps(const Image& image, const CommandBuffer& cmd, Imag
         .OldLayout = currentLayout,
         .NewLayout = ImageLayout::Source};
     
-    DependencyInfo layoutTransition = CreateDependencyInfo({
-        .LayoutTransitionInfo = transitionInfo});
-    deletionQueue.Enqueue(layoutTransition);
-    RenderCommand::WaitOnBarrier(cmd, layoutTransition);
+    RenderCommand::WaitOnBarrier(cmd, CreateDependencyInfo({
+        .LayoutTransitionInfo = transitionInfo}, deletionQueue));
     for (i8 mip = 1; mip < image.Description().Mipmaps; mip++)
     {
         ImageBlitInfo source = {
@@ -1546,10 +1543,9 @@ void Device::CalculateMipmaps(const Image& image, const CommandBuffer& cmd, Imag
             .DestinationAccess = PipelineAccess::WriteTransfer,
             .OldLayout = ImageLayout::Undefined,
             .NewLayout = ImageLayout::Destination};
-        layoutTransition = CreateDependencyInfo({
-            .LayoutTransitionInfo = transitionInfo});
-        deletionQueue.Enqueue(layoutTransition);
-        RenderCommand::WaitOnBarrier(cmd, layoutTransition);
+        RenderCommand::WaitOnBarrier(cmd, CreateDependencyInfo({
+            .LayoutTransitionInfo = transitionInfo},
+            deletionQueue));
         
         RenderCommand::BlitImage(cmd, source, destination, image.Description().MipmapFilter);
         transitionInfo = {
@@ -1560,10 +1556,9 @@ void Device::CalculateMipmaps(const Image& image, const CommandBuffer& cmd, Imag
             .DestinationAccess = PipelineAccess::ReadTransfer,
             .OldLayout = ImageLayout::Destination,
             .NewLayout = ImageLayout::Source};
-        layoutTransition = CreateDependencyInfo({
-            .LayoutTransitionInfo = transitionInfo});
-        deletionQueue.Enqueue(layoutTransition);
-        RenderCommand::WaitOnBarrier(cmd, layoutTransition);
+        RenderCommand::WaitOnBarrier(cmd, CreateDependencyInfo({
+            .LayoutTransitionInfo = transitionInfo},
+            deletionQueue));
     }
 }
 
@@ -2686,7 +2681,7 @@ void Device::TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value)
     Resources()[semaphore].Timeline = value;
 }
 
-DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo)
+DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     DeviceResources::DependencyInfoResource dependencyInfoResource = {};
     dependencyInfoResource.DependencyInfo = {};
@@ -2749,13 +2744,13 @@ DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInf
         dependencyInfoResource.LayoutTransitionsInfo.push_back(imageMemoryBarrier);
     }
 
-    DependencyInfo dependencyInfo = {};
-    dependencyInfo.m_ResourceHandle = Resources().AddResource(dependencyInfoResource);
+    DependencyInfo dependencyInfo = Resources().AddResource(dependencyInfoResource);
+    deletionQueue.Enqueue(dependencyInfo);
     
     return dependencyInfo;
 }
 
-void Device::Destroy(ResourceHandleType<DependencyInfo> dependencyInfo)
+void Device::Destroy(DependencyInfo dependencyInfo)
 {
     Resources().RemoveResource(dependencyInfo);
 }
