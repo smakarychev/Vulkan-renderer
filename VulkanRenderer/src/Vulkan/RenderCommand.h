@@ -90,13 +90,10 @@ public:
     }
 
     static void WaitOnFullPipelineBarrier(const CommandBuffer& cmd);
-    static void WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo);
-    static void SignalSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
-        const DependencyInfo& dependencyInfo);
-    static void WaitOnSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
-        const DependencyInfo& dependencyInfo);
-    static void ResetSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
-        const DependencyInfo& dependencyInfo);
+    static void WaitOnBarrier(const CommandBuffer& cmd, DependencyInfo dependencyInfo);
+    static void SignalSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier, DependencyInfo dependencyInfo);
+    static void WaitOnSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier, DependencyInfo dependencyInfo);
+    static void ResetSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier, DependencyInfo dependencyInfo);
     
     static void BeginConditionalRendering(const CommandBuffer& cmd, const Buffer& conditionalBuffer, u64 offset);
     static void EndConditionalRendering(const CommandBuffer& cmd);

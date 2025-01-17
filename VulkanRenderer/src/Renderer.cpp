@@ -662,8 +662,8 @@ void Renderer::EndFrame()
     cmd.Submit(QueueKind::Graphics,
         BufferSubmitSyncInfo{
             .WaitStages = {PipelineStage::ColorOutput},
-            .WaitSemaphores = {&sync.PresentSemaphore},
-            .SignalSemaphores = {&sync.RenderSemaphore},
+            .WaitSemaphores = {sync.PresentSemaphore},
+            .SignalSemaphores = {sync.RenderSemaphore},
             .Fence = sync.RenderFence});
     
     bool isFramePresentSuccessful = m_Swapchain.PresentImage(QueueKind::Presentation, m_SwapchainImageIndex,

@@ -21,17 +21,17 @@ CREATE_ENUM_FLAGS_OPERATORS(CommandBufferUsage)
 struct BufferSubmitSyncInfo
 {
     std::vector<PipelineStage> WaitStages;
-    std::vector<Semaphore*> WaitSemaphores;
-    std::vector<Semaphore*> SignalSemaphores;
+    std::vector<Semaphore> WaitSemaphores;
+    std::vector<Semaphore> SignalSemaphores;
     Fence Fence{};
 };
 
 struct BufferSubmitTimelineSyncInfo
 {
     std::vector<PipelineStage> WaitStages;
-    std::vector<TimelineSemaphore*> WaitSemaphores;
+    std::vector<TimelineSemaphore> WaitSemaphores;
     std::vector<u64> WaitValues;
-    std::vector<TimelineSemaphore*> SignalSemaphores;
+    std::vector<TimelineSemaphore> SignalSemaphores;
     std::vector<u64> SignalValues;
     Fence Fence{};
 };

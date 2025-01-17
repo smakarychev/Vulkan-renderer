@@ -307,7 +307,7 @@ void RenderCommand::WaitOnFullPipelineBarrier(const CommandBuffer& cmd)
     vkCmdPipelineBarrier2(Device::Resources()[cmd].CommandBuffer, &dependencyInfo);
 }
 
-void RenderCommand::WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo)
+void RenderCommand::WaitOnBarrier(const CommandBuffer& cmd, DependencyInfo dependencyInfo)
 {
     VkDependencyInfo vkDependencyInfo = Device::Resources()[dependencyInfo].DependencyInfo;
     vkDependencyInfo.memoryBarrierCount =
@@ -319,7 +319,7 @@ void RenderCommand::WaitOnBarrier(const CommandBuffer& cmd, const DependencyInfo
 }
 
 void RenderCommand::SignalSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
-    const DependencyInfo& dependencyInfo)
+    DependencyInfo dependencyInfo)
 {
     VkDependencyInfo vkDependencyInfo = Device::Resources()[dependencyInfo].DependencyInfo;
     vkDependencyInfo.memoryBarrierCount =
@@ -331,7 +331,7 @@ void RenderCommand::SignalSplitBarrier(const CommandBuffer& cmd, SplitBarrier sp
 }
 
 void RenderCommand::WaitOnSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
-    const DependencyInfo& dependencyInfo)
+    DependencyInfo dependencyInfo)
 {
     VkDependencyInfo vkDependencyInfo = Device::Resources()[dependencyInfo].DependencyInfo;
     vkDependencyInfo.memoryBarrierCount =
@@ -344,7 +344,7 @@ void RenderCommand::WaitOnSplitBarrier(const CommandBuffer& cmd, SplitBarrier sp
 }
 
 void RenderCommand::ResetSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
-    const DependencyInfo& dependencyInfo)
+    DependencyInfo dependencyInfo)
 {
     ASSERT(!Device::Resources()[dependencyInfo].ExecutionMemoryDependenciesInfo.empty(), "Invalid reset operation")
     vkCmdResetEvent2(Device::Resources()[cmd].CommandBuffer, Device::Resources()[splitBarrier].Event,

@@ -628,9 +628,9 @@ public:
 
     static Fence CreateFence(FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Fence fence);
-    static void WaitForFence(const Fence& fence);
-    static bool CheckFence(const Fence& fence);
-    static void ResetFence(const Fence& fence);
+    static void WaitForFence(Fence fence);
+    static bool CheckFence(Fence fence);
+    static void ResetFence(Fence fence);
     
     static Semaphore CreateSemaphore(DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Semaphore semaphore);
@@ -638,8 +638,8 @@ public:
     static TimelineSemaphore CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(TimelineSemaphore semaphore);
-    static void TimelineSemaphoreWaitCPU(const TimelineSemaphore& semaphore, u64 value);
-    static void TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value);
+    static void TimelineSemaphoreWaitCPU(TimelineSemaphore semaphore, u64 value);
+    static void TimelineSemaphoreSignalCPU(TimelineSemaphore semaphore, u64 value);
 
     static DependencyInfo CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());
@@ -730,9 +730,9 @@ private:
     static VkBufferImageCopy2 CreateVulkanImageCopyInfo(const ImageSubresource& subresource);
 
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        const std::vector<Semaphore*>& semaphores, const std::vector<PipelineStage>& waitStages);
+        const std::vector<Semaphore>& semaphores, const std::vector<PipelineStage>& waitStages);
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        const std::vector<TimelineSemaphore*>& semaphores,
+        const std::vector<TimelineSemaphore>& semaphores,
         const std::vector<u64>& waitValues, const std::vector<PipelineStage>& waitStages);
 private:
     struct State;
