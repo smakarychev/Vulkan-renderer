@@ -665,7 +665,7 @@ void Renderer::EndFrame()
             .WaitStages = {PipelineStage::ColorOutput},
             .WaitSemaphores = {&sync.PresentSemaphore},
             .SignalSemaphores = {&sync.RenderSemaphore},
-            .Fence = &sync.RenderFence});
+            .Fence = sync.RenderFence});
     
     bool isFramePresentSuccessful = m_Swapchain.PresentImage(QueueKind::Presentation, m_SwapchainImageIndex,
         frameNumber); 

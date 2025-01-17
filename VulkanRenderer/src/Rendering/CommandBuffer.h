@@ -1,13 +1,13 @@
 ﻿#pragma once
 
 #include "ResourceHandle.h"
+#include "Synchronization.h"
 #include "SynchronizationTraits.h"
 
 class DeletionQueue;
 class QueueInfo;
 class TimelineSemaphore;
 class Semaphore;
-class Fence;
 struct SwapchainFrameSync;
 class CommandPool;
 
@@ -25,7 +25,7 @@ struct BufferSubmitSyncInfo
     std::vector<PipelineStage> WaitStages;
     std::vector<Semaphore*> WaitSemaphores;
     std::vector<Semaphore*> SignalSemaphores;
-    Fence* Fence;
+    Fence Fence{};
 };
 
 struct BufferSubmitTimelineSyncInfo
@@ -35,7 +35,7 @@ struct BufferSubmitTimelineSyncInfo
     std::vector<u64> WaitValues;
     std::vector<TimelineSemaphore*> SignalSemaphores;
     std::vector<u64> SignalValues;
-    Fence* Fence;
+    Fence Fence{};
 };
 
 struct CommandBufferCreateInfo
@@ -56,8 +56,7 @@ public:
 
     void Submit(QueueKind queueKind, const BufferSubmitSyncInfo& submitSync) const;
     void Submit(QueueKind queueKind, const BufferSubmitTimelineSyncInfo& submitSync) const;
-    void Submit(QueueKind queueKind, const Fence& fence) const;
-    void Submit(QueueKind queueKind, const Fence* fence) const;
+    void Submit(QueueKind queueKind, Fence fence) const;
 private:
     ResourceHandleType<CommandBuffer> Handle() const { return m_ResourceHandle; }
 private:

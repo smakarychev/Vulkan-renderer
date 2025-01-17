@@ -26,7 +26,6 @@ class Buffer;
 class CommandBuffer;
 class Semaphore;
 class Swapchain;
-class Fence;
 
 class RenderCommand
 {

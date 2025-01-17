@@ -3,26 +3,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-void Fence::Destroy(const Fence& fence)
-{
-    Device::Destroy(fence.Handle());
-}
-
-void Fence::Reset() const
-{
-    Device::ResetFence(*this);
-}
-
-void Fence::Wait() const
-{
-    Device::WaitForFence(*this);
-}
-
-bool Fence::Check() const
-{
-    return Device::CheckFence(*this);
-}
-
 void Semaphore::Destroy(const Semaphore& semaphore)
 {
     Device::Destroy(semaphore.Handle());

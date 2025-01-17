@@ -56,6 +56,8 @@ public:
     friend auto constexpr operator<=>(const GenerationalResourceHandle& a,
         const GenerationalResourceHandle& b) = default;
 
+    constexpr bool HasValue() const { return m_Id != NON_HANDLE; }
+
     constexpr GenerationalResourceHandle() = default;
     constexpr GenerationalResourceHandle(const GenerationalResourceHandle&) = default;
     constexpr GenerationalResourceHandle(GenerationalResourceHandle&&) = default;

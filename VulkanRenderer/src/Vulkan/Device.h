@@ -230,7 +230,7 @@ private:
     };
     struct FenceResource
     {
-        using ObjectType = Fence;
+        using ObjectType = FenceTag;
         VkFence Fence{VK_NULL_HANDLE};
     };
     struct SemaphoreResource
@@ -372,7 +372,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_RenderingAttachments.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         m_RenderingInfos.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, Fence>)
+    else if constexpr(std::is_same_v<Decayed, FenceTag>)
         m_Fences.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
         m_Semaphores.Remove(std::bit_cast<ResourceHandleType<Semaphore>>(handle));
@@ -426,7 +426,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         return m_RenderingInfos[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, Fence>)
-        return m_Fences[type.Handle()];
+        return m_Fences[type];
     else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
         return m_Semaphores[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
@@ -463,7 +463,7 @@ private:
     std::vector<ResourceHandleType<ShaderModule>> m_ShaderModules;
     std::vector<ResourceHandleType<RenderingAttachment>> m_RenderingAttachments;
     std::vector<ResourceHandleType<RenderingInfo>> m_RenderingInfos;
-    std::vector<ResourceHandleType<Fence>> m_Fences;
+    std::vector<Fence> m_Fences;
     std::vector<ResourceHandleType<Semaphore>> m_Semaphores;
     std::vector<ResourceHandleType<DependencyInfo>> m_DependencyInfos;
     std::vector<ResourceHandleType<SplitBarrier>> m_SplitBarriers;
@@ -507,7 +507,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         m_RenderingInfos.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, Fence>)
-        m_Fences.push_back(type.Handle());
+        m_Fences.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
         m_Semaphores.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
@@ -543,8 +543,7 @@ public:
         const BufferSubmitSyncInfo& submitSync);
     static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
         const BufferSubmitTimelineSyncInfo& submitSync);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence& fence);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence* fence);
+    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, Fence fence);
     static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
         const BufferSubmitSyncInfo& submitSync);
     static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
@@ -611,8 +610,8 @@ public:
     static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
         DescriptorType type, u32 index);
 
-    static Fence CreateFence(FenceCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<Fence> fence);
+    static Fence CreateFence(FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(Fence fence);
     static void WaitForFence(const Fence& fence);
     static bool CheckFence(const Fence& fence);
     static void ResetFence(const Fence& fence);
@@ -735,7 +734,7 @@ void Device::ImmediateSubmit(Fn&& uploadFunction)
     
     cmd.End();
     cmd.Submit(queue, fence);
-    fence.Wait();
-    fence.Reset();
+    WaitForFence(fence);
+    ResetFence(fence);
     pool.Reset();
 }

@@ -33,12 +33,7 @@ void CommandBuffer::Submit(QueueKind queueKind, const BufferSubmitTimelineSyncIn
     Device::SubmitCommandBuffer(*this, queueKind, submitSync);
 }
 
-void CommandBuffer::Submit(QueueKind queueKind, const Fence& fence) const
-{
-    Device::SubmitCommandBuffer(*this, queueKind, fence);
-}
-
-void CommandBuffer::Submit(QueueKind queueKind, const Fence* fence) const
+void CommandBuffer::Submit(QueueKind queueKind, Fence fence) const
 {
     Device::SubmitCommandBuffer(*this, queueKind, fence);
 }

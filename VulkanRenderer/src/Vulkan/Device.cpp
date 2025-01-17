@@ -942,7 +942,6 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
         {
             Fence renderFence = CreateFence({
                 .IsSignaled = true});
-            DeletionQueue().Enqueue(renderFence);
             Semaphore renderSemaphore = CreateSemaphore();
             Semaphore presentSemaphore = CreateSemaphore();
             DeletionQueue().Enqueue(renderSemaphore);
@@ -1138,12 +1137,7 @@ void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
     SubmitCommandBuffers({cmd}, queueKind, submitSync);
 }
 
-void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence& fence)
-{
-    SubmitCommandBuffer(cmd, queueKind, &fence);
-}
-
-void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const Fence* fence)
+void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, Fence fence)
 {
     VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
     commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -1155,7 +1149,7 @@ void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, 
     submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
     
     DeviceCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
-        fence ? Resources()[*fence].Fence : VK_NULL_HANDLE),
+        fence.HasValue() ? Resources()[fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffer");
 }
 
@@ -1189,7 +1183,7 @@ void Device::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueK
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
     DeviceCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
-        submitSync.Fence ? Resources()[*submitSync.Fence].Fence : VK_NULL_HANDLE),
+        submitSync.Fence.HasValue() ? Resources()[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");
 }
 
@@ -1227,7 +1221,7 @@ void Device::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueK
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
     DeviceCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
-        submitSync.Fence ? Resources()[*submitSync.Fence].Fence : VK_NULL_HANDLE),
+        submitSync.Fence.HasValue() ? Resources()[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");    
 }
 
@@ -2576,7 +2570,7 @@ u32 Device::GetDescriptorSizeBytes(DescriptorType type)
     }
 }
 
-Fence Device::CreateFence(FenceCreateInfo&& createInfo)
+Fence Device::CreateFence(FenceCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     VkFenceCreateInfo fenceCreateInfo = {};
     fenceCreateInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -2588,14 +2582,14 @@ Fence Device::CreateFence(FenceCreateInfo&& createInfo)
     DeviceResources::FenceResource fenceResource = {};    
     DeviceCheck(vkCreateFence(s_State.Device, &fenceCreateInfo, nullptr, &fenceResource.Fence),
         "Failed to create fence");
-    
-    Fence fence = {};
-    fence.m_ResourceHandle = Resources().AddResource(fenceResource);
+
+    Fence fence = Resources().AddResource(fenceResource);
+    deletionQueue.Enqueue(fence);
 
     return fence;
 }
 
-void Device::Destroy(ResourceHandleType<Fence> fence)
+void Device::Destroy(Fence fence)
 {
     vkDestroyFence(s_State.Device, Resources().m_Fences[fence.m_Id].Fence, nullptr);
     Resources().RemoveResource(fence);
@@ -3255,7 +3249,6 @@ void Device::Init(DeviceCreateInfo&& createInfo)
     DeletionQueue().Enqueue(s_State.SubmitContext.CommandPool);
     s_State.SubmitContext.CommandBuffer = s_State.SubmitContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
     s_State.SubmitContext.Fence = CreateFence({});
-    DeletionQueue().Enqueue(s_State.SubmitContext.Fence);
     s_State.SubmitContext.QueueKind = QueueKind::Graphics;
 
     s_State.DummyDeletionQueue.m_IsDummy = true;

@@ -19,20 +19,8 @@ struct FenceCreateInfo
     bool IsSignaled{false};
 };
 
-class Fence
-{
-    FRIEND_INTERNAL
-public:
-    static void Destroy(const Fence& fence);
-
-    void Reset() const;
-    void Wait() const;
-    bool Check() const;
-private:
-    ResourceHandleType<Fence> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<Fence> m_ResourceHandle{};
-};
+struct FenceTag{};
+using Fence = ResourceHandleType<FenceTag>;
 
 class Semaphore
 {
