@@ -710,6 +710,8 @@ void DeletionQueue::Flush()
         Device::Destroy(handle);
     for (auto handle : m_Semaphores)
         Device::Destroy(handle);
+    for (auto handle : m_TimelineSemaphore)
+        Device::Destroy(handle);
     for (auto handle : m_DependencyInfos)
         Device::Destroy(handle);
     for (auto handle : m_SplitBarriers)
@@ -944,8 +946,6 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
                 .IsSignaled = true});
             Semaphore renderSemaphore = CreateSemaphore();
             Semaphore presentSemaphore = CreateSemaphore();
-            DeletionQueue().Enqueue(renderSemaphore);
-            DeletionQueue().Enqueue(presentSemaphore);
 
             swapchain.m_SwapchainFrameSync.push_back({
                 .RenderFence = renderFence,
@@ -1191,7 +1191,7 @@ void Device::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueK
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
     for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
-        submitSync.SignalSemaphores[i]->SetTimeline(submitSync.SignalValues[i]);
+        Resources()[*submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
 
     std::vector<VkCommandBufferSubmitInfo> commandBufferSubmitInfos;
     commandBufferSubmitInfos.reserve(cmds.size());
@@ -2612,7 +2612,7 @@ void Device::ResetFence(const Fence& fence)
     DeviceCheck(vkResetFences(s_State.Device, 1, &Resources()[fence].Fence), "Error while resetting fences");
 }
 
-Semaphore Device::CreateSemaphore()
+Semaphore Device::CreateSemaphore(::DeletionQueue& deletionQueue)
 {
     VkSemaphoreCreateInfo semaphoreCreateInfo = {};
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -2621,19 +2621,20 @@ Semaphore Device::CreateSemaphore()
     DeviceCheck(vkCreateSemaphore(s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore),
         "Failed to create semaphore");
     
-    Semaphore semaphore = {};
-    semaphore.m_ResourceHandle = Resources().AddResource(semaphoreResource);
+    Semaphore semaphore = Resources().AddResource(semaphoreResource);
+    deletionQueue.Enqueue(semaphore);
     
     return semaphore;
 }
 
-void Device::Destroy(ResourceHandleType<Semaphore> semaphore)
+void Device::Destroy(TimelineSemaphore semaphore)
 {
     vkDestroySemaphore(s_State.Device, Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
     Resources().RemoveResource(semaphore);
 }
 
-TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo)
+TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo,
+    ::DeletionQueue& deletionQueue)
 {
     VkSemaphoreTypeCreateInfo timelineCreateInfo = {};
     timelineCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
@@ -2644,17 +2645,17 @@ TimelineSemaphore Device::CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& 
     semaphoreCreateInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     semaphoreCreateInfo.pNext = &timelineCreateInfo;
 
-    DeviceResources::SemaphoreResource semaphoreResource = {};
+    DeviceResources::TimelineSemaphoreResource semaphoreResource = {};
     vkCreateSemaphore(s_State.Device, &semaphoreCreateInfo, nullptr, &semaphoreResource.Semaphore);
+    semaphoreResource.Timeline = createInfo.InitialValue;
 
-    TimelineSemaphore semaphore = {};
-    semaphore.m_Timeline = createInfo.InitialValue;
-    semaphore.m_ResourceHandle = Resources().AddResource(semaphoreResource);
+    TimelineSemaphore semaphore = Resources().AddResource(semaphoreResource);
+    deletionQueue.Enqueue(semaphore);
     
     return semaphore;
 }
 
-void Device::Destroy(ResourceHandleType<TimelineSemaphore> semaphore)
+void Device::Destroy(Semaphore semaphore)
 {
     vkDestroySemaphore(s_State.Device, Resources().m_Semaphores[semaphore.m_Id].Semaphore, nullptr);
     Resources().RemoveResource(semaphore);
@@ -2682,7 +2683,7 @@ void Device::TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value)
     DeviceCheck(vkSignalSemaphore(s_State.Device, &signalInfo),
         "Failed to signal semaphore");
 
-    semaphore.m_Timeline = value;
+    Resources()[semaphore].Timeline = value;
 }
 
 DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInfo)

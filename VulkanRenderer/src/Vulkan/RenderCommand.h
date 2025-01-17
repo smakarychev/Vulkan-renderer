@@ -15,7 +15,6 @@ struct ImageSubresource;
 struct ImageBlitInfo;
 class SplitBarrier;
 class DependencyInfo;
-class TimelineSemaphore;
 class RenderingInfo;
 class Image;
 class CommandPool;
@@ -24,7 +23,6 @@ class DescriptorSet;
 struct PushConstantDescription;
 class Buffer;
 class CommandBuffer;
-class Semaphore;
 class Swapchain;
 
 class RenderCommand

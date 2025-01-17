@@ -6,8 +6,6 @@
 
 class DeletionQueue;
 class QueueInfo;
-class TimelineSemaphore;
-class Semaphore;
 struct SwapchainFrameSync;
 class CommandPool;
 

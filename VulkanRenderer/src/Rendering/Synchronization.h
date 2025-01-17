@@ -22,39 +22,16 @@ struct FenceCreateInfo
 struct FenceTag{};
 using Fence = ResourceHandleType<FenceTag>;
 
-class Semaphore
-{
-    FRIEND_INTERNAL
-public:
-    static void Destroy(const Semaphore& semaphore);
-private:
-    ResourceHandleType<Semaphore> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<Semaphore> m_ResourceHandle{};
-};
+struct SemaphoreTag{};
+using Semaphore = ResourceHandleType<SemaphoreTag>;
 
 struct TimelineSemaphoreCreateInfo
 {
     u64 InitialValue{0};
 };
 
-class TimelineSemaphore
-{
-    FRIEND_INTERNAL
-public:
-    static void Destroy(const TimelineSemaphore& semaphore);
-    
-    void WaitCPU(u64 value) const;
-    void SignalCPU(u64 value);
-
-    u64 GetTimeline() const { return m_Timeline; }
-    void SetTimeline(u64 timeline) { m_Timeline = timeline; }
-private:
-    ResourceHandleType<Semaphore> Handle() const { return m_ResourceHandle; }
-private:
-    u64 m_Timeline{0};
-    ResourceHandleType<Semaphore> m_ResourceHandle;
-};
+struct TimelineSemaphoreTag{};
+using TimelineSemaphore = ResourceHandleType<TimelineSemaphoreTag>;
 
 // todo: add queue transfer somewhere
 struct ExecutionDependencyInfo

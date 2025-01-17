@@ -235,8 +235,14 @@ private:
     };
     struct SemaphoreResource
     {
-        using ObjectType = Semaphore;
+        using ObjectType = SemaphoreTag;
         VkSemaphore Semaphore{VK_NULL_HANDLE};
+    };
+    struct TimelineSemaphoreResource
+    {
+        using ObjectType = TimelineSemaphoreTag;
+        VkSemaphore Semaphore{VK_NULL_HANDLE};
+        u64 Timeline{0};
     };
     struct DependencyInfoResource
     {
@@ -271,6 +277,7 @@ private:
     ResourceContainerType<RenderingInfoResource> m_RenderingInfos;
     ResourceContainerType<FenceResource> m_Fences;
     ResourceContainerType<SemaphoreResource> m_Semaphores;
+    ResourceContainerType<TimelineSemaphoreResource> m_TimelineSemaphores;
     ResourceContainerType<DependencyInfoResource> m_DependencyInfos;
     ResourceContainerType<SplitBarrierResource> m_SplitBarriers;
 
@@ -326,6 +333,8 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_Fences, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, SemaphoreResource>)
         return AddToResourceList(m_Semaphores, std::forward<Resource>(resource));
+    else if constexpr(std::is_same_v<Decayed, TimelineSemaphoreResource>)
+        return AddToResourceList(m_TimelineSemaphores, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, DependencyInfoResource>)
         return AddToResourceList(m_DependencyInfos, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, SplitBarrierResource>)
@@ -374,8 +383,10 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_RenderingInfos.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, FenceTag>)
         m_Fences.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
-        m_Semaphores.Remove(std::bit_cast<ResourceHandleType<Semaphore>>(handle));
+    else if constexpr(std::is_same_v<Decayed, SemaphoreTag>)
+        m_Semaphores.Remove(handle);
+    else if constexpr(std::is_same_v<Decayed, TimelineSemaphoreTag>)
+        m_TimelineSemaphores.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         m_DependencyInfos.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
@@ -427,8 +438,10 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_RenderingInfos[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, Fence>)
         return m_Fences[type];
-    else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
-        return m_Semaphores[type.Handle()];
+    else if constexpr(std::is_same_v<Decayed, Semaphore>)
+        return m_Semaphores[type];
+    else if constexpr(std::is_same_v<Decayed, TimelineSemaphore>)
+        return m_TimelineSemaphores[type];
     else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         return m_DependencyInfos[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
@@ -464,7 +477,8 @@ private:
     std::vector<ResourceHandleType<RenderingAttachment>> m_RenderingAttachments;
     std::vector<ResourceHandleType<RenderingInfo>> m_RenderingInfos;
     std::vector<Fence> m_Fences;
-    std::vector<ResourceHandleType<Semaphore>> m_Semaphores;
+    std::vector<Semaphore> m_Semaphores;
+    std::vector<TimelineSemaphore> m_TimelineSemaphore;
     std::vector<ResourceHandleType<DependencyInfo>> m_DependencyInfos;
     std::vector<ResourceHandleType<SplitBarrier>> m_SplitBarriers;
 };
@@ -508,8 +522,10 @@ void DeletionQueue::Enqueue(Type& type)
         m_RenderingInfos.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, Fence>)
         m_Fences.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, Semaphore> || std::is_same_v<Decayed, TimelineSemaphore>)
-        m_Semaphores.push_back(type.Handle());
+    else if constexpr(std::is_same_v<Decayed, Semaphore>)
+        m_Semaphores.push_back(type);
+    else if constexpr(std::is_same_v<Decayed, TimelineSemaphore>)
+        m_TimelineSemaphore.push_back(type);
     else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         m_DependencyInfos.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
@@ -616,11 +632,12 @@ public:
     static bool CheckFence(const Fence& fence);
     static void ResetFence(const Fence& fence);
     
-    static Semaphore CreateSemaphore();
-    static void Destroy(ResourceHandleType<Semaphore> semaphore);
+    static Semaphore CreateSemaphore(DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(Semaphore semaphore);
 
-    static TimelineSemaphore CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<TimelineSemaphore> semaphore);
+    static TimelineSemaphore CreateTimelineSemaphore(TimelineSemaphoreCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(TimelineSemaphore semaphore);
     static void TimelineSemaphoreWaitCPU(const TimelineSemaphore& semaphore, u64 value);
     static void TimelineSemaphoreSignalCPU(TimelineSemaphore& semaphore, u64 value);
 

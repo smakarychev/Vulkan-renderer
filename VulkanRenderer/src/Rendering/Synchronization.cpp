@@ -3,26 +3,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-void Semaphore::Destroy(const Semaphore& semaphore)
-{
-    Device::Destroy(semaphore.Handle());
-}
-
-void TimelineSemaphore::Destroy(const TimelineSemaphore& semaphore)
-{
-    Device::Destroy(semaphore.Handle());
-}
-
-void TimelineSemaphore::WaitCPU(u64 value) const
-{
-    Device::TimelineSemaphoreWaitCPU(*this, value);
-}
-
-void TimelineSemaphore::SignalCPU(u64 value)
-{
-    Device::TimelineSemaphoreSignalCPU(*this, value);
-}
-
 void DependencyInfo::Destroy(const DependencyInfo& dependencyInfo)
 {
     Device::Destroy(dependencyInfo.Handle());
