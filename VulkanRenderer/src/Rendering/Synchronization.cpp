@@ -3,11 +3,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-void Barrier::Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const
-{
-    RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
-}
-
 void SplitBarrier::Destroy(const SplitBarrier& splitBarrier)
 {
     Device::Destroy(splitBarrier.Handle());

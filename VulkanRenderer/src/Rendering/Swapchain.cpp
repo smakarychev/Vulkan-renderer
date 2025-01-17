@@ -32,7 +32,6 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     ImageSubresource presentSubresource = {
         .Image = &m_ColorImages[imageIndex],
         .Description = {.Mipmaps = 1, .Layers = 1}};
-    Barrier barrier = {};
     DeletionQueue deletionQueue = {};
 
     LayoutTransitionInfo presentToDestinationTransitionInfo = {
@@ -49,7 +48,7 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
     destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
 
-    barrier.Wait(cmd, Device::CreateDependencyInfo({
+    RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
         .LayoutTransitionInfo = presentToDestinationTransitionInfo}, deletionQueue));
 
     ImageBlitInfo source = {
@@ -67,7 +66,7 @@ void Swapchain::PreparePresent(const CommandBuffer& cmd, u32 imageIndex)
     
     RenderCommand::BlitImage(cmd, source, destination, ImageFilter::Linear);
 
-    barrier.Wait(cmd, Device::CreateDependencyInfo({
+    RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
         .LayoutTransitionInfo = destinationToPresentTransitionInfo}, deletionQueue));
 }
 

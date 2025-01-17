@@ -70,12 +70,6 @@ struct DependencyInfoCreateInfo
 struct DependencyInfoTag{};
 using DependencyInfo = ResourceHandleType<DependencyInfoTag>;
 
-class Barrier
-{
-public:
-    void Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const;
-};
-
 class SplitBarrier
 {
     FRIEND_INTERNAL
