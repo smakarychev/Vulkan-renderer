@@ -2755,7 +2755,7 @@ void Device::Destroy(DependencyInfo dependencyInfo)
     Resources().RemoveResource(dependencyInfo);
 }
 
-SplitBarrier Device::CreateSplitBarrier()
+SplitBarrier Device::CreateSplitBarrier(::DeletionQueue& deletionQueue)
 {
     VkEventCreateInfo eventCreateInfo = {};
     eventCreateInfo.sType = VK_STRUCTURE_TYPE_EVENT_CREATE_INFO;
@@ -2764,13 +2764,13 @@ SplitBarrier Device::CreateSplitBarrier()
     DeviceCheck(vkCreateEvent(s_State.Device, &eventCreateInfo, nullptr, &splitBarrierResource.Event),
         "Failed to create split barrier");
 
-    SplitBarrier splitBarrier = {};
-    splitBarrier.m_ResourceHandle = Resources().AddResource(splitBarrierResource);
+    SplitBarrier splitBarrier = Resources().AddResource(splitBarrierResource);
+    deletionQueue.Enqueue(splitBarrier);
     
     return splitBarrier;
 }
 
-void Device::Destroy(ResourceHandleType<SplitBarrier> splitBarrier)
+void Device::Destroy(SplitBarrier splitBarrier)
 {
     vkDestroyEvent(s_State.Device, Resources().m_SplitBarriers[splitBarrier.m_Id].Event, nullptr);
     Resources().RemoveResource(splitBarrier);

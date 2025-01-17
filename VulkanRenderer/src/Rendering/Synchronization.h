@@ -70,17 +70,5 @@ struct DependencyInfoCreateInfo
 struct DependencyInfoTag{};
 using DependencyInfo = ResourceHandleType<DependencyInfoTag>;
 
-class SplitBarrier
-{
-    FRIEND_INTERNAL
-public:
-    static void Destroy(const SplitBarrier& splitBarrier);
-
-    void Signal(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const;
-    void Wait(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const;
-    void Reset(const CommandBuffer& cmd, const DependencyInfo& dependencyInfo) const;
-private:
-    ResourceHandleType<SplitBarrier> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<SplitBarrier> m_ResourceHandle{};
-};
+struct SplitBarrierTag{};
+using SplitBarrier = ResourceHandleType<SplitBarrierTag>;

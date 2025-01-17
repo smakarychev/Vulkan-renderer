@@ -253,7 +253,7 @@ private:
     };
     struct SplitBarrierResource
     {
-        using ObjectType = SplitBarrier;
+        using ObjectType = SplitBarrierTag;
         VkEvent Event{VK_NULL_HANDLE};
     };
     
@@ -389,7 +389,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_TimelineSemaphores.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DependencyInfoTag>)
         m_DependencyInfos.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
+    else if constexpr(std::is_same_v<Decayed, SplitBarrierTag>)
         m_SplitBarriers.Remove(handle);
     else 
         static_assert(!sizeof(Type), "No match for type");
@@ -445,7 +445,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         return m_DependencyInfos[type];
     else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
-        return m_SplitBarriers[type.Handle()];
+        return m_SplitBarriers[type];
     else 
         static_assert(!sizeof(Type), "No match for type");
     std::unreachable();
@@ -480,7 +480,7 @@ private:
     std::vector<Semaphore> m_Semaphores;
     std::vector<TimelineSemaphore> m_TimelineSemaphore;
     std::vector<DependencyInfo> m_DependencyInfos;
-    std::vector<ResourceHandleType<SplitBarrier>> m_SplitBarriers;
+    std::vector<SplitBarrier> m_SplitBarriers;
 };
 
 
@@ -529,7 +529,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
         m_DependencyInfos.push_back(type);
     else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
-        m_SplitBarriers.push_back(type.Handle());
+        m_SplitBarriers.push_back(type);
     else 
         static_assert(!sizeof(Type), "No match for type");
 }
@@ -645,8 +645,8 @@ public:
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(DependencyInfo dependencyInfo);
 
-    static SplitBarrier CreateSplitBarrier();
-    static void Destroy(ResourceHandleType<SplitBarrier> splitBarrier);
+    static SplitBarrier CreateSplitBarrier(DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(SplitBarrier splitBarrier);
     
     template <typename Fn>
     static void ImmediateSubmit(Fn&& uploadFunction);

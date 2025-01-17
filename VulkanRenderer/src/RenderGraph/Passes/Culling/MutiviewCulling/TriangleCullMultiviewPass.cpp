@@ -123,10 +123,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             {
                 Barriers barriers = {};
                 for (auto& splitBarrier : barriers.SplitBarriers)
-                {
                     splitBarrier = Device::CreateSplitBarrier();
-                    Device::DeletionQueue().Enqueue(splitBarrier);
-                }
                 barriers.SplitBarrierDependency = Device::CreateDependencyInfo({
                     .MemoryDependencyInfo = MemoryDependencyInfo{
                         .SourceStage = PipelineStage::ComputeShader,
@@ -231,12 +228,15 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                 if (index < TriangleCullMultiviewTraits::MAX_BATCHES)
                     return;
 
-                barriers.SplitBarriers[batchIndex].Wait(frameContext.Cmd, barriers.SplitBarrierDependency);
-                barriers.SplitBarriers[batchIndex].Reset(frameContext.Cmd, barriers.SplitBarrierDependency);
+                RenderCommand::WaitOnSplitBarrier(frameContext.Cmd,
+                    barriers.SplitBarriers[batchIndex], barriers.SplitBarrierDependency);
+                RenderCommand::ResetSplitBarrier(frameContext.Cmd,
+                    barriers.SplitBarriers[batchIndex], barriers.SplitBarrierDependency);
             };
             auto signalBarrier = [&](u32 batchIndex)
             {
-                barriers.SplitBarriers[batchIndex].Signal(frameContext.Cmd, barriers.SplitBarrierDependency);
+                RenderCommand::SignalSplitBarrier(frameContext.Cmd,
+                    barriers.SplitBarriers[batchIndex], barriers.SplitBarrierDependency);
             };
 
             /* update all bindings */
