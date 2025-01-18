@@ -121,8 +121,8 @@ private:
     void MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool);
     void DestroyCmdsOfPool(ResourceHandleType<CommandPool> pool);
 
-    void MapDescriptorSetToAllocator(const DescriptorSet& set, const DescriptorAllocator& allocator);
-    void DestroyDescriptorSetsOfAllocator(ResourceHandleType<DescriptorAllocator> allocator);
+    void MapDescriptorSetToAllocator(DescriptorSet set, DescriptorAllocator allocator);
+    void DestroyDescriptorSetsOfAllocator(DescriptorAllocator allocator);
     
 private:
     struct SwapchainResource
@@ -185,21 +185,41 @@ private:
     };
     struct DescriptorSetResource
     {
-        using ObjectType = DescriptorSet;
+        using ObjectType = DescriptorSetTag;
         VkDescriptorSet DescriptorSet{VK_NULL_HANDLE};
         VkDescriptorPool Pool{VK_NULL_HANDLE};
+        DescriptorAllocator Allocator{};
+        DescriptorsLayout Layout{};
     };
     struct DescriptorAllocatorResource
     {
-        using ObjectType = DescriptorAllocator;
+        using ObjectType = DescriptorAllocatorTag;
         struct PoolInfo
         {
             VkDescriptorPool Pool;
             DescriptorPoolFlags Flags;
             u32 AllocationCount{0};
         };
+        struct PoolSize
+        {
+            DescriptorType DescriptorType;
+            f32 SetSizeMultiplier;
+        };
         std::vector<PoolInfo> FreePools;
         std::vector<PoolInfo> UsedPools;
+        std::vector<PoolSize> PoolSizes = {
+            {DescriptorType::Sampler, 0.5f},
+            {DescriptorType::Image, 4.0f},
+            {DescriptorType::ImageStorage, 1.0f},
+            {DescriptorType::TexelUniform, 1.0f},
+            {DescriptorType::TexelStorage, 1.0f},
+            {DescriptorType::UniformBuffer, 2.0f},
+            {DescriptorType::StorageBuffer, 2.0f},
+            {DescriptorType::UniformBufferDynamic, 1.0f},
+            {DescriptorType::StorageBufferDynamic, 1.0f},
+            {DescriptorType::Input, 0.5f}
+        };
+        u32 MaxSetsPerPool{};
     };
     struct PipelineLayoutResource
     {
@@ -369,9 +389,9 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Queues.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayoutTag>)
         m_DescriptorLayouts.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, DescriptorSet>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorSetTag>)
         m_DescriptorSets.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
+    else if constexpr(std::is_same_v<Decayed, DescriptorAllocatorTag>)
         m_DescriptorAllocators.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, PipelineLayoutTag>)
         m_PipelineLayouts.Remove(handle);
@@ -425,9 +445,9 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         return m_DescriptorLayouts[type];
     else if constexpr(std::is_same_v<Decayed, DescriptorSet>)
-        return m_DescriptorSets[type.Handle()];
+        return m_DescriptorSets[type];
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
-        return m_DescriptorAllocators[type.Handle()];
+        return m_DescriptorAllocators[type];
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         return m_PipelineLayouts[type];
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
@@ -472,7 +492,7 @@ private:
     std::vector<ResourceHandleType<CommandPool>> m_CommandPools;
     std::vector<ResourceHandleType<QueueInfo>> m_Queues;
     std::vector<DescriptorsLayout> m_DescriptorLayouts;
-    std::vector<ResourceHandleType<DescriptorAllocator>> m_DescriptorAllocators;
+    std::vector<DescriptorAllocator> m_DescriptorAllocators;
     std::vector<PipelineLayout> m_PipelineLayouts;
     std::vector<Pipeline> m_Pipelines;
     std::vector<ResourceHandleType<ShaderModule>> m_ShaderModules;
@@ -509,7 +529,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         m_DescriptorLayouts.push_back(type);
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
-        m_DescriptorAllocators.push_back(type.Handle());
+        m_DescriptorAllocators.push_back(type);
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         m_PipelineLayouts.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
@@ -605,16 +625,15 @@ public:
     static void Destroy(DescriptorsLayout layout);
     
     static DescriptorSet CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo);
-    static void AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet& set, DescriptorPoolFlags poolFlags,
-        const std::vector<u32>& variableBindingCounts);
-    static void DeallocateDescriptorSet(ResourceHandleType<DescriptorAllocator> allocator,
-        ResourceHandleType<DescriptorSet> set);
-    static void UpdateDescriptorSet(DescriptorSet& descriptorSet, u32 slot, const Texture& texture,
+    static DescriptorSet AllocateDescriptorSet(DescriptorAllocator allocator, DescriptorsLayout layout,
+        DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
+    static void DeallocateDescriptorSet(DescriptorAllocator allocator,  DescriptorSet set);
+    static void UpdateDescriptorSet(DescriptorSet descriptorSet, u32 slot, const Texture& texture,
         DescriptorType type, u32 arrayIndex);
 
     static DescriptorAllocator CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<DescriptorAllocator> allocator);
-    static void ResetAllocator(DescriptorAllocator& allocator);
+    static void Destroy(DescriptorAllocator allocator);
+    static void ResetAllocator(DescriptorAllocator allocator);
 
     static DescriptorArenaAllocator CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo);
     static std::optional<Descriptors> Allocate(DescriptorArenaAllocator& allocator,

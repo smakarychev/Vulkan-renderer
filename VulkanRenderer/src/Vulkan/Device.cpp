@@ -794,12 +794,12 @@ void DeviceResources::DestroyCmdsOfPool(ResourceHandleType<CommandPool> pool)
 }
 
 
-void DeviceResources::MapDescriptorSetToAllocator(const DescriptorSet& set, const DescriptorAllocator& allocator)
+void DeviceResources::MapDescriptorSetToAllocator(DescriptorSet set, DescriptorAllocator allocator)
 {
-    m_DescriptorAllocatorToSetsMap[allocator.Handle().m_Id].push_back(set.Handle().m_Id);
+    m_DescriptorAllocatorToSetsMap[allocator.m_Id].push_back(set.m_Id);
 }
 
-void DeviceResources::DestroyDescriptorSetsOfAllocator(ResourceHandleType<DescriptorAllocator> allocator)
+void DeviceResources::DestroyDescriptorSetsOfAllocator(DescriptorAllocator allocator)
 {
     for (auto index : m_DescriptorAllocatorToSetsMap[allocator.m_Id])
         m_DescriptorSets.Remove(index);
@@ -2186,12 +2186,9 @@ DescriptorSet Device::CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo)
         variableBindingCounts[i] = variableBindingInfos[i].Count;
     
     // create empty descriptor set
-    DescriptorSet descriptorSet = {};
-    descriptorSet.m_Allocator = createInfo.Allocator;
-    descriptorSet.m_Layout = createInfo.Layout;
-    
-    createInfo.Allocator->Allocate(descriptorSet, createInfo.PoolFlags, variableBindingCounts);
-    Resources().MapDescriptorSetToAllocator(descriptorSet, *createInfo.Allocator);
+    DescriptorSet descriptorSet = AllocateDescriptorSet(
+        createInfo.Allocator, createInfo.Layout, createInfo.PoolFlags, variableBindingCounts);
+    Resources().MapDescriptorSetToAllocator(descriptorSet, createInfo.Allocator);
     
     // convert bound resources
     std::vector<VkDescriptorBufferInfo> boundBuffers;
@@ -2246,8 +2243,8 @@ DescriptorSet Device::CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo)
     return descriptorSet;
 }
 
-void Device::AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet& set, DescriptorPoolFlags poolFlags,
-        const std::vector<u32>& variableBindingCounts)
+DescriptorSet Device::AllocateDescriptorSet(DescriptorAllocator allocator, DescriptorsLayout layout,
+    DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts)
 {
     DeviceResources::DescriptorAllocatorResource& allocatorResource = Resources()[allocator];
     u32 poolIndex = GetFreePoolIndexFromAllocator(allocator, poolFlags);
@@ -2262,7 +2259,7 @@ void Device::AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet
     allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocateInfo.descriptorPool = pool;
     allocateInfo.descriptorSetCount = 1;
-    allocateInfo.pSetLayouts = &Resources()[set.m_Layout].Layout;
+    allocateInfo.pSetLayouts = &Resources()[layout].Layout;
     allocateInfo.pNext = &vulkanVariableBindingCounts;
 
     DeviceResources::DescriptorSetResource descriptorSetResource = {};
@@ -2277,20 +2274,19 @@ void Device::AllocateDescriptorSet(DescriptorAllocator& allocator, DescriptorSet
         poolIndex = GetFreePoolIndexFromAllocator(allocator, poolFlags);
         pool = allocatorResource.FreePools[poolIndex].Pool;
         allocateInfo.descriptorPool = pool;
-        allocateInfo.pSetLayouts = &Resources()[set.m_Layout].Layout;
+        allocateInfo.pSetLayouts = &Resources()[descriptorSetResource.Layout].Layout;
         DeviceCheck(vkAllocateDescriptorSets(s_State.Device, &allocateInfo, &descriptorSetResource.DescriptorSet),
             "Failed to allocate descriptor set");
         descriptorSetResource.Pool = pool;
     }
     allocatorResource.FreePools[poolIndex].AllocationCount++;
 
-    set.m_ResourceHandle = Resources().AddResource(descriptorSetResource);
+    return Resources().AddResource(descriptorSetResource);
 }
 
-void Device::DeallocateDescriptorSet(ResourceHandleType<DescriptorAllocator> allocator, ResourceHandleType<DescriptorSet> set)
+void Device::DeallocateDescriptorSet(DescriptorAllocator allocator, DescriptorSet set)
 {
-    DeviceResources::DescriptorAllocatorResource& allocatorResource =
-        Resources().m_DescriptorAllocators[allocator.m_Id];
+    DeviceResources::DescriptorAllocatorResource& allocatorResource = Resources()[allocator];
     VkDescriptorPool pool = Resources().m_DescriptorSets[set.m_Id].Pool;
 
     auto it = std::ranges::find(allocatorResource.FreePools, pool,
@@ -2315,7 +2311,7 @@ void Device::DeallocateDescriptorSet(ResourceHandleType<DescriptorAllocator> all
     Resources().RemoveResource(set);
 }
 
-void Device::UpdateDescriptorSet(DescriptorSet& descriptorSet,
+void Device::UpdateDescriptorSet(DescriptorSet descriptorSet,
     u32 slot, const Texture& texture, DescriptorType type, u32 arrayIndex)
 {
     ImageBindingInfo bindingInfo = texture.BindingInfo({}, ImageLayout::Readonly);
@@ -2339,17 +2335,16 @@ void Device::UpdateDescriptorSet(DescriptorSet& descriptorSet,
 DescriptorAllocator Device::CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo)
 {
     DeviceResources::DescriptorAllocatorResource descriptorAllocatorResource = {};
+    descriptorAllocatorResource.MaxSetsPerPool = createInfo.MaxSets;
     
-    DescriptorAllocator allocator = {};
-    allocator.m_MaxSetsPerPool = createInfo.MaxSets;
-    allocator.m_ResourceHandle = Resources().AddResource(descriptorAllocatorResource);
-    if (allocator.Handle().m_Id >= Resources().m_DescriptorAllocatorToSetsMap.size())
-        Resources().m_DescriptorAllocatorToSetsMap.resize(allocator.Handle().m_Id + 1);
+    DescriptorAllocator allocator = Resources().AddResource(descriptorAllocatorResource);
+    if (allocator.m_Id >= Resources().m_DescriptorAllocatorToSetsMap.size())
+        Resources().m_DescriptorAllocatorToSetsMap.resize(allocator.m_Id + 1);
 
     return allocator;
 }
 
-void Device::Destroy(ResourceHandleType<DescriptorAllocator> allocator)
+void Device::Destroy(DescriptorAllocator allocator)
 {
     DeviceResources::DescriptorAllocatorResource& allocatorResource =
         Resources().m_DescriptorAllocators[allocator.m_Id];
@@ -2362,7 +2357,7 @@ void Device::Destroy(ResourceHandleType<DescriptorAllocator> allocator)
     Resources().RemoveResource(allocator);
 }
 
-void Device::ResetAllocator(DescriptorAllocator& allocator)
+void Device::ResetAllocator(DescriptorAllocator allocator)
 {
     DeviceResources::DescriptorAllocatorResource& allocatorResource = Resources()[allocator];
     for (auto& pool : allocatorResource.FreePools)
@@ -2373,7 +2368,7 @@ void Device::ResetAllocator(DescriptorAllocator& allocator)
         allocatorResource.FreePools.push_back(pool);
     }
     allocatorResource.UsedPools.clear();
-    Resources().DestroyDescriptorSetsOfAllocator(allocator.Handle());
+    Resources().DestroyDescriptorSetsOfAllocator(allocator);
 }
 
 DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo)
@@ -2811,17 +2806,18 @@ u32 Device::GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, Descri
 
     // the pool does not exist yet
     u32 index = (u32)allocatorResource.FreePools.size();
-    std::vector<VkDescriptorPoolSize> sizes(allocator.m_PoolSizes.size());
+    std::vector<VkDescriptorPoolSize> sizes(allocatorResource.PoolSizes.size());
     for (u32 i = 0; i < sizes.size(); i++)
         sizes[i] = {
-            .type = vulkanDescriptorTypeFromDescriptorType(allocator.m_PoolSizes[i].DescriptorType),
-            .descriptorCount = (u32)(allocator.m_PoolSizes[i].SetSizeMultiplier * (f32)allocator.m_MaxSetsPerPool)};
+            .type = vulkanDescriptorTypeFromDescriptorType(allocatorResource.PoolSizes[i].DescriptorType),
+            .descriptorCount =
+                (u32)(allocatorResource.PoolSizes[i].SetSizeMultiplier * (f32)allocatorResource.MaxSetsPerPool)};
 
     VkDescriptorPool pool = {};
     
     VkDescriptorPoolCreateInfo poolCreateInfo = {};
     poolCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    poolCreateInfo.maxSets = allocator.m_MaxSetsPerPool;
+    poolCreateInfo.maxSets = allocatorResource.MaxSetsPerPool;
     poolCreateInfo.poolSizeCount = (u32)sizes.size();
     poolCreateInfo.pPoolSizes = sizes.data();
     poolCreateInfo.flags = vulkanDescriptorPoolFlagsFromDescriptorPoolFlags(poolFlags);

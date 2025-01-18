@@ -1,30 +1,9 @@
 ﻿#include "Descriptors.h"
 
-#include <algorithm>
-
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-void DescriptorSet::SetTexture(u32 slot, const Texture& texture, DescriptorType descriptor, u32 arrayIndex)
-{
-    Device::UpdateDescriptorSet(*this, slot, texture, descriptor, arrayIndex);
-}
-
-void DescriptorAllocator::Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags,
-    const std::vector<u32>& variableBindingCounts)
-{
-    return Device::AllocateDescriptorSet(*this, set, poolFlags, variableBindingCounts);
-}
-
-void DescriptorAllocator::Deallocate(ResourceHandleType<DescriptorSet> set)
-{
-    Device::DeallocateDescriptorSet(Handle(), set);
-}
-
-void DescriptorAllocator::ResetPools()
-{
-    Device::ResetAllocator(*this);
-}
+#include <algorithm>
 
 void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {

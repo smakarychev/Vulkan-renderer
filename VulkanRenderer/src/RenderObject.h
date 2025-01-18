@@ -8,7 +8,6 @@
 #include "RenderHandle.h"
 #include "Common/Geometry.h"
 
-class DescriptorSet;
 class Mesh;
 class Image;
 

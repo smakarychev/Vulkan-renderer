@@ -271,11 +271,8 @@ void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& textu
     ASSERT(m_DescriptorSetsInfo.DescriptorSets[set].IsPresent,
         "Attempt to access non-existing desriptor set")
 
-    m_DescriptorSetsInfo.DescriptorSets[set].Set.SetTexture(
-        descriptorBinding.Binding,
-        texture,
-        descriptorBinding.Type,
-        arrayIndex);
+    Device::UpdateDescriptorSet(m_DescriptorSetsInfo.DescriptorSets[set].Set,
+        descriptorBinding.Binding, texture, descriptorBinding.Type, arrayIndex);
 }
 
 ShaderDescriptors::ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo)

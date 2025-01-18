@@ -189,7 +189,7 @@ void RenderCommand::BindCompute(const CommandBuffer& cmd, Pipeline pipeline)
         Device::Resources()[pipeline].Pipeline);
 }
 
-void RenderCommand::BindGraphics(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+void RenderCommand::BindGraphics(const CommandBuffer& cmd, DescriptorSet descriptorSet,
     PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets)
 {
     vkCmdBindDescriptorSets(Device::Resources()[cmd].CommandBuffer,
@@ -199,7 +199,7 @@ void RenderCommand::BindGraphics(const CommandBuffer& cmd, const DescriptorSet& 
         (u32)dynamicOffsets.size(), dynamicOffsets.data());
 }
 
-void RenderCommand::BindCompute(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+void RenderCommand::BindCompute(const CommandBuffer& cmd, DescriptorSet descriptorSet,
     PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets)
 {
     vkCmdBindDescriptorSets(Device::Resources()[cmd].CommandBuffer,

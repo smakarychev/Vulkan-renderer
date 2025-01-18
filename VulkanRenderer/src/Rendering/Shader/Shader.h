@@ -8,10 +8,8 @@
 #include "Rendering/Pipeline.h"
 #include "types.h"
 
-class DescriptorSet;
 struct PushConstantDescription;
 class DescriptorLayoutCache;
-class DescriptorAllocator;
 class Image;
 
 enum class DescriptorKind : u32
@@ -123,7 +121,7 @@ public:
     void SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex);
     
     const DescriptorSetsInfo& GetDescriptorSetsInfo() const { return m_DescriptorSetsInfo; }
-    const DescriptorSet& GetDescriptorSet(DescriptorKind kind) const
+    DescriptorSet GetDescriptorSet(DescriptorKind kind) const
     {
         return m_DescriptorSetsInfo.DescriptorSets[(u32)kind].Set;
     }

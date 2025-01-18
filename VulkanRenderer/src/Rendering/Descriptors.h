@@ -10,8 +10,6 @@
 #include <vector>
 #include <unordered_map>
 
-class DescriptorAllocator;
-
 namespace assetLib
 {
     struct ShaderStageInfo;
@@ -45,6 +43,14 @@ struct DescriptorsLayoutCreateInfo
     DescriptorLayoutFlags Flags{DescriptorLayoutFlags::None};
 };
 
+struct DescriptorAllocatorCreateInfo
+{
+    u32 MaxSets{0};
+};
+
+struct DescriptorAllocatorTag{};
+using DescriptorAllocator = ResourceHandleType<DescriptorAllocatorTag>;
+
 struct DescriptorsLayoutTag {};
 using DescriptorsLayout = ResourceHandleType<DescriptorsLayoutTag>;
 
@@ -68,66 +74,13 @@ struct DescriptorSetCreateInfo
     DescriptorPoolFlags PoolFlags{0};
     std::span<const BoundBuffer> Buffers;
     std::span<const BoundTexture> Textures;
-    // todo: change to handles once ready
-    DescriptorAllocator* Allocator;
-    DescriptorsLayout Layout;
+    DescriptorAllocator Allocator{};
+    DescriptorsLayout Layout{};
     std::span<const VariableBindingInfo> VariableBindings;
 };
 
-class DescriptorSet
-{
-    using Texture = Image;
-    FRIEND_INTERNAL
-    friend class DescriptorAllocator;
-public:
-    void SetTexture(u32 slot, const Texture& texture, DescriptorType descriptor, u32 arrayIndex);
-    
-    DescriptorsLayout GetLayout() const { return m_Layout; }
-private:
-    ResourceHandleType<DescriptorSet> Handle() const { return m_ResourceHandle; }
-private:
-    DescriptorAllocator* m_Allocator{nullptr};
-    DescriptorsLayout m_Layout;
-    ResourceHandleType<DescriptorSet> m_ResourceHandle{};
-};
-
-struct DescriptorAllocatorCreateInfo
-{
-    u32 MaxSets{0};
-};
-
-class DescriptorAllocator
-{
-    FRIEND_INTERNAL
-public:
-    void Allocate(DescriptorSet& set, DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
-    void Deallocate(ResourceHandleType<DescriptorSet> set);
-
-    void ResetPools();
-private:
-    ResourceHandleType<DescriptorAllocator> Handle() const { return m_ResourceHandle; }
-private:
-    struct PoolSize
-    {
-        DescriptorType DescriptorType;
-        f32 SetSizeMultiplier;
-    };
-    std::vector<PoolSize> m_PoolSizes = {
-        { DescriptorType::Sampler, 0.5f },
-        { DescriptorType::Image, 4.f },
-        { DescriptorType::ImageStorage, 1.f },
-        { DescriptorType::TexelUniform, 1.f },
-        { DescriptorType::TexelStorage, 1.f },
-        { DescriptorType::UniformBuffer, 2.f },
-        { DescriptorType::StorageBuffer, 2.f },
-        { DescriptorType::UniformBufferDynamic, 1.f },
-        { DescriptorType::StorageBufferDynamic, 1.f },
-        { DescriptorType::Input, 0.5f }
-    };
-
-    u32 m_MaxSetsPerPool{};
-    ResourceHandleType<DescriptorAllocator> m_ResourceHandle{};
-};
+struct DescriptorSetTag {};
+using DescriptorSet = ResourceHandleType<DescriptorSetTag>;
 
 class Descriptors
 {

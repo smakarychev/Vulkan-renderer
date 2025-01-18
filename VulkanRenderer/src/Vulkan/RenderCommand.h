@@ -18,7 +18,6 @@ struct ImageBlitInfo;
 class Image;
 class CommandPool;
 struct SwapchainFrameSync;
-class DescriptorSet;
 struct PushConstantDescription;
 class Buffer;
 class CommandBuffer;
@@ -51,9 +50,9 @@ public:
     
     static void BindGraphics(const CommandBuffer& cmd, Pipeline pipeline);
     static void BindCompute(const CommandBuffer& cmd, Pipeline pipeline);
-    static void BindGraphics(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+    static void BindGraphics(const CommandBuffer& cmd, DescriptorSet descriptorSet,
         PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets);
-    static void BindCompute(const CommandBuffer& cmd, const DescriptorSet& descriptorSet,
+    static void BindCompute(const CommandBuffer& cmd, DescriptorSet descriptorSet,
         PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets);
     static void BindGraphicsImmutableSamplers(const CommandBuffer& cmd,
         PipelineLayout pipelineLayout, u32 setIndex);
