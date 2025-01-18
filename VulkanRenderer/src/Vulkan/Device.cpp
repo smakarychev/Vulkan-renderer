@@ -922,24 +922,34 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
     swapchainResource.ColorFormat = colorFormat.format;
     DeviceCheck(vkCreateSwapchainKHR(s_State.Device, &swapchainCreateInfo, nullptr, &swapchainResource.Swapchain),
         "Failed to create swapchain");
-    
-    Swapchain swapchain = {};
-    swapchain.m_ResourceHandle = Resources().AddResource(swapchainResource);
-    swapchain.m_SwapchainResolution = glm::uvec2{extent.width, extent.height};
-    swapchain.m_DrawResolution = createInfo.DrawResolution.x != 0 ?
-        createInfo.DrawResolution : swapchain.m_SwapchainResolution;
-    swapchain.m_DrawFormat = createInfo.DrawFormat;
-    swapchain.m_DepthFormat = createInfo.DepthStencilFormat;
-    swapchain.m_ColorImages = swapchain.CreateColorImages();
-    swapchain.m_DrawImage = swapchain.CreateDrawImage();
-    swapchain.m_DepthImage = swapchain.CreateDepthImage();
-    swapchain.m_ColorImageCount = imageCount;
-    swapchain.m_SwapchainFrameSync.assign_range(createInfo.FrameSyncs);
-    swapchain.m_Window = s_State.Window;
 
-    if (swapchain.m_SwapchainFrameSync.empty())
+    const glm::uvec2 swapchainResolution = glm::uvec2{extent.width, extent.height};
+    const glm::uvec2 drawResolution = createInfo.DrawResolution.x != 0 ?
+            createInfo.DrawResolution : swapchainResolution;
+    
+    swapchainResource.Description = {
+        .SwapchainResolution = swapchainResolution,
+        .DrawResolution = drawResolution,
+        .DrawFormat = createInfo.DrawFormat,
+        .DepthFormat = createInfo.DepthStencilFormat,
+        .DrawImage =CreateImage({
+            .Description = ImageDescription{
+                .Width = drawResolution.x,
+                .Height = drawResolution.y,
+                .Format = createInfo.DrawFormat,
+                .Usage = ImageUsage::Source | ImageUsage::Destination | ImageUsage::Storage | ImageUsage::Color}},
+            DummyDeletionQueue()),
+        .DepthImage = CreateImage({
+            .Description = ImageDescription{
+                .Width = drawResolution.x,
+                .Height = drawResolution.y,
+                .Format = createInfo.DepthStencilFormat,
+                .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled}},
+            DummyDeletionQueue())};
+    swapchainResource.Description.Sync.assign_range(createInfo.FrameSyncs);
+    if (swapchainResource.Description.Sync.empty())
     {
-        swapchain.m_SwapchainFrameSync.reserve(BUFFERED_FRAMES);
+        swapchainResource.Description.Sync.reserve(BUFFERED_FRAMES);
         for (u32 i = 0; i < BUFFERED_FRAMES; i++)
         {
             Fence renderFence = CreateFence({
@@ -947,35 +957,40 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
             Semaphore renderSemaphore = CreateSemaphore();
             Semaphore presentSemaphore = CreateSemaphore();
 
-            swapchain.m_SwapchainFrameSync.push_back({
+            swapchainResource.Description.Sync.push_back({
                 .RenderFence = renderFence,
                 .RenderSemaphore = renderSemaphore,
                 .PresentSemaphore = presentSemaphore});
         }
     }
-    ASSERT(swapchain.m_SwapchainFrameSync.size() == BUFFERED_FRAMES,
+    ASSERT(swapchainResource.Description.Sync.size() == BUFFERED_FRAMES,
         "Frame synchronization structures for swapchain have to be provided for every frame-in-flight ({})",
         BUFFERED_FRAMES)
+
+    Swapchain swapchain = Resources().AddResource(swapchainResource);
+    CreateSwapchainImages(swapchain);
 
     return swapchain;
 }
 
-void Device::Destroy(ResourceHandleType<Swapchain> swapchain)
+void Device::Destroy(Swapchain swapchain)
 {
+    DestroySwapchainImages(swapchain);
     vkDestroySwapchainKHR(s_State.Device, Resources().m_Swapchains[swapchain.m_Id].Swapchain, nullptr);
     Resources().RemoveResource(swapchain);
 }
 
-std::vector<Image> Device::CreateSwapchainImages(const Swapchain& swapchain)
+void Device::CreateSwapchainImages(Swapchain swapchain)
 {
+    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
     u32 imageCount = 0;
-    vkGetSwapchainImagesKHR(s_State.Device, Resources()[swapchain].Swapchain, &imageCount, nullptr);
+    vkGetSwapchainImagesKHR(s_State.Device, swapchainResource.Swapchain, &imageCount, nullptr);
     std::vector<VkImage> images(imageCount);
-    vkGetSwapchainImagesKHR(s_State.Device, Resources()[swapchain].Swapchain, &imageCount, images.data());
+    vkGetSwapchainImagesKHR(s_State.Device, swapchainResource.Swapchain, &imageCount, images.data());
 
     ImageDescription description = {
-        .Width = swapchain.m_SwapchainResolution.x,
-        .Height = swapchain.m_SwapchainResolution.y,
+        .Width = swapchainResource.Description.SwapchainResolution.x,
+        .Height = swapchainResource.Description.SwapchainResolution.y,
         .LayersDepth = 1,
         .Mipmaps = 1,
         .Kind = ImageKind::Image2d,
@@ -991,52 +1006,58 @@ std::vector<Image> Device::CreateSwapchainImages(const Swapchain& swapchain)
         colorImages[i].m_ResourceHandle = Resources().AddResource(imageResource);
         Resources()[colorImages[i]].Views.ViewType.View = CreateVulkanImageView(
             ImageSubresource{.Image = &colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
-            Resources()[swapchain].ColorFormat);
+            swapchainResource.ColorFormat);
         Resources()[colorImages[i]].Views.ViewList = &Resources()[colorImages[i]].Views.ViewType.View;
     }
 
-    return colorImages;
+    swapchainResource.Description.ColorImages = colorImages;
 }
 
-void Device::DestroySwapchainImages(const Swapchain& swapchain)
+void Device::DestroySwapchainImages(Swapchain swapchain)
 {
-    for (const auto& colorImage : swapchain.m_ColorImages)
+    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
+    for (const auto& colorImage : swapchainResource.Description.ColorImages)
     {
         vkDestroyImageView(s_State.Device, *Resources()[colorImage].Views.ViewList, nullptr);
         Resources().RemoveResource(colorImage.Handle());
     }
-    Image::Destroy(swapchain.m_DrawImage);
-    Image::Destroy(swapchain.m_DepthImage);
+    Image::Destroy(swapchainResource.Description.DrawImage);
+    Image::Destroy(swapchainResource.Description.DepthImage);
 }
 
-u32 Device::AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync)
+u32 Device::AcquireNextImage(Swapchain swapchain, u32 frameNumber)
 {
-    WaitForFence(swapchainFrameSync.RenderFence);
+    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
+    const SwapchainFrameSync& frameSync = swapchainResource.Description.Sync[frameNumber];
+    
+    WaitForFence(frameSync.RenderFence);
 
     u32 imageIndex;
     VkResult res = vkAcquireNextImageKHR(s_State.Device, Resources()[swapchain].Swapchain,
-        10'000'000'000, Resources()[swapchainFrameSync.PresentSemaphore].Semaphore, VK_NULL_HANDLE,
+        10'000'000'000, Resources()[frameSync.PresentSemaphore].Semaphore, VK_NULL_HANDLE,
         &imageIndex);
     if (res == VK_ERROR_OUT_OF_DATE_KHR)
         return INVALID_SWAPCHAIN_IMAGE;
     
     ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
 
-    ResetFence(swapchainFrameSync.RenderFence);
+    ResetFence(frameSync.RenderFence);
     
     return imageIndex;
 }
 
-bool Device::Present(const Swapchain& swapchain, QueueKind queueKind, const SwapchainFrameSync& swapchainFrameSync,
-    u32 imageIndex)
+bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, u32 imageIndex)
 {
+    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
+    const SwapchainFrameSync& frameSync = swapchainResource.Description.Sync[frameNumber];
+    
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = &Resources()[swapchain].Swapchain;
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &Resources()[swapchainFrameSync.RenderSemaphore].Semaphore;
+    presentInfo.pWaitSemaphores = &Resources()[frameSync.RenderSemaphore].Semaphore;
 
     VkResult result = vkQueuePresentKHR(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, &presentInfo);
     
@@ -1044,6 +1065,11 @@ bool Device::Present(const Swapchain& swapchain, QueueKind queueKind, const Swap
         "Failed to present image")
 
     return result == VK_SUCCESS;
+}
+
+SwapchainDescription& Device::GetSwapchainDescription(Swapchain swapchain)
+{
+    return Resources()[swapchain].Description;
 }
 
 CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)

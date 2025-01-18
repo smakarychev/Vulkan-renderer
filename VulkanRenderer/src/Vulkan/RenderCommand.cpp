@@ -33,6 +33,54 @@ void RenderCommand::EndRendering(const CommandBuffer& cmd)
     vkCmdEndRendering(Device::Resources()[cmd].CommandBuffer);
 }
 
+void RenderCommand::PrepareSwapchainPresent(const CommandBuffer& cmd, Swapchain swapchain, u32 imageIndex)
+{
+    DeviceResources::SwapchainResource& swapchainResource = Device::Resources()[swapchain];
+    
+    ImageSubresource drawSubresource = {
+        .Image = &swapchainResource.Description.DrawImage,
+        .Description = {.Mipmaps = 1, .Layers = 1}};
+    ImageSubresource presentSubresource = {
+        .Image = &swapchainResource.Description.ColorImages[imageIndex],
+        .Description = {.Mipmaps = 1, .Layers = 1}};
+    DeletionQueue deletionQueue = {};
+
+    LayoutTransitionInfo presentToDestinationTransitionInfo = {
+        .ImageSubresource = presentSubresource,
+        .SourceStage = PipelineStage::ColorOutput,
+        .DestinationStage = PipelineStage::Bottom,
+        .SourceAccess = PipelineAccess::ReadColorAttachment | PipelineAccess::WriteColorAttachment,
+        .DestinationAccess = PipelineAccess::None,
+        .OldLayout = ImageLayout::Undefined,
+        .NewLayout = ImageLayout::Destination 
+    }; 
+
+    LayoutTransitionInfo destinationToPresentTransitionInfo = presentToDestinationTransitionInfo;
+    destinationToPresentTransitionInfo.OldLayout = ImageLayout::Destination;
+    destinationToPresentTransitionInfo.NewLayout = ImageLayout::Present;
+
+    WaitOnBarrier(cmd, Device::CreateDependencyInfo({
+        .LayoutTransitionInfo = presentToDestinationTransitionInfo}, deletionQueue));
+
+    ImageBlitInfo source = {
+        .Image = &swapchainResource.Description.DrawImage,
+        .MipmapBase = (u32)drawSubresource.Description.MipmapBase,
+        .LayerBase = (u32)drawSubresource.Description.LayerBase,
+        .Layers = (u32)drawSubresource.Description.Layers,
+        .Top = swapchainResource.Description.DrawImage.Description().Dimensions()};
+    ImageBlitInfo destination = {
+        .Image = &swapchainResource.Description.ColorImages[imageIndex],
+        .MipmapBase = (u32)presentSubresource.Description.MipmapBase,
+        .LayerBase = (u32)presentSubresource.Description.LayerBase,
+        .Layers = (u32)presentSubresource.Description.Layers,
+        .Top = swapchainResource.Description.ColorImages[imageIndex].Description().Dimensions()};
+    
+    BlitImage(cmd, source, destination, ImageFilter::Linear);
+
+    WaitOnBarrier(cmd, Device::CreateDependencyInfo({
+        .LayoutTransitionInfo = destinationToPresentTransitionInfo}, deletionQueue));
+}
+
 void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary)
 {
     vkCmdExecuteCommands(Device::Resources()[cmd].CommandBuffer, 1, &Device::Resources()[secondary].CommandBuffer);

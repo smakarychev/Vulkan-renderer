@@ -30,42 +30,17 @@ struct SwapchainCreateInfo
     Span<const SwapchainFrameSync> FrameSyncs{};
 };
 
-class Swapchain
+struct SwapchainDescription
 {
-    FRIEND_INTERNAL
-public:
-    static void Destroy(const Swapchain& swapchain);
-    static void DestroyImages(const Swapchain& swapchain);
-    
-    u32 AcquireImage(u32 frameNumber);
-    bool PresentImage(QueueKind queueKind, u32 imageIndex, u32 frameNumber);
-
-    void PreparePresent(const CommandBuffer& cmd, u32 imageIndex);
-
-    const SwapchainFrameSync& GetFrameSync(u32 frameNumber) const;
-    const std::vector<SwapchainFrameSync>& GetFrameSync() const;
-
-    glm::uvec2 GetResolution() const { return m_SwapchainResolution; }
-    glm::uvec2 GetDrawResolution() const { return m_DrawResolution; }
-
-    const Image& GetDrawImage() const { return m_DrawImage; }
-    const Image& GetDepthImage() const { return m_DepthImage; }
-private:
-    std::vector<Image> CreateColorImages() const;
-    Image CreateDrawImage();
-    Image CreateDepthImage();
-    ResourceHandleType<Swapchain> Handle() const { return m_ResourceHandle; }
-private:
-    glm::uvec2 m_SwapchainResolution;
-    glm::uvec2 m_DrawResolution;
-    Format m_DrawFormat{};
-    Format m_DepthFormat{};
-    std::vector<Image> m_ColorImages;
-    Image m_DrawImage;
-    Image m_DepthImage;
-    u32 m_ColorImageCount{};
-    std::vector<SwapchainFrameSync> m_SwapchainFrameSync;
-    GLFWwindow* m_Window{nullptr};
-    
-    ResourceHandleType<Swapchain> m_ResourceHandle{};
+    glm::uvec2 SwapchainResolution{};
+    glm::uvec2 DrawResolution{};
+    Format DrawFormat{};
+    Format DepthFormat{};
+    std::vector<Image> ColorImages{};
+    Image DrawImage{};
+    Image DepthImage{};
+    std::vector<SwapchainFrameSync> Sync{};
 };
+
+struct SwapchainTag{};
+using Swapchain = ResourceHandleType<SwapchainTag>;

@@ -7,6 +7,7 @@
 #include "types.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/RenderingCommon.h"
+#include "Rendering/Swapchain.h"
 
 class DescriptorArenaAllocators;
 class Descriptors;
@@ -21,7 +22,6 @@ class DescriptorSet;
 struct PushConstantDescription;
 class Buffer;
 class CommandBuffer;
-class Swapchain;
 
 class RenderCommand
 {
@@ -29,7 +29,8 @@ public:
     static void BeginRendering(const CommandBuffer& cmd, const RenderingInfo& renderingInfo);
     static void EndRendering(const CommandBuffer& cmd);
 
-
+    static void PrepareSwapchainPresent(const CommandBuffer& cmd, Swapchain swapchain, u32 imageIndex);
+    
     static void ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary);
 
     using ImageCopyInfo = ImageBlitInfo;

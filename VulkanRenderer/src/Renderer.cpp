@@ -60,7 +60,7 @@ void Renderer::Init()
     
     InitRenderingStructures();
 
-    Input::s_MainViewportSize = m_Swapchain.GetResolution();
+    Input::s_MainViewportSize = Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution;
     m_Camera = std::make_shared<Camera>(CameraType::Perspective);
     m_CameraController = std::make_unique<CameraController>(m_Camera);
     for (auto& ctx : m_FrameContexts)
@@ -129,7 +129,7 @@ void Renderer::InitRenderGraph()
             return material.Type == assetLib::ModelInfo::MaterialType::Translucent;
         });
 
-    m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
+    m_Graph->SetBackbuffer(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
 
 
     m_BindlessTextureDescriptorsRingBuffer->GetDescriptors()
@@ -161,7 +161,8 @@ void Renderer::InitRenderGraph()
     // todo: separate geometry for shadow casters
 
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
-        SlimeMoldContext::RandomIn(m_Swapchain.GetResolution(), 1, 5000000, *GetFrameContext().ResourceUploader));
+        SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
+            1, 5000000, *GetFrameContext().ResourceUploader));
 
     /* initial submit */
     Device::ImmediateSubmit([&](const CommandBuffer& cmd)
@@ -236,8 +237,9 @@ void Renderer::SetupRenderGraph()
     auto& blackboard = m_Graph->GetBlackboard();
     Resource backbuffer = m_Graph->GetBackbuffer();
 
+    SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
     // update camera
-    CameraGPU cameraGPU = CameraGPU::FromCamera(*m_Camera, m_Swapchain.GetResolution());
+    CameraGPU cameraGPU = CameraGPU::FromCamera(*m_Camera, swapchain.SwapchainResolution);
     static ShadingSettingsGPU shadingSettingsGPU = {
         .EnvironmentPower = 1.0f,
         .SoftShadows = false};
@@ -266,7 +268,7 @@ void Renderer::SetupRenderGraph()
 
     auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
         .Geometry = &m_GraphOpaqueGeometry,
-        .Resolution = m_Swapchain.GetResolution(),
+        .Resolution = swapchain.SwapchainResolution,
         .Camera = GetFrameContext().PrimaryCamera});
     auto& visibilityOutput = blackboard.Get<Passes::Draw::Visibility::PassData>(visibility);
 
@@ -597,7 +599,7 @@ void Renderer::BeginFrame()
     CPU_PROFILE_FRAME("Begin frame")
 
     u32 frameNumber = GetFrameContext().FrameNumber;
-    m_SwapchainImageIndex = m_Swapchain.AcquireImage(frameNumber);
+    m_SwapchainImageIndex = Device::AcquireNextImage(m_Swapchain, frameNumber);
     if (m_SwapchainImageIndex == INVALID_SWAPCHAIN_IMAGE)
     {
         m_FrameEarlyExit = true;
@@ -626,17 +628,18 @@ void Renderer::BeginFrame()
 
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 {
+    const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
     // todo: embed into Device::CreateRenderingInfo once i have api to provide deletion queue in create method
     RenderingAttachment color = Device::CreateRenderingAttachment({
         .Description = ColorAttachmentDescription{
             .OnLoad = AttachmentLoad::Load,
             .OnStore = AttachmentStore::Store},
-        .Image = &m_Swapchain.GetDrawImage(),
+        .Image = &swapchain.DrawImage,
         .Layout = ImageLayout::General});
     GetFrameContext().DeletionQueue.Enqueue(color);
     
     RenderingInfo info = Device::CreateRenderingInfo({
-        .RenderArea = m_Swapchain.GetResolution(),
+        .RenderArea = swapchain.SwapchainResolution,
         .ColorAttachments = {color}});
     GetFrameContext().DeletionQueue.Enqueue(info);
 
@@ -648,7 +651,7 @@ void Renderer::EndFrame()
     ImGuiUI::EndFrame(GetFrameContext().Cmd, GetImGuiUIRenderingInfo());
 
     CommandBuffer& cmd = GetFrameContext().Cmd;
-    m_Swapchain.PreparePresent(cmd, m_SwapchainImageIndex);
+    RenderCommand::PrepareSwapchainPresent(cmd, m_Swapchain, m_SwapchainImageIndex);
     
     u32 frameNumber = GetFrameContext().FrameNumber;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
@@ -666,8 +669,8 @@ void Renderer::EndFrame()
             .SignalSemaphores = {sync.RenderSemaphore},
             .Fence = sync.RenderFence});
     
-    bool isFramePresentSuccessful = m_Swapchain.PresentImage(QueueKind::Presentation, m_SwapchainImageIndex,
-        frameNumber); 
+    bool isFramePresentSuccessful = Device::Present(m_Swapchain, QueueKind::Presentation,
+        frameNumber, m_SwapchainImageIndex); 
     bool shouldRecreateSwapchain = m_IsWindowResized || !isFramePresentSuccessful;
     if (shouldRecreateSwapchain)
         RecreateSwapchain();
@@ -699,6 +702,7 @@ void Renderer::InitRenderingStructures()
     m_ResourceUploader.Init();
     
     m_Swapchain = Device::CreateSwapchain({});
+    const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
 
     m_FrameContexts.resize(BUFFERED_FRAMES);
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
@@ -708,9 +712,9 @@ void Renderer::InitRenderingStructures()
             .PerBufferReset = true});
         Device::DeletionQueue().Enqueue(pool);
 
-        m_FrameContexts[i].FrameSync = m_Swapchain.GetFrameSync(i);
+        m_FrameContexts[i].FrameSync = swapchain.Sync[i];
         m_FrameContexts[i].FrameNumber = i;
-        m_FrameContexts[i].Resolution = m_Swapchain.GetResolution();
+        m_FrameContexts[i].Resolution = swapchain.SwapchainResolution;
 
         m_FrameContexts[i].Cmd = pool.AllocateBuffer(CommandBufferKind::Primary);
         m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
@@ -728,8 +732,7 @@ void Renderer::Shutdown()
 {
     Device::WaitIdle();
 
-    Swapchain::DestroyImages(m_Swapchain);
-    Swapchain::Destroy(m_Swapchain);
+    Device::Destroy(m_Swapchain);
 
     m_SceneLights.reset();
     m_Graph.reset();
@@ -764,21 +767,22 @@ void Renderer::RecreateSwapchain()
     Device::WaitIdle();
 
 
-    auto frameSync = m_Swapchain.GetFrameSync();
-    Swapchain::DestroyImages(m_Swapchain);
-    Swapchain::Destroy(m_Swapchain);
+    const SwapchainDescription& oldSwapchain = Device::GetSwapchainDescription(m_Swapchain);
+    auto frameSync = oldSwapchain.Sync;
+    Device::Destroy(m_Swapchain);
     
     m_Swapchain = Device::CreateSwapchain({
         .FrameSyncs = frameSync});
 
-    m_Graph->SetBackbuffer(m_Swapchain.GetDrawImage());
+    const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
+    m_Graph->SetBackbuffer(swapchain.DrawImage);
     // todo: to multicast delegate
     m_Graph->OnResolutionChange();
 
-    Input::s_MainViewportSize = m_Swapchain.GetResolution();
-    m_Camera->SetViewport(m_Swapchain.GetResolution().x, m_Swapchain.GetResolution().y);
+    Input::s_MainViewportSize = swapchain.SwapchainResolution;
+    m_Camera->SetViewport(swapchain.SwapchainResolution.x, swapchain.SwapchainResolution.y);
     for (auto& frameContext : m_FrameContexts)
-        frameContext.Resolution = m_Swapchain.GetResolution();
+        frameContext.Resolution = swapchain.SwapchainResolution;
 }
 
 const FrameContext& Renderer::GetFrameContext() const

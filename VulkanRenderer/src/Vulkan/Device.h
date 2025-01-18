@@ -127,9 +127,10 @@ private:
 private:
     struct SwapchainResource
     {
-        using ObjectType = Swapchain;
+        using ObjectType = SwapchainTag;
         VkSwapchainKHR Swapchain{VK_NULL_HANDLE};
         VkFormat ColorFormat{};
+        SwapchainDescription Description{};
     };
     struct BufferResource
     {
@@ -351,7 +352,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     using Decayed = std::decay_t<Type>;
 
-    if constexpr(std::is_same_v<Decayed, Swapchain>)
+    if constexpr(std::is_same_v<Decayed, SwapchainTag>)
         m_Swapchains.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, Buffer>)
         m_Buffers.Remove(handle);
@@ -407,7 +408,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     using Decayed = std::decay_t<Type>;
     
     if constexpr(std::is_same_v<Decayed, Swapchain>)
-        return m_Swapchains[type.Handle()];
+        return m_Swapchains[type];
     else if constexpr(std::is_same_v<Decayed, Buffer>)
         return m_Buffers[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, Image>)
@@ -463,7 +464,7 @@ public:
     void Flush();
 private:
     bool m_IsDummy{false};
-    std::vector<ResourceHandleType<Swapchain>> m_Swapchains;
+    std::vector<Swapchain> m_Swapchains;
     std::vector<ResourceHandleType<Buffer>> m_Buffers;
     std::vector<ResourceHandleType<Image>> m_Images;
     std::vector<ResourceHandleType<Sampler>> m_Samplers;
@@ -493,7 +494,7 @@ void DeletionQueue::Enqueue(Type& type)
         return;
     
     if constexpr(std::is_same_v<Decayed, Swapchain>)
-        m_Swapchains.push_back(type.Handle());
+        m_Swapchains.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Buffer>)
         m_Buffers.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, Image>)
@@ -541,12 +542,10 @@ public:
     static void Destroy(ResourceHandleType<QueueInfo> queue);
 
     static Swapchain CreateSwapchain(SwapchainCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<Swapchain> swapchain);
-    static std::vector<Image> CreateSwapchainImages(const Swapchain& swapchain);
-    static void DestroySwapchainImages(const Swapchain& swapchain);
-    static u32 AcquireNextImage(const Swapchain& swapchain, const SwapchainFrameSync& swapchainFrameSync);
-    static bool Present(const Swapchain& swapchain, QueueKind queueKind, const SwapchainFrameSync& swapchainFrameSync,
-        u32 imageIndex);
+    static void Destroy(Swapchain swapchain);
+    static u32 AcquireNextImage(Swapchain swapchain, u32 frameNumber);
+    static bool Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, u32 imageIndex);
+    static SwapchainDescription& GetSwapchainDescription(Swapchain swapchain);
     
     static CommandBuffer CreateCommandBuffer(CommandBufferCreateInfo&& createInfo);
     static CommandPool CreateCommandPool(CommandPoolCreateInfo&& createInfo);
@@ -711,6 +710,9 @@ private:
     static void RetrieveDeviceQueues();
     static void CreateDebugUtilsMessenger();
     static void DestroyDebugUtilsMessenger();
+
+    static void CreateSwapchainImages(Swapchain swapchain);
+    static void DestroySwapchainImages(Swapchain swapchain);
 
     static u32 GetDescriptorSizeBytes(DescriptorType type);
 
