@@ -193,12 +193,11 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         description.OnLoad = AttachmentLoad::Load;
 
                     const Texture& colorTexture = resources.GetTexture(colors[attachmentIndex].Resource);
-                    RenderingAttachment attachment = Device::CreateRenderingAttachment({
+                    colorAttachments.push_back(Device::CreateRenderingAttachment({
                         .Description = description,
                         .Image = &colorTexture,
-                        .Layout = ImageLayout::Attachment});
-                    colorAttachments.push_back(attachment);
-                    frameContext.DeletionQueue.Enqueue(attachment);
+                        .Layout = ImageLayout::Attachment},
+                        frameContext.DeletionQueue));
                 }
                 if (depth.has_value())
                 {
@@ -207,12 +206,11 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         description.OnLoad = AttachmentLoad::Load;
 
                     const Texture& depthTexture = resources.GetTexture(depth->Resource);
-                    RenderingAttachment attachment = Device::CreateRenderingAttachment({
+                    depthAttachment = Device::CreateRenderingAttachment({
                         .Description = description,
                         .Image = &depthTexture,
-                        .Layout = ImageLayout::DepthAttachment});
-                    depthAttachment = attachment;
-                    frameContext.DeletionQueue.Enqueue(attachment);
+                        .Layout = ImageLayout::DepthAttachment},
+                        frameContext.DeletionQueue);
                 }
                 
                 RenderingInfo renderingInfo = Device::CreateRenderingInfo({

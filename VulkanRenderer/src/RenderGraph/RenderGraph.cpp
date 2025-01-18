@@ -388,16 +388,15 @@ namespace RG
                 colorAttachments.reserve(pass->m_RenderTargetAttachmentAccess.size());
                 for (auto& target : pass->m_RenderTargetAttachmentAccess)
                 {
-                    RenderingAttachment attachment = Device::CreateRenderingAttachment({
+                    colorAttachments.push_back(Device::CreateRenderingAttachment({
                         .Description = ColorAttachmentDescription{
                             .Subresource = target.m_ViewSubresource,
                             .OnLoad = target.m_OnLoad,
                             .OnStore = target.m_OnStore,
                             .ClearColor = target.m_ClearColor},
                         .Image = m_Textures[target.m_Resource.Index()].m_Resource,
-                        .Layout = ImageLayout::ColorAttachment});
-                    colorAttachments.push_back(attachment);
-                    m_FrameDeletionQueue->Enqueue(attachment);
+                        .Layout = ImageLayout::ColorAttachment},
+                        *m_FrameDeletionQueue));
                 }
                 if (pass->m_DepthStencilAccess.has_value())
                 {
@@ -413,8 +412,8 @@ namespace RG
                             .OnStore = target.m_OnStore,
                             .ClearDepthStencil = {.Depth = target.m_ClearDepth, .Stencil = target.m_ClearStencil}},
                         .Image = m_Textures[target.m_Resource.Index()].m_Resource,
-                        .Layout = layout});
-                    m_FrameDeletionQueue->Enqueue(*depthAttachment);
+                        .Layout = layout},
+                        *m_FrameDeletionQueue);
 
                     /* add a depth bias, if depth target was created with it */
                     if (target.m_DepthBias.has_value())

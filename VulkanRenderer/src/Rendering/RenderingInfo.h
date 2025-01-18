@@ -85,16 +85,8 @@ struct RenderingAttachmentCreateInfo
     ImageLayout Layout{ImageLayout::Undefined};
 };
 
-class RenderingAttachment
-{
-    friend class RenderingInfo;
-    FRIEND_INTERNAL
-private:
-    ResourceHandleType<RenderingAttachment> Handle() const { return m_ResourceHandle; }
-private:
-    RenderingAttachmentType m_Type{};
-    ResourceHandleType<RenderingAttachment> m_ResourceHandle{};
-};
+struct RenderingAttachmentTag{};
+using RenderingAttachment = ResourceHandleType<RenderingAttachmentTag>;
 
 struct RenderingInfoCreateInfo
 {

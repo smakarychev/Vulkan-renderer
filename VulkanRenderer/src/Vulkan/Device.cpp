@@ -839,7 +839,7 @@ void Device::Destroy(ResourceHandleType<QueueInfo> queue)
     Resources().RemoveResource(queue);
 }
 
-Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
+Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
@@ -969,7 +969,8 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo)
 
     Swapchain swapchain = Resources().AddResource(swapchainResource);
     CreateSwapchainImages(swapchain);
-
+    deletionQueue.Enqueue(swapchain);
+    
     return swapchain;
 }
 
@@ -1728,7 +1729,8 @@ void Device::Destroy(ResourceHandleType<Sampler> sampler)
     Resources().RemoveResource(sampler);
 }
 
-RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo)
+RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
+    ::DeletionQueue& deletionQueue)
 {
     DeviceResources::RenderingAttachmentResource renderingAttachmentResource = {};
 
@@ -1750,14 +1752,14 @@ RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateI
         createInfo.Description.OnStore);
     renderingAttachmentResource.AttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 
-    RenderingAttachment renderingAttachment = {};
-    renderingAttachment.m_Type = createInfo.Description.Type;
-    renderingAttachment.m_ResourceHandle = Resources().AddResource(renderingAttachmentResource);
+    renderingAttachmentResource.Type = createInfo.Description.Type;
+    RenderingAttachment renderingAttachment = Resources().AddResource(renderingAttachmentResource);
+    deletionQueue.Enqueue(renderingAttachment);
     
     return renderingAttachment;
 }
 
-void Device::Destroy(ResourceHandleType<RenderingAttachment> renderingAttachment)
+void Device::Destroy(RenderingAttachment renderingAttachment)
 {
     Resources().RemoveResource(renderingAttachment);
 }

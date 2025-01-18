@@ -629,18 +629,15 @@ void Renderer::BeginFrame()
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 {
     const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
-    // todo: embed into Device::CreateRenderingInfo once i have api to provide deletion queue in create method
-    RenderingAttachment color = Device::CreateRenderingAttachment({
-        .Description = ColorAttachmentDescription{
-            .OnLoad = AttachmentLoad::Load,
-            .OnStore = AttachmentStore::Store},
-        .Image = &swapchain.DrawImage,
-        .Layout = ImageLayout::General});
-    GetFrameContext().DeletionQueue.Enqueue(color);
-    
     RenderingInfo info = Device::CreateRenderingInfo({
         .RenderArea = swapchain.SwapchainResolution,
-        .ColorAttachments = {color}});
+        .ColorAttachments = {Device::CreateRenderingAttachment({
+            .Description = ColorAttachmentDescription{
+                .OnLoad = AttachmentLoad::Load,
+                .OnStore = AttachmentStore::Store},
+            .Image = &swapchain.DrawImage,
+            .Layout = ImageLayout::General},
+            GetFrameContext().DeletionQueue)}});
     GetFrameContext().DeletionQueue.Enqueue(info);
 
     return info;
@@ -701,7 +698,7 @@ void Renderer::InitRenderingStructures()
 
     m_ResourceUploader.Init();
     
-    m_Swapchain = Device::CreateSwapchain({});
+    m_Swapchain = Device::CreateSwapchain({}, Device::DummyDeletionQueue());
     const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
 
     m_FrameContexts.resize(BUFFERED_FRAMES);
@@ -772,7 +769,8 @@ void Renderer::RecreateSwapchain()
     Device::Destroy(m_Swapchain);
     
     m_Swapchain = Device::CreateSwapchain({
-        .FrameSyncs = frameSync});
+        .FrameSyncs = frameSync},
+        Device::DummyDeletionQueue());
 
     const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
     m_Graph->SetBackbuffer(swapchain.DrawImage);

@@ -220,8 +220,9 @@ private:
     };
     struct RenderingAttachmentResource
     {
-        using ObjectType = RenderingAttachment;
+        using ObjectType = RenderingAttachmentTag;
         VkRenderingAttachmentInfo AttachmentInfo{};
+        RenderingAttachmentType Type{};
     };
     struct RenderingInfoResource
     {
@@ -378,7 +379,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Pipelines.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, ShaderModule>)
         m_ShaderModules.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
+    else if constexpr(std::is_same_v<Decayed, RenderingAttachmentTag>)
         m_RenderingAttachments.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         m_RenderingInfos.Remove(handle);
@@ -434,7 +435,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, ShaderModule>)
         return m_ShaderModules[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
-        return m_RenderingAttachments[type.Handle()];
+        return m_RenderingAttachments[type];
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         return m_RenderingInfos[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, Fence>)
@@ -475,7 +476,7 @@ private:
     std::vector<ResourceHandleType<PipelineLayout>> m_PipelineLayouts;
     std::vector<ResourceHandleType<Pipeline>> m_Pipelines;
     std::vector<ResourceHandleType<ShaderModule>> m_ShaderModules;
-    std::vector<ResourceHandleType<RenderingAttachment>> m_RenderingAttachments;
+    std::vector<RenderingAttachment> m_RenderingAttachments;
     std::vector<ResourceHandleType<RenderingInfo>> m_RenderingInfos;
     std::vector<Fence> m_Fences;
     std::vector<Semaphore> m_Semaphores;
@@ -518,7 +519,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, ShaderModule>)
         m_ShaderModules.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
-        m_RenderingAttachments.push_back(type.Handle());
+        m_RenderingAttachments.push_back(type);
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
         m_RenderingInfos.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, Fence>)
@@ -541,7 +542,7 @@ class Device
 public:
     static void Destroy(ResourceHandleType<QueueInfo> queue);
 
-    static Swapchain CreateSwapchain(SwapchainCreateInfo&& createInfo);
+    static Swapchain CreateSwapchain(SwapchainCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Swapchain swapchain);
     static u32 AcquireNextImage(Swapchain swapchain, u32 frameNumber);
     static bool Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, u32 imageIndex);
@@ -582,8 +583,9 @@ public:
     static Sampler CreateSampler(SamplerCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Sampler> sampler);
 
-    static RenderingAttachment CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<RenderingAttachment> renderingAttachment);
+    static RenderingAttachment CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(RenderingAttachment renderingAttachment);
 
     static RenderingInfo CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<RenderingInfo> renderingInfo);
