@@ -18,7 +18,7 @@ void ImGuiUI::BeginFrame(u32 frameNumber)
     ClearFrameResources(frameNumber);
 }
 
-void ImGuiUI::EndFrame(const CommandBuffer& cmd, const RenderingInfo& renderingInfo)
+void ImGuiUI::EndFrame(const CommandBuffer& cmd, RenderingInfo renderingInfo)
 {
     CPU_PROFILE_FRAME("ImGui end frame")
 

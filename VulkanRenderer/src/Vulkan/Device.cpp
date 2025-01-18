@@ -1752,7 +1752,6 @@ RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateI
         createInfo.Description.OnStore);
     renderingAttachmentResource.AttachmentInfo.resolveMode = VK_RESOLVE_MODE_NONE;
 
-    renderingAttachmentResource.Type = createInfo.Description.Type;
     RenderingAttachment renderingAttachment = Resources().AddResource(renderingAttachmentResource);
     deletionQueue.Enqueue(renderingAttachment);
     
@@ -1764,7 +1763,7 @@ void Device::Destroy(RenderingAttachment renderingAttachment)
     Resources().RemoveResource(renderingAttachment);
 }
 
-RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo)
+RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     DeviceResources::RenderingInfoResource renderingInfoResource = {};
     renderingInfoResource.ColorAttachments.reserve(createInfo.ColorAttachments.size());
@@ -1774,14 +1773,14 @@ RenderingInfo Device::CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo)
     if (createInfo.DepthAttachment.has_value())
         renderingInfoResource.DepthAttachment = Resources()[*createInfo.DepthAttachment].AttachmentInfo;
 
-    RenderingInfo renderingInfo = {};
-    renderingInfo.m_RenderArea = createInfo.RenderArea;
-    renderingInfo.m_ResourceHandle = Resources().AddResource(renderingInfoResource);
+    renderingInfoResource.RenderArea = createInfo.RenderArea;
+    RenderingInfo renderingInfo = Resources().AddResource(renderingInfoResource);
+    deletionQueue.Enqueue(renderingInfo);
     
     return renderingInfo;
 }
 
-void Device::Destroy(ResourceHandleType<RenderingInfo> renderingInfo)
+void Device::Destroy(RenderingInfo renderingInfo)
 {
     Resources().RemoveResource(renderingInfo);
 }

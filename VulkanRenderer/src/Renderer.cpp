@@ -629,7 +629,8 @@ void Renderer::BeginFrame()
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 {
     const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
-    RenderingInfo info = Device::CreateRenderingInfo({
+
+    return Device::CreateRenderingInfo({
         .RenderArea = swapchain.SwapchainResolution,
         .ColorAttachments = {Device::CreateRenderingAttachment({
             .Description = ColorAttachmentDescription{
@@ -637,10 +638,8 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
                 .OnStore = AttachmentStore::Store},
             .Image = &swapchain.DrawImage,
             .Layout = ImageLayout::General},
-            GetFrameContext().DeletionQueue)}});
-    GetFrameContext().DeletionQueue.Enqueue(info);
-
-    return info;
+            GetFrameContext().DeletionQueue)}},
+        GetFrameContext().DeletionQueue);
 }
 
 void Renderer::EndFrame()

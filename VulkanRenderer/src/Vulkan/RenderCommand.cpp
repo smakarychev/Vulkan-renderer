@@ -11,15 +11,17 @@
 #include "Rendering/Swapchain.h"
 #include "Rendering/Descriptors.h"
 
-void RenderCommand::BeginRendering(const CommandBuffer& cmd, const RenderingInfo& renderingInfo)
+void RenderCommand::BeginRendering(const CommandBuffer& cmd, RenderingInfo renderingInfo)
 {
+    const DeviceResources::RenderingInfoResource& renderingInfoResource = Device::Resources()[renderingInfo];
+    
     VkRenderingInfo renderingInfoVulkan = {};
     renderingInfoVulkan = {};
     renderingInfoVulkan.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderingInfoVulkan.layerCount = 1;
     renderingInfoVulkan.renderArea = VkRect2D{
         .offset = {},
-        .extent = {renderingInfo.m_RenderArea.x, renderingInfo.m_RenderArea.y}};
+        .extent = {renderingInfoResource.RenderArea.x, renderingInfoResource.RenderArea.y}};
     renderingInfoVulkan.colorAttachmentCount = (u32)Device::Resources()[renderingInfo].ColorAttachments.size();
     renderingInfoVulkan.pColorAttachments = Device::Resources()[renderingInfo].ColorAttachments.data();
     if (Device::Resources()[renderingInfo].DepthAttachment.has_value())
@@ -445,7 +447,7 @@ void RenderCommand::ImGuiBeginFrame()
     ImGui::NewFrame();
 }
 
-void RenderCommand::DrawImGui(const CommandBuffer& cmd, const RenderingInfo& renderingInfo)
+void RenderCommand::DrawImGui(const CommandBuffer& cmd, RenderingInfo renderingInfo)
 {
     ImGui::Render();
     BeginRendering(cmd, renderingInfo);

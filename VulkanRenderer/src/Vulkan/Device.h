@@ -222,13 +222,13 @@ private:
     {
         using ObjectType = RenderingAttachmentTag;
         VkRenderingAttachmentInfo AttachmentInfo{};
-        RenderingAttachmentType Type{};
     };
     struct RenderingInfoResource
     {
-        using ObjectType = RenderingInfo;
-        std::vector<VkRenderingAttachmentInfo> ColorAttachments;
-        std::optional<VkRenderingAttachmentInfo> DepthAttachment;
+        using ObjectType = RenderingInfoTag;
+        std::vector<VkRenderingAttachmentInfo> ColorAttachments{};
+        std::optional<VkRenderingAttachmentInfo> DepthAttachment{};
+        glm::uvec2 RenderArea{};
     };
     struct FenceResource
     {
@@ -381,7 +381,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_ShaderModules.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, RenderingAttachmentTag>)
         m_RenderingAttachments.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
+    else if constexpr(std::is_same_v<Decayed, RenderingInfoTag>)
         m_RenderingInfos.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, FenceTag>)
         m_Fences.Remove(handle);
@@ -437,7 +437,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         return m_RenderingAttachments[type];
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
-        return m_RenderingInfos[type.Handle()];
+        return m_RenderingInfos[type];
     else if constexpr(std::is_same_v<Decayed, Fence>)
         return m_Fences[type];
     else if constexpr(std::is_same_v<Decayed, Semaphore>)
@@ -477,7 +477,7 @@ private:
     std::vector<ResourceHandleType<Pipeline>> m_Pipelines;
     std::vector<ResourceHandleType<ShaderModule>> m_ShaderModules;
     std::vector<RenderingAttachment> m_RenderingAttachments;
-    std::vector<ResourceHandleType<RenderingInfo>> m_RenderingInfos;
+    std::vector<RenderingInfo> m_RenderingInfos;
     std::vector<Fence> m_Fences;
     std::vector<Semaphore> m_Semaphores;
     std::vector<TimelineSemaphore> m_TimelineSemaphore;
@@ -521,7 +521,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
         m_RenderingAttachments.push_back(type);
     else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
-        m_RenderingInfos.push_back(type.Handle());
+        m_RenderingInfos.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Fence>)
         m_Fences.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Semaphore>)
@@ -587,8 +587,9 @@ public:
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(RenderingAttachment renderingAttachment);
 
-    static RenderingInfo CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<RenderingInfo> renderingInfo);
+    static RenderingInfo CreateRenderingInfo(RenderingInfoCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(RenderingInfo renderingInfo);
 
     static PipelineLayout CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<PipelineLayout> pipelineLayout);

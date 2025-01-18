@@ -7,6 +7,7 @@
 #include "types.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/RenderingCommon.h"
+#include "Rendering/RenderingInfo.h"
 #include "Rendering/Swapchain.h"
 
 class DescriptorArenaAllocators;
@@ -14,7 +15,6 @@ class Descriptors;
 class DescriptorArenaAllocator;
 struct ImageSubresource;
 struct ImageBlitInfo;
-class RenderingInfo;
 class Image;
 class CommandPool;
 struct SwapchainFrameSync;
@@ -26,7 +26,7 @@ class CommandBuffer;
 class RenderCommand
 {
 public:
-    static void BeginRendering(const CommandBuffer& cmd, const RenderingInfo& renderingInfo);
+    static void BeginRendering(const CommandBuffer& cmd, RenderingInfo renderingInfo);
     static void EndRendering(const CommandBuffer& cmd);
 
     static void PrepareSwapchainPresent(const CommandBuffer& cmd, Swapchain swapchain, u32 imageIndex);
@@ -104,7 +104,7 @@ public:
     static void SetDepthBias(const CommandBuffer& cmd, const DepthBias& depthBias);
 
     static void ImGuiBeginFrame();
-    static void DrawImGui(const CommandBuffer& cmd, const RenderingInfo& renderingInfo);
+    static void DrawImGui(const CommandBuffer& cmd, const RenderingInfo renderingInfo);
 private:
     static void BindDescriptors(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);

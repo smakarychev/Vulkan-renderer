@@ -419,13 +419,12 @@ namespace RG
                     if (target.m_DepthBias.has_value())
                         depthBias = *target.m_DepthBias;
                 }
-                RenderingInfo renderingInfo = Device::CreateRenderingInfo({
+                
+                RenderCommand::BeginRendering(frameContext.Cmd, Device::CreateRenderingInfo({
                     .RenderArea = resolution,
                     .ColorAttachments = colorAttachments,
-                    .DepthAttachment = depthAttachment});
-                m_FrameDeletionQueue->Enqueue(renderingInfo);
-                
-                RenderCommand::BeginRendering(frameContext.Cmd, renderingInfo);
+                    .DepthAttachment = depthAttachment},
+                    *m_FrameDeletionQueue));
 
                 /* set dynamic states */
                 RenderCommand::SetViewport(frameContext.Cmd, resolution);

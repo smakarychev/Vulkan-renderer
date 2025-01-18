@@ -54,7 +54,6 @@ struct DepthStencilAttachmentDescription
 
 struct RenderingAttachmentDescription
 {
-    RenderingAttachmentType Type;
     ImageSubresourceDescription Subresource{};
     AttachmentLoad OnLoad{AttachmentLoad::Unspecified};
     AttachmentStore OnStore{AttachmentStore::Unspecified};
@@ -63,14 +62,12 @@ struct RenderingAttachmentDescription
     RenderingAttachmentDescription() = default;
     RenderingAttachmentDescription(const ColorAttachmentDescription& description)
         :
-        Type(RenderingAttachmentType::Color),
         Subresource(description.Subresource),
         OnLoad(description.OnLoad),
         OnStore(description.OnStore),
         Clear{.Color = description.ClearColor} {}
     RenderingAttachmentDescription(const DepthStencilAttachmentDescription& description)
         :
-        Type(RenderingAttachmentType::DepthStencil),
         Subresource(description.Subresource),
         OnLoad(description.OnLoad),
         OnStore(description.OnStore),
@@ -95,12 +92,5 @@ struct RenderingInfoCreateInfo
     std::optional<RenderingAttachment> DepthAttachment{};
 };
 
-class RenderingInfo
-{
-    FRIEND_INTERNAL
-private:
-    ResourceHandleType<RenderingInfo> Handle() const { return m_ResourceHandle; }
-private:
-    glm::uvec2 m_RenderArea;
-    ResourceHandleType<RenderingInfo> m_ResourceHandle{};
-};
+struct RenderingInfoTag{};
+using RenderingInfo = ResourceHandleType<RenderingInfoTag>;

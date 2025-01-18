@@ -213,13 +213,11 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         frameContext.DeletionQueue);
                 }
                 
-                RenderingInfo renderingInfo = Device::CreateRenderingInfo({
+                return Device::CreateRenderingInfo({
                     .RenderArea = dynamicV.Resolution,
                     .ColorAttachments = colorAttachments,
-                    .DepthAttachment = depthAttachment});
-                frameContext.DeletionQueue.Enqueue(renderingInfo);
-
-                return renderingInfo;
+                    .DepthAttachment = depthAttachment},
+                    frameContext.DeletionQueue);
             };
             auto waitOnBarrier = [&](u32 batchIndex, u32 index)
             {
