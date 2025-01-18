@@ -42,7 +42,7 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
             const Texture& diffuseIrradianceTexture = resources.GetTexture(passData.DiffuseIrradiance);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -61,7 +61,7 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
 
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 

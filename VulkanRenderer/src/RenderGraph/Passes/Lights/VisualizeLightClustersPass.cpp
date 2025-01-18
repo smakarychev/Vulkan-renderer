@@ -39,7 +39,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
             GPU_PROFILE_FRAME("Lights.Clusters.Visualize")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline();
+            auto pipeline = shader.Pipeline();
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -51,7 +51,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
 
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindGraphics(cmd);
+            RenderCommand::BindGraphics(cmd, pipeline);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 3);
         });

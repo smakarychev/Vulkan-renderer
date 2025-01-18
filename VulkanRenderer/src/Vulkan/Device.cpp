@@ -1827,7 +1827,7 @@ void Device::Destroy(PipelineLayout pipelineLayout)
     Resources().RemoveResource(pipelineLayout);
 }
 
-Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo)
+Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     VkPipelineLayout layout = Resources()[createInfo.PipelineLayout].Layout;
     std::vector<VkPipelineShaderStageCreateInfo> shaders;
@@ -1882,7 +1882,7 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo)
         DeviceResources::PipelineResource pipelineResource = {};
         DeviceCheck(vkCreateComputePipelines(s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
             &pipelineResource.Pipeline), "Failed to create compute pipeline");
-        pipeline.m_ResourceHandle = Resources().AddResource(pipelineResource);
+        pipeline = Resources().AddResource(pipelineResource);
     }
     else
     {
@@ -2019,13 +2019,14 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo)
         DeviceResources::PipelineResource pipelineResource = {};
         DeviceCheck(vkCreateGraphicsPipelines(s_State.Device, VK_NULL_HANDLE, 1, &pipelineCreateInfo, nullptr,
             &pipelineResource.Pipeline), "Failed to create graphics pipeline");
-        pipeline.m_ResourceHandle = Resources().AddResource(pipelineResource);
+        pipeline = Resources().AddResource(pipelineResource);
     }
-
+    deletionQueue.Enqueue(pipeline);
+    
     return pipeline;
 }
 
-void Device::Destroy(ResourceHandleType<Pipeline> pipeline)
+void Device::Destroy(Pipeline pipeline)
 {
     vkDestroyPipeline(s_State.Device, Resources().m_Pipelines[pipeline.m_Id].Pipeline, nullptr);
     Resources().RemoveResource(pipeline);

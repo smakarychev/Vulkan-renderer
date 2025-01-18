@@ -35,7 +35,7 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
             const Texture& depthTexture = resources.GetTexture(passData.DepthIn);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -57,7 +57,7 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindGraphics(cmd);
+            RenderCommand::BindGraphics(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             

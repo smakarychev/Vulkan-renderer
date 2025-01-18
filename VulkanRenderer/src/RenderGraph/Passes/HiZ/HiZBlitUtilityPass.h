@@ -76,7 +76,7 @@ namespace Passes::HiZBlit
                     ImageLayout::DepthReadonly, depthIn.GetViewHandle(subresource));
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto& pipeline = shader.Pipeline(); 
+                auto pipeline = shader.Pipeline(); 
                 auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
                 auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
                 
@@ -90,13 +90,14 @@ namespace Passes::HiZBlit
                         resources.GetBuffer(passData.MinMaxDepth).BindingInfo());
                 
                 glm::uvec2 levels = {width, height};
-                pipeline.BindCompute(frameContext.Cmd);
-                RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), levels);
-                samplerDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+                auto& cmd = frameContext.Cmd;
+                RenderCommand::BindCompute(cmd, pipeline);
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), levels);
+                samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                     shader.GetLayout());
-                resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                     shader.GetLayout());
-                RenderCommand::Dispatch(frameContext.Cmd, {(width + 32 - 1) / 32, (height + 32 - 1) / 32, 1});
+                RenderCommand::Dispatch(cmd, {(width + 32 - 1) / 32, (height + 32 - 1) / 32, 1});
             });
     }
 }

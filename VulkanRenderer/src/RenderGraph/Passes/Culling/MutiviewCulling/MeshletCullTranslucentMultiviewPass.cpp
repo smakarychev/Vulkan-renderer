@@ -35,7 +35,7 @@ RG::Pass& Passes::Multiview::MeshletCullTranslucent::addToGraph(std::string_view
             Sampler hizSampler = multiview->HiZSampler;
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -52,7 +52,7 @@ RG::Pass& Passes::Multiview::MeshletCullTranslucent::addToGraph(std::string_view
             };
                        
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 

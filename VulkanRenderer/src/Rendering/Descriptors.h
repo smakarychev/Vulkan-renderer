@@ -23,7 +23,6 @@ class ResourceUploader;
 class Sampler;
 class Image;
 class CommandBuffer;
-class Pipeline;
 class Buffer;
 class DescriptorsLayout;
 class DescriptorPool;

@@ -43,7 +43,7 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -60,7 +60,7 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), glm::vec2{frameContext.Resolution});
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,

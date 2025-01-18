@@ -74,7 +74,7 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
             glm::uvec2 imageSize = {colorOut.Description().Width, colorOut.Description().Height};
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
             
             resourceDescriptors.UpdateBinding("u_camera", camera.BindingInfo());
@@ -82,11 +82,12 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
             resourceDescriptors.UpdateBinding("u_out_image",
                 colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
-            pipeline.BindCompute(frameContext.Cmd);
-            RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), imageSize);
-            resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+            auto& cmd = frameContext.Cmd;
+            RenderCommand::BindCompute(cmd, pipeline);
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), imageSize);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
-            RenderCommand::Dispatch(frameContext.Cmd, {imageSize, 1}, {32, 32, 1});
+            RenderCommand::Dispatch(cmd, {imageSize, 1}, {32, 32, 1});
         });
 
     return pass;

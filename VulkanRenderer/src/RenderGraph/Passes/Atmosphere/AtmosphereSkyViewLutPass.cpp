@@ -44,7 +44,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
             GPU_PROFILE_FRAME("Atmosphere.SkyView")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -67,7 +67,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
 
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, 1},

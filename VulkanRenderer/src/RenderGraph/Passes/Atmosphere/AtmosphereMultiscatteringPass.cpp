@@ -40,7 +40,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
             GPU_PROFILE_FRAME("Atmosphere.Multiscattering")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -56,7 +56,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
 
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, 64},

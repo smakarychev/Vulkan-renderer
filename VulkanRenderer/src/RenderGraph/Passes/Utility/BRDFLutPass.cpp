@@ -30,7 +30,7 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
             const Texture& lutTexture = resources.GetTexture(passData.Lut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_brdf",
@@ -44,7 +44,7 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
                 .BRDFResolutionInverse = 1.0f / glm::vec2((f32)BRDF_RESOLUTION)};
             
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 

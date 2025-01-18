@@ -35,7 +35,7 @@ namespace
                 GPU_PROFILE_FRAME("Lights.Clusters.Identify")
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto& pipeline = shader.Pipeline(); 
+                auto pipeline = shader.Pipeline(); 
                 auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
                 auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -57,7 +57,7 @@ namespace
 
                 auto& cmd = frameContext.Cmd;
                 samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-                pipeline.BindCompute(cmd);
+                RenderCommand::BindCompute(cmd, pipeline);
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
                 resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
@@ -104,7 +104,7 @@ namespace
                 GPU_PROFILE_FRAME("Lights.Clusters.Compact")
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto& pipeline = shader.Pipeline(); 
+                auto pipeline = shader.Pipeline(); 
                 auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
                 resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
@@ -116,7 +116,7 @@ namespace
                     passData.ActiveClustersCount).BindingInfo());
 
                 auto& cmd = frameContext.Cmd;
-                pipeline.BindCompute(cmd);
+                RenderCommand::BindCompute(cmd, pipeline);
                 resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
                 RenderCommand::Dispatch(cmd,
@@ -154,7 +154,7 @@ namespace
                 GPU_PROFILE_FRAME("Lights.Clusters.CreateDisptach")
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto& pipeline = shader.Pipeline(); 
+                auto pipeline = shader.Pipeline(); 
                 auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
                 resourceDescriptors.UpdateBinding("u_count", resources.GetBuffer(
@@ -163,7 +163,7 @@ namespace
                     passData.DispatchIndirect).BindingInfo());
 
                 auto& cmd = frameContext.Cmd;
-                pipeline.BindCompute(cmd);
+                RenderCommand::BindCompute(cmd, pipeline);
                 resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
                 RenderCommand::Dispatch(cmd, {1, 1, 1});

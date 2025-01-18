@@ -155,7 +155,7 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -185,7 +185,7 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 

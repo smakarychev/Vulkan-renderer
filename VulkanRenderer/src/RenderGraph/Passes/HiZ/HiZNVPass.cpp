@@ -67,7 +67,7 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
                     passData.MinMaxSampler, ImageLayout::General);
                 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto& pipeline = shader.Pipeline(); 
+                auto pipeline = shader.Pipeline(); 
                 auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
                 auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
                 
@@ -80,16 +80,17 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
                             passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i]), i);
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
-                pipeline.BindCompute(frameContext.Cmd);
-                RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), pushConstant);
-                samplerDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+                auto& cmd = frameContext.Cmd;
+                RenderCommand::BindCompute(cmd, pipeline);
+                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+                samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                     shader.GetLayout());
-                resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                     shader.GetLayout());
                 u32 shift = toBeProcessed > 5 ? 12 : 10;
                 u32 mask = toBeProcessed > 5 ? 4095 : 1023;
                 u32 samples = width * height;
-                RenderCommand::Dispatch(frameContext.Cmd, {(samples + mask) >> shift, 1, 1});
+                RenderCommand::Dispatch(cmd, {(samples + mask) >> shift, 1, 1});
             });
 
         width = std::max(1u, width >> toBeProcessed);

@@ -50,7 +50,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                 const Texture& prefilteredTexture = resources.GetTexture(passData.PrefilteredTexture);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto& pipeline = shader.Pipeline(); 
+                auto pipeline = shader.Pipeline(); 
                 auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
                 auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -75,7 +75,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
 
                 auto& cmd = frameContext.Cmd;
                 samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-                pipeline.BindCompute(cmd);
+                RenderCommand::BindCompute(cmd, pipeline);
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
                 resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 

@@ -98,9 +98,8 @@ class Shader
     friend class ShaderCache;
 public:
     Shader(u32 pipelineIndex, const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors);
-    // todo: change to handles
-    const Pipeline& Pipeline() const;
-    const PipelineLayout& GetLayout() const;
+    Pipeline Pipeline() const;
+    PipelineLayout GetLayout() const;
     const ShaderDescriptors& Descriptors(ShaderDescriptorsKind kind) const { return m_Descriptors[(u32)kind]; }
     DrawFeatures Features() const { return m_Features; }
 

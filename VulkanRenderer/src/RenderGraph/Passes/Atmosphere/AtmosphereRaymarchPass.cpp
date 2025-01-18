@@ -58,7 +58,7 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
         GPU_PROFILE_FRAME("Atmosphere.Raymarch")
 
         const Shader& shader = resources.GetGraph()->GetShader();
-        auto& pipeline = shader.Pipeline(); 
+        auto pipeline = shader.Pipeline(); 
         auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
         auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -95,7 +95,7 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
         
         auto& cmd = frameContext.Cmd;
         samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-        pipeline.BindGraphics(cmd);
+        RenderCommand::BindGraphics(cmd, pipeline);
         RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
         resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
         RenderCommand::Draw(cmd, 3);

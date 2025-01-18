@@ -209,7 +209,7 @@ private:
     };
     struct PipelineResource
     {
-        using ObjectType = Pipeline;
+        using ObjectType = PipelineTag;
         VkPipeline Pipeline{VK_NULL_HANDLE};
     };
     struct ShaderModuleResource
@@ -375,7 +375,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_DescriptorAllocators.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, PipelineLayoutTag>)
         m_PipelineLayouts.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, Pipeline>)
+    else if constexpr(std::is_same_v<Decayed, PipelineTag>)
         m_Pipelines.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, ShaderModule>)
         m_ShaderModules.Remove(handle);
@@ -431,7 +431,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         return m_PipelineLayouts[type];
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
-        return m_Pipelines[type.Handle()];
+        return m_Pipelines[type];
     else if constexpr(std::is_same_v<Decayed, ShaderModule>)
         return m_ShaderModules[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
@@ -474,7 +474,7 @@ private:
     std::vector<ResourceHandleType<DescriptorsLayout>> m_DescriptorLayouts;
     std::vector<ResourceHandleType<DescriptorAllocator>> m_DescriptorAllocators;
     std::vector<PipelineLayout> m_PipelineLayouts;
-    std::vector<ResourceHandleType<Pipeline>> m_Pipelines;
+    std::vector<Pipeline> m_Pipelines;
     std::vector<ResourceHandleType<ShaderModule>> m_ShaderModules;
     std::vector<RenderingAttachment> m_RenderingAttachments;
     std::vector<RenderingInfo> m_RenderingInfos;
@@ -513,7 +513,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         m_PipelineLayouts.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
-        m_Pipelines.push_back(type.Handle());
+        m_Pipelines.push_back(type);
     else if constexpr(std::is_same_v<Decayed, ShaderPipeline>)
         m_Pipelines.push_back(type.m_Pipeline.Handle());
     else if constexpr(std::is_same_v<Decayed, ShaderModule>)
@@ -595,8 +595,8 @@ public:
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(PipelineLayout pipelineLayout);
 
-    static Pipeline CreatePipeline(PipelineCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<Pipeline> pipeline);
+    static Pipeline CreatePipeline(PipelineCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(Pipeline pipeline);
 
     static ShaderModule CreateShaderModule(ShaderModuleCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<ShaderModule> shaderModule);

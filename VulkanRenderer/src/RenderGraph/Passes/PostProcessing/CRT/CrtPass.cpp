@@ -66,7 +66,7 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
             
@@ -76,14 +76,15 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
                 colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
             resourceDescriptors.UpdateBinding("u_time", time.BindingInfo());
             resourceDescriptors.UpdateBinding("u_settings", settingsBuffer.BindingInfo());
-            
-            pipeline.BindGraphics(frameContext.Cmd);
-            samplerDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+
+            auto& cmd = frameContext.Cmd;
+            RenderCommand::BindGraphics(cmd, pipeline);
+            samplerDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
-            resourceDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
 
-            RenderCommand::Draw(frameContext.Cmd, 3);
+            RenderCommand::Draw(cmd, 3);
         });
 
     return pass;

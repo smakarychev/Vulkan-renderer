@@ -180,7 +180,7 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_traits", traitsBuffer.BindingInfo());            
@@ -192,7 +192,7 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
             u32 slimeCountDimension = (u32)std::sqrt((f32)slimeCount);
                         
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, {slimeCountDimension + 1, slimeCountDimension, 1}, {16, 16, 1});
@@ -239,7 +239,7 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_slime_map", slimeMap.BindingInfo(
@@ -248,7 +248,7 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
                 ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});
@@ -320,7 +320,7 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
             const Buffer& gradient = resources.GetBuffer(passData.Gradient);
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_diffuse_map", diffuseMap.BindingInfo(
@@ -332,7 +332,7 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});

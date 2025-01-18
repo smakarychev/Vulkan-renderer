@@ -34,7 +34,7 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
             GPU_PROFILE_FRAME("Lights.Tiles.Setup")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
@@ -53,7 +53,7 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             glm::uvec2 bins = glm::ceil(

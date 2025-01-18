@@ -78,7 +78,7 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
             const Buffer& countDraw = resources.GetBuffer(passData.Count);
 
             auto& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline();
+            auto pipeline = shader.Pipeline();
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_camera", camera.BindingInfo());
@@ -95,19 +95,19 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
             if (enumHasAny(shader.Features(), SSAO))
                 RgUtils::updateSSAOBindings(resourceDescriptors, resources, *passData.SSAO);
 
+            auto& cmd = frameContext.Cmd;
             if (enumHasAny(shader.Features(), Textures))
             {
-                pipeline.BindGraphics(frameContext.Cmd);
+                RenderCommand::BindGraphics(cmd, pipeline);
                 shader.Descriptors(ShaderDescriptorsKind::Sampler).BindGraphicsImmutableSamplers(
                     frameContext.Cmd, shader.GetLayout());
                 shader.Descriptors(ShaderDescriptorsKind::Materials).BindGraphics(frameContext.Cmd,
                     resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             }
 
-            auto& cmd = frameContext.Cmd;
             RenderCommand::BindIndexU8Buffer(cmd, info.Geometry->GetAttributeBuffers().Indices, 0);
             
-            pipeline.BindGraphics(cmd);
+            RenderCommand::BindGraphics(cmd, pipeline);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             u32 offsetCommands = std::min(info.CommandsOffset, info.Geometry->GetMeshletCount());

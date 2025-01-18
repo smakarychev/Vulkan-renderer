@@ -32,7 +32,7 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
             GPU_PROFILE_FRAME("Lights.Clusters.Setup")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
@@ -53,7 +53,7 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 

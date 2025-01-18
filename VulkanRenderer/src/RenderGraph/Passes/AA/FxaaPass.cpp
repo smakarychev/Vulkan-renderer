@@ -33,7 +33,7 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
             GPU_PROFILE_FRAME("Fxaa.Luminance");
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -43,11 +43,12 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
             resourceDescriptors.UpdateBinding("u_antialiased", resources.GetTexture(passData.AntiAliased).BindingInfo(
                 ImageFilter::Linear, ImageLayout::General));
 
-            samplerDescriptors.BindComputeImmutableSamplers(frameContext.Cmd, shader.GetLayout());
-            pipeline.BindCompute(frameContext.Cmd);
-            resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+            auto& cmd = frameContext.Cmd;
+            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
+            RenderCommand::BindCompute(cmd, pipeline);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
-            RenderCommand::Dispatch(frameContext.Cmd,
+            RenderCommand::Dispatch(cmd,
                 {input.Description().Width, input.Description().Height, 1},
                 {16, 16, 1});
         });

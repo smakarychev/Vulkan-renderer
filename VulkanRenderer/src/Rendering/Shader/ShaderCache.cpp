@@ -62,12 +62,12 @@ Shader::Shader(u32 pipelineIndex,
 {
 }
 
-const Pipeline& Shader::Pipeline() const
+Pipeline Shader::Pipeline() const
 {
     return ShaderCache::s_Pipelines[m_Pipeline].Pipeline;
 }
 
-const PipelineLayout& Shader::GetLayout() const
+PipelineLayout Shader::GetLayout() const
 {
     return ShaderCache::s_Pipelines[m_Pipeline].PipelineLayout;
 }
@@ -95,7 +95,7 @@ void ShaderCache::Shutdown()
             continue;
 
         deleted[s->m_Pipeline] = true;
-        Device::Destroy(s->Pipeline().Handle());
+        Device::Destroy(s->Pipeline());
     }
     s_FileWatcher.reset();
 }
@@ -431,7 +431,8 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             .Specialization = overrides.ToPipelineSpecializationsView(*shaderTemplate),
             .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
             .UseDescriptorBuffer = true,
-            .ClampDepth = clampDepth});
+            .ClampDepth = clampDepth},
+            Device::DummyDeletionQueue());
     }
 
     if (reloadType == ReloadType::Pipeline)

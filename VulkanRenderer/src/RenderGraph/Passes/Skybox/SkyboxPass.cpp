@@ -62,7 +62,7 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             const Buffer projectionBuffer = resources.GetBuffer(passData.Projection);
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -73,7 +73,7 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindGraphics(cmd);
+            RenderCommand::BindGraphics(cmd, pipeline);
             RenderCommand::PushConstants(cmd, shader.GetLayout(), passData.LodBias);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 6);

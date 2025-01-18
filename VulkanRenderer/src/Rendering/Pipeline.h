@@ -115,16 +115,5 @@ struct PipelineCreateInfo
     bool ClampDepth{false};
 };
 
-class Pipeline
-{
-    FRIEND_INTERNAL
-public:
-    void BindGraphics(const CommandBuffer& commandBuffer) const;
-    void BindCompute(const CommandBuffer& commandBuffer) const;
-
-    bool operator==(Pipeline other) const { return m_ResourceHandle == other.m_ResourceHandle; }
-    bool operator!=(Pipeline other) const { return !(*this == other); }
-    ResourceHandleType<Pipeline> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<Pipeline> m_ResourceHandle{};
-};
+struct PipelineTag{};
+using Pipeline = ResourceHandleType<PipelineTag>;

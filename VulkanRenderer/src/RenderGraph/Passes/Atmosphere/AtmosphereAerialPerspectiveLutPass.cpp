@@ -48,7 +48,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             GPU_PROFILE_FRAME("Atmosphere.AerialPerspective")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -72,7 +72,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
 
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, lutTexture.Description().GetDepth()},

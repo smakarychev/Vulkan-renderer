@@ -99,7 +99,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             const Buffer& indices = resources.GetBuffer(passData.Indices);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
             auto& materialDescriptors = shader.Descriptors(ShaderDescriptorsKind::Materials);
@@ -129,7 +129,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             
             auto& cmd = frameContext.Cmd;
             samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            pipeline.BindGraphics(cmd);
+            RenderCommand::BindGraphics(cmd, pipeline);
             resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
             materialDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),

@@ -32,7 +32,7 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
             GPU_PROFILE_FRAME("ShadowCameras.GPU")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             resourceDescriptors.UpdateBinding("u_min_max", resources.GetBuffer(passData.DepthMinMax).BindingInfo());
@@ -49,12 +49,13 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
                 .ShadowSize = SHADOW_MAP_RESOLUTION,
                 .CascadeCount = SHADOW_CASCADES,
                 .LightDirection = lightDirection};
-            
-            pipeline.BindCompute(frameContext.Cmd);
-            RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), pushConstant);
-            resourceDescriptors.BindCompute(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+
+            auto& cmd = frameContext.Cmd;
+            RenderCommand::BindCompute(cmd, pipeline);
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
-            RenderCommand::Dispatch(frameContext.Cmd,
+            RenderCommand::Dispatch(cmd,
                 {SHADOW_CASCADES, 1, 1},
                 {MAX_SHADOW_CASCADES, 1, 1});
         });

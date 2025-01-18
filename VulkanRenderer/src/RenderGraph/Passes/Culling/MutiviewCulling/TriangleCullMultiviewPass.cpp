@@ -30,7 +30,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
             auto* multiview = passData.MultiviewResource;
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline();
+            auto pipeline = shader.Pipeline();
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
             RgUtils::updateCullTrianglePrepareMultiviewBindings(resourceDescriptors, resources, *multiview);
@@ -45,7 +45,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
             };
 
             auto& cmd = frameContext.Cmd;
-            pipeline.BindCompute(cmd);
+            RenderCommand::BindCompute(cmd, pipeline);
             resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
             PushConstants pushConstants = {
@@ -291,7 +291,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                     /* cull */
                     {
                         auto& cullShader = ShaderCache::Get(std::format("{}.{}", passName, batchIndex));
-                        auto& pipeline = cullShader.Pipeline();
+                        auto pipeline = cullShader.Pipeline();
                         auto& samplerDescriptors = cullShader.Descriptors(ShaderDescriptorsKind::Sampler);
                         auto& resourceDescriptors = cullShader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -308,7 +308,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .GeometryIndex = geometryIndex,
                             .MeshletViewCount = multiview->MeshletCull->ViewCount};
                         auto& cmd = frameContext.Cmd;
-                        pipeline.BindCompute(cmd);
+                        RenderCommand::BindCompute(cmd, pipeline);
                         RenderCommand::PushConstants(cmd, cullShader.GetLayout(), pushConstants);
                         samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                             cullShader.GetLayout());
@@ -330,12 +330,12 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                     /* prepare draws */
                     {
                         auto& prepareShader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, batchIndex));
-                        auto& pipeline = prepareShader.Pipeline();
+                        auto pipeline = prepareShader.Pipeline();
                         auto& resourceDescriptors = prepareShader.Descriptors(ShaderDescriptorsKind::Resource);
                         
                         auto& cmd = frameContext.Cmd;
                        
-                        pipeline.BindCompute(cmd);
+                        RenderCommand::BindCompute(cmd, pipeline);
                         resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
                             prepareShader.GetLayout());
                         RenderCommand::PushConstants(cmd, prepareShader.GetLayout(), multiview->TriangleViewCount);
@@ -360,7 +360,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         auto&& [staticV, dynamicV] = view;
 
                         auto& drawShader = ShaderCache::Get(std::format("{}.Draw.{}.{}", passName, batchIndex, i));
-                        auto& pipeline = drawShader.Pipeline();
+                        auto pipeline = drawShader.Pipeline();
                         auto& resourceDescriptors = drawShader.Descriptors(ShaderDescriptorsKind::Resource);
                         // todo: can i bind less?
                         if (enumHasAny(drawShader.Features(), Textures))
@@ -385,7 +385,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         
                         RenderCommand::BindIndexU32Buffer(cmd,
                             resources.GetBuffer(multiview->IndicesCulled[i][batchIndex]), 0);
-                        pipeline.BindGraphics(cmd);
+                        RenderCommand::BindGraphics(cmd, pipeline);
                         resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
                             drawShader.GetLayout());
 

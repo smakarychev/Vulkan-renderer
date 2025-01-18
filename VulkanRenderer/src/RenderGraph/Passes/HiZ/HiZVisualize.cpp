@@ -48,7 +48,7 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
             ImGui::End();
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto& pipeline = shader.Pipeline(); 
+            auto pipeline = shader.Pipeline(); 
             auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
             auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
             
@@ -57,14 +57,15 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
             resourceDescriptors.UpdateBinding("u_hiz",
                 hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
 
-            pipeline.BindGraphics(frameContext.Cmd);
-            RenderCommand::PushConstants(frameContext.Cmd, shader.GetLayout(), pushConstants);
-            samplerDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+            auto& cmd = frameContext.Cmd;
+            RenderCommand::BindGraphics(cmd, pipeline);
+            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            samplerDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
-            resourceDescriptors.BindGraphics(frameContext.Cmd, resources.GetGraph()->GetArenaAllocators(),
+            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
                 shader.GetLayout());
 
-            RenderCommand::Draw(frameContext.Cmd, 3);
+            RenderCommand::Draw(cmd, 3);
         });
 
     return pass;

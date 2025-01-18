@@ -39,7 +39,7 @@ namespace
                 const Texture& cubemapTexture = resources.GetTexture(passData.Cubemap);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto& pipeline = shader.Pipeline(); 
+                auto pipeline = shader.Pipeline(); 
                 auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
                 auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
 
@@ -57,7 +57,7 @@ namespace
                 
                 auto& cmd = frameContext.Cmd;
                 samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-                pipeline.BindCompute(cmd);
+                RenderCommand::BindCompute(cmd, pipeline);
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
                 resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
 
