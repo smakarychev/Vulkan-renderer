@@ -21,7 +21,6 @@ class DescriptorArenaAllocators;
 class DescriptorArenaAllocator;
 class ResourceUploader;
 class Sampler;
-class PipelineLayout;
 class Image;
 class CommandBuffer;
 class Pipeline;
@@ -89,13 +88,6 @@ class DescriptorSet
     FRIEND_INTERNAL
     friend class DescriptorAllocator;
 public:
-    void BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex);
-    void BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex,
-        const std::vector<u32>& dynamicOffsets);
-    void BindCompute(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex);
-    void BindCompute(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex,
-        const std::vector<u32>& dynamicOffsets);
-
     void SetTexture(u32 slot, const Texture& texture, DescriptorType descriptor, u32 arrayIndex);
     
     const DescriptorsLayout& GetLayout() const { return m_Layout; }
@@ -169,13 +161,6 @@ public:
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
     void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
-    
-    void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-        PipelineLayout pipelineLayout, u32 firstSet) const;
-    void BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-        PipelineLayout pipelineLayout, u32 firstSet) const;
-    void BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 firstSet) const;
-    void BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 firstSet) const;
 private:
     std::vector<u64> m_Offsets;
     u64 m_SizeBytes{0};

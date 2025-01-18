@@ -28,14 +28,8 @@ struct PipelineLayoutCreateInfo
     Span<const DescriptorsLayout> DescriptorSetLayouts;
 };
 
-class PipelineLayout
-{
-    FRIEND_INTERNAL
-private:
-    ResourceHandleType<PipelineLayout> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<PipelineLayout> m_ResourceHandle{};
-};
+struct PipelineLayoutTag{};
+using PipelineLayout = ResourceHandleType<PipelineLayoutTag>;
 
 struct PipelineSpecializationDescription
 {

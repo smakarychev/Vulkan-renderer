@@ -120,7 +120,6 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
     m_PipelineLayout = Device::CreatePipelineLayout({
         .PushConstants = reflection.PushConstants(),
         .DescriptorSetLayouts = m_DescriptorsLayouts});
-    Device::DeletionQueue().Enqueue(m_PipelineLayout);
 }
 
 const DescriptorBinding& ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
@@ -303,23 +302,23 @@ ShaderDescriptors::ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo)
 void ShaderDescriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
     PipelineLayout pipelineLayout) const
 {
-    m_Descriptors.BindGraphics(cmd, allocators, pipelineLayout, m_SetNumber);
+    RenderCommand::BindGraphics(cmd, allocators, pipelineLayout, m_Descriptors, m_SetNumber);
 }
 
 void ShaderDescriptors::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
     PipelineLayout pipelineLayout) const
 {
-    m_Descriptors.BindCompute(cmd, allocators, pipelineLayout, m_SetNumber);
+    RenderCommand::BindCompute(cmd, allocators, pipelineLayout, m_Descriptors, m_SetNumber);
 }
 
 void ShaderDescriptors::BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const
 {
-    m_Descriptors.BindGraphicsImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
+    RenderCommand::BindGraphicsImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
 }
 
 void ShaderDescriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const
 {
-    m_Descriptors.BindComputeImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
+    RenderCommand::BindComputeImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
 }
 
 void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBindingInfo& buffer) const

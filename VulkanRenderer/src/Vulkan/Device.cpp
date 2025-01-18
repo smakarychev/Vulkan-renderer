@@ -1785,7 +1785,7 @@ void Device::Destroy(RenderingInfo renderingInfo)
     Resources().RemoveResource(renderingInfo);
 }
 
-PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo)
+PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     std::vector<VkPushConstantRange> pushConstantRanges;
     pushConstantRanges.reserve(createInfo.PushConstants.size());
@@ -1815,13 +1815,13 @@ PipelineLayout Device::CreatePipelineLayout(PipelineLayoutCreateInfo&& createInf
     DeviceCheck(vkCreatePipelineLayout(s_State.Device, &layoutCreateInfo, nullptr, &pipelineLayoutResource.Layout),
         "Failed to create pipeline layout");
 
-    PipelineLayout layout = {};
-    layout.m_ResourceHandle = Resources().AddResource(pipelineLayoutResource);
+    PipelineLayout layout = Resources().AddResource(pipelineLayoutResource);
+    deletionQueue.Enqueue(layout);
 
     return layout;
 }
 
-void Device::Destroy(ResourceHandleType<PipelineLayout> pipelineLayout)
+void Device::Destroy(PipelineLayout pipelineLayout)
 {
     vkDestroyPipelineLayout(s_State.Device, Resources().m_PipelineLayouts[pipelineLayout.m_Id].Layout, nullptr);
     Resources().RemoveResource(pipelineLayout);

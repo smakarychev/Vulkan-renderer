@@ -5,28 +5,6 @@
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 
-void DescriptorSet::BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex)
-{
-    RenderCommand::BindGraphics(cmd, *this, pipelineLayout, setIndex, {});
-}
-
-void DescriptorSet::BindGraphics(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex,
-    const std::vector<u32>& dynamicOffsets)
-{
-    RenderCommand::BindGraphics(cmd, *this, pipelineLayout, setIndex, dynamicOffsets);
-}
-
-void DescriptorSet::BindCompute(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex)
-{
-    RenderCommand::BindCompute(cmd, *this, pipelineLayout, setIndex, {});
-}
-
-void DescriptorSet::BindCompute(const CommandBuffer& cmd, PipelineLayout pipelineLayout, u32 setIndex,
-    const std::vector<u32>& dynamicOffsets)
-{
-    RenderCommand::BindCompute(cmd, *this, pipelineLayout, setIndex, dynamicOffsets);
-}
-
 void DescriptorSet::SetTexture(u32 slot, const Texture& texture, DescriptorType descriptor, u32 arrayIndex)
 {
     Device::UpdateDescriptorSet(*this, slot, texture, descriptor, arrayIndex);
@@ -87,30 +65,6 @@ void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const Text
     u32 index) const
 {
     Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
-}
-
-void Descriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, u32 firstSet) const
-{
-    RenderCommand::BindGraphics(cmd, allocators, pipelineLayout, *this, firstSet);
-}
-
-void Descriptors::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, u32 firstSet) const
-{
-    RenderCommand::BindCompute(cmd, allocators, pipelineLayout, *this, firstSet);
-}
-
-void Descriptors::BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout,
-    u32 firstSet) const
-{
-    RenderCommand::BindGraphicsImmutableSamplers(cmd, pipelineLayout, firstSet);
-}
-
-void Descriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout,
-    u32 firstSet) const
-{
-    RenderCommand::BindComputeImmutableSamplers(cmd, pipelineLayout, firstSet);
 }
 
 Descriptors DescriptorArenaAllocator::Allocate(DescriptorsLayout layout,
