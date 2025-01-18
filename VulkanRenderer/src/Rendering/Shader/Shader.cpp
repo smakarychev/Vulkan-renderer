@@ -92,17 +92,19 @@ namespace
 ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo)
 {
     ASSERT(
-        createInfo.ResourceAllocator || createInfo.SamplerAllocator || createInfo.Allocator,
+        createInfo.ResourceAllocator.HasValue() ||
+        createInfo.SamplerAllocator.HasValue() ||
+        createInfo.Allocator.HasValue(),
         "Allocators are unset")
     ASSERT(
-        !createInfo.ResourceAllocator && !createInfo.SamplerAllocator ||
-        !createInfo.Allocator,
+        !createInfo.ResourceAllocator.HasValue() && !createInfo.SamplerAllocator.HasValue() ||
+        !createInfo.Allocator.HasValue(),
         "Cannot set both allocator and arena allocator")
     
     auto& reflection = *createInfo.ShaderReflection;
     m_ShaderReflection = createInfo.ShaderReflection;
 
-    if (createInfo.Allocator == nullptr)
+    if (!createInfo.Allocator.HasValue())
     {
         m_UseDescriptorBuffer = true;
         m_Allocator.ResourceAllocator = createInfo.ResourceAllocator;
@@ -282,16 +284,18 @@ ShaderDescriptors::ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo)
     ASSERT(shaderTemplate->m_UseDescriptorBuffer,
         "Shader pipeline template is not configured to be used with descriptor buffer")
 
-    auto* allocator = createInfo.AllocatorKind == DescriptorAllocatorKind::Resources ?
+    auto allocator = createInfo.AllocatorKind == DescriptorAllocatorKind::Resources ?
         shaderTemplate->m_Allocator.ResourceAllocator : 
         shaderTemplate->m_Allocator.SamplerAllocator;
-    
-    Descriptors descriptors = allocator->Allocate(
+
+    std::optional<Descriptors> descriptors = Device::AllocateDescriptors(
+        allocator,
         shaderTemplate->GetDescriptorsLayout(createInfo.Set), {
             .Bindings = shaderTemplate->GetReflection().DescriptorSetsInfo()[createInfo.Set].Descriptors,
             .BindlessCount = createInfo.BindlessCount});
+    ASSERT(descriptors.has_value(), "Increase allocator size")
 
-    m_Descriptors = descriptors;
+    m_Descriptors = *descriptors;
     m_SetNumber = createInfo.Set;
     m_Template = createInfo.ShaderPipelineTemplate;
 }
@@ -412,7 +416,7 @@ ShaderDescriptors::BindingInfo ShaderDescriptors::GetBindingInfo(std::string_vie
 std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
 
 ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
-    std::string_view templateName, DescriptorAllocator& allocator)
+    std::string_view templateName, DescriptorAllocator allocator)
 {
     std::string name = GenerateTemplateName(templateName, allocator);
     if (!GetShaderTemplate(name))
@@ -455,7 +459,7 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::stri
     return it == s_Templates.end() ? nullptr : &it->second;
 }
 
-std::string ShaderTemplateLibrary::GenerateTemplateName(std::string_view templateName, DescriptorAllocator& allocator)
+std::string ShaderTemplateLibrary::GenerateTemplateName(std::string_view templateName, DescriptorAllocator allocator)
 {
     return std::string{templateName} + "_alloc";
 }
@@ -479,11 +483,11 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(const std
 }
 
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
-    DescriptorAllocator& allocator)
+    DescriptorAllocator allocator)
 {
     return ShaderPipelineTemplate({
         .ShaderReflection = ShaderReflection::ReflectFrom(paths),
-        .Allocator = &allocator});
+        .Allocator = allocator});
 }
 
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
@@ -491,6 +495,6 @@ ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<
 {
     return ShaderPipelineTemplate({
         .ShaderReflection = ShaderReflection::ReflectFrom(paths),
-        .ResourceAllocator = &allocators.Get(DescriptorAllocatorKind::Resources),
-        .SamplerAllocator = &allocators.Get(DescriptorAllocatorKind::Samplers)});
+        .ResourceAllocator = allocators.Get(DescriptorAllocatorKind::Resources),
+        .SamplerAllocator = allocators.Get(DescriptorAllocatorKind::Samplers)});
 }

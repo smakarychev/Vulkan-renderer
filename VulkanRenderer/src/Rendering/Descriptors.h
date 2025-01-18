@@ -16,7 +16,6 @@ namespace assetLib
 }
 
 class DescriptorArenaAllocators;
-class DescriptorArenaAllocator;
 class ResourceUploader;
 class Sampler;
 class Image;
@@ -82,6 +81,9 @@ struct DescriptorSetCreateInfo
 struct DescriptorSetTag {};
 using DescriptorSet = ResourceHandleType<DescriptorSetTag>;
 
+struct DescriptorArenaAllocatorTag{};
+using DescriptorArenaAllocator = ResourceHandleType<DescriptorArenaAllocatorTag>;
+
 class Descriptors
 {
     FRIEND_INTERNAL
@@ -96,8 +98,8 @@ public:
     using TextureBindingInfo = ImageBindingInfo;
 
     void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
 
     /* 'Global' versions of UpdateBinding updates bindings in ALL descriptor buffers */
@@ -109,7 +111,7 @@ public:
 private:
     std::vector<u64> m_Offsets;
     u64 m_SizeBytes{0};
-    const DescriptorArenaAllocator* m_Allocator;
+    DescriptorArenaAllocator m_Allocator{};
 };
 
 enum class DescriptorAllocatorKind
@@ -140,39 +142,13 @@ struct DescriptorArenaAllocatorCreateInfo
     u32 DescriptorCount{0};
 };
 
-class DescriptorArenaAllocator
-{
-    FRIEND_INTERNAL
-    friend class DescriptorArenaAllocators;
-public:
-    Descriptors Allocate(DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
-    void Reset();
-
-    /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES)
-     * NOTE: usually you want to call `Bind` on `DescriptorArenaAllocators`
-     */
-    void Bind(const CommandBuffer& cmd, u32 bufferIndex);
-private:
-    void ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings) const;
-
-    const Buffer& GetCurrentBuffer() const { return m_Buffers[m_CurrentBuffer]; }
-private:
-    std::array<Buffer, BUFFERED_FRAMES> m_Buffers;
-    u32 m_CurrentBuffer{0};
-    u64 m_CurrentOffset{0};
-    DescriptorAllocatorKind m_Kind{DescriptorAllocatorKind::Resources};
-    DescriptorAllocatorResidence m_Residence{DescriptorAllocatorResidence::CPU};
-};
-
 class DescriptorArenaAllocators
 {
     FRIEND_INTERNAL
 public:
-    DescriptorArenaAllocators(const DescriptorArenaAllocator& resourceAllocator,
-        const DescriptorArenaAllocator& samplerAllocator);
+    DescriptorArenaAllocators(DescriptorArenaAllocator resourceAllocator, DescriptorArenaAllocator samplerAllocator);
     
-    const DescriptorArenaAllocator& Get(DescriptorAllocatorKind kind) const;
-    DescriptorArenaAllocator& Get(DescriptorAllocatorKind kind);
+    DescriptorArenaAllocator Get(DescriptorAllocatorKind kind) const;
 
     /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
     void Bind(const CommandBuffer& cmd, u32 bufferIndex);

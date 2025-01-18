@@ -223,32 +223,36 @@ void RenderCommand::BindComputeImmutableSamplers(const CommandBuffer& cmd,
         VK_PIPELINE_BIND_POINT_COMPUTE, Device::Resources()[pipelineLayout].Layout, setIndex);
 }
 
-void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocator& allocator)
+void RenderCommand::Bind(const CommandBuffer& cmd, DescriptorArenaAllocator allocator, u32 bufferIndex)
 {
-    const u64 deviceAddress = Device::GetDeviceAddress(allocator.GetCurrentBuffer());
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[allocator];
+    allocatorResource.CurrentBuffer = bufferIndex;
+    const u64 deviceAddress = Device::GetDeviceAddress(allocatorResource.Buffers[bufferIndex]);
 
     VkDescriptorBufferBindingInfoEXT binding = {};
     binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
     binding.address = deviceAddress;
-    binding.usage = allocator.m_Kind == DescriptorAllocatorKind::Resources ?
+    binding.usage = allocatorResource.Kind == DescriptorAllocatorKind::Resources ?
         VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
 
     vkCmdBindDescriptorBuffersEXT(Device::Resources()[cmd].CommandBuffer, 1, &binding);
 }
 
-void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators)
+void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators, u32 bufferIndex)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
     descriptorBufferBindings.reserve(allocators.m_Allocators.size());
 
     for (auto& allocator : allocators.m_Allocators)
     {
-        const u64 deviceAddress = Device::GetDeviceAddress(allocator.GetCurrentBuffer());
+        DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[allocator];
+        allocatorResource.CurrentBuffer = bufferIndex;
+        const u64 deviceAddress = Device::GetDeviceAddress(allocatorResource.Buffers[bufferIndex]);
 
         VkDescriptorBufferBindingInfoEXT binding = {};
         binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
         binding.address = deviceAddress;
-        binding.usage = allocator.m_Kind == DescriptorAllocatorKind::Resources ?
+        binding.usage = allocatorResource.Kind == DescriptorAllocatorKind::Resources ?
             VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
 
         descriptorBufferBindings.push_back(binding);
@@ -273,10 +277,11 @@ void RenderCommand::BindCompute(const CommandBuffer& cmd, const DescriptorArenaA
 void RenderCommand::BindDescriptors(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
     PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
 {
-    ASSERT(&allocators.Get(descriptors.m_Allocator->m_Kind) == descriptors.m_Allocator,
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[descriptors.m_Allocator];
+    ASSERT(allocators.Get(allocatorResource.Kind) == descriptors.m_Allocator,
         "Descriptors were not allocated by any of the provided allocators")
 
-    u32 allocatorIndex = (u32)descriptors.m_Allocator->m_Kind;
+    u32 allocatorIndex = (u32)allocatorResource.Kind;
     u64 offset = descriptors.m_Offsets.front();
     vkCmdSetDescriptorBufferOffsetsEXT(Device::Resources()[cmd].CommandBuffer, bindPoint,
         Device::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);

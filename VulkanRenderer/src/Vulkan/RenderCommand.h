@@ -12,7 +12,6 @@
 
 class DescriptorArenaAllocators;
 class Descriptors;
-class DescriptorArenaAllocator;
 struct ImageSubresource;
 struct ImageBlitInfo;
 class Image;
@@ -59,8 +58,12 @@ public:
     static void BindComputeImmutableSamplers(const CommandBuffer& cmd,
         PipelineLayout pipelineLayout, u32 setIndex);
 
-    static void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocator& allocator);
-    static void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators);
+    /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES)
+     * NOTE: usually you want to call `Bind` on `DescriptorArenaAllocators`
+     */
+    static void Bind(const CommandBuffer& cmd, DescriptorArenaAllocator allocator, u32 bufferIndex);
+    /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
+    static void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators, u32 bufferIndex);
     static void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
         PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
     static void BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,

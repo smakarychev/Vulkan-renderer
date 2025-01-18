@@ -221,6 +221,18 @@ private:
         };
         u32 MaxSetsPerPool{};
     };
+    struct DescriptorArenaAllocatorResource
+    {
+        using ObjectType = DescriptorArenaAllocatorTag;
+        std::array<void*, BUFFERED_FRAMES> MappedAddresses;
+        u64 SizeBytes{0};
+        u32 CurrentBuffer{0};
+        u64 CurrentOffset{0};
+        DescriptorAllocatorKind Kind{DescriptorAllocatorKind::Resources};
+        DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
+        std::array<VkBuffer, BUFFERED_FRAMES> Buffers;
+        std::array<VmaAllocation, BUFFERED_FRAMES> Allocations;
+    };
     struct PipelineLayoutResource
     {
         using ObjectType = PipelineLayoutTag;
@@ -292,6 +304,7 @@ private:
     ResourceContainerType<DescriptorSetLayoutResource> m_DescriptorLayouts;
     ResourceContainerType<DescriptorSetResource> m_DescriptorSets;
     ResourceContainerType<DescriptorAllocatorResource> m_DescriptorAllocators;
+    ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
     ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
     ResourceContainerType<PipelineResource> m_Pipelines;
     ResourceContainerType<ShaderModuleResource> m_ShaderModules;
@@ -341,6 +354,8 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_DescriptorSets, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocatorResource>)
         return AddToResourceList(m_DescriptorAllocators, std::forward<Resource>(resource));
+    else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocatorResource>)
+        return AddToResourceList(m_DescriptorArenaAllocators, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, PipelineLayoutResource>)
         return AddToResourceList(m_PipelineLayouts, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, PipelineResource>)
@@ -393,6 +408,8 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_DescriptorSets.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocatorTag>)
         m_DescriptorAllocators.Remove(handle);
+    else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocatorTag>)
+        m_DescriptorArenaAllocators.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, PipelineLayoutTag>)
         m_PipelineLayouts.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, PipelineTag>)
@@ -448,6 +465,8 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_DescriptorSets[type];
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
         return m_DescriptorAllocators[type];
+    else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocator>)
+        return m_DescriptorArenaAllocators[type];
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         return m_PipelineLayouts[type];
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
@@ -493,6 +512,7 @@ private:
     std::vector<ResourceHandleType<QueueInfo>> m_Queues;
     std::vector<DescriptorsLayout> m_DescriptorLayouts;
     std::vector<DescriptorAllocator> m_DescriptorAllocators;
+    std::vector<DescriptorArenaAllocator> m_DescriptorArenaAllocators;
     std::vector<PipelineLayout> m_PipelineLayouts;
     std::vector<Pipeline> m_Pipelines;
     std::vector<ResourceHandleType<ShaderModule>> m_ShaderModules;
@@ -530,6 +550,8 @@ void DeletionQueue::Enqueue(Type& type)
         m_DescriptorLayouts.push_back(type);
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
         m_DescriptorAllocators.push_back(type);
+    else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocator>)
+        m_DescriptorArenaAllocators.push_back(type);
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
         m_PipelineLayouts.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
@@ -635,10 +657,14 @@ public:
     static void Destroy(DescriptorAllocator allocator);
     static void ResetAllocator(DescriptorAllocator allocator);
 
-    static DescriptorArenaAllocator CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo);
-    static std::optional<Descriptors> Allocate(DescriptorArenaAllocator& allocator,
+    static DescriptorArenaAllocator CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(DescriptorArenaAllocator allocator);
+    static std::optional<Descriptors> AllocateDescriptors(DescriptorArenaAllocator allocator,
         DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
-        
+    static void ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator);
+    static DescriptorAllocatorKind GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator);
+    
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
         DescriptorType type, u32 index);  
     static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
@@ -724,7 +750,7 @@ private:
     static void InitImGuiUI();
     static void ShutdownImGuiUI();
 
-    static u32 GetFreePoolIndexFromAllocator(DescriptorAllocator& allocator, DescriptorPoolFlags poolFlags);
+    static u32 GetFreePoolIndexFromAllocator(DescriptorAllocator allocator, DescriptorPoolFlags poolFlags);
 
     static void CreateInstance(const DeviceCreateInfo& createInfo);
     static void CreateSurface(const DeviceCreateInfo& createInfo);
@@ -741,6 +767,7 @@ private:
 
     static DeviceResources::BufferResource CreateBufferResource(u64 sizeBytes, VkBufferUsageFlags usage,
         VmaAllocationCreateFlags allocationFlags);
+    static u64 GetDeviceAddress(VkBuffer buffer);
 
     static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPath assetPath);
     static Image CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std::byte> pixels);

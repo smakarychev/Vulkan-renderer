@@ -41,9 +41,9 @@ static constexpr std::string_view UNIFORM_TRIANGLES         = "u_triangles";
 struct ShaderPipelineTemplateCreateInfo
 {
     ShaderReflection* ShaderReflection{nullptr};
-    DescriptorAllocator* Allocator{nullptr};
-    DescriptorArenaAllocator* ResourceAllocator{nullptr};
-    DescriptorArenaAllocator* SamplerAllocator{nullptr};
+    DescriptorAllocator Allocator{};
+    DescriptorArenaAllocator ResourceAllocator{};
+    DescriptorArenaAllocator SamplerAllocator{};
 };
 
 class ShaderPipelineTemplate
@@ -71,9 +71,9 @@ public:
 private:
     struct Allocator
     {
-        DescriptorAllocator* DescriptorAllocator{nullptr};
-        DescriptorArenaAllocator* ResourceAllocator{nullptr};    
-        DescriptorArenaAllocator* SamplerAllocator{nullptr};       
+        DescriptorAllocator DescriptorAllocator{};
+        DescriptorArenaAllocator ResourceAllocator{};    
+        DescriptorArenaAllocator SamplerAllocator{};       
     };
     Allocator m_Allocator{};
     bool m_UseDescriptorBuffer{false};
@@ -193,7 +193,7 @@ class ShaderTemplateLibrary
 {
 public:
     static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
-        std::string_view templateName, DescriptorAllocator& allocator);
+        std::string_view templateName, DescriptorAllocator allocator);
     static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
         std::string_view templateName, DescriptorArenaAllocators& allocators);
     static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name, DescriptorArenaAllocators& allocators);
@@ -204,12 +204,12 @@ public:
     static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
         std::string_view templateName, DescriptorArenaAllocators& allocators);
     static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
-    static std::string GenerateTemplateName(std::string_view templateName, DescriptorAllocator& allocator);
+    static std::string GenerateTemplateName(std::string_view templateName, DescriptorAllocator allocator);
     static std::string GenerateTemplateName(std::string_view templateName, DescriptorArenaAllocators& allocators);
     static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
 private:
     static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string_view>& paths,
-        DescriptorAllocator& allocator);
+        DescriptorAllocator allocator);
     static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string_view>& paths,
         DescriptorArenaAllocators& allocators);
 private:

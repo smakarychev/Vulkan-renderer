@@ -46,53 +46,20 @@ void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const Text
     Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
 }
 
-Descriptors DescriptorArenaAllocator::Allocate(DescriptorsLayout layout,
-    const DescriptorAllocatorAllocationBindings& bindings)
-{
-    ASSERT(m_Residence == DescriptorAllocatorResidence::CPU, "GPU allocators need ResourceUploader to be provided")
-    ValidateBindings(bindings);
-
-    std::optional<Descriptors> descriptors = Device::Allocate(*this, layout, bindings);
-    ASSERT(descriptors.has_value(), "Increase allocator size")
-    
-    return *descriptors; 
-}
-
-void DescriptorArenaAllocator::Reset()
-{
-    m_CurrentOffset = 0;
-}
-
-void DescriptorArenaAllocator::Bind(const CommandBuffer& cmd, u32 bufferIndex)
-{
-    m_CurrentBuffer = bufferIndex;
-
-    RenderCommand::Bind(cmd, *this);
-}
-
-void DescriptorArenaAllocator::ValidateBindings(const DescriptorAllocatorAllocationBindings& bindings) const
-{
-    for (auto& binding : bindings.Bindings)
-        ASSERT(
-            (m_Kind == DescriptorAllocatorKind::Samplers && binding.Type == DescriptorType::Sampler) ||
-            (m_Kind == DescriptorAllocatorKind::Resources && binding.Type != DescriptorType::Sampler),
-            "Cannot use this descriptor allocator with such bindings")
-}
-
 std::unordered_map<DescriptorLayoutCache::CacheKey,
     DescriptorsLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
 
-DescriptorArenaAllocators::DescriptorArenaAllocators(const DescriptorArenaAllocator& resourceAllocator,
-    const DescriptorArenaAllocator& samplerAllocator)
+DescriptorArenaAllocators::DescriptorArenaAllocators(DescriptorArenaAllocator resourceAllocator,
+    DescriptorArenaAllocator samplerAllocator)
     : m_Allocators({resourceAllocator, samplerAllocator})
 {
-    ASSERT(resourceAllocator.m_Kind == DescriptorAllocatorKind::Resources,
+    ASSERT(Device::GetDescriptorArenaAllocatorKind(resourceAllocator) == DescriptorAllocatorKind::Resources,
         "Provided 'resource' allocator isn't actually a resource allocator")
-    ASSERT(samplerAllocator.m_Kind == DescriptorAllocatorKind::Samplers,
+    ASSERT(Device::GetDescriptorArenaAllocatorKind(samplerAllocator) == DescriptorAllocatorKind::Samplers,
         "Provided 'sampler' allocator isn't actually a sampler allocator")
 }
 
-const DescriptorArenaAllocator& DescriptorArenaAllocators::Get(DescriptorAllocatorKind kind) const
+DescriptorArenaAllocator DescriptorArenaAllocators::Get(DescriptorAllocatorKind kind) const
 {
     ASSERT(kind == DescriptorAllocatorKind::Resources || kind == DescriptorAllocatorKind::Samplers,
            "Unsupported allocator kind")
@@ -100,17 +67,9 @@ const DescriptorArenaAllocator& DescriptorArenaAllocators::Get(DescriptorAllocat
     return m_Allocators[(u32)kind];
 }
 
-DescriptorArenaAllocator& DescriptorArenaAllocators::Get(DescriptorAllocatorKind kind)
-{
-    return const_cast<DescriptorArenaAllocator&>(const_cast<const DescriptorArenaAllocators&>(*this).Get(kind));
-}
-
 void DescriptorArenaAllocators::Bind(const CommandBuffer& cmd, u32 bufferIndex)
 {
-    for (auto& allocator : m_Allocators)
-        allocator.m_CurrentBuffer = bufferIndex;
-
-    RenderCommand::Bind(cmd, *this);
+    RenderCommand::Bind(cmd, *this, bufferIndex);
 }
 
 DescriptorLayoutCache::CacheKey DescriptorLayoutCache::CreateCacheKey(const DescriptorsLayoutCreateInfo& createInfo)
