@@ -10,7 +10,6 @@
 
 class DescriptorSet;
 struct PushConstantDescription;
-class DescriptorsLayout;
 class DescriptorLayoutCache;
 class DescriptorAllocator;
 class Image;

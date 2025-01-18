@@ -145,12 +145,12 @@ DescriptorLayoutCache::CacheKey DescriptorLayoutCache::CreateCacheKey(const Desc
     return key;
 }
 
-DescriptorsLayout* DescriptorLayoutCache::Find(const CacheKey& key)
+DescriptorsLayout DescriptorLayoutCache::Find(const CacheKey& key)
 {
     if (s_LayoutCache.contains(key))
-        return &s_LayoutCache.at(key);
+        return s_LayoutCache.at(key);
 
-    return nullptr;
+    return {};
 }
 
 void DescriptorLayoutCache::Emplace(const CacheKey& key, DescriptorsLayout layout)

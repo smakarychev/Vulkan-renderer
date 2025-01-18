@@ -2083,11 +2083,10 @@ DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& 
     ASSERT(createInfo.BindingFlags.size() == createInfo.Bindings.size(),
         "If any element of binding flags is set, every element has to be set")
 
-
     const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
-    DescriptorsLayout* cached = DescriptorLayoutCache::Find(key);
-    if (cached)
-        return *cached;
+    DescriptorsLayout cached = DescriptorLayoutCache::Find(key);
+    if (cached.HasValue())
+        return cached;
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
     bindingFlags.reserve(createInfo.BindingFlags.size());
@@ -2160,8 +2159,7 @@ DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& 
     DeviceCheck(vkCreateDescriptorSetLayout(s_State.Device, &layoutCreateInfo, nullptr,
         &descriptorSetLayoutResource.Layout), "Failed to create descriptor set layout");
     
-    DescriptorsLayout layout = {};
-    layout.m_ResourceHandle = Resources().AddResource(descriptorSetLayoutResource);
+    DescriptorsLayout layout = Resources().AddResource(descriptorSetLayoutResource);
     DeletionQueue().Enqueue(layout);
 
     DescriptorLayoutCache::Emplace(key, layout);
@@ -2169,7 +2167,7 @@ DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& 
     return layout;
 }
 
-void Device::Destroy(ResourceHandleType<DescriptorsLayout> layout)
+void Device::Destroy(DescriptorsLayout layout)
 {
     vkDestroyDescriptorSetLayout(s_State.Device, Resources().m_DescriptorLayouts[layout.m_Id].Layout, nullptr);
     Resources().RemoveResource(layout);

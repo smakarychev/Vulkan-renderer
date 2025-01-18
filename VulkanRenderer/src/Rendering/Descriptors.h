@@ -24,7 +24,6 @@ class Sampler;
 class Image;
 class CommandBuffer;
 class Buffer;
-class DescriptorsLayout;
 class DescriptorPool;
 
 struct DescriptorBinding
@@ -46,14 +45,8 @@ struct DescriptorsLayoutCreateInfo
     DescriptorLayoutFlags Flags{DescriptorLayoutFlags::None};
 };
 
-class DescriptorsLayout
-{
-    FRIEND_INTERNAL
-public:
-    ResourceHandleType<DescriptorsLayout> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<DescriptorsLayout> m_ResourceHandle{};
-};
+struct DescriptorsLayoutTag {};
+using DescriptorsLayout = ResourceHandleType<DescriptorsLayoutTag>;
 
 struct DescriptorSetCreateInfo
 {
@@ -89,7 +82,7 @@ class DescriptorSet
 public:
     void SetTexture(u32 slot, const Texture& texture, DescriptorType descriptor, u32 arrayIndex);
     
-    const DescriptorsLayout& GetLayout() const { return m_Layout; }
+    DescriptorsLayout GetLayout() const { return m_Layout; }
 private:
     ResourceHandleType<DescriptorSet> Handle() const { return m_ResourceHandle; }
 private:
@@ -250,7 +243,7 @@ public:
     };
 public:
     static CacheKey CreateCacheKey(const DescriptorsLayoutCreateInfo& createInfo);
-    static DescriptorsLayout* Find(const CacheKey& key);
+    static DescriptorsLayout Find(const CacheKey& key);
     static void Emplace(const CacheKey& key, DescriptorsLayout layout);
 private:
     static void SortBindings(CacheKey& cacheKey);

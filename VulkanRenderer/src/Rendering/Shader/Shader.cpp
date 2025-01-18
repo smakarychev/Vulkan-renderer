@@ -55,15 +55,15 @@ namespace
         static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = Device::CreateDescriptorsLayout({
             .Flags = DescriptorLayoutFlags::DescriptorBuffer});
 
-        const DescriptorsLayout* EMPTY_LAYOUT = useDescriptorBuffer ?
-            &EMPTY_LAYOUT_DESCRIPTOR_BUFFER : &EMPTY_LAYOUT_ORDINARY;
+        const DescriptorsLayout EMPTY_LAYOUT = useDescriptorBuffer ?
+            EMPTY_LAYOUT_DESCRIPTOR_BUFFER : EMPTY_LAYOUT_ORDINARY;
 
         for (u32 i = 0; i < descriptorSetReflections.size(); i++)
         {
             auto& set = descriptorSetReflections[i];
             if (set.Descriptors.empty())
             {
-                layouts[i] = *EMPTY_LAYOUT;
+                layouts[i] = EMPTY_LAYOUT;
                 continue;
             }
             
