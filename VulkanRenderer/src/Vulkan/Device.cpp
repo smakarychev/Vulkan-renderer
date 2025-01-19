@@ -2482,11 +2482,13 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
             &bindingOffsets[offsetIndex]);
         bindingOffsets[offsetIndex] += allocatorResource.CurrentOffset;
     }
+
+    DeviceResources::DescriptorsResource descriptorsResource = {};
+    descriptorsResource.Offsets = bindingOffsets;
+    descriptorsResource.SizeBytes = layoutSizeBytes;
+    descriptorsResource.Allocator = allocator;
     
-    Descriptors descriptors = {};
-    descriptors.m_Offsets = bindingOffsets;
-    descriptors.m_SizeBytes = layoutSizeBytes;
-    descriptors.m_Allocator = allocator;
+    Descriptors descriptors = Resources().AddResource(descriptorsResource);
 
     allocatorResource.CurrentOffset += layoutSizeBytes;
     
@@ -2503,9 +2505,10 @@ DescriptorAllocatorKind Device::GetDescriptorArenaAllocatorKind(DescriptorArenaA
     return Resources()[allocator].Kind;
 }
 
-void Device::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-    DescriptorType type, u32 index)
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+    const BufferBindingInfo& buffer, u32 index)
 {
+    auto&& [slot, type] = bindingInfo;
     ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
         "Texel buffers require format information")
     ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
@@ -2528,20 +2531,13 @@ void Device::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const B
     // using the fact that 'descriptorGetInfo.data' is union
     descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
 
-    u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
-    u64 innerOffsetBytes = descriptorSizeBytes * index;
-    ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptors.m_SizeBytes,
-        "Trying to write descriptor outside of the allocated region")
-
-    u64 offsetBytes = descriptors.m_Offsets[slot] + innerOffsetBytes;
-    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptors.m_Allocator];
-    vkGetDescriptorEXT(s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
-        (u8*)allocatorResource.MappedAddresses[allocatorResource.CurrentBuffer] + offsetBytes);
+    WriteDescriptor(descriptors, bindingInfo, index, descriptorGetInfo);
 }
 
-void Device::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-    DescriptorType type, u32 index)
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+    const TextureBindingInfo& texture, u32 index)
 {
+    auto&& [slot, type] = bindingInfo;
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
     descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
@@ -2557,39 +2553,33 @@ void Device::UpdateDescriptors(const Descriptors& descriptors, u32 slot, const T
         descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
     }
 
-    u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
-    u64 innerOffsetBytes = descriptorSizeBytes * index;
-    ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptors.m_SizeBytes,
-        "Trying to write descriptor outside of the allocated region")
-    
-    u64 offsetBytes = descriptors.m_Offsets[slot] + innerOffsetBytes;
-    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptors.m_Allocator];
-    vkGetDescriptorEXT(s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
-        (u8*)allocatorResource.MappedAddresses[allocatorResource.CurrentBuffer] + offsetBytes);
+    WriteDescriptor(descriptors, bindingInfo, index, descriptorGetInfo);
 }
 
-void Device::UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-    DescriptorType type, u32 index)
+void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+    const BufferBindingInfo& buffer, u32 index)
 {
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptors.m_Allocator];
+    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];
     u32 currentIndex = allocatorResource.CurrentBuffer; 
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
         allocatorResource.CurrentBuffer = i;
-        UpdateDescriptors(descriptors, slot, buffer, type, index);
+        UpdateDescriptors(descriptors, bindingInfo, buffer, index);
     }
     allocatorResource.CurrentBuffer = currentIndex;
 }
 
-void Device::UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-    DescriptorType type, u32 index)
+void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+    const TextureBindingInfo& texture, u32 index)
 {
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptors.m_Allocator];
+    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];
     u32 currentIndex = allocatorResource.CurrentBuffer; 
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
         allocatorResource.CurrentBuffer = i;
-        UpdateDescriptors(descriptors, slot, texture, type, index);
+        UpdateDescriptors(descriptors, bindingInfo, texture, index);
     }
     allocatorResource.CurrentBuffer = currentIndex;
 }
@@ -2610,6 +2600,23 @@ u32 Device::GetDescriptorSizeBytes(DescriptorType type)
     default:
         return 0;
     }
+}
+
+void Device::WriteDescriptor(Descriptors descriptors, DescriptorBindingInfo bindingInfo, u32 index,
+    VkDescriptorGetInfoEXT& descriptorGetInfo)
+{
+    auto&& [slot, type] = bindingInfo;
+    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
+    u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
+    u64 innerOffsetBytes = descriptorSizeBytes * index;
+    ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptorsResource.SizeBytes,
+        "Trying to write descriptor outside of the allocated region")
+
+    u64 offsetBytes = descriptorsResource.Offsets[slot] + innerOffsetBytes;
+    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
+        Resources()[descriptorsResource.Allocator];
+    vkGetDescriptorEXT(s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
+        (u8*)allocatorResource.MappedAddresses[allocatorResource.CurrentBuffer] + offsetBytes);
 }
 
 Fence Device::CreateFence(FenceCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -3406,7 +3413,10 @@ DeviceResources& Device::Resources()
 void Device::ShutdownResources()
 {
     vmaDestroyAllocator(s_State.Allocator);
-    
+
+    /* descriptors are not really api-resources, and they do not have to be cleared */
+    Resources().m_DeallocatedCount += Resources().m_Descriptors.Count();
+    Resources().m_Descriptors.Clear();
     ASSERT(Resources().m_AllocatedCount == Resources().m_DeallocatedCount,
         "Not all driver resources are destroyed")
 }

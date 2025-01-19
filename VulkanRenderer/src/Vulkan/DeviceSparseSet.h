@@ -27,6 +27,8 @@ public:
     
     constexpr u32 Count() const { return (u32)m_Resources.Size(); }
     constexpr u32 Capacity() const { return (u32)m_Resources.Capacity(); }
+
+    constexpr void Clear();
     
     constexpr void SetOnResizeCallback(OnResizeCallback) {}
     constexpr void SetOnSwapCallback(OnSwapCallback callback) { m_SwapCallback = callback; }
@@ -90,4 +92,12 @@ template <typename T>
 constexpr T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle)
 {
     return const_cast<T&>(const_cast<const DeviceSparseSet&>(*this)[handle]);
+}
+
+template <typename T>
+constexpr void DeviceSparseSet<T>::Clear()
+{
+    m_Resources.Clear();
+    m_SparseSet.Clear();
+    m_FreeElements.clear();
 }

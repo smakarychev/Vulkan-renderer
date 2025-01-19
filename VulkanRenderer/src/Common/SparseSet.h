@@ -61,6 +61,8 @@ public:
         
     constexpr Iterator begin() { return Iterator(m_Dense, static_cast<u32>(m_Dense.size() - 1)); }
     constexpr Iterator end() { return Iterator(m_Dense, -1); }
+
+    void Clear();
     
     constexpr St GetNullFlag() const { return NON_ELEMENT; }
 
@@ -73,6 +75,13 @@ private:
     std::vector<std::unique_ptr<std::vector<St>>> m_SparsePaged;
     std::vector<Dt> m_Dense;
 };
+
+template <typename St, typename Dt>
+void SparseSet<St, Dt>::Clear()
+{
+    m_Dense.clear();
+    m_SparsePaged.clear();
+}
 
 template <typename St, typename Dt>
 constexpr St SparseSet<St, Dt>::Push(Dt value)

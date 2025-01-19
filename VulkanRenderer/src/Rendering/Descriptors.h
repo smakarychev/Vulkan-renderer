@@ -84,34 +84,13 @@ using DescriptorSet = ResourceHandleType<DescriptorSetTag>;
 struct DescriptorArenaAllocatorTag{};
 using DescriptorArenaAllocator = ResourceHandleType<DescriptorArenaAllocatorTag>;
 
-class Descriptors
+struct DescriptorsTag{};
+using Descriptors = ResourceHandleType<DescriptorsTag>;
+
+struct DescriptorBindingInfo
 {
-    FRIEND_INTERNAL
-public:
-    struct BindingInfo
-    {
-        u32 Slot;
-        DescriptorType Type;
-    };
-public:
-    using BufferBindingInfo = BufferSubresource;
-    using TextureBindingInfo = ImageBindingInfo;
-
-    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
-
-    /* 'Global' versions of UpdateBinding updates bindings in ALL descriptor buffers */
-    
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
-private:
-    std::vector<u64> m_Offsets;
-    u64 m_SizeBytes{0};
-    DescriptorArenaAllocator m_Allocator{};
+    u32 Slot{};
+    DescriptorType Type{};
 };
 
 enum class DescriptorAllocatorKind

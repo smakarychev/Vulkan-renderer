@@ -25,6 +25,8 @@ public:
 
     constexpr u32 Size() const { return m_Size; }
     constexpr u32 Capacity() const { return (u32)m_Pages.size() * DENSE_SET_PAGE_SIZE; }
+
+    void Clear();
 private:
     constexpr std::vector<T>& GetOrCreatePage(u32 index);
     constexpr const std::vector<T>& GetPage(u32 index) const;
@@ -39,6 +41,13 @@ template <typename T>
 DenseSetPaged<T>::DenseSetPaged()
 {
     m_Pages.resize(1);
+}
+
+template <typename T>
+void DenseSetPaged<T>::Clear()
+{
+    m_Pages.resize(1);
+    m_Pages.front().clear();
 }
 
 template <typename T>

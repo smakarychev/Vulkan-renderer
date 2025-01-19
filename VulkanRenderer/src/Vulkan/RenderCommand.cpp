@@ -263,26 +263,28 @@ void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocato
 }
 
 void RenderCommand::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
+    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet)
 {
     BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void RenderCommand::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet)
+    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet)
 {
     BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
 void RenderCommand::BindDescriptors(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
 {
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[descriptors.m_Allocator];
-    ASSERT(allocators.Get(allocatorResource.Kind) == descriptors.m_Allocator,
+    const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
+    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
+        Device::Resources()[descriptorsResource.Allocator];
+    ASSERT(allocators.Get(allocatorResource.Kind) == descriptorsResource.Allocator,
         "Descriptors were not allocated by any of the provided allocators")
 
     u32 allocatorIndex = (u32)allocatorResource.Kind;
-    u64 offset = descriptors.m_Offsets.front();
+    u64 offset = descriptorsResource.Offsets.front();
     vkCmdSetDescriptorBufferOffsetsEXT(Device::Resources()[cmd].CommandBuffer, bindPoint,
         Device::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);
 }

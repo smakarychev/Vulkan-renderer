@@ -11,7 +11,6 @@
 #include "Rendering/Swapchain.h"
 
 class DescriptorArenaAllocators;
-class Descriptors;
 struct ImageSubresource;
 struct ImageBlitInfo;
 class Image;
@@ -65,9 +64,9 @@ public:
     /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
     static void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators, u32 bufferIndex);
     static void BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
+        PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet);
     static void BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet);
+        PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet);
 
     
     static void Draw(const CommandBuffer& cmd, u32 vertexCount);
@@ -109,5 +108,5 @@ public:
     static void DrawImGui(const CommandBuffer& cmd, const RenderingInfo renderingInfo);
 private:
     static void BindDescriptors(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-        PipelineLayout pipelineLayout, const Descriptors& descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
+        PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
 };

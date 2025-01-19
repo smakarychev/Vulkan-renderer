@@ -324,89 +324,92 @@ void ShaderDescriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, P
 
 void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBindingInfo& buffer) const
 {
-    m_Descriptors.UpdateBinding(GetBindingInfo(name), buffer);
+    UpdateBinding(name, buffer, 0);
 }
 
 void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const
 {
-    m_Descriptors.UpdateBinding(GetBindingInfo(name), buffer, index);
+    Device::UpdateDescriptors(m_Descriptors, GetBindingInfo(name), buffer, index);
 }
 
 void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture) const
 {
-    m_Descriptors.UpdateBinding(GetBindingInfo(name), texture);
+    UpdateBinding(name, texture, 0);
 }
 
 void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 index) const
 {
-    m_Descriptors.UpdateBinding(GetBindingInfo(name), texture, index);
+    Device::UpdateDescriptors(m_Descriptors, GetBindingInfo(name), texture, index);
 }
 
-void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
+void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
 {
-    m_Descriptors.UpdateBinding(bindingInfo, buffer);
+    UpdateBinding(bindingInfo, buffer, 0);
 }
 
-void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
-{
-    m_Descriptors.UpdateBinding(bindingInfo, buffer, index);
-}
-
-void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
-{
-    m_Descriptors.UpdateBinding(bindingInfo, texture);
-}
-
-void ShaderDescriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer,
     u32 index) const
 {
-    m_Descriptors.UpdateBinding(bindingInfo, texture, index);
+    Device::UpdateDescriptors(m_Descriptors, bindingInfo, buffer, index);
+}
+
+void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture) const
+{
+    UpdateBinding(bindingInfo, texture, 0);
+}
+
+void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture,
+    u32 index) const
+{
+    Device::UpdateDescriptors(m_Descriptors, bindingInfo, texture, index);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer) const
 {
-    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), buffer);
+    UpdateGlobalBinding(GetBindingInfo(name), buffer, 0);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const
 {
-    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), buffer, index);
+    Device::UpdateGlobalDescriptors(m_Descriptors, GetBindingInfo(name), buffer, index);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture) const
 {
-    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), texture);
+    UpdateGlobalBinding(GetBindingInfo(name), texture, 0);
 }
 
 void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture,
     u32 index) const
 {
-    m_Descriptors.UpdateGlobalBinding(GetBindingInfo(name), texture, index);
+    Device::UpdateGlobalDescriptors(m_Descriptors, GetBindingInfo(name), texture, index);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
+void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo,
+    const BufferBindingInfo& buffer) const
 {
-    m_Descriptors.UpdateGlobalBinding(bindingInfo, buffer);
+    UpdateGlobalBinding(bindingInfo, buffer, 0);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer,
+void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer,
     u32 index) const
 {
-    m_Descriptors.UpdateGlobalBinding(bindingInfo, buffer, index);
+    Device::UpdateGlobalDescriptors(m_Descriptors, bindingInfo, buffer, index);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
+void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo,
+    const TextureBindingInfo& texture) const
 {
-    m_Descriptors.UpdateGlobalBinding(bindingInfo, texture);
+    UpdateGlobalBinding(bindingInfo, texture, 0);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture,
     u32 index) const
 {
-    m_Descriptors.UpdateGlobalBinding(bindingInfo, texture, index);
+    Device::UpdateGlobalDescriptors(m_Descriptors, bindingInfo, texture, index);
 }
 
-ShaderDescriptors::BindingInfo ShaderDescriptors::GetBindingInfo(std::string_view bindingName) const
+DescriptorBindingInfo ShaderDescriptors::GetBindingInfo(std::string_view bindingName) const
 {
     auto& binding = m_Template->GetBinding(m_SetNumber, bindingName);
 

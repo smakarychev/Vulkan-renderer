@@ -5,47 +5,6 @@
 
 #include <algorithm>
 
-void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
-{
-    Device::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
-}
-
-void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
-{
-    Device::UpdateDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
-}
-
-void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
-{
-    Device::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
-}
-
-void Descriptors::UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const
-{
-    Device::UpdateDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
-}
-
-void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
-{
-    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, 0);
-}
-
-void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const
-{
-    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, buffer, bindingInfo.Type, index);
-}
-
-void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const
-{
-    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, 0);
-}
-
-void Descriptors::UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
-    u32 index) const
-{
-    Device::UpdateGlobalDescriptors(*this, bindingInfo.Slot, texture, bindingInfo.Type, index);
-}
-
 std::unordered_map<DescriptorLayoutCache::CacheKey,
     DescriptorsLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
 

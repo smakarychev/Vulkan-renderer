@@ -27,7 +27,7 @@ bool BindlessTextureDescriptorsRingBuffer::WillOverflow() const
 
 u32 BindlessTextureDescriptorsRingBuffer::AddTexture(const Texture& texture)
 {
-    const ShaderDescriptors::BindingInfo bindingInfo = m_BindlessDescriptorSet.GetBindingInfo(UNIFORM_TEXTURES);
+    const DescriptorBindingInfo bindingInfo = m_BindlessDescriptorSet.GetBindingInfo(UNIFORM_TEXTURES);
 
     m_BindlessDescriptorSet.UpdateGlobalBinding(
         bindingInfo,

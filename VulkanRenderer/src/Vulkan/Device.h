@@ -221,6 +221,13 @@ private:
         };
         u32 MaxSetsPerPool{};
     };
+    struct DescriptorsResource
+    {
+        using ObjectType = DescriptorsTag;
+        std::vector<u64> Offsets{};
+        u64 SizeBytes{0};
+        DescriptorArenaAllocator Allocator{};
+    };
     struct DescriptorArenaAllocatorResource
     {
         using ObjectType = DescriptorArenaAllocatorTag;
@@ -304,6 +311,7 @@ private:
     ResourceContainerType<DescriptorSetLayoutResource> m_DescriptorLayouts;
     ResourceContainerType<DescriptorSetResource> m_DescriptorSets;
     ResourceContainerType<DescriptorAllocatorResource> m_DescriptorAllocators;
+    ResourceContainerType<DescriptorsResource> m_Descriptors;
     ResourceContainerType<DescriptorArenaAllocatorResource> m_DescriptorArenaAllocators;
     ResourceContainerType<PipelineLayoutResource> m_PipelineLayouts;
     ResourceContainerType<PipelineResource> m_Pipelines;
@@ -354,6 +362,8 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_DescriptorSets, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocatorResource>)
         return AddToResourceList(m_DescriptorAllocators, std::forward<Resource>(resource));
+    else if constexpr(std::is_same_v<Decayed, DescriptorsResource>)
+        return AddToResourceList(m_Descriptors, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocatorResource>)
         return AddToResourceList(m_DescriptorArenaAllocators, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, PipelineLayoutResource>)
@@ -408,6 +418,8 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_DescriptorSets.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocatorTag>)
         m_DescriptorAllocators.Remove(handle);
+    else if constexpr(std::is_same_v<Decayed, DescriptorsTag>)
+        m_Descriptors.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocatorTag>)
         m_DescriptorArenaAllocators.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, PipelineLayoutTag>)
@@ -465,6 +477,8 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_DescriptorSets[type];
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
         return m_DescriptorAllocators[type];
+    else if constexpr(std::is_same_v<Decayed, Descriptors>)
+        return m_Descriptors[type];
     else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocator>)
         return m_DescriptorArenaAllocators[type];
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
@@ -665,14 +679,14 @@ public:
     static void ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator);
     static DescriptorAllocatorKind GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator);
     
-    static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-        DescriptorType type, u32 index);  
-    static void UpdateDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-        DescriptorType type, u32 index);  
-    static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const BufferBindingInfo& buffer,
-        DescriptorType type, u32 index);  
-    static void UpdateGlobalDescriptors(const Descriptors& descriptors, u32 slot, const TextureBindingInfo& texture,
-        DescriptorType type, u32 index);
+    static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+        const BufferBindingInfo& buffer, u32 index);  
+    static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+        const TextureBindingInfo& texture, u32 index);  
+    static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+        const BufferBindingInfo& buffer, u32 index);  
+    static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+        const TextureBindingInfo& texture, u32 index);
 
     static Fence CreateFence(FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Fence fence);
@@ -764,7 +778,9 @@ private:
     static void DestroySwapchainImages(Swapchain swapchain);
 
     static u32 GetDescriptorSizeBytes(DescriptorType type);
-
+    static void WriteDescriptor(Descriptors descriptors, DescriptorBindingInfo bindingInfo, u32 index,
+        VkDescriptorGetInfoEXT& descriptorGetInfo);
+    
     static DeviceResources::BufferResource CreateBufferResource(u64 sizeBytes, VkBufferUsageFlags usage,
         VmaAllocationCreateFlags allocationFlags);
     static u64 GetDeviceAddress(VkBuffer buffer);

@@ -56,7 +56,7 @@ public:
     ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo);
     
     PipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
-    const DescriptorsLayout GetDescriptorsLayout(u32 index) const { return m_DescriptorsLayouts[index]; }
+    DescriptorsLayout GetDescriptorsLayout(u32 index) const { return m_DescriptorsLayouts[index]; }
 
     const DescriptorBinding& GetBinding(u32 set, std::string_view name) const;
     const DescriptorBinding* TryGetBinding(u32 set, std::string_view name) const;
@@ -149,8 +149,6 @@ class ShaderDescriptors
 {
     friend class ShaderCache;
 public:
-    using BindingInfo = Descriptors::BindingInfo;
-
     ShaderDescriptors() = default;
     ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo);
 
@@ -165,22 +163,23 @@ public:
     void UpdateBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateBinding(std::string_view name, const TextureBindingInfo& texture) const;
     void UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 index) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
-    void UpdateBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
+    void UpdateBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
+    void UpdateBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void UpdateBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture, u32 index) const;
 
     void UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer) const;
     void UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const;
     void UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture) const;
     void UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture, u32 index) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const BufferBindingInfo& buffer, u32 index) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
-    void UpdateGlobalBinding(const BindingInfo& bindingInfo, const TextureBindingInfo& texture,
+    void UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer) const;
+    void UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer,
+        u32 index) const;
+    void UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture) const;
+    void UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture,
         u32 index) const;
 
-    BindingInfo GetBindingInfo(std::string_view bindingName) const;
+    DescriptorBindingInfo GetBindingInfo(std::string_view bindingName) const;
     
 private:
     Descriptors m_Descriptors{};
