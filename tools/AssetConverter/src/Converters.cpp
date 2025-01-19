@@ -23,7 +23,7 @@
 #include <vulkan/vulkan_core.h>
 
 #include "utils.h"
-#include "Core/core.h"
+#include "core.h"
 
 // SPIV-reflect implementation
 #include "spirv_reflect.cpp"

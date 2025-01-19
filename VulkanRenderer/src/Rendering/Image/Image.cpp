@@ -1,6 +1,6 @@
 ﻿#include "Image.h"
 
-#include "Core/core.h"
+#include "core.h"
 #include "Vulkan/Device.h"
 
 #include "Vulkan/RenderCommand.h"

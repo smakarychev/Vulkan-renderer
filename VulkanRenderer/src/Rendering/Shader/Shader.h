@@ -214,3 +214,4 @@ private:
 private:
     static std::unordered_map<std::string, ShaderPipelineTemplate> s_Templates;
 };
+

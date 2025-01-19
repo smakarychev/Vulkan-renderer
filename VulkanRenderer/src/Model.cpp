@@ -1,7 +1,7 @@
 ﻿#include "Model.h"
 
 #include "AssetManager.h"
-#include "Core/core.h"
+#include "core.h"
 #include "Mesh.h"
 #include "TextureAsset.h"
 #include "Core/Random.h"

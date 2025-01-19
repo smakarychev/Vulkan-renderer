@@ -1,6 +1,6 @@
 ﻿#include "Device.h"
 
-#include "Core/core.h"
+#include "core.h"
 
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0

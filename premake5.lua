@@ -24,6 +24,8 @@ include "vendor/efsw"
 group "Tools"
 include "tools/AssetLib"
 include "tools/AssetConverter"
+include "tools/ShaderBindGroupGen"
 
 group ""
+include "CoreLib"
 include "VulkanRenderer"

@@ -59,7 +59,7 @@ namespace
                     flags |= DescriptorFlags::ImmutableSamplerShadowNearest;
 
             else
-                ASSERT(false, "Unrecogrinzed flag {}", flagString)
+                ASSERT(false, "Unrecoginzed flag {}", flagString)
         }
         
         return flags;

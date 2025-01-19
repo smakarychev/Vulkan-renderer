@@ -1,4 +1,4 @@
-project "AssetLib"
+project "CoreLib"
     kind "StaticLib"
     language "C++"
     cppdialect "C++20"
@@ -8,24 +8,6 @@ project "AssetLib"
     files {
         "src/**.h",
         "src/**.cpp",
-    }
-
-    includedirs {
-        "%{wks.location}/CoreLib/src",
-        IncludeDir["lz4"],
-        IncludeDir["nlohmann-json"],
-        IncludeDir["glm"],
-        IncludeDir["volk"],
-        "$(VULKAN_SDK)/Include",
-    }
-
-    defines {
-        "VK_NO_PROTOTYPES",
-    }
-
-    links {
-        "lz4",
-        "CoreLib",
     }
 
     filter "configurations:Debug"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Core/core.h"
+#include "core.h"
 #include "types.h"
 
 enum class ImageLayout : u8

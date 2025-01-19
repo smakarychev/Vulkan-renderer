@@ -19,3 +19,6 @@
 [submodule "vendor/efsw"]
 	path = vendor/efsw
 	url = https://github.com/smakarychev/efsw
+[submodule "vendor/inja"]
+	path = vendor/inja
+	url = https://github.com/pantor/inja.git

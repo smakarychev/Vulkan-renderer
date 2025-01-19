@@ -7,7 +7,7 @@
 #include "FormatTraits.h"
 #include "RenderHandle.h"
 #include "RenderObject.h"
-#include "Core/core.h"
+#include "core.h"
 
 #define FRIEND_INTERNAL \
     friend class Device; \

@@ -2,7 +2,7 @@
 
 #include <Windows.h>
 
-#include "Core/core.h"
+#include "core.h"
 
 void Utils::runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args)
 {

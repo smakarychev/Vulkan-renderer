@@ -2,7 +2,7 @@
 
 #include "SparseSetGenerationTraits.h"
 #include "types.h"
-#include "Core/core.h"
+#include "core.h"
 #include "Core/Random.h"
 
 #include "utils/MathUtils.h"

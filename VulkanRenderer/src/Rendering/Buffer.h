@@ -4,7 +4,7 @@
 
 #include "ResourceHandle.h"
 #include "Common/Span.h"
-#include "Core/core.h"
+#include "core.h"
 
 class DeletionQueue;
 class CommandBuffer;

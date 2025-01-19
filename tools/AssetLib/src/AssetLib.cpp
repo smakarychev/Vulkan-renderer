@@ -5,7 +5,7 @@
 #include <iostream>
 #include <nlm_json.hpp>
 
-#include "Rendering/Image/Image.h"
+#include "core.h"
 
 namespace assetLib
 {

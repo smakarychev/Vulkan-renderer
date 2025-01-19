@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-#include "Core/core.h"
+#include "core.h"
 
 #include "Rendering/ResourceHandle.h"
 

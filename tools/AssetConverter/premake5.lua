@@ -13,8 +13,9 @@ project "AssetConverter"
     includedirs {
         "src",
         "$(VULKAN_SDK)/Include",
+	    "%{wks.location}/CoreLib/src",
         "%{wks.location}/tools/AssetLib/src",
-	
+	    
         IncludeDir["stb"],		    
         IncludeDir["assimp"],
         IncludeDir["glm"],
@@ -28,6 +29,7 @@ project "AssetConverter"
 	}
 
     links {
+        "CoreLib",
         "AssetLib",
         "assimp-vc143-mt.lib",
         "meshoptimizer"
@@ -71,8 +73,9 @@ project "AssetConverterLib"
     includedirs {
         "src",
         "$(VULKAN_SDK)/Include",
+        "%{wks.location}/CoreLib/src",
         "%{wks.location}/tools/AssetLib/src",
-	
+
         IncludeDir["stb"],		    
         IncludeDir["assimp"],
         IncludeDir["glm"],
@@ -86,6 +89,7 @@ project "AssetConverterLib"
 	}
 
     links {
+        "CoreLib",
         "AssetLib",
         "assimp-vc143-mt.lib",
         "meshoptimizer"

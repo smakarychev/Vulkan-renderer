@@ -5,7 +5,7 @@
 
 #include "lz4.h"
 #include "utils.h"
-#include "Core/core.h"
+#include "core.h"
 
 namespace
 {
@@ -23,7 +23,7 @@ namespace
         case assetLib::VertexFormat::P3N3T3UV2:
             return "P3N3T3UV2";
         default:
-            std::cout << "Unsupported vertex format\n";
+            LOG("Unsupported vertex format");
             break;
         }
         std::unreachable();
@@ -41,7 +41,7 @@ namespace
             return assetLib::ModelInfo::MaterialAspect::AmbientOcclusion;
         if (materialString == "emissive")
             return assetLib::ModelInfo::MaterialAspect::Emissive;
-        std::cout << "Unrecognized material string\n";
+        LOG("Unrecognized material string");
         std::unreachable();
     }
 
@@ -60,7 +60,7 @@ namespace
         case assetLib::ModelInfo::MaterialAspect::Emissive:
             return "emissive";
         default:
-            std::cout << "Unsupported material type\n";
+            LOG("Unsupported material aspect type");
             break;
         }
         std::unreachable();
@@ -72,7 +72,7 @@ namespace
             return assetLib::ModelInfo::MaterialType::Opaque;
         if (materialString == "translucent")
             return assetLib::ModelInfo::MaterialType::Translucent;
-        std::cout << "Unrecognized material string\n";
+        LOG("Unrecognized material string");
         std::unreachable();
     }
 
@@ -85,7 +85,7 @@ namespace
         case assetLib::ModelInfo::MaterialType::Translucent:
             return "translucent";
         default:
-            std::cout << "Unsupported material type\n";
+            LOG("Unsupported material type");
             break;
         }
         std::unreachable();

@@ -1,7 +1,7 @@
 ﻿#include "ShaderCache.h"
 
 #include "AssetManager.h"
-#include "Core/core.h"
+#include "core.h"
 #include "Converters.h"
 #include "cvars/CVarSystem.h"
 

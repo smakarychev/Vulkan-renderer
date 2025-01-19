@@ -4,7 +4,7 @@
 #include <algorithm>
 
 #include "AssetManager.h"
-#include "Core/core.h"
+#include "core.h"
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 #include "Rendering/Buffer.h"

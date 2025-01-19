@@ -9,6 +9,8 @@ VulkanApp.vcxproj.filters
 *.filters
 VulkanRenderer/bin
 VulkanRenderer/bin-int
+CoreLib/bin
+CoreLib/bin-int
 vendor/*/bin-int
 tools/*/bin
 tools/*/bin-int

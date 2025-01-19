@@ -1,5 +1,5 @@
-project "AssetLib"
-    kind "StaticLib"
+project "ShaderBindGroupGen"
+    kind "ConsoleApp"
     language "C++"
     cppdialect "C++20"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
@@ -11,21 +11,16 @@ project "AssetLib"
     }
 
     includedirs {
-        "%{wks.location}/CoreLib/src",
-        IncludeDir["lz4"],
+        IncludeDir["spirv_reflect"],
         IncludeDir["nlohmann-json"],
-        IncludeDir["glm"],
-        IncludeDir["volk"],
-        "$(VULKAN_SDK)/Include",
+        "%{wks.location}/CoreLib/src",
     }
 
     defines {
-        "VK_NO_PROTOTYPES",
     }
 
     links {
-        "lz4",
-        "CoreLib",
+        CoreLib
     }
 
     filter "configurations:Debug"

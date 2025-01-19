@@ -2,7 +2,7 @@
 
 #include "AssetLib.h"
 
-#include "Core/core.h"
+#include "core.h"
 
 namespace assetLib
 {

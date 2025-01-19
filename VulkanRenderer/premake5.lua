@@ -12,6 +12,7 @@ project "VulkanRenderer"
 
     includedirs {
         "src",
+        "%{wks.location}/CoreLib/src",
         "%{wks.location}/tools/AssetLib/src",
         "%{wks.location}/tools/AssetConverter/src",
         IncludeDir["GLFW"],			
@@ -33,6 +34,7 @@ project "VulkanRenderer"
         "glfw",
         "imgui",
         "efsw",
+        "CoreLib",
         "AssetLib",
         "AssetConverterLib"
     }

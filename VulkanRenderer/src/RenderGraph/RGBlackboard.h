@@ -4,7 +4,7 @@
 
 #include "RenderPass.h"
 #include "types.h"
-#include "Core/core.h"
+#include "core.h"
 #include "utils/hash.h"
 #include "utils/utils.h"
 
