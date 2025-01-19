@@ -2320,14 +2320,14 @@ void Device::DeallocateDescriptorSet(DescriptorAllocator allocator, DescriptorSe
     Resources().RemoveResource(set);
 }
 
-void Device::UpdateDescriptorSet(DescriptorSet descriptorSet,
-    u32 slot, const Texture& texture, DescriptorType type, u32 arrayIndex)
+void Device::UpdateDescriptorSet(DescriptorSet descriptorSet, DescriptorBindingInfo bindingInfo,
+    const TextureBindingInfo& texture, u32 index)
 {
-    ImageBindingInfo bindingInfo = texture.BindingInfo({}, ImageLayout::Readonly);
+    auto&& [slot, type] = bindingInfo;
     VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = Resources()[bindingInfo.Sampler].Sampler;
-    descriptorTextureInfo.imageView = Resources()[*bindingInfo.Image].Views.ViewList[bindingInfo.ViewHandle.m_Index];
-    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(bindingInfo.Layout);
+    descriptorTextureInfo.sampler = Resources()[texture.Sampler].Sampler;
+    descriptorTextureInfo.imageView = Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index];
+    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(texture.Layout);
 
     VkWriteDescriptorSet write = {};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2335,7 +2335,7 @@ void Device::UpdateDescriptorSet(DescriptorSet descriptorSet,
     write.dstSet = Resources()[descriptorSet].DescriptorSet;
     write.dstBinding = slot;
     write.pImageInfo = &descriptorTextureInfo;
-    write.dstArrayElement = arrayIndex;
+    write.dstArrayElement = index;
     write.descriptorType = vulkanDescriptorTypeFromDescriptorType(type);
 
     vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);

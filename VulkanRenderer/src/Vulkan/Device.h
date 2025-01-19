@@ -664,8 +664,8 @@ public:
     static DescriptorSet AllocateDescriptorSet(DescriptorAllocator allocator, DescriptorsLayout layout,
         DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
     static void DeallocateDescriptorSet(DescriptorAllocator allocator,  DescriptorSet set);
-    static void UpdateDescriptorSet(DescriptorSet descriptorSet, u32 slot, const Texture& texture,
-        DescriptorType type, u32 arrayIndex);
+    static void UpdateDescriptorSet(DescriptorSet descriptorSet, DescriptorBindingInfo bindingInfo,
+        const TextureBindingInfo& texture, u32 index);
 
     static DescriptorAllocator CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo);
     static void Destroy(DescriptorAllocator allocator);

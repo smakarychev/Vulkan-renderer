@@ -124,39 +124,37 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
         .DescriptorSetLayouts = m_DescriptorsLayouts});
 }
 
-const DescriptorBinding& ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
+DescriptorBindingInfo ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
 {
-    const DescriptorBinding* binding = TryGetBinding(set, name);
+    std::optional<DescriptorBindingInfo> descriptorBinding = TryGetBinding(set, name);
+    ASSERT(descriptorBinding.has_value(), "No such binding exists: {}", name)
 
-    ASSERT(binding != nullptr, "Unrecognized descriptor binding name")
-    
-    return *binding;
+    return *descriptorBinding;
 }
 
-const DescriptorBinding* ShaderPipelineTemplate::TryGetBinding(u32 set, std::string_view name) const
+std::optional<DescriptorBindingInfo> ShaderPipelineTemplate::TryGetBinding(u32 set, std::string_view name) const
 {
     auto& setInfo = m_ShaderReflection->DescriptorSetsInfo()[set];
     for (u32 descriptorIndex = 0; descriptorIndex < setInfo.Descriptors.size(); descriptorIndex++)
         if (setInfo.DescriptorNames[descriptorIndex] == name)
-            return &setInfo.Descriptors[descriptorIndex];
+            return DescriptorBindingInfo{
+                .Slot = setInfo.Descriptors[descriptorIndex].Binding,
+                .Type = setInfo.Descriptors[descriptorIndex].Type};
 
-    return nullptr;
+    return std::nullopt;
 }
 
-std::pair<u32, const DescriptorBinding&> ShaderPipelineTemplate::GetSetAndBinding(std::string_view name) const
+std::pair<u32, DescriptorBindingInfo> ShaderPipelineTemplate::GetSetAndBinding(std::string_view name) const
 {
-    const DescriptorBinding* descriptorBinding = nullptr;
-    u32 set = 0;
+    std::optional<DescriptorBindingInfo> descriptorBinding = std::nullopt;
     for (u32 setIndex = 0; setIndex < m_ShaderReflection->DescriptorSetsInfo().size(); setIndex++)
     {
-        set = setIndex;
         descriptorBinding = TryGetBinding(setIndex, name);
-        if (descriptorBinding != nullptr)
-            break;
+        if (descriptorBinding.has_value())
+            return {setIndex, *descriptorBinding};
     }
-    ASSERT(descriptorBinding != nullptr, "No such binding exists")
-
-    return {set, *descriptorBinding};
+    ASSERT(false, "No such binding exists: {}", name)
+    std::unreachable();
 }
 
 std::array<bool, MAX_DESCRIPTOR_SETS> ShaderPipelineTemplate::GetSetPresence() const
@@ -271,10 +269,10 @@ void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& textu
     auto&& [set, descriptorBinding] = m_Template->GetSetAndBinding(name);
 
     ASSERT(m_DescriptorSetsInfo.DescriptorSets[set].IsPresent,
-        "Attempt to access non-existing desriptor set")
+        "Attempt to access non-existing descriptor set")
 
     Device::UpdateDescriptorSet(m_DescriptorSetsInfo.DescriptorSets[set].Set,
-        descriptorBinding.Binding, texture, descriptorBinding.Type, arrayIndex);
+        descriptorBinding, texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly), arrayIndex);
 }
 
 ShaderDescriptors::ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo)
@@ -342,23 +340,23 @@ void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindin
     Device::UpdateDescriptors(m_Descriptors, GetBindingInfo(name), texture, index);
 }
 
-void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer) const
+void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const BufferBindingInfo& buffer) const
 {
     UpdateBinding(bindingInfo, buffer, 0);
 }
 
-void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer,
+void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const BufferBindingInfo& buffer,
     u32 index) const
 {
     Device::UpdateDescriptors(m_Descriptors, bindingInfo, buffer, index);
 }
 
-void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture) const
+void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const TextureBindingInfo& texture) const
 {
     UpdateBinding(bindingInfo, texture, 0);
 }
 
-void ShaderDescriptors::UpdateBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture,
+void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const TextureBindingInfo& texture,
     u32 index) const
 {
     Device::UpdateDescriptors(m_Descriptors, bindingInfo, texture, index);
@@ -385,25 +383,25 @@ void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const Texture
     Device::UpdateGlobalDescriptors(m_Descriptors, GetBindingInfo(name), texture, index);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo,
+void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo,
     const BufferBindingInfo& buffer) const
 {
     UpdateGlobalBinding(bindingInfo, buffer, 0);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const BufferBindingInfo& buffer,
+void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo, const BufferBindingInfo& buffer,
     u32 index) const
 {
     Device::UpdateGlobalDescriptors(m_Descriptors, bindingInfo, buffer, index);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo,
+void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo,
     const TextureBindingInfo& texture) const
 {
     UpdateGlobalBinding(bindingInfo, texture, 0);
 }
 
-void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& bindingInfo, const TextureBindingInfo& texture,
+void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo, const TextureBindingInfo& texture,
     u32 index) const
 {
     Device::UpdateGlobalDescriptors(m_Descriptors, bindingInfo, texture, index);
@@ -411,9 +409,7 @@ void ShaderDescriptors::UpdateGlobalBinding(const DescriptorBindingInfo& binding
 
 DescriptorBindingInfo ShaderDescriptors::GetBindingInfo(std::string_view bindingName) const
 {
-    auto& binding = m_Template->GetBinding(m_SetNumber, bindingName);
-
-    return {.Slot = binding.Binding, .Type = binding.Type};
+    return m_Template->GetBinding(m_SetNumber, bindingName);
 }
 
 std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
