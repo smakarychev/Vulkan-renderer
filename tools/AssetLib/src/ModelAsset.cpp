@@ -1,7 +1,6 @@
 ﻿#include "ModelAsset.h"
 
-#include <iostream>
-#include <nlm_json.hpp>
+#include <nlohmann/json.hpp>
 
 #include "lz4.h"
 #include "utils.h"

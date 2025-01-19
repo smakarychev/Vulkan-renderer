@@ -6,7 +6,7 @@
 #include "cvars/CVarSystem.h"
 
 #include <fstream>
-#include <nlm_json.hpp>
+#include <nlohmann/json.hpp>
 #include <queue>
 #include <memory>
 #include <unordered_set>
