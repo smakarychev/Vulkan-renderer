@@ -24,7 +24,7 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
         {
             CPU_PROFILE_FRAME("DiffuseIrradiance.Setup")
 
-            graph.SetShader("../assets/shaders/diffuse-irradiance.shader");
+            graph.SetShader("diffuse-irradiance.shader");
 
             passData.DiffuseIrradiance = graph.AddExternal(std::format("{}.DiffuseIrradiance", name), irradiance);
                 

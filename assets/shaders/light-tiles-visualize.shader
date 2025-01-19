@@ -7,7 +7,7 @@
         ]
     },
     "shader_stages": [
-        "../assets/shaders/processed/render-graph/common/fullscreen-vert.stage",
-        "../assets/shaders/processed/render-graph/lights/visualize-tiles-frag.stage"
+        "processed/render-graph/common/fullscreen-vert.stage",
+        "processed/render-graph/lights/visualize-tiles-frag.stage"
     ]
 }

@@ -8,8 +8,8 @@
         "depth": "D32_FLOAT"
     },
     "shader_stages": [
-        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-vert.stage",
-        "../assets/shaders/processed/render-graph/pbr/pbr-ibl-frag.stage"
+        "processed/render-graph/pbr/pbr-ibl-vert.stage",
+        "processed/render-graph/pbr/pbr-ibl-frag.stage"
     ],
     "bindless": "main_materials" 
 }

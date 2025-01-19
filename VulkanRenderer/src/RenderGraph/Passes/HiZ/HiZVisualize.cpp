@@ -20,7 +20,7 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
         {
             CPU_PROFILE_FRAME("HiZ.Visualize.Setup")
 
-            graph.SetShader("../assets/shaders/hiz-visualize.shader");
+            graph.SetShader("hiz-visualize.shader");
             
             passData.HiZ = graph.Read(hiz,
                 ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);

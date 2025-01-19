@@ -135,15 +135,17 @@ const Shader& ShaderCache::Get(std::string_view name)
 const Shader& ShaderCache::Register(std::string_view name, std::string_view path,
     ShaderOverridesView&& overrides)
 {
+    std::string fullPath = *CVars::Get().GetStringCVar({"Path.Shaders.Full"}) + std::string{path};
+    
     ShaderProxy shaderProxy = {};
     u32 pipeline = {};
     
-    if (!s_Records.contains(path))
+    if (!s_Records.contains(fullPath))
     {
         /* if this is completely new shader */
         pipeline = (u32)s_Pipelines.size();
         const u64 specializationsHash = overrides.Hash;
-        shaderProxy = ReloadShader(path, ReloadType::PipelineDescriptors, std::move(overrides));
+        shaderProxy = ReloadShader(fullPath, ReloadType::PipelineDescriptors, std::move(overrides));
         s_Pipelines.push_back({
             .Pipeline = shaderProxy.Pipeline,
             .PipelineLayout = shaderProxy.PipelineLayout,
@@ -151,12 +153,12 @@ const Shader& ShaderCache::Register(std::string_view name, std::string_view path
     }
     else
     {
-        auto& shaders = s_Records.find(path)->second.Shaders;
+        auto& shaders = s_Records.find(fullPath)->second.Shaders;
         
         return Register(name, shaders.front(), std::move(overrides));
     }   
 
-    return AddShader(name, pipeline, shaderProxy, path);
+    return AddShader(name, pipeline, shaderProxy, fullPath);
 }
 
 const Shader& ShaderCache::Register(std::string_view name, const Shader* shader,
@@ -327,10 +329,10 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
 
     const std::string& name = json["name"];
 
-    std::vector<std::string_view> stages;
+    std::vector<std::string> stages;
     stages.reserve(json["shader_stages"].size());
     for (auto& stage : json["shader_stages"])
-        stages.push_back(stage);
+        stages.push_back(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}) + std::string{stage});
 
     AssetManager::RemoveShader(AssetManager::GetShaderKey(stages));
     ShaderPipelineTemplate* shaderTemplate =

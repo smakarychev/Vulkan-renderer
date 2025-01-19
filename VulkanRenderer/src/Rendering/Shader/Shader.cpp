@@ -5,6 +5,7 @@
 
 #include "AssetManager.h"
 #include "core.h"
+#include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
 #include "Vulkan/RenderCommand.h"
 #include "Rendering/Buffer.h"
@@ -414,7 +415,7 @@ DescriptorBindingInfo ShaderDescriptors::GetBindingInfo(std::string_view binding
 
 std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
 
-ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
     std::string_view templateName, DescriptorAllocator allocator)
 {
     std::string name = GenerateTemplateName(templateName, allocator);
@@ -424,7 +425,7 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const 
     return GetShaderTemplate(name);
 }
 
-ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
     std::string_view templateName, DescriptorArenaAllocators& allocators)
 {
     std::string name = GenerateTemplateName(templateName, allocators);
@@ -440,7 +441,7 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::stri
     return GetShaderTemplate(GenerateTemplateName(name, allocators));
 }
 
-ShaderPipelineTemplate* ShaderTemplateLibrary::ReloadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+ShaderPipelineTemplate* ShaderTemplateLibrary::ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
     std::string_view templateName, DescriptorArenaAllocators& allocators)
 {
     std::string name = GenerateTemplateName(templateName, allocators);
@@ -477,11 +478,12 @@ void ShaderTemplateLibrary::AddShaderTemplate(const ShaderPipelineTemplate& shad
 ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(const std::string& templateName,
     DescriptorArenaAllocators& allocators)
 {
-    return LoadShaderPipelineTemplate({"../assets/shaders/processed/core/material-frag.stage"},
+    return LoadShaderPipelineTemplate(
+        {*CVars::Get().GetStringCVar({"Path.Shaders.Full"}) + "processed/core/material-frag.stage"},
         templateName, allocators);
 }
 
-ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
+ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string>& paths,
     DescriptorAllocator allocator)
 {
     return ShaderPipelineTemplate({
@@ -489,7 +491,7 @@ ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<
         .Allocator = allocator});
 }
 
-ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string_view>& paths,
+ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string>& paths,
     DescriptorArenaAllocators& allocators)
 {
     return ShaderPipelineTemplate({

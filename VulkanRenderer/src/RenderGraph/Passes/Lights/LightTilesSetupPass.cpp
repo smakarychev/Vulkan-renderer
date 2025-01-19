@@ -16,7 +16,7 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Setup.Setup")
 
-            graph.SetShader("../assets/shaders/light-tiles-setup.shader");
+            graph.SetShader("light-tiles-setup.shader");
 
             auto& globalResources = graph.GetGlobalResources();
 

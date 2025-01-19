@@ -14,7 +14,7 @@ void AssetManager::Shutdown()
     s_Images.clear();
 }
 
-std::string AssetManager::GetShaderKey(const std::vector<std::string_view>& paths)
+std::string AssetManager::GetShaderKey(const std::vector<std::string>& paths)
 {
     std::string key;
     for (auto& path : paths)

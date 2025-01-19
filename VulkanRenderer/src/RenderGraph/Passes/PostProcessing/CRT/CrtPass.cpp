@@ -26,7 +26,7 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
         {
             CPU_PROFILE_FRAME("CRT.Setup")
 
-            graph.SetShader("../assets/shaders/crt.shader");
+            graph.SetShader("crt.shader");
             
             passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
             

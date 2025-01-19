@@ -26,12 +26,12 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                 multiview.MultiviewData.AddView({
                     .Geometry = info.Geometry,
                     .DrawShader = &ShaderCache::Register(std::format("{}.Draw", name),
-                        "../assets/shaders/pbr-forward.shader",
+                        "pbr-forward.shader",
                         ShaderOverrides{
                             ShaderOverride{{"MAX_REFLECTION_LOD"},
                                 (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})}}),
                     .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.Draw.Triangles", name),
-                        "../assets/shaders/pbr-forward.shader",
+                        "pbr-forward.shader",
                         ShaderOverrides{
                             ShaderOverride{{"MAX_REFLECTION_LOD"},
                                 (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},

@@ -15,7 +15,7 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph&
         {
             CPU_PROFILE_FRAME("Atmosphere.Simple.Setup")
 
-            graph.SetShader("../assets/shaders/atmosphere-simple.shader");
+            graph.SetShader("atmosphere-simple.shader");
 
             auto& globalResources = graph.GetGlobalResources();
             passData.ColorOut = graph.CreateResource(std::string{name} + ".Color",

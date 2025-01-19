@@ -24,7 +24,7 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
         {
             CPU_PROFILE_FRAME("Skybox.Setup")
 
-            graph.SetShader("../assets/shaders/skybox.shader");
+            graph.SetShader("skybox.shader");
             
             passData.ColorOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".Color",
                 GraphTextureDescription{

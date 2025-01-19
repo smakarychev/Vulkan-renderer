@@ -21,7 +21,7 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
         {
             CPU_PROFILE_FRAME("Atmosphere.Transmittance.Setup")
 
-            graph.SetShader("../assets/shaders/atmosphere-transmittance-lut.shader");
+            graph.SetShader("atmosphere-transmittance-lut.shader");
 
             passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar({"Atmosphere.Transmittance.Width"}),

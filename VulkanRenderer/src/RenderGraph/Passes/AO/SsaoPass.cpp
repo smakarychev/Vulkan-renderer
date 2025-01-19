@@ -89,7 +89,7 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
         {
             CPU_PROFILE_FRAME("SSAO.Setup")
             
-            graph.SetShader("../assets/shaders/ssao.shader",
+            graph.SetShader("ssao.shader",
                 ShaderOverrides{
                     ShaderOverride{{"MAX_SAMPLES"}, MAX_SAMPLES_COUNT}});
             

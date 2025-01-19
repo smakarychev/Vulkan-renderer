@@ -16,7 +16,7 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(std::string_view
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth.Setup")
 
-            graph.SetShader("../assets/shaders/light-clusters-depth-layers-visualize.shader");
+            graph.SetShader("light-clusters-depth-layers-visualize.shader");
             
             auto& depthDescription = Resources(graph).GetTextureDescription(depth);
             passData.ColorOut = graph.CreateResource(std::string{name} + ".Color",

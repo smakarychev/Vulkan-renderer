@@ -35,7 +35,7 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
             {
                 CPU_PROFILE_FRAME("HiZFull.Setup")
 
-                graph.SetShader("../assets/shaders/hiz-full.shader");
+                graph.SetShader("hiz-full.shader");
 
                 passData.DepthMin = graph.Read(ctx.GetHiZResource(HiZReductionMode::Min), Compute | Sampled);
                 passData.HiZMinOut = graph.Write(ctx.GetHiZResource(HiZReductionMode::Min), Compute | Storage);

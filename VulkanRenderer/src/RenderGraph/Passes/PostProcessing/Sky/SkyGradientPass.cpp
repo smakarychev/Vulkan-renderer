@@ -34,7 +34,7 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
         {
             CPU_PROFILE_FRAME("Sky.Gradient.Setup")
 
-            graph.SetShader("../assets/shaders/sky-gradient.shader");
+            graph.SetShader("sky-gradient.shader");
 
             auto& globalResources = graph.GetGlobalResources();
             

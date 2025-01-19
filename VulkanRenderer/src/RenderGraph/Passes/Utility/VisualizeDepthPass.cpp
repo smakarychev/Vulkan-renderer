@@ -14,7 +14,7 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            graph.SetShader("../assets/shaders/depth-visualize.shader");
+            graph.SetShader("depth-visualize.shader");
             
             auto& depthDescription = Resources(graph).GetTextureDescription(depthIn);
             passData.ColorOut = RgUtils::ensureResource(colorIn, graph, std::string{name} + ".Color",

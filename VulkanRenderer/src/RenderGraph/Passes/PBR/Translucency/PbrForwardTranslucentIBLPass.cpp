@@ -30,7 +30,7 @@ RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(std::string_view name, 
                     .Geometry = info.Geometry,
                     .HiZContext = info.HiZContext,
                     .DrawShader = &ShaderCache::Register(std::format("{}.Draw", name),
-                        "../assets/shaders/pbr-forward-translucent.shader", {}),
+                        "pbr-forward-translucent.shader", {}),
                     .DrawTrianglesShader = nullptr,
                     .CullTriangles = false});
 

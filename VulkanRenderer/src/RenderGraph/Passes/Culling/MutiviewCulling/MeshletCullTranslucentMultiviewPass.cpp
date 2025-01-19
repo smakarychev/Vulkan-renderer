@@ -17,7 +17,7 @@ RG::Pass& Passes::Multiview::MeshletCullTranslucent::addToGraph(std::string_view
         {
             CPU_PROFILE_FRAME("Meshlet.Cull.Multiview.Translucent.Setup")
 
-            graph.SetShader("../assets/shaders/meshlet-cull-translucent-multiview.shader", {});
+            graph.SetShader("meshlet-cull-translucent-multiview.shader", {});
             
             RgUtils::readWriteCullMeshletMultiview(*info.MultiviewResource, CullStage::Single, graph);
             

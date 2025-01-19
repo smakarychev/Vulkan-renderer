@@ -11,8 +11,8 @@
         "cull_mode": "none"
     },
     "shader_stages": [
-        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-vert.stage",
-        "../assets/shaders/processed/render-graph/pbr/pbr-translucency-frag.stage"
+        "processed/render-graph/pbr/pbr-translucency-vert.stage",
+        "processed/render-graph/pbr/pbr-translucency-frag.stage"
     ],
     "bindless": "main_materials" 
 }

@@ -22,7 +22,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
         {
             CPU_PROFILE_FRAME("CSM.Visualize.Setup")
 
-            graph.SetShader("../assets/shaders/csm-visualize.shader");
+            graph.SetShader("csm-visualize.shader");
             
             const TextureDescription& csmDescription = Resources(graph).GetTextureDescription(csmOutput.ShadowMap);
             

@@ -21,7 +21,7 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
     {
         CPU_PROFILE_FRAME("Atmosphere.Raymarch.Setup")
 
-        graph.SetShader("../assets/shaders/atmosphere-raymarch.shader");
+        graph.SetShader("atmosphere-raymarch.shader");
 
         passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),
             light.GetBuffers().DirectionalLight);

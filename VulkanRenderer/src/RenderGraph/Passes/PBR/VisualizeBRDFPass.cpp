@@ -16,7 +16,7 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
         {
             CPU_PROFILE_FRAME("BRDF.Visualize.Setup");
 
-            graph.SetShader("../assets/shaders/brdf-visualize.shader");
+            graph.SetShader("brdf-visualize.shader");
             
             passData.ColorOut = RG::RgUtils::ensureResource(colorIn, graph, "BRDF.Visualize.ColorOut",
                 GraphTextureDescription{

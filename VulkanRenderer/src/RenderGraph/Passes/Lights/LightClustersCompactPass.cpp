@@ -20,7 +20,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Lights.Clusters.Identify.Setup")
 
-                graph.SetShader("../assets/shaders/light-clusters-compact.shader",
+                graph.SetShader("light-clusters-compact.shader",
                     ShaderOverrides{
                         ShaderOverride{{"IDENTIFY"}, true}});
 
@@ -79,7 +79,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Lights.Clusters.Compact.Setup")
 
-                graph.SetShader("../assets/shaders/light-clusters-compact.shader",
+                graph.SetShader("light-clusters-compact.shader",
                     ShaderOverrides{
                         ShaderOverride{{"COMPACT"}, true}});
 
@@ -136,7 +136,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Lights.Clusters.CreateDisptach.Setup")
 
-                graph.SetShader("../assets/shaders/light-clusters-compact.shader",
+                graph.SetShader("light-clusters-compact.shader",
                     ShaderOverrides{
                         ShaderOverride{{"CREATE_DISPATCH"}, true}});
 

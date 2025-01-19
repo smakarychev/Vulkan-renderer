@@ -18,7 +18,7 @@ RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph&
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Bin.Setup")
 
-            graph.SetShader("../assets/shaders/light-clusters-bin.shader");
+            graph.SetShader("light-clusters-bin.shader");
 
             passData.Dispatch = graph.Read(dispatchIndirect, Indirect);
 

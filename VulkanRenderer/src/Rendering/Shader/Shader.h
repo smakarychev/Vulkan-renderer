@@ -191,25 +191,25 @@ private:
 class ShaderTemplateLibrary
 {
 public:
-    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
         std::string_view templateName, DescriptorAllocator allocator);
-    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
         std::string_view templateName, DescriptorArenaAllocators& allocators);
     static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name, DescriptorArenaAllocators& allocators);
     
     static ShaderPipelineTemplate* CreateMaterialsTemplate(const std::string& templateName,
         DescriptorArenaAllocators& allocators);
 
-    static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(const std::vector<std::string_view>& paths,
+    static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
         std::string_view templateName, DescriptorArenaAllocators& allocators);
     static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
     static std::string GenerateTemplateName(std::string_view templateName, DescriptorAllocator allocator);
     static std::string GenerateTemplateName(std::string_view templateName, DescriptorArenaAllocators& allocators);
     static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
 private:
-    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string_view>& paths,
+    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths,
         DescriptorAllocator allocator);
-    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string_view>& paths,
+    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths,
         DescriptorArenaAllocators& allocators);
 private:
     static std::unordered_map<std::string, ShaderPipelineTemplate> s_Templates;

@@ -26,7 +26,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
             {
                 CPU_PROFILE_FRAME("EnvironmentPrefilter.Setup")
 
-                graph.SetShader("../assets/shaders/environment-prefilter.shader");
+                graph.SetShader("environment-prefilter.shader");
 
                 if (mipmap == 0)
                 {

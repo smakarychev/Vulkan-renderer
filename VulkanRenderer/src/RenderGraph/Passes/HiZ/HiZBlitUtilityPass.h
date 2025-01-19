@@ -36,7 +36,7 @@ namespace Passes::HiZBlit
             {
                 CPU_PROFILE_FRAME("HiZ.Blit.Setup")
 
-                graph.SetShader("../assets/shaders/hiz.shader",
+                graph.SetShader("hiz.shader",
                     ShaderOverrides{
                         ShaderOverride{{"DEPTH_MIN_MAX"}, minMaxDepth}});
                 

@@ -19,7 +19,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
         {
             CPU_PROFILE_FRAME("Atmosphere.AerialPerspective.Setup")
 
-            graph.SetShader("../assets/shaders/atmosphere-aerial-perspective-lut.shader");
+            graph.SetShader("atmosphere-aerial-perspective-lut.shader");
 
             auto& globalResources = graph.GetGlobalResources();
 

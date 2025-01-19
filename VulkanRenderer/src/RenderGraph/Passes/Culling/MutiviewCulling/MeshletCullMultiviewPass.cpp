@@ -17,7 +17,7 @@ RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::
         {
             CPU_PROFILE_FRAME("Meshlet.Cull.Multiview.Setup")
 
-            graph.SetShader("../assets/shaders/meshlet-cull-multiview.shader",
+            graph.SetShader("meshlet-cull-multiview.shader",
                 ShaderOverrides{
                     ShaderOverride{{"REOCCLUSION"}, stage == CullStage::Reocclusion},
                     ShaderOverride{{"SINGLE_PASS"}, stage == CullStage::Single}});

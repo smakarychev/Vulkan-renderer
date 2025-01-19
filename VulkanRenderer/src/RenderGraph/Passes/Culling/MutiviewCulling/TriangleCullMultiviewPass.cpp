@@ -14,7 +14,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            graph.SetShader("../assets/shaders/prepare-dispatches-multiview.shader");
+            graph.SetShader("prepare-dispatches-multiview.shader");
             
             RgUtils::readWriteCullTrianglePrepareMultiview(*info.MultiviewResource, renderGraph);
             
@@ -103,12 +103,12 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             for (u32 i = 0; i < TriangleCullMultiviewTraits::MAX_BATCHES; i++)
             {
                 ShaderCache::Register(std::format("{}.{}", name, i),
-                    "../assets/shaders/triangle-cull-multiview.shader",
+                    "triangle-cull-multiview.shader",
                     ShaderOverrides{
                         ShaderOverride{{"REOCCLUSION"}, stage == CullStage::Reocclusion},
                         ShaderOverride{{"SINGLE_PASS"}, stage == CullStage::Single}});
                 ShaderCache::Register(std::format("{}.PrepareDraw.{}", name, i),
-                        "../assets/shaders/prepare-draws-multiview.shader", {});
+                        "prepare-draws-multiview.shader", {});
 
                 for (u32 view = 0; view < info.MultiviewResource->TriangleViewCount; view++)
                 {

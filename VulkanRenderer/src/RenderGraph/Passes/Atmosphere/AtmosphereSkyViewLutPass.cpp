@@ -18,7 +18,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
         {
             CPU_PROFILE_FRAME("Atmosphere.SkyView.Setup")
 
-            graph.SetShader("../assets/shaders/atmosphere-sky-view-lut.shader");
+            graph.SetShader("atmosphere-sky-view-lut.shader");
 
             auto& globalResources = graph.GetGlobalResources();
             

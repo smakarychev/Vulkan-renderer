@@ -16,7 +16,7 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Setup.Setup")
 
-            graph.SetShader("../assets/shaders/light-clusters-setup.shader");
+            graph.SetShader("light-clusters-setup.shader");
 
             passData.Clusters = graph.CreateResource(std::format("{}.Clusters", name), GraphBufferDescription{
                 .SizeBytes = LIGHT_CLUSTER_BINS * sizeof(LightCluster)});

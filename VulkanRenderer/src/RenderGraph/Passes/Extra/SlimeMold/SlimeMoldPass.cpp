@@ -130,7 +130,7 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
         {
             CPU_PROFILE_FRAME("Slime.Update.Setup");
             
-            graph.SetShader("../assets/shaders/slime.shader",
+            graph.SetShader("slime.shader",
                 ShaderOverrides{
                     ShaderOverride{{"SLIME_MAP_STAGE"}, true}});
             
@@ -210,7 +210,7 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
         {
             CPU_PROFILE_FRAME("Slime.Diffuse.Setup");
             
-            graph.SetShader("../assets/shaders/slime.shader",
+            graph.SetShader("slime.shader",
                 ShaderOverrides{
                     ShaderOverride{{"SLIME_DIFFUSE_STAGE"}, true}});
 
@@ -273,7 +273,7 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
         {
             CPU_PROFILE_FRAME("Gradient.Slime.Setup");
 
-            graph.SetShader("../assets/shaders/slime.shader",
+            graph.SetShader("slime.shader",
                 ShaderOverrides{
                     ShaderOverride{{"SLIME_GRADIENT_STAGE"}, true}});
 

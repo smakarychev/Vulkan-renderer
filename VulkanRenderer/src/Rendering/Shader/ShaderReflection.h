@@ -29,7 +29,7 @@ public:
     };
     using DescriptorSets = std::array<DescriptorSetInfo, MAX_DESCRIPTOR_SETS>;
 public:
-    static ShaderReflection* ReflectFrom(const std::vector<std::string_view>& paths);
+    static ShaderReflection* ReflectFrom(const std::vector<std::string>& paths);
     ShaderReflection() = default;
     ShaderReflection(const ShaderReflection&) = delete;
     ShaderReflection(ShaderReflection&&) = default;

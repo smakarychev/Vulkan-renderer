@@ -1,6 +1,6 @@
 {
     "name": "fxaa",
     "shader_stages": [
-        "../assets/shaders/processed/render-graph/aa/fxaa-comp.stage"
+        "processed/render-graph/aa/fxaa-comp.stage"
     ]
 }

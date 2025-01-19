@@ -21,7 +21,7 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize.Setup")
 
-            graph.SetShader("../assets/shaders/light-tiles-visualize.shader");
+            graph.SetShader("light-tiles-visualize.shader");
 
             auto& globalResources = graph.GetGlobalResources();
 

@@ -349,7 +349,7 @@ namespace
 }
 
 
-ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string_view>& paths)
+ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& paths)
 {
     std::string shaderKey = AssetManager::GetShaderKey(paths);
     

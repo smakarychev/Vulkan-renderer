@@ -16,7 +16,7 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
         {
             CPU_PROFILE_FRAME("SSAO.Visualize.Setup")
 
-            graph.SetShader("../assets/shaders/ssao-visualize.shader");
+            graph.SetShader("ssao-visualize.shader");
             
             auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
             passData.ColorOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".Color",

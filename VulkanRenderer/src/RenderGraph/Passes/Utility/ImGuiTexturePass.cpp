@@ -136,7 +136,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Texture3dToSlice.Setup")
 
-                graph.SetShader("../assets/shaders/texture3d-to-slice.shader");
+                graph.SetShader("texture3d-to-slice.shader");
 
                 auto& texture3dDescription = Resources(graph).GetTextureDescription(textureIn);
                 passData.Slice = graph.CreateResource(std::format("{}.Slice", name),

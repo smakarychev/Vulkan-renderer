@@ -43,7 +43,7 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
             {
                 CPU_PROFILE_FRAME("HiZNV.Setup")
 
-                graph.SetShader("../assets/shaders/hiz-nv.shader");
+                graph.SetShader("hiz-nv.shader");
 
                 passData.DepthIn = graph.Read(ctx.GetHiZResource(HiZReductionMode::Min), Compute | Sampled);
                 passData.HiZOut = graph.Write(ctx.GetHiZResource(HiZReductionMode::Min), Compute | Storage);

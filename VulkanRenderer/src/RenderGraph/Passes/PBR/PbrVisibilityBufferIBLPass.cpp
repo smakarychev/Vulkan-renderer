@@ -21,7 +21,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             bool useTiled = !useHybrid && info.Tiles.IsValid();
             bool useClustered = !useHybrid &&  info.Clusters.IsValid();
 
-            graph.SetShader("../assets/shaders/pbr-visibility-ibl.shader",
+            graph.SetShader("pbr-visibility-ibl.shader",
                 ShaderOverrides{
                     ShaderOverride{
                         {"MAX_REFLECTION_LOD"},

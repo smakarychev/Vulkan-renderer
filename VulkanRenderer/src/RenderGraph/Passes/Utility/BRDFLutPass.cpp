@@ -14,7 +14,7 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
         {
             CPU_PROFILE_FRAME("BRDFLut.Setup")
 
-            graph.SetShader("../assets/shaders/brdf-lut.shader");
+            graph.SetShader("brdf-lut.shader");
 
             passData.Lut = graph.AddExternal(std::format("{}.Lut", name), lut);
 

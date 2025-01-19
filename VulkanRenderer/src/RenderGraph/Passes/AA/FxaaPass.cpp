@@ -14,7 +14,7 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
         {
             CPU_PROFILE_FRAME("Fxaa.Luminance.Setup");
 
-            graph.SetShader("../assets/shaders/fxaa.shader");
+            graph.SetShader("fxaa.shader");
 
             auto& description = graph.GetTextureDescription(colorIn);
             passData.AntiAliased = graph.CreateResource(std::format("{}.AntiAliased", name), GraphTextureDescription{

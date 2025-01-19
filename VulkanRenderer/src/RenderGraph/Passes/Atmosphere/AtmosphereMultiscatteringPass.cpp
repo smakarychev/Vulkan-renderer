@@ -21,7 +21,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
         {
             CPU_PROFILE_FRAME("Atmosphere.Multiscattering.Setup")
 
-            graph.SetShader("../assets/shaders/atmosphere-multiscattering-lut.shader");
+            graph.SetShader("atmosphere-multiscattering-lut.shader");
 
             passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar({"Atmosphere.Multiscattering.Size"}),

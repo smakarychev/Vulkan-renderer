@@ -15,7 +15,7 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
         {
             CPU_PROFILE_FRAME("ShadowCameras.GPU.Setup")
             
-            graph.SetShader("../assets/shaders/create-shadow-cameras.shader");
+            graph.SetShader("create-shadow-cameras.shader");
 
             Resource csmData = graph.CreateResource(std::format("{}.CSM.Data", name), GraphBufferDescription{
                 .SizeBytes = sizeof(CSMData)});

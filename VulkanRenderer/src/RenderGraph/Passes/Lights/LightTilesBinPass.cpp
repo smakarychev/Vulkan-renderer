@@ -23,7 +23,7 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Bin.Setup")
 
-            graph.SetShader("../assets/shaders/light-tiles-bin.shader");
+            graph.SetShader("light-tiles-bin.shader");
 
             passData.Depth = graph.Read(depth, Compute | Sampled);
             

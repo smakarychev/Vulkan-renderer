@@ -21,7 +21,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("EquirectangularToCubemap.Setup")
 
-                graph.SetShader("../assets/shaders/equirectangular-to-cubemap.shader");
+                graph.SetShader("equirectangular-to-cubemap.shader");
                 
                 passData.Cubemap = graph.AddExternal(std::format("{}.Cubemap", name), cubemap);
                 

@@ -15,7 +15,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Setup")
 
-            graph.SetShader("../assets/shaders/light-clusters-visualize.shader");
+            graph.SetShader("light-clusters-visualize.shader");
 
             auto& globalResources = graph.GetGlobalResources();
 

@@ -10,7 +10,7 @@
         "depth_bias"
     ],
     "shader_stages": [
-        "../assets/shaders/processed/render-graph/shadows/directional-vert.stage"
+        "processed/render-graph/shadows/directional-vert.stage"
     ],
     "bindless": "main_materials" 
 }
