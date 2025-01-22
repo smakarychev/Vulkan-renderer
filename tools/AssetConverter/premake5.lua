@@ -54,6 +54,9 @@ project "AssetConverter"
             "shaderc_shared.lib", 
             "shaderc_util.lib",
         }
+        postbuildcommands { 
+            "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{wks.location}tools/bin/ > nul" 
+        }
     
 project "AssetConverterLib"
     kind "StaticLib"
