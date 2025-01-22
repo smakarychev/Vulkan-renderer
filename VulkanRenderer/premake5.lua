@@ -4,10 +4,11 @@ project "VulkanRenderer"
     cppdialect "C++20"
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
-
+    
     files {
         "src/**.h",
         "src/**.cpp",
+        --"src/RenderGraph/Passes/Generated/ShaderBindGroups.generated.h"
     }
 
     includedirs {
@@ -36,7 +37,7 @@ project "VulkanRenderer"
         "efsw",
         "CoreLib",
         "AssetLib",
-        "AssetConverterLib"
+        "AssetConverterLib",
     }
 
     defines {
@@ -44,6 +45,13 @@ project "VulkanRenderer"
         "GLFW_INCLUDE_NONE",
         "TRACY_ENABLE",
         "VK_NO_PROTOTYPES",
+    }
+
+    prebuildcommands {
+        "\
+        if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
+        msbuild /FS %{wks.location}tools/ShaderBindGroupGen/ /p:Configuration=Release /p:Platform=x64) \
+        %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/"
     }
 
     filter "configurations:Debug"

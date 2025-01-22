@@ -11,16 +11,17 @@ project "ShaderBindGroupGen"
     }
 
     includedirs {
+        "%{wks.location}/CoreLib/src",
+        "%{wks.location}/tools/AssetLib/src",
+        
         IncludeDir["spirv_reflect"],
         IncludeDir["nlohmann-json"],
-        "%{wks.location}/CoreLib/src",
-    }
-
-    defines {
+        IncludeDir["inja"],
     }
 
     links {
-        CoreLib
+        "CoreLib",
+        "AssetLib",
     }
 
     filter "configurations:Debug"
@@ -30,3 +31,9 @@ project "ShaderBindGroupGen"
 	filter "configurations:Release"
 		runtime "Release"
 		optimize "on"
+        
+        postbuildcommands { 
+            "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{tools_bindir}%{prj.name}/ > nul \
+             {COPYDIR} %{prj.location.directory}templates %{tools_bindir}%{prj.name}/templates/ > nul" 
+        }
+		

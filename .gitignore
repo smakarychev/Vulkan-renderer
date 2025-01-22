@@ -20,3 +20,5 @@ tools/*/bin-int
 vendor/imgui/bin
 *.stage
 assets/models
+tools/bin
+*.generated.h

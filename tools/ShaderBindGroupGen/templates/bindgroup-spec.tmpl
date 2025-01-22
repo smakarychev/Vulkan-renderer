@@ -1,0 +1,11 @@
+struct {{shader.name}}ShaderBindGroup : ShaderBindGroupBase<{{shader.name}}ShaderBindGroup>
+{
+{% for binding in shader.bindings %}
+    void Set{{binding.name}}(const {% if is_descriptor_a_buffer(binding.descriptor) %}BufferBindingInfo&{% else %}TextureBindingInfo&{% endif %} binding{% if binding.count > 1 %}, u32 index{% endif %})
+    {
+        Device::UpdateDescriptors(Shader->Descriptors({{ descriptors_kind_string(binding.set) }}),
+            DescriptorBindingInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, binding, {% if binding.count > 1 %}index{% else %}0{% endif %});
+    }
+{% endfor %}
+};
+

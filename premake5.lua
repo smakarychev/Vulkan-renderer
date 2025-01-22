@@ -2,6 +2,7 @@ include "dependencies.lua"
 
 workspace "VulkanRenderer"
     outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
+    tools_bindir = "%{wks.location}tools/bin/"
     configurations { "Debug", "Release"}
     architecture "x86_64"
     editandcontinue "Off"

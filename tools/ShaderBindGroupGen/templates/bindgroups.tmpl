@@ -1,0 +1,21 @@
+/* Generated from shaders */
+
+#pragma once
+
+#include "Rendering/Shader/ShaderCache.h"
+
+template <typename ShaderTag>
+struct ShaderBindGroupBase
+{
+    ShaderBindGroupBase() = default;
+    ShaderBindGroupBase(const Shader& shader)
+        : Shader(&shader) {}
+
+    const ::Shader* Shader{nullptr};
+};
+
+{% for shader in shaders %}
+{% include "bindgroup-spec.tmpl" %}
+{% endfor %}
+
+
