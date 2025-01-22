@@ -7,13 +7,14 @@
 
 #include "Renderer.h"
 #include "cvars/CVarSystem.h"
+#include "Platform/PlatformUtils.h"
 #include "utils/utils.h"
 
 i32 main()
 {
     Settings::initCvars();
     
-    Utils::runSubProcess("../tools/AssetConverter/bin/Release-windows-x86_64/AssetConverter/AssetConverter.exe",
+    Platform::runSubProcess("../tools/bin/AssetConverter.exe",
         {CVars::Get().GetStringCVar({"Path.Assets"}, "../assets")});
 
     Renderer* renderer = Renderer::Get();

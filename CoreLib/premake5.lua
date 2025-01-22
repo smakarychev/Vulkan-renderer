@@ -10,6 +10,15 @@ project "CoreLib"
         "src/**.cpp",
     }
 
+    includedirs {
+        "src"
+    }
+
+    filter "system:Linux"
+        removefiles {
+            "src/Platform/Windows/**"
+        }
+
     filter "configurations:Debug"
 		runtime "Debug"
 		symbols "on"
