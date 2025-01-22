@@ -68,9 +68,4 @@ namespace Utils
 
         return merged;
     }
-    
-    void runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args);
-
-    // the result of this function must not outlive its origin string
-    std::vector<std::string_view> splitStringTransient(std::string_view string, std::string_view delimiter);
 }
