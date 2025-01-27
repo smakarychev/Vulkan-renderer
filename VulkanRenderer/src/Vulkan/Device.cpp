@@ -848,7 +848,7 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
     std::vector<VkPresentModeKHR> desiredPresentModes = {{
-        VK_PRESENT_MODE_IMMEDIATE_KHR,
+        //VK_PRESENT_MODE_IMMEDIATE_KHR,
         VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
     SurfaceDetails surfaceDetails = getSurfaceDetails(s_State.GPU, s_State.Surface);
@@ -2041,7 +2041,7 @@ void Device::Destroy(Pipeline pipeline)
     Resources().RemoveResource(pipeline);
 }
 
-ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo)
+ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     VkShaderModuleCreateInfo moduleCreateInfo = {};
     moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
@@ -2053,13 +2053,13 @@ ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo)
          "Failed to create shader module");
     shaderModuleResource.Stage = vulkanStageBitFromShaderStage(createInfo.Stage);
     
-    ShaderModule module = {};
-    module.m_ResourceHandle = Resources().AddResource(shaderModuleResource);
-
+    ShaderModule module = Resources().AddResource(shaderModuleResource);
+    deletionQueue.Enqueue(module);
+    
     return module;
 }
 
-void Device::Destroy(ResourceHandleType<ShaderModule> shaderModule)
+void Device::Destroy(ShaderModule shaderModule)
 {
     vkDestroyShaderModule(s_State.Device, Resources().m_ShaderModules[shaderModule.m_Id].Module, nullptr);
     Resources().RemoveResource(shaderModule);

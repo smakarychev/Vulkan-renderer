@@ -390,7 +390,8 @@ assetLib::ShaderStageInfo ShaderReflection::LoadFromAsset(std::string_view path)
     
     ShaderModule shaderModule = Device::CreateShaderModule({
         .Source = source,
-        .Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages)});
+        .Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages)},
+        Device::DummyDeletionQueue());
     m_Modules.push_back(shaderModule);
 
     return shaderInfo;

@@ -11,7 +11,6 @@
 
 #include "utils/hash.h"
 
-class ShaderModule;
 class DeletionQueue;
 class CommandBuffer;
 

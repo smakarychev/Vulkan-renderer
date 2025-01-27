@@ -3,7 +3,6 @@
 #include "ResourceHandle.h"
 #include "Image/ImageTraits.h"
 #include "Image/Image.h"
-#include "RenderingCommon.h"
 
 #include <optional>
 
