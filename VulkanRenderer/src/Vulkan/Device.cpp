@@ -784,12 +784,12 @@ DeviceCreateInfo DeviceCreateInfo::Default(GLFWwindow* window, bool asyncCompute
     return createInfo;
 }
 
-void DeviceResources::MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool)
+void DeviceResources::MapCmdToPool(const CommandBuffer& cmd, CommandPool pool)
 {
-    m_CommandPoolToBuffersMap[pool.Handle().m_Id].push_back(cmd.Handle().m_Id);
+    m_CommandPoolToBuffersMap[pool.m_Id].push_back(cmd.Handle().m_Id);
 }
 
-void DeviceResources::DestroyCmdsOfPool(ResourceHandleType<CommandPool> pool)
+void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
 {
     for (auto index : m_CommandPoolToBuffersMap[pool.m_Id])
         m_CommandBuffers.Remove(index);
@@ -1081,7 +1081,7 @@ CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
 {
     VkCommandBufferAllocateInfo allocateInfo = {};
     allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocateInfo.commandPool = Resources()[*createInfo.Pool].CommandPool;
+    allocateInfo.commandPool = Resources()[createInfo.Pool].CommandPool;
     allocateInfo.level = vulkanBufferLevelFromBufferKind(createInfo.Kind);
     allocateInfo.commandBufferCount = 1;
 
@@ -1092,12 +1092,12 @@ CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
     CommandBuffer cmd = {};
     cmd.m_Kind = createInfo.Kind;
     cmd.m_ResourceHandle = Resources().AddResource(commandBufferResource);
-    Resources().MapCmdToPool(cmd, *createInfo.Pool);
+    Resources().MapCmdToPool(cmd, createInfo.Pool);
     
     return cmd;
 }
 
-CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo)
+CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     VkCommandPoolCreateFlags flags = 0;
     if (createInfo.PerBufferReset)
@@ -1112,22 +1112,22 @@ CommandPool Device::CreateCommandPool(CommandPoolCreateInfo&& createInfo)
     DeviceCheck(vkCreateCommandPool(s_State.Device, &poolCreateInfo, nullptr, &commandPoolResource.CommandPool),
         "Failed to create command pool");
     
-    CommandPool commandPool = {};
-    commandPool.m_ResourceHandle = Resources().AddResource(commandPoolResource);
-    if (commandPool.Handle().m_Id >= Resources().m_CommandPoolToBuffersMap.size())
-        Resources().m_CommandPoolToBuffersMap.resize(commandPool.Handle().m_Id + 1);
+    CommandPool commandPool = Resources().AddResource(commandPoolResource);
+    if (commandPool.m_Id >= Resources().m_CommandPoolToBuffersMap.size())
+        Resources().m_CommandPoolToBuffersMap.resize(commandPool.m_Id + 1);
+    deletionQueue.Enqueue(commandPool);
     
     return commandPool;
 }
 
-void Device::Destroy(ResourceHandleType<CommandPool> commandPool)
+void Device::Destroy(CommandPool commandPool)
 {
     vkDestroyCommandPool(s_State.Device, Resources().m_CommandPools[commandPool.m_Id].CommandPool, nullptr);
     Resources().DestroyCmdsOfPool(commandPool);
     Resources().RemoveResource(commandPool);
 }
 
-void Device::ResetPool(const CommandPool& pool)
+void Device::ResetPool(CommandPool pool)
 {
     DeviceCheck(vkResetCommandPool(s_State.Device, Resources()[pool].CommandPool, 0),
         "Error while resetting command pool");
@@ -3297,8 +3297,9 @@ void Device::Init(DeviceCreateInfo&& createInfo)
 
     s_State.SubmitContext.CommandPool = CreateCommandPool({
         .QueueKind = QueueKind::Graphics});
-    DeletionQueue().Enqueue(s_State.SubmitContext.CommandPool);
-    s_State.SubmitContext.CommandBuffer = s_State.SubmitContext.CommandPool.AllocateBuffer(CommandBufferKind::Primary);
+    s_State.SubmitContext.CommandBuffer = CreateCommandBuffer({
+        .Pool = s_State.SubmitContext.CommandPool,
+        .Kind = CommandBufferKind::Primary});
     s_State.SubmitContext.Fence = CreateFence({});
     s_State.SubmitContext.QueueKind = QueueKind::Graphics;
 
@@ -3668,8 +3669,8 @@ VkBufferImageCopy2 Device::CreateVulkanImageCopyInfo(const ImageSubresource& sub
     return bufferImageCopy;
 }
 
-std::vector<VkSemaphoreSubmitInfo> Device::CreateVulkanSemaphoreSubmit(const std::vector<Semaphore>& semaphores,
-    const std::vector<PipelineStage>& waitStages)
+std::vector<VkSemaphoreSubmitInfo> Device::CreateVulkanSemaphoreSubmit(Span<const Semaphore> semaphores,
+    Span<const PipelineStage> waitStages)
 {
     std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
     waitSemaphoreSubmitInfos.reserve(semaphores.size());
@@ -3682,9 +3683,8 @@ std::vector<VkSemaphoreSubmitInfo> Device::CreateVulkanSemaphoreSubmit(const std
     return waitSemaphoreSubmitInfos;
 }
 
-std::vector<VkSemaphoreSubmitInfo> Device::CreateVulkanSemaphoreSubmit(
-    const std::vector<TimelineSemaphore>& semaphores, const std::vector<u64>& waitValues,
-    const std::vector<PipelineStage>& waitStages)
+std::vector<VkSemaphoreSubmitInfo> Device::CreateVulkanSemaphoreSubmit(Span<const TimelineSemaphore> semaphores,
+    Span<const u64> waitValues, Span<const PipelineStage> waitStages)
 {
     std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
     waitSemaphoreSubmitInfos.reserve(semaphores.size());

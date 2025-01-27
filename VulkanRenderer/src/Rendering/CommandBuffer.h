@@ -7,7 +7,6 @@
 class DeletionQueue;
 class QueueInfo;
 struct SwapchainFrameSync;
-class CommandPool;
 
 enum class CommandBufferKind {Primary, Secondary};
 enum class CommandBufferUsage
@@ -20,26 +19,34 @@ CREATE_ENUM_FLAGS_OPERATORS(CommandBufferUsage)
 
 struct BufferSubmitSyncInfo
 {
-    std::vector<PipelineStage> WaitStages;
-    std::vector<Semaphore> WaitSemaphores;
-    std::vector<Semaphore> SignalSemaphores;
+    Span<const PipelineStage> WaitStages;
+    Span<const Semaphore> WaitSemaphores;
+    Span<const Semaphore> SignalSemaphores;
     Fence Fence{};
 };
 
 struct BufferSubmitTimelineSyncInfo
 {
-    std::vector<PipelineStage> WaitStages;
-    std::vector<TimelineSemaphore> WaitSemaphores;
-    std::vector<u64> WaitValues;
-    std::vector<TimelineSemaphore> SignalSemaphores;
-    std::vector<u64> SignalValues;
+    Span<const PipelineStage> WaitStages;
+    Span<const TimelineSemaphore> WaitSemaphores;
+    Span<const u64> WaitValues;
+    Span<const TimelineSemaphore> SignalSemaphores;
+    Span<const u64> SignalValues;
     Fence Fence{};
 };
 
+struct CommandPoolCreateInfo
+{
+    QueueKind QueueKind{QueueKind::Graphics};
+    bool PerBufferReset{false};
+};
+
+struct CommandPoolTag{};
+using CommandPool = ResourceHandleType<CommandPoolTag>;
+
 struct CommandBufferCreateInfo
 {
-    // todo: change to handle, once everything is handle
-    const CommandPool* Pool{nullptr};
+    CommandPool Pool{};
     CommandBufferKind Kind{CommandBufferKind::Primary};
 };
 
@@ -62,24 +69,6 @@ private:
     ResourceHandleType<CommandBuffer> m_ResourceHandle{};
 };
 
-struct CommandPoolCreateInfo
-{
-    QueueKind QueueKind{QueueKind::Graphics};
-    bool PerBufferReset{false};
-};
-
-class CommandPool
-{
-    FRIEND_INTERNAL
-public:
-    CommandBuffer AllocateBuffer(CommandBufferKind kind);
-    void Reset() const;
-private:
-    ResourceHandleType<CommandPool> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<CommandPool> m_ResourceHandle{};
-};
-
 class CommandBufferArray
 {
 public:
@@ -89,8 +78,8 @@ public:
     void SetIndex(u32 index) { m_CurrentIndex = index; EnsureCapacity(m_CurrentIndex); }
     void NextIndex() { m_CurrentIndex++; EnsureCapacity(m_CurrentIndex); }
 
-    void ResetBuffers() { m_Pool.Reset(); }
-    
+    void ResetBuffers();
+
 private:
     void EnsureCapacity(u32 index);
 private:

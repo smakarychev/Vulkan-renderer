@@ -14,7 +14,6 @@ class DescriptorArenaAllocators;
 struct ImageSubresource;
 struct ImageBlitInfo;
 class Image;
-class CommandPool;
 struct SwapchainFrameSync;
 struct PushConstantDescription;
 class Buffer;

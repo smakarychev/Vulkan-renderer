@@ -118,8 +118,8 @@ private:
     template <typename Type>
     constexpr auto& operator[](const Type& type);
 
-    void MapCmdToPool(const CommandBuffer& cmd, const CommandPool& pool);
-    void DestroyCmdsOfPool(ResourceHandleType<CommandPool> pool);
+    void MapCmdToPool(const CommandBuffer& cmd, CommandPool pool);
+    void DestroyCmdsOfPool(CommandPool pool);
 
     void MapDescriptorSetToAllocator(DescriptorSet set, DescriptorAllocator allocator);
     void DestroyDescriptorSetsOfAllocator(DescriptorAllocator allocator);
@@ -165,7 +165,7 @@ private:
     };
     struct CommandPoolResource
     {
-        using ObjectType = CommandPool;
+        using ObjectType = CommandPoolTag;
         VkCommandPool CommandPool{VK_NULL_HANDLE};
     };
     struct CommandBufferResource
@@ -406,7 +406,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Images.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, Sampler>)
         m_Samplers.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, CommandPool>)
+    else if constexpr(std::is_same_v<Decayed, CommandPoolTag>)
         m_CommandPools.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
         m_CommandBuffers.Remove(handle);
@@ -466,7 +466,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, Sampler>)
         return m_Samplers[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
-        return m_CommandPools[type.Handle()];
+        return m_CommandPools[type];
     else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
         return m_CommandBuffers[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, QueueInfo>)
@@ -522,7 +522,7 @@ private:
     std::vector<ResourceHandleType<Buffer>> m_Buffers;
     std::vector<ResourceHandleType<Image>> m_Images;
     std::vector<ResourceHandleType<Sampler>> m_Samplers;
-    std::vector<ResourceHandleType<CommandPool>> m_CommandPools;
+    std::vector<CommandPool> m_CommandPools;
     std::vector<ResourceHandleType<QueueInfo>> m_Queues;
     std::vector<DescriptorsLayout> m_DescriptorLayouts;
     std::vector<DescriptorAllocator> m_DescriptorAllocators;
@@ -557,7 +557,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, Sampler>)
         m_Samplers.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
-        m_CommandPools.push_back(type.Handle());
+        m_CommandPools.push_back(type);
     else if constexpr(std::is_same_v<Decayed, QueueInfo>)
         m_Queues.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
@@ -605,9 +605,10 @@ public:
     static SwapchainDescription& GetSwapchainDescription(Swapchain swapchain);
     
     static CommandBuffer CreateCommandBuffer(CommandBufferCreateInfo&& createInfo);
-    static CommandPool CreateCommandPool(CommandPoolCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<CommandPool> commandPool);
-    static void ResetPool(const CommandPool& pool);
+    static CommandPool CreateCommandPool(CommandPoolCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(CommandPool commandPool);
+    static void ResetPool(CommandPool pool);
     static void ResetCommandBuffer(const CommandBuffer& cmd);
     static void BeginCommandBuffer(const CommandBuffer& cmd, CommandBufferUsage usage);
     static void EndCommandBuffer(const CommandBuffer& cmd);
@@ -799,10 +800,10 @@ private:
     static VkBufferImageCopy2 CreateVulkanImageCopyInfo(const ImageSubresource& subresource);
 
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        const std::vector<Semaphore>& semaphores, const std::vector<PipelineStage>& waitStages);
+        Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        const std::vector<TimelineSemaphore>& semaphores,
-        const std::vector<u64>& waitValues, const std::vector<PipelineStage>& waitStages);
+        Span<const TimelineSemaphore> semaphores,
+        Span<const u64> waitValues, Span<const PipelineStage> waitStages);
 private:
     struct State;
     static State s_State;
@@ -823,5 +824,5 @@ void Device::ImmediateSubmit(Fn&& uploadFunction)
     cmd.Submit(queue, fence);
     WaitForFence(fence);
     ResetFence(fence);
-    pool.Reset();
+    ResetPool(pool);
 }

@@ -710,13 +710,14 @@ void Renderer::InitRenderingStructures()
         CommandPool pool = Device::CreateCommandPool({
             .QueueKind = QueueKind::Graphics,
             .PerBufferReset = true});
-        Device::DeletionQueue().Enqueue(pool);
 
         m_FrameContexts[i].FrameSync = swapchain.Sync[i];
         m_FrameContexts[i].FrameNumber = i;
         m_FrameContexts[i].Resolution = swapchain.SwapchainResolution;
 
-        m_FrameContexts[i].Cmd = pool.AllocateBuffer(CommandBufferKind::Primary);
+        m_FrameContexts[i].Cmd =  Device::CreateCommandBuffer({
+            .Pool = pool,
+            .Kind = CommandBufferKind::Primary});
         m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
     }
 
