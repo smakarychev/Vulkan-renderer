@@ -10,5 +10,5 @@ struct ShaderModuleCreateInfo
     ShaderStage Stage{ShaderStage::None};
 };
 
-struct ShaderModuleTag {};
+struct ShaderModuleTag{};
 using ShaderModule = ResourceHandleType<ShaderModuleTag>;

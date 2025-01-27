@@ -50,7 +50,7 @@ struct DescriptorAllocatorCreateInfo
 struct DescriptorAllocatorTag{};
 using DescriptorAllocator = ResourceHandleType<DescriptorAllocatorTag>;
 
-struct DescriptorsLayoutTag {};
+struct DescriptorsLayoutTag{};
 using DescriptorsLayout = ResourceHandleType<DescriptorsLayoutTag>;
 
 struct DescriptorSetCreateInfo
@@ -78,7 +78,7 @@ struct DescriptorSetCreateInfo
     std::span<const VariableBindingInfo> VariableBindings;
 };
 
-struct DescriptorSetTag {};
+struct DescriptorSetTag{};
 using DescriptorSet = ResourceHandleType<DescriptorSetTag>;
 
 struct DescriptorArenaAllocatorTag{};
