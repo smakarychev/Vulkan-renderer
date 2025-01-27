@@ -3,6 +3,7 @@
 #include "CullMultiviewResources.h"
 #include "FrameContext.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/MeshletCullMultiviewBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 #include "Vulkan/RenderCommand.h"
@@ -38,14 +39,11 @@ RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::
             Sampler hizSampler = multiview->HiZSampler;
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            MeshletCullMultiviewShaderBindGroup bindGroup(shader);
 
-            samplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
+            bindGroup.SetSampler(resources.GetTexture(
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
-
-            RgUtils::updateCullMeshletMultiviewBindings(resourceDescriptors, resources, *multiview, stage);
+            RgUtils::updateCullMeshletMultiviewBindings(bindGroup, resources, *multiview, stage);
 
             struct PushConstant
             {
@@ -55,9 +53,7 @@ RG::Pass& Passes::Multiview::MeshletCull::addToGraph(std::string_view name, RG::
             };
                        
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
-            samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {

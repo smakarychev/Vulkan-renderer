@@ -1,13 +1,10 @@
 #include "BindlessTextureDescriptorsRingBuffer.h"
 
-BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, const ShaderPipelineTemplate* pipelineTemplate)
-    : m_MaxBindlessCount(maxCount)
+#include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
+
+BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, const Shader& shader)
+    : m_MaxBindlessCount(maxCount), m_MaterialsShader(&shader)
 {
-    m_BindlessDescriptorSet = ShaderDescriptors({
-        .ShaderPipelineTemplate = pipelineTemplate,
-        .AllocatorKind = DescriptorAllocatorKind::Resources,
-        .Set = BINDLESS_DESCRIPTORS_INDEX,
-        .BindlessCount = maxCount});
 }
 
 u32 BindlessTextureDescriptorsRingBuffer::Size() const
@@ -27,12 +24,8 @@ bool BindlessTextureDescriptorsRingBuffer::WillOverflow() const
 
 u32 BindlessTextureDescriptorsRingBuffer::AddTexture(const Texture& texture)
 {
-    const DescriptorBindingInfo bindingInfo = m_BindlessDescriptorSet.GetBindingInfo(UNIFORM_TEXTURES);
-
-    m_BindlessDescriptorSet.UpdateGlobalBinding(
-        bindingInfo,
-        texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly),
-        m_Tail);
+    MaterialsShaderBindGroup bindGroup(*m_MaterialsShader);
+    bindGroup.SetTexturesGlobally(texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly), m_Tail);
 
     const u32 toReturn = m_Tail;
     

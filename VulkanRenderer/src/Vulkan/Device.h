@@ -235,7 +235,7 @@ private:
         u64 SizeBytes{0};
         u32 CurrentBuffer{0};
         u64 CurrentOffset{0};
-        DescriptorAllocatorKind Kind{DescriptorAllocatorKind::Resources};
+        DescriptorsKind Kind{DescriptorsKind::Resource};
         DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
         std::array<VkBuffer, BUFFERED_FRAMES> Buffers;
         std::array<VmaAllocation, BUFFERED_FRAMES> Allocations;
@@ -677,7 +677,7 @@ public:
     static std::optional<Descriptors> AllocateDescriptors(DescriptorArenaAllocator allocator,
         DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
     static void ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator);
-    static DescriptorAllocatorKind GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator);
+    static DescriptorsKind GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator);
     
     static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
         const BufferBindingInfo& buffer, u32 index);  

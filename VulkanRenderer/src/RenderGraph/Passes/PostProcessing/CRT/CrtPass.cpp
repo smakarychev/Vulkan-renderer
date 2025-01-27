@@ -3,6 +3,7 @@
 #include "Renderer.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/CrtBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -66,24 +67,14 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-            
-            samplerDescriptors.UpdateBinding("u_sampler",
-                colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_image",
-                colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_time", time.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_settings", settingsBuffer.BindingInfo());
+            CrtShaderBindGroup bindGroup(shader);
+            bindGroup.SetSampler(colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetImage(colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetTime(time.BindingInfo());
+            bindGroup.SetSettings(settingsBuffer.BindingInfo());
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindGraphics(cmd, pipeline);
-            samplerDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
-
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Draw(cmd, 3);
         });
 

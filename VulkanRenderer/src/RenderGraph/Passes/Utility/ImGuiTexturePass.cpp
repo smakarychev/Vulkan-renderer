@@ -3,6 +3,7 @@
 #include "imgui/imgui.h"
 #include "Imgui/ImguiUI.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/Texture3dToSliceBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -156,19 +157,14 @@ namespace
                 GPU_PROFILE_FRAME("Texture3dToSlice")
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+                Texture3dToSliceShaderBindGroup bindGroup(shader);
 
-                resourceDescriptors.UpdateBinding("u_texture",
-                    resources.GetTexture(passData.Texture3d).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+                bindGroup.SetTexture(resources.GetTexture(passData.Texture3d)
+                    .BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-                RenderCommand::BindGraphics(cmd, pipeline);
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), sliceNormalized);
-                resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-                
                 RenderCommand::Draw(cmd, 3);
             });
 

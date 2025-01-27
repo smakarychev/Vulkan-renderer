@@ -13,6 +13,8 @@
 class Shader;
 class SceneGeometry;
 
+// todo: why this exists?
+
 /* cull view description has 2 parts:
  *  - static part defines resources that are unchanged from frame to frame
  *    (such as geometry, hiz, etc.)
@@ -24,8 +26,6 @@ struct CullViewStaticDescription
     const SceneGeometry* Geometry{nullptr};
     /* the user is not expected to set HiZContext manually, but it is possible */
     std::shared_ptr<HiZPassContext> HiZContext{};
-    const Shader* DrawShader{nullptr};
-    const Shader* DrawTrianglesShader{nullptr};
     bool CullTriangles{false};
 };
 
@@ -34,7 +34,6 @@ struct CullViewDynamicDescription
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
     bool ClampDepth{false};
-
     RG::DrawExecutionInfo DrawInfo{};
 };
 

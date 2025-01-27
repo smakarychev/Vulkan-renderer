@@ -246,39 +246,6 @@ namespace
         return descriptorSets;
     }
 
-    DrawFeatures extractDrawFeatures(
-        const std::vector<ShaderReflection::ShaderStageInfo::DescriptorSet>& descriptorSets,
-        const std::vector<ShaderReflection::InputAttribute>& inputs)
-    {
-        // todo: there exists a static constexpr map, might use that here
-        // todo: document these special names somewhere somehow
-        static const std::unordered_map NAME_TO_FEATURE_MAP = {
-            std::make_pair(UNIFORM_POSITIONS, DrawFeatures::Positions),
-            std::make_pair(UNIFORM_NORMALS, DrawFeatures::Normals),
-            std::make_pair(UNIFORM_TANGENTS, DrawFeatures::Tangents),
-            std::make_pair(UNIFORM_UV, DrawFeatures::UV),
-            std::make_pair(UNIFORM_MATERIALS, DrawFeatures::Materials),
-            std::make_pair(UNIFORM_TEXTURES, DrawFeatures::Textures),
-            std::make_pair(UNIFORM_SSAO_TEXTURE, DrawFeatures::SSAO),
-            std::make_pair(UNIFORM_PREFILTER_MAP, DrawFeatures::IBL),
-            std::make_pair(UNIFORM_BRDF, DrawFeatures::IBL),
-            std::make_pair(UNIFORM_TRIANGLES, DrawFeatures::Triangles),
-        };
-        
-        DrawFeatures features = DrawFeatures::None;
-
-        for (auto& set : descriptorSets)
-            for (auto& descriptor : set.Descriptors)
-                if (NAME_TO_FEATURE_MAP.contains(descriptor.Name))
-                    features |= NAME_TO_FEATURE_MAP.at(descriptor.Name);
-
-        for (auto& input : inputs)
-            if (NAME_TO_FEATURE_MAP.contains(input.Name))
-                features |= NAME_TO_FEATURE_MAP.at(input.Name);
-
-        return features;
-    }
-
     VertexInputDescription processInputDescription(
         const std::vector<ShaderReflection::InputAttribute>& inputAttributeReflections)
     {
@@ -399,7 +366,6 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& 
     shader.m_VertexInputDescription = processInputDescription(mergedShaderInfo.InputAttributes);
     shader.m_PushConstants = processPushConstantDescriptions(mergedShaderInfo.PushConstants);
     shader.m_DescriptorSets = processDescriptorSets(mergedShaderInfo.DescriptorSets);
-    shader.m_Features = extractDrawFeatures(mergedShaderInfo.DescriptorSets, mergedShaderInfo.InputAttributes);
 
     AssetManager::AddShader(shaderKey, std::move(shader));
     

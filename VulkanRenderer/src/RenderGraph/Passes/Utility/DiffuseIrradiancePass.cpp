@@ -1,6 +1,7 @@
 #include "DiffuseIrradiancePass.h"
 
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/DiffuseIrradianceBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -42,14 +43,10 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
             const Texture& diffuseIrradianceTexture = resources.GetTexture(passData.DiffuseIrradiance);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            DiffuseIrradianceShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_env", cubemapTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_irradiance", diffuseIrradianceTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetEnv(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetIrradiance(diffuseIrradianceTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             struct PushConstants
             {
@@ -60,11 +57,8 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
                     1.0f / glm::vec2{(f32)diffuseIrradianceTexture.Description().Width}};
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
             RenderCommand::Dispatch(cmd,
                 {diffuseIrradianceTexture.Description().Width, diffuseIrradianceTexture.Description().Width, 6},
                 {32, 32, 1});

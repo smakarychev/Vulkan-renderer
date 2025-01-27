@@ -4,7 +4,6 @@
 
 #include "RenderGraph/RGDrawResources.h"
 #include "Core/Camera.h"
-#include "RenderGraph/RenderGraph.h"
 
 class SceneLight;
 class SceneGeometry;
@@ -24,7 +23,6 @@ struct DrawIndirectCountPassExecutionInfo
     const Camera* Camera{nullptr};
 
     RG::DrawExecutionInfo DrawInfo{};
-    const Shader* Shader{nullptr};
 };
 
 namespace Passes::Draw::IndirectCount

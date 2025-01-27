@@ -2,6 +2,7 @@
 
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/AtmosphereMultiscatteringLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -39,25 +40,17 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
             CPU_PROFILE_FRAME("Atmosphere.Multiscattering")
             GPU_PROFILE_FRAME("Atmosphere.Multiscattering")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
             const Texture& lutTexture = resources.GetTexture(passData.Lut);
-            
-            resourceDescriptors.UpdateBinding("u_atmosphere_settings",
-                resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_transmittance_lut",
-                resources.GetTexture(passData.TransmittanceLut).BindingInfo(
+
+            const Shader& shader = resources.GetGraph()->GetShader();
+            AtmosphereMultiscatteringLutShaderBindGroup bindGroup(shader);
+            bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
+            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                     ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_multiscattering_lut",
-                lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetMultiscatteringLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindCompute(cmd, pipeline);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, 64},
                 {1, 1, 64});

@@ -97,17 +97,15 @@ class Shader
 {
     friend class ShaderCache;
 public:
-    Shader(u32 pipelineIndex, const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors);
+    Shader(u32 pipelineIndex, const std::array<::Descriptors, MAX_DESCRIPTOR_SETS>& descriptors);
     Pipeline Pipeline() const;
     PipelineLayout GetLayout() const;
-    const ShaderDescriptors& Descriptors(ShaderDescriptorsKind kind) const { return m_Descriptors[(u32)kind]; }
-    DrawFeatures Features() const { return m_Features; }
+    const ::Descriptors& Descriptors(DescriptorsKind kind) const { return m_Descriptors[(u32)kind]; }
 
     ShaderOverridesView CopyOverrides() const;
 private:
     u32 m_Pipeline{0};
-    std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
-    DrawFeatures m_Features{};
+    std::array<::Descriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
     std::string m_FilePath;
 };
 
@@ -122,7 +120,7 @@ public:
     static void SetAllocators(DescriptorArenaAllocators& allocators) { s_Allocators = &allocators; }
     static void OnFrameBegin(FrameContext& ctx);
 
-    static void AddBindlessDescriptors(std::string_view name, const ShaderDescriptors& descriptors);
+    static void AddBindlessDescriptors(std::string_view name, const Descriptors& descriptors);
     
     /* returns shader associated with `name` */
     static const Shader& Get(std::string_view name);
@@ -143,9 +141,8 @@ private:
     {
         Pipeline Pipeline;
         PipelineLayout PipelineLayout;
-        std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS> Descriptors;
+        std::array<Descriptors, MAX_DESCRIPTOR_SETS> Descriptors;
         std::vector<std::string> Dependencies;
-        DrawFeatures Features{};
     };
     static const Shader& AddShader(std::string_view name, u32 pipeline, const ShaderProxy& proxy,
         std::string_view path);
@@ -189,7 +186,7 @@ private:
     };
     static std::vector<PipelineData> s_Pipelines;
 
-    static Utils::StringUnorderedMap<ShaderDescriptors> s_BindlessDescriptors;
+    static Utils::StringUnorderedMap<Descriptors> s_BindlessDescriptors;
 
     static DeletionQueue* s_FrameDeletionQueue;
 

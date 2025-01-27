@@ -18,7 +18,7 @@ Utils::StringUnorderedMap<ShaderCache::Record> ShaderCache::s_Records = {};
 Utils::StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
 std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
 std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
-Utils::StringUnorderedMap<ShaderDescriptors> ShaderCache::s_BindlessDescriptors = {};
+Utils::StringUnorderedMap<Descriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
 std::vector<std::pair<std::string, std::string>> ShaderCache::s_ToRename = {};
@@ -57,7 +57,7 @@ PipelineSpecializationsView ShaderOverridesView::ToPipelineSpecializationsView(S
 }
 
 Shader::Shader(u32 pipelineIndex,
-    const std::array<ShaderDescriptors, MAX_DESCRIPTOR_SETS>& descriptors)
+    const std::array<::Descriptors, MAX_DESCRIPTOR_SETS>& descriptors)
         : m_Pipeline(pipelineIndex), m_Descriptors(descriptors)
 {
 }
@@ -122,7 +122,7 @@ void ShaderCache::OnFrameBegin(FrameContext& ctx)
     s_ToReload.clear();
 }
 
-void ShaderCache::AddBindlessDescriptors(std::string_view name, const ShaderDescriptors& descriptors)
+void ShaderCache::AddBindlessDescriptors(std::string_view name, const Descriptors& descriptors)
 {
     s_BindlessDescriptors[std::string{name}] = descriptors;
 }
@@ -219,7 +219,6 @@ const Shader& ShaderCache::AddShader(std::string_view name, u32 pipeline, const 
 {
     s_Shaders.push_back(std::make_unique<Shader>(pipeline, proxy.Descriptors));
     s_Shaders.back()->m_FilePath = path;
-    s_Shaders.back()->m_Features = proxy.Features;
 
     s_ShadersMap.emplace(name, s_Shaders.back().get());
     for (auto& dependency : proxy.Dependencies)
@@ -344,8 +343,6 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         shader.Dependencies.emplace_back(stage);
     shader.Dependencies.emplace_back(path);
     
-    shader.Features = shaderTemplate->GetReflection().Features();
-
     if (reloadType == ReloadType::PipelineDescriptors || reloadType == ReloadType::Pipeline)
     {
         std::vector<Format> colorFormats;
@@ -445,24 +442,29 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
     * changing the descriptors while application is running will lead to undefined behaviour
     */
     auto setPresence = shaderTemplate->GetSetPresence();
-    for (u32 i = 0; i < BINDLESS_DESCRIPTORS_INDEX; i++)
+    const bool referencesOtherBindlessSet = json.contains("bindless");
+    for (u32 i = 0; i <= BINDLESS_DESCRIPTORS_INDEX; i++)
     {
         if (!setPresence[i])
             continue;
 
-        shader.Descriptors[i] = ShaderDescriptors({
-            .ShaderPipelineTemplate = shaderTemplate,
-            .AllocatorKind =  i == (u32)ShaderDescriptorsKind::Sampler ?
-                DescriptorAllocatorKind::Samplers : DescriptorAllocatorKind::Resources,
-            .Set = i});
+        if (i == BINDLESS_DESCRIPTORS_INDEX && referencesOtherBindlessSet)
+            continue;
+        
+        std::optional<Descriptors> descriptors = Device::AllocateDescriptors(
+            shaderTemplate->GetAllocator(i == (u32)DescriptorsKind::Sampler ?
+                DescriptorsKind::Sampler : DescriptorsKind::Resource),
+            shaderTemplate->GetDescriptorsLayout(i), {
+                .Bindings = shaderTemplate->GetReflection().DescriptorSetsInfo()[i].Descriptors,
+                .BindlessCount = shaderTemplate->GetReflection().DescriptorSetsInfo()[i].HasBindless ?
+                    (u32)json["bindless_count"] : 0});
+        ASSERT(descriptors.has_value(), "Increase allocator size")
+
+        shader.Descriptors[i] = *descriptors;
     }
 
-    if (json.contains("bindless"))
-    {
+    if (referencesOtherBindlessSet)
         shader.Descriptors[BINDLESS_DESCRIPTORS_INDEX] = s_BindlessDescriptors.at(json["bindless"]);
-        // todo: this is pretty dangerous line, the templates might not be compatible
-        shader.Descriptors[BINDLESS_DESCRIPTORS_INDEX].m_Template = shaderTemplate;
-    }
     
     return shader;
 }

@@ -4,6 +4,7 @@
 #include "Core/Camera.h"
 #include "Core/Random.h"
 #include "imgui/imgui.h"
+#include "RenderGraph/Passes/Generated/SsaoBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "utils/MathUtils.h"
 #include "Vulkan/RenderCommand.h"
@@ -154,20 +155,13 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             const Texture& noiseTexture = resources.GetTexture(passData.NoiseTexture);
             const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
             
-            const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_settings", setting.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", cameraBuffer.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_samples", samples.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_depth_texture", depthTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::DepthReadonly));
-            resourceDescriptors.UpdateBinding("u_noise_texture", noiseTexture.BindingInfo(
-                ImageFilter::Nearest, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_ssao", ssaoTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::General));
+            const Shader& shader = resources.GetGraph()->GetShader();SsaoShaderBindGroup bindGroup(shader);
+            bindGroup.SetSettings(setting.BindingInfo());
+            bindGroup.SetCamera(cameraBuffer.BindingInfo());
+            bindGroup.SetSamples(samples.BindingInfo());
+            bindGroup.SetDepthTexture(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::DepthReadonly));
+            bindGroup.SetNoiseTexture(noiseTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
+            bindGroup.SetSsao(ssaoTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             struct PushConstants
             {
@@ -184,11 +178,8 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
                     (f32)noiseTexture.Description().Width, (f32)noiseTexture.Description().Height)};
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
             RenderCommand::Dispatch(cmd,
                 {ssaoTexture.Description().Width, ssaoTexture.Description().Height, 1},
                 {16, 16, 1});

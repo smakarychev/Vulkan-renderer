@@ -5,6 +5,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 #include "Core/Camera.h"
+#include "RenderGraph/Passes/Generated/LightClustersSetupBindGroup.generated.h"
 
 RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Graph& renderGraph)
 {
@@ -32,12 +33,10 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
             GPU_PROFILE_FRAME("Lights.Clusters.Setup")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            LightClustersSetupShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_cluster_visibility", resources.GetBuffer(
-                passData.ClusterVisibility).BindingInfo());
+            bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
+            bindGroup.SetClusterVisibility(resources.GetBuffer(passData.ClusterVisibility).BindingInfo());
 
             struct PushConstant
             {
@@ -53,10 +52,8 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
             RenderCommand::Dispatch(cmd,
                 {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z},
                 {1, 1, 1});

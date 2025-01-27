@@ -1,6 +1,7 @@
 #include "DiffuseIrradianceSHPass.h"
 
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/DiffuseIrradianceShBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -43,13 +44,10 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
             const Texture& cubemapTexture = resources.GetTexture(passData.CubemapTexture);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            DiffuseIrradianceShShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_sh", diffuseIrradiance.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_env", cubemapTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetSh(diffuseIrradiance.BindingInfo());
+            bindGroup.SetEnv(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
 
             const u32 realTimeMipmapsCount = (u32)std::log(16.0);
             const u32 targetMipmap = realTime ?
@@ -57,11 +55,8 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
                 0;
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), targetMipmap);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
             RenderCommand::Dispatch(cmd, {1, 1, 1});
         });
 

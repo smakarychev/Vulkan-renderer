@@ -5,7 +5,6 @@
 #include "CameraGPU.h"
 #include "CullMultiviewData.h"
 #include "RenderGraph/RGUtils.h"
-#include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 
 namespace RG::RgUtils
@@ -115,28 +114,6 @@ namespace RG::RgUtils
         graph.Upload(multiview.Views, views);
     }
 
-    void updateMeshCullMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResources& multiview)
-    {
-        descriptors.UpdateBinding("u_view_spans", resources.GetBuffer(multiview.ViewSpans).BindingInfo());
-        descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views).BindingInfo());
-
-        for (u32 i = 0; i < multiview.GeometryCount; i++)
-            descriptors.UpdateBinding("u_objects", resources.GetBuffer(multiview.Objects[i]).BindingInfo(), i);
-
-        for (u32 i = 0; i < multiview.ViewCount; i++)
-        {
-            const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
-            
-            descriptors.UpdateBinding("u_hiz", hiz.BindingInfo(multiview.HiZSampler,
-                hiz.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
-            
-            descriptors.UpdateBinding("u_object_visibility", resources.GetBuffer(multiview.MeshVisibility[i])
-                .BindingInfo(), i);
-        }
-    }
-
     void readWriteCullMeshletMultiview(CullMultiviewResources& multiview, CullStage cullStage, Graph& graph)
     {
         using enum ResourceAccessFlags;
@@ -193,54 +170,6 @@ namespace RG::RgUtils
         else
             for (u32 i = 0; i < multiview.ViewCount + multiview.GeometryCount; i++)
                 graph.Upload(multiview.CompactCommandCount, 0u, i * sizeof(u32));
-    }
-
-    void updateCullMeshletMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullMultiviewResources& multiview, CullStage cullStage)
-    {
-        descriptors.UpdateBinding("u_view_spans", resources.GetBuffer(multiview.ViewSpans).BindingInfo());
-        descriptors.UpdateBinding("u_views", resources.GetBuffer(multiview.Views).BindingInfo());
-
-        const Buffer& countBuffer = resources.GetBuffer(cullStage == CullStage::Reocclusion ?
-            multiview.CompactCommandCountReocclusion : multiview.CompactCommandCount);
-        
-        descriptors.UpdateBinding("u_count", countBuffer.BindingInfo());
-        
-        for (u32 i = 0; i < multiview.GeometryCount; i++)
-        {
-            descriptors.UpdateBinding("u_objects", resources.GetBuffer(multiview.Objects[i]).BindingInfo(), i);
-            descriptors.UpdateBinding("u_meshlets", resources.GetBuffer(multiview.Meshlets[i]).BindingInfo(), i);
-            descriptors.UpdateBinding("u_commands", resources.GetBuffer(multiview.Commands[i]).BindingInfo(), i);
-        }
-
-        for (u32 i = 0; i < multiview.ViewCount; i++)
-        {
-            const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
-            
-            descriptors.UpdateBinding("u_hiz", hiz.BindingInfo(multiview.HiZSampler,
-                hiz.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
-            
-            descriptors.UpdateBinding("u_object_visibility", resources.GetBuffer(multiview.MeshVisibility[i])
-                .BindingInfo(), i);
-            descriptors.UpdateBinding("u_meshlet_visibility", resources.GetBuffer(multiview.MeshletVisibility[i])
-                .BindingInfo(), i);
-            descriptors.UpdateBinding("u_compacted_commands", resources.GetBuffer(multiview.CompactCommands[i])
-                .BindingInfo(), i);
-        }
-
-        /* update `geometryCount` additional command and command count buffer bindings for triangle culling
-         * we don't need it in `Reocclusion` stage
-         */
-        if (cullStage != CullStage::Reocclusion)
-        {
-            for (u32 i = 0; i < multiview.GeometryCount; i++)
-            {
-                u32 index = multiview.ViewCount + i;
-                descriptors.UpdateBinding("u_compacted_commands", resources.GetBuffer(multiview.CompactCommands[index])
-                    .BindingInfo(), index);
-            }
-        }
     }
 
     CullTrianglesMultiviewResource createTriangleCullMultiview(CullMultiviewResources& multiview, Graph& graph,
@@ -357,16 +286,6 @@ namespace RG::RgUtils
             multiview.BatchDispatches[i] = graph.Write(multiview.BatchDispatches[i], Compute | Storage);
     }
 
-    void updateCullTrianglePrepareMultiviewBindings(const ShaderDescriptors& descriptors, const Resources& resources,
-        const CullTrianglesMultiviewResource& multiview)
-    {
-        descriptors.UpdateBinding("u_command_counts", resources.GetBuffer(
-            multiview.MeshletCull->CompactCommandCount).BindingInfo());
-        for (u32 i = 0; i < multiview.MeshletCull->GeometryCount; i++)
-            descriptors.UpdateBinding("u_dispatches", resources.GetBuffer(multiview.BatchDispatches[i])
-                .BindingInfo(), i);
-    }
-
     void readWriteCullTriangleMultiview(CullTrianglesMultiviewResource& multiview, Graph& graph)
     {
         using enum ResourceAccessFlags;
@@ -452,22 +371,6 @@ namespace RG::RgUtils
             Utils::recordUpdatedAttachmentResources(attachments, multiview.AttachmentResources[i],
                 *multiview.AttachmentsRenames);
 
-            if (dynamicV.DrawInfo.SceneLights)
-                multiview.SceneLights[i] = readSceneLight(*dynamicV.DrawInfo.SceneLights, graph, Pixel);
-            if (enumHasAny(staticV.DrawTrianglesShader->Features(), DrawFeatures::IBL))
-            {
-                ASSERT(dynamicV.DrawInfo.IBL.has_value(), "IBL data is not provided")
-                multiview.IBLs[i] = readIBLData(*dynamicV.DrawInfo.IBL, graph, Pixel);
-            }
-            if (enumHasAny(staticV.DrawTrianglesShader->Features(), DrawFeatures::SSAO))
-            {
-                ASSERT(dynamicV.DrawInfo.SSAO.has_value(), "SSAO data is not provided")
-                multiview.SSAOs[i] = readSSAOData(*dynamicV.DrawInfo.SSAO, graph, Pixel);
-            }
-            if (dynamicV.DrawInfo.CSMData.has_value())
-                multiview.CSMs[i] = readCSMData(*dynamicV.DrawInfo.CSMData, graph, Pixel);
-            
-            
             for (u32 batch = 0; batch < TriangleCullMultiviewTraits::MAX_BATCHES; batch++)
             {
                 multiview.Draws[batch] = graph.Write(multiview.Draws[batch], Compute | Storage);
@@ -494,109 +397,6 @@ namespace RG::RgUtils
 
             for (u32 batchIndex = 0; batchIndex < TriangleCullMultiviewTraits::MAX_BATCHES; batchIndex++)
                 graph.Upload(multiview.IndicesCulledCount[batchIndex], 0, i * sizeof(u32));
-        }
-    }
-
-    void updateCullTriangleMultiviewBindings(const ShaderDescriptors& cullDescriptors,
-        const ShaderDescriptors& prepareDescriptors,
-        const std::vector<ShaderDescriptors>& drawDescriptors,
-        const Resources& resources,
-        const CullTrianglesMultiviewResource& multiview,
-        u32 batchIndex)
-    {
-        using enum DrawFeatures;
-
-        /* update cull bindings */
-        cullDescriptors.UpdateBinding("u_view_spans", resources.GetBuffer(
-            multiview.ViewSpans).BindingInfo());
-        cullDescriptors.UpdateBinding("u_views", resources.GetBuffer(
-            multiview.Views).BindingInfo());
-
-        cullDescriptors.UpdateBinding("u_count", resources.GetBuffer(
-            multiview.MeshletCull->CompactCommandCount).BindingInfo());
-        
-        for (u32 i = 0; i < multiview.MeshletCull->GeometryCount; i++)
-        {
-            cullDescriptors.UpdateBinding("u_objects", resources.GetBuffer(
-                multiview.MeshletCull->Objects[i]).BindingInfo(), i);
-            cullDescriptors.UpdateBinding(UNIFORM_POSITIONS, resources.GetBuffer(
-                multiview.AttributeBuffers[i].Positions).BindingInfo(), i);
-            cullDescriptors.UpdateBinding("u_indices", resources.GetBuffer(
-                multiview.Indices[i]).BindingInfo(), i);
-        }
-
-        for (u32 i = 0; i < multiview.TriangleViewCount; i++)
-        {
-            u32 meshletIndex = multiview.MeshletViewIndices[i];
-            
-            const Texture& hiz = resources.GetTexture(multiview.MeshletCull->HiZs[meshletIndex]);
-            cullDescriptors.UpdateBinding("u_hiz", hiz.BindingInfo(multiview.MeshletCull->HiZSampler,
-                hiz.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
-            
-            cullDescriptors.UpdateBinding("u_meshlet_visibility", resources.GetBuffer(
-                multiview.MeshletCull->MeshletVisibility[meshletIndex]).BindingInfo(), i);
-
-            cullDescriptors.UpdateBinding(UNIFORM_TRIANGLES, resources.GetBuffer(
-                multiview.Triangles[i][batchIndex]).BindingInfo(), i);
-            cullDescriptors.UpdateBinding("u_triangle_visibility", resources.GetBuffer(
-                multiview.TriangleVisibility[i]).BindingInfo(), i);
-            cullDescriptors.UpdateBinding("u_culled_indices", resources.GetBuffer(
-                multiview.IndicesCulled[i][batchIndex]).BindingInfo(), i);
-        }
-        cullDescriptors.UpdateBinding("u_culled_count", resources.GetBuffer(
-            multiview.IndicesCulledCount[batchIndex]).BindingInfo());
-        
-        /* update `geometryCount` additional command and command count buffer bindings for triangle culling */
-        for (u32 i = 0; i < multiview.MeshletCull->GeometryCount; i++)
-        {
-            u32 index = multiview.MeshletCull->ViewCount + i;
-
-            cullDescriptors.UpdateBinding("u_commands", resources.GetBuffer(
-                multiview.MeshletCull->CompactCommands[index]).BindingInfo(), i);
-        }
-        
-        /* update prepare bindings */
-        prepareDescriptors.UpdateBinding("u_draws", resources.GetBuffer(
-            multiview.Draws[batchIndex]).BindingInfo());
-        prepareDescriptors.UpdateBinding("u_index_counts", resources.GetBuffer(
-            multiview.IndicesCulledCount[batchIndex]).BindingInfo());
-        
-        /* update draw bindings */
-        for (u32 i = 0; i < multiview.TriangleViewCount; i++)
-        {
-            auto& resourceDescriptors = drawDescriptors[i];
-
-            auto& view = multiview.MeshletCull->Multiview->TriangleView(i);
-            auto&& [staticV, dynamicV] = view;
-
-            // todo: this is not the best way i guess
-            u32 geometryIndex = (u32)(std::ranges::find_if(multiview.Multiview->Geometries(),
-                [&](const auto* geometry) { return geometry == staticV.Geometry; }) -
-                multiview.Multiview->Geometries().begin());
-
-            resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(
-                multiview.Cameras[i]).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_objects", resources.GetBuffer(
-                multiview.MeshletCull->Objects[geometryIndex]).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_commands", resources.GetBuffer(
-                multiview.MeshletCull->Commands[geometryIndex]).BindingInfo());
-
-            if (enumHasAny(staticV.DrawTrianglesShader->Features(), Triangles))
-                resourceDescriptors.UpdateBinding(UNIFORM_TRIANGLES, resources.GetBuffer(
-                multiview.Triangles[i][batchIndex]).BindingInfo());
-
-            updateDrawAttributeBindings(resourceDescriptors, resources,
-                multiview.AttributeBuffers[geometryIndex], staticV.DrawTrianglesShader->Features());
-
-            if (dynamicV.DrawInfo.SceneLights)
-                updateSceneLightBindings(resourceDescriptors, resources, multiview.SceneLights[i]);
-            if (enumHasAny(staticV.DrawTrianglesShader->Features(), IBL))
-                updateIBLBindings(resourceDescriptors, resources, multiview.IBLs[i]);
-            if (enumHasAny(staticV.DrawTrianglesShader->Features(), SSAO))
-                updateSSAOBindings(resourceDescriptors, resources, multiview.SSAOs[i]);
-            if (dynamicV.DrawInfo.CSMData.has_value())
-                updateCSMBindings(resourceDescriptors, resources, multiview.CSMs[i]);
         }
     }
 }

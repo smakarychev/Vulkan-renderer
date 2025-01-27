@@ -3,6 +3,7 @@
 #include "HiZBlitUtilityPass.h"
 #include "HiZPassContext.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/HizNvBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -67,26 +68,18 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
                     passData.MinMaxSampler, ImageLayout::General);
                 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-                
-                samplerDescriptors.UpdateBinding("u_in_sampler", hizInput);
-                resourceDescriptors.UpdateBinding("u_in_image", hizInput);
+                HizNvShaderBindGroup bindGroup(shader);
+                bindGroup.SetInSampler(hizInput);
+                bindGroup.SetInImage(hizInput);
 
                 for (u32 i = 0; i < passData.MipmapViewHandles.size(); i++)
-                    resourceDescriptors.UpdateBinding("u_hiz_mips",
-                        resources.GetTexture(passData.HiZOut).BindingInfo(
+                    bindGroup.SetHizMips(resources.GetTexture(passData.HiZOut).BindingInfo(
                             passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i]), i);
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.Cmd;
-                RenderCommand::BindCompute(cmd, pipeline);
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-                samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                    shader.GetLayout());
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                    shader.GetLayout());
                 u32 shift = toBeProcessed > 5 ? 12 : 10;
                 u32 mask = toBeProcessed > 5 ? 4095 : 1023;
                 u32 samples = width * height;

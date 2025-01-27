@@ -4,6 +4,7 @@
 #include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/AtmosphereRaymarchBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -58,30 +59,21 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
         GPU_PROFILE_FRAME("Atmosphere.Raymarch")
 
         const Shader& shader = resources.GetGraph()->GetShader();
-        auto pipeline = shader.Pipeline(); 
-        auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-        auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
+        AtmosphereRaymarchShaderBindGroup bindGroup(shader);
         if (passData.DepthIn.IsValid())
-            resourceDescriptors.UpdateBinding("u_depth", resources.GetTexture(passData.DepthIn).BindingInfo(
+            bindGroup.SetDepth(resources.GetTexture(passData.DepthIn).BindingInfo(
                 ImageFilter::Linear, ImageLayout::DepthReadonly));
-        
-        resourceDescriptors.UpdateBinding("u_atmosphere_settings",
-            resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-        resourceDescriptors.UpdateBinding("u_directional_light",
-            resources.GetBuffer(passData.DirectionalLight).BindingInfo());
-        resourceDescriptors.UpdateBinding("u_camera",
-            resources.GetBuffer(passData.Camera).BindingInfo());
-        resourceDescriptors.UpdateBinding("u_sky_view_lut",
-            resources.GetTexture(passData.SkyViewLut).BindingInfo(
+
+        bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
+        bindGroup.SetDirectionalLight(resources.GetBuffer(passData.DirectionalLight).BindingInfo());
+        bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+        bindGroup.SetSkyViewLut(resources.GetTexture(passData.SkyViewLut).BindingInfo(
                ImageFilter::Linear, ImageLayout::Readonly));
         if (passData.TransmittanceLut.IsValid())
-            resourceDescriptors.UpdateBinding("u_transmittance_lut",
-                resources.GetTexture(passData.TransmittanceLut).BindingInfo(
+            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                    ImageFilter::Linear, ImageLayout::Readonly));
         if (passData.AerialPerspectiveLut.IsValid())
-            resourceDescriptors.UpdateBinding("u_aerial_perspective_lut",
-                resources.GetTexture(passData.AerialPerspectiveLut).BindingInfo(
+            bindGroup.SetAerialPerspectiveLut(resources.GetTexture(passData.AerialPerspectiveLut).BindingInfo(
                    ImageFilter::Linear, ImageLayout::Readonly));
 
         struct PushConstant
@@ -94,10 +86,8 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
             .UseSunLuminance = useSunLuminance};
         
         auto& cmd = frameContext.Cmd;
-        samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-        RenderCommand::BindGraphics(cmd, pipeline);
+        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
         RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-        resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
         RenderCommand::Draw(cmd, 3);
     });
 }

@@ -848,7 +848,7 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
     std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
     std::vector<VkPresentModeKHR> desiredPresentModes = {{
-        //VK_PRESENT_MODE_IMMEDIATE_KHR,
+        VK_PRESENT_MODE_IMMEDIATE_KHR,
         VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
     SurfaceDetails surfaceDetails = getSurfaceDetails(s_State.GPU, s_State.Surface);
@@ -2386,7 +2386,7 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
     ASSERT(!createInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
     ASSERT(createInfo.Residence == DescriptorAllocatorResidence::CPU, "GPU residence is not supported")
     
-    if (createInfo.Kind == DescriptorAllocatorKind::Resources)
+    if (createInfo.Kind == DescriptorsKind::Resource)
         for (auto type : createInfo.UsedTypes)
             ASSERT(type != DescriptorType::Sampler,
                 "Cannot use allocator of this kind for requested descriptor kinds")
@@ -2401,7 +2401,7 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
     
     u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
 
-    VkBufferUsageFlags usageFlags = createInfo.Kind == DescriptorAllocatorKind::Resources ?
+    VkBufferUsageFlags usageFlags = createInfo.Kind == DescriptorsKind::Resource ?
         VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
     usageFlags |= VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT;
     VmaAllocationCreateFlags allocationFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
@@ -2442,8 +2442,8 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
     for (auto& binding : bindings.Bindings)
         ASSERT(
-            (allocatorResource.Kind == DescriptorAllocatorKind::Samplers && binding.Type == DescriptorType::Sampler) ||
-            (allocatorResource.Kind == DescriptorAllocatorKind::Resources && binding.Type != DescriptorType::Sampler),
+            (allocatorResource.Kind == DescriptorsKind::Sampler && binding.Type == DescriptorType::Sampler) ||
+            (allocatorResource.Kind == DescriptorsKind::Resource && binding.Type != DescriptorType::Sampler),
             "Cannot use this descriptor allocator with such bindings")
     
     auto& descriptorBufferProps = s_State.GPUDescriptorBufferProperties;
@@ -2500,7 +2500,7 @@ void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
     Resources()[allocator].CurrentOffset = 0;
 }
 
-DescriptorAllocatorKind Device::GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator)
+DescriptorsKind Device::GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator)
 {
     return Resources()[allocator].Kind;
 }

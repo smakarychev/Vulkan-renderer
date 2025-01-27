@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+// todo: move to Corelib
+
 namespace Utils
 {
     static constexpr auto FNV_OFFSET_BASIS = 0xcbf29ce484222325ull;

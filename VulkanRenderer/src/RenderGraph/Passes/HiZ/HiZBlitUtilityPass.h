@@ -2,6 +2,7 @@
 #include "HiZPassContext.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RenderPass.h"
+#include "RenderGraph/Passes/Generated/HizBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -76,27 +77,18 @@ namespace Passes::HiZBlit
                     ImageLayout::DepthReadonly, depthIn.GetViewHandle(subresource));
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-                
-                samplerDescriptors.UpdateBinding("u_in_sampler", depthInBinding);
-                resourceDescriptors.UpdateBinding("u_in_image", depthInBinding);
-                resourceDescriptors.UpdateBinding("u_out_image",
-                    hizOut.BindingInfo(
+                HizShaderBindGroup bindGroup(shader);
+                bindGroup.SetInSampler(depthInBinding);
+                bindGroup.SetInImage(depthInBinding);
+                bindGroup.SetOutImage(hizOut.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[0]));
                 if (minMaxDepth)
-                    resourceDescriptors.UpdateBinding("u_min_max",
-                        resources.GetBuffer(passData.MinMaxDepth).BindingInfo());
+                    bindGroup.SetMinMax(resources.GetBuffer(passData.MinMaxDepth).BindingInfo());
                 
                 glm::uvec2 levels = {width, height};
                 auto& cmd = frameContext.Cmd;
-                RenderCommand::BindCompute(cmd, pipeline);
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), levels);
-                samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                    shader.GetLayout());
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                    shader.GetLayout());
                 RenderCommand::Dispatch(cmd, {(width + 32 - 1) / 32, (height + 32 - 1) / 32, 1});
             });
     }

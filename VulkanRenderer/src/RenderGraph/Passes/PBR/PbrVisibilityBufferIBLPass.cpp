@@ -3,6 +3,7 @@
 #include "FrameContext.h"
 #include "Scene/SceneGeometry.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/PbrVisibilityIblBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -99,42 +100,32 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             const Buffer& indices = resources.GetBuffer(passData.Indices);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-            auto& materialDescriptors = shader.Descriptors(ShaderDescriptorsKind::Materials);
-
-            resourceDescriptors.UpdateBinding("u_visibility_texture", visibility.BindingInfo(ImageFilter::Nearest,
-                ImageLayout::Readonly));
-            RgUtils::updateSceneLightBindings(resourceDescriptors, resources, passData.LightsResources);
+            PbrVisibilityIblShaderBindGroup bindGroup(shader);
+            
+            bindGroup.SetVisibilityTexture(visibility.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
+            RgUtils::updateSceneLightBindings(bindGroup, resources, passData.LightsResources);
             if (passData.Clusters.IsValid())
-                resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
+                bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
             if (passData.Tiles.IsValid())
             {
-                resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
-                resourceDescriptors.UpdateBinding("u_zbins", resources.GetBuffer(passData.ZBins).BindingInfo());
+                bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
+                bindGroup.SetZbins(resources.GetBuffer(passData.ZBins).BindingInfo());
             }
-            RgUtils::updateIBLBindings(resourceDescriptors, resources, passData.IBL);
-            RgUtils::updateSSAOBindings(resourceDescriptors, resources, passData.SSAO);
-            RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
-            resourceDescriptors.UpdateBinding("u_camera", cameraBuffer.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_shading", shadingSettings.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_commands", commands.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_objects", objects.BindingInfo());
-            resourceDescriptors.UpdateBinding(UNIFORM_POSITIONS, positions.BindingInfo());
-            resourceDescriptors.UpdateBinding(UNIFORM_NORMALS, normals.BindingInfo());
-            resourceDescriptors.UpdateBinding(UNIFORM_TANGENTS, tangents.BindingInfo());
-            resourceDescriptors.UpdateBinding(UNIFORM_UV, uvs.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_indices", indices.BindingInfo());
+            RgUtils::updateIBLBindings(bindGroup, resources, passData.IBL);
+            RgUtils::updateSSAOBindings(bindGroup, resources, passData.SSAO);
+            RgUtils::updateCSMBindings(bindGroup, resources, passData.CSMData);
+            bindGroup.SetCamera(cameraBuffer.BindingInfo());
+            bindGroup.SetShading(shadingSettings.BindingInfo());
+            bindGroup.SetCommands(commands.BindingInfo());
+            bindGroup.SetObjects(objects.BindingInfo());
+            bindGroup.SetPositions(positions.BindingInfo());
+            bindGroup.SetNormals(normals.BindingInfo());
+            bindGroup.SetTangents(tangents.BindingInfo());
+            bindGroup.SetUv(uvs.BindingInfo());
+            bindGroup.SetIndices(indices.BindingInfo());
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindGraphics(cmd, pipeline);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
-            materialDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
-
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Draw(cmd, 3);
         });
 

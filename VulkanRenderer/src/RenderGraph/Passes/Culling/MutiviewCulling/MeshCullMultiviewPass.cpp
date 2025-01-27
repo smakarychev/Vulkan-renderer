@@ -1,6 +1,7 @@
 #include "MeshCullMultiviewPass.h"
 
 #include "FrameContext.h"
+#include "RenderGraph/Passes/Generated/MeshCullMultiviewBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 #include "Vulkan/RenderCommand.h"
@@ -38,17 +39,14 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
             GPU_PROFILE_FRAME("Mesh.Cull.Multiview")
 
             auto* multiview = passData.MultiviewResource;
-
-            const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
             Sampler hizSampler = multiview->HiZSampler;
-            samplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
+            
+            const Shader& shader = resources.GetGraph()->GetShader();
+            MeshCullMultiviewShaderBindGroup bindGroup(shader);
+            bindGroup.SetSampler(resources.GetTexture(
                 multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
-            RgUtils::updateMeshCullMultiviewBindings(resourceDescriptors, resources, *multiview);
+            RgUtils::updateMeshCullMultiviewBindings(bindGroup, resources, *multiview);
 
             struct PushConstant
             {
@@ -58,9 +56,7 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
             };
                        
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
-            samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {

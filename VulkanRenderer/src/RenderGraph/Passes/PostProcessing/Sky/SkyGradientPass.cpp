@@ -3,6 +3,7 @@
 #include "CameraGPU.h"
 #include "Renderer.h"
 #include "imgui/imgui.h"
+#include "RenderGraph/Passes/Generated/SkyGradientBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -74,19 +75,14 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
             glm::uvec2 imageSize = {colorOut.Description().Width, colorOut.Description().Height};
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-            
-            resourceDescriptors.UpdateBinding("u_camera", camera.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_settings", settingsBuffer.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_out_image",
-                colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            SkyGradientShaderBindGroup bindGroup(shader);
+            bindGroup.SetCamera(camera.BindingInfo());
+            bindGroup.SetSettings(settingsBuffer.BindingInfo());
+            bindGroup.SetOutImage(colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), imageSize);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
             RenderCommand::Dispatch(cmd, {imageSize, 1}, {32, 32, 1});
         });
 

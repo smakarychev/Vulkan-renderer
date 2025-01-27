@@ -93,9 +93,9 @@ struct DescriptorBindingInfo
     DescriptorType Type{};
 };
 
-enum class DescriptorAllocatorKind
+enum class DescriptorsKind
 {
-    Resources = 0, Samplers,
+    Sampler = 0, Resource = 1, Materials = 2,
     MaxVal
 };
 
@@ -115,7 +115,7 @@ struct DescriptorAllocatorAllocationBindings
 
 struct DescriptorArenaAllocatorCreateInfo
 {
-    DescriptorAllocatorKind Kind{DescriptorAllocatorKind::Resources};
+    DescriptorsKind Kind{DescriptorsKind::Resource};
     DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
     Span<const DescriptorType> UsedTypes;
     u32 DescriptorCount{0};
@@ -125,14 +125,14 @@ class DescriptorArenaAllocators
 {
     FRIEND_INTERNAL
 public:
-    DescriptorArenaAllocators(DescriptorArenaAllocator resourceAllocator, DescriptorArenaAllocator samplerAllocator);
+    DescriptorArenaAllocators(DescriptorArenaAllocator samplerAllocator, DescriptorArenaAllocator resourceAllocator);
     
-    DescriptorArenaAllocator Get(DescriptorAllocatorKind kind) const;
+    DescriptorArenaAllocator Get(DescriptorsKind kind) const;
 
     /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
     void Bind(const CommandBuffer& cmd, u32 bufferIndex);
 private:
-    std::array<DescriptorArenaAllocator, (u32)DescriptorAllocatorKind::MaxVal> m_Allocators;
+    std::array<DescriptorArenaAllocator, (u32)DescriptorsKind::MaxVal> m_Allocators;
 };
 
 class DescriptorLayoutCache

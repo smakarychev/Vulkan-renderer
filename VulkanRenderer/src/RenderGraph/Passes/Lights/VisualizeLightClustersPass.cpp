@@ -1,6 +1,7 @@
 #include "VisualizeLightClustersPass.h"
 
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/LightClustersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -39,20 +40,14 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
             GPU_PROFILE_FRAME("Lights.Clusters.Visualize")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline();
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            LightClustersVisualizeShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_depth", resources.GetTexture(depth).BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-
-            resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetDepth(resources.GetTexture(depth).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
+            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindGraphics(cmd, pipeline);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Draw(cmd, 3);
         });
 }

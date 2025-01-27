@@ -3,6 +3,7 @@
 #include "FrameContext.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/CsmVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -49,15 +50,12 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             const Buffer& csmData = resources.GetBuffer(passData.CSM);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            CsmVisualizeShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_shadow_map", shadowMap.BindingInfo(
-                ImageFilter::Linear,
+            bindGroup.SetShadowMap(shadowMap.BindingInfo(ImageFilter::Linear,
                 shadowMap.Description().Format == Format::D32_FLOAT ?
                     ImageLayout::DepthReadonly : ImageLayout::DepthReadonly));
-            resourceDescriptors.UpdateBinding("u_csm_data", csmData.BindingInfo());
+            bindGroup.SetCsmData(csmData.BindingInfo());
 
             auto& cascadeIndex = resources.GetOrCreateValue<CascadeIndex>();
             ImGui::Begin("CSM Visualize");
@@ -65,11 +63,8 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             ImGui::End();
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindGraphics(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), cascadeIndex.Index);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-            
             RenderCommand::Draw(cmd, 3);
         });
 

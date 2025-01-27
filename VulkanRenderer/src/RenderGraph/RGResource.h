@@ -188,14 +188,14 @@ namespace RG
 
     struct GraphTextureDescription
     {
-        u32 Width;
-        u32 Height;
+        u32 Width{};
+        u32 Height{};
         u32 Layers{1};
         i8 Mipmaps{1};
-        Format Format;
+        Format Format{Format::Undefined};
         ImageKind Kind{ImageKind::Image2d};
         ImageFilter MipmapFilter{ImageFilter::Linear};
-        std::vector<ImageSubresourceDescription> AdditionalViews;
+        std::vector<ImageSubresourceDescription> AdditionalViews{};
     };
 }
 

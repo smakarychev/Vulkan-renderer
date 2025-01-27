@@ -2,6 +2,7 @@
 
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/AtmosphereTransmittanceLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -38,20 +39,15 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
             CPU_PROFILE_FRAME("Atmosphere.Transmittance")
             GPU_PROFILE_FRAME("Atmosphere.Transmittance")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
             const Texture& lutTexture = resources.GetTexture(passData.Lut);
-            
-            resourceDescriptors.UpdateBinding("u_atmosphere_settings",
-                resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_lut",
-                lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+
+            const Shader& shader = resources.GetGraph()->GetShader();
+            AtmosphereTransmittanceLutShaderBindGroup bindGroup(shader);
+            bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
+            bindGroup.SetLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, 1},
                 {16, 16, 1});

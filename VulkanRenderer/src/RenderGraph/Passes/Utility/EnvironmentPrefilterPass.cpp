@@ -1,6 +1,7 @@
 #include "EnvironmentPrefilterPass.h"
 
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/EnvironmentPrefilterBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -50,13 +51,10 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                 const Texture& prefilteredTexture = resources.GetTexture(passData.PrefilteredTexture);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+                EnvironmentPrefilterShaderBindGroup bindGroup(shader);
 
-                resourceDescriptors.UpdateBinding("u_env", cubemapTexture.BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-                resourceDescriptors.UpdateBinding("u_prefilter", prefilteredTexture.BindingInfo(
+                bindGroup.SetEnv(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+                bindGroup.SetPrefilter(prefilteredTexture.BindingInfo(
                     ImageFilter::Linear, ImageLayout::General, prefilteredTexture.GetAdditionalViewHandles()[mipmap]));
 
                 u32 resolution = std::max(1u, prefiltered.Description().Width >> (u32)mipmap);
@@ -74,11 +72,8 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                     .Roughness = (f32)mipmap / (f32)prefilteredTexture.Description().Mipmaps};
 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-                RenderCommand::BindCompute(cmd, pipeline);
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
                 RenderCommand::Dispatch(cmd,
                     {resolution, resolution, 6},
                     {32, 32, 1});

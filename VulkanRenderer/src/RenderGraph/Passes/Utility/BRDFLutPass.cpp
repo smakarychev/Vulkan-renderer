@@ -1,6 +1,7 @@
 #include "BRDFLutPass.h"
 
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/BrdfLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -30,11 +31,9 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
             const Texture& lutTexture = resources.GetTexture(passData.Lut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            BrdfLutShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_brdf",
-                lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetBrdf(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             struct PushConstants
             {
@@ -44,10 +43,8 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
                 .BRDFResolutionInverse = 1.0f / glm::vec2((f32)BRDF_RESOLUTION)};
             
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
             RenderCommand::Dispatch(cmd,
                 {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},
                 {32, 32, 1});

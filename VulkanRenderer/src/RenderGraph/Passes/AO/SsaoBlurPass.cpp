@@ -2,6 +2,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/SsaoBlurBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -41,19 +42,12 @@ RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderG
             const Texture& ssaoOut = resources.GetTexture(passData.SsaoOut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_ssao", ssaoIn.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_ssao_blurred", ssaoOut.BindingInfo(
-                ImageFilter::Linear, ImageLayout::General));
+            SsaoBlurShaderBindGroup bindGroup(shader);
+            bindGroup.SetSsao(ssaoIn.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetSsaoBlurred(ssaoOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindCompute(cmd, pipeline);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
                 {ssaoIn.Description().Width, ssaoIn.Description().Height, 1},
                 {16, 16, 1});

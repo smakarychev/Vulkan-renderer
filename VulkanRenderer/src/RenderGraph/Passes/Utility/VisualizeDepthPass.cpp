@@ -2,6 +2,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/DepthVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -35,11 +36,9 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
             const Texture& depthTexture = resources.GetTexture(passData.DepthIn);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            DepthVisualizeShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_depth", depthTexture.BindingInfo(
+            bindGroup.SetDepth(depthTexture.BindingInfo(
                 ImageFilter::Linear, depthTexture.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly :
                 ImageLayout::DepthStencilReadonly));
@@ -56,11 +55,8 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
                 .IsOrthographic = isOrthographic};
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindGraphics(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-            
             RenderCommand::Draw(cmd, 3);
         });
 

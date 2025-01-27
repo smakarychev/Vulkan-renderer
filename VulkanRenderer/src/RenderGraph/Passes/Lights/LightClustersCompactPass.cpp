@@ -4,6 +4,7 @@
 #include "RenderGraph/RenderGraph.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Core/Camera.h"
+#include "RenderGraph/Passes/Generated/LightClustersCompactBindGroup.generated.h"
 #include "Vulkan/RenderCommand.h"
 
 namespace
@@ -34,17 +35,12 @@ namespace
                 CPU_PROFILE_FRAME("Lights.Clusters.Identify")
                 GPU_PROFILE_FRAME("Lights.Clusters.Identify")
 
-                const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
                 const Texture& depthTexture = resources.GetTexture(depth);
-                
-                resourceDescriptors.UpdateBinding("u_depth", depthTexture.BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-                resourceDescriptors.UpdateBinding("u_cluster_visibility", resources.GetBuffer(
-                    passData.ClusterVisibility).BindingInfo());
+
+                const Shader& shader = resources.GetGraph()->GetShader();
+                LightClustersCompactShaderBindGroup bindGroup(shader);
+                bindGroup.SetDepth(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+                bindGroup.SetClusterVisibility(resources.GetBuffer(passData.ClusterVisibility).BindingInfo());
 
                 struct PushConstant
                 {
@@ -56,11 +52,8 @@ namespace
                     .Far = frameContext.PrimaryCamera->GetFar()};
 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-                RenderCommand::BindCompute(cmd, pipeline);
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
                 RenderCommand::Dispatch(cmd,
                     {depthTexture.Description().Width, depthTexture.Description().Height, 1},
                     {8, 8, 1});
@@ -104,21 +97,15 @@ namespace
                 GPU_PROFILE_FRAME("Lights.Clusters.Compact")
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-                resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
-                resourceDescriptors.UpdateBinding("u_cluster_visibility", resources.GetBuffer(
-                    passData.ClusterVisibility).BindingInfo());
-                resourceDescriptors.UpdateBinding("u_active_clusters", resources.GetBuffer(
-                    passData.ActiveClusters).BindingInfo());
-                resourceDescriptors.UpdateBinding("u_count", resources.GetBuffer(
-                    passData.ActiveClustersCount).BindingInfo());
+                LightClustersCompactShaderBindGroup bindGroup(shader);
+                
+                bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
+                bindGroup.SetClusterVisibility(resources.GetBuffer(passData.ClusterVisibility).BindingInfo());
+                bindGroup.SetActiveClusters(resources.GetBuffer(passData.ActiveClusters).BindingInfo());
+                bindGroup.SetCount(resources.GetBuffer(passData.ActiveClustersCount).BindingInfo());
 
                 auto& cmd = frameContext.Cmd;
-                RenderCommand::BindCompute(cmd, pipeline);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::Dispatch(cmd,
                     {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
                     {8, 8, 1});
@@ -134,7 +121,7 @@ namespace
         return renderGraph.AddRenderPass<PassData>(name,
             [&](Graph& graph, PassData& passData)
             {
-                CPU_PROFILE_FRAME("Lights.Clusters.CreateDisptach.Setup")
+                CPU_PROFILE_FRAME("Lights.Clusters.CreateDispatch.Setup")
 
                 graph.SetShader("light-clusters-compact.shader",
                     ShaderOverrides{
@@ -150,22 +137,17 @@ namespace
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
-                CPU_PROFILE_FRAME("Lights.Clusters.CreateDisptach")
-                GPU_PROFILE_FRAME("Lights.Clusters.CreateDisptach")
+                CPU_PROFILE_FRAME("Lights.Clusters.CreateDispatch")
+                GPU_PROFILE_FRAME("Lights.Clusters.CreateDispatch")
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-                resourceDescriptors.UpdateBinding("u_count", resources.GetBuffer(
-                    passData.ActiveClustersCount).BindingInfo());
-                resourceDescriptors.UpdateBinding("u_indirect_dispatch", resources.GetBuffer(
-                    passData.DispatchIndirect).BindingInfo());
+                LightClustersCompactShaderBindGroup bindGroup(shader);
+                
+                bindGroup.SetCount(resources.GetBuffer(passData.ActiveClustersCount).BindingInfo());
+                bindGroup.SetIndirectDispatch(resources.GetBuffer(passData.DispatchIndirect).BindingInfo());
 
                 auto& cmd = frameContext.Cmd;
-                RenderCommand::BindCompute(cmd, pipeline);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::Dispatch(cmd, {1, 1, 1});
             });
     }

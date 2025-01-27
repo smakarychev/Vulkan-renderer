@@ -1,5 +1,7 @@
 #pragma once
 
+#include <functional>
+
 #include "RGCommon.h"
 #include "RGResource.h"
 #include "Rendering/RenderingInfo.h"
@@ -8,11 +10,15 @@
  * Draw features control what resources are actually used 
  */
 
+class Shader;
 class Camera;
 class SceneLight;
 
 namespace RG
 {
+    struct DrawExecutionInfo;
+    class Resources;
+
     struct IBLData
     {
         Resource IrradianceSH{};
@@ -76,20 +82,31 @@ namespace RG
         Resource LightsInfo{};
     };
 
+    // todo: naming on these two please...
+    struct GeometryDrawExecutionInfo
+    {
+        Resource Camera{};
+        Resource Objects{};
+        Resource Commands{};
+        DrawAttributeBuffers DrawAttributes{};
+        Resource Triangles{};
+    };
+    
+    using DrawPassSetupFn = std::function<void(Graph&)>;
+    using DrawPassBindFn = std::function<const Shader&(const CommandBuffer& cmd, const Resources&,
+        const GeometryDrawExecutionInfo&)>;
+
     struct DrawInitInfo
     {
-        DrawFeatures DrawFeatures{DrawFeatures::AllAttributes};
         Pipeline DrawPipeline{};
-        std::optional<const ShaderDescriptors*> MaterialDescriptors{};
+        Descriptors MaterialDescriptors{};
     };
     
     struct DrawExecutionInfo
     {
+        DrawPassSetupFn DrawSetup{};
+        DrawPassBindFn DrawBind{};
         DrawAttachments Attachments{};
-        const SceneLight* SceneLights{nullptr};
-        std::optional<IBLData> IBL{};
-        std::optional<SSAOData> SSAO{};
-        std::optional<CSMData> CSMData{};
     };
 }
 

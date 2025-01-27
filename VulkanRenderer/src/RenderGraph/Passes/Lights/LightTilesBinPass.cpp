@@ -4,6 +4,7 @@
 
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/LightTilesBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -42,27 +43,20 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             CPU_PROFILE_FRAME("Lights.Tiles.Bin")
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
             const Texture& depthTexture = resources.GetTexture(depth);
-
-            resourceDescriptors.UpdateBinding("u_depth", depthTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_point_lights",
-                resources.GetBuffer(passData.SceneLightResources.PointLights).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_lights_info",
-                resources.GetBuffer(passData.SceneLightResources.LightsInfo).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
+            
+            const Shader& shader = resources.GetGraph()->GetShader();
+            LightTilesBinShaderBindGroup bindGroup(shader);
+            
+            bindGroup.SetDepth(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
+            bindGroup.SetPointLights(resources.GetBuffer(passData.SceneLightResources.PointLights).BindingInfo());
+            bindGroup.SetLightsInfo(resources.GetBuffer(passData.SceneLightResources.LightsInfo).BindingInfo());
+            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), glm::vec2{frameContext.Resolution});
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {depthTexture.Description().Width, depthTexture.Description().Height, 1},
                 {8, 8, 1});

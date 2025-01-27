@@ -1,19 +1,23 @@
 #include "PbrTCForwardIBLPass.h"
 
+#include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
 #include "RenderGraph/Passes/Culling/MutiviewCulling/CullMultiviewData.h"
+#include "RenderGraph/Passes/Generated/PbrForwardBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
 RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const PbrForwardIBLPassExecutionInfo& info)
 {
     using namespace RG;
+    using enum ResourceAccessFlags;
 
     //todo: this should be shared between all multiview passes obv.
     struct Multiview
     {
         CullMultiviewData MultiviewData{};
     };
+    IBLData iblData{};
     
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
@@ -25,18 +29,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                 Multiview multiview = {};
                 multiview.MultiviewData.AddView({
                     .Geometry = info.Geometry,
-                    .DrawShader = &ShaderCache::Register(std::format("{}.Draw", name),
-                        "pbr-forward.shader",
-                        ShaderOverrides{
-                            ShaderOverride{{"MAX_REFLECTION_LOD"},
-                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})}}),
-                    .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.Draw.Triangles", name),
-                        "pbr-forward.shader",
-                        ShaderOverrides{
-                            ShaderOverride{{"MAX_REFLECTION_LOD"},
-                                (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
-                            ShaderOverride{{"COMPOUND_INDEX"}, true}}),
-                        .CullTriangles = true});
+                    .CullTriangles = true});
 
                 multiview.MultiviewData.Finalize();
             }
@@ -46,6 +39,32 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                 .Resolution = info.Resolution,
                 .Camera = info.Camera,
                 .DrawInfo = {
+                    .DrawSetup = [&](Graph& setupGraph)
+                    {
+                        iblData = RgUtils::readIBLData(info.IBL, setupGraph, Pixel);
+                    },
+                    .DrawBind = [=](const CommandBuffer& cmd, const Resources& resources,
+                        const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
+                    {
+                        const Shader& shader = ShaderCache::Register(
+                            std::format("{}.Draw.{}", name, executionInfo.Triangles.IsValid()),
+                            "pbr-forward.shader",
+                            ShaderOverrides{
+                                ShaderOverride{{"MAX_REFLECTION_LOD"},
+                                    (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                                ShaderOverride{{"COMPOUND_INDEX"}, executionInfo.Triangles.IsValid()}});
+                        PbrForwardShaderBindGroup bindGroup(shader);
+                        
+                        bindGroup.SetCamera(resources.GetBuffer(executionInfo.Camera).BindingInfo());
+                        bindGroup.SetObjects(resources.GetBuffer(executionInfo.Objects).BindingInfo());
+                        bindGroup.SetCommands(resources.GetBuffer(executionInfo.Commands).BindingInfo());
+                        RgUtils::updateDrawAttributeBindings(bindGroup, resources, executionInfo.DrawAttributes);
+                        RgUtils::updateIBLBindings(bindGroup, resources, iblData);
+                        
+                        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                        
+                        return shader;
+                    },
                     .Attachments = {
                         .Colors = {DrawAttachment{
                             .Resource = info.ColorIn,
@@ -56,9 +75,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                             .Resource = info.DepthIn,
                             .Description = {
                                 .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}},
-                    .SceneLights = info.SceneLights,
-                    .IBL = info.IBL}});
+                                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}}});
 
             auto& meta = Meta::CullMultiview::addToGraph("Visibility", renderGraph, multiview.MultiviewData);
             auto& metaOutput = renderGraph.GetBlackboard().Get<Meta::CullMultiview::PassData>(meta);

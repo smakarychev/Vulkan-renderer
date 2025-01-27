@@ -2,6 +2,7 @@
 
 #include "Renderer.h"
 #include "imgui/imgui.h"
+#include "RenderGraph/Passes/Generated/HizVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -48,23 +49,13 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
             ImGui::End();
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-            
-            samplerDescriptors.UpdateBinding("u_sampler",
-                hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_hiz",
-                hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
+            HizVisualizeShaderBindGroup bindGroup(shader);
+            bindGroup.SetSampler(hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
+            bindGroup.SetHiz(hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindGraphics(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            samplerDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
-
             RenderCommand::Draw(cmd, 3);
         });
 

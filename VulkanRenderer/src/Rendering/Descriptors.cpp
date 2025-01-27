@@ -8,19 +8,19 @@
 std::unordered_map<DescriptorLayoutCache::CacheKey,
     DescriptorsLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
 
-DescriptorArenaAllocators::DescriptorArenaAllocators(DescriptorArenaAllocator resourceAllocator,
-    DescriptorArenaAllocator samplerAllocator)
-    : m_Allocators({resourceAllocator, samplerAllocator})
+DescriptorArenaAllocators::DescriptorArenaAllocators(DescriptorArenaAllocator samplerAllocator,
+    DescriptorArenaAllocator resourceAllocator)
+    : m_Allocators({samplerAllocator, resourceAllocator, resourceAllocator})
 {
-    ASSERT(Device::GetDescriptorArenaAllocatorKind(resourceAllocator) == DescriptorAllocatorKind::Resources,
+    ASSERT(Device::GetDescriptorArenaAllocatorKind(resourceAllocator) == DescriptorsKind::Resource,
         "Provided 'resource' allocator isn't actually a resource allocator")
-    ASSERT(Device::GetDescriptorArenaAllocatorKind(samplerAllocator) == DescriptorAllocatorKind::Samplers,
+    ASSERT(Device::GetDescriptorArenaAllocatorKind(samplerAllocator) == DescriptorsKind::Sampler,
         "Provided 'sampler' allocator isn't actually a sampler allocator")
 }
 
-DescriptorArenaAllocator DescriptorArenaAllocators::Get(DescriptorAllocatorKind kind) const
+DescriptorArenaAllocator DescriptorArenaAllocators::Get(DescriptorsKind kind) const
 {
-    ASSERT(kind == DescriptorAllocatorKind::Resources || kind == DescriptorAllocatorKind::Samplers,
+    ASSERT(kind == DescriptorsKind::Resource || kind == DescriptorsKind::Sampler,
            "Unsupported allocator kind")
 
     return m_Allocators[(u32)kind];

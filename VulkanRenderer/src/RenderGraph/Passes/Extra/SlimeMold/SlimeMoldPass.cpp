@@ -4,6 +4,7 @@
 #include "ResourceUploader.h"
 #include "Core/Random.h"
 #include "imgui/imgui.h"
+#include "RenderGraph/Passes/Generated/SlimeBindGroup.generated.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
@@ -179,22 +180,17 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
 
-            const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_traits", traitsBuffer.BindingInfo());            
-            resourceDescriptors.UpdateBinding("u_slime", slimeBuffer.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_slime_map", slimeMap.BindingInfo(
-                ImageFilter::Linear, ImageLayout::General));
+            const Shader& shader = resources.GetGraph()->GetShader();SlimeShaderBindGroup bindGroup(shader);
+            bindGroup.SetTraits(traitsBuffer.BindingInfo());
+            bindGroup.SetSlime(slimeBuffer.BindingInfo());
+            bindGroup.SetSlimeMap(slimeMap.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             u32 slimeCount = (u32)moldCtx.GetSlime().size();
             u32 slimeCountDimension = (u32)std::sqrt((f32)slimeCount);
                         
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, {slimeCountDimension + 1, slimeCountDimension, 1}, {16, 16, 1});
         });
 }
@@ -239,18 +235,13 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_slime_map", slimeMap.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));        
-            resourceDescriptors.UpdateBinding("u_diffuse_map", diffuseMap.BindingInfo(
-                ImageFilter::Linear, ImageLayout::General));
+            SlimeShaderBindGroup bindGroup(shader);
+            bindGroup.SetSlimeMap(slimeMap.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetDiffuseMap(diffuseMap.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});
         });
 }
@@ -320,21 +311,16 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
             const Buffer& gradient = resources.GetBuffer(passData.Gradient);
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_diffuse_map", diffuseMap.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_gradient_map", gradientMap.BindingInfo(
-                ImageFilter::Linear, ImageLayout::General));
-            resourceDescriptors.UpdateBinding("u_gradient_colors", gradient.BindingInfo());
+            SlimeShaderBindGroup bindGroup(shader);
+            bindGroup.SetDiffuseMap(diffuseMap.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetGradientMap(gradientMap.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetGradientColors(gradient.BindingInfo());
 
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});
         });
 }

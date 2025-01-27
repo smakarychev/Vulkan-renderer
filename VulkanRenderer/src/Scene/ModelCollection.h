@@ -9,7 +9,6 @@
 #include <vector>
 
 class BindlessTextureDescriptorsRingBuffer;
-class ShaderDescriptors;
 class Image;
 class Mesh;
 class ShaderDescriptorSet;

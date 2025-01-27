@@ -2,6 +2,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/SsaoVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -38,18 +39,11 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
             const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_ssao", ssaoTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
+            SsaoVisualizeShaderBindGroup bindGroup(shader);
+            bindGroup.SetSsao(ssaoTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindGraphics(cmd, pipeline);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Draw(cmd, 3);
         });
 

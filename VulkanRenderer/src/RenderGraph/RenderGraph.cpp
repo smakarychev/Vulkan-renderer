@@ -17,19 +17,19 @@ namespace RG
 {
     Graph::Graph()
     {
-        DescriptorArenaAllocator resourceAllocator = Device::CreateDescriptorArenaAllocator({
-            .Kind = DescriptorAllocatorKind::Resources,
-            .Residence = DescriptorAllocatorResidence::CPU,
-            .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
-            .DescriptorCount = 8192 * 4});
-
         DescriptorArenaAllocator samplerAllocator = Device::CreateDescriptorArenaAllocator({
-            .Kind = DescriptorAllocatorKind::Samplers,
+            .Kind = DescriptorsKind::Sampler,
             .Residence = DescriptorAllocatorResidence::CPU,
             .UsedTypes = {DescriptorType::Sampler},
             .DescriptorCount = 256 * 4});
         
-        m_ArenaAllocators = std::make_unique<DescriptorArenaAllocators>(resourceAllocator, samplerAllocator);
+        DescriptorArenaAllocator resourceAllocator = Device::CreateDescriptorArenaAllocator({
+            .Kind = DescriptorsKind::Resource,
+            .Residence = DescriptorAllocatorResidence::CPU,
+            .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
+            .DescriptorCount = 8192 * 4});
+        
+        m_ArenaAllocators = std::make_unique<DescriptorArenaAllocators>(samplerAllocator, resourceAllocator);
     }
 
     Graph::~Graph()

@@ -4,7 +4,9 @@
 #include "ShadowPassesUtils.h"
 #include "imgui/imgui.h"
 #include "Light/Light.h"
+#include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
+#include "RenderGraph/Passes/Generated/ShadowBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "utils/MathUtils.h"
 
@@ -100,12 +102,6 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                 for (u32 i = 0; i < SHADOW_CASCADES; i++)
                     multiview.MultiviewData.AddView({
                         .Geometry = info.Geometry,
-                        .DrawShader = &ShaderCache::Register(std::format("{}.{}", name, i),
-                            "shadow.shader", {}),
-                        .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.{}.Triangles", name, i),
-                            "shadow.shader", 
-                            ShaderOverrides{
-                                ShaderOverride{{"COMPOUND_INDEX"}, true}}),
                         .CullTriangles = true}); 
 
                 multiview.MultiviewData.Finalize();
@@ -150,6 +146,26 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                     .Camera = &cameras.ShadowCameras[i],
                     .ClampDepth = true,
                     .DrawInfo = {
+                        .DrawSetup = [&](Graph&) {},
+                        .DrawBind = [=](const CommandBuffer& cmd, const Resources& resources,
+                            const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
+                        {
+                            const Shader& shader = ShaderCache::Register(
+                                std::format("{}.{}.{}", name, i, executionInfo.Triangles.IsValid()),
+                                "shadow.shader", 
+                                ShaderOverrides{
+                                    ShaderOverride{{"COMPOUND_INDEX"}, executionInfo.Triangles.IsValid()}});
+                            ShadowShaderBindGroup bindGroup(shader);
+
+                            bindGroup.SetCamera(resources.GetBuffer(executionInfo.Camera).BindingInfo());
+                            bindGroup.SetObjects(resources.GetBuffer(executionInfo.Objects).BindingInfo());
+                            bindGroup.SetCommands(resources.GetBuffer(executionInfo.Commands).BindingInfo());
+                            RgUtils::updateDrawAttributeBindings(bindGroup, resources, executionInfo.DrawAttributes);
+                            
+                            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                            
+                            return shader;
+                        },
                         .Attachments = {
                             .Depth = DepthStencilAttachment{
                                 .Resource = shadow,

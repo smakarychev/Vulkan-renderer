@@ -2,6 +2,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/BrdfVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -43,18 +44,13 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
             GPU_PROFILE_FRAME("BRDF.Visualize");
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            BrdfVisualizeShaderBindGroup bindGroup(shader);
 
-            samplerDescriptors.UpdateBinding("u_sampler", brdf.BindingInfo(passData.BRDFSampler,
-                ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding(UNIFORM_BRDF, brdf.BindingInfo(passData.BRDFSampler, ImageLayout::Readonly));
+            bindGroup.SetSampler(brdf.BindingInfo(passData.BRDFSampler, ImageLayout::Readonly));
+            bindGroup.SetBrdf(brdf.BindingInfo(passData.BRDFSampler, ImageLayout::Readonly));
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindGraphics(cmd, pipeline);
-            samplerDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Draw(cmd, 3);
         });
 

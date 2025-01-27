@@ -3,6 +3,7 @@
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/SkyboxBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -62,20 +63,15 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             const Buffer projectionBuffer = resources.GetBuffer(passData.Projection);
             
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            SkyboxShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_skybox", skyboxTexture.BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_projection", projectionBuffer.BindingInfo());
-            resourceDescriptors.UpdateBinding("u_shading", resources.GetBuffer(passData.ShadingSettings).BindingInfo());
+            bindGroup.SetSkybox(skyboxTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetProjection(projectionBuffer.BindingInfo());
+            bindGroup.SetShading(resources.GetBuffer(passData.ShadingSettings).BindingInfo());
             
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindGraphics(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), passData.LodBias);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 6);
         });
 

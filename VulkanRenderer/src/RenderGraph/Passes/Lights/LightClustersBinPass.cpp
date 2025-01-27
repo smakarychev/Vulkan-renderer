@@ -3,6 +3,7 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/LightClustersBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -39,22 +40,16 @@ RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph&
             GPU_PROFILE_FRAME("Lights.Clusters.Bin")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_clusters", resources.GetBuffer(passData.Clusters).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_active_clusters", resources.GetBuffer(
-                passData.ActiveClusters).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_count", resources.GetBuffer(passData.ClusterCount).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_point_lights",
-                resources.GetBuffer(passData.SceneLightResources.PointLights).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_lights_info",
-                resources.GetBuffer(passData.SceneLightResources.LightsInfo).BindingInfo());
+            LightClustersBinShaderBindGroup bindGroup(shader);
+            bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
+            bindGroup.SetActiveClusters(resources.GetBuffer(passData.ActiveClusters).BindingInfo());
+            bindGroup.SetCount(resources.GetBuffer(passData.ClusterCount).BindingInfo());
+            bindGroup.SetPointLights(resources.GetBuffer(passData.SceneLightResources.PointLights).BindingInfo());
+            bindGroup.SetLightsInfo(resources.GetBuffer(passData.SceneLightResources.LightsInfo).BindingInfo());
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), frameContext.PrimaryCamera->GetView());
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::DispatchIndirect(cmd, resources.GetBuffer(passData.Dispatch), 0);
         });
 }

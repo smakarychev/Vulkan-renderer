@@ -3,6 +3,7 @@
 #include "Core/Camera.h"
 #include "Light/Light.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/LightTilesSetupBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -34,10 +35,9 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
             GPU_PROFILE_FRAME("Lights.Tiles.Setup")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
+            LightTilesSetupShaderBindGroup bindGroup(shader);
+            
+            bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
 
             struct PushConstant
             {
@@ -53,9 +53,8 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             glm::uvec2 bins = glm::ceil(
                 glm::vec2{frameContext.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
             RenderCommand::Dispatch(cmd,

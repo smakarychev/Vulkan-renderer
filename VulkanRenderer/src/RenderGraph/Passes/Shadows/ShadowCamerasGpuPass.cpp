@@ -1,6 +1,7 @@
 #include "ShadowCamerasGpuPass.h"
 
 #include "RenderGraph/RGDrawResources.h"
+#include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -32,12 +33,11 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
             GPU_PROFILE_FRAME("ShadowCameras.GPU")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            CreateShadowCamerasShaderBindGroup bindGroup(shader);
 
-            resourceDescriptors.UpdateBinding("u_min_max", resources.GetBuffer(passData.DepthMinMax).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_csm_data", resources.GetBuffer(passData.CsmDataOut).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.PrimaryCamera).BindingInfo());
+            bindGroup.SetMinMax(resources.GetBuffer(passData.DepthMinMax).BindingInfo());
+            bindGroup.SetCsmData(resources.GetBuffer(passData.CsmDataOut).BindingInfo());
+            bindGroup.SetCamera(resources.GetBuffer(passData.PrimaryCamera).BindingInfo());
 
             struct PushConstant
             {
@@ -51,10 +51,8 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
                 .LightDirection = lightDirection};
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                shader.GetLayout());
             RenderCommand::Dispatch(cmd,
                 {SHADOW_CASCADES, 1, 1},
                 {MAX_SHADOW_CASCADES, 1, 1});

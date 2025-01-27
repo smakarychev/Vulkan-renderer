@@ -232,7 +232,7 @@ void RenderCommand::Bind(const CommandBuffer& cmd, DescriptorArenaAllocator allo
     VkDescriptorBufferBindingInfoEXT binding = {};
     binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
     binding.address = deviceAddress;
-    binding.usage = allocatorResource.Kind == DescriptorAllocatorKind::Resources ?
+    binding.usage = allocatorResource.Kind == DescriptorsKind::Resource ?
         VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
 
     vkCmdBindDescriptorBuffersEXT(Device::Resources()[cmd].CommandBuffer, 1, &binding);
@@ -252,7 +252,7 @@ void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocato
         VkDescriptorBufferBindingInfoEXT binding = {};
         binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;
         binding.address = deviceAddress;
-        binding.usage = allocatorResource.Kind == DescriptorAllocatorKind::Resources ?
+        binding.usage = allocatorResource.Kind == DescriptorsKind::Resource ?
             VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
 
         descriptorBufferBindings.push_back(binding);

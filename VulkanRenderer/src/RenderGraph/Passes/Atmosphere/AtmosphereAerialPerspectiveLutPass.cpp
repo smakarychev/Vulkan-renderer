@@ -4,6 +4,8 @@
 #include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/Generated/AtmosphereAerialPerspectiveLutBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/ShaderBindGroupBase.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -47,33 +49,24 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             CPU_PROFILE_FRAME("Atmosphere.AerialPerspective")
             GPU_PROFILE_FRAME("Atmosphere.AerialPerspective")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline(); 
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
             const Texture& lutTexture = resources.GetTexture(passData.Lut);
 
-            resourceDescriptors.UpdateBinding("u_atmosphere_settings",
-                resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_directional_light",
-                resources.GetBuffer(passData.DirectionalLight).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera",
-                resources.GetBuffer(passData.Camera).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_transmittance_lut",
-                resources.GetTexture(passData.TransmittanceLut).BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_multiscattering_lut",
-                resources.GetTexture(passData.MultiscatteringLut).BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_aerial_perspective_lut",
-                lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
-            RgUtils::updateCSMBindings(resourceDescriptors, resources, passData.CSMData);
+            const Shader& shader = resources.GetGraph()->GetShader();
+            AtmosphereAerialPerspectiveLutShaderBindGroup bindGroup(shader);
+            
+            bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
+            bindGroup.SetDirectionalLight(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
+            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
+                ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetMultiscatteringLut(resources.GetTexture(passData.MultiscatteringLut).BindingInfo(
+                ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetAerialPerspectiveLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+
+            RgUtils::updateCSMBindings(bindGroup, resources, passData.CSMData);
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindCompute(cmd, pipeline);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
                 {lutTexture.Description().Width, lutTexture.Description().Height, lutTexture.Description().GetDepth()},
                 {16, 16, 1});

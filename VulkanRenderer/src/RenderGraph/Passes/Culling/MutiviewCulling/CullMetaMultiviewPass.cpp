@@ -7,7 +7,6 @@
 #include "RenderGraph/Passes/General/DrawIndirectCountPass.h"
 #include "RenderGraph/Passes/HiZ/HiZFullPass.h"
 #include "RenderGraph/Passes/HiZ/HiZNVPass.h"
-#include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 
 namespace
 {
@@ -121,12 +120,7 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
                     .CountOffset = i,
                     .Resolution = view.Dynamic.Resolution,
                     .Camera = view.Dynamic.Camera,
-                    .DrawInfo = {
-                        .Attachments = view.Dynamic.DrawInfo.Attachments,
-                       // .SceneLights = *view.Dynamic.SceneLights, // todo: fix me
-                        .IBL = view.Dynamic.DrawInfo.IBL,
-                        .SSAO = view.Dynamic.DrawInfo.SSAO},
-                    .Shader = view.Static.DrawShader});
+                    .DrawInfo = view.Dynamic.DrawInfo});
                 auto& drawOutput = graph.GetBlackboard().Get<Draw::IndirectCount::PassData>(draw);
                 
                 Utils::recordUpdatedAttachmentResources(view.Dynamic.DrawInfo.Attachments,
@@ -213,12 +207,7 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
                         .CountOffset = i,
                         .Resolution = view.Dynamic.Resolution,
                         .Camera = view.Dynamic.Camera,
-                        .DrawInfo = {
-                            .Attachments = view.Dynamic.DrawInfo.Attachments,
-                           // .SceneLights = *view.Dynamic.SceneLights, // todo: fix me
-                            .IBL = view.Dynamic.DrawInfo.IBL,
-                            .SSAO = view.Dynamic.DrawInfo.SSAO},
-                        .Shader = view.Static.DrawShader});
+                        .DrawInfo = view.Dynamic.DrawInfo});
                 auto& drawOutput = graph.GetBlackboard().Get<Draw::IndirectCount::PassData>(draw);
                 passData.DrawAttachmentResources[i] = drawOutput.DrawAttachmentResources;
                 passData.HiZOut[i] = view.Static.HiZContext->GetHiZResource(HiZReductionMode::Min);

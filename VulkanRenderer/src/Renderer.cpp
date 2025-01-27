@@ -26,6 +26,7 @@
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
+#include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
 #include "RenderGraph/Passes/Lights/LightClustersBinPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersCompactPass.h"
@@ -98,9 +99,10 @@ void Renderer::Init()
 
 void Renderer::InitRenderGraph()
 {
+    ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         1024,
-        ShaderTemplateLibrary::CreateMaterialsTemplate("Core.Materials", m_Graph->GetArenaAllocators()));
+        ShaderCache::Register("Core.Materials", "materials.shader", {}));
     m_GraphModelCollection.SetBindlessTextureDescriptorsRingBuffer(*m_BindlessTextureDescriptorsRingBuffer);
     
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
@@ -132,11 +134,13 @@ void Renderer::InitRenderGraph()
     m_Graph->SetBackbuffer(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
 
 
-    m_BindlessTextureDescriptorsRingBuffer->GetDescriptors()
-        .UpdateGlobalBinding(UNIFORM_MATERIALS, m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
+    MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
+    bindGroup.SetMaterialsGlobally(m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
 
     ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
-    ShaderCache::AddBindlessDescriptors("main_materials", m_BindlessTextureDescriptorsRingBuffer->GetDescriptors());
+    // todo: this is a little weird
+    ShaderCache::AddBindlessDescriptors("main_materials",
+        ShaderCache::Get("Core.Materials").Descriptors(DescriptorsKind::Materials));
     
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
@@ -148,7 +152,7 @@ void Renderer::InitRenderGraph()
          */
         // todo: fix me once i fix api
         /*ShaderDescriptors translucentMaterialDescriptors = ShaderDescriptors::Builder()
-                .SetTemplate(drawTemplate, DescriptorAllocatorKind::Resources)
+                .SetTemplate(drawTemplate, DescriptorsKind::Resource)
                 // todo: make this (2) an enum
                 .ExtractSet(2)
                 .BindlessCount(1024)

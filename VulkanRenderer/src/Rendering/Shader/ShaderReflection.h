@@ -45,7 +45,6 @@ public:
     {
         return m_DescriptorSets;
     }
-    DrawFeatures Features() const { return m_Features; }
     const std::vector<ShaderModule>& Shaders() const { return m_Modules; }
 private:
     ShaderStageInfo LoadFromAsset(std::string_view path);
@@ -55,6 +54,5 @@ private:
     ::VertexInputDescription m_VertexInputDescription{};
     std::vector<PushConstantDescription> m_PushConstants{};
     std::array<DescriptorSetInfo, MAX_DESCRIPTOR_SETS> m_DescriptorSets{};
-    DrawFeatures m_Features{};
     std::vector<ShaderModule> m_Modules;
 };

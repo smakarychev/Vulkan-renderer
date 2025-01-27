@@ -2,6 +2,7 @@
 
 #include "Light/LightZBinner.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/LightTilesVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -49,24 +50,18 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
             GPU_PROFILE_FRAME("Lights.Tiles.Visualize")
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline();
-            auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-
-            resourceDescriptors.UpdateBinding("u_depth", resources.GetTexture(depth).BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            resourceDescriptors.UpdateBinding("u_tiles", resources.GetBuffer(passData.Tiles).BindingInfo());
-            resourceDescriptors.UpdateBinding("u_camera", resources.GetBuffer(passData.Camera).BindingInfo());
+            LightTilesVisualizeShaderBindGroup bindGroup(shader);
+            bindGroup.SetDepth(resources.GetTexture(depth).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
+            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
 
             bool useZBins = passData.ZBins.IsValid();
             if (useZBins)
-                resourceDescriptors.UpdateBinding("u_zbins", resources.GetBuffer(passData.ZBins).BindingInfo());
+                bindGroup.SetZbins(resources.GetBuffer(passData.ZBins).BindingInfo());
 
             auto& cmd = frameContext.Cmd;
-            samplerDescriptors.BindGraphicsImmutableSamplers(cmd, shader.GetLayout());
-            RenderCommand::BindGraphics(cmd, pipeline);
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), useZBins);
-            resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
             RenderCommand::Draw(cmd, 3);
         });
 }

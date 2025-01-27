@@ -1,6 +1,8 @@
 #include "VisibilityPass.h"
 
+#include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
+#include "RenderGraph/Passes/Generated/VisibilityBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
 RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph& renderGraph,
@@ -18,18 +20,12 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("Visibility.Setup")
-            
+
             if (!graph.TryGetBlackboardValue<Multiview>())
             {
                 Multiview& multiview = graph.GetOrCreateBlackboardValue<Multiview>();
                 multiview.MultiviewData.AddView({
                     .Geometry = info.Geometry,
-                    .DrawShader = &ShaderCache::Register(std::format("{}.Draw", name),
-                        "visibility.shader", {}),
-                    .DrawTrianglesShader = &ShaderCache::Register(std::format("{}.Draw.Triangles", name),
-                        "visibility.shader", 
-                        ShaderOverrides{
-                            ShaderOverride{{"COMPOUND_INDEX"}, true}}),
                     .CullTriangles = true});
                 multiview.MultiviewData.SetPrimaryView(0);
                 multiview.MultiviewData.Finalize();
@@ -52,6 +48,28 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                 .Resolution = info.Resolution,
                 .Camera = info.Camera,
                 .DrawInfo = {
+                    .DrawSetup = [&](Graph&) {},
+                    .DrawBind = [=](const CommandBuffer& cmd, const Resources& resources,
+                        const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
+                    {
+                        const Shader& shader = ShaderCache::Register(
+                            std::format("{}.Draw.{}", name, executionInfo.Triangles.IsValid()),
+                            "visibility.shader", 
+                            ShaderOverrides{
+                                ShaderOverride{{"COMPOUND_INDEX"}, executionInfo.Triangles.IsValid()}});
+                        VisibilityShaderBindGroup bindGroup(shader);
+                        
+                        bindGroup.SetCamera(resources.GetBuffer(executionInfo.Camera).BindingInfo());
+                        bindGroup.SetObjects(resources.GetBuffer(executionInfo.Objects).BindingInfo());
+                        bindGroup.SetCommands(resources.GetBuffer(executionInfo.Commands).BindingInfo());
+                        RgUtils::updateDrawAttributeBindings(bindGroup, resources, executionInfo.DrawAttributes);
+                        if (executionInfo.Triangles.IsValid())
+                            bindGroup.SetTriangles(resources.GetBuffer(executionInfo.Triangles).BindingInfo());
+
+                        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                        
+                        return shader;
+                    },
                     .Attachments = {
                         .Colors = {DrawAttachment{
                             .Resource = visibility,

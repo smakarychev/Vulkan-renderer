@@ -3,6 +3,7 @@
 #include "HiZBlitUtilityPass.h"
 #include "HiZPassContext.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/DepthReductionBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -67,33 +68,25 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
                     passData.MaxSampler, ImageLayout::General);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
-                
-                samplerDescriptors.UpdateBinding("u_min_sampler", hizMinInput);
-                samplerDescriptors.UpdateBinding("u_max_sampler", hizMaxInput);
-                resourceDescriptors.UpdateBinding("u_min_image", hizMinInput);
-                resourceDescriptors.UpdateBinding("u_max_image", hizMaxInput);
+                DepthReductionShaderBindGroup bindGroup(shader);
+
+                bindGroup.SetMinSampler(hizMinInput);
+                bindGroup.SetMaxSampler(hizMaxInput);
+                bindGroup.SetMinImage(hizMinInput);
+                bindGroup.SetMaxImage(hizMaxInput);
                 
                 for (u32 i = 0; i < passData.MipmapViewHandles.size(); i++)
                 {
-                    resourceDescriptors.UpdateBinding("u_output_min",
-                        resources.GetTexture(passData.HiZMinOut).BindingInfo(
+                    bindGroup.SetOutputMin(resources.GetTexture(passData.HiZMinOut).BindingInfo(
                             passData.MinSampler, ImageLayout::General, passData.MipmapViewHandles[i]), i);
-                    resourceDescriptors.UpdateBinding("u_output_max",
-                        resources.GetTexture(passData.HiZMaxOut).BindingInfo(
+                    bindGroup.SetOutputMax(resources.GetTexture(passData.HiZMaxOut).BindingInfo(
                             passData.MaxSampler, ImageLayout::General, passData.MipmapViewHandles[i]), i);
                 }
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.Cmd;
-                RenderCommand::BindCompute(cmd, pipeline);
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-                samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                    shader.GetLayout());
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                    shader.GetLayout());
                 u32 shift = toBeProcessed > 5 ? 12 : 10;
                 u32 mask = toBeProcessed > 5 ? 4095 : 1023;
                 u32 samples = width * height;

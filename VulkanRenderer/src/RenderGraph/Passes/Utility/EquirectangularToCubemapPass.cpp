@@ -2,6 +2,7 @@
 
 #include "MipMapPass.h"
 #include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/Passes/Generated/EquirectangularToCubemapBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
@@ -39,14 +40,11 @@ namespace
                 const Texture& cubemapTexture = resources.GetTexture(passData.Cubemap);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
-                auto pipeline = shader.Pipeline(); 
-                auto& samplerDescriptors = shader.Descriptors(ShaderDescriptorsKind::Sampler);
-                auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+                EquirectangularToCubemapShaderBindGroup bindGroup(shader);
 
-                resourceDescriptors.UpdateBinding("u_equirectangular", equirectangularTexture.BindingInfo(
+                bindGroup.SetEquirectangular(equirectangularTexture.BindingInfo(
                     ImageFilter::Linear, ImageLayout::Readonly));
-                resourceDescriptors.UpdateBinding("u_cubemap", cubemapTexture.BindingInfo(
-                    ImageFilter::Linear, ImageLayout::General));
+                bindGroup.SetCubemap(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
                 struct PushConstants
                 {
@@ -56,11 +54,8 @@ namespace
                     .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapTexture.Description().Width}};
                 
                 auto& cmd = frameContext.Cmd;
-                samplerDescriptors.BindComputeImmutableSamplers(cmd, shader.GetLayout());
-                RenderCommand::BindCompute(cmd, pipeline);
+                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-                resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
-
                 RenderCommand::Dispatch(cmd,
                     {cubemap.Description().Width, cubemap.Description().Width, 6},
                     {32, 32, 1});

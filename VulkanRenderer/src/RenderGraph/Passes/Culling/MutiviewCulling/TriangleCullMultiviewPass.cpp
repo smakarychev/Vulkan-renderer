@@ -2,6 +2,9 @@
 
 #include "CameraGPU.h"
 #include "FrameContext.h"
+#include "RenderGraph/Passes/Generated/PrepareDispatchesMultiviewBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/PrepareDrawsMultiviewBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/TriangleCullMultiviewBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 #include "Vulkan/RenderCommand.h"
@@ -30,10 +33,9 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
             auto* multiview = passData.MultiviewResource;
 
             const Shader& shader = resources.GetGraph()->GetShader();
-            auto pipeline = shader.Pipeline();
-            auto& resourceDescriptors = shader.Descriptors(ShaderDescriptorsKind::Resource);
+            PrepareDispatchesMultiviewShaderBindGroup bindGroup(shader);
 
-            RgUtils::updateCullTrianglePrepareMultiviewBindings(resourceDescriptors, resources, *multiview);
+            RgUtils::updateCullTrianglePrepareMultiviewBindings(bindGroup, resources, *multiview);
             struct PushConstants
             {
                 u32 CommandsPerBatchCount;
@@ -45,8 +47,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
             };
 
             auto& cmd = frameContext.Cmd;
-            RenderCommand::BindCompute(cmd, pipeline);
-            resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(), shader.GetLayout());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
 
             PushConstants pushConstants = {
                 .CommandsPerBatchCount = TriangleCullMultiviewTraits::CommandCount(),
@@ -109,15 +110,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         ShaderOverride{{"SINGLE_PASS"}, stage == CullStage::Single}});
                 ShaderCache::Register(std::format("{}.PrepareDraw.{}", name, i),
                         "prepare-draws-multiview.shader", {});
-
-                for (u32 view = 0; view < info.MultiviewResource->TriangleViewCount; view++)
-                {
-                    ShaderCache::Register(std::format("{}.Draw.{}.{}", name, i, view),
-                        info.MultiviewResource->Multiview->TriangleView(view).Static.DrawTrianglesShader,
-                        info.MultiviewResource->Multiview->TriangleView(view).Static.DrawTrianglesShader->CopyOverrides());    
-                }
             }
-            
 
             if (!graph.TryGetBlackboardValue<Barriers>())
             {
@@ -167,8 +160,6 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
         {
             CPU_PROFILE_FRAME("Triangle.Cull.Draw.Multiview")
             GPU_PROFILE_FRAME("Triangle.Cull.Draw.Multiview")
-
-            using enum DrawFeatures;
 
             auto* multiview = passData.MultiviewResource;
             auto* multiviewData = multiview->MeshletCull->Multiview;
@@ -236,28 +227,23 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             };
 
             /* update all bindings */
-            for (u32 i = 0; i < TriangleCullMultiviewTraits::MAX_BATCHES; i++)
+            for (u32 batchIndex = 0; batchIndex < TriangleCullMultiviewTraits::MAX_BATCHES; batchIndex++)
             {
-                auto& cullShader = ShaderCache::Get(std::format("{}.{}", passName, i));
-                auto& prepareShader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, i));
-
-                auto& cullSamplerDescriptors = cullShader.Descriptors(ShaderDescriptorsKind::Sampler);
                 Sampler hizSampler = multiview->MeshletCull->HiZSampler;
-                cullSamplerDescriptors.UpdateBinding("u_sampler", resources.GetTexture(
+                
+                const Shader& cullShader = ShaderCache::Get(std::format("{}.{}", passName, batchIndex));
+                const Shader& prepareShader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, batchIndex));
+                
+                TriangleCullMultiviewShaderBindGroup cullBindGroup(cullShader);
+                PrepareDrawsMultiviewShaderBindGroup prepareBindGroup(prepareShader);
+
+                cullBindGroup.SetSampler(resources.GetTexture(
                     multiview->MeshletCull->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
 
-                std::vector<ShaderDescriptors> drawDescriptors;
-                drawDescriptors.reserve(multiview->TriangleViewCount);
-                for (u32 view = 0; view < multiview->TriangleViewCount; view++)
-                    drawDescriptors.push_back(
-                        ShaderCache::Get(std::format("{}.Draw.{}.{}", passName, i, view))
-                            .Descriptors(ShaderDescriptorsKind::Resource));
-                
                 RgUtils::updateCullTriangleMultiviewBindings(
-                    cullShader.Descriptors(ShaderDescriptorsKind::Resource),
-                    prepareShader.Descriptors(ShaderDescriptorsKind::Resource),
-                    drawDescriptors,
-                    resources, *multiview, i);
+                    cullBindGroup,
+                    prepareBindGroup,
+                    resources, *multiview, batchIndex);
             }
 
             /* if there are no batches, we clear the render target (if needed) */
@@ -290,11 +276,9 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
 
                     /* cull */
                     {
-                        auto& cullShader = ShaderCache::Get(std::format("{}.{}", passName, batchIndex));
-                        auto pipeline = cullShader.Pipeline();
-                        auto& samplerDescriptors = cullShader.Descriptors(ShaderDescriptorsKind::Sampler);
-                        auto& resourceDescriptors = cullShader.Descriptors(ShaderDescriptorsKind::Resource);
-
+                        const Shader& shader = ShaderCache::Get(std::format("{}.{}", passName, batchIndex));
+                        TriangleCullMultiviewShaderBindGroup bindGroup(shader);
+                        
                         struct PushConstants
                         {
                             u32 CommandOffset;
@@ -308,12 +292,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .GeometryIndex = geometryIndex,
                             .MeshletViewCount = multiview->MeshletCull->ViewCount};
                         auto& cmd = frameContext.Cmd;
-                        RenderCommand::BindCompute(cmd, pipeline);
-                        RenderCommand::PushConstants(cmd, cullShader.GetLayout(), pushConstants);
-                        samplerDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            cullShader.GetLayout());
-                        resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            cullShader.GetLayout());
+                        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                        RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
                         RenderCommand::DispatchIndirect(cmd,
                             resources.GetBuffer(multiview->BatchDispatches[geometryIndex]),
                             batchIteration * sizeof(IndirectDispatchCommand));
@@ -329,16 +309,11 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
 
                     /* prepare draws */
                     {
-                        auto& prepareShader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, batchIndex));
-                        auto pipeline = prepareShader.Pipeline();
-                        auto& resourceDescriptors = prepareShader.Descriptors(ShaderDescriptorsKind::Resource);
-                        
+                        const Shader& shader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, batchIndex));
+                        PrepareDrawsMultiviewShaderBindGroup bindGroup(shader);                        
                         auto& cmd = frameContext.Cmd;
-                       
-                        RenderCommand::BindCompute(cmd, pipeline);
-                        resourceDescriptors.BindCompute(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            prepareShader.GetLayout());
-                        RenderCommand::PushConstants(cmd, prepareShader.GetLayout(), multiview->TriangleViewCount);
+                        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                        RenderCommand::PushConstants(cmd, shader.GetLayout(), multiview->TriangleViewCount);
                         RenderCommand::Dispatch(cmd,
                             {multiview->TriangleViewCount, 1, 1},
                             {MAX_CULL_VIEWS, 1, 1});
@@ -356,21 +331,9 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                     /* draw */
                     for (u32 i = 0; i < multiview->TriangleViewCount; i++)
                     {
+                        // todo: to callback
                         auto& view = multiviewData->TriangleView(i);
                         auto&& [staticV, dynamicV] = view;
-
-                        auto& drawShader = ShaderCache::Get(std::format("{}.Draw.{}.{}", passName, batchIndex, i));
-                        auto pipeline = drawShader.Pipeline();
-                        auto& resourceDescriptors = drawShader.Descriptors(ShaderDescriptorsKind::Resource);
-                        // todo: can i bind less?
-                        if (enumHasAny(drawShader.Features(), Textures))
-                        {
-                            drawShader.Descriptors(ShaderDescriptorsKind::Sampler)
-                                .BindGraphicsImmutableSamplers(frameContext.Cmd, drawShader.GetLayout());
-                            drawShader.Descriptors(ShaderDescriptorsKind::Materials)
-                                .BindGraphics(frameContext.Cmd,
-                                    resources.GetGraph()->GetArenaAllocators(), drawShader.GetLayout());
-                        }
 
                         auto& cmd = frameContext.Cmd;
                         
@@ -385,9 +348,13 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         
                         RenderCommand::BindIndexU32Buffer(cmd,
                             resources.GetBuffer(multiview->IndicesCulled[i][batchIndex]), 0);
-                        RenderCommand::BindGraphics(cmd, pipeline);
-                        resourceDescriptors.BindGraphics(cmd, resources.GetGraph()->GetArenaAllocators(),
-                            drawShader.GetLayout());
+
+                        dynamicV.DrawInfo.DrawBind(frameContext.Cmd, resources, {
+                            .Camera = multiview->Cameras[i],
+                            .Objects = multiview->MeshletCull->Objects[geometryIndex],
+                            .Commands = multiview->MeshletCull->Commands[geometryIndex],
+                            .DrawAttributes = multiview->AttributeBuffers[geometryIndex],
+                            .Triangles = multiview->Triangles[i][batchIndex]});
 
                         RenderCommand::DrawIndexedIndirect(cmd,
                             resources.GetBuffer(multiview->Draws[batchIndex]), i * sizeof(IndirectDrawCommand), 1);                    

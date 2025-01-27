@@ -167,6 +167,12 @@ std::array<bool, MAX_DESCRIPTOR_SETS> ShaderPipelineTemplate::GetSetPresence() c
     return presence;
 }
 
+DescriptorArenaAllocator ShaderPipelineTemplate::GetAllocator(DescriptorsKind kind) const
+{
+    return kind == DescriptorsKind::Resource ?
+        m_Allocator.ResourceAllocator : m_Allocator.SamplerAllocator;
+}
+
 bool ShaderPipelineTemplate::IsComputeTemplate() const
 {
     return enumHasOnly(m_ShaderReflection->Stages(), ShaderStage::Compute);
@@ -276,143 +282,6 @@ void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& textu
         descriptorBinding, texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly), arrayIndex);
 }
 
-ShaderDescriptors::ShaderDescriptors(ShaderDescriptorsCreateInfo&& createInfo)
-{
-    auto* shaderTemplate = createInfo.ShaderPipelineTemplate;
-
-    ASSERT(shaderTemplate->m_UseDescriptorBuffer,
-        "Shader pipeline template is not configured to be used with descriptor buffer")
-
-    auto allocator = createInfo.AllocatorKind == DescriptorAllocatorKind::Resources ?
-        shaderTemplate->m_Allocator.ResourceAllocator : 
-        shaderTemplate->m_Allocator.SamplerAllocator;
-
-    std::optional<Descriptors> descriptors = Device::AllocateDescriptors(
-        allocator,
-        shaderTemplate->GetDescriptorsLayout(createInfo.Set), {
-            .Bindings = shaderTemplate->GetReflection().DescriptorSetsInfo()[createInfo.Set].Descriptors,
-            .BindlessCount = createInfo.BindlessCount});
-    ASSERT(descriptors.has_value(), "Increase allocator size")
-
-    m_Descriptors = *descriptors;
-    m_SetNumber = createInfo.Set;
-    m_Template = createInfo.ShaderPipelineTemplate;
-}
-
-void ShaderDescriptors::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout) const
-{
-    RenderCommand::BindGraphics(cmd, allocators, pipelineLayout, m_Descriptors, m_SetNumber);
-}
-
-void ShaderDescriptors::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout) const
-{
-    RenderCommand::BindCompute(cmd, allocators, pipelineLayout, m_Descriptors, m_SetNumber);
-}
-
-void ShaderDescriptors::BindGraphicsImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const
-{
-    RenderCommand::BindGraphicsImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
-}
-
-void ShaderDescriptors::BindComputeImmutableSamplers(const CommandBuffer& cmd, PipelineLayout pipelineLayout) const
-{
-    RenderCommand::BindComputeImmutableSamplers(cmd, pipelineLayout, m_SetNumber);
-}
-
-void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBindingInfo& buffer) const
-{
-    UpdateBinding(name, buffer, 0);
-}
-
-void ShaderDescriptors::UpdateBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const
-{
-    Device::UpdateDescriptors(m_Descriptors, GetBindingInfo(name), buffer, index);
-}
-
-void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture) const
-{
-    UpdateBinding(name, texture, 0);
-}
-
-void ShaderDescriptors::UpdateBinding(std::string_view name, const TextureBindingInfo& texture, u32 index) const
-{
-    Device::UpdateDescriptors(m_Descriptors, GetBindingInfo(name), texture, index);
-}
-
-void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const BufferBindingInfo& buffer) const
-{
-    UpdateBinding(bindingInfo, buffer, 0);
-}
-
-void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const BufferBindingInfo& buffer,
-    u32 index) const
-{
-    Device::UpdateDescriptors(m_Descriptors, bindingInfo, buffer, index);
-}
-
-void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const TextureBindingInfo& texture) const
-{
-    UpdateBinding(bindingInfo, texture, 0);
-}
-
-void ShaderDescriptors::UpdateBinding(DescriptorBindingInfo bindingInfo, const TextureBindingInfo& texture,
-    u32 index) const
-{
-    Device::UpdateDescriptors(m_Descriptors, bindingInfo, texture, index);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer) const
-{
-    UpdateGlobalBinding(GetBindingInfo(name), buffer, 0);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const BufferBindingInfo& buffer, u32 index) const
-{
-    Device::UpdateGlobalDescriptors(m_Descriptors, GetBindingInfo(name), buffer, index);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture) const
-{
-    UpdateGlobalBinding(GetBindingInfo(name), texture, 0);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(std::string_view name, const TextureBindingInfo& texture,
-    u32 index) const
-{
-    Device::UpdateGlobalDescriptors(m_Descriptors, GetBindingInfo(name), texture, index);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo,
-    const BufferBindingInfo& buffer) const
-{
-    UpdateGlobalBinding(bindingInfo, buffer, 0);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo, const BufferBindingInfo& buffer,
-    u32 index) const
-{
-    Device::UpdateGlobalDescriptors(m_Descriptors, bindingInfo, buffer, index);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo,
-    const TextureBindingInfo& texture) const
-{
-    UpdateGlobalBinding(bindingInfo, texture, 0);
-}
-
-void ShaderDescriptors::UpdateGlobalBinding(DescriptorBindingInfo bindingInfo, const TextureBindingInfo& texture,
-    u32 index) const
-{
-    Device::UpdateGlobalDescriptors(m_Descriptors, bindingInfo, texture, index);
-}
-
-DescriptorBindingInfo ShaderDescriptors::GetBindingInfo(std::string_view bindingName) const
-{
-    return m_Template->GetBinding(m_SetNumber, bindingName);
-}
-
 std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
 
 ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
@@ -496,6 +365,6 @@ ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<
 {
     return ShaderPipelineTemplate({
         .ShaderReflection = ShaderReflection::ReflectFrom(paths),
-        .ResourceAllocator = allocators.Get(DescriptorAllocatorKind::Resources),
-        .SamplerAllocator = allocators.Get(DescriptorAllocatorKind::Samplers)});
+        .ResourceAllocator = allocators.Get(DescriptorsKind::Resource),
+        .SamplerAllocator = allocators.Get(DescriptorsKind::Sampler)});
 }

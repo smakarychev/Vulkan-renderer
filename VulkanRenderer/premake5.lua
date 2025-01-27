@@ -8,6 +8,7 @@ project "VulkanRenderer"
     files {
         "src/**.h",
         "src/**.cpp",
+        "src/RenderGraph/Passes/Generated/**",
         --"src/RenderGraph/Passes/Generated/ShaderBindGroups.generated.h"
     }
 
@@ -50,8 +51,11 @@ project "VulkanRenderer"
     prebuildcommands {
         "\
         if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
-        msbuild /FS %{wks.location}tools/ShaderBindGroupGen/ /p:Configuration=Release /p:Platform=x64) \
-        %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/"
+        msbuild %{wks.location}%{wks.name}.sln /t:Tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
+        %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
+        :: this is unholy \
+        cd %{wks.location} \
+        %{wks.location}build.bat"
     }
 
     filter "configurations:Debug"
