@@ -3,6 +3,7 @@
 #pragma once
 
 #include "Rendering/Shader/ShaderCache.h"
+#include "Vulkan/RenderCommand.h"
 
 template <typename ShaderTag>
 struct ShaderBindGroupBase
@@ -13,9 +14,5 @@ struct ShaderBindGroupBase
 
     const ::Shader* Shader{nullptr};
 };
-
-{% for shader in shaders %}
-{% include "bindgroup-spec.tmpl" %}
-{% endfor %}
 
 

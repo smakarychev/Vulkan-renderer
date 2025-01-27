@@ -9,12 +9,14 @@
 #include <unordered_set>
 
 #include "Platform/PlatformUtils.h"
+#include "Utils/Hash.h"
 
 namespace fs = std::filesystem;
 
 static const fs::path TEMPLATE_PATH = "./templates/";
-static constexpr std::string_view BIND_GROUP_TEMPLATE = "bindgroups.tmpl";
-static constexpr std::string_view BIND_GROUP_GENERATED_NAME = "ShaderBindGroups.generated.h";
+static constexpr std::string_view BIND_GROUP_TEMPLATE_BASE = "bindgroups.tmpl";
+static constexpr std::string_view BIND_GROUP_TEMPLATE_SPEC = "bindgroup-spec.tmpl";
+static constexpr std::string_view BIND_GROUP_GENERATED_BASE_NAME = "ShaderBindGroupBase.generated.h";
 static constexpr std::string_view SHADER_EXTENSION = ".shader";
 
 /* Make canonical version of name
@@ -78,6 +80,11 @@ nlohmann::json loadShaderInfos(const fs::path& shadersPath)
         std::unordered_set<std::string> processedBindings;
         nlohmann::json shaderTemplateData = {};
         shaderTemplateData["name"] = canonicalizeName(shader["name"]);
+        shaderTemplateData["is_raster"] = true;
+        shaderTemplateData["has_samplers"] = false;
+        shaderTemplateData["has_resources"] = false;
+        shaderTemplateData["has_materials"] = false;
+        shaderTemplateData["has_immutable_sampler"] = false;
         
         auto& stages = shader["shader_stages"];
         for (const auto& stage : stages)
@@ -89,6 +96,13 @@ nlohmann::json loadShaderInfos(const fs::path& shadersPath)
             for (const auto& set : stageJson["descriptor_sets"])
             {
                 u32 setIndex = set["set"];
+                if (setIndex == 0)
+                    shaderTemplateData["has_samplers"] = true;
+                else if (setIndex == 1)
+                    shaderTemplateData["has_resources"] = true;
+                else if (setIndex == 2)
+                    shaderTemplateData["has_materials"] = true;
+                
                 for (const auto& binding : set["bindings"])
                 {
                     std::string name = binding["name"];
@@ -103,7 +117,23 @@ nlohmann::json loadShaderInfos(const fs::path& shadersPath)
                     bindingJson["binding"] = (u32)binding["binding"];
                     bindingJson["count"] = (u32)binding["count"];
                     bindingJson["descriptor"] = (u32)binding["descriptor"];
-                    shaderTemplateData["bindings"].emplace_back(bindingJson);
+                    bindingJson["is_bindless"] = false;
+                    bool isImmutableSampler = false;
+                    for (auto& flag : binding["flags"])
+                    {
+                        if (flag == "bindless")
+                            bindingJson["is_bindless"] = true;
+                        else if (flag == "immutable_sampler")
+                            isImmutableSampler = true;
+                    }
+                    /* do not add Set method for immutable sampler */
+                    if (isImmutableSampler)
+                        shaderTemplateData["has_immutable_sampler"] = true;
+                    else
+                        shaderTemplateData["bindings"].emplace_back(bindingJson);
+
+                    if ((SpvReflectShaderStageFlagBits)binding["shader_stages"] & SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT)
+                        shaderTemplateData["is_raster"] = false;
                 }
             }
         }
@@ -114,12 +144,68 @@ nlohmann::json loadShaderInfos(const fs::path& shadersPath)
     return templateData;
 }
 
-void generateTemplates(inja::Environment& env, const fs::path& outputPath, const nlohmann::json& data)
+bool shouldUpdateFile(const fs::path& path, std::string_view newContent)
 {
-    inja::Template bindgroupTemplate = env.parse_template((TEMPLATE_PATH / BIND_GROUP_TEMPLATE).string());
+    if (!fs::exists(path))
+        return true;
+    
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
+    if (!file.is_open())
+    {
+        LOG("Failed to open file {}", path.string());
+        return false;
+    }
 
-    std::ofstream out(outputPath / BIND_GROUP_GENERATED_NAME);
-    env.render_to(out, bindgroupTemplate, data);
+    const isize filesSize = file.tellg();
+    if (filesSize != (isize)newContent.size())
+        return true;
+    
+    file.seekg(0);
+    std::vector<u8> buffer(filesSize);
+    file.read(reinterpret_cast<char*>(buffer.data()), filesSize);
+
+    return
+        Hash::murmur3b32(buffer.data(), filesSize) != Hash::murmur3b32((const u8*)newContent.data(), newContent.size());
+}
+
+void updateFileIfNeeded(const fs::path& outputPath, std::string_view newContent)
+{
+    if (!shouldUpdateFile(outputPath, newContent))
+    {
+        LOG("Skipping {}: no changes detected", outputPath.string()); 
+        return;
+    }
+
+    LOG("Creating file {}", outputPath.string());
+    std::ofstream out(outputPath, std::ios::binary);
+    out.write(newContent.data(), (isize)newContent.size());
+}
+
+void generateTemplates(inja::Environment& env, const fs::path& outputPath, nlohmann::json& data)
+{
+    {
+        data["base_template_name"] = BIND_GROUP_GENERATED_BASE_NAME;
+        inja::Template baseTemplate = env.parse_template((TEMPLATE_PATH / BIND_GROUP_TEMPLATE_BASE).string());
+        std::string baseTemplateRendered = env.render(baseTemplate, data);
+        updateFileIfNeeded(outputPath / BIND_GROUP_GENERATED_BASE_NAME, baseTemplateRendered);
+    }
+
+    for (auto& shader : data["shaders"])
+    {
+        shader["base_template_name"] = BIND_GROUP_GENERATED_BASE_NAME;
+        inja::Template shaderTemplate;
+        try
+        {
+            shaderTemplate = env.parse_template((TEMPLATE_PATH / BIND_GROUP_TEMPLATE_SPEC).string());
+        }
+        catch (std::exception& e)
+        {
+            LOG("Template parse exception: {}", e.what());
+        }
+        std::string shaderTemplateRendered = env.render(shaderTemplate, shader);
+        updateFileIfNeeded(outputPath / (std::string{shader["name"]} + "BindGroup.generated.h"),
+            shaderTemplateRendered);
+    }
 }
 
 i32 main(i32 argc, char** argv)
@@ -141,6 +227,8 @@ i32 main(i32 argc, char** argv)
     loadShaderInfos(shadersPath);
 
     inja::Environment env = {};
+    env.set_trim_blocks(true);
+    env.set_lstrip_blocks(true);
     env.add_callback("is_descriptor_a_buffer", 1, [](inja::Arguments& args) {
         const u32 descriptorType = args.at(0)->get<u32>();
         switch ((SpvReflectDescriptorType)descriptorType)
@@ -183,12 +271,14 @@ i32 main(i32 argc, char** argv)
     env.add_callback("descriptors_kind_string", 1, [](inja::Arguments& args) {
         const u32 setIndex = args.at(0)->get<u32>();
         if (setIndex == 0)
-            return "ShaderDescriptorsKind::Sampler";
+            return "DescriptorsKind::Sampler";
         if (setIndex == 1)
-            return "ShaderDescriptorsKind::Resource";
+            return "DescriptorsKind::Resource";
         if (setIndex == 2)
-            return "ShaderDescriptorsKind::Materials";
+            return "DescriptorsKind::Materials";
         return "ERROR: Unknown set index";
     });
-    generateTemplates(env, outputPath, loadShaderInfos(shadersPath));
+
+    nlohmann::json templateData = loadShaderInfos(shadersPath);
+    generateTemplates(env, outputPath, templateData);
 }

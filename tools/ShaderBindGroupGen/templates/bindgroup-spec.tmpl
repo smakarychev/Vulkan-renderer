@@ -1,11 +1,55 @@
-struct {{shader.name}}ShaderBindGroup : ShaderBindGroupBase<{{shader.name}}ShaderBindGroup>
+/* Generated from shaders */
+
+#pragma once
+
+#include "{{base_template_name}}"
+
+struct {{name}}ShaderBindGroup : ShaderBindGroupBase<{{name}}ShaderBindGroup>
 {
-{% for binding in shader.bindings %}
-    void Set{{binding.name}}(const {% if is_descriptor_a_buffer(binding.descriptor) %}BufferBindingInfo&{% else %}TextureBindingInfo&{% endif %} binding{% if binding.count > 1 %}, u32 index{% endif %})
+    using ShaderBindGroupBase::ShaderBindGroupBase;
+    void Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators)
+    {
+{% if is_raster %}
+        RenderCommand::BindGraphics(cmd, Shader->Pipeline());
+    {% if has_immutable_sampler %}
+        RenderCommand::BindGraphicsImmutableSamplers(cmd, Shader->GetLayout(), (u32){{ descriptors_kind_string(0) }});
+    {% else if has_samplers %}
+        RenderCommand::BindGraphics(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(0) }}), (u32){{ descriptors_kind_string(0) }});
+    {% endif %}
+    {% if has_resources %}
+        RenderCommand::BindGraphics(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(1) }}), (u32){{ descriptors_kind_string(1) }});
+    {% endif %}
+    {% if has_materials %}
+        RenderCommand::BindGraphics(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(2) }}), (u32){{ descriptors_kind_string(2) }});
+    {% endif %}
+{% else %}
+        RenderCommand::BindCompute(cmd, Shader->Pipeline());
+    {% if has_immutable_sampler %}
+        RenderCommand::BindComputeImmutableSamplers(cmd, Shader->GetLayout(), (u32){{ descriptors_kind_string(0) }});
+    {% else if has_samplers %}
+        RenderCommand::BindCompute(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(0) }}), (u32){{ descriptors_kind_string(0) }});
+    {% endif %}
+    {% if has_resources %}
+        RenderCommand::BindCompute(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(1) }}), (u32){{ descriptors_kind_string(1) }});
+    {% endif %}
+    {% if has_materials %}
+        RenderCommand::BindCompute(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(2) }}), (u32){{ descriptors_kind_string(2) }});
+    {% endif %}
+{% endif %}
+    }
+{% for binding in bindings %}
+    void Set{{binding.name}}(const {% if is_descriptor_a_buffer(binding.descriptor) %}BufferBindingInfo&{% else %}TextureBindingInfo&{% endif %} binding{% if binding.count > 1 or binding.is_bindless %}, u32 index{% endif %}) const
     {
         Device::UpdateDescriptors(Shader->Descriptors({{ descriptors_kind_string(binding.set) }}),
-            DescriptorBindingInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, binding, {% if binding.count > 1 %}index{% else %}0{% endif %});
+            DescriptorBindingInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, binding, {% if binding.count > 1 or binding.is_bindless %}index{% else %}0{% endif %});
     }
+    {% if binding.set == 2 %}
+    void Set{{binding.name}}Globally(const {% if is_descriptor_a_buffer(binding.descriptor) %}BufferBindingInfo&{% else %}TextureBindingInfo&{% endif %} binding{% if binding.count > 1 or binding.is_bindless %}, u32 index{% endif %}) const
+    {
+        Device::UpdateGlobalDescriptors(Shader->Descriptors({{ descriptors_kind_string(binding.set) }}),
+            DescriptorBindingInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, binding, {% if binding.count > 1 or binding.is_bindless %}index{% else %}0{% endif %});
+    }
+    {% endif %}
 {% endfor %}
 };
 
