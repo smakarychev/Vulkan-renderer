@@ -118,7 +118,7 @@ private:
     template <typename Type>
     constexpr auto& operator[](const Type& type);
 
-    void MapCmdToPool(const CommandBuffer& cmd, CommandPool pool);
+    void MapCmdToPool(CommandBuffer cmd, CommandPool pool);
     void DestroyCmdsOfPool(CommandPool pool);
 
     void MapDescriptorSetToAllocator(DescriptorSet set, DescriptorAllocator allocator);
@@ -170,8 +170,9 @@ private:
     };
     struct CommandBufferResource
     {
-        using ObjectType = CommandBuffer;
+        using ObjectType = CommandBufferTag;
         VkCommandBuffer CommandBuffer{VK_NULL_HANDLE};
+        CommandBufferKind Kind{CommandBufferKind::Primary};
     };
     struct QueueResource
     {
@@ -408,7 +409,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Samplers.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, CommandPoolTag>)
         m_CommandPools.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
+    else if constexpr(std::is_same_v<Decayed, CommandBufferTag>)
         m_CommandBuffers.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, QueueInfo>)
         m_Queues.Remove(handle);
@@ -468,7 +469,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
         return m_CommandPools[type];
     else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
-        return m_CommandBuffers[type.Handle()];
+        return m_CommandBuffers[type];
     else if constexpr(std::is_same_v<Decayed, QueueInfo>)
         return m_Queues[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
@@ -609,17 +610,18 @@ public:
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(CommandPool commandPool);
     static void ResetPool(CommandPool pool);
-    static void ResetCommandBuffer(const CommandBuffer& cmd);
-    static void BeginCommandBuffer(const CommandBuffer& cmd, CommandBufferUsage usage);
-    static void EndCommandBuffer(const CommandBuffer& cmd);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
+    static void ResetCommandBuffer(CommandBuffer cmd);
+    static void BeginCommandBuffer(CommandBuffer cmd);
+    static void BeginCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage);
+    static void EndCommandBuffer(CommandBuffer cmd);
+    static void SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
         const BufferSubmitSyncInfo& submitSync);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
+    static void SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
         const BufferSubmitTimelineSyncInfo& submitSync);
-    static void SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, Fence fence);
-    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+    static void SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence fence);
+    static void SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
         const BufferSubmitSyncInfo& submitSync);
-    static void SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+    static void SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
         const BufferSubmitTimelineSyncInfo& submitSync);
 
     static Buffer CreateBuffer(BufferCreateInfo&& createInfo);
@@ -635,7 +637,7 @@ public:
     static void Destroy(ResourceHandleType<Image> image);
     static void CreateViews(const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
-    static void CalculateMipmaps(const Image& image, const CommandBuffer& cmd, ImageLayout currentLayout);
+    static void CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout currentLayout);
 
     static Sampler CreateSampler(SamplerCreateInfo&& createInfo);
     static void Destroy(ResourceHandleType<Sampler> sampler);
@@ -739,7 +741,7 @@ public:
     static u32 GetSubgroupSize();
     static ImmediateSubmitContext* SubmitContext();
 
-    static TracyVkCtx CreateTracyGraphicsContext(const CommandBuffer& cmd);
+    static TracyVkCtx CreateTracyGraphicsContext(CommandBuffer cmd);
     static void DestroyTracyGraphicsContext(TracyVkCtx context);
     // TODO: FIX ME: direct vkapi usage
     static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
@@ -813,15 +815,15 @@ template <typename Fn>
 void Device::ImmediateSubmit(Fn&& uploadFunction)
 {
     auto&& [pool, cmd, fence, queue] = *SubmitContext();
-    
-    cmd.Begin();
+
+    BeginCommandBuffer(cmd);
 
     
     uploadFunction(cmd);
 
-    
-    cmd.End();
-    cmd.Submit(queue, fence);
+
+    EndCommandBuffer(cmd);
+    SubmitCommandBuffer(cmd, queue, fence);
     WaitForFence(fence);
     ResetFence(fence);
     ResetPool(pool);

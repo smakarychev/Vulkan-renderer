@@ -11,7 +11,7 @@
 #include "Rendering/Swapchain.h"
 #include "Rendering/Descriptors.h"
 
-void RenderCommand::BeginRendering(const CommandBuffer& cmd, RenderingInfo renderingInfo)
+void RenderCommand::BeginRendering(CommandBuffer cmd, RenderingInfo renderingInfo)
 {
     const DeviceResources::RenderingInfoResource& renderingInfoResource = Device::Resources()[renderingInfo];
     
@@ -30,12 +30,12 @@ void RenderCommand::BeginRendering(const CommandBuffer& cmd, RenderingInfo rende
     vkCmdBeginRendering(Device::Resources()[cmd].CommandBuffer, &renderingInfoVulkan);
 }
 
-void RenderCommand::EndRendering(const CommandBuffer& cmd)
+void RenderCommand::EndRendering(CommandBuffer cmd)
 {
     vkCmdEndRendering(Device::Resources()[cmd].CommandBuffer);
 }
 
-void RenderCommand::PrepareSwapchainPresent(const CommandBuffer& cmd, Swapchain swapchain, u32 imageIndex)
+void RenderCommand::PrepareSwapchainPresent(CommandBuffer cmd, Swapchain swapchain, u32 imageIndex)
 {
     DeviceResources::SwapchainResource& swapchainResource = Device::Resources()[swapchain];
     
@@ -83,12 +83,12 @@ void RenderCommand::PrepareSwapchainPresent(const CommandBuffer& cmd, Swapchain 
         .LayoutTransitionInfo = destinationToPresentTransitionInfo}, deletionQueue));
 }
 
-void RenderCommand::ExecuteSecondaryCommandBuffer(const CommandBuffer& cmd, const CommandBuffer& secondary)
+void RenderCommand::ExecuteSecondaryCommandBuffer(CommandBuffer cmd, CommandBuffer secondary)
 {
     vkCmdExecuteCommands(Device::Resources()[cmd].CommandBuffer, 1, &Device::Resources()[secondary].CommandBuffer);
 }
 
-void RenderCommand::CopyImage(const CommandBuffer& cmd, const ImageCopyInfo& source, const ImageCopyInfo& destination)
+void RenderCommand::CopyImage(CommandBuffer cmd, const ImageCopyInfo& source, const ImageCopyInfo& destination)
 {
     auto&& [copyImageInfo, imageCopy] = Device::CreateVulkanImageCopyInfo(source, destination);
     copyImageInfo.pRegions = &imageCopy;
@@ -96,7 +96,7 @@ void RenderCommand::CopyImage(const CommandBuffer& cmd, const ImageCopyInfo& sou
     vkCmdCopyImage2(Device::Resources()[cmd].CommandBuffer, &copyImageInfo);
 }
 
-void RenderCommand::BlitImage(const CommandBuffer& cmd,
+void RenderCommand::BlitImage(CommandBuffer cmd,
     const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter)
 {
     auto&& [blitImageInfo, imageBlit] = Device::CreateVulkanBlitInfo(source, destination, filter);
@@ -105,7 +105,7 @@ void RenderCommand::BlitImage(const CommandBuffer& cmd,
     vkCmdBlitImage2(Device::Resources()[cmd].CommandBuffer, &blitImageInfo);
 }
 
-void RenderCommand::CopyBuffer(const CommandBuffer& cmd,
+void RenderCommand::CopyBuffer(CommandBuffer cmd,
     const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo)
 {
     VkBufferCopy2 copy = {};
@@ -126,7 +126,7 @@ void RenderCommand::CopyBuffer(const CommandBuffer& cmd,
     vkCmdCopyBuffer2(Device::Resources()[cmd].CommandBuffer, &copyBufferInfo);
 }
 
-void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd,
+void RenderCommand::CopyBufferToImage(CommandBuffer cmd,
     const Buffer& source, const ImageSubresource& destination)
 {
     VkBufferImageCopy2 bufferImageCopy = Device::CreateVulkanImageCopyInfo(destination);
@@ -143,12 +143,12 @@ void RenderCommand::CopyBufferToImage(const CommandBuffer& cmd,
     vkCmdCopyBufferToImage2(Device::Resources()[cmd].CommandBuffer, &copyBufferToImageInfo);
 }
 
-void RenderCommand::BindVertexBuffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindVertexBuffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
 {
     vkCmdBindVertexBuffers(Device::Resources()[cmd].CommandBuffer, 0, 1, &Device::Resources()[buffer].Buffer, &offset);
 }
 
-void RenderCommand::BindVertexBuffers(const CommandBuffer& cmd, const std::vector<Buffer>& buffers,
+void RenderCommand::BindVertexBuffers(CommandBuffer cmd, const std::vector<Buffer>& buffers,
     const std::vector<u64>& offsets)
 {
     std::vector<VkBuffer> vkBuffers(buffers.size());
@@ -159,37 +159,37 @@ void RenderCommand::BindVertexBuffers(const CommandBuffer& cmd, const std::vecto
         offsets.data());
 }
 
-void RenderCommand::BindIndexU32Buffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindIndexU32Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
 {
     vkCmdBindIndexBuffer(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset,
         VK_INDEX_TYPE_UINT32);
 }
 
-void RenderCommand::BindIndexU16Buffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindIndexU16Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
 {
     vkCmdBindIndexBuffer(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset,
         VK_INDEX_TYPE_UINT16);
 }
 
-void RenderCommand::BindIndexU8Buffer(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindIndexU8Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
 {
     vkCmdBindIndexBuffer(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset,
         VK_INDEX_TYPE_UINT8_EXT);
 }
 
-void RenderCommand::BindGraphics(const CommandBuffer& cmd, Pipeline pipeline)
+void RenderCommand::BindGraphics(CommandBuffer cmd, Pipeline pipeline)
 {
     vkCmdBindPipeline(Device::Resources()[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
         Device::Resources()[pipeline].Pipeline);
 }
 
-void RenderCommand::BindCompute(const CommandBuffer& cmd, Pipeline pipeline)
+void RenderCommand::BindCompute(CommandBuffer cmd, Pipeline pipeline)
 {
     vkCmdBindPipeline(Device::Resources()[cmd].CommandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
         Device::Resources()[pipeline].Pipeline);
 }
 
-void RenderCommand::BindGraphics(const CommandBuffer& cmd, DescriptorSet descriptorSet,
+void RenderCommand::BindGraphics(CommandBuffer cmd, DescriptorSet descriptorSet,
     PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets)
 {
     vkCmdBindDescriptorSets(Device::Resources()[cmd].CommandBuffer,
@@ -199,7 +199,7 @@ void RenderCommand::BindGraphics(const CommandBuffer& cmd, DescriptorSet descrip
         (u32)dynamicOffsets.size(), dynamicOffsets.data());
 }
 
-void RenderCommand::BindCompute(const CommandBuffer& cmd, DescriptorSet descriptorSet,
+void RenderCommand::BindCompute(CommandBuffer cmd, DescriptorSet descriptorSet,
     PipelineLayout pipelineLayout, u32 setIndex, const std::vector<u32>& dynamicOffsets)
 {
     vkCmdBindDescriptorSets(Device::Resources()[cmd].CommandBuffer,
@@ -209,21 +209,21 @@ void RenderCommand::BindCompute(const CommandBuffer& cmd, DescriptorSet descript
         (u32)dynamicOffsets.size(), dynamicOffsets.data());
 }
 
-void RenderCommand::BindGraphicsImmutableSamplers(const CommandBuffer& cmd,
+void RenderCommand::BindGraphicsImmutableSamplers(CommandBuffer cmd,
     PipelineLayout pipelineLayout, u32 setIndex)
 {
     vkCmdBindDescriptorBufferEmbeddedSamplersEXT(Device::Resources()[cmd].CommandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS, Device::Resources()[pipelineLayout].Layout, setIndex);
 }
 
-void RenderCommand::BindComputeImmutableSamplers(const CommandBuffer& cmd,
+void RenderCommand::BindComputeImmutableSamplers(CommandBuffer cmd,
     PipelineLayout pipelineLayout, u32 setIndex)
 {
     vkCmdBindDescriptorBufferEmbeddedSamplersEXT(Device::Resources()[cmd].CommandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE, Device::Resources()[pipelineLayout].Layout, setIndex);
 }
 
-void RenderCommand::Bind(const CommandBuffer& cmd, DescriptorArenaAllocator allocator, u32 bufferIndex)
+void RenderCommand::Bind(CommandBuffer cmd, DescriptorArenaAllocator allocator, u32 bufferIndex)
 {
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Device::Resources()[allocator];
     allocatorResource.CurrentBuffer = bufferIndex;
@@ -238,7 +238,7 @@ void RenderCommand::Bind(const CommandBuffer& cmd, DescriptorArenaAllocator allo
     vkCmdBindDescriptorBuffersEXT(Device::Resources()[cmd].CommandBuffer, 1, &binding);
 }
 
-void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators, u32 bufferIndex)
+void RenderCommand::Bind(CommandBuffer cmd, const DescriptorArenaAllocators& allocators, u32 bufferIndex)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
     descriptorBufferBindings.reserve(allocators.m_Allocators.size());
@@ -262,19 +262,19 @@ void RenderCommand::Bind(const CommandBuffer& cmd, const DescriptorArenaAllocato
         descriptorBufferBindings.data());
 }
 
-void RenderCommand::BindGraphics(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+void RenderCommand::BindGraphics(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
     PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet)
 {
     BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
-void RenderCommand::BindCompute(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+void RenderCommand::BindCompute(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
     PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet)
 {
     BindDescriptors(cmd, allocators, pipelineLayout, descriptors, firstSet, VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
-void RenderCommand::BindDescriptors(const CommandBuffer& cmd, const DescriptorArenaAllocators& allocators,
+void RenderCommand::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
     PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
@@ -289,34 +289,34 @@ void RenderCommand::BindDescriptors(const CommandBuffer& cmd, const DescriptorAr
         Device::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);
 }
 
-void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount)
+void RenderCommand::Draw(CommandBuffer cmd, u32 vertexCount)
 {
     vkCmdDraw(Device::Resources()[cmd].CommandBuffer, vertexCount, 1, 0, 0);
 }
 
-void RenderCommand::Draw(const CommandBuffer& cmd, u32 vertexCount, u32 baseInstance)
+void RenderCommand::Draw(CommandBuffer cmd, u32 vertexCount, u32 baseInstance)
 {
     vkCmdDraw(Device::Resources()[cmd].CommandBuffer, vertexCount, 1, 0, baseInstance);
 }
 
-void RenderCommand::DrawIndexed(const CommandBuffer& cmd, u32 indexCount)
+void RenderCommand::DrawIndexed(CommandBuffer cmd, u32 indexCount)
 {
     vkCmdDrawIndexed(Device::Resources()[cmd].CommandBuffer, indexCount, 1, 0, 0, 0);
 }
 
-void RenderCommand::DrawIndexed(const CommandBuffer& cmd, u32 indexCount, u32 baseInstance)
+void RenderCommand::DrawIndexed(CommandBuffer cmd, u32 indexCount, u32 baseInstance)
 {
     vkCmdDrawIndexed(Device::Resources()[cmd].CommandBuffer, indexCount, 1, 0, 0, baseInstance);
 }
 
-void RenderCommand::DrawIndexedIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset, u32 count,
+void RenderCommand::DrawIndexedIndirect(CommandBuffer cmd, const Buffer& buffer, u64 offset, u32 count,
     u32 stride)
 {
     vkCmdDrawIndexedIndirect(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset, count,
         stride);    
 }
 
-void RenderCommand::DrawIndexedIndirectCount(const CommandBuffer& cmd, const Buffer& drawBuffer, u64 drawOffset,
+void RenderCommand::DrawIndexedIndirectCount(CommandBuffer cmd, const Buffer& drawBuffer, u64 drawOffset,
     const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride)
 {
     vkCmdDrawIndexedIndirectCount(Device::Resources()[cmd].CommandBuffer,
@@ -325,29 +325,29 @@ void RenderCommand::DrawIndexedIndirectCount(const CommandBuffer& cmd, const Buf
         maxCount, stride);
 }
 
-void RenderCommand::Dispatch(const CommandBuffer& cmd, const glm::uvec3& groupSize)
+void RenderCommand::Dispatch(CommandBuffer cmd, const glm::uvec3& groupSize)
 {
     vkCmdDispatch(Device::Resources()[cmd].CommandBuffer, groupSize.x, groupSize.y, groupSize.z);
 }
 
-void RenderCommand::Dispatch(const CommandBuffer& cmd, const glm::uvec3& invocations, const glm::uvec3& workGroups)
+void RenderCommand::Dispatch(CommandBuffer cmd, const glm::uvec3& invocations, const glm::uvec3& workGroups)
 {
     Dispatch(cmd, (invocations + workGroups - glm::uvec3(1)) / workGroups);
 }
 
-void RenderCommand::DispatchIndirect(const CommandBuffer& cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::DispatchIndirect(CommandBuffer cmd, const Buffer& buffer, u64 offset)
 {
     vkCmdDispatchIndirect(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset);
 }
 
-void RenderCommand::PushConstants(const CommandBuffer& cmd, PipelineLayout pipelineLayout, const void* pushConstants)
+void RenderCommand::PushConstants(CommandBuffer cmd, PipelineLayout pipelineLayout, const void* pushConstants)
 {
     VkPushConstantRange& pushConstantRange = Device::Resources()[pipelineLayout].PushConstants.front();
     vkCmdPushConstants(Device::Resources()[cmd].CommandBuffer, Device::Resources()[pipelineLayout].Layout,
         pushConstantRange.stageFlags, 0, pushConstantRange.size, pushConstants);
 }
 
-void RenderCommand::WaitOnFullPipelineBarrier(const CommandBuffer& cmd)
+void RenderCommand::WaitOnFullPipelineBarrier(CommandBuffer cmd)
 {
     VkMemoryBarrier2 memoryBarrier = {};
     memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER_2;
@@ -364,7 +364,7 @@ void RenderCommand::WaitOnFullPipelineBarrier(const CommandBuffer& cmd)
     vkCmdPipelineBarrier2(Device::Resources()[cmd].CommandBuffer, &dependencyInfo);
 }
 
-void RenderCommand::WaitOnBarrier(const CommandBuffer& cmd, DependencyInfo dependencyInfo)
+void RenderCommand::WaitOnBarrier(CommandBuffer cmd, DependencyInfo dependencyInfo)
 {
     VkDependencyInfo vkDependencyInfo = Device::Resources()[dependencyInfo].DependencyInfo;
     vkDependencyInfo.memoryBarrierCount =
@@ -375,7 +375,7 @@ void RenderCommand::WaitOnBarrier(const CommandBuffer& cmd, DependencyInfo depen
     vkCmdPipelineBarrier2(Device::Resources()[cmd].CommandBuffer, &vkDependencyInfo);
 }
 
-void RenderCommand::SignalSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
+void RenderCommand::SignalSplitBarrier(CommandBuffer cmd, SplitBarrier splitBarrier,
     DependencyInfo dependencyInfo)
 {
     VkDependencyInfo vkDependencyInfo = Device::Resources()[dependencyInfo].DependencyInfo;
@@ -387,7 +387,7 @@ void RenderCommand::SignalSplitBarrier(const CommandBuffer& cmd, SplitBarrier sp
     vkCmdSetEvent2(Device::Resources()[cmd].CommandBuffer, Device::Resources()[splitBarrier].Event, &vkDependencyInfo);
 }
 
-void RenderCommand::WaitOnSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
+void RenderCommand::WaitOnSplitBarrier(CommandBuffer cmd, SplitBarrier splitBarrier,
     DependencyInfo dependencyInfo)
 {
     VkDependencyInfo vkDependencyInfo = Device::Resources()[dependencyInfo].DependencyInfo;
@@ -400,7 +400,7 @@ void RenderCommand::WaitOnSplitBarrier(const CommandBuffer& cmd, SplitBarrier sp
         &vkDependencyInfo);
 }
 
-void RenderCommand::ResetSplitBarrier(const CommandBuffer& cmd, SplitBarrier splitBarrier,
+void RenderCommand::ResetSplitBarrier(CommandBuffer cmd, SplitBarrier splitBarrier,
     DependencyInfo dependencyInfo)
 {
     ASSERT(!Device::Resources()[dependencyInfo].ExecutionMemoryDependenciesInfo.empty(), "Invalid reset operation")
@@ -408,7 +408,7 @@ void RenderCommand::ResetSplitBarrier(const CommandBuffer& cmd, SplitBarrier spl
         Device::Resources()[dependencyInfo].ExecutionMemoryDependenciesInfo.front().dstStageMask);
 }
 
-void RenderCommand::BeginConditionalRendering(const CommandBuffer& cmd, const Buffer& conditionalBuffer, u64 offset)
+void RenderCommand::BeginConditionalRendering(CommandBuffer cmd, const Buffer& conditionalBuffer, u64 offset)
 {
     VkConditionalRenderingBeginInfoEXT beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;
@@ -418,12 +418,12 @@ void RenderCommand::BeginConditionalRendering(const CommandBuffer& cmd, const Bu
     vkCmdBeginConditionalRenderingEXT(Device::Resources()[cmd].CommandBuffer, &beginInfo);
 }
 
-void RenderCommand::EndConditionalRendering(const CommandBuffer& cmd)
+void RenderCommand::EndConditionalRendering(CommandBuffer cmd)
 {
     vkCmdEndConditionalRenderingEXT(Device::Resources()[cmd].CommandBuffer);
 }
 
-void RenderCommand::SetViewport(const CommandBuffer& cmd, const glm::vec2& size)
+void RenderCommand::SetViewport(CommandBuffer cmd, const glm::vec2& size)
 {
     VkViewport viewport = {
         .x = 0, .y = 0,
@@ -433,7 +433,7 @@ void RenderCommand::SetViewport(const CommandBuffer& cmd, const glm::vec2& size)
     vkCmdSetViewport(Device::Resources()[cmd].CommandBuffer, 0, 1, &viewport);    
 }
 
-void RenderCommand::SetScissors(const CommandBuffer& cmd, const glm::vec2& offset, const glm::vec2& size)
+void RenderCommand::SetScissors(CommandBuffer cmd, const glm::vec2& offset, const glm::vec2& size)
 {
     VkRect2D scissor = {
         .offset = {(i32)offset.x, (i32)offset.y},
@@ -442,7 +442,7 @@ void RenderCommand::SetScissors(const CommandBuffer& cmd, const glm::vec2& offse
     vkCmdSetScissor(Device::Resources()[cmd].CommandBuffer, 0, 1, &scissor);
 }
 
-void RenderCommand::SetDepthBias(const CommandBuffer& cmd, const DepthBias& depthBias)
+void RenderCommand::SetDepthBias(CommandBuffer cmd, const DepthBias& depthBias)
 {
     vkCmdSetDepthBias(Device::Resources()[cmd].CommandBuffer, depthBias.Constant, 0.0f, depthBias.Slope);
 }
@@ -454,7 +454,7 @@ void RenderCommand::ImGuiBeginFrame()
     ImGui::NewFrame();
 }
 
-void RenderCommand::DrawImGui(const CommandBuffer& cmd, RenderingInfo renderingInfo)
+void RenderCommand::DrawImGui(CommandBuffer cmd, RenderingInfo renderingInfo)
 {
     ImGui::Render();
     BeginRendering(cmd, renderingInfo);

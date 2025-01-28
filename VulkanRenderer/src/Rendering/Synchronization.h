@@ -12,7 +12,6 @@
 class DeletionQueue;
 struct ImageSubresource;
 struct BufferSubresource;
-class CommandBuffer;
 
 struct FenceCreateInfo
 {

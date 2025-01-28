@@ -26,7 +26,7 @@ DescriptorArenaAllocator DescriptorArenaAllocators::Get(DescriptorsKind kind) co
     return m_Allocators[(u32)kind];
 }
 
-void DescriptorArenaAllocators::Bind(const CommandBuffer& cmd, u32 bufferIndex)
+void DescriptorArenaAllocators::Bind(CommandBuffer cmd, u32 bufferIndex)
 {
     RenderCommand::Bind(cmd, *this, bufferIndex);
 }

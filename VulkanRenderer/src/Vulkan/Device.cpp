@@ -784,9 +784,9 @@ DeviceCreateInfo DeviceCreateInfo::Default(GLFWwindow* window, bool asyncCompute
     return createInfo;
 }
 
-void DeviceResources::MapCmdToPool(const CommandBuffer& cmd, CommandPool pool)
+void DeviceResources::MapCmdToPool(CommandBuffer cmd, CommandPool pool)
 {
-    m_CommandPoolToBuffersMap[pool.m_Id].push_back(cmd.Handle().m_Id);
+    m_CommandPoolToBuffersMap[pool.m_Id].push_back(cmd.m_Id);
 }
 
 void DeviceResources::DestroyCmdsOfPool(CommandPool pool)
@@ -1086,12 +1086,11 @@ CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
     allocateInfo.commandBufferCount = 1;
 
     DeviceResources::CommandBufferResource commandBufferResource = {};
+    commandBufferResource.Kind = createInfo.Kind;
     DeviceCheck(vkAllocateCommandBuffers(s_State.Device, &allocateInfo, &commandBufferResource.CommandBuffer),
         "Failed to allocate command buffer");
     
-    CommandBuffer cmd = {};
-    cmd.m_Kind = createInfo.Kind;
-    cmd.m_ResourceHandle = Resources().AddResource(commandBufferResource);
+    CommandBuffer cmd = Resources().AddResource(commandBufferResource);
     Resources().MapCmdToPool(cmd, createInfo.Pool);
     
     return cmd;
@@ -1133,42 +1132,48 @@ void Device::ResetPool(CommandPool pool)
         "Error while resetting command pool");
 }
 
-void Device::ResetCommandBuffer(const CommandBuffer& cmd)
+void Device::ResetCommandBuffer(CommandBuffer cmd)
 {
     DeviceCheck(vkResetCommandBuffer(Resources()[cmd].CommandBuffer, 0), "Error while resetting command buffer");
 }
 
-void Device::BeginCommandBuffer(const CommandBuffer& cmd, CommandBufferUsage usage)
+void Device::BeginCommandBuffer(CommandBuffer cmd)
+{
+    BeginCommandBuffer(cmd, CommandBufferUsage::SingleSubmit);
+}
+
+void Device::BeginCommandBuffer(CommandBuffer cmd, CommandBufferUsage usage)
 {
     VkCommandBufferInheritanceInfo inheritanceInfo = {};
     inheritanceInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_INFO;
     VkCommandBufferBeginInfo beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = vulkanCommandBufferFlagsFromUsage(usage);
-    if (cmd.m_Kind == CommandBufferKind::Secondary)
+    DeviceResources::CommandBufferResource& commandBufferResource = Resources()[cmd];
+    if (commandBufferResource.Kind == CommandBufferKind::Secondary)
         beginInfo.pInheritanceInfo = &inheritanceInfo;
     
     DeviceCheck(vkBeginCommandBuffer(Resources()[cmd].CommandBuffer, &beginInfo),
         "Error while beginning command buffer");
 }
 
-void Device::EndCommandBuffer(const CommandBuffer& cmd)
+void Device::EndCommandBuffer(CommandBuffer cmd)
 {
     DeviceCheck(vkEndCommandBuffer(Resources()[cmd].CommandBuffer), "Error while ending command buffer");
 }
 
-void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
+void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, const BufferSubmitSyncInfo& submitSync)
 {
     SubmitCommandBuffers({cmd}, queueKind, submitSync);
 }
 
-void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind,
+void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
     SubmitCommandBuffers({cmd}, queueKind, submitSync);
 }
 
-void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, Fence fence)
+void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence fence)
 {
     VkCommandBufferSubmitInfo commandBufferSubmitInfo = {};
     commandBufferSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
@@ -1184,7 +1189,7 @@ void Device::SubmitCommandBuffer(const CommandBuffer& cmd, QueueKind queueKind, 
         "Error while submitting command buffer");
 }
 
-void Device::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitSyncInfo& submitSync)
 {
     std::vector<VkCommandBufferSubmitInfo> commandBufferSubmitInfos;
@@ -1218,7 +1223,7 @@ void Device::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueK
         "Error while submitting command buffers");
 }
 
-void Device::SubmitCommandBuffers(const std::vector<CommandBuffer>& cmds, QueueKind queueKind,
+void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitTimelineSyncInfo& submitSync)
 {
     for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
@@ -1288,7 +1293,7 @@ Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo)
         {
             Buffer stagingBuffer = CreateStagingBuffer(createInfo.InitialData.size());
             SetBufferData(stagingBuffer, createInfo.InitialData, 0);
-            ImmediateSubmit([&](const CommandBuffer& cmd)
+            ImmediateSubmit([&](CommandBuffer cmd)
             {
                 RenderCommand::CopyBuffer(cmd, stagingBuffer, buffer,
                     {.SizeBytes = createInfo.InitialData.size(), .SourceOffset = 0, .DestinationOffset = 0});        
@@ -1488,7 +1493,7 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
     
     ImageSubresource imageSubresource = {.Image = &image, .Description = {.Mipmaps = 1, .Layers = 1}};
 
-    ImmediateSubmit([&](const CommandBuffer& cmd)
+    ImmediateSubmit([&](CommandBuffer cmd)
     {
         ::DeletionQueue deletionQueue = {};
         RenderCommand::WaitOnBarrier(cmd, CreateDependencyInfo({
@@ -1513,7 +1518,7 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
     return image;
 }
 
-void Device::CalculateMipmaps(const Image& image, const CommandBuffer& cmd, ImageLayout currentLayout)
+void Device::CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout currentLayout)
 {
     if (image.Description().Mipmaps == 1)
         return;
@@ -3487,7 +3492,7 @@ void Device::ShutdownImGuiUI()
     vkDestroyDescriptorPool(s_State.Device, s_State.ImGuiPool, nullptr);
 }
 
-TracyVkCtx Device::CreateTracyGraphicsContext(const CommandBuffer& cmd)
+TracyVkCtx Device::CreateTracyGraphicsContext(CommandBuffer cmd)
 {
     TracyVkCtx context = TracyVkContext(s_State.GPU, s_State.Device,
         Resources()[s_State.Queues.Graphics].Queue, Resources()[cmd].CommandBuffer)
@@ -3501,7 +3506,7 @@ void Device::DestroyTracyGraphicsContext(TracyVkCtx context)
 
 VkCommandBuffer Device::GetProfilerCommandBuffer(ProfilerContext* context)
 {
-    return Resources()[*context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
+    return Resources()[context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
 }
 
 ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)

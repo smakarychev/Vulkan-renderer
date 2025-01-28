@@ -58,7 +58,7 @@ public:
     void Shutdown();
 
     void BeginFrame(const FrameContext& ctx);
-    void SubmitUpload(const CommandBuffer& cmd);
+    void SubmitUpload(CommandBuffer cmd);
 
     template <typename T>
     void UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOffset = 0);

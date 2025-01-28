@@ -41,7 +41,7 @@ void ResourceUploader::BeginFrame(const FrameContext& ctx)
     state.UploadsOffset = 0;
 }
 
-void ResourceUploader::SubmitUpload(const CommandBuffer& cmd)
+void ResourceUploader::SubmitUpload(CommandBuffer cmd)
 {
     CPU_PROFILE_FRAME("Submit Upload")
 
@@ -61,7 +61,7 @@ void ResourceUploader::SubmitUpload(const CommandBuffer& cmd)
 
 void ResourceUploader::SubmitImmediateBuffer(const Buffer& buffer, u64 sizeBytes, u64 offset)
 {
-    Device::ImmediateSubmit([&](const CommandBuffer& cmd)
+    Device::ImmediateSubmit([&](CommandBuffer cmd)
     {
         RenderCommand::CopyBuffer(cmd, m_PerFrameState[m_CurrentFrame].ImmediateUploadBuffer, buffer,
             {.SizeBytes = sizeBytes, .SourceOffset = 0, .DestinationOffset = offset});        

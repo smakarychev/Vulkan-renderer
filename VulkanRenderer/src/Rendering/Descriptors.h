@@ -10,6 +10,8 @@
 #include <vector>
 #include <unordered_map>
 
+#include "CommandBuffer.h"
+
 namespace assetLib
 {
     struct ShaderStageInfo;
@@ -19,7 +21,6 @@ class DescriptorArenaAllocators;
 class ResourceUploader;
 class Sampler;
 class Image;
-class CommandBuffer;
 class Buffer;
 class DescriptorPool;
 
@@ -130,7 +131,7 @@ public:
     DescriptorArenaAllocator Get(DescriptorsKind kind) const;
 
     /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
-    void Bind(const CommandBuffer& cmd, u32 bufferIndex);
+    void Bind(CommandBuffer cmd, u32 bufferIndex);
 private:
     std::array<DescriptorArenaAllocator, (u32)DescriptorsKind::MaxVal> m_Allocators;
 };

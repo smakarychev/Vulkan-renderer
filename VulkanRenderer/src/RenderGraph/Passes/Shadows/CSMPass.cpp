@@ -147,7 +147,7 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                     .ClampDepth = true,
                     .DrawInfo = {
                         .DrawSetup = [&](Graph&) {},
-                        .DrawBind = [=](const CommandBuffer& cmd, const Resources& resources,
+                        .DrawBind = [=](CommandBuffer cmd, const Resources& resources,
                             const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                         {
                             const Shader& shader = ShaderCache::Register(

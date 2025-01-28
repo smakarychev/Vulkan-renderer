@@ -245,26 +245,26 @@ ShaderDescriptorSet::ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createI
     m_DescriptorSetsInfo.DescriptorCount = setCount;
 }
 
-void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind,
     PipelineLayout pipelineLayout) const
 {
     RenderCommand::BindGraphics(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, {});
 }
 
-void ShaderDescriptorSet::BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind,
     PipelineLayout pipelineLayout, const std::vector<u32>& dynamicOffsets) const
 {
     RenderCommand::BindGraphics(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind,
         dynamicOffsets);
 }
 
-void ShaderDescriptorSet::BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind,
     PipelineLayout pipelineLayout) const
 {
     RenderCommand::BindCompute(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, {});
 }
 
-void ShaderDescriptorSet::BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind,
                                       PipelineLayout pipelineLayout, const std::vector<u32>& dynamicOffsets) const
 {
     RenderCommand::BindCompute(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind,

@@ -49,7 +49,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                 .Camera = info.Camera,
                 .DrawInfo = {
                     .DrawSetup = [&](Graph&) {},
-                    .DrawBind = [=](const CommandBuffer& cmd, const Resources& resources,
+                    .DrawBind = [=](CommandBuffer cmd, const Resources& resources,
                         const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                     {
                         const Shader& shader = ShaderCache::Register(

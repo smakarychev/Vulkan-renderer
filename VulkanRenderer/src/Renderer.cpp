@@ -169,7 +169,7 @@ void Renderer::InitRenderGraph()
             1, 5000000, *GetFrameContext().ResourceUploader));
 
     /* initial submit */
-    Device::ImmediateSubmit([&](const CommandBuffer& cmd)
+    Device::ImmediateSubmit([&](CommandBuffer cmd)
     {
         GetFrameContext().ResourceUploader->SubmitUpload(cmd);
     });
@@ -499,6 +499,11 @@ void Renderer::SetupRenderGraph()
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Max.Texture", *m_Graph, hizMaxVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, m_BRDFLut);
+
+    ImGui::Begin("Debug");
+    if (ImGui::Button("Dump memory stats"))
+        Device::DumpMemoryStats("./MemoryStats.json");
+    ImGui::End();
     
     //SetupRenderSlimePasses();
 }
@@ -613,9 +618,9 @@ void Renderer::BeginFrame()
     
     m_CurrentFrameContext->DeletionQueue.Flush();
 
-    CommandBuffer& cmd = GetFrameContext().Cmd;
-    cmd.Reset();
-    cmd.Begin();
+    CommandBuffer cmd = GetFrameContext().Cmd;
+    Device::ResetCommandBuffer(cmd);
+    Device::BeginCommandBuffer(cmd);
 
     RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
         .MemoryDependencyInfo = MemoryDependencyInfo{
@@ -650,7 +655,7 @@ void Renderer::EndFrame()
 {
     ImGuiUI::EndFrame(GetFrameContext().Cmd, GetImGuiUIRenderingInfo());
 
-    CommandBuffer& cmd = GetFrameContext().Cmd;
+    CommandBuffer cmd = GetFrameContext().Cmd;
     RenderCommand::PrepareSwapchainPresent(cmd, m_Swapchain, m_SwapchainImageIndex);
     
     u32 frameNumber = GetFrameContext().FrameNumber;
@@ -659,15 +664,14 @@ void Renderer::EndFrame()
     TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Device::GetProfilerCommandBuffer(ProfilerContext::Get()))
 
     m_ResourceUploader.SubmitUpload(cmd);
-    
-    cmd.End();
 
-    cmd.Submit(QueueKind::Graphics,
-        BufferSubmitSyncInfo{
-            .WaitStages = {PipelineStage::ColorOutput},
-            .WaitSemaphores = {sync.PresentSemaphore},
-            .SignalSemaphores = {sync.RenderSemaphore},
-            .Fence = sync.RenderFence});
+    Device::EndCommandBuffer(cmd);
+    
+    Device::SubmitCommandBuffer(cmd, QueueKind::Graphics, BufferSubmitSyncInfo{
+        .WaitStages = {PipelineStage::ColorOutput},
+        .WaitSemaphores = {sync.PresentSemaphore},
+        .SignalSemaphores = {sync.RenderSemaphore},
+        .Fence = sync.RenderFence});
     
     bool isFramePresentSuccessful = Device::Present(m_Swapchain, QueueKind::Presentation,
         frameNumber, m_SwapchainImageIndex); 
@@ -721,9 +725,9 @@ void Renderer::InitRenderingStructures()
         m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
     }
 
-    std::array<CommandBuffer*, BUFFERED_FRAMES> cmds;
+    std::array<CommandBuffer, BUFFERED_FRAMES> cmds;
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        cmds[i] = &m_FrameContexts[i].Cmd;
+        cmds[i] = m_FrameContexts[i].Cmd;
     ProfilerContext::Get()->Init(cmds);
 
     m_CurrentFrameContext = &m_FrameContexts.front();

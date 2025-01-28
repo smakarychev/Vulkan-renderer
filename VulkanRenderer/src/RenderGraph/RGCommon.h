@@ -4,7 +4,6 @@
 #include "Rendering/Shader/Shader.h"
 
 class Camera;
-class CommandBuffer;
 
 namespace RG
 {

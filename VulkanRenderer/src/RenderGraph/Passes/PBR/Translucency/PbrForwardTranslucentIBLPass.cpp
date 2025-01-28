@@ -60,7 +60,7 @@ RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(std::string_view name, 
                         {
                             iblData = RgUtils::readIBLData(info.IBL, setupGraph, Pixel);
                         },
-                        .DrawBind = [=](const CommandBuffer& cmd, const Resources& resources,
+                        .DrawBind = [=](CommandBuffer cmd, const Resources& resources,
                             const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                         {
                             const Shader& shader = ShaderCache::Register(std::format("{}.Draw", name),

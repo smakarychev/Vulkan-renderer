@@ -9,10 +9,10 @@ ProfilerContext* ProfilerContext::Get()
     return &profilerContext;
 }
 
-void ProfilerContext::Init(const std::array<CommandBuffer*, BUFFERED_FRAMES>& cmds)
+void ProfilerContext::Init(const std::array<CommandBuffer, BUFFERED_FRAMES>& cmds)
 {
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        m_GraphicsContexts[i] = Device::CreateTracyGraphicsContext(*cmds[i]);
+        m_GraphicsContexts[i] = Device::CreateTracyGraphicsContext(cmds[i]);
     m_GraphicsCommandBuffers = cmds;
 }
 

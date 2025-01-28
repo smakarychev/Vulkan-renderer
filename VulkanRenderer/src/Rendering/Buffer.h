@@ -7,7 +7,6 @@
 #include "core.h"
 
 class DeletionQueue;
-class CommandBuffer;
 
 class Buffer;
 

@@ -12,7 +12,6 @@
 #include "utils/hash.h"
 
 class DeletionQueue;
-class CommandBuffer;
 
 struct PushConstantDescription
 {

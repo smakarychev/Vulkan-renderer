@@ -4,19 +4,19 @@
 #include <glm/vec2.hpp>
 #include <imgui/imgui.h>
 
+#include "Rendering/CommandBuffer.h"
 #include "Rendering/RenderingInfo.h"  
 #include "Rendering/Image/ImageTraits.h"
 #include "Rendering/Image/Sampler.h"
 
 struct ImageSubresource;
-class CommandBuffer;
 
 class ImGuiUI
 {
     FRIEND_INTERNAL
 public:
     static void BeginFrame(u32 frameNumber);
-    static void EndFrame(const CommandBuffer& cmd, RenderingInfo renderingInfo);
+    static void EndFrame(CommandBuffer cmd, RenderingInfo renderingInfo);
 
     static void Texture(const ImageSubresource& texture, Sampler sampler, ImageLayout layout, const glm::uvec2& size);
 private:

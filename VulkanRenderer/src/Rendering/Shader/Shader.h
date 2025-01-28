@@ -93,14 +93,14 @@ public:
     ShaderDescriptorSet() = default;
     ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo);
     
-    void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
+    void BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
         const;
-    void BindGraphics(const CommandBuffer& cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
+    void BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
         const std::vector<u32>& dynamicOffsets) const;
 
-    void BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
+    void BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
         const;
-    void BindCompute(const CommandBuffer& cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
+    void BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
                      const std::vector<u32>& dynamicOffsets) const;
 
     void SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex);
