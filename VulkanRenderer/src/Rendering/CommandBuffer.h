@@ -5,7 +5,6 @@
 #include "SynchronizationTraits.h"
 
 class DeletionQueue;
-class QueueInfo;
 struct SwapchainFrameSync;
 
 enum class CommandBufferKind {Primary, Secondary};

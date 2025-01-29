@@ -22,63 +22,6 @@
 class ProfilerContext;
 class ShaderPipeline;
 
-class QueueInfo
-{
-    FRIEND_INTERNAL
-public:
-    // technically any family index is possible;
-    // practically GPUs have only a few
-    static constexpr u32 UNSET_FAMILY = std::numeric_limits<u32>::max();
-    u32 Family{UNSET_FAMILY};
-private:
-    ResourceHandleType<QueueInfo> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<QueueInfo> m_ResourceHandle{};
-};
-
-struct DeviceQueues
-{
-public:
-    bool IsComplete() const
-    {
-        return
-            Graphics.Family != QueueInfo::UNSET_FAMILY &&
-            Presentation.Family != QueueInfo::UNSET_FAMILY &&
-            Compute.Family != QueueInfo::UNSET_FAMILY;
-    }
-    std::vector<u32> AsFamilySet() const
-    {
-        std::vector<u32> familySet{Graphics.Family};
-        if (Presentation.Family != Graphics.Family)
-            familySet.push_back(Presentation.Family);
-        if (Compute.Family != Graphics.Family && Compute.Family != Presentation.Family)
-            familySet.push_back(Compute.Family);
-
-        return familySet;
-    }
-    QueueInfo GetQueueByKind(QueueKind queueKind) const
-    {
-        switch (queueKind)
-        {
-        case QueueKind::Graphics:       return Graphics;
-        case QueueKind::Presentation:   return Presentation;
-        case QueueKind::Compute:        return Compute;
-        default:
-            ASSERT(false, "Unrecognized queue kind")
-            break;
-        }
-        std::unreachable();
-    }
-    u32 GetFamilyByKind(QueueKind queueKind) const
-    {
-        return GetQueueByKind(queueKind).Family;
-    }
-public:
-    QueueInfo Graphics;
-    QueueInfo Presentation;
-    QueueInfo Compute;
-};
-
 struct DeviceCreateInfo
 {
     std::string_view AppName;
@@ -173,11 +116,6 @@ private:
         using ObjectType = CommandBufferTag;
         VkCommandBuffer CommandBuffer{VK_NULL_HANDLE};
         CommandBufferKind Kind{CommandBufferKind::Primary};
-    };
-    struct QueueResource
-    {
-        using ObjectType = QueueInfo;
-        VkQueue Queue{VK_NULL_HANDLE};
     };
     struct DescriptorSetLayoutResource
     {
@@ -308,7 +246,6 @@ private:
     ResourceContainerType<SamplerResource> m_Samplers;
     ResourceContainerType<CommandPoolResource> m_CommandPools;
     ResourceContainerType<CommandBufferResource> m_CommandBuffers;
-    ResourceContainerType<QueueResource> m_Queues;
     ResourceContainerType<DescriptorSetLayoutResource> m_DescriptorLayouts;
     ResourceContainerType<DescriptorSetResource> m_DescriptorSets;
     ResourceContainerType<DescriptorAllocatorResource> m_DescriptorAllocators;
@@ -355,8 +292,6 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_CommandPools, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, CommandBufferResource>)
         return AddToResourceList(m_CommandBuffers, std::forward<Resource>(resource));
-    else if constexpr(std::is_same_v<Decayed, QueueResource>)
-        return AddToResourceList(m_Queues, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, DescriptorSetLayoutResource>)
         return AddToResourceList(m_DescriptorLayouts, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, DescriptorSetResource>)
@@ -411,8 +346,6 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_CommandPools.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, CommandBufferTag>)
         m_CommandBuffers.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, QueueInfo>)
-        m_Queues.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayoutTag>)
         m_DescriptorLayouts.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, DescriptorSetTag>)
@@ -470,8 +403,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_CommandPools[type];
     else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
         return m_CommandBuffers[type];
-    else if constexpr(std::is_same_v<Decayed, QueueInfo>)
-        return m_Queues[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         return m_DescriptorLayouts[type];
     else if constexpr(std::is_same_v<Decayed, DescriptorSet>)
@@ -524,7 +455,6 @@ private:
     std::vector<ResourceHandleType<Image>> m_Images;
     std::vector<ResourceHandleType<Sampler>> m_Samplers;
     std::vector<CommandPool> m_CommandPools;
-    std::vector<ResourceHandleType<QueueInfo>> m_Queues;
     std::vector<DescriptorsLayout> m_DescriptorLayouts;
     std::vector<DescriptorAllocator> m_DescriptorAllocators;
     std::vector<DescriptorArenaAllocator> m_DescriptorArenaAllocators;
@@ -559,8 +489,6 @@ void DeletionQueue::Enqueue(Type& type)
         m_Samplers.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
         m_CommandPools.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, QueueInfo>)
-        m_Queues.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         m_DescriptorLayouts.push_back(type);
     else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
@@ -597,8 +525,6 @@ class Device
 {
     friend class RenderCommand;
 public:
-    static void Destroy(ResourceHandleType<QueueInfo> queue);
-
     static Swapchain CreateSwapchain(SwapchainCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Swapchain swapchain);
     static u32 AcquireNextImage(Swapchain swapchain, u32 frameNumber);

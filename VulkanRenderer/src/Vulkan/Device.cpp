@@ -720,9 +720,6 @@ void DeletionQueue::Flush()
     for (auto handle : m_SplitBarriers)
         Device::Destroy(handle);
     
-    for (auto handle : m_Queues)
-        Device::Destroy(handle);
-    
     for (auto handle : m_Swapchains)
         Device::Destroy(handle);
     
@@ -731,7 +728,6 @@ void DeletionQueue::Flush()
     m_Images.clear();
     m_Samplers.clear();
     m_CommandPools.clear();
-    m_Queues.clear();
     m_DescriptorLayouts.clear();
     m_DescriptorAllocators.clear();
     m_DescriptorArenaAllocators.clear();
@@ -811,8 +807,59 @@ void DeviceResources::DestroyDescriptorSetsOfAllocator(DescriptorAllocator alloc
     m_DescriptorAllocatorToSetsMap[allocator.m_Id].clear();
 }
 
+struct QueueInfo
+{
+    /* technically any family index is possible;
+     * practically GPUs have only a few*/
+    static constexpr u32 UNSET_FAMILY = std::numeric_limits<u32>::max();
+    VkQueue Queue{VK_NULL_HANDLE};
+    u32 Family{UNSET_FAMILY};
+};
+
 struct Device::State
 {
+    struct DeviceQueues
+    {
+        bool IsComplete() const
+        {
+            return
+                Graphics.Family != QueueInfo::UNSET_FAMILY &&
+                Presentation.Family != QueueInfo::UNSET_FAMILY &&
+                Compute.Family != QueueInfo::UNSET_FAMILY;
+        }
+        std::vector<u32> AsFamilySet() const
+        {
+            std::vector<u32> familySet{Graphics.Family};
+            if (Presentation.Family != Graphics.Family)
+                familySet.push_back(Presentation.Family);
+            if (Compute.Family != Graphics.Family && Compute.Family != Presentation.Family)
+                familySet.push_back(Compute.Family);
+
+            return familySet;
+        }
+        QueueInfo GetQueueByKind(QueueKind queueKind) const
+        {
+            switch (queueKind)
+            {
+            case QueueKind::Graphics:       return Graphics;
+            case QueueKind::Presentation:   return Presentation;
+            case QueueKind::Compute:        return Compute;
+            default:
+                ASSERT(false, "Unrecognized queue kind")
+                break;
+            }
+            std::unreachable();
+        }
+        u32 GetFamilyByKind(QueueKind queueKind) const
+        {
+            return GetQueueByKind(queueKind).Family;
+        }
+    public:
+        QueueInfo Graphics;
+        QueueInfo Presentation;
+        QueueInfo Compute;
+    };
+    
     VkDevice Device{VK_NULL_HANDLE};
     DeviceResources Resources;
     VmaAllocator Allocator;
@@ -837,11 +884,6 @@ struct Device::State
 };
 
 Device::State Device::s_State = State{};
-
-void Device::Destroy(ResourceHandleType<QueueInfo> queue)
-{
-    Resources().RemoveResource(queue);
-}
 
 Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
@@ -1064,7 +1106,7 @@ bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, 
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = &Resources()[frameSync.RenderSemaphore].Semaphore;
 
-    VkResult result = vkQueuePresentKHR(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, &presentInfo);
+    VkResult result = vkQueuePresentKHR(s_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
     
     ASSERT(result == VK_SUCCESS || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR,
         "Failed to present image")
@@ -1184,7 +1226,7 @@ void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence f
     submitInfo.commandBufferInfoCount = 1;
     submitInfo.pCommandBufferInfos = &commandBufferSubmitInfo;
     
-    DeviceCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
+    DeviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
         fence.HasValue() ? Resources()[fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffer");
 }
@@ -1218,7 +1260,7 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
     submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
-    DeviceCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
+    DeviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
         submitSync.Fence.HasValue() ? Resources()[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");
 }
@@ -1256,7 +1298,7 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
     submitInfo.waitSemaphoreInfoCount = (u32)waitSemaphoreSubmitInfos.size();
     submitInfo.pWaitSemaphoreInfos = waitSemaphoreSubmitInfos.data();
 
-    DeviceCheck(vkQueueSubmit2(Resources()[s_State.Queues.GetQueueByKind(queueKind)].Queue, 1, &submitInfo,
+    DeviceCheck(vkQueueSubmit2(s_State.Queues.GetQueueByKind(queueKind).Queue, 1, &submitInfo,
         submitSync.Fence.HasValue() ? Resources()[submitSync.Fence].Fence : VK_NULL_HANDLE),
         "Error while submitting command buffers");    
 }
@@ -2940,7 +2982,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(gpu, &queueFamilyCount, queueFamilies.data());
     
-        DeviceQueues queues = {};
+        State::DeviceQueues queues = {};
     
         for (u32 i = 0; i < queueFamilyCount; i++)
         {
@@ -3061,7 +3103,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
         };
         
         
-        DeviceQueues deviceQueues = findQueueFamilies(gpu, createInfo.AsyncCompute);
+        State::DeviceQueues deviceQueues = findQueueFamilies(gpu, createInfo.AsyncCompute);
         if (!deviceQueues.IsComplete())
             return false;
 
@@ -3201,20 +3243,16 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
 
 void Device::RetrieveDeviceQueues()
 {
-    s_State.Queues.Graphics.m_ResourceHandle = Resources().AddResource(DeviceResources::QueueResource{});
-    s_State.Queues.Presentation.m_ResourceHandle = Resources().AddResource(DeviceResources::QueueResource{});
-    s_State.Queues.Compute.m_ResourceHandle = Resources().AddResource(DeviceResources::QueueResource{});
+    s_State.Queues.Graphics.Queue = {};
+    s_State.Queues.Presentation.Queue = {};
+    s_State.Queues.Compute.Queue = {};
 
-    DeletionQueue().Enqueue(s_State.Queues.Graphics);
-    DeletionQueue().Enqueue(s_State.Queues.Presentation);
-    DeletionQueue().Enqueue(s_State.Queues.Compute);
-    
     vkGetDeviceQueue(s_State.Device, s_State.Queues.Graphics.Family, 0,
-        &Resources()[s_State.Queues.Graphics].Queue);
+        &s_State.Queues.Graphics.Queue);
     vkGetDeviceQueue(s_State.Device, s_State.Queues.Presentation.Family, 0,
-        &Resources()[s_State.Queues.Presentation].Queue);
+        &s_State.Queues.Presentation.Queue);
     vkGetDeviceQueue(s_State.Device, s_State.Queues.Compute.Family, 0,
-        &Resources()[s_State.Queues.Compute].Queue);
+        &s_State.Queues.Compute.Queue);
 }
 
 namespace
@@ -3463,7 +3501,7 @@ void Device::InitImGuiUI()
     imguiInitInfo.PhysicalDevice = s_State.GPU;
     imguiInitInfo.Device = s_State.Device;
     imguiInitInfo.QueueFamily = s_State.Queues.Graphics.Family;
-    imguiInitInfo.Queue = Resources()[s_State.Queues.Graphics].Queue;
+    imguiInitInfo.Queue = s_State.Queues.Graphics.Queue;
     imguiInitInfo.DescriptorPool = s_State.ImGuiPool;
     imguiInitInfo.MinImageCount = 3;
     imguiInitInfo.ImageCount = 3;
@@ -3495,7 +3533,7 @@ void Device::ShutdownImGuiUI()
 TracyVkCtx Device::CreateTracyGraphicsContext(CommandBuffer cmd)
 {
     TracyVkCtx context = TracyVkContext(s_State.GPU, s_State.Device,
-        Resources()[s_State.Queues.Graphics].Queue, Resources()[cmd].CommandBuffer)
+        s_State.Queues.Graphics.Queue, Resources()[cmd].CommandBuffer)
     return context;
 }
 

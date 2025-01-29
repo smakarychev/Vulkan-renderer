@@ -7,10 +7,7 @@
 #include "Synchronization.h"
 #include "types.h"
 
-class QueueInfo;
 class ShaderPipelineTemplate;
-struct DeviceQueues;
-
 struct GLFWwindow;
 
 struct SwapchainFrameSync
