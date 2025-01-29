@@ -103,7 +103,7 @@ private:
     };
     struct SamplerResource
     {
-        using ObjectType = Sampler;
+        using ObjectType = SamplerTag;
         VkSampler Sampler{VK_NULL_HANDLE};
     };
     struct CommandPoolResource
@@ -340,7 +340,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Buffers.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, Image>)
         m_Images.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, Sampler>)
+    else if constexpr(std::is_same_v<Decayed, SamplerTag>)
         m_Samplers.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, CommandPoolTag>)
         m_CommandPools.Remove(handle);
@@ -398,7 +398,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, Image>)
         return m_Images[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, Sampler>)
-        return m_Samplers[type.Handle()];
+        return m_Samplers[type];
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
         return m_CommandPools[type];
     else if constexpr(std::is_same_v<Decayed, CommandBuffer>)
@@ -453,7 +453,7 @@ private:
     std::vector<Swapchain> m_Swapchains;
     std::vector<ResourceHandleType<Buffer>> m_Buffers;
     std::vector<ResourceHandleType<Image>> m_Images;
-    std::vector<ResourceHandleType<Sampler>> m_Samplers;
+    std::vector<Sampler> m_Samplers;
     std::vector<CommandPool> m_CommandPools;
     std::vector<DescriptorsLayout> m_DescriptorLayouts;
     std::vector<DescriptorAllocator> m_DescriptorAllocators;
@@ -486,7 +486,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, Image>)
         m_Images.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, Sampler>)
-        m_Samplers.push_back(type.Handle());
+        m_Samplers.push_back(type);
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
         m_CommandPools.push_back(type);
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
@@ -566,7 +566,7 @@ public:
     static void CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout currentLayout);
 
     static Sampler CreateSampler(SamplerCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<Sampler> sampler);
+    static void Destroy(Sampler sampler);
 
     static RenderingAttachment CreateRenderingAttachment(RenderingAttachmentCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());

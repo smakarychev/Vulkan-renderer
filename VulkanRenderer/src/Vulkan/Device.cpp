@@ -1735,9 +1735,9 @@ void Device::CreateViews(const ImageSubresource& image,
 Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
 {
     const SamplerCache::CacheKey key = SamplerCache::CreateCacheKey(createInfo);
-    Sampler* cached = SamplerCache::Find(key);
-    if (cached)
-        return *cached;
+    Sampler cached = SamplerCache::Find(key);
+    if (cached.HasValue())
+        return cached;
     
     VkSamplerCreateInfo samplerCreateInfo = {};
     samplerCreateInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1770,8 +1770,7 @@ Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
     DeviceCheck(vkCreateSampler(s_State.Device, &samplerCreateInfo, nullptr, &samplerResource.Sampler),
         "Failed to create depth pyramid sampler");
 
-    Sampler sampler = {};
-    sampler.m_ResourceHandle = Resources().AddResource(samplerResource);
+    Sampler sampler = Resources().AddResource(samplerResource);
     DeletionQueue().Enqueue(sampler);
 
     SamplerCache::Emplace(key, sampler);
@@ -1779,7 +1778,7 @@ Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
     return sampler;
 }
 
-void Device::Destroy(ResourceHandleType<Sampler> sampler)
+void Device::Destroy(Sampler sampler)
 {
     vkDestroySampler(s_State.Device, Resources().m_Samplers[sampler.m_Id].Sampler, nullptr);
     Resources().RemoveResource(sampler);

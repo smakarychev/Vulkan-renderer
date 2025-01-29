@@ -19,7 +19,6 @@ namespace assetLib
 
 class DescriptorArenaAllocators;
 class ResourceUploader;
-class Sampler;
 class Image;
 class Buffer;
 class DescriptorPool;

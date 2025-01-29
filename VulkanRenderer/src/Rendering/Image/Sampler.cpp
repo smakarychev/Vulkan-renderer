@@ -1,12 +1,5 @@
 #include "Sampler.h"
 
-#include "Vulkan/Device.h"
-
-void Sampler::Destroy(const Sampler& sampler)
-{
-    Device::Destroy(sampler.Handle());
-}
-
 SamplerCache::CacheKey SamplerCache::CreateCacheKey(const SamplerCreateInfo& createInfo)
 {
     CacheKey key = {};
@@ -23,12 +16,12 @@ SamplerCache::CacheKey SamplerCache::CreateCacheKey(const SamplerCreateInfo& cre
     return key;
 }
 
-Sampler* SamplerCache::Find(const CacheKey& key)
+Sampler SamplerCache::Find(const CacheKey& key)
 {
     if (s_SamplerCache.contains(key))
-        return &s_SamplerCache.at(key);
+        return s_SamplerCache.at(key);
 
-    return nullptr;
+    return {};
 }
 
 void SamplerCache::Emplace(const CacheKey& key, Sampler sampler)

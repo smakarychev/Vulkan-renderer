@@ -1,7 +1,7 @@
 #pragma once
 
-#include "ImageTraits.h"
 #include "types.h"
+#include "ImageTraits.h"
 #include "Rendering/ResourceHandle.h"
 
 #include <optional>
@@ -22,18 +22,8 @@ struct SamplerCreateInfo
     bool WithAnisotropy{true};
 };
 
-class Sampler
-{
-    FRIEND_INTERNAL
-    friend class Image;
-    friend class SamplerCache;
-public:
-    static void Destroy(const Sampler& sampler);
-private:
-    ResourceHandleType<Sampler> Handle() const { return m_ResourceHandle; }
-private:
-    ResourceHandleType<Sampler> m_ResourceHandle{};
-};
+struct SamplerTag{};
+using Sampler = ResourceHandleType<SamplerTag>;
 
 class SamplerCache
 {
@@ -56,7 +46,7 @@ public:
     };
 public:
     static CacheKey CreateCacheKey(const SamplerCreateInfo& createInfo);
-    static Sampler* Find(const CacheKey& key);
+    static Sampler Find(const CacheKey& key);
     static void Emplace(const CacheKey& key, Sampler sampler);
 private:
     struct SamplerKeyHash
