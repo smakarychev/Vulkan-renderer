@@ -43,7 +43,6 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
         m_MinMaxDepth[i] = Device::CreateBuffer({
             .SizeBytes = sizeof(Passes::HiZBlit::MinMaxDepth),
             .Usage = Ordinary | Storage | Uniform | Readback});
-        Device::DeletionQueue().Enqueue(m_MinMaxDepth[i]);
     }
     
     m_MipmapViewHandles = m_HiZs[0].GetAdditionalViewHandles();

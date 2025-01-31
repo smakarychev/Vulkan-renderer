@@ -60,41 +60,41 @@ namespace RG::RgUtils
         const DrawAttributeBuffers& attributeBuffers)
     {
         auto&& [positions, normals, tangents, uvs] = attributeBuffers;
-        if constexpr (requires { bindGroup.SetPositions(resources.GetBuffer(positions).BindingInfo()); })
-            bindGroup.SetPositions(resources.GetBuffer(positions).BindingInfo());
+        if constexpr (requires { bindGroup.SetPositions({.Buffer = resources.GetBuffer(positions)}); })
+            bindGroup.SetPositions({.Buffer = resources.GetBuffer(positions)});
 
-        if constexpr (requires { bindGroup.SetNormals(resources.GetBuffer(normals).BindingInfo()); })
-            bindGroup.SetNormals(resources.GetBuffer(normals).BindingInfo());
+        if constexpr (requires { bindGroup.SetNormals({.Buffer = resources.GetBuffer(normals)}); })
+            bindGroup.SetNormals({.Buffer = resources.GetBuffer(normals)});
 
-        if constexpr (requires { bindGroup.SetTangents(resources.GetBuffer(tangents).BindingInfo()); })
-            bindGroup.SetTangents(resources.GetBuffer(tangents).BindingInfo());
+        if constexpr (requires { bindGroup.SetTangents({.Buffer = resources.GetBuffer(tangents)}); })
+            bindGroup.SetTangents({.Buffer = resources.GetBuffer(tangents)});
 
-        if constexpr (requires { bindGroup.SetUv(resources.GetBuffer(uvs).BindingInfo()); })
-            bindGroup.SetUv(resources.GetBuffer(uvs).BindingInfo());
+        if constexpr (requires { bindGroup.SetUv({.Buffer = resources.GetBuffer(uvs)}); })
+            bindGroup.SetUv({.Buffer = resources.GetBuffer(uvs)});
     }
 
     template <typename BindGroup>
     void updateSceneLightBindings(BindGroup& bindGroup, const Resources& resources, const SceneLightResources& lights)
     {
-        const Buffer& directionalLight = resources.GetBuffer(lights.DirectionalLight);
-        const Buffer& pointLights = resources.GetBuffer(lights.PointLights);
-        const Buffer& lightsInfo = resources.GetBuffer(lights.LightsInfo);
+        Buffer directionalLight = resources.GetBuffer(lights.DirectionalLight);
+        Buffer pointLights = resources.GetBuffer(lights.PointLights);
+        Buffer lightsInfo = resources.GetBuffer(lights.LightsInfo);
 
-        bindGroup.SetDirectionalLight(directionalLight.BindingInfo());
-        bindGroup.SetPointLights(pointLights.BindingInfo());
-        bindGroup.SetLightsInfo(lightsInfo.BindingInfo());
+        bindGroup.SetDirectionalLight({.Buffer = directionalLight});
+        bindGroup.SetPointLights({.Buffer = pointLights});
+        bindGroup.SetLightsInfo({.Buffer = lightsInfo});
     }
 
     template <typename BindGroup>
     void updateIBLBindings(BindGroup& bindGroup, const Resources& resources, const IBLData& iblData)
     {
-        const Buffer& irradianceSh = resources.GetBuffer(iblData.IrradianceSH);
+        Buffer irradianceSh = resources.GetBuffer(iblData.IrradianceSH);
         const Texture& prefilter = resources.GetTexture(iblData.PrefilterEnvironment);
         const Texture& brdf = resources.GetTexture(iblData.BRDF);
 
         // todo: fix me in SHADERS!
-        if constexpr (requires { bindGroup.SetIrradianceSH(irradianceSh.BindingInfo()); })
-            bindGroup.SetIrradianceSH(irradianceSh.BindingInfo());
+        if constexpr (requires { bindGroup.SetIrradianceSH({.Buffer = irradianceSh}); })
+            bindGroup.SetIrradianceSH({.Buffer = irradianceSh});
         bindGroup.SetPrefilterMap(prefilter.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
         bindGroup.SetBrdf(brdf.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
     }
@@ -111,26 +111,26 @@ namespace RG::RgUtils
     void updateShadowBindings(BindGroup& bindGroup, const Resources& resources, const DirectionalShadowData& shadowData)
     {
         const Texture& shadow = resources.GetTexture(shadowData.ShadowMap);
-        const Buffer& shadowBuffer = resources.GetBuffer(shadowData.Shadow);
+        Buffer shadowBuffer = resources.GetBuffer(shadowData.Shadow);
 
         bindGroup.SetDirectionalShadowMap(shadow.BindingInfo(
             ImageFilter::Linear,
             shadow.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
 
-        bindGroup.SetDirectionalShadowTransform(shadowBuffer.BindingInfo());
+        bindGroup.SetDirectionalShadowTransform({.Buffer = shadowBuffer});
     }
 
     template <typename BindGroup>
     void updateCSMBindings(BindGroup& bindGroup, const Resources& resources, const CSMData& csmData)
     {
         const Texture& shadow = resources.GetTexture(csmData.ShadowMap);
-        const Buffer& csm = resources.GetBuffer(csmData.CSM);
+        Buffer csm = resources.GetBuffer(csmData.CSM);
 
         bindGroup.SetCsm(shadow.BindingInfo(
             ImageFilter::Linear,
             shadow.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
-        bindGroup.SetCsmData(csm.BindingInfo());
+        bindGroup.SetCsmData({.Buffer = csm});
     }
 }

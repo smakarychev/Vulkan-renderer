@@ -48,9 +48,9 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
             
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereSkyViewLutShaderBindGroup bindGroup(shader);
-            bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-            bindGroup.SetDirectionalLight(resources.GetBuffer(passData.DirectionalLight).BindingInfo());
-            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
+            bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.DirectionalLight)});
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
             bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                     ImageFilter::Linear, ImageLayout::Readonly));
             bindGroup.SetMultiscatteringLut(resources.GetTexture(passData.MultiscatteringLut).BindingInfo(

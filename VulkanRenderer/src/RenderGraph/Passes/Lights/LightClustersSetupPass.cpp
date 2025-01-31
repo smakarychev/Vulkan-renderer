@@ -35,8 +35,8 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
             const Shader& shader = resources.GetGraph()->GetShader();
             LightClustersSetupShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
-            bindGroup.SetClusterVisibility(resources.GetBuffer(passData.ClusterVisibility).BindingInfo());
+            bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
+            bindGroup.SetClusterVisibility({.Buffer = resources.GetBuffer(passData.ClusterVisibility)});
 
             struct PushConstant
             {

@@ -6,7 +6,7 @@
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    const Texture& cubemap, const Buffer& irradianceSH, bool realTime)
+    const Texture& cubemap, Buffer irradianceSH, bool realTime)
 {
     return addToGraph(name, renderGraph,
         renderGraph.AddExternal(std::format("{}.CubemapTexture", name), cubemap),
@@ -14,7 +14,7 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
 }
 
 RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
-    const Buffer& irradianceSH, bool realTime)
+    Buffer irradianceSH, bool realTime)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -40,13 +40,13 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
             CPU_PROFILE_FRAME("DiffuseIrradianceSH")
             GPU_PROFILE_FRAME("DiffuseIrradianceSH")
 
-            const Buffer& diffuseIrradiance = resources.GetBuffer(passData.DiffuseIrradiance);
+            Buffer diffuseIrradiance = resources.GetBuffer(passData.DiffuseIrradiance);
             const Texture& cubemapTexture = resources.GetTexture(passData.CubemapTexture);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             DiffuseIrradianceShShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetSh(diffuseIrradiance.BindingInfo());
+            bindGroup.SetSh({.Buffer = diffuseIrradiance});
             bindGroup.SetEnv(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
 
             const u32 realTimeMipmapsCount = (u32)std::log(16.0);

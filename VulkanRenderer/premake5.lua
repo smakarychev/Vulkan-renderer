@@ -51,7 +51,7 @@ project "VulkanRenderer"
     prebuildcommands {
         "\
         if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
-        msbuild %{wks.location}%{wks.name}.sln /t:Tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
+        msbuild %{wks.location}tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
         %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
         :: this is unholy \
         cd %{wks.location} \

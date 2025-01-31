@@ -40,7 +40,7 @@ namespace
                 const Shader& shader = resources.GetGraph()->GetShader();
                 LightClustersCompactShaderBindGroup bindGroup(shader);
                 bindGroup.SetDepth(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-                bindGroup.SetClusterVisibility(resources.GetBuffer(passData.ClusterVisibility).BindingInfo());
+                bindGroup.SetClusterVisibility({.Buffer = resources.GetBuffer(passData.ClusterVisibility)});
 
                 struct PushConstant
                 {
@@ -99,10 +99,10 @@ namespace
                 const Shader& shader = resources.GetGraph()->GetShader();
                 LightClustersCompactShaderBindGroup bindGroup(shader);
                 
-                bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
-                bindGroup.SetClusterVisibility(resources.GetBuffer(passData.ClusterVisibility).BindingInfo());
-                bindGroup.SetActiveClusters(resources.GetBuffer(passData.ActiveClusters).BindingInfo());
-                bindGroup.SetCount(resources.GetBuffer(passData.ActiveClustersCount).BindingInfo());
+                bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
+                bindGroup.SetClusterVisibility({.Buffer = resources.GetBuffer(passData.ClusterVisibility)});
+                bindGroup.SetActiveClusters({.Buffer = resources.GetBuffer(passData.ActiveClusters)});
+                bindGroup.SetCount({.Buffer = resources.GetBuffer(passData.ActiveClustersCount)});
 
                 auto& cmd = frameContext.Cmd;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
@@ -143,8 +143,8 @@ namespace
                 const Shader& shader = resources.GetGraph()->GetShader();
                 LightClustersCompactShaderBindGroup bindGroup(shader);
                 
-                bindGroup.SetCount(resources.GetBuffer(passData.ActiveClustersCount).BindingInfo());
-                bindGroup.SetIndirectDispatch(resources.GetBuffer(passData.DispatchIndirect).BindingInfo());
+                bindGroup.SetCount({.Buffer = resources.GetBuffer(passData.ActiveClustersCount)});
+                bindGroup.SetIndirectDispatch({.Buffer = resources.GetBuffer(passData.DispatchIndirect)});
 
                 auto& cmd = frameContext.Cmd;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

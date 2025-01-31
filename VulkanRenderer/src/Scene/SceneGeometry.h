@@ -31,10 +31,10 @@ public:
     const ModelCollection::RenderObjectIndices& GetRenderObjectIndices() const { return m_RenderObjectIndices; }
 
     const AttributeBuffers& GetAttributeBuffers() const { return m_AttributeBuffers; }
-    const Buffer& GetCommandsBuffer() const { return m_Commands; }
-    const Buffer& GetMaterialsBuffer() const { return m_Materials; }
-    const Buffer& GetRenderObjectsBuffer() const { return m_RenderObjects; }
-    const Buffer& GetMeshletsBuffer() const { return m_Meshlets; }
+    Buffer GetCommandsBuffer() const { return m_Commands; }
+    Buffer GetMaterialsBuffer() const { return m_Materials; }
+    Buffer GetRenderObjectsBuffer() const { return m_RenderObjects; }
+    Buffer GetMeshletsBuffer() const { return m_Meshlets; }
 
     u32 GetCommandCount() const { return m_CommandCount; }
     u32 GetMeshletCount() const { return m_CommandCount; }

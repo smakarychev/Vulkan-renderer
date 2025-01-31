@@ -76,7 +76,8 @@ namespace RG::RgUtils
 
             multiviewResource.CompactCommands.push_back(graph.CreateResource(
                 std::format("{}.CompactCommands.{}", baseName, i),
-                GraphBufferDescription{.SizeBytes = staticV.Geometry->GetCommandsBuffer().GetSizeBytes()}));
+                GraphBufferDescription{
+                    .SizeBytes = Device::GetBufferSizeBytes(staticV.Geometry->GetCommandsBuffer())}));
         }
 
         /* create `geometryCount` additional command and command count buffers for triangle culling */
@@ -85,7 +86,8 @@ namespace RG::RgUtils
             auto* geometry = cullMultiviewData.Geometries()[i];
             multiviewResource.CompactCommands.push_back(graph.CreateResource(
                 std::format("{}.CompactCommands.Combined.{}", baseName, i),
-                GraphBufferDescription{.SizeBytes = geometry->GetCommandsBuffer().GetSizeBytes()}));
+                GraphBufferDescription{
+                    .SizeBytes = Device::GetBufferSizeBytes(geometry->GetCommandsBuffer())}));
         }
 
         return multiviewResource;

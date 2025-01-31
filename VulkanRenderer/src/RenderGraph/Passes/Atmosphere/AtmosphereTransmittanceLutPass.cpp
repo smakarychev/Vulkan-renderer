@@ -43,7 +43,7 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
 
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereTransmittanceLutShaderBindGroup bindGroup(shader);
-            bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
+            bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
             bindGroup.SetLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;

@@ -64,9 +64,9 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
             bindGroup.SetDepth(resources.GetTexture(passData.DepthIn).BindingInfo(
                 ImageFilter::Linear, ImageLayout::DepthReadonly));
 
-        bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-        bindGroup.SetDirectionalLight(resources.GetBuffer(passData.DirectionalLight).BindingInfo());
-        bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+        bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
+        bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.DirectionalLight)});
+        bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
         bindGroup.SetSkyViewLut(resources.GetTexture(passData.SkyViewLut).BindingInfo(
                ImageFilter::Linear, ImageLayout::Readonly));
         if (passData.TransmittanceLut.IsValid())

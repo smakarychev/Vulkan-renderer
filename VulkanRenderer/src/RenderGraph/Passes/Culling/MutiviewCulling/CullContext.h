@@ -10,17 +10,17 @@ class CullViewVisibility
 public:
     CullViewVisibility(const SceneGeometry& geometry);
 
-    const Buffer& Mesh() const { return m_Mesh; }
-    const Buffer& Meshlet() const { return m_Meshlet; }
+    Buffer Mesh() const { return m_Mesh; }
+    Buffer Meshlet() const { return m_Meshlet; }
 
     void NextFrame() { m_FrameNumber = (m_FrameNumber + 1) % BUFFERED_FRAMES; }
-    const Buffer& CompactCount() const { return m_CompactCount[m_FrameNumber]; }
+    Buffer CompactCount() const { return m_CompactCount[m_FrameNumber]; }
     u32 ReadbackCompactCountValue();
     u32 CompactCountValue() const { return m_CompactCountValue; }
 
     const SceneGeometry* Geometry() const { return m_Geometry; }
 private:
-    u32 ReadbackCount(const Buffer& buffer) const;
+    u32 ReadbackCount(Buffer buffer) const;
     u32 PreviousFrame() const { return (m_FrameNumber + BUFFERED_FRAMES - 1) % BUFFERED_FRAMES; }
 private:
     Buffer m_Mesh;
@@ -39,12 +39,12 @@ class CullViewTriangleVisibility
 public:
     CullViewTriangleVisibility(CullViewVisibility* cullViewVisibility);
 
-    const Buffer& Mesh() const { return m_CullViewVisibility->Mesh(); }
-    const Buffer& Meshlet() const { return m_CullViewVisibility->Meshlet(); }
-    const Buffer& Triangle() const { return m_Triangle; }
+    Buffer Mesh() const { return m_CullViewVisibility->Mesh(); }
+    Buffer Meshlet() const { return m_CullViewVisibility->Meshlet(); }
+    Buffer Triangle() const { return m_Triangle; }
 
     void NextFrame() const { m_CullViewVisibility->NextFrame(); }
-    const Buffer& CompactCount() const { return m_CullViewVisibility->CompactCount(); }
+    Buffer CompactCount() const { return m_CullViewVisibility->CompactCount(); }
     u32 ReadbackCompactCountValue() const { return m_CullViewVisibility->ReadbackCompactCountValue(); }
     u32 CompactCountValue() const { return m_CullViewVisibility->CompactCountValue(); }
 

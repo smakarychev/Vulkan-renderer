@@ -16,7 +16,6 @@ struct ImageBlitInfo;
 class Image;
 struct SwapchainFrameSync;
 struct PushConstantDescription;
-class Buffer;
 
 class RenderCommand
 {
@@ -33,16 +32,16 @@ public:
     static void BlitImage(CommandBuffer cmd,
         const ImageBlitInfo& source, const ImageBlitInfo& destination, ImageFilter filter);
     
-    static void CopyBuffer(CommandBuffer cmd, const Buffer& source, const Buffer& destination,
+    static void CopyBuffer(CommandBuffer cmd, Buffer source, Buffer destination,
         const BufferCopyInfo& bufferCopyInfo);
-    static void CopyBufferToImage(CommandBuffer cmd, const Buffer& source, const ImageSubresource& destination);
+    static void CopyBufferToImage(CommandBuffer cmd, Buffer source, const ImageSubresource& destination);
     
-    static void BindVertexBuffer(CommandBuffer cmd, const Buffer& buffer, u64 offset);
+    static void BindVertexBuffer(CommandBuffer cmd, Buffer buffer, u64 offset);
     static void BindVertexBuffers(CommandBuffer cmd, const std::vector<Buffer>& buffers,
         const std::vector<u64>& offsets);
-    static void BindIndexU32Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset);
-    static void BindIndexU16Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset);
-    static void BindIndexU8Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset);
+    static void BindIndexU32Buffer(CommandBuffer cmd, Buffer buffer, u64 offset);
+    static void BindIndexU16Buffer(CommandBuffer cmd, Buffer buffer, u64 offset);
+    static void BindIndexU8Buffer(CommandBuffer cmd, Buffer buffer, u64 offset);
     
     static void BindGraphics(CommandBuffer cmd, Pipeline pipeline);
     static void BindCompute(CommandBuffer cmd, Pipeline pipeline);
@@ -73,14 +72,14 @@ public:
     static void DrawIndexed(CommandBuffer cmd, u32 indexCount);
     static void DrawIndexed(CommandBuffer cmd, u32 indexCount, u32 baseInstance);
 
-    static void DrawIndexedIndirect(CommandBuffer cmd, const Buffer& buffer, u64 offset, u32 count,
+    static void DrawIndexedIndirect(CommandBuffer cmd, Buffer buffer, u64 offset, u32 count,
         u32 stride = sizeof(IndirectDrawCommand));
-    static void DrawIndexedIndirectCount(CommandBuffer cmd, const Buffer& drawBuffer, u64 drawOffset,
-        const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride = sizeof(IndirectDrawCommand));
+    static void DrawIndexedIndirectCount(CommandBuffer cmd, Buffer drawBuffer, u64 drawOffset,
+        Buffer countBuffer, u64 countOffset, u32 maxCount, u32 stride = sizeof(IndirectDrawCommand));
 
     static void Dispatch(CommandBuffer cmd, const glm::uvec3& groupSize);
     static void Dispatch(CommandBuffer cmd, const glm::uvec3& invocations, const glm::uvec3& workGroups);
-    static void DispatchIndirect(CommandBuffer cmd, const Buffer& buffer, u64 offset);
+    static void DispatchIndirect(CommandBuffer cmd, Buffer buffer, u64 offset);
 
     static void PushConstants(CommandBuffer cmd, PipelineLayout pipelineLayout, const void* pushConstants);
     template <typename T>
@@ -95,7 +94,7 @@ public:
     static void WaitOnSplitBarrier(CommandBuffer cmd, SplitBarrier splitBarrier, DependencyInfo dependencyInfo);
     static void ResetSplitBarrier(CommandBuffer cmd, SplitBarrier splitBarrier, DependencyInfo dependencyInfo);
     
-    static void BeginConditionalRendering(CommandBuffer cmd, const Buffer& conditionalBuffer, u64 offset);
+    static void BeginConditionalRendering(CommandBuffer cmd, Buffer conditionalBuffer, u64 offset);
     static void EndConditionalRendering(CommandBuffer cmd);
     
     static void SetViewport(CommandBuffer cmd, const glm::vec2& size);

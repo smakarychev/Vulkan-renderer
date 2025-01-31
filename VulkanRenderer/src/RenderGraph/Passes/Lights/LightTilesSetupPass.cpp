@@ -37,7 +37,7 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
             const Shader& shader = resources.GetGraph()->GetShader();
             LightTilesSetupShaderBindGroup bindGroup(shader);
             
-            bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
+            bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
 
             struct PushConstant
             {

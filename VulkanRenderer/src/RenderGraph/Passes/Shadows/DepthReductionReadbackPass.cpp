@@ -34,7 +34,7 @@ RG::Pass& Passes::DepthReductionReadback::addToGraph(std::string_view name, RG::
 
             passData.MinMaxDepth = graph.Read(minMaxDepth, Readback);
 
-            const Buffer& minMax = Resources{graph}.GetBuffer(passData.MinMaxDepth);
+            Buffer minMax = Resources{graph}.GetBuffer(passData.MinMaxDepth);
             const void* address = Device::MapBuffer(minMax);
             HiZBlit::MinMaxDepth depths = *(const HiZBlit::MinMaxDepth*)address;
             Device::UnmapBuffer(minMax);

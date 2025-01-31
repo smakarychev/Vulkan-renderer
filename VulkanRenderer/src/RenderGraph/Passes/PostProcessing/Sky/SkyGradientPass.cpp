@@ -68,16 +68,16 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
             CPU_PROFILE_FRAME("Sky.Gradient")
             GPU_PROFILE_FRAME("Sky.Gradient")
 
-            const Buffer& camera = resources.GetBuffer(passData.Camera);
-            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings);
+            Buffer camera = resources.GetBuffer(passData.Camera);
+            Buffer settingsBuffer = resources.GetBuffer(passData.Settings);
             const Texture& colorOut = resources.GetTexture(passData.ColorOut);
 
             glm::uvec2 imageSize = {colorOut.Description().Width, colorOut.Description().Height};
 
             const Shader& shader = resources.GetGraph()->GetShader();
             SkyGradientShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera(camera.BindingInfo());
-            bindGroup.SetSettings(settingsBuffer.BindingInfo());
+            bindGroup.SetCamera({.Buffer = camera});
+            bindGroup.SetSettings({.Buffer = settingsBuffer});
             bindGroup.SetOutImage(colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             auto& cmd = frameContext.Cmd;

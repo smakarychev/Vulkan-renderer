@@ -40,7 +40,7 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph&
             AtmosphereSimpleShaderBindGroup bindGroup(shader);
             bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                   ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

@@ -83,7 +83,7 @@ namespace Passes::HiZBlit
                 bindGroup.SetOutImage(hizOut.BindingInfo(
                         passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[0]));
                 if (minMaxDepth)
-                    bindGroup.SetMinMax(resources.GetBuffer(passData.MinMaxDepth).BindingInfo());
+                    bindGroup.SetMinMax({.Buffer = resources.GetBuffer(passData.MinMaxDepth)});
                 
                 glm::uvec2 levels = {width, height};
                 auto& cmd = frameContext.Cmd;

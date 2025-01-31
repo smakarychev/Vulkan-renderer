@@ -33,13 +33,11 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
         .SizeBytes = (u32)ctx.m_Traits.size() * sizeof(Traits),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
         .InitialData = ctx.m_Traits});
-    Device::DeletionQueue().Enqueue(ctx.m_TraitsBuffer);
 
     ctx.m_SlimeBuffer = Device::CreateBuffer({
         .SizeBytes = (u32)ctx.m_Slime.size() * sizeof(Slime),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
         .InitialData = ctx.m_Slime});
-    Device::DeletionQueue().Enqueue(ctx.m_SlimeBuffer);
 
     ctx.m_SlimeMap = Device::CreateImage({
             .Description = ImageDescription{
@@ -173,16 +171,16 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
         {
             CPU_PROFILE_FRAME("Slime.Update");
             GPU_PROFILE_FRAME("Slime.Update");
-            const Buffer& traitsBuffer = resources.GetBuffer(passData.Traits);
-            const Buffer& slimeBuffer = resources.GetBuffer(passData.Slime);
+            Buffer traitsBuffer = resources.GetBuffer(passData.Traits);
+            Buffer slimeBuffer = resources.GetBuffer(passData.Slime);
             const Texture& slimeMap = resources.GetTexture(passData.SlimeMap);
 
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
 
             const Shader& shader = resources.GetGraph()->GetShader();SlimeShaderBindGroup bindGroup(shader);
-            bindGroup.SetTraits(traitsBuffer.BindingInfo());
-            bindGroup.SetSlime(slimeBuffer.BindingInfo());
+            bindGroup.SetTraits({.Buffer = traitsBuffer});
+            bindGroup.SetSlime({.Buffer = slimeBuffer});
             bindGroup.SetSlimeMap(slimeMap.BindingInfo(ImageFilter::Linear, ImageLayout::General));
 
             u32 slimeCount = (u32)moldCtx.GetSlime().size();
@@ -308,13 +306,13 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
             const Texture& diffuseMap = resources.GetTexture(passData.DiffuseMap);
             const Texture& gradientMap = resources.GetTexture(passData.GradientMap);
             
-            const Buffer& gradient = resources.GetBuffer(passData.Gradient);
+            Buffer gradient = resources.GetBuffer(passData.Gradient);
             
             const Shader& shader = resources.GetGraph()->GetShader();
             SlimeShaderBindGroup bindGroup(shader);
             bindGroup.SetDiffuseMap(diffuseMap.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
             bindGroup.SetGradientMap(gradientMap.BindingInfo(ImageFilter::Linear, ImageLayout::General));
-            bindGroup.SetGradientColors(gradient.BindingInfo());
+            bindGroup.SetGradientColors({.Buffer = gradient});
 
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);

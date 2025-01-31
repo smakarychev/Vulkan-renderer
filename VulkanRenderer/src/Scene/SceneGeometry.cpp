@@ -54,11 +54,6 @@ SceneGeometry::AttributeBuffers SceneGeometry::InitAttributeBuffers(const Counts
     attributeBuffers.Indices = Device::CreateBuffer({
         .SizeBytes = totalIndicesSizeBytes,
         .Usage = indexUsage});
-    Device::DeletionQueue().Enqueue(attributeBuffers.Positions);
-    Device::DeletionQueue().Enqueue(attributeBuffers.Normals);
-    Device::DeletionQueue().Enqueue(attributeBuffers.Tangents);
-    Device::DeletionQueue().Enqueue(attributeBuffers.UVs);
-    Device::DeletionQueue().Enqueue(attributeBuffers.Indices);
 
     return attributeBuffers;
 }
@@ -79,10 +74,6 @@ void SceneGeometry::InitBuffers(SceneGeometry& renderPassGeometry, const CountsI
     renderPassGeometry.m_Meshlets = Device::CreateBuffer({
         .SizeBytes = countsInfo.CommandCount * sizeof(MeshletGPU),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage});
-    Device::DeletionQueue().Enqueue(renderPassGeometry.m_Commands);
-    Device::DeletionQueue().Enqueue(renderPassGeometry.m_RenderObjects);
-    Device::DeletionQueue().Enqueue(renderPassGeometry.m_Materials);
-    Device::DeletionQueue().Enqueue(renderPassGeometry.m_Meshlets);
 
     renderPassGeometry.m_CommandsCPU.resize(countsInfo.CommandCount);
     renderPassGeometry.m_FirstCommands.resize(countsInfo.RenderObjectCount);

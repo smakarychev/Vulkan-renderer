@@ -62,16 +62,16 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             GPU_PROFILE_FRAME("CRT")
             
             const Texture& colorInTexture = resources.GetTexture(passData.ColorIn);
-            const Buffer& time = resources.GetBuffer(passData.Time);
+            Buffer time = resources.GetBuffer(passData.Time);
             
-            const Buffer& settingsBuffer = resources.GetBuffer(passData.Settings);
+            Buffer settingsBuffer = resources.GetBuffer(passData.Settings);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             CrtShaderBindGroup bindGroup(shader);
             bindGroup.SetSampler(colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
             bindGroup.SetImage(colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetTime(time.BindingInfo());
-            bindGroup.SetSettings(settingsBuffer.BindingInfo());
+            bindGroup.SetTime({.Buffer = time});
+            bindGroup.SetSettings({.Buffer = settingsBuffer});
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

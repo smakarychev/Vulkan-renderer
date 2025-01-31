@@ -98,8 +98,8 @@ namespace RG
         std::vector<DependencyInfo> m_Barriers;
         struct SplitDependency
         {
-            DependencyInfo Dependency;
-            SplitBarrier Barrier;
+            DependencyInfo Dependency{};
+            SplitBarrier Barrier{};
         };
         std::vector<SplitDependency> m_SplitBarriersToSignal;
         std::vector<SplitDependency> m_SplitBarriersToWait;
@@ -111,10 +111,10 @@ namespace RG
         /* mainly for mermaid dump */
         struct BarrierDependencyInfo
         {
-            Resource Resource;
-            std::optional<ExecutionDependencyInfo> ExecutionDependency;
-            std::optional<MemoryDependencyInfo> MemoryDependency;
-            std::optional<LayoutTransitionInfo> LayoutTransition;
+            Resource Resource{};
+            std::optional<ExecutionDependencyInfo> ExecutionDependency{};
+            std::optional<MemoryDependencyInfo> MemoryDependency{};
+            std::optional<LayoutTransitionInfo> LayoutTransition{};
         };
         std::vector<BarrierDependencyInfo> m_BarrierDependencyInfos;
         std::vector<BarrierDependencyInfo> m_SplitBarrierSignalInfos;

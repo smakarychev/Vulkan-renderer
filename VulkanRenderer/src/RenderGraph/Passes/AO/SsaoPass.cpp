@@ -55,7 +55,6 @@ namespace
             .SizeBytes = samples.size() * sizeof(glm::vec4),
             .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
             .InitialData = samples});
-        Device::DeletionQueue().Enqueue(samplesBuffer);
 
         return {noise, samplesBuffer};
     }
@@ -147,18 +146,18 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             CPU_PROFILE_FRAME("SSAO")
             GPU_PROFILE_FRAME("SSAO")
 
-            const Buffer& setting = resources.GetBuffer(passData.Settings);
-            const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera);
-            const Buffer& samples = resources.GetBuffer(passData.Samples);
+            Buffer setting = resources.GetBuffer(passData.Settings);
+            Buffer cameraBuffer = resources.GetBuffer(passData.Camera);
+            Buffer samples = resources.GetBuffer(passData.Samples);
 
             const Texture& depthTexture = resources.GetTexture(passData.DepthIn);
             const Texture& noiseTexture = resources.GetTexture(passData.NoiseTexture);
             const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
             
             const Shader& shader = resources.GetGraph()->GetShader();SsaoShaderBindGroup bindGroup(shader);
-            bindGroup.SetSettings(setting.BindingInfo());
-            bindGroup.SetCamera(cameraBuffer.BindingInfo());
-            bindGroup.SetSamples(samples.BindingInfo());
+            bindGroup.SetSettings({.Buffer = setting});
+            bindGroup.SetCamera({.Buffer = cameraBuffer});
+            bindGroup.SetSamples({.Buffer = samples});
             bindGroup.SetDepthTexture(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::DepthReadonly));
             bindGroup.SetNoiseTexture(noiseTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
             bindGroup.SetSsao(ssaoTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));

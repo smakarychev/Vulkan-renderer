@@ -18,7 +18,6 @@
 #define GPU_PROFILE_FRAME(name) TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Device::GetProfilerCommandBuffer(ProfilerContext::Get()), name)
 #define CPU_PROFILE_FRAME(name) ZoneScopedN(name);
 
-class Buffer;
 class Image;
 
 struct IndirectDrawCommand

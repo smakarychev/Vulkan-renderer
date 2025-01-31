@@ -44,7 +44,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
 
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereMultiscatteringLutShaderBindGroup bindGroup(shader);
-            bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
+            bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
             bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                     ImageFilter::Linear, ImageLayout::Readonly));
             bindGroup.SetMultiscatteringLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));

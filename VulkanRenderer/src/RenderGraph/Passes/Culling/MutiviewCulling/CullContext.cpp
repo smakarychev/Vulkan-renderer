@@ -9,12 +9,10 @@ CullViewVisibility::CullViewVisibility(const SceneGeometry& geometry)
     m_Mesh = Device::CreateBuffer({
         .SizeBytes = geometry.GetRenderObjectCount() * sizeof(SceneGeometry::ObjectVisibilityType),
         .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress});
-    Device::DeletionQueue().Enqueue(m_Mesh);
 
     m_Meshlet = Device::CreateBuffer({
         .SizeBytes = geometry.GetMeshletCount() * sizeof(SceneGeometry::MeshletVisibilityType),
         .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress}); 
-    Device::DeletionQueue().Enqueue(m_Meshlet);
 
 
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
@@ -22,7 +20,6 @@ CullViewVisibility::CullViewVisibility(const SceneGeometry& geometry)
         m_CompactCount[i] = Device::CreateBuffer({
             .SizeBytes = sizeof(u32),
             .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Readback});
-        Device::DeletionQueue().Enqueue(m_CompactCount[i]);
     }
 }
 
@@ -33,7 +30,7 @@ u32 CullViewVisibility::ReadbackCompactCountValue()
     return m_CompactCountValue;
 }
 
-u32 CullViewVisibility::ReadbackCount(const Buffer& buffer) const
+u32 CullViewVisibility::ReadbackCount(Buffer buffer) const
 {
     const void* address = Device::MapBuffer(buffer);
     u32 visibleMeshletsValue = *(const u32*)address;
@@ -48,7 +45,6 @@ CullViewTriangleVisibility::CullViewTriangleVisibility(CullViewVisibility* cullV
     m_Triangle = Device::CreateBuffer({
         .SizeBytes = (u64)(m_Geometry->GetMeshletCount() * (u32)sizeof(SceneGeometry::TriangleVisibilityType)),
         .Usage = BufferUsage::Storage | BufferUsage::DeviceAddress});
-    Device::DeletionQueue().Enqueue(m_Triangle);
 }
 
 void CullViewTriangleVisibility::UpdateIterationCount()

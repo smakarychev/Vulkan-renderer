@@ -55,9 +55,9 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                                 ShaderOverride{{"COMPOUND_INDEX"}, executionInfo.Triangles.IsValid()}});
                         PbrForwardShaderBindGroup bindGroup(shader);
                         
-                        bindGroup.SetCamera(resources.GetBuffer(executionInfo.Camera).BindingInfo());
-                        bindGroup.SetObjects(resources.GetBuffer(executionInfo.Objects).BindingInfo());
-                        bindGroup.SetCommands(resources.GetBuffer(executionInfo.Commands).BindingInfo());
+                        bindGroup.SetCamera({.Buffer = resources.GetBuffer(executionInfo.Camera)});
+                        bindGroup.SetObjects({.Buffer = resources.GetBuffer(executionInfo.Objects)});
+                        bindGroup.SetCommands({.Buffer = resources.GetBuffer(executionInfo.Commands)});
                         RgUtils::updateDrawAttributeBindings(bindGroup, resources, executionInfo.DrawAttributes);
                         RgUtils::updateIBLBindings(bindGroup, resources, iblData);
                         

@@ -47,7 +47,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             GPU_PROFILE_FRAME("CSM.Visualize")
 
             const Texture& shadowMap = resources.GetTexture(passData.ShadowMap);
-            const Buffer& csmData = resources.GetBuffer(passData.CSM);
+            Buffer csmData = resources.GetBuffer(passData.CSM);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             CsmVisualizeShaderBindGroup bindGroup(shader);
@@ -55,7 +55,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             bindGroup.SetShadowMap(shadowMap.BindingInfo(ImageFilter::Linear,
                 shadowMap.Description().Format == Format::D32_FLOAT ?
                     ImageLayout::DepthReadonly : ImageLayout::DepthReadonly));
-            bindGroup.SetCsmData(csmData.BindingInfo());
+            bindGroup.SetCsmData({.Buffer = csmData});
 
             auto& cascadeIndex = resources.GetOrCreateValue<CascadeIndex>();
             ImGui::Begin("CSM Visualize");

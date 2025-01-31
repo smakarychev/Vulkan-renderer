@@ -8,18 +8,19 @@
 
 namespace
 {
-    Buffer resizeLightBuffer(u64 newSizeBytes, Buffer& old, FrameContext& ctx, bool copyOld)
+    Buffer resizeLightBuffer(u64 newSizeBytes, Buffer old, FrameContext& ctx, bool copyOld)
     {
         Buffer newBuffer = Device::CreateBuffer({
-            .SizeBytes = std::max(newSizeBytes, old.GetSizeBytes()),
+            .SizeBytes = std::max(newSizeBytes, Device::GetBufferSizeBytes(old)),
             .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Storage | BufferUsage::Mappable,
-            .PersistentMapping = true});
-
+            .PersistentMapping = true},
+            Device::DummyDeletionQueue());
+        
         ctx.DeletionQueue.Enqueue(old);
         
         if (copyOld)
             RenderCommand::CopyBuffer(ctx.Cmd, old, newBuffer, {
-                .SizeBytes = old.GetSizeBytes(),
+                .SizeBytes = Device::GetBufferSizeBytes(old),
                 .SourceOffset = 0,
                 .DestinationOffset = 0});
 
@@ -35,9 +36,9 @@ SceneLight::SceneLight()
 SceneLight::~SceneLight()
 {
     if (m_BufferedPointLightCount != 0)
-        Device::Destroy(m_Buffers.PointLights.Handle());
+        Device::Destroy(m_Buffers.PointLights);
     if (m_BufferedVisiblePointLightCount != 0)
-        Device::Destroy(m_Buffers.VisiblePointLights.Handle());
+        Device::Destroy(m_Buffers.VisiblePointLights);
 }
 
 void SceneLight::SetDirectionalLight(const DirectionalLight& light)
@@ -125,28 +126,28 @@ void SceneLight::Initialize()
     m_Buffers.DirectionalLight = Device::CreateBuffer({
         .SizeBytes = sizeof(DirectionalLight),
         .Usage = BufferUsage::Ordinary | BufferUsage::Uniform});
-    Device::DeletionQueue().Enqueue(m_Buffers.DirectionalLight);
     
     m_Buffers.PointLights = Device::CreateBuffer({
         .SizeBytes = sizeof(PointLight),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source | BufferUsage::Mappable,
-        .PersistentMapping = true});
+        .PersistentMapping = true},
+        Device::DummyDeletionQueue());
     m_Buffers.VisiblePointLights = Device::CreateBuffer({
         .SizeBytes = sizeof(PointLight),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source | BufferUsage::Mappable,
-        .PersistentMapping = true});
+        .PersistentMapping = true},
+        Device::DummyDeletionQueue());
 
     m_Buffers.LightsInfo = Device::CreateBuffer({
             .SizeBytes = sizeof(LightsInfo),
             .Usage = BufferUsage::Ordinary | BufferUsage::Uniform});
-    Device::DeletionQueue().Enqueue(m_Buffers.LightsInfo);
 }
 
 void SceneLight::ResizePointLightsBuffer(FrameContext& ctx)
 {
     m_BufferedPointLightCount = (u32)m_PointLights.size();
 
-    if ((u32)m_PointLights.size() <= m_Buffers.PointLights.GetSizeBytes() / sizeof(PointLight))
+    if ((u32)m_PointLights.size() <= Device::GetBufferSizeBytes(m_Buffers.PointLights) / sizeof(PointLight))
         return;
 
     static constexpr bool COPY_OLD = true;
@@ -158,7 +159,8 @@ void SceneLight::ResizeVisiblePointLightsBuffer(FrameContext& ctx)
 {
     m_BufferedVisiblePointLightCount = (u32)m_VisiblePointLights.size();
 
-    if ((u32)m_VisiblePointLights.size() <= m_Buffers.VisiblePointLights.GetSizeBytes() / sizeof(PointLight))
+    if ((u32)m_VisiblePointLights.size() <=
+        Device::GetBufferSizeBytes(m_Buffers.VisiblePointLights) / sizeof(PointLight))
         return;
 
     static constexpr bool COPY_OLD = false;

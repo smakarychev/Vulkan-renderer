@@ -54,9 +54,9 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereAerialPerspectiveLutShaderBindGroup bindGroup(shader);
             
-            bindGroup.SetAtmosphereSettings(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-            bindGroup.SetDirectionalLight(resources.GetBuffer(passData.AtmosphereSettings).BindingInfo());
-            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
+            bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
             bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
                 ImageFilter::Linear, ImageLayout::Readonly));
             bindGroup.SetMultiscatteringLut(resources.GetTexture(passData.MultiscatteringLut).BindingInfo(

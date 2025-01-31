@@ -41,11 +41,11 @@ RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph&
 
             const Shader& shader = resources.GetGraph()->GetShader();
             LightClustersBinShaderBindGroup bindGroup(shader);
-            bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
-            bindGroup.SetActiveClusters(resources.GetBuffer(passData.ActiveClusters).BindingInfo());
-            bindGroup.SetCount(resources.GetBuffer(passData.ClusterCount).BindingInfo());
-            bindGroup.SetPointLights(resources.GetBuffer(passData.SceneLightResources.PointLights).BindingInfo());
-            bindGroup.SetLightsInfo(resources.GetBuffer(passData.SceneLightResources.LightsInfo).BindingInfo());
+            bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
+            bindGroup.SetActiveClusters({.Buffer = resources.GetBuffer(passData.ActiveClusters)});
+            bindGroup.SetCount({.Buffer = resources.GetBuffer(passData.ClusterCount)});
+            bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.SceneLightResources.PointLights)});
+            bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.SceneLightResources.LightsInfo)});
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

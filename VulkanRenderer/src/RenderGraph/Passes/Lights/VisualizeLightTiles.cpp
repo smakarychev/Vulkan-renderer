@@ -52,12 +52,12 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
             const Shader& shader = resources.GetGraph()->GetShader();
             LightTilesVisualizeShaderBindGroup bindGroup(shader);
             bindGroup.SetDepth(resources.GetTexture(depth).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
-            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
             bool useZBins = passData.ZBins.IsValid();
             if (useZBins)
-                bindGroup.SetZbins(resources.GetBuffer(passData.ZBins).BindingInfo());
+                bindGroup.SetZbins({.Buffer = resources.GetBuffer(passData.ZBins)});
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

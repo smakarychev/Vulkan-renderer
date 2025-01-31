@@ -25,8 +25,8 @@ void ResourceUploader::Shutdown()
     for (auto& state : m_PerFrameState)
     {
         for (auto& buffer : state.StageBuffers)
-            Device::Destroy(buffer.Buffer.Handle());
-        Device::Destroy(state.ImmediateUploadBuffer.Handle());
+            Device::Destroy(buffer.Buffer);
+        Device::Destroy(state.ImmediateUploadBuffer);
     }
 }
 
@@ -59,7 +59,7 @@ void ResourceUploader::SubmitUpload(CommandBuffer cmd)
     state.UploadsOffset = (u32)state.BufferUploads.size();
 }
 
-void ResourceUploader::SubmitImmediateBuffer(const Buffer& buffer, u64 sizeBytes, u64 offset)
+void ResourceUploader::SubmitImmediateBuffer(Buffer buffer, u64 sizeBytes, u64 offset)
 {
     Device::ImmediateSubmit([&](CommandBuffer cmd)
     {
@@ -87,7 +87,7 @@ void ResourceUploader::ManageLifeTime()
         }).begin();
 
     for (auto toDelete = it; toDelete != state.StageBuffers.end(); toDelete++)
-        Device::Destroy(toDelete->Buffer.Handle());
+        Device::Destroy(toDelete->Buffer);
 
     state.StageBuffers.erase(it, state.StageBuffers.end());
 }
@@ -115,15 +115,15 @@ u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
             state.BufferUploads.back().CopyInfo.SizeBytes;
     }
 
-    if (state.StageBuffers[state.LastUsedBuffer].Buffer.GetSizeBytes() < currentBufferOffset + sizeBytes)
+    if (Device::GetBufferSizeBytes(state.StageBuffers[state.LastUsedBuffer].Buffer) < currentBufferOffset + sizeBytes)
     {
         state.LastUsedBuffer++;
         if (state.LastUsedBuffer == state.StageBuffers.size())
             state.StageBuffers.push_back(CreateStagingBuffer(sizeBytes));
 
-        if (state.StageBuffers[state.LastUsedBuffer].Buffer.GetSizeBytes() < sizeBytes)
+        if (Device::GetBufferSizeBytes(state.StageBuffers[state.LastUsedBuffer].Buffer) < sizeBytes)
         {
-            Device::Destroy(state.StageBuffers[state.LastUsedBuffer].Buffer.Handle());
+            Device::Destroy(state.StageBuffers[state.LastUsedBuffer].Buffer);
             state.StageBuffers[state.LastUsedBuffer] = CreateStagingBuffer(sizeBytes);
         }
     
@@ -133,7 +133,7 @@ u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
     return currentBufferOffset;
 }
 
-bool ResourceUploader::MergeIsPossible(const Buffer& buffer, u64 bufferOffset) const
+bool ResourceUploader::MergeIsPossible(Buffer buffer, u64 bufferOffset) const
 {
     auto& state = m_PerFrameState[m_CurrentFrame];
 

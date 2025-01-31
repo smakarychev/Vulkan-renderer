@@ -61,19 +61,19 @@ public:
     void SubmitUpload(CommandBuffer cmd);
 
     template <typename T>
-    void UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOffset = 0);
+    void UpdateBuffer(Buffer buffer, T&& data, u64 bufferOffset = 0);
     template <typename T>
-    void UpdateBufferImmediately(const Buffer& buffer, T&& data, u64 bufferOffset = 0);
+    void UpdateBufferImmediately(Buffer buffer, T&& data, u64 bufferOffset = 0);
 
     template <typename T>
-    T* MapBuffer(const Buffer& buffer, u64 bufferOffset = 0);
+    T* MapBuffer(Buffer buffer, u64 bufferOffset = 0);
 private:
-    void SubmitImmediateBuffer(const Buffer& buffer, u64 sizeBytes, u64 offset);
+    void SubmitImmediateBuffer(Buffer buffer, u64 sizeBytes, u64 offset);
     
     void ManageLifeTime();
     StagingBufferInfo CreateStagingBuffer(u64 sizeBytes);
     u64 EnsureCapacity(u64 sizeBytes);
-    bool MergeIsPossible(const Buffer& buffer, u64 bufferOffset) const;
+    bool MergeIsPossible(Buffer buffer, u64 bufferOffset) const;
 private:
     struct State
     {
@@ -93,7 +93,7 @@ private:
 };
 
 template <typename T>
-void ResourceUploader::UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOffset)
+void ResourceUploader::UpdateBuffer(Buffer buffer, T&& data, u64 bufferOffset)
 {
     if constexpr(std::is_pointer_v<T>)
         LOG("Warning: passing a pointer to `UpdateBuffer`");
@@ -103,7 +103,8 @@ void ResourceUploader::UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOf
     u64 stagingOffset = EnsureCapacity(sizeBytes);
     auto& state = m_PerFrameState[m_CurrentFrame];
     auto& staging = state.StageBuffers[state.LastUsedBuffer].Buffer;
-    staging.SetData(staging.GetHostAddress(), Span{(const std::byte*)address, sizeBytes}, stagingOffset);
+    Device::SetBufferData(Device::GetBufferMappedAddress(staging),
+        Span{(const std::byte*)address, sizeBytes}, stagingOffset);
 
     if (MergeIsPossible(buffer, bufferOffset))
         state.BufferUploads.back().CopyInfo.SizeBytes += sizeBytes;
@@ -115,7 +116,7 @@ void ResourceUploader::UpdateBuffer(const Buffer& buffer, T&& data, u64 bufferOf
 }
 
 template <typename T>
-void ResourceUploader::UpdateBufferImmediately(const Buffer& buffer, T&& data, u64 bufferOffset)
+void ResourceUploader::UpdateBufferImmediately(Buffer buffer, T&& data, u64 bufferOffset)
 {
     if constexpr(std::is_pointer_v<T>)
         LOG("Warning: passing a pointer to `UpdateBuffer`");
@@ -123,28 +124,30 @@ void ResourceUploader::UpdateBufferImmediately(const Buffer& buffer, T&& data, u
     auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
 
     auto& state = m_PerFrameState[m_CurrentFrame];
-    if (sizeBytes > state.ImmediateUploadBuffer.GetSizeBytes())
+    if (sizeBytes > Device::GetBufferSizeBytes(state.ImmediateUploadBuffer))
     {
-        Device::Destroy(state.ImmediateUploadBuffer.Handle());
+        Device::Destroy(state.ImmediateUploadBuffer);
         state.ImmediateUploadBuffer = CreateStagingBuffer(sizeBytes).Buffer;
     }
 
-    state.ImmediateUploadBuffer.SetData(data, sizeBytes);
+    Device::SetBufferData(state.ImmediateUploadBuffer, Span{data, sizeBytes});
 
     SubmitImmediateBuffer(buffer, sizeBytes, bufferOffset);
 }
 
 template <typename T>
-T* ResourceUploader::MapBuffer(const Buffer& buffer, u64 bufferOffset)
+T* ResourceUploader::MapBuffer(Buffer buffer, u64 bufferOffset)
 {
-    u64 stagingOffset = EnsureCapacity(buffer.GetSizeBytes());
+    const usize bufferSize = Device::GetBufferSizeBytes(buffer);
+    u64 stagingOffset = EnsureCapacity(bufferSize);
     auto& state = m_PerFrameState[m_CurrentFrame];
     state.BufferUploads.push_back({
         .SourceIndex = state.LastUsedBuffer,
         .Destination = buffer,
         .CopyInfo = {
-            .SizeBytes = buffer.GetSizeBytes(), .SourceOffset = stagingOffset, .DestinationOffset = bufferOffset}});
+            .SizeBytes = bufferSize, .SourceOffset = stagingOffset, .DestinationOffset = bufferOffset}});
 
-    return (T*)((std::byte*)state.StageBuffers[state.LastUsedBuffer].Buffer.GetHostAddress() + stagingOffset);      
+    return (T*)
+        ((std::byte*)Device::GetBufferMappedAddress(state.StageBuffers[state.LastUsedBuffer].Buffer) + stagingOffset);      
 }
 

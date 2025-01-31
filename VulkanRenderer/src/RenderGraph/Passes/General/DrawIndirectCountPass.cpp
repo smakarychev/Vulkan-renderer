@@ -56,8 +56,8 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
             CPU_PROFILE_FRAME("Draw.Indirect.Count")
             GPU_PROFILE_FRAME("Draw.Indirect.Count")
 
-            const Buffer& commandsDraw = resources.GetBuffer(passData.Commands);
-            const Buffer& countDraw = resources.GetBuffer(passData.Count);
+            Buffer commandsDraw = resources.GetBuffer(passData.Commands);
+            Buffer countDraw = resources.GetBuffer(passData.Count);
             auto& cmd = frameContext.Cmd;
             
             const Shader& shader = info.DrawInfo.DrawBind(cmd, resources, {

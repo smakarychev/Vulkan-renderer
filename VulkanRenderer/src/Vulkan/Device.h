@@ -77,8 +77,10 @@ private:
     };
     struct BufferResource
     {
-        using ObjectType = Buffer;
+        using ObjectType = BufferTag;
         VkBuffer Buffer{VK_NULL_HANDLE};
+        BufferDescription Description{};
+        void* HostAddress{nullptr};
         VmaAllocation Allocation{VK_NULL_HANDLE};
     };
     struct ImageResource
@@ -336,7 +338,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
 
     if constexpr(std::is_same_v<Decayed, SwapchainTag>)
         m_Swapchains.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, Buffer>)
+    else if constexpr(std::is_same_v<Decayed, BufferTag>)
         m_Buffers.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, Image>)
         m_Images.Remove(handle);
@@ -394,7 +396,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     if constexpr(std::is_same_v<Decayed, Swapchain>)
         return m_Swapchains[type];
     else if constexpr(std::is_same_v<Decayed, Buffer>)
-        return m_Buffers[type.Handle()];
+        return m_Buffers[type];
     else if constexpr(std::is_same_v<Decayed, Image>)
         return m_Images[type.Handle()];
     else if constexpr(std::is_same_v<Decayed, Sampler>)
@@ -451,7 +453,7 @@ public:
 private:
     bool m_IsDummy{false};
     std::vector<Swapchain> m_Swapchains;
-    std::vector<ResourceHandleType<Buffer>> m_Buffers;
+    std::vector<Buffer> m_Buffers;
     std::vector<ResourceHandleType<Image>> m_Images;
     std::vector<Sampler> m_Samplers;
     std::vector<CommandPool> m_CommandPools;
@@ -482,7 +484,7 @@ void DeletionQueue::Enqueue(Type& type)
     if constexpr(std::is_same_v<Decayed, Swapchain>)
         m_Swapchains.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Buffer>)
-        m_Buffers.push_back(type.Handle());
+        m_Buffers.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Image>)
         m_Images.push_back(type.Handle());
     else if constexpr(std::is_same_v<Decayed, Sampler>)
@@ -550,14 +552,17 @@ public:
     static void SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
         const BufferSubmitTimelineSyncInfo& submitSync);
 
-    static Buffer CreateBuffer(BufferCreateInfo&& createInfo);
-    static void Destroy(ResourceHandleType<Buffer> buffer);
+    static Buffer CreateBuffer(BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(Buffer buffer);
     static Buffer CreateStagingBuffer(u64 sizeBytes);
-    static void* MapBuffer(const Buffer& buffer);
-    static void UnmapBuffer(const Buffer& buffer);
-    static void SetBufferData(Buffer& buffer, Span<const std::byte> data, u64 offsetBytes);
+    static void* MapBuffer(Buffer buffer);
+    static void UnmapBuffer(Buffer buffer);
+    static void SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes);
     static void SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 offsetBytes);
-    static u64 GetDeviceAddress(const Buffer& buffer);
+    static void* GetBufferMappedAddress(Buffer buffer);
+    static usize GetBufferSizeBytes(Buffer buffer);
+    static const BufferDescription& GetBufferDescription(Buffer buffer);
+    static u64 GetDeviceAddress(Buffer buffer);
     
     static Image CreateImage(ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(ResourceHandleType<Image> image);
@@ -610,11 +615,11 @@ public:
     static DescriptorsKind GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator);
     
     static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-        const BufferBindingInfo& buffer, u32 index);  
+        const BufferSubresource& buffer, u32 index);  
     static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
         const TextureBindingInfo& texture, u32 index);  
     static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-        const BufferBindingInfo& buffer, u32 index);  
+        const BufferSubresource& buffer, u32 index);  
     static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
         const TextureBindingInfo& texture, u32 index);
 

@@ -55,7 +55,7 @@ RG::Pass& Passes::Draw::Indirect::addToGraph(std::string_view name, RG::Graph& r
             CPU_PROFILE_FRAME("Draw.Indirect")
             GPU_PROFILE_FRAME("Draw.Indirect")
 
-            const Buffer& commandsDraw = resources.GetBuffer(passData.Commands);
+            Buffer commandsDraw = resources.GetBuffer(passData.Commands);
 
             auto& cmd = frameContext.Cmd;
             

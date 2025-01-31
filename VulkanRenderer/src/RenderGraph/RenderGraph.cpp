@@ -61,9 +61,9 @@ namespace RG
         return m_Backbuffer;
     }
 
-    Resource Graph::AddExternal(const std::string& name, const Buffer& buffer)
+    Resource Graph::AddExternal(const std::string& name, Buffer buffer)
     {
-        Resource bufferResource = CreateResource(name, buffer.Description());
+        Resource bufferResource = CreateResource(name, Device::GetBufferDescription(buffer));
         GetResourceTypeBase(bufferResource).m_IsExternal = true;
         m_Buffers[bufferResource.Index()].SetPhysicalResource(m_Pool.AddExternalResource(buffer));
 
@@ -1684,7 +1684,7 @@ namespace RG
             m_Graph->m_Textures[resource.Index()].m_Resource != nullptr;
     }
 
-    const Buffer& Resources::GetBuffer(Resource resource) const
+    Buffer Resources::GetBuffer(Resource resource) const
     {
         ASSERT(resource.IsBuffer(), "Provided resource handle is not a buffer")
 

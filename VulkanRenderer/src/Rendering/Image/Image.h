@@ -18,7 +18,6 @@ namespace assetLib
 }
 
 struct ImmediateSubmitContext;
-class Buffer;
 
 class ImageViewHandle
 {

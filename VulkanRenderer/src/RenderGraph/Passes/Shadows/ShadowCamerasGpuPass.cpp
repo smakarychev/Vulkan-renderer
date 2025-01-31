@@ -35,9 +35,9 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
             const Shader& shader = resources.GetGraph()->GetShader();
             CreateShadowCamerasShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetMinMax(resources.GetBuffer(passData.DepthMinMax).BindingInfo());
-            bindGroup.SetCsmData(resources.GetBuffer(passData.CsmDataOut).BindingInfo());
-            bindGroup.SetCamera(resources.GetBuffer(passData.PrimaryCamera).BindingInfo());
+            bindGroup.SetMinMax({.Buffer = resources.GetBuffer(passData.DepthMinMax)});
+            bindGroup.SetCsmData({.Buffer = resources.GetBuffer(passData.CsmDataOut)});
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.PrimaryCamera)});
 
             struct PushConstant
             {

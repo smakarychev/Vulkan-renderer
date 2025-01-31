@@ -88,16 +88,16 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             GPU_PROFILE_FRAME("PBR Visibility pass")
 
             const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
-            const Buffer& cameraBuffer = resources.GetBuffer(passData.Camera);
-            const Buffer& shadingSettings = resources.GetBuffer(passData.ShadingSettings);
+            Buffer cameraBuffer = resources.GetBuffer(passData.Camera);
+            Buffer shadingSettings = resources.GetBuffer(passData.ShadingSettings);
 
-            const Buffer& commands = resources.GetBuffer(passData.Commands);
-            const Buffer& objects = resources.GetBuffer(passData.Objects);
-            const Buffer& positions = resources.GetBuffer(passData.Positions);
-            const Buffer& normals = resources.GetBuffer(passData.Normals);
-            const Buffer& tangents = resources.GetBuffer(passData.Tangents);
-            const Buffer& uvs = resources.GetBuffer(passData.UVs);
-            const Buffer& indices = resources.GetBuffer(passData.Indices);
+            Buffer commands = resources.GetBuffer(passData.Commands);
+            Buffer objects = resources.GetBuffer(passData.Objects);
+            Buffer positions = resources.GetBuffer(passData.Positions);
+            Buffer normals = resources.GetBuffer(passData.Normals);
+            Buffer tangents = resources.GetBuffer(passData.Tangents);
+            Buffer uvs = resources.GetBuffer(passData.UVs);
+            Buffer indices = resources.GetBuffer(passData.Indices);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             PbrVisibilityIblShaderBindGroup bindGroup(shader);
@@ -105,24 +105,24 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             bindGroup.SetVisibilityTexture(visibility.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
             RgUtils::updateSceneLightBindings(bindGroup, resources, passData.LightsResources);
             if (passData.Clusters.IsValid())
-                bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
+                bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
             if (passData.Tiles.IsValid())
             {
-                bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
-                bindGroup.SetZbins(resources.GetBuffer(passData.ZBins).BindingInfo());
+                bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
+                bindGroup.SetZbins({.Buffer = resources.GetBuffer(passData.ZBins)});
             }
             RgUtils::updateIBLBindings(bindGroup, resources, passData.IBL);
             RgUtils::updateSSAOBindings(bindGroup, resources, passData.SSAO);
             RgUtils::updateCSMBindings(bindGroup, resources, passData.CSMData);
-            bindGroup.SetCamera(cameraBuffer.BindingInfo());
-            bindGroup.SetShading(shadingSettings.BindingInfo());
-            bindGroup.SetCommands(commands.BindingInfo());
-            bindGroup.SetObjects(objects.BindingInfo());
-            bindGroup.SetPositions(positions.BindingInfo());
-            bindGroup.SetNormals(normals.BindingInfo());
-            bindGroup.SetTangents(tangents.BindingInfo());
-            bindGroup.SetUv(uvs.BindingInfo());
-            bindGroup.SetIndices(indices.BindingInfo());
+            bindGroup.SetCamera({.Buffer = cameraBuffer});
+            bindGroup.SetShading({.Buffer = shadingSettings});
+            bindGroup.SetCommands({.Buffer = commands});
+            bindGroup.SetObjects({.Buffer = objects});
+            bindGroup.SetPositions({.Buffer = positions});
+            bindGroup.SetNormals({.Buffer = normals});
+            bindGroup.SetTangents({.Buffer = tangents});
+            bindGroup.SetUv({.Buffer = uvs});
+            bindGroup.SetIndices({.Buffer = indices});
             
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

@@ -1303,7 +1303,7 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
         "Error while submitting command buffers");    
 }
 
-Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo)
+Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     VmaAllocationCreateFlags flags = 0;
     if (enumHasAny(createInfo.Usage, BufferUsage::Mappable))
@@ -1316,14 +1316,11 @@ Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo)
     
     DeviceResources::BufferResource bufferResource = CreateBufferResource(createInfo.SizeBytes,
         vulkanBufferUsageFromUsage(createInfo.Usage), flags);
-
-    Buffer buffer = {};
-    buffer.m_Description.Usage = createInfo.Usage;
-    buffer.m_Description.SizeBytes = createInfo.SizeBytes;
+    bufferResource.Description.Usage = createInfo.Usage;
     if (createInfo.PersistentMapping)
-        buffer.m_HostAddress = bufferResource.Allocation->GetMappedData();
+        bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
     
-    buffer.m_ResourceHandle = Resources().AddResource(bufferResource);    
+    Buffer buffer = Resources().AddResource(bufferResource);    
 
     if (!createInfo.InitialData.empty())
     {
@@ -1340,9 +1337,10 @@ Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo)
                 RenderCommand::CopyBuffer(cmd, stagingBuffer, buffer,
                     {.SizeBytes = createInfo.InitialData.size(), .SourceOffset = 0, .DestinationOffset = 0});        
             });
-            Destroy(stagingBuffer.Handle());
+            Destroy(stagingBuffer);
         }
     }
+    deletionQueue.Enqueue(buffer);
     
     return buffer;
 }
@@ -1364,10 +1362,12 @@ DeviceResources::BufferResource Device::CreateBufferResource(u64 sizeBytes, VkBu
         &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
         "Failed to create a buffer");
 
+    bufferResource.Description.SizeBytes = sizeBytes;
+
     return bufferResource;
 }
 
-void Device::Destroy(ResourceHandleType<Buffer> buffer)
+void Device::Destroy(Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = Resources().m_Buffers[buffer.m_Id];
     vmaDestroyBuffer(Allocator(), resource.Buffer, resource.Allocation);
@@ -1379,10 +1379,11 @@ Buffer Device::CreateStagingBuffer(u64 sizeBytes)
     return CreateBuffer({
         .SizeBytes = sizeBytes,
         .Usage = BufferUsage::Staging | BufferUsage::Mappable,
-        .PersistentMapping = true});
+        .PersistentMapping = true},
+        DummyDeletionQueue());
 }
 
-void* Device::MapBuffer(const Buffer& buffer)
+void* Device::MapBuffer(Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = Resources()[buffer];
     void* mappedData;
@@ -1390,13 +1391,13 @@ void* Device::MapBuffer(const Buffer& buffer)
     return mappedData;
 }
 
-void Device::UnmapBuffer(const Buffer& buffer)
+void Device::UnmapBuffer(Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = Resources()[buffer];
     vmaUnmapMemory(Allocator(), resource.Allocation);
 }
 
-void Device::SetBufferData(Buffer& buffer, Span<const std::byte> data, u64 offsetBytes)
+void Device::SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes)
 {
     const DeviceResources::BufferResource& resource = Resources()[buffer];
     vmaCopyMemoryToAllocation(Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
@@ -1408,7 +1409,22 @@ void Device::SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 
     std::memcpy(mappedAddress, data.data(), data.size());
 }
 
-u64 Device::GetDeviceAddress(const Buffer& buffer)
+void* Device::GetBufferMappedAddress(Buffer buffer)
+{
+    return Resources()[buffer].HostAddress;
+}
+
+usize Device::GetBufferSizeBytes(Buffer buffer)
+{
+    return Resources()[buffer].Description.SizeBytes;
+}
+
+const BufferDescription& Device::GetBufferDescription(Buffer buffer)
+{
+    return Resources()[buffer].Description;
+}
+
+u64 Device::GetDeviceAddress(Buffer buffer)
 {
     return GetDeviceAddress(Resources()[buffer].Buffer);
 }
@@ -1477,9 +1493,11 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPa
     Buffer imageBuffer = CreateBuffer({
         .SizeBytes = textureInfo.SizeBytes,
         .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
-        .PersistentMapping = true});
+        .PersistentMapping = true},
+        DummyDeletionQueue());
+    DeviceResources::BufferResource& imageBufferResource = Resources()[imageBuffer];
     assetLib::unpackTexture(
-        textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)imageBuffer.GetHostAddress());
+        textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)imageBufferResource.HostAddress);
                     
     createInfo.Description.Format = formatFromAssetFormat(textureInfo.Format);
     createInfo.Description.Width = textureInfo.Dimensions.Width;
@@ -1492,7 +1510,7 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPa
 
     Image image = CreateImageFromBuffer(createInfo, imageBuffer);
     AssetManager::AddImage(assetPath, image);
-    Destroy(imageBuffer.Handle());
+    Destroy(imageBuffer);
 
     return image;
 }
@@ -1515,10 +1533,11 @@ Image Device::CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std:
     Buffer imageBuffer = CreateBuffer({
         .SizeBytes = pixels.size(),
         .Usage = BufferUsage::Source | BufferUsage::Staging,
-        .InitialData = pixels});
+        .InitialData = pixels},
+        DummyDeletionQueue());
 
     Image image = CreateImageFromBuffer(createInfo, imageBuffer);
-    Destroy(imageBuffer.Handle());
+    Destroy(imageBuffer);
 
     return image;
 }
@@ -2263,7 +2282,7 @@ DescriptorSet Device::CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo)
         u32 slot = buffer.Slot;
         write.dstBinding = slot;
         
-        const DeviceResources::BufferResource& bufferResource = Resources()[*buffer.BindingInfo.Buffer];
+        const DeviceResources::BufferResource& bufferResource = Resources()[buffer.BindingInfo.Buffer];
         VkDescriptorBufferInfo descriptorBufferInfo = {};
         descriptorBufferInfo.buffer = bufferResource.Buffer;
         descriptorBufferInfo.offset = buffer.BindingInfo.Description.Offset;
@@ -2552,24 +2571,29 @@ DescriptorsKind Device::GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator
 }
 
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-    const BufferBindingInfo& buffer, u32 index)
+    const BufferSubresource& buffer, u32 index)
 {
     auto&& [slot, type] = bindingInfo;
     ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
         "Texel buffers require format information")
     ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
         "Dynamic buffers are not supported when using descriptor buffer")
-    
+
+    const DeviceResources::BufferResource& bufferResource = Resources()[buffer.Buffer];
     VkBufferDeviceAddressInfo deviceAddressInfo = {};
     deviceAddressInfo.sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO;
-    deviceAddressInfo.buffer = Resources()[*buffer.Buffer].Buffer;
+    deviceAddressInfo.buffer = bufferResource.Buffer;
     u64 deviceAddress = vkGetBufferDeviceAddress(s_State.Device, &deviceAddressInfo);
 
     VkDescriptorAddressInfoEXT descriptorAddressInfo = {};
     descriptorAddressInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
     descriptorAddressInfo.address = deviceAddress + buffer.Description.Offset;
     descriptorAddressInfo.format = VK_FORMAT_UNDEFINED;
-    descriptorAddressInfo.range = buffer.Description.SizeBytes;
+    ASSERT(
+        buffer.Description.SizeBytes <= bufferResource.Description.SizeBytes ||
+        buffer.Description.SizeBytes == BufferSubresourceDescription::WHOLE_SIZE,
+        "Buffer subresource size is too large")
+    descriptorAddressInfo.range = std::min(buffer.Description.SizeBytes, bufferResource.Description.SizeBytes);
 
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
@@ -2603,7 +2627,7 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bi
 }
 
 void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-    const BufferBindingInfo& buffer, u32 index)
+    const BufferSubresource& buffer, u32 index)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];

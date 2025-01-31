@@ -37,8 +37,8 @@ public:
     f32& GetDiffuseRate() { return m_DiffuseRate; }
     f32& GetDecayRate() { return m_DecayRate; }
 
-    const Buffer& GetTraitsBuffer() const { return m_TraitsBuffer; }
-    const Buffer& GetSlimeBuffer() const { return m_SlimeBuffer; }
+    Buffer GetTraitsBuffer() const { return m_TraitsBuffer; }
+    Buffer GetSlimeBuffer() const { return m_SlimeBuffer; }
 
     const Texture& GetSlimeMap() const { return m_SlimeMap; }
 private:

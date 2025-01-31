@@ -8,8 +8,6 @@
 
 class DeletionQueue;
 
-class Buffer;
-
 enum class BufferUsage
 {
     None                    = 0,
@@ -40,25 +38,6 @@ namespace BufferUtils
     std::string bufferUsageToString(BufferUsage usage);
 }
 
-struct BufferDescription
-{
-    u64 SizeBytes{0};
-    BufferUsage Usage{BufferUsage::None};
-};
-
-struct BufferSubresourceDescription
-{
-    u64 SizeBytes{0};
-    u64 Offset{0};
-};
-
-struct BufferSubresource
-{
-    const Buffer* Buffer{nullptr};
-    BufferSubresourceDescription Description{};
-};
-using BufferBindingInfo = BufferSubresource;
-
 struct BufferCreateInfo
 {
     u64 SizeBytes{0};
@@ -67,47 +46,24 @@ struct BufferCreateInfo
     Span<const std::byte> InitialData{};
 };
 
-class Buffer
+struct BufferTag{};
+using Buffer = ResourceHandleType<BufferTag>;
+
+struct BufferDescription
 {
-    FRIEND_INTERNAL
-public:
-    const BufferDescription& Description() const { return m_Description; }
-    
-    void SetData(Span<const std::byte> data);
-    void SetData(Span<const std::byte>, u64 offsetBytes);
-    void SetData(void* mapped, Span<const std::byte>, u64 offsetBytes);
-    void* Map();
-    void Unmap();
-    
-    u64 GetSizeBytes() const { return m_Description.SizeBytes; }
-    BufferUsage GetKind() const { return m_Description.Usage; }
+    u64 SizeBytes{0};
+    BufferUsage Usage{BufferUsage::None};
+};
 
-    BufferBindingInfo BindingInfo() const
-    {
-        return BufferSubresource{
-            .Buffer = this,
-            .Description = {
-                .SizeBytes = m_Description.SizeBytes}};
-    }
-    BufferBindingInfo BindingInfo(u64 sizeBytes, u64 offset) const
-    {
-        return BufferSubresource{
-            .Buffer = this,
-            .Description = {
-                .SizeBytes = sizeBytes,
-                .Offset = offset}};
-    }
+struct BufferSubresourceDescription
+{
+    static constexpr u64 WHOLE_SIZE{~0ull};
+    u64 SizeBytes{WHOLE_SIZE};
+    u64 Offset{0};
+};
 
-    const void* GetHostAddress() const { return m_HostAddress; }
-    void* GetHostAddress() { return m_HostAddress; }
-
-    bool operator==(const Buffer& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
-    bool operator!=(const Buffer& other) const { return !(*this == other); }
-    ResourceHandleType<Buffer> Handle() const { return m_ResourceHandle; }
-private:
-    BufferDescription m_Description{};
-    // todo: also store device address?
-    void* m_HostAddress{nullptr};
-    
-    ResourceHandleType<Buffer> m_ResourceHandle{};
+struct BufferSubresource
+{
+    Buffer Buffer{};
+    BufferSubresourceDescription Description{};
 };

@@ -20,7 +20,6 @@ namespace assetLib
 class DescriptorArenaAllocators;
 class ResourceUploader;
 class Image;
-class Buffer;
 class DescriptorPool;
 
 struct DescriptorBinding
@@ -67,7 +66,7 @@ struct DescriptorSetCreateInfo
         u32 Slot;
         DescriptorType Type;
     };
-    using BoundBuffer = BoundResource<BufferBindingInfo>;
+    using BoundBuffer = BoundResource<BufferSubresource>;
     using BoundTexture = BoundResource<TextureBindingInfo>;
 
     DescriptorPoolFlags PoolFlags{0};

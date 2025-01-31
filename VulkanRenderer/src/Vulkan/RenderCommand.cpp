@@ -106,7 +106,7 @@ void RenderCommand::BlitImage(CommandBuffer cmd,
 }
 
 void RenderCommand::CopyBuffer(CommandBuffer cmd,
-    const Buffer& source, const Buffer& destination, const BufferCopyInfo& bufferCopyInfo)
+    Buffer source, Buffer destination, const BufferCopyInfo& bufferCopyInfo)
 {
     VkBufferCopy2 copy = {};
     copy.sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2;
@@ -127,7 +127,7 @@ void RenderCommand::CopyBuffer(CommandBuffer cmd,
 }
 
 void RenderCommand::CopyBufferToImage(CommandBuffer cmd,
-    const Buffer& source, const ImageSubresource& destination)
+    Buffer source, const ImageSubresource& destination)
 {
     VkBufferImageCopy2 bufferImageCopy = Device::CreateVulkanImageCopyInfo(destination);
 
@@ -143,7 +143,7 @@ void RenderCommand::CopyBufferToImage(CommandBuffer cmd,
     vkCmdCopyBufferToImage2(Device::Resources()[cmd].CommandBuffer, &copyBufferToImageInfo);
 }
 
-void RenderCommand::BindVertexBuffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindVertexBuffer(CommandBuffer cmd, Buffer buffer, u64 offset)
 {
     vkCmdBindVertexBuffers(Device::Resources()[cmd].CommandBuffer, 0, 1, &Device::Resources()[buffer].Buffer, &offset);
 }
@@ -159,19 +159,19 @@ void RenderCommand::BindVertexBuffers(CommandBuffer cmd, const std::vector<Buffe
         offsets.data());
 }
 
-void RenderCommand::BindIndexU32Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindIndexU32Buffer(CommandBuffer cmd, Buffer buffer, u64 offset)
 {
     vkCmdBindIndexBuffer(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset,
         VK_INDEX_TYPE_UINT32);
 }
 
-void RenderCommand::BindIndexU16Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindIndexU16Buffer(CommandBuffer cmd, Buffer buffer, u64 offset)
 {
     vkCmdBindIndexBuffer(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset,
         VK_INDEX_TYPE_UINT16);
 }
 
-void RenderCommand::BindIndexU8Buffer(CommandBuffer cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::BindIndexU8Buffer(CommandBuffer cmd, Buffer buffer, u64 offset)
 {
     vkCmdBindIndexBuffer(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset,
         VK_INDEX_TYPE_UINT8_EXT);
@@ -309,15 +309,15 @@ void RenderCommand::DrawIndexed(CommandBuffer cmd, u32 indexCount, u32 baseInsta
     vkCmdDrawIndexed(Device::Resources()[cmd].CommandBuffer, indexCount, 1, 0, 0, baseInstance);
 }
 
-void RenderCommand::DrawIndexedIndirect(CommandBuffer cmd, const Buffer& buffer, u64 offset, u32 count,
+void RenderCommand::DrawIndexedIndirect(CommandBuffer cmd, Buffer buffer, u64 offset, u32 count,
     u32 stride)
 {
     vkCmdDrawIndexedIndirect(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset, count,
         stride);    
 }
 
-void RenderCommand::DrawIndexedIndirectCount(CommandBuffer cmd, const Buffer& drawBuffer, u64 drawOffset,
-    const Buffer& countBuffer, u64 countOffset, u32 maxCount, u32 stride)
+void RenderCommand::DrawIndexedIndirectCount(CommandBuffer cmd, Buffer drawBuffer, u64 drawOffset,
+    Buffer countBuffer, u64 countOffset, u32 maxCount, u32 stride)
 {
     vkCmdDrawIndexedIndirectCount(Device::Resources()[cmd].CommandBuffer,
         Device::Resources()[drawBuffer].Buffer, drawOffset,
@@ -335,7 +335,7 @@ void RenderCommand::Dispatch(CommandBuffer cmd, const glm::uvec3& invocations, c
     Dispatch(cmd, (invocations + workGroups - glm::uvec3(1)) / workGroups);
 }
 
-void RenderCommand::DispatchIndirect(CommandBuffer cmd, const Buffer& buffer, u64 offset)
+void RenderCommand::DispatchIndirect(CommandBuffer cmd, Buffer buffer, u64 offset)
 {
     vkCmdDispatchIndirect(Device::Resources()[cmd].CommandBuffer, Device::Resources()[buffer].Buffer, offset);
 }
@@ -408,7 +408,7 @@ void RenderCommand::ResetSplitBarrier(CommandBuffer cmd, SplitBarrier splitBarri
         Device::Resources()[dependencyInfo].ExecutionMemoryDependenciesInfo.front().dstStageMask);
 }
 
-void RenderCommand::BeginConditionalRendering(CommandBuffer cmd, const Buffer& conditionalBuffer, u64 offset)
+void RenderCommand::BeginConditionalRendering(CommandBuffer cmd, Buffer conditionalBuffer, u64 offset)
 {
     VkConditionalRenderingBeginInfoEXT beginInfo = {};
     beginInfo.sType = VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT;

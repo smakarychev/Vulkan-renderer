@@ -49,10 +49,10 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             LightTilesBinShaderBindGroup bindGroup(shader);
             
             bindGroup.SetDepth(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetTiles(resources.GetBuffer(passData.Tiles).BindingInfo());
-            bindGroup.SetPointLights(resources.GetBuffer(passData.SceneLightResources.PointLights).BindingInfo());
-            bindGroup.SetLightsInfo(resources.GetBuffer(passData.SceneLightResources.LightsInfo).BindingInfo());
-            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
+            bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.SceneLightResources.PointLights)});
+            bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.SceneLightResources.LightsInfo)});
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
             
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

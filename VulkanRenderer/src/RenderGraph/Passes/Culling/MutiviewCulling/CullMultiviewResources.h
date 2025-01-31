@@ -108,11 +108,11 @@ namespace RG::RgUtils
     void updateMeshCullMultiviewBindings(BindGroup& bindGroup, const Resources& resources,
         const CullMultiviewResources& multiview)
     {
-        bindGroup.SetViewSpans(resources.GetBuffer(multiview.ViewSpans).BindingInfo());
-        bindGroup.SetViews(resources.GetBuffer(multiview.Views).BindingInfo());
+        bindGroup.SetViewSpans({.Buffer = resources.GetBuffer(multiview.ViewSpans)});
+        bindGroup.SetViews({.Buffer = resources.GetBuffer(multiview.Views)});
 
         for (u32 i = 0; i < multiview.GeometryCount; i++)
-            bindGroup.SetObjects(resources.GetBuffer(multiview.Objects[i]).BindingInfo(), i);
+            bindGroup.SetObjects({.Buffer = resources.GetBuffer(multiview.Objects[i])}, i);
 
         for (u32 i = 0; i < multiview.ViewCount; i++)
         {
@@ -122,7 +122,7 @@ namespace RG::RgUtils
                 hiz.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
 
-            bindGroup.SetObjectVisibility(resources.GetBuffer(multiview.MeshVisibility[i]) .BindingInfo(), i);
+            bindGroup.SetObjectVisibility({.Buffer = resources.GetBuffer(multiview.MeshVisibility[i])}, i);
         }
     }
 
@@ -130,19 +130,19 @@ namespace RG::RgUtils
     void updateCullMeshletMultiviewBindings(BindGroup& bindGroup, const Resources& resources,
         const CullMultiviewResources& multiview, CullStage cullStage)
     {
-        bindGroup.SetViewSpans(resources.GetBuffer(multiview.ViewSpans).BindingInfo());
-        bindGroup.SetViews(resources.GetBuffer(multiview.Views).BindingInfo());
+        bindGroup.SetViewSpans({.Buffer = resources.GetBuffer(multiview.ViewSpans)});
+        bindGroup.SetViews({.Buffer = resources.GetBuffer(multiview.Views)});
 
-        const Buffer& countBuffer = resources.GetBuffer(cullStage == CullStage::Reocclusion ?
+        Buffer countBuffer = resources.GetBuffer(cullStage == CullStage::Reocclusion ?
             multiview.CompactCommandCountReocclusion : multiview.CompactCommandCount);
 
-        bindGroup.SetCount(countBuffer.BindingInfo());
+        bindGroup.SetCount({.Buffer = countBuffer});
         
         for (u32 i = 0; i < multiview.GeometryCount; i++)
         {
-            bindGroup.SetObjects(resources.GetBuffer(multiview.Objects[i]).BindingInfo(), i);
-            bindGroup.SetMeshlets(resources.GetBuffer(multiview.Meshlets[i]).BindingInfo(), i);
-            bindGroup.SetCommands(resources.GetBuffer(multiview.Commands[i]).BindingInfo(), i);
+            bindGroup.SetObjects({.Buffer = resources.GetBuffer(multiview.Objects[i])}, i);
+            bindGroup.SetMeshlets({.Buffer = resources.GetBuffer(multiview.Meshlets[i])}, i);
+            bindGroup.SetCommands({.Buffer = resources.GetBuffer(multiview.Commands[i])}, i);
         }
 
         for (u32 i = 0; i < multiview.ViewCount; i++)
@@ -153,9 +153,9 @@ namespace RG::RgUtils
                 hiz.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
 
-            bindGroup.SetObjectVisibility(resources.GetBuffer(multiview.MeshVisibility[i]).BindingInfo(), i);
-            bindGroup.SetMeshletVisibility(resources.GetBuffer(multiview.MeshletVisibility[i]).BindingInfo(), i);
-            bindGroup.SetCompactedCommands(resources.GetBuffer(multiview.CompactCommands[i]).BindingInfo(), i);
+            bindGroup.SetObjectVisibility({.Buffer = resources.GetBuffer(multiview.MeshVisibility[i])}, i);
+            bindGroup.SetMeshletVisibility({.Buffer = resources.GetBuffer(multiview.MeshletVisibility[i])}, i);
+            bindGroup.SetCompactedCommands({.Buffer = resources.GetBuffer(multiview.CompactCommands[i])}, i);
         }
 
         /* update `geometryCount` additional command and command count buffer bindings for triangle culling
@@ -166,8 +166,8 @@ namespace RG::RgUtils
             for (u32 i = 0; i < multiview.GeometryCount; i++)
             {
                 u32 index = multiview.ViewCount + i;
-                bindGroup.SetCompactedCommands(resources.GetBuffer(multiview.CompactCommands[index])
-                    .BindingInfo(), index);
+                bindGroup.SetCompactedCommands({.Buffer = resources.GetBuffer(multiview.CompactCommands[index])},
+                    index);
             }
         }
     }
@@ -176,9 +176,9 @@ namespace RG::RgUtils
     void updateCullTrianglePrepareMultiviewBindings(BindGroup& bindGroup, const Resources& resources,
         const CullTrianglesMultiviewResource& multiview)
     {
-        bindGroup.SetCommandCounts(resources.GetBuffer(multiview.MeshletCull->CompactCommandCount).BindingInfo());
+        bindGroup.SetCommandCounts({.Buffer = resources.GetBuffer(multiview.MeshletCull->CompactCommandCount)});
         for (u32 i = 0; i < multiview.MeshletCull->GeometryCount; i++)
-            bindGroup.SetDispatches(resources.GetBuffer(multiview.BatchDispatches[i]).BindingInfo(), i);
+            bindGroup.SetDispatches({.Buffer = resources.GetBuffer(multiview.BatchDispatches[i])}, i);
     }
 
     template <typename CullBindGroup, typename PrepareBindGroup>
@@ -186,16 +186,16 @@ namespace RG::RgUtils
         const Resources& resources, const CullTrianglesMultiviewResource& multiview, u32 batchIndex)
     {
         /* update cull bindings */
-        cullBindGroup.SetViewSpans(resources.GetBuffer(multiview.ViewSpans).BindingInfo());
-        cullBindGroup.SetViews(resources.GetBuffer(multiview.Views).BindingInfo());
+        cullBindGroup.SetViewSpans({.Buffer = resources.GetBuffer(multiview.ViewSpans)});
+        cullBindGroup.SetViews({.Buffer = resources.GetBuffer(multiview.Views)});
 
-        cullBindGroup.SetCount(resources.GetBuffer(multiview.MeshletCull->CompactCommandCount).BindingInfo());
+        cullBindGroup.SetCount({.Buffer = resources.GetBuffer(multiview.MeshletCull->CompactCommandCount)});
         
         for (u32 i = 0; i < multiview.MeshletCull->GeometryCount; i++)
         {
-            cullBindGroup.SetObjects(resources.GetBuffer(multiview.MeshletCull->Objects[i]).BindingInfo(), i);
-            cullBindGroup.SetPositions(resources.GetBuffer(multiview.AttributeBuffers[i].Positions).BindingInfo(), i);
-            cullBindGroup.SetIndices(resources.GetBuffer(multiview.Indices[i]).BindingInfo(), i);
+            cullBindGroup.SetObjects({.Buffer = resources.GetBuffer(multiview.MeshletCull->Objects[i])}, i);
+            cullBindGroup.SetPositions({.Buffer = resources.GetBuffer(multiview.AttributeBuffers[i].Positions)}, i);
+            cullBindGroup.SetIndices({.Buffer = resources.GetBuffer(multiview.Indices[i])}, i);
         }
 
         for (u32 i = 0; i < multiview.TriangleViewCount; i++)
@@ -207,27 +207,27 @@ namespace RG::RgUtils
                 hiz.Description().Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
 
-            cullBindGroup.SetMeshletVisibility(resources.GetBuffer(
-                multiview.MeshletCull->MeshletVisibility[meshletIndex]).BindingInfo(), i);
+            cullBindGroup.SetMeshletVisibility({.Buffer = resources.GetBuffer(
+                multiview.MeshletCull->MeshletVisibility[meshletIndex])}, i);
 
-            cullBindGroup.SetTriangles(resources.GetBuffer(multiview.Triangles[i][batchIndex]).BindingInfo(), i);
-            cullBindGroup.SetTriangleVisibility(resources.GetBuffer(multiview.TriangleVisibility[i]).BindingInfo(), i);
-            cullBindGroup.SetCulledIndices(resources.GetBuffer(
-                multiview.IndicesCulled[i][batchIndex]).BindingInfo(), i);
+            cullBindGroup.SetTriangles({.Buffer = resources.GetBuffer(multiview.Triangles[i][batchIndex])}, i);
+            cullBindGroup.SetTriangleVisibility({.Buffer = resources.GetBuffer(multiview.TriangleVisibility[i])}, i);
+            cullBindGroup.SetCulledIndices({.Buffer = resources.GetBuffer(
+                multiview.IndicesCulled[i][batchIndex])}, i);
         }
-        cullBindGroup.SetCulledCount(resources.GetBuffer(multiview.IndicesCulledCount[batchIndex]).BindingInfo());
+        cullBindGroup.SetCulledCount({.Buffer = resources.GetBuffer(multiview.IndicesCulledCount[batchIndex])});
         
         /* update `geometryCount` additional command and command count buffer bindings for triangle culling */
         for (u32 i = 0; i < multiview.MeshletCull->GeometryCount; i++)
         {
             u32 index = multiview.MeshletCull->ViewCount + i;
 
-            cullBindGroup.SetCommands(resources.GetBuffer(
-                multiview.MeshletCull->CompactCommands[index]).BindingInfo(), i);
+            cullBindGroup.SetCommands({.Buffer = resources.GetBuffer(
+                multiview.MeshletCull->CompactCommands[index])}, i);
         }
         
         /* update prepare bindings */
-        prepareBindGroup.SetDraws(resources.GetBuffer(multiview.Draws[batchIndex]).BindingInfo());
-        prepareBindGroup.SetIndexCounts(resources.GetBuffer(multiview.IndicesCulledCount[batchIndex]).BindingInfo());
+        prepareBindGroup.SetDraws({.Buffer = resources.GetBuffer(multiview.Draws[batchIndex])});
+        prepareBindGroup.SetIndexCounts({.Buffer = resources.GetBuffer(multiview.IndicesCulledCount[batchIndex])});
     }
 }

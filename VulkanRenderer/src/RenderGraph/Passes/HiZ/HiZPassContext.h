@@ -22,8 +22,8 @@ public:
     const glm::uvec2& GetDrawResolution() const { return m_DrawResolution; }
     const glm::uvec2& GetHiZResolution() const { return m_HiZResolution; }
 
-    const Buffer& GetMinMaxDepthBuffer() const { return m_MinMaxDepth[m_FrameNumber]; }
-    const Buffer& GetPreviousMinMaxDepthBuffer() const { return m_MinMaxDepth[PreviousFrame()]; }
+    Buffer GetMinMaxDepthBuffer() const { return m_MinMaxDepth[m_FrameNumber]; }
+    Buffer GetPreviousMinMaxDepthBuffer() const { return m_MinMaxDepth[PreviousFrame()]; }
     
     void NextFrame() { m_FrameNumber = (m_FrameNumber + 1) % BUFFERED_FRAMES; }
 private:

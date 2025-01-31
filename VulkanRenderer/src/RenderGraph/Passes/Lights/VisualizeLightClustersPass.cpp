@@ -43,8 +43,8 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
             LightClustersVisualizeShaderBindGroup bindGroup(shader);
 
             bindGroup.SetDepth(resources.GetTexture(depth).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetClusters(resources.GetBuffer(passData.Clusters).BindingInfo());
-            bindGroup.SetCamera(resources.GetBuffer(passData.Camera).BindingInfo());
+            bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

@@ -61,6 +61,7 @@ namespace RG
             
             return canAlias;
         }
+        static const ResourceTraits::Desc& Description(Buffer buffer) { return Device::GetBufferDescription(buffer); }
     };
 
     template <>
@@ -90,6 +91,7 @@ namespace RG
 
             return true;
         }
+        static const ResourceTraits::Desc& Description(const Texture& texture) { return texture.Description(); }
     };
 
     class RenderGraphPool
@@ -99,7 +101,7 @@ namespace RG
         ~RenderGraphPool()
         {
             for (auto& buffer : m_Buffers.Resources)
-                Device::Destroy(buffer.Resource->Handle());
+                Device::Destroy(*buffer.Resource);
             for (auto& texture : m_Textures.Resources)
                 Texture::Destroy(*texture.Resource);
         }
@@ -161,7 +163,7 @@ namespace RG
                 collection.Resources.erase(toRemoveIt, collection.Resources.end());
             };
 
-            unorderedRemove(m_Buffers, [](const Buffer& buffer) { Device::Destroy(buffer.Handle()); });
+            unorderedRemove(m_Buffers, [](Buffer buffer) { Device::Destroy(buffer); });
             unorderedRemove(m_Textures, [](const Texture& texture) { Texture::Destroy(texture); });
         }
     private:
@@ -179,7 +181,7 @@ namespace RG
                 for (auto&& [resource, frame] : Resources)
                 {
                     if (resource.use_count() == 1 && ResourceAliasTraits<T>::CanAlias(
-                        description, resource->Description(), frame))
+                        description, ResourceAliasTraits<T>::Description(*resource), frame))
                     {
                         frame = 0;
                         
@@ -188,13 +190,13 @@ namespace RG
                 }
 
                 // allocate new resource
-                // todo: remove once builder is gone
                 if constexpr (std::is_same_v<T, Buffer>)
                 {
                     Resources.push_back({
                         .Resource = std::make_shared<T>(Device::CreateBuffer({
                             .SizeBytes = description.SizeBytes,
-                            .Usage = description.Usage})),
+                            .Usage = description.Usage},
+                            Device::DummyDeletionQueue())),
                         .LastFrame = 0});
                 }
                 else
@@ -231,7 +233,7 @@ namespace RG
         template <typename PassData, typename SetupFn, typename CallbackFn>
         Pass& AddRenderPass(const PassName& passName, SetupFn&& setup, CallbackFn&& callback);
 
-        Resource AddExternal(const std::string& name, const Buffer& buffer);
+        Resource AddExternal(const std::string& name, Buffer buffer);
         Resource AddExternal(const std::string& name, const Texture& texture);
         Resource AddExternal(const std::string& name, ImageUtils::DefaultTexture texture);
         Resource AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback);
@@ -383,7 +385,7 @@ namespace RG
 
         bool IsAllocated(Resource resource) const;
         
-        const Buffer& GetBuffer(Resource resource) const;
+        Buffer GetBuffer(Resource resource) const;
         const Texture& GetTexture(Resource resource) const;
         Texture& GetTexture(Resource resource);
         const TextureDescription& GetTextureDescription(Resource resource) const;

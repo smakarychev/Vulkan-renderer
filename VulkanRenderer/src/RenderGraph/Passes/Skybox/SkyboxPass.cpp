@@ -66,8 +66,8 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             SkyboxShaderBindGroup bindGroup(shader);
 
             bindGroup.SetSkybox(skyboxTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetProjection(projectionBuffer.BindingInfo());
-            bindGroup.SetShading(resources.GetBuffer(passData.ShadingSettings).BindingInfo());
+            bindGroup.SetProjection({.Buffer = projectionBuffer});
+            bindGroup.SetShading({.Buffer = resources.GetBuffer(passData.ShadingSettings)});
             
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

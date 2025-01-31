@@ -135,7 +135,7 @@ void Renderer::InitRenderGraph()
 
 
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
-    bindGroup.SetMaterialsGlobally(m_GraphOpaqueGeometry.GetMaterialsBuffer().BindingInfo());
+    bindGroup.SetMaterialsGlobally({.Buffer = m_GraphOpaqueGeometry.GetMaterialsBuffer()});
 
     ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
     // todo: this is a little weird
@@ -204,8 +204,6 @@ void Renderer::ExecuteSingleTimePasses()
     m_SkyIrradianceSH = Device::CreateBuffer({
         .SizeBytes = sizeof(SH9Irradiance),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage});
-    Device::DeletionQueue().Enqueue(m_IrradianceSH);
-    Device::DeletionQueue().Enqueue(m_SkyIrradianceSH);
 
     m_BRDFLut = Device::CreateImage({
         .Description = Passes::BRDFLut::getLutDescription(),
