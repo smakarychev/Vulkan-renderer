@@ -22,10 +22,10 @@ bool BindlessTextureDescriptorsRingBuffer::WillOverflow() const
     return FreeSize() == 0;
 }
 
-u32 BindlessTextureDescriptorsRingBuffer::AddTexture(const Texture& texture)
+u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
 {
     MaterialsShaderBindGroup bindGroup(*m_MaterialsShader);
-    bindGroup.SetTexturesGlobally(texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly), m_Tail);
+    bindGroup.SetTexturesGlobally({.Image = texture}, ImageLayout::Readonly, m_Tail);
 
     const u32 toReturn = m_Tail;
     

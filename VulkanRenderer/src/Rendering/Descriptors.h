@@ -7,6 +7,7 @@
 #include "Image/Image.h"
 #include "ShaderAsset.h"
 
+#include <array>
 #include <vector>
 #include <unordered_map>
 
@@ -19,7 +20,6 @@ namespace assetLib
 
 class DescriptorArenaAllocators;
 class ResourceUploader;
-class Image;
 class DescriptorPool;
 
 struct DescriptorBinding
@@ -66,8 +66,14 @@ struct DescriptorSetCreateInfo
         u32 Slot;
         DescriptorType Type;
     };
+    struct TextureBinding
+    {
+        ImageSubresource Subresource{};
+        Sampler Sampler{};
+        ImageLayout Layout{ImageLayout::Undefined};
+    };
     using BoundBuffer = BoundResource<BufferSubresource>;
-    using BoundTexture = BoundResource<TextureBindingInfo>;
+    using BoundTexture = BoundResource<TextureBinding>;
 
     DescriptorPoolFlags PoolFlags{0};
     std::span<const BoundBuffer> Buffers;

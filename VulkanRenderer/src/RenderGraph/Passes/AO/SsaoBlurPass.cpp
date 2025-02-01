@@ -38,18 +38,18 @@ RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderG
             CPU_PROFILE_FRAME("SSAO.Blur")
             GPU_PROFILE_FRAME("SSAO.Blur")
             
-            const Texture& ssaoIn = resources.GetTexture(passData.SsaoIn);
-            const Texture& ssaoOut = resources.GetTexture(passData.SsaoOut);
+            auto&& [ssaoIn, ssaoInDescription] = resources.GetTextureWithDescription(passData.SsaoIn);
+            Texture ssaoOut = resources.GetTexture(passData.SsaoOut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             SsaoBlurShaderBindGroup bindGroup(shader);
-            bindGroup.SetSsao(ssaoIn.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetSsaoBlurred(ssaoOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetSsao({.Image = ssaoIn}, ImageLayout::Readonly);
+            bindGroup.SetSsaoBlurred({.Image = ssaoOut}, ImageLayout::General);
             
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
-                {ssaoIn.Description().Width, ssaoIn.Description().Height, 1},
+                {ssaoInDescription.Width, ssaoInDescription.Height, 1},
                 {16, 16, 1});
         });
 

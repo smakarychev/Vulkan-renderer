@@ -61,20 +61,18 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
         const Shader& shader = resources.GetGraph()->GetShader();
         AtmosphereRaymarchShaderBindGroup bindGroup(shader);
         if (passData.DepthIn.IsValid())
-            bindGroup.SetDepth(resources.GetTexture(passData.DepthIn).BindingInfo(
-                ImageFilter::Linear, ImageLayout::DepthReadonly));
+            bindGroup.SetDepth({.Image = resources.GetTexture(passData.DepthIn)}, ImageLayout::DepthReadonly);
 
         bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
         bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.DirectionalLight)});
         bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
-        bindGroup.SetSkyViewLut(resources.GetTexture(passData.SkyViewLut).BindingInfo(
-               ImageFilter::Linear, ImageLayout::Readonly));
+        bindGroup.SetSkyViewLut({.Image = resources.GetTexture(passData.SkyViewLut)}, ImageLayout::Readonly);
         if (passData.TransmittanceLut.IsValid())
-            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
-                   ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)},
+                ImageLayout::Readonly);
         if (passData.AerialPerspectiveLut.IsValid())
-            bindGroup.SetAerialPerspectiveLut(resources.GetTexture(passData.AerialPerspectiveLut).BindingInfo(
-                   ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetAerialPerspectiveLut({.Image = resources.GetTexture(passData.AerialPerspectiveLut)},
+                ImageLayout::Readonly);
 
         struct PushConstant
         {

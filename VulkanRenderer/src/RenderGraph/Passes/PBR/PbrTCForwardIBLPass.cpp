@@ -51,7 +51,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                             "pbr-forward.shader",
                             ShaderOverrides{
                                 ShaderOverride{{"MAX_REFLECTION_LOD"},
-                                    (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                                    (f32)ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
                                 ShaderOverride{{"COMPOUND_INDEX"}, executionInfo.Triangles.IsValid()}});
                         PbrForwardShaderBindGroup bindGroup(shader);
                         

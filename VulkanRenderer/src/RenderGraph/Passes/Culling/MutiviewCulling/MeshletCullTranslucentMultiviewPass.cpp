@@ -37,8 +37,7 @@ RG::Pass& Passes::Multiview::MeshletCullTranslucent::addToGraph(std::string_view
             
             const Shader& shader = resources.GetGraph()->GetShader();
             MeshletCullTranslucentMultiviewShaderBindGroup bindGroup(shader);
-            bindGroup.SetSampler(resources.GetTexture(
-                multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
+            bindGroup.SetSampler(hizSampler);
 
             RgUtils::updateCullMeshletMultiviewBindings(bindGroup, resources, *multiview, CullStage::Single);
 

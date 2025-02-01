@@ -89,34 +89,32 @@ namespace RG::RgUtils
     void updateIBLBindings(BindGroup& bindGroup, const Resources& resources, const IBLData& iblData)
     {
         Buffer irradianceSh = resources.GetBuffer(iblData.IrradianceSH);
-        const Texture& prefilter = resources.GetTexture(iblData.PrefilterEnvironment);
-        const Texture& brdf = resources.GetTexture(iblData.BRDF);
+        Texture prefilter = resources.GetTexture(iblData.PrefilterEnvironment);
+        Texture brdf = resources.GetTexture(iblData.BRDF);
 
         // todo: fix me in SHADERS!
         if constexpr (requires { bindGroup.SetIrradianceSH({.Buffer = irradianceSh}); })
             bindGroup.SetIrradianceSH({.Buffer = irradianceSh});
-        bindGroup.SetPrefilterMap(prefilter.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-        bindGroup.SetBrdf(brdf.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+        bindGroup.SetPrefilterMap({.Image = prefilter}, ImageLayout::Readonly);
+        bindGroup.SetBrdf({.Image = brdf}, ImageLayout::Readonly);
     }
 
     template <typename BindGroup>
     void updateSSAOBindings(BindGroup& bindGroup, const Resources& resources, const SSAOData& ssaoData)
     {
-        const Texture& ssao = resources.GetTexture(ssaoData.SSAO);
-
-        bindGroup.SetSsaoTexture(ssao.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+        Texture ssao = resources.GetTexture(ssaoData.SSAO);
+        bindGroup.SetSsaoTexture({.Image = ssao}, ImageLayout::Readonly);
     }
 
     template <typename BindGroup>
     void updateShadowBindings(BindGroup& bindGroup, const Resources& resources, const DirectionalShadowData& shadowData)
     {
-        const Texture& shadow = resources.GetTexture(shadowData.ShadowMap);
+        Texture shadow = resources.GetTexture(shadowData.ShadowMap);
         Buffer shadowBuffer = resources.GetBuffer(shadowData.Shadow);
 
-        bindGroup.SetDirectionalShadowMap(shadow.BindingInfo(
-            ImageFilter::Linear,
-            shadow.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
+        bindGroup.SetDirectionalShadowMap({.Image = shadow},
+            Device::GetImageDescription(shadow).Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly);
 
         bindGroup.SetDirectionalShadowTransform({.Buffer = shadowBuffer});
     }
@@ -124,13 +122,12 @@ namespace RG::RgUtils
     template <typename BindGroup>
     void updateCSMBindings(BindGroup& bindGroup, const Resources& resources, const CSMData& csmData)
     {
-        const Texture& shadow = resources.GetTexture(csmData.ShadowMap);
+        Texture shadow = resources.GetTexture(csmData.ShadowMap);
         Buffer csm = resources.GetBuffer(csmData.CSM);
 
-        bindGroup.SetCsm(shadow.BindingInfo(
-            ImageFilter::Linear,
-            shadow.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly));
+        bindGroup.SetCsm({.Image = shadow},
+            Device::GetImageDescription(shadow).Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly);
         bindGroup.SetCsmData({.Buffer = csm});
     }
 }

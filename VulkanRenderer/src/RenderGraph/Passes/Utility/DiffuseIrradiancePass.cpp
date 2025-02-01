@@ -6,8 +6,8 @@
 #include "Vulkan/RenderCommand.h"
 
 
-RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& cubemap,
-    const Texture& irradiance)
+RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture cubemap,
+    Texture irradiance)
 {
     return addToGraph(name, renderGraph,
         renderGraph.AddExternal(std::format("{}.Cubemap", name), cubemap),
@@ -15,7 +15,7 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
 }
 
 RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
-    const Texture& irradiance)
+    Texture irradiance)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -39,28 +39,28 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
             CPU_PROFILE_FRAME("DiffuseIrradiance")
             GPU_PROFILE_FRAME("DiffuseIrradiance")
 
-            const Texture& cubemapTexture = resources.GetTexture(passData.Cubemap);
-            const Texture& diffuseIrradianceTexture = resources.GetTexture(passData.DiffuseIrradiance);
+            Texture cubemapTexture = resources.GetTexture(passData.Cubemap);
+            auto&& [irradianceTexture, irradianceDescription] =
+                resources.GetTextureWithDescription(passData.DiffuseIrradiance);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             DiffuseIrradianceShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetEnv(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetIrradiance(diffuseIrradianceTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetEnv({.Image = cubemapTexture}, ImageLayout::Readonly);
+            bindGroup.SetIrradiance({.Image = irradianceTexture}, ImageLayout::General);
 
             struct PushConstants
             {
                 glm::vec2 DiffuseIrradianceResolutionInverse{};
             };
             PushConstants pushConstants = {
-                .DiffuseIrradianceResolutionInverse =
-                    1.0f / glm::vec2{(f32)diffuseIrradianceTexture.Description().Width}};
+                .DiffuseIrradianceResolutionInverse = 1.0f / glm::vec2{(f32)irradianceDescription.Width}};
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             RenderCommand::Dispatch(cmd,
-                {diffuseIrradianceTexture.Description().Width, diffuseIrradianceTexture.Description().Width, 6},
+                {irradianceDescription.Width, irradianceDescription.Width, 6},
                 {32, 32, 1});
         });
 }

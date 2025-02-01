@@ -271,7 +271,7 @@ void ShaderDescriptorSet::BindCompute(CommandBuffer cmd, DescriptorKind descript
         dynamicOffsets);
 }
 
-void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex)
+void ShaderDescriptorSet::SetTexture(std::string_view name, Texture texture, u32 arrayIndex)
 {
     auto&& [set, descriptorBinding] = m_Template->GetSetAndBinding(name);
 
@@ -279,7 +279,7 @@ void ShaderDescriptorSet::SetTexture(std::string_view name, const Texture& textu
         "Attempt to access non-existing descriptor set")
 
     Device::UpdateDescriptorSet(m_DescriptorSetsInfo.DescriptorSets[set].Set,
-        descriptorBinding, texture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly), arrayIndex);
+        descriptorBinding, {.Image = texture}, Device::CreateSampler({}), ImageLayout::Readonly, arrayIndex);
 }
 
 std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};

@@ -169,7 +169,7 @@ RenderHandle<Mesh> ModelCollection::AddMesh(const Mesh& mesh)
     return AddRenderHandle(mesh, m_Meshes);
 }
 
-RenderHandle<Texture> ModelCollection::AddTexture(const Texture& texture)
+RenderHandle<Texture> ModelCollection::AddTexture(Texture texture)
 {
     u32 textureDescriptorIndex = m_TextureDescriptorsRingBuffer->AddTexture(texture);
     

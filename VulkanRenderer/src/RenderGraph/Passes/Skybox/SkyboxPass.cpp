@@ -7,7 +7,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& skybox,
+RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture skybox,
     RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
     return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".Skybox", skybox),
@@ -59,13 +59,13 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             CPU_PROFILE_FRAME("Skybox")
             GPU_PROFILE_FRAME("Skybox")
 
-            const Texture& skyboxTexture = resources.GetTexture(passData.Skybox);
+            Texture skyboxTexture = resources.GetTexture(passData.Skybox);
             const Buffer projectionBuffer = resources.GetBuffer(passData.Projection);
             
             const Shader& shader = resources.GetGraph()->GetShader();
             SkyboxShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetSkybox(skyboxTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetSkybox({.Image = skyboxTexture}, ImageLayout::Readonly);
             bindGroup.SetProjection({.Buffer = projectionBuffer});
             bindGroup.SetShading({.Buffer = resources.GetBuffer(passData.ShadingSettings)});
             

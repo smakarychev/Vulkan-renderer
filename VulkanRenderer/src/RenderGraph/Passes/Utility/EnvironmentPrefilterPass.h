@@ -8,10 +8,10 @@ namespace Passes::EnvironmentPrefilter
         RG::Resource Cubemap{};
         RG::Resource PrefilteredTexture{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& cubemap,
-        const Texture& prefiltered);
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, Texture cubemap,
+        Texture prefiltered);
     RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
-        const Texture& prefiltered);
+        Texture prefiltered);
 
     TextureDescription getPrefilteredTextureDescription();
 }

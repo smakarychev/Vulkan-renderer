@@ -20,13 +20,13 @@ struct Settings {
     float horizon_to_zenith_rate;
 };
 
-layout(set = 0, binding = 0) uniform camera {
+layout(set = 1, binding = 0) uniform camera {
     Camera camera;
 } u_camera;
-layout(set = 0, binding = 1) uniform settings {
+layout(set = 1, binding = 1) uniform settings {
     Settings settings;
 } u_settings;
-layout(set = 0, binding = 2, rgba16f) uniform writeonly image2D u_out_image;
+layout(set = 1, binding = 2, rgba16f) uniform writeonly image2D u_out_image;
 
 layout(push_constant) uniform push_constants {
     uvec2 image_size;

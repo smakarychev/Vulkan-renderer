@@ -70,15 +70,15 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
 
             Buffer camera = resources.GetBuffer(passData.Camera);
             Buffer settingsBuffer = resources.GetBuffer(passData.Settings);
-            const Texture& colorOut = resources.GetTexture(passData.ColorOut);
+            auto&& [colorOut, colorOutDescription] = resources.GetTextureWithDescription(passData.ColorOut);
 
-            glm::uvec2 imageSize = {colorOut.Description().Width, colorOut.Description().Height};
+            glm::uvec2 imageSize = {colorOutDescription.Width, colorOutDescription.Height};
 
             const Shader& shader = resources.GetGraph()->GetShader();
             SkyGradientShaderBindGroup bindGroup(shader);
             bindGroup.SetCamera({.Buffer = camera});
             bindGroup.SetSettings({.Buffer = settingsBuffer});
-            bindGroup.SetOutImage(colorOut.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetOutImage({.Image = colorOut}, ImageLayout::General);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

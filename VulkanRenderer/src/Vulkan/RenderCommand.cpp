@@ -6,6 +6,7 @@
 
 #include "Device.h"
 #include "Rendering/Buffer.h"
+#include "Rendering/Image/Image.h"
 #include "Rendering/CommandBuffer.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/Swapchain.h"
@@ -40,10 +41,10 @@ void RenderCommand::PrepareSwapchainPresent(CommandBuffer cmd, Swapchain swapcha
     DeviceResources::SwapchainResource& swapchainResource = Device::Resources()[swapchain];
     
     ImageSubresource drawSubresource = {
-        .Image = &swapchainResource.Description.DrawImage,
+        .Image = swapchainResource.Description.DrawImage,
         .Description = {.Mipmaps = 1, .Layers = 1}};
     ImageSubresource presentSubresource = {
-        .Image = &swapchainResource.Description.ColorImages[imageIndex],
+        .Image = swapchainResource.Description.ColorImages[imageIndex],
         .Description = {.Mipmaps = 1, .Layers = 1}};
     DeletionQueue deletionQueue = {};
 
@@ -65,17 +66,17 @@ void RenderCommand::PrepareSwapchainPresent(CommandBuffer cmd, Swapchain swapcha
         .LayoutTransitionInfo = presentToDestinationTransitionInfo}, deletionQueue));
 
     ImageBlitInfo source = {
-        .Image = &swapchainResource.Description.DrawImage,
+        .Image = swapchainResource.Description.DrawImage,
         .MipmapBase = (u32)drawSubresource.Description.MipmapBase,
         .LayerBase = (u32)drawSubresource.Description.LayerBase,
         .Layers = (u32)drawSubresource.Description.Layers,
-        .Top = swapchainResource.Description.DrawImage.Description().Dimensions()};
+        .Top = Device::GetImageDescription(swapchainResource.Description.DrawImage).Dimensions()};
     ImageBlitInfo destination = {
-        .Image = &swapchainResource.Description.ColorImages[imageIndex],
+        .Image = swapchainResource.Description.ColorImages[imageIndex],
         .MipmapBase = (u32)presentSubresource.Description.MipmapBase,
         .LayerBase = (u32)presentSubresource.Description.LayerBase,
         .Layers = (u32)presentSubresource.Description.Layers,
-        .Top = swapchainResource.Description.ColorImages[imageIndex].Description().Dimensions()};
+        .Top = Device::GetImageDescription(swapchainResource.Description.ColorImages[imageIndex]).Dimensions()};
     
     BlitImage(cmd, source, destination, ImageFilter::Linear);
 
@@ -135,7 +136,7 @@ void RenderCommand::CopyBufferToImage(CommandBuffer cmd,
     VkCopyBufferToImageInfo2 copyBufferToImageInfo = {};
     copyBufferToImageInfo.sType = VK_STRUCTURE_TYPE_COPY_BUFFER_TO_IMAGE_INFO_2;
     copyBufferToImageInfo.srcBuffer = sourceResource.Buffer;
-    copyBufferToImageInfo.dstImage = Device::Resources()[*destination.Image].Image;
+    copyBufferToImageInfo.dstImage = Device::Resources()[destination.Image].Image;
     copyBufferToImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     copyBufferToImageInfo.regionCount = 1;
     copyBufferToImageInfo.pRegions = &bufferImageCopy;

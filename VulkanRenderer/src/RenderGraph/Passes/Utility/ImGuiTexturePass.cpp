@@ -24,7 +24,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture)
+RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture texture)
 {
     return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
 }
@@ -51,13 +51,13 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
             CPU_PROFILE_FRAME("ImGui Texture")
             GPU_PROFILE_FRAME("ImGui Texture")
 
-            const Texture& texture = resources.GetTexture(passData.Texture);
+            auto&& [texture, description] = resources.GetTextureWithDescription(passData.Texture);
             
             ImGui::Begin(passData.Name.c_str());
-            glm::vec2 size = getTextureWindowSize(texture.Description());
+            glm::vec2 size = getTextureWindowSize(description);
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
-            ImGuiUI::Texture(ImageSubresource{.Image = &texture}, sampler, ImageLayout::Readonly,
+            ImGuiUI::Texture(ImageSubresource{.Image = texture}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
         });
@@ -65,7 +65,7 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
     return pass;
 }
 
-RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture)
+RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture texture)
 {
     return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
 }
@@ -97,16 +97,17 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph&
             GPU_PROFILE_FRAME("ImGui Texture")
 
             Context& context = resources.GetOrCreateValue<Context>();
-            const Texture& texture = resources.GetTexture(passData.Texture);
-            ASSERT(texture.Description().Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
+            auto&& [texture, description] = resources.GetTextureWithDescription(passData.Texture);
+
+            ASSERT(description.Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
             
             ImGui::Begin(passData.Name.c_str());
-            ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, texture.Description().LayersDepth - 1);
-            glm::vec2 size = getTextureWindowSize(texture.Description());
+            ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, (i32)description.LayersDepth - 1);
+            glm::vec2 size = getTextureWindowSize(description);
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
             ImGuiUI::Texture(ImageSubresource{
-                .Image = &texture,
+                .Image = texture,
                 .Description = ImageSubresourceDescription{
                     .ImageViewKind = ImageViewKind::Image2d,
                     .LayerBase = (i8)context.Layer,
@@ -159,8 +160,7 @@ namespace
                 const Shader& shader = resources.GetGraph()->GetShader();
                 Texture3dToSliceShaderBindGroup bindGroup(shader);
 
-                bindGroup.SetTexture(resources.GetTexture(passData.Texture3d)
-                    .BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+                bindGroup.SetTexture({.Image = resources.GetTexture(passData.Texture3d)}, ImageLayout::Readonly);
 
                 auto& cmd = frameContext.Cmd;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
@@ -172,7 +172,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& texture)
+RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture texture)
 {
     return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
 }
@@ -214,14 +214,14 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& r
             GPU_PROFILE_FRAME("ImGui Texture")
 
             Context& context = resources.GetOrCreateValue<Context>();
-            const Texture& slice = resources.GetTexture(passData.Texture);
+            auto&& [slice, description] = resources.GetTextureWithDescription(passData.Texture);
             
             ImGui::Begin(passData.Name.c_str());
-            ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, passData.Depth - 1);
-            glm::vec2 size = getTextureWindowSize(slice.Description());
+            ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, (i32)passData.Depth - 1);
+            glm::vec2 size = getTextureWindowSize(description);
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
-            ImGuiUI::Texture(ImageSubresource{.Image = &slice}, sampler, ImageLayout::Readonly,
+            ImGuiUI::Texture(ImageSubresource{.Image = slice}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
         });

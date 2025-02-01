@@ -85,7 +85,7 @@ private:
     };
     struct ImageResource
     {
-        using ObjectType = Image;
+        using ObjectType = ImageTag;
         struct ViewsInfo
         {
             union ViewType
@@ -101,6 +101,7 @@ private:
         };
         VkImage Image{VK_NULL_HANDLE};
         ViewsInfo Views{};
+        ImageDescription Description{};
         VmaAllocation Allocation{VK_NULL_HANDLE};
     };
     struct SamplerResource
@@ -340,7 +341,7 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Swapchains.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, BufferTag>)
         m_Buffers.Remove(handle);
-    else if constexpr(std::is_same_v<Decayed, Image>)
+    else if constexpr(std::is_same_v<Decayed, ImageTag>)
         m_Images.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, SamplerTag>)
         m_Samplers.Remove(handle);
@@ -398,7 +399,7 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     else if constexpr(std::is_same_v<Decayed, Buffer>)
         return m_Buffers[type];
     else if constexpr(std::is_same_v<Decayed, Image>)
-        return m_Images[type.Handle()];
+        return m_Images[type];
     else if constexpr(std::is_same_v<Decayed, Sampler>)
         return m_Samplers[type];
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
@@ -454,7 +455,7 @@ private:
     bool m_IsDummy{false};
     std::vector<Swapchain> m_Swapchains;
     std::vector<Buffer> m_Buffers;
-    std::vector<ResourceHandleType<Image>> m_Images;
+    std::vector<Image> m_Images;
     std::vector<Sampler> m_Samplers;
     std::vector<CommandPool> m_CommandPools;
     std::vector<DescriptorsLayout> m_DescriptorLayouts;
@@ -486,7 +487,7 @@ void DeletionQueue::Enqueue(Type& type)
     else if constexpr(std::is_same_v<Decayed, Buffer>)
         m_Buffers.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Image>)
-        m_Images.push_back(type.Handle());
+        m_Images.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Sampler>)
         m_Samplers.push_back(type);
     else if constexpr(std::is_same_v<Decayed, CommandPool>)
@@ -565,11 +566,14 @@ public:
     static u64 GetDeviceAddress(Buffer buffer);
     
     static Image CreateImage(ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
-    static void Destroy(ResourceHandleType<Image> image);
+    static void Destroy(Image image);
     static void CreateViews(const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
-    static void CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout currentLayout);
-
+    static void CalculateMipmaps(Image image, CommandBuffer cmd, ImageLayout currentLayout);
+    static Span<const ImageSubresourceDescription> GetAdditionalImageViews(Image image);
+    static ImageViewHandle GetImageViewHandle(Image image, ImageSubresourceDescription subresourceDescription);
+    static const ImageDescription& GetImageDescription(Image image);
+    
     static Sampler CreateSampler(SamplerCreateInfo&& createInfo);
     static void Destroy(Sampler sampler);
 
@@ -600,7 +604,7 @@ public:
         DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
     static void DeallocateDescriptorSet(DescriptorAllocator allocator,  DescriptorSet set);
     static void UpdateDescriptorSet(DescriptorSet descriptorSet, DescriptorBindingInfo bindingInfo,
-        const TextureBindingInfo& texture, u32 index);
+        const ImageSubresource& image, Sampler sampler, ImageLayout layout, u32 index);
 
     static DescriptorAllocator CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo);
     static void Destroy(DescriptorAllocator allocator);
@@ -616,12 +620,14 @@ public:
     
     static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
         const BufferSubresource& buffer, u32 index);  
+    static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler);  
     static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-        const TextureBindingInfo& texture, u32 index);  
+        const ImageSubresource& image, ImageLayout layout, u32 index);  
     static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-        const BufferSubresource& buffer, u32 index);  
+        const BufferSubresource& buffer, u32 index);
+    static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler);
     static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-        const TextureBindingInfo& texture, u32 index);
+        const ImageSubresource& image, ImageLayout layout, u32 index);
 
     static Fence CreateFence(FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Fence fence);

@@ -1043,16 +1043,14 @@ void Device::CreateSwapchainImages(Swapchain swapchain)
         .Kind = ImageKind::Image2d,
         .Usage = ImageUsage::Destination};
     std::vector<Image> colorImages(imageCount);
-    for (auto& image : colorImages)
-        image.m_Description = description;
     
     std::vector<VkImageView> imageViews(imageCount);
     for (u32 i = 0; i < imageCount; i++)
     {
-        DeviceResources::ImageResource imageResource = {.Image = images[i]};
-        colorImages[i].m_ResourceHandle = Resources().AddResource(imageResource);
+        DeviceResources::ImageResource imageResource = {.Image = images[i], .Description = description};
+        colorImages[i] = Resources().AddResource(imageResource);
         Resources()[colorImages[i]].Views.ViewType.View = CreateVulkanImageView(
-            ImageSubresource{.Image = &colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
+            ImageSubresource{.Image = colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
             swapchainResource.ColorFormat);
         Resources()[colorImages[i]].Views.ViewList = &Resources()[colorImages[i]].Views.ViewType.View;
     }
@@ -1066,10 +1064,10 @@ void Device::DestroySwapchainImages(Swapchain swapchain)
     for (const auto& colorImage : swapchainResource.Description.ColorImages)
     {
         vkDestroyImageView(s_State.Device, *Resources()[colorImage].Views.ViewList, nullptr);
-        Resources().RemoveResource(colorImage.Handle());
+        Resources().RemoveResource(colorImage);
     }
-    Image::Destroy(swapchainResource.Description.DrawImage);
-    Image::Destroy(swapchainResource.Description.DepthImage);
+    Destroy(swapchainResource.Description.DrawImage);
+    Destroy(swapchainResource.Description.DepthImage);
 }
 
 u32 Device::AcquireNextImage(Swapchain swapchain, u32 frameNumber)
@@ -1478,11 +1476,11 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
 Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPath assetPath)
 {
     {
-        Image* image = AssetManager::GetImage(assetPath);
-        if (image)
+        Image image = AssetManager::GetImage(assetPath);
+        if (image.HasValue())
         {
             createInfo.Description.Usage |= ImageUsage::NoDeallocation;
-            return *image;
+            return image;
         }
     }
 
@@ -1502,7 +1500,7 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPa
     createInfo.Description.Format = formatFromAssetFormat(textureInfo.Format);
     createInfo.Description.Width = textureInfo.Dimensions.Width;
     createInfo.Description.Height = textureInfo.Dimensions.Height;
-    createInfo.Description.Mipmaps = Image::CalculateMipmapCount({
+    createInfo.Description.Mipmaps = ImageUtils::mipmapCount({
         textureInfo.Dimensions.Width, textureInfo.Dimensions.Height});
     // todo: not always correct, should reflect in in asset file
     createInfo.Description.Kind = ImageKind::Image2d;
@@ -1522,10 +1520,8 @@ Image Device::CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std:
         Image image = {};
 
         DeviceResources::ImageResource imageResource = CreateImageResource(createInfo);
-        image.m_ResourceHandle = Resources().AddResource(imageResource);
-        // todo: remove once handles are ready
-        image.m_Description = createInfo.Description;    
-        CreateViews(ImageSubresource{.Image = &image}, createInfo.Description.AdditionalViews);
+        image = Resources().AddResource(imageResource);
+        CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
         
         return image;
     }
@@ -1547,12 +1543,10 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
     Image image = {};
 
     DeviceResources::ImageResource imageResource = CreateImageResource(createInfo);
-    image.m_ResourceHandle = Resources().AddResource(imageResource);
-    // todo: remove once handles are ready
-    image.m_Description = createInfo.Description;
-    CreateViews(ImageSubresource{.Image = &image}, createInfo.Description.AdditionalViews);
+    image = Resources().AddResource(imageResource);
+    CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
     
-    ImageSubresource imageSubresource = {.Image = &image, .Description = {.Mipmaps = 1, .Layers = 1}};
+    ImageSubresource imageSubresource = {.Image = image, .Description = {.Mipmaps = 1, .Layers = 1}};
 
     ImmediateSubmit([&](CommandBuffer cmd)
     {
@@ -1570,7 +1564,7 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
 
         RenderCommand::CopyBufferToImage(cmd, buffer,
             ImageSubresource{
-                .Image = &image, .Description = {.Mipmaps = 1, .Layers = image.m_Description.GetLayers()}});
+                .Image = image, .Description = {.Mipmaps = 1, .Layers = createInfo.Description.GetLayers()}});
         if (createInfo.CalculateMipmaps)
             CalculateMipmaps(image, cmd, ImageLayout::Destination);
         imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
@@ -1579,20 +1573,21 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
     return image;
 }
 
-void Device::CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout currentLayout)
+void Device::CalculateMipmaps(Image image, CommandBuffer cmd, ImageLayout currentLayout)
 {
-    if (image.Description().Mipmaps == 1)
+    DeviceResources::ImageResource& imageResource = Resources()[image];
+    if (imageResource.Description.Mipmaps == 1)
         return;
 
-    i32 width = (i32)image.Description().Width;
-    i32 height = (i32)image.Description().Height;
-    i32 depth = (i32)image.Description().GetDepth();
-    i8 layers = image.Description().GetLayers();
+    i32 width = (i32)imageResource.Description.Width;
+    i32 height = (i32)imageResource.Description.Height;
+    i32 depth = (i32)imageResource.Description.GetDepth();
+    i8 layers = imageResource.Description.GetLayers();
 
     ::DeletionQueue deletionQueue = {};
     
     ImageSubresource imageSubresource = {
-        .Image = &image,
+        .Image = image,
         .Description = {
             .MipmapBase = 0,
             .Mipmaps = 1,
@@ -1610,10 +1605,10 @@ void Device::CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout
     
     RenderCommand::WaitOnBarrier(cmd, CreateDependencyInfo({
         .LayoutTransitionInfo = transitionInfo}, deletionQueue));
-    for (i8 mip = 1; mip < image.Description().Mipmaps; mip++)
+    for (i8 mip = 1; mip < imageResource.Description.Mipmaps; mip++)
     {
         ImageBlitInfo source = {
-            .Image = &image,
+            .Image = image,
             .MipmapBase = (u32)mip - 1,
             .Layers = (u32)layers,
             .Top = {width, height, depth}};
@@ -1623,7 +1618,7 @@ void Device::CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout
         depth = std::max(1, depth >> 1);
 
         ImageBlitInfo destination = {
-            .Image = &image,
+            .Image = image,
             .MipmapBase = (u32)mip,
             .LayerBase = 0,
             .Layers = (u32)layers,
@@ -1631,7 +1626,7 @@ void Device::CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout
             .Top = {width, height, depth}};
 
         ImageSubresource mipmapSubresource = {
-            .Image = &image,
+            .Image = image,
             .Description = {
                 .MipmapBase = mip,
                 .Mipmaps = 1,
@@ -1649,7 +1644,7 @@ void Device::CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout
             .LayoutTransitionInfo = transitionInfo},
             deletionQueue));
         
-        RenderCommand::BlitImage(cmd, source, destination, image.Description().MipmapFilter);
+        RenderCommand::BlitImage(cmd, source, destination, imageResource.Description.MipmapFilter);
         transitionInfo = {
             .ImageSubresource = mipmapSubresource,
             .SourceStage = PipelineStage::AllCommands,
@@ -1662,6 +1657,11 @@ void Device::CalculateMipmaps(const Image& image, CommandBuffer cmd, ImageLayout
             .LayoutTransitionInfo = transitionInfo},
             deletionQueue));
     }
+}
+
+Span<const ImageSubresourceDescription> Device::GetAdditionalImageViews(Image image)
+{
+    return Resources()[image].Description.AdditionalViews;
 }
 
 void Device::PreprocessCreateInfo(ImageCreateInfo& createInfo)
@@ -1710,11 +1710,12 @@ DeviceResources::ImageResource Device::CreateImageResource(ImageCreateInfo& crea
     DeviceCheck(vmaCreateImage(Allocator(), &imageCreateInfo, &allocationInfo,
         &imageResource.Image, &imageResource.Allocation, nullptr),
         "Failed to create image");
+    imageResource.Description = createInfo.Description;
 
     return imageResource;
 }
 
-void Device::Destroy(ResourceHandleType<Image> image)
+void Device::Destroy(Image image)
 {
     const DeviceResources::ImageResource& imageResource = Resources().m_Images[image.m_Id];
     if (imageResource.Views.ViewList == &imageResource.Views.ViewType.View)
@@ -1734,8 +1735,8 @@ void Device::Destroy(ResourceHandleType<Image> image)
 void Device::CreateViews(const ImageSubresource& image,
     const std::vector<ImageSubresourceDescription>& additionalViews)
 {
-    DeviceResources::ImageResource& resource = Resources()[*image.Image];
-    VkFormat viewFormat = vulkanFormatFromFormat(image.Image->m_Description.Format);
+    DeviceResources::ImageResource& resource = Resources()[image.Image];
+    VkFormat viewFormat = vulkanFormatFromFormat(resource.Description.Format);
     if (additionalViews.empty())
     {
         resource.Views.ViewType.View = CreateVulkanImageView(image, viewFormat);
@@ -1743,12 +1744,32 @@ void Device::CreateViews(const ImageSubresource& image,
         return;
     }
 
-    resource.Views.ViewType.ViewCount = 1 + (u32)image.Image->m_Description.AdditionalViews.size();
+    resource.Views.ViewType.ViewCount = 1 + (u32)resource.Description.AdditionalViews.size();
     resource.Views.ViewList = new VkImageView[resource.Views.ViewType.ViewCount];
     resource.Views.ViewList[0] = CreateVulkanImageView(image, viewFormat);
     for (u32 viewIndex = 0; viewIndex < additionalViews.size(); viewIndex++)
         resource.Views.ViewList[viewIndex + 1] = CreateVulkanImageView(
             ImageSubresource{.Image = image.Image, .Description = additionalViews[viewIndex]}, viewFormat);
+}
+
+ImageViewHandle Device::GetImageViewHandle(Image image, ImageSubresourceDescription subresourceDescription)
+{
+    if (subresourceDescription == ImageSubresourceDescription{})
+        return 0;
+
+    const ImageDescription& description = Resources()[image].Description;
+    auto it = std::ranges::find(description.AdditionalViews, subresourceDescription);
+
+    if (it != description.AdditionalViews.end())
+        return ImageViewHandle{u32(it - description.AdditionalViews.begin()) + 1};
+    
+    LOG("ERROR: Image does not have such view subresource, returning default view");
+    return ImageViewHandle{};   
+}
+
+const ImageDescription& Device::GetImageDescription(Image image)
+{
+    return Resources()[image].Description;
 }
 
 Sampler Device::CreateSampler(SamplerCreateInfo&& createInfo)
@@ -1818,8 +1839,8 @@ RenderingAttachment Device::CreateRenderingAttachment(RenderingAttachmentCreateI
             createInfo.Description.Clear.Color.F.a}}};
     renderingAttachmentResource.AttachmentInfo.imageLayout = vulkanImageLayoutFromImageLayout(
         createInfo.Layout);
-    renderingAttachmentResource.AttachmentInfo.imageView = Resources()[*createInfo.Image].Views.ViewList[
-        createInfo.Image->GetViewHandle(createInfo.Description.Subresource).m_Index];
+    renderingAttachmentResource.AttachmentInfo.imageView = Resources()[createInfo.Image].Views.ViewList[
+        GetImageViewHandle(createInfo.Image, createInfo.Description.Subresource).m_Index];
     renderingAttachmentResource.AttachmentInfo.loadOp = vulkanAttachmentLoadFromAttachmentLoad(
         createInfo.Description.OnLoad);
     renderingAttachmentResource.AttachmentInfo.storeOp = vulkanAttachmentStoreFromAttachmentStore(
@@ -2303,9 +2324,10 @@ DescriptorSet Device::CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo)
         write.dstBinding = slot;
         
         VkDescriptorImageInfo descriptorTextureInfo = {};
-        const ImageBindingInfo& binding = texture.BindingInfo;
+        auto& binding = texture.BindingInfo;
         descriptorTextureInfo.sampler = Resources()[binding.Sampler].Sampler;
-        descriptorTextureInfo.imageView = Resources()[*binding.Image].Views.ViewList[binding.ViewHandle.m_Index];
+        descriptorTextureInfo.imageView = Resources()[binding.Subresource.Image].Views.ViewList[
+            GetImageViewHandle(binding.Subresource.Image, binding.Subresource.Description).m_Index];
         descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(binding.Layout);
         boundTextures.push_back(descriptorTextureInfo);
         write.pImageInfo = &boundTextures.back();
@@ -2386,13 +2408,14 @@ void Device::DeallocateDescriptorSet(DescriptorAllocator allocator, DescriptorSe
 }
 
 void Device::UpdateDescriptorSet(DescriptorSet descriptorSet, DescriptorBindingInfo bindingInfo,
-    const TextureBindingInfo& texture, u32 index)
+    const ImageSubresource& image, Sampler sampler, ImageLayout layout, u32 index)
 {
     auto&& [slot, type] = bindingInfo;
     VkDescriptorImageInfo descriptorTextureInfo = {};
-    descriptorTextureInfo.sampler = Resources()[texture.Sampler].Sampler;
-    descriptorTextureInfo.imageView = Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index];
-    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(texture.Layout);
+    descriptorTextureInfo.sampler = Resources()[sampler].Sampler;
+    descriptorTextureInfo.imageView =
+        Resources()[image.Image].Views.ViewList[GetImageViewHandle(image.Image, image.Description).m_Index];
+    descriptorTextureInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
 
     VkWriteDescriptorSet write = {};
     write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -2604,24 +2627,30 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bi
     WriteDescriptor(descriptors, bindingInfo, index, descriptorGetInfo);
 }
 
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler)
+{
+    auto&& [slot, type] = bindingInfo;
+    ASSERT(type == DescriptorType::Sampler)
+    
+    VkDescriptorGetInfoEXT descriptorGetInfo = {};
+    descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
+    descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
+    descriptorGetInfo.data.pSampler = &Resources()[sampler].Sampler;
+    WriteDescriptor(descriptors, bindingInfo, 0, descriptorGetInfo);
+}
+
 void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-    const TextureBindingInfo& texture, u32 index)
+    const ImageSubresource& image, ImageLayout layout, u32 index)
 {
     auto&& [slot, type] = bindingInfo;
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
     descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
     VkDescriptorImageInfo descriptorImageInfo;
-    if (type == DescriptorType::Sampler)
-    {
-        descriptorGetInfo.data.pSampler = &Resources()[texture.Sampler].Sampler;
-    }
-    else
-    {
-        descriptorImageInfo.imageView = Resources()[*texture.Image].Views.ViewList[texture.ViewHandle.m_Index];
-        descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(texture.Layout);
-        descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
-    }
+    descriptorImageInfo.imageView =
+        Resources()[image.Image].Views.ViewList[GetImageViewHandle(image.Image, image.Description).m_Index];
+    descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
+    descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
 
     WriteDescriptor(descriptors, bindingInfo, index, descriptorGetInfo);
 }
@@ -2640,8 +2669,7 @@ void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingI
     allocatorResource.CurrentBuffer = currentIndex;
 }
 
-void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-    const TextureBindingInfo& texture, u32 index)
+void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
     DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];
@@ -2649,7 +2677,21 @@ void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingI
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
         allocatorResource.CurrentBuffer = i;
-        UpdateDescriptors(descriptors, bindingInfo, texture, index);
+        UpdateDescriptors(descriptors, bindingInfo, sampler);
+    }
+    allocatorResource.CurrentBuffer = currentIndex;
+}
+
+void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+    const ImageSubresource& image, ImageLayout layout, u32 index)
+{
+    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];
+    u32 currentIndex = allocatorResource.CurrentBuffer; 
+    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+    {
+        allocatorResource.CurrentBuffer = i;
+        UpdateDescriptors(descriptors, bindingInfo, image, layout, index);
     }
     allocatorResource.CurrentBuffer = currentIndex;
 }
@@ -2841,6 +2883,8 @@ DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInf
     }
     if (createInfo.LayoutTransitionInfo.has_value())
     {
+        const DeviceResources::ImageResource& image =
+            Resources()[createInfo.LayoutTransitionInfo->ImageSubresource.Image];
         VkImageMemoryBarrier2 imageMemoryBarrier = {};
         imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
         imageMemoryBarrier.srcStageMask = vulkanPipelineStageFromPipelineStage(
@@ -2853,13 +2897,12 @@ DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInf
             createInfo.LayoutTransitionInfo->DestinationAccess);
         imageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         imageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    
+        
         imageMemoryBarrier.oldLayout = vulkanImageLayoutFromImageLayout(createInfo.LayoutTransitionInfo->OldLayout);
         imageMemoryBarrier.newLayout = vulkanImageLayoutFromImageLayout(createInfo.LayoutTransitionInfo->NewLayout);
-        imageMemoryBarrier.image = Resources()[*createInfo.LayoutTransitionInfo->ImageSubresource.Image].Image;
+        imageMemoryBarrier.image = Resources()[createInfo.LayoutTransitionInfo->ImageSubresource.Image].Image;
         imageMemoryBarrier.subresourceRange = {
-            .aspectMask = vulkanImageAspectFromImageUsage(
-                createInfo.LayoutTransitionInfo->ImageSubresource.Image->m_Description.Usage),
+            .aspectMask = vulkanImageAspectFromImageUsage(image.Description.Usage),
             .baseMipLevel = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.MipmapBase,
             .levelCount = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.Mipmaps,
             .baseArrayLayer = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.LayerBase,
@@ -3572,9 +3615,9 @@ VkCommandBuffer Device::GetProfilerCommandBuffer(ProfilerContext* context)
 
 ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)
 {
-    ImageViewHandle viewHandle = texture.Image->GetViewHandle(texture.Description);
+    ImageViewHandle viewHandle = GetImageViewHandle(texture.Image, texture.Description);
     VkDescriptorSet imageDescriptorSet = ImGui_ImplVulkan_AddTexture(Resources()[sampler].Sampler,
-        Resources()[*texture.Image].Views.ViewList[viewHandle.m_Index],
+        Resources()[texture.Image].Views.ViewList[viewHandle.m_Index],
         vulkanImageLayoutFromImageLayout(layout));
 
     return ImTextureID{imageDescriptorSet};
@@ -3604,19 +3647,19 @@ VmaAllocator& Device::Allocator()
 
 VkImageView Device::CreateVulkanImageView(const ImageSubresource& image, VkFormat format)
 {
+    const DeviceResources::ImageResource& imageResource = Resources()[image.Image];
     VkImageViewCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    createInfo.image = Resources()[*image.Image].Image;
+    createInfo.image = Resources()[image.Image].Image;
     createInfo.format = format;
-    createInfo.viewType = vulkanImageViewTypeFromImageAndViewKind(image.Image->m_Description.Kind,
+    createInfo.viewType = vulkanImageViewTypeFromImageAndViewKind(imageResource.Description.Kind,
         image.Description.ImageViewKind);
     createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
     createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
-    createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(
-        image.Image->m_Description.Usage);
+    createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
     createInfo.subresourceRange.baseMipLevel = (u32)(i32)image.Description.MipmapBase;
     createInfo.subresourceRange.levelCount = (u32)(i32)image.Description.Mipmaps;
     createInfo.subresourceRange.baseArrayLayer = (u32)(i32)image.Description.LayerBase;
@@ -3633,11 +3676,14 @@ VkImageView Device::CreateVulkanImageView(const ImageSubresource& image, VkForma
 std::pair<VkBlitImageInfo2, VkImageBlit2> Device::CreateVulkanBlitInfo(const ImageBlitInfo& source,
     const ImageBlitInfo& destination, ImageFilter filter)
 {
+    const DeviceResources::ImageResource& sourceResource = Resources()[source.Image];
+    const DeviceResources::ImageResource& destinationResource = Resources()[destination.Image];
+
     VkImageBlit2 imageBlit = {};
     VkBlitImageInfo2 blitImageInfo = {};
     
     imageBlit.sType = VK_STRUCTURE_TYPE_IMAGE_BLIT_2;
-    imageBlit.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(source.Image->m_Description.Usage);
+    imageBlit.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(sourceResource.Description.Usage);
     imageBlit.srcSubresource.baseArrayLayer = source.LayerBase;
     imageBlit.srcSubresource.layerCount = source.Layers;
     imageBlit.srcSubresource.mipLevel = source.MipmapBase;
@@ -3650,7 +3696,7 @@ std::pair<VkBlitImageInfo2, VkImageBlit2> Device::CreateVulkanBlitInfo(const Ima
         .y = (i32)source.Top.y,
         .z = (i32)source.Top.z};
 
-    imageBlit.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destination.Image->m_Description.Usage);
+    imageBlit.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destinationResource.Description.Usage);
     imageBlit.dstSubresource.baseArrayLayer = destination.LayerBase;
     imageBlit.dstSubresource.layerCount = destination.Layers;
     imageBlit.dstSubresource.mipLevel = destination.MipmapBase;
@@ -3664,8 +3710,8 @@ std::pair<VkBlitImageInfo2, VkImageBlit2> Device::CreateVulkanBlitInfo(const Ima
         .z = (i32)destination.Top.z};
     
     blitImageInfo.sType = VK_STRUCTURE_TYPE_BLIT_IMAGE_INFO_2;
-    blitImageInfo.srcImage = Resources()[*source.Image].Image;
-    blitImageInfo.dstImage = Resources()[*destination.Image].Image;
+    blitImageInfo.srcImage = sourceResource.Image;
+    blitImageInfo.dstImage = destinationResource.Image;
     blitImageInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     blitImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     blitImageInfo.regionCount = 1;
@@ -3677,6 +3723,9 @@ std::pair<VkBlitImageInfo2, VkImageBlit2> Device::CreateVulkanBlitInfo(const Ima
 std::pair<VkCopyImageInfo2, VkImageCopy2> Device::CreateVulkanImageCopyInfo(const ImageCopyInfo& source,
     const ImageCopyInfo& destination)
 {
+    const DeviceResources::ImageResource& sourceResource = Resources()[source.Image];
+    const DeviceResources::ImageResource& destinationResource = Resources()[destination.Image];
+    
     glm::uvec3 extentSource = source.Top - source.Bottom;
     glm::uvec3 extentDestination = destination.Top - destination.Bottom;
     ASSERT(extentSource == extentDestination, "Extents of source and destination must match for image copy")
@@ -3689,7 +3738,7 @@ std::pair<VkCopyImageInfo2, VkImageCopy2> Device::CreateVulkanImageCopyInfo(cons
         .width = extentSource.x,
         .height = extentSource.y,
         .depth = extentSource.z};
-    imageCopy.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(source.Image->m_Description.Usage);
+    imageCopy.srcSubresource.aspectMask = vulkanImageAspectFromImageUsage(sourceResource.Description.Usage);
     imageCopy.srcSubresource.baseArrayLayer = source.LayerBase;
     imageCopy.srcSubresource.layerCount = source.Layers;
     imageCopy.srcSubresource.mipLevel = source.MipmapBase;
@@ -3697,7 +3746,7 @@ std::pair<VkCopyImageInfo2, VkImageCopy2> Device::CreateVulkanImageCopyInfo(cons
         .x = (i32)source.Bottom.x,
         .y = (i32)source.Bottom.y,
         .z = (i32)source.Bottom.z};
-    imageCopy.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destination.Image->m_Description.Usage);
+    imageCopy.dstSubresource.aspectMask = vulkanImageAspectFromImageUsage(destinationResource.Description.Usage);
     imageCopy.dstSubresource.baseArrayLayer = destination.LayerBase;
     imageCopy.dstSubresource.layerCount = destination.Layers;
     imageCopy.dstSubresource.mipLevel = destination.MipmapBase;
@@ -3707,8 +3756,8 @@ std::pair<VkCopyImageInfo2, VkImageCopy2> Device::CreateVulkanImageCopyInfo(cons
         .z = (i32)destination.Bottom.z};
     
     copyImageInfo.sType = VK_STRUCTURE_TYPE_COPY_IMAGE_INFO_2;
-    copyImageInfo.srcImage = Resources()[*source.Image].Image;
-    copyImageInfo.dstImage = Resources()[*destination.Image].Image;
+    copyImageInfo.srcImage = sourceResource.Image;
+    copyImageInfo.dstImage = destinationResource.Image;
     copyImageInfo.srcImageLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
     copyImageInfo.dstImageLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     copyImageInfo.regionCount = 1;
@@ -3720,14 +3769,15 @@ VkBufferImageCopy2 Device::CreateVulkanImageCopyInfo(const ImageSubresource& sub
 {
     ASSERT(subresource.Description.Mipmaps == 1, "Buffer to image copies one mipmap at a time")
     
+    const DeviceResources::ImageResource& imageResource = Resources()[subresource.Image];
+    
     VkBufferImageCopy2 bufferImageCopy = {};
     bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
     bufferImageCopy.imageExtent = {
-        .width = subresource.Image->m_Description.Width,
-        .height = subresource.Image->m_Description.Height,
-        .depth =  subresource.Image->m_Description.GetDepth()};
-    bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(
-        subresource.Image->m_Description.Usage);
+        .width = imageResource.Description.Width,
+        .height = imageResource.Description.Height,
+        .depth =  imageResource.Description.GetDepth()};
+    bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
     bufferImageCopy.imageSubresource.mipLevel = (u32)(i32)subresource.Description.MipmapBase;
     bufferImageCopy.imageSubresource.baseArrayLayer = (u32)(i32)subresource.Description.LayerBase;
     bufferImageCopy.imageSubresource.layerCount = (u32)(i32)subresource.Description.Layers;

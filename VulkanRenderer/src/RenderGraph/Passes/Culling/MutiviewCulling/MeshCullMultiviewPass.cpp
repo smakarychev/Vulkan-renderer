@@ -43,8 +43,7 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
             
             const Shader& shader = resources.GetGraph()->GetShader();
             MeshCullMultiviewShaderBindGroup bindGroup(shader);
-            bindGroup.SetSampler(resources.GetTexture(
-                multiview->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
+            bindGroup.SetSampler(hizSampler);
 
             RgUtils::updateMeshCullMultiviewBindings(bindGroup, resources, *multiview);
 

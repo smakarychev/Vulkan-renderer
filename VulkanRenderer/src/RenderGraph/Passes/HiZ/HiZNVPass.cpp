@@ -22,9 +22,10 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    u32 mipmapCount = ctx.GetHiZ(HiZReductionMode::Min).Description().Mipmaps;
-    u32 width = ctx.GetHiZ(HiZReductionMode::Min).Description().Width;  
-    u32 height = ctx.GetHiZ(HiZReductionMode::Min).Description().Height;
+    const TextureDescription& hizDescription = Device::GetImageDescription(ctx.GetHiZ(HiZReductionMode::Min));
+    u32 mipmapCount = (u32)hizDescription.Mipmaps;
+    u32 width = hizDescription.Width;  
+    u32 height = hizDescription.Height;
 
     /* first we have to blit the depth onto the hiz texture using special sampler,
      * it cannot be done by api call, and we have to use a compute shader for that
@@ -50,7 +51,7 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
                 passData.HiZOut = graph.Write(ctx.GetHiZResource(HiZReductionMode::Min), Compute | Storage);
 
                 passData.MinMaxSampler = ctx.GetMinMaxSampler(HiZReductionMode::Min);
-                passData.MipmapViewHandles = ctx.GetViewHandles();
+                passData.MipmapViews = ctx.GetViewHandles();
 
                 ctx.SetHiZResource(passData.HiZOut, HiZReductionMode::Min);
                 
@@ -62,19 +63,17 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
                 CPU_PROFILE_FRAME("HiZNV")
                 GPU_PROFILE_FRAME("HiZNV")
 
-                const Texture hizOutput = resources.GetTexture(passData.HiZOut);
-
-                TextureBindingInfo hizInput = resources.GetTexture(passData.HiZOut).BindingInfo(
-                    passData.MinMaxSampler, ImageLayout::General);
+                Texture hizOutput = resources.GetTexture(passData.HiZOut);
                 
                 const Shader& shader = resources.GetGraph()->GetShader();
                 HizNvShaderBindGroup bindGroup(shader);
-                bindGroup.SetInSampler(hizInput);
-                bindGroup.SetInImage(hizInput);
+                bindGroup.SetInSampler(passData.MinMaxSampler);
+                bindGroup.SetInImage({.Image = hizOutput}, ImageLayout::General);
 
-                for (u32 i = 0; i < passData.MipmapViewHandles.size(); i++)
-                    bindGroup.SetHizMips(resources.GetTexture(passData.HiZOut).BindingInfo(
-                            passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[i]), i);
+                for (u32 i = 0; i < passData.MipmapViews.size(); i++)
+                    bindGroup.SetHizMips({
+                        .Image = hizOutput,
+                        .Description = passData.MipmapViews[i]}, ImageLayout::General, i);
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.Cmd;

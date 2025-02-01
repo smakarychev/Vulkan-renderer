@@ -49,7 +49,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             CPU_PROFILE_FRAME("Atmosphere.AerialPerspective")
             GPU_PROFILE_FRAME("Atmosphere.AerialPerspective")
 
-            const Texture& lutTexture = resources.GetTexture(passData.Lut);
+            auto&& [lutTexture, lutDescription] = resources.GetTextureWithDescription(passData.Lut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereAerialPerspectiveLutShaderBindGroup bindGroup(shader);
@@ -57,18 +57,18 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
             bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
-            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetMultiscatteringLut(resources.GetTexture(passData.MultiscatteringLut).BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetAerialPerspectiveLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)},
+                ImageLayout::Readonly);
+            bindGroup.SetMultiscatteringLut({.Image = resources.GetTexture(passData.MultiscatteringLut)},
+                ImageLayout::Readonly);
+            bindGroup.SetAerialPerspectiveLut({.Image = lutTexture}, ImageLayout::General);
 
             RgUtils::updateCSMBindings(bindGroup, resources, passData.CSMData);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
-                {lutTexture.Description().Width, lutTexture.Description().Height, lutTexture.Description().GetDepth()},
+                {lutDescription.Width, lutDescription.Height, lutDescription.GetDepth()},
                 {16, 16, 1});
         });
 }

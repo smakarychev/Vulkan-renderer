@@ -61,15 +61,15 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
             CPU_PROFILE_FRAME("CRT")
             GPU_PROFILE_FRAME("CRT")
             
-            const Texture& colorInTexture = resources.GetTexture(passData.ColorIn);
+            Texture colorInTexture = resources.GetTexture(passData.ColorIn);
             Buffer time = resources.GetBuffer(passData.Time);
             
             Buffer settingsBuffer = resources.GetBuffer(passData.Settings);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             CrtShaderBindGroup bindGroup(shader);
-            bindGroup.SetSampler(colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetImage(colorInTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetSampler(Device::CreateSampler({}));
+            bindGroup.SetImage({.Image = colorInTexture}, ImageLayout::Readonly);
             bindGroup.SetTime({.Buffer = time});
             bindGroup.SetSettings({.Buffer = settingsBuffer});
 

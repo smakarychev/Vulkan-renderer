@@ -40,7 +40,7 @@ public:
     Buffer GetTraitsBuffer() const { return m_TraitsBuffer; }
     Buffer GetSlimeBuffer() const { return m_SlimeBuffer; }
 
-    const Texture& GetSlimeMap() const { return m_SlimeMap; }
+    Texture GetSlimeMap() const { return m_SlimeMap; }
 private:
     glm::uvec2 m_Resolution{};
     std::vector<Traits> m_Traits;

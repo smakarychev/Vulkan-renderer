@@ -6,7 +6,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& brdf,
+RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture brdf,
     RG::Resource colorIn, const glm::uvec2& resolution)
 {
     using namespace RG;
@@ -46,8 +46,8 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(std::string_view name, RG::Graph& re
             const Shader& shader = resources.GetGraph()->GetShader();
             BrdfVisualizeShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetSampler(brdf.BindingInfo(passData.BRDFSampler, ImageLayout::Readonly));
-            bindGroup.SetBrdf(brdf.BindingInfo(passData.BRDFSampler, ImageLayout::Readonly));
+            bindGroup.SetSampler(passData.BRDFSampler);
+            bindGroup.SetBrdf({.Image = brdf}, ImageLayout::Readonly);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

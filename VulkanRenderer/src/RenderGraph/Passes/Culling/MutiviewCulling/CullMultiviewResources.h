@@ -116,11 +116,10 @@ namespace RG::RgUtils
 
         for (u32 i = 0; i < multiview.ViewCount; i++)
         {
-            const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
+            auto&& [hiz, hizDescription] = resources.GetTextureWithDescription(multiview.HiZs[i]);
 
-            bindGroup.SetHiz(hiz.BindingInfo(multiview.HiZSampler,
-                hiz.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
+            bindGroup.SetHiz({.Image = hiz}, hizDescription.Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly, i);
 
             bindGroup.SetObjectVisibility({.Buffer = resources.GetBuffer(multiview.MeshVisibility[i])}, i);
         }
@@ -147,12 +146,10 @@ namespace RG::RgUtils
 
         for (u32 i = 0; i < multiview.ViewCount; i++)
         {
-            const Texture& hiz = resources.GetTexture(multiview.HiZs[i]);
+            auto&& [hiz, hizDescription] = resources.GetTextureWithDescription(multiview.HiZs[i]);
 
-            bindGroup.SetHiz(hiz.BindingInfo(multiview.HiZSampler,
-                hiz.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
-
+            bindGroup.SetHiz({.Image = hiz}, hizDescription.Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly, i);
             bindGroup.SetObjectVisibility({.Buffer = resources.GetBuffer(multiview.MeshVisibility[i])}, i);
             bindGroup.SetMeshletVisibility({.Buffer = resources.GetBuffer(multiview.MeshletVisibility[i])}, i);
             bindGroup.SetCompactedCommands({.Buffer = resources.GetBuffer(multiview.CompactCommands[i])}, i);
@@ -201,12 +198,11 @@ namespace RG::RgUtils
         for (u32 i = 0; i < multiview.TriangleViewCount; i++)
         {
             u32 meshletIndex = multiview.MeshletViewIndices[i];
-            
-            const Texture& hiz = resources.GetTexture(multiview.MeshletCull->HiZs[meshletIndex]);
-            cullBindGroup.SetHiz(hiz.BindingInfo(multiview.MeshletCull->HiZSampler,
-                hiz.Description().Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly), i);
 
+            auto&& [hiz, hizDescription] = resources.GetTextureWithDescription(multiview.MeshletCull->HiZs[meshletIndex]);
+
+            cullBindGroup.SetHiz({.Image = hiz}, hizDescription.Format == Format::D32_FLOAT ?
+                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly, i);
             cullBindGroup.SetMeshletVisibility({.Buffer = resources.GetBuffer(
                 multiview.MeshletCull->MeshletVisibility[meshletIndex])}, i);
 

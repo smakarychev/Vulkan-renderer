@@ -1,7 +1,6 @@
 #include "HiZPassContext.h"
 
 #include "HiZBlitUtilityPass.h"
-#include "HiZFullPass.h"
 #include "utils/MathUtils.h"
 
 HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue)
@@ -12,7 +11,7 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
 
     m_HiZResolution = glm::uvec2{width, height};
     
-    i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, Image::CalculateMipmapCount({width, height}));
+    i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, ImageUtils::mipmapCount({width, height}));
 
     std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
     for (i8 i = 0; i < mipmapCount; i++)
@@ -32,7 +31,7 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
             deletionQueue);
 
         m_MinMaxSamplers[i] = Device::CreateSampler({
-            .ReductionMode = SamplerReductionMode::Min,
+            .ReductionMode = i == (u32)HiZReductionMode::Min ? SamplerReductionMode::Min : SamplerReductionMode::Max,
             .MaxLod = MAX_MIPMAP_COUNT,
             .WithAnisotropy = false});
     }
@@ -45,5 +44,5 @@ HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& dele
             .Usage = Ordinary | Storage | Uniform | Readback});
     }
     
-    m_MipmapViewHandles = m_HiZs[0].GetAdditionalViewHandles();
+    m_MipmapViews = Device::GetAdditionalImageViews(m_HiZs[0]);
 }

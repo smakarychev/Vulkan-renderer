@@ -26,7 +26,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
                 ShaderOverrides{
                     ShaderOverride{
                         {"MAX_REFLECTION_LOD"},
-                        (f32)Image::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                        (f32)ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
                     ShaderOverride{{"USE_TILED_LIGHTING"}, useTiled},
                     ShaderOverride{{"USE_CLUSTERED_LIGHTING"}, useClustered},
                     ShaderOverride{{"USE_HYBRID_LIGHTING"}, useHybrid}});
@@ -87,7 +87,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             CPU_PROFILE_FRAME("PBR Visibility pass")
             GPU_PROFILE_FRAME("PBR Visibility pass")
 
-            const Texture& visibility = resources.GetTexture(passData.VisibilityTexture);
+            Texture visibility = resources.GetTexture(passData.VisibilityTexture);
             Buffer cameraBuffer = resources.GetBuffer(passData.Camera);
             Buffer shadingSettings = resources.GetBuffer(passData.ShadingSettings);
 
@@ -102,7 +102,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             const Shader& shader = resources.GetGraph()->GetShader();
             PbrVisibilityIblShaderBindGroup bindGroup(shader);
             
-            bindGroup.SetVisibilityTexture(visibility.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
+            bindGroup.SetVisibilityTexture({.Image = visibility}, ImageLayout::Readonly);
             RgUtils::updateSceneLightBindings(bindGroup, resources, passData.LightsResources);
             if (passData.Clusters.IsValid())
                 bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});

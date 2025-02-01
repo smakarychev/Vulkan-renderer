@@ -183,10 +183,10 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                     if (!canClear)
                         description.OnLoad = AttachmentLoad::Load;
 
-                    const Texture& colorTexture = resources.GetTexture(colors[attachmentIndex].Resource);
+                    Texture colorTexture = resources.GetTexture(colors[attachmentIndex].Resource);
                     colorAttachments.push_back(Device::CreateRenderingAttachment({
                         .Description = description,
-                        .Image = &colorTexture,
+                        .Image = colorTexture,
                         .Layout = ImageLayout::Attachment},
                         frameContext.DeletionQueue));
                 }
@@ -196,10 +196,10 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                     if (!canClear)
                         description.OnLoad = AttachmentLoad::Load;
 
-                    const Texture& depthTexture = resources.GetTexture(depth->Resource);
+                    Texture depthTexture = resources.GetTexture(depth->Resource);
                     depthAttachment = Device::CreateRenderingAttachment({
                         .Description = description,
-                        .Image = &depthTexture,
+                        .Image = depthTexture,
                         .Layout = ImageLayout::DepthAttachment},
                         frameContext.DeletionQueue);
                 }
@@ -237,8 +237,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                 TriangleCullMultiviewShaderBindGroup cullBindGroup(cullShader);
                 PrepareDrawsMultiviewShaderBindGroup prepareBindGroup(prepareShader);
 
-                cullBindGroup.SetSampler(resources.GetTexture(
-                    multiview->MeshletCull->HiZs.front()).BindingInfo(hizSampler, ImageLayout::DepthReadonly));
+                cullBindGroup.SetSampler(hizSampler);
 
                 RgUtils::updateCullTriangleMultiviewBindings(
                     cullBindGroup,

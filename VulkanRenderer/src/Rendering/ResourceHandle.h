@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+
 #include "RenderingCommon.h"
 #include "Common/SparseSetGenerationTraits.h"
 

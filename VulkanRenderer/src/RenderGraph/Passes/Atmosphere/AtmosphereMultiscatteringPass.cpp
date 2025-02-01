@@ -40,19 +40,19 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
             CPU_PROFILE_FRAME("Atmosphere.Multiscattering")
             GPU_PROFILE_FRAME("Atmosphere.Multiscattering")
 
-            const Texture& lutTexture = resources.GetTexture(passData.Lut);
+            auto&& [lutTexture, lutDescription] = resources.GetTextureWithDescription(passData.Lut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereMultiscatteringLutShaderBindGroup bindGroup(shader);
             bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
-            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetMultiscatteringLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)},
+                ImageLayout::Readonly);
+            bindGroup.SetMultiscatteringLut({.Image = lutTexture}, ImageLayout::General);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
-                {lutTexture.Description().Width, lutTexture.Description().Height, 64},
+                {lutDescription.Width, lutDescription.Height, 64},
                 {1, 1, 64});
         });
 }

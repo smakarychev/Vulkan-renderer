@@ -91,7 +91,7 @@ namespace RG
 
             return true;
         }
-        static const ResourceTraits::Desc& Description(const Texture& texture) { return texture.Description(); }
+        static const ResourceTraits::Desc& Description(Texture texture) { return Device::GetImageDescription(texture); }
     };
 
     class RenderGraphPool
@@ -103,7 +103,7 @@ namespace RG
             for (auto& buffer : m_Buffers.Resources)
                 Device::Destroy(*buffer.Resource);
             for (auto& texture : m_Textures.Resources)
-                Texture::Destroy(*texture.Resource);
+                Device::Destroy(*texture.Resource);
         }
         template <typename T>
         std::shared_ptr<T> GetResource(const typename ResourceTraits<T>::Desc& description)
@@ -164,7 +164,7 @@ namespace RG
             };
 
             unorderedRemove(m_Buffers, [](Buffer buffer) { Device::Destroy(buffer); });
-            unorderedRemove(m_Textures, [](const Texture& texture) { Texture::Destroy(texture); });
+            unorderedRemove(m_Textures, [](Texture texture) { Device::Destroy(texture); });
         }
     private:
         template <typename T>
@@ -227,16 +227,16 @@ namespace RG
         Graph();
         ~Graph();
 
-        Resource SetBackbuffer(const Texture& texture);
+        Resource SetBackbuffer(Texture texture);
         Resource GetBackbuffer() const;
         
         template <typename PassData, typename SetupFn, typename CallbackFn>
         Pass& AddRenderPass(const PassName& passName, SetupFn&& setup, CallbackFn&& callback);
 
         Resource AddExternal(const std::string& name, Buffer buffer);
-        Resource AddExternal(const std::string& name, const Texture& texture);
+        Resource AddExternal(const std::string& name, Texture texture);
         Resource AddExternal(const std::string& name, ImageUtils::DefaultTexture texture);
-        Resource AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback);
+        Resource AddExternal(const std::string& name, Texture texture, ImageUtils::DefaultTexture fallback);
         Resource Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force = false);
         Resource Export(Resource resource, std::shared_ptr<Texture>* texture, bool force = false);
         Resource CreateResource(const std::string& name, const GraphBufferDescription& description);
@@ -386,9 +386,9 @@ namespace RG
         bool IsAllocated(Resource resource) const;
         
         Buffer GetBuffer(Resource resource) const;
-        const Texture& GetTexture(Resource resource) const;
-        Texture& GetTexture(Resource resource);
+        Texture GetTexture(Resource resource) const;
         const TextureDescription& GetTextureDescription(Resource resource) const;
+        std::pair<Texture, const TextureDescription&> GetTextureWithDescription(Resource resource) const;
         const Graph* GetGraph() const { return m_Graph; }
 
         template <typename Value>

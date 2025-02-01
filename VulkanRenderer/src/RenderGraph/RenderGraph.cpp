@@ -36,12 +36,12 @@ namespace RG
     {
     }
 
-    Resource Graph::SetBackbuffer(const Texture& texture)
+    Resource Graph::SetBackbuffer(Texture texture)
     {
         if (m_Backbuffer.IsValid())
         {
             m_Textures[m_Backbuffer.Index()].SetPhysicalResource(m_Pool.AddExternalResource(texture));
-            m_Textures[m_Backbuffer.Index()].m_Description = texture.Description();
+            m_Textures[m_Backbuffer.Index()].m_Description = Device::GetImageDescription(texture);
             m_Textures[m_Backbuffer.Index()].m_Rename = {};
         }
         else
@@ -70,9 +70,9 @@ namespace RG
         return bufferResource;
     }
 
-    Resource Graph::AddExternal(const std::string& name, const Texture& texture)
+    Resource Graph::AddExternal(const std::string& name, Texture texture)
     {
-        Resource textureResource = CreateResource(name, texture.Description());
+        Resource textureResource = CreateResource(name, Device::GetImageDescription(texture));
         GetResourceTypeBase(textureResource).m_IsExternal = true;
         m_Textures[textureResource.Index()].SetPhysicalResource(m_Pool.AddExternalResource(texture));
 
@@ -84,10 +84,10 @@ namespace RG
         return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(texture, *m_FrameDeletionQueue));
     }
 
-    Resource Graph::AddExternal(const std::string& name, const Texture* texture, ImageUtils::DefaultTexture fallback)
+    Resource Graph::AddExternal(const std::string& name, Texture texture, ImageUtils::DefaultTexture fallback)
     {
-        if (texture)
-            return AddExternal(name, *texture);
+        if (texture.HasValue())
+            return AddExternal(name, texture);
 
         return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(fallback, *m_FrameDeletionQueue));
     }
@@ -393,8 +393,8 @@ namespace RG
                             .Subresource = target.m_ViewSubresource,
                             .OnLoad = target.m_OnLoad,
                             .OnStore = target.m_OnStore,
-                            .ClearColor = target.m_ClearColor},
-                        .Image = m_Textures[target.m_Resource.Index()].m_Resource,
+                            .ClearColor = {target.m_ClearColor}},
+                        .Image = *m_Textures[target.m_Resource.Index()].m_Resource,
                         .Layout = ImageLayout::ColorAttachment},
                         *m_FrameDeletionQueue));
                 }
@@ -411,7 +411,7 @@ namespace RG
                             .OnLoad = target.m_OnLoad,
                             .OnStore = target.m_OnStore,
                             .ClearDepthStencil = {.Depth = target.m_ClearDepth, .Stencil = target.m_ClearStencil}},
-                        .Image = m_Textures[target.m_Resource.Index()].m_Resource,
+                        .Image = *m_Textures[target.m_Resource.Index()].m_Resource,
                         .Layout = layout},
                         *m_FrameDeletionQueue);
 
@@ -451,9 +451,9 @@ namespace RG
             return;
         
         // transition backbuffer to the layout that swapchain expects
-        const Texture& backbuffer = *m_Textures[m_Backbuffer.Index()].m_Resource;
+        Texture backbuffer = *m_Textures[m_Backbuffer.Index()].m_Resource;
         ImageSubresource backbufferSubresource = {
-            .Image = &backbuffer,
+            .Image = backbuffer,
             .Description = {.Mipmaps = 1, .Layers = 1}};
         LayoutTransitionInfo backbufferTransition = {
             .ImageSubresource = backbufferSubresource,
@@ -1057,7 +1057,7 @@ namespace RG
         {
             auto& texture = m_Textures[transition.Texture.Index()];
                 
-            ImageSubresource subresource = ImageSubresource{.Image = texture.m_Resource};
+            ImageSubresource subresource = ImageSubresource{.Image = *texture.m_Resource};
             LayoutTransitionInfo layoutTransitionInfo = {
                 .ImageSubresource = subresource,
                 .SourceStage = transition.SourceStage,
@@ -1691,16 +1691,11 @@ namespace RG
         return *m_Graph->m_Buffers[resource.Index()].m_Resource;
     }
 
-    const Texture& Resources::GetTexture(Resource resource) const
+    Texture Resources::GetTexture(Resource resource) const
     {
         ASSERT(resource.IsTexture(), "Provided resource handle is not a texture")
 
         return *m_Graph->m_Textures[resource.Index()].m_Resource;
-    }
-
-    Texture& Resources::GetTexture(Resource resource)
-    {
-        return const_cast<Texture&>(const_cast<const Resources&>(*this).GetTexture(resource));
     }
 
     const TextureDescription& Resources::GetTextureDescription(Resource resource) const
@@ -1708,6 +1703,14 @@ namespace RG
         ASSERT(resource.IsTexture(), "Provided resource handle is not a texture")
 
         return m_Graph->m_Textures[resource.Index()].m_Description;
+    }
+
+    std::pair<Texture, const TextureDescription&> Resources::GetTextureWithDescription(Resource resource) const
+    {
+        ASSERT(resource.IsTexture(), "Provided resource handle is not a texture")
+        auto& rgTexture = m_Graph->m_Textures[resource.Index()];
+
+        return {*rgTexture.m_Resource, rgTexture.m_Description};
     }
 
     std::string Graph::MermaidDump() const

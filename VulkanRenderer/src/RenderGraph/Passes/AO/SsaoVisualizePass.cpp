@@ -36,11 +36,11 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
             CPU_PROFILE_FRAME("SSAO.Visualize")
             GPU_PROFILE_FRAME("SSAO.Visualize")
 
-            const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
+            Texture ssaoTexture = resources.GetTexture(passData.SSAO);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             SsaoVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetSsao(ssaoTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetSsao({.Image = ssaoTexture}, ImageLayout::Readonly);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

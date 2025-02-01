@@ -16,7 +16,7 @@ namespace Passes::HiZBlit
     struct PassData
     {
         Sampler MinMaxSampler;
-        std::vector<ImageViewHandle> MipmapViewHandles;
+        Span<const ImageSubresourceDescription> MipmapViews;
         
         RG::Resource MinMaxDepth{};
         RG::Resource DepthIn{};
@@ -29,8 +29,9 @@ namespace Passes::HiZBlit
         using namespace RG;
         using enum ResourceAccessFlags;
 
-        u32 width = ctx.GetHiZ(mode).Description().Width;  
-        u32 height = ctx.GetHiZ(mode).Description().Height;
+        const TextureDescription& hizDescription = Device::GetImageDescription(ctx.GetHiZ(mode));
+        u32 width = hizDescription.Width;  
+        u32 height = hizDescription.Height;
 
         return renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.Blit", name)},
             [&](Graph& graph, PassData& passData)
@@ -59,7 +60,7 @@ namespace Passes::HiZBlit
                 passData.HiZOut = graph.Write(depthOut, Compute | Storage);
 
                 passData.MinMaxSampler = ctx.GetMinMaxSampler(mode);
-                passData.MipmapViewHandles = ctx.GetViewHandles();
+                passData.MipmapViews = ctx.GetViewHandles();
 
                 ctx.SetHiZResource(passData.HiZOut, mode);
                 
@@ -70,18 +71,14 @@ namespace Passes::HiZBlit
                 CPU_PROFILE_FRAME("HiZ.Blit")
                 GPU_PROFILE_FRAME("HiZ.Blit")
                 
-                const Texture& depthIn = resources.GetTexture(passData.DepthIn);
-                const Texture& hizOut = resources.GetTexture(passData.HiZOut);
-                
-                TextureBindingInfo depthInBinding = depthIn.BindingInfo(passData.MinMaxSampler,
-                    ImageLayout::DepthReadonly, depthIn.GetViewHandle(subresource));
+                Texture depthIn = resources.GetTexture(passData.DepthIn);
+                Texture hizOut = resources.GetTexture(passData.HiZOut);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
                 HizShaderBindGroup bindGroup(shader);
-                bindGroup.SetInSampler(depthInBinding);
-                bindGroup.SetInImage(depthInBinding);
-                bindGroup.SetOutImage(hizOut.BindingInfo(
-                        passData.MinMaxSampler, ImageLayout::General, passData.MipmapViewHandles[0]));
+                bindGroup.SetInSampler(passData.MinMaxSampler);
+                bindGroup.SetInImage({.Image = depthIn, .Description = subresource}, ImageLayout::DepthReadonly);
+                bindGroup.SetOutImage({.Image = hizOut,  .Description = passData.MipmapViews[0]}, ImageLayout::General);
                 if (minMaxDepth)
                     bindGroup.SetMinMax({.Buffer = resources.GetBuffer(passData.MinMaxDepth)});
                 

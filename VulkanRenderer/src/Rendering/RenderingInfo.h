@@ -76,8 +76,7 @@ struct RenderingAttachmentDescription
 struct RenderingAttachmentCreateInfo
 {
     RenderingAttachmentDescription Description{};
-    // todo: change to handle once ready
-    const Image* Image{nullptr};
+    Image Image{};
     ImageLayout Layout{ImageLayout::Undefined};
 };
 

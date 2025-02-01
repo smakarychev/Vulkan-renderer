@@ -10,7 +10,7 @@ namespace Passes::HiZFull
         RG::Resource MinMaxDepth{};
         Sampler MinSampler;
         Sampler MaxSampler;
-        std::vector<ImageViewHandle> MipmapViewHandles;
+        Span<const ImageSubresourceDescription> MipmapViews;
         RG::Resource DepthMin{};
         RG::Resource DepthMax{};
         RG::Resource HiZMinOut{};

@@ -45,7 +45,7 @@ namespace
                 Random::Float(0.0f, 1.0f)};
             sample = glm::normalize(sample);
             sample *= Random::Float();
-            f32 scale = (f32)i / samples.size();
+            f32 scale = (f32)i / (f32)samples.size();
             scale = MathUtils::lerp(0.1f, 1.0f, scale * scale);
             sample *= scale;
             samples[i] = glm::vec4{sample, 1.0f};
@@ -126,7 +126,7 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("AO settings");
-            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, passData.MaxSampleCount);
+            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, (i32)passData.MaxSampleCount);
             ImGui::DragFloat("Power", &settings.Power, 1e-3f, 0.0f, 5.0f);
             ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
@@ -150,17 +150,17 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             Buffer cameraBuffer = resources.GetBuffer(passData.Camera);
             Buffer samples = resources.GetBuffer(passData.Samples);
 
-            const Texture& depthTexture = resources.GetTexture(passData.DepthIn);
-            const Texture& noiseTexture = resources.GetTexture(passData.NoiseTexture);
-            const Texture& ssaoTexture = resources.GetTexture(passData.SSAO);
+            Texture depthTexture = resources.GetTexture(passData.DepthIn);
+            auto&& [noiseTexture, noiseDescription] = resources.GetTextureWithDescription(passData.NoiseTexture);
+            auto&& [ssaoTexture, ssaoDescription] = resources.GetTextureWithDescription(passData.SSAO);
             
             const Shader& shader = resources.GetGraph()->GetShader();SsaoShaderBindGroup bindGroup(shader);
             bindGroup.SetSettings({.Buffer = setting});
             bindGroup.SetCamera({.Buffer = cameraBuffer});
             bindGroup.SetSamples({.Buffer = samples});
-            bindGroup.SetDepthTexture(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::DepthReadonly));
-            bindGroup.SetNoiseTexture(noiseTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
-            bindGroup.SetSsao(ssaoTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetDepthTexture({.Image = depthTexture}, ImageLayout::DepthReadonly);
+            bindGroup.SetNoiseTexture({.Image = noiseTexture}, ImageLayout::Readonly);
+            bindGroup.SetSsao({.Image = ssaoTexture}, ImageLayout::General);
 
             struct PushConstants
             {
@@ -169,18 +169,15 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
                 glm::vec2 NoiseSizeInverse;
             };
             PushConstants pushConstants = {
-                .SsaoSizeInverse = 1.0f / glm::vec2(
-                    (f32)ssaoTexture.Description().Width, (f32)ssaoTexture.Description().Height),
-                .SsaoSize = glm::vec2(
-                    (f32)ssaoTexture.Description().Width, (f32)ssaoTexture.Description().Height),
-                .NoiseSizeInverse = 1.0f / glm::vec2(
-                    (f32)noiseTexture.Description().Width, (f32)noiseTexture.Description().Height)};
+                .SsaoSizeInverse = 1.0f / glm::vec2((f32)ssaoDescription.Width, (f32)ssaoDescription.Height),
+                .SsaoSize = glm::vec2((f32)ssaoDescription.Width, (f32)ssaoDescription.Height),
+                .NoiseSizeInverse = 1.0f / glm::vec2((f32)noiseDescription.Width, (f32)noiseDescription.Height)};
             
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
             RenderCommand::Dispatch(cmd,
-                {ssaoTexture.Description().Width, ssaoTexture.Description().Height, 1},
+                {ssaoDescription.Width, ssaoDescription.Height, 1},
                 {16, 16, 1});
         });
 

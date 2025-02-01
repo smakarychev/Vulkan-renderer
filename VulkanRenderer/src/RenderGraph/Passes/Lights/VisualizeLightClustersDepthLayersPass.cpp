@@ -36,11 +36,11 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(std::string_view
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth")
             GPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth")
 
-            const Texture& depthTexture = resources.GetTexture(passData.Depth);
+            Texture depthTexture = resources.GetTexture(passData.Depth);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             LightClustersDepthLayersVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetDepth(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetDepth({.Image = depthTexture}, ImageLayout::Readonly);
 
             struct PushConstant
             {

@@ -51,7 +51,7 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
 
             const Shader& shader = resources.GetGraph()->GetShader();
             LightTilesVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetDepth(resources.GetTexture(depth).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetDepth({.Image = resources.GetTexture(depth)}, ImageLayout::Readonly);
             bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 

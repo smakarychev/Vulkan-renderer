@@ -9,7 +9,6 @@
 #include <vector>
 
 class BindlessTextureDescriptorsRingBuffer;
-class Image;
 class Mesh;
 class ShaderDescriptorSet;
 class Model;
@@ -62,7 +61,7 @@ private:
     RenderHandle<MaterialGPU> AddMaterialGPU(const MaterialGPU& material);
     RenderHandle<Material> AddMaterial(const Material& material);
     RenderHandle<Mesh> AddMesh(const Mesh& mesh);
-    RenderHandle<Image> AddTexture(const Image& texture);
+    RenderHandle<Image> AddTexture(Image texture);
 
     template <typename T>
     RenderHandle<T> AddRenderHandle(const T& object, RenderHandleArray<T>& array);

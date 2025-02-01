@@ -7,9 +7,9 @@
 #include "Settings.h"
 #include "RenderHandle.h"
 #include "Common/Geometry.h"
+#include "Rendering/Image/Image.h"
 
 class Mesh;
-class Image;
 
 struct Material
 {

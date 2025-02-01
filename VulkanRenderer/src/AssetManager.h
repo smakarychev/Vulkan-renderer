@@ -2,9 +2,9 @@
 #include <string>
 #include <unordered_map>
 
+#include "Rendering/Image/Image.h"
 #include "utils/HashedString.h"
 
-class Image;
 class Model;
 class ShaderReflection;
 
@@ -21,8 +21,8 @@ public:
     static Model* GetModel(std::string_view);
     static void AddModel(std::string_view, const Model& model);
 
-    static Image* GetImage(std::string_view name);
-    static void AddImage(std::string_view, const Image& image);
+    static Image GetImage(std::string_view name);
+    static void AddImage(std::string_view, Image image);
     
 private:
     static Utils::StringUnorderedMap<ShaderReflection> s_Shaders;

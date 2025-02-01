@@ -43,12 +43,12 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             CPU_PROFILE_FRAME("Lights.Tiles.Bin")
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
-            const Texture& depthTexture = resources.GetTexture(depth);
+            auto&& [depthTexture, depthDescription] = resources.GetTextureWithDescription(depth);
             
             const Shader& shader = resources.GetGraph()->GetShader();
             LightTilesBinShaderBindGroup bindGroup(shader);
             
-            bindGroup.SetDepth(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetDepth({.Image = depthTexture}, ImageLayout::Readonly);
             bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
             bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.SceneLightResources.PointLights)});
             bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.SceneLightResources.LightsInfo)});
@@ -58,7 +58,7 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::PushConstants(cmd, shader.GetLayout(), glm::vec2{frameContext.Resolution});
             RenderCommand::Dispatch(cmd,
-                {depthTexture.Description().Width, depthTexture.Description().Height, 1},
+                {depthDescription.Width, depthDescription.Height, 1},
                 {8, 8, 1});
         });
 }

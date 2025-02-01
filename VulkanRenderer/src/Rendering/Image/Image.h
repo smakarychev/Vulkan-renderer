@@ -1,14 +1,13 @@
 ﻿#pragma once
 
-#include "Rendering/Buffer.h"
 #include "ImageTraits.h"
 #include "Sampler.h"
 #include "Rendering/FormatTraits.h"
-#include "Rendering/SynchronizationTraits.h"
+#include "Common/Span.h"
 
 #include <string_view>
-#include <unordered_map>
 #include <variant>
+#include <glm/glm.hpp>
 
 struct LayoutTransitionInfo;
 
@@ -17,11 +16,13 @@ namespace assetLib
     enum class TextureFormat : u32;
 }
 
+struct ImageTag{};
+using Image = ResourceHandleType<ImageTag>;
+
 struct ImmediateSubmitContext;
 
 class ImageViewHandle
 {
-    friend class Image;
     FRIEND_INTERNAL
 public:
     ImageViewHandle() = default;
@@ -47,8 +48,7 @@ struct ImageSubresourceDescription
 
 struct ImageSubresource
 {
-    // todo: change to handle
-    const Image* Image{nullptr};
+    Image Image{};
     ImageSubresourceDescription Description{};
 };
 
@@ -73,7 +73,7 @@ using TextureDescription = ImageDescription;
 
 struct ImageBlitInfo
 {
-    const Image* Image{nullptr};
+    Image Image{};
     u32 MipmapBase{0};
     u32 LayerBase{0};
     u32 Layers{(u32)ImageSubresourceDescription::ALL_LAYERS};
@@ -82,16 +82,6 @@ struct ImageBlitInfo
 };
 using ImageCopyInfo = ImageBlitInfo;
 
-struct ImageBindingInfo
-{
-    const Image* Image;
-    Sampler Sampler;
-    ImageLayout Layout;
-    
-    ImageViewHandle ViewHandle{};
-};
-using TextureBindingInfo = ImageBindingInfo;
-
 enum class ImageSizeType
 {
     Absolute, Relative,
@@ -99,42 +89,13 @@ enum class ImageSizeType
 
 // todo: once assets ready, change string_view to asset-handle
 using ImageAssetPath = std::string_view;
-using ImageDataSource = std::variant<ImageAssetPath, Span<const std::byte>, const Image*>;
+using ImageDataSource = std::variant<ImageAssetPath, Span<const std::byte>, Image>;
 
 struct ImageCreateInfo
 {
     ImageDataSource DataSource{Span<const std::byte>{}};
     ImageDescription Description{};
     bool CalculateMipmaps{true};
-};
-
-class Image
-{
-    FRIEND_INTERNAL
-public:
-    static void Destroy(const Image& image);
-
-    const ImageDescription& Description() const { return m_Description; }
-    
-    ImageBindingInfo BindingInfo(ImageFilter filter, ImageLayout layout) const;
-    ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout) const;
-    ImageBindingInfo BindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const;
-    ImageBindingInfo BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const;
-
-    std::vector<ImageViewHandle> GetAdditionalViewHandles() const;
-    ImageViewHandle GetViewHandle(ImageSubresourceDescription subresource) const;
-
-    static i8 CalculateMipmapCount(const glm::uvec2& resolution);
-    static i8 CalculateMipmapCount(const glm::uvec3& resolution);
-    glm::uvec3 GetPixelCoordinate(const glm::vec3& coordinate, ImageSizeType sizeType) const;
-
-    bool operator==(const Image& other) const { return m_ResourceHandle == other.m_ResourceHandle; }
-    bool operator!=(const Image& other) const { return !(*this == other); }
-private:
-    ResourceHandleType<Image> Handle() const { return m_ResourceHandle; }
-private:
-    ImageDescription m_Description{};
-    ResourceHandleType<Image> m_ResourceHandle{};
 };
 
 using Texture = Image;
@@ -150,6 +111,10 @@ namespace ImageUtils
     u32 toRGBA8(const glm::vec4& color);
     u32 toRGBA8SNorm(const glm::vec4& color);
 
+    i8 mipmapCount(const glm::uvec2& resolution);
+    i8 mipmapCount(const glm::uvec3& resolution);
+    glm::uvec3 getPixelCoordinates(Image image, const glm::vec3& coordinate, ImageSizeType sizeType);
+    
     enum class DefaultTexture
     {
         White = 0, Black, Red, Green, Blue, Cyan, Yellow, Magenta,
@@ -160,7 +125,7 @@ namespace ImageUtils
     {
     public:
         static void Init();
-        static const Texture& Get(DefaultTexture texture);
+        static Texture Get(DefaultTexture texture);
         static Texture GetCopy(DefaultTexture texture, DeletionQueue& deletionQueue);
     private:
         struct DefaultTextureData

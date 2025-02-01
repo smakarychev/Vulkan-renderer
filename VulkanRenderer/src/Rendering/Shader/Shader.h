@@ -10,7 +10,6 @@
 
 struct PushConstantDescription;
 class DescriptorLayoutCache;
-class Image;
 
 enum class DescriptorKind : u32
 {
@@ -103,7 +102,7 @@ public:
     void BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
                      const std::vector<u32>& dynamicOffsets) const;
 
-    void SetTexture(std::string_view name, const Texture& texture, u32 arrayIndex);
+    void SetTexture(std::string_view name, Texture texture, u32 arrayIndex);
     
     const DescriptorSetsInfo& GetDescriptorSetsInfo() const { return m_DescriptorSetsInfo; }
     DescriptorSet GetDescriptorSet(DescriptorKind kind) const

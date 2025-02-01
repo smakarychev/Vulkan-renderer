@@ -44,23 +44,23 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
             CPU_PROFILE_FRAME("Atmosphere.SkyView")
             GPU_PROFILE_FRAME("Atmosphere.SkyView")
 
-            const Texture& lutTexture = resources.GetTexture(passData.Lut);
+            auto&& [lutTexture, lutDescription] = resources.GetTextureWithDescription(passData.Lut);
             
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereSkyViewLutShaderBindGroup bindGroup(shader);
             bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
             bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.DirectionalLight)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
-            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetMultiscatteringLut(resources.GetTexture(passData.MultiscatteringLut).BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetSkyViewLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)}, 
+                ImageLayout::Readonly);
+            bindGroup.SetMultiscatteringLut({.Image = resources.GetTexture(passData.MultiscatteringLut)}, 
+                ImageLayout::Readonly);
+            bindGroup.SetSkyViewLut({.Image = lutTexture}, ImageLayout::General);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
-                {lutTexture.Description().Width, lutTexture.Description().Height, 1},
+                {lutDescription.Width, lutDescription.Height, 1},
                 {16, 16, 1});
         });
 }

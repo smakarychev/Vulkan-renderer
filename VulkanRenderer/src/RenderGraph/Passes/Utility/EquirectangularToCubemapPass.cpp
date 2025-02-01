@@ -12,7 +12,7 @@ namespace
     {};
     
     RG::Pass& convertEquirectangularToCubemapPass(std::string_view name, RG::Graph& renderGraph,
-        RG::Resource equirectangular, const Texture& cubemap)
+        RG::Resource equirectangular, Texture cubemap)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -36,35 +36,34 @@ namespace
                 CPU_PROFILE_FRAME("EquirectangularToCubemap")
                 GPU_PROFILE_FRAME("EquirectangularToCubemap")
 
-                const Texture& equirectangularTexture = resources.GetTexture(passData.Equirectangular);
-                const Texture& cubemapTexture = resources.GetTexture(passData.Cubemap);
+                Texture equirectangularTexture = resources.GetTexture(passData.Equirectangular);
+                auto&& [cubemapTexture, cubemapDescription] = resources.GetTextureWithDescription(passData.Cubemap);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
                 EquirectangularToCubemapShaderBindGroup bindGroup(shader);
 
-                bindGroup.SetEquirectangular(equirectangularTexture.BindingInfo(
-                    ImageFilter::Linear, ImageLayout::Readonly));
-                bindGroup.SetCubemap(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+                bindGroup.SetEquirectangular({.Image = equirectangularTexture}, ImageLayout::Readonly);
+                bindGroup.SetCubemap({.Image = cubemapTexture}, ImageLayout::General);
 
                 struct PushConstants
                 {
                     glm::vec2 CubemapResolutionInverse{};
                 };
                 PushConstants pushConstants = {
-                    .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapTexture.Description().Width}};
+                    .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width}};
                 
                 auto& cmd = frameContext.Cmd;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
                 RenderCommand::Dispatch(cmd,
-                    {cubemap.Description().Width, cubemap.Description().Width, 6},
+                    {cubemapDescription.Width, cubemapDescription.Width, 6},
                     {32, 32, 1});
             });
     }
 }
 
 RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    const Texture& equirectangular, const Texture& cubemap)
+    Texture equirectangular, Texture cubemap)
 {
     return addToGraph(name, renderGraph,
         renderGraph.AddExternal(std::format("{}.Equirectangular", name), equirectangular),
@@ -72,7 +71,7 @@ RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG
 }
 
 RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    RG::Resource equirectangular, const Texture& cubemap)
+    RG::Resource equirectangular, Texture cubemap)
 {
     using namespace RG;
     using enum ResourceAccessFlags;

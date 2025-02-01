@@ -52,14 +52,14 @@ void AssetManager::AddModel(std::string_view name, const Model& model)
     s_Models.emplace(name, model);
 }
 
-Image* AssetManager::GetImage(std::string_view name)
+Image AssetManager::GetImage(std::string_view name)
 {
     auto it = s_Images.find(name);
 
-    return it == s_Images.end() ? nullptr : &it->second;
+    return it == s_Images.end() ? Image{} : it->second;
 }
 
-void AssetManager::AddImage(std::string_view name, const Image& image)
+void AssetManager::AddImage(std::string_view name, Image image)
 {
     s_Images.emplace(name, image);
 }

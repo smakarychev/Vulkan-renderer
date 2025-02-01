@@ -6,7 +6,7 @@
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    const Texture& cubemap, const Texture& prefiltered)
+    Texture cubemap, Texture prefiltered)
 {
     return addToGraph(name, renderGraph,
         renderGraph.AddExternal(std::format("{}.Cubemap", name), cubemap),
@@ -14,13 +14,14 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
 }
 
 RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
-    const Texture& prefiltered)
+    Texture prefiltered)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
     Resource prefilteredResource = {};
-    for (i8 mipmap = 0; mipmap < prefiltered.Description().Mipmaps; mipmap++)
+    i8 mipmaps = Device::GetImageDescription(prefiltered).Mipmaps;
+    for (i8 mipmap = 0; mipmap < mipmaps; mipmap++)
     {
         Pass& pass = renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", name, mipmap)},
             [&](Graph& graph, PassData& passData)
@@ -47,17 +48,20 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                 CPU_PROFILE_FRAME("EnvironmentPrefilter")
                 GPU_PROFILE_FRAME("EnvironmentPrefilter")
 
-                const Texture& cubemapTexture = resources.GetTexture(passData.Cubemap);
-                const Texture& prefilteredTexture = resources.GetTexture(passData.PrefilteredTexture);
+                auto&& [cubemapTexture, cubemapDescription] = resources.GetTextureWithDescription(passData.Cubemap);
+                auto&& [prefilteredTexture, prefilteredDescription] =
+                    resources.GetTextureWithDescription(passData.PrefilteredTexture);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
                 EnvironmentPrefilterShaderBindGroup bindGroup(shader);
 
-                bindGroup.SetEnv(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
-                bindGroup.SetPrefilter(prefilteredTexture.BindingInfo(
-                    ImageFilter::Linear, ImageLayout::General, prefilteredTexture.GetAdditionalViewHandles()[mipmap]));
+                bindGroup.SetEnv({.Image = cubemapTexture}, ImageLayout::Readonly);
+                bindGroup.SetPrefilter({
+                    .Image = prefilteredTexture,
+                    .Description = Device::GetAdditionalImageViews(prefilteredTexture)[mipmap]},
+                    ImageLayout::General);
 
-                u32 resolution = std::max(1u, prefiltered.Description().Width >> (u32)mipmap);
+                u32 resolution = std::max(1u, prefilteredDescription.Width >> (u32)mipmap);
 
                 struct PushConstants
                 {
@@ -68,8 +72,8 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                 PushConstants pushConstants = {
                     .PrefilterResolutionInverse = 1.0f / glm::vec2{(f32)resolution},
                     .EnvironmentResolutionInverse = 1.0f / glm::vec2{
-                        (f32)cubemapTexture.Description().Width, (f32)cubemapTexture.Description().Height},
-                    .Roughness = (f32)mipmap / (f32)prefilteredTexture.Description().Mipmaps};
+                        (f32)cubemapDescription.Width, (f32)cubemapDescription.Height},
+                    .Roughness = (f32)mipmap / (f32)prefilteredDescription.Mipmaps};
 
                 auto& cmd = frameContext.Cmd;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
@@ -79,7 +83,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                     {32, 32, 1});
             });
 
-        if (mipmap == prefiltered.Description().Mipmaps - 1)
+        if (mipmap == mipmaps - 1)
             return pass;
     }
 
@@ -88,7 +92,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
 
 TextureDescription Passes::EnvironmentPrefilter::getPrefilteredTextureDescription()
 {
-    i8 mipmapCount = Texture::CalculateMipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});
+    i8 mipmapCount = ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});
     std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
     for (i8 i = 0; i < mipmapCount; i++)
         additionalViews[i] = ImageSubresourceDescription{

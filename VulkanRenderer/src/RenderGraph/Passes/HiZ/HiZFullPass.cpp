@@ -16,9 +16,10 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    u32 mipmapCount = ctx.GetHiZ(HiZReductionMode::Min).Description().Mipmaps;
-    u32 width = ctx.GetHiZ(HiZReductionMode::Min).Description().Width;  
-    u32 height = ctx.GetHiZ(HiZReductionMode::Min).Description().Height;
+    const TextureDescription& hizDescription = Device::GetImageDescription(ctx.GetHiZ(HiZReductionMode::Min));
+    u32 mipmapCount = (u32)hizDescription.Mipmaps;
+    u32 width = hizDescription.Width;  
+    u32 height = hizDescription.Height;
 
     auto& minBlit = HiZBlit::addToGraph(std::format("{}.BlitMin", name), renderGraph, depth, subresource, ctx,
         HiZReductionMode::Min, true);
@@ -45,7 +46,7 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
 
                 passData.MinSampler = ctx.GetMinMaxSampler(HiZReductionMode::Min);
                 passData.MaxSampler = ctx.GetMinMaxSampler(HiZReductionMode::Max);
-                passData.MipmapViewHandles = ctx.GetViewHandles();
+                passData.MipmapViews = ctx.GetViewHandles();
 
                 passData.MinMaxDepth = graph.GetBlackboard().Get<HiZBlit::PassData>(minBlit).MinMaxDepth;
                 
@@ -59,28 +60,25 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
                 CPU_PROFILE_FRAME("HiZFull")
                 GPU_PROFILE_FRAME("HiZFull")
 
-                const Texture hizMinOutput = resources.GetTexture(passData.HiZMinOut);
-                const Texture hizMaxOutput = resources.GetTexture(passData.HiZMaxOut);
-
-                TextureBindingInfo hizMinInput = hizMinOutput.BindingInfo(
-                    passData.MinSampler, ImageLayout::General);
-                TextureBindingInfo hizMaxInput = hizMaxOutput.BindingInfo(
-                    passData.MaxSampler, ImageLayout::General);
+                Texture hizMinOutput = resources.GetTexture(passData.HiZMinOut);
+                Texture hizMaxOutput = resources.GetTexture(passData.HiZMaxOut);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
                 DepthReductionShaderBindGroup bindGroup(shader);
 
-                bindGroup.SetMinSampler(hizMinInput);
-                bindGroup.SetMaxSampler(hizMaxInput);
-                bindGroup.SetMinImage(hizMinInput);
-                bindGroup.SetMaxImage(hizMaxInput);
+                bindGroup.SetMinSampler(passData.MinSampler);
+                bindGroup.SetMaxSampler(passData.MaxSampler);
+                bindGroup.SetMinImage({.Image = hizMinOutput}, ImageLayout::General);
+                bindGroup.SetMaxImage({.Image = hizMaxOutput}, ImageLayout::General);
                 
-                for (u32 i = 0; i < passData.MipmapViewHandles.size(); i++)
+                for (u32 i = 0; i < passData.MipmapViews.size(); i++)
                 {
-                    bindGroup.SetOutputMin(resources.GetTexture(passData.HiZMinOut).BindingInfo(
-                            passData.MinSampler, ImageLayout::General, passData.MipmapViewHandles[i]), i);
-                    bindGroup.SetOutputMax(resources.GetTexture(passData.HiZMaxOut).BindingInfo(
-                            passData.MaxSampler, ImageLayout::General, passData.MipmapViewHandles[i]), i);
+                    bindGroup.SetOutputMin({
+                        .Image = hizMinOutput,
+                        .Description = passData.MipmapViews[i]}, ImageLayout::General, i);
+                    bindGroup.SetOutputMax({
+                        .Image = hizMaxOutput,
+                        .Description = passData.MipmapViews[i]}, ImageLayout::General, i);
                 }
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;

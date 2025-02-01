@@ -23,23 +23,24 @@ RG::Pass& Passes::Blit::addToGraph(std::string_view name, RG::Graph& renderGraph
         {
             GPU_PROFILE_FRAME("Texture blit")
             
-            const Texture& src = resources.GetTexture(passData.TextureIn);
-            const Texture& dst = resources.GetTexture(passData.TextureOut);
+            auto&& [src, srcDescription] = resources.GetTextureWithDescription(passData.TextureIn);
+            auto&& [dst, dstDescription] = resources.GetTextureWithDescription(passData.TextureOut);
 
-            f32 srcAspect = (f32)src.Description().Width / (f32)src.Description().Height;
-            f32 dstAspect = (f32)dst.Description().Width / (f32)dst.Description().Height;
+            f32 srcAspect = (f32)srcDescription.Width / (f32)srcDescription.Height;
+            f32 dstAspect = (f32)dstDescription.Width / (f32)dstDescription.Height;
 
-            glm::uvec3 bottom = dst.GetPixelCoordinate(offset, ImageSizeType::Relative);
+            glm::uvec3 bottom = ImageUtils::getPixelCoordinates(dst, offset, ImageSizeType::Relative);
             f32 width = relativeSize;
             f32 height = relativeSize / srcAspect * dstAspect;
-            glm::uvec3 top = dst.GetPixelCoordinate(offset + glm::vec3{width, height, 1.0f}, ImageSizeType::Relative);
+            glm::uvec3 top =
+                ImageUtils::getPixelCoordinates(dst, offset + glm::vec3{width, height, 1.0f}, ImageSizeType::Relative);
             
             ImageCopyInfo srcBlit = {
-                .Image = &src,
+                .Image = src,
                 .Layers = 1,
-                .Top = src.Description().Dimensions()};
+                .Top = srcDescription.Dimensions()};
             ImageCopyInfo dstBlit = {
-                .Image = &dst,
+                .Image = dst,
                 .Layers = 1,
                 .Bottom = bottom,
                 .Top = top};

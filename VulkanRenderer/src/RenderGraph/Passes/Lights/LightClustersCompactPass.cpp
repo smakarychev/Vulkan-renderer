@@ -35,11 +35,11 @@ namespace
                 CPU_PROFILE_FRAME("Lights.Clusters.Identify")
                 GPU_PROFILE_FRAME("Lights.Clusters.Identify")
 
-                const Texture& depthTexture = resources.GetTexture(depth);
+                auto&& [depthTexture, depthDescription] = resources.GetTextureWithDescription(depth);
 
                 const Shader& shader = resources.GetGraph()->GetShader();
                 LightClustersCompactShaderBindGroup bindGroup(shader);
-                bindGroup.SetDepth(depthTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+                bindGroup.SetDepth({.Image = depthTexture}, ImageLayout::Readonly);
                 bindGroup.SetClusterVisibility({.Buffer = resources.GetBuffer(passData.ClusterVisibility)});
 
                 struct PushConstant
@@ -55,7 +55,7 @@ namespace
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
                 RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
                 RenderCommand::Dispatch(cmd,
-                    {depthTexture.Description().Width, depthTexture.Description().Height, 1},
+                    {depthDescription.Width, depthDescription.Height, 1},
                     {8, 8, 1});
             });
     }

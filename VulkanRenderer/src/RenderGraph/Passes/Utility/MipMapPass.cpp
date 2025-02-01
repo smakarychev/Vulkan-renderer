@@ -24,11 +24,11 @@ RG::Pass& Passes::Mipmap::addToGraph(std::string_view name, RG::Graph& renderGra
         GPU_PROFILE_FRAME("MipMap")
 
         // todo: nvpro mipmap software generation?
-        const Texture& sourceTexture = resources.GetTexture(passData.Texture);
+        Texture sourceTexture = resources.GetTexture(passData.Texture);
         Device::CalculateMipmaps(sourceTexture, frameContext.Cmd, ImageLayout::Destination);
         RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
             .LayoutTransitionInfo = LayoutTransitionInfo{
-                .ImageSubresource = ImageSubresource{.Image = &sourceTexture},
+                .ImageSubresource = ImageSubresource{.Image = sourceTexture},
                 .SourceStage = PipelineStage::Blit,
                 .DestinationStage = PipelineStage::Blit,
                 .SourceAccess = PipelineAccess::ReadTransfer,

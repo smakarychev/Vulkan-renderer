@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Rendering/Buffer.h"
+#include "Rendering/SynchronizationTraits.h"
 #include "Rendering/Image/Image.h"
 
 namespace RG

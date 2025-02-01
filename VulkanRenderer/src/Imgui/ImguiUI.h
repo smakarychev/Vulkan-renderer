@@ -4,6 +4,7 @@
 #include <glm/vec2.hpp>
 #include <imgui/imgui.h>
 
+#include "Settings.h"
 #include "Rendering/CommandBuffer.h"
 #include "Rendering/RenderingInfo.h"  
 #include "Rendering/Image/ImageTraits.h"

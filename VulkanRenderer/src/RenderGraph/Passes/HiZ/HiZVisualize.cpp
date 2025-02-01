@@ -41,7 +41,7 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
             CPU_PROFILE_FRAME("HiZ.Visualize")
             GPU_PROFILE_FRAME("HiZ.Visualize")
             
-            const Texture& hizTexture = resources.GetTexture(passData.HiZ);
+            Texture hizTexture = resources.GetTexture(passData.HiZ);
             PushConstants& pushConstants = resources.GetOrCreateValue<PushConstants>();
             ImGui::Begin("HiZ visualize");
             ImGui::DragInt("mip level", (i32*)&pushConstants.MipLevel, 1.0f, 0, 10);            
@@ -50,8 +50,10 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
 
             const Shader& shader = resources.GetGraph()->GetShader();
             HizVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetSampler(hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
-            bindGroup.SetHiz(hizTexture.BindingInfo(ImageFilter::Nearest, ImageLayout::Readonly));
+            bindGroup.SetSampler(Device::CreateSampler({
+                .MinificationFilter = ImageFilter::Nearest,
+                .MagnificationFilter = ImageFilter::Nearest}));
+            bindGroup.SetHiz({.Image = hizTexture}, ImageLayout::Readonly);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

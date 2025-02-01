@@ -184,11 +184,12 @@ void Renderer::ExecuteSingleTimePasses()
             .Usage = ImageUsage::Sampled},
         .CalculateMipmaps = false},
         GetFrameContext().DeletionQueue);
+    const TextureDescription& equirectangularDescription = Device::GetImageDescription(equirectangular);
     m_SkyboxTexture = Device::CreateImage(ImageCreateInfo{
         .Description = ImageDescription{
-            .Width = equirectangular.Description().Width / 2,
-            .Height = equirectangular.Description().Width / 2,
-            .Mipmaps = Image::CalculateMipmapCount(glm::uvec2{equirectangular.Description().Width / 2}),
+            .Width = equirectangularDescription.Width / 2,
+            .Height = equirectangularDescription.Width / 2,
+            .Mipmaps = ImageUtils::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
             .Format = Format::RGBA16_FLOAT,
             .Kind = ImageKind::Cubemap,
             .Usage = ImageUsage::Sampled | ImageUsage::Storage},
@@ -643,7 +644,7 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
             .Description = ColorAttachmentDescription{
                 .OnLoad = AttachmentLoad::Load,
                 .OnStore = AttachmentStore::Store},
-            .Image = &swapchain.DrawImage,
+            .Image = swapchain.DrawImage,
             .Layout = ImageLayout::General},
             GetFrameContext().DeletionQueue)}},
         GetFrameContext().DeletionQueue);

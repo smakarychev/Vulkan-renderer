@@ -7,13 +7,13 @@
 #include "types.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/RenderingCommon.h"
+#include "Rendering/RenderingCommonCommands.h"
 #include "Rendering/RenderingInfo.h"
 #include "Rendering/Swapchain.h"
 
 class DescriptorArenaAllocators;
 struct ImageSubresource;
 struct ImageBlitInfo;
-class Image;
 struct SwapchainFrameSync;
 struct PushConstantDescription;
 

@@ -122,6 +122,33 @@ namespace ImageUtils
         return *(u8*)&r | *(u8*)&g << 8 | *(u8*)&b << 16 | *(u8*)&a << 24;
     }
 
+    i8 mipmapCount(const glm::uvec2& resolution)
+    {
+        return mipmapCount({resolution.x, resolution.y, 1});
+    }
+
+    i8 mipmapCount(const glm::uvec3& resolution)
+    {
+        u32 maxDimension = std::max(resolution.x, std::max(resolution.y, resolution.z));
+
+        return (i8)std::max(1, (i8)std::log2(maxDimension) + (i8)!MathUtils::isPowerOf2(maxDimension));    
+    }
+
+    glm::uvec3 getPixelCoordinates(Image image, const glm::vec3& coordinate, ImageSizeType sizeType)
+    {
+        if (sizeType == ImageSizeType::Absolute)
+            return glm::uvec3{coordinate};
+
+        const TextureDescription& description = Device::GetImageDescription(image);
+        glm::uvec3 size = {
+            description.Width,
+            description.Height,
+            description.GetDepth()};
+
+        return glm::uvec3 {
+            (u32)((f32)size.x * coordinate.x), (u32)((f32)size.y * coordinate.y), (u32)((f32)size.z * coordinate.z)};
+    }
+
     std::array<DefaultTextures::DefaultTextureData, (u32)DefaultTexture::MaxVal> DefaultTextures::s_DefaultImages = {};
     
     void DefaultTextures::Init()
@@ -196,7 +223,7 @@ namespace ImageUtils
             .Color = normal};
     }
 
-    const Texture& DefaultTextures::Get(DefaultTexture texture)
+    Texture DefaultTextures::Get(DefaultTexture texture)
     {
         ASSERT((u32)texture < (u32)DefaultTexture::MaxVal, "Incorrect texture type")
 
@@ -211,7 +238,7 @@ namespace ImageUtils
         
         Texture copy = Device::CreateImage({
             .DataSource = Span<const std::byte>({color}),
-            .Description = textureOriginal.Description()},
+            .Description = Device::GetImageDescription(textureOriginal)},
             deletionQueue);
 
         return copy;
@@ -228,94 +255,4 @@ i8 ImageDescription::GetLayers() const
 {
     const bool is3dImage = Kind == ImageKind::Image3d;
     return is3dImage ? (i8)1 : (i8)LayersDepth;
-}
-
-void Image::Destroy(const Image& image)
-{
-    Device::Destroy(image.Handle());
-}
-
-ImageBindingInfo Image::BindingInfo(ImageFilter filter, ImageLayout layout) const
-{
-    return BindingInfo(
-        Device::CreateSampler({
-            .MinificationFilter = filter,
-            .MagnificationFilter = filter}),
-        layout);
-}
-
-ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout) const
-{
-    return ImageBindingInfo {
-        .Image = this,
-        .Sampler = sampler,
-        .Layout = layout};
-}
-
-ImageBindingInfo Image::BindingInfo(ImageFilter filter, ImageLayout layout, ImageViewHandle handle) const
-{
-    return BindingInfo(
-        Device::CreateSampler({
-            .MinificationFilter = filter,
-            .MagnificationFilter = filter}),
-        layout,
-        handle);
-}
-
-ImageBindingInfo Image::BindingInfo(Sampler sampler, ImageLayout layout, ImageViewHandle handle) const
-{
-    return ImageBindingInfo {
-        .Image = this,
-        .Sampler = sampler,
-        .Layout = layout,
-        .ViewHandle = handle};
-}
-
-std::vector<ImageViewHandle> Image::GetAdditionalViewHandles() const
-{
-    std::vector<ImageViewHandle> handles(m_Description.AdditionalViews.size());
-    for (u32 i = 0; i < m_Description.AdditionalViews.size(); i++)
-        handles[i] = i + 1; // skip index 0, it is used as a base view
-    
-    return handles;
-}
-
-ImageViewHandle Image::GetViewHandle(ImageSubresourceDescription subresource) const
-{
-    if (subresource == ImageSubresourceDescription{})
-        return 0;
-        
-    auto it = std::ranges::find(m_Description.AdditionalViews, subresource);
-
-    if (it != m_Description.AdditionalViews.end())
-        return ImageViewHandle{u32(it - m_Description.AdditionalViews.begin()) + 1};
-    
-    LOG("ERROR: Image does not have such view subresource, returning default view");
-    return ImageViewHandle{};
-}
-
-i8 Image::CalculateMipmapCount(const glm::uvec2& resolution)
-{
-    return CalculateMipmapCount({resolution.x, resolution.y, 1});
-}
-
-i8 Image::CalculateMipmapCount(const glm::uvec3& resolution)
-{
-    u32 maxDimension = std::max(resolution.x, std::max(resolution.y, resolution.z));
-
-    return (i8)std::max(1, (i8)std::log2(maxDimension) + (i8)!MathUtils::isPowerOf2(maxDimension));    
-}
-
-glm::uvec3 Image::GetPixelCoordinate(const glm::vec3& coordinate, ImageSizeType sizeType) const
-{
-    if (sizeType == ImageSizeType::Absolute)
-        return glm::uvec3{coordinate};
-
-    glm::uvec3 size = {
-        m_Description.Width,
-        m_Description.Height,
-        m_Description.GetDepth()};
-
-    return glm::uvec3 {
-        (u32)((f32)size.x * coordinate.x), (u32)((f32)size.y * coordinate.y), (u32)((f32)size.z * coordinate.z)};
 }

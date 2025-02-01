@@ -25,7 +25,7 @@ public:
     u32 FreeSize() const;
     
     bool WillOverflow() const;
-    u32 AddTexture(const Texture& texture);
+    u32 AddTexture(Texture texture);
 private:
     u32 GetNextIndex(u32 index) const;
 private:

@@ -33,15 +33,14 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
         {
             GPU_PROFILE_FRAME("Visualize Depth")
 
-            const Texture& depthTexture = resources.GetTexture(passData.DepthIn);
+            auto&& [depthTexture, depthDescription] = resources.GetTextureWithDescription(passData.DepthIn);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             DepthVisualizeShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetDepth(depthTexture.BindingInfo(
-                ImageFilter::Linear, depthTexture.Description().Format == Format::D32_FLOAT ?
+            bindGroup.SetDepth({.Image = depthTexture}, depthDescription.Format == Format::D32_FLOAT ?
                 ImageLayout::DepthReadonly :
-                ImageLayout::DepthStencilReadonly));
+                ImageLayout::DepthStencilReadonly);
 
             struct PushConstants
             {

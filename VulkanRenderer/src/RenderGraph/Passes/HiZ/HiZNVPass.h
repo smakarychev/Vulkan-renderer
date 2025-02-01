@@ -8,7 +8,7 @@ namespace Passes::HiZNV
     struct PassData
     {
         Sampler MinMaxSampler;
-        std::vector<ImageViewHandle> MipmapViewHandles;
+        Span<const ImageSubresourceDescription> MipmapViews;
 
         RG::Resource DepthIn{};
         RG::Resource HiZOut{};

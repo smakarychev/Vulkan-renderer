@@ -5,7 +5,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Vulkan/RenderCommand.h"
 
-RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& lut)
+RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture lut)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -28,12 +28,12 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
             CPU_PROFILE_FRAME("BRDFLut")
             GPU_PROFILE_FRAME("BRDFLut")
 
-            const Texture& lutTexture = resources.GetTexture(passData.Lut);
+            Texture lutTexture = resources.GetTexture(passData.Lut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             BrdfLutShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetBrdf(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetBrdf({.Image = lutTexture}, ImageLayout::General);
 
             struct PushConstants
             {

@@ -56,15 +56,15 @@ namespace RG::RgUtils
             multiviewResource.Commands.push_back(graph.AddExternal(std::format("{}.Commands.{}", baseName, i),
                 geometry->GetCommandsBuffer()));
         }
-
         
         for (u32 i = 0; i < viewCount; i++)
         {
             auto& view = cullMultiviewData.View(i);
             auto&& [staticV, dynamicV] = view;
-            
+
+            auto previousHiz = *staticV.HiZContext->GetHiZPrevious(HiZReductionMode::Min);
             multiviewResource.HiZs.push_back(graph.AddExternal(std::format("{}.HiZ.{}", baseName, i),
-                staticV.HiZContext->GetHiZPrevious(HiZReductionMode::Min)->get(),
+                previousHiz ? *previousHiz : Texture{},
                 ImageUtils::DefaultTexture::Black));
 
             multiviewResource.MeshVisibility.push_back(graph.AddExternal(

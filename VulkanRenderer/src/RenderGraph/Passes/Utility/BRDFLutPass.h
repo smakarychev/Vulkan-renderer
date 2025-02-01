@@ -7,7 +7,7 @@ namespace Passes::BRDFLut
     {
         RG::Resource Lut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const Texture& lut);
+    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, Texture lut);
     
     TextureDescription getLutDescription();
 }

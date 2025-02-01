@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ModelAsset.h"
+#include "Settings.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "Rendering/Buffer.h"
 

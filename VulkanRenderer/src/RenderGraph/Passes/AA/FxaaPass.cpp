@@ -13,7 +13,7 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Fxaa.Luminance.Setup");
+            CPU_PROFILE_FRAME("Fxaa.Luminance.Setup")
 
             graph.SetShader("fxaa.shader");
 
@@ -30,22 +30,20 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Fxaa.Luminance");
-            GPU_PROFILE_FRAME("Fxaa.Luminance");
+            CPU_PROFILE_FRAME("Fxaa.Luminance")
+            GPU_PROFILE_FRAME("Fxaa.Luminance")
 
-            const Texture& input = resources.GetTexture(passData.ColorIn);
+            auto&& [input, inputDescription] = resources.GetTextureWithDescription(passData.ColorIn);
             
             const Shader& shader = resources.GetGraph()->GetShader();
             FxaaShaderBindGroup bindGroup(shader);
-            bindGroup.SetColor(resources.GetTexture(passData.ColorIn).BindingInfo(
-                ImageFilter::Linear, ImageLayout::Readonly));
-            bindGroup.SetAntialiased(resources.GetTexture(passData.AntiAliased).BindingInfo(
-                ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetColor({.Image = resources.GetTexture(passData.ColorIn)}, ImageLayout::Readonly);
+            bindGroup.SetAntialiased({.Image = resources.GetTexture(passData.AntiAliased)}, ImageLayout::General);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
-                {input.Description().Width, input.Description().Height, 1},
+                {inputDescription.Width, inputDescription.Height, 1},
                 {16, 16, 1});
         });
 }

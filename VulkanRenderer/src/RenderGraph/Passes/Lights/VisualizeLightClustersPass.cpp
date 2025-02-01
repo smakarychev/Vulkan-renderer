@@ -42,7 +42,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
             const Shader& shader = resources.GetGraph()->GetShader();
             LightClustersVisualizeShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetDepth(resources.GetTexture(depth).BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetDepth({.Image = resources.GetTexture(depth)}, ImageLayout::Readonly);
             bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 

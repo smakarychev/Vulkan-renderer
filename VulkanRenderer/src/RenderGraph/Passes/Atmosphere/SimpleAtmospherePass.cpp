@@ -38,8 +38,8 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph&
 
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereSimpleShaderBindGroup bindGroup(shader);
-            bindGroup.SetTransmittanceLut(resources.GetTexture(passData.TransmittanceLut).BindingInfo(
-                  ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)},
+                ImageLayout::Readonly);
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
             auto& cmd = frameContext.Cmd;

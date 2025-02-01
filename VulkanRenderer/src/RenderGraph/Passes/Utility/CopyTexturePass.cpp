@@ -23,31 +23,31 @@ RG::Pass& Passes::CopyTexture::addToGraph(std::string_view name, RG::Graph& rend
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
             GPU_PROFILE_FRAME("Texture copy")
-            
-            const Texture& src = resources.GetTexture(passData.TextureIn);
-            const Texture& dst = resources.GetTexture(passData.TextureOut);
+
+            auto&& [src, srcDescription] = resources.GetTextureWithDescription(passData.TextureIn);
+            auto&& [dst, dstDescription] = resources.GetTextureWithDescription(passData.TextureOut);
 
             ImageCopyInfo srcCopy = {
-                .Image = &src,
+                .Image = src,
                 .Layers = 1,
-                .Top = src.Description().Dimensions()};
+                .Top = srcDescription.Dimensions()};
             ImageCopyInfo dstCopy = {};
             
             switch (sizeType)
             {
             case ImageSizeType::Absolute:
                 dstCopy = {
-                    .Image = &dst,
+                    .Image = dst,
                     .Layers = 1,
                     .Bottom = offset,
                     .Top = offset + size};
                 break;
             case ImageSizeType::Relative:
                 dstCopy = {
-                    .Image = &dst,
+                    .Image = dst,
                     .Layers = 1,
-                    .Bottom = dst.GetPixelCoordinate(offset, ImageSizeType::Relative),
-                    .Top = dst.GetPixelCoordinate(offset + size, ImageSizeType::Relative)};
+                    .Bottom = ImageUtils::getPixelCoordinates(dst, offset, ImageSizeType::Relative),
+                    .Top = ImageUtils::getPixelCoordinates(dst, offset + size, ImageSizeType::Relative)};
                 break;
             }
             

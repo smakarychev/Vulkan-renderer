@@ -39,17 +39,17 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
             CPU_PROFILE_FRAME("Atmosphere.Transmittance")
             GPU_PROFILE_FRAME("Atmosphere.Transmittance")
 
-            const Texture& lutTexture = resources.GetTexture(passData.Lut);
+            auto&& [lutTexture, lutDescription] = resources.GetTextureWithDescription(passData.Lut);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             AtmosphereTransmittanceLutShaderBindGroup bindGroup(shader);
             bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
-            bindGroup.SetLut(lutTexture.BindingInfo(ImageFilter::Linear, ImageLayout::General));
+            bindGroup.SetLut({.Image = lutTexture}, ImageLayout::General);
 
             auto& cmd = frameContext.Cmd;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             RenderCommand::Dispatch(cmd,
-                {lutTexture.Description().Width, lutTexture.Description().Height, 1},
+                {lutDescription.Width, lutDescription.Height, 1},
                 {16, 16, 1});
         });
 }

@@ -6,7 +6,7 @@
 #include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Graph& renderGraph,
-    const Texture& cubemap, Buffer irradianceSH, bool realTime)
+    Texture cubemap, Buffer irradianceSH, bool realTime)
 {
     return addToGraph(name, renderGraph,
         renderGraph.AddExternal(std::format("{}.CubemapTexture", name), cubemap),
@@ -41,17 +41,17 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
             GPU_PROFILE_FRAME("DiffuseIrradianceSH")
 
             Buffer diffuseIrradiance = resources.GetBuffer(passData.DiffuseIrradiance);
-            const Texture& cubemapTexture = resources.GetTexture(passData.CubemapTexture);
+            auto&& [cubemapTexture, cubemapDescription] = resources.GetTextureWithDescription(passData.CubemapTexture);
 
             const Shader& shader = resources.GetGraph()->GetShader();
             DiffuseIrradianceShShaderBindGroup bindGroup(shader);
 
             bindGroup.SetSh({.Buffer = diffuseIrradiance});
-            bindGroup.SetEnv(cubemapTexture.BindingInfo(ImageFilter::Linear, ImageLayout::Readonly));
+            bindGroup.SetEnv({.Image = cubemapTexture}, ImageLayout::Readonly);
 
             const u32 realTimeMipmapsCount = (u32)std::log(16.0);
             const u32 targetMipmap = realTime ?
-                std::min(cubemapTexture.Description().Mipmaps, (i8)realTimeMipmapsCount) - realTimeMipmapsCount :
+                std::min(cubemapDescription.Mipmaps, (i8)realTimeMipmapsCount) - realTimeMipmapsCount :
                 0;
             
             auto& cmd = frameContext.Cmd;
