@@ -47,7 +47,8 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                         const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                     {
                         const Shader& shader = ShaderCache::Register(
-                            std::format("{}.Draw.{}", name, executionInfo.Triangles.IsValid()),
+                            std::format("{}.Draw.{}.{}",
+                                name, executionInfo.Triangles.IsValid(), executionInfo.ExecutionId),
                             "pbr-forward.shader",
                             ShaderOverrides{
                                 ShaderOverride{{"MAX_REFLECTION_LOD"},

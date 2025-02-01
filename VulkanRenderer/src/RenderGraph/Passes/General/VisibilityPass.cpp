@@ -53,7 +53,8 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                         const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                     {
                         const Shader& shader = ShaderCache::Register(
-                            std::format("{}.Draw.{}", name, executionInfo.Triangles.IsValid()),
+                            std::format("{}.Draw.{}.{}",
+                                name, executionInfo.Triangles.IsValid(), executionInfo.ExecutionId),
                             "visibility.shader", 
                             ShaderOverrides{
                                 ShaderOverride{{"COMPOUND_INDEX"}, executionInfo.Triangles.IsValid()}});

@@ -151,7 +151,8 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                             const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                         {
                             const Shader& shader = ShaderCache::Register(
-                                std::format("{}.{}.{}", name, i, executionInfo.Triangles.IsValid()),
+                                std::format("{}.{}.{}.{}",
+                                    name, i, executionInfo.Triangles.IsValid(), executionInfo.ExecutionId),
                                 "shadow.shader", 
                                 ShaderOverrides{
                                     ShaderOverride{{"COMPOUND_INDEX"}, executionInfo.Triangles.IsValid()}});

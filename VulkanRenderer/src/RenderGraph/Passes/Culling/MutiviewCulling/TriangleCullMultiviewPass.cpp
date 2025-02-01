@@ -353,7 +353,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .Objects = multiview->MeshletCull->Objects[geometryIndex],
                             .Commands = multiview->MeshletCull->Commands[geometryIndex],
                             .DrawAttributes = multiview->AttributeBuffers[geometryIndex],
-                            .Triangles = multiview->Triangles[i][batchIndex]});
+                            .Triangles = multiview->Triangles[i][batchIndex],
+                            .ExecutionId = batchIndex});
 
                         RenderCommand::DrawIndexedIndirect(cmd,
                             resources.GetBuffer(multiview->Draws[batchIndex]), i * sizeof(IndirectDrawCommand), 1);                    

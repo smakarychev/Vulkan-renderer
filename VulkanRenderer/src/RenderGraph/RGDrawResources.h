@@ -90,6 +90,11 @@ namespace RG
         Resource Commands{};
         DrawAttributeBuffers DrawAttributes{};
         Resource Triangles{};
+        /* each shader has just one set of bindings, but we need many
+         * (because of batch drawing in the triangle culling),
+         * so we need to have a way to create multiple shaders, `ExecutionId` serves for that
+         */
+        u32 ExecutionId{0};
     };
     
     using DrawPassSetupFn = std::function<void(Graph&)>;

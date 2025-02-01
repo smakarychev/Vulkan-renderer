@@ -62,7 +62,6 @@ private:
     Allocator m_Allocator{};
     bool m_UseDescriptorBuffer{false};
 
-    // todo: change to handles once ready
     PipelineLayout m_PipelineLayout;
     ShaderReflection* m_ShaderReflection{nullptr};
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorsLayouts;
