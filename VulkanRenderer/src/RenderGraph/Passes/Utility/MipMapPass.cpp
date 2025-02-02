@@ -25,7 +25,7 @@ RG::Pass& Passes::Mipmap::addToGraph(std::string_view name, RG::Graph& renderGra
 
         // todo: nvpro mipmap software generation?
         Texture sourceTexture = resources.GetTexture(passData.Texture);
-        Device::CalculateMipmaps(sourceTexture, frameContext.Cmd, ImageLayout::Destination);
+        Device::CreateMipmaps(sourceTexture, frameContext.Cmd, ImageLayout::Destination);
         RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
             .LayoutTransitionInfo = LayoutTransitionInfo{
                 .ImageSubresource = ImageSubresource{.Image = sourceTexture},

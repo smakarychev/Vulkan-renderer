@@ -1566,14 +1566,14 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
             ImageSubresource{
                 .Image = image, .Description = {.Mipmaps = 1, .Layers = createInfo.Description.GetLayers()}});
         if (createInfo.CalculateMipmaps)
-            CalculateMipmaps(image, cmd, ImageLayout::Destination);
+            CreateMipmaps(image, cmd, ImageLayout::Destination);
         imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
     });
     
     return image;
 }
 
-void Device::CalculateMipmaps(Image image, CommandBuffer cmd, ImageLayout currentLayout)
+void Device::CreateMipmaps(Image image, CommandBuffer cmd, ImageLayout currentLayout)
 {
     DeviceResources::ImageResource& imageResource = Resources()[image];
     if (imageResource.Description.Mipmaps == 1)

@@ -31,7 +31,6 @@ struct ShaderPipelineTemplateCreateInfo
 
 class ShaderPipelineTemplate
 {
-    friend class ShaderPipeline;
     friend class ShaderDescriptorSet;
 public:
     ShaderPipelineTemplate() = default;

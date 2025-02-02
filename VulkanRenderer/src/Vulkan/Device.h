@@ -20,7 +20,6 @@
 #include "imgui/imgui.h"
 
 class ProfilerContext;
-class ShaderPipeline;
 
 struct DeviceCreateInfo
 {
@@ -502,8 +501,6 @@ void DeletionQueue::Enqueue(Type& type)
         m_PipelineLayouts.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Pipeline>)
         m_Pipelines.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, ShaderPipeline>)
-        m_Pipelines.push_back(type.m_Pipeline.Handle());
     else if constexpr(std::is_same_v<Decayed, ShaderModule>)
         m_ShaderModules.push_back(type);
     else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
@@ -569,7 +566,7 @@ public:
     static void Destroy(Image image);
     static void CreateViews(const ImageSubresource& image,
         const std::vector<ImageSubresourceDescription>& additionalViews);
-    static void CalculateMipmaps(Image image, CommandBuffer cmd, ImageLayout currentLayout);
+    static void CreateMipmaps(Image image, CommandBuffer cmd, ImageLayout currentLayout);
     static Span<const ImageSubresourceDescription> GetAdditionalImageViews(Image image);
     static ImageViewHandle GetImageViewHandle(Image image, ImageSubresourceDescription subresourceDescription);
     static const ImageDescription& GetImageDescription(Image image);
