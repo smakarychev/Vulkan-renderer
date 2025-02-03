@@ -7,11 +7,10 @@
 #include "core.h"
 #include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
-#include "Vulkan/RenderCommand.h"
-#include "Rendering/Buffer.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
 #include "utils/utils.h"
+#include "Rendering/Commands/RenderCommandList.h"
 
 namespace
 {
@@ -245,30 +244,42 @@ ShaderDescriptorSet::ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createI
     m_DescriptorSetsInfo.DescriptorCount = setCount;
 }
 
-void ShaderDescriptorSet::BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindGraphics(RenderCommandList& cmdList, DescriptorKind descriptorKind,
     PipelineLayout pipelineLayout) const
 {
-    RenderCommand::BindGraphics(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, {});
+    cmdList.BindDescriptorSetGraphics({
+        .DescriptorSet= GetDescriptorSet(descriptorKind),
+        .PipelineLayout = pipelineLayout,
+        .Set = (u32)descriptorKind});
 }
 
-void ShaderDescriptorSet::BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindGraphics(RenderCommandList& cmdList, DescriptorKind descriptorKind,
     PipelineLayout pipelineLayout, const std::vector<u32>& dynamicOffsets) const
 {
-    RenderCommand::BindGraphics(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind,
-        dynamicOffsets);
+    cmdList.BindDescriptorSetGraphics({
+        .DescriptorSet= GetDescriptorSet(descriptorKind),
+        .PipelineLayout = pipelineLayout,
+        .Set = (u32)descriptorKind,
+        .DynamicOffsets = dynamicOffsets});
 }
 
-void ShaderDescriptorSet::BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindCompute(RenderCommandList& cmdList, DescriptorKind descriptorKind,
     PipelineLayout pipelineLayout) const
 {
-    RenderCommand::BindCompute(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind, {});
+    cmdList.BindDescriptorSetCompute({
+        .DescriptorSet= GetDescriptorSet(descriptorKind),
+        .PipelineLayout = pipelineLayout,
+        .Set = (u32)descriptorKind});
 }
 
-void ShaderDescriptorSet::BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind,
+void ShaderDescriptorSet::BindCompute(RenderCommandList& cmdList, DescriptorKind descriptorKind,
                                       PipelineLayout pipelineLayout, const std::vector<u32>& dynamicOffsets) const
 {
-    RenderCommand::BindCompute(cmd, GetDescriptorSet(descriptorKind), pipelineLayout, (u32)descriptorKind,
-        dynamicOffsets);
+    cmdList.BindDescriptorSetCompute({
+        .DescriptorSet= GetDescriptorSet(descriptorKind),
+        .PipelineLayout = pipelineLayout,
+        .Set = (u32)descriptorKind,
+        .DynamicOffsets = dynamicOffsets});
 }
 
 void ShaderDescriptorSet::SetTexture(std::string_view name, Texture texture, u32 arrayIndex)

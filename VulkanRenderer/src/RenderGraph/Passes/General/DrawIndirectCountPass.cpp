@@ -5,7 +5,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const DrawIndirectCountPassExecutionInfo& info)
@@ -58,7 +57,7 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
 
             Buffer commandsDraw = resources.GetBuffer(passData.Commands);
             Buffer countDraw = resources.GetBuffer(passData.Count);
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             
             const Shader& shader = info.DrawInfo.DrawBind(cmd, resources, {
                 .Camera = passData.Camera,
@@ -66,14 +65,17 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
                 .Commands = passData.Commands,
                 .DrawAttributes = passData.AttributeBuffers});
 
-            RenderCommand::BindIndexU8Buffer(cmd, info.Geometry->GetAttributeBuffers().Indices, 0);
+            cmd.BindIndexU8Buffer({
+                .Buffer = info.Geometry->GetAttributeBuffers().Indices});
             u32 offsetCommands = std::min(info.CommandsOffset, info.Geometry->GetMeshletCount());
             u32 toDrawCommands = info.Geometry->GetMeshletCount() - offsetCommands;
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), offsetCommands);
-            RenderCommand::DrawIndexedIndirectCount(cmd,
-                commandsDraw, offsetCommands * sizeof(IndirectDrawCommand),
-                countDraw, info.CountOffset * sizeof(u32),
-                toDrawCommands);
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {offsetCommands}});
+            cmd.DrawIndexedIndirectCount({
+                .DrawBuffer = commandsDraw, .DrawOffset = offsetCommands * sizeof(IndirectDrawCommand),
+                .CountBuffer = countDraw, .CountOffset = info.CountOffset * sizeof(u32),
+                .MaxCount = toDrawCommands});
         });
 
     return pass;

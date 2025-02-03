@@ -71,17 +71,6 @@ struct ImageDescription
 };
 using TextureDescription = ImageDescription;
 
-struct ImageBlitInfo
-{
-    Image Image{};
-    u32 MipmapBase{0};
-    u32 LayerBase{0};
-    u32 Layers{(u32)ImageSubresourceDescription::ALL_LAYERS};
-    glm::uvec3 Bottom{};
-    glm::uvec3 Top{};
-};
-using ImageCopyInfo = ImageBlitInfo;
-
 enum class ImageSizeType
 {
     Absolute, Relative,

@@ -2,7 +2,6 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RenderGraph.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Mipmap::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource texture)
 {
@@ -25,16 +24,17 @@ RG::Pass& Passes::Mipmap::addToGraph(std::string_view name, RG::Graph& renderGra
 
         // todo: nvpro mipmap software generation?
         Texture sourceTexture = resources.GetTexture(passData.Texture);
-        Device::CreateMipmaps(sourceTexture, frameContext.Cmd, ImageLayout::Destination);
-        RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
-            .LayoutTransitionInfo = LayoutTransitionInfo{
-                .ImageSubresource = ImageSubresource{.Image = sourceTexture},
-                .SourceStage = PipelineStage::Blit,
-                .DestinationStage = PipelineStage::Blit,
-                .SourceAccess = PipelineAccess::ReadTransfer,
-                .DestinationAccess = PipelineAccess::WriteTransfer,
-                .OldLayout = ImageLayout::Source,
-                .NewLayout = ImageLayout::Destination}},
-            frameContext.DeletionQueue));
+        Device::CreateMipmaps(sourceTexture, frameContext.CommandList, ImageLayout::Destination);
+        frameContext.CommandList.WaitOnBarrier({
+            .DependencyInfo = Device::CreateDependencyInfo({
+                .LayoutTransitionInfo = LayoutTransitionInfo{
+                    .ImageSubresource = ImageSubresource{.Image = sourceTexture},
+                    .SourceStage = PipelineStage::Blit,
+                    .DestinationStage = PipelineStage::Blit,
+                    .SourceAccess = PipelineAccess::ReadTransfer,
+                    .DestinationAccess = PipelineAccess::WriteTransfer,
+                    .OldLayout = ImageLayout::Source,
+                    .NewLayout = ImageLayout::Destination}},
+                frameContext.DeletionQueue)});
     });
 }

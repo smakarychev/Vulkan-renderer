@@ -3,7 +3,6 @@
 #include "Light/Light.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 #include "Core/Camera.h"
 #include "RenderGraph/Passes/Generated/LightClustersSetupBindGroup.generated.h"
 
@@ -51,11 +50,13 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
                 .Far = frameContext.PrimaryCamera->GetFar(),
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-            RenderCommand::Dispatch(cmd,
-                {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z},
-                {1, 1, 1});
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {pushConstant}});
+            frameContext.CommandList.Dispatch({
+                .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z},
+                .GroupSize = {1, 1, 1}});
         });
 }

@@ -5,7 +5,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/PbrVisibilityIblBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const PbrVisibilityBufferExecutionInfo& info)
@@ -124,9 +123,9 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
             bindGroup.SetUv({.Buffer = uvs});
             bindGroup.SetIndices({.Buffer = indices});
             
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Draw(cmd, 3);
+            cmd.Draw({.VertexCount = 3});
         });
 
     return pass;

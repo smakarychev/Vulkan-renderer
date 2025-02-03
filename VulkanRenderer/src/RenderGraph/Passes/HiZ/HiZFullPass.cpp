@@ -5,7 +5,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/DepthReductionBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
     ImageSubresourceDescription subresource, HiZPassContext& ctx)
@@ -82,13 +81,16 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
                 }
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
-                auto& cmd = frameContext.Cmd;
+                auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+                frameContext.CommandList.PushConstants({
+                    .PipelineLayout = shader.GetLayout(), 
+                    .Data = {pushConstant}});
                 u32 shift = toBeProcessed > 5 ? 12 : 10;
                 u32 mask = toBeProcessed > 5 ? 4095 : 1023;
                 u32 samples = width * height;
-                RenderCommand::Dispatch(cmd, {(samples + mask) >> shift, 1, 1});
+                frameContext.CommandList.Dispatch({
+                    .Invocations = {(samples + mask) >> shift, 1, 1}});
             });
 
         width = std::max(1u, width >> toBeProcessed);

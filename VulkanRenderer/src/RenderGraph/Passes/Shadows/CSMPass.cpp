@@ -147,7 +147,7 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                     .ClampDepth = true,
                     .DrawInfo = {
                         .DrawSetup = [&](Graph&) {},
-                        .DrawBind = [=](CommandBuffer cmd, const Resources& resources,
+                        .DrawBind = [=](RenderCommandList& cmdList, const Resources& resources,
                             const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                         {
                             const Shader& shader = ShaderCache::Register(
@@ -163,7 +163,7 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                             bindGroup.SetCommands({.Buffer = resources.GetBuffer(executionInfo.Commands)});
                             RgUtils::updateDrawAttributeBindings(bindGroup, resources, executionInfo.DrawAttributes);
                             
-                            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                            bindGroup.Bind(cmdList, resources.GetGraph()->GetArenaAllocators());
                             
                             return shader;
                         },

@@ -3,7 +3,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/LightClustersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
     RG::Resource clusters)
@@ -46,8 +45,8 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
             bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Draw(cmd, 3);
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.Draw({.VertexCount = 3});
         });
 }

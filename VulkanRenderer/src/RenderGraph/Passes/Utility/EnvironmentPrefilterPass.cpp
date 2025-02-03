@@ -3,7 +3,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/EnvironmentPrefilterBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Graph& renderGraph,
     Texture cubemap, Texture prefiltered)
@@ -75,12 +74,14 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                         (f32)cubemapDescription.Width, (f32)cubemapDescription.Height},
                     .Roughness = (f32)mipmap / (f32)prefilteredDescription.Mipmaps};
 
-                auto& cmd = frameContext.Cmd;
+                auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-                RenderCommand::Dispatch(cmd,
-                    {resolution, resolution, 6},
-                    {32, 32, 1});
+                cmd.PushConstants({
+                	.PipelineLayout = shader.GetLayout(), 
+                	.Data = {pushConstants}});
+                cmd.Dispatch({
+                    .Invocations = {resolution, resolution, 6},
+                    .GroupSize = {32, 32, 1}});
             });
 
         if (mipmap == mipmaps - 1)

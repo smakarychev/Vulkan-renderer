@@ -26,7 +26,9 @@ namespace RG
             struct UploadInfo
             {
                 Resource Resource{};
-                BufferCopyInfo CopyInfo{};
+                u64 SizeBytes{};
+                u64 SourceOffset{};
+                u64 DestinationOffset{};
             };
             std::vector<UploadInfo> UploadInfos;
             std::vector<std::byte> UploadData;
@@ -50,7 +52,9 @@ namespace RG
                         (const std::byte*)address, (const std::byte*)address + sizeBytes);
         upload.UploadInfos.push_back({
             .Resource = buffer,
-            .CopyInfo = {.SizeBytes = sizeBytes, .SourceOffset = sourceOffset, .DestinationOffset = bufferOffset}});
+            .SizeBytes = sizeBytes,
+            .SourceOffset = sourceOffset,
+            .DestinationOffset = bufferOffset});
     }
 }
 

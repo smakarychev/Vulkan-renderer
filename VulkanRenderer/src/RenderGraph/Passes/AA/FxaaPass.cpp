@@ -3,7 +3,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/FxaaBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource colorIn)
 {
@@ -40,10 +39,10 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
             bindGroup.SetColor({.Image = resources.GetTexture(passData.ColorIn)}, ImageLayout::Readonly);
             bindGroup.SetAntialiased({.Image = resources.GetTexture(passData.AntiAliased)}, ImageLayout::General);
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Dispatch(cmd,
-                {inputDescription.Width, inputDescription.Height, 1},
-                {16, 16, 1});
+            cmd.Dispatch({
+				.Invocations = {inputDescription.Width, inputDescription.Height, 1},
+				.GroupSize = {16, 16, 1}});
         });
 }

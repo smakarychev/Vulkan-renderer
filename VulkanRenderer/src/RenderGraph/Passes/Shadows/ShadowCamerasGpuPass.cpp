@@ -3,7 +3,6 @@
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depthMinMax,
     RG::Resource primaryCamera, const glm::vec3& lightDirection)
@@ -50,11 +49,13 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
                 .CascadeCount = SHADOW_CASCADES,
                 .LightDirection = lightDirection};
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-            RenderCommand::Dispatch(cmd,
-                {SHADOW_CASCADES, 1, 1},
-                {MAX_SHADOW_CASCADES, 1, 1});
+            cmd.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {pushConstant}});
+            cmd.Dispatch({
+                .Invocations = {SHADOW_CASCADES, 1, 1},
+                .GroupSize = {MAX_SHADOW_CASCADES, 1, 1}});
         });
 }

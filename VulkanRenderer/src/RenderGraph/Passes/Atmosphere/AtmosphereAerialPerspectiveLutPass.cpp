@@ -7,7 +7,6 @@
 #include "RenderGraph/Passes/Generated/AtmosphereAerialPerspectiveLutBindGroup.generated.h"
 #include "RenderGraph/Passes/Generated/ShaderBindGroupBase.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
@@ -65,10 +64,10 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
 
             RgUtils::updateCSMBindings(bindGroup, resources, passData.CSMData);
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Dispatch(cmd,
-                {lutDescription.Width, lutDescription.Height, lutDescription.GetDepth()},
-                {16, 16, 1});
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.Dispatch({
+	            .Invocations = {lutDescription.Width, lutDescription.Height, lutDescription.GetDepth()},
+	            .GroupSize = {16, 16, 1}});
         });
 }

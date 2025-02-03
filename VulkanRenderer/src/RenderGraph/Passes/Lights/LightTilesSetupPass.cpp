@@ -5,7 +5,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/LightTilesSetupBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& renderGraph)
 {
@@ -52,13 +51,15 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
                 .Far = frameContext.PrimaryCamera->GetFar(),
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {pushConstant}});
             glm::uvec2 bins = glm::ceil(
                 glm::vec2{frameContext.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
-            RenderCommand::Dispatch(cmd,
-                {bins.x, bins.y, 1},
-                {1, 1, 1});
+            frameContext.CommandList.Dispatch({
+                .Invocations = {bins.x, bins.y, 1},
+                .GroupSize = {1, 1, 1}});
         });
 }

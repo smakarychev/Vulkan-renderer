@@ -3,7 +3,6 @@
 #include "Mesh.h"
 #include "ModelCollection.h"
 #include "ResourceUploader.h"
-#include "Rendering/RenderingCommonCommands.h"
 
 class SceneGeometry
 {

@@ -4,7 +4,7 @@
 
 #include "FrameContext.h"
 #include "ResourceUploader.h"
-#include "Vulkan/RenderCommand.h"
+#include "Rendering/Commands/RenderCommands.h"
 
 namespace
 {
@@ -19,10 +19,10 @@ namespace
         ctx.DeletionQueue.Enqueue(old);
         
         if (copyOld)
-            RenderCommand::CopyBuffer(ctx.Cmd, old, newBuffer, {
-                .SizeBytes = Device::GetBufferSizeBytes(old),
-                .SourceOffset = 0,
-                .DestinationOffset = 0});
+            ctx.CommandList.CopyBuffer({
+                .Source = old,
+                .Destination = newBuffer,
+                .SizeBytes = Device::GetBufferSizeBytes(old)});
 
         return newBuffer;
     }
@@ -105,14 +105,15 @@ void SceneLight::UpdateBuffers(FrameContext& ctx)
         .PointLightCount = LIGHT_CULLING ? m_BufferedVisiblePointLightCount : m_BufferedPointLightCount};
     ctx.ResourceUploader->UpdateBuffer(m_Buffers.LightsInfo, info);
     
-    ctx.ResourceUploader->SubmitUpload(ctx.Cmd);
-    RenderCommand::WaitOnBarrier(ctx.Cmd, Device::CreateDependencyInfo({
-        .MemoryDependencyInfo = MemoryDependencyInfo{
-            .SourceStage = PipelineStage::AllTransfer,
-            .DestinationStage = PipelineStage::AllCommands,
-            .SourceAccess = PipelineAccess::WriteAll,
-            .DestinationAccess = PipelineAccess::ReadAll}},
-        ctx.DeletionQueue));
+    ctx.ResourceUploader->SubmitUpload(ctx);
+    ctx.CommandList.WaitOnBarrier({
+        .DependencyInfo = Device::CreateDependencyInfo({
+            .MemoryDependencyInfo = MemoryDependencyInfo{
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllCommands,
+                .SourceAccess = PipelineAccess::WriteAll,
+                .DestinationAccess = PipelineAccess::ReadAll}},
+            ctx.DeletionQueue)});
     
     m_IsDirty = false;
     m_IsVisiblePointLightsDirty = false;

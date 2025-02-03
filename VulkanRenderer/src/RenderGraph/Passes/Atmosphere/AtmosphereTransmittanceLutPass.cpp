@@ -4,7 +4,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/AtmosphereTransmittanceLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace RG
 {
@@ -46,10 +45,10 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
             bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
             bindGroup.SetLut({.Image = lutTexture}, ImageLayout::General);
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Dispatch(cmd,
-                {lutDescription.Width, lutDescription.Height, 1},
-                {16, 16, 1});
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.Dispatch({
+				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
+				.GroupSize = {16, 16, 1}});
         });
 }

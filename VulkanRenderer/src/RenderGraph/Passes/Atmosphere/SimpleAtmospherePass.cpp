@@ -3,7 +3,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/AtmosphereSimpleBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut)
@@ -42,9 +41,11 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph&
                 ImageLayout::Readonly);
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), (f32)frameContext.FrameNumberTick);
-            RenderCommand::Draw(cmd, 3);
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {(f32)frameContext.FrameNumberTick}});
+            frameContext.CommandList.Draw({.VertexCount = 3});
         });
 }

@@ -49,7 +49,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                 .Camera = info.Camera,
                 .DrawInfo = {
                     .DrawSetup = [&](Graph&) {},
-                    .DrawBind = [=](CommandBuffer cmd, const Resources& resources,
+                    .DrawBind = [=](RenderCommandList& cmdList, const Resources& resources,
                         const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                     {
                         const Shader& shader = ShaderCache::Register(
@@ -67,7 +67,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                         if (executionInfo.Triangles.IsValid())
                             bindGroup.SetTriangles({.Buffer = resources.GetBuffer(executionInfo.Triangles)});
 
-                        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                        bindGroup.Bind(cmdList, resources.GetGraph()->GetArenaAllocators());
                         
                         return shader;
                     },

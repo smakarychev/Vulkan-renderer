@@ -7,33 +7,33 @@
 struct {{name}}ShaderBindGroup : ShaderBindGroupBase<{{name}}ShaderBindGroup>
 {
     using ShaderBindGroupBase::ShaderBindGroupBase;
-    void Bind(CommandBuffer cmd, const DescriptorArenaAllocators& allocators)
+    void Bind(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators)
     {
 {% if is_raster %}
-        RenderCommand::BindGraphics(cmd, Shader->Pipeline());
+        cmdList.BindPipelineGraphics({.Pipeline = Shader->Pipeline()});
     {% if has_immutable_sampler %}
-        RenderCommand::BindGraphicsImmutableSamplers(cmd, Shader->GetLayout(), (u32){{ descriptors_kind_string(0) }});
+        cmdList.BindImmutableSamplersGraphics({.PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% else if has_samplers %}
-        RenderCommand::BindGraphics(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(0) }}), (u32){{ descriptors_kind_string(0) }});
+        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% endif %}
     {% if has_resources %}
-        RenderCommand::BindGraphics(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(1) }}), (u32){{ descriptors_kind_string(1) }});
+        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(1) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(1) }}});
     {% endif %}
     {% if has_materials %}
-        RenderCommand::BindGraphics(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(2) }}), (u32){{ descriptors_kind_string(2) }});
+        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(2) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(2) }}});
     {% endif %}
 {% else %}
-        RenderCommand::BindCompute(cmd, Shader->Pipeline());
+        cmdList.BindPipelineCompute({.Pipeline = Shader->Pipeline()});
     {% if has_immutable_sampler %}
-        RenderCommand::BindComputeImmutableSamplers(cmd, Shader->GetLayout(), (u32){{ descriptors_kind_string(0) }});
+        cmdList.BindImmutableSamplersCompute({.PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% else if has_samplers %}
-        RenderCommand::BindCompute(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(0) }}), (u32){{ descriptors_kind_string(0) }});
+        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% endif %}
     {% if has_resources %}
-        RenderCommand::BindCompute(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(1) }}), (u32){{ descriptors_kind_string(1) }});
+        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(1) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(1) }}});
     {% endif %}
     {% if has_materials %}
-        RenderCommand::BindCompute(cmd, allocators, Shader->GetLayout(), Shader->Descriptors({{ descriptors_kind_string(2) }}), (u32){{ descriptors_kind_string(2) }});
+        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(2) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(2) }}});
     {% endif %}
 {% endif %}
     }

@@ -3,7 +3,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Graph& renderGraph,
     Texture cubemap, Buffer irradianceSH, bool realTime)
@@ -54,10 +53,13 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
                 std::min(cubemapDescription.Mipmaps, (i8)realTimeMipmapsCount) - realTimeMipmapsCount :
                 0;
             
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), targetMipmap);
-            RenderCommand::Dispatch(cmd, {1, 1, 1});
+            cmd.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {targetMipmap}});
+            cmd.Dispatch({
+                .Invocations = {1, 1, 1}});
         });
 
     return pass;

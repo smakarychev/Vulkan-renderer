@@ -8,6 +8,8 @@
 #include "Rendering/Pipeline.h"
 #include "types.h"
 
+
+class RenderCommandList;
 struct PushConstantDescription;
 class DescriptorLayoutCache;
 
@@ -90,14 +92,14 @@ public:
     ShaderDescriptorSet() = default;
     ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo);
     
-    void BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
+    void BindGraphics(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
         const;
-    void BindGraphics(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
+    void BindGraphics(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
         const std::vector<u32>& dynamicOffsets) const;
 
-    void BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
+    void BindCompute(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
         const;
-    void BindCompute(CommandBuffer cmd, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
+    void BindCompute(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
                      const std::vector<u32>& dynamicOffsets) const;
 
     void SetTexture(std::string_view name, Texture texture, u32 arrayIndex);

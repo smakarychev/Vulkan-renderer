@@ -6,7 +6,6 @@
     friend class Device; \
     friend class DeviceResources; \
     friend class DeletionQueue; \
-    friend class RenderCommand;
 
 #define GPU_PROFILE_FRAME(name) TracyVkZone(ProfilerContext::Get()->GraphicsContext(), Device::GetProfilerCommandBuffer(ProfilerContext::Get()), name)
 #define CPU_PROFILE_FRAME(name) ZoneScopedN(name);
@@ -16,13 +15,6 @@
 enum class QueueKind {Graphics, Presentation, Compute};
 
 enum class AlphaBlending {None, Over};
-
-struct BufferCopyInfo
-{
-    u64 SizeBytes;
-    u64 SourceOffset;
-    u64 DestinationOffset;
-};
 
 struct DepthBias
 {

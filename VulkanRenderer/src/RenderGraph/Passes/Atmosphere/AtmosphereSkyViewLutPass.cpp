@@ -5,7 +5,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/AtmosphereSkyViewLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
@@ -57,10 +56,10 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
                 ImageLayout::Readonly);
             bindGroup.SetSkyViewLut({.Image = lutTexture}, ImageLayout::General);
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Dispatch(cmd,
-                {lutDescription.Width, lutDescription.Height, 1},
-                {16, 16, 1});
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.Dispatch({
+				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
+				.GroupSize = {16, 16, 1}});
         });
 }

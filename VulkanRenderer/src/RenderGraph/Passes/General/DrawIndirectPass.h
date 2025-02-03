@@ -19,7 +19,6 @@ struct DrawIndirectPassExecutionInfo
     const Camera* Camera{nullptr};
 
     RG::DrawExecutionInfo DrawInfo{};
-    const Shader* Shader{nullptr};
 };
 
 namespace Passes::Draw::Indirect

@@ -6,7 +6,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/LightTilesBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace RG
 {
@@ -54,11 +53,13 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.SceneLightResources.LightsInfo)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
             
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), glm::vec2{frameContext.Resolution});
-            RenderCommand::Dispatch(cmd,
-                {depthDescription.Width, depthDescription.Height, 1},
-                {8, 8, 1});
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {glm::vec2{frameContext.Resolution}}});
+            frameContext.CommandList.Dispatch({
+                .Invocations = {depthDescription.Width, depthDescription.Height, 1},
+                .GroupSize = {8, 8, 1}});
         });
 }

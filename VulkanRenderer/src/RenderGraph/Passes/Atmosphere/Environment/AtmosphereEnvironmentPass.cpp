@@ -6,7 +6,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)

@@ -4,7 +4,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/LightTilesVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace RG
 {
@@ -59,9 +58,11 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
             if (useZBins)
                 bindGroup.SetZbins({.Buffer = resources.GetBuffer(passData.ZBins)});
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), useZBins);
-            RenderCommand::Draw(cmd, 3);
+            cmd.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {useZBins}});
+            cmd.Draw({.VertexCount = 3});
         });
 }

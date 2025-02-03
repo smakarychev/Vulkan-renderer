@@ -4,7 +4,6 @@
 #include "RenderGraph/Passes/Generated/MeshCullMultiviewBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const MeshCullMultiviewPassExecutionInfo& info, CullStage stage)
@@ -54,8 +53,8 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
                 u32 ViewCount;
             };
                        
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {
@@ -66,11 +65,13 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
                     .GeometryIndex = i,
                     .ViewCount = info.MultiviewResource->ViewCount};
 
-                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
+                frameContext.CommandList.PushConstants({
+                    .PipelineLayout = shader.GetLayout(), 
+                    .Data = {pushConstant}});
 
-                RenderCommand::Dispatch(cmd,
-                    {meshCount, 1, 1},
-                    {64, 1, 1});
+                frameContext.CommandList.Dispatch({
+				    .Invocations = {meshCount, 1, 1},
+				    .GroupSize = {64, 1, 1}});
             }
         });
 

@@ -4,7 +4,6 @@
 #include "imgui/imgui.h"
 #include "RenderGraph/Passes/Generated/HizVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource hiz)
 {
@@ -55,10 +54,12 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
                 .MagnificationFilter = ImageFilter::Nearest}));
             bindGroup.SetHiz({.Image = hizTexture}, ImageLayout::Readonly);
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            RenderCommand::Draw(cmd, 3);
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {pushConstants}});
+            frameContext.CommandList.Draw({.VertexCount = 3});
         });
 
     return pass;

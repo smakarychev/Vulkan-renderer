@@ -5,7 +5,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/LightClustersBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource dispatchIndirect, RG::Resource clusters, RG::Resource activeClusters, RG::Resource clustersCount,
@@ -47,9 +46,12 @@ RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph&
             bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.SceneLightResources.PointLights)});
             bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.SceneLightResources.LightsInfo)});
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), frameContext.PrimaryCamera->GetView());
-            RenderCommand::DispatchIndirect(cmd, resources.GetBuffer(passData.Dispatch), 0);
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {frameContext.PrimaryCamera->GetView()}});
+            frameContext.CommandList.DispatchIndirect({
+                .Buffer = resources.GetBuffer(passData.Dispatch)});
         });
 }

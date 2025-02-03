@@ -3,26 +3,27 @@
 #include "types.h"
 
 #include "Vulkan/Device.h"
-#include "Vulkan/RenderCommand.h"
+
+#include "Rendering/Commands/RenderCommandList.h"
 
 u32 ImGuiUI::s_FrameNumber{0};
 std::array<std::vector<ImTextureID>, BUFFERED_FRAMES> ImGuiUI::s_Textures{};
 
-void ImGuiUI::BeginFrame(u32 frameNumber)
+void ImGuiUI::BeginFrame(RenderCommandList& cmdList, u32 frameNumber)
 {
     CPU_PROFILE_FRAME("ImGui begin frame")
 
-    RenderCommand::ImGuiBeginFrame();
+    cmdList.BeginImGuiRendering({});
 
     s_FrameNumber = frameNumber;
     ClearFrameResources(frameNumber);
 }
 
-void ImGuiUI::EndFrame(CommandBuffer cmd, RenderingInfo renderingInfo)
+void ImGuiUI::EndFrame(RenderCommandList& cmdList, RenderingInfo renderingInfo)
 {
     CPU_PROFILE_FRAME("ImGui end frame")
 
-    RenderCommand::DrawImGui(cmd, renderingInfo);
+    cmdList.EndImGuiRendering({.RenderingInfo = renderingInfo});
 }
 
 void ImGuiUI::Texture(const ImageSubresource& texture, Sampler sampler, ImageLayout layout, const glm::uvec2& size)

@@ -7,7 +7,6 @@
 #include "RenderGraph/Passes/Generated/TriangleCullMultiviewBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const TriangleCullPrepareMultiviewPassExecutionInfo& info)
@@ -46,7 +45,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
                 u32 MaxDispatches;
             };
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
 
             PushConstants pushConstants = {
@@ -57,19 +56,22 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
                 .MeshletViewCount = multiview->MeshletCull->ViewCount,
                 .MaxDispatches = multiview->MaxDispatches};
             
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {pushConstants}});
             
-            RenderCommand::Dispatch(cmd,
-                {multiview->MaxDispatches, 1, 1},
-                {64, 1, 1});
+            cmd.Dispatch({
+                .Invocations = {multiview->MaxDispatches, 1, 1},
+                .GroupSize = {64, 1, 1}});
 
-            RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
-                .MemoryDependencyInfo = MemoryDependencyInfo{
-                    .SourceStage = PipelineStage::ComputeShader,
-                    .DestinationStage = PipelineStage::Host,
-                    .SourceAccess = PipelineAccess::WriteShader,
-                    .DestinationAccess = PipelineAccess::ReadHost}},
-                frameContext.DeletionQueue));
+            cmd.WaitOnBarrier({
+                .DependencyInfo = Device::CreateDependencyInfo({
+                    .MemoryDependencyInfo = MemoryDependencyInfo{
+                        .SourceStage = PipelineStage::ComputeShader,
+                        .DestinationStage = PipelineStage::Host,
+                        .SourceAccess = PipelineAccess::WriteShader,
+                        .DestinationAccess = PipelineAccess::ReadHost}},
+                    frameContext.DeletionQueue)});
 
             multiview->MeshletCull->Multiview->UpdateBatchIterationCount();
         });
@@ -215,15 +217,18 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                 if (index < TriangleCullMultiviewTraits::MAX_BATCHES)
                     return;
 
-                RenderCommand::WaitOnSplitBarrier(frameContext.Cmd,
-                    barriers.SplitBarriers[batchIndex], barriers.SplitBarrierDependency);
-                RenderCommand::ResetSplitBarrier(frameContext.Cmd,
-                    barriers.SplitBarriers[batchIndex], barriers.SplitBarrierDependency);
+                frameContext.CommandList.WaitOnSplitBarrier({
+                    .SplitBarrier = barriers.SplitBarriers[batchIndex],
+                    .DependencyInfo = barriers.SplitBarrierDependency});
+                frameContext.CommandList.ResetSplitBarrier({
+                    .SplitBarrier = barriers.SplitBarriers[batchIndex],
+                    .DependencyInfo = barriers.SplitBarrierDependency});
             };
             auto signalBarrier = [&](u32 batchIndex)
             {
-                RenderCommand::SignalSplitBarrier(frameContext.Cmd,
-                    barriers.SplitBarriers[batchIndex], barriers.SplitBarrierDependency);
+                frameContext.CommandList.SignalSplitBarrier({
+                    .SplitBarrier = barriers.SplitBarriers[batchIndex],
+                    .DependencyInfo = barriers.SplitBarrierDependency});
             };
 
             /* update all bindings */
@@ -248,17 +253,17 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             /* if there are no batches, we clear the render target (if needed) */
             if (multiviewData->GetBatchIterationCount() == 0)
             {
-                auto& cmd = frameContext.Cmd;
+                auto& cmd = frameContext.CommandList;
 
                 for (u32 i = 0; i < multiview->TriangleViewCount; i++)
                 {
                     u32 meshletIndex = multiview->MeshletViewIndices[i];
                     auto& view = multiviewData->View(meshletIndex);
 
-                    RenderCommand::BeginRendering(cmd, createRenderingInfo(true, i));
-                    RenderCommand::SetViewport(cmd, view.Dynamic.Resolution);
-                    RenderCommand::SetScissors(cmd, {0, 0}, view.Dynamic.Resolution);
-                    RenderCommand::EndRendering(cmd);
+                    cmd.BeginRendering({.RenderingInfo = createRenderingInfo(true, i)});
+                    cmd.SetViewport({.Size = view.Dynamic.Resolution});
+                    cmd.SetScissors({.Size = view.Dynamic.Resolution});
+                    cmd.EndRendering({});
                 }
 
                 return;
@@ -290,32 +295,37 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .MaxCommandIndex = TriangleCullMultiviewTraits::CommandCount(),
                             .GeometryIndex = geometryIndex,
                             .MeshletViewCount = multiview->MeshletCull->ViewCount};
-                        auto& cmd = frameContext.Cmd;
+                        auto& cmd = frameContext.CommandList;
                         bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                        RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-                        RenderCommand::DispatchIndirect(cmd,
-                            resources.GetBuffer(multiview->BatchDispatches[geometryIndex]),
-                            batchIteration * sizeof(IndirectDispatchCommand));
+                        cmd.PushConstants({
+                            .PipelineLayout = shader.GetLayout(), 
+                            .Data = {pushConstants}});
+                        cmd.DispatchIndirect({
+                            .Buffer = resources.GetBuffer(multiview->BatchDispatches[geometryIndex]),
+                            .Offset = batchIteration * sizeof(IndirectDispatchCommand)});
 
-                        RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
-                            .MemoryDependencyInfo = MemoryDependencyInfo {
-                            .SourceStage = PipelineStage::ComputeShader,
-                            .DestinationStage = PipelineStage::ComputeShader,
-                            .SourceAccess = PipelineAccess::WriteShader,
-                            .DestinationAccess = PipelineAccess::ReadShader}},
-                            frameContext.DeletionQueue));
+                        cmd.WaitOnBarrier({
+                            .DependencyInfo = Device::CreateDependencyInfo({
+                                .MemoryDependencyInfo = MemoryDependencyInfo {
+                                .SourceStage = PipelineStage::ComputeShader,
+                                .DestinationStage = PipelineStage::ComputeShader,
+                                .SourceAccess = PipelineAccess::WriteShader,
+                                .DestinationAccess = PipelineAccess::ReadShader}},
+                                frameContext.DeletionQueue)});
                     }
 
                     /* prepare draws */
                     {
                         const Shader& shader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, batchIndex));
                         PrepareDrawsMultiviewShaderBindGroup bindGroup(shader);                        
-                        auto& cmd = frameContext.Cmd;
+                        auto& cmd = frameContext.CommandList;
                         bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                        RenderCommand::PushConstants(cmd, shader.GetLayout(), multiview->TriangleViewCount);
-                        RenderCommand::Dispatch(cmd,
-                            {multiview->TriangleViewCount, 1, 1},
-                            {MAX_CULL_VIEWS, 1, 1});
+                        cmd.PushConstants({
+                            .PipelineLayout = shader.GetLayout(), 
+                            .Data = {multiview->TriangleViewCount}});
+                        cmd.Dispatch({
+                            .Invocations = {multiview->TriangleViewCount, 1, 1},
+                            .GroupSize = {MAX_CULL_VIEWS, 1, 1}});
 
                         DependencyInfo dependencyInfo = Device::CreateDependencyInfo({
                             .MemoryDependencyInfo = MemoryDependencyInfo{
@@ -324,7 +334,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .SourceAccess = PipelineAccess::WriteShader,
                             .DestinationAccess = PipelineAccess::ReadIndirect}},
                             frameContext.DeletionQueue);
-                        RenderCommand::WaitOnBarrier(cmd, dependencyInfo);
+                        cmd.WaitOnBarrier({
+                            .DependencyInfo = dependencyInfo});
                     }
                 
                     /* draw */
@@ -334,21 +345,23 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                         auto& view = multiviewData->TriangleView(i);
                         auto&& [staticV, dynamicV] = view;
 
-                        auto& cmd = frameContext.Cmd;
-                        
-                        RenderCommand::BeginRendering(cmd, createRenderingInfo(batchIteration == 0, i));
+                        auto& cmd = frameContext.CommandList;
 
-                        RenderCommand::SetViewport(cmd, dynamicV.Resolution);
-                        RenderCommand::SetScissors(cmd, {0, 0}, dynamicV.Resolution);
+                        cmd.BeginRendering({
+                            .RenderingInfo = createRenderingInfo(batchIteration == 0, i)});
+
+                        cmd.SetViewport({.Size = dynamicV.Resolution});
+                        frameContext.CommandList.SetScissors({.Size = dynamicV.Resolution});
                         std::optional<DepthBias> depthBias = dynamicV.DrawInfo.Attachments.Depth.has_value() ?
                             dynamicV.DrawInfo.Attachments.Depth->DepthBias : std::nullopt;
                         if (depthBias.has_value())
-                            RenderCommand::SetDepthBias(cmd, *depthBias);
-                        
-                        RenderCommand::BindIndexU32Buffer(cmd,
-                            resources.GetBuffer(multiview->IndicesCulled[i][batchIndex]), 0);
+                            frameContext.CommandList.SetDepthBias({
+                                .Constant = depthBias->Constant, .Slope = depthBias->Slope});
 
-                        dynamicV.DrawInfo.DrawBind(frameContext.Cmd, resources, {
+                        frameContext.CommandList.BindIndexU32Buffer({
+                            .Buffer = resources.GetBuffer(multiview->IndicesCulled[i][batchIndex])});
+
+                        dynamicV.DrawInfo.DrawBind(frameContext.CommandList, resources, {
                             .Camera = multiview->Cameras[i],
                             .Objects = multiview->MeshletCull->Objects[geometryIndex],
                             .Commands = multiview->MeshletCull->Commands[geometryIndex],
@@ -356,10 +369,13 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .Triangles = multiview->Triangles[i][batchIndex],
                             .ExecutionId = batchIndex});
 
-                        RenderCommand::DrawIndexedIndirect(cmd,
-                            resources.GetBuffer(multiview->Draws[batchIndex]), i * sizeof(IndirectDrawCommand), 1);                    
                         
-                        RenderCommand::EndRendering(cmd);
+                        frameContext.CommandList.DrawIndexedIndirect({
+                            .Buffer = resources.GetBuffer(multiview->Draws[batchIndex]),
+                            .Offset = i * sizeof(IndirectDrawCommand),
+                            .Count = 1});           
+
+                        frameContext.CommandList.EndRendering({});
                     }
                     
                     signalBarrier(batchIndex);

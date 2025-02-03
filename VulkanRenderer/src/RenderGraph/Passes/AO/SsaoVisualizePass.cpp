@@ -4,7 +4,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SsaoVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao,
     RG::Resource colorOut)
@@ -42,9 +41,9 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
             SsaoVisualizeShaderBindGroup bindGroup(shader);
             bindGroup.SetSsao({.Image = ssaoTexture}, ImageLayout::Readonly);
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Draw(cmd, 3);
+            frameContext.CommandList.Draw({.VertexCount = 3});
         });
 
     return pass;

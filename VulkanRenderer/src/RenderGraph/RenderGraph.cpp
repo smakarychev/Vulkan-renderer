@@ -11,7 +11,6 @@
 #include "cvars/CVarSystem.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Rendering/Synchronization.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace RG
 {
@@ -365,9 +364,10 @@ namespace RG
             SubmitPassUploads(frameContext);
             
             for (auto& barrier : pass->m_Barriers)
-                RenderCommand::WaitOnBarrier(frameContext.Cmd, barrier);
+                frameContext.CommandList.WaitOnBarrier({.DependencyInfo = barrier});
             for (auto& splitWait : pass->m_SplitBarriersToWait)
-                RenderCommand::WaitOnSplitBarrier(frameContext.Cmd, splitWait.Barrier, splitWait.Dependency);
+                frameContext.CommandList.WaitOnSplitBarrier({
+                    .SplitBarrier = splitWait.Barrier, .DependencyInfo = splitWait.Dependency});
             
             if (pass->m_IsRasterizationPass)
             {
@@ -419,22 +419,24 @@ namespace RG
                     if (target.m_DepthBias.has_value())
                         depthBias = *target.m_DepthBias;
                 }
-                
-                RenderCommand::BeginRendering(frameContext.Cmd, Device::CreateRenderingInfo({
-                    .RenderArea = resolution,
-                    .ColorAttachments = colorAttachments,
-                    .DepthAttachment = depthAttachment},
-                    *m_FrameDeletionQueue));
+
+                frameContext.CommandList.BeginRendering({
+                    .RenderingInfo = Device::CreateRenderingInfo({
+                        .RenderArea = resolution,
+                        .ColorAttachments = colorAttachments,
+                        .DepthAttachment = depthAttachment},
+                        *m_FrameDeletionQueue)});
 
                 /* set dynamic states */
-                RenderCommand::SetViewport(frameContext.Cmd, resolution);
-                RenderCommand::SetScissors(frameContext.Cmd, {0, 0}, resolution);
+                frameContext.CommandList.SetViewport({.Size = resolution});
+                frameContext.CommandList.SetScissors({.Size = resolution});
                 if (depthBias.has_value())
-                    RenderCommand::SetDepthBias(frameContext.Cmd, *depthBias);
+                    frameContext.CommandList.SetDepthBias({
+                        .Constant = depthBias->Constant, .Slope = depthBias->Slope});
                 
                 pass->Execute(frameContext, resources);
 
-                RenderCommand::EndRendering(frameContext.Cmd);
+                frameContext.CommandList.EndRendering({});
             }
             else
             {
@@ -442,7 +444,8 @@ namespace RG
             }
             
             for (auto& splitSignal : pass->m_SplitBarriersToSignal)
-                RenderCommand::SignalSplitBarrier(frameContext.Cmd, splitSignal.Barrier, splitSignal.Dependency);
+                frameContext.CommandList.SignalSplitBarrier({
+                    .SplitBarrier = splitSignal.Barrier, .DependencyInfo = splitSignal.Dependency});
 
             m_CurrentPassesStack.pop_back();
         }
@@ -463,14 +466,17 @@ namespace RG
             .DestinationAccess = PipelineAccess::None,
             .OldLayout = m_BackbufferLayout,
             .NewLayout = ImageLayout::Source};
-        RenderCommand::WaitOnBarrier(frameContext.Cmd,  Device::CreateDependencyInfo({
-            .LayoutTransitionInfo = backbufferTransition},
-            *m_FrameDeletionQueue));
+        frameContext.CommandList.WaitOnBarrier({
+            .DependencyInfo = Device::CreateDependencyInfo({
+                .LayoutTransitionInfo = backbufferTransition},
+                *m_FrameDeletionQueue)});
     }
 
     void Graph::OnCmdBegin(FrameContext& frameContext)
     {
-        GetArenaAllocators().Bind(frameContext.Cmd, frameContext.FrameNumber);
+        frameContext.CommandList.BindDescriptorArenaAllocators({
+            .Allocators = &GetArenaAllocators(),
+            .BufferIndex = frameContext.FrameNumber});
     }
 
     void Graph::OnCmdEnd(FrameContext& frameContext)
@@ -484,22 +490,24 @@ namespace RG
         if (!m_ResourceUploader.HasUploads(CurrentPass()))
             return;
 
-        RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
-            .ExecutionDependencyInfo = ExecutionDependencyInfo{
-                .SourceStage = PipelineStage::AllCommands,
-                .DestinationStage = PipelineStage::AllTransfer}},
-            frameContext.DeletionQueue));
+        frameContext.CommandList.WaitOnBarrier({
+            .DependencyInfo = Device::CreateDependencyInfo({
+                .ExecutionDependencyInfo = ExecutionDependencyInfo{
+                    .SourceStage = PipelineStage::AllCommands,
+                    .DestinationStage = PipelineStage::AllTransfer}},
+                frameContext.DeletionQueue)});
         
         m_ResourceUploader.Upload(CurrentPass(), Resources{*this}, *frameContext.ResourceUploader);
-        frameContext.ResourceUploader->SubmitUpload(frameContext.Cmd);
+        frameContext.ResourceUploader->SubmitUpload(frameContext);
 
-        RenderCommand::WaitOnBarrier(frameContext.Cmd, Device::CreateDependencyInfo({
-            .MemoryDependencyInfo = MemoryDependencyInfo{
-                .SourceStage = PipelineStage::AllTransfer,
-                .DestinationStage = PipelineStage::AllCommands,
-                .SourceAccess = PipelineAccess::WriteAll,
-                .DestinationAccess = PipelineAccess::ReadAll}},
-            frameContext.DeletionQueue));
+        frameContext.CommandList.WaitOnBarrier({
+            .DependencyInfo = Device::CreateDependencyInfo({
+                .MemoryDependencyInfo = MemoryDependencyInfo{
+                    .SourceStage = PipelineStage::AllTransfer,
+                    .DestinationStage = PipelineStage::AllCommands,
+                    .SourceAccess = PipelineAccess::WriteAll,
+                    .DestinationAccess = PipelineAccess::ReadAll}},
+                frameContext.DeletionQueue)});
     }
 
     void Graph::SetShader(std::string_view path) const

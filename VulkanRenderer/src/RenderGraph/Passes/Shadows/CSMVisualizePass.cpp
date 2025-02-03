@@ -5,7 +5,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/CsmVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const CSM::PassData& csmOutput, RG::Resource colorIn)
@@ -62,10 +61,12 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             ImGui::DragInt("CSM cascade", (i32*)&cascadeIndex.Index, 1e-1f, 0, SHADOW_CASCADES);
             ImGui::End();
             
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), cascadeIndex.Index);
-            RenderCommand::Draw(cmd, 3);
+            cmd.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {cascadeIndex.Index}});
+            cmd.Draw({.VertexCount = 3});
         });
 
     return pass;

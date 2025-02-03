@@ -1,7 +1,6 @@
 #include "BlitPass.h"
 
 #include "Renderer.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Blit::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn,
     RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize, ImageFilter filter)
@@ -35,17 +34,17 @@ RG::Pass& Passes::Blit::addToGraph(std::string_view name, RG::Graph& renderGraph
             glm::uvec3 top =
                 ImageUtils::getPixelCoordinates(dst, offset + glm::vec3{width, height, 1.0f}, ImageSizeType::Relative);
             
-            ImageCopyInfo srcBlit = {
-                .Image = src,
-                .Layers = 1,
-                .Top = srcDescription.Dimensions()};
-            ImageCopyInfo dstBlit = {
-                .Image = dst,
-                .Layers = 1,
-                .Bottom = bottom,
-                .Top = top};
-            
-            RenderCommand::BlitImage(frameContext.Cmd, srcBlit, dstBlit, filter);
+            frameContext.CommandList.BlitImage({
+                .Source = src,
+                .Destination = dst,
+                .Filter = filter,
+                .SourceSubregion = {
+                    .Layers = 1,
+                    .Top = srcDescription.Dimensions()},
+                .DestinationSubregion = {
+                    .Layers = 1,
+                    .Bottom = bottom,
+                    .Top = top}});
         });
 
     return pass;

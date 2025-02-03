@@ -5,7 +5,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/Texture3dToSliceBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace
 {
@@ -162,10 +161,12 @@ namespace
 
                 bindGroup.SetTexture({.Image = resources.GetTexture(passData.Texture3d)}, ImageLayout::Readonly);
 
-                auto& cmd = frameContext.Cmd;
+                auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::PushConstants(cmd, shader.GetLayout(), sliceNormalized);
-                RenderCommand::Draw(cmd, 3);
+                cmd.PushConstants({
+                	.PipelineLayout = shader.GetLayout(), 
+                	.Data = {sliceNormalized}});
+                cmd.Draw({.VertexCount = 3});
             });
 
         return renderGraph.GetBlackboard().Get<PassData>(pass).Slice;

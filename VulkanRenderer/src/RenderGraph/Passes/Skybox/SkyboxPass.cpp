@@ -5,7 +5,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SkyboxBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture skybox,
     RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
@@ -69,10 +68,12 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
             bindGroup.SetProjection({.Buffer = projectionBuffer});
             bindGroup.SetShading({.Buffer = resources.GetBuffer(passData.ShadingSettings)});
             
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), passData.LodBias);
-            RenderCommand::Draw(cmd, 6);
+            cmd.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {passData.LodBias}});
+            cmd.Draw({.VertexCount = 6});
         });
 
     return pass;

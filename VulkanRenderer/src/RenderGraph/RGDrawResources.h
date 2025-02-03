@@ -98,7 +98,7 @@ namespace RG
     };
     
     using DrawPassSetupFn = std::function<void(Graph&)>;
-    using DrawPassBindFn = std::function<const Shader&(CommandBuffer cmd, const Resources&,
+    using DrawPassBindFn = std::function<const Shader&(RenderCommandList& cmdList, const Resources&,
         const GeometryDrawExecutionInfo&)>;
 
     struct DrawInitInfo

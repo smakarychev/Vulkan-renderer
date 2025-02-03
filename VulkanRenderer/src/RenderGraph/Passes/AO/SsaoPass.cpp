@@ -7,7 +7,6 @@
 #include "RenderGraph/Passes/Generated/SsaoBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "utils/MathUtils.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace
 {
@@ -173,12 +172,14 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
                 .SsaoSize = glm::vec2((f32)ssaoDescription.Width, (f32)ssaoDescription.Height),
                 .NoiseSizeInverse = 1.0f / glm::vec2((f32)noiseDescription.Width, (f32)noiseDescription.Height)};
             
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            RenderCommand::Dispatch(cmd,
-                {ssaoDescription.Width, ssaoDescription.Height, 1},
-                {16, 16, 1});
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(),
+                .Data = {pushConstants}});
+            cmd.Dispatch({
+                .Invocations = {ssaoDescription.Width, ssaoDescription.Height, 1},
+                .GroupSize = {16, 16, 1}});
         });
 
     return pass;

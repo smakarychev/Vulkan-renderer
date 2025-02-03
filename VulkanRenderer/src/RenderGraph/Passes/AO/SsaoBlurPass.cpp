@@ -4,7 +4,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SsaoBlurBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao,
     RG::Resource colorOut, SsaoBlurPassKind kind)
@@ -46,11 +45,11 @@ RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderG
             bindGroup.SetSsao({.Image = ssaoIn}, ImageLayout::Readonly);
             bindGroup.SetSsaoBlurred({.Image = ssaoOut}, ImageLayout::General);
             
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Dispatch(cmd,
-                {ssaoInDescription.Width, ssaoInDescription.Height, 1},
-                {16, 16, 1});
+            frameContext.CommandList.Dispatch({
+				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
+				.GroupSize = {16, 16, 1}});
         });
 
     return pass;

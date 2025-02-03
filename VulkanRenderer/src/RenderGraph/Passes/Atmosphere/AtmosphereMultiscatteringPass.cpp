@@ -4,7 +4,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/AtmosphereMultiscatteringLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace RG
 {
@@ -49,10 +48,10 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
                 ImageLayout::Readonly);
             bindGroup.SetMultiscatteringLut({.Image = lutTexture}, ImageLayout::General);
 
-            auto& cmd = frameContext.Cmd;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::Dispatch(cmd,
-                {lutDescription.Width, lutDescription.Height, 64},
-                {1, 1, 64});
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            frameContext.CommandList.Dispatch({
+				.Invocations = {lutDescription.Width, lutDescription.Height, 64},
+				.GroupSize = {1, 1, 64}});
         });
 }

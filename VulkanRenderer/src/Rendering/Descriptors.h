@@ -133,9 +133,6 @@ public:
     DescriptorArenaAllocators(DescriptorArenaAllocator samplerAllocator, DescriptorArenaAllocator resourceAllocator);
     
     DescriptorArenaAllocator Get(DescriptorsKind kind) const;
-
-    /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
-    void Bind(CommandBuffer cmd, u32 bufferIndex);
 private:
     std::array<DescriptorArenaAllocator, (u32)DescriptorsKind::MaxVal> m_Allocators;
 };

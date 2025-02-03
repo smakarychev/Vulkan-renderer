@@ -4,7 +4,6 @@
 #include "RenderGraph/RenderPass.h"
 #include "RenderGraph/Passes/Generated/HizBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace Passes::HiZBlit
 {
@@ -83,10 +82,13 @@ namespace Passes::HiZBlit
                     bindGroup.SetMinMax({.Buffer = resources.GetBuffer(passData.MinMaxDepth)});
                 
                 glm::uvec2 levels = {width, height};
-                auto& cmd = frameContext.Cmd;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::PushConstants(cmd, shader.GetLayout(), levels);
-                RenderCommand::Dispatch(cmd, {(width + 32 - 1) / 32, (height + 32 - 1) / 32, 1});
+                auto& cmd = frameContext.CommandList;
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                frameContext.CommandList.PushConstants({
+                    .PipelineLayout = shader.GetLayout(), 
+                    .Data = {levels}});
+                frameContext.CommandList.Dispatch({
+                    .Invocations = {(width + 32 - 1) / 32, (height + 32 - 1) / 32, 1}});
             });
     }
 }

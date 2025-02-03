@@ -5,7 +5,6 @@
 #include "imgui/imgui.h"
 #include "RenderGraph/Passes/Generated/SkyGradientBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource renderTarget)
 {
@@ -80,10 +79,14 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
             bindGroup.SetSettings({.Buffer = settingsBuffer});
             bindGroup.SetOutImage({.Image = colorOut}, ImageLayout::General);
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), imageSize);
-            RenderCommand::Dispatch(cmd, {imageSize, 1}, {32, 32, 1});
+            cmd.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {imageSize}});
+            cmd.Dispatch({
+                .Invocations = {imageSize, 1},
+                .GroupSize = {32, 32, 1}});
         });
 
     return pass;

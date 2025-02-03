@@ -1,7 +1,6 @@
 #include "CopyTexturePass.h"
 
 #include "FrameContext.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::CopyTexture::addToGraph(std::string_view name, RG::Graph& renderGraph,
     RG::Resource textureIn, RG::Resource textureOut,
@@ -27,31 +26,32 @@ RG::Pass& Passes::CopyTexture::addToGraph(std::string_view name, RG::Graph& rend
             auto&& [src, srcDescription] = resources.GetTextureWithDescription(passData.TextureIn);
             auto&& [dst, dstDescription] = resources.GetTextureWithDescription(passData.TextureOut);
 
-            ImageCopyInfo srcCopy = {
-                .Image = src,
+            ImageSubregion srcSubregion = {
                 .Layers = 1,
                 .Top = srcDescription.Dimensions()};
-            ImageCopyInfo dstCopy = {};
+            ImageSubregion dstSubregion = {};
             
             switch (sizeType)
             {
             case ImageSizeType::Absolute:
-                dstCopy = {
-                    .Image = dst,
+                dstSubregion = {
                     .Layers = 1,
                     .Bottom = offset,
                     .Top = offset + size};
                 break;
             case ImageSizeType::Relative:
-                dstCopy = {
-                    .Image = dst,
+                dstSubregion = {
                     .Layers = 1,
                     .Bottom = ImageUtils::getPixelCoordinates(dst, offset, ImageSizeType::Relative),
                     .Top = ImageUtils::getPixelCoordinates(dst, offset + size, ImageSizeType::Relative)};
                 break;
             }
-            
-            RenderCommand::CopyImage(frameContext.Cmd, srcCopy, dstCopy);
+
+            frameContext.CommandList.CopyImage({
+                .Source = src,
+                .Destination = dst,
+                .SourceSubregion = srcSubregion,
+                .DestinationSubregion = dstSubregion});
         });
 
     return pass;

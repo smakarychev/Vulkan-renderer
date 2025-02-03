@@ -5,7 +5,6 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Core/Camera.h"
 #include "RenderGraph/Passes/Generated/LightClustersCompactBindGroup.generated.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace
 {
@@ -51,12 +50,14 @@ namespace
                     .Near = frameContext.PrimaryCamera->GetNear(),
                     .Far = frameContext.PrimaryCamera->GetFar()};
 
-                auto& cmd = frameContext.Cmd;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstant);
-                RenderCommand::Dispatch(cmd,
-                    {depthDescription.Width, depthDescription.Height, 1},
-                    {8, 8, 1});
+                auto& cmd = frameContext.CommandList;
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                frameContext.CommandList.PushConstants({
+                    .PipelineLayout = shader.GetLayout(), 
+                    .Data = {pushConstant}});
+                frameContext.CommandList.Dispatch({
+                    .Invocations = {depthDescription.Width, depthDescription.Height, 1},
+                    .GroupSize = {8, 8, 1}});
             });
     }
 
@@ -104,11 +105,11 @@ namespace
                 bindGroup.SetActiveClusters({.Buffer = resources.GetBuffer(passData.ActiveClusters)});
                 bindGroup.SetCount({.Buffer = resources.GetBuffer(passData.ActiveClustersCount)});
 
-                auto& cmd = frameContext.Cmd;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::Dispatch(cmd,
-                    {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
-                    {8, 8, 1});
+                auto& cmd = frameContext.CommandList;
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                frameContext.CommandList.Dispatch({
+                    .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
+                    .GroupSize = {8, 8, 1}});
             });
     }
 
@@ -146,9 +147,10 @@ namespace
                 bindGroup.SetCount({.Buffer = resources.GetBuffer(passData.ActiveClustersCount)});
                 bindGroup.SetIndirectDispatch({.Buffer = resources.GetBuffer(passData.DispatchIndirect)});
 
-                auto& cmd = frameContext.Cmd;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::Dispatch(cmd, {1, 1, 1});
+                auto& cmd = frameContext.CommandList;
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                frameContext.CommandList.Dispatch({
+                    .Invocations = {1, 1, 1}});
             });
     }
 }

@@ -43,7 +43,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                     {
                         iblData = RgUtils::readIBLData(info.IBL, setupGraph, Pixel);
                     },
-                    .DrawBind = [=](CommandBuffer cmd, const Resources& resources,
+                    .DrawBind = [=](RenderCommandList& cmdList, const Resources& resources,
                         const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                     {
                         const Shader& shader = ShaderCache::Register(
@@ -62,7 +62,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                         RgUtils::updateDrawAttributeBindings(bindGroup, resources, executionInfo.DrawAttributes);
                         RgUtils::updateIBLBindings(bindGroup, resources, iblData);
                         
-                        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                        bindGroup.Bind(cmdList, resources.GetGraph()->GetArenaAllocators());
                         
                         return shader;
                     },

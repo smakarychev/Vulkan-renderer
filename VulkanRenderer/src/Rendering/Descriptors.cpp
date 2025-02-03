@@ -1,7 +1,6 @@
 ﻿#include "Descriptors.h"
 
 #include "Vulkan/Device.h"
-#include "Vulkan/RenderCommand.h"
 
 #include <algorithm>
 
@@ -24,11 +23,6 @@ DescriptorArenaAllocator DescriptorArenaAllocators::Get(DescriptorsKind kind) co
            "Unsupported allocator kind")
 
     return m_Allocators[(u32)kind];
-}
-
-void DescriptorArenaAllocators::Bind(CommandBuffer cmd, u32 bufferIndex)
-{
-    RenderCommand::Bind(cmd, *this, bufferIndex);
 }
 
 DescriptorLayoutCache::CacheKey DescriptorLayoutCache::CreateCacheKey(const DescriptorsLayoutCreateInfo& createInfo)

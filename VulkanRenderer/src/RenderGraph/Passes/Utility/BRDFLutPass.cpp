@@ -3,7 +3,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/BrdfLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture lut)
 {
@@ -42,12 +41,14 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
             PushConstants pushConstants = {
                 .BRDFResolutionInverse = 1.0f / glm::vec2((f32)BRDF_RESOLUTION)};
             
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            RenderCommand::Dispatch(cmd,
-                {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},
-                {32, 32, 1});
+            cmd.PushConstants({
+            	.PipelineLayout = shader.GetLayout(), 
+            	.Data = {pushConstants}});
+            cmd.Dispatch({
+                .Invocations = {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},
+                .GroupSize = {32, 32, 1}});
         });
 }
 

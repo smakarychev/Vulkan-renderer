@@ -6,8 +6,8 @@
 
 #include "FrameContext.h"
 #include "cvars/CVarSystem.h"
+#include "Rendering/Commands/RenderCommands.h"
 #include "Vulkan/Device.h"
-#include "Vulkan/RenderCommand.h"
 
 void ResourceUploader::Init()
 {
@@ -41,7 +41,7 @@ void ResourceUploader::BeginFrame(const FrameContext& ctx)
     state.UploadsOffset = 0;
 }
 
-void ResourceUploader::SubmitUpload(CommandBuffer cmd)
+void ResourceUploader::SubmitUpload(FrameContext& ctx)
 {
     CPU_PROFILE_FRAME("Submit Upload")
 
@@ -52,20 +52,16 @@ void ResourceUploader::SubmitUpload(CommandBuffer cmd)
     for (u32 i = state.UploadsOffset; i < state.BufferUploads.size(); i++)
     {
         auto& upload = state.BufferUploads[i];
-        RenderCommand::CopyBuffer(cmd, state.StageBuffers[upload.SourceIndex].Buffer,
-            upload.Destination, upload.CopyInfo);
+
+        ctx.CommandList.CopyBuffer({
+            .Source = state.StageBuffers[upload.SourceIndex].Buffer,
+            .Destination = upload.Destination,
+            .SizeBytes = upload.SizeBytes,
+            .SourceOffset = upload.SourceOffset,
+            .DestinationOffset = upload.DestinationOffset});
     }
 
     state.UploadsOffset = (u32)state.BufferUploads.size();
-}
-
-void ResourceUploader::SubmitImmediateBuffer(Buffer buffer, u64 sizeBytes, u64 offset)
-{
-    Device::ImmediateSubmit([&](CommandBuffer cmd)
-    {
-        RenderCommand::CopyBuffer(cmd, m_PerFrameState[m_CurrentFrame].ImmediateUploadBuffer, buffer,
-            {.SizeBytes = sizeBytes, .SourceOffset = 0, .DestinationOffset = offset});        
-    });
 }
 
 void ResourceUploader::ManageLifeTime()
@@ -111,8 +107,8 @@ u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
     }
     else
     {
-        currentBufferOffset = state.BufferUploads.back().CopyInfo.SourceOffset +
-            state.BufferUploads.back().CopyInfo.SizeBytes;
+        currentBufferOffset = state.BufferUploads.back().SourceOffset +
+            state.BufferUploads.back().SizeBytes;
     }
 
     if (Device::GetBufferSizeBytes(state.StageBuffers[state.LastUsedBuffer].Buffer) < currentBufferOffset + sizeBytes)
@@ -144,5 +140,5 @@ bool ResourceUploader::MergeIsPossible(Buffer buffer, u64 bufferOffset) const
 
     return upload.SourceIndex == state.LastUsedBuffer &&
            upload.Destination == buffer &&
-           upload.CopyInfo.DestinationOffset + upload.CopyInfo.SizeBytes == bufferOffset;
+           upload.DestinationOffset + upload.SizeBytes == bufferOffset;
 }

@@ -15,7 +15,6 @@
 #include "Light/LightZBinner.h"
 #include "Light/SH.h"
 #include "RenderGraph/Passes/AA/FxaaPass.h"
-#include "Vulkan/RenderCommand.h"
 #include "Scene/ModelCollection.h"
 #include "Scene/SceneGeometry.h"
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"
@@ -169,9 +168,10 @@ void Renderer::InitRenderGraph()
             1, 5000000, *GetFrameContext().ResourceUploader));
 
     /* initial submit */
-    Device::ImmediateSubmit([&](CommandBuffer cmd)
+    Device::ImmediateSubmit([&](CommandBuffer, RenderCommandList& cmdList)
     {
-        GetFrameContext().ResourceUploader->SubmitUpload(cmd);
+        FrameContext ctx {.CommandList = cmdList};
+        GetFrameContext().ResourceUploader->SubmitUpload(ctx);
     });
 }
 
@@ -621,17 +621,18 @@ void Renderer::BeginFrame()
     Device::ResetCommandBuffer(cmd);
     Device::BeginCommandBuffer(cmd);
 
-    RenderCommand::WaitOnBarrier(cmd, Device::CreateDependencyInfo({
-        .MemoryDependencyInfo = MemoryDependencyInfo{
-            .SourceStage = PipelineStage::AllCommands,
-            .DestinationStage = PipelineStage::AllCommands,
-            .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
-            .DestinationAccess = PipelineAccess::ReadAll}},
-        GetFrameContext().DeletionQueue));
+    GetFrameContext().CommandList.WaitOnBarrier({
+        .DependencyInfo = Device::CreateDependencyInfo({
+            .MemoryDependencyInfo = MemoryDependencyInfo{
+                .SourceStage = PipelineStage::AllCommands,
+                .DestinationStage = PipelineStage::AllCommands,
+                .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
+                .DestinationAccess = PipelineAccess::ReadAll}},
+            GetFrameContext().DeletionQueue)});
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
     ShaderCache::OnFrameBegin(GetFrameContext());
-    ImGuiUI::BeginFrame(GetFrameContext().FrameNumber);
+    ImGuiUI::BeginFrame(GetFrameContext().CommandList, GetFrameContext().FrameNumber);
 }
 
 RenderingInfo Renderer::GetImGuiUIRenderingInfo()
@@ -652,17 +653,19 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
 
 void Renderer::EndFrame()
 {
-    ImGuiUI::EndFrame(GetFrameContext().Cmd, GetImGuiUIRenderingInfo());
+    ImGuiUI::EndFrame(GetFrameContext().CommandList, GetImGuiUIRenderingInfo());
 
     CommandBuffer cmd = GetFrameContext().Cmd;
-    RenderCommand::PrepareSwapchainPresent(cmd, m_Swapchain, m_SwapchainImageIndex);
+    GetFrameContext().CommandList.PrepareSwapchainPresent({
+        .Swapchain = m_Swapchain,
+        .ImageIndex = m_SwapchainImageIndex});
     
     u32 frameNumber = GetFrameContext().FrameNumber;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
 
     TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Device::GetProfilerCommandBuffer(ProfilerContext::Get()))
 
-    m_ResourceUploader.SubmitUpload(cmd);
+    m_ResourceUploader.SubmitUpload(GetFrameContext());
 
     Device::EndCommandBuffer(cmd);
     
@@ -721,6 +724,8 @@ void Renderer::InitRenderingStructures()
         m_FrameContexts[i].Cmd =  Device::CreateCommandBuffer({
             .Pool = pool,
             .Kind = CommandBufferKind::Primary});
+        m_FrameContexts[i].CommandList.SetCommandBuffer(m_FrameContexts[i].Cmd);
+        
         m_FrameContexts[i].ResourceUploader = &m_ResourceUploader;
     }
 

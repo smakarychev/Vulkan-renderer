@@ -6,7 +6,6 @@
 #include "RenderGraph/RGUtils.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
-#include "Vulkan/RenderCommand.h"
 
 RG::Pass& Passes::Draw::Indirect::addToGraph(std::string_view name, RG::Graph& renderGraph,
     const DrawIndirectPassExecutionInfo& info)
@@ -57,7 +56,7 @@ RG::Pass& Passes::Draw::Indirect::addToGraph(std::string_view name, RG::Graph& r
 
             Buffer commandsDraw = resources.GetBuffer(passData.Commands);
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             
             const Shader& shader = info.DrawInfo.DrawBind(cmd, resources, {
                 .Camera = passData.Camera,
@@ -65,14 +64,16 @@ RG::Pass& Passes::Draw::Indirect::addToGraph(std::string_view name, RG::Graph& r
                 .Commands = passData.Commands,
                 .DrawAttributes = passData.AttributeBuffers});
 
-            RenderCommand::BindIndexU8Buffer(cmd, info.Geometry->GetAttributeBuffers().Indices, 0);
-            RenderCommand::BindGraphics(cmd, shader.Pipeline());
+            cmd.BindIndexU8Buffer({
+                .Buffer = info.Geometry->GetAttributeBuffers().Indices});
             u32 offsetCommands = std::min(info.CommandsOffset, info.Geometry->GetMeshletCount());
             u32 toDrawCommands = info.Geometry->GetMeshletCount() - offsetCommands;
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), offsetCommands);
-            RenderCommand::DrawIndexedIndirect(cmd,
-                commandsDraw, offsetCommands * sizeof(IndirectDrawCommand),
-                toDrawCommands);
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {offsetCommands}});
+            cmd.DrawIndexedIndirect({
+                .Buffer = commandsDraw, .Offset = offsetCommands * sizeof(IndirectDrawCommand),
+                .Count = toDrawCommands});
         });
 
     return pass;

@@ -4,7 +4,6 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/EquirectangularToCubemapBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 namespace
 {
@@ -52,12 +51,14 @@ namespace
                 PushConstants pushConstants = {
                     .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width}};
                 
-                auto& cmd = frameContext.Cmd;
+                auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-                RenderCommand::Dispatch(cmd,
-                    {cubemapDescription.Width, cubemapDescription.Width, 6},
-                    {32, 32, 1});
+                cmd.PushConstants({
+                	.PipelineLayout = shader.GetLayout(), 
+                	.Data = {pushConstants}});
+                cmd.Dispatch({
+                    .Invocations = {cubemapDescription.Width, cubemapDescription.Width, 6},
+                    .GroupSize = {32, 32, 1}});
             });
     }
 }

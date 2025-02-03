@@ -16,8 +16,8 @@ namespace RG
                 continue;
 
             uploader.UpdateBuffer(resources.GetBuffer(upload.Resource),
-                Span(&m_Uploads[pass].UploadData[upload.CopyInfo.SourceOffset],
-                    upload.CopyInfo.SizeBytes), upload.CopyInfo.DestinationOffset);
+                Span(&m_Uploads[pass].UploadData[upload.SourceOffset],
+                    upload.SizeBytes), upload.DestinationOffset);
         }
 
         m_Uploads.erase(pass);

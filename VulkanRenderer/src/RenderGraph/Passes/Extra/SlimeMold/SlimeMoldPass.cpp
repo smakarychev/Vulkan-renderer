@@ -7,7 +7,6 @@
 #include "RenderGraph/Passes/Generated/SlimeBindGroup.generated.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Vulkan/RenderCommand.h"
 
 SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitCount, u32 slimeCount,
     ResourceUploader& resourceUploader)
@@ -186,10 +185,14 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
             u32 slimeCount = (u32)moldCtx.GetSlime().size();
             u32 slimeCountDimension = (u32)std::sqrt((f32)slimeCount);
                         
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            RenderCommand::Dispatch(cmd, {slimeCountDimension + 1, slimeCountDimension, 1}, {16, 16, 1});
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {pushConstants}});
+            cmd.Dispatch({
+	            .Invocations = {slimeCountDimension + 1, slimeCountDimension, 1},
+	            .GroupSize = {16, 16, 1}});
         });
 }
 
@@ -237,10 +240,14 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
             bindGroup.SetSlimeMap({.Image = slimeMap}, ImageLayout::Readonly);
             bindGroup.SetDiffuseMap({.Image = diffuseMap}, ImageLayout::General);
 
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {pushConstants}});
+            cmd.Dispatch({
+	            .Invocations = { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1},
+	            .GroupSize = {16, 16, 1}});
         });
 }
 
@@ -316,10 +323,14 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
 
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
-            auto& cmd = frameContext.Cmd;
+            auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            RenderCommand::PushConstants(cmd, shader.GetLayout(), pushConstants);
-            RenderCommand::Dispatch(cmd, { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1}, {16, 16, 1});
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {pushConstants}});
+            cmd.Dispatch({
+	            .Invocations = { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1},
+	            .GroupSize = {16, 16, 1}});
         });
 }
 }
