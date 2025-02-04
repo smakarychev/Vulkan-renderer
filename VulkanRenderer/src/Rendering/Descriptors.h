@@ -11,8 +11,6 @@
 #include <vector>
 #include <unordered_map>
 
-#include "CommandBuffer.h"
-
 namespace assetLib
 {
     struct ShaderStageInfo;

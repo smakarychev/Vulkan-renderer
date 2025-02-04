@@ -2,6 +2,7 @@
 
 #include "RenderHandle.h"
 #include "Rendering/Buffer.h"
+#include "Rendering/CommandBuffer.h"
 #include "Rendering/Image/Image.h"
 #include "Rendering/Pipeline.h"
 #include "Rendering/RenderingInfo.h"
