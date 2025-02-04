@@ -4,8 +4,12 @@
 #include "TextureAsset.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include <execution>
+#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image.h>
+#define TINYGLTF_NO_INCLUDE_STB_IMAGE
+#define TINYGLTF_NOEXCEPTION 
+#define TINYGLTF_IMPLEMENTATION
+#include <tiny_gltf.h>
 
 #include <shaderc/shaderc.h>
 #include <shaderc/shaderc.hpp>
@@ -15,12 +19,14 @@
 #include <assimp/scene.h>        
 #include <assimp/postprocess.h>  
 
-#include <format>
+#include <vulkan/vulkan_core.h>
 #include <spirv_reflect.h>
+
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <ranges>
-#include <vulkan/vulkan_core.h>
+#include <execution>
 
 #include "utils.h"
 #include "core.h"

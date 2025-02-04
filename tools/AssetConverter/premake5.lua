@@ -20,7 +20,8 @@ project "AssetConverter"
         IncludeDir["assimp"],
         IncludeDir["glm"],
         IncludeDir["spirv_reflect"],	
-        IncludeDir["meshoptimizer"],    
+        IncludeDir["meshoptimizer"],   
+        IncludeDir["tinygltf"],    
     }
 
     libdirs {
@@ -84,6 +85,7 @@ project "AssetConverterLib"
         IncludeDir["glm"],
         IncludeDir["spirv_reflect"],	
         IncludeDir["meshoptimizer"],    
+        IncludeDir["tinygltf"],    
     }
 
     libdirs {
