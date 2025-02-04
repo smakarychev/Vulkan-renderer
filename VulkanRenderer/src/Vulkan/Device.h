@@ -20,6 +20,7 @@
 #include "imgui/imgui.h"
 #include "Rendering/Commands/RenderCommandList.h"
 
+struct FrameContext;
 class DeviceResources;
 struct CopyBufferCommand;
 struct CopyBufferToImageCommand;
@@ -130,6 +131,8 @@ void DeletionQueue::Enqueue(Type& type)
 class Device
 {
 public:
+    static void BeginFrame(FrameContext& ctx);
+    
     static Swapchain CreateSwapchain(SwapchainCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Swapchain swapchain);
     static u32 AcquireNextImage(Swapchain swapchain, u32 frameNumber);
@@ -158,6 +161,7 @@ public:
     static Buffer CreateBuffer(BufferCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Buffer buffer);
     static Buffer CreateStagingBuffer(u64 sizeBytes);
+    static void ResizeBuffer(Buffer buffer, u64 newSize, RenderCommandList& cmdList, bool copyData = false);
     static void* MapBuffer(Buffer buffer);
     static void UnmapBuffer(Buffer buffer);
     static void SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes);

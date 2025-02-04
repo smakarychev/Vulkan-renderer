@@ -12,6 +12,7 @@
 #include <print>
 
 #include "AssetManager.h"
+#include "FrameContext.h"
 #include "ResourceUploader.h"
 #include "TextureAsset.h"
 #include "utils/CoreUtils.h"
@@ -1273,6 +1274,8 @@ struct Device::State
     DeviceQueues Queues;
     ::DeletionQueue DeletionQueue;
     ::DeletionQueue DummyDeletionQueue;
+
+    ::DeletionQueue* FrameDeletionQueue{nullptr};
     
     GLFWwindow* Window{nullptr};
     
@@ -1291,6 +1294,11 @@ struct Device::State
 };
 
 Device::State Device::s_State = State{};
+
+void Device::BeginFrame(FrameContext& ctx)
+{
+    s_State.FrameDeletionQueue = &ctx.DeletionQueue;
+}
 
 Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
@@ -1785,6 +1793,34 @@ Buffer Device::CreateStagingBuffer(u64 sizeBytes)
         .Usage = BufferUsage::Staging | BufferUsage::Mappable,
         .PersistentMapping = true},
         DummyDeletionQueue());
+}
+
+void Device::ResizeBuffer(Buffer buffer, u64 newSize, RenderCommandList& cmdList, bool copyData)
+{
+    const DeviceResources::BufferResource& resource = Resources()[buffer];
+    const BufferDescription& description = resource.Description;
+    const u64 oldSize = description.SizeBytes;
+    if (description.SizeBytes == newSize)
+        return;
+
+    Buffer newBuffer = CreateBuffer({
+        .SizeBytes = newSize,
+        .Usage = description.Usage,
+        .PersistentMapping = resource.HostAddress != nullptr},
+        *s_State.FrameDeletionQueue);
+
+    /* seems very questionable
+     * after this line new Buffer will inherit lifetime of old buffer,
+     * and old buffer will be deleted in frame queue
+     */
+    std::swap(Resources()[buffer], Resources()[newBuffer]);
+
+    /* the source and destination are intentionally swapped */
+    if (copyData)
+        cmdList.CopyBuffer({
+            .Source = newBuffer,
+            .Destination = buffer,
+            .SizeBytes = oldSize});
 }
 
 void* Device::MapBuffer(Buffer buffer)
