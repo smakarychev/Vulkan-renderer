@@ -606,6 +606,7 @@ void Renderer::BeginFrame()
 {
     CPU_PROFILE_FRAME("Begin frame")
 
+    Device::BeginFrame(GetFrameContext());
     u32 frameNumber = GetFrameContext().FrameNumber;
     m_SwapchainImageIndex = Device::AcquireNextImage(m_Swapchain, frameNumber);
     if (m_SwapchainImageIndex == INVALID_SWAPCHAIN_IMAGE)

@@ -6,28 +6,6 @@
 #include "ResourceUploader.h"
 #include "Rendering/Commands/RenderCommands.h"
 
-namespace
-{
-    Buffer resizeLightBuffer(u64 newSizeBytes, Buffer old, FrameContext& ctx, bool copyOld)
-    {
-        Buffer newBuffer = Device::CreateBuffer({
-            .SizeBytes = std::max(newSizeBytes, Device::GetBufferSizeBytes(old)),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Source | BufferUsage::Storage | BufferUsage::Mappable,
-            .PersistentMapping = true},
-            Device::DummyDeletionQueue());
-        
-        ctx.DeletionQueue.Enqueue(old);
-        
-        if (copyOld)
-            ctx.CommandList.CopyBuffer({
-                .Source = old,
-                .Destination = newBuffer,
-                .SizeBytes = Device::GetBufferSizeBytes(old)});
-
-        return newBuffer;
-    }
-}
-
 SceneLight::SceneLight()
 {
     m_DirectionalLight.Intensity = 0.0f;
@@ -63,7 +41,7 @@ void SceneLight::AddPointLight(const PointLight& light)
 
 void SceneLight::UpdatePointLight(u32 index, const PointLight& light)
 {
-    ASSERT(index < m_PointLights.size(), "No point light at index {}", index);
+    ASSERT(index < m_PointLights.size(), "No point light at index {}", index)
     auto& current = m_PointLights[index];
     if (current.Position == light.Position &&
         current.Color == light.Color &&
@@ -152,8 +130,8 @@ void SceneLight::ResizePointLightsBuffer(FrameContext& ctx)
         return;
 
     static constexpr bool COPY_OLD = true;
-    m_Buffers.PointLights = resizeLightBuffer(sizeof(PointLight) * m_BufferedPointLightCount,
-        m_Buffers.PointLights, ctx, COPY_OLD);
+    Device::ResizeBuffer(m_Buffers.PointLights, sizeof(PointLight) * m_BufferedPointLightCount,
+        ctx.CommandList, COPY_OLD);
 }
 
 void SceneLight::ResizeVisiblePointLightsBuffer(FrameContext& ctx)
@@ -165,6 +143,6 @@ void SceneLight::ResizeVisiblePointLightsBuffer(FrameContext& ctx)
         return;
 
     static constexpr bool COPY_OLD = false;
-    m_Buffers.VisiblePointLights = resizeLightBuffer(sizeof(PointLight) * m_BufferedVisiblePointLightCount,
-        m_Buffers.VisiblePointLights, ctx, COPY_OLD);
+    Device::ResizeBuffer(m_Buffers.VisiblePointLights, sizeof(PointLight) * m_BufferedVisiblePointLightCount,
+        ctx.CommandList, COPY_OLD);
 }
