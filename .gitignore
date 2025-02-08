@@ -22,3 +22,4 @@ vendor/imgui/bin
 assets/models
 tools/bin
 *.generated.h
+vendor/*/bin

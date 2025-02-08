@@ -22,6 +22,7 @@ project "AssetConverter"
         IncludeDir["spirv_reflect"],	
         IncludeDir["meshoptimizer"],   
         IncludeDir["tinygltf"],    
+        IncludeDir["mikktspace"],    
     }
 
     libdirs {
@@ -33,7 +34,8 @@ project "AssetConverter"
         "CoreLib",
         "AssetLib",
         "assimp-vc143-mt.lib",
-        "meshoptimizer"
+        "meshoptimizer",
+        "mikktspace",
     }
 
     filter "configurations:Debug"
@@ -86,6 +88,7 @@ project "AssetConverterLib"
         IncludeDir["spirv_reflect"],	
         IncludeDir["meshoptimizer"],    
         IncludeDir["tinygltf"],    
+        IncludeDir["mikktspace"],    
     }
 
     libdirs {
@@ -97,7 +100,8 @@ project "AssetConverterLib"
         "CoreLib",
         "AssetLib",
         "assimp-vc143-mt.lib",
-        "meshoptimizer"
+        "meshoptimizer",
+        "mikktspace",
     }
 
     filter "configurations:Debug"
