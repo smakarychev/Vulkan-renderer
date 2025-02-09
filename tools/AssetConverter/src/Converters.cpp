@@ -10,6 +10,7 @@
 #define TINYGLTF_NOEXCEPTION 
 #define TINYGLTF_IMPLEMENTATION
 #include <tiny_gltf.h>
+#include <mikktspace.h>
 
 #include <shaderc/shaderc.h>
 #include <shaderc/shaderc.hpp>
@@ -22,17 +23,21 @@
 #include <vulkan/vulkan_core.h>
 #include <spirv_reflect.h>
 
-#include <format>
-#include <fstream>
-#include <iostream>
-#include <ranges>
-#include <execution>
-
 #include "utils.h"
 #include "core.h"
 
 // SPIV-reflect implementation
-#include "spirv_reflect.cpp"
+#include <spirv_reflect.cpp>
+
+#include <glm/glm.hpp>
+#include <glm/gtx/quaternion.hpp>
+
+#include <format>
+#include <fstream>
+#include <iostream>
+#include <ranges>
+#include <stack>
+#include <execution>
 
 namespace
 {
@@ -274,14 +279,21 @@ ModelConverter::MeshData ModelConverter::ProcessMesh(const aiScene* scene, const
                 (assetLib::ModelInfo::MaterialAspect)i, modelPath);
     }
 
+    Utils::Attributes attributes {
+        .Positions = &vertexGroup.Positions,
+        .Normals = &vertexGroup.Normals,
+        .Tangents = &vertexGroup.Tangents,
+        .UVs = &vertexGroup.UVs};
+    Utils::remapMesh(attributes, indices);
+    auto&& [meshlets, meshletIndices] = Utils::createMeshlets(attributes, indices);
     MeshData meshData = {
         .Name = mesh->mName.C_Str(),
         .VertexGroup = vertexGroup,
+        .Indices = meshletIndices,
+        .Meshlets = meshlets,
         .MaterialType = materialType,
         .MaterialPropertiesPBR = materialPropertiesPBR,
         .MaterialInfos = materials};
-    Utils::remapMesh(meshData, indices);
-    meshData.Meshlets = Utils::createMeshlets(meshData, indices);
     
     return meshData;
 }
@@ -976,4 +988,447 @@ assetLib::ShaderStageInfo ShaderStageConverter::Reflect(const std::vector<u32>& 
                       [](const auto& a, const auto& b) { return a.Set < b.Set; });
 
     return shaderInfo;
+}
+
+
+
+
+bool SceneConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
+    const std::filesystem::path& path)
+{
+    return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
+    {
+        converted.replace_extension(SceneConverter::POST_CONVERT_EXTENSION);
+    });
+}
+
+namespace glm
+{
+    void to_json(nlohmann::json& j, const glm::vec4& vec)
+    {
+        j = { { "r", vec.x }, { "g", vec.y }, { "b", vec.z }, { "a", vec.w } };
+    }
+    
+    void from_json(const nlohmann::json& j, glm::vec4& vec)
+    {
+        vec.x = j.at("r").get<f32>();
+        vec.y = j.at("g").get<f32>();
+        vec.z = j.at("b").get<f32>();
+        vec.w = j.at("a").get<f32>();
+    }
+
+    void to_json(nlohmann::json& j, const glm::vec3& vec)
+    {
+        j = { { "x", vec.x }, { "y", vec.y }, { "z", vec.z } };
+    }
+    
+    void from_json(const nlohmann::json& j, glm::vec3& vec)
+    {
+        vec.x = j.at("x").get<f32>();
+        vec.y = j.at("y").get<f32>();
+        vec.z = j.at("z").get<f32>();
+    }
+}
+
+namespace
+{
+    struct WriteResult
+    {
+        u64 Offset{};
+    };
+    template <usize Alignment>
+    WriteResult writeAligned(std::vector<u8>& destination, const void* data, u64 size)
+    {
+        static_assert((Alignment & (Alignment - 1)) == 0);
+
+        const char zeros[Alignment]{};
+        const u64 pos = destination.size();
+        const u64 padding = (Alignment - (pos & (Alignment - 1))) & (Alignment - 1);
+        destination.resize(destination.size() + padding + size);
+        memcpy(destination.data() + pos, zeros, padding);
+        memcpy(destination.data() + pos + padding, data, size);
+
+        return {.Offset = pos + padding};
+    }
+
+    template <typename T>
+    struct AccessorDataTypeTraits
+    {
+        static_assert(sizeof(T) == 0, "No match for type");
+    };
+    template <>
+    struct AccessorDataTypeTraits<glm::vec3>
+    {
+        static constexpr i32 TYPE = TINYGLTF_TYPE_VEC3;
+        static constexpr i32 COMPONENT_TYPE = TINYGLTF_COMPONENT_TYPE_FLOAT;
+    };
+    template <>
+    struct AccessorDataTypeTraits<glm::vec2>
+    {
+        static constexpr i32 TYPE = TINYGLTF_TYPE_VEC2;
+        static constexpr i32 COMPONENT_TYPE = TINYGLTF_COMPONENT_TYPE_FLOAT;
+    };
+    template <>
+    struct AccessorDataTypeTraits<u8>
+    {
+        static constexpr i32 TYPE = TINYGLTF_TYPE_SCALAR;
+        static constexpr i32 COMPONENT_TYPE = TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE;
+    };
+    
+    struct SceneProcessContext
+    {
+        tinygltf::Model BakedScene{};
+
+        template <typename T>
+        struct AccessorProxy
+        {
+            u32 ViewIndex{0};
+            std::vector<T> Data;
+        };
+        AccessorProxy<glm::vec3> Positions;
+        AccessorProxy<glm::vec3> Normals;
+        AccessorProxy<glm::vec3> Tangents;
+        AccessorProxy<glm::vec2> UVs;
+        AccessorProxy<assetLib::ModelInfo::IndexType> Indices;
+        AccessorProxy<assetLib::ModelInfo::Meshlet> Meshlets;
+        
+        std::string BinaryName{};
+        std::string BakedScenePath{};
+
+        void Prepare()
+        {
+            namespace fs = std::filesystem;
+            fs::create_directories(fs::path(BakedScenePath).parent_path());
+
+            BakedScene.accessors.clear();
+            BakedScene.buffers.clear();
+            BakedScene.bufferViews.clear();
+            BakedScene.meshes.clear();
+
+            BakedScene.buffers.resize(1);
+            BakedScene.buffers[0].uri = BinaryName;
+
+            BakedScene.bufferViews.resize(6);
+            BakedScene.bufferViews[0].name = "Positions";
+            BakedScene.bufferViews[1].name = "Normals";
+            BakedScene.bufferViews[2].name = "Tangents";
+            BakedScene.bufferViews[3].name = "UVs";
+            BakedScene.bufferViews[4].name = "Indices";
+            BakedScene.bufferViews[5].name = "Meshlets";
+            for (auto& view : BakedScene.bufferViews)
+                view.buffer = 0;
+
+            Positions.ViewIndex = 0;
+            Normals.ViewIndex = 1;
+            Tangents.ViewIndex = 2;
+            UVs.ViewIndex = 3;
+            Indices.ViewIndex = 4;
+            Meshlets.ViewIndex = 5;
+        }
+
+        void Finalize()
+        {
+            static constexpr u32 ALIGNMENT = 4;
+
+            auto writeAndUpdateView = [this](auto accessorProxy) {
+                const u64 sizeBytes = accessorProxy.Data.size() * sizeof(accessorProxy.Data[0]);
+                WriteResult write = writeAligned<ALIGNMENT>(BakedScene.buffers[0].data,
+                    accessorProxy.Data.data(), sizeBytes);
+                BakedScene.bufferViews[accessorProxy.ViewIndex].byteOffset = write.Offset;
+                BakedScene.bufferViews[accessorProxy.ViewIndex].byteLength = sizeBytes;
+            };
+            
+            writeAndUpdateView(Positions);
+            writeAndUpdateView(Normals);
+            writeAndUpdateView(Tangents);
+            writeAndUpdateView(UVs);
+            writeAndUpdateView(Indices);
+            writeAndUpdateView(Meshlets);
+
+            tinygltf::TinyGLTF writer = {};
+            writer.SetImageWriter(nullptr, nullptr);
+            writer.WriteGltfSceneToFile(&BakedScene, BakedScenePath);
+        }
+
+        template <typename T>
+        tinygltf::Accessor CreateAccessor(const std::vector<T>& data, AccessorProxy<T>& accessorProxy)
+        {
+            tinygltf::Accessor accessor {};
+            accessor.componentType = AccessorDataTypeTraits<T>::COMPONENT_TYPE;
+            accessor.type = AccessorDataTypeTraits<T>::TYPE;
+            accessor.count = data.size();
+            accessor.bufferView = accessorProxy.ViewIndex;
+            accessor.byteOffset = accessorProxy.Data.size();
+            accessorProxy.Data.append_range(data);
+
+            return accessor;
+        }
+
+        template <typename T>
+        nlohmann::json CreatePseudoAccessor(const std::vector<T>& data, AccessorProxy<T>& accessorProxy)
+        {
+            nlohmann::json accessor = {};
+            accessor["count"] = data.size();
+            accessor["bufferView"] = accessorProxy.ViewIndex;
+            accessor["byteOffset"] = accessorProxy.Data.size();
+            accessorProxy.Data.append_range(data);
+
+            return accessor;
+        }
+    };
+    
+    template <typename T>
+    void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, tinygltf::Accessor& accessor)
+    {
+        tinygltf::BufferView& bufferView = gltf.bufferViews[accessor.bufferView];
+        tinygltf::Buffer& buffer = gltf.buffers[bufferView.buffer];
+        const u64 elementSizeBytes =
+            (u64)tinygltf::GetNumComponentsInType(accessor.type) *
+            (u64)tinygltf::GetComponentSizeInBytes(accessor.componentType);
+        ASSERT(elementSizeBytes == sizeof(T))
+        const u64 sizeBytes = elementSizeBytes * accessor.count;
+        const u64 offset = bufferView.byteOffset + accessor.byteOffset;
+        const u32 stride = accessor.ByteStride(bufferView);
+
+        vec.resize(accessor.count);
+
+        if (stride == elementSizeBytes)
+            memcpy(vec.data(), buffer.data.data() + offset, sizeBytes);
+        else
+            for (u32 i = 0; i < accessor.count; i++)
+                memcpy(vec.data() + i * elementSizeBytes,
+                    buffer.data.data() + offset + (u64)i * stride,
+                    elementSizeBytes);
+    }
+
+    void generateTriangleNormals(std::vector<glm::vec3>& normals,
+        const std::vector<glm::vec3>& positions, const std::vector<u32> indices)
+    {
+        normals.resize(positions.size());
+        for (u32 i = 0; i < indices.size(); i += 3)
+        {
+            const glm::vec3 a = positions[indices[i + 1]] - positions[indices[i + 0]];   
+            const glm::vec3 b = positions[indices[i + 2]] - positions[indices[i + 0]];
+            const glm::vec3 normal = glm::normalize(glm::cross(a, b));
+            normals[indices[i + 0]] = normal;
+            normals[indices[i + 1]] = normal;
+            normals[indices[i + 2]] = normal;
+        }
+    }
+
+    void generateTriangleTangents(std::vector<glm::vec3>& tangents,
+        const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
+        const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices)
+    {
+        struct GeometryInfo
+        {
+            const std::vector<glm::vec3>* Positions{};
+            const std::vector<glm::vec3>* Normals{};
+            const std::vector<glm::vec2>* Uvs{};
+            std::vector<glm::vec3>* Tangents{};
+            const std::vector<u32>* Indices{};
+        };
+        GeometryInfo gi = {
+            .Positions = &positions,
+            .Normals = &normals,
+            .Uvs = &uvs,
+            .Tangents = &tangents,
+            .Indices = &indices};
+
+        tangents.resize(normals.size());
+        
+        SMikkTSpaceInterface interface = {};
+        interface.m_getNumFaces = [](const SMikkTSpaceContext* ctx) {
+            return (i32)((GeometryInfo*)ctx->m_pUserData)->Indices->size() / 3;  
+        };
+        interface.m_getNumVerticesOfFace = [](const SMikkTSpaceContext*, const i32){ return 3; };
+        interface.m_getPosition = [](const SMikkTSpaceContext* ctx, f32 position[], const i32 face, const i32 vertex) {
+            GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+            const u32 index = (*info->Indices)[face * 3 + vertex];
+            memcpy(position, &(*info->Positions)[index], sizeof(glm::vec3));
+        };
+        interface.m_getNormal = [](const SMikkTSpaceContext* ctx, f32 normal[], const i32 face, const i32 vertex) {
+            GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+            const u32 index = (*info->Indices)[face * 3 + vertex];
+            memcpy(normal, &(*info->Normals)[index], sizeof(glm::vec3));
+        };
+        interface.m_getTexCoord = [](const SMikkTSpaceContext* ctx, f32 uv[], const i32 face, const i32 vertex) {
+            GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+            const u32 index = (*info->Indices)[face * 3 + vertex];
+            memcpy(uv, &(*info->Uvs)[index], sizeof(glm::vec2));
+        };
+        interface.m_setTSpaceBasic = [](const SMikkTSpaceContext* ctx, const f32 tangent[], const f32 sign,
+            const i32 face, const i32 vertex) {
+            GeometryInfo* info = (GeometryInfo*)ctx->m_pUserData;
+            const u32 index = (*info->Indices)[face * 3 + vertex];
+            
+            memcpy(&(*info->Tangents)[index], tangent, sizeof(glm::vec3));
+            (*info->Tangents)[index] *= sign;
+        };
+
+        SMikkTSpaceContext context = {};
+        context.m_pUserData = &gi;
+        context.m_pInterface = &interface;
+        genTangSpaceDefault(&context);
+    }
+    
+    void processMesh(SceneProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Mesh& mesh)
+    {
+        tinygltf::Mesh backedMesh = mesh;
+        backedMesh.primitives = {};
+        
+        for (auto& primitive : mesh.primitives)
+        {
+            ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES)
+            
+            tinygltf::Accessor& indexAccessor = gltf.accessors[primitive.indices];
+            ASSERT(indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
+            std::vector<u32> indices(indexAccessor.count);
+            copyBufferToVector(indices, gltf, indexAccessor);
+
+            std::vector<glm::vec3> positions;
+            std::vector<glm::vec3> normals;
+            std::vector<glm::vec3> tangents;
+            std::vector<glm::vec2> uvs;
+            for (auto& attribute : primitive.attributes)
+            {
+                tinygltf::Accessor& attributeAccessor = gltf.accessors[attribute.second];
+                if (attribute.first == "POSITION")
+                    copyBufferToVector(positions, gltf, attributeAccessor);
+                else if (attribute.first == "NORMAL")
+                    copyBufferToVector(normals, gltf, attributeAccessor);
+                else if (attribute.first == "TANGENT")
+                    copyBufferToVector(tangents, gltf, attributeAccessor);
+                else if (attribute.first == "TEXCOORD_0")
+                    copyBufferToVector(uvs, gltf, attributeAccessor);
+            }
+
+            ASSERT(!positions.empty(), "The mesh has no positions")
+
+            const bool hasNormals = !normals.empty();
+            const bool hasTangents = !tangents.empty();
+            const bool hasUVs = !uvs.empty();
+            
+            if (!hasNormals)
+                generateTriangleNormals(normals, positions, indices);
+            if (!hasTangents && hasUVs)
+                generateTriangleTangents(tangents, positions, normals, uvs, indices);
+            if (!hasTangents)
+                tangents.resize(tangents.size(), glm::vec3{0.0f, 0.0f, 1.0f});
+            if (!hasUVs)
+                uvs.resize(positions.size(), glm::vec2{0.0});
+
+            Utils::Attributes attributes {
+                .Positions = &positions,
+                .Normals = &normals,
+                .Tangents = &tangents,
+                .UVs = &uvs};
+            Utils::remapMesh(attributes, indices);
+            auto&& [meshlets, meshletIndices] = Utils::createMeshlets(attributes, indices);
+            auto&& [sphere, box] = Utils::meshBoundingVolumes(meshlets);
+
+            i32 currentAccessorIndex = (i32)ctx.BakedScene.accessors.size();
+            ctx.BakedScene.accessors.push_back(ctx.CreateAccessor(positions, ctx.Positions));
+            ctx.BakedScene.accessors.push_back(ctx.CreateAccessor(normals, ctx.Normals));
+            ctx.BakedScene.accessors.push_back(ctx.CreateAccessor(tangents, ctx.Tangents));
+            ctx.BakedScene.accessors.push_back(ctx.CreateAccessor(uvs, ctx.UVs));
+            ctx.BakedScene.accessors.push_back(ctx.CreateAccessor(meshletIndices, ctx.Indices));           
+            nlohmann::json meshletsAccessor = ctx.CreatePseudoAccessor(meshlets, ctx.Meshlets);
+
+            tinygltf::Primitive backedPrimitive = primitive;
+            nlohmann::json extras = {};
+            extras["bounding_box"]["min"] = box.Min;
+            extras["bounding_box"]["max"] = box.Max;
+            extras["bounding_sphere"]["center"] = sphere.Center;
+            extras["bounding_sphere"]["radius"] = sphere.Radius;
+            extras["meshlets"] = meshletsAccessor;
+            tinygltf::ParseJsonAsValue(&backedPrimitive.extras, extras);
+
+            backedPrimitive.attributes = {
+                {"POSITION",    currentAccessorIndex + 0},
+                {"NORMAL",      currentAccessorIndex + 1},
+                {"TANGENT",     currentAccessorIndex + 2},
+                {"TEXCOORD_0",  currentAccessorIndex + 3},
+            };
+            backedPrimitive.indices = currentAccessorIndex + 4;
+            
+            backedMesh.primitives.push_back(backedPrimitive);
+        }
+
+        ctx.BakedScene.meshes.push_back(backedMesh);
+    }
+}
+
+void SceneConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
+{
+    LOG("Converting scene file {}\n", path.string());
+    
+    auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
+        [](const std::filesystem::path& processedPath)
+        {
+            AssetPaths paths;
+            paths.AssetPath = paths.BlobPath = processedPath;
+            paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
+            paths.BlobPath = paths.BlobPath.filename();
+            paths.BlobPath.replace_extension(BLOB_EXTENSION);
+
+            return paths;
+        });
+    
+    tinygltf::Model gltf;
+    tinygltf::TinyGLTF loader;
+    loader.ShouldPreloadBuffersData(false);
+    loader.ShouldPreloadImagesData(false);
+    std::string errors;
+    std::string warnings;
+    bool success = loader.LoadASCIIFromFile(&gltf, &errors, &warnings, path.string());
+    success = success && loader.LoadBuffersData(&gltf, &errors, &warnings, path.parent_path().string());
+    success = success && loader.LoadImagesData(&gltf, &errors, &warnings, path.parent_path().string());
+    
+    if (!errors.empty())
+        LOG("ERROR: {} ({})", errors, path.string());
+    if (!warnings.empty())
+        LOG("WARNING: {} ({})", warnings, path.string());
+    if (!success)
+        return;
+    if (gltf.scenes.empty())
+        return;
+
+    /* process just one scene for now */
+    const u32 sceneIndex = gltf.defaultScene > 0 ? (u32)gltf.defaultScene : 0;
+    auto& scene = gltf.scenes[sceneIndex];
+    if (scene.nodes.empty())
+        return;
+
+    SceneProcessContext ctx = {};
+    ctx.BinaryName = blobPath.string();
+    ctx.BakedScenePath = assetPath.string();
+    ctx.BakedScene = gltf;
+    ctx.Prepare();
+    
+    std::stack<u32> nodesToProcess;
+    for (auto& node : scene.nodes)
+        nodesToProcess.push((u32)node);
+
+    auto processNode = [&gltf, &ctx](u32 nodeIndex) {
+        auto& node = gltf.nodes[nodeIndex];
+
+        if (node.mesh > 0)
+            processMesh(ctx, gltf, gltf.meshes[node.mesh]);
+    };
+
+    while (!nodesToProcess.empty())
+    {
+        u32 nodeIndex = nodesToProcess.top();
+        nodesToProcess.pop();
+
+        processNode(nodeIndex);
+        for (u32 childNode : gltf.nodes[nodeIndex].children)
+            nodesToProcess.push(childNode);
+    }
+
+    ctx.Finalize();
+
+    LOG("Scene file {} converted to {} (blob at {})\n",
+        path.string(), assetPath.string(), blobPath.string());
 }

@@ -16,6 +16,7 @@ project "AssetLib"
         IncludeDir["nlohmann-json"],
         IncludeDir["glm"],
         IncludeDir["volk"],
+        IncludeDir["tinygltf"],  
         "$(VULKAN_SDK)/Include",
     }
 

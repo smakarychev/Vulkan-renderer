@@ -115,3 +115,19 @@ public:
     static constexpr std::string_view META_KEYWORD_PREFIX = "@";
 
 };
+
+class SceneConverter
+{
+public:
+    static std::vector<std::string> GetWatchedExtensions() { return WATCHED_EXTENSIONS; }
+    static bool WatchesExtension(std::string extension)
+    {
+        return std::ranges::find(WATCHED_EXTENSIONS, extension) != WATCHED_EXTENSIONS.end();
+    }
+    
+    static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
+    static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
+public:
+    static inline const std::vector<std::string> WATCHED_EXTENSIONS = {".gltf"};
+    static constexpr std::string_view POST_CONVERT_EXTENSION = ".scene";
+};
