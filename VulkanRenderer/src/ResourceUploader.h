@@ -44,16 +44,11 @@ class ResourceUploader
     };
     struct BufferUploadInfo
     {
-        u32 SourceIndex{};
+        Buffer Source{};
         Buffer Destination{};
         u64 SizeBytes{};
         u64 SourceOffset{};
         u64 DestinationOffset{};
-    };
-    struct BufferMappingInfo
-    {
-        u32 BufferIndex;
-        u32 BufferUploadIndex;
     };
 public:
     void Init();
@@ -65,17 +60,18 @@ public:
     template <typename T>
     void UpdateBuffer(Buffer buffer, T&& data, u64 bufferOffset = 0);
 
+    void CopyBuffer(CopyBufferCommand&& command);
+
     template <typename T>
     T* MapBuffer(Buffer buffer, u64 bufferOffset = 0);
 private:
     void ManageLifeTime();
     StagingBufferInfo CreateStagingBuffer(u64 sizeBytes);
-    u64 EnsureCapacity(u64 sizeBytes);
+    void EnsureCapacity(u64 sizeBytes);
     bool MergeIsPossible(Buffer buffer, u64 bufferOffset) const;
 private:
     struct State
     {
-        /* array of used stage buffers */
         std::vector<StagingBufferInfo> StageBuffers;
         /* index of the last used stage buffer on this frame */
         u32 LastUsedBuffer{INVALID_INDEX};
@@ -83,6 +79,8 @@ private:
         std::vector<BufferUploadInfo> BufferUploads;
         /* because of multiple in-frame submits, we have to keep track of already submitted data */
         u32 UploadsOffset{0};
+
+        u64 CurrentBufferOffset{0};
         
         Buffer ImmediateUploadBuffer;
     };
@@ -98,37 +96,40 @@ void ResourceUploader::UpdateBuffer(Buffer buffer, T&& data, u64 bufferOffset)
     
     auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
         
-    u64 stagingOffset = EnsureCapacity(sizeBytes);
+    EnsureCapacity(sizeBytes);
     auto& state = m_PerFrameState[m_CurrentFrame];
     auto& staging = state.StageBuffers[state.LastUsedBuffer].Buffer;
     Device::SetBufferData(Device::GetBufferMappedAddress(staging),
-        Span{(const std::byte*)address, sizeBytes}, stagingOffset);
+        Span{(const std::byte*)address, sizeBytes}, state.CurrentBufferOffset);
 
     if (MergeIsPossible(buffer, bufferOffset))
         state.BufferUploads.back().SizeBytes += sizeBytes;
     else
         state.BufferUploads.push_back({
-            .SourceIndex = state.LastUsedBuffer,
+            .Source = state.StageBuffers[state.LastUsedBuffer].Buffer,
             .Destination = buffer,
             .SizeBytes = sizeBytes,
-            .SourceOffset = stagingOffset,
+            .SourceOffset = state.CurrentBufferOffset,
             .DestinationOffset = bufferOffset});
+    state.CurrentBufferOffset += sizeBytes;
 }
 
 template <typename T>
 T* ResourceUploader::MapBuffer(Buffer buffer, u64 bufferOffset)
 {
     const usize bufferSize = Device::GetBufferSizeBytes(buffer);
-    u64 stagingOffset = EnsureCapacity(bufferSize);
+    EnsureCapacity(bufferSize);
     auto& state = m_PerFrameState[m_CurrentFrame];
+    const u64 offset = state.CurrentBufferOffset;
     state.BufferUploads.push_back({
-        .SourceIndex = state.LastUsedBuffer,
+        .Source = state.StageBuffers[state.LastUsedBuffer].Buffer,
         .Destination = buffer,
         .SizeBytes = bufferSize,
-        .SourceOffset = stagingOffset,
+        .SourceOffset = offset,
         .DestinationOffset = bufferOffset});
-
+    state.CurrentBufferOffset += bufferSize;
+    
     return (T*)
-        ((std::byte*)Device::GetBufferMappedAddress(state.StageBuffers[state.LastUsedBuffer].Buffer) + stagingOffset);      
+        ((std::byte*)Device::GetBufferMappedAddress(state.StageBuffers[state.LastUsedBuffer].Buffer) + offset);      
 }
 

@@ -54,7 +54,7 @@ void ResourceUploader::SubmitUpload(FrameContext& ctx)
         auto& upload = state.BufferUploads[i];
 
         ctx.CommandList.CopyBuffer({
-            .Source = state.StageBuffers[upload.SourceIndex].Buffer,
+            .Source = upload.Source,
             .Destination = upload.Destination,
             .SizeBytes = upload.SizeBytes,
             .SourceOffset = upload.SourceOffset,
@@ -62,6 +62,18 @@ void ResourceUploader::SubmitUpload(FrameContext& ctx)
     }
 
     state.UploadsOffset = (u32)state.BufferUploads.size();
+}
+
+void ResourceUploader::CopyBuffer(CopyBufferCommand&& command)
+{
+    auto& state = m_PerFrameState[m_CurrentFrame];
+
+    state.BufferUploads.push_back({
+        .Source = command.Source,
+        .Destination = command.Destination,
+        .SizeBytes = command.SizeBytes,
+        .SourceOffset = command.SourceOffset,
+        .DestinationOffset = command.DestinationOffset});
 }
 
 void ResourceUploader::ManageLifeTime()
@@ -95,23 +107,16 @@ ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 si
     return {.Buffer = Device::CreateStagingBuffer(std::max(minSizeBytes, sizeBytes))};
 }
 
-u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
+void ResourceUploader::EnsureCapacity(u64 sizeBytes)
 {
     auto& state = m_PerFrameState[m_CurrentFrame];
 
-    u64 currentBufferOffset = 0;
     /* check that we have any buffer at all */
     if (state.LastUsedBuffer == INVALID_INDEX)
-    {
         state.LastUsedBuffer = 0;
-    }
-    else
-    {
-        currentBufferOffset = state.BufferUploads.back().SourceOffset +
-            state.BufferUploads.back().SizeBytes;
-    }
 
-    if (Device::GetBufferSizeBytes(state.StageBuffers[state.LastUsedBuffer].Buffer) < currentBufferOffset + sizeBytes)
+    if (Device::GetBufferSizeBytes(state.StageBuffers[state.LastUsedBuffer].Buffer) <
+        state.CurrentBufferOffset + sizeBytes)
     {
         state.LastUsedBuffer++;
         if (state.LastUsedBuffer == state.StageBuffers.size())
@@ -123,10 +128,8 @@ u64 ResourceUploader::EnsureCapacity(u64 sizeBytes)
             state.StageBuffers[state.LastUsedBuffer] = CreateStagingBuffer(sizeBytes);
         }
     
-        currentBufferOffset = 0;
+        state.CurrentBufferOffset = 0;
     }
-
-    return currentBufferOffset;
 }
 
 bool ResourceUploader::MergeIsPossible(Buffer buffer, u64 bufferOffset) const
@@ -138,7 +141,7 @@ bool ResourceUploader::MergeIsPossible(Buffer buffer, u64 bufferOffset) const
 
     const BufferUploadInfo& upload = state.BufferUploads.back();
 
-    return upload.SourceIndex == state.LastUsedBuffer &&
+    return upload.Source == state.StageBuffers[state.LastUsedBuffer].Buffer &&
            upload.Destination == buffer &&
            upload.DestinationOffset + upload.SizeBytes == bufferOffset;
 }
