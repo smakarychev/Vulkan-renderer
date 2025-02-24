@@ -727,6 +727,12 @@ private:
         void* HostAddress{nullptr};
         VmaAllocation Allocation{VK_NULL_HANDLE};
     };
+    struct BufferArenaResource
+    {
+        using ObjectType = BufferArenaTag;
+        VmaVirtualBlock VirtualBlock{VK_NULL_HANDLE};
+        Buffer Buffer{};
+    };
     struct ImageResource
     {
         using ObjectType = ImageTag;
@@ -889,6 +895,7 @@ private:
     
     ResourceContainerType<SwapchainResource> m_Swapchains;
     ResourceContainerType<BufferResource> m_Buffers;
+    ResourceContainerType<BufferArenaResource> m_BufferArenas;
     ResourceContainerType<ImageResource> m_Images;
     ResourceContainerType<SamplerResource> m_Samplers;
     ResourceContainerType<CommandPoolResource> m_CommandPools;
@@ -931,6 +938,8 @@ constexpr auto DeviceResources::AddResource(Resource&& resource)
         return AddToResourceList(m_Swapchains, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, BufferResource>)
         return AddToResourceList(m_Buffers, std::forward<Resource>(resource));
+    else if constexpr(std::is_same_v<Decayed, BufferArenaResource>)
+        return AddToResourceList(m_BufferArenas, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, ImageResource>)
         return AddToResourceList(m_Images, std::forward<Resource>(resource));
     else if constexpr(std::is_same_v<Decayed, SamplerResource>)
@@ -985,6 +994,8 @@ constexpr void DeviceResources::RemoveResource(ResourceHandleType<Type> handle)
         m_Swapchains.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, BufferTag>)
         m_Buffers.Remove(handle);
+    else if constexpr(std::is_same_v<Decayed, BufferArenaTag>)
+        m_BufferArenas.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, ImageTag>)
         m_Images.Remove(handle);
     else if constexpr(std::is_same_v<Decayed, SamplerTag>)
@@ -1042,6 +1053,8 @@ constexpr auto& DeviceResources::operator[](const Type& type)
         return m_Swapchains[type];
     else if constexpr(std::is_same_v<Decayed, Buffer>)
         return m_Buffers[type];
+    else if constexpr(std::is_same_v<Decayed, BufferArena>)
+        return m_BufferArenas[type];
     else if constexpr(std::is_same_v<Decayed, Image>)
         return m_Images[type];
     else if constexpr(std::is_same_v<Decayed, Sampler>)
@@ -1089,6 +1102,8 @@ void DeletionQueue::Flush()
 {
     for (auto handle : m_Buffers)
         Device::Destroy(handle);
+    for (auto handle : m_BufferArenas)
+        Device::Destroy(handle);
     for (auto handle : m_Images)
         Device::Destroy(handle);
     for (auto handle : m_Samplers)
@@ -1133,6 +1148,7 @@ void DeletionQueue::Flush()
     
     m_Swapchains.clear();
     m_Buffers.clear();
+    m_BufferArenas.clear();
     m_Images.clear();
     m_Samplers.clear();
     m_CommandPools.clear();
@@ -1871,6 +1887,64 @@ u64 Device::GetDeviceAddress(Buffer buffer)
     deviceAddressInfo.buffer = Resources()[buffer].Buffer;
     
     return vkGetBufferDeviceAddress(s_State.Device, &deviceAddressInfo);
+}
+
+BufferArena Device::CreateBufferArena(BufferArenaCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
+{
+    VmaVirtualBlockCreateInfo virtualBlockCreateInfo = {};
+    virtualBlockCreateInfo.size = GetBufferSizeBytes(createInfo.Buffer);
+
+    DeviceResources::BufferArenaResource bufferArenaResource = {};
+    deviceCheck(vmaCreateVirtualBlock(&virtualBlockCreateInfo, &bufferArenaResource.VirtualBlock),
+        "Failed to create buffer arena");
+    bufferArenaResource.Buffer = createInfo.Buffer;
+
+    BufferArena arena = Resources().AddResource(bufferArenaResource);
+    deletionQueue.Enqueue(arena);
+    
+    return arena;
+}
+
+void Device::Destroy(BufferArena bufferArena)
+{
+    DeviceResources::BufferArenaResource& bufferArenaResource = Resources()[bufferArena];
+    
+    vmaClearVirtualBlock(bufferArenaResource.VirtualBlock);
+    vmaDestroyVirtualBlock(bufferArenaResource.VirtualBlock);
+}
+
+Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena bufferArena)
+{
+    return Resources()[bufferArena].Buffer;
+}
+
+BufferSuballocation Device::BufferArenaSuballocate(BufferArena bufferArena, u64 sizeBytes, u32 alignment)
+{
+    VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.size = sizeBytes;
+    allocationCreateInfo.alignment = alignment;
+    // todo: is this ok flag to use?
+    allocationCreateInfo.flags = VMA_VIRTUAL_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT;
+
+    DeviceResources::BufferArenaResource& bufferArenaResource = Resources()[bufferArena];
+    VmaVirtualAllocation allocation;
+    deviceCheck(vmaVirtualAllocate(bufferArenaResource.VirtualBlock, &allocationCreateInfo, &allocation, nullptr),
+        "Failed to suballocate buffer");
+
+    VmaVirtualAllocationInfo allocationInfo = {};
+    vmaGetVirtualAllocationInfo(bufferArenaResource.VirtualBlock, allocation, &allocationInfo);
+    
+    return BufferSuballocation{
+        .Buffer = bufferArenaResource.Buffer,
+        .Description = {
+            .SizeBytes = allocationInfo.size,
+            .Offset = allocationInfo.offset},
+        .Handle = (u64)allocation};
+}
+
+void Device::BufferArenaFree(BufferArena bufferArena, const BufferSuballocation& suballocation)
+{
+    vmaVirtualFree(Resources()[bufferArena].VirtualBlock, (VmaVirtualAllocation)suballocation.Handle);
 }
 
 namespace

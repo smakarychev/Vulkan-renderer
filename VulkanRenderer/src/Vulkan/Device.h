@@ -18,6 +18,7 @@
 
 #include "DeviceSparseSet.h"
 #include "imgui/imgui.h"
+#include "Rendering/Buffer/BufferArena.h"
 #include "Rendering/Commands/RenderCommandList.h"
 
 struct FrameContext;
@@ -62,6 +63,7 @@ private:
     bool m_IsDummy{false};
     std::vector<Swapchain> m_Swapchains;
     std::vector<Buffer> m_Buffers;
+    std::vector<BufferArena> m_BufferArenas;
     std::vector<Image> m_Images;
     std::vector<Sampler> m_Samplers;
     std::vector<CommandPool> m_CommandPools;
@@ -92,6 +94,8 @@ void DeletionQueue::Enqueue(Type& type)
         m_Swapchains.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Buffer>)
         m_Buffers.push_back(type);
+    else if constexpr(std::is_same_v<Decayed, BufferArena>)
+        m_BufferArenas.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Image>)
         m_Images.push_back(type);
     else if constexpr(std::is_same_v<Decayed, Sampler>)
@@ -168,8 +172,17 @@ public:
     static void SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 offsetBytes);
     static void* GetBufferMappedAddress(Buffer buffer);
     static usize GetBufferSizeBytes(Buffer buffer);
+    template <typename T>
+    static Span<const T> GetMappedBufferView(const BufferSubresource& buffer);
     static const BufferDescription& GetBufferDescription(Buffer buffer);
     static u64 GetDeviceAddress(Buffer buffer);
+
+    static BufferArena CreateBufferArena(BufferArenaCreateInfo&& createInfo,
+        DeletionQueue& deletionQueue = DeletionQueue());
+    static void Destroy(BufferArena bufferArena);
+    static Buffer GetBufferArenaUnderlyingBuffer(BufferArena bufferArena);
+    static BufferSuballocation BufferArenaSuballocate(BufferArena bufferArena, u64 sizeBytes, u32 alignment = 8);
+    static void BufferArenaFree(BufferArena bufferArena, const BufferSuballocation& suballocation);
     
     static Image CreateImage(ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Image image);
@@ -396,6 +409,13 @@ private:
     struct State;
     static State s_State;
 };
+
+template <typename T>
+Span<const T> Device::GetMappedBufferView(const BufferSubresource& buffer)
+{
+    return Span<const T>((const T*)((const u8*)GetBufferMappedAddress(buffer.Buffer) + buffer.Description.Offset),
+        buffer.Description.SizeBytes / sizeof(T));
+}
 
 template <typename Fn>
 void Device::ImmediateSubmit(Fn&& uploadFunction)
