@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "Core/Traits.h"
-#include "Rendering/Buffer.h"
+#include "Rendering/Buffer/Buffer.h"
 #include "Vulkan/Device.h"
 
 #include <vector>

@@ -16,7 +16,7 @@
 #include "ResourceUploader.h"
 #include "TextureAsset.h"
 #include "utils/CoreUtils.h"
-#include "Rendering/Buffer.h"
+#include "Rendering/Buffer/Buffer.h"
 #include "Core/ProfilerContext.h"
 #include "Rendering/FormatTraits.h"
 #include "utils/utils.h"

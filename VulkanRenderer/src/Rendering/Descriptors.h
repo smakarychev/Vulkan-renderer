@@ -2,7 +2,7 @@
 
 #include "RenderingCommon.h"
 
-#include "Buffer.h"
+#include "Buffer/Buffer.h"
 #include "DescriptorsTraits.h"
 #include "Image/Image.h"
 #include "ShaderAsset.h"

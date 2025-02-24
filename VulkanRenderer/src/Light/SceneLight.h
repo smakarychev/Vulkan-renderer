@@ -3,7 +3,7 @@
 #include <set>
 
 #include "Light.h"
-#include "Rendering/Buffer.h"
+#include "Rendering/Buffer/Buffer.h"
 
 struct FrameContext;
 

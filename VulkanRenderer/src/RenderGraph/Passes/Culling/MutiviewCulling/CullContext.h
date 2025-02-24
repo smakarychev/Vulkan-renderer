@@ -3,7 +3,7 @@
 #include "ModelAsset.h"
 #include "Settings.h"
 #include "RenderGraph/RGDrawResources.h"
-#include "Rendering/Buffer.h"
+#include "Rendering/Buffer/Buffer.h"
 
 class SceneGeometry;
 

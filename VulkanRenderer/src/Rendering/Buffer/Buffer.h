@@ -2,11 +2,9 @@
 
 #include "types.h"
 
-#include "ResourceHandle.h"
+#include "Rendering/ResourceHandle.h"
 #include "Common/Span.h"
 #include "core.h"
-
-class DeletionQueue;
 
 enum class BufferUsage
 {
