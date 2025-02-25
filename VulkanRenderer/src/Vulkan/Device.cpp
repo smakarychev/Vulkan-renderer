@@ -1836,7 +1836,7 @@ void Device::ResizeBuffer(Buffer buffer, u64 newSize, RenderCommandList& cmdList
         cmdList.CopyBuffer({
             .Source = newBuffer,
             .Destination = buffer,
-            .SizeBytes = oldSize});
+            .SizeBytes = std::min(oldSize, newSize)});
 }
 
 void* Device::MapBuffer(Buffer buffer)
