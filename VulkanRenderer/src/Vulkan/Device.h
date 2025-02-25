@@ -179,10 +179,11 @@ public:
 
     static BufferArena CreateBufferArena(BufferArenaCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());
-    static void Destroy(BufferArena bufferArena);
-    static Buffer GetBufferArenaUnderlyingBuffer(BufferArena bufferArena);
-    static BufferSuballocation BufferArenaSuballocate(BufferArena bufferArena, u64 sizeBytes, u32 alignment = 8);
-    static void BufferArenaFree(BufferArena bufferArena, const BufferSuballocation& suballocation);
+    static void Destroy(BufferArena arena);
+    static void ResizeBufferArena(BufferArena arena, u64 newSize, RenderCommandList& cmdList, bool copyData = true);
+    static Buffer GetBufferArenaUnderlyingBuffer(BufferArena arena);
+    static BufferSuballocation BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment = 8);
+    static void BufferArenaFree(BufferArena arena, const BufferSuballocation& suballocation);
     
     static Image CreateImage(ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Image image);

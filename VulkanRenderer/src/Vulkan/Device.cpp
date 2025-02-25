@@ -1819,7 +1819,7 @@ void Device::ResizeBuffer(Buffer buffer, u64 newSize, RenderCommandList& cmdList
     if (description.SizeBytes == newSize)
         return;
 
-    Buffer newBuffer = CreateBuffer({
+    const Buffer newBuffer = CreateBuffer({
         .SizeBytes = newSize,
         .Usage = description.Usage,
         .PersistentMapping = resource.HostAddress != nullptr},
@@ -1913,12 +1913,29 @@ void Device::Destroy(BufferArena bufferArena)
     vmaDestroyVirtualBlock(bufferArenaResource.VirtualBlock);
 }
 
+void Device::ResizeBufferArena(BufferArena arena, u64 newSize, RenderCommandList& cmdList, bool copyData)
+{
+    const DeviceResources::BufferArenaResource& arenaResource = Resources()[arena];
+    const DeviceResources::BufferResource& bufferResource = Resources()[arenaResource.Buffer];
+    const u64 oldSize = bufferResource.Description.SizeBytes;
+    if (oldSize == newSize)
+        return;
+    
+    ResizeBuffer(arenaResource.Buffer, newSize, cmdList, copyData);
+
+    const BufferArena newArena = CreateBufferArena({
+        .Buffer = arenaResource.Buffer},
+        *s_State.FrameDeletionQueue);
+    
+    std::swap(Resources()[arena], Resources()[newArena]);
+}
+
 Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena bufferArena)
 {
     return Resources()[bufferArena].Buffer;
 }
 
-BufferSuballocation Device::BufferArenaSuballocate(BufferArena bufferArena, u64 sizeBytes, u32 alignment)
+BufferSuballocation Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
 {
     VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
     allocationCreateInfo.size = sizeBytes;
@@ -1926,7 +1943,7 @@ BufferSuballocation Device::BufferArenaSuballocate(BufferArena bufferArena, u64 
     // todo: is this ok flag to use?
     allocationCreateInfo.flags = VMA_VIRTUAL_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT;
 
-    DeviceResources::BufferArenaResource& bufferArenaResource = Resources()[bufferArena];
+    DeviceResources::BufferArenaResource& bufferArenaResource = Resources()[arena];
     VmaVirtualAllocation allocation;
     deviceCheck(vmaVirtualAllocate(bufferArenaResource.VirtualBlock, &allocationCreateInfo, &allocation, nullptr),
         "Failed to suballocate buffer");
@@ -1942,9 +1959,9 @@ BufferSuballocation Device::BufferArenaSuballocate(BufferArena bufferArena, u64 
         .Handle = (u64)allocation};
 }
 
-void Device::BufferArenaFree(BufferArena bufferArena, const BufferSuballocation& suballocation)
+void Device::BufferArenaFree(BufferArena arena, const BufferSuballocation& suballocation)
 {
-    vmaVirtualFree(Resources()[bufferArena].VirtualBlock, (VmaVirtualAllocation)suballocation.Handle);
+    vmaVirtualFree(Resources()[arena].VirtualBlock, (VmaVirtualAllocation)suballocation.Handle);
 }
 
 namespace
