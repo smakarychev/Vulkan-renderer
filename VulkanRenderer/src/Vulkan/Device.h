@@ -182,7 +182,9 @@ public:
     static void Destroy(BufferArena arena);
     static void ResizeBufferArena(BufferArena arena, u64 newSize, RenderCommandList& cmdList, bool copyData = true);
     static Buffer GetBufferArenaUnderlyingBuffer(BufferArena arena);
-    static BufferSuballocation BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment = 8);
+    static u64 GetBufferArenaSizeBytes(BufferArena arena);
+    static std::optional<BufferSuballocation> BufferArenaSuballocate(BufferArena arena, u64 sizeBytes,
+        u32 alignment = 8);
     static void BufferArenaFree(BufferArena arena, const BufferSuballocation& suballocation);
     
     static Image CreateImage(ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());

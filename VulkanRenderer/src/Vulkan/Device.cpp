@@ -1935,7 +1935,12 @@ Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena bufferArena)
     return Resources()[bufferArena].Buffer;
 }
 
-BufferSuballocation Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
+u64 Device::GetBufferArenaSizeBytes(BufferArena arena)
+{
+    return GetBufferSizeBytes(GetBufferArenaUnderlyingBuffer(arena));
+}
+
+std::optional<BufferSuballocation> Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
 {
     VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
     allocationCreateInfo.size = sizeBytes;
@@ -1945,8 +1950,10 @@ BufferSuballocation Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBy
 
     DeviceResources::BufferArenaResource& bufferArenaResource = Resources()[arena];
     VmaVirtualAllocation allocation;
-    deviceCheck(vmaVirtualAllocate(bufferArenaResource.VirtualBlock, &allocationCreateInfo, &allocation, nullptr),
-        "Failed to suballocate buffer");
+    const VkResult allocateResult = vmaVirtualAllocate(bufferArenaResource.VirtualBlock,
+        &allocationCreateInfo, &allocation, nullptr);
+    if (allocateResult != VK_SUCCESS)
+        return std::nullopt;
 
     VmaVirtualAllocationInfo allocationInfo = {};
     vmaGetVirtualAllocationInfo(bufferArenaResource.VirtualBlock, allocation, &allocationInfo);
