@@ -1158,7 +1158,7 @@ namespace
             accessor.type = AccessorDataTypeTraits<T>::TYPE;
             accessor.count = data.size();
             accessor.bufferView = accessorProxy.ViewIndex;
-            accessor.byteOffset = accessorProxy.Data.size();
+            accessor.byteOffset = accessorProxy.Data.size() * sizeof(T);
             accessorProxy.Data.append_range(data);
 
             return accessor;
@@ -1170,7 +1170,7 @@ namespace
             nlohmann::json accessor = {};
             accessor["count"] = data.size();
             accessor["bufferView"] = accessorProxy.ViewIndex;
-            accessor["byteOffset"] = accessorProxy.Data.size();
+            accessor["byteOffset"] = accessorProxy.Data.size() * sizeof(T);
             accessorProxy.Data.append_range(data);
 
             return accessor;
