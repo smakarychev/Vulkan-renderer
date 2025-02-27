@@ -38,6 +38,16 @@ struct object_data {
     float r;
 };
 
+struct RenderObject {
+    mat4 model;
+    vec4 bounding_sphere;
+    uint material_id;
+    uint position_index;
+    uint normal_index;
+    uint tangent_index;
+    uint uv_index;
+};
+
 struct Meshlet {
     int8_t cone_x;
     int8_t cone_y;
