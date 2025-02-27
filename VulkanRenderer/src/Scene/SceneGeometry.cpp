@@ -28,7 +28,7 @@ SceneGeometry::AttributeBuffers SceneGeometry::InitAttributeBuffers(const Counts
 {
     u64 totalPositionsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec3);
     u64 totalNormalsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec3);
-    u64 totalTangentsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec3);
+    u64 totalTangentsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec4);
     u64 totalUVsSizeBytes = countsInfo.VertexCount * sizeof(glm::vec2);
     u64 totalIndicesSizeBytes = countsInfo.IndexCount * sizeof(assetLib::ModelInfo::IndexType);
 

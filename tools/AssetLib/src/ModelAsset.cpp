@@ -132,7 +132,7 @@ namespace assetLib
         return {
             Positions.size() * sizeof(glm::vec3),
             Normals.size() * sizeof(glm::vec3),
-            Tangents.size() * sizeof(glm::vec3),
+            Tangents.size() * sizeof(glm::vec4),
             UVs.size() * sizeof(glm::vec2)};        
     }
 

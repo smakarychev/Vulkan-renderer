@@ -23,7 +23,7 @@ Model* Model::LoadFromAsset(std::string_view path)
     std::vector<u64> vertexElementsSizeBytes = modelInfo.VertexElementsSizeBytes();
     std::vector<glm::vec3> positions(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Position]);
     std::vector<glm::vec3> normals(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Normal]);
-    std::vector<glm::vec3> tangents(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Tangent]);
+    std::vector<glm::vec4> tangents(vertexElementsSizeBytes[(u32)assetLib::VertexElement::Tangent]);
     std::vector<glm::vec2> uvs(vertexElementsSizeBytes[(u32)assetLib::VertexElement::UV]);
     std::vector<assetLib::ModelInfo::IndexType> indices(modelInfo.IndicesSizeBytes());
     std::vector<assetLib::ModelInfo::Meshlet> meshlets(modelInfo.MeshletsSizeBytes());
@@ -52,7 +52,7 @@ Model* Model::LoadFromAsset(std::string_view path)
         auto normalsEnd = normals.begin() + normalsOffset;
         
         auto tangentsBegin = tangents.begin() + tangentsOffset;
-        tangentsOffset += (u32)(meshInfo.VertexElementsSizeBytes[(u32)assetLib::VertexElement::Tangent] / sizeof(glm::vec3));
+        tangentsOffset += (u32)(meshInfo.VertexElementsSizeBytes[(u32)assetLib::VertexElement::Tangent] / sizeof(glm::vec4));
         auto tangentsEnd = tangents.begin() + tangentsOffset;
 
         auto uvsBegin = uvs.begin() + uvsOffset;

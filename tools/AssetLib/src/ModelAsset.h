@@ -29,7 +29,7 @@ namespace assetLib
 
         std::vector<glm::vec3> Positions;
         std::vector<glm::vec3> Normals;
-        std::vector<glm::vec3> Tangents;
+        std::vector<glm::vec4> Tangents;
         std::vector<glm::vec2> UVs;
     };
 
@@ -37,7 +37,7 @@ namespace assetLib
     {
         glm::vec3 Position;
         glm::vec3 Normal;
-        glm::vec3 Tangent;
+        glm::vec4 Tangent;
         glm::vec2 UV;
     };
 
@@ -90,14 +90,14 @@ namespace assetLib
         };
         struct Meshlet
         {
-            u32 FirstIndex;
-            u32 IndexCount;
+            u32 FirstIndex{};
+            u32 IndexCount{};
 
-            u32 FirstVertex;
-            u32 VertexCount;
+            u32 FirstVertex{};
+            u32 VertexCount{};
 
-            BoundingSphere BoundingSphere;
-            BoundingCone BoundingCone;
+            BoundingSphere BoundingSphere{};
+            BoundingCone BoundingCone{};
         };
         struct MeshInfo
         {

@@ -8,7 +8,7 @@ namespace Utils
     {
         std::vector<glm::vec3>* Positions{nullptr};
         std::vector<glm::vec3>* Normals{nullptr};
-        std::vector<glm::vec3>* Tangents{nullptr};
+        std::vector<glm::vec4>* Tangents{nullptr};
         std::vector<glm::vec2>* UVs{nullptr};
     };
     void remapMesh(Attributes& attributes, std::vector<u32>& indices);

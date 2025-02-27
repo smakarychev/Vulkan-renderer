@@ -11,7 +11,7 @@ struct VertexP3N3T3UV2
 {
     glm::vec3 Position;
     glm::vec3 Normal;
-    glm::vec3 Tangent;
+    glm::vec4 Tangent;
     glm::vec2 UV;
 
     static VertexInputDescription GetInputDescription();
@@ -26,7 +26,7 @@ class Mesh
 public:
     Mesh(const std::vector<glm::vec3>& positions,
         const std::vector<glm::vec3>& normals,
-        const std::vector<glm::vec3>& tangents,
+        const std::vector<glm::vec4>& tangents,
         const std::vector<glm::vec2>& uvs, const std::vector<IndexType>& indices,
         const Sphere& boundingSphere,
         const AABB& boundingBox,
@@ -37,7 +37,7 @@ public:
 
     const std::vector<glm::vec3>& GetPositions() const { return m_Positions; }
     const std::vector<glm::vec3>& GetNormals() const { return m_Normals; }
-    const std::vector<glm::vec3>& GetTangents() const { return m_Tangents; }
+    const std::vector<glm::vec4>& GetTangents() const { return m_Tangents; }
     const std::vector<glm::vec2>& GetUVs() const { return m_UVs; }
     const std::vector<IndexType>& GetIndices() const { return m_Indices; }
 
@@ -54,7 +54,7 @@ public:
 private:
     std::vector<glm::vec3> m_Positions;
     std::vector<glm::vec3> m_Normals;
-    std::vector<glm::vec3> m_Tangents;
+    std::vector<glm::vec4> m_Tangents;
     std::vector<glm::vec2> m_UVs;
     std::vector<IndexType> m_Indices;
 

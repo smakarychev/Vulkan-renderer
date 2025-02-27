@@ -43,7 +43,7 @@ namespace Utils
         std::array<meshopt_Stream, (u32)assetLib::VertexElement::MaxVal> vertexElementsStreams = {{
             {attributes.Positions->data(), sizeof(glm::vec3), sizeof(glm::vec3)},
             {attributes.Normals->data(), sizeof(glm::vec3), sizeof(glm::vec3)},
-            {attributes.Tangents->data(), sizeof(glm::vec3), sizeof(glm::vec3)},
+            {attributes.Tangents->data(), sizeof(glm::vec4), sizeof(glm::vec4)},
             {attributes.UVs->data(), sizeof(glm::vec2), sizeof(glm::vec2)},
         }};
 
@@ -59,7 +59,7 @@ namespace Utils
         std::vector<u32> remappedIndices(indexCountInitial);
         std::vector<glm::vec3> remappedPositions(vertexCount);
         std::vector<glm::vec3> remappedNormals(vertexCount);
-        std::vector<glm::vec3> remappedTangents(vertexCount);
+        std::vector<glm::vec4> remappedTangents(vertexCount);
         std::vector<glm::vec2> remappedUVs(vertexCount);
 
         meshopt_remapIndexBuffer(remappedIndices.data(), indices.data(), indices.size(), indexRemap.data());
@@ -68,7 +68,7 @@ namespace Utils
         meshopt_remapVertexBuffer(remappedNormals.data(), attributes.Normals->data(),
             vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
         meshopt_remapVertexBuffer(remappedTangents.data(), attributes.Tangents->data(),
-            vertexCountInitial, sizeof(glm::vec3), indexRemap.data());
+            vertexCountInitial, sizeof(glm::vec4), indexRemap.data());
         meshopt_remapVertexBuffer(remappedUVs.data(), attributes.UVs->data(),
             vertexCountInitial, sizeof(glm::vec2), indexRemap.data());
 
@@ -81,7 +81,7 @@ namespace Utils
         meshopt_remapVertexBuffer(remappedNormals.data(), remappedNormals.data(),
             vertexCount, sizeof(glm::vec3), indexRemap.data());
         meshopt_remapVertexBuffer(remappedTangents.data(), remappedTangents.data(),
-            vertexCount, sizeof(glm::vec3), indexRemap.data());
+            vertexCount, sizeof(glm::vec4), indexRemap.data());
         meshopt_remapVertexBuffer(remappedUVs.data(), remappedUVs.data(),
             vertexCount, sizeof(glm::vec2), indexRemap.data());
 
@@ -142,7 +142,7 @@ namespace Utils
 
         std::vector<glm::vec3> finalPositions(meshletVertices.size());
         std::vector<glm::vec3> finalNormals(meshletVertices.size());
-        std::vector<glm::vec3> finalTangents(meshletVertices.size());
+        std::vector<glm::vec4> finalTangents(meshletVertices.size());
         std::vector<glm::vec2> finalUVs(meshletVertices.size());
         
         for (auto& meshlet : meshoptMeshlets)

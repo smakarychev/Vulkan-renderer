@@ -315,9 +315,9 @@ assetLib::VertexGroup ModelConverter::GetMeshVertices(const aiMesh* mesh)
             vertexGroup.Normals[i] = glm::vec3{0.0f, 0.0f, 0.0f};
 
         if (mesh->HasTangentsAndBitangents())
-            vertexGroup.Tangents[i] = glm::vec3{mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z};
+            vertexGroup.Tangents[i] = glm::vec4{mesh->mTangents[i].x, mesh->mTangents[i].y, mesh->mTangents[i].z, 1.0f};
         else
-            vertexGroup.Tangents[i] = glm::vec3{0.0f, 0.0f, 0.0f};
+            vertexGroup.Tangents[i] = glm::vec4{0.0f, 0.0f, 1.0f, 1.0f};
         
         if (mesh->HasTextureCoords(0))
             vertexGroup.UVs[i] = glm::vec2{mesh->mTextureCoords[0][i].x, mesh->mTextureCoords[0][i].y};
@@ -1057,6 +1057,12 @@ namespace
         static_assert(sizeof(T) == 0, "No match for type");
     };
     template <>
+    struct AccessorDataTypeTraits<glm::vec4>
+    {
+        static constexpr i32 TYPE = TINYGLTF_TYPE_VEC4;
+        static constexpr i32 COMPONENT_TYPE = TINYGLTF_COMPONENT_TYPE_FLOAT;
+    };
+    template <>
     struct AccessorDataTypeTraits<glm::vec3>
     {
         static constexpr i32 TYPE = TINYGLTF_TYPE_VEC3;
@@ -1087,7 +1093,7 @@ namespace
         };
         AccessorProxy<glm::vec3> Positions;
         AccessorProxy<glm::vec3> Normals;
-        AccessorProxy<glm::vec3> Tangents;
+        AccessorProxy<glm::vec4> Tangents;
         AccessorProxy<glm::vec2> UVs;
         AccessorProxy<assetLib::ModelInfo::IndexType> Indices;
         AccessorProxy<assetLib::ModelInfo::Meshlet> Meshlets;
@@ -1180,8 +1186,8 @@ namespace
     template <typename T>
     void copyBufferToVector(std::vector<T>& vec, tinygltf::Model& gltf, tinygltf::Accessor& accessor)
     {
-        tinygltf::BufferView& bufferView = gltf.bufferViews[accessor.bufferView];
-        tinygltf::Buffer& buffer = gltf.buffers[bufferView.buffer];
+        const tinygltf::BufferView& bufferView = gltf.bufferViews[accessor.bufferView];
+        const tinygltf::Buffer& buffer = gltf.buffers[bufferView.buffer];
         const u64 elementSizeBytes =
             (u64)tinygltf::GetNumComponentsInType(accessor.type) *
             (u64)tinygltf::GetComponentSizeInBytes(accessor.componentType);
@@ -1216,7 +1222,7 @@ namespace
         }
     }
 
-    void generateTriangleTangents(std::vector<glm::vec3>& tangents,
+    void generateTriangleTangents(std::vector<glm::vec4>& tangents,
         const std::vector<glm::vec3>& positions, const std::vector<glm::vec3>& normals,
         const std::vector<glm::vec2>& uvs, const std::vector<u32>& indices)
     {
@@ -1225,7 +1231,7 @@ namespace
             const std::vector<glm::vec3>* Positions{};
             const std::vector<glm::vec3>* Normals{};
             const std::vector<glm::vec2>* Uvs{};
-            std::vector<glm::vec3>* Tangents{};
+            std::vector<glm::vec4>* Tangents{};
             const std::vector<u32>* Indices{};
         };
         GeometryInfo gi = {
@@ -1263,7 +1269,7 @@ namespace
             const u32 index = (*info->Indices)[face * 3 + vertex];
             
             memcpy(&(*info->Tangents)[index], tangent, sizeof(glm::vec3));
-            (*info->Tangents)[index] *= sign;
+            (*info->Tangents)[index][3] = sign;
         };
 
         SMikkTSpaceContext context = {};
@@ -1289,6 +1295,7 @@ namespace
             std::vector<glm::vec3> positions;
             std::vector<glm::vec3> normals;
             std::vector<glm::vec3> tangents;
+            std::vector<glm::vec4> tangents;
             std::vector<glm::vec2> uvs;
             for (auto& attribute : primitive.attributes)
             {
@@ -1314,7 +1321,7 @@ namespace
             if (!hasTangents && hasUVs)
                 generateTriangleTangents(tangents, positions, normals, uvs, indices);
             if (!hasTangents)
-                tangents.resize(tangents.size(), glm::vec3{0.0f, 0.0f, 1.0f});
+                tangents.resize(tangents.size(), glm::vec4{0.0f, 0.0f, 1.0f, 1.0f});
             if (!hasUVs)
                 uvs.resize(positions.size(), glm::vec2{0.0});
 
@@ -1413,7 +1420,7 @@ void SceneConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
     auto processNode = [&gltf, &ctx](u32 nodeIndex) {
         auto& node = gltf.nodes[nodeIndex];
 
-        if (node.mesh > 0)
+        if (node.mesh >= 0)
             processMesh(ctx, gltf, gltf.meshes[node.mesh]);
     };
 

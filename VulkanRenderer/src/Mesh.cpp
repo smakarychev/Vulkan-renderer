@@ -65,7 +65,7 @@ VertexInputDescription VertexP3N3T3UV2::GetInputDescriptionDI()
     
     VertexInputDescription::Binding tangentBinding = {};
     tangentBinding.Index = 2;
-    tangentBinding.StrideBytes = sizeof(glm::vec3);
+    tangentBinding.StrideBytes = sizeof(glm::vec4);
 
     VertexInputDescription::Binding uvBinding = {};
     uvBinding.Index = 3;
@@ -110,7 +110,7 @@ VertexInputDescription VertexP3N3T3UV2::GetInputDescriptionDI()
 
 Mesh::Mesh(const std::vector<glm::vec3>& positions,
         const std::vector<glm::vec3>& normals,
-        const std::vector<glm::vec3>& tangents,
+        const std::vector<glm::vec4>& tangents,
         const std::vector<glm::vec2>& uvs, const std::vector<IndexType>& indices,
         const Sphere& boundingSphere,
         const AABB& boundingBox,

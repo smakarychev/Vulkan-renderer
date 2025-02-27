@@ -124,7 +124,7 @@ SceneGeometry SceneGeometry::FromModelCollectionFiltered(const ModelCollection& 
         resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Normals, mesh.GetNormals(),
             verticesOffset * sizeof(glm::vec3));
         resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Tangents, mesh.GetTangents(),
-            verticesOffset * sizeof(glm::vec3));
+            verticesOffset * sizeof(glm::vec4));
         resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.UVs, mesh.GetUVs(),
             verticesOffset * sizeof(glm::vec2));
         resourceUploader.UpdateBuffer(sceneGeometry.m_AttributeBuffers.Indices, mesh.GetIndices(),

@@ -66,6 +66,7 @@ struct Tangent {
     float x;
     float y; 
     float z;
+    float w;
 };
 
 struct UV {
