@@ -172,6 +172,8 @@ RenderHandle<Mesh> ModelCollection::AddMesh(const Mesh& mesh)
 RenderHandle<Texture> ModelCollection::AddTexture(Texture texture)
 {
     u32 textureDescriptorIndex = m_TextureDescriptorsRingBuffer->AddTexture(texture);
+    if (textureDescriptorIndex >= m_Textures.size())
+        m_Textures.resize(textureDescriptorIndex + 1);
     
     return m_Textures.insert(textureDescriptorIndex, texture); 
 }

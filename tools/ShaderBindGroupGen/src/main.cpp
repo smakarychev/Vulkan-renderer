@@ -54,6 +54,11 @@ std::string canonicalizeName(std::string_view name)
 std::string canonicalizeBindingName(std::string_view name)
 {
     static constexpr std::string_view BINDING_PREFIX = "u_";
+    static constexpr std::string_view UGB_BINDING_PREFIX = "u_ugb_";
+    static constexpr std::string_view UGB_CANONICAL_NAME = "UGB";
+
+    if (name.starts_with(UGB_BINDING_PREFIX))
+        return std::string{UGB_CANONICAL_NAME};
 
     if (!name.starts_with(BINDING_PREFIX))
     {

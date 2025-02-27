@@ -10,6 +10,8 @@ class Scene;
 class ShaderPipelineTemplate;
 class Renderer;
 
+// todo: remove once Scene is ready
+
 class Model
 {
     friend class ModelCollection;

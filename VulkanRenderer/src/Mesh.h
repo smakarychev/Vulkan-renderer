@@ -20,6 +20,8 @@ struct VertexP3N3T3UV2
 
 using Meshlet = assetLib::ModelInfo::Meshlet;
 
+// todo: remove once Scene is ready
+
 class Mesh
 {
     using IndexType = assetLib::ModelInfo::IndexType;

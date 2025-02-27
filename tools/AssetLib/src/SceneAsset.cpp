@@ -1,11 +1,14 @@
 #include "SceneAsset.h"
 
+#include "core.h"
+
 namespace assetLib
 {
     std::optional<SceneInfo> readSceneHeader(const std::filesystem::path& path)
     {
         tinygltf::Model gltf;
         tinygltf::TinyGLTF loader;
+        loader.SetStoreOriginalJSONForExtrasAndExtensions(true);
         loader.ShouldPreloadBuffersData(false);
         loader.ShouldPreloadImagesData(false);
         std::string errors;

@@ -23,6 +23,7 @@ project "VulkanRenderer"
         IncludeDir["spirv_reflect"],	
         IncludeDir["tracy"],    
         IncludeDir["volk"],
+        IncludeDir["tinygltf"],  
         IncludeDir["imgui"],
         IncludeDir["nlohmann-json"],
         IncludeDir["efsw"],

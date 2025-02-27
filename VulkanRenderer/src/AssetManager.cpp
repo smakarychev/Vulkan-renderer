@@ -2,10 +2,12 @@
 
 #include "Model.h"
 #include "Rendering/Shader/Shader.h"
+#include "Scene/Scene.h"
 
 Utils::StringUnorderedMap<ShaderReflection> AssetManager::s_Shaders = {};
 Utils::StringUnorderedMap<Model> AssetManager::s_Models = {};
 Utils::StringUnorderedMap<Image> AssetManager::s_Images = {};
+Utils::StringUnorderedMap<SceneInfo> AssetManager::s_Scenes = {};
 
 void AssetManager::Shutdown()
 {
@@ -62,4 +64,18 @@ Image AssetManager::GetImage(std::string_view name)
 void AssetManager::AddImage(std::string_view name, Image image)
 {
     s_Images.emplace(name, image);
+}
+
+SceneInfo* AssetManager::GetSceneInfo(std::string_view name)
+{
+    auto it = s_Scenes.find(name);
+
+    return it == s_Scenes.end() ? nullptr : &it->second;
+}
+
+SceneInfo* AssetManager::AddSceneInfo(std::string_view name, SceneInfo&& sceneInfo)
+{
+    auto&& [scene, _] = s_Scenes.emplace(name, std::move(sceneInfo));
+
+    return &scene->second;
 }

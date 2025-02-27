@@ -30,7 +30,7 @@ struct MaterialGPU
     glm::vec4 Albedo;
     f32 Metallic;
     f32 Roughness;
-    f32 Pad0;
+    f32 Pad0{};
     RenderHandle<Image> AlbedoTextureHandle{NO_TEXTURE};
     RenderHandle<Image> NormalTextureHandle{NO_TEXTURE};
     RenderHandle<Image> MetallicRoughnessTextureHandle{NO_TEXTURE};
@@ -65,6 +65,17 @@ struct RenderObjectGPU
 {
     glm::mat4 Transform;
     Sphere BoundingSphere;
+};
+// todo: remove '2' once ready
+struct RenderObjectGPU2
+{
+    glm::mat4 Transform;
+    Sphere BoundingSphere;
+    RenderHandle<MaterialGPU> MaterialGPU{};
+    u32 PositionsOffset{0};
+    u32 NormalsOffset{0};
+    u32 TangentsOffset{0};
+    u32 UVsOffset{0};
 };
 
 struct MeshletGPU

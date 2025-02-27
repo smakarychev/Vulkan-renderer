@@ -13,6 +13,7 @@
 #include "Light/SceneLight.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
+#include "Scene/Scene.h"
 
 class SlimeMoldPass;
 class SlimeMoldContext;
@@ -85,6 +86,8 @@ private:
     Buffer m_SkyIrradianceSH{};
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
+
+    Scene m_Scene;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

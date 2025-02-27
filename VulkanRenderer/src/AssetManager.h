@@ -5,6 +5,7 @@
 #include "Rendering/Image/Image.h"
 #include "utils/HashedString.h"
 
+class SceneInfo;
 class Model;
 class ShaderReflection;
 
@@ -23,9 +24,14 @@ public:
 
     static Image GetImage(std::string_view name);
     static void AddImage(std::string_view, Image image);
+
+    static SceneInfo* GetSceneInfo(std::string_view name);
+    static SceneInfo* AddSceneInfo(std::string_view name, SceneInfo&& sceneInfo);
     
 private:
     static Utils::StringUnorderedMap<ShaderReflection> s_Shaders;
     static Utils::StringUnorderedMap<Model> s_Models;
     static Utils::StringUnorderedMap<Image> s_Images;
+    
+    static Utils::StringUnorderedMap<SceneInfo> s_Scenes;
 };

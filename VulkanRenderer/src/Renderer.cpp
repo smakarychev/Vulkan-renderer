@@ -50,6 +50,7 @@
 #include "RenderGraph/Passes/Utility/UploadPass.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
+#include "Scene/Scene.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
 
 Renderer::Renderer() = default;
@@ -261,9 +262,35 @@ void Renderer::SetupRenderGraph()
         .PrimaryCameraGPU = primaryCamera,
         .ShadingSettings = shadingSettings};
     blackboard.Update(globalResources);
+    
+    MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
+    bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials});
+
+    Resource depth = m_Graph->CreateResource("Depth", GraphTextureDescription{
+        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
+        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+        .Format = Format::D32_FLOAT});
+    
+    auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB", *m_Graph, {
+            .Geometry = &m_Scene.Geometry(),
+            .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
+            .Camera = GetFrameContext().PrimaryCamera,
+        .Attachments = {
+            .Colors = {DrawAttachment{
+                .Resource = backbuffer,
+                .Description = {
+                    .OnLoad = AttachmentLoad::Clear,
+                    .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
+            .Depth = DepthStencilAttachment{
+                .Resource = depth,
+                .Description = {
+                    .OnLoad = AttachmentLoad::Clear,
+                    .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}});
+    
+    
 
     // todo: move to proper place (this is just testing atm)
-    if (m_GraphTranslucentGeometry.IsValid())
+    /*if (m_GraphTranslucentGeometry.IsValid())
     {
         DepthGeometrySorter translucentSorter(m_Camera->GetPosition(), m_Camera->GetForward());
         translucentSorter.Sort(m_GraphTranslucentGeometry, *GetFrameContext().ResourceUploader);
@@ -474,7 +501,7 @@ void Renderer::SetupRenderGraph()
             .HiZContext = m_VisibilityPass->GetHiZContext()})
         auto& pbrTranslucentOutput = blackboard.Get<PbrForwardTranslucentIBLPass::PassData>();
         
-        renderedColor = pbrTranslucentOutput.ColorOut; */
+        renderedColor = pbrTranslucentOutput.ColorOut; #1#
     }
 
     auto& fxaa = Passes::Fxaa::addToGraph("FXAA", *m_Graph, renderedColor);
@@ -497,7 +524,7 @@ void Renderer::SetupRenderGraph()
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Max.Texture", *m_Graph, hizMaxVisualizePassOutput.ColorOut);
     Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, m_BRDFLut);
+    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, m_BRDFLut);*/
 
     ImGui::Begin("Debug");
     if (ImGui::Button("Dump memory stats"))

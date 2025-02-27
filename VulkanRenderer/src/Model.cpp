@@ -8,8 +8,7 @@
 
 Model* Model::LoadFromAsset(std::string_view path)
 {
-    Model* cachedModel = AssetManager::GetModel(path);
-    if (cachedModel)
+    if (Model* cachedModel = AssetManager::GetModel(path))
         return cachedModel;
     
     Model model = {};

@@ -2,6 +2,7 @@
 
 #include "AssetLib.h"
 #include "TextureAsset.h"
+#include "SceneAsset.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -1099,13 +1100,15 @@ namespace
         AccessorProxy<assetLib::ModelInfo::Meshlet> Meshlets;
         
         std::string BinaryName{};
-        std::string BakedScenePath{};
+        std::filesystem::path BakedScenePath{};
 
         void Prepare()
         {
             namespace fs = std::filesystem;
-            fs::create_directories(fs::path(BakedScenePath).parent_path());
-
+            fs::create_directories(BakedScenePath.parent_path());
+            if (fs::exists(BakedScenePath))
+                fs::remove(BakedScenePath);
+            
             BakedScene.accessors.clear();
             BakedScene.buffers.clear();
             BakedScene.bufferViews.clear();
@@ -1114,22 +1117,22 @@ namespace
             BakedScene.buffers.resize(1);
             BakedScene.buffers[0].uri = BinaryName;
 
-            BakedScene.bufferViews.resize(6);
-            BakedScene.bufferViews[0].name = "Positions";
-            BakedScene.bufferViews[1].name = "Normals";
-            BakedScene.bufferViews[2].name = "Tangents";
-            BakedScene.bufferViews[3].name = "UVs";
-            BakedScene.bufferViews[4].name = "Indices";
-            BakedScene.bufferViews[5].name = "Meshlets";
+            BakedScene.bufferViews.resize((u32)assetLib::SceneInfo::BufferViewType::MaxVal);
+            BakedScene.bufferViews[(u32)assetLib::SceneInfo::BufferViewType::Position].name = "Positions";
+            BakedScene.bufferViews[(u32)assetLib::SceneInfo::BufferViewType::Normal].name = "Normals";
+            BakedScene.bufferViews[(u32)assetLib::SceneInfo::BufferViewType::Tangent].name = "Tangents";
+            BakedScene.bufferViews[(u32)assetLib::SceneInfo::BufferViewType::Uv].name = "UVs";
+            BakedScene.bufferViews[(u32)assetLib::SceneInfo::BufferViewType::Index].name = "Indices";
+            BakedScene.bufferViews[(u32)assetLib::SceneInfo::BufferViewType::Meshlet].name = "Meshlets";
             for (auto& view : BakedScene.bufferViews)
                 view.buffer = 0;
 
-            Positions.ViewIndex = 0;
-            Normals.ViewIndex = 1;
-            Tangents.ViewIndex = 2;
-            UVs.ViewIndex = 3;
-            Indices.ViewIndex = 4;
-            Meshlets.ViewIndex = 5;
+            Positions.ViewIndex = (u32)assetLib::SceneInfo::BufferViewType::Position;
+            Normals.ViewIndex = (u32)assetLib::SceneInfo::BufferViewType::Normal;
+            Tangents.ViewIndex = (u32)assetLib::SceneInfo::BufferViewType::Tangent;
+            UVs.ViewIndex = (u32)assetLib::SceneInfo::BufferViewType::Uv;
+            Indices.ViewIndex = (u32)assetLib::SceneInfo::BufferViewType::Index;
+            Meshlets.ViewIndex = (u32)assetLib::SceneInfo::BufferViewType::Meshlet;
         }
 
         void Finalize()
@@ -1153,7 +1156,7 @@ namespace
 
             tinygltf::TinyGLTF writer = {};
             writer.SetImageWriter(nullptr, nullptr);
-            writer.WriteGltfSceneToFile(&BakedScene, BakedScenePath);
+            writer.WriteGltfSceneToFile(&BakedScene, BakedScenePath.string());
         }
 
         template <typename T>
@@ -1288,13 +1291,32 @@ namespace
             ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES)
             
             tinygltf::Accessor& indexAccessor = gltf.accessors[primitive.indices];
-            ASSERT(indexAccessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT)
             std::vector<u32> indices(indexAccessor.count);
-            copyBufferToVector(indices, gltf, indexAccessor);
+            switch (indexAccessor.componentType)
+            {
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE:
+                    {
+                        std::vector<u8> rawIndices(indexAccessor.count);
+                        copyBufferToVector(rawIndices, gltf, indexAccessor);
+                        indices.assign_range(rawIndices);
+                    }
+                    break;
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT:
+                    {
+                        std::vector<u16> rawIndices(indexAccessor.count);
+                        copyBufferToVector(rawIndices, gltf, indexAccessor);
+                        indices.assign_range(rawIndices);
+                    }
+                    break;
+                case TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT:
+                    copyBufferToVector(indices, gltf, indexAccessor);
+                    break;
+                default:
+                    ASSERT(false);
+            }
 
             std::vector<glm::vec3> positions;
             std::vector<glm::vec3> normals;
-            std::vector<glm::vec3> tangents;
             std::vector<glm::vec4> tangents;
             std::vector<glm::vec2> uvs;
             for (auto& attribute : primitive.attributes)
@@ -1352,12 +1374,12 @@ namespace
             tinygltf::ParseJsonAsValue(&backedPrimitive.extras, extras);
 
             backedPrimitive.attributes = {
-                {"POSITION",    currentAccessorIndex + 0},
-                {"NORMAL",      currentAccessorIndex + 1},
-                {"TANGENT",     currentAccessorIndex + 2},
-                {"TEXCOORD_0",  currentAccessorIndex + 3},
+                {"POSITION",    currentAccessorIndex + (u32)assetLib::SceneInfo::BufferViewType::Position},
+                {"NORMAL",      currentAccessorIndex + (u32)assetLib::SceneInfo::BufferViewType::Normal},
+                {"TANGENT",     currentAccessorIndex + (u32)assetLib::SceneInfo::BufferViewType::Tangent},
+                {"TEXCOORD_0",  currentAccessorIndex + (u32)assetLib::SceneInfo::BufferViewType::Uv},
             };
-            backedPrimitive.indices = currentAccessorIndex + 4;
+            backedPrimitive.indices = (i32)currentAccessorIndex + (u32)assetLib::SceneInfo::BufferViewType::Index;
             
             backedMesh.primitives.push_back(backedPrimitive);
         }
@@ -1409,7 +1431,7 @@ void SceneConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
 
     SceneProcessContext ctx = {};
     ctx.BinaryName = blobPath.string();
-    ctx.BakedScenePath = assetPath.string();
+    ctx.BakedScenePath = assetPath;
     ctx.BakedScene = gltf;
     ctx.Prepare();
     

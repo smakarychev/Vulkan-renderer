@@ -62,8 +62,11 @@ public:
 
     void CopyBuffer(CopyBufferCommand&& command);
 
+    // todo: remove this version?
     template <typename T>
     T* MapBuffer(Buffer buffer, u64 bufferOffset = 0);
+    template <typename T>
+    T* MapBuffer(const BufferSubresource& buffer);
 private:
     void ManageLifeTime();
     StagingBufferInfo CreateStagingBuffer(u64 sizeBytes);
@@ -117,17 +120,26 @@ void ResourceUploader::UpdateBuffer(Buffer buffer, T&& data, u64 bufferOffset)
 template <typename T>
 T* ResourceUploader::MapBuffer(Buffer buffer, u64 bufferOffset)
 {
-    const usize bufferSize = Device::GetBufferSizeBytes(buffer);
-    EnsureCapacity(bufferSize);
+    return MapBuffer<T>({
+        .Buffer = buffer,
+        .Description = {
+            .SizeBytes = Device::GetBufferSizeBytes(buffer),
+            .Offset = bufferOffset}});   
+}
+
+template <typename T>
+T* ResourceUploader::MapBuffer(const BufferSubresource& buffer)
+{
+    EnsureCapacity(buffer.Description.SizeBytes);
     auto& state = m_PerFrameState[m_CurrentFrame];
     const u64 offset = state.CurrentBufferOffset;
     state.BufferUploads.push_back({
         .Source = state.StageBuffers[state.LastUsedBuffer].Buffer,
-        .Destination = buffer,
-        .SizeBytes = bufferSize,
+        .Destination = buffer.Buffer,
+        .SizeBytes = buffer.Description.SizeBytes,
         .SourceOffset = offset,
-        .DestinationOffset = bufferOffset});
-    state.CurrentBufferOffset += bufferSize;
+        .DestinationOffset = buffer.Description.Offset});
+    state.CurrentBufferOffset += buffer.Description.SizeBytes;
     
     return (T*)
         ((std::byte*)Device::GetBufferMappedAddress(state.StageBuffers[state.LastUsedBuffer].Buffer) + offset);      
