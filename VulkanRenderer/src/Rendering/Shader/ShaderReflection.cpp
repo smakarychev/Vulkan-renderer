@@ -179,7 +179,6 @@ namespace
                     },
                     [](const auto& a, const auto& b)
                     {
-                        ASSERT(a.Name == b.Name, "Descriptors have same binding but different names")
                         assetLib::ShaderStageInfo::DescriptorSet::DescriptorBinding mergedDescriptor = a;
                         mergedDescriptor.ShaderStages |= b.ShaderStages;
 
@@ -313,15 +312,25 @@ namespace
 
         return pushConstants;
     }
+
+    void mergeAliasedDescriptors(std::vector<assetLib::ShaderStageInfo::DescriptorSet::DescriptorBinding>& descriptors)
+    {
+        if (descriptors.empty())
+            return;
+        
+        /* rely on a fact that descriptors are sorted at this stage */
+        for (u32 i = (u32)descriptors.size() - 1; i >= 1; i--)
+            if (descriptors[i].Binding == descriptors[i - 1].Binding)
+                descriptors.erase(descriptors.begin() + i);
+    }
 }
 
 
 ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& paths)
 {
     std::string shaderKey = AssetManager::GetShaderKey(paths);
-    
-    ShaderReflection* cachedShader = AssetManager::GetShader(shaderKey);  
-    if (cachedShader)
+
+    if (ShaderReflection* cachedShader = AssetManager::GetShader(shaderKey))
         return cachedShader;
 
     ShaderReflection shader;
@@ -340,6 +349,7 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& 
     for (auto& set : mergedShaderInfo.DescriptorSets)
     {
         std::ranges::sort(set.Descriptors, [](auto& a, auto& b) { return a.Binding < b.Binding; });
+        mergeAliasedDescriptors(set.Descriptors);
 
         // assert that bindings starts with 0 and have no holes
         for (u32 bindingIndex = 0; bindingIndex < set.Descriptors.size(); bindingIndex++)

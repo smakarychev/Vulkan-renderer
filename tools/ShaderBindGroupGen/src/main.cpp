@@ -105,14 +105,14 @@ nlohmann::json loadShaderInfos(const fs::path& shadersPath)
                 
                 for (const auto& binding : set["bindings"])
                 {
-                    std::string name = binding["name"];
+                    const std::string name = canonicalizeBindingName(binding["name"]);
                     if (processedBindings.contains(name))
                         continue;
 
                     processedBindings.emplace(name);
 
                     nlohmann::json bindingJson = {};
-                    bindingJson["name"] = canonicalizeBindingName(name);
+                    bindingJson["name"] = name;
                     bindingJson["set"] = setIndex;
                     bindingJson["binding"] = (u32)binding["binding"];
                     bindingJson["count"] = (u32)binding["count"];
