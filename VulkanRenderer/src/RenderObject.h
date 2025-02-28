@@ -7,6 +7,7 @@
 #include "Settings.h"
 #include "RenderHandle.h"
 #include "Common/Geometry.h"
+#include "Common/Transform.h"
 #include "Rendering/Image/Image.h"
 
 class Mesh;
@@ -38,20 +39,7 @@ struct MaterialGPU
     RenderHandle<Image> EmissiveTextureHandle{NO_TEXTURE};
 };
 
-struct RenderObjectTransform
-{
-    glm::vec3 Position{};
-    glm::quat Orientation{};
-    glm::vec3 Scale{1.0f};
-
-    glm::mat4 ToMatrix() const
-    {
-        return
-            glm::translate(glm::mat4{1.0f}, Position) * 
-            glm::toMat4(Orientation) * 
-            glm::scale(glm::mat4{1.0f}, Scale);
-    }
-};
+using RenderObjectTransform = Transform3d;
 
 struct RenderObject
 {

@@ -1,0 +1,116 @@
+#include "SceneHierarchy.h"
+
+#include "ResourceUploader.h"
+#include "Scene.h"
+#include "SceneAsset.h"
+
+#include <queue>
+
+SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
+{
+    SceneHierarchyInfo sceneHierarchy = {};
+
+    const u32 sceneIndex = sceneInfo.Scene.defaultScene > 0 ? (u32)sceneInfo.Scene.defaultScene : 0;
+    auto& scene = sceneInfo.Scene.scenes[sceneIndex];
+    
+    auto& nodes = sceneInfo.Scene.nodes;
+    sceneHierarchy.Nodes.reserve(nodes.size());
+
+    struct NodeInfo
+    {
+        u32 ParentIndex{SceneHierarchyHandle::INVALID};
+        u32 NodeIndex{SceneHierarchyHandle::INVALID};
+        u16 Depth{0};
+    };
+    std::queue<NodeInfo> nodesToProcess;
+    for (auto& node : scene.nodes)
+        nodesToProcess.push({.NodeIndex = (u32)node});
+
+    while (!nodesToProcess.empty())
+    {
+        auto [parent, nodeIndex, depth] = nodesToProcess.front();
+        nodesToProcess.pop();
+
+        sceneHierarchy.MaxDepth = std::max(sceneHierarchy.MaxDepth, depth);
+
+        auto& node = nodes[nodeIndex];
+        SceneHierarchyNodeType type = SceneHierarchyNodeType::Dummy;
+        if (node.mesh >= 0)
+            type = SceneHierarchyNodeType::Mesh;
+
+        const u32 thisNodeNewIndex = (u32)sceneHierarchy.Nodes.size();
+        sceneHierarchy.Nodes.push_back({
+            .Type = type,
+            .Depth = depth,
+            .Parent = parent,
+            .LocalTransform = assetLib::getTransform(node),
+            .PayloadIndex = (u32)node.mesh});
+
+        for (u32 childNode : nodes[nodeIndex].children)
+            nodesToProcess.push({
+                .ParentIndex = thisNodeNewIndex,
+                .NodeIndex = childNode,
+                .Depth = (u16)(depth + 1)});
+    }
+    
+    return sceneHierarchy;
+}
+
+SceneHierarchyHandle SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransform,
+    SceneHierarchyHandle parent)
+{
+    ASSERT(instance.m_InstanceId == (u32)m_InstancesData.size(), "Every instance must have its hierarchy added")
+    
+    const SceneHierarchyInfo& instanceHierarchy = instance.m_SceneInfo->m_Hierarchy; 
+
+    const InstanceData instanceData = {
+        .FirstNode = (u32)m_Info.Nodes.size(),
+        .NodeCount = (u32)instanceHierarchy.Nodes.size(),
+        .FirstRenderObject = m_InstancesData.empty() ?
+            0 : m_InstancesData.back().FirstRenderObject + m_InstancesData.back().RenderObjectCount,
+        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Meshes.size()};
+    m_InstancesData.push_back(instanceData);
+
+    const u16 parentDepth = parent == SceneHierarchyHandle::INVALID ?
+        0 : m_Info.Nodes[parent].Depth;
+
+    for (auto& node : instanceHierarchy.Nodes)
+    {
+        const bool isTopLevel = node.Parent == SceneHierarchyHandle::INVALID;
+        const u32 payloadIndex = node.Type == SceneHierarchyNodeType::Mesh ?
+            node.PayloadIndex + instanceData.FirstRenderObject : node.PayloadIndex;
+        m_Info.Nodes.push_back({
+            .Type = node.Type,
+            .Depth = (u16)(parentDepth + node.Depth),
+            .Parent = isTopLevel ? parent : node.Parent + instanceData.FirstNode,
+            .LocalTransform = isTopLevel ?
+                baseTransform.ToMatrix() * node.LocalTransform :
+                node.LocalTransform,
+            .PayloadIndex = payloadIndex});
+    }
+    m_Info.MaxDepth = std::max(m_Info.MaxDepth, (u16)(parentDepth + instanceHierarchy.MaxDepth));
+    
+    return {};
+}
+
+void SceneHierarchy::OnUpdate(SceneGeometry2& geometry, ResourceUploader& uploader)
+{
+    auto& nodes = m_Info.Nodes;
+    std::vector<glm::mat4> transforms(nodes.size());
+
+    for (u32 i = 0; i < nodes.size(); i++)
+        transforms[i] = nodes[i].Parent == SceneHierarchyHandle::INVALID ?
+            nodes[i].LocalTransform :
+            transforms[nodes[i].Parent.Handle] * nodes[i].LocalTransform;
+
+    for (auto&& [i, node] : std::ranges::views::enumerate(nodes))
+    {
+        if (node.Type != SceneHierarchyNodeType::Mesh)
+            continue;
+
+        uploader.UpdateBuffer(
+            geometry.RenderObjects,
+            transforms[i],
+            node.PayloadIndex * sizeof(RenderObjectGPU2) + offsetof(RenderObjectGPU2, Transform));
+    }
+}

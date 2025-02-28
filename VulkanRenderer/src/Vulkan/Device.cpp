@@ -1911,6 +1911,8 @@ void Device::Destroy(BufferArena bufferArena)
     
     vmaClearVirtualBlock(bufferArenaResource.VirtualBlock);
     vmaDestroyVirtualBlock(bufferArenaResource.VirtualBlock);
+
+    Resources().RemoveResource(bufferArena);
 }
 
 void Device::ResizeBufferArena(BufferArena arena, u64 newSize, RenderCommandList& cmdList, bool copyData)

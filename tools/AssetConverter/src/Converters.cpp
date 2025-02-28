@@ -54,7 +54,7 @@ namespace
         std::filesystem::path processedPath = rawFilePath.filename();
 
         std::filesystem::path currentPath = rawFilePath.parent_path();
-        while (currentPath != initialDirectoryPath)
+        while (!std::filesystem::equivalent(currentPath, initialDirectoryPath))
         {
             if (currentPath.filename() == RAW_ASSETS_DIRECTORY_NAME)
                 break;

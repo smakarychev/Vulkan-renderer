@@ -108,6 +108,8 @@ SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,
     LoadMaterials(scene, sceneInfo, texturesRingBuffer, deletionQueue);
     LoadMeshes(scene, sceneInfo);
 
+    scene.m_Hierarchy = SceneHierarchyInfo::FromAsset(sceneInfo);
+
     return AssetManager::AddSceneInfo(assetPath, std::move(scene));
 }
 
@@ -215,7 +217,7 @@ void SceneInfo::LoadMeshes(SceneInfo& scene, assetLib::SceneInfo& sceneInfo)
                 .Radius = meshletAccessorJson["bounding_sphere"]["radius"]};
 
             scene.m_Meshes.push_back({
-                .Material = (u32)primitive.material,
+                .Material = (u32)std::max(primitive.material, 0),
                 .Indices = indexBuffer,
                 .Positions = positionBuffer,
                 .Normals = normalsBuffer,
@@ -264,7 +266,8 @@ Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
     return scene;
 }
 
-SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, RenderCommandList& cmdList, ResourceUploader& uploader)
+SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
+    RenderCommandList& cmdList, ResourceUploader& uploader)
 {
     using enum assetLib::SceneInfo::BufferViewType;
 
@@ -305,7 +308,7 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, RenderCommandList& 
             sizeof(glm::vec3)) + sceneInfoGeometry.ElementOffsets[(u32)Position];
         
         renderObjects[meshIndex] = {
-            // todo: actual transform
+            /* this value is irrelevant, because the transform will be set by SceneHierarchy */
             .Transform = glm::mat4(1.0f),
             .BoundingSphere = mesh.BoundingSphere,
             .MaterialGPU = mesh.Material,
@@ -332,7 +335,10 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, RenderCommandList& 
     m_Geometry.RenderObjectsOffsetBytes += sceneInfo.m_Meshes.size() * sizeof(RenderObjectGPU2);
     m_Geometry.CommandsOffsetBytes += meshletCount * sizeof(IndirectDrawCommand);
 
-    return RegisterSceneInstance(sceneInfo);
+    const SceneInstance instance = RegisterSceneInstance(sceneInfo);
+    m_Hierarchy.Add(instance, instantiationData.Transform);
+    
+    return instance;
 }
 
 void Scene::InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList, ResourceUploader& uploader)

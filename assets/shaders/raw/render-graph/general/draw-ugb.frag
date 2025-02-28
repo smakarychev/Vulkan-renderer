@@ -28,7 +28,7 @@ layout(std430, set = 2, binding = 0) readonly buffer material_buffer {
 layout(set = 2, binding = 1) uniform texture2D u_textures[];
 
 vec3 shade_directional_pbr(ShadeInfo shade_info) {
-    const vec3 light_dir = normalize(vec3(1.0, 0.5, -1.0));
+    const vec3 light_dir = normalize(vec3(1.0, 0.5, 1.0));
     const vec3 radiance = vec3(10);
 
     const vec3 halfway_dir = normalize(light_dir + shade_info.view);
@@ -55,6 +55,8 @@ void main() {
 
     vec4 albedo = material.albedo_color;
     albedo *= texture(nonuniformEXT(sampler2D(u_textures[material.albedo_texture_index], u_sampler)), vertex_uv);
+    if (albedo.a < 0.5f)
+        discard;
 
     vec3 normal = normalize(vertex_normal);
     vec3 tangent = normalize(vertex_tangent.xyz);
@@ -101,7 +103,7 @@ void main() {
     color = shade_directional_pbr(shade_info);
     color = tonemap(color, 2.0f);
 
-    color += emissive;
+    color += emissive + 0.1f * albedo.rgb;
     
     out_color = vec4(color, 1.0f);
 }

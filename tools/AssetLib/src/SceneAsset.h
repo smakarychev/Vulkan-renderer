@@ -9,6 +9,7 @@
 #include "types.h"
 
 #include <filesystem>
+#include <glm/glm.hpp>
 
 namespace assetLib
 {
@@ -39,4 +40,6 @@ namespace assetLib
 
     std::optional<SceneInfo> readSceneHeader(const std::filesystem::path& path);
     bool readSceneBinary(SceneInfo& sceneInfo);
+
+    glm::mat4 getTransform(tinygltf::Node& node);
 }

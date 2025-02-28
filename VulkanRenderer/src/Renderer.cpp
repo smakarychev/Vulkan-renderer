@@ -4,6 +4,7 @@
 
 #include "AssetManager.h"
 #include "CameraGPU.h"
+#include "Converters.h"
 #include "Model.h"
 #include "ShadingSettingsGPU.h"
 #include "Core/Input.h"
@@ -24,6 +25,7 @@
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
+#include "RenderGraph/Passes/General/DrawSceneUnifiedBasic.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
@@ -167,6 +169,27 @@ void Renderer::InitRenderGraph()
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
             1, 5000000, *GetFrameContext().ResourceUploader));
+
+    SceneConverter::Convert(
+        *CVars::Get().GetStringCVar({"Path.Assets"}),
+        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/forest_house/scene.gltf");
+    
+    m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
+    SceneInfo* sceneInfo = SceneInfo::LoadFromAsset(
+        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/forest_house/scene.scene",
+        *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
+    SceneInstance instance = m_Scene.Instantiate(*sceneInfo, {
+        .Transform = {
+            .Position = glm::vec3{0.0f, 0.0f, 0.0f},
+            .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+            .Scale = glm::vec3{10.0f},}},
+        GetFrameContext().CommandList, m_ResourceUploader);
+    SceneInstance instance2 = m_Scene.Instantiate(*sceneInfo, {
+        .Transform = {
+            .Position = glm::vec3{3.0f, 0.0f, 0.0f},
+            .Scale = glm::vec3{10.0f},}},
+        GetFrameContext().CommandList, m_ResourceUploader);
+
 
     /* initial submit */
     Device::ImmediateSubmit([&](CommandBuffer, RenderCommandList& cmdList)
@@ -569,8 +592,7 @@ void Renderer::Run()
     {
         glfwPollEvents();
 
-        // todo: move to OnUpdate
-        m_CameraController->OnUpdate(1.0f / 60.0f);
+        OnUpdate();
         
         OnRender();
     }
@@ -583,6 +605,7 @@ void Renderer::OnRender()
     BeginFrame();
     /* light update requires cmd in recording state */
     UpdateLights();
+    m_Scene.Hierarchy().OnUpdate(m_Scene.Geometry(), m_ResourceUploader);
 
     {
         // todo: as always everything in this file is somewhat temporary

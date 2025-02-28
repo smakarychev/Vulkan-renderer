@@ -1,8 +1,8 @@
 #pragma once
 #include "RenderObject.h"
 #include "SceneAsset.h"
+#include "SceneHierarchy.h"
 #include "Rendering/Buffer/Buffer.h"
-#include "Rendering/Image/Image.h"
 #include "Vulkan/Device.h"
 
 namespace assetLib
@@ -23,11 +23,6 @@ struct SceneMesh
     BufferSubresource Meshlets{};
     AABB BoundingBox{};
     Sphere BoundingSphere{};
-};
-
-struct SceneHierarchy
-{
-    
 };
 
 /* todo: this has '2' in the name, should be removed once i get rid of old version */
@@ -53,6 +48,7 @@ struct SceneGeometry2
 class SceneInfo
 {
     friend class Scene;
+    friend class SceneHierarchy;
 public:
     static SceneInfo* LoadFromAsset(std::string_view assetPath,
         BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue);
@@ -64,25 +60,26 @@ private:
 private:
     Buffer m_Buffer{};
     std::array<BufferSubresourceDescription, (u32)assetLib::SceneInfo::BufferViewType::MaxVal> m_Views;
-    SceneHierarchy m_Hierarchy{};
+    SceneHierarchyInfo m_Hierarchy{};
     std::vector<MaterialGPU> m_Materials{};
     std::vector<SceneMesh> m_Meshes{};
 };
 
-class SceneInstance
+struct SceneInstantiationData
 {
-    friend class Scene;
-    u32 m_InstanceId{0};
-    const SceneInfo* m_SceneInfo{};
+    Transform3d Transform{};
 };
 
 class Scene
 {
 public:
     static Scene CreateEmpty(DeletionQueue& deletionQueue);
-    const SceneGeometry2& Geometry() const { return m_Geometry; };
-
-    SceneInstance Instantiate(const SceneInfo& sceneInfo, RenderCommandList& cmdList, ResourceUploader& uploader);
+    const SceneGeometry2& Geometry() const { return m_Geometry; }
+    SceneGeometry2& Geometry() { return m_Geometry; }
+    SceneHierarchy& Hierarchy() { return m_Hierarchy; }
+    
+    SceneInstance Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
+        RenderCommandList& cmdList, ResourceUploader& uploader);
 private:
     void InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList, ResourceUploader& uploader);
     SceneInstance RegisterSceneInstance(const SceneInfo& sceneInfo);
@@ -101,6 +98,7 @@ private:
     static constexpr u64 DEFAULT_MATERIALS_BUFFER_SIZE_BYTES = 1llu * 512 * 1024;
 
     SceneGeometry2 m_Geometry{};
+    SceneHierarchy m_Hierarchy{};
     
     std::unordered_map<const SceneInfo*, u32> m_SceneInstancesMap{};
     std::unordered_map<const SceneInfo*, SceneInfoGeometry> m_SceneInfoGeometry{};
