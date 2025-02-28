@@ -56,8 +56,7 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
     return sceneHierarchy;
 }
 
-SceneHierarchyHandle SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransform,
-    SceneHierarchyHandle parent)
+void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransform)
 {
     ASSERT(instance.m_InstanceId == (u32)m_InstancesData.size(), "Every instance must have its hierarchy added")
     
@@ -71,9 +70,6 @@ SceneHierarchyHandle SceneHierarchy::Add(SceneInstance instance, const Transform
         .RenderObjectCount = (u32)instance.m_SceneInfo->m_Meshes.size()};
     m_InstancesData.push_back(instanceData);
 
-    const u16 parentDepth = parent == SceneHierarchyHandle::INVALID ?
-        0 : m_Info.Nodes[parent].Depth;
-
     for (auto& node : instanceHierarchy.Nodes)
     {
         const bool isTopLevel = node.Parent == SceneHierarchyHandle::INVALID;
@@ -81,16 +77,15 @@ SceneHierarchyHandle SceneHierarchy::Add(SceneInstance instance, const Transform
             node.PayloadIndex + instanceData.FirstRenderObject : node.PayloadIndex;
         m_Info.Nodes.push_back({
             .Type = node.Type,
-            .Depth = (u16)(parentDepth + node.Depth),
-            .Parent = isTopLevel ? parent : node.Parent + instanceData.FirstNode,
+            .Depth = node.Depth,
+            .Parent = isTopLevel ? SceneHierarchyHandle::INVALID : node.Parent + instanceData.FirstNode,
             .LocalTransform = isTopLevel ?
                 baseTransform.ToMatrix() * node.LocalTransform :
                 node.LocalTransform,
             .PayloadIndex = payloadIndex});
     }
-    m_Info.MaxDepth = std::max(m_Info.MaxDepth, (u16)(parentDepth + instanceHierarchy.MaxDepth));
     
-    return {};
+    m_Info.MaxDepth = std::max(m_Info.MaxDepth, instanceHierarchy.MaxDepth);
 }
 
 void SceneHierarchy::OnUpdate(SceneGeometry2& geometry, ResourceUploader& uploader)

@@ -51,8 +51,7 @@ class SceneHierarchy
 {
     friend class Scene;
 public:
-    SceneHierarchyHandle Add(SceneInstance instance,
-        const Transform3d& baseTransform, SceneHierarchyHandle parent = {SceneHierarchyHandle::INVALID});
+    void Add(SceneInstance instance, const Transform3d& baseTransform);
     
     void OnUpdate(SceneGeometry2& geometry, ResourceUploader& uploader);
 private:
