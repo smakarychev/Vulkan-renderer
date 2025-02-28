@@ -11,7 +11,10 @@ workspace "VulkanRenderer"
 	}
     startproject "VulkanRenderer"
 
-    linkoptions { "/NODEFAULTLIB:LIBCMTD.LIB" }
+    linkoptions { 
+        "/NODEFAULTLIB:LIBCMTD.LIB,MSVCRT.LIB",
+        "/IGNORE:4221,4099,4006"
+    }
 
     
 group "Dependencies"
