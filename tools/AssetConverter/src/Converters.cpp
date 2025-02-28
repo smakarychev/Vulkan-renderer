@@ -1286,6 +1286,7 @@ namespace
         tinygltf::Mesh backedMesh = mesh;
         backedMesh.primitives = {};
         
+        ASSERT(mesh.primitives.size() < 2)
         for (auto& primitive : mesh.primitives)
         {
             ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES)
@@ -1435,26 +1436,8 @@ void SceneConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
     ctx.BakedScene = gltf;
     ctx.Prepare();
     
-    std::stack<u32> nodesToProcess;
-    for (auto& node : scene.nodes)
-        nodesToProcess.push((u32)node);
-
-    auto processNode = [&gltf, &ctx](u32 nodeIndex) {
-        auto& node = gltf.nodes[nodeIndex];
-
-        if (node.mesh >= 0)
-            processMesh(ctx, gltf, gltf.meshes[node.mesh]);
-    };
-
-    while (!nodesToProcess.empty())
-    {
-        u32 nodeIndex = nodesToProcess.top();
-        nodesToProcess.pop();
-
-        processNode(nodeIndex);
-        for (u32 childNode : gltf.nodes[nodeIndex].children)
-            nodesToProcess.push(childNode);
-    }
+    for (auto& mesh : gltf.meshes)
+        processMesh(ctx, gltf, mesh);
 
     ctx.Finalize();
 
