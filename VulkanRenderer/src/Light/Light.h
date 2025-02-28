@@ -16,7 +16,7 @@ struct DirectionalLight
     f32 Size{1.0f};
 };
 
-// todo: remove me in favor of sphere and tube lights
+// todo: remove me in favour of sphere and tube lights
 
 struct PointLight
 {
