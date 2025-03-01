@@ -183,12 +183,12 @@ void Renderer::InitRenderGraph()
             .Position = glm::vec3{0.0f, 0.0f, 0.0f},
             .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
             .Scale = glm::vec3{10.0f},}},
-        GetFrameContext().CommandList, m_ResourceUploader);
+        GetFrameContext());
     SceneInstance instance2 = m_Scene.Instantiate(*sceneInfo, {
         .Transform = {
             .Position = glm::vec3{3.0f, 0.0f, 0.0f},
             .Scale = glm::vec3{10.0f},}},
-        GetFrameContext().CommandList, m_ResourceUploader);
+        GetFrameContext());
 
 
     /* initial submit */

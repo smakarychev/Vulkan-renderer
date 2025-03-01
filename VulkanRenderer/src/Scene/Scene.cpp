@@ -5,6 +5,7 @@
 
 #include "AssetManager.h"
 #include "BindlessTextureDescriptorsRingBuffer.h"
+#include "FrameContext.h"
 #include "ResourceUploader.h"
 #include "SceneAsset.h"
 #include "Vulkan/Device.h"
@@ -136,6 +137,8 @@ void SceneInfo::LoadBuffers(SceneInfo& scene, assetLib::SceneInfo& sceneInfo, De
 void SceneInfo::LoadMaterials(SceneInfo& scene, assetLib::SceneInfo& sceneInfo,
     BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue)
 {
+    // todo: samplers ?
+    
     std::vector<bool> loadedTextures(sceneInfo.Scene.textures.size());
     auto processTexture = [&](const auto& texture, Format format, RenderHandle<Texture> fallback) ->
         RenderHandle<Texture> {
@@ -267,30 +270,30 @@ Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
 }
 
 SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
-    RenderCommandList& cmdList, ResourceUploader& uploader)
+    FrameContext& ctx)
 {
     using enum assetLib::SceneInfo::BufferViewType;
 
     if (m_SceneInstancesMap[&sceneInfo] == 0)
-        InitGeometry(sceneInfo, cmdList, uploader);
+        InitGeometry(sceneInfo, ctx);
     const SceneInfoGeometry& sceneInfoGeometry = m_SceneInfoGeometry[&sceneInfo];
 
     growBufferIfNeeded(
         m_Geometry.RenderObjects,
         sceneInfo.m_Meshes.size() * sizeof(RenderObjectGPU2) + m_Geometry.RenderObjectsOffsetBytes,
-        cmdList);
+        ctx.CommandList);
     const u32 meshletCount = (u32)(sceneInfo.m_Views[(u32)Meshlet].SizeBytes / sizeof(assetLib::ModelInfo::Meshlet));
     m_Geometry.CommandCount += meshletCount;
     growBufferIfNeeded(m_Geometry.Commands,
         meshletCount * sizeof(IndirectDrawCommand) + m_Geometry.CommandsOffsetBytes,
-        cmdList);
+        ctx.CommandList);
 
-    RenderObjectGPU2* renderObjects = uploader.MapBuffer<RenderObjectGPU2>({
+    RenderObjectGPU2* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU2>({
         .Buffer = m_Geometry.RenderObjects,
         .Description = {
             .SizeBytes = sceneInfo.m_Meshes.size() * sizeof(RenderObjectGPU2),
             .Offset = m_Geometry.RenderObjectsOffsetBytes}});
-    IndirectDrawCommand* commands = uploader.MapBuffer<IndirectDrawCommand>({
+    IndirectDrawCommand* commands = ctx.ResourceUploader->MapBuffer<IndirectDrawCommand>({
         .Buffer = m_Geometry.Commands,
         .Description = {
             .SizeBytes = meshletCount * sizeof(IndirectDrawCommand),
@@ -341,7 +344,7 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
     return instance;
 }
 
-void Scene::InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList, ResourceUploader& uploader)
+void Scene::InitGeometry(const SceneInfo& sceneInfo, FrameContext& ctx)
 {
     using enum assetLib::SceneInfo::BufferViewType;
 
@@ -355,9 +358,9 @@ void Scene::InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList,
             typeSize = sizeof(glm::vec2);
         
         const BufferSuballocation suballocation = suballocateResizeIfFailed(m_Geometry.Attributes,
-            sceneInfo.m_Views[i].SizeBytes, 1, cmdList);
+            sceneInfo.m_Views[i].SizeBytes, 1, ctx.CommandList);
         sceneGeometry.ElementOffsets[i] = (u32)(suballocation.Description.Offset / typeSize);
-        uploader.CopyBuffer({
+        ctx.ResourceUploader->CopyBuffer({
             .Source = sceneInfo.m_Buffer,
             .Destination = suballocation.Buffer,
             .SizeBytes = sceneInfo.m_Views[i].SizeBytes,
@@ -367,9 +370,9 @@ void Scene::InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList,
 
     static constexpr u32 INDEX_TYPE_SIZE = sizeof(assetLib::ModelInfo::IndexType);
     const BufferSuballocation indicesSuballocation = suballocateResizeIfFailed(m_Geometry.Indices,
-        sceneInfo.m_Views[(u32)Index].SizeBytes, 1, cmdList);
+        sceneInfo.m_Views[(u32)Index].SizeBytes, 1, ctx.CommandList);
     sceneGeometry.ElementOffsets[(u32)Index] = (u32)(indicesSuballocation.Description.Offset / INDEX_TYPE_SIZE);
-    uploader.CopyBuffer({
+    ctx.ResourceUploader->CopyBuffer({
         .Source = sceneInfo.m_Buffer,
         .Destination = indicesSuballocation.Buffer,
         .SizeBytes = sceneInfo.m_Views[(u32)Index].SizeBytes,
@@ -381,11 +384,11 @@ void Scene::InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList,
     const u64 meshletsSizeBytes = meshletCount * sizeof(assetLib::ModelInfo::Meshlet);
     growBufferIfNeeded(m_Geometry.Meshlets,
         meshletsSizeBytes + m_Geometry.MeshletsOffsetBytes,
-        cmdList);
+        ctx.CommandList);
     const Span meshletsView = Device::GetMappedBufferView<const assetLib::ModelInfo::Meshlet>({
         .Buffer = sceneInfo.m_Buffer,
         .Description = sceneInfo.m_Views[(u32)Meshlet]});
-    MeshletGPU* meshlets = uploader.MapBuffer<MeshletGPU>({
+    MeshletGPU* meshlets = ctx.ResourceUploader->MapBuffer<MeshletGPU>({
         .Buffer = m_Geometry.Meshlets,
         .Description = {
             .SizeBytes = meshletsSizeBytes,
@@ -398,8 +401,8 @@ void Scene::InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList,
     const u64 materialsSizeBytes = sceneInfo.m_Materials.size() * sizeof(MaterialGPU);
     growBufferIfNeeded(m_Geometry.Materials,
         materialsSizeBytes + m_Geometry.MaterialsOffsetBytes,
-        cmdList);
-    uploader.UpdateBuffer(m_Geometry.Materials, sceneInfo.m_Materials, m_Geometry.MaterialsOffsetBytes);
+        ctx.CommandList);
+    ctx.ResourceUploader->UpdateBuffer(m_Geometry.Materials, sceneInfo.m_Materials, m_Geometry.MaterialsOffsetBytes);
 
     sceneGeometry.ElementOffsets[(u32)Meshlet] = (u32)(m_Geometry.MeshletsOffsetBytes /
         sizeof(assetLib::ModelInfo::Meshlet));

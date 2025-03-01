@@ -1,4 +1,5 @@
 #pragma once
+
 #include "RenderObject.h"
 #include "SceneAsset.h"
 #include "SceneHierarchy.h"
@@ -55,7 +56,7 @@ public:
 private:
     static void LoadBuffers(SceneInfo& scene, assetLib::SceneInfo& sceneInfo, DeletionQueue& deletionQueue);
     static void LoadMaterials(SceneInfo& scene, assetLib::SceneInfo& sceneInfo,
-        BindlessTextureDescriptorsRingBuffer& texturesRingBuffer,DeletionQueue& deletionQueue);
+        BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue);
     static void LoadMeshes(SceneInfo& scene, assetLib::SceneInfo& sceneInfo);
 private:
     Buffer m_Buffer{};
@@ -79,9 +80,9 @@ public:
     SceneHierarchy& Hierarchy() { return m_Hierarchy; }
     
     SceneInstance Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
-        RenderCommandList& cmdList, ResourceUploader& uploader);
+        FrameContext& ctx);
 private:
-    void InitGeometry(const SceneInfo& sceneInfo, RenderCommandList& cmdList, ResourceUploader& uploader);
+    void InitGeometry(const SceneInfo& sceneInfo, FrameContext& ctx);
     SceneInstance RegisterSceneInstance(const SceneInfo& sceneInfo);
 private:
     struct SceneInfoGeometry
