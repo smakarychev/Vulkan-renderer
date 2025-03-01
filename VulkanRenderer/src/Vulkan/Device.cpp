@@ -4597,7 +4597,7 @@ void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsComm
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
     BindDescriptors(cmd, *command.Allocators, command.PipelineLayout, command.Descriptors, command.Set,
-            VK_PIPELINE_BIND_POINT_COMPUTE);
+        VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
 void Device::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
