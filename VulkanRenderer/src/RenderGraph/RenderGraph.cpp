@@ -189,13 +189,13 @@ namespace RG
     }
 
     Resource Graph::RenderTarget(Resource resource, AttachmentLoad onLoad,
-        AttachmentStore onStore, const glm::vec4& clearColor)
+        AttachmentStore onStore, const ColorClearValue& clearColor)
     {
         return RenderTarget(resource, {}, onLoad, onStore, clearColor);
     }
 
     Resource Graph::RenderTarget(Resource resource, ImageSubresourceDescription subresource,
-        AttachmentLoad onLoad, AttachmentStore onStore, const glm::vec4& clearColor)
+        AttachmentLoad onLoad, AttachmentStore onStore, const ColorClearValue& clearColor)
     {
         RenderTargetAccess renderTargetAccess = {};
         

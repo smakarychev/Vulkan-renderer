@@ -3,6 +3,7 @@
 #include "Rendering/Buffer/Buffer.h"
 #include "Rendering/SynchronizationTraits.h"
 #include "Rendering/Image/Image.h"
+#include "Rendering/RenderingInfo.h"
 
 namespace RG
 {
@@ -99,7 +100,7 @@ namespace RG
         ImageSubresourceDescription m_ViewSubresource{};
         AttachmentLoad m_OnLoad{AttachmentLoad::Unspecified};
         AttachmentStore m_OnStore{AttachmentStore::Unspecified};
-        glm::vec4 m_ClearColor{};
+        ColorClearValue m_ClearColor{};
     };
 
     class DepthStencilAccess

@@ -245,9 +245,9 @@ namespace RG
         Resource Write(Resource resource, ResourceAccessFlags writeFlags);
         Resource RenderTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore);
         Resource RenderTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore,
-            const glm::vec4& clearColor);
+            const ColorClearValue& clearColor);
         Resource RenderTarget(Resource resource, ImageSubresourceDescription subresource,
-            AttachmentLoad onLoad, AttachmentStore onStore, const glm::vec4& clearColor);
+            AttachmentLoad onLoad, AttachmentStore onStore, const ColorClearValue& clearColor);
         Resource DepthStencilTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore);
         Resource DepthStencilTarget(Resource resource,
             AttachmentLoad onLoad, AttachmentStore onStore,

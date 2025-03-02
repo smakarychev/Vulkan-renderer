@@ -36,7 +36,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             passData.CSM = graph.Read(csmOutput.CSM, Pixel | Uniform);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 colorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
-                AttachmentStore::Store, glm::vec4{0.0f, 0.0f, 0.0f, 1.0f});
+                AttachmentStore::Store, {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}});
 
             graph.UpdateBlackboard(passData);
         },

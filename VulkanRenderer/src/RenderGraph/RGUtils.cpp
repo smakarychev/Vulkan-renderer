@@ -72,7 +72,7 @@ namespace RG::RgUtils
             attachment.Resource = graph.RenderTarget(
                 attachment.Resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
-                attachment.Description.ClearColor.F);
+                attachment.Description.ClearColor);
             drawAttachmentResources.Colors.push_back(attachment.Resource);
         }
         if (attachments.Depth.has_value())
@@ -101,7 +101,7 @@ namespace RG::RgUtils
             drawAttachmentResources.Colors.push_back(graph.RenderTarget(
                 resource, attachment.Description.Subresource,
                 attachment.Description.OnLoad, attachment.Description.OnStore,
-                attachment.Description.ClearColor.F));
+                attachment.Description.ClearColor));
         }
         if (attachments.Depth.has_value())
         {
