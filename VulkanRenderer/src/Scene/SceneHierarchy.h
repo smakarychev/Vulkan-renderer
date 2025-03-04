@@ -9,7 +9,6 @@
 
 struct Transform3d;
 class ResourceUploader;
-struct SceneGeometry2;
 
 namespace assetLib
 {

@@ -67,7 +67,7 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
         .NodeCount = (u32)instanceHierarchy.Nodes.size(),
         .FirstRenderObject = m_InstancesData.empty() ?
             0 : m_InstancesData.back().FirstRenderObject + m_InstancesData.back().RenderObjectCount,
-        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Meshes.size()};
+        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Geometry.Meshes.size()};
     m_InstancesData.push_back(instanceData);
 
     for (auto& node : instanceHierarchy.Nodes)

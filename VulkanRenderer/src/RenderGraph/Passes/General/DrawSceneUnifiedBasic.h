@@ -4,7 +4,7 @@
 #include "RenderGraph/RGResource.h"
 
 class Camera;
-struct SceneGeometry2;
+class SceneGeometry2;
 
 /* this is pretty much ugb proof-of-concept */
 

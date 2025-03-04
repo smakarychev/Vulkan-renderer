@@ -14,6 +14,8 @@ struct DirectionalLight
     glm::vec3 Color{1.0f};
     f32 Intensity{1.0f};
     f32 Size{1.0f};
+
+    bool operator==(const DirectionalLight& other) const;
 };
 
 // todo: remove me in favour of sphere and tube lights
@@ -24,11 +26,15 @@ struct PointLight
     glm::vec3 Color{1.0f};
     f32 Intensity{1.0f};
     f32 Radius{1.0f};
+
+    bool operator==(const PointLight& other) const;
 };
 
 struct LightsInfo
 {
     u32 PointLightCount;
+
+    auto operator<=>(const LightsInfo& other) const = default;
 };
 
 struct LightCluster
