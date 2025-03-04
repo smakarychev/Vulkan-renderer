@@ -60,6 +60,8 @@ private:
         u32 NodeCount{0};
         u32 FirstRenderObject{0};
         u32 RenderObjectCount{0};
+        u32 FirstLight{0};
+        u32 LightCount{0};
     };
 private:
     SceneHierarchyInfo m_Info{};

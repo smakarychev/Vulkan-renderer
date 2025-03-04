@@ -37,14 +37,30 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
         SceneHierarchyNodeType type = SceneHierarchyNodeType::Dummy;
         if (node.mesh >= 0)
             type = SceneHierarchyNodeType::Mesh;
+        else if (node.light > 0)
+            type = SceneHierarchyNodeType::Light;
 
         const u32 thisNodeNewIndex = (u32)sceneHierarchy.Nodes.size();
+        u32 payloadIndex = ~0lu;
+        switch (type)
+        {
+        case SceneHierarchyNodeType::Mesh:
+            payloadIndex = node.mesh;
+            break;
+        case SceneHierarchyNodeType::Light:
+            payloadIndex = node.light;
+            break;
+        case SceneHierarchyNodeType::Dummy:
+        default:
+            break;
+        }
+        
         sceneHierarchy.Nodes.push_back({
             .Type = type,
             .Depth = depth,
             .Parent = parent,
             .LocalTransform = assetLib::getTransform(node),
-            .PayloadIndex = (u32)node.mesh});
+            .PayloadIndex = payloadIndex});
 
         for (u32 childNode : nodes[nodeIndex].children)
             nodesToProcess.push({
@@ -67,14 +83,28 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
         .NodeCount = (u32)instanceHierarchy.Nodes.size(),
         .FirstRenderObject = m_InstancesData.empty() ?
             0 : m_InstancesData.back().FirstRenderObject + m_InstancesData.back().RenderObjectCount,
-        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Geometry.Meshes.size()};
+        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Geometry.Meshes.size(),
+        .FirstLight = m_InstancesData.empty() ?
+            0 : m_InstancesData.back().FirstLight + m_InstancesData.back().LightCount,
+        .LightCount = (u32)instance.m_SceneInfo->m_Lights.Lights.size()};
     m_InstancesData.push_back(instanceData);
 
     for (auto& node : instanceHierarchy.Nodes)
     {
         const bool isTopLevel = node.Parent == SceneHierarchyHandle::INVALID;
-        const u32 payloadIndex = node.Type == SceneHierarchyNodeType::Mesh ?
-            node.PayloadIndex + instanceData.FirstRenderObject : node.PayloadIndex;
+        u32 payloadIndex = node.PayloadIndex;
+        switch (node.Type)
+        {
+        case SceneHierarchyNodeType::Mesh:
+            payloadIndex += instanceData.FirstRenderObject;
+            break;
+        case SceneHierarchyNodeType::Light:
+            payloadIndex += instanceData.FirstLight;
+            break;
+        case SceneHierarchyNodeType::Dummy:
+        default:
+            break;
+        }
         m_Info.Nodes.push_back({
             .Type = node.Type,
             .Depth = node.Depth,
