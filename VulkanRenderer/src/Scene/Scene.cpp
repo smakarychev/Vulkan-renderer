@@ -38,8 +38,8 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
     if (m_SceneInstancesMap[&sceneInfo] == 1)
         m_Geometry.Add(instance, ctx);
     m_Geometry.AddCommands(instance, ctx);
-    m_Hierarchy.Add(instance, instantiationData.Transform);
     m_Lights.Add(instance);
+    m_Hierarchy.Add(instance, instantiationData.Transform);
     
     return instance;
 }
