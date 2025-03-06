@@ -56,10 +56,16 @@ public:
         Buffer LightsInfo{};
     };
 public:
+    static SceneLight2 CreateEmpty(DeletionQueue& deletionQueue);
     void Add(SceneInstance instance);
-    
     void OnUpdate(FrameContext& ctx);
-    
+
+    void SetVisibleLights(const std::vector<u32>& visibleLights) { m_VisibleLights = visibleLights; }
+
+    u32 Count() const { return m_Lights.size(); }
+    CommonLight& Get(u32 index) { return m_Lights[index]; }
+    const CommonLight& Get(u32 index) const { return m_Lights[index]; }
+    const Buffers& GetBuffers() const { return m_Buffers; }
 private:
     void UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
     void UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);

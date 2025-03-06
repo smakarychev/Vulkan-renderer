@@ -3,6 +3,7 @@
 #include "RenderGraph.h"
 #include "RGDrawResources.h"
 
+class SceneLight2;
 class SceneLight;
 class SceneGeometry;
 
@@ -31,6 +32,7 @@ namespace RG::RgUtils
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
 
     SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage);
+    SceneLightResources readSceneLight(const SceneLight2& light, Graph& graph, ResourceAccessFlags shaderStage);
     
     IBLData readIBLData(const IBLData& ibl, Graph& graph, ResourceAccessFlags shaderStage);
     SSAOData readSSAOData(const SSAOData& ssao, Graph& graph, ResourceAccessFlags shaderStage);
@@ -76,7 +78,7 @@ namespace RG::RgUtils
     template <typename BindGroup>
     void updateSceneLightBindings(BindGroup& bindGroup, const Resources& resources, const SceneLightResources& lights)
     {
-        Buffer directionalLight = resources.GetBuffer(lights.DirectionalLight);
+        Buffer directionalLight = resources.GetBuffer(lights.DirectionalLights);
         Buffer pointLights = resources.GetBuffer(lights.PointLights);
         Buffer lightsInfo = resources.GetBuffer(lights.LightsInfo);
 

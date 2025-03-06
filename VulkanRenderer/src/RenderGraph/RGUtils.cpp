@@ -4,6 +4,7 @@
 #include "Scene/SceneGeometry.h"
 #include "Light/SceneLight.h"
 #include "RenderGraph/RGDrawResources.h"
+#include "Scene/SceneLight2.h"
 
 namespace RG::RgUtils
 {
@@ -124,15 +125,33 @@ namespace RG::RgUtils
 
         SceneLightResources resources = {};
 
-        resources.DirectionalLight = graph.AddExternal("Light.Directional",
+        resources.DirectionalLights = graph.AddExternal("Light.Directional",
             light.GetBuffers().DirectionalLight);
-        resources.DirectionalLight = graph.Read(resources.DirectionalLight, shaderStage | Uniform);
+        resources.DirectionalLights = graph.Read(resources.DirectionalLights, shaderStage | Uniform);
 
         resources.LightsInfo = graph.AddExternal("Light.LightsInfo", light.GetBuffers().LightsInfo);
         resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
 
         resources.PointLights = graph.AddExternal("Light.PointLights", LIGHT_CULLING ?
                 light.GetBuffers().VisiblePointLights : light.GetBuffers().PointLights);
+        resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
+        
+        return resources;
+    }
+
+    SceneLightResources readSceneLight(const SceneLight2& light, Graph& graph, ResourceAccessFlags shaderStage)
+    {
+        using enum ResourceAccessFlags;
+
+        SceneLightResources resources = {};
+
+        resources.DirectionalLights = graph.AddExternal("Light.Directional", light.GetBuffers().DirectionalLights);
+        resources.DirectionalLights = graph.Read(resources.DirectionalLights, shaderStage | Storage);
+
+        resources.LightsInfo = graph.AddExternal("Light.LightsInfo", light.GetBuffers().LightsInfo);
+        resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
+
+        resources.PointLights = graph.AddExternal("Light.PointLights", light.GetBuffers().PointLights);
         resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
         
         return resources;

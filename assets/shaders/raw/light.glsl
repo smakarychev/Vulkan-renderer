@@ -19,6 +19,7 @@ struct PointLight {
 };
 
 struct LightsInfo {
+    uint directional_light_count;
     uint point_light_count;
 };
 

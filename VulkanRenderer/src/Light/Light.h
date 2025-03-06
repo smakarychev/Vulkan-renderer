@@ -32,7 +32,8 @@ struct PointLight
 
 struct LightsInfo
 {
-    u32 PointLightCount;
+    u32 DirectionalLightCount{};
+    u32 PointLightCount{};
 
     auto operator<=>(const LightsInfo& other) const = default;
 };

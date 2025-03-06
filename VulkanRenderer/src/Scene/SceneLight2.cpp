@@ -48,6 +48,26 @@ SceneLightInfo SceneLightInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
     return sceneLightInfo;
 }
 
+SceneLight2 SceneLight2::CreateEmpty(DeletionQueue& deletionQueue)
+{
+    SceneLight2 light = {};
+
+    light.m_Buffers.DirectionalLights = Device::CreateBuffer({
+        .SizeBytes = sizeof(DirectionalLight),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
+        deletionQueue);
+    light.m_Buffers.PointLights = Device::CreateBuffer({
+        .SizeBytes = sizeof(PointLight),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
+        deletionQueue);
+    light.m_Buffers.LightsInfo = Device::CreateBuffer({
+        .SizeBytes = sizeof(LightsInfo),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Uniform | BufferUsage::Source},
+        deletionQueue);
+
+    return light;
+}
+
 void SceneLight2::Add(SceneInstance instance)
 {
     const SceneLightInfo& lightInfo = instance.m_SceneInfo->m_Lights;
@@ -79,9 +99,11 @@ void SceneLight2::OnUpdate(FrameContext& ctx)
     }
 
     const LightsInfo lightsInfo = {
+        .DirectionalLightCount = directionalLightIndex,
         .PointLightCount = pointLightIndex};
     if (m_CachedLightsInfo != lightsInfo)
         ctx.ResourceUploader->UpdateBuffer(m_Buffers.LightsInfo, lightsInfo);
+    m_CachedLightsInfo = lightsInfo;
 }
 
 void SceneLight2::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
@@ -97,6 +119,7 @@ void SceneLight2::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, Fra
         m_CachedDirectionalLights.resize(lightIndex + 1);
     else if (m_CachedDirectionalLights[lightIndex] == directionalLight)
         return;
+    m_CachedDirectionalLights[lightIndex] = directionalLight;
     ctx.ResourceUploader->UpdateBuffer(m_Buffers.DirectionalLights,
         directionalLight,
         lightIndex * sizeof(directionalLight));
@@ -115,6 +138,7 @@ void SceneLight2::UpdatePointLight(CommonLight& light, u32 lightIndex, FrameCont
         m_CachedPointLights.resize(lightIndex + 1);
     else if (m_CachedPointLights[lightIndex] == pointLight)
         return;
+    m_CachedPointLights[lightIndex] = pointLight;
     ctx.ResourceUploader->UpdateBuffer(m_Buffers.PointLights,
         pointLight,
         lightIndex * sizeof(pointLight));

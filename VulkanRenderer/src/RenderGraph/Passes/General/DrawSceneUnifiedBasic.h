@@ -3,6 +3,7 @@
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 
+class SceneLight2;
 class Camera;
 class SceneGeometry2;
 
@@ -13,6 +14,7 @@ namespace Passes::DrawSceneUnifiedBasic
     struct ExecutionInfo
     {
         const SceneGeometry2* Geometry{nullptr};
+        const SceneLight2* Lights{nullptr};
         glm::uvec2 Resolution{};
         const Camera* Camera{nullptr};
 

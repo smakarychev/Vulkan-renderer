@@ -172,22 +172,17 @@ void Renderer::InitRenderGraph()
 
     SceneConverter::Convert(
         *CVars::Get().GetStringCVar({"Path.Assets"}),
-        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/forest_house/scene.gltf");
+        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.gltf");
     
     m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
     SceneInfo* sceneInfo = SceneInfo::LoadFromAsset(
-        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/forest_house/scene.scene",
+        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.scene",
         *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
     SceneInstance instance = m_Scene.Instantiate(*sceneInfo, {
         .Transform = {
-            .Position = glm::vec3{0.0f, 0.0f, 0.0f},
+            .Position = glm::vec3{0.0f, -1.5f, -7.0f},
             .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-            .Scale = glm::vec3{10.0f},}},
-        GetFrameContext());
-    SceneInstance instance2 = m_Scene.Instantiate(*sceneInfo, {
-        .Transform = {
-            .Position = glm::vec3{3.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{10.0f},}},
+            .Scale = glm::vec3{1.0f},}},
         GetFrameContext());
 
 
@@ -296,6 +291,7 @@ void Renderer::SetupRenderGraph()
     
     auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB", *m_Graph, {
             .Geometry = &m_Scene.Geometry(),
+            .Lights = &m_Scene.Lights(),
             .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
             .Camera = GetFrameContext().PrimaryCamera,
         .Attachments = {
@@ -605,7 +601,9 @@ void Renderer::OnRender()
     BeginFrame();
     /* light update requires cmd in recording state */
     UpdateLights();
-    m_Scene.Hierarchy().OnUpdate(m_Scene.Geometry(), m_ResourceUploader);
+    LightFrustumCuller::CullDepthSort(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
+    m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
+    m_Scene.Lights().OnUpdate(GetFrameContext());
 
     {
         // todo: as always everything in this file is somewhat temporary

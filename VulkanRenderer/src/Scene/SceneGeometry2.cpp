@@ -222,30 +222,30 @@ SceneGeometry2 SceneGeometry2::CreateEmpty(DeletionQueue& deletionQueue)
     geometry.Attributes = Device::CreateBufferArena({
        .Buffer = Device::CreateBuffer({
            .SizeBytes = DEFAULT_ATTRIBUTES_BUFFER_ARENA_SIZE_BYTES,
-           .Usage = BufferUsage::Ordinary | BufferUsage::Storage},
+           .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
            deletionQueue)},
        deletionQueue);
     geometry.Indices = Device::CreateBufferArena({
         .Buffer = Device::CreateBuffer({
             .SizeBytes = DEFAULT_INDICES_BUFFER_ARENA_SIZE_BYTES,
-            .Usage = BufferUsage::Ordinary | BufferUsage::Index | BufferUsage::Storage},
+            .Usage = BufferUsage::Ordinary | BufferUsage::Index | BufferUsage::Storage | BufferUsage::Source},
             deletionQueue)},
         deletionQueue);
     geometry.RenderObjects = Device::CreateBuffer({
         .SizeBytes = DEFAULT_RENDER_OBJECTS_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage},
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
     geometry.Meshlets = Device::CreateBuffer({
         .SizeBytes = DEFAULT_MESHLET_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage},
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
     geometry.Commands = Device::CreateBuffer({
         .SizeBytes = DEFAULT_COMMANDS_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage},
+        .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
     geometry.Materials = Device::CreateBuffer({
         .SizeBytes = DEFAULT_MATERIALS_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage},
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
 
     return geometry;

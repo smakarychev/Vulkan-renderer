@@ -1,14 +1,13 @@
 #pragma once
 
 #include "types.h"
+#include "SceneInstance.h"
 
 #include <vector>
 #include <glm/glm.hpp>
 
-#include "SceneInstance.h"
-
+struct FrameContext;
 struct Transform3d;
-class ResourceUploader;
 
 namespace assetLib
 {
@@ -51,8 +50,7 @@ class SceneHierarchy
     friend class Scene;
 public:
     void Add(SceneInstance instance, const Transform3d& baseTransform);
-    
-    void OnUpdate(SceneGeometry2& geometry, ResourceUploader& uploader);
+    void OnUpdate(Scene& scene, FrameContext& ctx);
 private:
     struct InstanceData
     {

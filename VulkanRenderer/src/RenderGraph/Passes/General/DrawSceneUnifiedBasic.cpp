@@ -20,6 +20,7 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
         Resource Objects{};
         Resource Commands{};
         DrawAttachmentResources Attachments{};
+        SceneLightResources Light{};
     };
 
     Pass& pass = renderGraph.AddRenderPass<PassDataPrivate>(name,
@@ -47,6 +48,7 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
             passData.Commands = graph.Read(passData.Commands, Vertex | Indirect);
             
             passData.Attachments = RgUtils::readWriteDrawAttachments(info.Attachments, graph);
+            passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
             
             PassData passDataPublic = {};
             passDataPublic.Attachments = passData.Attachments;
@@ -64,6 +66,9 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
             bindGroup.SetUGB({.Buffer = resources.GetBuffer(passData.UGB)});
             bindGroup.SetCommands({.Buffer = resources.GetBuffer(passData.Commands)});
             bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
+            bindGroup.SetDirectionalLights({.Buffer = resources.GetBuffer(passData.Light.DirectionalLights)});
+            bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.Light.PointLights)});
+            bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.Light.LightsInfo)});
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

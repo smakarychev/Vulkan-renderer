@@ -16,8 +16,8 @@ SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,
     assetLib::readSceneBinary(sceneInfo);
 
     scene.m_Geometry = SceneGeometryInfo::FromAsset(sceneInfo, texturesRingBuffer, deletionQueue);
-    scene.m_Hierarchy = SceneHierarchyInfo::FromAsset(sceneInfo);
     scene.m_Lights = SceneLightInfo::FromAsset(sceneInfo);
+    scene.m_Hierarchy = SceneHierarchyInfo::FromAsset(sceneInfo);
 
     return AssetManager::AddSceneInfo(assetPath, std::move(scene));
 }
@@ -27,6 +27,7 @@ Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
     Scene scene = {};
 
     scene.m_Geometry = SceneGeometry2::CreateEmpty(deletionQueue);
+    scene.m_Lights = SceneLight2::CreateEmpty(deletionQueue);
 
     return scene;
 }

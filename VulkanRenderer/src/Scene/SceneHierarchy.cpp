@@ -6,6 +6,8 @@
 
 #include <queue>
 
+#include "FrameContext.h"
+
 SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
 {
     SceneHierarchyInfo sceneHierarchy = {};
@@ -37,7 +39,7 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
         SceneHierarchyNodeType type = SceneHierarchyNodeType::Dummy;
         if (node.mesh >= 0)
             type = SceneHierarchyNodeType::Mesh;
-        else if (node.light > 0)
+        else if (node.light >= 0)
             type = SceneHierarchyNodeType::Light;
 
         const u32 thisNodeNewIndex = (u32)sceneHierarchy.Nodes.size();
@@ -118,7 +120,35 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
     m_Info.MaxDepth = std::max(m_Info.MaxDepth, instanceHierarchy.MaxDepth);
 }
 
-void SceneHierarchy::OnUpdate(SceneGeometry2& geometry, ResourceUploader& uploader)
+namespace
+{
+    void updateMesh(Buffer renderObjects, u32 meshIndex, const glm::mat4& transform,
+        ResourceUploader& uploader)
+    {
+        uploader.UpdateBuffer(
+            renderObjects,
+            transform,
+            meshIndex * sizeof(RenderObjectGPU2) + offsetof(RenderObjectGPU2, Transform));
+    }
+
+    void updateLight(CommonLight& light, const glm::mat4& transform)
+    {
+        switch (light.Type)
+        {
+        case LightType::Directional:
+            light.PositionDirection = glm::normalize(transform * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f));
+            break;
+        case LightType::Point:
+            light.PositionDirection = transform * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+            break;
+        case LightType::Spot:
+            ASSERT(false, "Spot light is not implemented")
+            break;
+        }
+    }
+}
+
+void SceneHierarchy::OnUpdate(Scene& scene, FrameContext& ctx)
 {
     auto& nodes = m_Info.Nodes;
     std::vector<glm::mat4> transforms(nodes.size());
@@ -130,12 +160,17 @@ void SceneHierarchy::OnUpdate(SceneGeometry2& geometry, ResourceUploader& upload
 
     for (auto&& [i, node] : std::ranges::views::enumerate(nodes))
     {
-        if (node.Type != SceneHierarchyNodeType::Mesh)
-            continue;
-
-        uploader.UpdateBuffer(
-            geometry.RenderObjects,
-            transforms[i],
-            node.PayloadIndex * sizeof(RenderObjectGPU2) + offsetof(RenderObjectGPU2, Transform));
+        switch (node.Type)
+        {
+        case SceneHierarchyNodeType::Mesh:
+            updateMesh(scene.Geometry().RenderObjects, node.PayloadIndex, transforms[i], *ctx.ResourceUploader);
+            break;
+        case SceneHierarchyNodeType::Light:
+            updateLight(scene.Lights().Get(node.PayloadIndex), transforms[i]);
+            break;
+        case SceneHierarchyNodeType::Dummy:
+        default:
+            break;
+        }
     }
 }

@@ -2,6 +2,7 @@
 
 #include "common.glsl"
 #include "../pbr/pbr.glsl"
+#include "../../light.glsl"
 
 #extension GL_EXT_nonuniform_qualifier: enable
 
@@ -16,20 +17,56 @@ layout(location = 0) out vec4 out_color;
 @immutable_sampler
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 
-layout(set = 1, binding = 0) uniform camera_buffer {
+layout(set = 1, binding = 0) uniform camera {
     CameraGPU camera;
 } u_camera;
 
-layout(std430, set = 2, binding = 0) readonly buffer material_buffer {
+layout(scalar, set = 1, binding = 4) readonly buffer directional_lights {
+    DirectionalLight lights[];
+} u_directional_lights;
+
+layout(scalar, set = 1, binding = 5) readonly buffer point_lights {
+    PointLight lights[];
+} u_point_lights;
+
+layout(scalar, set = 1, binding = 6) uniform lights_info {
+    LightsInfo info;
+} u_lights_info;
+
+layout(std430, set = 2, binding = 0) readonly buffer material {
     Material materials[];
 } u_materials;
 
 @bindless
 layout(set = 2, binding = 1) uniform texture2D u_textures[];
 
-vec3 shade_directional_pbr(ShadeInfo shade_info) {
-    const vec3 light_dir = normalize(vec3(1.0, 0.5, 1.0));
-    const vec3 radiance = vec3(10);
+vec3 shade_directional_pbr(ShadeInfo shade_info, DirectionalLight light) {
+    const vec3 light_dir = -light.direction;
+    const vec3 radiance = light.color * light.intensity;
+
+    const vec3 halfway_dir = normalize(light_dir + shade_info.view);
+
+    const float n_dot_h = clamp(dot(shade_info.normal, halfway_dir), 0.0f, 1.0f);
+    const float n_dot_l = clamp(dot(shade_info.normal, light_dir), 0.0f, 1.0f);
+    const float h_dot_l = clamp(dot(halfway_dir, light_dir), 0.0f, 1.0f);
+
+    const float D = d_ggx(n_dot_h, shade_info.alpha_roughness);
+    const float V = v_smith_correlated(shade_info.n_dot_v, n_dot_l, shade_info.alpha_roughness);
+    const vec3 F = fresnel_schlick(h_dot_l, shade_info.F0, shade_info.F90);
+
+    const vec3 diffuse = (vec3(1.0f) - F) * shade_info.diffuse_color * PI_INV;
+    const vec3 specular = D * V * F;
+
+    return (specular + diffuse) * radiance * n_dot_l;
+}
+
+vec3 shade_pbr_point_light(ShadeInfo shade_info, PointLight light) {
+    vec3 light_dir = light.position - shade_info.position;
+    const float distance2 = dot(light_dir, light_dir);
+    const float falloff = pbr_falloff(distance2, light.radius);
+    light_dir = normalize(light_dir);
+
+    const vec3 radiance = light.color * light.intensity * falloff;
 
     const vec3 halfway_dir = normalize(light_dir + shade_info.view);
 
@@ -74,9 +111,8 @@ void main() {
     const vec2 metallic_roughness = texture(nonuniformEXT(sampler2D(u_textures[
         material.metallic_roughness_texture_index], u_sampler)), vertex_uv).bg;
 
-    float metallic = metallic_roughness.r;
-    metallic = clamp(metallic, MIN_ROUGHNESS, 1.0f);
-    const float perceptual_roughness = metallic_roughness.g;
+    float metallic = metallic_roughness.r * material.metallic;
+    const float perceptual_roughness = clamp(metallic_roughness.g * material.roughness, MIN_ROUGHNESS, 1.0f);
 
     const float reflectance = 0.5f;
     const vec3 F0 = mix(vec3(0.16f * reflectance * reflectance), albedo.rgb, metallic);
@@ -99,8 +135,11 @@ void main() {
     shade_info.specular_color = specular_color;
     shade_info.alpha = 1.0f; // unused
 
-    vec3 color;
-    color = shade_directional_pbr(shade_info);
+    vec3 color = vec3(0.0f);
+    for (uint i = 0; i < u_lights_info.info.directional_light_count; i++)
+        color += shade_directional_pbr(shade_info, u_directional_lights.lights[i]);
+    for (uint i = 0; i < u_lights_info.info.point_light_count; i++)
+        color += shade_pbr_point_light(shade_info, u_point_lights.lights[i]);
     color = tonemap(color, 2.0f);
 
     color += emissive + 0.1f * albedo.rgb;
