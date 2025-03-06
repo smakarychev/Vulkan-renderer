@@ -167,8 +167,7 @@ void main() {
     const GBufferData gbuffer_data = get_gbuffer_data(visibility_info);
 
     float metallic = gbuffer_data.metallic_roughness.r;
-    metallic = clamp(metallic, MIN_ROUGHNESS, 1.0f);
-    const float perceptual_roughness = gbuffer_data.metallic_roughness.g;
+    const float perceptual_roughness = clamp(gbuffer_data.metallic_roughness.g, MIN_ROUGHNESS, 1.0f);;
 
     // todo: reflectance can be provided as a material parameter
     const float reflectance = 0.5f;
