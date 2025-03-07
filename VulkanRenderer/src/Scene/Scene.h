@@ -5,7 +5,6 @@
 #include "SceneGeometry2.h"
 #include "SceneHierarchy.h"
 #include "SceneLight2.h"
-#include "Rendering/Buffer/Buffer.h"
 
 namespace assetLib
 {

@@ -1,14 +1,12 @@
 #pragma once
 
-#include "types.h"
-
-#include <vector>
-#include <glm/glm.hpp>
-
 #include "SceneAsset.h"
 #include "SceneInstance.h"
 #include "Light/Light.h"
 #include "Rendering/Buffer/Buffer.h"
+
+#include <vector>
+#include <glm/glm.hpp>
 
 struct FrameContext;
 
@@ -62,7 +60,7 @@ public:
 
     void SetVisibleLights(const std::vector<u32>& visibleLights) { m_VisibleLights = visibleLights; }
 
-    u32 Count() const { return m_Lights.size(); }
+    u32 Count() const { return (u32)m_Lights.size(); }
     CommonLight& Get(u32 index) { return m_Lights[index]; }
     const CommonLight& Get(u32 index) const { return m_Lights[index]; }
     const Buffers& GetBuffers() const { return m_Buffers; }
