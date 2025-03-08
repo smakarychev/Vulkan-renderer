@@ -74,6 +74,22 @@ namespace
             deletionQueue);
     }
 
+    MaterialFlags materialToMaterialFlags(const tinygltf::Material& material)
+    {
+        MaterialFlags materialFlags = MaterialFlags::None;
+        if (material.alphaMode == "OPAQUE")
+            materialFlags |= MaterialFlags::Opaque;
+        else if (material.alphaMode == "MASK")
+            materialFlags |= MaterialFlags::AlphaMask;
+        else if (material.alphaMode == "BLEND")
+            materialFlags |= MaterialFlags::Translucent;
+
+        if (material.doubleSided)
+            materialFlags |= MaterialFlags::TwoSided;
+
+        return materialFlags;
+    }
+
     void loadMaterials(SceneGeometryInfo& geometry, assetLib::SceneInfo& sceneInfo,
         BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue)
     {
@@ -96,6 +112,7 @@ namespace
                 loadTexture(sceneInfo.Scene, texture.index, format, loadedTextures, deletionQueue));
         };
         geometry.Materials.reserve(sceneInfo.Scene.materials.size());
+        geometry.MaterialsCpu.reserve(sceneInfo.Scene.materials.size());
         for (auto& material : sceneInfo.Scene.materials)
         {
             geometry.Materials.push_back({
@@ -116,6 +133,9 @@ namespace
                 .EmissiveTextureHandle = processTexture(
                     material.emissiveTexture, Format::RGBA8_SRGB,
                     texturesRingBuffer.GetDefaultTexture(ImageUtils::DefaultTexture::Black))});
+
+            geometry.MaterialsCpu.push_back({
+                .Flags = materialToMaterialFlags(material)});
         }
     }
 
@@ -180,12 +200,12 @@ namespace
 
     template <typename T>
     void writeSuballocation(BufferArena arena, const std::vector<T>& data, 
-        assetLib::SceneInfo::BufferViewType bufferType, SceneGeometry2::UgbOffsets& ugbOffsets, FrameContext& ctx)
+        assetLib::SceneInfo::BufferViewType bufferType, SceneGeometry2::SceneInfoOffsets& offsets, FrameContext& ctx)
     {
         static constexpr u32 ALIGNMENT = 1;
         const BufferSuballocation suballocation = suballocateResizeIfFailed(arena,
             data.size() * sizeof(T), ALIGNMENT, ctx.CommandList);
-        ugbOffsets.ElementOffsets[(u32)bufferType] = (u32)(suballocation.Description.Offset / sizeof(T));
+        offsets.ElementOffsets[(u32)bufferType] = (u32)(suballocation.Description.Offset / sizeof(T));
         ctx.ResourceUploader->UpdateBuffer(suballocation.Buffer, data, suballocation.Description.Offset);
     }
 
@@ -257,12 +277,12 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
 
     auto& sceneInfo = *instance.m_SceneInfo;
     
-    UgbOffsets ugbOffsets = {};
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.Positions, Position, ugbOffsets, ctx);
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.Normals, Normal, ugbOffsets, ctx);
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.Tangents, Tangent, ugbOffsets, ctx);
-    writeSuballocation(Attributes, sceneInfo.m_Geometry.UVs, Uv, ugbOffsets, ctx);
-    writeSuballocation(Indices, sceneInfo.m_Geometry.Indices, Index, ugbOffsets, ctx);
+    SceneInfoOffsets sceneInfoOffsets = {};
+    writeSuballocation(Attributes, sceneInfo.m_Geometry.Positions, Position, sceneInfoOffsets, ctx);
+    writeSuballocation(Attributes, sceneInfo.m_Geometry.Normals, Normal, sceneInfoOffsets, ctx);
+    writeSuballocation(Attributes, sceneInfo.m_Geometry.Tangents, Tangent, sceneInfoOffsets, ctx);
+    writeSuballocation(Attributes, sceneInfo.m_Geometry.UVs, Uv, sceneInfoOffsets, ctx);
+    writeSuballocation(Indices, sceneInfo.m_Geometry.Indices, Index, sceneInfoOffsets, ctx);
 
     const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
     const u64 meshletsSizeBytes = meshletCount * sizeof(assetLib::ModelInfo::Meshlet);
@@ -284,13 +304,17 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
         materialsSizeBytes + m_MaterialsOffsetBytes,
         ctx.CommandList);
     ctx.ResourceUploader->UpdateBuffer(Materials, sceneInfo.m_Geometry.Materials, m_MaterialsOffsetBytes);
-
-    ugbOffsets.ElementOffsets[(u32)Meshlet] = (u32)(m_MeshletsOffsetBytes /
+    MaterialsCpu.reserve(MaterialsCpu.size() + (u32)sceneInfo.m_Geometry.MaterialsCpu.size());
+    for (auto& material : sceneInfo.m_Geometry.MaterialsCpu)
+        MaterialsCpu.push_back(material);
+    sceneInfoOffsets.MaterialOffset = (u32)(m_MaterialsOffsetBytes / sizeof(MaterialGPU));
+    
+    sceneInfoOffsets.ElementOffsets[(u32)Meshlet] = (u32)(m_MeshletsOffsetBytes /
         sizeof(assetLib::ModelInfo::Meshlet));
     m_MeshletsOffsetBytes += meshletsSizeBytes;
     m_MaterialsOffsetBytes += materialsSizeBytes;
 
-    m_UgbOffsets[&sceneInfo] = ugbOffsets;
+    m_SceneInfoOffsets[&sceneInfo] = sceneInfoOffsets;
 }
 
 void SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
@@ -298,16 +322,17 @@ void SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
     using enum assetLib::SceneInfo::BufferViewType;
 
     auto& sceneInfo = *instance.m_SceneInfo;
-    const UgbOffsets& ugbOffsets = m_UgbOffsets[&sceneInfo];
+    const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&sceneInfo];
 
     const u64 meshesSizeBytes = sceneInfo.m_Geometry.Meshes.size() * sizeof(RenderObjectGPU2);
     const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
     const u64 meshletsSizeBytes = meshletCount * sizeof(IndirectDrawCommand);
+    CommandCount += meshletCount;
     growBufferIfNeeded(
         RenderObjects,
         meshesSizeBytes + m_RenderObjectsOffsetBytes,
         ctx.CommandList);
-    CommandCount += meshletCount;
+    RenderObjectsCpu.reserve(RenderObjectsCpu.size() + (u32)sceneInfo.m_Geometry.Meshes.size());
     growBufferIfNeeded(Commands,
         meshletsSizeBytes + m_CommandsOffsetBytes,
         ctx.CommandList);
@@ -323,23 +348,27 @@ void SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
             .SizeBytes = meshletsSizeBytes,
             .Offset = m_CommandsOffsetBytes}});
 
-    const u32 currentMeshletIndex = ugbOffsets.ElementOffsets[(u32)Meshlet];
+    const u32 currentMeshletIndex = sceneInfoOffsets.ElementOffsets[(u32)Meshlet];
     const u32 currentRenderObjectIndex = (u32)(m_RenderObjectsOffsetBytes / sizeof(RenderObjectGPU2));
     u32 meshletIndex = 0;
     for (auto&& [meshIndex, mesh] : std::ranges::views::enumerate(sceneInfo.m_Geometry.Meshes))
     {
-        const u32 meshFirstIndex = mesh.FirstIndex + ugbOffsets.ElementOffsets[(u32)Index];
-        const u32 meshFirstVertex = mesh.FirstVertex + ugbOffsets.ElementOffsets[(u32)Position];
+        const u32 meshFirstIndex = mesh.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index];
+        const u32 meshFirstVertex = mesh.FirstVertex + sceneInfoOffsets.ElementOffsets[(u32)Position];
+        const u32 meshMaterial = mesh.Material + sceneInfoOffsets.MaterialOffset;
         
         renderObjects[meshIndex] = {
             /* this value is irrelevant, because the transform will be set by SceneHierarchy */
             .Transform = glm::mat4(1.0f),
             .BoundingSphere = mesh.BoundingSphere,
-            .MaterialGPU = mesh.Material,
-            .PositionsOffset = ugbOffsets.ElementOffsets[(u32)Position] + meshFirstVertex,
-            .NormalsOffset = ugbOffsets.ElementOffsets[(u32)Normal] + meshFirstVertex,
-            .TangentsOffset = ugbOffsets.ElementOffsets[(u32)Tangent] + meshFirstVertex,
-            .UVsOffset = ugbOffsets.ElementOffsets[(u32)Uv] + meshFirstVertex};
+            .MaterialGPU = meshMaterial,
+            .PositionsOffset = sceneInfoOffsets.ElementOffsets[(u32)Position] + meshFirstVertex,
+            .NormalsOffset = sceneInfoOffsets.ElementOffsets[(u32)Normal] + meshFirstVertex,
+            .TangentsOffset = sceneInfoOffsets.ElementOffsets[(u32)Tangent] + meshFirstVertex,
+            .UVsOffset = sceneInfoOffsets.ElementOffsets[(u32)Uv] + meshFirstVertex};
+
+        RenderObjectsCpu.push_back({
+            .Material = meshMaterial});
 
         for (u32 localMeshletIndex = 0; localMeshletIndex < mesh.MeshletCount; localMeshletIndex++)
         {
@@ -347,7 +376,7 @@ void SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
             commands[meshletIndex] = IndirectDrawCommand{
                 .IndexCount = meshlet.IndexCount,
                 .InstanceCount = 1,
-                .FirstIndex = meshlet.FirstIndex + ugbOffsets.ElementOffsets[(u32)Index] + meshFirstIndex,
+                .FirstIndex = meshlet.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index] + meshFirstIndex,
                 .VertexOffset = (i32)meshlet.FirstVertex,
                 .FirstInstance = currentMeshletIndex + meshletIndex,
                 .RenderObject = (u32)meshIndex + currentRenderObjectIndex};

@@ -4,6 +4,7 @@
 
 #include <glm/glm.hpp>
 
+#include "RenderHandleArray.h"
 #include "RenderObject.h"
 #include "SceneAsset.h"
 #include "SceneInstance.h"
@@ -36,6 +37,8 @@ struct SceneGeometryInfo
     std::vector<SceneMesh> Meshes;
     std::vector<MaterialGPU> Materials;
     std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
+    
+    std::vector<Material2> MaterialsCpu;
 };
 
 /* todo: this has '2' in the name, should be removed once i get rid of old version */
@@ -46,9 +49,10 @@ public:
     void Add(SceneInstance instance, FrameContext& ctx);
     void AddCommands(SceneInstance instance, FrameContext& ctx);
 public:
-    struct UgbOffsets
+    struct SceneInfoOffsets
     {
         std::array<u32, (u32)assetLib::SceneInfo::BufferViewType::MaxVal> ElementOffsets;
+        u32 MaterialOffset{0};
     };
 public:
     BufferArena Indices{};
@@ -58,13 +62,16 @@ public:
     Buffer Commands{};
     Buffer Materials{};
     u32 CommandCount{0};
+
+    std::vector<RenderObject2> RenderObjectsCpu;
+    RenderHandleArray<Material2> MaterialsCpu;
 private:
     u64 m_RenderObjectsOffsetBytes{0};
     u64 m_MeshletsOffsetBytes{0};
     u64 m_CommandsOffsetBytes{0};
     u64 m_MaterialsOffsetBytes{0};
     
-    std::unordered_map<const SceneInfo*, UgbOffsets> m_UgbOffsets{};
+    std::unordered_map<const SceneInfo*, SceneInfoOffsets> m_SceneInfoOffsets{};
 
     
     /* these values were revealed to me in a dream */

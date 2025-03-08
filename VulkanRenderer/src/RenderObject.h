@@ -25,6 +25,24 @@ struct Material
     std::vector<std::string> EmissiveTextures;   
 };
 
+
+enum class MaterialFlags : u16
+{
+    None = 0,
+    Opaque      = BIT(1),
+    AlphaMask    = BIT(2),
+    Translucent = BIT(3),
+
+    TwoSided    = BIT(4),
+};
+CREATE_ENUM_FLAGS_OPERATORS(MaterialFlags)
+
+// todo: remove '2' once ready
+struct Material2
+{
+    MaterialFlags Flags{MaterialFlags::None};
+};
+
 struct MaterialGPU
 {
     static constexpr u32 NO_TEXTURE = std::numeric_limits<u32>::max();
@@ -47,6 +65,11 @@ struct RenderObject
     RenderHandle<MaterialGPU> MaterialGPU{};
     RenderHandle<Material> Material{};
     RenderObjectTransform Transform{};
+};
+// todo: remove '2' once ready
+struct RenderObject2
+{
+    RenderHandle<Material2> Material{};
 };
 
 struct RenderObjectGPU
