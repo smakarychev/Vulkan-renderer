@@ -48,8 +48,8 @@ void main() {
     const mat4 model = render_object.model;
     
     const Position position = u_ugb_position.positions[render_object.position_index + gl_VertexIndex];
-    const vec4 position_v = u_camera.camera.view_projection * model *  vec4(position.x, position.y, position.z, 1.0f);
-    vertex_position = vec3(position.x, position.y, position.z);
+    const vec4 position_v = model * vec4(position.x, position.y, position.z, 1.0f);
+    vertex_position = position_v.xyz;
 
     const Normal normal = u_ugb_normal.normals[render_object.normal_index + gl_VertexIndex];
     vertex_normal = transpose(inverse(mat3(model))) * vec3(normal.x, normal.y, normal.z);
@@ -60,5 +60,5 @@ void main() {
     const UV uv = u_ugb_uv.uvs[render_object.uv_index + gl_VertexIndex];
     vertex_uv = vec2(uv.u, uv.v);
 
-    gl_Position = position_v;
+    gl_Position = u_camera.camera.view_projection * position_v;
 }
