@@ -6,25 +6,25 @@
 #include <functional>
 
 template <typename ... Args>
-class EventHandler;
+class SignalHandler;
 
 template <typename ... Args>
-class Event
+class Signal
 {
-    using Handler = EventHandler<Args...>;
+    using Handler = SignalHandler<Args...>;
     friend class Handler;
 public:
-    Event() = default;
-    Event(const Event&) = default;
-    Event& operator=(const Event&) = default;
-    Event(Event&& other) noexcept;
-    Event& operator=(Event&& other) noexcept;
-    ~Event();
+    Signal() = default;
+    Signal(const Signal&) = default;
+    Signal& operator=(const Signal&) = default;
+    Signal(Signal&& other) noexcept;
+    Signal& operator=(Signal&& other) noexcept;
+    ~Signal();
     
-    void Signal(const Args&... args) const;
+    void Emit(const Args&... args) const;
     
     void DisconnectHandlers();
-    void TransferHandlersTo(Event& other);
+    void TransferHandlersTo(Signal& other);
 private:
     void Connect(Handler& handler) const;
     void Disconnect(Handler& handler) const;
@@ -33,54 +33,53 @@ private:
     void RebindHandlers();
 private:
     mutable std::vector<Handler*> m_Handlers;
-    /* handlers that were added while executing Signal, from other handler's callback */
+    /* handlers that were added while executing Emit, from other handler's callback */
     mutable std::vector<Handler*> m_Pending;
     mutable std::vector<u32> m_FreeList;
-    mutable bool m_IsSignalling{false};
+    mutable bool m_IsEmitting{false};
 };
 
 
 template <typename ... Args>
-class EventHandler
+class SignalHandler
 {
-    friend class Event<Args...>;
+    friend class Signal<Args...>;
 public:
     using Callback = std::function<void(Args...)>;
 
-    EventHandler() = default;
-    EventHandler(Callback callback);
-    EventHandler(const EventHandler& other);
-    EventHandler& operator=(const EventHandler& other);
-    EventHandler(EventHandler&& other) noexcept;
-    EventHandler& operator=(EventHandler&& other) noexcept;
-    ~EventHandler();
+    SignalHandler() = default;
+    SignalHandler(Callback callback);
+    SignalHandler(const SignalHandler& other);
+    SignalHandler& operator=(const SignalHandler& other);
+    SignalHandler(SignalHandler&& other) noexcept;
+    SignalHandler& operator=(SignalHandler&& other) noexcept;
+    ~SignalHandler();
     
-    void Connect(Event<Args...>& event);
+    void Connect(Signal<Args...>& signal);
     void Disconnect();
 
     bool IsAttached() const;
 private:
-    void InheritEventFrom(const EventHandler& other);
+    void InheritSignalFrom(const SignalHandler& other);
 private:
-    Event<Args...>* m_Event{nullptr};
+    Signal<Args...>* m_Signal{nullptr};
     Callback m_Callback{};
     i32 m_Index{0};
 };
 
 
 template <typename ... Args>
-Event<Args...>::Event(Event&& other) noexcept
-    :
+Signal<Args...>::Signal(Signal&& other) noexcept :
     m_Handlers(std::move(other.m_Handlers)),
     m_Pending(std::move(other.m_Pending)),
     m_FreeList(std::move(other.m_FreeList)),
-    m_IsSignalling(std::exchange(other.m_IsSignalling, false))
+    m_IsEmitting(std::exchange(other.m_IsEmitting, false))
 {
     RebindHandlers();
 }
 
 template <typename ... Args>
-Event<Args...>& Event<Args...>::operator=(Event&& other) noexcept
+Signal<Args...>& Signal<Args...>::operator=(Signal&& other) noexcept
 {
     if (this == &other)
         return *this;
@@ -89,22 +88,22 @@ Event<Args...>& Event<Args...>::operator=(Event&& other) noexcept
     m_Handlers = std::move(other.m_Handlers);
     m_Pending = std::move(other.m_Pending);
     m_FreeList = std::move(other.m_FreeList);
-    m_IsSignalling = std::exchange(other.m_IsSignalling, false);
+    m_IsEmitting = std::exchange(other.m_IsEmitting, false);
     RebindHandlers();
     
     return *this;
 }
 
 template <typename ... Args>
-Event<Args...>::~Event()
+Signal<Args...>::~Signal()
 {
     DisconnectHandlers();
 }
 
 template <typename ... Args>
-void Event<Args...>::Signal(const Args&... args) const
+void Signal<Args...>::Emit(const Args&... args) const
 {
-    m_IsSignalling = true;
+    m_IsEmitting = true;
     for (auto* handler : m_Handlers)
         if (handler)
             handler->m_Callback(args...);
@@ -113,13 +112,13 @@ void Event<Args...>::Signal(const Args&... args) const
         PushBackOrTakeFree(*pending);
     m_Pending.clear();
             
-    m_IsSignalling = false;
+    m_IsEmitting = false;
 }
 
 template <typename ... Args>
-void Event<Args...>::DisconnectHandlers()
+void Signal<Args...>::DisconnectHandlers()
 {
-    ASSERT(!m_IsSignalling, "DisconnectHandlers is called during active Signal operation")
+    ASSERT(!m_IsEmitting, "DisconnectHandlers is called during active Emit operation")
     for (auto* handler : m_Handlers)
         if (handler)
             handler->Disconnect();
@@ -133,20 +132,20 @@ void Event<Args...>::DisconnectHandlers()
 }
 
 template <typename ... Args>
-void Event<Args...>::TransferHandlersTo(Event& other)
+void Signal<Args...>::TransferHandlersTo(Signal& other)
 {
     auto handlers = std::move(m_Handlers);
     auto pending = std::move(m_Pending);
     m_FreeList = {};
-    m_IsSignalling = false;
+    m_IsEmitting = false;
 
-    auto transfer = [](Handler* handler, Event& event)
+    auto transfer = [](Handler* handler, Signal& signal)
     {
         if (!handler)
             return;
         handler->m_Index = 0;
-        handler->m_Event = nullptr;
-        handler->Connect(event);
+        handler->m_Signal = nullptr;
+        handler->Connect(signal);
     };
     
     for (auto* handler : handlers)
@@ -156,9 +155,9 @@ void Event<Args...>::TransferHandlersTo(Event& other)
 }
 
 template <typename ... Args>
-void Event<Args...>::Connect(Handler& handler) const
+void Signal<Args...>::Connect(Handler& handler) const
 {
-    if (m_IsSignalling)
+    if (m_IsEmitting)
     {
         i32 index = (i32)m_Pending.size();
         handler.m_Index = index;
@@ -170,7 +169,7 @@ void Event<Args...>::Connect(Handler& handler) const
 }
 
 template <typename ... Args>
-void Event<Args...>::Disconnect(Handler& handler) const
+void Signal<Args...>::Disconnect(Handler& handler) const
 {
     const i32 index = handler.m_Index;
     if (index < 0)
@@ -185,7 +184,7 @@ void Event<Args...>::Disconnect(Handler& handler) const
 }
 
 template <typename ... Args>
-void Event<Args...>::PushBackOrTakeFree(Handler& handler) const
+void Signal<Args...>::PushBackOrTakeFree(Handler& handler) const
 {
     if (m_FreeList.empty())
     {
@@ -204,122 +203,123 @@ void Event<Args...>::PushBackOrTakeFree(Handler& handler) const
 }
 
 template <typename ... Args>
-void Event<Args...>::RebindHandlers()
+void Signal<Args...>::RebindHandlers()
 {
     for (auto* handler : m_Handlers)
         if (handler)
-            handler->m_Event = this;
+            handler->m_Signal = this;
     for (auto* pending : m_Pending)
         if (pending)
-            pending->m_Event = this;
+            pending->m_Signal = this;
 }
 
 
 template <typename ... Args>
-EventHandler<Args...>::EventHandler(Callback callback)
-    : m_Callback(std::move(callback))
+SignalHandler<Args...>::SignalHandler(Callback callback) :
+    m_Callback(std::move(callback))
 {
 }
 
 template <typename ... Args>
-EventHandler<Args...>::EventHandler(const EventHandler& other)
-    : m_Event(other.m_Event), m_Callback(other.m_Callback), m_Index(other.m_Index)
+SignalHandler<Args...>::SignalHandler(const SignalHandler& other) :
+    m_Signal(other.m_Signal),
+    m_Callback(other.m_Callback),
+    m_Index(other.m_Index)
 {
-    if (m_Event && m_Callback)
-        m_Event->Connect(*this);
+    if (m_Signal && m_Callback)
+        m_Signal->Connect(*this);
     else
-        m_Event = nullptr;
+        m_Signal = nullptr;
 }
 
 template <typename ... Args>
-EventHandler<Args...>& EventHandler<Args...>::operator=(const EventHandler& other)
+SignalHandler<Args...>& SignalHandler<Args...>::operator=(const SignalHandler& other)
 {
     if (this == &other)
         return *this;
 
     Disconnect();
-    m_Event = other.m_Event;
+    m_Signal = other.m_Signal;
     m_Callback = other.m_Callback;
     m_Index = other.m_Index;
 
-    if (m_Event && m_Callback)
-        m_Event->Connect(*this);
+    if (m_Signal && m_Callback)
+        m_Signal->Connect(*this);
     else
-        m_Event = nullptr;
+        m_Signal = nullptr;
     
     return *this;
 }
 
 template <typename ... Args>
-EventHandler<Args...>::EventHandler(EventHandler&& other) noexcept
-    :
-    m_Event(other.m_Event),
+SignalHandler<Args...>::SignalHandler(SignalHandler&& other) noexcept :
+    m_Signal(other.m_Signal),
     m_Callback(std::exchange(other.m_Callback, nullptr)),
     m_Index(std::exchange(other.m_Index, 0))
 {
-    InheritEventFrom(other);   
+    InheritSignalFrom(other);   
 }
 
 template <typename ... Args>
-EventHandler<Args...>& EventHandler<Args...>::operator=(EventHandler&& other) noexcept
+SignalHandler<Args...>& SignalHandler<Args...>::operator=(SignalHandler&& other) noexcept
 {
     if (this == &other)
         return *this;
 
     Disconnect();
-    m_Event = std::exchange(other.m_Event, nullptr);
+    m_Signal = std::exchange(other.m_Signal, nullptr);
     m_Callback = std::move(other.m_Callback);
     m_Index = std::exchange(other.m_Index, 0);
-    InheritEventFrom(other);
+    InheritSignalFrom(other);
 
     return *this;
 }
 
 template <typename ... Args>
-EventHandler<Args...>::~EventHandler()
+SignalHandler<Args...>::~SignalHandler()
 {
     Disconnect();
 }
 
 template <typename ... Args>
-void EventHandler<Args...>::Connect(Event<Args...>& event)
+void SignalHandler<Args...>::Connect(Signal<Args...>& signal)
 {
     ASSERT(m_Callback, "Handler callback does not exist")
-    ASSERT(!m_Event, "Handler has already been attached to an event")
-    m_Event = &event;
-    event.Connect(*this);
+    ASSERT(!m_Signal, "Handler has already been attached to a signal")
+    m_Signal = &signal;
+    signal.Connect(*this);
 }
 
 template <typename ... Args>
-void EventHandler<Args...>::Disconnect()
+void SignalHandler<Args...>::Disconnect()
 {
-    if (m_Event)
+    if (m_Signal)
     {
-        m_Event->Disconnect(*this);
-        m_Event = nullptr;
+        m_Signal->Disconnect(*this);
+        m_Signal = nullptr;
     }
 }
 
 template <typename ... Args>
-bool EventHandler<Args...>::IsAttached() const
+bool SignalHandler<Args...>::IsAttached() const
 {
-    return m_Event != nullptr;
+    return m_Signal != nullptr;
 }
 
 template <typename ... Args>
-void EventHandler<Args...>::InheritEventFrom(const EventHandler& other)
+void SignalHandler<Args...>::InheritSignalFrom(const SignalHandler& other)
 {
-    if (!m_Event)
+    if (!m_Signal)
         return;
 
     if (m_Index < 0)
     {
-        ASSERT(m_Event->m_Pending[-m_Index + 1] == &other, "EventHandler mismatch")
-        m_Event->m_Pending[-m_Index + 1] = this;
+        ASSERT(m_Signal->m_Pending[-m_Index + 1] == &other, "SignalHandler mismatch")
+        m_Signal->m_Pending[-m_Index + 1] = this;
     }
     else
     {
-        ASSERT(m_Event->m_Handlers[m_Index] == &other, "EventHandler mismatch")
-        m_Event->m_Handlers[m_Index] = this;
+        ASSERT(m_Signal->m_Handlers[m_Index] == &other, "SignalHandler mismatch")
+        m_Signal->m_Handlers[m_Index] = this;
     }
 }
