@@ -45,9 +45,14 @@ struct SceneGeometryInfo
 class SceneGeometry2
 {
 public:
+    struct AddCommandsResult
+    {
+        u32 FirstRenderObject{0};
+    };
+public:
     static SceneGeometry2 CreateEmpty(DeletionQueue& deletionQueue);
     void Add(SceneInstance instance, FrameContext& ctx);
-    void AddCommands(SceneInstance instance, FrameContext& ctx);
+    AddCommandsResult AddCommands(SceneInstance instance, FrameContext& ctx);
 public:
     struct SceneInfoOffsets
     {

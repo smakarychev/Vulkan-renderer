@@ -14,6 +14,8 @@
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
 #include "Scene/Scene.h"
+#include "Scene/ScenePass.h"
+#include "Scene/SceneRenderObjectSet.h"
 
 class SlimeMoldPass;
 class SlimeMoldContext;
@@ -88,6 +90,7 @@ private:
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 
     Scene m_Scene;
+    SceneRenderObjectSet m_OpaqueSet;
 
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

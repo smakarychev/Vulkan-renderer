@@ -317,7 +317,7 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
     m_SceneInfoOffsets[&sceneInfo] = sceneInfoOffsets;
 }
 
-void SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
+SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
 {
     using enum assetLib::SceneInfo::BufferViewType;
 
@@ -387,4 +387,7 @@ void SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
     
     m_RenderObjectsOffsetBytes += meshesSizeBytes;
     m_CommandsOffsetBytes += meshletsSizeBytes;
+
+    return {
+        .FirstRenderObject = currentRenderObjectIndex};
 }

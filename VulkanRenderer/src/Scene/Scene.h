@@ -5,6 +5,7 @@
 #include "SceneGeometry2.h"
 #include "SceneHierarchy.h"
 #include "SceneLight2.h"
+#include "Signals/Signal.h"
 
 namespace assetLib
 {
@@ -20,6 +21,7 @@ class SceneInfo
     friend class SceneGeometry2;
     friend class SceneLight2;
     friend class SceneHierarchy;
+    friend class SceneRenderObjectSet;
 public:
     static SceneInfo* LoadFromAsset(std::string_view assetPath,
         BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue);
@@ -37,11 +39,19 @@ struct SceneInstantiationData
 class Scene
 {
 public:
+    struct NewInstanceData
+    {
+        const SceneInfo* SceneInfo{nullptr};
+        u32 RenderObjectsOffset{0};
+    };
+public:
     static Scene CreateEmpty(DeletionQueue& deletionQueue);
     const SceneGeometry2& Geometry() const { return m_Geometry; }
     SceneGeometry2& Geometry() { return m_Geometry; }
     SceneLight2& Lights() { return m_Lights; }
     SceneHierarchy& Hierarchy() { return m_Hierarchy; }
+
+    Signal<NewInstanceData>& GetInstanceAddedSignal() { return m_InstanceAddedSignal; }
     
     SceneInstance Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
         FrameContext& ctx);
@@ -54,4 +64,6 @@ private:
     
     std::unordered_map<const SceneInfo*, u32> m_SceneInstancesMap{};
     u32 m_ActiveInstances{0};
+
+    Signal<NewInstanceData> m_InstanceAddedSignal{};
 };

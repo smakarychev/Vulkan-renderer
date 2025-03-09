@@ -175,6 +175,15 @@ void Renderer::InitRenderGraph()
         *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.gltf");
     
     m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
+    m_OpaqueSet.Init("Opaque", m_Scene, {
+        ScenePass("Visibility", {
+            SceneBucket("Opaque material", [](const SceneGeometryInfo& geometry, u32 renderObjectIndex) {
+                const Material2& material = geometry.MaterialsCpu[geometry.Meshes[renderObjectIndex].Material];
+                return enumHasAny(material.Flags, MaterialFlags::Opaque);
+            })
+        })
+    });
+    
     SceneInfo* sceneInfo = SceneInfo::LoadFromAsset(
         *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.scene",
         *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());

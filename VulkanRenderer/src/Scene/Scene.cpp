@@ -38,9 +38,13 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
     const SceneInstance instance = RegisterSceneInstance(sceneInfo);
     if (m_SceneInstancesMap[&sceneInfo] == 1)
         m_Geometry.Add(instance, ctx);
-    m_Geometry.AddCommands(instance, ctx);
+    SceneGeometry2::AddCommandsResult addCommandsResult = m_Geometry.AddCommands(instance, ctx);
     m_Lights.Add(instance);
     m_Hierarchy.Add(instance, instantiationData.Transform);
+
+    m_InstanceAddedSignal.Emit({
+        .SceneInfo = &sceneInfo,
+        .RenderObjectsOffset = addCommandsResult.FirstRenderObject});
     
     return instance;
 }
