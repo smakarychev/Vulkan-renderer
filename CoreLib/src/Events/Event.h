@@ -41,6 +41,8 @@ public:
     
     void Connect(Event<Args...>& event);
     void Disconnect();
+
+    bool IsAttached() const;
 private:
     Event<Args...>* m_Event{nullptr};
     Callback m_Callback{};
@@ -135,4 +137,10 @@ void EventHandler<Args...>::Disconnect()
         m_Event->Disconnect(*this);
         m_Event = nullptr;
     }
+}
+
+template <typename ... Args>
+bool EventHandler<Args...>::IsAttached() const
+{
+    return m_Event != nullptr;
 }

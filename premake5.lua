@@ -36,3 +36,6 @@ include "tools/ShaderBindGroupGen"
 group ""
 include "CoreLib"
 include "VulkanRenderer"
+
+group "Tests"
+include "CoreLib/Tests"
