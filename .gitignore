@@ -23,3 +23,5 @@ assets/models
 tools/bin
 *.generated.h
 vendor/*/bin
+**/Tests/bin
+**/Tests/bin-int

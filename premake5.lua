@@ -26,6 +26,7 @@ include "vendor/meshoptimizer"
 include "vendor/mikktspace"
 include "vendor/imgui"
 include "vendor/efsw"
+include "vendor/catch2"
 
 group "Tools"
 include "tools/AssetLib"

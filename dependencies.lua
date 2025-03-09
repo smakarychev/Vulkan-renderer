@@ -15,3 +15,6 @@ IncludeDir["efsw"]	        = "%{wks.location}/vendor/efsw/include"
 IncludeDir["inja"]	        = "%{wks.location}/vendor/inja/single_include"
 IncludeDir["tinygltf"]	    = "%{wks.location}/vendor/tinygltf"
 IncludeDir["mikktspace"]	= "%{wks.location}/vendor/mikktspace/src"
+IncludeDir["catch2"]	    = "%{wks.location}/vendor/catch2/src"
+
+IncludeDir["CoreLib"]	    = "%{wks.location}/CoreLib/src"

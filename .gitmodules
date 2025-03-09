@@ -25,3 +25,6 @@
 [submodule "vendor/tinygltf"]
 	path = vendor/tinygltf
 	url = https://github.com/smakarychev/tinygltf
+[submodule "vendor/catch2"]
+	path = vendor/catch2
+	url = https://github.com/smakarychev/Catch2.git
