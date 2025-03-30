@@ -89,7 +89,7 @@ TEST_CASE("lerp", "[CoreMath]")
     {
         const f32 a = -100.0f;
         const f32 b = 100.0f;
-        const f32 t = GENERATE_COPY (take(100, random(a, b)));
+        const f32 t = GENERATE_COPY(take(100, random(a, b)));
         REQUIRE_THAT(Math::lerp(a, b, Math::ilerp(a, b, t)), Catch::Matchers::WithinRel(t, 1e-3f));
     }
 }
@@ -111,7 +111,7 @@ TEST_CASE("ilerp", "[CoreMath]")
     {
         const f32 a = -100.0f;
         const f32 b = 100.0f;
-        const f32 t = GENERATE_COPY (take(100, random(a, b)));
+        const f32 t = GENERATE_COPY(take(100, random(a, b)));
         REQUIRE_THAT(Math::ilerp(a, b, Math::lerp(a, b, t)), Catch::Matchers::WithinRel(t, 1e-3f));
     }
 }
@@ -122,13 +122,13 @@ TEST_CASE("fastMod", "[CoreMath]")
         for (u32 basePow = 0; basePow < 32; basePow++)
         {
             const u32 base = 1lu << basePow;
-            const u32 value = GENERATE_COPY (take(10, random(0lu, ~0lu)));
+            const u32 value = GENERATE_COPY(take(10, random(0lu, ~0lu)));
             REQUIRE(Math::fastMod(value, base) == value % base);
         }
         for (u32 basePow = 0; basePow < 64; basePow++)
         {
             const u64 base = 1llu << basePow;
-            const u64 value = GENERATE_COPY (take(10, random(0llu, ~0llu)));
+            const u64 value = GENERATE_COPY(take(10, random(0llu, ~0llu)));
             REQUIRE(Math::fastMod(value, base) == value % base);
         }
     }
