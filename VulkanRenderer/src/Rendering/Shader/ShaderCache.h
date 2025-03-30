@@ -2,7 +2,8 @@
 
 #include "FrameContext.h"
 #include "Shader.h"
-#include "utils/HashedString.h"
+#include "String/HashedStringView.h"
+#include "String/StringUnorderedMap.h"
 
 #include <string>
 #include <variant>
@@ -12,7 +13,7 @@ struct ShaderOverride
 {
     using Type = T;
     
-    Utils::HashedString Name;
+    HashedStringView Name;
     T Value;
 
     static_assert(!std::is_pointer_v<T>);
@@ -52,7 +53,7 @@ struct ShaderOverrides
     }
 
     std::array<std::byte, CalculateSizeBytes(std::index_sequence_for<Args...>{})> Data;
-    std::array<Utils::HashedString, std::tuple_size_v<std::tuple<Args...>>> Names;
+    std::array<HashedStringView, std::tuple_size_v<std::tuple<Args...>>> Names;
     /* Descriptions are partially empty until the template is loaded
      * having it here helps to avoid dynamic memory allocations
      */
@@ -64,10 +65,10 @@ private:
     {
         usize offset = 0;
         ((
-            Utils::hashCombine(
+            Hash::combine(
                 Hash,
                 std::get<Is>(tupleArgs).Name.Hash() ^
-                Utils::hashBytes(
+                Hash::bytes(
                     &std::get<Is>(tupleArgs).Value,
                     sizeof(&std::get<Is>(tupleArgs).Value))),
             Names[Is] = std::move(std::get<Is>(tupleArgs).Name),
@@ -82,7 +83,7 @@ private:
 struct ShaderOverridesView
 {
     Span<const std::byte> Data{};
-    Span<const Utils::HashedString> Names{};
+    Span<const HashedStringView> Names{};
     Span<PipelineSpecializationDescription> Descriptions{};
     u64 Hash{0};
 
@@ -163,17 +164,17 @@ private:
         };
         std::vector<ShaderFile> Files;
     };
-    static Utils::StringUnorderedMap<FileNode> s_FileGraph;
+    static StringUnorderedMap<FileNode> s_FileGraph;
     
     struct Record
     {
         std::vector<Shader*> Shaders; 
     };
     /* to achieve hot-reload we need to map each stage file (and its includes) to shaders */
-    static Utils::StringUnorderedMap<Record> s_Records;
+    static StringUnorderedMap<Record> s_Records;
 
     /* maps associated name to shader */
-    static Utils::StringUnorderedMap<Shader*> s_ShadersMap;
+    static StringUnorderedMap<Shader*> s_ShadersMap;
     
     static std::vector<std::unique_ptr<Shader>> s_Shaders;
 
@@ -186,7 +187,7 @@ private:
     };
     static std::vector<PipelineData> s_Pipelines;
 
-    static Utils::StringUnorderedMap<Descriptors> s_BindlessDescriptors;
+    static StringUnorderedMap<Descriptors> s_BindlessDescriptors;
 
     static DeletionQueue* s_FrameDeletionQueue;
 

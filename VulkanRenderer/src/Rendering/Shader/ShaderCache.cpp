@@ -13,12 +13,12 @@
 #include <efsw/efsw.hpp>
 
 DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
-Utils::StringUnorderedMap<ShaderCache::FileNode> ShaderCache::s_FileGraph = {};
-Utils::StringUnorderedMap<ShaderCache::Record> ShaderCache::s_Records = {};    
-Utils::StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
+StringUnorderedMap<ShaderCache::FileNode> ShaderCache::s_FileGraph = {};
+StringUnorderedMap<ShaderCache::Record> ShaderCache::s_Records = {};    
+StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
 std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
 std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
-Utils::StringUnorderedMap<Descriptors> ShaderCache::s_BindlessDescriptors = {};
+StringUnorderedMap<Descriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
 std::vector<std::pair<std::string, std::string>> ShaderCache::s_ToRename = {};

@@ -5,13 +5,13 @@
 #include "core.h"
 #include "Core/Random.h"
 
-#include "utils/MathUtils.h"
+#include "Math/CoreMath.h"
 
 /* Paged sparse set implementation */
 
 static constexpr u32 SPARSE_SET_PAGE_SIZE = 256;
-static_assert(MathUtils::isPowerOf2(SPARSE_SET_PAGE_SIZE), "Page size must be a power of 2");
-static const u32 SPARSE_SET_PAGE_SIZE_LOG = MathUtils::log2(SPARSE_SET_PAGE_SIZE);
+static_assert(Math::isPowerOf2(SPARSE_SET_PAGE_SIZE), "Page size must be a power of 2");
+static const u32 SPARSE_SET_PAGE_SIZE_LOG = Math::log2(SPARSE_SET_PAGE_SIZE);
 
 /* ST - sparse type, DT - dense type*/
 template <typename St, typename Dt>
@@ -88,7 +88,7 @@ constexpr St SparseSet<St, Dt>::Push(Dt value)
 {
     auto&& [gen, index] = Traits::Decompose(value);
     auto* sparseSet = GetOrCreate(index);
-    auto mappedIndex = MathUtils::fastMod(index, SPARSE_SET_PAGE_SIZE);
+    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     ASSERT(!Has(value), "Value is already set")
     ASSERT((*sparseSet)[mappedIndex] == NON_ELEMENT, "Catastrophic failure")
     (*sparseSet)[mappedIndex] = static_cast<St>(m_Dense.size());
@@ -103,7 +103,7 @@ constexpr St SparseSet<St, Dt>::Push(Dt value, PushCallback callback)
 {
     auto&& [gen, index] = Traits::Decompose(value);
     auto* sparseSet = GetOrCreate(index);
-    auto mappedIndex = MathUtils::fastMod(index, SPARSE_SET_PAGE_SIZE);
+    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     ASSERT(!Has(value), "Value is already set")
     ASSERT((*sparseSet)[mappedIndex] == NON_ELEMENT, "Catastrophic failure")
     (*sparseSet)[mappedIndex] = static_cast<St>(m_Dense.size());
@@ -118,7 +118,7 @@ constexpr void SparseSet<St, Dt>::Pop(Dt value)
 {
     auto&& [gen, index] = Traits::Decompose(value);
     auto* sparseSet = TryGet(index);
-    auto mappedIndex = MathUtils::fastMod(index, SPARSE_SET_PAGE_SIZE);
+    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     ASSERT(sparseSet, "Invalid value")
     ASSERT((*sparseSet)[mappedIndex] != NON_ELEMENT, "No such value")
     /* we keep the continuous layout, w/o need to maintain original order,
@@ -130,7 +130,7 @@ constexpr void SparseSet<St, Dt>::Pop(Dt value)
         Dt lastVal = m_Dense.back();
         auto&& [lvGen, lvIndex] = Traits::Decompose(lastVal);
         auto* lvSparseSet = TryGet(lvIndex);
-        auto mappedLvIndex = MathUtils::fastMod(lvIndex, SPARSE_SET_PAGE_SIZE);
+        auto mappedLvIndex = Math::fastMod(lvIndex, SPARSE_SET_PAGE_SIZE);
         ASSERT((*lvSparseSet)[mappedLvIndex] != NON_ELEMENT, "Catastrophic failure")
         std::swap(m_Dense[(*sparseSet)[mappedIndex]], m_Dense.back());
         std::swap((*sparseSet)[mappedIndex], (*lvSparseSet)[mappedLvIndex]);
@@ -147,7 +147,7 @@ constexpr void SparseSet<St, Dt>::Pop(Dt value, PopCallback popCallback, SwapCal
 {
     auto&& [gen, index] = Traits::Decompose(value);
     auto* sparseSet = TryGet(index);
-    auto mappedIndex = MathUtils::fastMod(index, SPARSE_SET_PAGE_SIZE);
+    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     ASSERT(sparseSet, "Invalid value")
     ASSERT((*sparseSet)[mappedIndex] != NON_ELEMENT, "No such value")
     /* we keep the continuous layout, w/o need to maintain original order,
@@ -159,7 +159,7 @@ constexpr void SparseSet<St, Dt>::Pop(Dt value, PopCallback popCallback, SwapCal
         Dt lastVal = m_Dense.back();
         auto&& [lvGen, lvIndex] = Traits::Decompose(lastVal);
         auto* lvSparseSet = TryGet(lvIndex);
-        auto mappedLvIndex = MathUtils::fastMod(lvIndex, SPARSE_SET_PAGE_SIZE);
+        auto mappedLvIndex = Math::fastMod(lvIndex, SPARSE_SET_PAGE_SIZE);
         ASSERT((*lvSparseSet)[mappedLvIndex] != NON_ELEMENT, "Catastrophic failure")
         swapCallback((*sparseSet)[mappedIndex], static_cast<St>(m_Dense.size() - 1));
         std::swap(m_Dense[(*sparseSet)[mappedIndex]], m_Dense.back());
@@ -177,7 +177,7 @@ constexpr bool SparseSet<St, Dt>::Has(Dt value) const
 {
     auto&& [gen, index] = Traits::Decompose(value);
     auto* sparseSet = TryGet(index);
-    auto mappedIndex = MathUtils::fastMod(index, SPARSE_SET_PAGE_SIZE);
+    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     if (sparseSet == nullptr)
         return false;
     St sparseI = (*sparseSet)[mappedIndex];
@@ -191,7 +191,7 @@ constexpr St SparseSet<St, Dt>::GetIndexOf(Dt value) const
     auto&& [gen, index] = Traits::Decompose(value);
     auto* sparseSet = TryGet(index);
     ASSERT(sparseSet, "No such value")
-    auto mappedIndex = MathUtils::fastMod(index, SPARSE_SET_PAGE_SIZE);
+    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     
     return (*sparseSet)[mappedIndex];
 }
@@ -207,7 +207,7 @@ constexpr const Dt& SparseSet<St, Dt>::operator[](Dt value) const
 {
     auto&& [gen, index] = Traits::Decompose(value);
     auto* sparseSet = TryGet(index);
-    auto mappedIndex = MathUtils::fastMod(index, SPARSE_SET_PAGE_SIZE);
+    auto mappedIndex = Math::fastMod(index, SPARSE_SET_PAGE_SIZE);
     ASSERT(sparseSet, "Invalid index")
     
     return (*sparseSet)[mappedIndex];

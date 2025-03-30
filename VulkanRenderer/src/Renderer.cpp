@@ -644,7 +644,8 @@ void Renderer::OnRender()
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
                 .Position = position,
-                .Orientation = glm::angleAxis(Random::Float(0.0f, std::numbers::pi), glm::normalize(Random::Float3(0.0f, 1.0f))),
+                .Orientation = glm::angleAxis(
+                    Random::Float(0.0f, (f32)std::numbers::pi), glm::normalize(Random::Float3(0.0f, 1.0f))),
                 .Scale = glm::vec3{0.5f},}},
             GetFrameContext());
         LOG("{}", m_Scene.Geometry().CommandCount);

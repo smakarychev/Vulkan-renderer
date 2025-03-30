@@ -1,11 +1,11 @@
 #pragma once
 
 #include "types.h"
-#include "utils/MathUtils.h"
+#include "Math/CoreMath.h"
 
 static constexpr u32 DENSE_SET_PAGE_SIZE = 256;
-static_assert(MathUtils::isPowerOf2(DENSE_SET_PAGE_SIZE), "Page size must be a power of 2");
-static const u32 DENSE_SET_PAGE_SIZE_LOG = MathUtils::log2(DENSE_SET_PAGE_SIZE);
+static_assert(Math::isPowerOf2(DENSE_SET_PAGE_SIZE), "Page size must be a power of 2");
+static const u32 DENSE_SET_PAGE_SIZE_LOG = Math::log2(DENSE_SET_PAGE_SIZE);
 
 template <typename T>
 class DenseSetPaged
@@ -88,7 +88,7 @@ constexpr void DenseSetPaged<T>::UnorderedRemove(u32 index)
 template <typename T>
 constexpr const T& DenseSetPaged<T>::operator[](u32 index) const
 {
-    u32 indexMinor = MathUtils::fastMod(index, DENSE_SET_PAGE_SIZE);
+    u32 indexMinor = Math::fastMod(index, DENSE_SET_PAGE_SIZE);
     const std::vector<T>& page = GetPage(index);
     ASSERT(page.capacity() != 0 && page.size() > indexMinor, "No element at index {}", index)
 

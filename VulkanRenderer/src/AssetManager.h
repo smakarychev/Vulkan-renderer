@@ -3,7 +3,7 @@
 #include <unordered_map>
 
 #include "Rendering/Image/Image.h"
-#include "utils/HashedString.h"
+#include "String/StringUnorderedMap.h"
 
 class SceneInfo;
 class Model;
@@ -29,9 +29,9 @@ public:
     static SceneInfo* AddSceneInfo(std::string_view name, SceneInfo&& sceneInfo);
     
 private:
-    static Utils::StringUnorderedMap<ShaderReflection> s_Shaders;
-    static Utils::StringUnorderedMap<Model> s_Models;
-    static Utils::StringUnorderedMap<Image> s_Images;
+    static StringUnorderedMap<ShaderReflection> s_Shaders;
+    static StringUnorderedMap<Model> s_Models;
+    static StringUnorderedMap<Image> s_Images;
     
-    static Utils::StringUnorderedMap<SceneInfo> s_Scenes;
+    static StringUnorderedMap<SceneInfo> s_Scenes;
 };

@@ -1,16 +1,20 @@
-﻿#pragma once
+#pragma once
 
 #include "types.h"
 
 #include <algorithm>
 #include <vector>
-#include <filesystem>
 
 namespace Utils
 {
-    // Fn : (const char* req, T& avail) -> bool; Lg : (const char* req) -> void
     template <typename T, typename V, typename Fn, typename Lg>
-    bool checkArrayContainsSubArray(const std::vector<T>& required, const std::vector<V>& available, Fn&& comparator, Lg&& logger)
+    requires requires(Fn comparator, Lg logger, const T& req, const V& avail)
+    {
+        { comparator(req, avail) } -> std::same_as<i32>;
+        { logger(req) } -> std::same_as<void>;
+    }
+    bool checkArrayContainsSubArray(const std::vector<T>& required, const std::vector<V>& available,
+        Fn&& comparator, Lg&& logger)
     {
         bool success = true;    
         for (auto& req : required)
@@ -24,8 +28,11 @@ namespace Utils
         return success;
     }
 
-    // Fn : (const T& a, const T& b) -> bool
     template <typename T, typename Fn>
+    requires requires(Fn comparator, const T& a, const T& b)
+    {
+        { comparator(a, b) } -> std::same_as<bool>;
+    }
     T getIntersectionOrDefault(const std::vector<T>& desired, const std::vector<T>& available, Fn&& comparator)
     {
         for (auto& des : desired)
@@ -35,8 +42,12 @@ namespace Utils
         return available.front();
     }
 
-    // Cmp : (const T& a, const T& b) -> {-1, 0, 1} (comparison); Mrg : (const T& a, const T& b) -> T (merge)
     template <typename T, typename Cmp, typename Mrg>
+    requires requires(Cmp comparator, Mrg merger, const T& a, const T& b)
+    {
+        { comparator(a, b) } -> std::same_as<i32>;
+        { merger(a, b) } -> std::same_as<T>;
+    }
     std::vector<T> mergeSets(const std::vector<T>& first, const std::vector<T>& second, Cmp&& comparator, Mrg&& merger)
     {
         if (first.empty())

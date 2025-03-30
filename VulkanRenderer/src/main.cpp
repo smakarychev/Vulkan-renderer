@@ -8,7 +8,6 @@
 #include "Renderer.h"
 #include "cvars/CVarSystem.h"
 #include "Platform/PlatformUtils.h"
-#include "utils/utils.h"
 
 i32 main()
 {

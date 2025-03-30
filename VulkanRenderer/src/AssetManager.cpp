@@ -4,10 +4,10 @@
 #include "Rendering/Shader/Shader.h"
 #include "Scene/Scene.h"
 
-Utils::StringUnorderedMap<ShaderReflection> AssetManager::s_Shaders = {};
-Utils::StringUnorderedMap<Model> AssetManager::s_Models = {};
-Utils::StringUnorderedMap<Image> AssetManager::s_Images = {};
-Utils::StringUnorderedMap<SceneInfo> AssetManager::s_Scenes = {};
+StringUnorderedMap<ShaderReflection> AssetManager::s_Shaders = {};
+StringUnorderedMap<Model> AssetManager::s_Models = {};
+StringUnorderedMap<Image> AssetManager::s_Images = {};
+StringUnorderedMap<SceneInfo> AssetManager::s_Scenes = {};
 
 void AssetManager::Shutdown()
 {

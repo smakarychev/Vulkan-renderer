@@ -130,7 +130,7 @@ namespace ImageUtils
     {
         u32 maxDimension = std::max(resolution.x, std::max(resolution.y, resolution.z));
 
-        return (i8)std::max(1, (i8)std::log2(maxDimension) + (i8)!MathUtils::isPowerOf2(maxDimension));    
+        return (i8)std::max(1, (i8)std::log2(maxDimension) + (i8)!Math::isPowerOf2(maxDimension));    
     }
 
     glm::uvec3 getPixelCoordinates(Image image, const glm::vec3& coordinate, ImageSizeType sizeType)

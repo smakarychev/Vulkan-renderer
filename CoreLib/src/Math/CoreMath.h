@@ -1,9 +1,11 @@
 #pragma once
 
+
+#include "core.h"
+#include "types.h"
+
 #include <functional>
 #include <intrin.h>
-
-#include "types.h"
 
 #ifndef _MSC_VER
 #define clz32(x) __builtin_clz(x)
@@ -11,7 +13,7 @@
 #define clz32(x) __lzcnt(x)
 #endif
 
-namespace MathUtils
+namespace Math
 {
     constexpr u32 floorToPowerOf2(u32 number)
     {

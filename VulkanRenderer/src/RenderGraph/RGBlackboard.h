@@ -5,8 +5,7 @@
 #include "RenderPass.h"
 #include "types.h"
 #include "core.h"
-#include "utils/hash.h"
-#include "utils/utils.h"
+#include "Utils/Hash.h"
 
 namespace RG
 {
@@ -16,12 +15,12 @@ namespace RG
         template <typename DataType>
         static constexpr u64 Type()
         {
-            return Utils::hashString(GENERATOR_PRETTY_FUNCTION);
+            return Hash::string(GENERATOR_PRETTY_FUNCTION);
         }
         template <typename DataType>
         static constexpr u64 Type(u64 name)
         {
-            return name ^ Utils::hashString(GENERATOR_PRETTY_FUNCTION);
+            return name ^ Hash::string(GENERATOR_PRETTY_FUNCTION);
         }
     };
 

@@ -7,7 +7,7 @@
 
 #include "RGResource.h"
 #include "Rendering/Synchronization.h"
-#include "utils/HashedString.h"
+#include "Utils/Hash.h"
 
 struct FrameContext;
 
@@ -21,7 +21,7 @@ namespace RG
         friend class Pass;
     public:
         PassName(std::string_view name) :
-            m_Name(name), m_Hash(Utils::hashString(name)) {}
+            m_Name(name), m_Hash(Hash::string(name)) {}
         
         const std::string& Name() const { return m_Name; }
         u64 Hash() const { return m_Hash; }

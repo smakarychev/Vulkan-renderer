@@ -1,0 +1,19 @@
+#pragma once
+
+#include "types.h"
+
+#include <string_view>
+#include <unordered_map>
+
+struct StringHeterogeneousHasher
+{
+    using HashType = std::hash<std::string_view>;
+    using is_transparent = void;
+
+    u64 operator()(const char* str) const { return HashType{}(str); }
+    u64 operator()(std::string_view str) const { return HashType{}(str); }
+    u64 operator()(const std::string& str) const { return HashType{}(str); }
+};
+
+template <typename T>
+using StringUnorderedMap = std::unordered_map<std::string, T, StringHeterogeneousHasher, std::equal_to<>>;

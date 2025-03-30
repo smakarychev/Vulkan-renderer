@@ -9,7 +9,6 @@
 #include "Vulkan/Device.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
-#include "utils/utils.h"
 #include "Rendering/Commands/RenderCommandList.h"
 
 namespace

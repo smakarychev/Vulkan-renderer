@@ -1,13 +1,13 @@
 #include "HiZPassContext.h"
 
 #include "HiZBlitUtilityPass.h"
-#include "utils/MathUtils.h"
+#include "Math/CoreMath.h"
 
 HiZPassContext::HiZPassContext(const glm::uvec2& resolution, DeletionQueue& deletionQueue)
     : m_DrawResolution(resolution)
 {
-    u32 width = MathUtils::floorToPowerOf2(resolution.x);
-    u32 height = MathUtils::floorToPowerOf2(resolution.y);
+    u32 width = Math::floorToPowerOf2(resolution.x);
+    u32 height = Math::floorToPowerOf2(resolution.y);
 
     m_HiZResolution = glm::uvec2{width, height};
     

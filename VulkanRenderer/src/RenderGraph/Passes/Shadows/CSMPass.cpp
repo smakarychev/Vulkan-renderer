@@ -8,7 +8,7 @@
 #include "RenderGraph/Passes/Culling/MutiviewCulling/CullMetaMultiviewPass.h"
 #include "RenderGraph/Passes/Generated/ShadowBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "utils/MathUtils.h"
+#include "Math/CoreMath.h"
 
 namespace
 {
@@ -34,7 +34,7 @@ namespace
             f32 cLog = near * std::pow(depthRatio, iOverN);
             f32 cUniform = near + depthRange * iOverN;
 
-            f32 split = MathUtils::lerp(cLog, cUniform, SPLIT_LAMBDA);
+            f32 split = Math::lerp(cLog, cUniform, SPLIT_LAMBDA);
             depthSplits[i] = split;
         }
 

@@ -6,7 +6,7 @@
 #include "imgui/imgui.h"
 #include "RenderGraph/Passes/Generated/SsaoBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "utils/MathUtils.h"
+#include "Math/CoreMath.h"
 
 namespace
 {
@@ -45,7 +45,7 @@ namespace
             sample = glm::normalize(sample);
             sample *= Random::Float();
             f32 scale = (f32)i / (f32)samples.size();
-            scale = MathUtils::lerp(0.1f, 1.0f, scale * scale);
+            scale = Math::lerp(0.1f, 1.0f, scale * scale);
             sample *= scale;
             samples[i] = glm::vec4{sample, 1.0f};
         }
