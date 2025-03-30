@@ -10,7 +10,7 @@ namespace Utils
     template <typename T, typename V, typename Fn, typename Lg>
     requires requires(Fn comparator, Lg logger, const T& req, const V& avail)
     {
-        { comparator(req, avail) } -> std::same_as<i32>;
+        { comparator(req, avail) } -> std::same_as<bool>;
         { logger(req) } -> std::same_as<void>;
     }
     bool checkArrayContainsSubArray(const std::vector<T>& required, const std::vector<V>& available,

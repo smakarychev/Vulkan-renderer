@@ -3525,7 +3525,10 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
         vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, availableExtensions.data());
 
         return Utils::checkArrayContainsSubArray(createInfo.InstanceExtensions, availableExtensions,
-            [](const char* req, const VkExtensionProperties& avail) { return std::strcmp(req, avail.extensionName); },
+            [](const char* req, const VkExtensionProperties& avail)
+            {
+                return std::strcmp(req, avail.extensionName) == 0;
+            },
             [](const char* req) { LOG("Unsupported instance extension: {}\n", req); });
     };
     auto checkInstanceValidationLayers = [](const DeviceCreateInfo& createInfo)
@@ -3536,7 +3539,7 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
         vkEnumerateInstanceLayerProperties(&availableValidationLayerCount, availableLayers.data());
 
         return Utils::checkArrayContainsSubArray(createInfo.InstanceValidationLayers, availableLayers,
-            [](const char* req, const VkLayerProperties& avail) { return std::strcmp(req, avail.layerName); },
+            [](const char* req, const VkLayerProperties& avail) { return std::strcmp(req, avail.layerName) == 0; },
             [](const char* req) { LOG("Unsupported validation layer: {}\n", req); });
     };
     
@@ -3626,7 +3629,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
             return Utils::checkArrayContainsSubArray(createInfo.DeviceExtensions, availableExtensions,
                 [](const char* req, const VkExtensionProperties& avail)
                 {
-                    return std::strcmp(req, avail.extensionName);
+                    return std::strcmp(req, avail.extensionName) == 0;
                 },
                 [](const char* req) { LOG("Unsupported device extension: {}\n", req); });
         };
