@@ -7,14 +7,18 @@ workspace "VulkanRenderer"
     architecture "x86_64"
     editandcontinue "Off"
     flags {
-		"MultiProcessorCompile"
+		"MultiProcessorCompile",
 	}
     startproject "VulkanRenderer"
 
     linkoptions { 
         "/NODEFAULTLIB:LIBCMTD.LIB",
         "/NODEFAULTLIB:MSVCRT.LIB",
-        "/IGNORE:4221,4099,4006"
+        "/IGNORE:4221,4099,4006",
+    }
+
+    buildoptions {
+		"/utf-8",
     }
 
     

@@ -2,7 +2,7 @@
 
 #include <unordered_map>
 
-#include "utils/HashedStringView.h"
+#include "String/StringUnorderedMap.h"
 
 namespace FormatUtils
 {
@@ -64,7 +64,7 @@ namespace FormatUtils
 
     Format formatFromString(std::string_view format)
     {
-        static const Utils::StringUnorderedMap<Format> STRING_TO_FORMAT = {
+        static const StringUnorderedMap<Format> STRING_TO_FORMAT = {
             std::make_pair(formatToString(Format::Undefined),           Format::Undefined),
             std::make_pair(formatToString(Format::R8_UNORM),            Format::R8_UNORM),
             std::make_pair(formatToString(Format::R8_SNORM),            Format::R8_SNORM),

@@ -6,7 +6,7 @@
 
 namespace Hash
 {
-    inline u32 murmur3b32(const u8* data, usize sizeBytes, u32 seed = 0)
+    inline u32 murmur3b32(const u8* data, usize sizeBytes, u32 seed = 104729)
     {
         auto scramble = [](u32 k)
         {
