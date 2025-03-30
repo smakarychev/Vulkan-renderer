@@ -1,5 +1,6 @@
 #include "Renderer.h"
 
+#include <numbers>
 #include <tracy/Tracy.hpp>
 
 #include "AssetManager.h"
@@ -193,10 +194,10 @@ void Renderer::InitRenderGraph()
             },
     }, Device::DeletionQueue());
     
-    SceneInfo* sceneInfo = SceneInfo::LoadFromAsset(
+    m_TestScene = SceneInfo::LoadFromAsset(
         *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.scene",
         *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
-    SceneInstance instance = m_Scene.Instantiate(*sceneInfo, {
+    SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
         .Transform = {
             .Position = glm::vec3{0.0f, -1.5f, -7.0f},
             .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
@@ -636,6 +637,18 @@ void Renderer::OnRender()
     m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
     m_Scene.Lights().OnUpdate(GetFrameContext());
     m_OpaqueSet.OnUpdate(GetFrameContext());
+
+    if (Input::GetKey(Key::Space))
+    {
+        glm::vec3 position = m_Camera->GetPosition() + m_Camera->GetForward() * 4.0f;
+        SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
+            .Transform = {
+                .Position = position,
+                .Orientation = glm::angleAxis(Random::Float(0.0f, std::numbers::pi), glm::normalize(Random::Float3(0.0f, 1.0f))),
+                .Scale = glm::vec3{0.5f},}},
+            GetFrameContext());
+        LOG("{}", m_Scene.Geometry().CommandCount);
+    }
     
     {
         // todo: as always everything in this file is somewhat temporary

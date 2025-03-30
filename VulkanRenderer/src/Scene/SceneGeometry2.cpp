@@ -307,7 +307,6 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
     const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU2);
     const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
     const u64 meshletsSizeBytes = meshletCount * sizeof(IndirectDrawCommand);
-    CommandCount += meshletCount;
     PushBuffers::grow<BufferAsymptoticGrowthPolicy>(RenderObjects, renderObjectsSizeBytes, ctx.CommandList);
     PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Commands, renderObjectsSizeBytes, ctx.CommandList);
 
@@ -322,7 +321,7 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
             .SizeBytes = meshletsSizeBytes,
             .Offset = Commands.Offset}});
 
-    const u32 currentMeshletIndex = sceneInfoOffsets.ElementOffsets[(u32)Meshlet];
+    const u32 currentMeshletIndex = CommandCount;
     const u32 currentRenderObjectIndex = (u32)(RenderObjects.Offset / sizeof(RenderObjectGPU2));
     u32 meshletIndex = 0;
     for (auto&& [renderObjectIndex, renderObject] : std::ranges::views::enumerate(sceneInfo.m_Geometry.RenderObjects))
@@ -355,8 +354,9 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
             meshletIndex++;
         }
     }
-    
+
     RenderObjects.Offset += renderObjectsSizeBytes;
+    CommandCount += meshletCount;
     Commands.Offset += meshletsSizeBytes;
 
     return {

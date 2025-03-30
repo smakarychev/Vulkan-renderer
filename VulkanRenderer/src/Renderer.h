@@ -89,6 +89,7 @@ private:
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 
+    SceneInfo* m_TestScene{nullptr};
     Scene m_Scene;
     SceneBucketList m_SceneBucketList;
     SceneRenderObjectSet m_OpaqueSet;

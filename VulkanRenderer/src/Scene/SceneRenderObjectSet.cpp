@@ -74,7 +74,9 @@ void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
         if (bucketBits != 0)
         {
             auto& renderObject = geometry.RenderObjects[renderObjectIndex];
-            m_RenderObjectsCpu.push_back(handle);
+            const SceneRenderObjectHandle globalHandle = {
+                .Index = handle.Index + instanceData.RenderObjectsOffset};
+            m_RenderObjectsCpu.push_back(globalHandle);
             m_BucketBitsCpu.push_back(bucketBits);
             m_MeshletSpansCpu.push_back({
                 .Fist = renderObject.FirstMeshlet + instanceData.MeshletsOffset,

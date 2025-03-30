@@ -64,6 +64,7 @@ RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(std::string_view name, RG::G
                         passData.DrawInfos[currentBucket], Compute | Storage);
                     passData.DrawInfos[currentBucket] = graph.Write(
                         passData.DrawInfos[currentBucket], Compute | Storage);
+                    graph.Upload(passData.DrawInfos[currentBucket], SceneBucketDrawInfo{});
                     
                     currentBucket++;
                 }
