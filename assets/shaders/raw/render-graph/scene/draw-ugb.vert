@@ -1,6 +1,6 @@
 #version 460
 
-#include "common.glsl"
+#include "../general/common.glsl"
 
 #extension GL_ARB_shader_draw_parameters: enable
 #extension GL_EXT_scalar_block_layout: enable

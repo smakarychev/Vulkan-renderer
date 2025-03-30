@@ -30,7 +30,7 @@ enum class MaterialFlags : u16
 {
     None = 0,
     Opaque      = BIT(1),
-    AlphaMask    = BIT(2),
+    AlphaMask   = BIT(2),
     Translucent = BIT(3),
 
     TwoSided    = BIT(4),
@@ -66,11 +66,6 @@ struct RenderObject
     RenderHandle<Material> Material{};
     RenderObjectTransform Transform{};
 };
-// todo: remove '2' once ready
-struct RenderObject2
-{
-    RenderHandle<Material2> Material{};
-};
 
 struct RenderObjectGPU
 {
@@ -80,14 +75,20 @@ struct RenderObjectGPU
 // todo: remove '2' once ready
 struct RenderObjectGPU2
 {
-    glm::mat4 Transform;
-    Sphere BoundingSphere;
+    glm::mat4 Transform{glm::mat4{1.0}};
+    Sphere BoundingSphere{};
     RenderHandle<MaterialGPU> MaterialGPU{};
     u32 PositionsOffset{0};
     u32 NormalsOffset{0};
     u32 TangentsOffset{0};
     u32 UVsOffset{0};
 };
+struct RenderObjectMeshletSpan
+{
+    u32 Fist{0};
+    u32 Count{0};
+};
+using RenderObjectMeshletSpanGPU = RenderObjectMeshletSpan;
 
 struct MeshletGPU
 {

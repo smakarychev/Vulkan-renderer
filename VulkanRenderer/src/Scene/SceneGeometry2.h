@@ -8,11 +8,12 @@
 #include "RenderObject.h"
 #include "SceneAsset.h"
 #include "SceneInstance.h"
+#include "Rendering/Buffer/PushBuffer.h"
 
 struct FrameContext;
 class BindlessTextureDescriptorsRingBuffer;
 
-struct SceneMesh
+struct SceneRenderObject
 {
     u32 Material{};
     u32 FirstIndex{};
@@ -34,7 +35,7 @@ struct SceneGeometryInfo
     std::vector<glm::vec4> Tangents;
     std::vector<glm::vec2> UVs;
 
-    std::vector<SceneMesh> Meshes;
+    std::vector<SceneRenderObject> RenderObjects;
     std::vector<MaterialGPU> Materials;
     std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
     
@@ -48,6 +49,7 @@ public:
     struct AddCommandsResult
     {
         u32 FirstRenderObject{0};
+        u32 FirstMeshlet{0};
     };
 public:
     static SceneGeometry2 CreateEmpty(DeletionQueue& deletionQueue);
@@ -62,23 +64,17 @@ public:
 public:
     BufferArena Indices{};
     BufferArena Attributes{};
-    Buffer RenderObjects{};
-    Buffer Meshlets{};
-    Buffer Commands{};
-    Buffer Materials{};
+    PushBuffer RenderObjects{};
+    PushBuffer Meshlets{};
+    PushBuffer Commands{};
+    PushBuffer Materials{};
     u32 CommandCount{0};
 
-    std::vector<RenderObject2> RenderObjectsCpu;
     RenderHandleArray<Material2> MaterialsCpu;
 private:
-    u64 m_RenderObjectsOffsetBytes{0};
-    u64 m_MeshletsOffsetBytes{0};
-    u64 m_CommandsOffsetBytes{0};
-    u64 m_MaterialsOffsetBytes{0};
-    
     std::unordered_map<const SceneInfo*, SceneInfoOffsets> m_SceneInfoOffsets{};
 
-    
+    // todo: to cvars? (upd: yes, please do)
     /* these values were revealed to me in a dream */
     static constexpr u64 DEFAULT_ATTRIBUTES_BUFFER_ARENA_SIZE_BYTES = 16llu * 1024 * 1024;
     static constexpr u64 DEFAULT_INDICES_BUFFER_ARENA_SIZE_BYTES = 4llu * 1024 * 1024;

@@ -18,15 +18,16 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
         Resource Camera{};
         Resource UGB{};
         Resource Objects{};
-        Resource Commands{};
+        Resource Draws{};
+        Resource DrawInfos{};
         DrawAttachmentResources Attachments{};
         SceneLightResources Light{};
     };
 
-    Pass& pass = renderGraph.AddRenderPass<PassDataPrivate>(name,
+    return renderGraph.AddRenderPass<PassDataPrivate>(name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
-            CPU_PROFILE_FRAME("Draw.SceneUnifiedBasic.Setup")
+            CPU_PROFILE_FRAME("Scene.DrawUnifiedBasic.Setup")
 
             graph.SetShader("scene-ugb.shader");
 
@@ -41,11 +42,11 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
             passData.UGB = graph.Read(passData.UGB, Vertex | Pixel | Storage);
             
             passData.Objects = graph.AddExternal(std::format("{}.Objects", name),
-                info.Geometry->RenderObjects);
+                info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
             
-            passData.Commands = graph.AddExternal(std::format("{}.Commands", name), info.Geometry->Commands);
-            passData.Commands = graph.Read(passData.Commands, Vertex | Indirect);
+            passData.Draws = graph.Read(info.Draws, Vertex | Indirect);
+            passData.DrawInfos = graph.Read(info.DrawInfos, Vertex | Indirect);
             
             passData.Attachments = RgUtils::readWriteDrawAttachments(info.Attachments, graph);
             passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
@@ -57,14 +58,14 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Draw.SceneUnifiedBasic")
-            GPU_PROFILE_FRAME("Draw.SceneUnifiedBasic")
+            CPU_PROFILE_FRAME("Scene.DrawUnifiedBasic")
+            GPU_PROFILE_FRAME("Scene.DrawUnifiedBasic")
 
             const Shader& shader = resources.GetGraph()->GetShader();
             SceneUgbShaderBindGroup bindGroup(shader);
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
             bindGroup.SetUGB({.Buffer = resources.GetBuffer(passData.UGB)});
-            bindGroup.SetCommands({.Buffer = resources.GetBuffer(passData.Commands)});
+            bindGroup.SetCommands({.Buffer = resources.GetBuffer(passData.Draws)});
             bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
             bindGroup.SetDirectionalLights({.Buffer = resources.GetBuffer(passData.Light.DirectionalLights)});
             bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.Light.PointLights)});
@@ -74,10 +75,9 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
-            cmd.DrawIndexedIndirect({
-                .Buffer = resources.GetBuffer(passData.Commands),
-                .Count = info.Geometry->CommandCount});
+            cmd.DrawIndexedIndirectCount({
+                .DrawBuffer = resources.GetBuffer(passData.Draws),
+                .CountBuffer = resources.GetBuffer(passData.DrawInfos),
+                .MaxCount = info.Geometry->CommandCount});
         });
-
-    return pass;
 }

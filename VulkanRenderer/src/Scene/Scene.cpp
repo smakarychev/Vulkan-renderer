@@ -44,7 +44,8 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
 
     m_InstanceAddedSignal.Emit({
         .SceneInfo = &sceneInfo,
-        .RenderObjectsOffset = addCommandsResult.FirstRenderObject});
+        .RenderObjectsOffset = addCommandsResult.FirstRenderObject,
+        .MeshletsOffset = addCommandsResult.FirstMeshlet});
     
     return instance;
 }

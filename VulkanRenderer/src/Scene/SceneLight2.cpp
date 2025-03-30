@@ -4,18 +4,11 @@
 #include "ResourceUploader.h"
 #include "Scene.h"
 #include "Light/Light.h"
+#include "Rendering/Buffer/BufferUtility.h"
 #include "Vulkan/Device.h"
 
 namespace
 {
-    void ensureBufferSize(Buffer buffer, u64 lightSizeBytes, u32 lightIndex, RenderCommandList& cmdList)
-    {
-        const u64 bufferSize = Device::GetBufferSizeBytes(buffer);
-        const u64 requiredSize = lightSizeBytes * lightIndex;
-        if (bufferSize <= requiredSize)
-            Device::ResizeBuffer(buffer, requiredSize + lightSizeBytes, cmdList);
-    }
-
     LightType lightTypeFromString(const std::string& lightType)
     {
         if (lightType == "directional")
@@ -113,8 +106,7 @@ void SceneLight2::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, Fra
         .Color = light.Color,
         .Intensity = light.Intensity,
         .Size = light.Radius};
-    ensureBufferSize(m_Buffers.DirectionalLights, sizeof(directionalLight), lightIndex,
-        ctx.CommandList);
+    ::Buffers::grow(m_Buffers.DirectionalLights, sizeof(directionalLight) * (lightIndex + 1), ctx.CommandList);
     if (m_CachedDirectionalLights.size() <= lightIndex)
         m_CachedDirectionalLights.resize(lightIndex + 1);
     else if (m_CachedDirectionalLights[lightIndex] == directionalLight)
@@ -132,8 +124,7 @@ void SceneLight2::UpdatePointLight(CommonLight& light, u32 lightIndex, FrameCont
         .Color = light.Color,
         .Intensity = light.Intensity,
         .Radius = light.Radius};
-    ensureBufferSize(m_Buffers.PointLights, sizeof(pointLight), lightIndex,
-        ctx.CommandList);
+    ::Buffers::grow(m_Buffers.PointLights, sizeof(pointLight) * (lightIndex + 1), ctx.CommandList);
     if (m_CachedPointLights.size() <= lightIndex)
         m_CachedPointLights.resize(lightIndex + 1);
     else if (m_CachedPointLights[lightIndex] == pointLight)

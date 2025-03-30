@@ -1,0 +1,52 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(std430, set = 1, binding = 0) readonly buffer reference_command_buffer {
+    IndirectCommand commands[];
+} u_reference_commands;
+
+layout(scalar, set = 1, binding = 1) readonly buffer meshlet_infos {
+    MeshletBucketInfo infos[];
+} u_meshlet_infos;
+
+layout(std430, set = 1, binding = 2) readonly buffer meshlet_info_count {
+    uint count;
+} u_meshlet_info_count;
+
+layout(std430, set = 1, binding = 3) writeonly buffer command_buffer {
+    IndirectCommand commands[];
+} u_draw_commands[BUCKETS_PER_SET];
+
+layout(std430, set = 1, binding = 4) buffer draw_info_buffer {
+    DrawInfo info;
+} u_draw_info[BUCKETS_PER_SET];
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (id >= u_meshlet_info_count.count)
+        return;
+    
+    const MeshletBucketInfo meshlet = u_meshlet_infos.infos[id];
+    uint64_t buckets = meshlet.buckets;
+    uint64_t subgroup_buckets = subgroupOr(buckets);
+    while (subgroup_buckets > 0) {
+        const uint bit_index = uint(findLSB(subgroup_buckets));
+        const uint64_t bit = uint64_t(1) << bit_index;
+        
+        const uvec4 has_bit_ballot = subgroupBallot((buckets & bit) != 0);
+        const uint has_bit = subgroupBallotBitCount(has_bit_ballot);
+        uint first_draw_index = 0;
+        if (subgroupElect()) {
+            first_draw_index = atomicAdd(u_draw_info[bit_index].info.count, has_bit);
+        }
+        first_draw_index = subgroupBroadcastFirst(first_draw_index);
+        const uint draw_index_offset = subgroupBallotExclusiveBitCount(has_bit_ballot);
+        u_draw_commands[bit_index].commands[first_draw_index + draw_index_offset] =
+            u_reference_commands.commands[meshlet.index];
+        
+        subgroup_buckets = subgroup_buckets & ~bit;
+    }
+}

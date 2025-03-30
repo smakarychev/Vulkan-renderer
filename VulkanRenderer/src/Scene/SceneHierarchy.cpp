@@ -85,7 +85,7 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
         .NodeCount = (u32)instanceHierarchy.Nodes.size(),
         .FirstRenderObject = m_InstancesData.empty() ?
             0 : m_InstancesData.back().FirstRenderObject + m_InstancesData.back().RenderObjectCount,
-        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Geometry.Meshes.size(),
+        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Geometry.RenderObjects.size(),
         .FirstLight = m_InstancesData.empty() ?
             0 : m_InstancesData.back().FirstLight + m_InstancesData.back().LightCount,
         .LightCount = (u32)instance.m_SceneInfo->m_Lights.Lights.size()};
@@ -163,7 +163,7 @@ void SceneHierarchy::OnUpdate(Scene& scene, FrameContext& ctx)
         switch (node.Type)
         {
         case SceneHierarchyNodeType::Mesh:
-            updateMesh(scene.Geometry().RenderObjects, node.PayloadIndex, transforms[i], *ctx.ResourceUploader);
+            updateMesh(scene.Geometry().RenderObjects.Buffer, node.PayloadIndex, transforms[i], *ctx.ResourceUploader);
             break;
         case SceneHierarchyNodeType::Light:
             updateLight(scene.Lights().Get(node.PayloadIndex), transforms[i]);

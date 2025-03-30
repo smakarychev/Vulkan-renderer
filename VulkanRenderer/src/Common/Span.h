@@ -29,6 +29,11 @@ public:
 
     constexpr operator std::span<T>() const { return m_Span; }
 
+    constexpr Span Subspan() const { return m_Span.subspan(); }
+    constexpr Span subspan() const { return Subspan(); }
+    constexpr Span Subspan(const u64 offset, const u64 count) const { return m_Span.subspan(offset, count); }
+    constexpr Span subspan(const u64 offset, const u64 count) const { return Subspan(offset, count); }
+
     constexpr T* Data() const { return m_Span.data(); }
     constexpr T* data() const { return Data(); }
 

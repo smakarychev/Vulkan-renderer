@@ -1,32 +1,90 @@
 #include "ScenePass.h"
 
-SceneBucket::SceneBucket(std::string_view name, FilterFn filter)
-    : Filter(std::move(filter)), m_Name(name)
+#include "FrameContext.h"
+#include "ResourceUploader.h"
+#include "cvars/CVarSystem.h"
+#include "Rendering/Buffer/BufferUtility.h"
+#include "Vulkan/Device.h"
+
+SceneBucket::SceneBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue& deletionQueue)
+    : Filter(createInfo.Filter), m_Name(createInfo.Name)
 {
+    m_Draws.Buffer = Device::CreateBuffer({
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar({"Scene.Pass.DrawCommands.SizeBytes"}),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Indirect | BufferUsage::Source},
+        deletionQueue);
+    m_DrawInfo = Device::CreateBuffer({
+        .SizeBytes = sizeof(SceneBucketDrawInfo),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform | BufferUsage::Indirect},
+        deletionQueue);
 }
 
-ScenePass::ScenePass(std::string_view name, Span<const SceneBucket> buckets)
-    : m_Name(name)
+void SceneBucket::OnUpdate(FrameContext& ctx)
 {
-    m_Buckets.append_range(buckets);
-    m_RenderObjectsBucketIndex.resize(buckets.size());
+    const u32 newDraws = m_DrawCount - m_Draws.Offset;
+    /* this buffer is managed entirely by gpu, here we only have to make sure that is has enough size */
+    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(m_Draws, newDraws, ctx.CommandList);
+    m_Draws.Offset = m_DrawCount;
 }
 
-bool ScenePass::Filter(const SceneGeometryInfo& geometry, u32 renderObjectIndex)
+void SceneBucket::AllocateRenderObjectDrawCommand(u32 meshletCount)
 {
-    static constexpr u32 INVALID_BUCKET = ~0lu;
-    u32 bucketToAssignTo = INVALID_BUCKET;
-    for (u32 bucketIndex = 0; bucketIndex < m_Buckets.size(); bucketIndex++)
+    m_DrawCount += meshletCount;
+}
+
+void SceneBucketList::Init(const Scene& scene)
+{
+    m_Scene = &scene;
+}
+
+SceneBucketHandle SceneBucketList::CreateBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue& deletionQueue)
+{
+    const SceneBucketHandle id = (SceneBucketHandle)m_Buckets.size();
+    auto& bucket = m_Buckets.emplace_back(createInfo, deletionQueue);
+    bucket.m_Id = id;
+    
+    return id;
+}
+
+ScenePass::ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList, DeletionQueue& deletionQueue)
+    : m_BucketList(&bucketList), m_Name(createInfo.Name)
+{
+    AddBuckets(createInfo.BucketCreateInfos, deletionQueue);
+}
+
+void ScenePass::AddBuckets(Span<const SceneBucketCreateInfo> buckets, DeletionQueue& deletionQueue)
+{
+    for (auto& createInfo : buckets)
+        m_BucketHandles.push_back(m_BucketList->CreateBucket(createInfo, deletionQueue));
+
+    const SceneBucketHandle minHandle = std::ranges::min(m_BucketHandles);    
+    const SceneBucketHandle maxHandle = std::ranges::max(m_BucketHandles);
+    ASSERT(minHandle == m_BucketHandles.front(), "Something went really wrong")
+    ASSERT(maxHandle - minHandle < MAX_BUCKETS_PER_SET,
+        "Each scene pass must have no more than {} buckets, but got {}",
+        MAX_BUCKETS_PER_SET, maxHandle - minHandle)
+}
+
+SceneBucketHandle ScenePass::Filter(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)
+{
+    SceneBucketHandle bucketToAssignTo = INVALID_SCENE_BUCKET;
+    for (auto bucketHandle : m_BucketHandles)
     {
-        if (m_Buckets[bucketIndex].Filter(geometry, renderObjectIndex))
-        {
-            ASSERT(bucketToAssignTo == INVALID_BUCKET, "Ambiguous bucket")
-            bucketToAssignTo = bucketIndex;
-        }
+        if (!m_BucketList->GetBucket(bucketHandle).Filter(geometry, renderObject))
+            continue;
+        ASSERT(bucketToAssignTo == INVALID_SCENE_BUCKET, "Ambiguous bucket")
+        bucketToAssignTo = bucketHandle;
     }
 
-    if (bucketToAssignTo != INVALID_BUCKET)
-        m_RenderObjectsBucketIndex.push_back(bucketToAssignTo);
+    if (bucketToAssignTo != INVALID_SCENE_BUCKET)
+        m_BucketList->GetBucket(bucketToAssignTo).AllocateRenderObjectDrawCommand(
+            geometry.RenderObjects[renderObject.Index].MeshletCount);
 
-    return bucketToAssignTo != INVALID_BUCKET;
+    return bucketToAssignTo;
+}
+
+void ScenePass::OnUpdate(FrameContext& ctx)
+{
+    for (SceneBucketHandle bucketHandle : m_BucketHandles)
+        m_BucketList->GetBucket(bucketHandle).OnUpdate(ctx);
 }

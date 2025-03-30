@@ -8,8 +8,8 @@
         "depth": "D32_FLOAT"
     },
     "shader_stages": [
-        "processed/render-graph/general/draw-ugb-vert.stage",
-        "processed/render-graph/general/draw-ugb-frag.stage"
+        "processed/render-graph/scene/draw-ugb-vert.stage",
+        "processed/render-graph/scene/draw-ugb-frag.stage"
     ],
     "bindless": "main_materials" 
 }

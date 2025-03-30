@@ -25,7 +25,7 @@
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
-#include "RenderGraph/Passes/General/DrawSceneUnifiedBasic.h"
+#include "RenderGraph/Passes/Scene/DrawSceneUnifiedBasic.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
@@ -38,6 +38,8 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
+#include "RenderGraph/Passes/Scene/FillSceneIndirectDrawPass.h"
+#include "RenderGraph/Passes/Scene/PrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
@@ -90,7 +92,7 @@ void Renderer::Init()
             .Color = glm::vec3{0.2, 0.2, 0.8},
             .Intensity = 8.0f,
             .Radius = 1.0f});
-    constexpr u32 POINT_LIGHT_COUNT = 0;
+    constexpr u32 POINT_LIGHT_COUNT = 300;
     for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         m_SceneLights->AddPointLight({
             .Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
@@ -175,14 +177,21 @@ void Renderer::InitRenderGraph()
         *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.gltf");
     
     m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
-    m_OpaqueSet.Init("Opaque", m_Scene, {
-        ScenePass("Visibility", {
-            SceneBucket("Opaque material", [](const SceneGeometryInfo& geometry, u32 renderObjectIndex) {
-                const Material2& material = geometry.MaterialsCpu[geometry.Meshes[renderObjectIndex].Material];
-                return enumHasAny(material.Flags, MaterialFlags::Opaque);
-            })
-        })
-    });
+    m_SceneBucketList.Init(m_Scene);
+    m_OpaqueSet.Init("Opaque", m_Scene, m_SceneBucketList, {
+        ScenePassCreateInfo{
+            .Name = "Visibility",
+            .BucketCreateInfos = {
+                {
+                    .Name = "Opaque material",
+                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const Material2& material = geometry.MaterialsCpu[
+                            geometry.RenderObjects[renderObject.Index].Material];
+                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
+                    }
+                }}
+            },
+    }, Device::DeletionQueue());
     
     SceneInfo* sceneInfo = SceneInfo::LoadFromAsset(
         *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.scene",
@@ -291,8 +300,19 @@ void Renderer::SetupRenderGraph()
     blackboard.Update(globalResources);
     
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
-    bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials});
+    bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
+    auto& prepareMeshlets = Passes::PrepareVisibleMeshletInfo::addToGraph("PrepareVisibleMeshletInfo", *m_Graph, {
+        .RenderObjectSet = &m_OpaqueSet});
+    auto& prepareMeshletsOutput = blackboard.Get<Passes::PrepareVisibleMeshletInfo::PassData>(prepareMeshlets);
+
+    auto& fillIndirectDraws = Passes::FillSceneIndirectDraw::addToGraph("FillSceneIndirectDraw", *m_Graph, {
+        .Geometry = &m_Scene.Geometry(),
+        .RenderObjectSet = &m_OpaqueSet,
+        .MeshletInfos = prepareMeshletsOutput.MeshletInfos,
+        .MeshletInfoCount = prepareMeshletsOutput.MeshletInfoCount});
+    auto& fillIndirectDrawsOutput = blackboard.Get<Passes::FillSceneIndirectDraw::PassData>(fillIndirectDraws);
+    
     Resource depth = m_Graph->CreateResource("Depth", GraphTextureDescription{
         .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
         .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
@@ -301,6 +321,8 @@ void Renderer::SetupRenderGraph()
     auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB", *m_Graph, {
             .Geometry = &m_Scene.Geometry(),
             .Lights = &m_Scene.Lights(),
+            .Draws = fillIndirectDrawsOutput.Draws[0],
+            .DrawInfos = fillIndirectDrawsOutput.DrawInfos[0],
             .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
             .Camera = GetFrameContext().PrimaryCamera,
         .Attachments = {
@@ -613,7 +635,8 @@ void Renderer::OnRender()
     LightFrustumCuller::CullDepthSort(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
     m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
     m_Scene.Lights().OnUpdate(GetFrameContext());
-
+    m_OpaqueSet.OnUpdate(GetFrameContext());
+    
     {
         // todo: as always everything in this file is somewhat temporary
         // todo: what I really want here is a single-time render graph, that can be queried to check if it has pending passes

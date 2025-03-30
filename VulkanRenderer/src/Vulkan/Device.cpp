@@ -3695,6 +3695,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
                     deviceVulkan12Features.shaderInt8 == VK_TRUE &&
                     deviceVulkan12Features.storageBuffer8BitAccess  == VK_TRUE &&
                     deviceVulkan12Features.uniformAndStorageBuffer8BitAccess == VK_TRUE &&
+                    deviceVulkan12Features.shaderSubgroupExtendedTypes == VK_TRUE &&
                     deviceVulkan12Features.shaderBufferInt64Atomics == VK_TRUE &&
                     deviceVulkan12Features.timelineSemaphore == VK_TRUE &&
                     deviceVulkan12Features.bufferDeviceAddress == VK_TRUE &&
@@ -3803,6 +3804,7 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
     vulkan12Features.shaderFloat16 = VK_TRUE;
     vulkan12Features.shaderInt8 = VK_TRUE;
     vulkan12Features.storageBuffer8BitAccess  = VK_TRUE;
+    vulkan12Features.shaderSubgroupExtendedTypes  = VK_TRUE;
     vulkan12Features.shaderBufferInt64Atomics = VK_TRUE;
     vulkan12Features.uniformAndStorageBuffer8BitAccess = VK_TRUE;
     vulkan12Features.timelineSemaphore = VK_TRUE;

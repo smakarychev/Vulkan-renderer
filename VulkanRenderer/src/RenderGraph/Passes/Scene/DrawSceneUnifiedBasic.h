@@ -3,8 +3,8 @@
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 
-class SceneLight2;
 class Camera;
+class SceneLight2;
 class SceneGeometry2;
 
 /* this is pretty much ugb proof-of-concept */
@@ -15,6 +15,8 @@ namespace Passes::DrawSceneUnifiedBasic
     {
         const SceneGeometry2* Geometry{nullptr};
         const SceneLight2* Lights{nullptr};
+        RG::Resource Draws{};
+        RG::Resource DrawInfos{};
         glm::uvec2 Resolution{};
         const Camera* Camera{nullptr};
 

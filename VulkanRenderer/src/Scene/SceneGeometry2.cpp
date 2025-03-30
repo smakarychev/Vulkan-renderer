@@ -8,6 +8,7 @@
 #include "FrameContext.h"
 #include "ResourceUploader.h"
 #include "Scene.h"
+#include "Rendering/Buffer/BufferUtility.h"
 
 // todo: this is code duplication
 namespace glm
@@ -139,12 +140,12 @@ namespace
         }
     }
 
-    void loadMeshes(SceneGeometryInfo& geometry, assetLib::SceneInfo& sceneInfo)
+    void loadRenderObjects(SceneGeometryInfo& geometry, assetLib::SceneInfo& sceneInfo)
     {
-        geometry.Meshes.reserve(sceneInfo.Scene.meshes.size());
+        geometry.RenderObjects.reserve(sceneInfo.Scene.meshes.size());
         for (auto& meshInfo : sceneInfo.Scene.meshes)
         {
-            ASSERT(meshInfo.primitives.size() < 2, "Meshes with more that 1 primitives are not supported")
+            ASSERT(meshInfo.primitives.size() < 2, "Render objects with more that 1 primitives are not supported")
             for (auto& primitive : meshInfo.primitives)
             {
                 const u32 firstIndex = (u32)(sceneInfo.Scene.accessors[primitive.indices].byteOffset /
@@ -163,7 +164,7 @@ namespace
                     .Center = meshletAccessorJson["bounding_sphere"]["center"],
                     .Radius = meshletAccessorJson["bounding_sphere"]["radius"]};
 
-                geometry.Meshes.push_back({
+                geometry.RenderObjects.push_back({
                     .Material = (u32)std::max(primitive.material, 0),
                     .FirstIndex = firstIndex,
                     .FirstVertex = firstVertex,
@@ -208,21 +209,6 @@ namespace
         offsets.ElementOffsets[(u32)bufferType] = (u32)(suballocation.Description.Offset / sizeof(T));
         ctx.ResourceUploader->UpdateBuffer(suballocation.Buffer, data, suballocation.Description.Offset);
     }
-
-    void growBuffer(Buffer buffer, u64 newMinSize, RenderCommandList& cmdList)
-    {
-        static constexpr f32 GROWTH_RATE = 1.5;
-
-        const u64 newSize = std::max(newMinSize, (u64)GROWTH_RATE * Device::GetBufferSizeBytes(buffer));
-        Device::ResizeBuffer(buffer, newSize, cmdList);
-    }
-    
-    void growBufferIfNeeded(Buffer buffer, u64 requiredSize, RenderCommandList& cmdList)
-    {
-        const u64 currentSize = Device::GetBufferSizeBytes(buffer);
-        if (requiredSize > currentSize)
-            growBuffer(buffer, requiredSize, cmdList);
-    }
 }
 
 SceneGeometryInfo SceneGeometryInfo::FromAsset(assetLib::SceneInfo& sceneInfo,
@@ -231,7 +217,7 @@ SceneGeometryInfo SceneGeometryInfo::FromAsset(assetLib::SceneInfo& sceneInfo,
     SceneGeometryInfo geometryInfo = {};
     loadBuffers(geometryInfo, sceneInfo, deletionQueue);
     loadMaterials(geometryInfo, sceneInfo, texturesRingBuffer, deletionQueue);
-    loadMeshes(geometryInfo, sceneInfo);
+    loadRenderObjects(geometryInfo, sceneInfo);
 
     return geometryInfo;
 }
@@ -251,19 +237,19 @@ SceneGeometry2 SceneGeometry2::CreateEmpty(DeletionQueue& deletionQueue)
             .Usage = BufferUsage::Ordinary | BufferUsage::Index | BufferUsage::Storage | BufferUsage::Source},
             deletionQueue)},
         deletionQueue);
-    geometry.RenderObjects = Device::CreateBuffer({
+    geometry.RenderObjects.Buffer = Device::CreateBuffer({
         .SizeBytes = DEFAULT_RENDER_OBJECTS_BUFFER_SIZE_BYTES,
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
-    geometry.Meshlets = Device::CreateBuffer({
+    geometry.Meshlets.Buffer = Device::CreateBuffer({
         .SizeBytes = DEFAULT_MESHLET_BUFFER_SIZE_BYTES,
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
-    geometry.Commands = Device::CreateBuffer({
+    geometry.Commands.Buffer = Device::CreateBuffer({
         .SizeBytes = DEFAULT_COMMANDS_BUFFER_SIZE_BYTES,
         .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
-    geometry.Materials = Device::CreateBuffer({
+    geometry.Materials.Buffer = Device::CreateBuffer({
         .SizeBytes = DEFAULT_MATERIALS_BUFFER_SIZE_BYTES,
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
@@ -286,33 +272,27 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
 
     const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
     const u64 meshletsSizeBytes = meshletCount * sizeof(assetLib::ModelInfo::Meshlet);
-    growBufferIfNeeded(Meshlets,
-        meshletsSizeBytes + m_MeshletsOffsetBytes,
-        ctx.CommandList);
+    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Meshlets, meshletsSizeBytes, ctx.CommandList);
     MeshletGPU* meshlets = ctx.ResourceUploader->MapBuffer<MeshletGPU>({
-        .Buffer = Meshlets,
+        .Buffer = Meshlets.Buffer,
         .Description = {
             .SizeBytes = meshletsSizeBytes,
-            .Offset = m_MeshletsOffsetBytes}});
+            .Offset = Meshlets.Offset}});
     for (auto&& [meshletIndex, meshlet] : std::ranges::views::enumerate(sceneInfo.m_Geometry.Meshlets))
         meshlets[meshletIndex] = {
             .BoundingCone = meshlet.BoundingCone,
             .BoundingSphere = {.Center = meshlet.BoundingSphere.Center, .Radius = meshlet.BoundingSphere.Radius}};
 
-    const u64 materialsSizeBytes = sceneInfo.m_Geometry.Materials.size() * sizeof(MaterialGPU);
-    growBufferIfNeeded(Materials,
-        materialsSizeBytes + m_MaterialsOffsetBytes,
-        ctx.CommandList);
-    ctx.ResourceUploader->UpdateBuffer(Materials, sceneInfo.m_Geometry.Materials, m_MaterialsOffsetBytes);
+    PushBuffers::push<BufferAsymptoticGrowthPolicy>(Materials,
+        sceneInfo.m_Geometry.Materials, ctx.CommandList, *ctx.ResourceUploader);
     MaterialsCpu.reserve(MaterialsCpu.size() + (u32)sceneInfo.m_Geometry.MaterialsCpu.size());
     for (auto& material : sceneInfo.m_Geometry.MaterialsCpu)
         MaterialsCpu.push_back(material);
-    sceneInfoOffsets.MaterialOffset = (u32)(m_MaterialsOffsetBytes / sizeof(MaterialGPU));
+    sceneInfoOffsets.MaterialOffset = (u32)(Materials.Offset / sizeof(MaterialGPU));
     
-    sceneInfoOffsets.ElementOffsets[(u32)Meshlet] = (u32)(m_MeshletsOffsetBytes /
+    sceneInfoOffsets.ElementOffsets[(u32)Meshlet] = (u32)(Meshlets.Offset /
         sizeof(assetLib::ModelInfo::Meshlet));
-    m_MeshletsOffsetBytes += meshletsSizeBytes;
-    m_MaterialsOffsetBytes += materialsSizeBytes;
+    Meshlets.Offset += meshletsSizeBytes;
 
     m_SceneInfoOffsets[&sceneInfo] = sceneInfoOffsets;
 }
@@ -324,70 +304,62 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
     auto& sceneInfo = *instance.m_SceneInfo;
     const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&sceneInfo];
 
-    const u64 meshesSizeBytes = sceneInfo.m_Geometry.Meshes.size() * sizeof(RenderObjectGPU2);
+    const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU2);
     const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
     const u64 meshletsSizeBytes = meshletCount * sizeof(IndirectDrawCommand);
     CommandCount += meshletCount;
-    growBufferIfNeeded(
-        RenderObjects,
-        meshesSizeBytes + m_RenderObjectsOffsetBytes,
-        ctx.CommandList);
-    RenderObjectsCpu.reserve(RenderObjectsCpu.size() + (u32)sceneInfo.m_Geometry.Meshes.size());
-    growBufferIfNeeded(Commands,
-        meshletsSizeBytes + m_CommandsOffsetBytes,
-        ctx.CommandList);
+    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(RenderObjects, renderObjectsSizeBytes, ctx.CommandList);
+    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Commands, renderObjectsSizeBytes, ctx.CommandList);
 
     RenderObjectGPU2* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU2>({
-        .Buffer = RenderObjects,
+        .Buffer = RenderObjects.Buffer,
         .Description = {
-            .SizeBytes = meshesSizeBytes,
-            .Offset = m_RenderObjectsOffsetBytes}});
+            .SizeBytes = renderObjectsSizeBytes,
+            .Offset = RenderObjects.Offset}});
     IndirectDrawCommand* commands = ctx.ResourceUploader->MapBuffer<IndirectDrawCommand>({
-        .Buffer = Commands,
+        .Buffer = Commands.Buffer,
         .Description = {
             .SizeBytes = meshletsSizeBytes,
-            .Offset = m_CommandsOffsetBytes}});
+            .Offset = Commands.Offset}});
 
     const u32 currentMeshletIndex = sceneInfoOffsets.ElementOffsets[(u32)Meshlet];
-    const u32 currentRenderObjectIndex = (u32)(m_RenderObjectsOffsetBytes / sizeof(RenderObjectGPU2));
+    const u32 currentRenderObjectIndex = (u32)(RenderObjects.Offset / sizeof(RenderObjectGPU2));
     u32 meshletIndex = 0;
-    for (auto&& [meshIndex, mesh] : std::ranges::views::enumerate(sceneInfo.m_Geometry.Meshes))
+    for (auto&& [renderObjectIndex, renderObject] : std::ranges::views::enumerate(sceneInfo.m_Geometry.RenderObjects))
     {
-        const u32 meshFirstIndex = mesh.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index];
-        const u32 meshFirstVertex = mesh.FirstVertex + sceneInfoOffsets.ElementOffsets[(u32)Position];
-        const u32 meshMaterial = mesh.Material + sceneInfoOffsets.MaterialOffset;
+        const u32 renderObjectFirstIndex = renderObject.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index];
+        const u32 renderObjectFirstVertex = renderObject.FirstVertex + sceneInfoOffsets.ElementOffsets[(u32)Position];
+        const u32 renderObjectMaterial = renderObject.Material + sceneInfoOffsets.MaterialOffset;
         
-        renderObjects[meshIndex] = {
+        renderObjects[renderObjectIndex] = {
             /* this value is irrelevant, because the transform will be set by SceneHierarchy */
             .Transform = glm::mat4(1.0f),
-            .BoundingSphere = mesh.BoundingSphere,
-            .MaterialGPU = meshMaterial,
-            .PositionsOffset = sceneInfoOffsets.ElementOffsets[(u32)Position] + meshFirstVertex,
-            .NormalsOffset = sceneInfoOffsets.ElementOffsets[(u32)Normal] + meshFirstVertex,
-            .TangentsOffset = sceneInfoOffsets.ElementOffsets[(u32)Tangent] + meshFirstVertex,
-            .UVsOffset = sceneInfoOffsets.ElementOffsets[(u32)Uv] + meshFirstVertex};
+            .BoundingSphere = renderObject.BoundingSphere,
+            .MaterialGPU = renderObjectMaterial,
+            .PositionsOffset = sceneInfoOffsets.ElementOffsets[(u32)Position] + renderObjectFirstVertex,
+            .NormalsOffset = sceneInfoOffsets.ElementOffsets[(u32)Normal] + renderObjectFirstVertex,
+            .TangentsOffset = sceneInfoOffsets.ElementOffsets[(u32)Tangent] + renderObjectFirstVertex,
+            .UVsOffset = sceneInfoOffsets.ElementOffsets[(u32)Uv] + renderObjectFirstVertex};
 
-        RenderObjectsCpu.push_back({
-            .Material = meshMaterial});
-
-        for (u32 localMeshletIndex = 0; localMeshletIndex < mesh.MeshletCount; localMeshletIndex++)
+        for (u32 localMeshletIndex = 0; localMeshletIndex < renderObject.MeshletCount; localMeshletIndex++)
         {
-            auto& meshlet = sceneInfo.m_Geometry.Meshlets[mesh.FirstMeshlet + localMeshletIndex];
+            auto& meshlet = sceneInfo.m_Geometry.Meshlets[renderObject.FirstMeshlet + localMeshletIndex];
             commands[meshletIndex] = IndirectDrawCommand{
                 .IndexCount = meshlet.IndexCount,
                 .InstanceCount = 1,
-                .FirstIndex = meshlet.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index] + meshFirstIndex,
+                .FirstIndex = meshlet.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index] + renderObjectFirstIndex,
                 .VertexOffset = (i32)meshlet.FirstVertex,
                 .FirstInstance = currentMeshletIndex + meshletIndex,
-                .RenderObject = (u32)meshIndex + currentRenderObjectIndex};
+                .RenderObject = (u32)renderObjectIndex + currentRenderObjectIndex};
 
             meshletIndex++;
         }
     }
     
-    m_RenderObjectsOffsetBytes += meshesSizeBytes;
-    m_CommandsOffsetBytes += meshletsSizeBytes;
+    RenderObjects.Offset += renderObjectsSizeBytes;
+    Commands.Offset += meshletsSizeBytes;
 
     return {
-        .FirstRenderObject = currentRenderObjectIndex};
+        .FirstRenderObject = currentRenderObjectIndex,
+        .FirstMeshlet = currentMeshletIndex};
 }

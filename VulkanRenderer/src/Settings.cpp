@@ -3,6 +3,9 @@
 #include <filesystem>
 
 #include "cvars/CVarSystem.h"
+#include "Rendering/Commands/RenderCommands.h"
+#include "Scene/ScenePass.h"
+#include "Scene/SceneVisibility.h"
 
 void Settings::initCvars()
 {
@@ -53,4 +56,22 @@ void Settings::initCvars()
     CVarI32 atmosphereEnvironmentSize({"Atmosphere.Environment.Size"},
         "Size of the each face of atmosphere environment skybox",
         128);
+
+    /* scene */
+    static constexpr u32 DEFAULT_RENDER_OBJECT_COUNT = 1024;
+    CVarI32 scenePassRenderObjectBucketDrawBufferSize({"Scene.Pass.DrawCommands.SizeBytes"},
+        "Default size of the scene pass draw commands buffer",
+        DEFAULT_RENDER_OBJECT_COUNT * sizeof(IndirectDispatchCommand));
+    CVarI32 sceneSetRenderObjectBufferSize({"Scene.RenderObjectSet.Buffer.SizeBytes"},
+        "Default size of the scene render object set buffer",
+        DEFAULT_RENDER_OBJECT_COUNT * sizeof(SceneRenderObjectHandle));
+    CVarI32 sceneSetRenderObjectBucketBufferSize({"Scene.RenderObjectSet.RenderObjectBuckets.SizeBytes"},
+        "Default size of the scene render object set buckets buffer",
+        DEFAULT_RENDER_OBJECT_COUNT * sizeof(SceneBucketBits));
+    CVarI32 sceneSetMeshletBufferSize({"Scene.RenderObjectSet.MeshletSpan.SizeBytes"},
+        "Default size of the scene meshlet span buffer",
+        DEFAULT_RENDER_OBJECT_COUNT * sizeof(RenderObjectMeshletSpan));
+    CVarI32 sceneVisibilityBufferSize({"Scene.Visibility.Buffer.SizeBytes"},
+        "Default size of the scene visibility buffer",
+        DEFAULT_RENDER_OBJECT_COUNT / sizeof(SceneVisibilityBucket));
 }
