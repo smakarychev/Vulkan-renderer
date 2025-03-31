@@ -19,6 +19,12 @@ TEST_CASE("HashedStringView", "[String]")
     {
         REQUIRE(view.String() == testString);
     }
+    SECTION("Is constructable from literal expression")
+    {
+        HashedStringView another = "Test"_hsv;
+        REQUIRE(another.String() == "Test");
+        REQUIRE(another.Hash() == Hash::string("Test"));
+    }
 }
 TEST_CASE("StringUnorderedMap", "[String]")
 {

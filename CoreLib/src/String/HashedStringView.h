@@ -24,3 +24,6 @@ private:
     std::string_view m_String;
 };
 
+consteval HashedStringView operator""_hsv(const char* string, size_t length) noexcept {
+    return std::string_view(string, length);
+}
