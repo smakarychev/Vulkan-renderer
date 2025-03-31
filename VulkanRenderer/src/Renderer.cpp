@@ -57,11 +57,13 @@
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 #include "Scene/Sorting/DepthGeometrySorter.h"
+#include "String/StringId.h"
 
 Renderer::Renderer() = default;
 
 void Renderer::Init()
 {
+    StringIdRegistry::Init();
     ShaderCache::Init();
     
     InitRenderingStructures();
