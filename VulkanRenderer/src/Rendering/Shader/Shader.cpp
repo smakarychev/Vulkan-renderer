@@ -358,7 +358,7 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(const std
     DescriptorArenaAllocators& allocators)
 {
     return LoadShaderPipelineTemplate(
-        {*CVars::Get().GetStringCVar({"Path.Shaders.Full"}) + "processed/core/material-frag.stage"},
+        {*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + "processed/core/material-frag.stage"},
         templateName, allocators);
 }
 

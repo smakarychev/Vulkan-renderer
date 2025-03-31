@@ -44,7 +44,7 @@ namespace
     // todo: remove
     std::vector<PointLight> getVisiblePointLights(SceneLight& light, const Camera& camera)
     {
-        const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar({"Lights.FrustumMax"});
+        const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar("Lights.FrustumMax"_hsv);
         
         const FrustumPlanes frustum = camera.GetFrustumPlanes();
         const ProjectionData projection = camera.GetProjectionData();
@@ -72,7 +72,7 @@ namespace
     
     std::vector<u32> getVisibleLights(const SceneLight2& light, const Camera& camera)
     {
-        const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar({"Lights.FrustumMax"});
+        const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar("Lights.FrustumMax"_hsv);
         
         const FrustumPlanes frustum = camera.GetFrustumPlanes();
         const ProjectionData projection = camera.GetProjectionData();

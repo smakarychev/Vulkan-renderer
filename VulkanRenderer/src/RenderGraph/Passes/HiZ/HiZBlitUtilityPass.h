@@ -39,7 +39,7 @@ namespace Passes::HiZBlit
 
                 graph.SetShader("hiz.shader",
                     ShaderOverrides{
-                        ShaderOverride{{"DEPTH_MIN_MAX"}, minMaxDepth}});
+                        ShaderOverride{"DEPTH_MIN_MAX"_hsv, minMaxDepth}});
                 
                 Resource depthIn = depth;
                 Resource depthOut = graph.AddExternal("Hiz.Out", ctx.GetHiZ(mode));

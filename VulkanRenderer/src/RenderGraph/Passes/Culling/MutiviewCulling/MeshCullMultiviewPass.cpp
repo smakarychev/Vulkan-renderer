@@ -17,8 +17,8 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
 
             graph.SetShader("mesh-cull-multiview.shader",
                 ShaderOverrides{
-                    ShaderOverride{{"REOCCLUSION"}, stage == CullStage::Reocclusion},
-                    ShaderOverride{{"SINGLE_PASS"}, stage == CullStage::Single}});
+                    ShaderOverride{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
+                    ShaderOverride{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
             
             if (stage != CullStage::Cull)
                 for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
@@ -54,7 +54,7 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
             };
                        
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
 
             for (u32 i = 0; i < info.MultiviewResource->GeometryCount; i++)
             {

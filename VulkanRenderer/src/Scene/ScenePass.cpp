@@ -10,7 +10,7 @@ SceneBucket::SceneBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue&
     : Filter(createInfo.Filter), m_Name(createInfo.Name)
 {
     m_Draws.Buffer = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar({"Scene.Pass.DrawCommands.SizeBytes"}),
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Pass.DrawCommands.SizeBytes"_hsv),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Indirect | BufferUsage::Source},
         deletionQueue);
     m_DrawInfo = Device::CreateBuffer({

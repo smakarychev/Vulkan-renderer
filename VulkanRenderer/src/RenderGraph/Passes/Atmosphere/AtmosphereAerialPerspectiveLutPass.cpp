@@ -25,9 +25,9 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
             auto& globalResources = graph.GetGlobalResources();
 
             passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
-                .Width = (u32)*CVars::Get().GetI32CVar({"Atmosphere.AerialPerspective.Size"}),
-                .Height = (u32)*CVars::Get().GetI32CVar({"Atmosphere.AerialPerspective.Size"}),
-                .Layers = (u32)*CVars::Get().GetI32CVar({"Atmosphere.AerialPerspective.Size"}),
+                .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
+                .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
+                .Layers = (u32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
                 .Format = Format::RGBA16_FLOAT,
                 .Kind = ImageKind::Image3d});
             passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),

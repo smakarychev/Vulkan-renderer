@@ -89,7 +89,7 @@ void ResourceUploader::ManageLifeTime()
     auto it = std::ranges::remove_if(state.StageBuffers,
         [](const auto& stageBufferInfo)
         {
-            static u64 lifeTime = CVars::Get().GetI32CVar({"Uploader.StagingLifetime"},
+            static u64 lifeTime = CVars::Get().GetI32CVar("Uploader.StagingLifetime"_hsv,
                 STAGING_BUFFER_MAX_IDLE_LIFE_TIME_FRAMES);
             return stageBufferInfo.LifeTime > lifeTime;
         }).begin();
@@ -102,7 +102,7 @@ void ResourceUploader::ManageLifeTime()
 
 ResourceUploader::StagingBufferInfo ResourceUploader::CreateStagingBuffer(u64 sizeBytes)
 {
-    static u64 minSizeBytes = CVars::Get().GetI32CVar({"Uploader.StagingSizeBytes"}, STAGING_BUFFER_DEFAULT_SIZE_BYTES);
+    static u64 minSizeBytes = CVars::Get().GetI32CVar("Uploader.StagingSizeBytes"_hsv, STAGING_BUFFER_DEFAULT_SIZE_BYTES);
 
     return {.Buffer = Device::CreateStagingBuffer(std::max(minSizeBytes, sizeBytes))};
 }

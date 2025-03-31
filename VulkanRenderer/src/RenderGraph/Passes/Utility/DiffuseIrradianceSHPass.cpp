@@ -25,7 +25,7 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
 
             graph.SetShader("diffuse-irradiance-sh.shader",
                 ShaderOverrides{
-                    ShaderOverride{{"REAL_TIME"}, realTime}});
+                    ShaderOverride{"REAL_TIME"_hsv, realTime}});
             
             passData.DiffuseIrradiance = graph.AddExternal(std::format("{}.DiffuseIrradianceSH", name), irradianceSH);
             

@@ -36,7 +36,7 @@ struct ShaderCache::FileWatcher
     FileWatcher& operator=(FileWatcher&&) = default;
     ~FileWatcher()
     {
-        Watcher.removeWatch(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}));
+        Watcher.removeWatch(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv));
     }
 };
 std::unique_ptr<ShaderCache::FileWatcher> ShaderCache::s_FileWatcher = {};
@@ -45,7 +45,7 @@ PipelineSpecializationsView ShaderOverridesView::ToPipelineSpecializationsView(S
 {
     for (u32 i = 0; i < Descriptions.size(); i++)
     {
-        auto spec = std::ranges::find(shaderTemplate.GetReflection().SpecializationConstants(), Names[i].String(),
+        auto spec = std::ranges::find(shaderTemplate.GetReflection().SpecializationConstants(), Names[i].AsStringView(),
             [](auto& constant) { return constant.Name; });
         ASSERT(spec != shaderTemplate.GetReflection().SpecializationConstants().end(),
             "Unrecognized specialization name")
@@ -135,7 +135,7 @@ const Shader& ShaderCache::Get(std::string_view name)
 const Shader& ShaderCache::Register(std::string_view name, std::string_view path,
     ShaderOverridesView&& overrides)
 {
-    std::string fullPath = *CVars::Get().GetStringCVar({"Path.Shaders.Full"}) + std::string{path};
+    std::string fullPath = *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + std::string{path};
     
     ShaderProxy shaderProxy = {};
     u32 pipeline = {};
@@ -279,7 +279,7 @@ void ShaderCache::HandleStageModification(std::string_view name)
     auto& stages = s_FileGraph.find(name)->second.Files;
     ASSERT(stages.size() == 1, "Only .glsl files are meant to be used as includes")
     
-    auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}), name);
+    auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), name);
     if (baked.has_value())
         HandleShaderModification(stages.front().Processed);
 }
@@ -289,7 +289,7 @@ void ShaderCache::HandleHeaderModification(std::string_view name)
     auto& stages = s_FileGraph.find(name)->second.Files;
     for (auto& stage : stages)
     {
-        auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}), stage.Raw);
+        auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), stage.Raw);
         if (baked.has_value())
             HandleShaderModification(stage.Processed);
     }
@@ -297,7 +297,7 @@ void ShaderCache::HandleHeaderModification(std::string_view name)
 
 void ShaderCache::CreateFileGraph()
 {
-    for (auto& file : std::filesystem::recursive_directory_iterator(*CVars::Get().GetStringCVar({"Path.Shaders.Full"})))
+    for (auto& file : std::filesystem::recursive_directory_iterator(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv)))
     {
         if (file.is_directory())
             continue;
@@ -331,7 +331,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
     std::vector<std::string> stages;
     stages.reserve(json["shader_stages"].size());
     for (auto& stage : json["shader_stages"])
-        stages.push_back(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}) + std::string{stage});
+        stages.push_back(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + std::string{stage});
 
     AssetManager::RemoveShader(AssetManager::GetShaderKey(stages));
     ShaderPipelineTemplate* shaderTemplate =
@@ -590,7 +590,7 @@ void ShaderCache::InitFileWatcher()
     std::shared_ptr<Listener> listener = std::make_shared<Listener>();
     s_FileWatcher->Listener = listener;
     Listener::StartDebounceThread(listener);
-    s_FileWatcher->Watcher.addWatch(*CVars::Get().GetStringCVar({"Path.Shaders.Full"}),
+    s_FileWatcher->Watcher.addWatch(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv),
         s_FileWatcher->Listener.get(), IS_RECURSIVE);
     s_FileWatcher->Watcher.watch();
 }

@@ -18,7 +18,7 @@ RG::Pass& Passes::SsaoBlur::addToGraph(std::string_view name, RG::Graph& renderG
 
             graph.SetShader("ssao-blur.shader",
                 ShaderOverrides{
-                    ShaderOverride{{"IS_VERTICAL"}, kind == SsaoBlurPassKind::Vertical}});
+                    ShaderOverride{"IS_VERTICAL"_hsv, kind == SsaoBlurPassKind::Vertical}});
             
             const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
             passData.SsaoOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".ColorOut",

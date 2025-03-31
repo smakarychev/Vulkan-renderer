@@ -108,8 +108,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                 ShaderCache::Register(std::format("{}.{}", name, i),
                     "triangle-cull-multiview.shader",
                     ShaderOverrides{
-                        ShaderOverride{{"REOCCLUSION"}, stage == CullStage::Reocclusion},
-                        ShaderOverride{{"SINGLE_PASS"}, stage == CullStage::Single}});
+                        ShaderOverride{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
+                        ShaderOverride{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
                 ShaderCache::Register(std::format("{}.PrepareDraw.{}", name, i),
                         "prepare-draws-multiview.shader", {});
             }

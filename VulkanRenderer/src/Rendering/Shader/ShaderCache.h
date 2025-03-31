@@ -2,18 +2,19 @@
 
 #include "FrameContext.h"
 #include "Shader.h"
-#include "String/HashedStringView.h"
 #include "String/StringUnorderedMap.h"
+#include "String/StringId.h"
 
 #include <string>
 #include <variant>
+
 
 template <typename T>
 struct ShaderOverride
 {
     using Type = T;
     
-    HashedStringView Name;
+    StringId Name;
     T Value;
 
     static_assert(!std::is_pointer_v<T>);
@@ -53,7 +54,7 @@ struct ShaderOverrides
     }
 
     std::array<std::byte, CalculateSizeBytes(std::index_sequence_for<Args...>{})> Data;
-    std::array<HashedStringView, std::tuple_size_v<std::tuple<Args...>>> Names;
+    std::array<StringId, std::tuple_size_v<std::tuple<Args...>>> Names;
     /* Descriptions are partially empty until the template is loaded
      * having it here helps to avoid dynamic memory allocations
      */
@@ -83,7 +84,7 @@ private:
 struct ShaderOverridesView
 {
     Span<const std::byte> Data{};
-    Span<const HashedStringView> Names{};
+    Span<const StringId> Names{};
     Span<PipelineSpecializationDescription> Descriptions{};
     u64 Hash{0};
 

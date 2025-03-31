@@ -176,8 +176,8 @@ void Renderer::InitRenderGraph()
             1, 5000000, *GetFrameContext().ResourceUploader));
 
     SceneConverter::Convert(
-        *CVars::Get().GetStringCVar({"Path.Assets"}),
-        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.gltf");
+        *CVars::Get().GetStringCVar("Path.Assets"_hsv),
+        *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.gltf");
     
     m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
     m_SceneBucketList.Init(m_Scene);
@@ -197,7 +197,7 @@ void Renderer::InitRenderGraph()
     }, Device::DeletionQueue());
     
     m_TestScene = SceneInfo::LoadFromAsset(
-        *CVars::Get().GetStringCVar({"Path.Assets"}) + "models/lights_test/scene.scene",
+        *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene",
         *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
     SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
         .Transform = {
@@ -355,8 +355,8 @@ void Renderer::SetupRenderGraph()
         .Camera = GetFrameContext().PrimaryCamera});
     auto& visibilityOutput = blackboard.Get<Passes::Draw::Visibility::PassData>(visibility);
 
-    bool tileLights = *CVars::Get().GetI32CVar({"Lights.Bin.Tiles"}) == 1;
-    bool clusterLights = *CVars::Get().GetI32CVar({"Lights.Bin.Clusters"}) == 1;
+    bool tileLights = *CVars::Get().GetI32CVar("Lights.Bin.Tiles"_hsv) == 1;
+    bool clusterLights = *CVars::Get().GetI32CVar("Lights.Bin.Clusters"_hsv) == 1;
 
     struct TileLightsInfo
     {

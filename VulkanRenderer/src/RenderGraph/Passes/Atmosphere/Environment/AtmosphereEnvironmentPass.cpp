@@ -25,7 +25,7 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG:
                 faceViews[i] = ImageSubresourceDescription{
                     .ImageViewKind = ImageViewKind::Image2d, .LayerBase = i, .Layers = 1};    
             
-            const u32 environmentSize = (u32)*CVars::Get().GetI32CVar({"Atmosphere.Environment.Size"});
+            const u32 environmentSize = (u32)*CVars::Get().GetI32CVar("Atmosphere.Environment.Size"_hsv);
             passData.ColorOut = graph.CreateResource(std::format("{}.ColorOut", name), GraphTextureDescription{
                 .Width = environmentSize,
                 .Height = environmentSize,

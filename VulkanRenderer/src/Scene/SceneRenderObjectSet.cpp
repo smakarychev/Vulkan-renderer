@@ -23,17 +23,17 @@ void SceneRenderObjectSet::Init(std::string_view name, Scene& scene, SceneBucket
     m_NewInstanceHandler.Connect(scene.GetInstanceAddedSignal());
 
     m_RenderObjects.Buffer = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar({"Scene.RenderObjectSet.Buffer.SizeBytes"}),
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.Buffer.SizeBytes"_hsv),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
 
     m_BucketBits.Buffer = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar({"Scene.RenderObjectSet.RenderObjectBuckets.SizeBytes"}),
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.RenderObjectBuckets.SizeBytes"_hsv),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
 
     m_MeshletSpans.Buffer = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar({"Scene.RenderObjectSet.MeshletSpan.SizeBytes"}),
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.MeshletSpan.SizeBytes"_hsv),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
 }

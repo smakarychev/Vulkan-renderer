@@ -23,8 +23,8 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
             auto& globalResources = graph.GetGlobalResources();
             
             passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
-                .Width = (u32)*CVars::Get().GetI32CVar({"Atmosphere.SkyView.Width"}),
-                .Height = (u32)*CVars::Get().GetI32CVar({"Atmosphere.SkyView.Height"}),
+                .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Width"_hsv),
+                .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Height"_hsv),
                 .Format = Format::RGBA16_FLOAT});
             passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),
                 light.GetBuffers().DirectionalLight);

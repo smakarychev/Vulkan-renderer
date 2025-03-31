@@ -24,8 +24,8 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
             graph.SetShader("atmosphere-transmittance-lut.shader");
 
             passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
-                .Width = (u32)*CVars::Get().GetI32CVar({"Atmosphere.Transmittance.Width"}),
-                .Height = (u32)*CVars::Get().GetI32CVar({"Atmosphere.Transmittance.Height"}),
+                .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.Transmittance.Width"_hsv),
+                .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.Transmittance.Height"_hsv),
                 .Format = Format::RGBA16_FLOAT});
                 
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);

@@ -126,11 +126,11 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
     return renderGraph.AddRenderPass<UpdateSlimeMapPassData>(PassName{std::format("{}.Update", name)},
         [&](Graph& graph, UpdateSlimeMapPassData& passData)
         {
-            CPU_PROFILE_FRAME("Slime.Update.Setup");
+            CPU_PROFILE_FRAME("Slime.Update.Setup")
             
             graph.SetShader("slime.shader",
                 ShaderOverrides{
-                    ShaderOverride{{"SLIME_MAP_STAGE"}, true}});
+                    ShaderOverride{"SLIME_MAP_STAGE"_hsv, true}});
             
             passData.Traits = graph.AddExternal("Slime.Update.Traits", ctx.GetTraitsBuffer());
             passData.Traits = graph.Read(passData.Traits, Compute | Storage);
@@ -168,8 +168,8 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
         },
         [=](UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Slime.Update");
-            GPU_PROFILE_FRAME("Slime.Update");
+            CPU_PROFILE_FRAME("Slime.Update")
+            GPU_PROFILE_FRAME("Slime.Update")
             Buffer traitsBuffer = resources.GetBuffer(passData.Traits);
             Buffer slimeBuffer = resources.GetBuffer(passData.Slime);
             Texture slimeMap = resources.GetTexture(passData.SlimeMap);
@@ -205,11 +205,11 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
     return renderGraph.AddRenderPass<DiffuseSlimeMapPassData>(PassName{std::format("{}.Diffuse", name)},
         [&](Graph& graph, DiffuseSlimeMapPassData& passData)
         {
-            CPU_PROFILE_FRAME("Slime.Diffuse.Setup");
+            CPU_PROFILE_FRAME("Slime.Diffuse.Setup")
             
             graph.SetShader("slime.shader",
                 ShaderOverrides{
-                    ShaderOverride{{"SLIME_DIFFUSE_STAGE"}, true}});
+                    ShaderOverride{"SLIME_DIFFUSE_STAGE"_hsv, true}});
 
             passData.SlimeMap = updateOutput.SlimeMap;
             passData.SlimeMap = graph.Read(passData.SlimeMap, Compute | Storage);
@@ -226,8 +226,8 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
         },
         [=](DiffuseSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Slime.Diffuse");
-            GPU_PROFILE_FRAME("Slime.Diffuse");
+            CPU_PROFILE_FRAME("Slime.Diffuse")
+            GPU_PROFILE_FRAME("Slime.Diffuse")
             
             Texture slimeMap = resources.GetTexture(passData.SlimeMap);
             Texture diffuseMap = resources.GetTexture(passData.DiffuseMap);
@@ -267,11 +267,11 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
     return renderGraph.AddRenderPass<GradientPassData>(PassName{std::format("{}.Gradient", name)},
         [&](Graph& graph, GradientPassData& passData)
         {
-            CPU_PROFILE_FRAME("Gradient.Slime.Setup");
+            CPU_PROFILE_FRAME("Gradient.Slime.Setup")
 
             graph.SetShader("slime.shader",
                 ShaderOverrides{
-                    ShaderOverride{{"SLIME_GRADIENT_STAGE"}, true}});
+                    ShaderOverride{"SLIME_GRADIENT_STAGE"_hsv, true}});
 
             passData.DiffuseMap = diffuseOutput.DiffuseMap;
             passData.DiffuseMap = graph.Read(passData.DiffuseMap, Compute | Storage);
@@ -308,8 +308,8 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
         },
         [=](GradientPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Gradient.Slime");
-            GPU_PROFILE_FRAME("Gradient.Slime");
+            CPU_PROFILE_FRAME("Gradient.Slime")
+            GPU_PROFILE_FRAME("Gradient.Slime")
             Texture diffuseMap = resources.GetTexture(passData.DiffuseMap);
             Texture gradientMap = resources.GetTexture(passData.GradientMap);
             
@@ -344,7 +344,7 @@ RG::Pass& Passes::SlimeMold::addToGraph(std::string_view name, RG::Graph& render
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Slime.Setup");
+            CPU_PROFILE_FRAME("Slime.Setup")
 
             auto& update = addUpdateSlimeMapStage(name, graph, ctx);
             auto& diffuse = addDiffuseSlimeMapStage(name, graph, ctx,
