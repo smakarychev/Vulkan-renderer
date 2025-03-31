@@ -58,6 +58,19 @@ TEST_CASE("StringId can retrieve string", "[String][StringId]")
         REQUIRE(id.AsStringView() == string);
     }
 }
+TEST_CASE("StringId can retrieve hash", "[String][StringId]")
+{
+    std::string string = "Hello";
+    StringId id = StringId::FromString(string);
+    REQUIRE(id.Hash() == Hash::string(string));
+}
+TEST_CASE("StringId can be used as a key in unordered_map", "[String][StringId]")
+{
+    StringId id = "Hello"_hsv;
+    std::unordered_map<StringId, i32> map;
+    map[id] = 1;
+    REQUIRE(map[id] == 1);
+}
 TEST_CASE("StringId created from same strings are equal", "[String][StringId]")
 {
     StringId one = "Hello"_hsv;

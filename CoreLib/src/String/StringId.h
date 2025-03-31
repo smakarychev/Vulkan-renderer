@@ -3,8 +3,7 @@
 #include <unordered_map>
 
 #include "types.h"
-
-class HashedStringView;
+#include "HashedStringView.h"
 
 class StringId
 {
@@ -22,6 +21,11 @@ public:
 
     const std::string& AsString() const;
     std::string_view AsStringView() const;
+
+    constexpr u64 Hash() const
+    {
+        return m_Hash;
+    }
 private:
     u64 m_Hash{0};
 };
@@ -34,3 +38,16 @@ public:
 private:
     static std::unordered_map<u64, std::string> s_Strings;
 };
+
+
+namespace std
+{
+    template <>
+    struct hash<StringId>
+    {
+        usize operator()(const StringId stringId) const noexcept
+        {
+            return stringId.Hash();
+        }
+    };
+}
