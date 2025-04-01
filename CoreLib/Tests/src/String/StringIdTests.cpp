@@ -91,5 +91,20 @@ TEST_CASE("StringId created from different strings are not equal", "[String][Str
     REQUIRE(one != other);
     REQUIRE(one.AsString() != other.AsString());
 }
+TEST_CASE("StringId is printable", "[String][StringId]")
+{
+    StringId id = "Hello"_hsv;
+    SECTION("Via std::format")
+    {
+        std::string result = std::format("{}", id);
+        REQUIRE(id.AsString() == result);
+    }
+    SECTION("Via std::print")
+    {
+        std::stringstream stream;
+        std::print(stream, "{}", id);
+        REQUIRE(id.AsString() == stream.str());
+    }
+}
 
 // NOLINTEND
