@@ -119,5 +119,18 @@ TEST_CASE("StringId Concatenate", "[String][StringId]")
         REQUIRE(concatenated.AsString() == "Hello World");
     }
 }
+TEST_CASE("StringId AddVersion", "[String][StringId]")
+{
+    StringId one = "Hello"_hsv;
+    StringId versioned = one.AddVersion(1);
+    SECTION("Leaves original unchanged")
+    {
+        REQUIRE(one.AsString() == "Hello");
+    }
+    SECTION("Adds version")
+    {
+        REQUIRE(versioned.AsString() == "Hello.1");
+    }
+}
 
 // NOLINTEND

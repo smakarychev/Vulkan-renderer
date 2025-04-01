@@ -1,6 +1,7 @@
 #pragma once
 
 #include <format>
+#include <string>
 #include <unordered_map>
 
 #include "types.h"
@@ -20,6 +21,7 @@ public:
     static StringId FromString(std::string_view string);
 
     StringId Concatenate(StringId other) const;
+    StringId AddVersion(std::integral auto version) const;
     
     constexpr auto operator<=>(const StringId&) const = default;
 
@@ -33,6 +35,11 @@ public:
 private:
     u64 m_Hash{0};
 };
+
+StringId StringId::AddVersion(std::integral auto version) const
+{
+    return Concatenate(FromString("." + std::to_string(version)));
+}
 
 class StringIdRegistry
 {
