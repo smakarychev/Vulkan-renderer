@@ -106,5 +106,18 @@ TEST_CASE("StringId is printable", "[String][StringId]")
         REQUIRE(id.AsString() == stream.str());
     }
 }
+TEST_CASE("StringId Concatenate", "[String][StringId]")
+{
+    StringId one = "Hello"_hsv;
+    StringId concatenated = one.Concatenate(" World"_hsv);
+    SECTION("Leaves original unchanged")
+    {
+        REQUIRE(one.AsString() == "Hello");
+    }
+    SECTION("Concatenates")
+    {
+        REQUIRE(concatenated.AsString() == "Hello World");
+    }
+}
 
 // NOLINTEND

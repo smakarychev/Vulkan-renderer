@@ -19,6 +19,8 @@ public:
     static StringId FromString(const std::string& string);
     static StringId FromString(std::string_view string);
 
+    StringId Concatenate(StringId other) const;
+    
     constexpr auto operator<=>(const StringId&) const = default;
 
     const std::string& AsString() const;

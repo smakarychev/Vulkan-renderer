@@ -31,6 +31,11 @@ StringId StringId::FromString(std::string_view string)
     return {HashedStringView{string}};
 }
 
+StringId StringId::Concatenate(StringId other) const
+{
+    return FromString(AsString() + other.AsString());
+}
+
 const std::string& StringId::AsString() const
 {
     return StringIdRegistry::s_Strings.at(m_Hash);
