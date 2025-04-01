@@ -16,6 +16,7 @@ public:
      * Here, the `b` version does not have string hash at compile-time
      */
     static StringId FromString(const std::string& string);
+    static StringId FromString(std::string_view string);
 
     constexpr auto operator<=>(const StringId&) const = default;
 
