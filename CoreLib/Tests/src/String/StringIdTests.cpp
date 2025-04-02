@@ -110,6 +110,7 @@ TEST_CASE("StringId Concatenate", "[String][StringId]")
 {
     StringId one = "Hello"_hsv;
     StringId concatenated = one.Concatenate(" World"_hsv);
+    StringId concatenatedString = one.Concatenate(" World");
     SECTION("Leaves original unchanged")
     {
         REQUIRE(one.AsString() == "Hello");
@@ -117,6 +118,10 @@ TEST_CASE("StringId Concatenate", "[String][StringId]")
     SECTION("Concatenates")
     {
         REQUIRE(concatenated.AsString() == "Hello World");
+    }
+    SECTION("Concatenates with std::string_view")
+    {
+        REQUIRE(concatenatedString.AsString() == "Hello World");
     }
 }
 TEST_CASE("StringId AddVersion", "[String][StringId]")

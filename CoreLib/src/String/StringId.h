@@ -17,10 +17,10 @@ public:
      *  StringId b = StringId("Hello");
      * Here, the `b` version does not have string hash at compile-time
      */
-    static StringId FromString(const std::string& string);
     static StringId FromString(std::string_view string);
 
     StringId Concatenate(StringId other) const;
+    StringId Concatenate(std::string_view other) const;
     StringId AddVersion(std::integral auto version) const;
     
     constexpr auto operator<=>(const StringId&) const = default;
@@ -38,7 +38,7 @@ private:
 
 StringId StringId::AddVersion(std::integral auto version) const
 {
-    return Concatenate(FromString("." + std::to_string(version)));
+    return Concatenate("." + std::to_string(version));
 }
 
 class StringIdRegistry
