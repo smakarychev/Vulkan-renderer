@@ -7,7 +7,7 @@
 #include "RenderGraph/Passes/Generated/SceneUgbBindGroup.generated.h"
 #include "Scene/Scene.h"
 
-RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
@@ -31,17 +31,17 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(std::string_view name, RG::G
 
             graph.SetShader("scene-ugb.shader");
 
-            passData.Camera = graph.CreateResource(
-                std::format("{}.Camera", name), GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
+            passData.Camera = graph.CreateResource("Camera"_hsv,
+                GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
             passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform);
             CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
             graph.Upload(passData.Camera, cameraGPU);
 
-            passData.UGB = graph.AddExternal(std::format("{}.UGB", name),
+            passData.UGB = graph.AddExternal("UGB"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes));
             passData.UGB = graph.Read(passData.UGB, Vertex | Pixel | Storage);
             
-            passData.Objects = graph.AddExternal(std::format("{}.Objects", name),
+            passData.Objects = graph.AddExternal("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
             

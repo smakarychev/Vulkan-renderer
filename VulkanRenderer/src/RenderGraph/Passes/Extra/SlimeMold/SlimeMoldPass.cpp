@@ -118,12 +118,12 @@ struct GradientPassData
     SlimeMoldContext* SlimeMoldContext{ nullptr };
 };
     
-RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, SlimeMoldContext& ctx)
+RG::Pass& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    return renderGraph.AddRenderPass<UpdateSlimeMapPassData>(PassName{std::format("{}.Update", name)},
+    return renderGraph.AddRenderPass<UpdateSlimeMapPassData>(name.Concatenate(".Update"),
         [&](Graph& graph, UpdateSlimeMapPassData& passData)
         {
             CPU_PROFILE_FRAME("Slime.Update.Setup")
@@ -132,14 +132,14 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
                 ShaderOverrides{
                     ShaderOverride{"SLIME_MAP_STAGE"_hsv, true}});
             
-            passData.Traits = graph.AddExternal("Slime.Update.Traits", ctx.GetTraitsBuffer());
+            passData.Traits = graph.AddExternal("Update.Traits"_hsv, ctx.GetTraitsBuffer());
             passData.Traits = graph.Read(passData.Traits, Compute | Storage);
 
-            passData.Slime = graph.AddExternal("Slime.Update.Slime", ctx.GetSlimeBuffer());
+            passData.Slime = graph.AddExternal("Update.Slime"_hsv, ctx.GetSlimeBuffer());
             passData.Slime = graph.Read(passData.Slime, Compute | Storage);
             passData.Slime = graph.Write(passData.Slime, Compute | Storage);
 
-            passData.SlimeMap = graph.AddExternal("Slime.Update.SlimeMap", ctx.GetSlimeMap());
+            passData.SlimeMap = graph.AddExternal("Update.SlimeMap"_hsv, ctx.GetSlimeMap());
             passData.SlimeMap = graph.Write(passData.SlimeMap, Compute | Storage);
 
             passData.SlimeMoldContext = &ctx;
@@ -196,13 +196,13 @@ RG::Pass& addUpdateSlimeMapStage(std::string_view name, RG::Graph& renderGraph, 
         });
 }
 
-RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
+RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
     const UpdateSlimeMapPassData& updateOutput)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    return renderGraph.AddRenderPass<DiffuseSlimeMapPassData>(PassName{std::format("{}.Diffuse", name)},
+    return renderGraph.AddRenderPass<DiffuseSlimeMapPassData>(name.Concatenate(".Diffuse"),
         [&](Graph& graph, DiffuseSlimeMapPassData& passData)
         {
             CPU_PROFILE_FRAME("Slime.Diffuse.Setup")
@@ -214,7 +214,7 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
             passData.SlimeMap = updateOutput.SlimeMap;
             passData.SlimeMap = graph.Read(passData.SlimeMap, Compute | Storage);
 
-            passData.DiffuseMap = graph.CreateResource("Slime.Diffuse.DiffuseMap", GraphTextureDescription{
+            passData.DiffuseMap = graph.CreateResource("Diffuse.DiffuseMap"_hsv, GraphTextureDescription{
                 .Width = ctx.GetBounds().x,
                 .Height = ctx.GetBounds().y,
                 .Format = Format::RGBA16_FLOAT});
@@ -251,20 +251,20 @@ RG::Pass& addDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
         });
 }
 
-RG::Pass& addCopyDiffuseSlimeMapStage(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& addCopyDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph,
     const DiffuseSlimeMapPassData& diffuseOutput)
 {
-    return Passes::CopyTexture::addToGraph(std::format("{}.Copy", name), renderGraph,
+    return Passes::CopyTexture::addToGraph(name.Concatenate(".Copy"), renderGraph,
         diffuseOutput.DiffuseMap, diffuseOutput.SlimeMap, glm::vec3{}, glm::vec3{1.0f});
 }
 
-RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
+RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
     const DiffuseSlimeMapPassData& diffuseOutput)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    return renderGraph.AddRenderPass<GradientPassData>(PassName{std::format("{}.Gradient", name)},
+    return renderGraph.AddRenderPass<GradientPassData>(name.Concatenate(".Gradient"),
         [&](Graph& graph, GradientPassData& passData)
         {
             CPU_PROFILE_FRAME("Gradient.Slime.Setup")
@@ -276,13 +276,13 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
             passData.DiffuseMap = diffuseOutput.DiffuseMap;
             passData.DiffuseMap = graph.Read(passData.DiffuseMap, Compute | Storage);
 
-            passData.GradientMap = graph.CreateResource("Slime.Gradient.GradientMap", GraphTextureDescription{
+            passData.GradientMap = graph.CreateResource("Gradient.GradientMap"_hsv, GraphTextureDescription{
                 .Width = ctx.GetBounds().x,
                 .Height = ctx.GetBounds().y,
                 .Format = Format::RGBA16_FLOAT});
             passData.GradientMap = graph.Write(passData.GradientMap, Compute | Storage);
 
-            passData.Gradient = graph.CreateResource("Slime.Gradient.Colors", GraphBufferDescription{
+            passData.Gradient = graph.CreateResource("Gradient.Colors"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(GradientUBO)});
             passData.Gradient = graph.Read(passData.Gradient, Compute | Uniform);
 
@@ -335,7 +335,7 @@ RG::Pass& addGradientStage(std::string_view name, RG::Graph& renderGraph, SlimeM
 }
 }
 
-RG::Pass& Passes::SlimeMold::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::SlimeMold::addToGraph(StringId name, RG::Graph& renderGraph,
     SlimeMoldContext& ctx)
 {
     using namespace RG;

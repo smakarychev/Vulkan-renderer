@@ -5,7 +5,7 @@
 #include "RenderGraph/Passes/Generated/VisibilityBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Draw::Visibility::addToGraph(StringId name, RG::Graph& renderGraph,
     const VisibilityPassExecutionInfo& info)
 {
     using namespace RG;
@@ -31,13 +31,13 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                 multiview.MultiviewData.Finalize();
             }
             
-            Resource visibility = renderGraph.CreateResource("VisibilityBuffer.VisibilityBuffer",
+            Resource visibility = renderGraph.CreateResource("VisibilityBuffer"_hsv,
                 GraphTextureDescription{
                     .Width = info.Resolution.x,
                     .Height = info.Resolution.y,
                     .Format = Format::R32_UINT});
 
-            Resource depth = renderGraph.CreateResource("VisibilityBuffer.Depth",
+            Resource depth = renderGraph.CreateResource("Depth"_hsv,
                 GraphTextureDescription{
                     .Width = info.Resolution.x,
                     .Height = info.Resolution.y,
@@ -83,7 +83,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
                                 .OnLoad = AttachmentLoad::Clear,
                                 .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}}});
 
-            auto& meta = Meta::CullMultiview::addToGraph(std::format("{}.Meta", name), renderGraph,
+            auto& meta = Meta::CullMultiview::addToGraph(name.Concatenate(".Meta"), renderGraph,
                 multiview.MultiviewData);
             auto& metaOutput = renderGraph.GetBlackboard().Get<Meta::CullMultiview::PassData>(meta);
             passData.ColorOut = metaOutput.DrawAttachmentResources[0].Colors[0];
@@ -91,7 +91,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(std::string_view name, RG::Graph&
             passData.HiZOut = metaOutput.HiZOut[0];
             passData.HiZMaxOut = metaOutput.HiZMaxOut;
             passData.MinMaxDepth = metaOutput.MinMaxDepth;
-            passData.PreviousMinMaxDepth = graph.AddExternal(std::format("{}.PreviousMinMaxDepth", name),
+            passData.PreviousMinMaxDepth = graph.AddExternal("PreviousMinMaxDepth"_hsv,
                 multiview.MultiviewData.View(0).Static.HiZContext->GetPreviousMinMaxDepthBuffer());
             renderGraph.UpdateBlackboard(passData);
         },

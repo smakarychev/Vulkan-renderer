@@ -2,6 +2,7 @@
 
 #include "Scene.h"
 #include "Rendering/Commands/RenderCommands.h"
+#include "String/StringId.h"
 
 struct SceneRenderObjectHandle
 {
@@ -25,7 +26,7 @@ static constexpr SceneBucketHandle INVALID_SCENE_BUCKET{~0lu};
 struct SceneBucketCreateInfo
 {
     using FilterFn = std::function<bool(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)>;
-    std::string Name{};
+    StringId Name{};
     FilterFn Filter{};
     // todo: Shader?
 };
@@ -57,7 +58,7 @@ private:
     PushBufferTyped<IndirectDrawCommand> m_Draws{};
     Buffer m_DrawInfo{};
     
-    std::string m_Name{};
+    StringId m_Name{};
 };
 
 class SceneBucketList
@@ -79,7 +80,7 @@ private:
 
 struct ScenePassCreateInfo
 {
-    std::string Name{};
+    StringId Name{};
     Span<const SceneBucketCreateInfo> BucketCreateInfos;
 };
 
@@ -99,5 +100,5 @@ private:
     SceneBucketList* m_BucketList{nullptr};
     std::vector<SceneBucketHandle> m_BucketHandles;
     
-    std::string m_Name{};
+    StringId m_Name{};
 };

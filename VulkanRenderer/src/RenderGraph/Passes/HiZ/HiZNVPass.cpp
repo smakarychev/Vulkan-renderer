@@ -11,7 +11,7 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth,
     ImageSubresourceDescription subresource, HiZPassContext& ctx)
 {
     /* https://github.com/nvpro-samples/vk_compute_mipmaps */
@@ -39,7 +39,7 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
     {
         u32 toBeProcessed = std::min(MAX_DISPATCH_MIPMAPS, mipmapsRemaining);
 
-        Pass& pass = renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", name, currentMipmap)},
+        Pass& pass = renderGraph.AddRenderPass<PassData>(name.AddVersion(currentMipmap),
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("HiZNV.Setup")
@@ -77,13 +77,13 @@ RG::Pass& Passes::HiZNV::addToGraph(std::string_view name, RG::Graph& renderGrap
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-                frameContext.CommandList.PushConstants({
+                cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});
                 u32 shift = toBeProcessed > 5 ? 12 : 10;
                 u32 mask = toBeProcessed > 5 ? 4095 : 1023;
                 u32 samples = width * height;
-                frameContext.CommandList.Dispatch({
+                cmd.Dispatch({
                     .Invocations = {(samples + mask) >> shift, 1, 1}});
             });
 

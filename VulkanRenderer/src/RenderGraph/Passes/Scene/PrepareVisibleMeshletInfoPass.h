@@ -15,5 +15,5 @@ namespace Passes::PrepareVisibleMeshletInfo
         RG::Resource MeshletInfos{};
         RG::Resource MeshletInfoCount{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

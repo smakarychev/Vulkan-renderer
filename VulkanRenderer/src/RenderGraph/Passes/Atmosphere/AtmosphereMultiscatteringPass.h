@@ -9,6 +9,6 @@ namespace Passes::Atmosphere::Multiscattering
         RG::Resource AtmosphereSettings{};
         RG::Resource Lut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         RG::Resource transmittanceLut, RG::Resource atmosphereSettings);
 }

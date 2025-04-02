@@ -4,15 +4,15 @@
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture cubemap, Buffer irradianceSH, bool realTime)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal(std::format("{}.CubemapTexture", name), cubemap),
+        renderGraph.AddExternal("CubemapTexture"_hsv, cubemap),
         irradianceSH, realTime);
 }
 
-RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
+RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
     Buffer irradianceSH, bool realTime)
 {
     using namespace RG;
@@ -27,7 +27,7 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(std::string_view name, RG::Gra
                 ShaderOverrides{
                     ShaderOverride{"REAL_TIME"_hsv, realTime}});
             
-            passData.DiffuseIrradiance = graph.AddExternal(std::format("{}.DiffuseIrradianceSH", name), irradianceSH);
+            passData.DiffuseIrradiance = graph.AddExternal("DiffuseIrradianceSH"_hsv, irradianceSH);
             
             passData.DiffuseIrradiance = graph.Write(passData.DiffuseIrradiance, Compute | Storage);
             passData.CubemapTexture = graph.Read(cubemap, Compute | Sampled);

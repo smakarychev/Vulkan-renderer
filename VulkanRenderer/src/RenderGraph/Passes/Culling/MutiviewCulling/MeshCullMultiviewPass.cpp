@@ -5,7 +5,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 
-RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Multiview::MeshCull::addToGraph(StringId name, RG::Graph& renderGraph,
     const MeshCullMultiviewPassExecutionInfo& info, CullStage stage)
 {
     using namespace RG;
@@ -65,11 +65,11 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(std::string_view name, RG::Gra
                     .GeometryIndex = i,
                     .ViewCount = info.MultiviewResource->ViewCount};
 
-                frameContext.CommandList.PushConstants({
+                cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});
 
-                frameContext.CommandList.Dispatch({
+                cmd.Dispatch({
 				    .Invocations = {meshCount, 1, 1},
 				    .GroupSize = {64, 1, 1}});
             }

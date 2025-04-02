@@ -10,7 +10,7 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource atmosphereSettings)
 {
     using namespace RG;
@@ -23,7 +23,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
 
             graph.SetShader("atmosphere-multiscattering-lut.shader");
 
-            passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
+            passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
                 .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
                 .Format = Format::RGBA16_FLOAT});
@@ -50,7 +50,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(std::string_view name,
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.Dispatch({
+            cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 64},
 				.GroupSize = {1, 1, 64}});
         });

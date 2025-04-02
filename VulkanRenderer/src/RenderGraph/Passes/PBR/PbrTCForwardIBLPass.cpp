@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/PbrForwardBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(StringId name, RG::Graph& renderGraph,
     const PbrForwardIBLPassExecutionInfo& info)
 {
     using namespace RG;
@@ -78,7 +78,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(std::string_view name, RG::Graph
                                 .OnLoad = info.DepthIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
                                 .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}}});
 
-            auto& meta = Meta::CullMultiview::addToGraph("Visibility", renderGraph, multiview.MultiviewData);
+            auto& meta = Meta::CullMultiview::addToGraph("PrbTCForwardIBL"_hsv, renderGraph, multiview.MultiviewData);
             auto& metaOutput = renderGraph.GetBlackboard().Get<Meta::CullMultiview::PassData>(meta);
             passData.ColorOut = metaOutput.DrawAttachmentResources[0].Colors[0];
             passData.DepthOut = *metaOutput.DrawAttachmentResources[0].Depth;

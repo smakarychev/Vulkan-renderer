@@ -17,5 +17,5 @@ namespace Passes::Ssao
         u32 MaxSampleCount{0};
     };
 
-    RG::Pass& addToGraph(std::string_view name, u32 sampleCount, RG::Graph& renderGraph, RG::Resource depthIn);
+    RG::Pass& addToGraph(StringId name, u32 sampleCount, RG::Graph& renderGraph, RG::Resource depthIn);
 }

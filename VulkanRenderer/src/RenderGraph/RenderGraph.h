@@ -231,16 +231,16 @@ namespace RG
         Resource GetBackbuffer() const;
         
         template <typename PassData, typename SetupFn, typename CallbackFn>
-        Pass& AddRenderPass(const PassName& passName, SetupFn&& setup, CallbackFn&& callback);
+        Pass& AddRenderPass(StringId name, SetupFn&& setup, CallbackFn&& callback);
 
-        Resource AddExternal(const std::string& name, Buffer buffer);
-        Resource AddExternal(const std::string& name, Texture texture);
-        Resource AddExternal(const std::string& name, ImageUtils::DefaultTexture texture);
-        Resource AddExternal(const std::string& name, Texture texture, ImageUtils::DefaultTexture fallback);
+        Resource AddExternal(StringId name, Buffer buffer);
+        Resource AddExternal(StringId name, Texture texture);
+        Resource AddExternal(StringId name, ImageUtils::DefaultTexture texture);
+        Resource AddExternal(StringId name, Texture texture, ImageUtils::DefaultTexture fallback);
         Resource Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force = false);
         Resource Export(Resource resource, std::shared_ptr<Texture>* texture, bool force = false);
-        Resource CreateResource(const std::string& name, const GraphBufferDescription& description);
-        Resource CreateResource(const std::string& name, const GraphTextureDescription& description);
+        Resource CreateResource(StringId, const GraphBufferDescription& description);
+        Resource CreateResource(StringId, const GraphTextureDescription& description);
         Resource Read(Resource resource, ResourceAccessFlags readFlags);
         Resource Write(Resource resource, ResourceAccessFlags writeFlags);
         Resource RenderTarget(Resource resource, AttachmentLoad onLoad, AttachmentStore onStore);
@@ -306,8 +306,8 @@ namespace RG
         void MermaidDumpHTML(std::string_view path) const;
     private:
         void Clear();
-        Resource CreateResource(const std::string& name, const BufferDescription& description);
-        Resource CreateResource(const std::string& name, const TextureDescription& description);
+        Resource CreateResource(StringId name, const BufferDescription& description);
+        Resource CreateResource(StringId name, const TextureDescription& description);
 
         void PreprocessResources();
         void CullPasses();
@@ -346,7 +346,7 @@ namespace RG
         std::vector<GraphTexture> m_Textures;
         std::vector<std::unique_ptr<Pass>> m_RenderPasses;
         std::vector<std::vector<u32>> m_AdjacencyList;
-        std::unordered_set<std::string> m_PassNameSet;
+        std::unordered_set<StringId> m_PassNameSet;
         // storing a shared_ptr we make sure that it will not be aliased
         struct TextureToExport
         {
@@ -398,11 +398,11 @@ namespace RG
     };
 
     template <typename PassData, typename SetupFn, typename CallbackFn>
-    Pass& Graph::AddRenderPass(const PassName& passName, SetupFn&& setup, CallbackFn&& callback)
+    Pass& Graph::AddRenderPass(StringId name, SetupFn&& setup, CallbackFn&& callback)
     {
-        ASSERT(!m_PassNameSet.contains(passName.m_Name), "Pass with such name already exists")
-        m_PassNameSet.emplace(passName.m_Name);
-        std::unique_ptr<Pass> pass = std::make_unique<Pass>(passName);
+        ASSERT(!m_PassNameSet.contains(name), "Pass with such name already exists")
+        m_PassNameSet.emplace(name);
+        std::unique_ptr<Pass> pass = std::make_unique<Pass>(name);
 
         m_CurrentPassesStack.push_back(pass.get());
         

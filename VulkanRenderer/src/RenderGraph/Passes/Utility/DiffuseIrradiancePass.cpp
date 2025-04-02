@@ -5,15 +5,15 @@
 #include "Rendering/Shader/ShaderCache.h"
 
 
-RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture cubemap,
+RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& renderGraph, Texture cubemap,
     Texture irradiance)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal(std::format("{}.Cubemap", name), cubemap),
+        renderGraph.AddExternal("Cubemap"_hsv, cubemap),
         irradiance);
 }
 
-RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
+RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
     Texture irradiance)
 {
     using namespace RG;
@@ -26,7 +26,7 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(std::string_view name, RG::Graph
 
             graph.SetShader("diffuse-irradiance.shader");
 
-            passData.DiffuseIrradiance = graph.AddExternal(std::format("{}.DiffuseIrradiance", name), irradiance);
+            passData.DiffuseIrradiance = graph.AddExternal("DiffuseIrradiance"_hsv, irradiance);
                 
             passData.DiffuseIrradiance = graph.Write(passData.DiffuseIrradiance, Compute | Storage);
             passData.Cubemap = graph.Read(cubemap, Compute | Sampled);

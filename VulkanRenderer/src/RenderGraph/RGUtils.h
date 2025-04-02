@@ -16,16 +16,13 @@ namespace RG
 
 namespace RG::RgUtils
 {
-    Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
-        const GraphTextureDescription& fallback);    
-    Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
-        ImageUtils::DefaultTexture fallback);    
-    Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
-        const GraphBufferDescription& fallback);
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphTextureDescription& fallback);    
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, ImageUtils::DefaultTexture fallback);    
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphBufferDescription& fallback);
 
-    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName);
+    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph);
     void readDrawAttributes(DrawAttributeBuffers& buffers, Graph& graph, ResourceAccessFlags shaderStage);
-    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
+    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph,
         ResourceAccessFlags shaderStage);
     
     DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph);

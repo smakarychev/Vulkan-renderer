@@ -45,7 +45,7 @@ namespace RG
         }
         else
         {
-            m_Backbuffer = AddExternal("graph-backbuffer", texture);
+            m_Backbuffer = AddExternal("graph-backbuffer"_hsv, texture);
         }
         
         m_BackbufferTexture = std::make_shared<GraphTexture>(m_Textures[m_Backbuffer.Index()]);
@@ -60,7 +60,7 @@ namespace RG
         return m_Backbuffer;
     }
 
-    Resource Graph::AddExternal(const std::string& name, Buffer buffer)
+    Resource Graph::AddExternal(StringId name, Buffer buffer)
     {
         Resource bufferResource = CreateResource(name, Device::GetBufferDescription(buffer));
         GetResourceTypeBase(bufferResource).m_IsExternal = true;
@@ -69,7 +69,7 @@ namespace RG
         return bufferResource;
     }
 
-    Resource Graph::AddExternal(const std::string& name, Texture texture)
+    Resource Graph::AddExternal(StringId name, Texture texture)
     {
         Resource textureResource = CreateResource(name, Device::GetImageDescription(texture));
         GetResourceTypeBase(textureResource).m_IsExternal = true;
@@ -78,12 +78,12 @@ namespace RG
         return textureResource;
     }
 
-    Resource Graph::AddExternal(const std::string& name, ImageUtils::DefaultTexture texture)
+    Resource Graph::AddExternal(StringId name, ImageUtils::DefaultTexture texture)
     {
         return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(texture, *m_FrameDeletionQueue));
     }
 
-    Resource Graph::AddExternal(const std::string& name, Texture texture, ImageUtils::DefaultTexture fallback)
+    Resource Graph::AddExternal(StringId name, Texture texture, ImageUtils::DefaultTexture fallback)
     {
         if (texture.HasValue())
             return AddExternal(name, texture);
@@ -117,7 +117,7 @@ namespace RG
         return resource;
     }
 
-    Resource Graph::CreateResource(const std::string& name, const GraphBufferDescription& description)
+    Resource Graph::CreateResource(StringId name, const GraphBufferDescription& description)
     {
         // all buffers require device address
         return CreateResource(name, BufferDescription{
@@ -125,7 +125,7 @@ namespace RG
             .Usage = BufferUsage::DeviceAddress});
     }
 
-    Resource Graph::CreateResource(const std::string& name, const GraphTextureDescription& description)
+    Resource Graph::CreateResource(StringId name, const GraphTextureDescription& description)
     {
         return CreateResource(name, TextureDescription{
             .Width = description.Width,
@@ -139,7 +139,7 @@ namespace RG
             .AdditionalViews = description.AdditionalViews});
     }
 
-    Resource Graph::CreateResource(const std::string& name, const BufferDescription& description)
+    Resource Graph::CreateResource(StringId name, const BufferDescription& description)
     {
         Resource resource = Resource::Buffer((u32)m_Buffers.size());
         m_Buffers.emplace_back(name, description);
@@ -147,7 +147,7 @@ namespace RG
         return resource;
     }
 
-    Resource Graph::CreateResource(const std::string& name, const TextureDescription& description)
+    Resource Graph::CreateResource(StringId name, const TextureDescription& description)
     {
         Resource resource = Resource::Texture((u32)m_Textures.size());
         m_Textures.emplace_back(name, description);
@@ -1748,7 +1748,7 @@ namespace RG
         for (u32 passIndex = 0; passIndex < m_RenderPasses.size(); passIndex++)
         {
             auto& pass = *m_RenderPasses[passIndex];
-            std::string passName = std::format("\t{}[/Pass{}/]", getPassId(passIndex), pass.m_Name.m_Name);
+            std::string passName = std::format("\t{}[/Pass{}/]", getPassId(passIndex), pass.m_Name);
             ss << std::format("{}\n", passName);
 
             for (auto& access : pass.m_Accesses)
@@ -1756,8 +1756,8 @@ namespace RG
                 if (declaredAccesses.contains(access.m_Resource.m_Value))
                     continue;
                 
-                std::string resourceName = GetResourceTypeBase(access.m_Resource).m_Name;
-                ss << std::format("\t{}[\"{}\n", access.m_Resource.m_Value, resourceName);
+                StringId resourceName = GetResourceTypeBase(access.m_Resource).m_Name;
+                ss << std::format("\t{}[\"{}.{}\n", access.m_Resource.m_Value, pass.m_Name, resourceName);
                 if (access.m_Resource.IsBuffer())
                 {
                     const GraphBuffer* descriptionHolder = &m_Buffers[access.m_Resource.Index()];

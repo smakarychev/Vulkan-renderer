@@ -4,6 +4,7 @@
 #include "Rendering/SynchronizationTraits.h"
 #include "Rendering/Image/Image.h"
 #include "Rendering/RenderingInfo.h"
+#include "String/StringId.h"
 
 namespace RG
 {
@@ -137,10 +138,10 @@ namespace RG
     {
         friend class Graph;
     public:
-        ResourceTypeBase(std::string name)
-            : m_Name(std::move(name)) {}
+        ResourceTypeBase(StringId name)
+            : m_Name(name) {}
     protected:
-        std::string m_Name{};
+        StringId m_Name{};
         Resource m_Rename{};
 
         static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
@@ -158,7 +159,7 @@ namespace RG
         using Desc = typename ResourceTraits<T>::Desc;
         using Type = T;
     public:
-        ResourceType(const std::string& name, const Desc& desc)
+        ResourceType(StringId name, const Desc& desc)
             : ResourceTypeBase(name), m_Description(desc) {}
 
         void SetPhysicalResource(std::shared_ptr<T> resource)

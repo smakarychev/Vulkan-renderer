@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/DepthReductionBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth,
     ImageSubresourceDescription subresource, HiZPassContext& ctx)
 {
     static constexpr u32 MAX_DISPATCH_MIPMAPS = 6;
@@ -16,13 +16,13 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
     using enum ResourceAccessFlags;
 
     const TextureDescription& hizDescription = Device::GetImageDescription(ctx.GetHiZ(HiZReductionMode::Min));
-    u32 mipmapCount = (u32)hizDescription.Mipmaps;
+    u32 mipmapCount = (u32)(u8)hizDescription.Mipmaps;
     u32 width = hizDescription.Width;  
     u32 height = hizDescription.Height;
 
-    auto& minBlit = HiZBlit::addToGraph(std::format("{}.BlitMin", name), renderGraph, depth, subresource, ctx,
+    auto& minBlit = HiZBlit::addToGraph(name.Concatenate(".BlitMin"), renderGraph, depth, subresource, ctx,
         HiZReductionMode::Min, true);
-    HiZBlit::addToGraph(std::format("{}.BlitMax", name), renderGraph, depth, subresource, ctx,
+    HiZBlit::addToGraph(name.Concatenate(".BlitMax"), renderGraph, depth, subresource, ctx,
         HiZReductionMode::Max);
 
     u32 mipmapsRemaining = mipmapCount - 1;
@@ -31,7 +31,7 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
     while (mipmapsRemaining != 0)
     {
         u32 toBeProcessed = std::min(MAX_DISPATCH_MIPMAPS, mipmapsRemaining);
-        Pass& pass = renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", name, currentMipmap)},
+        Pass& pass = renderGraph.AddRenderPass<PassData>(name.AddVersion(currentMipmap),
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("HiZFull.Setup")
@@ -83,13 +83,13 @@ RG::Pass& Passes::HiZFull::addToGraph(std::string_view name, RG::Graph& renderGr
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-                frameContext.CommandList.PushConstants({
+                cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});
                 u32 shift = toBeProcessed > 5 ? 12 : 10;
                 u32 mask = toBeProcessed > 5 ? 4095 : 1023;
                 u32 samples = width * height;
-                frameContext.CommandList.Dispatch({
+                cmd.Dispatch({
                     .Invocations = {(samples + mask) >> shift, 1, 1}});
             });
 

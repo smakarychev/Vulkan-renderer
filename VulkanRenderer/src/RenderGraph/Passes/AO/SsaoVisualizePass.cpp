@@ -5,7 +5,7 @@
 #include "RenderGraph/Passes/Generated/SsaoVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao,
+RG::Pass& Passes::SsaoVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao,
     RG::Resource colorOut)
 {
     using namespace RG;
@@ -19,7 +19,7 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
             graph.SetShader("ssao-visualize.shader");
             
             auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
-            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".Color",
+            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, "Color"_hsv,
                 GraphTextureDescription{
                     .Width = ssaoDescription.Width,
                     .Height = ssaoDescription.Height,
@@ -43,7 +43,7 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(std::string_view name, RG::Graph& re
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.Draw({.VertexCount = 3});
+            cmd.Draw({.VertexCount = 3});
         });
 
     return pass;

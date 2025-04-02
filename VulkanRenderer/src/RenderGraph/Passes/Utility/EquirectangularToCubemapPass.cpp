@@ -10,7 +10,7 @@ namespace
     struct ConvertPassData : Passes::EquirectangularToCubemap::PassData
     {};
     
-    RG::Pass& convertEquirectangularToCubemapPass(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGraph,
         RG::Resource equirectangular, Texture cubemap)
     {
         using namespace RG;
@@ -23,7 +23,7 @@ namespace
 
                 graph.SetShader("equirectangular-to-cubemap.shader");
                 
-                passData.Cubemap = graph.AddExternal(std::format("{}.Cubemap", name), cubemap);
+                passData.Cubemap = graph.AddExternal("Cubemap"_hsv, cubemap);
                 
                 passData.Cubemap = graph.Write(passData.Cubemap, Compute | Storage);
                 passData.Equirectangular = graph.Read(equirectangular, Compute | Sampled);
@@ -63,15 +63,15 @@ namespace
     }
 }
 
-RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::EquirectangularToCubemap::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture equirectangular, Texture cubemap)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal(std::format("{}.Equirectangular", name), equirectangular),
+        renderGraph.AddExternal("Equirectangular"_hsv, equirectangular),
         cubemap);
 }
 
-RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::EquirectangularToCubemap::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource equirectangular, Texture cubemap)
 {
     using namespace RG;
@@ -80,11 +80,11 @@ RG::Pass& Passes::EquirectangularToCubemap::addToGraph(std::string_view name, RG
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            auto& convert = convertEquirectangularToCubemapPass(std::format("{}.Convert", name), graph,
+            auto& convert = convertEquirectangularToCubemapPass(name.Concatenate(".Convert"), graph,
                 equirectangular, cubemap);
             auto& convertOutput = graph.GetBlackboard().Get<ConvertPassData>(convert);
             
-            auto& mipmap = Mipmap::addToGraph(std::format("{}.Mipmap", name), graph, convertOutput.Cubemap);
+            auto& mipmap = Mipmap::addToGraph(name.Concatenate(".Mipmap"), graph, convertOutput.Cubemap);
             auto& mipmapOutput = graph.GetBlackboard().Get<Mipmap::PassData>(mipmap);
             passData.Equirectangular = convertOutput.Equirectangular;
             passData.Cubemap = mipmapOutput.Texture;

@@ -5,7 +5,7 @@
 #include "RenderGraph/Passes/Generated/DepthVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depthIn,
+RG::Pass& Passes::VisualizeDepth::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthIn,
     RG::Resource colorIn, f32 near, f32 far, bool isOrthographic)
 {
     using namespace RG;
@@ -17,7 +17,7 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(std::string_view name, RG::Graph& r
             graph.SetShader("depth-visualize.shader");
             
             auto& depthDescription = Resources(graph).GetTextureDescription(depthIn);
-            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, std::string{name} + ".Color",
+            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "Color"_hsv,
                 GraphTextureDescription{
                     .Width = depthDescription.Width,
                     .Height = depthDescription.Height,

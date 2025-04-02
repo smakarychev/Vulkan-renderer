@@ -181,12 +181,12 @@ void Renderer::InitRenderGraph()
     
     m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
     m_SceneBucketList.Init(m_Scene);
-    m_OpaqueSet.Init("Opaque", m_Scene, m_SceneBucketList, {
+    m_OpaqueSet.Init("Opaque"_hsv, m_Scene, m_SceneBucketList, {
         ScenePassCreateInfo{
-            .Name = "Visibility",
+            .Name = "Visibility"_hsv,
             .BucketCreateInfos = {
                 {
-                    .Name = "Opaque material",
+                    .Name = "Opaque material"_hsv,
                     .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
                         const Material2& material = geometry.MaterialsCpu[
                             geometry.RenderObjects[renderObject.Index].Material];
@@ -252,14 +252,14 @@ void Renderer::ExecuteSingleTimePasses()
     
     m_Graph->Reset(GetFrameContext());
 
-    Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox", *m_Graph,
+    Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph,
         equirectangular, m_SkyboxTexture);
     Passes::DiffuseIrradianceSH::addToGraph(
-        "Scene.DiffuseIrradianceSH", *m_Graph, m_SkyboxTexture, m_IrradianceSH, false);
+        "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, m_SkyboxTexture, m_IrradianceSH, false);
     Passes::EnvironmentPrefilter::addToGraph(
-        "Scene.EnvironmentPrefilter", *m_Graph, m_SkyboxTexture, m_SkyboxPrefilterMap);
+        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, m_SkyboxTexture, m_SkyboxPrefilterMap);
     Passes::BRDFLut::addToGraph(
-        "Scene.BRDFLut", *m_Graph, m_BRDFLut);
+        "Scene.BRDFLut"_hsv, *m_Graph, m_BRDFLut);
 
     m_Graph->Compile(GetFrameContext());
     m_Graph->Execute(GetFrameContext());
@@ -267,9 +267,9 @@ void Renderer::ExecuteSingleTimePasses()
 
 void Renderer::SetupRenderSlimePasses()
 {
-    auto& slime = Passes::SlimeMold::addToGraph("Slime", *m_Graph, *m_SlimeMoldContext);
+    auto& slime = Passes::SlimeMold::addToGraph("Slime"_hsv, *m_Graph, *m_SlimeMoldContext);
     auto& slimeOutput = m_Graph->GetBlackboard().Get<Passes::SlimeMold::PassData>(slime);
-    Passes::ImGuiTexture::addToGraph("ImGuiTexture.Mold", *m_Graph, slimeOutput.ColorOut);
+    Passes::ImGuiTexture::addToGraph("ImGuiTexture.Mold"_hsv, *m_Graph, slimeOutput.ColorOut);
 }
 
 void Renderer::SetupRenderGraph()
@@ -291,8 +291,8 @@ void Renderer::SetupRenderGraph()
     ImGui::Checkbox("Soft shadows", (bool*)&shadingSettingsGPU.SoftShadows);
     ImGui::End();
 
-    Resource shadingSettings = Passes::Upload::addToGraph("Upload.ShadingSettings", *m_Graph, shadingSettingsGPU);
-    Resource primaryCamera = Passes::Upload::addToGraph("Upload.PrimaryCamera", *m_Graph, cameraGPU);
+    Resource shadingSettings = Passes::Upload::addToGraph("Upload.ShadingSettings"_hsv, *m_Graph, shadingSettingsGPU);
+    Resource primaryCamera = Passes::Upload::addToGraph("Upload.PrimaryCamera"_hsv, *m_Graph, cameraGPU);
     
     GlobalResources globalResources = {
         .FrameNumberTick = GetFrameContext().FrameNumberTick,
@@ -305,23 +305,23 @@ void Renderer::SetupRenderGraph()
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
     bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
-    auto& prepareMeshlets = Passes::PrepareVisibleMeshletInfo::addToGraph("PrepareVisibleMeshletInfo", *m_Graph, {
+    auto& prepareMeshlets = Passes::PrepareVisibleMeshletInfo::addToGraph("PrepareVisibleMeshletInfo"_hsv, *m_Graph, {
         .RenderObjectSet = &m_OpaqueSet});
     auto& prepareMeshletsOutput = blackboard.Get<Passes::PrepareVisibleMeshletInfo::PassData>(prepareMeshlets);
 
-    auto& fillIndirectDraws = Passes::FillSceneIndirectDraw::addToGraph("FillSceneIndirectDraw", *m_Graph, {
+    auto& fillIndirectDraws = Passes::FillSceneIndirectDraw::addToGraph("FillSceneIndirectDraw"_hsv, *m_Graph, {
         .Geometry = &m_Scene.Geometry(),
         .RenderObjectSet = &m_OpaqueSet,
         .MeshletInfos = prepareMeshletsOutput.MeshletInfos,
         .MeshletInfoCount = prepareMeshletsOutput.MeshletInfoCount});
     auto& fillIndirectDrawsOutput = blackboard.Get<Passes::FillSceneIndirectDraw::PassData>(fillIndirectDraws);
     
-    Resource depth = m_Graph->CreateResource("Depth", GraphTextureDescription{
+    Resource depth = m_Graph->CreateResource("Depth"_hsv, GraphTextureDescription{
         .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
         .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::D32_FLOAT});
     
-    auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB", *m_Graph, {
+    auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB"_hsv, *m_Graph, {
             .Geometry = &m_Scene.Geometry(),
             .Lights = &m_Scene.Lights(),
             .Draws = fillIndirectDrawsOutput.Draws[0],

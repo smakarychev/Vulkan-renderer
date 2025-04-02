@@ -22,6 +22,6 @@ namespace Passes::Multiview::MeshletCull
     {
         RG::CullMultiviewResources* MultiviewResource{nullptr};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         const MeshletCullMultiviewPassExecutionInfo& info, CullStage stage);
 }

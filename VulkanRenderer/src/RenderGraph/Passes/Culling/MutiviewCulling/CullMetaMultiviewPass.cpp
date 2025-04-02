@@ -10,13 +10,13 @@
 
 namespace
 {
-    void ensureViewAttachments(std::string_view name, RG::Graph& renderGraph, CullViewDynamicDescription& view)
+    void ensureViewAttachments(RG::Graph& renderGraph, CullViewDynamicDescription& view)
     {
         for (u32 i = 0; i < view.DrawInfo.Attachments.Colors.size(); i++)
         {
             auto& color = view.DrawInfo.Attachments.Colors[i];
             color.Resource = RG::RgUtils::ensureResource(color.Resource, renderGraph,
-                std::format("{}.ColorIn.{}", name, i),
+                StringId("ColorIn"_hsv).AddVersion(i),
                 RG::GraphTextureDescription{
                         .Width = view.Resolution.x,
                         .Height = view.Resolution.y,
@@ -27,7 +27,7 @@ namespace
         {
             auto& depth = *view.DrawInfo.Attachments.Depth;
             depth.Resource = RG::RgUtils::ensureResource(depth.Resource, renderGraph,
-                std::format("{}.Depth", name),
+                "Depth"_hsv,
                 RG::GraphTextureDescription{
                     .Width = view.Resolution.x,
                     .Height = view.Resolution.y,
@@ -51,7 +51,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Meta::CullMultiview::addToGraph(StringId name, RG::Graph& renderGraph,
     CullMultiviewData& multiviewData)
 {
     using namespace RG;
@@ -86,22 +86,21 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
             }
 
             MultiviewResources& resources = graph.GetOrCreateBlackboardValue<MultiviewResources>();
-            resources.MultiviewResource = RgUtils::createCullMultiview(multiviewData, graph,
-                std::string{name});
+            resources.MultiviewResource = RgUtils::createCullMultiview(multiviewData, graph);
             resources.MultiviewTrianglesResource = RgUtils::createTriangleCullMultiview(resources.MultiviewResource,
-                graph, std::string{name});
+                graph);
             std::unordered_map<Resource, Resource> attachmentRenames;
             resources.MultiviewTrianglesResource.AttachmentsRenames = &attachmentRenames;
 
-            Multiview::MeshCull::addToGraph(std::format("{}.Mesh.Cull", name),
+            Multiview::MeshCull::addToGraph(name.Concatenate(".Mesh.Cull"),
                 graph, {.MultiviewResource = &resources.MultiviewResource}, CullStage::Cull);
-            auto& meshletCull = Multiview::MeshletCull::addToGraph(std::format("{}.Meshlet.Cull", name),
+            auto& meshletCull = Multiview::MeshletCull::addToGraph(name.Concatenate(".Meshlet.Cull"),
                 graph, {.MultiviewResource = &resources.MultiviewResource}, CullStage::Cull);
             auto& meshletCullOutput = graph.GetBlackboard().Get<Multiview::MeshletCull::PassData>(meshletCull);
 
             /* ensure all views have valid attachments */
             for (u32 i = 0; i < multiviewData.ViewCount(); i++)
-                ensureViewAttachments(name, graph, multiviewData.View(i).Dynamic);
+                ensureViewAttachments(graph, multiviewData.View(i).Dynamic);
 
             /* draw views that do not use triangle culling */
             for (u32 i = 0; i < multiviewData.ViewCount(); i++)
@@ -113,14 +112,15 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
                 
                 Utils::updateRecordedAttachmentResources(view.Dynamic.DrawInfo.Attachments, attachmentRenames);
 
-                auto& draw = Draw::IndirectCount::addToGraph(std::format("{}.Draw.Meshlet.{}", name, i), graph, {
-                    .Geometry = view.Static.Geometry,
-                    .Commands = meshletCullOutput.MultiviewResource->CompactCommands[i],
-                    .CommandCount = meshletCullOutput.MultiviewResource->CompactCommandCount,
-                    .CountOffset = i,
-                    .Resolution = view.Dynamic.Resolution,
-                    .Camera = view.Dynamic.Camera,
-                    .DrawInfo = view.Dynamic.DrawInfo});
+                auto& draw = Draw::IndirectCount::addToGraph(name.Concatenate(".Draw.Meshlet").AddVersion(i),
+                    graph, {
+                        .Geometry = view.Static.Geometry,
+                        .Commands = meshletCullOutput.MultiviewResource->CompactCommands[i],
+                        .CommandCount = meshletCullOutput.MultiviewResource->CompactCommandCount,
+                        .CountOffset = i,
+                        .Resolution = view.Dynamic.Resolution,
+                        .Camera = view.Dynamic.Camera,
+                        .DrawInfo = view.Dynamic.DrawInfo});
                 auto& drawOutput = graph.GetBlackboard().Get<Draw::IndirectCount::PassData>(draw);
                 
                 Utils::recordUpdatedAttachmentResources(view.Dynamic.DrawInfo.Attachments,
@@ -130,9 +130,9 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
             /* cull and draw views that do use triangle culling */
             if (multiviewData.TriangleViewCount() > 0)
             {
-                Multiview::TrianglePrepareCull::addToGraph(std::format("{}.Triangle.Prepare.Cull", name),
+                Multiview::TrianglePrepareCull::addToGraph(name.Concatenate(".Triangle.Prepare.Cull"),
                     graph, {.MultiviewResource = &resources.MultiviewTrianglesResource});
-                Multiview::TriangleCull::addToGraph(std::format("{}.Triangle.Cull", name),
+                Multiview::TriangleCull::addToGraph(name.Concatenate(".Triangle.Cull"),
                     graph, {.MultiviewResource = &resources.MultiviewTrianglesResource}, CullStage::Cull);
             }
 
@@ -144,10 +144,10 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
                 /* if we do not cull triangles, this is the last moment we can reduce depth */
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
                     multiviewData.IsPrimaryView(i) && !view.Static.CullTriangles ?
-                        depthReduction = &HiZFull::addToGraph(std::format("{}.HiZFull", name), graph,
+                        depthReduction = &HiZFull::addToGraph(name.Concatenate(".HiZFull"), graph,
                             view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                             view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext) :
-                        &HiZNV::addToGraph(std::format("{}.HiZ.{}", name, i), graph,
+                        &HiZNV::addToGraph(name.Concatenate(".HiZ").AddVersion(i), graph,
                             view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                             view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
             }
@@ -164,7 +164,7 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
             /* now we have to do triangle reocclusion */
             if (multiviewData.TriangleViewCount() > 0)
             {
-                Multiview::TriangleCull::addToGraph(std::format("{}.Triangle.Reocclusion", name),
+                Multiview::TriangleCull::addToGraph(name.Concatenate(".Triangle.Reocclusion"),
                     graph, {.MultiviewResource = &resources.MultiviewTrianglesResource}, CullStage::Reocclusion);
             }
 
@@ -174,20 +174,20 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
                 auto& view = multiviewData.TriangleView(i);
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
                     multiviewData.IsPrimaryTriangleView(i) ?
-                        depthReduction = &HiZFull::addToGraph(std::format("{}.HiZFull", name), graph,
+                        depthReduction = &HiZFull::addToGraph(name.Concatenate(".HiZFull"), graph,
                             view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                             view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext) :
-                        &HiZNV::addToGraph(std::format("{}.HiZ.Reocclusion.{}", name, i), graph,
+                        &HiZNV::addToGraph(name.Concatenate(".HiZ.Reocclusion").AddVersion(i), graph,
                             view.Dynamic.DrawInfo.Attachments.Depth->Resource,
                             view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
             }
 
             /* finally, reocclude and draw meshlets for each view */
-            Multiview::MeshCull::addToGraph(std::format("{}.Mesh.Reocclusion", name),
+            Multiview::MeshCull::addToGraph(name.Concatenate(".Mesh.Reocclusion"),
                 graph, MeshCullMultiviewPassExecutionInfo{.MultiviewResource = &resources.MultiviewResource},
                 CullStage::Reocclusion);
             auto& meshletReocclusion = Multiview::MeshletCull::addToGraph(
-                std::format("{}.Meshlet.Reocclusion",name),
+                name.Concatenate(".Meshlet.Reocclusion"),
                 graph, MeshletCullMultiviewPassExecutionInfo{.MultiviewResource = &resources.MultiviewResource},
                 CullStage::Reocclusion);
             auto& meshletReocclusionOutput = graph.GetBlackboard().Get<Multiview::MeshletCull::PassData>(
@@ -199,7 +199,8 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(std::string_view name, RG::Gra
                 Utils::updateRecordedAttachmentResources(
                     view.Dynamic.DrawInfo.Attachments, attachmentRenames);
 
-                auto& draw = Draw::IndirectCount::addToGraph(std::format("{}.Draw.Meshlet.Reocclusion.{}", name, i),
+                auto& draw = Draw::IndirectCount::addToGraph(
+                    name.Concatenate(".Draw.Meshlet.Reocclusion").AddVersion(i),
                     graph, {
                         .Geometry = view.Static.Geometry,
                         .Commands = meshletReocclusionOutput.MultiviewResource->CompactCommands[i],

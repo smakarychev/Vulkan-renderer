@@ -27,5 +27,5 @@ namespace Passes::Draw::Indirect
     {
         RG::DrawAttachmentResources DrawAttachmentResources{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const DrawIndirectPassExecutionInfo& info);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const DrawIndirectPassExecutionInfo& info);
 }

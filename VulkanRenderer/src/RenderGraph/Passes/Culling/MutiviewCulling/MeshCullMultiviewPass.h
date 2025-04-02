@@ -13,6 +13,6 @@ namespace Passes::Multiview::MeshCull
     {
         RG::CullMultiviewResources* MultiviewResource{nullptr};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const MeshCullMultiviewPassExecutionInfo& info,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const MeshCullMultiviewPassExecutionInfo& info,
         CullStage stage);
 }

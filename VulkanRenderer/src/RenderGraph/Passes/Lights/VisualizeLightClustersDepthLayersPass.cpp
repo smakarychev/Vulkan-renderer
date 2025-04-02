@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/LightClustersDepthLayersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth)
+RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -19,7 +19,7 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(std::string_view
             graph.SetShader("light-clusters-depth-layers-visualize.shader");
             
             auto& depthDescription = Resources(graph).GetTextureDescription(depth);
-            passData.ColorOut = graph.CreateResource(std::string{name} + ".Color",
+            passData.ColorOut = graph.CreateResource("Color"_hsv,
                 GraphTextureDescription{
                     .Width = depthDescription.Width,
                     .Height = depthDescription.Height,
@@ -52,9 +52,9 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(std::string_view
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.PushConstants({
+            cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});
-            frameContext.CommandList.Draw({.VertexCount = 3});
+            cmd.Draw({.VertexCount = 3});
         });
 }

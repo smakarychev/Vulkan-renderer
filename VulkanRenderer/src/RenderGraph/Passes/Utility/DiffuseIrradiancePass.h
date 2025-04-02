@@ -8,9 +8,9 @@ namespace Passes::DiffuseIrradiance
         RG::Resource DiffuseIrradiance{};
         RG::Resource Cubemap{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, Texture cubemap,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, Texture cubemap,
         Texture irradiance);
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
         Texture irradiance);
 }
 

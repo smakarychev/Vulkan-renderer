@@ -8,7 +8,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 
-RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(StringId name, RG::Graph& renderGraph,
     const TriangleCullPrepareMultiviewPassExecutionInfo& info)
 {
     using namespace RG;
@@ -79,7 +79,7 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(std::string_view na
     return pass;
 }
 
-RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& renderGraph,
     const TriangleCullMultiviewPassExecutionInfo& info, CullStage stage)
 {
     using namespace RG;
@@ -95,8 +95,6 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
         CullTrianglesMultiviewResource* MultiviewResource{nullptr};
         std::vector<DrawExecutionInfo> TriangleDrawInfos;
     };
-
-    std::string passName = std::string{name};
 
     Pass& pass = renderGraph.AddRenderPass<PassDataPrivate>(name,
         [&](Graph& graph, PassDataPrivate& passData)
@@ -236,8 +234,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
             {
                 Sampler hizSampler = multiview->MeshletCull->HiZSampler;
                 
-                const Shader& cullShader = ShaderCache::Get(std::format("{}.{}", passName, batchIndex));
-                const Shader& prepareShader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, batchIndex));
+                const Shader& cullShader = ShaderCache::Get(std::format("{}.{}", name, batchIndex));
+                const Shader& prepareShader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", name, batchIndex));
                 
                 TriangleCullMultiviewShaderBindGroup cullBindGroup(cullShader);
                 PrepareDrawsMultiviewShaderBindGroup prepareBindGroup(prepareShader);
@@ -280,7 +278,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
 
                     /* cull */
                     {
-                        const Shader& shader = ShaderCache::Get(std::format("{}.{}", passName, batchIndex));
+                        const Shader& shader = ShaderCache::Get(std::format("{}.{}", name, batchIndex));
                         TriangleCullMultiviewShaderBindGroup bindGroup(shader);
                         
                         struct PushConstants
@@ -316,7 +314,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
 
                     /* prepare draws */
                     {
-                        const Shader& shader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", passName, batchIndex));
+                        const Shader& shader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", name, batchIndex));
                         PrepareDrawsMultiviewShaderBindGroup bindGroup(shader);                        
                         auto& cmd = frameContext.CommandList;
                         bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
@@ -351,14 +349,14 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .RenderingInfo = createRenderingInfo(batchIteration == 0, i)});
 
                         cmd.SetViewport({.Size = dynamicV.Resolution});
-                        frameContext.CommandList.SetScissors({.Size = dynamicV.Resolution});
+                        cmd.SetScissors({.Size = dynamicV.Resolution});
                         std::optional<DepthBias> depthBias = dynamicV.DrawInfo.Attachments.Depth.has_value() ?
                             dynamicV.DrawInfo.Attachments.Depth->DepthBias : std::nullopt;
                         if (depthBias.has_value())
-                            frameContext.CommandList.SetDepthBias({
+                            cmd.SetDepthBias({
                                 .Constant = depthBias->Constant, .Slope = depthBias->Slope});
 
-                        frameContext.CommandList.BindIndexU32Buffer({
+                        cmd.BindIndexU32Buffer({
                             .Buffer = resources.GetBuffer(multiview->IndicesCulled[i][batchIndex])});
 
                         dynamicV.DrawInfo.DrawBind(frameContext.CommandList, resources, {
@@ -370,12 +368,12 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(std::string_view name, RG:
                             .ExecutionId = batchIndex});
 
                         
-                        frameContext.CommandList.DrawIndexedIndirect({
+                        cmd.DrawIndexedIndirect({
                             .Buffer = resources.GetBuffer(multiview->Draws[batchIndex]),
                             .Offset = i * sizeof(IndirectDrawCommand),
                             .Count = 1});           
 
-                        frameContext.CommandList.EndRendering({});
+                        cmd.EndRendering({});
                     }
                     
                     signalBarrier(batchIndex);

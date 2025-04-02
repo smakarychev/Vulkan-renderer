@@ -31,5 +31,5 @@ namespace Passes::Draw::IndirectCount
     {
         RG::DrawAttachmentResources DrawAttachmentResources{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const DrawIndirectCountPassExecutionInfo& info);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const DrawIndirectCountPassExecutionInfo& info);
 }

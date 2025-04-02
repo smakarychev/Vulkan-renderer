@@ -8,7 +8,7 @@
 #include "RenderGraph/Passes/Generated/PbrForwardTranslucentBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(StringId name, RG::Graph& renderGraph,
     const PbrForwardTranslucentIBLPassExecutionInfo& info)
 {
     using namespace RG;
@@ -39,17 +39,16 @@ RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(std::string_view name, 
             }
 
             auto& cullResources = graph.GetBlackboardValue<CullResources>();
-            cullResources.MultiviewResource = RgUtils::createCullMultiview(cullResources.MultiviewData, graph,
-                std::string{name});
+            cullResources.MultiviewResource = RgUtils::createCullMultiview(cullResources.MultiviewData, graph);
 
-            Multiview::MeshCull::addToGraph(std::format("{}.Mesh.Cull", name),
+            Multiview::MeshCull::addToGraph(name.Concatenate(".Mesh.Cull"),
                 renderGraph, {.MultiviewResource = &cullResources.MultiviewResource}, CullStage::Single);
-            auto& meshletCull = Multiview::MeshletCullTranslucent::addToGraph(std::format("{}.Meshlet.Cull", name),
+            auto& meshletCull = Multiview::MeshletCullTranslucent::addToGraph(name.Concatenate(".Meshlet.Cull"),
                 renderGraph, {.MultiviewResource = &cullResources.MultiviewResource});
             auto& meshletCullOutput = renderGraph.GetBlackboard().Get<Multiview::MeshletCullTranslucent::PassData>(
                 meshletCull);
 
-            auto& draw = Draw::Indirect::addToGraph(std::format("{}.Draw", name),
+            auto& draw = Draw::Indirect::addToGraph(name.Concatenate(".Draw"),
                 renderGraph, {
                     .Geometry = info.Geometry,
                     .Commands = meshletCullOutput.MultiviewResource->CompactCommands[0],

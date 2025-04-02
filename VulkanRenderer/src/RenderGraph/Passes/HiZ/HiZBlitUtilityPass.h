@@ -1,7 +1,7 @@
 #pragma once
+
 #include "HiZPassContext.h"
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RenderPass.h"
 #include "RenderGraph/Passes/Generated/HizBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -21,7 +21,7 @@ namespace Passes::HiZBlit
         RG::Resource DepthIn{};
         RG::Resource HiZOut{};
     };
-    inline RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+    inline RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth,
         ImageSubresourceDescription subresource, HiZPassContext& ctx, HiZReductionMode mode,
         bool minMaxDepth = false)
     {
@@ -32,7 +32,7 @@ namespace Passes::HiZBlit
         u32 width = hizDescription.Width;  
         u32 height = hizDescription.Height;
 
-        return renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.Blit", name)},
+        return renderGraph.AddRenderPass<PassData>(name.Concatenate(".Blit"),
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("HiZ.Blit.Setup")
@@ -42,13 +42,12 @@ namespace Passes::HiZBlit
                         ShaderOverride{"DEPTH_MIN_MAX"_hsv, minMaxDepth}});
                 
                 Resource depthIn = depth;
-                Resource depthOut = graph.AddExternal("Hiz.Out", ctx.GetHiZ(mode));
+                Resource depthOut = graph.AddExternal("Hiz.Out"_hsv, ctx.GetHiZ(mode));
                 graph.Export(depthOut, ctx.GetHiZPrevious(mode), true);
 
                 if (minMaxDepth)
                 {
-                    passData.MinMaxDepth = graph.AddExternal(std::format("{}.MinMaxDepth", name),
-                        ctx.GetMinMaxDepthBuffer());
+                    passData.MinMaxDepth = graph.AddExternal("MinMaxDepth"_hsv, ctx.GetMinMaxDepthBuffer());
                     passData.MinMaxDepth = graph.Read(passData.MinMaxDepth, Compute | Storage);
                     passData.MinMaxDepth = graph.Write(passData.MinMaxDepth, Compute | Storage);
 
@@ -84,10 +83,10 @@ namespace Passes::HiZBlit
                 glm::uvec2 levels = {width, height};
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-                frameContext.CommandList.PushConstants({
+                cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {levels}});
-                frameContext.CommandList.Dispatch({
+                cmd.Dispatch({
                     .Invocations = {(width + 32 - 1) / 32, (height + 32 - 1) / 32, 1}});
             });
     }

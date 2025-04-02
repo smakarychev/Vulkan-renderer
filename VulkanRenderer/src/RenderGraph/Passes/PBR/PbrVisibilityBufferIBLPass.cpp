@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/PbrVisibilityIblBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(StringId name, RG::Graph& renderGraph,
     const PbrVisibilityBufferExecutionInfo& info)
 {
     using namespace RG;
@@ -30,20 +30,20 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(std::string_view name, RG::Grap
                     ShaderOverride{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
                     ShaderOverride{"USE_HYBRID_LIGHTING"_hsv, useHybrid}});
 
-            passData.Commands = graph.AddExternal(std::string{name} + ".Commands", info.Geometry->GetCommandsBuffer());
-            passData.Objects = graph.AddExternal(std::string{name} + ".Objects",
+            passData.Commands = graph.AddExternal("Commands"_hsv, info.Geometry->GetCommandsBuffer());
+            passData.Objects = graph.AddExternal("Objects"_hsv,
                 info.Geometry->GetRenderObjectsBuffer());
             auto& attributes = info.Geometry->GetAttributeBuffers();
-            passData.Positions = graph.AddExternal(std::string{name} + ".Positions", attributes.Positions);
-            passData.Normals = graph.AddExternal(std::string{name} + ".Normals", attributes.Normals);
-            passData.Tangents = graph.AddExternal(std::string{name} + ".Tangents", attributes.Tangents);
-            passData.UVs = graph.AddExternal(std::string{name} + ".UVs", attributes.UVs);
-            passData.Indices = graph.AddExternal(std::string{name} + ".Indices", attributes.Indices);
+            passData.Positions = graph.AddExternal("Positions"_hsv, attributes.Positions);
+            passData.Normals = graph.AddExternal("Normals"_hsv, attributes.Normals);
+            passData.Tangents = graph.AddExternal("Tangents"_hsv, attributes.Tangents);
+            passData.UVs = graph.AddExternal("UVs"_hsv, attributes.UVs);
+            passData.Indices = graph.AddExternal("Indices"_hsv, attributes.Indices);
 
             const TextureDescription& visibilityDescription =
                 Resources(graph).GetTextureDescription(info.VisibilityTexture);
             
-            Resource color = RgUtils::ensureResource(info.ColorIn, graph, std::string{name} + ".Color",
+            Resource color = RgUtils::ensureResource(info.ColorIn, graph, "Color"_hsv,
                 GraphTextureDescription{
                    .Width = visibilityDescription.Width,
                    .Height = visibilityDescription.Height,

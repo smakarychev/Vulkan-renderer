@@ -15,7 +15,7 @@ namespace Passes::LightClustersBin
         RG::Resource ClusterCount{};
         RG::SceneLightResources SceneLightResources{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         RG::Resource dispatchIndirect, RG::Resource clusters, RG::Resource activeClusters, RG::Resource clustersCount,
         const SceneLight& sceneLight);
 }

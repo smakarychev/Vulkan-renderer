@@ -2,7 +2,7 @@
 
 #include "FrameContext.h"
 
-RG::Pass& Passes::CopyTexture::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource textureIn, RG::Resource textureOut,
     const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType)
 {

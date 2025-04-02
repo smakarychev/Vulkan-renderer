@@ -6,14 +6,14 @@
 #include "RenderGraph/Passes/Generated/SkyboxBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture skybox,
+RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, Texture skybox,
     RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
-    return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".Skybox", skybox),
+    return addToGraph(name, renderGraph, renderGraph.AddExternal("Skybox"_hsv, skybox),
         colorOut, depthIn, resolution, lodBias);
 }
 
-RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource skybox,
+RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource skybox,
     RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
 {
     using namespace RG;
@@ -26,14 +26,14 @@ RG::Pass& Passes::Skybox::addToGraph(std::string_view name, RG::Graph& renderGra
 
             graph.SetShader("skybox.shader");
             
-            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, std::string{name} + ".Color",
+            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, "Color"_hsv,
                 GraphTextureDescription{
                     .Width = resolution.x,
                     .Height = resolution.y,
                     .Format = Format::RGBA16_FLOAT});
             ASSERT(depthIn.IsValid(), "Depth has to be provided")
 
-            passData.Projection = graph.CreateResource(std::string{name} + ".Projection", GraphBufferDescription{
+            passData.Projection = graph.CreateResource("Projection"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(ProjectionUBO)});
             
             auto& globalResources = graph.GetGlobalResources();

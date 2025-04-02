@@ -6,7 +6,7 @@
 #include "Rendering/Buffer/BufferUtility.h"
 #include "Vulkan/Device.h"
 
-void SceneRenderObjectSet::Init(std::string_view name, Scene& scene, SceneBucketList& bucketList,
+void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bucketList,
     Span<const ScenePassCreateInfo> passes, DeletionQueue& deletionQueue)
 {
     m_FirstBucket = bucketList.Count();

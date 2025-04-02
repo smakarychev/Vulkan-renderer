@@ -4,15 +4,15 @@
 #include "RenderGraph/Passes/Generated/EnvironmentPrefilterBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture cubemap, Texture prefiltered)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal(std::format("{}.Cubemap", name), cubemap),
+        renderGraph.AddExternal("Cubemap"_hsv, cubemap),
         prefiltered);
 }
 
-RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
+RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
     Texture prefiltered)
 {
     using namespace RG;
@@ -22,7 +22,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
     i8 mipmaps = Device::GetImageDescription(prefiltered).Mipmaps;
     for (i8 mipmap = 0; mipmap < mipmaps; mipmap++)
     {
-        Pass& pass = renderGraph.AddRenderPass<PassData>(PassName{std::format("{}.{}", name, mipmap)},
+        Pass& pass = renderGraph.AddRenderPass<PassData>(name.AddVersion(mipmap),
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("EnvironmentPrefilter.Setup")
@@ -32,7 +32,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(std::string_view name, RG::Gr
                 if (mipmap == 0)
                 {
                     passData.PrefilteredTexture = graph.AddExternal(
-                        std::format("{}.EnvironmentPrefilter", name), prefiltered);
+                        "EnvironmentPrefilter"_hsv, prefiltered);
                     prefilteredResource = passData.PrefilteredTexture;
                 }
                     

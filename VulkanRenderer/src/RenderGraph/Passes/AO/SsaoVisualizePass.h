@@ -8,5 +8,5 @@ namespace Passes::SsaoVisualize
         RG::Resource SSAO{};
         RG::Resource ColorOut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut);
 }

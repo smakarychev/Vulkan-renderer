@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/AtmosphereSkyViewLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
     RG::Resource atmosphereSettings, const SceneLight& light)
 {
@@ -22,11 +22,11 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
 
             auto& globalResources = graph.GetGlobalResources();
             
-            passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
+            passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Width"_hsv),
                 .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Height"_hsv),
                 .Format = Format::RGBA16_FLOAT});
-            passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),
+            passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
                 light.GetBuffers().DirectionalLight);
             
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
@@ -58,7 +58,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(std::string_view name, RG::Gra
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.Dispatch({
+            cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
         });

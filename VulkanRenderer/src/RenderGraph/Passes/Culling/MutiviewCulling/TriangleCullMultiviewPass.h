@@ -17,7 +17,7 @@ namespace Passes::Multiview::TrianglePrepareCull
     {
         RG::CullTrianglesMultiviewResource* MultiviewResource{nullptr};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         const TriangleCullPrepareMultiviewPassExecutionInfo& info);
 }
 
@@ -27,6 +27,6 @@ namespace Passes::Multiview::TriangleCull
     {
         std::vector<RG::DrawAttachmentResources> DrawAttachmentResources{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         const TriangleCullMultiviewPassExecutionInfo& info, CullStage stage);
 }

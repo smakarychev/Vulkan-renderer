@@ -13,7 +13,7 @@ namespace Passes::HiZNV
         RG::Resource DepthIn{};
         RG::Resource HiZOut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth,
         ImageSubresourceDescription subresource, HiZPassContext& ctx);
 }
 

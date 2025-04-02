@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/ScenePrepareVisibleMeshletInfoBindGroup.generated.h"
 #include "Scene/SceneRenderObjectSet.h"
 
-RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
@@ -29,20 +29,20 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(std::string_view name, R
 
             passData.MeshletCount = info.RenderObjectSet->MeshletCount();
 
-            passData.Buckets = graph.AddExternal(std::format("{}.Buckets", name),
+            passData.Buckets = graph.AddExternal("Buckets"_hsv,
                 info.RenderObjectSet->BucketBits());
             passData.Buckets = graph.Read(passData.Buckets, Compute | Storage);
             
-            passData.MeshletSpans = graph.AddExternal(std::format("{}.MeshletSpans", name),
+            passData.MeshletSpans = graph.AddExternal("MeshletSpans"_hsv,
                 info.RenderObjectSet->MeshletSpans());
             passData.MeshletSpans = graph.Read(passData.MeshletSpans, Compute | Storage);
 
-            passData.MeshletInfos = graph.CreateResource(std::format("{}.MeshletInfos", name),
+            passData.MeshletInfos = graph.CreateResource("MeshletInfos"_hsv,
                 GraphBufferDescription{
                     .SizeBytes = sizeof(SceneMeshletBucketInfo) * passData.MeshletCount});
             passData.MeshletInfos = graph.Write(passData.MeshletInfos, Compute | Storage);
 
-            passData.MeshletInfoCount = graph.CreateResource(std::format("{}.MeshletInfoCount", name),
+            passData.MeshletInfoCount = graph.CreateResource("MeshletInfoCount"_hsv,
                 GraphBufferDescription{.SizeBytes = sizeof(u32)});
             passData.MeshletInfoCount = graph.Read(passData.MeshletInfoCount, Compute | Storage);
             passData.MeshletInfoCount = graph.Write(passData.MeshletInfoCount, Compute | Storage);

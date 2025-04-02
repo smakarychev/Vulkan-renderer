@@ -29,5 +29,5 @@ namespace Passes::Pbr::ForwardTcIbl
         RG::Resource ColorOut{};
         RG::Resource DepthOut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const PbrForwardIBLPassExecutionInfo& info);
 }

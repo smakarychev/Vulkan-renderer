@@ -10,6 +10,6 @@ namespace Passes::LightClustersVisualize
         RG::Resource ColorOut{};
         RG::Resource Depth{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth, RG::Resource clusters);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth, RG::Resource clusters);
 }
 

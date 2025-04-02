@@ -59,7 +59,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::Graph& renderGraph, RG::Resource depthIn)
+RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& renderGraph, RG::Resource depthIn)
 {
     struct SettingsUBO
     {
@@ -100,14 +100,14 @@ RG::Pass& Passes::Ssao::addToGraph(std::string_view name, u32 sampleCount, RG::G
             }
             Samples& samples = graph.GetBlackboardValue<Samples>();
             
-            passData.NoiseTexture = graph.AddExternal(std::string{name} + ".NoiseTexture", samples.NoiseTexture);
-            passData.Settings = graph.CreateResource(std::string{name} + ".Settings", GraphBufferDescription{
+            passData.NoiseTexture = graph.AddExternal("NoiseTexture"_hsv, samples.NoiseTexture);
+            passData.Settings = graph.CreateResource("Settings"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Camera = graph.CreateResource(std::string{name} + ".Camera", GraphBufferDescription{
+            passData.Camera = graph.CreateResource("Camera"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(CameraUBO)});
-            passData.Samples = graph.AddExternal(std::string{name} + ".Samples", samples.SamplesBuffer);
+            passData.Samples = graph.AddExternal("Samples"_hsv, samples.SamplesBuffer);
             const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(depthIn);
-            passData.SSAO = graph.CreateResource(std::string{name} + ".SSAO", GraphTextureDescription{
+            passData.SSAO = graph.CreateResource("SSAO"_hsv, GraphTextureDescription{
                 .Width = depthDescription.Width,
                 .Height = depthDescription.Height,
                 .Format = Format::R8_UNORM});

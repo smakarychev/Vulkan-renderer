@@ -7,7 +7,7 @@
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
 
-RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Atmosphere::Environment::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)
 {
     using namespace RG;
@@ -26,7 +26,7 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG:
                     .ImageViewKind = ImageViewKind::Image2d, .LayerBase = i, .Layers = 1};    
             
             const u32 environmentSize = (u32)*CVars::Get().GetI32CVar("Atmosphere.Environment.Size"_hsv);
-            passData.ColorOut = graph.CreateResource(std::format("{}.ColorOut", name), GraphTextureDescription{
+            passData.ColorOut = graph.CreateResource("ColorOut"_hsv, GraphTextureDescription{
                 .Width = environmentSize,
                 .Height = environmentSize,
                 .Layers = 6,
@@ -69,14 +69,15 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(std::string_view name, RG:
                         .FlipY = false},
                     .Fov = glm::radians(90.0f)});
                 
-                auto& atmosphere = Raymarch::addToGraph(std::format("{}.{}.Raymarch", name, face), graph,
+                auto& atmosphere = Raymarch::addToGraph(
+                    name.Concatenate(".Raymarch").AddVersion(face), graph,
                     atmosphereSettings, camera, light, skyViewLut, {}, {},
                     passData.ColorOut, faceViews[face], {}, USE_SUN_LUMINANCE);
                 auto& atmosphereOutput = graph.GetBlackboard().Get<Raymarch::PassData>(atmosphere);
                 passData.ColorOut = atmosphereOutput.ColorOut;
             }
 
-            auto& mipmapped = Mipmap::addToGraph(std::format("{}.Mipmaps", name), graph, passData.ColorOut);
+            auto& mipmapped = Mipmap::addToGraph(name.Concatenate(".Mipmaps"), graph, passData.ColorOut);
             passData.ColorOut = graph.GetBlackboard().Get<Mipmap::PassData>(mipmapped).Texture;
 
             graph.UpdateBlackboard(passData);

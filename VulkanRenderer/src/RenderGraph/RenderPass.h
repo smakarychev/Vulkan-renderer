@@ -1,13 +1,12 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
-
 #include "RGResource.h"
 #include "Rendering/Synchronization.h"
-#include "Utils/Hash.h"
+#include "String/StringId.h"
+
+#include <memory>
+#include <utility>
+#include <vector>
 
 struct FrameContext;
 
@@ -15,21 +14,6 @@ namespace RG
 {
     class Resources;
 
-    class PassName
-    {
-        friend class Graph;
-        friend class Pass;
-    public:
-        PassName(std::string_view name) :
-            m_Name(name), m_Hash(Hash::string(name)) {}
-        
-        const std::string& Name() const { return m_Name; }
-        u64 Hash() const { return m_Hash; }
-    private:
-        std::string m_Name{};
-        u64 m_Hash{};
-    };
-    
     class Pass
     {
         friend class Graph;
@@ -59,9 +43,7 @@ namespace RG
             PassData m_PassData;
         };
     public:
-        Pass(std::string_view name)
-            : m_Name(name) {}
-        Pass(const PassName& name)
+        Pass(StringId name)
             : m_Name(name) {}
 
         void Execute(FrameContext& frameContext, const Resources& passResources) const
@@ -69,8 +51,8 @@ namespace RG
             m_ExecutionCallback->Execute(frameContext, passResources);
         }
 
-        std::string_view GetNameString() const { return m_Name.m_Name; }
-        u64 GetNameHash() const { return m_Name.m_Hash; }
+        std::string_view GetNameString() const { return m_Name.AsStringView(); }
+        u64 GetNameHash() const { return m_Name.Hash(); }
         
     private:
         void Reset()
@@ -120,6 +102,6 @@ namespace RG
         std::vector<BarrierDependencyInfo> m_SplitBarrierSignalInfos;
         std::vector<BarrierDependencyInfo> m_SplitBarrierWaitInfos;
     
-        PassName m_Name;
+        StringId m_Name;
     };    
 }

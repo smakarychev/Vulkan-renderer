@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/LightClustersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depth,
+RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth,
     RG::Resource clusters)
 {
     using namespace RG;
@@ -19,7 +19,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
 
             auto& globalResources = graph.GetGlobalResources();
 
-            passData.ColorOut = graph.CreateResource(std::string{name} + ".Color",
+            passData.ColorOut = graph.CreateResource("Color"_hsv,
                 GraphTextureDescription{
                     .Width = globalResources.Resolution.x,
                     .Height = globalResources.Resolution.y,
@@ -47,6 +47,6 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(std::string_view name, RG::
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.Draw({.VertexCount = 3});
+            cmd.Draw({.VertexCount = 3});
         });
 }

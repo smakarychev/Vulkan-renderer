@@ -10,7 +10,7 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource tiles,
+RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource tiles,
     RG::Resource depth, RG::Resource bins)
 {
     using namespace RG;
@@ -25,7 +25,7 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(std::string_view name, RG::Gra
 
             auto& globalResources = graph.GetGlobalResources();
 
-            passData.ColorOut = graph.CreateResource(std::string{name} + ".Color",
+            passData.ColorOut = graph.CreateResource("Color"_hsv,
                 GraphTextureDescription{
                     .Width = globalResources.Resolution.x,
                     .Height = globalResources.Resolution.y,

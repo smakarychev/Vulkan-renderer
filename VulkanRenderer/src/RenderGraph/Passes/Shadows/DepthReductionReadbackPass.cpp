@@ -17,7 +17,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::DepthReductionReadback::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::DepthReductionReadback::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource minMaxDepth, const Camera* primaryCamera)
 {
     using namespace RG;

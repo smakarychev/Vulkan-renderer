@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/SceneFillIndirectDrawsBindGroup.generated.h"
 #include "Scene/SceneRenderObjectSet.h"
 
-RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
@@ -37,7 +37,7 @@ RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(std::string_view name, RG::G
 
             passData.MeshletCount = info.RenderObjectSet->MeshletCount();
 
-            passData.ReferenceCommands = graph.AddExternal(std::format("{}.ReferenceCommands", name),
+            passData.ReferenceCommands = graph.AddExternal("ReferenceCommands"_hsv,
                 info.Geometry->Commands.Buffer);
             passData.ReferenceCommands = graph.Read(passData.ReferenceCommands, Compute | Storage);
 
@@ -53,12 +53,12 @@ RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(std::string_view name, RG::G
                     ASSERT(!passData.Draws[currentBucket].IsValid(), "Ambiguous bucket")
                     
                     passData.Draws[currentBucket] = graph.AddExternal(
-                        std::format("{}.Draws.{}", name, currentBucket),
+                        StringId("Draw"_hsv).AddVersion(currentBucket),
                         bucket.Draws());
                     passData.Draws[currentBucket] = graph.Write(passData.Draws[currentBucket], Compute | Storage);
                     
                     passData.DrawInfos[currentBucket] = graph.AddExternal(
-                        std::format("{}.DrawInfos.{}", name, currentBucket),
+                        StringId("DrawInfos"_hsv).AddVersion(currentBucket),
                         bucket.DrawInfos());
                     passData.DrawInfos[currentBucket] = graph.Read(
                         passData.DrawInfos[currentBucket], Compute | Storage);

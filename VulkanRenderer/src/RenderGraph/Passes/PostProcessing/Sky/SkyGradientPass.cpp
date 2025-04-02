@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/SkyGradientBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource renderTarget)
+RG::Pass& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource renderTarget)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -40,7 +40,7 @@ RG::Pass& Passes::SkyGradient::addToGraph(std::string_view name, RG::Graph& rend
             
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
             
-            passData.Settings = graph.CreateResource("SkyGradient.Settings", GraphBufferDescription{
+            passData.Settings = graph.CreateResource("Settings"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
             passData.Settings = graph.Read(passData.Settings, Compute | Uniform);
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();

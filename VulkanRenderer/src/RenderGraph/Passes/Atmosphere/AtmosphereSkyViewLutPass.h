@@ -15,7 +15,7 @@ namespace Passes::Atmosphere::SkyView
         RG::Resource Camera{};
         RG::Resource Lut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
         RG::Resource atmosphereSettings, const SceneLight& light);
 }

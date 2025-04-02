@@ -19,8 +19,8 @@ namespace Passes::Skybox
         f32 LodBias{0.0f};
     };
     
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, Texture skybox, RG::Resource colorOut,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, Texture skybox, RG::Resource colorOut,
         RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource skybox, RG::Resource colorOut,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource skybox, RG::Resource colorOut,
         RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias);
 }

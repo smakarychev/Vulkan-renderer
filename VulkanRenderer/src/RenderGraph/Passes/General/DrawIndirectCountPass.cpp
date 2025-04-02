@@ -6,7 +6,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneGeometry.h"
 
-RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Draw::IndirectCount::addToGraph(StringId name, RG::Graph& renderGraph,
     const DrawIndirectCountPassExecutionInfo& info)
 {
     using namespace RG;
@@ -29,14 +29,14 @@ RG::Pass& Passes::Draw::IndirectCount::addToGraph(std::string_view name, RG::Gra
             CPU_PROFILE_FRAME("Draw.Indirect.Count.Setup")
 
             passData.Camera = graph.CreateResource(
-                std::string{name} + ".Camera", GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
+                "Camera"_hsv, GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
             passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform);
             CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
             graph.Upload(passData.Camera, cameraGPU);
 
-            passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, std::string{name}, Vertex);
+            passData.AttributeBuffers = RgUtils::readDrawAttributes(*info.Geometry, graph, Vertex);
 
-            passData.Objects = graph.AddExternal(std::string{name} + ".Objects",
+            passData.Objects = graph.AddExternal("Objects"_hsv,
                 info.Geometry->GetRenderObjectsBuffer());
             passData.Commands = graph.Read(info.Commands, Vertex | Indirect);
             passData.Count = graph.Read(info.CommandCount, Vertex | Indirect);

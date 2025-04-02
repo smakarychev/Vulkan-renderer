@@ -13,6 +13,6 @@ namespace Passes::SsaoBlur
         RG::Resource SsaoIn{};
         RG::Resource SsaoOut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut,
         SsaoBlurPassKind kind);
 }

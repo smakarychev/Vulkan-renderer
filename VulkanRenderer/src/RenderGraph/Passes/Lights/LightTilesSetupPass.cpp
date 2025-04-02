@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/LightTilesSetupBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& renderGraph)
+RG::Pass& Passes::LightTilesSetup::addToGraph(StringId name, RG::Graph& renderGraph)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -22,8 +22,8 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
 
             glm::uvec2 bins = glm::ceil(
                 glm::vec2{globalResources.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
-            passData.Tiles = graph.CreateResource(std::format("{}.Tiles", name), GraphBufferDescription{
-                .SizeBytes = bins.x * bins.y * sizeof(LightTile)});
+            passData.Tiles = graph.CreateResource("Tiles"_hsv, GraphBufferDescription{
+                .SizeBytes = (u64)(bins.x * bins.y) * sizeof(LightTile)});
             passData.Tiles = graph.Write(passData.Tiles, Compute | Storage);
 
             graph.UpdateBlackboard(passData);
@@ -53,12 +53,12 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(std::string_view name, RG::Graph& 
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.PushConstants({
+            cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});
             glm::uvec2 bins = glm::ceil(
                 glm::vec2{frameContext.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
-            frameContext.CommandList.Dispatch({
+            cmd.Dispatch({
                 .Invocations = {bins.x, bins.y, 1},
                 .GroupSize = {1, 1, 1}});
         });

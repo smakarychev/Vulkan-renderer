@@ -9,8 +9,7 @@
 
 namespace RG::RgUtils
 {
-    CullMultiviewResources createCullMultiview(CullMultiviewData& cullMultiviewData, Graph& graph,
-        const std::string& baseName)
+    CullMultiviewResources createCullMultiview(CullMultiviewData& cullMultiviewData, Graph& graph)
     {
         CullMultiviewResources multiviewResource = {};
         
@@ -31,29 +30,29 @@ namespace RG::RgUtils
          * we need additional `geometryCount` buffers only if triangle culling is really used */
         multiviewResource.CompactCommands.reserve(viewCount + geometryCount);
 
-        multiviewResource.ViewSpans = graph.CreateResource(baseName + ".ViewSpans",
+        multiviewResource.ViewSpans = graph.CreateResource("ViewSpans"_hsv,
             GraphBufferDescription{.SizeBytes = geometryCount * sizeof(CullMultiviewData::ViewSpan)});
-        multiviewResource.Views = graph.CreateResource(baseName + ".Views",
+        multiviewResource.Views = graph.CreateResource("Views"_hsv,
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(CullViewDataGPU)});
         multiviewResource.HiZSampler = cullMultiviewData.View(0).Static.HiZContext->GetMinMaxSampler(
             HiZReductionMode::Min);
 
         multiviewResource.CompactCommandCount = graph.CreateResource(
-            std::format("{}.CompactCommandsCount", baseName),
+            "CompactCommandsCount"_hsv,
             GraphBufferDescription{.SizeBytes = (viewCount + geometryCount) * sizeof(u32)});
         multiviewResource.CompactCommandCountReocclusion = graph.CreateResource(
-            std::format("{}.CompactCommandsCount.Reocclusion", baseName),
+            "CompactCommandsCount.Reocclusion"_hsv,
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(u32)});
 
         for (u32 i = 0; i < geometryCount; i++)
         {
             auto* geometry = cullMultiviewData.Geometries()[i];
 
-            multiviewResource.Objects.push_back(graph.AddExternal(std::format("{}.Objects.{}", baseName, i),
+            multiviewResource.Objects.push_back(graph.AddExternal(StringId("Objects"_hsv).AddVersion(i),
                 geometry->GetRenderObjectsBuffer()));
-            multiviewResource.Meshlets.push_back(graph.AddExternal(std::format("{}.Meshlets.{}", baseName, i),
+            multiviewResource.Meshlets.push_back(graph.AddExternal(StringId("Meshlets"_hsv).AddVersion(i),
                 geometry->GetMeshletsBuffer()));
-            multiviewResource.Commands.push_back(graph.AddExternal(std::format("{}.Commands.{}", baseName, i),
+            multiviewResource.Commands.push_back(graph.AddExternal(StringId("Commands"_hsv).AddVersion(i),
                 geometry->GetCommandsBuffer()));
         }
         
@@ -63,19 +62,19 @@ namespace RG::RgUtils
             auto&& [staticV, dynamicV] = view;
 
             auto previousHiz = *staticV.HiZContext->GetHiZPrevious(HiZReductionMode::Min);
-            multiviewResource.HiZs.push_back(graph.AddExternal(std::format("{}.HiZ.{}", baseName, i),
+            multiviewResource.HiZs.push_back(graph.AddExternal(StringId("HiZ"_hsv).AddVersion(i),
                 previousHiz ? *previousHiz : Texture{},
                 ImageUtils::DefaultTexture::Black));
 
             multiviewResource.MeshVisibility.push_back(graph.AddExternal(
-                std::format("{}.Visibility.Mesh.{}", baseName, i),
+                StringId("Visibility.Mesh"_hsv).AddVersion(i),
                 cullMultiviewData.Visibilities()[i].Mesh()));
             multiviewResource.MeshletVisibility.push_back(graph.AddExternal(
-                std::format("{}.Visibility.Meshlet.{}", baseName, i),
+                StringId("Visibility.Meshlet"_hsv).AddVersion(i),
                 cullMultiviewData.Visibilities()[i].Meshlet()));
 
             multiviewResource.CompactCommands.push_back(graph.CreateResource(
-                std::format("{}.CompactCommands.{}", baseName, i),
+                StringId("CompactCommands"_hsv).AddVersion(i),
                 GraphBufferDescription{
                     .SizeBytes = Device::GetBufferSizeBytes(staticV.Geometry->GetCommandsBuffer())}));
         }
@@ -85,7 +84,7 @@ namespace RG::RgUtils
         {
             auto* geometry = cullMultiviewData.Geometries()[i];
             multiviewResource.CompactCommands.push_back(graph.CreateResource(
-                std::format("{}.CompactCommands.Combined.{}", baseName, i),
+                StringId("CompactCommands.Combined"_hsv).AddVersion(i),
                 GraphBufferDescription{
                     .SizeBytes = Device::GetBufferSizeBytes(geometry->GetCommandsBuffer())}));
         }
@@ -174,8 +173,7 @@ namespace RG::RgUtils
                 graph.Upload(multiview.CompactCommandCount, 0u, i * sizeof(u32));
     }
 
-    CullTrianglesMultiviewResource createTriangleCullMultiview(CullMultiviewResources& multiview, Graph& graph,
-        const std::string& baseName)
+    CullTrianglesMultiviewResource createTriangleCullMultiview(CullMultiviewResources& multiview, Graph& graph)
     {
         CullTrianglesMultiviewResource multiviewResource = {};
 
@@ -203,9 +201,9 @@ namespace RG::RgUtils
         multiviewResource.SSAOs.resize(viewCount, {});
         multiviewResource.CSMs.resize(viewCount, {});
         
-        multiviewResource.ViewSpans = graph.CreateResource(baseName + ".ViewSpans",
+        multiviewResource.ViewSpans = graph.CreateResource("ViewSpans"_hsv,
             GraphBufferDescription{.SizeBytes = multiview.GeometryCount * sizeof(CullMultiviewData::ViewSpan)});
-        multiviewResource.Views = graph.CreateResource(baseName + ".Views",
+        multiviewResource.Views = graph.CreateResource("Views"_hsv,
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(CullViewDataGPU)});
 
         for (u32 i = 0; i < multiview.Multiview->ViewCount(); i++)
@@ -216,15 +214,15 @@ namespace RG::RgUtils
         {
             auto* geometry = multiview.Multiview->View(i).Static.Geometry;
 
-            multiviewResource.Indices.push_back(graph.AddExternal(std::format("{}.Indices.{}", baseName, i),
+            multiviewResource.Indices.push_back(graph.AddExternal(StringId("Indices"_hsv).AddVersion(i),
                 geometry->GetAttributeBuffers().Indices));
 
             multiviewResource.BatchDispatches.push_back(graph.CreateResource(
-               std::format("{}.Dispatches.{}", baseName, i),
+               StringId("Dispatches"_hsv).AddVersion(i),
                GraphBufferDescription{.SizeBytes = multiviewResource.MaxDispatches * sizeof(IndirectDispatchCommand)}));
 
             /* draw attribute buffers */
-            multiviewResource.AttributeBuffers.push_back(createDrawAttributes(*geometry, graph, baseName));
+            multiviewResource.AttributeBuffers.push_back(createDrawAttributes(*geometry, graph));
         }
 
         u32 triangleViewIndex = 0;
@@ -240,25 +238,25 @@ namespace RG::RgUtils
             multiviewResource.MeshletViewIndices.push_back(meshletViewIndex);
 
             multiviewResource.TriangleVisibility.push_back(graph.AddExternal(
-                std::format("{}.Visibility.Triangle.{}", baseName, triangleViewIndex),
+                StringId("Visibility.Triangle"_hsv).AddVersion(triangleViewIndex),
                 multiview.Multiview->TriangleVisibilities()[triangleViewIndex].Triangle()));
 
             multiviewResource.Triangles.push_back({});
             for (auto& triangles : multiviewResource.Triangles.back())
-                triangles = graph.CreateResource(std::format("{}.Triangles.{}", baseName, triangleViewIndex),
+                triangles = graph.CreateResource(StringId("Triangles"_hsv).AddVersion(triangleViewIndex),
                         GraphBufferDescription{
                             .SizeBytes = TriangleCullMultiviewTraits::TriangleCount() *
                                 sizeof(TriangleCullMultiviewTraits::TriangleType)});
 
             multiviewResource.IndicesCulled.push_back({});
             for (auto& indices : multiviewResource.IndicesCulled.back())
-                indices = graph.CreateResource(std::format("{}.Indices.Culled.{}", baseName, triangleViewIndex),
+                indices = graph.CreateResource(StringId("Indices.Culled"_hsv).AddVersion(triangleViewIndex),
                     GraphBufferDescription{
                         .SizeBytes = TriangleCullMultiviewTraits::IndexCount() *
                             sizeof(TriangleCullMultiviewTraits::IndexType)});
 
             multiviewResource.Cameras.push_back(graph.CreateResource(
-                std::format("{}.Draw.Camera.{}", baseName, triangleViewIndex),
+                StringId("Draw.Camera"_hsv).AddVersion(triangleViewIndex),
                 GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)}));
 
             triangleViewIndex++;
@@ -266,11 +264,10 @@ namespace RG::RgUtils
 
         for (u32 i = 0; i < TriangleCullMultiviewTraits::MAX_BATCHES; i++)
         {
-            multiviewResource.Draws[i] = graph.CreateResource(std::format("{}.Draws", baseName),
+            multiviewResource.Draws[i] = graph.CreateResource("Draws"_hsv,
                 GraphBufferDescription{.SizeBytes = viewCount * sizeof(IndirectDrawCommand)});
             
-            multiviewResource.IndicesCulledCount[i] = graph.CreateResource(
-                std::format("{}.CulledCount", baseName),
+            multiviewResource.IndicesCulledCount[i] = graph.CreateResource("CulledCount"_hsv,
                 GraphBufferDescription{.SizeBytes = viewCount * sizeof(u32)});
         }
         

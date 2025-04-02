@@ -21,5 +21,5 @@ namespace Passes::Draw::Visibility
         RG::Resource MinMaxDepth{};
         RG::Resource PreviousMinMaxDepth{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info);
 }

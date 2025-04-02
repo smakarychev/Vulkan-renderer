@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/CsmVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph,
     const CSM::PassData& csmOutput, RG::Resource colorIn)
 {
     using namespace RG;
@@ -26,7 +26,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
             
             const TextureDescription& csmDescription = Resources(graph).GetTextureDescription(csmOutput.ShadowMap);
             
-            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, std::format("{}.ColorOut", name),
+            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "ColorOut"_hsv,
                 GraphTextureDescription{
                     .Width = csmDescription.Width,
                     .Height = csmDescription.Height,
@@ -53,7 +53,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(std::string_view name, RG::Graph& ren
 
             bindGroup.SetShadowMap({.Image = shadowMap},
                 shadowDescription.Format == Format::D32_FLOAT ?
-                    ImageLayout::DepthReadonly : ImageLayout::DepthReadonly);
+                    ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly);
             bindGroup.SetCsmData({.Buffer = csmData});
 
             auto& cascadeIndex = resources.GetOrCreateValue<CascadeIndex>();

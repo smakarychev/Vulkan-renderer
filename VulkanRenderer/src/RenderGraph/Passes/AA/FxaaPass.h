@@ -8,5 +8,5 @@ namespace Passes::Fxaa
         RG::Resource ColorIn;
         RG::Resource AntiAliased;
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource colorIn);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn);
 }

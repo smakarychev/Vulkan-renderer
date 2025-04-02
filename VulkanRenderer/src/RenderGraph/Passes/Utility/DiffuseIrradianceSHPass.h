@@ -8,8 +8,8 @@ namespace Passes::DiffuseIrradianceSH
         RG::Resource DiffuseIrradiance{};
         RG::Resource CubemapTexture{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, Texture cubemap,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, Texture cubemap,
         Buffer irradianceSH, bool realTime);
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource cubemap,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
         Buffer irradianceSH, bool realTime);
 }

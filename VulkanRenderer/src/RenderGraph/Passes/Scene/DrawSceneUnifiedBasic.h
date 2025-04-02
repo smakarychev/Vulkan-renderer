@@ -26,6 +26,6 @@ namespace Passes::DrawSceneUnifiedBasic
     {
         RG::DrawAttachmentResources Attachments{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

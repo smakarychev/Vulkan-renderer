@@ -8,5 +8,5 @@ namespace Passes::LightTilesSetup
     {
         RG::Resource Tiles{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph);
 }

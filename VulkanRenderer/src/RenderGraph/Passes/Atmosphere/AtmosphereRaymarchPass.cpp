@@ -7,7 +7,7 @@
 #include "RenderGraph/Passes/Generated/AtmosphereRaymarchBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource atmosphereSettings, const Camera& camera, const SceneLight& light,
     RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
     RG::Resource colorIn, const ImageSubresourceDescription& colorSubresource,
@@ -23,16 +23,16 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
 
         graph.SetShader("atmosphere-raymarch.shader");
 
-        passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),
+        passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
             light.GetBuffers().DirectionalLight);
         auto& globalResources = graph.GetGlobalResources();
-        passData.ColorOut = RgUtils::ensureResource(colorIn, graph, std::format("{}.ColorOut", name),
+        passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "ColorOut"_hsv,
             GraphTextureDescription{
                 .Width = globalResources.Resolution.x,
                 .Height = globalResources.Resolution.y,
                 .Format = Format::RGBA16_FLOAT});
 
-        passData.Camera = graph.CreateResource(std::format("{}.Camera", name), GraphBufferDescription{
+        passData.Camera = graph.CreateResource("Camera"_hsv, GraphBufferDescription{
             .SizeBytes = sizeof(CameraGPU)});
         graph.Upload(passData.Camera, CameraGPU::FromCamera(camera, globalResources.Resolution));
 
@@ -83,10 +83,10 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(std::string_view name, RG::Gr
             .UseSunLuminance = useSunLuminance};
         
         auto& cmd = frameContext.CommandList;
-        bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-        frameContext.CommandList.PushConstants({
+        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+        cmd.PushConstants({
             .PipelineLayout = shader.GetLayout(), 
             .Data = {pushConstant}});
-        frameContext.CommandList.Draw({.VertexCount = 3});
+        cmd.Draw({.VertexCount = 3});
     });
 }

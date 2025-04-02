@@ -6,7 +6,7 @@
 #include "Core/Camera.h"
 #include "RenderGraph/Passes/Generated/LightClustersSetupBindGroup.generated.h"
 
-RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Graph& renderGraph)
+RG::Pass& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& renderGraph)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -18,9 +18,9 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
 
             graph.SetShader("light-clusters-setup.shader");
 
-            passData.Clusters = graph.CreateResource(std::format("{}.Clusters", name), GraphBufferDescription{
+            passData.Clusters = graph.CreateResource("Clusters"_hsv, GraphBufferDescription{
                 .SizeBytes = LIGHT_CLUSTER_BINS * sizeof(LightCluster)});
-            passData.ClusterVisibility = graph.CreateResource(std::format("{}.Cluster.Visibility", name),
+            passData.ClusterVisibility = graph.CreateResource("Cluster.Visibility"_hsv,
                 GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u8)});
             passData.Clusters = graph.Write(passData.Clusters, Compute | Storage);
 
@@ -52,10 +52,10 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(std::string_view name, RG::Grap
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.PushConstants({
+            cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstant}});
-            frameContext.CommandList.Dispatch({
+            cmd.Dispatch({
                 .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z},
                 .GroupSize = {1, 1, 1}});
         });

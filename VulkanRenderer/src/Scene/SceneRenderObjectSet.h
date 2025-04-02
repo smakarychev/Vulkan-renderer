@@ -2,13 +2,14 @@
 
 #include "Scene.h"
 #include "ScenePass.h"
+#include "String/StringId.h"
 
 class SceneInfo;
 
 class SceneRenderObjectSet
 {
 public:
-    void Init(std::string_view name, Scene& scene, SceneBucketList& bucketList, Span<const ScenePassCreateInfo> passes,
+    void Init(StringId name, Scene& scene, SceneBucketList& bucketList, Span<const ScenePassCreateInfo> passes,
         DeletionQueue& deletionQueue);
 
     void OnUpdate(FrameContext& ctx);
@@ -41,5 +42,5 @@ private:
     std::vector<RenderObjectMeshletSpan> m_MeshletSpansCpu;
     std::vector<ScenePass> m_Passes;
 
-    std::string m_Name{};
+    StringId m_Name{};
 };

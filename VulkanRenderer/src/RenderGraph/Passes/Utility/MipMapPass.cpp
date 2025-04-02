@@ -3,7 +3,7 @@
 #include "FrameContext.h"
 #include "RenderGraph/RenderGraph.h"
 
-RG::Pass& Passes::Mipmap::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource texture)
+RG::Pass& Passes::Mipmap::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture)
 {
     using namespace RG;
     using enum ResourceAccessFlags;

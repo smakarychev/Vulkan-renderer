@@ -10,7 +10,7 @@ namespace Passes::LightTilesBin
         RG::Resource Camera{};
         RG::SceneLightResources SceneLightResources{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource tiles, RG::Resource depth,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource tiles, RG::Resource depth,
         const SceneLight& sceneLight);
 }
 

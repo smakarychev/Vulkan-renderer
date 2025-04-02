@@ -65,7 +65,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph, const ShadowPassExecutionInfo& info)
+RG::Pass& Passes::CSM::addToGraph(StringId name, RG::Graph& renderGraph, const ShadowPassExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -131,7 +131,7 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                 cascadeViews[i] = ImageSubresourceDescription{
                     .MipmapBase = 0, .Mipmaps = 1, .LayerBase = (i8)i, .Layers = 1};
             
-            Resource shadow = renderGraph.CreateResource("CSM.ShadowMap", GraphTextureDescription{
+            Resource shadow = renderGraph.CreateResource("ShadowMap"_hsv, GraphTextureDescription{
                 .Width = SHADOW_MAP_RESOLUTION,
                 .Height = SHADOW_MAP_RESOLUTION,
                 .Layers = SHADOW_CASCADES,
@@ -177,11 +177,11 @@ RG::Pass& Passes::CSM::addToGraph(std::string_view name, RG::Graph& renderGraph,
                                 /* todo: for some reason DEPTH_CONSTANT_BIAS does not do anything at all */
                                 .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}}}}});
 
-            auto& meta = Meta::CullMultiview::addToGraph(std::format("{}.Meta", name), renderGraph,
+            auto& meta = Meta::CullMultiview::addToGraph(name.Concatenate(".Meta"), renderGraph,
                 multiview.MultiviewData);
             auto& metaOutput = renderGraph.GetBlackboard().Get<Meta::CullMultiview::PassData>(meta);
 
-            passData.CSM = graph.CreateResource("CSM.Data", GraphBufferDescription{.SizeBytes = sizeof(Ubo)});
+            passData.CSM = graph.CreateResource("Data"_hsv, GraphBufferDescription{.SizeBytes = sizeof(Ubo)});
             passData.CSM = graph.Write(passData.CSM, Vertex | Uniform | Copy);
             graph.Upload(passData.CSM, ubo);
             

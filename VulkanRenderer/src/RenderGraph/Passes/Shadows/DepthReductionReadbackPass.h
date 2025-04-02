@@ -12,7 +12,7 @@ namespace Passes::DepthReductionReadback
         f32 Min{1};
         f32 Max{0};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource minMaxDepth,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource minMaxDepth,
         const Camera* primaryCamera);
 }
 

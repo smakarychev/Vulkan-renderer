@@ -11,6 +11,6 @@ namespace Passes::VisualizeCSM
 
         RG::Resource ColorOut{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         const CSM::PassData& csmOutput, RG::Resource colorIn);
 }

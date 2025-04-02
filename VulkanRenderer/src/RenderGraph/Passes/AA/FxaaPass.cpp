@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/FxaaBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource colorIn)
+RG::Pass& Passes::Fxaa::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -17,7 +17,7 @@ RG::Pass& Passes::Fxaa::addToGraph(std::string_view name, RG::Graph& renderGraph
             graph.SetShader("fxaa.shader");
 
             auto& description = graph.GetTextureDescription(colorIn);
-            passData.AntiAliased = graph.CreateResource(std::format("{}.AntiAliased", name), GraphTextureDescription{
+            passData.AntiAliased = graph.CreateResource("AntiAliased"_hsv, GraphTextureDescription{
                 .Width = description.Width,
                 .Height = description.Height,
                 .Format = Format::RGBA16_FLOAT});

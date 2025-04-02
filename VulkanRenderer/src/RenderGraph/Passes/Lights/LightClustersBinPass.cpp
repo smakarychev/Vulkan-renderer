@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/LightClustersBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource dispatchIndirect, RG::Resource clusters, RG::Resource activeClusters, RG::Resource clustersCount,
     const SceneLight& sceneLight)
 {
@@ -48,10 +48,10 @@ RG::Pass& Passes::LightClustersBin::addToGraph(std::string_view name, RG::Graph&
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.PushConstants({
+            cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {frameContext.PrimaryCamera->GetView()}});
-            frameContext.CommandList.DispatchIndirect({
+            cmd.DispatchIndirect({
                 .Buffer = resources.GetBuffer(passData.Dispatch)});
         });
 }

@@ -20,5 +20,5 @@ namespace Passes::Meta::CullMultiview
         RG::Resource HiZMaxOut{};
         RG::Resource MinMaxDepth{};
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, CullMultiviewData& multiviewData);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, CullMultiviewData& multiviewData);
 }

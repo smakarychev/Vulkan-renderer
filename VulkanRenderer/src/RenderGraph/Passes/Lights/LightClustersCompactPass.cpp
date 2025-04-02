@@ -8,7 +8,7 @@
 
 namespace
 {
-    RG::Pass& identifyActiveClusters(std::string_view name, RG::Graph& renderGraph, RG::Resource clusterVisibility,
+    RG::Pass& identifyActiveClusters(StringId name, RG::Graph& renderGraph, RG::Resource clusterVisibility,
         RG::Resource& depth)
     {
         using namespace RG;
@@ -52,16 +52,16 @@ namespace
 
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-                frameContext.CommandList.PushConstants({
+                cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});
-                frameContext.CommandList.Dispatch({
+                cmd.Dispatch({
                     .Invocations = {depthDescription.Width, depthDescription.Height, 1},
                     .GroupSize = {8, 8, 1}});
             });
     }
 
-    RG::Pass& compactActiveClusters(std::string_view name, RG::Graph& renderGraph, RG::Resource clusters,
+    RG::Pass& compactActiveClusters(StringId name, RG::Graph& renderGraph, RG::Resource clusters,
         RG::Resource clusterVisibility)
     {
         using namespace RG;
@@ -77,9 +77,9 @@ namespace
                     ShaderOverrides{
                         ShaderOverride{"COMPACT"_hsv, true}});
 
-                passData.ActiveClusters = graph.CreateResource(std::format("{}.Clusters.Active", name),
+                passData.ActiveClusters = graph.CreateResource("Clusters.Active"_hsv,
                     GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u16)});
-                passData.ActiveClustersCount = graph.CreateResource(std::format("{}.Clusters.ActiveCount", name),
+                passData.ActiveClustersCount = graph.CreateResource("Clusters.ActiveCount"_hsv,
                     GraphBufferDescription{.SizeBytes = sizeof(u32)});
 
                 passData.Clusters = graph.Read(clusters, Compute | Storage);
@@ -107,13 +107,13 @@ namespace
 
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-                frameContext.CommandList.Dispatch({
+                cmd.Dispatch({
                     .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
                     .GroupSize = {8, 8, 1}});
             });
     }
 
-    RG::Pass& createIndirectDispatch(std::string_view name, RG::Graph& renderGraph, RG::Resource clusterCount)
+    RG::Pass& createIndirectDispatch(StringId name, RG::Graph& renderGraph, RG::Resource clusterCount)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -128,7 +128,7 @@ namespace
                     ShaderOverrides{
                         ShaderOverride{"CREATE_DISPATCH"_hsv, true}});
 
-                passData.DispatchIndirect = graph.CreateResource(std::format("{}.DispatchIndirect", name),
+                passData.DispatchIndirect = graph.CreateResource("DispatchIndirect"_hsv,
                     GraphBufferDescription{.SizeBytes = sizeof(IndirectDispatchCommand)});
 
                 passData.ActiveClustersCount = graph.Read(clusterCount, Compute | Storage);
@@ -149,13 +149,13 @@ namespace
 
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-                frameContext.CommandList.Dispatch({
+                cmd.Dispatch({
                     .Invocations = {1, 1, 1}});
             });
     }
 }
 
-RG::Pass& Passes::LightClustersCompact::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource clusters,
+RG::Pass& Passes::LightClustersCompact::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource clusters,
     RG::Resource clusterVisibility, RG::Resource depth)
 {
     using namespace RG;
@@ -164,12 +164,12 @@ RG::Pass& Passes::LightClustersCompact::addToGraph(std::string_view name, RG::Gr
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            auto& identify = identifyActiveClusters(std::format("{}.Identify", name), graph, clusterVisibility, depth);
+            auto& identify = identifyActiveClusters(name.Concatenate(".Identify"), graph, clusterVisibility, depth);
             auto& identifyOutput = graph.GetBlackboard().Get<PassData>(identify);
-            auto& compact = compactActiveClusters(std::format("{}.Compact", name), graph, clusters,
+            auto& compact = compactActiveClusters(name.Concatenate(".Compact"), graph, clusters,
                 identifyOutput.ClusterVisibility);
             auto& compactOutput = graph.GetBlackboard().Get<PassData>(compact);
-            auto& creatDispatch = createIndirectDispatch(std::format("{}.CreateDispatch", name), graph,
+            auto& creatDispatch = createIndirectDispatch(name.Concatenate(".CreateDispatch"), graph,
                 compactOutput.ActiveClustersCount);
             auto& createDispatchOutput = graph.GetBlackboard().Get<PassData>(creatDispatch);
             compactOutput.Depth = depth;

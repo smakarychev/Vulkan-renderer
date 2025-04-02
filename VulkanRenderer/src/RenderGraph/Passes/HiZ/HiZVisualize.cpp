@@ -5,7 +5,7 @@
 #include "RenderGraph/Passes/Generated/HizVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource hiz)
+RG::Pass& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource hiz)
 {
     using namespace RG;
 
@@ -26,7 +26,7 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
                 ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);
             const TextureDescription& hizDescription = graph.GetTextureDescription(hiz);
 
-            passData.ColorOut = graph.CreateResource("HiZ.Visualize.ColorOut", GraphTextureDescription{
+            passData.ColorOut = graph.CreateResource("ColorOut"_hsv, GraphTextureDescription{
                 .Width = hizDescription.Width,
                 .Height = hizDescription.Height,
                 .Format = Format::RGBA16_FLOAT});
@@ -56,10 +56,10 @@ RG::Pass& Passes::HiZVisualize::addToGraph(std::string_view name, RG::Graph& ren
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.PushConstants({
+            cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
-            frameContext.CommandList.Draw({.VertexCount = 3});
+            cmd.Draw({.VertexCount = 3});
         });
 
     return pass;

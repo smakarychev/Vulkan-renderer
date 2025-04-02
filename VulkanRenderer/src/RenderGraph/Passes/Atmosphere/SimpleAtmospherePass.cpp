@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/AtmosphereSimpleBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::AtmosphereSimple::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut)
 {
     using namespace RG;
@@ -18,7 +18,7 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph&
             graph.SetShader("atmosphere-simple.shader");
 
             auto& globalResources = graph.GetGlobalResources();
-            passData.ColorOut = graph.CreateResource(std::string{name} + ".Color",
+            passData.ColorOut = graph.CreateResource("Color"_hsv,
                 GraphTextureDescription{
                     .Width = globalResources.Resolution.x,
                     .Height = globalResources.Resolution.y,
@@ -43,9 +43,9 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(std::string_view name, RG::Graph&
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.PushConstants({
+            cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {(f32)frameContext.FrameNumberTick}});
-            frameContext.CommandList.Draw({.VertexCount = 3});
+            cmd.Draw({.VertexCount = 3});
         });
 }

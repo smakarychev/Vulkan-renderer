@@ -9,10 +9,10 @@ namespace Passes::Upload
         RG::Resource Resource{};
     };
     template <typename T>
-    RG::Resource addToGraph(std::string_view name, RG::Graph& renderGraph, T&& data);
+    RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, T&& data);
 
     template <typename T>
-    RG::Resource addToGraph(std::string_view name, RG::Graph& renderGraph, T&& data)
+    RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, T&& data)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -21,7 +21,7 @@ namespace Passes::Upload
             [&](Graph& graph, PassData& passData)
             {
                 auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
-                passData.Resource = graph.CreateResource(std::format("{}.Resource", name), GraphBufferDescription{
+                passData.Resource = graph.CreateResource("Resource"_hsv, GraphBufferDescription{
                     .SizeBytes = sizeBytes});
                 graph.Write(passData.Resource, Copy);
                 graph.Upload(passData.Resource, std::forward<T>(data));

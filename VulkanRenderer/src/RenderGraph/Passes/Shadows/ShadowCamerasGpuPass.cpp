@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource depthMinMax,
+RG::Pass& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthMinMax,
     RG::Resource primaryCamera, const glm::vec3& lightDirection)
 {
     using namespace RG;
@@ -17,7 +17,7 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(std::string_view name, RG::Graph&
             
             graph.SetShader("create-shadow-cameras.shader");
 
-            Resource csmData = graph.CreateResource(std::format("{}.CSM.Data", name), GraphBufferDescription{
+            Resource csmData = graph.CreateResource("CSM.Data"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(CSMData)});
 
             passData.DepthMinMax = graph.Read(depthMinMax, Compute | Uniform);

@@ -8,38 +8,35 @@
 
 namespace RG::RgUtils
 {
-    Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
-        const GraphTextureDescription& fallback)
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphTextureDescription& fallback)
     {
         return resource.IsValid() ?
             resource :
             graph.CreateResource(name, fallback);
     }
 
-    Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
-        ImageUtils::DefaultTexture fallback)
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, ImageUtils::DefaultTexture fallback)
     {
         return resource.IsValid() ?
             resource :
             graph.AddExternal(name, fallback);
     }
 
-    Resource ensureResource(Resource resource, Graph& graph, const std::string& name,
-        const GraphBufferDescription& fallback)
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphBufferDescription& fallback)
     {
         return resource.IsValid() ?
             resource :
             graph.CreateResource(name, fallback);
     }
 
-    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName)
+    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph)
     {
         DrawAttributeBuffers buffers = {};
 
-        buffers.Positions = graph.AddExternal(baseName + ".Positions", geometry.GetAttributeBuffers().Positions);
-        buffers.Normals = graph.AddExternal(baseName + ".Normals", geometry.GetAttributeBuffers().Normals);
-        buffers.Tangents = graph.AddExternal(baseName + ".Tangents", geometry.GetAttributeBuffers().Tangents);
-        buffers.UVs = graph.AddExternal(baseName + ".Uvs", geometry.GetAttributeBuffers().UVs);
+        buffers.Positions = graph.AddExternal("Positions"_hsv, geometry.GetAttributeBuffers().Positions);
+        buffers.Normals = graph.AddExternal("Normals"_hsv, geometry.GetAttributeBuffers().Normals);
+        buffers.Tangents = graph.AddExternal("Tangents"_hsv, geometry.GetAttributeBuffers().Tangents);
+        buffers.UVs = graph.AddExternal("Uvs"_hsv, geometry.GetAttributeBuffers().UVs);
 
         return buffers;
     }
@@ -54,10 +51,10 @@ namespace RG::RgUtils
         buffers.UVs = graph.Read(buffers.UVs, shaderStage | Storage);
     }
 
-    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph, const std::string& baseName,
+    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph,
         ResourceAccessFlags shaderStage)
     {
-        DrawAttributeBuffers buffers = createDrawAttributes(geometry, graph, baseName);
+        DrawAttributeBuffers buffers = createDrawAttributes(geometry, graph);
         readDrawAttributes(buffers, graph, shaderStage);
 
         return buffers;
@@ -125,14 +122,14 @@ namespace RG::RgUtils
 
         SceneLightResources resources = {};
 
-        resources.DirectionalLights = graph.AddExternal("Light.Directional",
+        resources.DirectionalLights = graph.AddExternal("Light.Directional"_hsv,
             light.GetBuffers().DirectionalLight);
         resources.DirectionalLights = graph.Read(resources.DirectionalLights, shaderStage | Uniform);
 
-        resources.LightsInfo = graph.AddExternal("Light.LightsInfo", light.GetBuffers().LightsInfo);
+        resources.LightsInfo = graph.AddExternal("Light.LightsInfo"_hsv, light.GetBuffers().LightsInfo);
         resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
 
-        resources.PointLights = graph.AddExternal("Light.PointLights", LIGHT_CULLING ?
+        resources.PointLights = graph.AddExternal("Light.PointLights"_hsv, LIGHT_CULLING ?
                 light.GetBuffers().VisiblePointLights : light.GetBuffers().PointLights);
         resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
         
@@ -145,13 +142,13 @@ namespace RG::RgUtils
 
         SceneLightResources resources = {};
 
-        resources.DirectionalLights = graph.AddExternal("Light.Directional", light.GetBuffers().DirectionalLights);
+        resources.DirectionalLights = graph.AddExternal("Light.Directional"_hsv, light.GetBuffers().DirectionalLights);
         resources.DirectionalLights = graph.Read(resources.DirectionalLights, shaderStage | Storage);
 
-        resources.LightsInfo = graph.AddExternal("Light.LightsInfo", light.GetBuffers().LightsInfo);
+        resources.LightsInfo = graph.AddExternal("Light.LightsInfo"_hsv, light.GetBuffers().LightsInfo);
         resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
 
-        resources.PointLights = graph.AddExternal("Light.PointLights", light.GetBuffers().PointLights);
+        resources.PointLights = graph.AddExternal("Light.PointLights"_hsv, light.GetBuffers().PointLights);
         resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
         
         return resources;
@@ -178,7 +175,7 @@ namespace RG::RgUtils
     {
         using enum ResourceAccessFlags;
 
-        Resource ssaoResource = RgUtils::ensureResource(ssao.SSAO, graph, "SSAO.Dummy",
+        Resource ssaoResource = RgUtils::ensureResource(ssao.SSAO, graph, "SSAO.Dummy"_hsv,
             ImageUtils::DefaultTexture::White);
 
         SSAOData ssaoData = {};

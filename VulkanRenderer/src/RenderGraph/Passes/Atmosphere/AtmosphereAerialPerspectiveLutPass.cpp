@@ -8,7 +8,7 @@
 #include "RenderGraph/Passes/Generated/ShaderBindGroupBase.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
     RG::Resource atmosphereSettings, const SceneLight& light, const RG::CSMData& csmData)
 {
@@ -24,13 +24,13 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
 
             auto& globalResources = graph.GetGlobalResources();
 
-            passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
+            passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
                 .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
                 .Layers = (u32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
                 .Format = Format::RGBA16_FLOAT,
                 .Kind = ImageKind::Image3d});
-            passData.DirectionalLight = graph.AddExternal(std::format("{}.DirectionalLight", name),
+            passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
                 light.GetBuffers().DirectionalLight);
 
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
@@ -66,7 +66,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(std::string_view nam
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.Dispatch({
+            cmd.Dispatch({
 	            .Invocations = {lutDescription.Width, lutDescription.Height, lutDescription.GetDepth()},
 	            .GroupSize = {16, 16, 1}});
         });

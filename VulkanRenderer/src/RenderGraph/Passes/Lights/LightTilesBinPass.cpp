@@ -12,7 +12,7 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource tiles,
+RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource tiles,
     RG::Resource depth, const SceneLight& sceneLight)
 {
     using namespace RG;
@@ -55,10 +55,10 @@ RG::Pass& Passes::LightTilesBin::addToGraph(std::string_view name, RG::Graph& re
             
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.PushConstants({
+            cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {glm::vec2{frameContext.Resolution}}});
-            frameContext.CommandList.Dispatch({
+            cmd.Dispatch({
                 .Invocations = {depthDescription.Width, depthDescription.Height, 1},
                 .GroupSize = {8, 8, 1}});
         });

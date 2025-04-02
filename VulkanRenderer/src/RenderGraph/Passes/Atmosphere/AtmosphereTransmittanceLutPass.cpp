@@ -10,7 +10,7 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, RG::Graph& renderGraph,
+RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource atmosphereSettings)
 {
     using namespace RG;
@@ -23,7 +23,7 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
 
             graph.SetShader("atmosphere-transmittance-lut.shader");
 
-            passData.Lut = graph.CreateResource(std::format("{}.Lut", name), GraphTextureDescription{
+            passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.Transmittance.Width"_hsv),
                 .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.Transmittance.Height"_hsv),
                 .Format = Format::RGBA16_FLOAT});
@@ -47,7 +47,7 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(std::string_view name, R
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
-            frameContext.CommandList.Dispatch({
+            cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
         });

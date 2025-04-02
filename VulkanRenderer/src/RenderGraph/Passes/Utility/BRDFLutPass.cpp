@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/BrdfLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture lut)
+RG::Pass& Passes::BRDFLut::addToGraph(StringId name, RG::Graph& renderGraph, Texture lut)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -16,7 +16,7 @@ RG::Pass& Passes::BRDFLut::addToGraph(std::string_view name, RG::Graph& renderGr
 
             graph.SetShader("brdf-lut.shader");
 
-            passData.Lut = graph.AddExternal(std::format("{}.Lut", name), lut);
+            passData.Lut = graph.AddExternal("Lut"_hsv, lut);
 
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
             

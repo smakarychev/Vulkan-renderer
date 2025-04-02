@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/CrtBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource colorIn,
+RG::Pass& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn,
     RG::Resource colorTarget)
 {
     using namespace RG;
@@ -35,12 +35,12 @@ RG::Pass& Passes::Crt::addToGraph(std::string_view name, RG::Graph& renderGraph,
 
             auto& globalResources = graph.GetGlobalResources();
             
-            passData.Time = graph.CreateResource("CRT.Time", GraphBufferDescription{
+            passData.Time = graph.CreateResource("Time"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(f32)});
             passData.Time = graph.Read(passData.Time, Pixel | Uniform);
             graph.Upload(passData.Time, (f32)globalResources.FrameNumberTick);
 
-            passData.Settings = graph.CreateResource("CRT.Settings", GraphBufferDescription{
+            passData.Settings = graph.CreateResource("Settings"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
             passData.Settings = graph.Read(passData.Settings, Pixel | Uniform);
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();

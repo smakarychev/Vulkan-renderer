@@ -23,12 +23,12 @@ namespace
     }
 }
 
-RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture texture)
+RG::Pass& Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
-    return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
+    return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
 }
 
-RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::Pass& Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -36,7 +36,7 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
     struct PassData
     {
         Resource Texture{};
-        std::string Name{};
+        StringId Name{};
     };
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
@@ -52,7 +52,7 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
 
             auto&& [texture, description] = resources.GetTextureWithDescription(passData.Texture);
             
-            ImGui::Begin(passData.Name.c_str());
+            ImGui::Begin(passData.Name.AsString().c_str());
             glm::vec2 size = getTextureWindowSize(description);
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
@@ -64,12 +64,12 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(std::string_view name, RG::Graph& ren
     return pass;
 }
 
-RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture texture)
+RG::Pass& Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
-    return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
+    return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
 }
 
-RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::Pass& Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -77,7 +77,7 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph&
     struct PassData
     {
         Resource Texture{};
-        std::string Name{};
+        StringId Name{};
     };
     struct Context
     {
@@ -100,7 +100,7 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph&
 
             ASSERT(description.Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
             
-            ImGui::Begin(passData.Name.c_str());
+            ImGui::Begin(passData.Name.AsString().c_str());
             ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, (i32)description.LayersDepth - 1);
             glm::vec2 size = getTextureWindowSize(description);
             Sampler sampler = Device::CreateSampler({
@@ -121,7 +121,7 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(std::string_view name, RG::Graph&
 
 namespace
 {
-    RG::Resource texture3dTo2dSlicePass(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn,
+    RG::Resource texture3dTo2dSlicePass(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
         f32 sliceNormalized)
     {
         using namespace RG;
@@ -140,7 +140,7 @@ namespace
                 graph.SetShader("texture3d-to-slice.shader");
 
                 auto& texture3dDescription = Resources(graph).GetTextureDescription(textureIn);
-                passData.Slice = graph.CreateResource(std::format("{}.Slice", name),
+                passData.Slice = graph.CreateResource("Slice"_hsv,
                     GraphTextureDescription{
                         .Width = texture3dDescription.Width,
                         .Height = texture3dDescription.Height,
@@ -173,12 +173,12 @@ namespace
     }
 }
 
-RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& renderGraph, Texture texture)
+RG::Pass& Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
-    return addToGraph(name, renderGraph, renderGraph.AddExternal(std::string{name} + ".In", texture));
+    return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
 }
 
-RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::Pass& Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -186,7 +186,7 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& r
     struct PassData
     {
         Resource Texture{};
-        std::string Name{};
+        StringId Name{};
         u32 Depth{0};
     };
     struct Context
@@ -200,7 +200,7 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& r
             auto& texture3dDescription = Resources(graph).GetTextureDescription(textureIn);
             u32 depth = texture3dDescription.GetDepth();
             f32 sliceNormalized = ((f32)context.Slice + 0.5f) / (f32)depth;
-            Resource slice = texture3dTo2dSlicePass(std::format("{}.ToSlice", name),
+            Resource slice = texture3dTo2dSlicePass(name.Concatenate(".ToSlice"),
                 renderGraph, textureIn, sliceNormalized);
             passData.Texture = graph.Read(slice, Pixel | Sampled);
             
@@ -217,7 +217,7 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(std::string_view name, RG::Graph& r
             Context& context = resources.GetOrCreateValue<Context>();
             auto&& [slice, description] = resources.GetTextureWithDescription(passData.Texture);
             
-            ImGui::Begin(passData.Name.c_str());
+            ImGui::Begin(passData.Name.AsString().c_str());
             ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, (i32)passData.Depth - 1);
             glm::vec2 size = getTextureWindowSize(description);
             Sampler sampler = Device::CreateSampler({

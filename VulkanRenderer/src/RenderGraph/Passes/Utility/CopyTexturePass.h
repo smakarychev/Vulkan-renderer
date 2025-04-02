@@ -9,6 +9,6 @@ namespace Passes::CopyTexture
         RG::Resource TextureOut;
     };
     
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource textureIn, RG::Resource textureOut,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn, RG::Resource textureOut,
        const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType = ImageSizeType::Relative);
 }

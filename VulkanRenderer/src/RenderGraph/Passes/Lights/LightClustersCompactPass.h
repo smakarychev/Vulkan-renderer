@@ -12,6 +12,6 @@ namespace Passes::LightClustersCompact
         RG::Resource Depth;
         RG::Resource DispatchIndirect;
     };
-    RG::Pass& addToGraph(std::string_view name, RG::Graph& renderGraph, RG::Resource clusters,
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource clusters,
         RG::Resource clusterVisibility, RG::Resource depth);
 }

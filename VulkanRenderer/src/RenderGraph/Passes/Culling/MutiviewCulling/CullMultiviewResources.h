@@ -72,8 +72,7 @@ namespace RG
 
 namespace RG::RgUtils
 {
-    CullMultiviewResources createCullMultiview(CullMultiviewData& cullMultiviewData, Graph& graph,
-        const std::string& baseName);
+    CullMultiviewResources createCullMultiview(CullMultiviewData& cullMultiviewData, Graph& graph);
     void readWriteCullMeshMultiview(CullMultiviewResources& multiview, Graph& graph);
     
     template <typename BindGroup>
@@ -86,8 +85,7 @@ namespace RG::RgUtils
     void updateCullMeshletMultiviewBindings(BindGroup& bindGroup, const Resources& resources,
         const CullMultiviewResources& multiview, CullStage cullStage);
 
-    CullTrianglesMultiviewResource createTriangleCullMultiview(CullMultiviewResources& multiview, Graph& graph,
-        const std::string& baseName);
+    CullTrianglesMultiviewResource createTriangleCullMultiview(CullMultiviewResources& multiview, Graph& graph);
 
     void readWriteCullTrianglePrepareMultiview(CullTrianglesMultiviewResource& multiview, Graph& graph);
     
