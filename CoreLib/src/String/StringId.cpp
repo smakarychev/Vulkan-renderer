@@ -3,6 +3,8 @@
 #include <string>
 #include <unordered_map>
 
+#include "core.h"
+
 std::unordered_map<u64, std::string> StringIdRegistry::s_Strings;
 
 static_assert(std::is_trivially_move_constructible_v<StringId>);
@@ -17,7 +19,11 @@ StringId::StringId(const HashedStringView& string)
     : m_Hash(string.Hash())
 {
     if (StringIdRegistry::s_Strings.contains(m_Hash))
+    {
+        ASSERT(StringIdRegistry::s_Strings.at(m_Hash) == string.String(), "Hash collision for StringId {} and {}",
+            StringIdRegistry::s_Strings.at(m_Hash), string.String())
         return;
+    }
     StringIdRegistry::s_Strings[m_Hash] = string.String();
 }
 

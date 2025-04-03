@@ -24,9 +24,13 @@ public:
 
 #define LOG(...) Logger::Log(__VA_ARGS__)
 
+#ifdef NDEBUG
+#define ASSERT(x, ...) ((void)0)
+#else
 #define ASSERT(x, ...) if(x) {} else { LOG("Assertion failed"); LOG(__VA_ARGS__); __debugbreak(); }
+#endif
 
-#define BIT(x) (1 << x)
+#define BIT(x) (1 << (x))
 
 #define ENUM_FLAGS_BINARY_CONST_OP(enumType, op) \
 inline constexpr enumType operator op(enumType a, enumType b) \
