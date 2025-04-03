@@ -22,6 +22,7 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(StringId name, RG::Graph& re
         Resource DrawInfos{};
         DrawAttachmentResources Attachments{};
         SceneLightResources Light{};
+        u32 CommandCount{0};
     };
 
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
@@ -30,6 +31,9 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(StringId name, RG::Graph& re
             CPU_PROFILE_FRAME("Scene.DrawUnifiedBasic.Setup")
 
             graph.SetShader("scene-ugb.shader");
+
+            passData.CommandCount = std::min(info.Geometry->CommandCount,
+                (u32)(graph.GetBufferDescription(info.Draws).SizeBytes / sizeof(IndirectDrawCommand)));
 
             passData.Camera = graph.CreateResource("Camera"_hsv,
                 GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
@@ -78,6 +82,6 @@ RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(StringId name, RG::Graph& re
             cmd.DrawIndexedIndirectCount({
                 .DrawBuffer = resources.GetBuffer(passData.Draws),
                 .CountBuffer = resources.GetBuffer(passData.DrawInfos),
-                .MaxCount = info.Geometry->CommandCount});
+                .MaxCount = passData.CommandCount});
         });
 }
