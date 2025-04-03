@@ -12,6 +12,9 @@ class StringId
 public:
     constexpr StringId() = default;
     StringId(const HashedStringView& string);
+    template <typename ... Types>
+    requires (sizeof...(Types) > 0)
+    StringId(const std::format_string<Types...> formatString, Types&&... args);
     /* It is implemented as static method because it is supposedly pretty easy to forget `sv`:
      *  StringId a = StringId("Hello"sv);
      *  StringId b = StringId("Hello");
@@ -35,6 +38,13 @@ public:
 private:
     u64 m_Hash{0};
 };
+
+template <typename ... Types>
+requires (sizeof...(Types) > 0)
+StringId::StringId(const std::format_string<Types...> formatString, Types&&... args)
+{
+    *this = FromString(std::format(formatString, std::forward<Types>(args)...));
+}
 
 StringId StringId::AddVersion(std::integral auto version) const
 {

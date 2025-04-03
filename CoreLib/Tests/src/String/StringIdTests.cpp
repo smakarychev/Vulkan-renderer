@@ -50,6 +50,11 @@ TEST_CASE("StringId constructor", "[String][StringId]")
         StringId id = StringId::FromString(std::string_view{string});
         REQUIRE(id.AsString() == string);
     }
+    SECTION("Can be created from format string")
+    {
+        StringId id("Hello, {}", "World");
+        REQUIRE(id.AsString() == "Hello, World");
+    }
 }
 TEST_CASE("StringId can retrieve string", "[String][StringId]")
 {
