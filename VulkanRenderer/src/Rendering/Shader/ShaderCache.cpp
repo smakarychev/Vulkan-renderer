@@ -15,10 +15,10 @@
 DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
 StringUnorderedMap<ShaderCache::FileNode> ShaderCache::s_FileGraph = {};
 StringUnorderedMap<ShaderCache::Record> ShaderCache::s_Records = {};    
-StringUnorderedMap<Shader*> ShaderCache::s_ShadersMap = {};    
+std::unordered_map<StringId, Shader*> ShaderCache::s_ShadersMap = {};    
 std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
 std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
-StringUnorderedMap<Descriptors> ShaderCache::s_BindlessDescriptors = {};
+std::unordered_map<StringId, Descriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
 std::vector<std::pair<std::string, std::string>> ShaderCache::s_ToRename = {};
@@ -122,18 +122,17 @@ void ShaderCache::OnFrameBegin(FrameContext& ctx)
     s_ToReload.clear();
 }
 
-void ShaderCache::AddBindlessDescriptors(std::string_view name, const Descriptors& descriptors)
+void ShaderCache::AddBindlessDescriptors(StringId name, const Descriptors& descriptors)
 {
-    s_BindlessDescriptors[std::string{name}] = descriptors;
+    s_BindlessDescriptors[name] = descriptors;
 }
 
-const Shader& ShaderCache::Get(std::string_view name)
+const Shader& ShaderCache::Get(StringId name)
 {
     return *s_ShadersMap.find(name)->second;
 }
 
-const Shader& ShaderCache::Register(std::string_view name, std::string_view path,
-    ShaderOverridesView&& overrides)
+const Shader& ShaderCache::Register(StringId name, std::string_view path, ShaderOverridesView&& overrides)
 {
     std::string fullPath = *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + std::string{path};
     
@@ -161,8 +160,7 @@ const Shader& ShaderCache::Register(std::string_view name, std::string_view path
     return AddShader(name, pipeline, shaderProxy, fullPath);
 }
 
-const Shader& ShaderCache::Register(std::string_view name, const Shader* shader,
-    ShaderOverridesView&& overrides)
+const Shader& ShaderCache::Register(StringId name, const Shader* shader, ShaderOverridesView&& overrides)
 {
     /* if shader already exists in some form, then two cases are possible:
      * 1) to-be-registered shader is identical to previously loaded one, but has different `name`
@@ -214,7 +212,7 @@ const Shader& ShaderCache::Register(std::string_view name, const Shader* shader,
     return AddShader(name, pipeline, shaderProxy, shader->m_FilePath);
 }
 
-const Shader& ShaderCache::AddShader(std::string_view name, u32 pipeline, const ShaderProxy& proxy,
+const Shader& ShaderCache::AddShader(StringId name, u32 pipeline, const ShaderProxy& proxy,
     std::string_view path)
 {
     s_Shaders.push_back(std::make_unique<Shader>(pipeline, proxy.Descriptors));
@@ -227,18 +225,18 @@ const Shader& ShaderCache::AddShader(std::string_view name, u32 pipeline, const 
     return *s_Shaders.back();
 }
 
-void ShaderCache::HandleRename(std::string_view newName, std::string_view oldName)
+void ShaderCache::HandleRename(std::string_view newPath, std::string_view oldPath)
 {
-    if (s_Records.find(oldName)->second.Shaders.front()->m_FilePath == oldName)
-        s_Records.find(oldName)->second.Shaders.front()->m_FilePath = newName;
-    auto records = s_Records.extract(oldName);
-    records.key() = newName;
+    if (s_Records.find(oldPath)->second.Shaders.front()->m_FilePath == oldPath)
+        s_Records.find(oldPath)->second.Shaders.front()->m_FilePath = newPath;
+    auto records = s_Records.extract(oldPath);
+    records.key() = newPath;
     s_Records.insert(std::move(records));
 }
 
-void ShaderCache::HandleShaderModification(std::string_view name)
+void ShaderCache::HandleShaderModification(std::string_view path)
 {
-    auto it = s_Records.find(name);
+    auto it = s_Records.find(path);
     if (it == s_Records.end())
         return;
     
@@ -274,19 +272,19 @@ void ShaderCache::HandleShaderModification(std::string_view name)
     }
 }
 
-void ShaderCache::HandleStageModification(std::string_view name)
+void ShaderCache::HandleStageModification(std::string_view path)
 {
-    auto& stages = s_FileGraph.find(name)->second.Files;
+    auto& stages = s_FileGraph.find(path)->second.Files;
     ASSERT(stages.size() == 1, "Only .glsl files are meant to be used as includes")
     
-    auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), name);
+    auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), path);
     if (baked.has_value())
         HandleShaderModification(stages.front().Processed);
 }
 
-void ShaderCache::HandleHeaderModification(std::string_view name)
+void ShaderCache::HandleHeaderModification(std::string_view path)
 {
-    auto& stages = s_FileGraph.find(name)->second.Files;
+    auto& stages = s_FileGraph.find(path)->second.Files;
     for (auto& stage : stages)
     {
         auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), stage.Raw);
@@ -297,7 +295,8 @@ void ShaderCache::HandleHeaderModification(std::string_view name)
 
 void ShaderCache::CreateFileGraph()
 {
-    for (auto& file : std::filesystem::recursive_directory_iterator(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv)))
+    for (auto& file : std::filesystem::recursive_directory_iterator(
+        *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv)))
     {
         if (file.is_directory())
             continue;
@@ -326,7 +325,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
     std::ifstream in(path.data());
     nlohmann::json json = nlohmann::json::parse(in);
 
-    const std::string& name = json["name"];
+    StringId name = StringId::FromString(json["name"]);
 
     std::vector<std::string> stages;
     stages.reserve(json["shader_stages"].size());
@@ -464,7 +463,8 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
     }
 
     if (referencesOtherBindlessSet)
-        shader.Descriptors[BINDLESS_DESCRIPTORS_INDEX] = s_BindlessDescriptors.at(json["bindless"]);
+        shader.Descriptors[BINDLESS_DESCRIPTORS_INDEX] =
+            {s_BindlessDescriptors.at(StringId::FromString(json["bindless"]))};
     
     return shader;
 }

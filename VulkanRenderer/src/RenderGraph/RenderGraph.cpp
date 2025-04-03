@@ -512,32 +512,32 @@ namespace RG
 
     void Graph::SetShader(std::string_view path) const
     {
-        ShaderCache::Register(CurrentPass()->GetNameString(), path, {});
+        ShaderCache::Register(CurrentPass()->GetName(), path, {});
     }
 
     void Graph::SetShader(std::string_view path, ShaderOverridesView&& overrides) const
     {
-        ShaderCache::Register(CurrentPass()->GetNameString(), path, std::move(overrides));
+        ShaderCache::Register(CurrentPass()->GetName(), path, std::move(overrides));
     }
 
     void Graph::SetShader(const Shader* shader) const
     {
-        ShaderCache::Register(CurrentPass()->GetNameString(), shader, {});
+        ShaderCache::Register(CurrentPass()->GetName(), shader, {});
     }
 
     void Graph::SetShader(const Shader* shader, ShaderOverridesView&& overrides) const
     {
-        ShaderCache::Register(CurrentPass()->GetNameString(), shader, std::move(overrides));
+        ShaderCache::Register(CurrentPass()->GetName(), shader, std::move(overrides));
     }
 
     void Graph::CopyShader(const Shader* shader) const
     {
-        ShaderCache::Register(CurrentPass()->GetNameString(), shader, shader->CopyOverrides());
+        ShaderCache::Register(CurrentPass()->GetName(), shader, shader->CopyOverrides());
     }
 
     const Shader& Graph::GetShader() const
     {
-        return ShaderCache::Get(CurrentPass()->GetNameString());
+        return ShaderCache::Get(CurrentPass()->GetName());
     }
 
     void Graph::PreprocessResources()

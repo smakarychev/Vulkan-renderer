@@ -51,6 +51,7 @@ namespace RG
             m_ExecutionCallback->Execute(frameContext, passResources);
         }
 
+        StringId GetName() const { return m_Name; }
         std::string_view GetNameString() const { return m_Name.AsStringView(); }
         u64 GetNameHash() const { return m_Name.Hash(); }
         

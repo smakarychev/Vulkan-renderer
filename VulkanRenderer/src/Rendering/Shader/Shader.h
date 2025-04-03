@@ -7,6 +7,7 @@
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
 #include "types.h"
+#include "String/StringId.h"
 
 
 class RenderCommandList;
@@ -119,26 +120,25 @@ class ShaderTemplateLibrary
 {
 public:
     static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-        std::string_view templateName, DescriptorAllocator allocator);
+        StringId name, DescriptorAllocator allocator);
     static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-        std::string_view templateName, DescriptorArenaAllocators& allocators);
-    static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name, DescriptorArenaAllocators& allocators);
+        StringId name, DescriptorArenaAllocators& allocators);
+    static ShaderPipelineTemplate* GetShaderTemplate(StringId name, DescriptorArenaAllocators& allocators);
     
-    static ShaderPipelineTemplate* CreateMaterialsTemplate(const std::string& templateName,
-        DescriptorArenaAllocators& allocators);
+    static ShaderPipelineTemplate* CreateMaterialsTemplate(StringId name, DescriptorArenaAllocators& allocators);
 
     static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
-        std::string_view templateName, DescriptorArenaAllocators& allocators);
-    static ShaderPipelineTemplate* GetShaderTemplate(const std::string& name);
-    static std::string GenerateTemplateName(std::string_view templateName, DescriptorAllocator allocator);
-    static std::string GenerateTemplateName(std::string_view templateName, DescriptorArenaAllocators& allocators);
-    static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name);
+        StringId name, DescriptorArenaAllocators& allocators);
+    static ShaderPipelineTemplate* GetShaderTemplate(StringId name);
+    static StringId GenerateTemplateName(StringId name, DescriptorAllocator allocator);
+    static StringId GenerateTemplateName(StringId name, DescriptorArenaAllocators& allocators);
+    static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, StringId name);
 private:
     static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths,
         DescriptorAllocator allocator);
     static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths,
         DescriptorArenaAllocators& allocators);
 private:
-    static std::unordered_map<std::string, ShaderPipelineTemplate> s_Templates;
+    static std::unordered_map<StringId, ShaderPipelineTemplate> s_Templates;
 };
 

@@ -122,22 +122,20 @@ public:
     static void SetAllocators(DescriptorArenaAllocators& allocators) { s_Allocators = &allocators; }
     static void OnFrameBegin(FrameContext& ctx);
 
-    static void AddBindlessDescriptors(std::string_view name, const Descriptors& descriptors);
+    static void AddBindlessDescriptors(StringId name, const Descriptors& descriptors);
     
     /* returns shader associated with `name` */
-    static const Shader& Get(std::string_view name);
+    static const Shader& Get(StringId name);
     /* associates shader at `path` with `name` */
-    static const Shader& Register(std::string_view name, std::string_view path,
-        ShaderOverridesView&& overrides);
+    static const Shader& Register(StringId name, std::string_view path, ShaderOverridesView&& overrides);
     /* associates shader with another `name` */
-    static const Shader& Register(std::string_view name, const Shader* shader,
-        ShaderOverridesView&& overrides);
+    static const Shader& Register(StringId, const Shader* shader, ShaderOverridesView&& overrides);
 
 private:
-    static void HandleRename(std::string_view newName, std::string_view oldName);
-    static void HandleShaderModification(std::string_view name);
-    static void HandleStageModification(std::string_view name);
-    static void HandleHeaderModification(std::string_view name);
+    static void HandleRename(std::string_view newPath, std::string_view oldPath);
+    static void HandleShaderModification(std::string_view path);
+    static void HandleStageModification(std::string_view path);
+    static void HandleHeaderModification(std::string_view path);
     static void CreateFileGraph();
     struct ShaderProxy
     {
@@ -146,7 +144,7 @@ private:
         std::array<Descriptors, MAX_DESCRIPTOR_SETS> Descriptors;
         std::vector<std::string> Dependencies;
     };
-    static const Shader& AddShader(std::string_view name, u32 pipeline, const ShaderProxy& proxy,
+    static const Shader& AddShader(StringId name, u32 pipeline, const ShaderProxy& proxy,
         std::string_view path);
     enum class ReloadType { PipelineDescriptors, Descriptors, Pipeline };
     static ShaderProxy ReloadShader(std::string_view path, ReloadType reloadType,
@@ -175,7 +173,7 @@ private:
     static StringUnorderedMap<Record> s_Records;
 
     /* maps associated name to shader */
-    static StringUnorderedMap<Shader*> s_ShadersMap;
+    static std::unordered_map<StringId, Shader*> s_ShadersMap;
     
     static std::vector<std::unique_ptr<Shader>> s_Shaders;
 
@@ -188,7 +186,7 @@ private:
     };
     static std::vector<PipelineData> s_Pipelines;
 
-    static StringUnorderedMap<Descriptors> s_BindlessDescriptors;
+    static std::unordered_map<StringId, Descriptors> s_BindlessDescriptors;
 
     static DeletionQueue* s_FrameDeletionQueue;
 

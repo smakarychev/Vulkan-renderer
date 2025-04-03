@@ -53,7 +53,7 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(StringId name, RG::Graph& renderG
                         const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                     {
                         const Shader& shader = ShaderCache::Register(
-                            std::format("{}.Draw.{}.{}",
+                            StringId("{}.Draw.{}.{}",
                                 name, executionInfo.Triangles.IsValid(), executionInfo.ExecutionId),
                             "visibility.shader", 
                             ShaderOverrides{

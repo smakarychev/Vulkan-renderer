@@ -292,74 +292,73 @@ void ShaderDescriptorSet::SetTexture(std::string_view name, Texture texture, u32
         descriptorBinding, {.Image = texture}, Device::CreateSampler({}), ImageLayout::Readonly, arrayIndex);
 }
 
-std::unordered_map<std::string, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
+std::unordered_map<StringId, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
 
 ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-    std::string_view templateName, DescriptorAllocator allocator)
+    StringId name, DescriptorAllocator allocator)
 {
-    std::string name = GenerateTemplateName(templateName, allocator);
-    if (!GetShaderTemplate(name))
-        AddShaderTemplate(CreateFromPaths(paths, allocator), name);
+    const StringId templateName = GenerateTemplateName(name, allocator);
+    if (!GetShaderTemplate(templateName))
+        AddShaderTemplate(CreateFromPaths(paths, allocator), templateName);
     
-    return GetShaderTemplate(name);
+    return GetShaderTemplate(templateName);
 }
 
 ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-    std::string_view templateName, DescriptorArenaAllocators& allocators)
+    StringId name, DescriptorArenaAllocators& allocators)
 {
-    std::string name = GenerateTemplateName(templateName, allocators);
-    if (!GetShaderTemplate(name))
-        AddShaderTemplate(CreateFromPaths(paths, allocators), name);
+    const StringId templateName = GenerateTemplateName(name, allocators);
+    if (!GetShaderTemplate(templateName))
+        AddShaderTemplate(CreateFromPaths(paths, allocators), templateName);
     
-    return GetShaderTemplate(name);
+    return GetShaderTemplate(templateName);
 }
 
-ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::string& name,
+ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(StringId name,
     DescriptorArenaAllocators& allocators)
 {
     return GetShaderTemplate(GenerateTemplateName(name, allocators));
 }
 
 ShaderPipelineTemplate* ShaderTemplateLibrary::ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
-    std::string_view templateName, DescriptorArenaAllocators& allocators)
+    StringId name, DescriptorArenaAllocators& allocators)
 {
-    std::string name = GenerateTemplateName(templateName, allocators);
-    if (s_Templates.contains(name))
-        s_Templates[name] = CreateFromPaths(paths, allocators);
+    StringId templateName = GenerateTemplateName(name, allocators);
+    if (s_Templates.contains(templateName))
+        s_Templates[templateName] = CreateFromPaths(paths, allocators);
     else
-        s_Templates.emplace(name, CreateFromPaths(paths, allocators));
+        s_Templates.emplace(templateName, CreateFromPaths(paths, allocators));
 
-    return GetShaderTemplate(name);
+    return GetShaderTemplate(templateName);
 }
 
-ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(const std::string& name)
+ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(StringId name)
 {
     auto it = s_Templates.find(name);
     return it == s_Templates.end() ? nullptr : &it->second;
 }
 
-std::string ShaderTemplateLibrary::GenerateTemplateName(std::string_view templateName, DescriptorAllocator allocator)
+StringId ShaderTemplateLibrary::GenerateTemplateName(StringId name, DescriptorAllocator allocator)
 {
-    return std::string{templateName} + "_alloc";
+    return name.Concatenate("_alloc");
 }
 
-std::string ShaderTemplateLibrary::GenerateTemplateName(std::string_view templateName,
-    DescriptorArenaAllocators& allocators)
+StringId ShaderTemplateLibrary::GenerateTemplateName(StringId name, DescriptorArenaAllocators& allocators)
 {
-    return std::string{templateName} + "_arena_alloc";
+    return name;
 }
 
-void ShaderTemplateLibrary::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, const std::string& name)
+void ShaderTemplateLibrary::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, StringId name)
 {
     s_Templates.emplace(std::make_pair(name, shaderTemplate));
 }
 
-ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(const std::string& templateName,
+ShaderPipelineTemplate* ShaderTemplateLibrary::CreateMaterialsTemplate(StringId name,
     DescriptorArenaAllocators& allocators)
 {
     return LoadShaderPipelineTemplate(
         {*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + "processed/core/material-frag.stage"},
-        templateName, allocators);
+        name, allocators);
 }
 
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string>& paths,

@@ -103,12 +103,12 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& 
 
             for (u32 i = 0; i < TriangleCullMultiviewTraits::MAX_BATCHES; i++)
             {
-                ShaderCache::Register(std::format("{}.{}", name, i),
+                ShaderCache::Register(name.AddVersion(i),
                     "triangle-cull-multiview.shader",
                     ShaderOverrides{
                         ShaderOverride{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
                         ShaderOverride{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
-                ShaderCache::Register(std::format("{}.PrepareDraw.{}", name, i),
+                ShaderCache::Register(StringId("{}.PrepareDraw.{}", name, i),
                         "prepare-draws-multiview.shader", {});
             }
 
@@ -234,8 +234,8 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& 
             {
                 Sampler hizSampler = multiview->MeshletCull->HiZSampler;
                 
-                const Shader& cullShader = ShaderCache::Get(std::format("{}.{}", name, batchIndex));
-                const Shader& prepareShader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", name, batchIndex));
+                const Shader& cullShader = ShaderCache::Get(name.AddVersion(batchIndex));
+                const Shader& prepareShader = ShaderCache::Get(StringId("{}.PrepareDraw.{}", name, batchIndex));
                 
                 TriangleCullMultiviewShaderBindGroup cullBindGroup(cullShader);
                 PrepareDrawsMultiviewShaderBindGroup prepareBindGroup(prepareShader);
@@ -278,7 +278,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& 
 
                     /* cull */
                     {
-                        const Shader& shader = ShaderCache::Get(std::format("{}.{}", name, batchIndex));
+                        const Shader& shader = ShaderCache::Get(name.AddVersion(batchIndex));
                         TriangleCullMultiviewShaderBindGroup bindGroup(shader);
                         
                         struct PushConstants
@@ -314,7 +314,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& 
 
                     /* prepare draws */
                     {
-                        const Shader& shader = ShaderCache::Get(std::format("{}.PrepareDraw.{}", name, batchIndex));
+                        const Shader& shader = ShaderCache::Get(StringId("{}.PrepareDraw.{}", name, batchIndex));
                         PrepareDrawsMultiviewShaderBindGroup bindGroup(shader);                        
                         auto& cmd = frameContext.CommandList;
                         bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());

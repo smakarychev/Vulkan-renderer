@@ -62,7 +62,7 @@ RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(StringId name, RG::Grap
                         .DrawBind = [=](RenderCommandList& cmdList, const Resources& resources,
                             const GeometryDrawExecutionInfo& executionInfo) -> const Shader&
                         {
-                            const Shader& shader = ShaderCache::Register(std::format("{}.Draw", name),
+                            const Shader& shader = ShaderCache::Register(name.Concatenate(".Draw"),
                                 "pbr-forward-translucent.shader", {});
                             PbrForwardTranslucentShaderBindGroup bindGroup(shader);
                             

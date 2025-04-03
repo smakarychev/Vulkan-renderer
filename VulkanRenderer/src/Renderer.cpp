@@ -109,7 +109,7 @@ void Renderer::InitRenderGraph()
     ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         1024,
-        ShaderCache::Register("Core.Materials", "materials.shader", {}));
+        ShaderCache::Register("Core.Materials"_hsv, "materials.shader", {}));
     m_GraphModelCollection.SetBindlessTextureDescriptorsRingBuffer(*m_BindlessTextureDescriptorsRingBuffer);
     
     Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
@@ -146,8 +146,8 @@ void Renderer::InitRenderGraph()
 
     ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
     // todo: this is a little weird
-    ShaderCache::AddBindlessDescriptors("main_materials",
-        ShaderCache::Get("Core.Materials").Descriptors(DescriptorsKind::Materials));
+    ShaderCache::AddBindlessDescriptors("main_materials"_hsv,
+        ShaderCache::Get("Core.Materials"_hsv).Descriptors(DescriptorsKind::Materials));
     
     // model collection might not have any translucent objects
     if (m_GraphTranslucentGeometry.IsValid())
