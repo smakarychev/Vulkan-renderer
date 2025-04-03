@@ -88,3 +88,23 @@ void ScenePass::OnUpdate(FrameContext& ctx)
     for (SceneBucketHandle bucketHandle : m_BucketHandles)
         m_BucketList->GetBucket(bucketHandle).OnUpdate(ctx);
 }
+
+const SceneBucket& ScenePass::FindBucket(StringId name) const
+{
+    const SceneBucket* bucket = TryFindBucket(name);
+    ASSERT(bucket != nullptr, "Bucket with name {} not found", name);
+
+    return *bucket;
+}
+
+const SceneBucket* ScenePass::TryFindBucket(StringId name) const
+{
+    for (auto& handle : m_BucketHandles)
+    {
+        auto& bucket = m_BucketList->GetBucket(handle);
+        if (bucket.m_Name == name)
+            return &bucket;
+    }
+
+    return nullptr;
+}

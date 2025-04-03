@@ -24,6 +24,9 @@ public:
     
     Buffer BucketBits() const { return m_BucketBits.Buffer; }
     Buffer MeshletSpans() const { return m_MeshletSpans.Buffer; }
+
+    const ScenePass& FindPass(StringId name) const;
+    const ScenePass* TryFindPass(StringId name) const;
     
 private:
     using InstanceData = Scene::NewInstanceData;

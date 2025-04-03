@@ -39,6 +39,7 @@ struct SceneBucketDrawInfo
 class SceneBucket
 {
     friend class SceneBucketList;
+    friend class ScenePass;
 public:
     SceneBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue& deletionQueue);
     
@@ -86,6 +87,7 @@ struct ScenePassCreateInfo
 
 class ScenePass
 {
+    friend class SceneRenderObjectSet;
 public:
     using FilterFn = SceneBucket::FilterFn;
     ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList, DeletionQueue& deletionQueue);
@@ -96,6 +98,9 @@ public:
 
     u32 BucketCount() const { return (u32)m_BucketHandles.size(); }
     const SceneBucket& Bucket(SceneBucketHandle handle) const { return m_BucketList->GetBucket(handle); }
+
+    const SceneBucket& FindBucket(StringId name) const;
+    const SceneBucket* TryFindBucket(StringId name) const;
 private:
     SceneBucketList* m_BucketList{nullptr};
     std::vector<SceneBucketHandle> m_BucketHandles;

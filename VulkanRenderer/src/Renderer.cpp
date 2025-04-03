@@ -320,12 +320,14 @@ void Renderer::SetupRenderGraph()
         .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
         .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::D32_FLOAT});
+
+    auto& opaqueBucket = m_OpaqueSet.FindPass("Visibility"_hsv).FindBucket("Opaque material"_hsv);
     
     auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB"_hsv, *m_Graph, {
             .Geometry = &m_Scene.Geometry(),
             .Lights = &m_Scene.Lights(),
-            .Draws = fillIndirectDrawsOutput.Draws[0],
-            .DrawInfos = fillIndirectDrawsOutput.DrawInfos[0],
+            .Draws = opaqueBucket.Draws(),
+            .DrawInfos = opaqueBucket.DrawInfos(),
             .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
             .Camera = GetFrameContext().PrimaryCamera,
         .Attachments = {

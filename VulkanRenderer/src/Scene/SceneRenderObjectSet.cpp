@@ -54,6 +54,23 @@ void SceneRenderObjectSet::OnUpdate(FrameContext& ctx)
         pass.OnUpdate(ctx);
 }
 
+const ScenePass& SceneRenderObjectSet::FindPass(StringId name) const
+{
+    const ScenePass* pass = TryFindPass(name);
+    ASSERT(pass != nullptr, "Pass with name {} not found", name);
+
+    return *pass;
+}
+
+const ScenePass* SceneRenderObjectSet::TryFindPass(StringId name) const
+{
+    for (auto& pass : m_Passes)
+        if (pass.m_Name == name)
+            return &pass;
+    
+    return nullptr;
+}
+
 void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
 {
     const SceneGeometryInfo& geometry = instanceData.SceneInfo->m_Geometry;
