@@ -8,6 +8,7 @@
 #include "RenderObject.h"
 #include "SceneAsset.h"
 #include "SceneInstance.h"
+#include "Math/Geometry.h"
 #include "Rendering/Buffer/PushBuffer.h"
 
 struct FrameContext;

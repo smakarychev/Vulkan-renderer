@@ -7,7 +7,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-#include "Common/Geometry.h"
+#include "Math/Geometry.h"
 
 struct FrustumPlanes
 {

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "types.h"
-#include "Common/Geometry.h"
+#include "Math/Geometry.h"
 
 #include <glm/glm.hpp>
 

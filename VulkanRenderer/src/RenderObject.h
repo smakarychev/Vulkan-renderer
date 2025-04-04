@@ -1,13 +1,10 @@
 ﻿#pragma once
 
-#include <glm/glm.hpp>
-#include <glm/gtx/quaternion.hpp>
-
 #include "ModelAsset.h"
 #include "Settings.h"
 #include "RenderHandle.h"
-#include "Common/Geometry.h"
-#include "Common/Transform.h"
+#include "Math/Geometry.h"
+#include "Math/Transform.h"
 #include "Rendering/Image/Image.h"
 
 class Mesh;

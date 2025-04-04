@@ -3,7 +3,7 @@
 #include <glm/vec3.hpp>
 
 #include "GeometrySorter.h"
-#include "Common/Geometry.h"
+#include "Math/Geometry.h"
 
 class ResourceUploader;
 

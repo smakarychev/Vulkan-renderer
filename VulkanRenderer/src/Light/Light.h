@@ -6,7 +6,7 @@
 #include <array>
 
 #include "Settings.h"
-#include "common/Geometry.h"
+#include "Math/Geometry.h"
 
 struct DirectionalLight
 {

@@ -64,10 +64,8 @@ void ModelCollection::AddModelInstance(const std::string& modelName, const Model
          * !!NOTE!! that because the default bounds have min and max
          * set to 0, the resulting bounding box will always contain world origin
          */
-        m_BoundingBox.Merge(AABB::Transform(m_Meshes[renderObject.Mesh].GetBoundingBox(),
-            modelInstanceInfo.Transform.Position,
-            modelInstanceInfo.Transform.Orientation,
-            modelInstanceInfo.Transform.Scale));
+        m_BoundingBox = m_BoundingBox.Merge(
+            m_Meshes[renderObject.Mesh].GetBoundingBox().Transform(modelInstanceInfo.Transform));
     }
 }
 

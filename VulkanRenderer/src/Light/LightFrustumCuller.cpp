@@ -3,7 +3,7 @@
 #include "Light.h"
 #include "SceneLight.h"
 #include "Scene/SceneLight2.h"
-#include "Common/Geometry.h"
+#include "Math/Geometry.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
 
