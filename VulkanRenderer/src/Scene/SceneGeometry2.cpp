@@ -283,12 +283,12 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
             .BoundingCone = meshlet.BoundingCone,
             .BoundingSphere = {.Center = meshlet.BoundingSphere.Center, .Radius = meshlet.BoundingSphere.Radius}};
 
+    sceneInfoOffsets.MaterialOffset = (u32)(Materials.Offset / sizeof(MaterialGPU));
     PushBuffers::push<BufferAsymptoticGrowthPolicy>(Materials,
         sceneInfo.m_Geometry.Materials, ctx.CommandList, *ctx.ResourceUploader);
     MaterialsCpu.reserve(MaterialsCpu.size() + (u32)sceneInfo.m_Geometry.MaterialsCpu.size());
     for (auto& material : sceneInfo.m_Geometry.MaterialsCpu)
         MaterialsCpu.push_back(material);
-    sceneInfoOffsets.MaterialOffset = (u32)(Materials.Offset / sizeof(MaterialGPU));
     
     sceneInfoOffsets.ElementOffsets[(u32)Meshlet] = (u32)(Meshlets.Offset /
         sizeof(assetLib::ModelInfo::Meshlet));
