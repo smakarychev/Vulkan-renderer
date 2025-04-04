@@ -14,6 +14,7 @@ project "CoreLibTests"
         "src",
         IncludeDir["CoreLib"],
         IncludeDir["catch2"],
+        IncludeDir["glm"],
     }
 
     links {

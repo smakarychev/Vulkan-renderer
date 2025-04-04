@@ -11,7 +11,8 @@ project "CoreLib"
     }
 
     includedirs {
-        "src"
+        "src",
+        IncludeDir["glm"],
     }
 
     filter "system:Linux"
