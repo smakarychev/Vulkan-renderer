@@ -75,47 +75,6 @@ struct ShaderDescriptorSetCreateInfo
     std::array<std::optional<DescriptorSetCreateInfo>, MAX_DESCRIPTOR_SETS> DescriptorInfos;
 };
 
-class ShaderDescriptorSet
-{
-    using Texture = Image;
-public:
-    struct DescriptorSetsInfo
-    {
-        struct SetInfo
-        {
-            bool IsPresent{false};
-            DescriptorSet Set; 
-        };
-        std::array<SetInfo, MAX_DESCRIPTOR_SETS> DescriptorSets;
-        u32 DescriptorCount{0};
-    };
-public:
-    ShaderDescriptorSet() = default;
-    ShaderDescriptorSet(ShaderDescriptorSetCreateInfo&& createInfo);
-    
-    void BindGraphics(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
-        const;
-    void BindGraphics(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
-        const std::vector<u32>& dynamicOffsets) const;
-
-    void BindCompute(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout)
-        const;
-    void BindCompute(RenderCommandList& cmdList, DescriptorKind descriptorKind, PipelineLayout pipelineLayout,
-                     const std::vector<u32>& dynamicOffsets) const;
-
-    void SetTexture(std::string_view name, Texture texture, u32 arrayIndex);
-    
-    const DescriptorSetsInfo& GetDescriptorSetsInfo() const { return m_DescriptorSetsInfo; }
-    DescriptorSet GetDescriptorSet(DescriptorKind kind) const
-    {
-        return m_DescriptorSetsInfo.DescriptorSets[(u32)kind].Set;
-    }
-private:
-    ShaderPipelineTemplate* m_Template{nullptr};
-    
-    DescriptorSetsInfo m_DescriptorSetsInfo{};
-};
-
 class ShaderTemplateLibrary
 {
 public:
