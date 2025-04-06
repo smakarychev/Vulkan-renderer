@@ -6,6 +6,8 @@
 #include "Rendering/Buffer/BufferUtility.h"
 #include "Vulkan/Device.h"
 
+#include <ranges>
+
 void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bucketList,
     Span<const ScenePassCreateInfo> passes, DeletionQueue& deletionQueue)
 {
@@ -57,7 +59,7 @@ void SceneRenderObjectSet::OnUpdate(FrameContext& ctx)
 const ScenePass& SceneRenderObjectSet::FindPass(StringId name) const
 {
     const ScenePass* pass = TryFindPass(name);
-    ASSERT(pass != nullptr, "Pass with name {} not found", name);
+    ASSERT(pass != nullptr, "Pass with name {} not found", name)
 
     return *pass;
 }
@@ -88,6 +90,8 @@ void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
             bucketBits |= 1llu << bucket;
         }
 
+        namespace rv = std::ranges::views;
+        
         if (bucketBits != 0)
         {
             auto& renderObject = geometry.RenderObjects[renderObjectIndex];
@@ -99,6 +103,10 @@ void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
                 .Fist = renderObject.FirstMeshlet + instanceData.MeshletsOffset,
                 .Count = renderObject.MeshletCount});
             m_MeshletCount += renderObject.MeshletCount;
+            m_TriangleCount += std::ranges::fold_left(geometry.Meshlets
+                | rv::drop(renderObject.FirstMeshlet)
+                | rv::take(renderObject.MeshletCount),
+                0lu, [](u32 count, auto& meshlet) { return count + meshlet.IndexCount; }) / 3lu;
         }
     }
 }

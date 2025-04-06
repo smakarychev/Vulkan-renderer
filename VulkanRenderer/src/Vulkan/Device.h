@@ -299,7 +299,8 @@ public:
 
     static u32 GetMaxIndexingStorageBuffersDynamic();
     static u32 GetSubgroupSize();
-    static ImmediateSubmitContext* SubmitContext();
+    static ImmediateSubmitContext GetSubmitContext();
+    static void FreeSubmitContext(const ImmediateSubmitContext& ctx);
 
     static TracyVkCtx CreateTracyGraphicsContext(CommandBuffer cmd);
     static void DestroyTracyGraphicsContext(TracyVkCtx context);
@@ -423,17 +424,7 @@ Span<const T> Device::GetMappedBufferView(const BufferSubresource& buffer)
 template <typename Fn>
 void Device::ImmediateSubmit(Fn&& uploadFunction)
 {
-    auto&& [pool, cmd, commandList, fence, queue] = *SubmitContext();
-
-    BeginCommandBuffer(cmd);
-
-    
-    uploadFunction(cmd, commandList);
-    
-
-    EndCommandBuffer(cmd);
-    SubmitCommandBuffer(cmd, queue, fence);
-    WaitForFence(fence);
-    ResetFence(fence);
-    ResetPool(pool);
+    auto ctx = GetSubmitContext();
+    uploadFunction(ctx.CommandList);
+    FreeSubmitContext(ctx);
 }

@@ -19,6 +19,7 @@ public:
     SceneBucketHandle FirstBucket() const { return m_FirstBucket; }
     u32 BucketCount() const { return m_BucketCount; }
     u32 MeshletCount() const { return m_MeshletCount; }
+    u32 TriangleCount() const { return m_TriangleCount; }
 
     const std::vector<ScenePass>& Passes() const { return m_Passes; }
     
@@ -38,6 +39,7 @@ private:
     SceneBucketHandle m_FirstBucket{INVALID_SCENE_BUCKET};
     u32 m_BucketCount{0};
     u32 m_MeshletCount{0};
+    u32 m_TriangleCount{0};
 
     SignalHandler<InstanceData> m_NewInstanceHandler;
     std::vector<SceneRenderObjectHandle> m_RenderObjectsCpu;

@@ -1284,6 +1284,8 @@ struct Device::State
         QueueInfo Presentation;
         QueueInfo Compute;
     };
+
+    ImmediateSubmitContext GetSubmitContext();
     
     VkDevice Device{VK_NULL_HANDLE};
     DeviceResources Resources;
@@ -1295,8 +1297,8 @@ struct Device::State
     ::DeletionQueue* FrameDeletionQueue{nullptr};
     
     GLFWwindow* Window{nullptr};
-    
-    ImmediateSubmitContext SubmitContext;
+
+    std::vector<ImmediateSubmitContext> SubmitContexts;
 
     VkDescriptorPool ImGuiPool;
     
@@ -1309,6 +1311,28 @@ struct Device::State
     VkPhysicalDeviceDescriptorBufferPropertiesEXT GPUDescriptorBufferProperties;
     VkDebugUtilsMessengerEXT DebugUtilsMessenger;
 };
+
+ImmediateSubmitContext Device::State::GetSubmitContext()
+{
+    if (!s_State.SubmitContexts.empty())
+    {
+        ImmediateSubmitContext ctx = SubmitContexts.back();
+        SubmitContexts.pop_back();
+
+        return ctx;
+    }
+    
+    ImmediateSubmitContext ctx = {}; 
+    ctx.CommandPool = CreateCommandPool({.QueueKind = QueueKind::Graphics});
+    ctx.CommandBuffer = CreateCommandBuffer({
+        .Pool = ctx.CommandPool,
+        .Kind = CommandBufferKind::Primary});
+    ctx.CommandList.SetCommandBuffer(ctx.CommandBuffer);
+    ctx.Fence = CreateFence({});
+    ctx.QueueKind = QueueKind::Graphics;
+
+    return ctx;
+}
 
 Device::State Device::s_State = State{};
 
@@ -1756,7 +1780,7 @@ Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& dele
         {
             Buffer stagingBuffer = CreateStagingBuffer(createInfo.InitialData.size());
             SetBufferData(stagingBuffer, createInfo.InitialData, 0);
-            ImmediateSubmit([&](CommandBuffer, RenderCommandList& cmdList)
+            ImmediateSubmit([&](RenderCommandList& cmdList)
             {
                 cmdList.CopyBuffer({
                     .Source =  stagingBuffer,
@@ -2080,7 +2104,7 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
     
     ImageSubresource imageSubresource = {.Image = image, .Description = {.Mipmaps = 1, .Layers = 1}};
 
-    ImmediateSubmit([&](CommandBuffer cmd, RenderCommandList& cmdList)
+    ImmediateSubmit([&](RenderCommandList& cmdList)
     {
         ::DeletionQueue deletionQueue = {};
 
@@ -3948,15 +3972,6 @@ void Device::Init(DeviceCreateInfo&& createInfo)
     
     vmaCreateAllocator(&vmaCreateInfo, &s_State.Allocator);
 
-    s_State.SubmitContext.CommandPool = CreateCommandPool({
-        .QueueKind = QueueKind::Graphics});
-    s_State.SubmitContext.CommandBuffer = CreateCommandBuffer({
-        .Pool = s_State.SubmitContext.CommandPool,
-        .Kind = CommandBufferKind::Primary});
-    s_State.SubmitContext.CommandList.SetCommandBuffer(s_State.SubmitContext.CommandBuffer);
-    s_State.SubmitContext.Fence = CreateFence({});
-    s_State.SubmitContext.QueueKind = QueueKind::Graphics;
-
     s_State.DummyDeletionQueue.m_IsDummy = true;
 
     if constexpr(std::is_same_v<DeviceFreelist<Image>, DeviceResources::ResourceContainerType<Image>>)
@@ -4055,9 +4070,23 @@ u32 Device::GetSubgroupSize()
     return s_State.GPUSubgroupProperties.subgroupSize;
 }
 
-ImmediateSubmitContext* Device::SubmitContext()
+ImmediateSubmitContext Device::GetSubmitContext()
 {
-    return &s_State.SubmitContext;
+    auto ctx = s_State.GetSubmitContext();
+    BeginCommandBuffer(ctx.CommandBuffer);
+
+    return ctx;
+}
+
+void Device::FreeSubmitContext(const ImmediateSubmitContext& ctx)
+{
+    EndCommandBuffer(ctx.CommandBuffer);
+    SubmitCommandBuffer(ctx.CommandBuffer, ctx.QueueKind, ctx.Fence);
+    WaitForFence(ctx.Fence);
+    ResetFence(ctx.Fence);
+    ResetPool(ctx.CommandPool);
+    
+    s_State.SubmitContexts.push_back(ctx);
 }
 
 DeviceResources& Device::Resources()

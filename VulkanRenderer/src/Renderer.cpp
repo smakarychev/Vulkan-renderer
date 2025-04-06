@@ -67,6 +67,7 @@ void Renderer::Init()
     ShaderCache::Init();
     
     InitRenderingStructures();
+    Device::BeginFrame(GetFrameContext());
 
     Input::s_MainViewportSize = Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution;
     m_Camera = std::make_shared<Camera>(CameraType::Perspective);
@@ -75,7 +76,6 @@ void Renderer::Init()
         ctx.PrimaryCamera = m_Camera.get();
 
     m_Graph = std::make_unique<RG::Graph>();
-
     InitRenderGraph();
 
     // todo: this is temp (almost the entire file is)
@@ -196,22 +196,23 @@ void Renderer::InitRenderGraph()
             },
     }, Device::DeletionQueue());
     
-    m_TestScene = SceneInfo::LoadFromAsset(
-        *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene",
-        *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
-    SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
-        .Transform = {
-            .Position = glm::vec3{0.0f, -1.5f, -7.0f},
-            .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-            .Scale = glm::vec3{1.0f},}},
-        GetFrameContext());
-
-
     /* initial submit */
-    Device::ImmediateSubmit([&](CommandBuffer, RenderCommandList& cmdList)
+    Device::ImmediateSubmit([&](RenderCommandList& cmdList)
     {
-        FrameContext ctx {.CommandList = cmdList};
-        GetFrameContext().ResourceUploader->SubmitUpload(ctx);
+        FrameContext ctx = GetFrameContext();
+        ctx.CommandList = cmdList;
+        m_TestScene = SceneInfo::LoadFromAsset(
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene",
+            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
+        SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
+            .Transform = {
+                .Position = glm::vec3{0.0f, -1.5f, -7.0f},
+                .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
+                .Scale = glm::vec3{1.0f},}},
+            ctx);
+
+
+        ctx.ResourceUploader->SubmitUpload(ctx);
     });
 }
 
@@ -644,7 +645,7 @@ void Renderer::OnRender()
 
     if (Input::GetKey(Key::Space))
     {
-        glm::vec3 position = m_Camera->GetPosition() + m_Camera->GetForward() * 4.0f;
+        glm::vec3 position = m_Camera->GetPosition() + m_Camera->GetForward() * 15.0f;
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
                 .Position = position,
@@ -652,7 +653,8 @@ void Renderer::OnRender()
                     Random::Float(0.0f, (f32)std::numbers::pi), glm::normalize(Random::Float3(0.0f, 1.0f))),
                 .Scale = glm::vec3{0.5f},}},
             GetFrameContext());
-        LOG("{}", m_Scene.Geometry().CommandCount);
+        LOG("Meshes: {}\tMeshlets: {}\tTriangles: {}",
+            m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
     }
     
     {
