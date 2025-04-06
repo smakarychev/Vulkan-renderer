@@ -56,14 +56,11 @@ namespace
         sceneBuffer.data.clear();
     }
 
-    Image loadTexture(const tinygltf::Model& gltf, i32 textureIndex, Format textureFormat,
-        std::vector<bool>& loadedTextures, DeletionQueue& deletionQueue)
+    Image loadTexture(const tinygltf::Model& gltf, i32 textureIndex, Format textureFormat, DeletionQueue& deletionQueue)
     {
         const tinygltf::Texture& sceneTexture = gltf.textures[textureIndex];
         const tinygltf::Image& sceneImage = gltf.images[sceneTexture.source];
 
-        loadedTextures[textureIndex] = true;
-        
         return Device::CreateImage({
             .DataSource = sceneImage.image,
             .Description = {
@@ -95,22 +92,23 @@ namespace
         BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue)
     {
         // todo: samplers ?
-        
-        std::vector<bool> loadedTextures(sceneInfo.Scene.textures.size());
+
+        static constexpr u32 INVALID_TEXTURE = ~0lu;
+        std::vector loadedTextures(sceneInfo.Scene.textures.size(), INVALID_TEXTURE);
         auto processTexture = [&](const auto& texture, Format format, RenderHandle<Texture> fallback) ->
             RenderHandle<Texture> {
-            if (texture.index < 0 || loadedTextures[texture.index])
+            if (texture.index < 0)
                 return fallback;
             if (texture.texCoord > 0)
             {
                 LOG("Warning skipping texture {}, as it uses uv set other that 0", texture.index);  
                 return fallback;
             }
+            if (loadedTextures[texture.index] == INVALID_TEXTURE)
+                loadedTextures[texture.index] = texturesRingBuffer.AddTexture(
+                    loadTexture(sceneInfo.Scene, texture.index, format, deletionQueue));
 
-            loadedTextures[texture.index] = true;
-
-            return texturesRingBuffer.AddTexture(
-                loadTexture(sceneInfo.Scene, texture.index, format, loadedTextures, deletionQueue));
+            return loadedTextures[texture.index];
         };
         geometry.Materials.reserve(sceneInfo.Scene.materials.size());
         geometry.MaterialsCpu.reserve(sceneInfo.Scene.materials.size());
