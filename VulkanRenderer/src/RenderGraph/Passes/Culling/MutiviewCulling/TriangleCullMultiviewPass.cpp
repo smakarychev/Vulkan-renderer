@@ -64,15 +64,6 @@ RG::Pass& Passes::Multiview::TrianglePrepareCull::addToGraph(StringId name, RG::
                 .Invocations = {multiview->MaxDispatches, 1, 1},
                 .GroupSize = {64, 1, 1}});
 
-            cmd.WaitOnBarrier({
-                .DependencyInfo = Device::CreateDependencyInfo({
-                    .MemoryDependencyInfo = MemoryDependencyInfo{
-                        .SourceStage = PipelineStage::ComputeShader,
-                        .DestinationStage = PipelineStage::Host,
-                        .SourceAccess = PipelineAccess::WriteShader,
-                        .DestinationAccess = PipelineAccess::ReadHost}},
-                    frameContext.DeletionQueue)});
-
             multiview->MeshletCull->Multiview->UpdateBatchIterationCount();
         });
 
@@ -109,7 +100,7 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& 
                         ShaderOverride{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
                         ShaderOverride{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
                 ShaderCache::Register(StringId("{}.PrepareDraw.{}", name, i),
-                        "prepare-draws-multiview.shader", {});
+                    "prepare-draws-multiview.shader", {});
             }
 
             if (!graph.TryGetBlackboardValue<Barriers>())
