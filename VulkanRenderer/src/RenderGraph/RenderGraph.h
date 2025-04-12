@@ -453,9 +453,7 @@ namespace RG
 
     std::vector<u32> Graph::CalculateRenameRemap(auto&& filterLambda)
     {
-        u32 remapCount = 0;
-        for (auto& pass : m_RenderPasses) 
-            remapCount += (u32)pass->m_Accesses.size();
+        const u32 remapCount = (u32)m_Buffers.size() + (u32)m_Textures.size();
 
         static constexpr u32 NO_MAP = std::numeric_limits<u32>::max();
         std::vector remap(remapCount, NO_MAP);
