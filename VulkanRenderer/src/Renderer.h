@@ -11,11 +11,13 @@
 #include "Scene/SceneGeometry.h"
 #include "FrameContext.h"
 #include "Light/SceneLight.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
 #include "Scene/Scene.h"
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
+#include "Scene/Visibility/SceneMultiviewVisibility.h"
 
 class SlimeMoldPass;
 class SlimeMoldContext;
@@ -93,7 +95,10 @@ private:
     Scene m_Scene;
     SceneBucketList m_SceneBucketList;
     SceneRenderObjectSet m_OpaqueSet;
-
+    SceneVisibility m_OpaqueSetVisibility{};
+    SceneMultiviewVisibility m_MultiviewVisibility{};
+    SceneVisibilityPassesResources m_SceneVisibilityResources{};
+    
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
 

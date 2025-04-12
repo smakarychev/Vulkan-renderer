@@ -17,8 +17,3 @@ struct MeshletBucketInfo {
     uint index;
     uint64_t buckets;
 };
-
-struct MeshletSpan {
-    uint first;
-    uint count;
-};

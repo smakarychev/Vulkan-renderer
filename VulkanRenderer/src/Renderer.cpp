@@ -29,6 +29,7 @@
 #include "RenderGraph/Passes/Scene/DrawSceneUnifiedBasic.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
+#include "RenderGraph/Passes/HiZ/HiZNVPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
 #include "RenderGraph/Passes/Lights/LightClustersBinPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersCompactPass.h"
@@ -40,7 +41,9 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/Passes/Scene/FillSceneIndirectDrawPass.h"
-#include "RenderGraph/Passes/Scene/PrepareVisibleMeshletInfoPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
@@ -175,9 +178,9 @@ void Renderer::InitRenderGraph()
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
             1, 5000000, *GetFrameContext().ResourceUploader));
 
-    SceneConverter::Convert(
-        *CVars::Get().GetStringCVar("Path.Assets"_hsv),
-        *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.gltf");
+    //SceneConverter::Convert(
+    //    *CVars::Get().GetStringCVar("Path.Assets"_hsv),
+    //    *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.gltf");
     
     m_Scene = Scene::CreateEmpty(Device::DeletionQueue());
     m_SceneBucketList.Init(m_Scene);
@@ -195,6 +198,15 @@ void Renderer::InitRenderGraph()
                 }}
             },
     }, Device::DeletionQueue());
+
+    m_OpaqueSetVisibility.Init({
+        .Set = &m_OpaqueSet,
+        .View = {
+            .Camera = m_Camera.get(),
+            .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
+            .VisibilityFlags = SceneVisibilityFlags::IsPrimaryView | SceneVisibilityFlags::OcclusionCull}},
+        Device::DeletionQueue());
+    m_MultiviewVisibility.AddVisibility(m_OpaqueSetVisibility);
     
     /* initial submit */
     Device::ImmediateSubmit([&](RenderCommandList& cmdList)
@@ -306,15 +318,28 @@ void Renderer::SetupRenderGraph()
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
     bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
-    auto& prepareMeshlets = Passes::PrepareVisibleMeshletInfo::addToGraph("PrepareVisibleMeshletInfo"_hsv, *m_Graph, {
-        .RenderObjectSet = &m_OpaqueSet});
-    auto& prepareMeshletsOutput = blackboard.Get<Passes::PrepareVisibleMeshletInfo::PassData>(prepareMeshlets);
+    m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
+        *m_Graph, m_MultiviewVisibility);
+    auto& renderObjectVisibility = Passes::SceneMultiviewRenderObjectVisibility::addToGraph("SceneROVisibility"_hsv,
+        *m_Graph, {
+            .Visibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .Stage = SceneVisibilityStage::Cull});
+    auto& meshletVisibility = Passes::SceneMultiviewMeshletVisibility::addToGraph("SceneMeshletVisibility"_hsv,
+        *m_Graph, {
+            .Visibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .Stage = SceneVisibilityStage::Cull});
+    
+    //auto& prepareMeshlets = Passes::PrepareVisibleMeshletInfo::addToGraph("PrepareVisibleMeshletInfo"_hsv, *m_Graph, {
+    //    .RenderObjectSet = &m_OpaqueSet});
+    //auto& prepareMeshletsOutput = blackboard.Get<Passes::PrepareVisibleMeshletInfo::PassData>(prepareMeshlets);
 
     auto& fillIndirectDraws = Passes::FillSceneIndirectDraw::addToGraph("FillSceneIndirectDraw"_hsv, *m_Graph, {
         .Geometry = &m_Scene.Geometry(),
         .RenderObjectSet = &m_OpaqueSet,
-        .MeshletInfos = prepareMeshletsOutput.MeshletInfos,
-        .MeshletInfoCount = prepareMeshletsOutput.MeshletInfoCount});
+        .MeshletInfos = m_SceneVisibilityResources.MeshletBucketInfos[0],
+        .MeshletInfoCount = m_SceneVisibilityResources.MeshletInfoCounts[0]});
     auto& fillIndirectDrawsOutput = blackboard.Get<Passes::FillSceneIndirectDraw::PassData>(fillIndirectDraws);
     
     Resource depth = m_Graph->CreateResource("Depth"_hsv, GraphTextureDescription{
@@ -342,8 +367,6 @@ void Renderer::SetupRenderGraph()
                 .Description = {
                     .OnLoad = AttachmentLoad::Clear,
                     .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}});
-    
-    
 
     // todo: move to proper place (this is just testing atm)
     /*if (m_GraphTranslucentGeometry.IsValid())
@@ -642,6 +665,7 @@ void Renderer::OnRender()
     m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
     m_Scene.Lights().OnUpdate(GetFrameContext());
     m_OpaqueSet.OnUpdate(GetFrameContext());
+    m_OpaqueSetVisibility.OnUpdate(GetFrameContext());
 
     if (Input::GetKey(Key::Space))
     {

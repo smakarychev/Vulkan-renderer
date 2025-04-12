@@ -9,6 +9,11 @@ struct SceneRenderObjectHandle
     u32 Index{0};
 };
 
+struct SceneMeshletHandle
+{
+    u32 Index{0};
+};
+
 using SceneBucketBits = u64;
 static constexpr u32 MAX_BUCKETS_PER_SET = std::numeric_limits<SceneBucketBits>::digits;
 

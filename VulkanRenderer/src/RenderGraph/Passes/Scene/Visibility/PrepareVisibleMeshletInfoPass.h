@@ -1,4 +1,5 @@
 #pragma once
+
 #include "RenderGraph/RGResource.h"
 
 class SceneGeometry2;

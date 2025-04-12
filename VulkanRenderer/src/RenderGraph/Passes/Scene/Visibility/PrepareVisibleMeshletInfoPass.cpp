@@ -12,8 +12,9 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph
 
     struct PassDataPrivate
     {
+        Resource ReferenceCommands{};
         Resource Buckets{};
-        Resource MeshletSpans{};
+        Resource MeshletHandles{};
         Resource MeshletInfos{};
         Resource MeshletInfoCount{};
 
@@ -29,13 +30,17 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph
 
             passData.MeshletCount = info.RenderObjectSet->MeshletCount();
 
+            passData.ReferenceCommands = graph.AddExternal("ReferenceCommands"_hsv,
+                info.RenderObjectSet->Geometry().Commands.Buffer);
+            passData.ReferenceCommands = graph.Read(passData.ReferenceCommands, Compute | Storage);
+
             passData.Buckets = graph.AddExternal("Buckets"_hsv,
                 info.RenderObjectSet->BucketBits());
             passData.Buckets = graph.Read(passData.Buckets, Compute | Storage);
             
-            passData.MeshletSpans = graph.AddExternal("MeshletSpans"_hsv,
-                info.RenderObjectSet->MeshletSpans());
-            passData.MeshletSpans = graph.Read(passData.MeshletSpans, Compute | Storage);
+            passData.MeshletHandles = graph.AddExternal("MeshletHandles"_hsv,
+                info.RenderObjectSet->MeshletHandles());
+            passData.MeshletHandles = graph.Read(passData.MeshletHandles, Compute | Storage);
 
             passData.MeshletInfos = graph.CreateResource("MeshletInfos"_hsv,
                 GraphBufferDescription{
@@ -61,8 +66,9 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph
 
             const Shader& shader = resources.GetGraph()->GetShader();
             ScenePrepareVisibleMeshletInfoShaderBindGroup bindGroup(shader);
+            bindGroup.SetReferenceCommands({.Buffer = resources.GetBuffer(passData.ReferenceCommands)});
             bindGroup.SetRenderObjectBuckets({.Buffer = resources.GetBuffer(passData.Buckets)});
-            bindGroup.SetRenderObjectMeshletSpans({.Buffer = resources.GetBuffer(passData.MeshletSpans)});
+            bindGroup.SetMeshletHandles({.Buffer = resources.GetBuffer(passData.MeshletHandles)});
             bindGroup.SetMeshletInfos({.Buffer = resources.GetBuffer(passData.MeshletInfos)});
             bindGroup.SetMeshletInfoCount({.Buffer = resources.GetBuffer(passData.MeshletInfoCount)});
 

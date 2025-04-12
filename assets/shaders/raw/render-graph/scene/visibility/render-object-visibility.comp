@@ -1,0 +1,104 @@
+#version 460
+
+#include "common.glsl"
+#include "culling_functions.glsl"
+
+#extension GL_KHR_shader_subgroup_ballot: require
+#extension GL_EXT_scalar_block_layout: require
+
+layout(local_size_x = 64) in;
+
+layout(constant_id = 0) const bool REOCCLUSION = false;
+layout(constant_id = 1) const bool SINGLE_PASS = false;
+
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
+
+layout(scalar, set = 1, binding = 1) uniform view_buffer {
+    ViewData views[MAX_VIEWS];
+} u_views;
+
+layout(scalar, set = 1, binding = 2) readonly buffer object_buffer {
+    RenderObject objects[];
+} u_objects;
+
+layout(std430, set = 1, binding = 3) readonly buffer object_handle_buffer {
+    uint handles[];
+} u_object_handles;
+
+layout(std430, set = 1, binding = 4) buffer object_visibility_buffer {
+    uint64_t buckets[];
+} u_object_visibility[MAX_VIEWS];
+
+layout(push_constant) uniform push_constants {
+    uint u_render_object_count;
+    uint u_view_count;
+};
+
+bool is_visible(vec3 origin, float radius, uint view_index) {
+    bool visible = true;
+    if (is_orthographic(u_views.views[view_index]))
+        visible = visible && is_frustum_visible_orthographic(origin, radius, u_views.views[view_index]);
+    else
+        visible = visible && is_frustum_visible(origin, radius, u_views.views[view_index]);
+    
+    return visible;
+}
+
+bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
+    bool visible = true;
+    if (is_orthographic(u_views.views[view_index]))
+        visible = visible &&
+            is_frustum_visible_orthographic(origin, radius, u_views.views[view_index]) &&
+            is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+    else
+        visible = visible &&
+            is_frustum_visible(origin, radius, u_views.views[view_index]) &&
+            is_occlusion_visible(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+    
+    return visible;
+}
+
+void main() {
+    const uint id = gl_GlobalInvocationID.x;
+    if (id >= u_render_object_count)
+        return;
+    
+    const uint bucket_index = id >> BUCKET_BIT_SHIFT;
+    const uint bucket_bit = id & uint((1 << BUCKET_BIT_SHIFT) - 1);
+    
+    const RenderObject object = u_objects.objects[id];
+    
+    const vec4 origin_world = object.model * vec4(
+        object.bounding_sphere.x, 
+        object.bounding_sphere.y, 
+        object.bounding_sphere.z, 1.0f);
+    const float radius = object.bounding_sphere.w * extract_scale(object.model);
+
+    for (uint i = 0; i < u_view_count; i++) {
+        const ViewData view = u_views.views[i];
+
+        vec3 origin_view = vec3(view.view_matrix * origin_world);
+        if (is_depth_clamped(view))
+            origin_view.z = min(origin_view.z, -view.frustum_near);
+        
+        const bool is_last_frame_visible = flags_visible(u_object_visibility[i].buckets[bucket_index], bucket_bit);
+        bool visible = false;
+        
+        if (SINGLE_PASS) {
+            visible = is_reocclusion_visible(origin_view, radius, i);
+        }
+        else if (!REOCCLUSION) {
+            visible = is_last_frame_visible && is_visible(origin_view, radius, i);
+            visible = true;
+        }
+        else {
+            visible = is_reocclusion_visible(origin_view, radius, i);
+
+            if (visible)
+                flags_set_visible(u_object_visibility[i].buckets[bucket_index], bucket_bit);
+            else
+                flags_unset_visible(u_object_visibility[i].buckets[bucket_index], bucket_bit);
+        }
+    }
+}

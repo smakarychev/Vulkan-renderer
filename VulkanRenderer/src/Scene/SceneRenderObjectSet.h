@@ -24,7 +24,10 @@ public:
     const std::vector<ScenePass>& Passes() const { return m_Passes; }
     
     Buffer BucketBits() const { return m_BucketBits.Buffer; }
-    Buffer MeshletSpans() const { return m_MeshletSpans.Buffer; }
+    Buffer RenderObjectHandles() const { return m_RenderObjects.Buffer; }
+    Buffer MeshletHandles() const { return m_Meshlets.Buffer; }
+
+    const SceneGeometry2& Geometry() const { return m_Scene->Geometry(); }
 
     const ScenePass& FindPass(StringId name) const;
     const ScenePass* TryFindPass(StringId name) const;
@@ -34,17 +37,19 @@ private:
     void OnNewSceneInstance(const InstanceData& instanceData);
 private:
     PushBufferTyped<SceneRenderObjectHandle> m_RenderObjects{};
+    PushBufferTyped<SceneMeshletHandle> m_Meshlets{};
     PushBufferTyped<SceneBucketBits> m_BucketBits{};
-    PushBufferTyped<RenderObjectMeshletSpanGPU> m_MeshletSpans{};
     SceneBucketHandle m_FirstBucket{INVALID_SCENE_BUCKET};
     u32 m_BucketCount{0};
     u32 m_MeshletCount{0};
     u32 m_TriangleCount{0};
 
+    const Scene* m_Scene{nullptr};
+
     SignalHandler<InstanceData> m_NewInstanceHandler;
     std::vector<SceneRenderObjectHandle> m_RenderObjectsCpu;
+    std::vector<SceneMeshletHandle> m_MeshletsCpu;
     std::vector<SceneBucketBits> m_BucketBitsCpu;
-    std::vector<RenderObjectMeshletSpan> m_MeshletSpansCpu;
     std::vector<ScenePass> m_Passes;
 
     StringId m_Name{};

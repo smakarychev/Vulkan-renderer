@@ -80,12 +80,6 @@ struct RenderObjectGPU2
     u32 TangentsOffset{0};
     u32 UVsOffset{0};
 };
-struct RenderObjectMeshletSpan
-{
-    u32 Fist{0};
-    u32 Count{0};
-};
-using RenderObjectMeshletSpanGPU = RenderObjectMeshletSpan;
 
 struct MeshletGPU
 {

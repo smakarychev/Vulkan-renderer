@@ -6,11 +6,10 @@
 #include "Rendering/Buffer/BufferUtility.h"
 #include "Vulkan/Device.h"
 
-#include <ranges>
-
 void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bucketList,
     Span<const ScenePassCreateInfo> passes, DeletionQueue& deletionQueue)
 {
+    m_Scene = &scene;
     m_FirstBucket = bucketList.Count();
     m_Name = name;
     m_Passes.reserve(passes.size());
@@ -28,14 +27,14 @@ void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bu
         .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.Buffer.SizeBytes"_hsv),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
-
-    m_BucketBits.Buffer = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.RenderObjectBuckets.SizeBytes"_hsv),
+    
+    m_Meshlets.Buffer = Device::CreateBuffer({
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.MeshletBuffer.SizeBytes"_hsv),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
 
-    m_MeshletSpans.Buffer = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.MeshletSpan.SizeBytes"_hsv),
+    m_BucketBits.Buffer = Device::CreateBuffer({
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.RenderObjectBuckets.SizeBytes"_hsv),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
 }
@@ -43,14 +42,15 @@ void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bu
 void SceneRenderObjectSet::OnUpdate(FrameContext& ctx)
 {
     const u32 newRenderObjects = (u32)m_RenderObjectsCpu.size() - m_RenderObjects.Offset;
+    const u32 newMeshlets = (u32)m_MeshletsCpu.size() - m_Meshlets.Offset;
     PushBuffers::push<BufferAsymptoticGrowthPolicy>(m_RenderObjects,
         Span<SceneRenderObjectHandle>(m_RenderObjectsCpu).subspan(m_RenderObjects.Offset, newRenderObjects),
         ctx.CommandList, *ctx.ResourceUploader);
+    PushBuffers::push<BufferAsymptoticGrowthPolicy>(m_Meshlets,
+        Span<SceneMeshletHandle>(m_MeshletsCpu).subspan(m_Meshlets.Offset, newMeshlets),
+        ctx.CommandList, *ctx.ResourceUploader);
     PushBuffers::push<BufferAsymptoticGrowthPolicy>(m_BucketBits,
         Span<SceneBucketBits>(m_BucketBitsCpu).subspan(m_BucketBits.Offset, newRenderObjects),
-        ctx.CommandList, *ctx.ResourceUploader);
-    PushBuffers::push<BufferAsymptoticGrowthPolicy>(m_MeshletSpans,
-        Span<RenderObjectMeshletSpanGPU>(m_MeshletSpansCpu).subspan(m_MeshletSpans.Offset, newRenderObjects),
         ctx.CommandList, *ctx.ResourceUploader);
     for (auto& pass : m_Passes)
         pass.OnUpdate(ctx);
@@ -90,8 +90,6 @@ void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
             bucketBits |= 1llu << bucket;
         }
 
-        namespace rv = std::ranges::views;
-        
         if (bucketBits != 0)
         {
             auto& renderObject = geometry.RenderObjects[renderObjectIndex];
@@ -99,14 +97,14 @@ void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
                 .Index = handle.Index + instanceData.RenderObjectsOffset};
             m_RenderObjectsCpu.push_back(globalHandle);
             m_BucketBitsCpu.push_back(bucketBits);
-            m_MeshletSpansCpu.push_back({
-                .Fist = renderObject.FirstMeshlet + instanceData.MeshletsOffset,
-                .Count = renderObject.MeshletCount});
             m_MeshletCount += renderObject.MeshletCount;
-            m_TriangleCount += std::ranges::fold_left(geometry.Meshlets
-                | rv::drop(renderObject.FirstMeshlet)
-                | rv::take(renderObject.MeshletCount),
-                0lu, [](u32 count, auto& meshlet) { return count + meshlet.IndexCount; }) / 3lu;
+            for (u32 meshletIndex = 0; meshletIndex < renderObject.MeshletCount; meshletIndex++)
+            {
+                const SceneMeshletHandle globalMeshletHandle = {
+                    .Index = renderObject.FirstMeshlet + meshletIndex + instanceData.MeshletsOffset};
+                m_MeshletsCpu.push_back(globalMeshletHandle);
+                m_TriangleCount += geometry.Meshlets[renderObject.FirstMeshlet + meshletIndex].IndexCount / 3;
+            }
         }
     }
 }
