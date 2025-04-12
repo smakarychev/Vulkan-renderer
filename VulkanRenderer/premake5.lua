@@ -51,9 +51,12 @@ project "VulkanRenderer"
 
     prebuildcommands {
         "\
+        if not exist %{tools_bindir}/AssetConverter.exe (\
+            msbuild %{wks.location}tools/AssetConverter /p:Configuration=Release /p:Platform=x64) \
         if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
-        msbuild %{wks.location}tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
-        %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
+            msbuild %{wks.location}tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
+        cmd.exe /c %{tools_bindir}AssetConverter.exe %{wks.location}/assets/shaders > nul \
+        cmd.exe /c %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
         :: this is unholy \
         cd %{wks.location} \
         %{wks.location}build.bat"
