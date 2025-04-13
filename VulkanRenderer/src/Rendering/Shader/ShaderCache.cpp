@@ -349,7 +349,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         DynamicStates dynamicStates = DynamicStates::Default;
         AlphaBlending alphaBlending = AlphaBlending::Over;
         DepthMode depthMode = DepthMode::ReadWrite;
-        FaceCullMode cullMode = FaceCullMode::None;
+        FaceCullMode cullMode = FaceCullMode::Back;
         PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
         bool clampDepth = false;
         
