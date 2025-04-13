@@ -3,7 +3,7 @@
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/Passes/HiZ/HiZBlitUtilityPass.h"
+#include "RenderGraph/Passes/HiZ/HiZBlitPass.h"
 
 namespace 
 {
@@ -36,7 +36,7 @@ RG::Pass& Passes::DepthReductionReadback::addToGraph(StringId name, RG::Graph& r
 
             Buffer minMax = Resources{graph}.GetBuffer(passData.MinMaxDepth);
             const void* address = Device::MapBuffer(minMax);
-            HiZBlit::MinMaxDepth depths = *(const HiZBlit::MinMaxDepth*)address;
+            HiZ::MinMaxDepth depths = *(const HiZ::MinMaxDepth*)address;
             Device::UnmapBuffer(minMax);
 
             passData.Min = -linearizeDepth(std::bit_cast<f32>(depths.Max), *primaryCamera);

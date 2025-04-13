@@ -2,7 +2,6 @@
 
 #include "RenderGraph/RGDrawResources.h"
 
-class HiZPassContext;
 class Camera;
 class SceneGeometry;
 class SceneLight;
@@ -21,8 +20,6 @@ struct PbrForwardTranslucentIBLPassExecutionInfo
     
     const SceneLight* SceneLights{nullptr};
     RG::IBLData IBL{};
-    
-    std::shared_ptr<HiZPassContext> HiZContext{nullptr};
 };
 
 /* Pass that renders translucent geometry after the opaque render pass and skybox pass (if any).

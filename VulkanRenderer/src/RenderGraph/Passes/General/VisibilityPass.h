@@ -19,7 +19,6 @@ namespace Passes::Draw::Visibility
         RG::Resource HiZOut{};
         RG::Resource HiZMaxOut{};
         RG::Resource MinMaxDepth{};
-        RG::Resource PreviousMinMaxDepth{};
     };
     RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const VisibilityPassExecutionInfo& info);
 }

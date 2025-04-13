@@ -91,8 +91,6 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(StringId name, RG::Graph& renderG
             passData.HiZOut = metaOutput.HiZOut[0];
             passData.HiZMaxOut = metaOutput.HiZMaxOut;
             passData.MinMaxDepth = metaOutput.MinMaxDepth;
-            passData.PreviousMinMaxDepth = graph.AddExternal("PreviousMinMaxDepth"_hsv,
-                multiview.MultiviewData.View(0).Static.HiZContext->GetPreviousMinMaxDepthBuffer());
             renderGraph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)

@@ -5,6 +5,7 @@
 #include "CameraGPU.h"
 #include "CullMultiviewData.h"
 #include "RenderGraph/RGUtils.h"
+#include "RenderGraph/Passes/HiZ/HiZCommon.h"
 #include "Scene/SceneGeometry.h"
 
 namespace RG::RgUtils
@@ -34,8 +35,7 @@ namespace RG::RgUtils
             GraphBufferDescription{.SizeBytes = geometryCount * sizeof(CullMultiviewData::ViewSpan)});
         multiviewResource.Views = graph.CreateResource("Views"_hsv,
             GraphBufferDescription{.SizeBytes = viewCount * sizeof(CullViewDataGPU)});
-        multiviewResource.HiZSampler = cullMultiviewData.View(0).Static.HiZContext->GetMinMaxSampler(
-            HiZReductionMode::Min);
+        multiviewResource.HiZSampler = HiZ::createSampler(HiZ::ReductionMode::Min);
 
         multiviewResource.CompactCommandCount = graph.CreateResource(
             "CompactCommandsCount"_hsv,
@@ -60,11 +60,6 @@ namespace RG::RgUtils
         {
             auto& view = cullMultiviewData.View(i);
             auto&& [staticV, dynamicV] = view;
-
-            auto previousHiz = *staticV.HiZContext->GetHiZPrevious(HiZReductionMode::Min);
-            multiviewResource.HiZs.push_back(graph.AddExternal(StringId("HiZ"_hsv).AddVersion(i),
-                previousHiz ? *previousHiz : Texture{},
-                ImageUtils::DefaultTexture::Black));
 
             multiviewResource.MeshVisibility.push_back(graph.AddExternal(
                 StringId("Visibility.Mesh"_hsv).AddVersion(i),

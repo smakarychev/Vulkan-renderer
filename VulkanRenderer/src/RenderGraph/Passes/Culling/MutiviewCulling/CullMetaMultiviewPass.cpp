@@ -71,20 +71,6 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(StringId name, RG::Graph& rend
             passData.DrawAttachmentResources.resize(multiviewData.ViewCount());
             passData.HiZOut.resize(multiviewData.ViewCount());  
             
-            for (u32 i = 0; i < multiviewData.ViewCount(); i++)
-            {
-                auto& view = multiviewData.View(i);
-                if (!view.Static.HiZContext ||
-                    view.Static.HiZContext->GetDrawResolution().x != view.Dynamic.Resolution.x ||
-                    view.Static.HiZContext->GetDrawResolution().y != view.Dynamic.Resolution.y ||
-                    graph.ChangedResolution())
-                {
-                    multiviewData.UpdateViewHiZ(i,
-                        std::make_shared<HiZPassContext>(
-                            view.Dynamic.Resolution, graph.GetResolutionDeletionQueue()));
-                }
-            }
-
             MultiviewResources& resources = graph.GetOrCreateBlackboardValue<MultiviewResources>();
             resources.MultiviewResource = RgUtils::createCullMultiview(multiviewData, graph);
             resources.MultiviewTrianglesResource = RgUtils::createTriangleCullMultiview(resources.MultiviewResource,
@@ -137,19 +123,38 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(StringId name, RG::Graph& rend
             }
 
             /* update HiZs, now that all previously visible stuff was drawn */
-            Pass* depthReduction = nullptr;
+            Resource hiz{};
+            Resource minMaxDepth{};
             for (u32 i = 0; i < multiviewData.ViewCount(); i++)
             {
                 auto& view = multiviewData.View(i);
                 /* if we do not cull triangles, this is the last moment we can reduce depth */
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-                    multiviewData.IsPrimaryView(i) && !view.Static.CullTriangles ?
-                        depthReduction = &HiZFull::addToGraph(name.Concatenate(".HiZFull"), graph,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext) :
-                        &HiZNV::addToGraph(name.Concatenate(".HiZ").AddVersion(i), graph,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
+                {
+                    if (multiviewData.IsPrimaryView(i) && !view.Static.CullTriangles)
+                    {
+                        auto& hizPass = HiZFull::addToGraph(name.Concatenate(".HiZFull"), graph, {
+                            .Depth = view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            .Subresource = view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource});
+                        auto& hizOutput = graph.GetBlackboard().Get<HiZFull::PassData>(hizPass);
+                        hiz = hizOutput.HiZMin;
+                        minMaxDepth = hizOutput.MinMaxDepth;
+                        passData.HiZMaxOut = hizOutput.HiZMax;
+                        passData.MinMaxDepth = minMaxDepth;
+                    }
+                    else
+                    {
+                        auto& hizPass = HiZNV::addToGraph(name.Concatenate(".HiZ.Reocclusion").AddVersion(i), graph, {
+                            .Depth = view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            .Subresource = view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource,
+                            .ReductionMode = HiZ::ReductionMode::Min});
+                        auto& hizOutput = graph.GetBlackboard().Get<HiZNV::PassData>(hizPass);
+                        hiz = hizOutput.HiZ;
+                    }
+
+                    resources.MultiviewResource.HiZs[i] = hiz;
+                    passData.HiZOut[i] = hiz;
+                }
             }
 
             /* update attachment on load operation */
@@ -160,7 +165,7 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(StringId name, RG::Graph& rend
                 if (i < multiviewData.TriangleViewCount())
                     setAttachmentsLoadOperation(AttachmentLoad::Load, multiviewData.TriangleView(i).Dynamic);
             }
-
+            
             /* now we have to do triangle reocclusion */
             if (multiviewData.TriangleViewCount() > 0)
             {
@@ -173,13 +178,32 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(StringId name, RG::Graph& rend
             {
                 auto& view = multiviewData.TriangleView(i);
                 if (view.Dynamic.DrawInfo.Attachments.Depth.has_value())
-                    multiviewData.IsPrimaryTriangleView(i) ?
-                        depthReduction = &HiZFull::addToGraph(name.Concatenate(".HiZFull"), graph,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext) :
-                        &HiZNV::addToGraph(name.Concatenate(".HiZ.Reocclusion").AddVersion(i), graph,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Resource,
-                            view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource, *view.Static.HiZContext);
+                {
+                    if (multiviewData.IsPrimaryTriangleView(i))
+                    {
+                        auto& hizPass = HiZFull::addToGraph(name.Concatenate(".HiZFull"), graph, {
+                            .Depth = view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            .Subresource = view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource});
+                        auto& hizOutput = graph.GetBlackboard().Get<HiZFull::PassData>(hizPass);
+                        hiz = hizOutput.HiZMin;
+                        minMaxDepth = hizOutput.MinMaxDepth;
+
+                        passData.HiZMaxOut = hizOutput.HiZMax;
+                        passData.MinMaxDepth = minMaxDepth;
+                    }
+                    else
+                    {
+                        auto& hizPass = HiZNV::addToGraph(name.Concatenate(".HiZ.Reocclusion").AddVersion(i), graph, {
+                            .Depth = view.Dynamic.DrawInfo.Attachments.Depth->Resource,
+                            .Subresource = view.Dynamic.DrawInfo.Attachments.Depth->Description.Subresource,
+                            .ReductionMode = HiZ::ReductionMode::Min});
+                        auto& hizOutput = graph.GetBlackboard().Get<HiZNV::PassData>(hizPass);
+                        hiz = hizOutput.HiZ;
+                    }
+                    
+                    passData.HiZOut[i] = hiz;
+                    resources.MultiviewResource.HiZs[i] = hiz;
+                }
             }
 
             /* finally, reocclude and draw meshlets for each view */
@@ -211,18 +235,11 @@ RG::Pass& Passes::Meta::CullMultiview::addToGraph(StringId name, RG::Graph& rend
                         .DrawInfo = view.Dynamic.DrawInfo});
                 auto& drawOutput = graph.GetBlackboard().Get<Draw::IndirectCount::PassData>(draw);
                 passData.DrawAttachmentResources[i] = drawOutput.DrawAttachmentResources;
-                passData.HiZOut[i] = view.Static.HiZContext->GetHiZResource(HiZReductionMode::Min);
+                passData.HiZOut[i] = resources.MultiviewResource.HiZs[i];
                                 
                 Utils::recordUpdatedAttachmentResources(
                     view.Dynamic.DrawInfo.Attachments, drawOutput.DrawAttachmentResources,
                     attachmentRenames);
-            }
-            if (depthReduction)
-            {
-                passData.HiZMaxOut = graph.GetBlackboard()
-                    .Get<HiZFull::PassData>(*depthReduction).HiZMaxOut;
-                passData.MinMaxDepth = graph.GetBlackboard()
-                    .Get<HiZFull::PassData>(*depthReduction).MinMaxDepth;
             }
 
             multiviewData.NextFrame();

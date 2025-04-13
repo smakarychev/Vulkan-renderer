@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Core/Camera.h"
-#include "RenderGraph/Passes/HiZ/HiZPassContext.h"
 
 #include <vector>
 
@@ -24,8 +23,6 @@ class SceneGeometry;
 struct CullViewStaticDescription
 {
     const SceneGeometry* Geometry{nullptr};
-    /* the user is not expected to set HiZContext manually, but it is possible */
-    std::shared_ptr<HiZPassContext> HiZContext{};
     bool CullTriangles{false};
 };
 
@@ -54,7 +51,6 @@ struct CullViewDataGPU
     FrustumPlanes FrustumPlanes;
     ProjectionData ProjectionData;
     glm::vec2 Resolution;
-    glm::vec2 HiZResolution;
 
     u32 ViewFlags{0};
 
@@ -87,7 +83,6 @@ public:
     
     void NextFrame();
     void UpdateView(u32 viewIndex, const CullViewDynamicDescription& description);
-    void UpdateViewHiZ(u32 viewIndex, std::shared_ptr<HiZPassContext> context);
 
     u32 ViewCount() const { return (u32)m_Views.size(); }
     u32 TriangleViewCount() const { return (u32)m_TriangleViews.size(); }

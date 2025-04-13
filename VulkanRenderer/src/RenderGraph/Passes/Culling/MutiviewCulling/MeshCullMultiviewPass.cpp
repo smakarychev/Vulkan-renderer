@@ -20,12 +20,6 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(StringId name, RG::Graph& rend
                     ShaderOverride{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
                     ShaderOverride{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
             
-            if (stage != CullStage::Cull)
-                for (u32 i = 0; i < info.MultiviewResource->ViewCount; i++)
-                    info.MultiviewResource->HiZs[i] =
-                        info.MultiviewResource->Multiview->View(i).Static.HiZContext->GetHiZResource(
-                            HiZReductionMode::Min);
-
             RgUtils::readWriteCullMeshMultiview(*info.MultiviewResource, graph);
             
             passData.MultiviewResource = info.MultiviewResource;

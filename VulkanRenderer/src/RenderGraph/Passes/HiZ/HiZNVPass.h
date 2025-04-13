@@ -1,19 +1,21 @@
 #pragma once
-#include "RenderGraph/RGResource.h"
 
-class HiZPassContext;
+#include "HiZCommon.h"
+#include "RenderGraph/RGResource.h"
 
 namespace Passes::HiZNV
 {
+    struct ExecutionInfo
+    {
+        RG::Resource Depth{};
+        ImageSubresourceDescription Subresource{};
+        HiZ::ReductionMode ReductionMode{HiZ::ReductionMode::Min};
+    };
     struct PassData
     {
-        Sampler MinMaxSampler;
-        Span<const ImageSubresourceDescription> MipmapViews;
-
-        RG::Resource DepthIn{};
-        RG::Resource HiZOut{};
+        RG::Resource Depth{};
+        RG::Resource HiZ{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth,
-        ImageSubresourceDescription subresource, HiZPassContext& ctx);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

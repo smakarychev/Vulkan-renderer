@@ -32,7 +32,6 @@ RG::Pass& Passes::Pbr::ForwardTranslucentIbl::addToGraph(StringId name, RG::Grap
                 CullResources cullResources = {};
                 cullResources.MultiviewData.AddView({
                     .Geometry = info.Geometry,
-                    .HiZContext = info.HiZContext,
                     .CullTriangles = false});
 
                 cullResources.MultiviewData.Finalize();

@@ -21,7 +21,7 @@
 
 class SlimeMoldPass;
 class SlimeMoldContext;
-class HiZPassContext;
+;
 class Camera;
 class CameraController;
 

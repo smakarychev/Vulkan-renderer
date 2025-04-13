@@ -117,17 +117,6 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& 
                 graph.UpdateBlackboard(barriers);
             }
             
-            if (stage != CullStage::Cull)
-            {
-                for (u32 i = 0; i < info.MultiviewResource->TriangleViewCount; i++)
-                {
-                    u32 meshletIndex = info.MultiviewResource->MeshletViewIndices[i];
-                    info.MultiviewResource->MeshletCull->HiZs[meshletIndex] =
-                        info.MultiviewResource->MeshletCull->Multiview->View(meshletIndex)
-                            .Static.HiZContext->GetHiZResource(HiZReductionMode::Min);
-                }
-            }
-
             RgUtils::readWriteCullTriangleMultiview(*info.MultiviewResource, graph);
             RgUtils::readWriteCullTrianglePrepareMultiview(*info.MultiviewResource, graph);
 

@@ -15,7 +15,6 @@ CullViewDataGPU CullViewDataGPU::FromCullViewDescription(const CullViewDescripti
         .FrustumPlanes = description.Dynamic.Camera->GetFrustumPlanes(),
         .ProjectionData = description.Dynamic.Camera->GetProjectionData(),
         .Resolution = glm::vec2{description.Dynamic.Resolution},
-        .HiZResolution = glm::vec2{description.Static.HiZContext->GetHiZResolution()}, 
         .ViewFlags = viewFlags};
 }
 
@@ -94,19 +93,12 @@ void CullMultiviewData::NextFrame()
 {
     for (auto& visibility : m_CullVisibilities)
         visibility.NextFrame();
-    for (auto& view : m_Views)
-        view.Static.HiZContext->NextFrame();
 }
 
 void CullMultiviewData::UpdateView(u32 viewIndex, const CullViewDynamicDescription& description)
 {
     m_Views[viewIndex].Dynamic = description;
     ValidateViewRenderingAttachments(viewIndex);
-}
-
-void CullMultiviewData::UpdateViewHiZ(u32 viewIndex, std::shared_ptr<HiZPassContext> context)
-{
-    m_Views[viewIndex].Static.HiZContext = context;
 }
 
 std::vector<CullViewDataGPU> CullMultiviewData::CreateMultiviewGPU() const
