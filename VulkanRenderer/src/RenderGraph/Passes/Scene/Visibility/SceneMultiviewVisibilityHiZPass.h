@@ -9,11 +9,13 @@ namespace Passes::SceneMultiviewVisibilityHiz
     {
         ::SceneMultiviewVisibility* Visibility{nullptr};
         SceneVisibilityPassesResources* Resources{nullptr};
-        SceneVisibilityStage Stage{SceneVisibilityStage::Cull};
+        std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Depths{};
+        std::array<ImageSubresourceDescription, SceneMultiviewVisibility::MAX_VIEWS> Subresources{};
+        /* array of optionally pregenerated HiZs */
+        std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> HiZs{};
     };
     struct PassData
     {
-        
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, ExecutionInfo& info);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

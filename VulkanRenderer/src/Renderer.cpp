@@ -44,6 +44,7 @@
 #include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
@@ -367,7 +368,20 @@ void Renderer::SetupRenderGraph()
                 .Description = {
                     .OnLoad = AttachmentLoad::Clear,
                     .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}});
-
+    auto& ugbOutput = blackboard.Get<Passes::DrawSceneUnifiedBasic::PassData>(ugb);
+    depth = *ugbOutput.Attachments.Depth;
+    
+    auto& hizMultiview = Passes::SceneMultiviewVisibilityHiz::addToGraph("HizMultiview"_hsv,
+        *m_Graph, {
+            .Visibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .Depths = {depth},
+            .Subresources = {ImageSubresourceDescription{}}});
+    auto& hizVisualize = Passes::HiZVisualize::addToGraph("HizVisualize"_hsv, *m_Graph,
+        {m_SceneVisibilityResources.Hiz[0]});
+    auto& hizVisualizePassOutput = blackboard.Get<Passes::HiZVisualize::PassData>(hizVisualize);
+    Passes::ImGuiTexture::addToGraph("HiZTexture"_hsv, *m_Graph, hizVisualizePassOutput.ColorOut);
+    
     // todo: move to proper place (this is just testing atm)
     /*if (m_GraphTranslucentGeometry.IsValid())
     {
