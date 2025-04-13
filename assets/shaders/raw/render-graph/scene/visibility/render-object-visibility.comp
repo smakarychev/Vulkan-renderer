@@ -27,7 +27,7 @@ layout(std430, set = 1, binding = 3) readonly buffer object_handle_buffer {
 } u_object_handles;
 
 layout(std430, set = 1, binding = 4) buffer object_visibility_buffer {
-    uint64_t buckets[];
+    VisibilityBucketBits buckets[];
 } u_object_visibility[MAX_VIEWS];
 
 layout(push_constant) uniform push_constants {
@@ -58,14 +58,13 @@ bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
     
     return visible;
 }
-
+#extension GL_EXT_debug_printf : enable
 void main() {
     const uint id = gl_GlobalInvocationID.x;
     if (id >= u_render_object_count)
         return;
-    
-    const uint bucket_index = id >> BUCKET_BIT_SHIFT;
-    const uint bucket_bit = id & uint((1 << BUCKET_BIT_SHIFT) - 1);
+
+    const VisibilityBucketIndex bucket_index = get_bucket_index(id);
     
     const RenderObject object = u_objects.objects[id];
     
@@ -82,23 +81,25 @@ void main() {
         if (is_depth_clamped(view))
             origin_view.z = min(origin_view.z, -view.frustum_near);
         
-        const bool is_last_frame_visible = flags_visible(u_object_visibility[i].buckets[bucket_index], bucket_bit);
+        const bool is_last_frame_visible = flags_visible(
+            u_object_visibility[i].buckets[bucket_index.bucket], 
+            bucket_index.bit_high,
+            bucket_index.bit_low);
         bool visible = false;
         
-        if (SINGLE_PASS) {
+        if (SINGLE_PASS)
             visible = is_reocclusion_visible(origin_view, radius, i);
-        }
-        else if (!REOCCLUSION) {
+        else if (!REOCCLUSION)
             visible = is_last_frame_visible && is_visible(origin_view, radius, i);
-            visible = true;
-        }
-        else {
+        else
             visible = is_reocclusion_visible(origin_view, radius, i);
-
-            if (visible)
-                flags_set_visible(u_object_visibility[i].buckets[bucket_index], bucket_bit);
-            else
-                flags_unset_visible(u_object_visibility[i].buckets[bucket_index], bucket_bit);
+        
+        const uvec4 visible_ballot = subgroupBallot(visible);
+        if (gl_SubgroupSize == 64) {
+            u_object_visibility[i].buckets[bucket_index.bucket].visibility[0] = visible_ballot.r;                
+            u_object_visibility[i].buckets[bucket_index.bucket].visibility[1] = visible_ballot.g;                
+        } else {
+            u_object_visibility[i].buckets[bucket_index.bucket].visibility[gl_SubgroupID] = visible_ballot.r;
         }
     }
 }

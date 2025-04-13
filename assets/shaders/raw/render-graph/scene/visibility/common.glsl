@@ -27,6 +27,19 @@ struct ViewData {
 
 #define BUCKET_BIT_SHIFT 6
 
+struct VisibilityBucketBits
+{
+    // store uint64_t as 2 uints because of subgroup operations
+    uint visibility[2];
+};
+
+struct VisibilityBucketIndex
+{
+    uint bucket;
+    uint bit_high;
+    uint bit_low;
+};
+
 const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
 const uint VIEW_CLAMP_DEPTH_BIT = 1;
 

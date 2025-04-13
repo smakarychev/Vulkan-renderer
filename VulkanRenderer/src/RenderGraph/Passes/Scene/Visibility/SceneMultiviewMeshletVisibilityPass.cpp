@@ -30,11 +30,9 @@ RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG:
             resources.MeshletHandles = renderGraph.Read(resources.MeshletHandles, Compute | Storage);
             resources.Views = renderGraph.Read(resources.Views, Compute | Uniform);
 
-            if (info.Stage != SceneVisibilityStage::Reocclusion)
-            {
-                resources.ResetMeshletCounts(graph);
-            }
-            else
+            resources.ResetMeshletCounts(graph);
+            
+            if (info.Stage == SceneVisibilityStage::Reocclusion)
             {
                 for (u32 i = 0; i < resources.ViewCount; i++)
                     if (enumHasAny(

@@ -319,39 +319,17 @@ void Renderer::SetupRenderGraph()
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
     bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
-    m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-        *m_Graph, m_MultiviewVisibility);
-    auto& renderObjectVisibility = Passes::SceneMultiviewRenderObjectVisibility::addToGraph("SceneROVisibility"_hsv,
-        *m_Graph, {
-            .Visibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
-            .Stage = SceneVisibilityStage::Cull});
-    auto& meshletVisibility = Passes::SceneMultiviewMeshletVisibility::addToGraph("SceneMeshletVisibility"_hsv,
-        *m_Graph, {
-            .Visibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
-            .Stage = SceneVisibilityStage::Cull});
-    
-    //auto& prepareMeshlets = Passes::PrepareVisibleMeshletInfo::addToGraph("PrepareVisibleMeshletInfo"_hsv, *m_Graph, {
-    //    .RenderObjectSet = &m_OpaqueSet});
-    //auto& prepareMeshletsOutput = blackboard.Get<Passes::PrepareVisibleMeshletInfo::PassData>(prepareMeshlets);
-
-    auto& fillIndirectDraws = Passes::FillSceneIndirectDraw::addToGraph("FillSceneIndirectDraw"_hsv, *m_Graph, {
-        .Geometry = &m_Scene.Geometry(),
-        .RenderObjectSet = &m_OpaqueSet,
-        .MeshletInfos = m_SceneVisibilityResources.MeshletBucketInfos[0],
-        .MeshletInfoCount = m_SceneVisibilityResources.MeshletInfoCounts[0]});
-    auto& fillIndirectDrawsOutput = blackboard.Get<Passes::FillSceneIndirectDraw::PassData>(fillIndirectDraws);
-    
     Resource depth = m_Graph->CreateResource("Depth"_hsv, GraphTextureDescription{
         .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
         .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::D32_FLOAT});
-
-    auto& opaqueBucket = m_OpaqueSet.FindPass("Visibility"_hsv).FindBucket("Opaque material"_hsv);
     
-    auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB"_hsv, *m_Graph, {
-            .Geometry = &m_Scene.Geometry(),
+    m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
+        *m_Graph, m_MultiviewVisibility);
+    auto& opaqueBucket = m_OpaqueSet.FindPass("Visibility"_hsv).FindBucket("Opaque material"_hsv);
+
+    Passes::DrawSceneUnifiedBasic::ExecutionInfo ugbExecutionInfo = {
+        .Geometry = &m_Scene.Geometry(),
             .Lights = &m_Scene.Lights(),
             .Draws = opaqueBucket.Draws(),
             .DrawInfos = opaqueBucket.DrawInfos(),
@@ -367,9 +345,28 @@ void Renderer::SetupRenderGraph()
                 .Resource = depth,
                 .Description = {
                     .OnLoad = AttachmentLoad::Clear,
-                    .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}});
+                    .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}};
+    
+    auto& renderObjectVisibility = Passes::SceneMultiviewRenderObjectVisibility::addToGraph("SceneROVisibility"_hsv,
+        *m_Graph, {
+            .Visibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .Stage = SceneVisibilityStage::Cull});
+    auto& meshletVisibility = Passes::SceneMultiviewMeshletVisibility::addToGraph("SceneMeshletVisibility"_hsv,
+        *m_Graph, {
+            .Visibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .Stage = SceneVisibilityStage::Cull});
+    auto& fillIndirectDraws = Passes::FillSceneIndirectDraw::addToGraph("FillSceneIndirectDraws"_hsv, *m_Graph, {
+        .Geometry = &m_Scene.Geometry(),
+        .RenderObjectSet = &m_OpaqueSet,
+        .MeshletInfos = m_SceneVisibilityResources.MeshletBucketInfos[0],
+        .MeshletInfoCount = m_SceneVisibilityResources.MeshletInfoCounts[0]});
+    
+    auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB"_hsv, *m_Graph, ugbExecutionInfo);
     auto& ugbOutput = blackboard.Get<Passes::DrawSceneUnifiedBasic::PassData>(ugb);
     depth = *ugbOutput.Attachments.Depth;
+    backbuffer = ugbOutput.Attachments.Colors[0];
     
     auto& hizMultiview = Passes::SceneMultiviewVisibilityHiz::addToGraph("HizMultiview"_hsv,
         *m_Graph, {
@@ -377,10 +374,38 @@ void Renderer::SetupRenderGraph()
             .Resources = &m_SceneVisibilityResources,
             .Depths = {depth},
             .Subresources = {ImageSubresourceDescription{}}});
+
+    auto& renderObjectVisibilityReocclusion = Passes::SceneMultiviewRenderObjectVisibility::addToGraph(
+        "SceneROVisibilityReocclusion"_hsv,
+        *m_Graph, {
+            .Visibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .Stage = SceneVisibilityStage::Reocclusion});
+    auto& meshletVisibilityReocclusion = Passes::SceneMultiviewMeshletVisibility::addToGraph(
+        "SceneMeshletVisibilityReocclusion"_hsv,
+        *m_Graph, {
+            .Visibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .Stage = SceneVisibilityStage::Reocclusion});
+    auto& fillIndirectDrawsReocclusion = Passes::FillSceneIndirectDraw::addToGraph(
+        "FillSceneIndirectDrawsReocclusion"_hsv, *m_Graph, {
+        .Geometry = &m_Scene.Geometry(),
+        .RenderObjectSet = &m_OpaqueSet,
+        .MeshletInfos = m_SceneVisibilityResources.MeshletBucketInfos[0],
+        .MeshletInfoCount = m_SceneVisibilityResources.MeshletInfoCounts[0]});
+
+    ugbExecutionInfo.Attachments.Colors[0].Description.OnLoad = AttachmentLoad::Load;
+    ugbExecutionInfo.Attachments.Depth->Description.OnLoad = AttachmentLoad::Load;
+    auto& ugbReocclusion = Passes::DrawSceneUnifiedBasic::addToGraph("UGBReocclusion"_hsv, *m_Graph, ugbExecutionInfo);
+    auto& ugbReocclusionOutput = blackboard.Get<Passes::DrawSceneUnifiedBasic::PassData>(ugbReocclusion);
+    depth = *ugbReocclusionOutput.Attachments.Depth;
+    
     auto& hizVisualize = Passes::HiZVisualize::addToGraph("HizVisualize"_hsv, *m_Graph,
         {m_SceneVisibilityResources.Hiz[0]});
     auto& hizVisualizePassOutput = blackboard.Get<Passes::HiZVisualize::PassData>(hizVisualize);
     Passes::ImGuiTexture::addToGraph("HiZTexture"_hsv, *m_Graph, hizVisualizePassOutput.ColorOut);
+
+    
     
     // todo: move to proper place (this is just testing atm)
     /*if (m_GraphTranslucentGeometry.IsValid())

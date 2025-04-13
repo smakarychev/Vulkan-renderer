@@ -268,18 +268,6 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
     writeSuballocation(Attributes, sceneInfo.m_Geometry.UVs, Uv, sceneInfoOffsets, ctx);
     writeSuballocation(Indices, sceneInfo.m_Geometry.Indices, Index, sceneInfoOffsets, ctx);
 
-    const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
-    const u64 meshletsSizeBytes = meshletCount * sizeof(assetLib::ModelInfo::Meshlet);
-    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Meshlets, meshletsSizeBytes, ctx.CommandList);
-    MeshletGPU* meshlets = ctx.ResourceUploader->MapBuffer<MeshletGPU>({
-        .Buffer = Meshlets.Buffer,
-        .Description = {
-            .SizeBytes = meshletsSizeBytes,
-            .Offset = Meshlets.Offset}});
-    for (auto&& [meshletIndex, meshlet] : std::ranges::views::enumerate(sceneInfo.m_Geometry.Meshlets))
-        meshlets[meshletIndex] = {
-            .BoundingCone = meshlet.BoundingCone,
-            .BoundingSphere = {.Center = meshlet.BoundingSphere.Center, .Radius = meshlet.BoundingSphere.Radius}};
 
     sceneInfoOffsets.MaterialOffset = (u32)(Materials.Offset / sizeof(MaterialGPU));
     PushBuffers::push<BufferAsymptoticGrowthPolicy>(Materials,
@@ -288,10 +276,6 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
     for (auto& material : sceneInfo.m_Geometry.MaterialsCpu)
         MaterialsCpu.push_back(material);
     
-    sceneInfoOffsets.ElementOffsets[(u32)Meshlet] = (u32)(Meshlets.Offset /
-        sizeof(assetLib::ModelInfo::Meshlet));
-    Meshlets.Offset += meshletsSizeBytes;
-
     m_SceneInfoOffsets[&sceneInfo] = sceneInfoOffsets;
 }
 
@@ -304,10 +288,12 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
 
     const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU2);
     const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
-    const u64 meshletsSizeBytes = meshletCount * sizeof(IndirectDrawCommand);
+    const u64 commandsSizeBytes = meshletCount * sizeof(IndirectDrawCommand);
+    const u64 meshletsSizeBytes = meshletCount * sizeof(MeshletGPU);
     PushBuffers::grow<BufferAsymptoticGrowthPolicy>(RenderObjects, renderObjectsSizeBytes, ctx.CommandList);
-    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Commands, renderObjectsSizeBytes, ctx.CommandList);
-
+    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Commands, commandsSizeBytes, ctx.CommandList);
+    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Meshlets, meshletsSizeBytes, ctx.CommandList);
+    
     RenderObjectGPU2* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU2>({
         .Buffer = RenderObjects.Buffer,
         .Description = {
@@ -316,8 +302,13 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
     IndirectDrawCommand* commands = ctx.ResourceUploader->MapBuffer<IndirectDrawCommand>({
         .Buffer = Commands.Buffer,
         .Description = {
-            .SizeBytes = meshletsSizeBytes,
+            .SizeBytes = commandsSizeBytes,
             .Offset = Commands.Offset}});
+    MeshletGPU* meshlets = ctx.ResourceUploader->MapBuffer<MeshletGPU>({
+       .Buffer = Meshlets.Buffer,
+       .Description = {
+           .SizeBytes = meshletsSizeBytes,
+           .Offset = Meshlets.Offset}});
 
     const u32 currentMeshletIndex = CommandCount;
     const u32 currentRenderObjectIndex = (u32)(RenderObjects.Offset / sizeof(RenderObjectGPU2));
@@ -348,14 +339,19 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
                 .VertexOffset = (i32)meshlet.FirstVertex,
                 .FirstInstance = currentMeshletIndex + meshletIndex,
                 .RenderObject = (u32)renderObjectIndex + currentRenderObjectIndex};
+            meshlets[meshletIndex] = {
+                .BoundingCone = meshlet.BoundingCone,
+                .BoundingSphere = {.Center = meshlet.BoundingSphere.Center, .Radius = meshlet.BoundingSphere.Radius}};
 
             meshletIndex++;
         }
     }
 
+   
     RenderObjects.Offset += renderObjectsSizeBytes;
     CommandCount += meshletCount;
-    Commands.Offset += meshletsSizeBytes;
+    Commands.Offset += commandsSizeBytes;
+    Meshlets.Offset += meshletsSizeBytes;
 
     return {
         .FirstRenderObject = currentRenderObjectIndex,

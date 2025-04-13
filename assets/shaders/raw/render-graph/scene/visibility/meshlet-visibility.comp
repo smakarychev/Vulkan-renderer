@@ -39,7 +39,7 @@ layout(std430, set = 1, binding = 6) readonly buffer meshlet_handles {
 } u_meshlet_handles;
 
 layout(std430, set = 1, binding = 7) readonly buffer object_visibility_buffer {
-    uint64_t buckets[];
+    VisibilityBucketBits buckets[];
 } u_object_visibility[MAX_VIEWS];
 
 layout(scalar, set = 1, binding = 8) writeonly buffer meshlet_infos {
@@ -51,7 +51,7 @@ layout(std430, set = 1, binding = 9) buffer meshlet_info_count {
 } u_meshlet_info_count[MAX_VIEWS];
 
 layout(std430, set = 1, binding = 10) buffer meshlet_visibility_buffer {
-    uint64_t buckets[];
+    VisibilityBucketBits buckets[];
 } u_meshlet_visibility[MAX_VIEWS];
 
 layout(push_constant) uniform push_constants {
@@ -115,12 +115,13 @@ void main() {
     const Meshlet meshlet = u_meshlets.meshlets[meshlet_id];
     const mat4 object_model = u_objects.objects[render_object_id].model;
 
-    const uint render_object_bucket_index = render_object_id >> BUCKET_BIT_SHIFT;
-    const uint render_object_bucket_bit = render_object_id & uint((1 << BUCKET_BIT_SHIFT) - 1);
-    const uint meshlet_bucket_index = meshlet_id >> BUCKET_BIT_SHIFT;
-    const uint meshlet_bucket_bit = meshlet_id & uint((1 << BUCKET_BIT_SHIFT) - 1);
+    const VisibilityBucketIndex render_object_bucket_index = get_bucket_index(render_object_id);
+    const VisibilityBucketIndex meshlet_bucket_index = get_bucket_index(meshlet_id);
 
-    const vec4 origin_world = object_model * vec4(meshlet.x, meshlet.y, meshlet.z, 1.0f);
+    const vec4 origin_world = object_model * vec4(
+        meshlet.x,
+        meshlet.y,
+        meshlet.z, 1.0f);
     const float scale = extract_scale(object_model);
     const float radius = meshlet.r * scale;
 
@@ -132,9 +133,13 @@ void main() {
             origin_view.z = min(origin_view.z, -view.frustum_near);
 
         const bool is_render_object_visible = flags_visible(
-            u_object_visibility[i].buckets[render_object_bucket_index], render_object_bucket_bit);
+            u_object_visibility[i].buckets[render_object_bucket_index.bucket],
+            render_object_bucket_index.bit_high,
+            render_object_bucket_index.bit_low);
         const bool is_last_frame_visible = flags_visible(
-            u_meshlet_visibility[i].buckets[meshlet_bucket_index], meshlet_bucket_bit);
+            u_meshlet_visibility[i].buckets[meshlet_bucket_index.bucket],
+            meshlet_bucket_index.bit_high,
+            meshlet_bucket_index.bit_low);
 
         bool visible = false;
 
@@ -144,16 +149,18 @@ void main() {
         }
         else if (!REOCCLUSION) {
             visible = is_render_object_visible && is_last_frame_visible && is_visible(origin_view, radius, i);
-            visible = true; 
         }
         else {
             visible = is_render_object_visible && is_reocclusion_visible(origin_view, radius, i);
 
-            if (visible)
-                flags_set_visible(u_meshlet_visibility[i].buckets[meshlet_bucket_index], meshlet_bucket_bit);
-            else
-               flags_unset_visible(u_meshlet_visibility[i].buckets[meshlet_bucket_index], meshlet_bucket_bit);
-
+            const uvec4 visible_ballot = subgroupBallot(visible);
+            if (gl_SubgroupSize == 64) {
+                u_meshlet_visibility[i].buckets[meshlet_bucket_index.bucket].visibility[0] = visible_ballot.r;
+                u_meshlet_visibility[i].buckets[meshlet_bucket_index.bucket].visibility[1] = visible_ballot.g;
+            } else {
+                u_meshlet_visibility[i].buckets[meshlet_bucket_index.bucket].visibility[gl_SubgroupID] = visible_ballot.r;
+            }
+            
             visible = visible && !is_last_frame_visible;
         }
 

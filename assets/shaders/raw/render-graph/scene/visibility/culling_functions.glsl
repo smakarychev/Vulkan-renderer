@@ -124,14 +124,15 @@ bool is_occlusion_triangle_visible(vec4 aabb, float z, ViewData view, sampler hi
     return depth <= z;
 }
 
-bool flags_visible(uint64_t bucket, uint bit) {
-    return (bucket & (uint64_t(1) << bit)) != 0;
+VisibilityBucketIndex get_bucket_index(uint id) {
+    const uint bucket_index = id >> BUCKET_BIT_SHIFT;
+    const uint bit_index = id & uint((1 << BUCKET_BIT_SHIFT) - 1);
+    const uint bit_high = bit_index >> (BUCKET_BIT_SHIFT - 1);
+    const uint bit_low = bit_index & uint((1 << (BUCKET_BIT_SHIFT - 1)) - 1);
+    
+    return VisibilityBucketIndex(bucket_index, bit_high, bit_low);
 }
 
-void flags_set_visible(inout uint64_t bucket, uint bit) {
-    bucket |= (uint64_t(1) << bit);
-}
-
-void flags_unset_visible(inout uint64_t bucket, uint bit) {
-    bucket &= ~(uint64_t(1) << bit);
+bool flags_visible(VisibilityBucketBits bucket, uint bit_high, uint bit_low) {
+    return (bucket.visibility[bit_high] & (uint(1) << bit_low)) != 0;
 }
