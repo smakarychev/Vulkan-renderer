@@ -1,10 +1,10 @@
-#include "FillSceneIndirectDrawPass.h"
+#include "SceneFillIndirectDrawPass.h"
 
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/SceneFillIndirectDrawsBindGroup.generated.h"
 #include "Scene/SceneRenderObjectSet.h"
 
-RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(StringId name, RG::Graph& renderGraph,
+RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
@@ -28,7 +28,7 @@ RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(StringId name, RG::Graph& re
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
-            CPU_PROFILE_FRAME("Scene.FillSceneIndirectDraw.Setup")
+            CPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw.Setup")
 
             graph.SetShader("scene-fill-indirect-draws.shader");
 
@@ -78,8 +78,8 @@ RG::Pass& Passes::FillSceneIndirectDraw::addToGraph(StringId name, RG::Graph& re
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
-            CPU_PROFILE_FRAME("Scene.FillSceneIndirectDraw")
-            GPU_PROFILE_FRAME("Scene.FillSceneIndirectDraw")
+            CPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw")
+            GPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw")
 
             const Shader& shader = resources.GetGraph()->GetShader();
             SceneFillIndirectDrawsShaderBindGroup bindGroup(shader);

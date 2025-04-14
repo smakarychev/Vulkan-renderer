@@ -5,7 +5,7 @@
 class SceneGeometry2;
 class SceneRenderObjectSet;
 
-namespace Passes::FillSceneIndirectDraw
+namespace Passes::SceneFillIndirectDraw
 {
     struct ExecutionInfo
     {

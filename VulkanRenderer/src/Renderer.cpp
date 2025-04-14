@@ -26,7 +26,7 @@
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
-#include "RenderGraph/Passes/Scene/DrawSceneUnifiedBasic.h"
+#include "RenderGraph/Passes/Scene/SceneDrawUnifiedBasic.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZNVPass.h"
@@ -40,7 +40,7 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
-#include "RenderGraph/Passes/Scene/FillSceneIndirectDrawPass.h"
+#include "RenderGraph/Passes/Scene/SceneFillIndirectDrawPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
@@ -328,13 +328,13 @@ void Renderer::SetupRenderGraph()
         *m_Graph, m_MultiviewVisibility);
     auto& opaqueBucket = m_OpaqueSet.FindPass("Visibility"_hsv).FindBucket("Opaque material"_hsv);
 
-    Passes::DrawSceneUnifiedBasic::ExecutionInfo ugbExecutionInfo = {
+    Passes::SceneDrawUnifiedBasic::ExecutionInfo ugbExecutionInfo = {
         .Geometry = &m_Scene.Geometry(),
-            .Lights = &m_Scene.Lights(),
-            .Draws = opaqueBucket.Draws(),
-            .DrawInfos = opaqueBucket.DrawInfos(),
-            .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
-            .Camera = GetFrameContext().PrimaryCamera,
+        .Lights = &m_Scene.Lights(),
+        .Draws = opaqueBucket.Draws(),
+        .DrawInfos = opaqueBucket.DrawInfos(),
+        .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
+        .Camera = GetFrameContext().PrimaryCamera,
         .Attachments = {
             .Colors = {DrawAttachment{
                 .Resource = backbuffer,
@@ -357,14 +357,14 @@ void Renderer::SetupRenderGraph()
             .Visibility = &m_MultiviewVisibility,
             .Resources = &m_SceneVisibilityResources,
             .Stage = SceneVisibilityStage::Cull});
-    auto& fillIndirectDraws = Passes::FillSceneIndirectDraw::addToGraph("FillSceneIndirectDraws"_hsv, *m_Graph, {
+    auto& fillIndirectDraws = Passes::SceneFillIndirectDraw::addToGraph("FillSceneIndirectDraws"_hsv, *m_Graph, {
         .Geometry = &m_Scene.Geometry(),
         .RenderObjectSet = &m_OpaqueSet,
         .MeshletInfos = m_SceneVisibilityResources.MeshletBucketInfos[0],
         .MeshletInfoCount = m_SceneVisibilityResources.MeshletInfoCounts[0]});
     
-    auto& ugb = Passes::DrawSceneUnifiedBasic::addToGraph("UGB"_hsv, *m_Graph, ugbExecutionInfo);
-    auto& ugbOutput = blackboard.Get<Passes::DrawSceneUnifiedBasic::PassData>(ugb);
+    auto& ugb = Passes::SceneDrawUnifiedBasic::addToGraph("UGB"_hsv, *m_Graph, ugbExecutionInfo);
+    auto& ugbOutput = blackboard.Get<Passes::SceneDrawUnifiedBasic::PassData>(ugb);
     depth = *ugbOutput.Attachments.Depth;
     backbuffer = ugbOutput.Attachments.Colors[0];
     
@@ -387,7 +387,7 @@ void Renderer::SetupRenderGraph()
             .Visibility = &m_MultiviewVisibility,
             .Resources = &m_SceneVisibilityResources,
             .Stage = SceneVisibilityStage::Reocclusion});
-    auto& fillIndirectDrawsReocclusion = Passes::FillSceneIndirectDraw::addToGraph(
+    auto& fillIndirectDrawsReocclusion = Passes::SceneFillIndirectDraw::addToGraph(
         "FillSceneIndirectDrawsReocclusion"_hsv, *m_Graph, {
         .Geometry = &m_Scene.Geometry(),
         .RenderObjectSet = &m_OpaqueSet,
@@ -396,8 +396,8 @@ void Renderer::SetupRenderGraph()
 
     ugbExecutionInfo.Attachments.Colors[0].Description.OnLoad = AttachmentLoad::Load;
     ugbExecutionInfo.Attachments.Depth->Description.OnLoad = AttachmentLoad::Load;
-    auto& ugbReocclusion = Passes::DrawSceneUnifiedBasic::addToGraph("UGBReocclusion"_hsv, *m_Graph, ugbExecutionInfo);
-    auto& ugbReocclusionOutput = blackboard.Get<Passes::DrawSceneUnifiedBasic::PassData>(ugbReocclusion);
+    auto& ugbReocclusion = Passes::SceneDrawUnifiedBasic::addToGraph("UGBReocclusion"_hsv, *m_Graph, ugbExecutionInfo);
+    auto& ugbReocclusionOutput = blackboard.Get<Passes::SceneDrawUnifiedBasic::PassData>(ugbReocclusion);
     depth = *ugbReocclusionOutput.Attachments.Depth;
     
     auto& hizVisualize = Passes::HiZVisualize::addToGraph("HizVisualize"_hsv, *m_Graph,

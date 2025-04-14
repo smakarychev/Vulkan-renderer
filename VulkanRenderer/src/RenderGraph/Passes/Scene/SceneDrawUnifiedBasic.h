@@ -9,7 +9,7 @@ class SceneGeometry2;
 
 /* this is pretty much ugb proof-of-concept */
 
-namespace Passes::DrawSceneUnifiedBasic
+namespace Passes::SceneDrawUnifiedBasic
 {
     struct ExecutionInfo
     {

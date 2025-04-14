@@ -1,4 +1,4 @@
-#include "DrawSceneUnifiedBasic.h"
+#include "SceneDrawUnifiedBasic.h"
 
 #include "CameraGPU.h"
 #include "FrameContext.h"
@@ -7,7 +7,7 @@
 #include "RenderGraph/Passes/Generated/SceneUgbBindGroup.generated.h"
 #include "Scene/Scene.h"
 
-RG::Pass& Passes::DrawSceneUnifiedBasic::addToGraph(StringId name, RG::Graph& renderGraph,
+RG::Pass& Passes::SceneDrawUnifiedBasic::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
