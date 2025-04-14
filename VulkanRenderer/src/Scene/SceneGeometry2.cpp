@@ -178,23 +178,25 @@ namespace
     {
         static constexpr f32 GROWTH_RATE = 1.5;
 
-        const u64 newSize = std::max(newMinSize, (u64)GROWTH_RATE * Device::GetBufferArenaSizeBytes(arena));
-        Device::ResizeBufferArena(arena, newSize, cmdList);
+        const u64 newSize = std::max(newMinSize, (u64)GROWTH_RATE * Device::GetBufferArenaSizeBytesPhysical(arena));
+        Device::ResizeBufferArenaPhysical(arena, newSize, cmdList);
     }
 
     BufferSuballocation suballocateResizeIfFailed(BufferArena arena, u64 sizeBytes, u32 alignment,
         RenderCommandList& cmdList)
     {
-        std::optional<BufferSuballocation> attributesSuballocation =
-            Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
-        if (!attributesSuballocation)
-        {
-            growBufferArena(arena, Device::GetBufferArenaSizeBytes(arena) + sizeBytes, cmdList);
-            attributesSuballocation = Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
-        }
+        BufferSuballocationResult suballocationResult = Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
+        if (suballocationResult.has_value())
+            return suballocationResult.value();
+        
+        ASSERT(suballocationResult.error() != BufferSuballocationError::OutOfVirtualMemory,
+            "Out of virtual memory for buffer arena")
 
-        ASSERT(attributesSuballocation.has_value(), "Failed to suballocate")
-        return *attributesSuballocation;
+        growBufferArena(arena, Device::GetBufferArenaSizeBytesPhysical(arena) + sizeBytes, cmdList);
+        suballocationResult = Device::BufferArenaSuballocate(arena, sizeBytes, alignment);
+        ASSERT(suballocationResult.has_value(), "Failed to suballocate")
+
+        return suballocationResult.value();
     }
 
     template <typename T>
@@ -227,13 +229,15 @@ SceneGeometry2 SceneGeometry2::CreateEmpty(DeletionQueue& deletionQueue)
        .Buffer = Device::CreateBuffer({
            .SizeBytes = DEFAULT_ATTRIBUTES_BUFFER_ARENA_SIZE_BYTES,
            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-           deletionQueue)},
+           deletionQueue),
+        .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES},
        deletionQueue);
     geometry.Indices = Device::CreateBufferArena({
         .Buffer = Device::CreateBuffer({
             .SizeBytes = DEFAULT_INDICES_BUFFER_ARENA_SIZE_BYTES,
             .Usage = BufferUsage::Ordinary | BufferUsage::Index | BufferUsage::Storage | BufferUsage::Source},
-            deletionQueue)},
+            deletionQueue),
+        .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES},
         deletionQueue);
     geometry.RenderObjects.Buffer = Device::CreateBuffer({
         .SizeBytes = DEFAULT_RENDER_OBJECTS_BUFFER_SIZE_BYTES,
@@ -260,7 +264,7 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
     using enum assetLib::SceneInfo::BufferViewType;
 
     auto& sceneInfo = *instance.m_SceneInfo;
-    
+
     SceneInfoOffsets sceneInfoOffsets = {};
     writeSuballocation(Attributes, sceneInfo.m_Geometry.Positions, Position, sceneInfoOffsets, ctx);
     writeSuballocation(Attributes, sceneInfo.m_Geometry.Normals, Normal, sceneInfoOffsets, ctx);

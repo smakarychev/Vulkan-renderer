@@ -733,6 +733,7 @@ private:
         using ObjectType = BufferArenaTag;
         VmaVirtualBlock VirtualBlock{VK_NULL_HANDLE};
         Buffer Buffer{};
+        u64 VirtualSizeBytes{};
     };
     struct ImageResource
     {
@@ -1917,13 +1918,14 @@ u64 Device::GetDeviceAddress(Buffer buffer)
 BufferArena Device::CreateBufferArena(BufferArenaCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     VmaVirtualBlockCreateInfo virtualBlockCreateInfo = {};
-    virtualBlockCreateInfo.size = GetBufferSizeBytes(createInfo.Buffer);
-
+    virtualBlockCreateInfo.size = createInfo.VirtualSizeBytes;
+    
     DeviceResources::BufferArenaResource bufferArenaResource = {};
     deviceCheck(vmaCreateVirtualBlock(&virtualBlockCreateInfo, &bufferArenaResource.VirtualBlock),
         "Failed to create buffer arena");
     bufferArenaResource.Buffer = createInfo.Buffer;
-
+    bufferArenaResource.VirtualSizeBytes = createInfo.VirtualSizeBytes;
+    
     BufferArena arena = Resources().AddResource(bufferArenaResource);
     deletionQueue.Enqueue(arena);
     
@@ -1940,7 +1942,7 @@ void Device::Destroy(BufferArena bufferArena)
     Resources().RemoveResource(bufferArena);
 }
 
-void Device::ResizeBufferArena(BufferArena arena, u64 newSize, RenderCommandList& cmdList, bool copyData)
+void Device::ResizeBufferArenaPhysical(BufferArena arena, u64 newSize, RenderCommandList& cmdList, bool copyData)
 {
     const DeviceResources::BufferArenaResource& arenaResource = Resources()[arena];
     const DeviceResources::BufferResource& bufferResource = Resources()[arenaResource.Buffer];
@@ -1949,12 +1951,6 @@ void Device::ResizeBufferArena(BufferArena arena, u64 newSize, RenderCommandList
         return;
     
     ResizeBuffer(arenaResource.Buffer, newSize, cmdList, copyData);
-
-    const BufferArena newArena = CreateBufferArena({
-        .Buffer = arenaResource.Buffer},
-        *s_State.FrameDeletionQueue);
-    
-    std::swap(Resources()[arena], Resources()[newArena]);
 }
 
 Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena bufferArena)
@@ -1962,12 +1958,12 @@ Buffer Device::GetBufferArenaUnderlyingBuffer(BufferArena bufferArena)
     return Resources()[bufferArena].Buffer;
 }
 
-u64 Device::GetBufferArenaSizeBytes(BufferArena arena)
+u64 Device::GetBufferArenaSizeBytesPhysical(BufferArena arena)
 {
     return GetBufferSizeBytes(GetBufferArenaUnderlyingBuffer(arena));
 }
 
-std::optional<BufferSuballocation> Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
+BufferSuballocationResult Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
 {
     VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
     allocationCreateInfo.size = sizeBytes;
@@ -1980,10 +1976,16 @@ std::optional<BufferSuballocation> Device::BufferArenaSuballocate(BufferArena ar
     const VkResult allocateResult = vmaVirtualAllocate(bufferArenaResource.VirtualBlock,
         &allocationCreateInfo, &allocation, nullptr);
     if (allocateResult != VK_SUCCESS)
-        return std::nullopt;
+        return std::unexpected(BufferSuballocationError::OutOfVirtualMemory);
 
     VmaVirtualAllocationInfo allocationInfo = {};
     vmaGetVirtualAllocationInfo(bufferArenaResource.VirtualBlock, allocation, &allocationInfo);
+
+    if (allocationInfo.offset + allocationInfo.size > GetBufferSizeBytes(bufferArenaResource.Buffer))
+    {
+        vmaVirtualFree(bufferArenaResource.VirtualBlock, allocation);
+        return std::unexpected(BufferSuballocationError::OutOfPhysicalMemory);
+    }
     
     return BufferSuballocation{
         .Buffer = bufferArenaResource.Buffer,
