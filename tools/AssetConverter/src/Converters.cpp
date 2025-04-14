@@ -1313,7 +1313,7 @@ namespace
                     copyBufferToVector(indices, gltf, indexAccessor);
                     break;
                 default:
-                    ASSERT(false);
+                    ASSERT(false)
             }
 
             std::vector<glm::vec3> positions;
