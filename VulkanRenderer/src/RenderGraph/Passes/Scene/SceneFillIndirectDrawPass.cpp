@@ -19,9 +19,7 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
         std::array<Resource, MAX_BUCKETS_PER_SET> Draws;
         std::array<Resource, MAX_BUCKETS_PER_SET> DrawInfos;
         
-        SceneBucketHandle FirstBucket{0};
         u32 BucketCount{0};
-        
         u32 MeshletCount{0};
     };
     
@@ -32,7 +30,6 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
 
             graph.SetShader("scene-fill-indirect-draws.shader");
 
-            passData.FirstBucket = info.RenderObjectSet->FirstBucket();
             passData.BucketCount = info.RenderObjectSet->BucketCount();
 
             passData.MeshletCount = info.RenderObjectSet->MeshletCount();
