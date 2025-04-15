@@ -1435,7 +1435,7 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
         .DrawResolution = drawResolution,
         .DrawFormat = createInfo.DrawFormat,
         .DepthFormat = createInfo.DepthStencilFormat,
-        .DrawImage =CreateImage({
+        .DrawImage = CreateImage({
             .Description = ImageDescription{
                 .Width = drawResolution.x,
                 .Height = drawResolution.y,

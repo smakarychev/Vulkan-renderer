@@ -19,7 +19,7 @@ RG::Pass& Passes::SceneDrawUnifiedBasic::addToGraph(StringId name, RG::Graph& re
         Resource UGB{};
         Resource Objects{};
         Resource Draws{};
-        Resource DrawInfos{};
+        Resource DrawInfo{};
         DrawAttachmentResources Attachments{};
         SceneLightResources Light{};
         u32 CommandCount{0};
@@ -33,7 +33,7 @@ RG::Pass& Passes::SceneDrawUnifiedBasic::addToGraph(StringId name, RG::Graph& re
             graph.SetShader("scene-ugb.shader");
 
             passData.CommandCount = std::min(info.Geometry->CommandCount,
-                (u32)(Device::GetBufferSizeBytes(info.Draws) / sizeof(IndirectDrawCommand)));
+                (u32)(graph.GetBufferDescription(info.Draws).SizeBytes / sizeof(IndirectDrawCommand)));
 
             passData.Camera = graph.CreateResource("Camera"_hsv,
                 GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
@@ -49,11 +49,8 @@ RG::Pass& Passes::SceneDrawUnifiedBasic::addToGraph(StringId name, RG::Graph& re
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
 
-            passData.Draws = graph.AddExternal("Draws"_hsv, info.Draws);
-            passData.Draws = graph.Read(passData.Draws, Vertex | Indirect);
-
-            passData.DrawInfos = graph.AddExternal("DrawInfos"_hsv, info.DrawInfos);
-            passData.DrawInfos = graph.Read(passData.DrawInfos, Vertex | Indirect);
+            passData.Draws = graph.Read(info.Draws, Vertex | Indirect);
+            passData.DrawInfo = graph.Read(info.DrawInfo, Vertex | Indirect);
             
             passData.Attachments = RgUtils::readWriteDrawAttachments(info.Attachments, graph);
             passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
@@ -84,7 +81,7 @@ RG::Pass& Passes::SceneDrawUnifiedBasic::addToGraph(StringId name, RG::Graph& re
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({
                 .DrawBuffer = resources.GetBuffer(passData.Draws),
-                .CountBuffer = resources.GetBuffer(passData.DrawInfos),
+                .CountBuffer = resources.GetBuffer(passData.DrawInfo),
                 .MaxCount = passData.CommandCount});
         });
 }

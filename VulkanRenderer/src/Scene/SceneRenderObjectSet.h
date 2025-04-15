@@ -17,6 +17,7 @@ public:
     u32 PassesCount() const { return (u32)m_Passes.size(); }
     u32 RenderObjectCount() const { return (u32)m_RenderObjectsCpu.size(); }
     SceneBucketHandle FirstBucket() const { return m_FirstBucket; }
+    u32 BucketHandleToIndex(SceneBucketHandle bucket) const { return bucket - m_FirstBucket; }
     u32 BucketCount() const { return m_BucketCount; }
     u32 MeshletCount() const { return m_MeshletCount; }
     u32 TriangleCount() const { return m_TriangleCount; }

@@ -72,6 +72,7 @@ namespace RG
     struct DrawAttachmentResources
     {
         std::vector<Resource> Colors{};
+        // todo: remove this optional
         std::optional<Resource> Depth{};
     };
 

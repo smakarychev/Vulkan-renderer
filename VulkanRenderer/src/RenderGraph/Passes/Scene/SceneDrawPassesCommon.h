@@ -1,36 +1,39 @@
 #pragma once
 
+#include "Scene/ScenePass.h"
+
 #include <functional>
 
-#include "RenderGraph/RGResource.h"
+#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGDrawResources.h"
 
 class SceneBucket;
 
-enum class SceneIndexBufferType
-{
-    U8, U16, U32
-};
-
-struct SceneBaseDrawPassData
+struct SceneBucketPassExecutionInfoCommon
 {
     RG::Resource Draws{};
     RG::Resource DrawInfo{};
-    RG::Resource IndexBuffer{};
-    SceneIndexBufferType IndexBufferType{SceneIndexBufferType::U8};
+    glm::uvec2 Resolution{};
+    const Camera* Camera{nullptr};
+    RG::DrawAttachments Attachments{};
 };
-
-struct SceneDrawPassInfo
+struct SceneBucketPassInitOutput
 {
-    RG::Pass* Pass{nullptr};
-    SceneBaseDrawPassData* DrawPassData{nullptr};
+    const RG::Pass* Pass{nullptr};
+    RG::DrawAttachmentResources Attachments{};
 };
+using SceneBucketPassInit =
+    std::function<SceneBucketPassInitOutput(StringId name, RG::Graph&, const SceneBucketPassExecutionInfoCommon&)>;
 
-using InitSceneDrawPass = std::function<SceneDrawPassInfo(StringId parent)>;
-
-struct SceneBucketDrawPassInfo
+struct SceneBucketPassInfo
 {
-    SceneBucket* Bucket{nullptr};
-    InitSceneDrawPass PassInit{};    
+    const SceneBucket* Bucket{nullptr};
+    SceneBucketPassInit DrawPassInit{};
 };
 
-
+struct SceneViewDrawPassInfo
+{
+    const SceneView* View{nullptr};
+    std::vector<SceneBucketPassInfo> BucketsPasses{};
+    RG::DrawAttachments Attachments{};
+};

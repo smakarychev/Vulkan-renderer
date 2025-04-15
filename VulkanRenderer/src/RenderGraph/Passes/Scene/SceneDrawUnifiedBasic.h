@@ -15,8 +15,8 @@ namespace Passes::SceneDrawUnifiedBasic
     {
         const SceneGeometry2* Geometry{nullptr};
         const SceneLight2* Lights{nullptr};
-        Buffer Draws{};
-        Buffer DrawInfos{};
+        RG::Resource Draws{};
+        RG::Resource DrawInfo{};
         glm::uvec2 Resolution{};
         const Camera* Camera{nullptr};
 

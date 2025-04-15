@@ -6,17 +6,24 @@
 
 #include "Core/Camera.h"
 
+class ScenePass;
 struct FrameContext;
 class DeletionQueue;
 class SceneRenderObjectSet;
 
+/* todo: triangle culling ?
+ * not a lot of possibilities are left for it to be useful:
+ * - will not do occlusion culling, because storing persistent visibility
+ *  for each triangle requires a little too much memory
+ * - can not do backface culling, because different scene buckets require different winding
+ * - frustum and screen-size culling may be more efficient with smaller meshlets
+ */
 enum class SceneVisibilityFlags
 {
     None = 0,
-    TriangleCull    = BIT(1),
-    ClampDepth      = BIT(2),
-    OcclusionCull   = BIT(3),
-    IsPrimaryView   = BIT(4),
+    ClampDepth      = BIT(1),
+    OcclusionCull   = BIT(2),
+    IsPrimaryView   = BIT(3),
 };
 
 CREATE_ENUM_FLAGS_OPERATORS(SceneVisibilityFlags)

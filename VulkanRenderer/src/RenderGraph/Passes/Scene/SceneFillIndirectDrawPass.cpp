@@ -44,29 +44,28 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
             passData.MeshletInfos = graph.Read(info.MeshletInfos, Compute | Storage);
             passData.MeshletInfoCount = graph.Read(info.MeshletInfoCount, Compute | Uniform);
 
-            u32 currentBucket = 0;
             for (auto& pass : info.RenderObjectSet->Passes())
             {
-                for (u32 bucketIndex = 0; bucketIndex < pass.BucketCount(); bucketIndex++)
+                for (SceneBucketHandle bucketHandle : pass.BucketHandles())
                 {
-                    auto& bucket = pass.Bucket(bucketIndex);
-                    ASSERT(!passData.Draws[currentBucket].IsValid(), "Ambiguous bucket")
+                    const u32 bucketIndex = info.RenderObjectSet->BucketHandleToIndex(bucketHandle);
                     
-                    passData.Draws[currentBucket] = graph.AddExternal(
-                        StringId("Draw"_hsv).AddVersion(currentBucket),
+                    auto& bucket = pass.BucketFromHandle(bucketHandle);
+                    ASSERT(!passData.Draws[bucketIndex].IsValid(), "Ambiguous bucket")
+                    
+                    passData.Draws[bucketIndex] = graph.AddExternal(
+                        StringId("Draw"_hsv).AddVersion(bucketIndex),
                         bucket.Draws());
-                    passData.Draws[currentBucket] = graph.Write(passData.Draws[currentBucket], Compute | Storage);
+                    passData.Draws[bucketIndex] = graph.Write(passData.Draws[bucketIndex], Compute | Storage);
                     
-                    passData.DrawInfos[currentBucket] = graph.AddExternal(
-                        StringId("DrawInfos"_hsv).AddVersion(currentBucket),
-                        bucket.DrawInfos());
-                    passData.DrawInfos[currentBucket] = graph.Read(
-                        passData.DrawInfos[currentBucket], Compute | Storage);
-                    passData.DrawInfos[currentBucket] = graph.Write(
-                        passData.DrawInfos[currentBucket], Compute | Storage);
-                    graph.Upload(passData.DrawInfos[currentBucket], SceneBucketDrawInfo{});
-                    
-                    currentBucket++;
+                    passData.DrawInfos[bucketIndex] = graph.AddExternal(
+                        StringId("DrawInfo"_hsv).AddVersion(bucketIndex),
+                        bucket.DrawInfo());
+                    passData.DrawInfos[bucketIndex] = graph.Read(
+                        passData.DrawInfos[bucketIndex], Compute | Storage);
+                    passData.DrawInfos[bucketIndex] = graph.Write(
+                        passData.DrawInfos[bucketIndex], Compute | Storage);
+                    graph.Upload(passData.DrawInfos[bucketIndex], SceneBucketDrawInfo{});
                 }
             }
             

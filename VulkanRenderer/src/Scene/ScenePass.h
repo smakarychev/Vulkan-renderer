@@ -53,7 +53,7 @@ public:
     void OnUpdate(FrameContext& ctx);
     void AllocateRenderObjectDrawCommand(u32 meshletCount);
     Buffer Draws() const { return m_Draws.Buffer; }
-    Buffer DrawInfos() const { return m_DrawInfo; }
+    Buffer DrawInfo() const { return m_DrawInfo; }
 public:
     using FilterFn = SceneBucketCreateInfo::FilterFn;
     FilterFn Filter{};
@@ -102,7 +102,8 @@ public:
     void OnUpdate(FrameContext& ctx);
 
     u32 BucketCount() const { return (u32)m_BucketHandles.size(); }
-    const SceneBucket& Bucket(SceneBucketHandle handle) const { return m_BucketList->GetBucket(handle); }
+    const std::vector<SceneBucketHandle>& BucketHandles() const { return m_BucketHandles; }
+    const SceneBucket& BucketFromHandle(SceneBucketHandle handle) const { return m_BucketList->GetBucket(handle); }
 
     const SceneBucket& FindBucket(StringId name) const;
     const SceneBucket* TryFindBucket(StringId name) const;
