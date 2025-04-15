@@ -50,13 +50,14 @@ public:
     
     SceneBucketHandle Handle() const { return m_Id; }
 
-    void OnUpdate(FrameContext& ctx);
-    void AllocateRenderObjectDrawCommand(u32 meshletCount);
     Buffer Draws() const { return m_Draws.Buffer; }
     Buffer DrawInfo() const { return m_DrawInfo; }
 public:
     using FilterFn = SceneBucketCreateInfo::FilterFn;
     FilterFn Filter{};
+private:
+    void OnUpdate(FrameContext& ctx);
+    void AllocateRenderObjectDrawCommand(u32 meshletCount);
 private:
     SceneBucketHandle m_Id{~0lu};
 
