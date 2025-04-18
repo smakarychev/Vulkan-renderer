@@ -41,21 +41,6 @@ struct ShaderCache::FileWatcher
 };
 std::unique_ptr<ShaderCache::FileWatcher> ShaderCache::s_FileWatcher = {};
 
-PipelineSpecializationsView ShaderOverridesView::ToPipelineSpecializationsView(ShaderPipelineTemplate& shaderTemplate)
-{
-    for (u32 i = 0; i < Descriptions.size(); i++)
-    {
-        auto spec = std::ranges::find(shaderTemplate.GetReflection().SpecializationConstants(), Names[i].AsStringView(),
-            [](auto& constant) { return constant.Name; });
-        ASSERT(spec != shaderTemplate.GetReflection().SpecializationConstants().end(),
-            "Unrecognized specialization name")
-        Descriptions[i].Id = spec->Id;
-        Descriptions[i].ShaderStages = spec->ShaderStages;
-    }
-
-    return PipelineSpecializationsView(Data, Descriptions);
-}
-
 Shader::Shader(u32 pipelineIndex,
     const std::array<::Descriptors, MAX_DESCRIPTOR_SETS>& descriptors)
         : m_Pipeline(pipelineIndex), m_Descriptors(descriptors)
@@ -396,7 +381,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             };
 
             auto& rasterization = json["rasterization"];
-
+            
             if (rasterization.contains("alpha_blending"))
                 alphaBlending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
             if (rasterization.contains("depth_mode"))
