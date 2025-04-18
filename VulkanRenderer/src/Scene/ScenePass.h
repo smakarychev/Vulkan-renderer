@@ -1,8 +1,6 @@
 #pragma once
 
-#include "Scene.h"
 #include "SceneBucket.h"
-#include "Rendering/Commands/RenderCommands.h"
 #include "String/StringId.h"
 
 struct ScenePassCreateInfo
@@ -18,6 +16,8 @@ public:
     using FilterFn = SceneBucket::FilterFn;
     ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList, DeletionQueue& deletionQueue);
 
+    StringId Name() const { return m_Name; }
+    
     void AddBuckets(Span<const SceneBucketCreateInfo> buckets, DeletionQueue& deletionQueue);
     SceneBucketHandle Filter(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject);
     void OnUpdate(FrameContext& ctx);

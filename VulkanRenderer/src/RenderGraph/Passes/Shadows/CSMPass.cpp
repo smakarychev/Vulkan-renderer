@@ -155,7 +155,7 @@ RG::Pass& Passes::CSM::addToGraph(StringId name, RG::Graph& renderGraph, const S
                                     name, i, executionInfo.Triangles.IsValid(), executionInfo.ExecutionId),
                                 "shadow.shader", 
                                 ShaderOverrides{
-                                    ShaderOverride{"COMPOUND_INDEX"_hsv, executionInfo.Triangles.IsValid()}});
+                                    ShaderSpecializationOverride{"COMPOUND_INDEX"_hsv, executionInfo.Triangles.IsValid()}});
                             ShadowShaderBindGroup bindGroup(shader);
 
                             bindGroup.SetCamera({.Buffer = resources.GetBuffer(executionInfo.Camera)});

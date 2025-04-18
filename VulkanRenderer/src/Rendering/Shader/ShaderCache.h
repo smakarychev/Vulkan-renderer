@@ -10,10 +10,8 @@
 
 
 template <typename T>
-struct ShaderOverride
+struct ShaderSpecializationOverride
 {
-    using Type = T;
-    
     StringId Name;
     T Value;
 

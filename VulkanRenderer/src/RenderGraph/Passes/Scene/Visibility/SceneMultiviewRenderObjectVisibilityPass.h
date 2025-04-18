@@ -7,7 +7,7 @@ namespace Passes::SceneMultiviewRenderObjectVisibility
 {
     struct ExecutionInfo
     {
-        ::SceneMultiviewVisibility* Visibility{nullptr};
+        ::SceneMultiviewVisibility* MultiviewVisibility{nullptr};
         SceneVisibilityPassesResources* Resources{nullptr};
         SceneVisibilityStage Stage{SceneVisibilityStage::Cull};
     };

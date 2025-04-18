@@ -255,7 +255,7 @@ void ShaderCache::HandleShaderModification(std::string_view path)
         deletedPipelines[pipelineIndex] = true;
         s_FrameDeletionQueue->Enqueue(s_Pipelines[pipelineIndex].Pipeline);
         
-        /* when the `ShaderOverride` has non-zero hash, it means that there are some overloads,
+        /* when the `ShaderOverrides` has non-zero hash, it means that there are some overloads,
          * so this Reload operation will be useless, as we will have to reload it once more
          * with correct overloads; so instead we simply set pipeline overload hash to zero, thus
          * triggering reload on the next access operation

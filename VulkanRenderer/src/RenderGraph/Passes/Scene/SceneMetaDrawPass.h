@@ -8,13 +8,13 @@ namespace Passes::SceneMetaDraw
 {
     struct ExecutionInfo
     {
-        ::SceneMultiviewVisibility* Visibility{nullptr};
+        ::SceneMultiviewVisibility* MultiviewVisibility{nullptr};
         SceneVisibilityPassesResources* Resources{nullptr};
-        std::vector<SceneViewDrawPassInfo> ViewPasses{};
+        std::vector<SceneDrawPassDescription> DrawPasses{};
     };
     struct PassData
     {
-        
+        SceneDrawPassViewAttachments DrawPassViewAttachments{};
     };
     RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

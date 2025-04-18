@@ -16,9 +16,9 @@ RG::Pass& Passes::SceneMultiviewVisibilityHiz::addToGraph(StringId name, RG::Gra
 
             graph.HasSideEffect();
             
-            for (u32 i = 0; i < info.Visibility->ViewCount(); i++)
+            for (u32 i = 0; i < info.MultiviewVisibility->VisibilityCount(); i++)
             {
-                auto& view = info.Visibility->Visibilities()[i]->GetView();
+                auto& view = info.MultiviewVisibility->View({i});
                 const bool requireHiZ =
                     info.Depths[i].IsValid() &&
                     enumHasAny(view.VisibilityFlags, SceneVisibilityFlags::OcclusionCull) &&

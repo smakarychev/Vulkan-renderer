@@ -90,7 +90,7 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& re
             
             graph.SetShader("ssao.shader",
                 ShaderOverrides{
-                    ShaderOverride{"MAX_SAMPLES"_hsv, MAX_SAMPLES_COUNT}});
+                    ShaderSpecializationOverride{"MAX_SAMPLES"_hsv, MAX_SAMPLES_COUNT}});
             
             if (!graph.TryGetBlackboardValue<Samples>())
             {

@@ -22,7 +22,7 @@ namespace
 
                 graph.SetShader("light-clusters-compact.shader",
                     ShaderOverrides{
-                        ShaderOverride{"IDENTIFY"_hsv, true}});
+                        ShaderSpecializationOverride{"IDENTIFY"_hsv, true}});
 
                 passData.ClusterVisibility = graph.Write(clusterVisibility, Compute | Storage);
                 passData.Depth = graph.Read(depth, Compute | Sampled);
@@ -75,7 +75,7 @@ namespace
 
                 graph.SetShader("light-clusters-compact.shader",
                     ShaderOverrides{
-                        ShaderOverride{"COMPACT"_hsv, true}});
+                        ShaderSpecializationOverride{"COMPACT"_hsv, true}});
 
                 passData.ActiveClusters = graph.CreateResource("Clusters.Active"_hsv,
                     GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u16)});
@@ -126,7 +126,7 @@ namespace
 
                 graph.SetShader("light-clusters-compact.shader",
                     ShaderOverrides{
-                        ShaderOverride{"CREATE_DISPATCH"_hsv, true}});
+                        ShaderSpecializationOverride{"CREATE_DISPATCH"_hsv, true}});
 
                 passData.DispatchIndirect = graph.CreateResource("DispatchIndirect"_hsv,
                     GraphBufferDescription{.SizeBytes = sizeof(IndirectDispatchCommand)});

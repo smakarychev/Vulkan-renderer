@@ -16,9 +16,9 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
 
             graph.SetShader("scene-multiview-render-object-visibility.shader",
                 ShaderOverrides{
-                    ShaderOverride{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
+                    ShaderSpecializationOverride{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
             
-            auto& multiview = *info.Visibility;
+            auto& multiview = *info.MultiviewVisibility;
             
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;
@@ -28,18 +28,16 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
 
             if (info.Stage != SceneVisibilityStage::Reocclusion)
             {
-                resources.UploadViews(*info.Visibility, graph);
+                resources.UploadViews(multiview, graph);
             }
             else
             {
-                for (u32 i = 0; i < resources.ViewCount; i++)
-                    if (enumHasAny(
-                        multiview.Visibilities()[i]->GetView().VisibilityFlags,
-                        SceneVisibilityFlags::OcclusionCull))
+                for (u32 i = 0; i < resources.VisibilityCount; i++)
+                    if (enumHasAny(multiview.View({i}).VisibilityFlags, SceneVisibilityFlags::OcclusionCull))
                         resources.Hiz[i] = graph.Read(resources.Hiz[i], Compute | Sampled);
             }
 
-            for (u32 i = 0; i < resources.ViewCount; i++)
+            for (u32 i = 0; i < resources.VisibilityCount; i++)
             {
                 resources.RenderObjectVisibility[i] = graph.Read(resources.RenderObjectVisibility[i],
                     Compute | Storage);
@@ -59,7 +57,7 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
             bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Resources->RenderObjects)});
             bindGroup.SetObjectHandles({.Buffer = resources.GetBuffer(passData.Resources->RenderObjectHandles)});
             bindGroup.SetViews({.Buffer = resources.GetBuffer(passData.Resources->Views)});
-            for (u32 i = 0; i < passData.Resources->ViewCount; i++)
+            for (u32 i = 0; i < passData.Resources->VisibilityCount; i++)
                 bindGroup.SetObjectVisibility({
                     .Buffer = resources.GetBuffer(passData.Resources->RenderObjectVisibility[i])}, i);
 
@@ -75,7 +73,7 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {PushConstants{
                     .RenderObjectCount = passData.Resources->RenderObjectCount,
-                    .ViewCount = passData.Resources->ViewCount}}});
+                    .ViewCount = passData.Resources->VisibilityCount}}});
             cmd.Dispatch({
                .Invocations = {passData.Resources->RenderObjectCount, 1, 1},
                .GroupSize = {64, 1, 1}});

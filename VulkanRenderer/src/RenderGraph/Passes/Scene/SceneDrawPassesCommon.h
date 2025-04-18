@@ -1,15 +1,16 @@
 #pragma once
 
 #include "Scene/ScenePass.h"
-
-#include <functional>
-
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGDrawResources.h"
 
-class SceneBucket;
+#include <functional>
 
-struct SceneBucketPassExecutionInfoCommon
+#include "Scene/Visibility/SceneVisibility.h"
+
+struct SceneView;
+
+struct SceneDrawPassExecutionInfo
 {
     RG::Resource Draws{};
     RG::Resource DrawInfo{};
@@ -17,23 +18,26 @@ struct SceneBucketPassExecutionInfoCommon
     const Camera* Camera{nullptr};
     RG::DrawAttachments Attachments{};
 };
-struct SceneBucketPassInitOutput
-{
-    const RG::Pass* Pass{nullptr};
-    RG::DrawAttachmentResources Attachments{};
-};
-using SceneBucketPassInit =
-    std::function<SceneBucketPassInitOutput(StringId name, RG::Graph&, const SceneBucketPassExecutionInfoCommon&)>;
+using SceneDrawPassInitFn =
+    std::function<RG::DrawAttachmentResources(StringId name, RG::Graph&, const SceneDrawPassExecutionInfo&)>;
 
-struct SceneBucketPassInfo
+struct SceneDrawPassDescription
 {
-    const SceneBucket* Bucket{nullptr};
-    SceneBucketPassInit DrawPassInit{};
-};
-
-struct SceneViewDrawPassInfo
-{
-    const SceneView* View{nullptr};
-    std::vector<SceneBucketPassInfo> BucketsPasses{};
+    const ScenePass* Pass{nullptr};
+    SceneDrawPassInitFn DrawPassInit{};    
+    SceneView View{};
+    SceneVisibilityHandle Visibility{};
     RG::DrawAttachments Attachments{};
+};
+
+class SceneDrawPassViewAttachments
+{
+public:
+    const RG::DrawAttachments& Get(StringId viewName, StringId passName) const;
+    RG::DrawAttachments& Get(StringId viewName, StringId passName);
+
+    void Add(StringId viewName, StringId passName, const RG::DrawAttachments& attachments);
+private:
+    using PassNameToAttachments = std::unordered_map<StringId, RG::DrawAttachments>;
+    std::unordered_map<StringId, PassNameToAttachments> m_Attachments;
 };

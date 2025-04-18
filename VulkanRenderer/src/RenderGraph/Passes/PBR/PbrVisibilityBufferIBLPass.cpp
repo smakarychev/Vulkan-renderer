@@ -23,12 +23,12 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(StringId name, RG::Graph& rende
 
             graph.SetShader("pbr-visibility-ibl.shader",
                 ShaderOverrides{
-                    ShaderOverride{
+                    ShaderSpecializationOverride{
                         "MAX_REFLECTION_LOD"_hsv,
                         (f32)ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
-                    ShaderOverride{"USE_TILED_LIGHTING"_hsv, useTiled},
-                    ShaderOverride{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
-                    ShaderOverride{"USE_HYBRID_LIGHTING"_hsv, useHybrid}});
+                    ShaderSpecializationOverride{"USE_TILED_LIGHTING"_hsv, useTiled},
+                    ShaderSpecializationOverride{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
+                    ShaderSpecializationOverride{"USE_HYBRID_LIGHTING"_hsv, useHybrid}});
 
             passData.Commands = graph.AddExternal("Commands"_hsv, info.Geometry->GetCommandsBuffer());
             passData.Objects = graph.AddExternal("Objects"_hsv,

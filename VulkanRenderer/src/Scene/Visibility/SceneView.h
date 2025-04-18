@@ -2,6 +2,7 @@
 
 #include "core.h"
 #include "Core/Camera.h"
+#include "String/StringId.h"
 
 /* todo: triangle culling ?
  * not a lot of possibilities are left for it to be useful:
@@ -22,9 +23,12 @@ CREATE_ENUM_FLAGS_OPERATORS(SceneVisibilityFlags)
 
 struct SceneView
 {
+    StringId Name{};
     Camera* Camera{nullptr};
     glm::uvec2 Resolution{};
     SceneVisibilityFlags VisibilityFlags{SceneVisibilityFlags::None};
+
+    auto operator==(const SceneView& other) const { return Name == other.Name; }
 };
 
 struct SceneViewGPU

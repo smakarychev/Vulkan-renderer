@@ -7,12 +7,12 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
     RG::Graph& renderGraph,
     const SceneMultiviewVisibility& sceneMultiviewVisibility)
 {
-    auto& set = *sceneMultiviewVisibility.ObjectSet();
+    auto& set = sceneMultiviewVisibility.ObjectSet();
     
     SceneVisibilityPassesResources resources = {};
-    resources.ViewCount = sceneMultiviewVisibility.ViewCount();
-    resources.RenderObjectCount = sceneMultiviewVisibility.ObjectSet()->RenderObjectCount();
-    resources.MeshletCount = sceneMultiviewVisibility.ObjectSet()->MeshletCount();
+    resources.VisibilityCount = sceneMultiviewVisibility.VisibilityCount();
+    resources.RenderObjectCount = set.RenderObjectCount();
+    resources.MeshletCount = set.MeshletCount();
 
     resources.ReferenceCommands = renderGraph.AddExternal("RederenceCommands"_hsv, set.Geometry().Commands.Buffer);
     resources.RenderObjects = renderGraph.AddExternal("RenderObjects"_hsv, set.Geometry().RenderObjects.Buffer);
@@ -21,14 +21,14 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
     resources.RenderObjectHandles = renderGraph.AddExternal("RenderObjectHandles"_hsv, set.RenderObjectHandles());
     resources.MeshletHandles = renderGraph.AddExternal("MeshletHandles"_hsv, set.MeshletHandles());
     resources.Views = renderGraph.CreateResource("View"_hsv, RG::GraphBufferDescription{
-        .SizeBytes = sizeof(SceneViewGPU) * resources.ViewCount});
+        .SizeBytes = sizeof(SceneViewGPU) * resources.VisibilityCount});
 
-    for (u32 i = 0; i < resources.ViewCount; i++)
+    for (u32 i = 0; i < resources.VisibilityCount; i++)
     {
         resources.RenderObjectVisibility[i] = renderGraph.AddExternal(StringId("Visibility.{}", i),
-            sceneMultiviewVisibility.Visibilities()[i]->RenderObjectVisibility());
+            sceneMultiviewVisibility.RenderObjectVisibility({i}));
         resources.MeshletVisibility[i] = renderGraph.AddExternal(StringId("MeshletVisibility.{}", i),
-            sceneMultiviewVisibility.Visibilities()[i]->MeshletVisibility());
+            sceneMultiviewVisibility.MeshletVisibility({i}));
         resources.MeshletBucketInfos[i] = renderGraph.CreateResource(StringId("MeshletInfos.{}", i),
             RG::GraphBufferDescription{.SizeBytes = sizeof(SceneMeshletBucketInfo) * resources.MeshletCount});
         resources.MeshletInfoCounts[i] = renderGraph.CreateResource(StringId("MeshletInfoCounts.{}", i),
@@ -41,12 +41,13 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
 void SceneVisibilityPassesResources::UploadViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
     RG::Graph& renderGraph)
 {
-    for (u32 i = 0; i < ViewCount; i++)
-        renderGraph.Upload(Views, sceneMultiviewVisibility.Visibilities()[i]->GetViewGPU(), i * sizeof(SceneViewGPU));
+    for (u32 i = 0; i < VisibilityCount; i++)
+        renderGraph.Upload(Views, SceneViewGPU::FromSceneView(sceneMultiviewVisibility.View({i})),
+            i * sizeof(SceneViewGPU));
 }
 
 void SceneVisibilityPassesResources::ResetMeshletCounts(RG::Graph& renderGraph)
 {
-    for (u32 i = 0; i < ViewCount; i++)
+    for (u32 i = 0; i < VisibilityCount; i++)
         renderGraph.Upload(MeshletInfoCounts[i], 0lu);
 }

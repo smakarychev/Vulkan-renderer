@@ -95,7 +95,9 @@ private:
     Scene m_Scene;
     SceneBucketList m_SceneBucketList;
     SceneRenderObjectSet m_OpaqueSet;
-    SceneVisibility m_OpaqueSetVisibility{};
+    SceneVisibilityHandle m_OpaqueSetVisibility{};
+    SceneView m_OpaqueSetPrimaryView{};
+    SceneView m_OpaqueSetOverheadView{};
     SceneMultiviewVisibility m_MultiviewVisibility{};
     SceneVisibilityPassesResources m_SceneVisibilityResources{};
     

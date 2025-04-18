@@ -7,7 +7,7 @@ namespace Passes::SceneMultiviewVisibilityHiz
 {
     struct ExecutionInfo
     {
-        ::SceneMultiviewVisibility* Visibility{nullptr};
+        ::SceneMultiviewVisibility* MultiviewVisibility{nullptr};
         SceneVisibilityPassesResources* Resources{nullptr};
         std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Depths{};
         std::array<ImageSubresourceDescription, SceneMultiviewVisibility::MAX_VIEWS> Subresources{};

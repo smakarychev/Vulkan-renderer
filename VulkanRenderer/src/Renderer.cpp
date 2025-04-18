@@ -41,6 +41,7 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/Passes/Scene/SceneFillIndirectDrawPass.h"
+#include "RenderGraph/Passes/Scene/SceneMetaDrawPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
@@ -200,14 +201,14 @@ void Renderer::InitRenderGraph()
             },
     }, Device::DeletionQueue());
 
-    m_OpaqueSetVisibility.Init({
-        .Set = &m_OpaqueSet,
-        .View = {
-            .Camera = m_Camera.get(),
-            .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
-            .VisibilityFlags = SceneVisibilityFlags::IsPrimaryView | SceneVisibilityFlags::OcclusionCull}},
-        Device::DeletionQueue());
-    m_MultiviewVisibility.AddVisibility(m_OpaqueSetVisibility);
+    const ScenePass& visibilityPass = m_OpaqueSet.FindPass("Visibility"_hsv);
+    m_MultiviewVisibility.Init(m_OpaqueSet);
+    m_OpaqueSetPrimaryView = {
+        .Name = "OpaquePrimary"_hsv,
+        .Camera = GetFrameContext().PrimaryCamera,
+        .Resolution = GetFrameContext().Resolution,
+        .VisibilityFlags = SceneVisibilityFlags::IsPrimaryView | SceneVisibilityFlags::OcclusionCull};
+    m_OpaqueSetVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView, Device::DeletionQueue());
     
     /* initial submit */
     Device::ImmediateSubmit([&](RenderCommandList& cmdList)
@@ -326,79 +327,108 @@ void Renderer::SetupRenderGraph()
     
     m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
         *m_Graph, m_MultiviewVisibility);
-    auto& opaqueBucket = m_OpaqueSet.FindPass("Visibility"_hsv).FindBucket("Opaque material"_hsv);
+    auto& pbrPass = m_OpaqueSet.FindPass("Visibility"_hsv);
+    auto& opaqueBucket = pbrPass.FindBucket("Opaque material"_hsv);
 
-    Passes::SceneDrawUnifiedBasic::ExecutionInfo ugbExecutionInfo = {
-        .Geometry = &m_Scene.Geometry(),
-        .Lights = &m_Scene.Lights(),
-        .Draws = opaqueBucket.Draws(),
-        .DrawInfos = opaqueBucket.DrawInfos(),
-        .Resolution = Device::GetSwapchainDescription(m_Swapchain).DrawResolution,
-        .Camera = GetFrameContext().PrimaryCamera,
-        .Attachments = {
-            .Colors = {DrawAttachment{
+    auto initUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
+    {
+        auto& ugb = Passes::SceneDrawUnifiedBasic::addToGraph(
+            name.Concatenate(".UGB"),
+            graph, {
+                .Geometry = &m_Scene.Geometry(),
+                .Lights = &m_Scene.Lights(),
+                .Draws = info.Draws,
+                .DrawInfo = info.DrawInfo,
+                .Resolution = info.Resolution,
+                .Camera = info.Camera,
+                .Attachments = info.Attachments});
+        auto& ugbOutput =
+            graph.GetBlackboard().Get<Passes::SceneDrawUnifiedBasic::PassData>(ugb);
+
+        return ugbOutput.Attachments;
+    };
+    DrawAttachments attachments = {
+        .Colors = {
+            DrawAttachment{
                 .Resource = backbuffer,
                 .Description = {
                     .OnLoad = AttachmentLoad::Clear,
-                    .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}}}},
-            .Depth = DepthStencilAttachment{
-                .Resource = depth,
-                .Description = {
-                    .OnLoad = AttachmentLoad::Clear,
-                    .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}}}}};
-    
-    auto& renderObjectVisibility = Passes::SceneMultiviewRenderObjectVisibility::addToGraph("SceneROVisibility"_hsv,
+                    .ClearColor = {.F = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)}
+                }
+            }
+        },
+        .Depth = DepthStencilAttachment{
+            .Resource = depth,
+            .Description = {
+                .OnLoad = AttachmentLoad::Clear,
+                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}
+            }
+        }
+    };
+    static Camera overhead = Camera::Perspective({
+        .BaseInfo = CameraCreateInfo{
+            .Position = glm::vec3(0.0f, 3.0f, 0.0f),
+            .Orientation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+            .Near = 0.1f,
+            .Far = 100.0f,
+            .ViewportWidth = 400,
+            .ViewportHeight = 400},
+        .Fov = glm::radians(90.0f)});
+    {
+        ImGui::Begin("OVERHEAD CAMERA");
+        auto position = overhead.GetPosition();
+        ImGui::DragFloat3("Pos", &position[0], 1e-2f);
+        overhead.SetPosition(position);
+        ImGui::End();
+    }
+    m_OpaqueSetOverheadView = {
+        .Name = "OpaqueOverhead"_hsv,
+        .Camera = &overhead,
+        .Resolution = glm::uvec2(400, 400),
+        .VisibilityFlags = SceneVisibilityFlags::None};
+    SceneDrawPassDescription opaqueUGBDraw = {
+        .Pass = &pbrPass,
+        .DrawPassInit = initUgbPass, 
+        .View = m_OpaqueSetPrimaryView,
+        .Visibility = m_OpaqueSetVisibility,
+        .Attachments = attachments
+    };
+    Resource overheadColor = m_Graph->CreateResource("OVERHEAD_COLOR"_hsv, GraphTextureDescription{
+        .Width = 400,
+        .Height = 400,
+        .Format = Format::RGBA16_FLOAT});
+    Resource overheadDepth = m_Graph->CreateResource("OVERHEAD_DEPTH"_hsv, GraphTextureDescription{
+        .Width = 400,
+        .Height = 400,
+        .Format = Format::D32_FLOAT});
+    attachments.Colors[0] = DrawAttachment{
+        .Resource = overheadColor,
+        .Description = {
+            .OnLoad = AttachmentLoad::Clear,
+            .ClearColor = {.F = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)}
+        }
+    };
+    attachments.Depth = DepthStencilAttachment{
+        .Resource = overheadDepth,
+        .Description = {
+            .OnLoad = AttachmentLoad::Clear,
+        }
+    };
+    SceneDrawPassDescription opaqueUGBOverheadDraw = {
+        .Pass = &pbrPass,
+        .DrawPassInit = initUgbPass, 
+        .View = m_OpaqueSetOverheadView,
+        .Visibility = m_OpaqueSetVisibility,
+        .Attachments = attachments
+    };
+    auto& metaUgb = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
         *m_Graph, {
-            .Visibility = &m_MultiviewVisibility,
+            .MultiviewVisibility = &m_MultiviewVisibility,
             .Resources = &m_SceneVisibilityResources,
-            .Stage = SceneVisibilityStage::Cull});
-    auto& meshletVisibility = Passes::SceneMultiviewMeshletVisibility::addToGraph("SceneMeshletVisibility"_hsv,
-        *m_Graph, {
-            .Visibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
-            .Stage = SceneVisibilityStage::Cull});
-    auto& fillIndirectDraws = Passes::SceneFillIndirectDraw::addToGraph("FillSceneIndirectDraws"_hsv, *m_Graph, {
-        .Geometry = &m_Scene.Geometry(),
-        .RenderObjectSet = &m_OpaqueSet,
-        .MeshletInfos = m_SceneVisibilityResources.MeshletBucketInfos[0],
-        .MeshletInfoCount = m_SceneVisibilityResources.MeshletInfoCounts[0]});
-    
-    auto& ugb = Passes::SceneDrawUnifiedBasic::addToGraph("UGB"_hsv, *m_Graph, ugbExecutionInfo);
-    auto& ugbOutput = blackboard.Get<Passes::SceneDrawUnifiedBasic::PassData>(ugb);
-    depth = *ugbOutput.Attachments.Depth;
-    backbuffer = ugbOutput.Attachments.Colors[0];
-    
-    auto& hizMultiview = Passes::SceneMultiviewVisibilityHiz::addToGraph("HizMultiview"_hsv,
-        *m_Graph, {
-            .Visibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
-            .Depths = {depth},
-            .Subresources = {ImageSubresourceDescription{}}});
-
-    auto& renderObjectVisibilityReocclusion = Passes::SceneMultiviewRenderObjectVisibility::addToGraph(
-        "SceneROVisibilityReocclusion"_hsv,
-        *m_Graph, {
-            .Visibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
-            .Stage = SceneVisibilityStage::Reocclusion});
-    auto& meshletVisibilityReocclusion = Passes::SceneMultiviewMeshletVisibility::addToGraph(
-        "SceneMeshletVisibilityReocclusion"_hsv,
-        *m_Graph, {
-            .Visibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
-            .Stage = SceneVisibilityStage::Reocclusion});
-    auto& fillIndirectDrawsReocclusion = Passes::SceneFillIndirectDraw::addToGraph(
-        "FillSceneIndirectDrawsReocclusion"_hsv, *m_Graph, {
-        .Geometry = &m_Scene.Geometry(),
-        .RenderObjectSet = &m_OpaqueSet,
-        .MeshletInfos = m_SceneVisibilityResources.MeshletBucketInfos[0],
-        .MeshletInfoCount = m_SceneVisibilityResources.MeshletInfoCounts[0]});
-
-    ugbExecutionInfo.Attachments.Colors[0].Description.OnLoad = AttachmentLoad::Load;
-    ugbExecutionInfo.Attachments.Depth->Description.OnLoad = AttachmentLoad::Load;
-    auto& ugbReocclusion = Passes::SceneDrawUnifiedBasic::addToGraph("UGBReocclusion"_hsv, *m_Graph, ugbExecutionInfo);
-    auto& ugbReocclusionOutput = blackboard.Get<Passes::SceneDrawUnifiedBasic::PassData>(ugbReocclusion);
-    depth = *ugbReocclusionOutput.Attachments.Depth;
+            .DrawPasses = {opaqueUGBDraw, opaqueUGBOverheadDraw}});
+    auto& metaOutput = m_Graph->GetBlackboard().Get<Passes::SceneMetaDraw::PassData>(metaUgb);
+    Passes::ImGuiTexture::addToGraph("OVERHEAD"_hsv, *m_Graph,
+        metaOutput.DrawPassViewAttachments.Get(m_OpaqueSetOverheadView.Name, pbrPass.Name()).Colors[0].Resource);
     
     auto& hizVisualize = Passes::HiZVisualize::addToGraph("HizVisualize"_hsv, *m_Graph,
         {m_SceneVisibilityResources.Hiz[0]});
@@ -704,7 +734,7 @@ void Renderer::OnRender()
     m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
     m_Scene.Lights().OnUpdate(GetFrameContext());
     m_OpaqueSet.OnUpdate(GetFrameContext());
-    m_OpaqueSetVisibility.OnUpdate(GetFrameContext());
+    m_MultiviewVisibility.OnUpdate(GetFrameContext());
 
     if (Input::GetKey(Key::Space))
     {

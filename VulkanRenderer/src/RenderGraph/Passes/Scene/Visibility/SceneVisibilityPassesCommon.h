@@ -21,7 +21,7 @@ struct SceneVisibilityPassesResources
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MeshletBucketInfos{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MeshletInfoCounts{};
     
-    u32 ViewCount{0};
+    u32 VisibilityCount{0};
     u32 RenderObjectCount{0};
     u32 MeshletCount{0};
     
