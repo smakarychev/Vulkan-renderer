@@ -60,7 +60,7 @@ PipelineLayout Shader::GetLayout() const
 ShaderOverridesView Shader::CopyOverrides() const
 {
     ShaderOverridesView view = {};
-    view.Hash = ShaderCache::s_Pipelines[m_Pipeline].SpecializationsHash;
+    view.Specializations.Hash = ShaderCache::s_Pipelines[m_Pipeline].SpecializationsHash;
     
     return view;
 }
@@ -128,7 +128,7 @@ const Shader& ShaderCache::Register(StringId name, std::string_view path, Shader
     {
         /* if this is completely new shader */
         pipeline = (u32)s_Pipelines.size();
-        const u64 specializationsHash = overrides.Hash;
+        const u64 specializationsHash = overrides.Specializations.Hash;
         shaderProxy = ReloadShader(fullPath, ReloadType::PipelineDescriptors, std::move(overrides));
         s_Pipelines.push_back({
             .Pipeline = shaderProxy.Pipeline,
@@ -157,7 +157,7 @@ const Shader& ShaderCache::Register(StringId name, const Shader* shader, ShaderO
      *   case 2a) is an early exit, since it does not produce any entries in `s_Shaders` and other arrays
      */
 
-    const u64 specializationsHash = overrides.Hash;
+    const u64 specializationsHash = overrides.Specializations.Hash;
     ShaderProxy shaderProxy = {};
     /* 2a) */
     if (s_ShadersMap.contains(name))
@@ -240,7 +240,7 @@ void ShaderCache::HandleShaderModification(std::string_view path)
         deletedPipelines[pipelineIndex] = true;
         s_FrameDeletionQueue->Enqueue(s_Pipelines[pipelineIndex].Pipeline);
         
-        /* when the `ShaderOverrides` has non-zero hash, it means that there are some overloads,
+        /* when the `ShaderSpecializations` has non-zero hash, it means that there are some overloads,
          * so this Reload operation will be useless, as we will have to reload it once more
          * with correct overloads; so instead we simply set pipeline overload hash to zero, thus
          * triggering reload on the next access operation
@@ -411,7 +411,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             .CullMode = cullMode,
             .AlphaBlending = alphaBlending,
             .PrimitiveKind = primitiveKind,
-            .Specialization = overrides.ToPipelineSpecializationsView(*shaderTemplate),
+            .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
             .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
             .UseDescriptorBuffer = true,
             .ClampDepth = clampDepth},

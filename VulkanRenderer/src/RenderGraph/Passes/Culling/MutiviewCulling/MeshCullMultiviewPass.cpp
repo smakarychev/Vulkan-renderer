@@ -16,9 +16,9 @@ RG::Pass& Passes::Multiview::MeshCull::addToGraph(StringId name, RG::Graph& rend
             CPU_PROFILE_FRAME("Mesh.Cull.Multiview.Setup")
 
             graph.SetShader("mesh-cull-multiview.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
-                    ShaderSpecializationOverride{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
+                    ShaderSpecialization{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
             
             RgUtils::readWriteCullMeshMultiview(*info.MultiviewResource, graph);
             

@@ -4,14 +4,14 @@
 #include "String/StringId.h"
 
 template <typename T>
-struct ShaderSpecializationOverride
+struct ShaderSpecialization
 {
     StringId Name;
     T Value;
 
     static_assert(!std::is_pointer_v<T>);
     
-    constexpr usize SizeBytes() const
+    constexpr u32 SizeBytes() const
     {
         if constexpr (std::is_same_v<std::decay_t<T>, bool>)
             return sizeof(u32);
@@ -32,9 +32,9 @@ struct ShaderSpecializationOverride
 };
 
 template <typename ...Args>
-struct ShaderOverrides
+struct ShaderSpecializations
 {
-    constexpr ShaderOverrides(Args&&... args)
+    constexpr ShaderSpecializations(Args&&... args)
     {
         CopyDataToArray(std::index_sequence_for<Args...>{}, std::tuple(std::forward<Args>(args)...));
     }
@@ -63,7 +63,7 @@ private:
                 std::get<Is>(tupleArgs).Name.Hash() ^
                 Hash::bytes(
                     &std::get<Is>(tupleArgs).Value,
-                    sizeof(&std::get<Is>(tupleArgs).Value))),
+                    sizeof(std::get<Is>(tupleArgs).Value))),
             Names[Is] = std::move(std::get<Is>(tupleArgs).Name),
             Descriptions[Is] = PipelineSpecializationDescription{
                 .SizeBytes = (u32)std::get<Is>(tupleArgs).SizeBytes(),
@@ -73,16 +73,82 @@ private:
     }
 };
 
-struct ShaderOverridesView
+struct ShaderDynamicSpecializations
+{
+    template <typename ...Args>
+    constexpr ShaderDynamicSpecializations(Args&&... args)
+    {
+        CopyDataToVector(std::index_sequence_for<Args...>{}, std::tuple(std::forward<Args>(args)...));
+    }
+
+    template <typename T>
+    ShaderDynamicSpecializations& Add(const ShaderSpecialization<T>& specialization);
+
+    std::vector<std::byte> Data;
+    std::vector<StringId> Names;
+    std::vector<PipelineSpecializationDescription> Descriptions;
+    u64 Hash{0};
+private:
+    template <std::size_t... Is, typename ...Args>
+    constexpr void CopyDataToVector(std::index_sequence<Is...> seq, std::tuple<Args...>&& tupleArgs)
+    {
+        Data.resize((std::get<Is>(std::tuple<Args...>{}).SizeBytes() + ...));
+        Names.resize(seq.size());
+        Descriptions.resize(seq.size());
+        u32 offset = 0;
+        ((
+            Hash::combine(
+                Hash,
+                std::get<Is>(tupleArgs).Name.Hash() ^
+                Hash::bytes(
+                    &std::get<Is>(tupleArgs).Value,
+                    sizeof(std::get<Is>(tupleArgs).Value))),
+            Names[Is] = std::move(std::get<Is>(tupleArgs).Name),
+            Descriptions[Is] = PipelineSpecializationDescription{
+                .SizeBytes = std::get<Is>(tupleArgs).SizeBytes(),
+                .Offset = offset},
+            std::get<Is>(tupleArgs).CopyTo(Data.data() + offset), offset += std::get<Is>(tupleArgs).SizeBytes()),
+            ...);
+    }
+};
+
+template <typename T>
+ShaderDynamicSpecializations& ShaderDynamicSpecializations::Add(const ShaderSpecialization<T>& specialization)
+{
+    Hash::combine(Hash, specialization.Name.Hash() ^ Hash::bytes(&specialization.Value, sizeof(specialization.Value)));
+    const u32 offset = (u32)Data.size();
+    Names.push_back(specialization.Name);
+    Descriptions.push_back(PipelineSpecializationDescription{
+        .SizeBytes = specialization.SizeBytes(),
+        .Offset = offset});
+    Data.resize(offset + specialization.SizeBytes());
+    specialization.CopyTo(Data.data() + offset);
+
+    return *this;
+}
+
+struct ShaderSpecializationsView
 {
     Span<const std::byte> Data{};
     Span<const StringId> Names{};
     Span<PipelineSpecializationDescription> Descriptions{};
     u64 Hash{0};
 
+    ShaderSpecializationsView() = default;
+    template <typename ...Args>
+    constexpr ShaderSpecializationsView(ShaderSpecializations<Args...>&& specializations)
+        :
+        Data(specializations.Data), Names(specializations.Names), Descriptions(specializations.Descriptions),
+        Hash(specializations.Hash) {}
+    PipelineSpecializationsView ToPipelineSpecializationsView(ShaderPipelineTemplate& shaderTemplate);
+};
+
+struct ShaderOverridesView
+{
+    ShaderSpecializationsView Specializations;
+
     ShaderOverridesView() = default;
     template <typename ...Args>
-    constexpr ShaderOverridesView(ShaderOverrides<Args...>&& overrides)
-        : Data(overrides.Data), Names(overrides.Names), Descriptions(overrides.Descriptions), Hash(overrides.Hash) {}
-    PipelineSpecializationsView ToPipelineSpecializationsView(ShaderPipelineTemplate& shaderTemplate);
+    constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations) :
+        Specializations(std::forward<ShaderSpecializations<Args...>&&>(specializations)) {}
 };

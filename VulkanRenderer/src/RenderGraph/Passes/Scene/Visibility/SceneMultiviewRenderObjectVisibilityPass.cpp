@@ -15,8 +15,8 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
             CPU_PROFILE_FRAME("RenderObjectVisibilityPass.Setup")
 
             graph.SetShader("scene-multiview-render-object-visibility.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
             
             auto& multiview = *info.MultiviewVisibility;
             

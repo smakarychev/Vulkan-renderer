@@ -31,8 +31,8 @@ namespace Passes::HiZBlit
                 CPU_PROFILE_FRAME("HiZ.Blit.Setup")
 
                 graph.SetShader("hiz.shader",
-                    ShaderOverrides{
-                        ShaderSpecializationOverride{"DEPTH_MIN_MAX"_hsv, info.CalculateMinMax}});
+                    ShaderSpecializations{
+                        ShaderSpecialization{"DEPTH_MIN_MAX"_hsv, info.CalculateMinMax}});
 
                 Resource depth = info.Depth;
                 Resource hiz = HiZ::createHiz(graph, graph.GetTextureDescription(depth).Dimensions());

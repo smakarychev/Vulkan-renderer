@@ -11,9 +11,8 @@
 #include "RGResourceUploader.h"
 #include "Vulkan/Device.h"
 
-struct CVarParameter;
-
 struct ShaderOverridesView;
+struct CVarParameter;
 class Shader;
 
 namespace RG

@@ -16,8 +16,8 @@ RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG:
             CPU_PROFILE_FRAME("MeshletVisibilityPass.Setup")
 
             graph.SetShader("scene-multiview-meshlet-visibility.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
             
             auto& multiview = *info.MultiviewVisibility;
             

@@ -129,8 +129,8 @@ RG::Pass& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMol
             CPU_PROFILE_FRAME("Slime.Update.Setup")
             
             graph.SetShader("slime.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"SLIME_MAP_STAGE"_hsv, true}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"SLIME_MAP_STAGE"_hsv, true}});
             
             passData.Traits = graph.AddExternal("Update.Traits"_hsv, ctx.GetTraitsBuffer());
             passData.Traits = graph.Read(passData.Traits, Compute | Storage);
@@ -208,8 +208,8 @@ RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMo
             CPU_PROFILE_FRAME("Slime.Diffuse.Setup")
             
             graph.SetShader("slime.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"SLIME_DIFFUSE_STAGE"_hsv, true}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"SLIME_DIFFUSE_STAGE"_hsv, true}});
 
             passData.SlimeMap = updateOutput.SlimeMap;
             passData.SlimeMap = graph.Read(passData.SlimeMap, Compute | Storage);
@@ -270,8 +270,8 @@ RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldConte
             CPU_PROFILE_FRAME("Gradient.Slime.Setup")
 
             graph.SetShader("slime.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"SLIME_GRADIENT_STAGE"_hsv, true}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"SLIME_GRADIENT_STAGE"_hsv, true}});
 
             passData.DiffuseMap = diffuseOutput.DiffuseMap;
             passData.DiffuseMap = graph.Read(passData.DiffuseMap, Compute | Storage);

@@ -17,8 +17,8 @@ RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, RG
             CPU_PROFILE_FRAME("SSAO.Blur.Setup")
 
             graph.SetShader("ssao-blur.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"IS_VERTICAL"_hsv, kind == SsaoBlurPassKind::Vertical}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"IS_VERTICAL"_hsv, kind == SsaoBlurPassKind::Vertical}});
             
             const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
             passData.SsaoOut = RgUtils::ensureResource(colorOut, graph, "ColorOut"_hsv,

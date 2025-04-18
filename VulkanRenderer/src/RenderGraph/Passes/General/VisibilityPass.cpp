@@ -56,8 +56,8 @@ RG::Pass& Passes::Draw::Visibility::addToGraph(StringId name, RG::Graph& renderG
                             StringId("{}.Draw.{}.{}",
                                 name, executionInfo.Triangles.IsValid(), executionInfo.ExecutionId),
                             "visibility.shader", 
-                            ShaderOverrides{
-                                ShaderSpecializationOverride{"COMPOUND_INDEX"_hsv, executionInfo.Triangles.IsValid()}});
+                            ShaderSpecializations{
+                                ShaderSpecialization{"COMPOUND_INDEX"_hsv, executionInfo.Triangles.IsValid()}});
                         VisibilityShaderBindGroup bindGroup(shader);
                         
                         bindGroup.SetCamera({.Buffer = resources.GetBuffer(executionInfo.Camera)});

@@ -24,8 +24,8 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& rend
             CPU_PROFILE_FRAME("DiffuseIrradianceSH.Setup")
 
             graph.SetShader("diffuse-irradiance-sh.shader",
-                ShaderOverrides{
-                    ShaderSpecializationOverride{"REAL_TIME"_hsv, realTime}});
+                ShaderSpecializations{
+                    ShaderSpecialization{"REAL_TIME"_hsv, realTime}});
             
             passData.DiffuseIrradiance = graph.AddExternal("DiffuseIrradianceSH"_hsv, irradianceSH);
             

@@ -96,9 +96,9 @@ RG::Pass& Passes::Multiview::TriangleCull::addToGraph(StringId name, RG::Graph& 
             {
                 ShaderCache::Register(name.AddVersion(i),
                     "triangle-cull-multiview.shader",
-                    ShaderOverrides{
-                        ShaderSpecializationOverride{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
-                        ShaderSpecializationOverride{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
+                    ShaderSpecializations{
+                        ShaderSpecialization{"REOCCLUSION"_hsv, stage == CullStage::Reocclusion},
+                        ShaderSpecialization{"SINGLE_PASS"_hsv, stage == CullStage::Single}});
                 ShaderCache::Register(StringId("{}.PrepareDraw.{}", name, i),
                     "prepare-draws-multiview.shader", {});
             }

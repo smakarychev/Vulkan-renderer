@@ -50,10 +50,10 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(StringId name, RG::Graph& render
                             StringId("{}.Draw.{}.{}",
                                 name, executionInfo.Triangles.IsValid(), executionInfo.ExecutionId),
                             "pbr-forward.shader",
-                            ShaderOverrides{
-                                ShaderSpecializationOverride{"MAX_REFLECTION_LOD"_hsv,
+                            ShaderSpecializations{
+                                ShaderSpecialization{"MAX_REFLECTION_LOD"_hsv,
                                     (f32)ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
-                                ShaderSpecializationOverride{"COMPOUND_INDEX"_hsv, executionInfo.Triangles.IsValid()}});
+                                ShaderSpecialization{"COMPOUND_INDEX"_hsv, executionInfo.Triangles.IsValid()}});
                         PbrForwardShaderBindGroup bindGroup(shader);
                         
                         bindGroup.SetCamera({.Buffer = resources.GetBuffer(executionInfo.Camera)});
