@@ -2,7 +2,7 @@
 
 #include "FrameContext.h"
 #include "Shader.h"
-#include "String/StringUnorderedMap.h"
+#include "String/StringHeterogeneousHasher.h"
 #include "String/StringId.h"
 
 #include "ShaderOverrides.h"

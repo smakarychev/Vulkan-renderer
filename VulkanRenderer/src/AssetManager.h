@@ -3,7 +3,7 @@
 #include <unordered_map>
 
 #include "Rendering/Image/Image.h"
-#include "String/StringUnorderedMap.h"
+#include "String/StringHeterogeneousHasher.h"
 
 class SceneInfo;
 class Model;

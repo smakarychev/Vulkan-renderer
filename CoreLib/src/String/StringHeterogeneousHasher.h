@@ -3,6 +3,7 @@
 #include "types.h"
 
 #include <unordered_map>
+#include <unordered_set>
 
 struct StringHeterogeneousHasher
 {
@@ -16,3 +17,4 @@ struct StringHeterogeneousHasher
 
 template <typename T>
 using StringUnorderedMap = std::unordered_map<std::string, T, StringHeterogeneousHasher, std::equal_to<>>;
+using StringUnorderedSet = std::unordered_set<std::string, StringHeterogeneousHasher, std::equal_to<>>;
