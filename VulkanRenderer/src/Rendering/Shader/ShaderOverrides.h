@@ -75,6 +75,11 @@ private:
 
 struct ShaderDynamicSpecializations
 {
+    std::vector<std::byte> Data;
+    std::vector<StringId> Names;
+    std::vector<PipelineSpecializationDescription> Descriptions;
+    u64 Hash{0};
+    
     template <typename ...Args>
     constexpr ShaderDynamicSpecializations(Args&&... args)
     {
@@ -83,11 +88,6 @@ struct ShaderDynamicSpecializations
 
     template <typename T>
     ShaderDynamicSpecializations& Add(const ShaderSpecialization<T>& specialization);
-
-    std::vector<std::byte> Data;
-    std::vector<StringId> Names;
-    std::vector<PipelineSpecializationDescription> Descriptions;
-    u64 Hash{0};
 private:
     template <std::size_t... Is, typename ...Args>
     constexpr void CopyDataToVector(std::index_sequence<Is...> seq, std::tuple<Args...>&& tupleArgs)
@@ -143,12 +143,69 @@ struct ShaderSpecializationsView
     PipelineSpecializationsView ToPipelineSpecializationsView(ShaderPipelineTemplate& shaderTemplate);
 };
 
+struct ShaderDefine
+{
+    StringId Name{};
+    std::string Value{};
+    
+    ShaderDefine() = default;
+    constexpr ShaderDefine(StringId name) : Name(name) {}
+    template <typename T>
+    requires requires(T val)
+    {
+        { std::to_string(val) } -> std::same_as<std::string>;
+    }
+    constexpr ShaderDefine(StringId name, T&& value) : Name(name), Value(std::to_string(std::forward<T>(value))) {}
+    template <typename T>
+    constexpr ShaderDefine(StringId name, T&& value) : Name(name), Value(std::forward<T>(value)) {}
+};
+
+struct ShaderDefines
+{
+    std::vector<ShaderDefine> Defines;
+    u64 Hash{0};
+    
+    template <typename ...Args>
+    constexpr ShaderDefines(Args&&... args)
+    {
+        CopyDataToVector(std::index_sequence_for<Args...>{}, std::tuple(std::forward<Args>(args)...));
+    }
+private:
+    template <std::size_t... Is, typename ...Args>
+    constexpr void CopyDataToVector(std::index_sequence<Is...> seq, std::tuple<Args...>&& tupleArgs)
+    {
+        Defines.resize(seq.size());
+        ((
+            Hash::combine(
+                Hash,
+                std::get<Is>(tupleArgs).Name.Hash() ^
+                Hash::string(std::get<Is>(tupleArgs).Value)),
+            Defines[Is] = std::move(std::get<Is>(tupleArgs))),
+            ...);
+    }
+};
+
+struct ShaderDefinesView
+{
+    Span<const ShaderDefine> Defines{};
+    u64 Hash{0};
+    
+    ShaderDefinesView() = default;
+    constexpr ShaderDefinesView(ShaderDefines&& defines) : Defines(defines.Defines), Hash(defines.Hash) {}
+};
+
 struct ShaderOverridesView
 {
     ShaderSpecializationsView Specializations;
+    ShaderDefinesView Defines;
 
     ShaderOverridesView() = default;
     template <typename ...Args>
     constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations) :
-        Specializations(std::forward<ShaderSpecializations<Args...>&&>(specializations)) {}
+        Specializations(std::forward<ShaderSpecializations<Args...>>(specializations)) {}
+    template <typename ...Args>
+    constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations, ShaderDefines&& defines)
+        :
+        Specializations(std::forward<ShaderSpecializations<Args...>>(specializations)),
+        Defines(std::forward<ShaderDefines>(defines)) {}
 };
