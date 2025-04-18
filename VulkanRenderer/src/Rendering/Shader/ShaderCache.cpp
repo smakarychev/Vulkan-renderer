@@ -21,6 +21,7 @@ std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
 std::unordered_map<StringId, Descriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
+std::mutex g_FileUpdateMutex;
 std::vector<std::pair<std::string, std::string>> ShaderCache::s_ToRename = {};
 std::vector<std::filesystem::path> ShaderCache::s_ToReload = {};
 
@@ -88,6 +89,8 @@ void ShaderCache::Shutdown()
 void ShaderCache::OnFrameBegin(FrameContext& ctx)
 {
     s_FrameDeletionQueue = &ctx.DeletionQueue;
+
+    std::lock_guard lock(g_FileUpdateMutex);
 
     for (auto&& [newName, oldName] : s_ToRename)
         HandleRename(newName, oldName);
@@ -548,6 +551,8 @@ void ShaderCache::InitFileWatcher()
             /* is it possible that file is deleted or renamed before we begin to process it */
             if (!std::filesystem::exists(filePath) || std::filesystem::is_directory(filePath))
                 return;
+
+            std::lock_guard lock(g_FileUpdateMutex);
 
             if (fileUpdateData.Action == efsw::Action::Moved)
             {
