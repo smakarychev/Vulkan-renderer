@@ -94,7 +94,7 @@ private:
     {
         Pipeline Pipeline;
         PipelineLayout PipelineLayout;
-        u64 SpecializationsHash{0};
+        u64 OverridesHash{0};
     };
     static std::vector<PipelineData> s_Pipelines;
 

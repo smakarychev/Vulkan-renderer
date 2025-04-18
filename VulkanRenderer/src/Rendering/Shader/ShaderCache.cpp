@@ -60,7 +60,7 @@ PipelineLayout Shader::GetLayout() const
 ShaderOverridesView Shader::CopyOverrides() const
 {
     ShaderOverridesView view = {};
-    view.Specializations.Hash = ShaderCache::s_Pipelines[m_Pipeline].SpecializationsHash;
+    view.Hash = ShaderCache::s_Pipelines[m_Pipeline].OverridesHash;
     
     return view;
 }
@@ -128,12 +128,12 @@ const Shader& ShaderCache::Register(StringId name, std::string_view path, Shader
     {
         /* if this is completely new shader */
         pipeline = (u32)s_Pipelines.size();
-        const u64 specializationsHash = overrides.Specializations.Hash;
+        const u64 overridesHash = overrides.Hash;
         shaderProxy = ReloadShader(fullPath, ReloadType::PipelineDescriptors, std::move(overrides));
         s_Pipelines.push_back({
             .Pipeline = shaderProxy.Pipeline,
             .PipelineLayout = shaderProxy.PipelineLayout,
-            .SpecializationsHash = specializationsHash});
+            .OverridesHash = overridesHash});
     }
     else
     {
@@ -157,12 +157,12 @@ const Shader& ShaderCache::Register(StringId name, const Shader* shader, ShaderO
      *   case 2a) is an early exit, since it does not produce any entries in `s_Shaders` and other arrays
      */
 
-    const u64 specializationsHash = overrides.Specializations.Hash;
+    const u64 overridesHash = overrides.Hash;
     ShaderProxy shaderProxy = {};
     /* 2a) */
     if (s_ShadersMap.contains(name))
     {
-        if (s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].SpecializationsHash == specializationsHash)
+        if (s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline].OverridesHash == overridesHash)
             return *s_ShadersMap.find(name)->second;
 
         shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Pipeline, std::move(overrides));
@@ -170,7 +170,7 @@ const Shader& ShaderCache::Register(StringId name, const Shader* shader, ShaderO
         s_Pipelines[s_ShadersMap.find(name)->second->m_Pipeline] = {
             .Pipeline = shaderProxy.Pipeline,
             .PipelineLayout = shaderProxy.PipelineLayout,
-            .SpecializationsHash = specializationsHash};
+            .OverridesHash = overridesHash};
             
         return *s_ShadersMap.find(name)->second;
     }
@@ -178,7 +178,7 @@ const Shader& ShaderCache::Register(StringId name, const Shader* shader, ShaderO
     u32 pipeline = {};
 
     /* 1) */
-    if (s_Pipelines[shader->m_Pipeline].SpecializationsHash == specializationsHash)
+    if (s_Pipelines[shader->m_Pipeline].OverridesHash == overridesHash)
     {
         pipeline = shader->m_Pipeline;
         shaderProxy = ReloadShader(shader->m_FilePath, ReloadType::Descriptors, std::move(overrides));
@@ -191,7 +191,7 @@ const Shader& ShaderCache::Register(StringId name, const Shader* shader, ShaderO
         s_Pipelines.push_back({
             .Pipeline = shaderProxy.Pipeline,
             .PipelineLayout = shaderProxy.PipelineLayout,
-            .SpecializationsHash = specializationsHash});
+            .OverridesHash = overridesHash});
     }
 
     return AddShader(name, pipeline, shaderProxy, shader->m_FilePath);
@@ -240,14 +240,14 @@ void ShaderCache::HandleShaderModification(std::string_view path)
         deletedPipelines[pipelineIndex] = true;
         s_FrameDeletionQueue->Enqueue(s_Pipelines[pipelineIndex].Pipeline);
         
-        /* when the `ShaderSpecializations` has non-zero hash, it means that there are some overloads,
+        /* when the `ShaderOverrides` has non-zero hash, it means that there are some overloads,
          * so this Reload operation will be useless, as we will have to reload it once more
          * with correct overloads; so instead we simply set pipeline overload hash to zero, thus
          * triggering reload on the next access operation
          */
-        if (s_Pipelines[pipelineIndex].SpecializationsHash != 0)
+        if (s_Pipelines[pipelineIndex].OverridesHash != 0)
         {
-            s_Pipelines[pipelineIndex].SpecializationsHash = 0;
+            s_Pipelines[pipelineIndex].OverridesHash = 0;
             continue;
         }
         
