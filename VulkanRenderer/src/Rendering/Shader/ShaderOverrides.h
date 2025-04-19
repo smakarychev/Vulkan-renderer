@@ -3,9 +3,13 @@
 #include "Rendering/Pipeline.h"
 #include "String/StringId.h"
 
+#include <ranges>
+
 template <typename T>
 struct ShaderSpecialization
 {
+    using Type = T;
+    
     StringId Name;
     T Value;
 
@@ -31,10 +35,16 @@ struct ShaderSpecialization
     }
 };
 
+template <typename T>
+concept ShaderSpecializationConcept = requires {
+    requires std::same_as<T, ShaderSpecialization<typename T::Type>>;
+};
+
 template <typename ...Args>
 struct ShaderSpecializations
 {
     constexpr ShaderSpecializations(Args&&... args)
+    requires (ShaderSpecializationConcept<Args> && ...)
     {
         CopyDataToArray(std::index_sequence_for<Args...>{}, std::tuple(std::forward<Args>(args)...));
     }
@@ -82,6 +92,7 @@ struct ShaderDynamicSpecializations
 
     constexpr ShaderDynamicSpecializations() = default;
     template <typename ...Args>
+    requires (ShaderSpecializationConcept<Args> && ...)
     constexpr ShaderDynamicSpecializations(Args&&... args)
     {
         CopyDataToVector(std::index_sequence_for<Args...>{}, std::tuple(std::forward<Args>(args)...));
@@ -171,23 +182,21 @@ struct ShaderDefines
     u64 Hash{0};
 
     constexpr ShaderDefines() = default;
-    template <typename ...Args>
-    constexpr ShaderDefines(Args&&... args)
+    constexpr ShaderDefines(Span<const ShaderDefine> defines)
     {
-        CopyDataToVector(std::index_sequence_for<Args...>{}, std::tuple(std::forward<Args>(args)...));
+        Defines.resize(defines.size());
+        for (auto&& [i, define] : std::ranges::views::enumerate(defines))
+        {
+            Hash::combine(Hash, define.Name.Hash() ^ Hash::string(define.Value)),
+            Defines[i] = std::move(define);      
+        }
     }
-private:
-    template <std::size_t... Is, typename ...Args>
-    constexpr void CopyDataToVector(std::index_sequence<Is...> seq, std::tuple<Args...>&& tupleArgs)
+    ShaderDefines& Add(const ShaderDefine& define)
     {
-        Defines.resize(seq.size());
-        ((
-            Hash::combine(
-                Hash,
-                std::get<Is>(tupleArgs).Name.Hash() ^
-                Hash::string(std::get<Is>(tupleArgs).Value)),
-            Defines[Is] = std::move(std::get<Is>(tupleArgs))),
-            ...);
+        Hash::combine(Hash, define.Name.Hash() ^ Hash::string(define.Value));
+        Defines.push_back(define);
+
+        return *this;
     }
 };
 
