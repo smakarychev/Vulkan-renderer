@@ -152,7 +152,7 @@ struct ShaderSpecializationsView
         :
         Data(specializations.Data), Names(specializations.Names), Descriptions(specializations.Descriptions),
         Hash(specializations.Hash) {}
-    constexpr ShaderSpecializationsView(ShaderDynamicSpecializations&& specializations)
+    constexpr ShaderSpecializationsView(ShaderDynamicSpecializations& specializations)
         :
         Data(specializations.Data), Names(specializations.Names), Descriptions(specializations.Descriptions),
         Hash(specializations.Hash) {}
@@ -206,7 +206,7 @@ struct ShaderDefinesView
     u64 Hash{0};
     
     constexpr ShaderDefinesView() = default;
-    constexpr ShaderDefinesView(ShaderDefines&& defines) : Defines(defines.Defines), Hash(defines.Hash) {}
+    constexpr ShaderDefinesView(const ShaderDefines& defines) : Defines(defines.Defines), Hash(defines.Hash) {}
 };
 
 struct ShaderPipelineOverrides
@@ -281,6 +281,14 @@ struct ShaderOverridesView
     u64 Hash{0};
 
     constexpr ShaderOverridesView() = default;
+    constexpr ShaderOverridesView(ShaderOverrides& overrides)
+        :
+        Specializations(overrides.Specializations),
+        Defines(overrides.Defines),
+        PipelineOverrides(overrides.PipelineOverrides),
+        Hash(overrides.Hash)
+    {}
+    
     template <typename ...Args>
     constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations,
         ShaderPipelineOverrides&& pipelineOverrides = {})
@@ -292,10 +300,10 @@ struct ShaderOverridesView
         Hash::combine(Hash, Defines.Hash);
         Hash::combine(Hash, pipelineOverrides.Hash());
     }
-    constexpr ShaderOverridesView(ShaderDynamicSpecializations&& specializations,
+    constexpr ShaderOverridesView(ShaderDynamicSpecializations& specializations,
         ShaderPipelineOverrides&& pipelineOverrides = {})
         :
-        Specializations(std::forward<ShaderDynamicSpecializations>(specializations)),
+        Specializations(specializations),
         PipelineOverrides(pipelineOverrides),
         Hash(Specializations.Hash)
     {
@@ -323,10 +331,10 @@ struct ShaderOverridesView
         Hash::combine(Hash, Defines.Hash);
         Hash::combine(Hash, pipelineOverrides.Hash());
     }
-    constexpr ShaderOverridesView(ShaderDynamicSpecializations&& specializations, ShaderDefines&& defines,
+    constexpr ShaderOverridesView(ShaderDynamicSpecializations& specializations, ShaderDefines&& defines,
         ShaderPipelineOverrides&& pipelineOverrides = {})
         :
-        Specializations(std::forward<ShaderDynamicSpecializations>(specializations)),
+        Specializations(specializations),
         Defines(std::forward<ShaderDefines>(defines)),
         PipelineOverrides(pipelineOverrides),
         Hash(Specializations.Hash)
