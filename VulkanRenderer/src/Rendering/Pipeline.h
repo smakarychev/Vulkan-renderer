@@ -96,7 +96,6 @@ struct VertexInputDescriptionView
 
 struct PipelineCreateInfo
 {
-    // todo: change to handle once ready
     PipelineLayout PipelineLayout{};
     Span<const ShaderModule> Shaders{};
     Span<const Format> ColorFormats{};
