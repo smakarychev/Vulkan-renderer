@@ -48,7 +48,7 @@ struct PipelineSpecializationsView
         : Data(data), Descriptions(descriptions) {}
 };
 
-enum class DynamicStates
+enum class DynamicStates : u8
 {
     None        = 0,
     Viewport    = BIT(1),
@@ -59,10 +59,12 @@ enum class DynamicStates
 };
 CREATE_ENUM_FLAGS_OPERATORS(DynamicStates)
 
-enum class DepthMode {Read, ReadWrite, None};
-enum class FaceCullMode {Front, Back, None};
+enum class DepthMode : u8 {Read, ReadWrite, None};
+enum class FaceCullMode : u8 {Front, Back, None};
 
-enum class PrimitiveKind {Triangle, Point};
+enum class PrimitiveKind : u8 {Triangle, Point};
+
+enum class AlphaBlending : u8 {None, Over};
 
 struct VertexInputDescription
 {

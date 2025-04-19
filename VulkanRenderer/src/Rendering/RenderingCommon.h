@@ -14,8 +14,6 @@
 
 enum class QueueKind {Graphics, Presentation, Compute};
 
-enum class AlphaBlending {None, Over};
-
 struct DepthBias
 {
     f32 Constant{0.0f};

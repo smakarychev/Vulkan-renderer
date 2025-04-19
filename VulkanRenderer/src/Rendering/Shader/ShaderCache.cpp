@@ -436,15 +436,15 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             .Shaders = shaderTemplate->GetReflection().Shaders(),
             .ColorFormats = colorFormats,
             .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
-            .DynamicStates = dynamicStates,
-            .DepthMode = depthMode,
-            .CullMode = cullMode,
-            .AlphaBlending = alphaBlending,
-            .PrimitiveKind = primitiveKind,
+            .DynamicStates = overrides.PipelineOverrides.DynamicStates.value_or(dynamicStates),
+            .DepthMode = overrides.PipelineOverrides.DepthMode.value_or(depthMode),
+            .CullMode = overrides.PipelineOverrides.CullMode.value_or(cullMode),
+            .AlphaBlending = overrides.PipelineOverrides.AlphaBlending.value_or(alphaBlending),
+            .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
             .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
             .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
             .UseDescriptorBuffer = true,
-            .ClampDepth = clampDepth},
+            .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
             Device::DummyDeletionQueue());
     }
 

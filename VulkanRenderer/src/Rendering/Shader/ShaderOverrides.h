@@ -194,31 +194,68 @@ struct ShaderDefinesView
     constexpr ShaderDefinesView(ShaderDefines&& defines) : Defines(defines.Defines), Hash(defines.Hash) {}
 };
 
+struct ShaderPipelineOverrides
+{
+    std::optional<DynamicStates> DynamicStates{std::nullopt};
+    std::optional<DepthMode> DepthMode{std::nullopt};
+    std::optional<FaceCullMode> CullMode{std::nullopt};
+    std::optional<AlphaBlending> AlphaBlending{std::nullopt};
+    std::optional<PrimitiveKind> PrimitiveKind{std::nullopt};
+    std::optional<bool> ClampDepth{std::nullopt};
+
+    constexpr u64 Hash() const
+    {
+        /* assert that this structure has no holes */
+        static_assert(sizeof(ShaderPipelineOverrides) == (
+            sizeof(std::optional<::DynamicStates>{}) +
+            sizeof(std::optional<::DepthMode>{}) +
+            sizeof(std::optional<::FaceCullMode>{}) +
+            sizeof(std::optional<::AlphaBlending>{}) +
+            sizeof(std::optional<::PrimitiveKind>{}) +
+            sizeof(std::optional<bool>{})));
+
+        return Hash::charBytes((const char*)this, sizeof(ShaderPipelineOverrides));
+    }
+};
+
 struct ShaderOverridesView
 {
-    ShaderSpecializationsView Specializations;
-    ShaderDefinesView Defines;
+    ShaderSpecializationsView Specializations{};
+    ShaderDefinesView Defines{};
+    ShaderPipelineOverrides PipelineOverrides{};
     u64 Hash{0};
 
     ShaderOverridesView() = default;
     template <typename ...Args>
-    constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations)
+    constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations,
+        ShaderPipelineOverrides&& pipelineOverrides = {})
         :
         Specializations(std::forward<ShaderSpecializations<Args...>>(specializations)),
-        Hash(specializations.Hash) {}
-    constexpr ShaderOverridesView(ShaderDefines&& defines)
-        :
-        Defines(std::forward<ShaderDefines>(defines)),
-        Hash(defines.Hash)
-    {
-    }
-    template <typename ...Args>
-    constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations, ShaderDefines&& defines)
-        :
-        Specializations(std::forward<ShaderSpecializations<Args...>>(specializations)),
-        Defines(std::forward<ShaderDefines>(defines)),
+        PipelineOverrides(pipelineOverrides),
         Hash(specializations.Hash)
     {
         Hash::combine(Hash, Defines.Hash);
+        Hash::combine(Hash, pipelineOverrides.Hash());
+    }
+    constexpr ShaderOverridesView(ShaderDefines&& defines,
+        ShaderPipelineOverrides&& pipelineOverrides = {})
+        :
+        Defines(std::forward<ShaderDefines>(defines)),
+        PipelineOverrides(pipelineOverrides)
+    {
+        Hash::combine(Hash, Defines.Hash);
+        Hash::combine(Hash, pipelineOverrides.Hash());
+    }
+    template <typename ...Args>
+    constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations, ShaderDefines&& defines,
+        ShaderPipelineOverrides&& pipelineOverrides = {})
+        :
+        Specializations(std::forward<ShaderSpecializations<Args...>>(specializations)),
+        Defines(std::forward<ShaderDefines>(defines)),
+        PipelineOverrides(pipelineOverrides),
+        Hash(Specializations.Hash)
+    {
+        Hash::combine(Hash, Defines.Hash);
+        Hash::combine(Hash, pipelineOverrides.Hash());
     }
 };
