@@ -457,7 +457,7 @@ bool ShaderStageConverter::NeedsConversion(const std::filesystem::path& initialD
     
     bool requiresConversion = needsConversion(initialDirectoryPath, path, [&](std::filesystem::path& converted)
     {
-        converted = GetBakedFileName(converted, options);
+        converted.replace_filename(GetBakedFileName(converted, options));
         converted.replace_extension(ShaderStageConverter::POST_CONVERT_EXTENSION);
         convertedPath = converted;
     });
@@ -495,9 +495,10 @@ std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::f
         [&options](const std::filesystem::path& processedPath)
         {
             AssetPaths paths;
-            paths.AssetPath = GetBakedFileName(processedPath, options);
+            paths.AssetPath = paths.BlobPath = processedPath;
+            paths.AssetPath.replace_filename(GetBakedFileName(processedPath, options));
             paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
-            paths.BlobPath = GetBakedFileName(processedPath, options);
+            paths.BlobPath.replace_filename(GetBakedFileName(processedPath, options));
             paths.BlobPath.replace_extension(BLOB_EXTENSION);
 
             return paths;
@@ -625,15 +626,13 @@ std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::f
     return shaderInfo;
 }
 
-std::filesystem::path ShaderStageConverter::GetBakedFileName(const std::filesystem::path& path, const Options& options)
+std::string ShaderStageConverter::GetBakedFileName(const std::filesystem::path& path, const Options& options)
 {
-    std::filesystem::path baked = path;
-    
-    return baked.replace_filename(std::format(
+    return std::format(
             "{}-{}{}",
-            baked.stem().string(),
-            baked.extension().string().substr(1),
-            options.DefinesHash == 0 ? std::string{} : "-" + std::to_string(options.DefinesHash)));
+            path.stem().string(),
+            path.extension().string().substr(1),
+            options.DefinesHash == 0 ? std::string{} : "-" + std::to_string(options.DefinesHash));
 }
 
 std::vector<ShaderStageConverter::DescriptorFlagInfo> ShaderStageConverter::ReadDescriptorsFlags(std::string_view shaderSource)

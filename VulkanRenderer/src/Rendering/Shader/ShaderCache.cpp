@@ -21,7 +21,10 @@ std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
 std::unordered_map<StringId, Descriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
 
-std::mutex g_FileUpdateMutex;
+namespace
+{
+    std::mutex g_FileUpdateMutex;
+}
 std::vector<std::pair<std::string, std::string>> ShaderCache::s_ToRename = {};
 std::vector<std::filesystem::path> ShaderCache::s_ToReload = {};
 
@@ -263,7 +266,6 @@ void ShaderCache::HandleShaderModification(std::string_view path)
 void ShaderCache::HandleStageModification(std::string_view path)
 {
     auto& stages = s_FileGraph.find(path)->second.Files;
-    ASSERT(stages.size() == 1, "Only .glsl files are meant to be used as includes")
     
     auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), path);
     if (baked.has_value())
@@ -319,6 +321,31 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
     stages.reserve(json["shader_stages"].size());
     for (auto& stage : json["shader_stages"])
         stages.push_back(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + std::string{stage});
+
+    if (overrides.Defines.Hash != 0)
+    {
+        ShaderStageConverter::Options options;
+        options.DefinesHash = overrides.Defines.Hash;
+        options.Defines.reserve(overrides.Defines.Defines.size());
+        for (auto& define : overrides.Defines.Defines)
+            options.Defines.emplace_back(define.Name.AsStringView(), define.Value);
+        
+        for (auto& stage : stages)
+        {
+            assetLib::File shaderFile;
+            assetLib::loadAssetFile(stage, shaderFile);
+            assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
+
+            std::filesystem::path stagePath = stage;
+            stagePath.replace_filename(ShaderStageConverter::GetBakedFileName(shaderInfo.OriginalFile, options));
+            stagePath.replace_extension(ShaderStageConverter::POST_CONVERT_EXTENSION);
+            stage = stagePath.string();
+            if (ShaderStageConverter::NeedsConversion(
+                    *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options))
+                ShaderStageConverter::Bake(
+                    *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options);
+        }
+    }
 
     AssetManager::RemoveShader(AssetManager::GetShaderKey(stages));
     ShaderPipelineTemplate* shaderTemplate =

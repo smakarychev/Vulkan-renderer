@@ -108,8 +108,8 @@ public:
     static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
     static std::optional<assetLib::ShaderStageInfo> Bake(const std::filesystem::path& initialDirectoryPath,
         const std::filesystem::path& path, const Options& options = Options{});
+    static std::string GetBakedFileName(const std::filesystem::path& path, const Options& options = Options{});
 private:
-    static std::filesystem::path GetBakedFileName(const std::filesystem::path& path, const Options& options = Options{});
     static std::vector<DescriptorFlagInfo> ReadDescriptorsFlags(std::string_view shaderSource);
     static std::vector<InputAttributeBindingInfo> ReadInputBindings(std::string_view shaderSource);
     static void RemoveMetaKeywords(std::string& shaderSource);

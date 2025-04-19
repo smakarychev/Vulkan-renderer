@@ -206,6 +206,12 @@ struct ShaderOverridesView
         :
         Specializations(std::forward<ShaderSpecializations<Args...>>(specializations)),
         Hash(specializations.Hash) {}
+    constexpr ShaderOverridesView(ShaderDefines&& defines)
+        :
+        Defines(std::forward<ShaderDefines>(defines)),
+        Hash(defines.Hash)
+    {
+    }
     template <typename ...Args>
     constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations, ShaderDefines&& defines)
         :
