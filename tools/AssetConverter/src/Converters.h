@@ -91,17 +91,25 @@ class ShaderStageConverter
         std::string Attribute;
     };
 public:
+    struct Options
+    {
+        std::vector<std::pair<std::string, std::string>> Defines;
+        u64 DefinesHash{0};
+    };
+public:
     static std::vector<std::string> GetWatchedExtensions() { return WATCHED_EXTENSIONS; }
     static bool WatchesExtension(std::string_view extension)
     {
         return std::ranges::find(WATCHED_EXTENSIONS, extension) != WATCHED_EXTENSIONS.end();
     }
     
-    static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
+    static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path,
+        const Options& options = Options{});
     static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
     static std::optional<assetLib::ShaderStageInfo> Bake(const std::filesystem::path& initialDirectoryPath,
-        const std::filesystem::path& path);
+        const std::filesystem::path& path, const Options& options = Options{});
 private:
+    static std::filesystem::path GetBakedFileName(const std::filesystem::path& path, const Options& options = Options{});
     static std::vector<DescriptorFlagInfo> ReadDescriptorsFlags(std::string_view shaderSource);
     static std::vector<InputAttributeBindingInfo> ReadInputBindings(std::string_view shaderSource);
     static void RemoveMetaKeywords(std::string& shaderSource);

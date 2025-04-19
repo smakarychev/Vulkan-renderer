@@ -451,13 +451,13 @@ void ModelConverter::ConvertTextures(const std::filesystem::path& initialDirecto
 }
 
 bool ShaderStageConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
-    const std::filesystem::path& path)
+    const std::filesystem::path& path, const Options& options)
 {
     std::filesystem::path convertedPath = {};
     
     bool requiresConversion = needsConversion(initialDirectoryPath, path, [&](std::filesystem::path& converted)
     {
-        converted.replace_filename(converted.stem().string() + "-" + converted.extension().string().substr(1));
+        converted = GetBakedFileName(converted, options);
         converted.replace_extension(ShaderStageConverter::POST_CONVERT_EXTENSION);
         convertedPath = converted;
     });
@@ -487,20 +487,17 @@ void ShaderStageConverter::Convert(const std::filesystem::path& initialDirectory
 }
 
 std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::filesystem::path& initialDirectoryPath,
-    const std::filesystem::path& path)
+    const std::filesystem::path& path, const Options& options)
 {
     std::cout << std::format("Converting shader stage file {}\n", path.string());
 
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
-        [](const std::filesystem::path& processedPath)
+        [&options](const std::filesystem::path& processedPath)
         {
             AssetPaths paths;
-            paths.AssetPath = paths.BlobPath = processedPath;
-            paths.AssetPath.replace_filename(processedPath.stem().string() + "-" +
-                processedPath.extension().string().substr(1));
+            paths.AssetPath = GetBakedFileName(processedPath, options);
             paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
-            paths.BlobPath.replace_filename(processedPath.stem().string() + "-" +
-                processedPath.extension().string().substr(1));
+            paths.BlobPath = GetBakedFileName(processedPath, options);
             paths.BlobPath.replace_extension(BLOB_EXTENSION);
 
             return paths;
@@ -577,13 +574,21 @@ std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::f
     };
     
     shaderc::Compiler compiler;
-    shaderc::CompileOptions options;
+    shaderc::CompileOptions shadercOptions;
     std::vector<std::string> includedFiles;
-    options.SetIncluder(std::make_unique<FileIncluder>(&includedFiles));
-    options.SetTargetSpirv(shaderc_spirv_version_1_6);
-    options.SetOptimizationLevel(shaderc_optimization_level_zero);
+    shadercOptions.SetIncluder(std::make_unique<FileIncluder>(&includedFiles));
+    shadercOptions.SetTargetSpirv(shaderc_spirv_version_1_6);
+    shadercOptions.SetOptimizationLevel(shaderc_optimization_level_zero);
+    for (auto&& [define, value] : options.Defines)
+    {
+        if (value.empty())
+            shadercOptions.AddMacroDefinition(define);
+        else
+            shadercOptions.AddMacroDefinition(define, value);
+    }
+    
     shaderc::SpvCompilationResult module = compiler.CompileGlslToSpv(shaderSource, shaderKind,
-        path.string().c_str(), options);
+        path.string().c_str(), shadercOptions);
     if (module.GetCompilationStatus() != shaderc_compilation_status_success)
     {
         std::cout << std::format("Shader stage compilation error:\n {}", module.GetErrorMessage());
@@ -618,6 +623,17 @@ std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::f
         path.string(), assetPath.string(), blobPath.string());
 
     return shaderInfo;
+}
+
+std::filesystem::path ShaderStageConverter::GetBakedFileName(const std::filesystem::path& path, const Options& options)
+{
+    std::filesystem::path baked = path;
+    
+    return baked.replace_filename(std::format(
+            "{}-{}{}",
+            baked.stem().string(),
+            baked.extension().string().substr(1),
+            options.DefinesHash == 0 ? std::string{} : "-" + std::to_string(options.DefinesHash)));
 }
 
 std::vector<ShaderStageConverter::DescriptorFlagInfo> ShaderStageConverter::ReadDescriptorsFlags(std::string_view shaderSource)
