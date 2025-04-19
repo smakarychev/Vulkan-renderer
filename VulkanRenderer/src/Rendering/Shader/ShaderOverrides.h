@@ -68,17 +68,18 @@ private:
     {
         usize offset = 0;
         ((
-            Hash::combine(
-                Hash,
-                std::get<Is>(tupleArgs).Name.Hash() ^
-                Hash::bytes(
-                    &std::get<Is>(tupleArgs).Value,
-                    sizeof(std::get<Is>(tupleArgs).Value))),
             Names[Is] = std::move(std::get<Is>(tupleArgs).Name),
             Descriptions[Is] = PipelineSpecializationDescription{
                 .SizeBytes = (u32)std::get<Is>(tupleArgs).SizeBytes(),
                 .Offset = (u32)offset},
-            std::get<Is>(tupleArgs).CopyTo(Data.data() + offset), offset += std::get<Is>(tupleArgs).SizeBytes()),
+            std::get<Is>(tupleArgs).CopyTo(Data.data() + offset),
+            Hash::combine(
+                Hash,
+                std::get<Is>(tupleArgs).Name.Hash() ^
+                Hash::bytes(
+                    Data.data() + offset,
+                    std::get<Is>(tupleArgs).SizeBytes())),
+            offset += std::get<Is>(tupleArgs).SizeBytes()),
             ...);
     }
 };
@@ -109,17 +110,18 @@ private:
         Descriptions.resize(seq.size());
         u32 offset = 0;
         ((
-            Hash::combine(
-                Hash,
-                std::get<Is>(tupleArgs).Name.Hash() ^
-                Hash::bytes(
-                    &std::get<Is>(tupleArgs).Value,
-                    sizeof(std::get<Is>(tupleArgs).Value))),
             Names[Is] = std::move(std::get<Is>(tupleArgs).Name),
             Descriptions[Is] = PipelineSpecializationDescription{
                 .SizeBytes = std::get<Is>(tupleArgs).SizeBytes(),
                 .Offset = offset},
-            std::get<Is>(tupleArgs).CopyTo(Data.data() + offset), offset += std::get<Is>(tupleArgs).SizeBytes()),
+            std::get<Is>(tupleArgs).CopyTo(Data.data() + offset),
+            Hash::combine(
+                Hash,
+                std::get<Is>(tupleArgs).Name.Hash() ^
+                Hash::bytes(
+                    Data.data() + offset,
+                    std::get<Is>(tupleArgs).SizeBytes())),
+            offset += std::get<Is>(tupleArgs).SizeBytes()),
             ...);
     }
 };
@@ -127,7 +129,6 @@ private:
 template <typename T>
 ShaderDynamicSpecializations& ShaderDynamicSpecializations::Add(const ShaderSpecialization<T>& specialization)
 {
-    Hash::combine(Hash, specialization.Name.Hash() ^ Hash::bytes(&specialization.Value, sizeof(specialization.Value)));
     const u32 offset = (u32)Data.size();
     Names.push_back(specialization.Name);
     Descriptions.push_back(PipelineSpecializationDescription{
@@ -135,6 +136,7 @@ ShaderDynamicSpecializations& ShaderDynamicSpecializations::Add(const ShaderSpec
         .Offset = offset});
     Data.resize(offset + specialization.SizeBytes());
     specialization.CopyTo(Data.data() + offset);
+    Hash::combine(Hash, specialization.Name.Hash() ^ Hash::bytes(Data.data() + offset, specialization.SizeBytes()));
 
     return *this;
 }
@@ -270,6 +272,76 @@ struct ShaderOverrides
     {
         Hash::combine(Hash, Defines.Hash);
         Hash::combine(Hash, pipelineOverrides.Hash());
+    }
+    constexpr ShaderOverrides OverrideBy(const ShaderOverrides& other) const
+    {
+        ShaderOverrides merged = *this;
+
+        for (auto&& [i, spec] : std::ranges::views::enumerate(other.Specializations.Names))
+        {
+            auto it = std::ranges::find_if(merged.Specializations.Names,
+                [&](auto name){ return name == spec; });
+            if (it == merged.Specializations.Names.end())
+            {
+                merged.Specializations.Names.emplace_back(spec);
+                auto& description = other.Specializations.Descriptions[i];
+                merged.Specializations.Descriptions.push_back({
+                    .SizeBytes = description.SizeBytes,
+                    .Offset = (u32)merged.Specializations.Data.size()});
+                merged.Specializations.Data.append_range(
+                    std::span(other.Specializations.Data.data() + description.Offset, description.SizeBytes));                
+                continue;
+            }
+
+            u32 index = u32(it - merged.Specializations.Names.begin());
+            auto& thisDesc = merged.Specializations.Descriptions[index];
+            auto& otherDesc = other.Specializations.Descriptions[i];
+            ASSERT(thisDesc.SizeBytes == otherDesc.SizeBytes, "Unable to merge")
+            std::memcpy(
+                merged.Specializations.Data.data() + thisDesc.Offset,
+                other.Specializations.Data.data() + otherDesc.Offset,
+                otherDesc.SizeBytes);
+        }
+        if (!other.Specializations.Names.empty())
+        {
+            merged.Specializations.Hash = 0;
+            for (u32 i = 0; i < merged.Specializations.Descriptions.size(); i++)
+            {
+                auto& desc = merged.Specializations.Descriptions[i];
+                Hash::combine(
+                    merged.Specializations.Hash,
+                    merged.Specializations.Names[i].Hash() ^
+                    Hash::bytes(merged.Specializations.Data.data() + desc.Offset, desc.SizeBytes));
+            }
+        }
+
+        for (auto& define : other.Defines.Defines)
+            merged.Defines.Defines.emplace_back(define);
+        if (!other.Defines.Defines.empty())
+        {
+            merged.Defines.Hash = 0;
+            for (auto& define : merged.Defines.Defines)
+                Hash::combine(merged.Defines.Hash, define.Name.Hash() ^ Hash::string(define.Value));
+        }
+
+        merged.PipelineOverrides.DynamicStates = other.PipelineOverrides.DynamicStates.has_value() ?
+            *other.PipelineOverrides.DynamicStates : merged.PipelineOverrides.DynamicStates;
+        merged.PipelineOverrides.DepthMode = other.PipelineOverrides.DepthMode.has_value() ?
+            *other.PipelineOverrides.DepthMode : merged.PipelineOverrides.DepthMode;
+        merged.PipelineOverrides.CullMode = other.PipelineOverrides.CullMode.has_value() ?
+            *other.PipelineOverrides.CullMode : merged.PipelineOverrides.CullMode;
+        merged.PipelineOverrides.AlphaBlending = other.PipelineOverrides.AlphaBlending.has_value() ?
+            *other.PipelineOverrides.AlphaBlending : merged.PipelineOverrides.AlphaBlending;
+        merged.PipelineOverrides.PrimitiveKind = other.PipelineOverrides.PrimitiveKind.has_value() ?
+            *other.PipelineOverrides.PrimitiveKind : merged.PipelineOverrides.PrimitiveKind;
+        merged.PipelineOverrides.ClampDepth = other.PipelineOverrides.ClampDepth.has_value() ?
+            *other.PipelineOverrides.ClampDepth : merged.PipelineOverrides.ClampDepth;
+
+        merged.Hash = merged.Specializations.Hash;
+        Hash::combine(merged.Hash, merged.Defines.Hash);
+        Hash::combine(merged.Hash, merged.PipelineOverrides.Hash());
+
+        return merged;
     }
 };
 
