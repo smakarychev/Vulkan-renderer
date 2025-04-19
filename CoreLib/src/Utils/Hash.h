@@ -87,25 +87,25 @@ namespace Hash
         return hash;
     }
     
-    constexpr u64 stringBytes(const char* data, u32 sizeBytes, u64 offsetBasis = FNV_OFFSET_BASIS)
+    constexpr u64 charBytes(const char* data, u32 sizeBytes, u64 offsetBasis = FNV_OFFSET_BASIS)
     {
         if (std::is_constant_evaluated())
         {
             return sizeBytes == 0 ?
                offsetBasis :
-               stringBytes(data + 1, sizeBytes - 1, (offsetBasis ^ (u64)*data) * FNV_PRIME);
+               charBytes(data + 1, sizeBytes - 1, (offsetBasis ^ (u64)*data) * FNV_PRIME);
         }
         
         return bytes(data, sizeBytes);
     }
     
-    constexpr u32 stringBytes32(const char* data, u32 sizeBytes, u32 offsetBasis = FNV_OFFSET_BASIS_32)
+    constexpr u32 charBytes32(const char* data, u32 sizeBytes, u32 offsetBasis = FNV_OFFSET_BASIS_32)
     {
         if (std::is_constant_evaluated())
         {
             return sizeBytes == 0 ?
                offsetBasis :
-               stringBytes32(data + 1, sizeBytes - 1, (offsetBasis ^ (u32)*data) * FNV_PRIME_32);
+               charBytes32(data + 1, sizeBytes - 1, (offsetBasis ^ (u32)*data) * FNV_PRIME_32);
         }
         
         return bytes32(data, sizeBytes);
@@ -114,21 +114,21 @@ namespace Hash
     template<u64 N>
     constexpr u64 string(const char (&s)[N])
     {
-        return stringBytes(s, N - 1);
+        return charBytes(s, N - 1);
     }
     template<u64 N>
     constexpr u32 string32(const char (&s)[N])
     {
-        return stringBytes32(s, N - 1);
+        return charBytes32(s, N - 1);
     }
 
     constexpr u64 string(std::string_view string)
     {
-        return stringBytes(string.data(), (u32)string.size());
+        return charBytes(string.data(), (u32)string.size());
     }
     
     constexpr u64 string32(std::string_view string)
     {
-        return stringBytes32(string.data(), (u32)string.size());
+        return charBytes32(string.data(), (u32)string.size());
     }
 }

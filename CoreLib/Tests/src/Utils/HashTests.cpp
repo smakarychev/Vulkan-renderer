@@ -86,19 +86,19 @@ TEST_CASE("hash combine", "[Utils][Hash]")
         REQUIRE(hash != 0);
     }
 }
-TEST_CASE("stringBytes hash", "[Utils][Hash]")
+TEST_CASE("charBytes hash", "[Utils][Hash]")
 {
     SECTION("consteval hash is same with runtime hash (32-bit)")
     {
-        constexpr u32 constevalHash = Hash::stringBytes32("Hello", 5);
+        constexpr u32 constevalHash = Hash::charBytes32("Hello", 5);
         const std::string string = "Hello";
-        REQUIRE(constevalHash == Hash::stringBytes32(string.c_str(), (u32)string.size()));
+        REQUIRE(constevalHash == Hash::charBytes32(string.c_str(), (u32)string.size()));
     }
     SECTION("consteval hash is same with runtime hash (64-bit)")
     {
-        constexpr u64 constevalHash = Hash::stringBytes("Hello", 5);
+        constexpr u64 constevalHash = Hash::charBytes("Hello", 5);
         const std::string string = "Hello";
-        REQUIRE(constevalHash == Hash::stringBytes(string.c_str(), (u32)string.size()));
+        REQUIRE(constevalHash == Hash::charBytes(string.c_str(), (u32)string.size()));
     }
 }
 TEST_CASE("string hash", "[Utils][Hash]")
