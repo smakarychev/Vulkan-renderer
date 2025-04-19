@@ -25,6 +25,7 @@ public:
     u32 BucketCount() const { return (u32)m_BucketHandles.size(); }
     const std::vector<SceneBucketHandle>& BucketHandles() const { return m_BucketHandles; }
     const SceneBucket& BucketFromHandle(SceneBucketHandle handle) const { return m_BucketList->GetBucket(handle); }
+    SceneBucket& BucketFromHandle(SceneBucketHandle handle) { return m_BucketList->GetBucket(handle); }
 
     const SceneBucket& FindBucket(StringId name) const;
     const SceneBucket* TryFindBucket(StringId name) const;

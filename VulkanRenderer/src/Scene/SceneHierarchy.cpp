@@ -3,10 +3,10 @@
 #include "ResourceUploader.h"
 #include "Scene.h"
 #include "SceneAsset.h"
+#include "FrameContext.h"
 
 #include <queue>
-
-#include "FrameContext.h"
+#include <ranges>
 
 SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
 {

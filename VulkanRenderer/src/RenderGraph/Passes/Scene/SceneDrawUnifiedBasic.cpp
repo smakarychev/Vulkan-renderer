@@ -30,15 +30,15 @@ RG::Pass& Passes::SceneDrawUnifiedBasic::addToGraph(StringId name, RG::Graph& re
         {
             CPU_PROFILE_FRAME("Scene.DrawUnifiedBasic.Setup")
 
-            graph.SetShader("scene-ugb.shader");
+            graph.SetShader("scene-ugb.shader", *info.DrawInfo.Overrides);
 
             passData.CommandCount = std::min(info.Geometry->CommandCount,
-                (u32)(graph.GetBufferDescription(info.Draws).SizeBytes / sizeof(IndirectDrawCommand)));
+                (u32)(graph.GetBufferDescription(info.DrawInfo.Draws).SizeBytes / sizeof(IndirectDrawCommand)));
 
             passData.Camera = graph.CreateResource("Camera"_hsv,
                 GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
             passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform);
-            CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
+            CameraGPU cameraGPU = CameraGPU::FromCamera(*info.DrawInfo.Camera, info.DrawInfo.Resolution);
             graph.Upload(passData.Camera, cameraGPU);
 
             passData.UGB = graph.AddExternal("UGB"_hsv,
@@ -49,10 +49,10 @@ RG::Pass& Passes::SceneDrawUnifiedBasic::addToGraph(StringId name, RG::Graph& re
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
 
-            passData.Draws = graph.Read(info.Draws, Vertex | Indirect);
-            passData.DrawInfo = graph.Read(info.DrawInfo, Vertex | Indirect);
+            passData.Draws = graph.Read(info.DrawInfo.Draws, Vertex | Indirect);
+            passData.DrawInfo = graph.Read(info.DrawInfo.DrawInfo, Vertex | Indirect);
             
-            passData.Attachments = RgUtils::readWriteDrawAttachments(info.Attachments, graph);
+            passData.Attachments = RgUtils::readWriteDrawAttachments(info.DrawInfo.Attachments, graph);
             passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
             
             PassData passDataPublic = {};

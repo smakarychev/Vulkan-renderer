@@ -5,7 +5,7 @@
 #include "Rendering/Buffer/BufferUtility.h"
 
 SceneBucket::SceneBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue& deletionQueue)
-    : Filter(createInfo.Filter), m_Name(createInfo.Name)
+    : Filter(createInfo.Filter), ShaderOverrides(createInfo.ShaderOverrides), m_Name(createInfo.Name)
 {
     m_Draws.Buffer = Device::CreateBuffer({
         .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Pass.DrawCommands.SizeBytes"_hsv),

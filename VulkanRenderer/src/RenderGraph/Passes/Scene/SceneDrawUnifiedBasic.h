@@ -1,5 +1,6 @@
 #pragma once
 
+#include "SceneDrawPassesCommon.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 
@@ -13,14 +14,9 @@ namespace Passes::SceneDrawUnifiedBasic
 {
     struct ExecutionInfo
     {
+        SceneDrawPassExecutionInfo DrawInfo{};
         const SceneGeometry2* Geometry{nullptr};
         const SceneLight2* Lights{nullptr};
-        RG::Resource Draws{};
-        RG::Resource DrawInfo{};
-        glm::uvec2 Resolution{};
-        const Camera* Camera{nullptr};
-
-        RG::DrawAttachments Attachments{};
     };
     struct PassData
     {

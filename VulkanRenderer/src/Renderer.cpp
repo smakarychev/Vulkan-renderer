@@ -193,10 +193,17 @@ void Renderer::InitRenderGraph()
                 {
                     .Name = "Opaque material"_hsv,
                     .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        return renderObject.Index < 1;
+                    },
+                    .ShaderOverrides = ShaderDefines({ShaderDefine("TEST"_hsv)}),
+                },
+                {
+                    .Name = "Opaque material2"_hsv,
+                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
                         const Material2& material = geometry.MaterialsCpu[
                             geometry.RenderObjects[renderObject.Index].Material];
-                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
-                    }
+                        return renderObject.Index >= 1 && enumHasAny(material.Flags, MaterialFlags::Opaque);
+                    },
                 }}
             },
     }, Device::DeletionQueue());
@@ -335,13 +342,9 @@ void Renderer::SetupRenderGraph()
         auto& ugb = Passes::SceneDrawUnifiedBasic::addToGraph(
             name.Concatenate(".UGB"),
             graph, {
+                .DrawInfo = info,
                 .Geometry = &m_Scene.Geometry(),
-                .Lights = &m_Scene.Lights(),
-                .Draws = info.Draws,
-                .DrawInfo = info.DrawInfo,
-                .Resolution = info.Resolution,
-                .Camera = info.Camera,
-                .Attachments = info.Attachments});
+                .Lights = &m_Scene.Lights(),});
         auto& ugbOutput =
             graph.GetBlackboard().Get<Passes::SceneDrawUnifiedBasic::PassData>(ugb);
 
@@ -367,7 +370,7 @@ void Renderer::SetupRenderGraph()
     };
     static Camera overhead = Camera::Perspective({
         .BaseInfo = CameraCreateInfo{
-            .Position = glm::vec3(0.0f, 3.0f, 0.0f),
+            .Position = glm::vec3(0.0f, 7.0f, 0.0f),
             .Orientation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
             .Near = 0.1f,
             .Far = 100.0f,

@@ -55,17 +55,19 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                 for (SceneBucketHandle bucketHandle : pass.Pass->BucketHandles())
                 {
                     const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
-
+                    auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
+                                
                     // todo: do the shader specialization for each bucket here:
                     auto [colors, depth] = pass.DrawPassInit(
-                        StringId("{}.{}.{}.{}",
-                            name, pass.View.Name, pass.Pass->Name(), reocclusion ? "Reocclusion" : ""),
+                        StringId("{}.{}.{}.{}.{}",
+                            name, pass.View.Name, pass.Pass->Name(), bucket.Name(), reocclusion ? "Reocclusion" : ""),
                         graph, {
                             .Draws = drawInfo.Draws[bucketIndex],
                             .DrawInfo = drawInfo.DrawInfos[bucketIndex],
                             .Resolution = pass.View.Resolution,
                             .Camera = pass.View.Camera,
-                            .Attachments = inputAttachments});
+                            .Attachments = inputAttachments,
+                            .Overrides = &bucket.ShaderOverrides});
 
                     for (u32 i = 0; i < colors.size(); i++)
                         inputAttachments.Colors[i].Resource = colors[i];

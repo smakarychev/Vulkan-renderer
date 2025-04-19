@@ -17,6 +17,7 @@ struct SceneDrawPassExecutionInfo
     glm::uvec2 Resolution{};
     const Camera* Camera{nullptr};
     RG::DrawAttachments Attachments{};
+    ShaderOverrides* Overrides{nullptr};
 };
 using SceneDrawPassInitFn =
     std::function<RG::DrawAttachmentResources(StringId name, RG::Graph&, const SceneDrawPassExecutionInfo&)>;

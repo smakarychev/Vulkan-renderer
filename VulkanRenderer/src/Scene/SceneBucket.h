@@ -2,6 +2,7 @@
 
 #include "SceneGeometry2.h"
 #include "Rendering/Commands/RenderCommands.h"
+#include "Rendering/Shader/ShaderOverrides.h"
 #include "String/StringId.h"
 
 struct SceneRenderObjectHandle
@@ -33,6 +34,7 @@ struct SceneBucketCreateInfo
     using FilterFn = std::function<bool(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject)>;
     StringId Name{};
     FilterFn Filter{};
+    ShaderOverrides ShaderOverrides{};
 };
 
 struct SceneBucketDrawInfo
@@ -48,12 +50,14 @@ public:
     SceneBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue& deletionQueue);
     
     SceneBucketHandle Handle() const { return m_Id; }
+    StringId Name() const { return m_Name; }
 
     Buffer Draws() const { return m_Draws.Buffer; }
     Buffer DrawInfo() const { return m_DrawInfo; }
 public:
     using FilterFn = SceneBucketCreateInfo::FilterFn;
     FilterFn Filter{};
+    mutable ShaderOverrides ShaderOverrides{};
 private:
     void OnUpdate(FrameContext& ctx);
     void AllocateRenderObjectDrawCommand(u32 meshletCount);
