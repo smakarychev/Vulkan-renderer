@@ -19,6 +19,17 @@ struct SceneDrawPassExecutionInfo
     RG::DrawAttachments Attachments{};
     ShaderOverrides* Overrides{nullptr};
 };
+struct SceneDrawPassResources
+{
+    RG::Resource Draws{};
+    RG::Resource DrawInfo{};
+    RG::Resource Camera{};
+    RG::DrawAttachmentResources Attachments{};
+    u32 MaxDrawCount{0};
+
+    void CreateFrom(const SceneDrawPassExecutionInfo& info, RG::Graph& renderGraph);
+};
+
 using SceneDrawPassInitFn =
     std::function<RG::DrawAttachmentResources(StringId name, RG::Graph&, const SceneDrawPassExecutionInfo&)>;
 

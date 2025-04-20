@@ -15,14 +15,10 @@ RG::Pass& Passes::SceneUnifiedPbr::addToGraph(StringId name, RG::Graph& renderGr
 
     struct PassDataPrivate
     {
-        Resource Camera{};
+        SceneDrawPassResources Resources{};
         Resource UGB{};
         Resource Objects{};
-        Resource Draws{};
-        Resource DrawInfo{};
-        DrawAttachmentResources Attachments{};
         SceneLightResources Light{};
-        u32 CommandCount{0};
     };
 
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
@@ -32,14 +28,7 @@ RG::Pass& Passes::SceneUnifiedPbr::addToGraph(StringId name, RG::Graph& renderGr
 
             graph.SetShader("scene-ugb.shader", *info.DrawInfo.Overrides);
 
-            passData.CommandCount = std::min(info.Geometry->CommandCount,
-                (u32)(graph.GetBufferDescription(info.DrawInfo.Draws).SizeBytes / sizeof(IndirectDrawCommand)));
-
-            passData.Camera = graph.CreateResource("Camera"_hsv,
-                GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
-            passData.Camera = graph.Read(passData.Camera, Vertex | Pixel | Uniform);
-            CameraGPU cameraGPU = CameraGPU::FromCamera(*info.DrawInfo.Camera, info.DrawInfo.Resolution);
-            graph.Upload(passData.Camera, cameraGPU);
+            passData.Resources.CreateFrom(info.DrawInfo, graph);
 
             passData.UGB = graph.AddExternal("UGB"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes));
@@ -49,14 +38,10 @@ RG::Pass& Passes::SceneUnifiedPbr::addToGraph(StringId name, RG::Graph& renderGr
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
 
-            passData.Draws = graph.Read(info.DrawInfo.Draws, Vertex | Indirect);
-            passData.DrawInfo = graph.Read(info.DrawInfo.DrawInfo, Vertex | Indirect);
-            
-            passData.Attachments = RgUtils::readWriteDrawAttachments(info.DrawInfo.Attachments, graph);
             passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
             
             PassData passDataPublic = {};
-            passDataPublic.Attachments = passData.Attachments;
+            passDataPublic.Attachments = passData.Resources.Attachments;
             
             graph.UpdateBlackboard(passDataPublic);
         },
@@ -67,9 +52,9 @@ RG::Pass& Passes::SceneUnifiedPbr::addToGraph(StringId name, RG::Graph& renderGr
 
             const Shader& shader = resources.GetGraph()->GetShader();
             SceneUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
+            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Resources.Camera)});
             bindGroup.SetUGB({.Buffer = resources.GetBuffer(passData.UGB)});
-            bindGroup.SetCommands({.Buffer = resources.GetBuffer(passData.Draws)});
+            bindGroup.SetCommands({.Buffer = resources.GetBuffer(passData.Resources.Draws)});
             bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
             bindGroup.SetDirectionalLights({.Buffer = resources.GetBuffer(passData.Light.DirectionalLights)});
             bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.Light.PointLights)});
@@ -80,8 +65,8 @@ RG::Pass& Passes::SceneUnifiedPbr::addToGraph(StringId name, RG::Graph& renderGr
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({
-                .DrawBuffer = resources.GetBuffer(passData.Draws),
-                .CountBuffer = resources.GetBuffer(passData.DrawInfo),
-                .MaxCount = passData.CommandCount});
+                .DrawBuffer = resources.GetBuffer(passData.Resources.Draws),
+                .CountBuffer = resources.GetBuffer(passData.Resources.DrawInfo),
+                .MaxCount = passData.Resources.MaxDrawCount});
         });
 }
