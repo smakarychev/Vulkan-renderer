@@ -2,6 +2,7 @@
 
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/SceneMultiviewRenderObjectVisibilityBindGroup.generated.h"
+#include "RenderGraph/Passes/HiZ/HiZCommon.h"
 
 RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
@@ -61,6 +62,20 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
                 bindGroup.SetObjectVisibility({
                     .Buffer = resources.GetBuffer(passData.Resources->RenderObjectVisibility[i])}, i);
 
+            if (info.Stage == SceneVisibilityStage::Reocclusion)
+            {
+                bindGroup.SetSampler(HiZ::createSampler(HiZ::ReductionMode::Min));
+                for (u32 i = 0; i < passData.Resources->VisibilityCount; i++)
+                {
+                    if (!passData.Resources->Hiz[i].IsValid())
+                        continue;
+                    
+                    auto&& [hiz, hizDescription] = resources.GetTextureWithDescription(passData.Resources->Hiz[i]);
+                    bindGroup.SetHiz({.Image = hiz}, hizDescription.Format == Format::D32_FLOAT ?
+                        ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly, i);
+                }
+            }
+            
             struct PushConstants
             {
                 u32 RenderObjectCount{0};
