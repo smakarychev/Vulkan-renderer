@@ -21,7 +21,7 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
             std::array<Resource, SceneMultiviewVisibility::MAX_VIEWS> passDepths{};
             std::array<ImageSubresourceDescription, SceneMultiviewVisibility::MAX_VIEWS> passDepthsSubresources{};
 
-            auto fillBuckets = [&](u32 visibilityIndex, bool reocclusion)
+            auto drawWithVisibility = [&](u32 visibilityIndex, bool reocclusion)
             {
                 auto& fillIndirectDraws = SceneFillIndirectDraw::addToGraph(
                     StringId("{}.FillSceneIndirectDraws.{}.{}", name, visibilityIndex, reocclusion ? "Reocclusion" : ""),
@@ -33,60 +33,64 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                 auto& fillIndirectDrawsOutput =
                     graph.GetBlackboard().Get<SceneFillIndirectDraw::PassData>(fillIndirectDraws);
                 passDrawInfos[visibilityIndex] = fillIndirectDrawsOutput;
-            };
-            auto drawView = [&](const SceneDrawPassDescription& pass, bool reocclusion)
-            {
-                const u32 visibilityIndex = info.MultiviewVisibility->VisibilityHandleToIndex(pass.Visibility);
-                const SceneView& mainVisibilityView = info.MultiviewVisibility->View(pass.Visibility);
-                const SceneFillIndirectDraw::PassData& drawInfo = passDrawInfos[visibilityIndex];
-                
-                DrawAttachments& inputAttachments = passData.DrawPassViewAttachments.Get(
-                    pass.View.Name, pass.Pass->Name());
-                if (reocclusion)
+
+                for (auto& pass : info.DrawPasses)
                 {
-                    for (auto& color : inputAttachments.Colors)
-                        color.Description.OnLoad = AttachmentLoad::Load;
-                    if (inputAttachments.Depth.has_value())
-                        inputAttachments.Depth->Description.OnLoad = AttachmentLoad::Load;
-                }
+                    if (info.MultiviewVisibility->VisibilityHandleToIndex(pass.Visibility) != visibilityIndex)
+                        continue;
 
-                for (SceneBucketHandle bucketHandle : pass.Pass->BucketHandles())
-                {
-                    const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
-                    auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
-                                
-                    // todo: do the shader specialization for each bucket here:
-                    auto [colors, depth] = pass.DrawPassInit(
-                        StringId("{}.{}.{}.{}.{}",
-                            name, pass.View.Name, pass.Pass->Name(), bucket.Name(), reocclusion ? "Reocclusion" : ""),
-                        graph, {
-                            .Draws = drawInfo.Draws[bucketIndex],
-                            .DrawInfo = drawInfo.DrawInfos[bucketIndex],
-                            .Resolution = pass.View.Resolution,
-                            .Camera = pass.View.Camera,
-                            .Attachments = inputAttachments,
-                            .Overrides = &bucket.ShaderOverrides});
-
-                    for (u32 i = 0; i < colors.size(); i++)
-                        inputAttachments.Colors[i].Resource = colors[i];
-
-                    if (depth.has_value())
-                    {
-                        if (pass.View == mainVisibilityView)
-                        {
-                            passDepths[visibilityIndex] = depth.value_or(Resource{});
-                            passDepthsSubresources[visibilityIndex] = inputAttachments.Depth.has_value() ?
-                                inputAttachments.Depth->Description.Subresource : ImageSubresourceDescription{};
-                        }
-                        inputAttachments.Depth->Resource = *depth;
-                    }
-
-                    if (!reocclusion && bucketIndex == 0)
+                    const SceneView& mainVisibilityView = info.MultiviewVisibility->View(pass.Visibility);
+                    const SceneFillIndirectDraw::PassData& drawInfo = passDrawInfos[visibilityIndex];
+                    
+                    DrawAttachments& inputAttachments = passData.DrawPassViewAttachments.Get(
+                        pass.View.Name, pass.Pass->Name());
+                    if (reocclusion)
                     {
                         for (auto& color : inputAttachments.Colors)
                             color.Description.OnLoad = AttachmentLoad::Load;
                         if (inputAttachments.Depth.has_value())
                             inputAttachments.Depth->Description.OnLoad = AttachmentLoad::Load;
+                    }
+
+                    for (SceneBucketHandle bucketHandle : pass.Pass->BucketHandles())
+                    {
+                        const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
+                        auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
+                                    
+                        // todo: do the shader specialization for each bucket here:
+                        auto [colors, depth] = pass.DrawPassInit(
+                            StringId("{}.{}.{}.{}.{}",
+                                name, pass.View.Name, pass.Pass->Name(), bucket.Name(),
+                                reocclusion ? "Reocclusion" : ""),
+                            graph, {
+                                .Draws = drawInfo.Draws[bucketIndex],
+                                .DrawInfo = drawInfo.DrawInfos[bucketIndex],
+                                .Resolution = pass.View.Resolution,
+                                .Camera = pass.View.Camera,
+                                .Attachments = inputAttachments,
+                                .Overrides = &bucket.ShaderOverrides});
+
+                        for (u32 i = 0; i < colors.size(); i++)
+                            inputAttachments.Colors[i].Resource = colors[i];
+
+                        if (depth.has_value())
+                        {
+                            if (pass.View == mainVisibilityView)
+                            {
+                                passDepths[visibilityIndex] = depth.value_or(Resource{});
+                                passDepthsSubresources[visibilityIndex] = inputAttachments.Depth.has_value() ?
+                                    inputAttachments.Depth->Description.Subresource : ImageSubresourceDescription{};
+                            }
+                            inputAttachments.Depth->Resource = *depth;
+                        }
+
+                        if (!reocclusion && bucketIndex == 0)
+                        {
+                            for (auto& color : inputAttachments.Colors)
+                                color.Description.OnLoad = AttachmentLoad::Load;
+                            if (inputAttachments.Depth.has_value())
+                                inputAttachments.Depth->Description.OnLoad = AttachmentLoad::Load;
+                        }
                     }
                 }
             };
@@ -107,11 +111,9 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                     .Resources = info.Resources,
                     .Stage = SceneVisibilityStage::Cull});
 
-            for (u32 viewIndex = 0; viewIndex < info.MultiviewVisibility->VisibilityCount(); viewIndex++)
-                fillBuckets(viewIndex, /*reocclusion*/false);
-
-            for (auto& viewPass : info.DrawPasses)
-                drawView(viewPass, /*reocclusion*/false);
+            for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
+                visibilityIndex++)
+                drawWithVisibility(visibilityIndex, /*reocclusion*/false);
 
             SceneMultiviewVisibilityHiz::addToGraph(
                 name.Concatenate("HizMultiview"),
@@ -134,11 +136,9 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                     .Resources = info.Resources,
                     .Stage = SceneVisibilityStage::Reocclusion});
 
-            for (u32 viewIndex = 0; viewIndex < info.MultiviewVisibility->VisibilityCount(); viewIndex++)
-                fillBuckets(viewIndex, /*reocclusion*/true);
-
-            for (auto& viewPass : info.DrawPasses)
-                drawView(viewPass, /*reocclusion*/true);
+            for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
+                visibilityIndex++)
+                drawWithVisibility(visibilityIndex, /*reocclusion*/true);
 
             graph.UpdateBlackboard(passData);
         },
