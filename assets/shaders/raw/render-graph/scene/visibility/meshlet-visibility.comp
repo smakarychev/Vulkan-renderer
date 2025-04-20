@@ -163,7 +163,7 @@ void main() {
             
             visible = visible && !is_last_frame_visible;
         }
-
+        
         compact(meshlet_id, u_render_object_buckets.buckets[render_object_id], visible, i);
     }
 }

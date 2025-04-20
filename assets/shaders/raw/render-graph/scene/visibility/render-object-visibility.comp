@@ -58,7 +58,7 @@ bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
     
     return visible;
 }
-#extension GL_EXT_debug_printf : enable
+
 void main() {
     const uint id = gl_GlobalInvocationID.x;
     if (id >= u_render_object_count)
