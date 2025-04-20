@@ -1,16 +1,12 @@
 #pragma once
 
-#include "SceneDrawPassesCommon.h"
-#include "RenderGraph/RGDrawResources.h"
-#include "RenderGraph/RGResource.h"
+#include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 
 class Camera;
 class SceneLight2;
 class SceneGeometry2;
 
-/* this is pretty much ugb proof-of-concept */
-
-namespace Passes::SceneDrawUnifiedBasic
+namespace Passes::SceneUnifiedPbr
 {
     struct ExecutionInfo
     {

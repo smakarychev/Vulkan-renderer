@@ -1,13 +1,11 @@
 #include "SceneMetaDrawPass.h"
 
-#include <ranges>
-
 #include "SceneFillIndirectDrawPass.h"
 #include "RenderGraph/RenderGraph.h"
 #include "Scene/SceneRenderObjectSet.h"
-#include "Visibility/SceneMultiviewMeshletVisibilityPass.h"
-#include "Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
-#include "Visibility/SceneMultiviewVisibilityHiZPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
 
 RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {

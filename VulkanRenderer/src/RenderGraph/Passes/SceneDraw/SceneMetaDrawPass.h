@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Visibility/SceneVisibilityPassesCommon.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "RenderGraph/RenderPass.h"
 #include "SceneDrawPassesCommon.h"
 

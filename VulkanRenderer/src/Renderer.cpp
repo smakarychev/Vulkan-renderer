@@ -26,7 +26,7 @@
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
-#include "RenderGraph/Passes/Scene/SceneDrawUnifiedBasic.h"
+#include "RenderGraph/Passes/SceneDraw/PBR/SceneUnifiedPbrPass.h"
 #include "RenderGraph/Passes/General/VisibilityPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZNVPass.h"
@@ -40,12 +40,11 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
-#include "RenderGraph/Passes/Scene/SceneFillIndirectDrawPass.h"
-#include "RenderGraph/Passes/Scene/SceneMetaDrawPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
+#include "RenderGraph/Passes/SceneDraw/SceneMetaDrawPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
@@ -339,14 +338,14 @@ void Renderer::SetupRenderGraph()
 
     auto initUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
     {
-        auto& ugb = Passes::SceneDrawUnifiedBasic::addToGraph(
+        auto& ugb = Passes::SceneUnifiedPbr::addToGraph(
             name.Concatenate(".UGB"),
             graph, {
                 .DrawInfo = info,
                 .Geometry = &m_Scene.Geometry(),
                 .Lights = &m_Scene.Lights(),});
         auto& ugbOutput =
-            graph.GetBlackboard().Get<Passes::SceneDrawUnifiedBasic::PassData>(ugb);
+            graph.GetBlackboard().Get<Passes::SceneUnifiedPbr::PassData>(ugb);
 
         return ugbOutput.Attachments;
     };
