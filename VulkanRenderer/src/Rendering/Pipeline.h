@@ -100,6 +100,7 @@ struct PipelineCreateInfo
 {
     PipelineLayout PipelineLayout{};
     Span<const ShaderModule> Shaders{};
+    std::string_view ShaderEntryPoint{"main"};
     Span<const Format> ColorFormats{};
     Format DepthFormat{Format::Undefined};
     VertexInputDescriptionView VertexDescription{};

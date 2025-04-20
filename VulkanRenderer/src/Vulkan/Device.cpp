@@ -2501,7 +2501,7 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
         shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
         shaderStageCreateInfo.module = module.Module;
         shaderStageCreateInfo.stage = module.Stage;
-        shaderStageCreateInfo.pName = "main";
+        shaderStageCreateInfo.pName = createInfo.ShaderEntryPoint.data();
 
         shaders.push_back(shaderStageCreateInfo);
     }
