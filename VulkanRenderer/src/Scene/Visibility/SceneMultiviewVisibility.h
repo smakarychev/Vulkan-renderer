@@ -12,9 +12,10 @@ public:
     static constexpr u32 MAX_VIEWS = 64;
 public:
     void Init(const SceneRenderObjectSet& set);
+    void Shutdown();
     void OnUpdate(FrameContext& ctx);
     
-    SceneVisibilityHandle AddVisibility(const SceneView& view, DeletionQueue& deletionQueue);
+    SceneVisibilityHandle AddVisibility(const SceneView& view);
     u32 VisibilityHandleToIndex(SceneVisibilityHandle handle) const { return handle.Handle; }
 
     Buffer RenderObjectVisibility(SceneVisibilityHandle handle) const;
@@ -24,7 +25,7 @@ public:
     u32 VisibilityCount() const { return m_ViewCount; }
     const SceneRenderObjectSet& ObjectSet() const;
 private:
-    void CreateVisibilityBuffers(DeletionQueue& deletionQueue);
+    void CreateVisibilityBuffers();
 private:
     struct SceneVisibility
     {

@@ -362,7 +362,7 @@ void Renderer::SetupRenderGraph()
     auto& pbrPass = m_OpaqueSet.FindPass("Visibility"_hsv);
     auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
 
-    m_OpaqueSetPrimaryVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView, Device::DeletionQueue());
+    m_OpaqueSetPrimaryVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView);
     auto initUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
     {
         auto& ugb = Passes::SceneUnifiedPbr::addToGraph(
@@ -960,6 +960,7 @@ void Renderer::Shutdown()
 
     m_SceneLights.reset();
     m_Graph.reset();
+    m_MultiviewVisibility.Shutdown();
     m_ResourceUploader.Shutdown();
     ShaderCache::Shutdown();
     for (auto& ctx : m_FrameContexts)
