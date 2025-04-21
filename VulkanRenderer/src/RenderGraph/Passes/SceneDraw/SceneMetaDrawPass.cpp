@@ -17,9 +17,10 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
         {
             CPU_PROFILE_FRAME("SceneMetaDraw")
 
-            std::array<SceneFillIndirectDraw::PassData, SceneMultiviewVisibility::MAX_VIEWS> passDrawInfos{};
             std::array<Resource, SceneMultiviewVisibility::MAX_VIEWS> passDepths{};
             std::array<ImageSubresourceDescription, SceneMultiviewVisibility::MAX_VIEWS> passDepthsSubresources{};
+            std::array<Resource, MAX_BUCKETS_PER_SET> draws;
+            std::array<Resource, MAX_BUCKETS_PER_SET> drawInfos;
 
             auto drawWithVisibility = [&](u32 visibilityIndex, bool reocclusion)
             {
@@ -27,12 +28,16 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                     StringId("{}.FillSceneIndirectDraws.{}.{}", name, visibilityIndex, reocclusion ? "Reocclusion" : ""),
                     graph, {
                         .Geometry = &info.MultiviewVisibility->ObjectSet().Geometry(),
-                        .RenderObjectSet = &info.MultiviewVisibility->ObjectSet(),
+                        .Draws = draws,
+                        .DrawInfos = drawInfos,
+                        .BucketCount = info.MultiviewVisibility->ObjectSet().BucketCount(),
                         .MeshletInfos = info.Resources->MeshletBucketInfos[visibilityIndex],
                         .MeshletInfoCount = info.Resources->MeshletInfoCounts[visibilityIndex]});
                 auto& fillIndirectDrawsOutput =
                     graph.GetBlackboard().Get<SceneFillIndirectDraw::PassData>(fillIndirectDraws);
-                passDrawInfos[visibilityIndex] = fillIndirectDrawsOutput;
+
+                draws = fillIndirectDrawsOutput.Draws;
+                drawInfos = fillIndirectDrawsOutput.DrawInfos;
 
                 for (auto& pass : info.DrawPasses)
                 {
@@ -40,7 +45,6 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                         continue;
 
                     const SceneView& mainVisibilityView = info.MultiviewVisibility->View(pass.Visibility);
-                    const SceneFillIndirectDraw::PassData& drawInfo = passDrawInfos[visibilityIndex];
                     
                     DrawAttachments& inputAttachments = passData.DrawPassViewAttachments.Get(
                         pass.View.Name, pass.Pass->Name());
@@ -63,8 +67,8 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                                 name, pass.View.Name, pass.Pass->Name(), bucket.Name(),
                                 reocclusion ? "Reocclusion" : ""),
                             graph, {
-                                .Draws = drawInfo.Draws[bucketIndex],
-                                .DrawInfo = drawInfo.DrawInfos[bucketIndex],
+                                .Draws = draws[bucketIndex],
+                                .DrawInfo = drawInfos[bucketIndex],
                                 .Resolution = pass.View.Resolution,
                                 .Camera = pass.View.Camera,
                                 .Attachments = inputAttachments,
@@ -97,6 +101,24 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
             
             for (auto& viewPass : info.DrawPasses)
                 passData.DrawPassViewAttachments.Add(viewPass.View.Name, viewPass.Pass->Name(), viewPass.Attachments);
+
+            u32 bucketIndex = 0;
+            for (auto& pass : info.MultiviewVisibility->ObjectSet().Passes())
+            {
+                for (SceneBucketHandle bucketHandle : pass.BucketHandles())
+                {
+                    auto& bucket = pass.BucketFromHandle(
+                        info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle));
+                    draws[bucketIndex] = graph.AddExternal(
+                        StringId("Draw"_hsv).AddVersion(bucketIndex),
+                        bucket.Draws());
+                    drawInfos[bucketIndex] = graph.AddExternal(
+                        StringId("DrawInfo"_hsv).AddVersion(bucketIndex),
+                        bucket.DrawInfo());
+                    bucketIndex++;
+                }
+            }
+            ASSERT(bucketIndex == info.MultiviewVisibility->ObjectSet().BucketCount())
         
             SceneMultiviewRenderObjectVisibility::addToGraph(
                 name.Concatenate("SceneROVisibility"),
@@ -144,6 +166,5 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-            
         });
 }

@@ -11,11 +11,11 @@ namespace Passes::SceneFillIndirectDraw
     struct ExecutionInfo
     {
         const SceneGeometry2* Geometry{nullptr};
-        const SceneRenderObjectSet* RenderObjectSet{nullptr};
+        std::array<RG::Resource, MAX_BUCKETS_PER_SET> Draws;
+        std::array<RG::Resource, MAX_BUCKETS_PER_SET> DrawInfos;
+        u32 BucketCount{0};
         RG::Resource MeshletInfos{};
         RG::Resource MeshletInfoCount{};
-
-        // todo: this should consider visibility
     };
     struct PassData
     {

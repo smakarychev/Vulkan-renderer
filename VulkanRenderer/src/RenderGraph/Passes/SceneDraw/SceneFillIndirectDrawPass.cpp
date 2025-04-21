@@ -20,7 +20,7 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
         std::array<Resource, MAX_BUCKETS_PER_SET> DrawInfos;
         
         u32 BucketCount{0};
-        u32 MeshletCount{0};
+        u32 CommandCount{0};
     };
     
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
@@ -30,9 +30,8 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
 
             graph.SetShader("scene-fill-indirect-draws.shader");
 
-            passData.BucketCount = info.RenderObjectSet->BucketCount();
-
-            passData.MeshletCount = info.RenderObjectSet->MeshletCount();
+            passData.BucketCount = info.BucketCount;
+            passData.CommandCount = info.Geometry->CommandCount;
 
             passData.ReferenceCommands = graph.AddExternal("ReferenceCommands"_hsv,
                 info.Geometry->Commands.Buffer);
@@ -41,29 +40,13 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
             passData.MeshletInfos = graph.Read(info.MeshletInfos, Compute | Storage);
             passData.MeshletInfoCount = graph.Read(info.MeshletInfoCount, Compute | Uniform);
 
-            for (auto& pass : info.RenderObjectSet->Passes())
+            for (u32 i = 0; i < passData.BucketCount; i++)
             {
-                for (SceneBucketHandle bucketHandle : pass.BucketHandles())
-                {
-                    const u32 bucketIndex = info.RenderObjectSet->BucketHandleToIndex(bucketHandle);
-                    
-                    auto& bucket = pass.BucketFromHandle(bucketHandle);
-                    ASSERT(!passData.Draws[bucketIndex].IsValid(), "Ambiguous bucket")
-                    
-                    passData.Draws[bucketIndex] = graph.AddExternal(
-                        StringId("Draw"_hsv).AddVersion(bucketIndex),
-                        bucket.Draws());
-                    passData.Draws[bucketIndex] = graph.Write(passData.Draws[bucketIndex], Compute | Storage);
-                    
-                    passData.DrawInfos[bucketIndex] = graph.AddExternal(
-                        StringId("DrawInfo"_hsv).AddVersion(bucketIndex),
-                        bucket.DrawInfo());
-                    passData.DrawInfos[bucketIndex] = graph.Read(
-                        passData.DrawInfos[bucketIndex], Compute | Storage);
-                    passData.DrawInfos[bucketIndex] = graph.Write(
-                        passData.DrawInfos[bucketIndex], Compute | Storage);
-                    graph.Upload(passData.DrawInfos[bucketIndex], SceneBucketDrawInfo{});
-                }
+                passData.Draws[i] = graph.Read(info.Draws[i], Compute | Storage);
+                passData.Draws[i] = graph.Write(passData.Draws[i], Compute | Storage);
+                passData.DrawInfos[i] = graph.Read(info.DrawInfos[i], Compute | Storage);
+                passData.DrawInfos[i] = graph.Write(passData.DrawInfos[i], Compute | Storage);
+                graph.Upload(passData.DrawInfos[i], SceneBucketDrawInfo{});
             }
             
             PassData passDataPublic = {};
@@ -92,7 +75,7 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
             bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
             /* todo: this can use indirect dispatch */
             cmd.Dispatch({
-               .Invocations = {passData.MeshletCount, 1, 1},
+               .Invocations = {passData.CommandCount, 1, 1},
                .GroupSize = {256, 1, 1}});
         });
 }
