@@ -607,14 +607,13 @@ std::optional<assetLib::ShaderStageInfo> ShaderStageConverter::Bake(const std::f
 
     std::vector<u32> spirvOptimized;
     spirvOptimized.reserve(spirv.size());
-    spvtools::Optimizer optimizer(SPV_ENV_VULKAN_1_3);
+    spvtools::Optimizer optimizer(SPV_ENV_VULKAN_1_4);
     optimizer.RegisterPerformancePasses(true);
 
     if (optimizer.Run(spirv.data(), spirv.size(), &spirvOptimized))
         spirv = spirvOptimized;
 
     shaderInfo.SourceSizeBytes = spirv.size() * sizeof(u32);
-    
 
     assetLib::File shaderFile = assetLib::packShaderStage(shaderInfo, spirv.data());
 
