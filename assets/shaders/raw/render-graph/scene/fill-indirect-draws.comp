@@ -30,23 +30,26 @@ void main() {
         return;
     
     const MeshletBucketInfo meshlet = u_meshlet_infos.infos[id];
-    uint64_t buckets = meshlet.buckets;
-    uint64_t subgroup_buckets = subgroupOr(buckets);
-    while (subgroup_buckets > 0) {
-        const uint bit_index = uint(findLSB(subgroup_buckets));
+    uint64_t buckets = subgroupOr(meshlet.buckets);
+    while (buckets > 0) {
+        const uint bit_index = uint(findLSB(buckets));
         const uint64_t bit = uint64_t(1) << bit_index;
-        
-        const uvec4 has_bit_ballot = subgroupBallot((buckets & bit) != 0);
-        const uint has_bit = subgroupBallotBitCount(has_bit_ballot);
+        const bool has_bit = (meshlet.buckets & bit) != 0;
+        const uvec4 has_bit_ballot = subgroupBallot(has_bit);
+        const uint has_bit_count = subgroupBallotBitCount(has_bit_ballot);
+
         uint first_draw_index = 0;
         if (subgroupElect()) {
-            first_draw_index = atomicAdd(u_draw_info[bit_index].info.count, has_bit);
+            first_draw_index = atomicAdd(u_draw_info[bit_index].info.count, has_bit_count);
         }
         first_draw_index = subgroupBroadcastFirst(first_draw_index);
-        const uint draw_index_offset = subgroupBallotExclusiveBitCount(has_bit_ballot);
-        u_draw_commands[bit_index].commands[first_draw_index + draw_index_offset] =
-            u_reference_commands.commands[meshlet.index];
         
-        subgroup_buckets = subgroup_buckets & ~bit;
+        if (has_bit) {
+            const uint draw_index_offset = subgroupBallotExclusiveBitCount(has_bit_ballot);
+            u_draw_commands[bit_index].commands[first_draw_index + draw_index_offset] =
+            u_reference_commands.commands[meshlet.index];
+        }
+        
+        buckets = buckets & ~bit;
     }
 }
