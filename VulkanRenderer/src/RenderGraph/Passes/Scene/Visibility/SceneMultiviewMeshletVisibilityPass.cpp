@@ -2,6 +2,7 @@
 
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/SceneMultiviewMeshletVisibilityBindGroup.generated.h"
+#include "RenderGraph/Passes/HiZ/HiZCommon.h"
 #include "Rendering/Shader/ShaderCache.h"
 
 RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG::Graph& renderGraph,
@@ -81,6 +82,20 @@ RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG:
                     .Buffer = resources.GetBuffer(passData.Resources->MeshletBucketInfos[i])}, i);     
                 bindGroup.SetMeshletInfoCount({
                     .Buffer = resources.GetBuffer(passData.Resources->MeshletInfoCounts[i])}, i);                
+            }
+
+            if (info.Stage == SceneVisibilityStage::Reocclusion)
+            {
+                bindGroup.SetSampler(HiZ::createSampler(HiZ::ReductionMode::Min));
+                for (u32 i = 0; i < passData.Resources->VisibilityCount; i++)
+                {
+                    if (!passData.Resources->Hiz[i].IsValid())
+                        continue;
+                    
+                    auto&& [hiz, hizDescription] = resources.GetTextureWithDescription(passData.Resources->Hiz[i]);
+                    bindGroup.SetHiz({.Image = hiz}, hizDescription.Format == Format::D32_FLOAT ?
+                        ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly, i);
+                }
             }
 
             struct PushConstants
