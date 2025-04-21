@@ -24,6 +24,8 @@ public:
     u32 VisibilityCount() const { return m_ViewCount; }
     const SceneRenderObjectSet& ObjectSet() const;
 private:
+    void CreateVisibilityBuffers(DeletionQueue& deletionQueue);
+private:
     struct SceneVisibility
     {
         Buffer RenderObjectVisibility;
@@ -37,6 +39,7 @@ private:
         SceneView View{};
     };
     std::array<ViewVisibility, MAX_VIEWS> m_Visibilities{};
+    u32 m_ViewCountPreviousFrame{0};
     u32 m_ViewCount{0};
     const SceneRenderObjectSet* m_Set{nullptr};
 };

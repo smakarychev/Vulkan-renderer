@@ -95,9 +95,13 @@ private:
     Scene m_Scene;
     SceneBucketList m_SceneBucketList;
     SceneRenderObjectSet m_OpaqueSet;
-    SceneVisibilityHandle m_OpaqueSetVisibility{};
+    SceneVisibilityHandle m_OpaqueSetPrimaryVisibility{};
     SceneView m_OpaqueSetPrimaryView{};
+
+    std::shared_ptr<Camera> m_ShadowCamera;
+    SceneVisibilityHandle m_OpaqueSetShadowVisibility{};
     SceneView m_OpaqueSetOverheadView{};
+
     SceneMultiviewVisibility m_MultiviewVisibility{};
     SceneVisibilityPassesResources m_SceneVisibilityResources{};
     

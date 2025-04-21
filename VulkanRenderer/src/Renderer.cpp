@@ -45,6 +45,7 @@
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
 #include "RenderGraph/Passes/SceneDraw/SceneMetaDrawPass.h"
+#include "RenderGraph/Passes/SceneDraw/Shadow/SceneDirectionalShadowPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
@@ -57,6 +58,7 @@
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
+#include "RenderGraph/Passes/Utility/VisualizeDepthPass.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
@@ -201,20 +203,46 @@ void Renderer::InitRenderGraph()
                     .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
                         const Material2& material = geometry.MaterialsCpu[
                             geometry.RenderObjects[renderObject.Index].Material];
-                        return renderObject.Index >= 1 && enumHasAny(material.Flags, MaterialFlags::Opaque);
+                        return renderObject.Index >= 1;
                     },
                 }}
             },
+        ScenePassCreateInfo{
+            .Name = "Shadow"_hsv,
+            .BucketCreateInfos = {
+                {
+                    .Name = "Opaque material"_hsv,
+                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const Material2& material = geometry.MaterialsCpu[
+                            geometry.RenderObjects[renderObject.Index].Material];
+                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
+                    },
+                }
+            },
+        },
     }, Device::DeletionQueue());
 
-    const ScenePass& visibilityPass = m_OpaqueSet.FindPass("Visibility"_hsv);
     m_MultiviewVisibility.Init(m_OpaqueSet);
     m_OpaqueSetPrimaryView = {
         .Name = "OpaquePrimary"_hsv,
         .Camera = GetFrameContext().PrimaryCamera,
         .Resolution = GetFrameContext().Resolution,
         .VisibilityFlags = SceneVisibilityFlags::IsPrimaryView | SceneVisibilityFlags::OcclusionCull};
-    m_OpaqueSetVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView, Device::DeletionQueue());
+    
+    m_ShadowCamera = std::make_shared<Camera>(Camera::Perspective({
+        .BaseInfo = CameraCreateInfo{
+            .Position = glm::vec3(0.0f, 7.0f, 0.0f),
+            .Orientation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
+            .Near = 0.1f,
+            .Far = 100.0f,
+            .ViewportWidth = 400,
+            .ViewportHeight = 400},
+        .Fov = glm::radians(90.0f)}));
+    m_OpaqueSetOverheadView = {
+        .Name = "OpaqueOverhead"_hsv,
+        .Camera = m_ShadowCamera.get(),
+        .Resolution = glm::uvec2(400, 400),
+        .VisibilityFlags = SceneVisibilityFlags::None};
     
     /* initial submit */
     Device::ImmediateSubmit([&](RenderCommandList& cmdList)
@@ -222,7 +250,7 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene",
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/flight_helmet/FlightHelmet.scene",
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
@@ -331,11 +359,10 @@ void Renderer::SetupRenderGraph()
         .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::D32_FLOAT});
     
-    m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-        *m_Graph, m_MultiviewVisibility);
     auto& pbrPass = m_OpaqueSet.FindPass("Visibility"_hsv);
-    auto& opaqueBucket = pbrPass.FindBucket("Opaque material"_hsv);
+    auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
 
+    m_OpaqueSetPrimaryVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView, Device::DeletionQueue());
     auto initUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
     {
         auto& ugb = Passes::SceneUnifiedPbr::addToGraph(
@@ -348,6 +375,18 @@ void Renderer::SetupRenderGraph()
             graph.GetBlackboard().Get<Passes::SceneUnifiedPbr::PassData>(ugb);
 
         return ugbOutput.Attachments;
+    };
+    auto initShadowUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
+    {
+        auto& shadow = Passes::SceneDirectionalShadow::addToGraph(
+            name.Concatenate(".DirectionalShadow.UGB"),
+            graph, {
+                .DrawInfo = info,
+                .Geometry = &m_Scene.Geometry()});
+        auto& shadowOutput =
+            graph.GetBlackboard().Get<Passes::SceneDirectionalShadow::PassData>(shadow);
+
+        return shadowOutput.Attachments;
     };
     DrawAttachments attachments = {
         .Colors = {
@@ -367,77 +406,57 @@ void Renderer::SetupRenderGraph()
             }
         }
     };
-    static Camera overhead = Camera::Perspective({
-        .BaseInfo = CameraCreateInfo{
-            .Position = glm::vec3(0.0f, 7.0f, 0.0f),
-            .Orientation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-            .Near = 0.1f,
-            .Far = 100.0f,
-            .ViewportWidth = 400,
-            .ViewportHeight = 400},
-        .Fov = glm::radians(90.0f)});
     {
         ImGui::Begin("OVERHEAD CAMERA");
-        auto position = overhead.GetPosition();
+        auto position = m_ShadowCamera->GetPosition();
         ImGui::DragFloat3("Pos", &position[0], 1e-2f);
-        overhead.SetPosition(position);
+        m_ShadowCamera->SetPosition(position);
         ImGui::End();
     }
-    m_OpaqueSetOverheadView = {
-        .Name = "OpaqueOverhead"_hsv,
-        .Camera = &overhead,
-        .Resolution = glm::uvec2(400, 400),
-        .VisibilityFlags = SceneVisibilityFlags::None};
     SceneDrawPassDescription opaqueUGBDraw = {
         .Pass = &pbrPass,
         .DrawPassInit = initUgbPass, 
         .View = m_OpaqueSetPrimaryView,
-        .Visibility = m_OpaqueSetVisibility,
+        .Visibility = m_OpaqueSetPrimaryVisibility,
         .Attachments = attachments
     };
-    Resource overheadColor = m_Graph->CreateResource("OVERHEAD_COLOR"_hsv, GraphTextureDescription{
-        .Width = 400,
-        .Height = 400,
-        .Format = Format::RGBA16_FLOAT});
     Resource overheadDepth = m_Graph->CreateResource("OVERHEAD_DEPTH"_hsv, GraphTextureDescription{
         .Width = 400,
         .Height = 400,
         .Format = Format::D32_FLOAT});
-    attachments.Colors[0] = DrawAttachment{
-        .Resource = overheadColor,
-        .Description = {
-            .OnLoad = AttachmentLoad::Clear,
-            .ClearColor = {.F = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)}
-        }
-    };
+    attachments.Colors = {};
     attachments.Depth = DepthStencilAttachment{
         .Resource = overheadDepth,
         .Description = {
             .OnLoad = AttachmentLoad::Clear,
-        }
+        },
+        .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}
     };
-    SceneDrawPassDescription opaqueUGBOverheadDraw = {
-        .Pass = &pbrPass,
-        .DrawPassInit = initUgbPass, 
+    SceneDrawPassDescription opaqueShadowPass = {
+        .Pass = &shadowPass,
+        .DrawPassInit = initShadowUgbPass, 
         .View = m_OpaqueSetOverheadView,
-        .Visibility = m_OpaqueSetVisibility,
+        .Visibility = m_OpaqueSetPrimaryVisibility,
         .Attachments = attachments
     };
+
+    m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
+        *m_Graph, m_MultiviewVisibility);
+    
     auto& metaUgb = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
         *m_Graph, {
             .MultiviewVisibility = &m_MultiviewVisibility,
             .Resources = &m_SceneVisibilityResources,
-            .DrawPasses = {opaqueUGBDraw, opaqueUGBOverheadDraw}});
+            .DrawPasses = {opaqueUGBDraw, opaqueShadowPass}});
     auto& metaOutput = m_Graph->GetBlackboard().Get<Passes::SceneMetaDraw::PassData>(metaUgb);
-    Passes::ImGuiTexture::addToGraph("OVERHEAD"_hsv, *m_Graph,
-        metaOutput.DrawPassViewAttachments.Get(m_OpaqueSetOverheadView.Name, pbrPass.Name()).Colors[0].Resource);
-    
-    auto& hizVisualize = Passes::HiZVisualize::addToGraph("HizVisualize"_hsv, *m_Graph,
-        {m_SceneVisibilityResources.Hiz[0]});
-    auto& hizVisualizePassOutput = blackboard.Get<Passes::HiZVisualize::PassData>(hizVisualize);
-    Passes::ImGuiTexture::addToGraph("HiZTexture"_hsv, *m_Graph, hizVisualizePassOutput.ColorOut);
 
-    
+    auto& depthVisualize = Passes::VisualizeDepth::addToGraph("DEPTH"_hsv, *m_Graph,
+            metaOutput.DrawPassViewAttachments.Get(m_OpaqueSetOverheadView.Name, shadowPass.Name()).Depth->Resource,
+            {}, m_ShadowCamera->GetNear(), m_ShadowCamera->GetFar(), false);
+    auto& depthVisualizeOutput = blackboard.Get<Passes::VisualizeDepth::PassData>(depthVisualize);
+    Passes::ImGuiTexture::addToGraph("OVERHEAD"_hsv, *m_Graph,
+        depthVisualizeOutput.ColorOut);
+ 
     
     // todo: move to proper place (this is just testing atm)
     /*if (m_GraphTranslucentGeometry.IsValid())

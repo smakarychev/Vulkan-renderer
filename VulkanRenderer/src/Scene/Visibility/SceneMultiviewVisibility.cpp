@@ -21,7 +21,9 @@ void SceneMultiviewVisibility::Init(const SceneRenderObjectSet& set)
 
 void SceneMultiviewVisibility::OnUpdate(FrameContext& ctx)
 {
-    for (u32 i = 0; i < m_ViewCount; i++)
+    m_ViewCountPreviousFrame = m_ViewCount;
+    m_ViewCount = 0;
+    for (u32 i = 0; i < m_ViewCountPreviousFrame; i++)
         m_Visibilities[i].Visibility.OnUpdate(ctx, *m_Set);
 }
 
@@ -32,17 +34,12 @@ SceneVisibilityHandle SceneMultiviewVisibility::AddVisibility(const SceneView& v
         LOG("Multiview visibility cannot take more than {} views", MAX_VIEWS);
         return {SceneVisibilityHandle::INVALID};
     }
-    
-    m_Visibilities[m_ViewCount].View = view;
-    m_Visibilities[m_ViewCount].Visibility.RenderObjectVisibility = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Buffer.SizeBytes"_hsv),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
-    m_Visibilities[m_ViewCount].Visibility.MeshletVisibility = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Meshlet.Buffer.SizeBytes"_hsv),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
 
+    m_Visibilities[m_ViewCount].View = view;
+    
+    if (m_ViewCount >= m_ViewCountPreviousFrame)
+        CreateVisibilityBuffers(deletionQueue);
+    
     const SceneVisibilityHandle toReturn {.Handle = m_ViewCount};
     m_ViewCount++;
 
@@ -73,4 +70,16 @@ const SceneView& SceneMultiviewVisibility::View(SceneVisibilityHandle handle) co
 const SceneRenderObjectSet& SceneMultiviewVisibility::ObjectSet() const
 {
     return *m_Set;
+}
+
+void SceneMultiviewVisibility::CreateVisibilityBuffers(DeletionQueue& deletionQueue)
+{
+    m_Visibilities[m_ViewCount].Visibility.RenderObjectVisibility = Device::CreateBuffer({
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Buffer.SizeBytes"_hsv),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
+        deletionQueue);
+    m_Visibilities[m_ViewCount].Visibility.MeshletVisibility = Device::CreateBuffer({
+        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Meshlet.Buffer.SizeBytes"_hsv),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
+        deletionQueue);
 }
