@@ -3705,6 +3705,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
             return
                     features.features.samplerAnisotropy == VK_TRUE &&
                     features.features.multiDrawIndirect == VK_TRUE &&
+                    features.features.drawIndirectFirstInstance == VK_TRUE &&
                     features.features.geometryShader == VK_TRUE &&
                     features.features.shaderSampledImageArrayDynamicIndexing == VK_TRUE &&
                     features.features.shaderInt16 == VK_TRUE &&
@@ -3812,6 +3813,7 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;
     deviceFeatures.multiDrawIndirect = VK_TRUE;
+    deviceFeatures.drawIndirectFirstInstance = VK_TRUE;
     deviceFeatures.geometryShader = VK_TRUE;
     deviceFeatures.shaderSampledImageArrayDynamicIndexing = VK_TRUE;
     deviceFeatures.shaderInt16 = VK_TRUE;
