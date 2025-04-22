@@ -45,6 +45,7 @@
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
 #include "RenderGraph/Passes/SceneDraw/SceneMetaDrawPass.h"
+#include "RenderGraph/Passes/SceneDraw/Shadow/SceneCsmPass.h"
 #include "RenderGraph/Passes/SceneDraw/Shadow/SceneDirectionalShadowPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
@@ -207,19 +208,7 @@ void Renderer::InitRenderGraph()
                     },
                 }}
             },
-        ScenePassCreateInfo{
-            .Name = "Shadow"_hsv,
-            .BucketCreateInfos = {
-                {
-                    .Name = "Opaque material"_hsv,
-                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const Material2& material = geometry.MaterialsCpu[
-                            geometry.RenderObjects[renderObject.Index].Material];
-                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
-                    },
-                }
-            },
-        },
+        Passes::SceneCsm::getScenePassCreateInfo("Shadow"_hsv),
     }, Device::DeletionQueue());
 
     m_MultiviewVisibility.Init(m_OpaqueSet);
@@ -360,7 +349,6 @@ void Renderer::SetupRenderGraph()
         .Format = Format::D32_FLOAT});
     
     auto& pbrPass = m_OpaqueSet.FindPass("Visibility"_hsv);
-    auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
 
     m_OpaqueSetPrimaryVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView);
     auto initUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
@@ -375,18 +363,6 @@ void Renderer::SetupRenderGraph()
             graph.GetBlackboard().Get<Passes::SceneUnifiedPbr::PassData>(ugb);
 
         return ugbOutput.Attachments;
-    };
-    auto initShadowUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
-    {
-        auto& shadow = Passes::SceneDirectionalShadow::addToGraph(
-            name.Concatenate(".DirectionalShadow.UGB"),
-            graph, {
-                .DrawInfo = info,
-                .Geometry = &m_Scene.Geometry()});
-        auto& shadowOutput =
-            graph.GetBlackboard().Get<Passes::SceneDirectionalShadow::PassData>(shadow);
-
-        return shadowOutput.Attachments;
     };
     DrawAttachments attachments = {
         .Colors = {
@@ -406,13 +382,6 @@ void Renderer::SetupRenderGraph()
             }
         }
     };
-    {
-        ImGui::Begin("OVERHEAD CAMERA");
-        auto position = m_ShadowCamera->GetPosition();
-        ImGui::DragFloat3("Pos", &position[0], 1e-2f);
-        m_ShadowCamera->SetPosition(position);
-        ImGui::End();
-    }
     SceneDrawPassDescription opaqueUGBDraw = {
         .Pass = &pbrPass,
         .DrawPassInit = initUgbPass, 
@@ -420,42 +389,43 @@ void Renderer::SetupRenderGraph()
         .Visibility = m_OpaqueSetPrimaryVisibility,
         .Attachments = attachments
     };
-    Resource overheadDepth = m_Graph->CreateResource("OVERHEAD_DEPTH"_hsv, GraphTextureDescription{
-        .Width = 400,
-        .Height = 400,
-        .Format = Format::D32_FLOAT});
-    attachments.Colors = {};
-    attachments.Depth = DepthStencilAttachment{
-        .Resource = overheadDepth,
-        .Description = {
-            .OnLoad = AttachmentLoad::Clear,
-        },
-        .DepthBias = DepthBias{.Constant = DEPTH_CONSTANT_BIAS, .Slope = DEPTH_SLOPE_BIAS}
-    };
-    SceneDrawPassDescription opaqueShadowPass = {
-        .Pass = &shadowPass,
-        .DrawPassInit = initShadowUgbPass, 
-        .View = m_OpaqueSetOverheadView,
-        .Visibility = m_OpaqueSetPrimaryVisibility,
-        .Attachments = attachments
-    };
+
+    /*auto& sceneCsmInit = Passes::SceneCsm::addToGraph("CSM"_hsv, *m_Graph, {
+            .Pass = &m_OpaqueSet.FindPass("Shadow"_hsv),
+            .Geometry = &m_Scene.Geometry(),
+            .MultiviewVisibility = &m_MultiviewVisibility,
+            .MainCamera = m_Camera.get(),
+            .DirectionalLight = DirectionalLight{
+                .Direction = glm::normalize(glm::vec3(-0.5f, 1.0f, 1.0f)),
+                .Color = glm::vec3(1.1f, 1.0f, 1.0f),
+                .Intensity = 10.0f,
+                .Size = 1},
+            .ShadowMin = 0.01f,
+            .ShadowMax = 100.0f,
+            .StabilizeCascades = false});
+    auto& sceneCsmInitOutput = blackboard.Get<Passes::SceneCsm::PassData>(sceneCsmInit);*/
 
     m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
         *m_Graph, m_MultiviewVisibility);
-    
+
+    std::vector drawPasses = {opaqueUGBDraw};
+    //drawPasses.append_range(sceneCsmInitOutput.MetaPassDescriptions);
     auto& metaUgb = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
         *m_Graph, {
             .MultiviewVisibility = &m_MultiviewVisibility,
             .Resources = &m_SceneVisibilityResources,
-            .DrawPasses = {opaqueUGBDraw, opaqueShadowPass}});
+            .DrawPasses = drawPasses});
     auto& metaOutput = m_Graph->GetBlackboard().Get<Passes::SceneMetaDraw::PassData>(metaUgb);
 
-    auto& depthVisualize = Passes::VisualizeDepth::addToGraph("DEPTH"_hsv, *m_Graph,
-            metaOutput.DrawPassViewAttachments.Get(m_OpaqueSetOverheadView.Name, shadowPass.Name()).Depth->Resource,
-            {}, m_ShadowCamera->GetNear(), m_ShadowCamera->GetFar(), false);
-    auto& depthVisualizeOutput = blackboard.Get<Passes::VisualizeDepth::PassData>(depthVisualize);
-    Passes::ImGuiTexture::addToGraph("OVERHEAD"_hsv, *m_Graph,
-        depthVisualizeOutput.ColorOut);
+    /*auto& csmVisualize = Passes::VisualizeCSM::addToGraph("CsmVisualize"_hsv, *m_Graph, {
+        .ShadowMap = metaOutput.DrawPassViewAttachments.Get(
+            sceneCsmInitOutput.MetaPassDescriptions.front().View.Name,
+            m_OpaqueSet.FindPass("Shadow"_hsv).Name()).Depth->Resource,
+        .CSM = sceneCsmInitOutput.CsmInfo,
+        .Near = sceneCsmInitOutput.Near,
+        .Far = sceneCsmInitOutput.Far}, {});
+    auto& csmVisualizeOutput = blackboard.Get<Passes::VisualizeCSM::PassData>(csmVisualize);
+    Passes::ImGuiTexture::addToGraph("CSM.Texture"_hsv, *m_Graph, csmVisualizeOutput.ColorOut);*/
  
     
     // todo: move to proper place (this is just testing atm)

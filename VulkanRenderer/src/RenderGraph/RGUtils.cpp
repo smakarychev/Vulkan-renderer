@@ -204,7 +204,7 @@ namespace RG::RgUtils
         CSMData csmData = {};
 
         csmData.ShadowMap = graph.Read(csm.ShadowMap, shaderStage | Sampled);
-        csmData.CSM = graph.Read(csm.CSM, shaderStage | Uniform);
+        csmData.CsmInfo = graph.Read(csm.CsmInfo, shaderStage | Uniform);
 
         return csmData;
     }

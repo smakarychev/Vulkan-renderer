@@ -40,7 +40,7 @@ namespace RG
     struct CSMData
     {
         Resource ShadowMap{};
-        Resource CSM{};
+        Resource CsmInfo{};
     };
     
     struct DrawAttributeBuffers

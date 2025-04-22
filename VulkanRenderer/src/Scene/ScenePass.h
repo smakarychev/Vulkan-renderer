@@ -6,7 +6,7 @@
 struct ScenePassCreateInfo
 {
     StringId Name{};
-    Span<const SceneBucketCreateInfo> BucketCreateInfos;
+    std::vector<SceneBucketCreateInfo> BucketCreateInfos;
 };
 
 class ScenePass

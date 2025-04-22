@@ -122,7 +122,7 @@ namespace RG::RgUtils
     void updateCSMBindings(BindGroup& bindGroup, const Resources& resources, const CSMData& csmData)
     {
         Texture shadow = resources.GetTexture(csmData.ShadowMap);
-        Buffer csm = resources.GetBuffer(csmData.CSM);
+        Buffer csm = resources.GetBuffer(csmData.CsmInfo);
 
         bindGroup.SetCsm({.Image = shadow},
             Device::GetImageDescription(shadow).Format == Format::D32_FLOAT ?
