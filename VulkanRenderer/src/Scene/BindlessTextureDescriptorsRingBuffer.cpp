@@ -6,8 +6,8 @@ BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 m
     : m_MaxBindlessCount(maxCount), m_MaterialsShader(&shader)
 {
     for (u32 i = 0; i < m_DefaultTextures.size(); i++)
-        m_DefaultTextures[i] = AddTexture(ImageUtils::DefaultTextures::GetCopy(
-            (ImageUtils::DefaultTexture)i, Device::DeletionQueue()));
+        m_DefaultTextures[i] = AddTexture(Images::Default::GetCopy(
+            (Images::DefaultKind)i, Device::DeletionQueue()));
 }
 
 u32 BindlessTextureDescriptorsRingBuffer::Size() const
@@ -43,7 +43,7 @@ u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
     return toReturn;
 }
 
-u32 BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(ImageUtils::DefaultTexture texture) const
+u32 BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(Images::DefaultKind texture) const
 {
     return m_DefaultTextures[(u32)texture];
 }

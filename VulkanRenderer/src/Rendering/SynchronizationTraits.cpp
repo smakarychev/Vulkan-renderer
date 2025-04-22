@@ -1,6 +1,6 @@
 #include "SynchronizationTraits.h"
 
-namespace SynchronizationUtils
+namespace SynchronizationTraits
 {
     std::string pipelineStageToString(PipelineStage stage)
     {

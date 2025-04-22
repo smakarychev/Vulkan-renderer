@@ -78,17 +78,17 @@ namespace RG
         return textureResource;
     }
 
-    Resource Graph::AddExternal(StringId name, ImageUtils::DefaultTexture texture)
+    Resource Graph::AddExternal(StringId name, Images::DefaultKind texture)
     {
-        return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(texture, *m_FrameDeletionQueue));
+        return AddExternal(name, Images::Default::GetCopy(texture, *m_FrameDeletionQueue));
     }
 
-    Resource Graph::AddExternal(StringId name, Texture texture, ImageUtils::DefaultTexture fallback)
+    Resource Graph::AddExternal(StringId name, Texture texture, Images::DefaultKind fallback)
     {
         if (texture.HasValue())
             return AddExternal(name, texture);
 
-        return AddExternal(name, ImageUtils::DefaultTextures::GetCopy(fallback, *m_FrameDeletionQueue));
+        return AddExternal(name, Images::Default::GetCopy(fallback, *m_FrameDeletionQueue));
     }
 
     Resource Graph::Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force)
@@ -1766,7 +1766,7 @@ namespace RG
                     
                     const BufferDescription& description = descriptionHolder->m_Description;
                     ss << std::format("\t{}\n\t{}\"]\n", description.SizeBytes,
-                        BufferUtils::bufferUsageToString(description.Usage));
+                        BufferTraits::bufferUsageToString(description.Usage));
                 }
                 else
                 {
@@ -1777,10 +1777,10 @@ namespace RG
                     const TextureDescription& description = descriptionHolder->m_Description;
                     ss << std::format("\t({} x {} x {})\n\t{}\n\t{}\n\t{}\n\t{}\"]\n",
                         description.Width, description.Height, description.LayersDepth,
-                        ImageUtils::imageKindToString(description.Kind),
+                        ImageTraits::imageKindToString(description.Kind),
                         FormatUtils::formatToString(description.Format),
-                        ImageUtils::imageUsageToString(description.Usage),
-                        ImageUtils::imageFilterToString(description.MipmapFilter));
+                        ImageTraits::imageUsageToString(description.Usage),
+                        ImageTraits::imageFilterToString(description.MipmapFilter));
                 }
                 
                 declaredAccesses.emplace(access.m_Resource.m_Value);
@@ -1795,26 +1795,26 @@ namespace RG
                     ss << std::format("\t{}{{{{\"{}\n", barrierId, "Execution barrier");
                     auto& execution = *barrierInfo.ExecutionDependency;
                     ss << std::format("\t{} - {}\"}}}}\n",
-                        SynchronizationUtils::pipelineStageToString(execution.SourceStage),
-                        SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
+                        SynchronizationTraits::pipelineStageToString(execution.SourceStage),
+                        SynchronizationTraits::pipelineStageToString(execution.DestinationStage));
                 }
                 else if (barrierInfo.MemoryDependency.has_value())
                 {
                     ss << std::format("\t{}{{{{\"{}\n", barrierId, "Memory barrier");
                     auto& memory = *barrierInfo.MemoryDependency;
                     ss << std::format("\t{} - {}\n\t{} - {}\"}}}}\n",
-                        SynchronizationUtils::pipelineStageToString(memory.SourceStage),
-                        SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
-                        SynchronizationUtils::pipelineAccessToString(memory.SourceAccess),
-                        SynchronizationUtils::pipelineAccessToString(memory.DestinationAccess));
+                        SynchronizationTraits::pipelineStageToString(memory.SourceStage),
+                        SynchronizationTraits::pipelineStageToString(memory.DestinationStage),
+                        SynchronizationTraits::pipelineAccessToString(memory.SourceAccess),
+                        SynchronizationTraits::pipelineAccessToString(memory.DestinationAccess));
                 }
                 else
                 {
                     ss << std::format("\t{}{{{{\"{}\n", barrierId, "Layout transition barrier");
                     auto& transition = *barrierInfo.LayoutTransition;
                     ss << std::format("\t{} - {}\"}}}}\n",
-                        ImageUtils::imageLayoutToString(transition.OldLayout),
-                        ImageUtils::imageLayoutToString(transition.NewLayout));
+                        ImageTraits::imageLayoutToString(transition.OldLayout),
+                        ImageTraits::imageLayoutToString(transition.NewLayout));
                 }
             }
             for (u32 signalIndex = 0; signalIndex < pass.m_SplitBarrierSignalInfos.size(); signalIndex++)
@@ -1826,23 +1826,23 @@ namespace RG
                     ss << std::format("\t{}[/\"{}\n", signalId, "Signal execution");
                     auto& execution = *signalInfo.ExecutionDependency;
                     ss << std::format("\t{}\"\\]\n",
-                        SynchronizationUtils::pipelineStageToString(execution.SourceStage));
+                        SynchronizationTraits::pipelineStageToString(execution.SourceStage));
                 }
                 else if (signalInfo.MemoryDependency.has_value())
                 {
                     ss << std::format("\t{}[/\"{}\n", signalId, "Signal memory");
                     auto& memory = *signalInfo.MemoryDependency;
                     ss << std::format("\t{}\n\t{}\"\\]\n",
-                        SynchronizationUtils::pipelineStageToString(memory.SourceStage),
-                        SynchronizationUtils::pipelineAccessToString(memory.SourceAccess));
+                        SynchronizationTraits::pipelineStageToString(memory.SourceStage),
+                        SynchronizationTraits::pipelineAccessToString(memory.SourceAccess));
                 }
                 else
                 {
                     ss << std::format("\t{}[/\"{}\n", signalId, "Signal layout transition");
                     auto& transition = *signalInfo.LayoutTransition;
                     ss << std::format("\t{} - {}\"\\]\n",
-                        ImageUtils::imageLayoutToString(transition.OldLayout),
-                        ImageUtils::imageLayoutToString(transition.NewLayout));
+                        ImageTraits::imageLayoutToString(transition.OldLayout),
+                        ImageTraits::imageLayoutToString(transition.NewLayout));
                 }
             }
             for (u32 waitIndex = 0; waitIndex < pass.m_SplitBarrierWaitInfos.size(); waitIndex++)
@@ -1854,23 +1854,23 @@ namespace RG
                     ss << std::format("\t{}[\\\"{}\n", waitId, "Wait execution");
                     auto& execution = *waitInfo.ExecutionDependency;
                     ss << std::format("\t{}\"/]\n",
-                        SynchronizationUtils::pipelineStageToString(execution.DestinationStage));
+                        SynchronizationTraits::pipelineStageToString(execution.DestinationStage));
                 }
                 else if (waitInfo.MemoryDependency.has_value())
                 {
                     ss << std::format("\t{}[\\\"{}\n", waitId, "Wait memory");
                     auto& memory = *waitInfo.MemoryDependency;
                     ss << std::format("\t{}\n\t{}\"/]\n",
-                        SynchronizationUtils::pipelineStageToString(memory.DestinationStage),
-                        SynchronizationUtils::pipelineAccessToString(memory.DestinationAccess));
+                        SynchronizationTraits::pipelineStageToString(memory.DestinationStage),
+                        SynchronizationTraits::pipelineAccessToString(memory.DestinationAccess));
                 }
                 else
                 {
                     ss << std::format("\t{}[\\\"{}\n", waitId, "Wait layout transition");
                     auto& transition = *waitInfo.LayoutTransition;
                     ss << std::format("\t{} - {}\"/]\n",
-                        ImageUtils::imageLayoutToString(transition.OldLayout),
-                        ImageUtils::imageLayoutToString(transition.NewLayout));
+                        ImageTraits::imageLayoutToString(transition.OldLayout),
+                        ImageTraits::imageLayoutToString(transition.NewLayout));
                 }
             }
         }

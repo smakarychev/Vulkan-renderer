@@ -23,7 +23,7 @@ namespace
                 Random::Float(-1.0f, 1.0f),
                 0.0f};
             randomDir = glm::normalize(randomDir);
-            pixel = ImageUtils::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
+            pixel = Images::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
         }
 
         Texture noise = Device::CreateImage({

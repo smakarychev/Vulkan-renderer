@@ -93,7 +93,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& ren
 
 TextureDescription Passes::EnvironmentPrefilter::getPrefilteredTextureDescription()
 {
-    i8 mipmapCount = ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});
+    i8 mipmapCount = Images::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});
     std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
     for (i8 i = 0; i < mipmapCount; i++)
         additionalViews[i] = ImageSubresourceDescription{

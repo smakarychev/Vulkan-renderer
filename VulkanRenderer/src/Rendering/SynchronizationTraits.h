@@ -82,7 +82,7 @@ enum class PipelineDependencyFlags
 
 CREATE_ENUM_FLAGS_OPERATORS(PipelineDependencyFlags)
 
-namespace SynchronizationUtils
+namespace SynchronizationTraits
 {
     std::string pipelineStageToString(PipelineStage stage);
     std::string pipelineAccessToString(PipelineAccess access);

@@ -15,7 +15,7 @@ namespace RG::RgUtils
             graph.CreateResource(name, fallback);
     }
 
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, ImageUtils::DefaultTexture fallback)
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, Images::DefaultKind fallback)
     {
         return resource.IsValid() ?
             resource :
@@ -176,7 +176,7 @@ namespace RG::RgUtils
         using enum ResourceAccessFlags;
 
         Resource ssaoResource = RgUtils::ensureResource(ssao.SSAO, graph, "SSAO.Dummy"_hsv,
-            ImageUtils::DefaultTexture::White);
+            Images::DefaultKind::White);
 
         SSAOData ssaoData = {};
         ssaoData.SSAO = graph.Read(ssaoResource, shaderStage | Sampled);

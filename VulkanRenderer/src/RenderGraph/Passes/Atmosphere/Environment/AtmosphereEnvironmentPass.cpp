@@ -30,7 +30,7 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(StringId name, RG::Graph& 
                 .Width = environmentSize,
                 .Height = environmentSize,
                 .Layers = 6,
-                .Mipmaps = ImageUtils::mipmapCount({environmentSize, environmentSize}),
+                .Mipmaps = Images::mipmapCount({environmentSize, environmentSize}),
                 .Format = Format::RGBA16_FLOAT,
                 .Kind = ImageKind::Cubemap,
                 .AdditionalViews = faceViews});

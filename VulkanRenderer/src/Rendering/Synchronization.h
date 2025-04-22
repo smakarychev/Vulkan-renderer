@@ -2,8 +2,6 @@
 
 #include <optional>
 
-#include "RenderingCommon.h"
-
 #include "ResourceHandle.h"
 #include "Image/Image.h"
 #include "Image/ImageTraits.h"

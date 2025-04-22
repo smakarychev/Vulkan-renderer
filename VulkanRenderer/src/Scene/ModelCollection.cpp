@@ -13,15 +13,15 @@ void ModelCollection::SetBindlessTextureDescriptorsRingBuffer(BindlessTextureDes
 void ModelCollection::CreateDefaultTextures()
 {
     // add default white texture, so that every material has a texture (to avoid branching in shaders)
-    m_WhiteTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::White, Device::DeletionQueue()));
+    m_WhiteTexture = AddTexture(Images::Default::GetCopy(
+        Images::DefaultKind::White, Device::DeletionQueue()));
 
     // black is default emissive texture
-    m_BlackTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::Black, Device::DeletionQueue()));
+    m_BlackTexture = AddTexture(Images::Default::GetCopy(
+        Images::DefaultKind::Black, Device::DeletionQueue()));
 
-    m_NormalMapTexture = AddTexture(ImageUtils::DefaultTextures::GetCopy(
-        ImageUtils::DefaultTexture::NormalMap, Device::DeletionQueue()));
+    m_NormalMapTexture = AddTexture(Images::Default::GetCopy(
+        Images::DefaultKind::NormalMap, Device::DeletionQueue()));
 }
 
 void ModelCollection::RegisterModel(Model* model, const std::string& name)

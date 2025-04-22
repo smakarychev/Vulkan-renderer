@@ -1,15 +1,16 @@
 #pragma once
 
-#include <memory>
-#include <unordered_set>
-#include <vector>
-
 #include "RGBlackboard.h"
 #include "RGResource.h"
 #include "RenderPass.h"
+#include "Rendering/Image/ImageUtility.h"
 #include "RGCommon.h"
 #include "RGResourceUploader.h"
 #include "Vulkan/Device.h"
+
+#include <memory>
+#include <unordered_set>
+#include <vector>
 
 struct ShaderOverridesView;
 struct CVarParameter;
@@ -234,8 +235,8 @@ namespace RG
 
         Resource AddExternal(StringId name, Buffer buffer);
         Resource AddExternal(StringId name, Texture texture);
-        Resource AddExternal(StringId name, ImageUtils::DefaultTexture texture);
-        Resource AddExternal(StringId name, Texture texture, ImageUtils::DefaultTexture fallback);
+        Resource AddExternal(StringId name, Images::DefaultKind texture);
+        Resource AddExternal(StringId name, Texture texture, Images::DefaultKind fallback);
         Resource Export(Resource resource, std::shared_ptr<Buffer>* buffer, bool force = false);
         Resource Export(Resource resource, std::shared_ptr<Texture>* texture, bool force = false);
         Resource CreateResource(StringId, const GraphBufferDescription& description);
@@ -378,7 +379,7 @@ namespace RG
     class Resources
     {
     public:
-        using DefaultTexture = ImageUtils::DefaultTexture;
+        using DefaultTexture = Images::Default;
         Resources(Graph& graph)
             : m_Graph(&graph) {}
 

@@ -25,7 +25,7 @@ RG::Pass& Passes::Pbr::VisibilityIbl::addToGraph(StringId name, RG::Graph& rende
                 ShaderSpecializations{
                     ShaderSpecialization{
                         "MAX_REFLECTION_LOD"_hsv,
-                        (f32)ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                        (f32)Images::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
                     ShaderSpecialization{"USE_TILED_LIGHTING"_hsv, useTiled},
                     ShaderSpecialization{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
                     ShaderSpecialization{"USE_HYBRID_LIGHTING"_hsv, useHybrid}});

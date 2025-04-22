@@ -9,17 +9,8 @@
 #include <variant>
 #include <glm/glm.hpp>
 
-struct LayoutTransitionInfo;
-
-namespace assetLib
-{
-    enum class TextureFormat : u32;
-}
-
 struct ImageTag{};
 using Image = ResourceHandleType<ImageTag>;
-
-struct ImmediateSubmitContext;
 
 class ImageViewHandle
 {
@@ -88,41 +79,3 @@ struct ImageCreateInfo
 };
 
 using Texture = Image;
-
-namespace ImageUtils
-{
-    std::string imageKindToString(ImageKind kind);
-    std::string imageViewKindToString(ImageViewKind kind);
-    std::string imageUsageToString(ImageUsage usage);
-    std::string imageFilterToString(ImageFilter filter);
-    std::string imageLayoutToString(ImageLayout layout);
-
-    u32 toRGBA8(const glm::vec4& color);
-    u32 toRGBA8SNorm(const glm::vec4& color);
-
-    i8 mipmapCount(const glm::uvec2& resolution);
-    i8 mipmapCount(const glm::uvec3& resolution);
-    glm::uvec3 getPixelCoordinates(Image image, const glm::vec3& coordinate, ImageSizeType sizeType);
-    
-    enum class DefaultTexture
-    {
-        White = 0, Black, Red, Green, Blue, Cyan, Yellow, Magenta,
-        NormalMap,
-        MaxVal
-    };
-    class DefaultTextures
-    {
-    public:
-        static void Init();
-        static Texture Get(DefaultTexture texture);
-        static Texture GetCopy(DefaultTexture texture, DeletionQueue& deletionQueue);
-    private:
-        struct DefaultTextureData
-        {
-            Texture Texture;
-            u32 Color;
-        };
-        static std::array<DefaultTextureData, (u32)DefaultTexture::MaxVal> s_DefaultImages;
-    };
-}
-

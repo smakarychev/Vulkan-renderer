@@ -102,3 +102,12 @@ enum class AttachmentStore : u8
     
     Store
 };
+
+namespace ImageTraits
+{
+    std::string imageKindToString(ImageKind kind);
+    std::string imageViewKindToString(ImageViewKind kind);
+    std::string imageUsageToString(ImageUsage usage);
+    std::string imageFilterToString(ImageFilter filter);
+    std::string imageLayoutToString(ImageLayout layout);
+}

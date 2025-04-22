@@ -9,6 +9,7 @@
 #include "ResourceUploader.h"
 #include "Scene.h"
 #include "Rendering/Buffer/BufferUtility.h"
+#include "Rendering/Image/ImageUtility.h"
 
 // todo: this is code duplication
 namespace glm
@@ -66,7 +67,7 @@ namespace
             .Description = {
                 .Width = (u32)sceneImage.width,
                 .Height = (u32)sceneImage.height,
-                .Mipmaps = ImageUtils::mipmapCount({(u32)sceneImage.width, (u32)sceneImage.height}),
+                .Mipmaps = Images::mipmapCount({(u32)sceneImage.width, (u32)sceneImage.height}),
                 .Format = textureFormat,
                 .Usage = ImageUsage::Sampled}},
             deletionQueue);
@@ -120,18 +121,18 @@ namespace
                 .Roughness = (f32)material.pbrMetallicRoughness.roughnessFactor,
                 .AlbedoTextureHandle = processTexture(
                     material.pbrMetallicRoughness.baseColorTexture, Format::RGBA8_SRGB,
-                    texturesRingBuffer.GetDefaultTexture(ImageUtils::DefaultTexture::White)),
+                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
                 .NormalTextureHandle = processTexture(
                     material.normalTexture, Format::RGBA8_UNORM,
-                    texturesRingBuffer.GetDefaultTexture(ImageUtils::DefaultTexture::NormalMap)),
+                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::NormalMap)),
                 .MetallicRoughnessTextureHandle = processTexture(
                     material.pbrMetallicRoughness.metallicRoughnessTexture, Format::RGBA8_UNORM,
-                    texturesRingBuffer.GetDefaultTexture(ImageUtils::DefaultTexture::White)),
+                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
                 // todo:
-                .AmbientOcclusionTextureHandle = texturesRingBuffer.GetDefaultTexture(ImageUtils::DefaultTexture::White),
+                .AmbientOcclusionTextureHandle = texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White),
                 .EmissiveTextureHandle = processTexture(
                     material.emissiveTexture, Format::RGBA8_SRGB,
-                    texturesRingBuffer.GetDefaultTexture(ImageUtils::DefaultTexture::Black))});
+                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::Black))});
 
             geometry.MaterialsCpu.push_back({
                 .Flags = materialToMaterialFlags(material)});

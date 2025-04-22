@@ -28,11 +28,11 @@ RG::Pass& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Re
             f32 srcAspect = (f32)srcDescription.Width / (f32)srcDescription.Height;
             f32 dstAspect = (f32)dstDescription.Width / (f32)dstDescription.Height;
 
-            glm::uvec3 bottom = ImageUtils::getPixelCoordinates(dst, offset, ImageSizeType::Relative);
+            glm::uvec3 bottom = Images::getPixelCoordinates(dst, offset, ImageSizeType::Relative);
             f32 width = relativeSize;
             f32 height = relativeSize / srcAspect * dstAspect;
             glm::uvec3 top =
-                ImageUtils::getPixelCoordinates(dst, offset + glm::vec3{width, height, 1.0f}, ImageSizeType::Relative);
+                Images::getPixelCoordinates(dst, offset + glm::vec3{width, height, 1.0f}, ImageSizeType::Relative);
             
             frameContext.CommandList.BlitImage({
                 .Source = src,

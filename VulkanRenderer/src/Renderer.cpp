@@ -267,7 +267,7 @@ void Renderer::ExecuteSingleTimePasses()
         .Description = ImageDescription{
             .Width = equirectangularDescription.Width / 2,
             .Height = equirectangularDescription.Width / 2,
-            .Mipmaps = ImageUtils::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
+            .Mipmaps = Images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
             .Format = Format::RGBA16_FLOAT,
             .Kind = ImageKind::Cubemap,
             .Usage = ImageUsage::Sampled | ImageUsage::Storage},
@@ -888,7 +888,7 @@ void Renderer::InitRenderingStructures()
 
     static constexpr bool ASYNC_COMPUTE = true;
     Device::Init(DeviceCreateInfo::Default(m_Window, ASYNC_COMPUTE));
-    ImageUtils::DefaultTextures::Init();
+    Images::Default::Init();
 
     m_ResourceUploader.Init();
     

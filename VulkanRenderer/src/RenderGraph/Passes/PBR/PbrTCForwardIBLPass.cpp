@@ -52,7 +52,7 @@ RG::Pass& Passes::Pbr::ForwardTcIbl::addToGraph(StringId name, RG::Graph& render
                             "pbr-forward.shader",
                             ShaderSpecializations{
                                 ShaderSpecialization{"MAX_REFLECTION_LOD"_hsv,
-                                    (f32)ImageUtils::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                                    (f32)Images::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
                                 ShaderSpecialization{"COMPOUND_INDEX"_hsv, executionInfo.Triangles.IsValid()}});
                         PbrForwardShaderBindGroup bindGroup(shader);
                         

@@ -24,6 +24,7 @@
 
 #include "Imgui/ImguiUI.h"
 #include "Rendering/Commands/RenderCommands.h"
+#include "Rendering/Image/ImageUtility.h"
 
 namespace
 {
@@ -2064,7 +2065,7 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPa
     createInfo.Description.Format = formatFromAssetFormat(textureInfo.Format);
     createInfo.Description.Width = textureInfo.Dimensions.Width;
     createInfo.Description.Height = textureInfo.Dimensions.Height;
-    createInfo.Description.Mipmaps = ImageUtils::mipmapCount({
+    createInfo.Description.Mipmaps = Images::mipmapCount({
         textureInfo.Dimensions.Width, textureInfo.Dimensions.Height});
     // todo: not always correct, should reflect in in asset file
     createInfo.Description.Kind = ImageKind::Image2d;

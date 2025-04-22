@@ -17,7 +17,7 @@ namespace RG
 namespace RG::RgUtils
 {
     Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphTextureDescription& fallback);    
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, ImageUtils::DefaultTexture fallback);    
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, Images::Default fallback);    
     Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphBufferDescription& fallback);
 
     DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph);

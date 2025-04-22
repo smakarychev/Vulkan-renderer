@@ -1,5 +1,6 @@
 #pragma once
 #include "types.h"
+#include "Rendering/Image/ImageUtility.h"
 #include "Rendering/Shader/Shader.h"
 
 class Shader;
@@ -25,7 +26,7 @@ public:
     
     bool WillOverflow() const;
     u32 AddTexture(Texture texture);
-    u32 GetDefaultTexture(ImageUtils::DefaultTexture texture) const;
+    u32 GetDefaultTexture(Images::DefaultKind texture) const;
 private:
     u32 GetNextIndex(u32 index) const;
 private:
@@ -34,6 +35,6 @@ private:
     u32 m_MaxBindlessCount{0};
     const Shader* m_MaterialsShader;
 
-    std::array<u32, (u32)ImageUtils::DefaultTexture::MaxVal> m_DefaultTextures;
+    std::array<u32, (u32)Images::DefaultKind::MaxVal> m_DefaultTextures;
     std::vector<Texture> m_Textures;
 };

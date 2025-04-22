@@ -30,7 +30,7 @@ namespace HiZ
     {
         const u32 width = Math::floorToPowerOf2(depthResolution.x);
         const u32 height = Math::floorToPowerOf2(depthResolution.y);
-        const i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, ImageUtils::mipmapCount({width, height}));
+        const i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, Images::mipmapCount({width, height}));
 
         std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
         for (i8 i = 0; i < mipmapCount; i++)
