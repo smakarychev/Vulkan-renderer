@@ -24,12 +24,12 @@ vec3 shade_pbr_point_light(ShadeInfo shade_info, uint light_index) {
     return (specular + diffuse) * radiance * n_dot_l;
 }
 
-vec3 shade_pbr_point_lights_clustered(ShadeInfo shade_info) {
+vec3 shade_pbr_point_lights_clustered(vec2 frame_uv, ShadeInfo shade_info) {
     vec3 Lo = vec3(0.0f);
     const uint slice = slice_index_depth_linear(
         shade_info.z_view,
         u_camera.camera.near, u_camera.camera.far);
-    const uint cluster_index = get_cluster_index(vertex_uv, slice);
+    const uint cluster_index = get_cluster_index(frame_uv, slice);
     const Cluster cluster = u_clusters.clusters[cluster_index];
     for (uint bin = 0; bin < BIN_COUNT; bin++) {
         const uint mask_local = cluster.bins[bin];
@@ -45,11 +45,10 @@ vec3 shade_pbr_point_lights_clustered(ShadeInfo shade_info) {
     return Lo;
 }
 
-vec3 shade_pbr_point_lights_tiled(ShadeInfo shade_info) {
+vec3 shade_pbr_point_lights_tiled(vec2 frame_uv, ShadeInfo shade_info) {
     vec3 Lo = vec3(0.0f);
-    const uint zbin_index = get_zbin_index(shade_info.depth,
-    u_camera.camera.near, u_camera.camera.far);
-    const uint tile_index = get_tile_index(vertex_uv, u_camera.camera.resolution);
+    const uint zbin_index = get_zbin_index(shade_info.depth, u_camera.camera.near, u_camera.camera.far);
+    const uint tile_index = get_tile_index(frame_uv, u_camera.camera.resolution);
     const Tile tile = u_tiles.tiles[tile_index];
 
     const uint light_min = uint(u_zbins.bins[zbin_index].min);
@@ -83,17 +82,16 @@ vec3 shade_pbr_point_lights_tiled(ShadeInfo shade_info) {
     return Lo;
 }
 
-vec3 shade_pbr_point_lights_hybrid(ShadeInfo shade_info) {
+vec3 shade_pbr_point_lights_hybrid(vec2 frame_uv, ShadeInfo shade_info) {
     vec3 Lo = vec3(0.0f);
-    const uint zbin_index = get_zbin_index(shade_info.depth,
-    u_camera.camera.near, u_camera.camera.far);
-    const uint tile_index = get_tile_index(vertex_uv, u_camera.camera.resolution);
+    const uint zbin_index = get_zbin_index(shade_info.depth, u_camera.camera.near, u_camera.camera.far);
+    const uint tile_index = get_tile_index(frame_uv, u_camera.camera.resolution);
     const Tile tile = u_tiles.tiles[tile_index];
 
     const uint slice = slice_index_depth_linear(
         shade_info.z_view,
         u_camera.camera.near, u_camera.camera.far);
-    const uint cluster_index = get_cluster_index(vertex_uv, slice);
+    const uint cluster_index = get_cluster_index(frame_uv, slice);
     const Cluster cluster = u_clusters.clusters[cluster_index];
 
     const uint light_min = uint(u_zbins.bins[zbin_index].min);
@@ -139,9 +137,9 @@ vec3 shade_pbr_point_lights_hybrid(ShadeInfo shade_info) {
     return Lo;
 }
 
-vec3 shade_pbr_directional_light(ShadeInfo shade_info, float directional_shadow) {
-    const vec3 light_dir = -u_directional_light.light.direction;
-    const vec3 radiance = u_directional_light.light.color * u_directional_light.light.intensity;
+vec3 shade_pbr_directional_light(ShadeInfo shade_info, DirectionalLight light, float directional_shadow) {
+    const vec3 light_dir = -light.direction;
+    const vec3 radiance = light.color * light.intensity;
 
     const vec3 halfway_dir = normalize(light_dir + shade_info.view);
 

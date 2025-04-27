@@ -4,7 +4,6 @@
 #include "../../camera.glsl"
 
 #extension GL_ARB_shader_draw_parameters: enable
-#extension GL_EXT_scalar_block_layout: enable
 
 layout(set = 1, binding = 0) uniform camera {
     CameraGPU camera;

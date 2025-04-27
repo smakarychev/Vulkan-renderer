@@ -3,13 +3,15 @@
 
 namespace Passes::LightClustersVisualize
 {
-    struct PassData
+    struct ExecutionInfo
     {
         RG::Resource Clusters{};
-        RG::Resource Camera{};
-        RG::Resource ColorOut{};
         RG::Resource Depth{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth, RG::Resource clusters);
+    struct PassData
+    {
+        RG::Resource Color{};
+    };
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

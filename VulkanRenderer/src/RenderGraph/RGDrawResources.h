@@ -1,7 +1,5 @@
 #pragma once
 
-#include <functional>
-
 #include "RGCommon.h"
 #include "RGResource.h"
 #include "Rendering/RenderingInfo.h"
@@ -12,7 +10,6 @@
 
 class Shader;
 class Camera;
-class SceneLight;
 
 namespace RG
 {
@@ -81,38 +78,6 @@ namespace RG
         Resource DirectionalLights{};
         Resource PointLights{};
         Resource LightsInfo{};
-    };
-
-    // todo: naming on these two please...
-    struct GeometryDrawExecutionInfo
-    {
-        Resource Camera{};
-        Resource Objects{};
-        Resource Commands{};
-        DrawAttributeBuffers DrawAttributes{};
-        Resource Triangles{};
-        /* each shader has just one set of bindings, but we need many
-         * (because of batch drawing in the triangle culling),
-         * so we need to have a way to create multiple shaders, `ExecutionId` serves for that
-         */
-        u32 ExecutionId{0};
-    };
-    
-    using DrawPassSetupFn = std::function<void(Graph&)>;
-    using DrawPassBindFn = std::function<const Shader&(RenderCommandList& cmdList, const Resources&,
-        const GeometryDrawExecutionInfo&)>;
-
-    struct DrawInitInfo
-    {
-        Pipeline DrawPipeline{};
-        Descriptors MaterialDescriptors{};
-    };
-    
-    struct DrawExecutionInfo
-    {
-        DrawPassSetupFn DrawSetup{};
-        DrawPassBindFn DrawBind{};
-        DrawAttachments Attachments{};
     };
 }
 

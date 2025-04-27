@@ -6,7 +6,6 @@
 #include "AssetManager.h"
 #include "CameraGPU.h"
 #include "Converters.h"
-#include "Model.h"
 #include "ShadingSettingsGPU.h"
 #include "Core/Input.h"
 #include "cvars/CVarSystem.h"
@@ -17,8 +16,6 @@
 #include "Light/LightZBinner.h"
 #include "Light/SH.h"
 #include "RenderGraph/Passes/AA/FxaaPass.h"
-#include "Scene/ModelCollection.h"
-#include "Scene/SceneGeometry.h"
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"
 #include "RenderGraph/Passes/AO/SsaoPass.h"
 #include "RenderGraph/Passes/AO/SsaoVisualizePass.h"
@@ -26,8 +23,7 @@
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
-#include "RenderGraph/Passes/SceneDraw/PBR/SceneUnifiedPbrPass.h"
-#include "RenderGraph/Passes/General/VisibilityPass.h"
+#include "RenderGraph/Passes/SceneDraw/PBR/SceneForwardPbrPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZNVPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
@@ -39,14 +35,16 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersDepthLayersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
-#include "RenderGraph/Passes/PBR/PbrVisibilityBufferIBLPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
 #include "RenderGraph/Passes/SceneDraw/SceneMetaDrawPass.h"
+#include "RenderGraph/Passes/SceneDraw/General/SceneDepthPrepassPass.h"
 #include "RenderGraph/Passes/SceneDraw/Shadow/SceneCsmPass.h"
 #include "RenderGraph/Passes/SceneDraw/Shadow/SceneDirectionalShadowPass.h"
+#include "RenderGraph/Passes/SceneDraw/VBuffer/SceneVBufferPass.h"
+#include "RenderGraph/Passes/SceneDraw/VBuffer/SceneVBufferPbrPass.h"
 #include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
@@ -63,7 +61,6 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
-#include "Scene/Sorting/DepthGeometrySorter.h"
 #include "String/StringId.h"
 
 Renderer::Renderer() = default;
@@ -84,31 +81,6 @@ void Renderer::Init()
 
     m_Graph = std::make_unique<RG::Graph>();
     InitRenderGraph();
-
-    // todo: this is temp (almost the entire file is)
-    m_SceneLights = std::make_unique<SceneLight>();
-    m_SceneLights->AddPointLight({
-            .Position = glm::vec3{-0.8, 0.8, 1.0},
-            .Color = glm::vec3{0.8, 0.2, 0.2},
-            .Intensity = 8.0f,
-            .Radius = 1.0f});
-    m_SceneLights->AddPointLight({
-            .Position = glm::vec3{0.0, 0.8, 1.0},
-            .Color = glm::vec3{0.2, 0.8, 0.2},
-            .Intensity = 8.0f,
-            .Radius = 1.0f});
-    m_SceneLights->AddPointLight({
-            .Position = glm::vec3{0.8, 0.8, 1.0},
-            .Color = glm::vec3{0.2, 0.2, 0.8},
-            .Intensity = 8.0f,
-            .Radius = 1.0f});
-    constexpr u32 POINT_LIGHT_COUNT = 300;
-    for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
-        m_SceneLights->AddPointLight({
-            .Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
-            .Color = Random::Float3(0.0f, 1.0f),
-            .Intensity = Random::Float(0.5f, 1.7f),
-            .Radius = Random::Float(0.5f, 8.6f)});
 }
 
 void Renderer::InitRenderGraph()
@@ -117,67 +89,14 @@ void Renderer::InitRenderGraph()
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         1024,
         ShaderCache::Register("Core.Materials"_hsv, "materials.shader", {}));
-    m_GraphModelCollection.SetBindlessTextureDescriptorsRingBuffer(*m_BindlessTextureDescriptorsRingBuffer);
-    
-    Model* helmet = Model::LoadFromAsset("../assets/models/flight_helmet/flightHelmet.model");
-    Model* brokenHelmet = Model::LoadFromAsset("../assets/models/broken_helmet/scene.model");
-    Model* car = Model::LoadFromAsset("../assets/models/sphere_big/scene.model");
-    Model* plane = Model::LoadFromAsset("../assets/models/plane/scene.model");
-    m_GraphModelCollection.CreateDefaultTextures();
-    m_GraphModelCollection.RegisterModel(helmet, "helmet");
-    m_GraphModelCollection.RegisterModel(brokenHelmet, "broken helmet");
-    m_GraphModelCollection.RegisterModel(car, "car");
-    m_GraphModelCollection.RegisterModel(plane, "plane");
-
-    m_GraphModelCollection.AddModelInstance("helmet", {
-        .Transform = {
-            .Position = glm::vec3{0.0f, 0.0f, 0.0f},
-            .Scale = glm::vec3{0.2f}}});
-    
-    m_GraphOpaqueGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
-        *GetFrameContext().ResourceUploader,
-        [this](const Mesh&, const Material& material) {
-            return material.Type == assetLib::ModelInfo::MaterialType::Opaque;
-        });
-    m_GraphTranslucentGeometry = SceneGeometry::FromModelCollectionFiltered(m_GraphModelCollection,
-        *GetFrameContext().ResourceUploader,
-        [this](const Mesh&, const Material& material) {
-            return material.Type == assetLib::ModelInfo::MaterialType::Translucent;
-        });
 
     m_Graph->SetBackbuffer(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
-
-
-    MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
-    bindGroup.SetMaterialsGlobally({.Buffer = m_GraphOpaqueGeometry.GetMaterialsBuffer()});
 
     ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
     // todo: this is a little weird
     ShaderCache::AddBindlessDescriptors("main_materials"_hsv,
         ShaderCache::Get("Core.Materials"_hsv).Descriptors(DescriptorsKind::Materials));
     
-    // model collection might not have any translucent objects
-    if (m_GraphTranslucentGeometry.IsValid())
-    {
-        /* todo:
-         * this is actually unnecessary, there are at least two more options:
-         * - have both `u_materials` and `u_translucent_materials` (not so bad)
-         * - have two different descriptors: set (2) for materials and set (3) for bindless textures
-         */
-        // todo: fix me once i fix api
-        /*ShaderDescriptors translucentMaterialDescriptors = ShaderDescriptors::Builder()
-                .SetTemplate(drawTemplate, DescriptorsKind::Resource)
-                // todo: make this (2) an enum
-                .ExtractSet(2)
-                .BindlessCount(1024)
-                .Build();
-        translucentMaterialDescriptors.UpdateGlobalBinding(UNIFORM_MATERIALS,
-            m_GraphTranslucentGeometry.GetMaterialsBuffer().BindingInfo());*/
-        //m_GraphModelCollection.ApplyMaterialTextures(translucentMaterialDescriptors);
-    }
-    
-    // todo: separate geometry for shadow casters
-
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
             1, 5000000, *GetFrameContext().ResourceUploader));
@@ -190,14 +109,39 @@ void Renderer::InitRenderGraph()
     m_SceneBucketList.Init(m_Scene);
     m_OpaqueSet.Init("Opaque"_hsv, m_Scene, m_SceneBucketList, {
         ScenePassCreateInfo{
-            .Name = "Visibility"_hsv,
+            .Name = "DepthPrepass"_hsv,
+            .BucketCreateInfos = {
+                {
+                    .Name = "Opaque material"_hsv,
+                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const Material2& material = geometry.MaterialsCpu[
+                            geometry.RenderObjects[renderObject.Index].Material];
+                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
+                    }
+                }
+            }
+        },
+        ScenePassCreateInfo{
+            .Name = "Vbuffer"_hsv,
+            .BucketCreateInfos = {
+                {
+                    .Name = "Opaque material"_hsv,
+                    .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
+                        const Material2& material = geometry.MaterialsCpu[
+                            geometry.RenderObjects[renderObject.Index].Material];
+                        return enumHasAny(material.Flags, MaterialFlags::Opaque);
+                    }
+                }
+            }
+        },
+        ScenePassCreateInfo{
+            .Name = "ForwardPbr"_hsv,
             .BucketCreateInfos = {
                 {
                     .Name = "Opaque material"_hsv,
                     .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
                         return renderObject.Index < 1;
                     },
-                    .ShaderOverrides = ShaderDefines({ShaderDefine("TEST"_hsv)}),
                 },
                 {
                     .Name = "Opaque material2"_hsv,
@@ -206,8 +150,10 @@ void Renderer::InitRenderGraph()
                             geometry.RenderObjects[renderObject.Index].Material];
                         return renderObject.Index >= 1;
                     },
-                }}
-            },
+                    .ShaderOverrides = ShaderDefines({ShaderDefine("TEST"_hsv)})
+                }
+            }
+        },
         Passes::SceneCsm::getScenePassCreateInfo("Shadow"_hsv),
     }, Device::DeletionQueue());
 
@@ -218,28 +164,13 @@ void Renderer::InitRenderGraph()
         .Resolution = GetFrameContext().Resolution,
         .VisibilityFlags = SceneVisibilityFlags::IsPrimaryView | SceneVisibilityFlags::OcclusionCull};
     
-    m_ShadowCamera = std::make_shared<Camera>(Camera::Perspective({
-        .BaseInfo = CameraCreateInfo{
-            .Position = glm::vec3(0.0f, 7.0f, 0.0f),
-            .Orientation = glm::angleAxis(glm::radians(-45.0f), glm::vec3(1.0f, 0.0f, 0.0f)),
-            .Near = 0.1f,
-            .Far = 100.0f,
-            .ViewportWidth = 400,
-            .ViewportHeight = 400},
-        .Fov = glm::radians(90.0f)}));
-    m_OpaqueSetOverheadView = {
-        .Name = "OpaqueOverhead"_hsv,
-        .Camera = m_ShadowCamera.get(),
-        .Resolution = glm::uvec2(400, 400),
-        .VisibilityFlags = SceneVisibilityFlags::None};
-    
     /* initial submit */
     Device::ImmediateSubmit([&](RenderCommandList& cmdList)
     {
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/flight_helmet/FlightHelmet.scene",
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene",
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
@@ -343,79 +274,84 @@ void Renderer::SetupRenderGraph()
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
     bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
+    Resource color = m_Graph->CreateResource("Color"_hsv, GraphTextureDescription{
+        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
+        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+        .Format = Format::RGBA16_FLOAT});
+    Resource vbuffer = m_Graph->CreateResource("VBuffer"_hsv, GraphTextureDescription{
+        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
+        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+        .Format = Format::R32_UINT});
     Resource depth = m_Graph->CreateResource("Depth"_hsv, GraphTextureDescription{
         .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
         .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::D32_FLOAT});
     
-    auto& pbrPass = m_OpaqueSet.FindPass("Visibility"_hsv);
+    auto* depthPrepass = m_OpaqueSet.TryFindPass("DepthPrepass"_hsv);
+    auto& pbrPass = m_OpaqueSet.FindPass("ForwardPbr"_hsv);
+    auto& vbufferPass = m_OpaqueSet.FindPass("Vbuffer"_hsv);
 
     m_OpaqueSetPrimaryVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView);
-    auto initUgbPass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
-    {
-        auto& ugb = Passes::SceneUnifiedPbr::addToGraph(
-            name.Concatenate(".UGB"),
-            graph, {
-                .DrawInfo = info,
-                .Geometry = &m_Scene.Geometry(),
-                .Lights = &m_Scene.Lights(),});
-        auto& ugbOutput =
-            graph.GetBlackboard().Get<Passes::SceneUnifiedPbr::PassData>(ugb);
-
-        return ugbOutput.Attachments;
-    };
-    DrawAttachments attachments = {
-        .Colors = {
-            DrawAttachment{
-                .Resource = backbuffer,
-                .Description = {
-                    .OnLoad = AttachmentLoad::Clear,
-                    .ClearColor = {.F = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)}
-                }
-            }
-        },
-        .Depth = DepthStencilAttachment{
-            .Resource = depth,
-            .Description = {
-                .OnLoad = AttachmentLoad::Clear,
-                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}
-            }
-        }
-    };
-    SceneDrawPassDescription opaqueUGBDraw = {
-        .Pass = &pbrPass,
-        .DrawPassInit = initUgbPass, 
-        .View = m_OpaqueSetPrimaryView,
-        .Visibility = m_OpaqueSetPrimaryVisibility,
-        .Attachments = attachments
-    };
-
-    /*auto& sceneCsmInit = Passes::SceneCsm::addToGraph("CSM"_hsv, *m_Graph, {
-            .Pass = &m_OpaqueSet.FindPass("Shadow"_hsv),
-            .Geometry = &m_Scene.Geometry(),
-            .MultiviewVisibility = &m_MultiviewVisibility,
-            .MainCamera = m_Camera.get(),
-            .DirectionalLight = DirectionalLight{
-                .Direction = glm::normalize(glm::vec3(-0.5f, 1.0f, 1.0f)),
-                .Color = glm::vec3(1.1f, 1.0f, 1.0f),
-                .Intensity = 10.0f,
-                .Size = 1},
-            .ShadowMin = 0.01f,
-            .ShadowMax = 100.0f,
-            .StabilizeCascades = false});
-    auto& sceneCsmInitOutput = blackboard.Get<Passes::SceneCsm::PassData>(sceneCsmInit);*/
-
+    
     m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
         *m_Graph, m_MultiviewVisibility);
 
-    std::vector drawPasses = {opaqueUGBDraw};
-    //drawPasses.append_range(sceneCsmInitOutput.MetaPassDescriptions);
+    std::vector<SceneDrawPassDescription> drawPasses;
+
+    
+    bool useForwardPass = CVars::Get().GetI32CVar("Renderer.UseForwardShading"_hsv).value_or(false);
+    ImGui::Begin("ForwardShading");
+    ImGui::Checkbox("Enabled", &useForwardPass);
+    CVars::Get().SetI32CVar("Renderer.UseForwardShading"_hsv, useForwardPass);
+    ImGui::End();
+    
+    if (useForwardPass)
+    {
+        if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
+        {
+            depth = RenderGraphDepthPrepass(*depthPrepass);
+            RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
+        }
+        
+        drawPasses.push_back(RenderGraphForwardPbrDescription(color, depth, pbrPass));
+    }
+    else
+    {
+        drawPasses.push_back(RenderGraphVBufferDescription(vbuffer, depth, vbufferPass));
+    }
+    
+    m_SceneVisibilityResources.UpdateFromSceneMultiviewVisibility(*m_Graph, m_MultiviewVisibility);
     auto& metaUgb = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
         *m_Graph, {
             .MultiviewVisibility = &m_MultiviewVisibility,
             .Resources = &m_SceneVisibilityResources,
             .DrawPasses = drawPasses});
     auto& metaOutput = m_Graph->GetBlackboard().Get<Passes::SceneMetaDraw::PassData>(metaUgb);
+
+    if (useForwardPass)
+    {
+        color = metaOutput.DrawPassViewAttachments.Get(
+            m_OpaqueSetPrimaryView.Name, pbrPass.Name()).Colors[0].Resource;
+    }
+    else
+    {
+        depth = metaOutput.DrawPassViewAttachments.Get(
+            m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Depth->Resource;
+        vbuffer = metaOutput.DrawPassViewAttachments.Get(
+            m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
+
+        RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
+        color = RenderGraphVBufferPbr(vbuffer, primaryCamera);
+    }
+
+    Resource colorWithSkybox = RenderGraphSkyBox(color, depth);
+    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithSkybox);
+    auto& fxaaOutput = blackboard.Get<Passes::Fxaa::PassData>(fxaa);
+    
+    Passes::CopyTexture::addToGraph("Copy.MainColor"_hsv, *m_Graph, {
+        .TextureIn = fxaaOutput.AntiAliased,
+        .TextureOut = backbuffer
+    });
 
     /*auto& csmVisualize = Passes::VisualizeCSM::addToGraph("CsmVisualize"_hsv, *m_Graph, {
         .ShadowMap = metaOutput.DrawPassViewAttachments.Get(
@@ -429,93 +365,7 @@ void Renderer::SetupRenderGraph()
  
     
     // todo: move to proper place (this is just testing atm)
-    /*if (m_GraphTranslucentGeometry.IsValid())
-    {
-        DepthGeometrySorter translucentSorter(m_Camera->GetPosition(), m_Camera->GetForward());
-        translucentSorter.Sort(m_GraphTranslucentGeometry, *GetFrameContext().ResourceUploader);
-    }
-
-    auto& visibility = Passes::Draw::Visibility::addToGraph("Visibility", *m_Graph, {
-        .Geometry = &m_GraphOpaqueGeometry,
-        .Resolution = swapchain.SwapchainResolution,
-        .Camera = GetFrameContext().PrimaryCamera});
-    auto& visibilityOutput = blackboard.Get<Passes::Draw::Visibility::PassData>(visibility);
-
-    bool tileLights = *CVars::Get().GetI32CVar("Lights.Bin.Tiles"_hsv) == 1;
-    bool clusterLights = *CVars::Get().GetI32CVar("Lights.Bin.Clusters"_hsv) == 1;
-
-    struct TileLightsInfo
-    {
-        Resource Tiles{};
-        Resource ZBins{};
-    };
-    if (tileLights)
-    {
-        auto zbins = LightZBinner::ZBinLights(*m_SceneLights, *GetFrameContext().PrimaryCamera);
-        Resource zbinsResource = Passes::Upload::addToGraph("Upload.Light.ZBins", *m_Graph, zbins.Bins);
-        auto& tilesSetup = Passes::LightTilesSetup::addToGraph("Tiles.Setup", *m_Graph);
-        auto& tilesSetupOutput = blackboard.Get<Passes::LightTilesSetup::PassData>(tilesSetup);
-        auto& binLightsTiles = Passes::LightTilesBin::addToGraph("Tiles.Bin", *m_Graph, tilesSetupOutput.Tiles,
-            visibilityOutput.DepthOut, *m_SceneLights);
-        auto& binLightsTilesOutput = blackboard.Get<Passes::LightTilesBin::PassData>(binLightsTiles);
-        auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph("Tiles.Visualize", *m_Graph,
-            binLightsTilesOutput.Tiles, visibilityOutput.DepthOut,
-            zbinsResource);
-        auto& visualizeTilesOutput = blackboard.Get<Passes::LightTilesVisualize::PassData>(
-            visualizeTiles);
-        Passes::ImGuiTexture::addToGraph("Tiles.Visualize.Texture", *m_Graph, visualizeTilesOutput.ColorOut);
-
-        TileLightsInfo info = {
-            .Tiles = binLightsTilesOutput.Tiles,
-            .ZBins = zbinsResource};
-        blackboard.Update(info);
-    }
-
-    struct ClusterLightsInfo
-    {
-        Resource Clusters{};
-    };
-    if (clusterLights)
-    {
-        // light clustering:
-        auto& clustersSetup = Passes::LightClustersSetup::addToGraph("Clusters.Setup", *m_Graph);
-        auto& clustersSetupOutput = blackboard.Get<Passes::LightClustersSetup::PassData>(clustersSetup);
-        auto& compactClusters = Passes::LightClustersCompact::addToGraph("Clusters.Compact", *m_Graph,
-            clustersSetupOutput.Clusters, clustersSetupOutput.ClusterVisibility, visibilityOutput.DepthOut);
-        auto& compactClustersOutput = blackboard.Get<Passes::LightClustersCompact::PassData>(compactClusters);
-        auto& binLightsClusters = Passes::LightClustersBin::addToGraph("Clusters.Bin", *m_Graph,
-            compactClustersOutput.DispatchIndirect,
-            compactClustersOutput.Clusters, compactClustersOutput.ActiveClusters, compactClustersOutput.ActiveClustersCount,
-            *m_SceneLights);
-        auto& binLightsClustersOutput = blackboard.Get<Passes::LightClustersBin::PassData>(binLightsClusters);
-
-        auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph("Clusters.Visualize", *m_Graph,
-            visibilityOutput.DepthOut, binLightsClustersOutput.Clusters);
-        auto& visualizeClustersOutput = blackboard.Get<Passes::LightClustersVisualize::PassData>(
-            visualizeClusters);
-        Passes::ImGuiTexture::addToGraph("Clusters.Visualize.Texture", *m_Graph, visualizeClustersOutput.ColorOut);
-
-        ClusterLightsInfo info = {
-            .Clusters = binLightsClustersOutput.Clusters};
-        blackboard.Update(info);
-    }
-
-    auto& ssao = Passes::Ssao::addToGraph("SSAO", 32, *m_Graph, visibilityOutput.DepthOut);
-    auto& ssaoOutput = blackboard.Get<Passes::Ssao::PassData>(ssao);
-
-    auto& ssaoBlurHorizontal = Passes::SsaoBlur::addToGraph("SSAO.Blur.Horizontal", *m_Graph,
-        ssaoOutput.SSAO, {},
-        SsaoBlurPassKind::Horizontal);
-    auto& ssaoBlurHorizontalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurHorizontal);
-    auto& ssaoBlurVertical = Passes::SsaoBlur::addToGraph("SSAO.Blur.Vertical", *m_Graph,
-        ssaoBlurHorizontalOutput.SsaoOut, ssaoOutput.SSAO,
-        SsaoBlurPassKind::Vertical);
-    auto& ssaoBlurVerticalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurVertical);
-
-    auto& ssaoVisualize = Passes::SsaoVisualize::addToGraph("SSAO.Visualize", *m_Graph,
-        ssaoBlurVerticalOutput.SsaoOut, {});
-    auto& ssaoVisualizeOutput = blackboard.Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
-
+    /*
     static bool useDepthReduction = false;
     static bool stabilizeCascades = false;
     ImGui::Begin("Shadow settings");
@@ -547,25 +397,6 @@ void Renderer::SetupRenderGraph()
     ImGui::Begin("Use sky as env");
     ImGui::Checkbox("Sky", &useSky);
     ImGui::End();
-
-    auto& pbr = Passes::Pbr::VisibilityIbl::addToGraph("Pbr.Visibility.Ibl", *m_Graph, {
-        .VisibilityTexture = visibilityOutput.ColorOut,
-        .ColorIn = {},
-        .SceneLights = m_SceneLights.get(),
-        .Clusters = clusterLights ? blackboard.Get<ClusterLightsInfo>().Clusters : Resource{},
-        .Tiles = tileLights ? blackboard.Get<TileLightsInfo>().Tiles : Resource{},
-        .ZBins = tileLights ? blackboard.Get<TileLightsInfo>().ZBins : Resource{},
-        .IBL = {
-            .IrradianceSH = m_Graph->AddExternal("IrradianceSH", useSky ? m_SkyIrradianceSH : m_IrradianceSH),
-            .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
-            .BRDF = m_Graph->AddExternal("BRDF", m_BRDFLut)},
-        .SSAO = {
-            .SSAO = ssaoBlurVerticalOutput.SsaoOut},
-        .CSMData = {
-            .ShadowMap = csmOutput.ShadowMap,
-            .CSM = csmOutput.CSM},
-        .Geometry = &m_GraphOpaqueGeometry});
-    auto& pbrOutput = blackboard.Get<Passes::Pbr::VisibilityIbl::PassData>(pbr);
 
     Resource renderedColor = {};
     Resource renderedDepth = {};
@@ -622,48 +453,7 @@ void Renderer::SetupRenderGraph()
             renderedColor = skyboxOutput.ColorOut;
         }
     }
-    
-    // model collection might not have any translucent objects
-    if (m_GraphTranslucentGeometry.IsValid())
-    {
-        /*Passes::Pbr::ForwardTranslucentIbl::addToGraph("Pbr.Translucent.Ibl", *m_Graph, {
-            .Geometry = m_GraphTranslucentGeometry,
-            .Resolution = m_Swapchain.GetResolution(),
-            .Camera = GetFrameContext().PrimaryCamera,
-            .ColorIn = renderedColor,
-            .DepthIn = renderedDepth,
-            .SceneLights = &m_SceneLights,
-            .IBL = {
-                 .Irradiance = m_Graph->AddExternal("IrradianceMap", m_SkyboxIrradianceMap),
-                 .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap", m_SkyboxPrefilterMap),
-                 .BRDF = m_Graph->AddExternal("BRDF", *m_BRDFLut)},
-            .HiZContext = m_VisibilityPass->GetHiZContext()})
-        auto& pbrTranslucentOutput = blackboard.Get<PbrForwardTranslucentIBLPass::PassData>();
-        
-        renderedColor = pbrTranslucentOutput.ColorOut; #1#
-    }
-
-    auto& fxaa = Passes::Fxaa::addToGraph("FXAA", *m_Graph, renderedColor);
-    auto& fxaaOutput = blackboard.Get<Passes::Fxaa::PassData>(fxaa);
-    //Passes::ImGuiTexture::addToGraph("FXAA.Texture", *m_Graph, fxaaOutput.AntiAliased);
-    
-    auto& copyRendered = Passes::CopyTexture::addToGraph("CopyRendered", *m_Graph,
-        fxaaOutput.AntiAliased, backbuffer, glm::vec3{}, glm::vec3{1.0f});
-    backbuffer = blackboard.Get<Passes::CopyTexture::PassData>(copyRendered).TextureOut;
-
-    auto& hizVisualize = Passes::HiZVisualize::addToGraph("HiZ.Visualize", *m_Graph, visibilityOutput.HiZOut);
-    auto& hizVisualizePassOutput = blackboard.Get<Passes::HiZVisualize::PassData>(hizVisualize);
-    auto& hizMaxVisualize = Passes::HiZVisualize::addToGraph("HiZ.Max.Visualize", *m_Graph, visibilityOutput.HiZMaxOut);
-    auto& hizMaxVisualizePassOutput = blackboard.Get<Passes::HiZVisualize::PassData>(hizMaxVisualize);
-
-    auto& csmVisualize = Passes::VisualizeCSM::addToGraph("CSM.Visualize", *m_Graph, csmOutput, {});
-    auto& visualizeCSMPassOutput = blackboard.Get<Passes::VisualizeCSM::PassData>(csmVisualize);
-
-    Passes::ImGuiTexture::addToGraph("SSAO.Texture", *m_Graph, ssaoVisualizeOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Texture", *m_Graph, hizVisualizePassOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("Visibility.HiZ.Max.Texture", *m_Graph, hizMaxVisualizePassOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("CSM.Texture", *m_Graph, visualizeCSMPassOutput.ColorOut);
-    Passes::ImGuiTexture::addToGraph("BRDF.Texture", *m_Graph, m_BRDFLut);*/
+    */
 
     ImGui::Begin("Debug");
     if (ImGui::Button("Dump memory stats"))
@@ -673,22 +463,336 @@ void Renderer::SetupRenderGraph()
     //SetupRenderSlimePasses();
 }
 
-void Renderer::UpdateLights()
+RG::Resource Renderer::RenderGraphDepthPrepass(const ScenePass& scenePass)
 {
-    // todo: should not be here obv
-    DirectionalLight directionalLight = m_SceneLights->GetDirectionalLight();
-    ImGui::Begin("Directional Light");
-    ImGui::DragFloat3("Direction", &directionalLight.Direction[0], 1e-2f, -1.0f, 1.0f);
-    ImGui::ColorPicker3("Color", &directionalLight.Color[0]);
-    ImGui::DragFloat("Intensity", &directionalLight.Intensity, 1e-1f, 0.0f, 100.0f);
-    ImGui::DragFloat("Size", &directionalLight.Size, 1e-1f, 0.0f, 100.0f);
-    ImGui::End();
-    directionalLight.Direction = glm::normalize(directionalLight.Direction);
-    m_SceneLights->SetDirectionalLight(directionalLight);
-
-    LightFrustumCuller::CullDepthSort(*m_SceneLights, *GetFrameContext().PrimaryCamera);
+    using namespace RG;
     
-    m_SceneLights->UpdateBuffers(GetFrameContext());    
+    Resource depth = m_Graph->CreateResource("Depth"_hsv, GraphTextureDescription{
+        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
+        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+        .Format = Format::D32_FLOAT});
+    
+    auto& metaPass = Passes::SceneMetaDraw::addToGraph("MetaDepthPrepass"_hsv,
+        *m_Graph, {
+            .MultiviewVisibility = &m_MultiviewVisibility,
+            .Resources = &m_SceneVisibilityResources,
+            .DrawPasses = {RenderGraphDepthPrepassDescription(depth, scenePass)}
+        });
+    auto& metaOutput = m_Graph->GetBlackboard().Get<Passes::SceneMetaDraw::PassData>(metaPass);
+
+    return metaOutput.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, scenePass.Name()).Depth->Resource;
+}
+
+SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resource& depth, const ScenePass& scenePass)
+{
+    using namespace RG;
+    
+    auto initDepthPrepass = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
+    {
+        auto& pass = Passes::SceneDepthPrepass::addToGraph(
+            name.Concatenate(".DepthPrepass"), graph, {
+                .DrawInfo = info,
+                .Geometry = &m_Scene.Geometry()});
+        auto& passOutput = graph.GetBlackboard().Get<Passes::SceneDepthPrepass::PassData>(pass);
+
+        depth = *passOutput.Attachments.Depth;
+
+        return passOutput.Attachments;
+    };
+    
+    DrawAttachments attachments = {
+        .Depth = DepthStencilAttachment{
+            .Resource = depth,
+            .Description = {
+                .OnLoad = AttachmentLoad::Clear,
+                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}
+            }
+        }
+    };
+    
+    return {
+        .Pass = &scenePass,
+        .DrawPassInit = initDepthPrepass, 
+        .View = m_OpaqueSetPrimaryView,
+        .Visibility = m_OpaqueSetPrimaryVisibility,
+        .Attachments = attachments
+    };
+}
+
+SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource& color, RG::Resource& depth,
+    const ScenePass& scenePass)
+{
+    using namespace RG;
+
+    auto initForwardPbr = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
+    {
+        const bool useSky = false;
+        
+        Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
+            .DrawInfo = info,
+            .Geometry = &m_Scene.Geometry(),
+            .Lights = &m_Scene.Lights(),
+            .SSAO = {.SSAO = m_Ssao},
+            .IBL = {
+                .IrradianceSH = m_Graph->AddExternal("IrradianceSH"_hsv, useSky ? m_SkyIrradianceSH : m_IrradianceSH),
+                .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap"_hsv, m_SkyboxPrefilterMap),
+                .BRDF = m_Graph->AddExternal("BRDF"_hsv, m_BRDFLut)
+            },
+            .Clusters = m_ClusterLightsInfo.Clusters,
+            .Tiles = m_TileLightsInfo.Tiles,
+            .ZBins = m_TileLightsInfo.ZBins,
+        };
+        if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
+            executionInfo.CommonOverrides = ShaderPipelineOverrides({.DepthTest = DepthTest::Equal});
+        
+        auto& pass = Passes::SceneForwardPbr::addToGraph(name.Concatenate(".UGB"), graph, executionInfo);
+        auto& passOutput = graph.GetBlackboard().Get<Passes::SceneForwardPbr::PassData>(pass);
+
+        return passOutput.Attachments;
+    };
+
+    AttachmentLoad depthOnLoad = AttachmentLoad::Clear;
+    AttachmentStore depthOnStore = AttachmentStore::Store;
+
+    if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
+    {
+        depthOnLoad = AttachmentLoad::Load;
+        depthOnStore = AttachmentStore::Unspecified;
+    }
+    
+    DrawAttachments attachments = {
+        .Colors = {
+            DrawAttachment{
+                .Resource = color,
+                .Description = {
+                    .OnLoad = AttachmentLoad::Clear,
+                    .ClearColor = {.F = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f)}
+                }
+            }
+        },
+        .Depth = DepthStencilAttachment{
+            .Resource = depth,
+            .Description = {
+                .OnLoad = depthOnLoad,
+                .OnStore = depthOnStore,
+                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}
+            }
+        }
+    };
+
+    return {
+        .Pass = &scenePass,
+        .DrawPassInit = initForwardPbr, 
+        .View = m_OpaqueSetPrimaryView,
+        .Visibility = m_OpaqueSetPrimaryVisibility,
+        .Attachments = attachments
+    };
+}
+
+SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource& vbuffer, RG::Resource& depth,
+    const ScenePass& scenePass)
+{
+    using namespace RG;
+
+    auto initVbuffer = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
+    {
+        Passes::SceneVBuffer::ExecutionInfo executionInfo = {
+            .DrawInfo = info,
+            .Geometry = &m_Scene.Geometry()
+        };
+        
+        auto& pass = Passes::SceneVBuffer::addToGraph(name.Concatenate(".VBuffer"), graph, executionInfo);
+        auto& passOutput = graph.GetBlackboard().Get<Passes::SceneVBuffer::PassData>(pass);
+
+        vbuffer = passOutput.Attachments.Colors[0];
+        depth = *passOutput.Attachments.Depth;
+
+        return passOutput.Attachments;
+    };
+
+    DrawAttachments attachments = {
+        .Colors = {
+            DrawAttachment{
+                .Resource = vbuffer,
+                .Description = {
+                    .OnLoad = AttachmentLoad::Clear,
+                    .ClearColor = {.U = glm::uvec4(std::numeric_limits<u32>::max(), 0, 0, 0)},
+                }
+            }
+        },
+        .Depth = DepthStencilAttachment{
+            .Resource = depth,
+            .Description = {
+                .OnLoad = AttachmentLoad::Clear,
+                .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}
+            }
+        }
+    };
+
+    return {
+        .Pass = &scenePass,
+        .DrawPassInit = initVbuffer, 
+        .View = m_OpaqueSetPrimaryView,
+        .Visibility = m_OpaqueSetPrimaryVisibility,
+        .Attachments = attachments
+    };
+}
+
+RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource& vbuffer, RG::Resource camera)
+{
+    const bool useSky = false;
+    
+    auto& pbr = Passes::SceneVBufferPbr::addToGraph("VBufferPbr"_hsv, *m_Graph, {
+        .Geometry = &m_Scene.Geometry(),
+        .VisibilityTexture = vbuffer,
+        .Camera = camera,
+        .Lights = &m_Scene.Lights(),
+        .SSAO = {.SSAO = m_Ssao},
+        .IBL = {
+            .IrradianceSH = m_Graph->AddExternal("IrradianceSH"_hsv, useSky ? m_SkyIrradianceSH : m_IrradianceSH),
+            .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap"_hsv, m_SkyboxPrefilterMap),
+            .BRDF = m_Graph->AddExternal("BRDF"_hsv, m_BRDFLut)
+        },
+        .Clusters = m_ClusterLightsInfo.Clusters,
+        .Tiles = m_TileLightsInfo.Tiles,
+        .ZBins = m_TileLightsInfo.ZBins,
+    });
+    auto& pbrOutput = m_Graph->GetBlackboard().Get<Passes::SceneVBufferPbr::PassData>(pbr);
+
+    return pbrOutput.Color;
+}
+
+void Renderer::RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth)
+{
+    const bool tileLights = *CVars::Get().GetI32CVar("Lights.Bin.Tiles"_hsv) == 1;
+    const bool clusterLights = *CVars::Get().GetI32CVar("Lights.Bin.Clusters"_hsv) == 1;
+    
+    m_Ssao = RenderGraphSSAO(passName, depth);
+    m_TileLightsInfo = {};
+    m_ClusterLightsInfo = {};
+    if (tileLights)
+        m_TileLightsInfo = RenderGraphCullLightsTiled(passName, depth);
+    if (clusterLights)
+        m_ClusterLightsInfo = RenderGraphCullLightsClustered(passName, depth);
+}
+
+RG::Resource Renderer::RenderGraphSSAO(StringId baseName, RG::Resource depth)
+{
+    using namespace RG;
+
+    auto& blackboard = m_Graph->GetBlackboard();
+    
+    auto& ssao = Passes::Ssao::addToGraph(baseName.Concatenate("SSAO"), *m_Graph, {
+        .Depth = depth,
+        .MaxSampleCount = 32});
+    auto& ssaoOutput = blackboard.Get<Passes::Ssao::PassData>(ssao);
+
+    auto& ssaoBlurHorizontal = Passes::SsaoBlur::addToGraph(baseName.Concatenate("SSAO.Blur.Horizontal"), *m_Graph, {
+        .SsaoIn = ssaoOutput.SSAO,
+        .SsaoOut = {},
+        .BlurKind = SsaoBlurPassKind::Horizontal});
+    auto& ssaoBlurHorizontalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurHorizontal);
+    auto& ssaoBlurVertical = Passes::SsaoBlur::addToGraph(baseName.Concatenate("SSAO.Blur.Vertical"), *m_Graph, {
+        .SsaoIn = ssaoBlurHorizontalOutput.SsaoOut,
+        .SsaoOut = ssaoOutput.SSAO,
+        .BlurKind = SsaoBlurPassKind::Vertical});
+    auto& ssaoBlurVerticalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurVertical);
+
+    auto& ssaoVisualize = Passes::SsaoVisualize::addToGraph(baseName.Concatenate("SSAO.Visualize"), *m_Graph,
+        ssaoBlurVerticalOutput.SsaoOut);
+    auto& ssaoVisualizeOutput = blackboard.Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
+
+    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("SSAO.Texture"), *m_Graph, ssaoVisualizeOutput.Color);
+
+    return ssaoBlurVerticalOutput.SsaoOut;
+}
+
+Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName, RG::Resource depth)
+{
+    using namespace RG;
+    
+    auto& blackboard = m_Graph->GetBlackboard();
+    
+    struct TileLightsInfo
+    {
+        Resource Tiles{};
+        Resource ZBins{};
+    };
+
+    auto zbins = LightZBinner::ZBinLights(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
+    Resource zbinsResource = Passes::Upload::addToGraph(baseName.Concatenate("Upload.Light.ZBins"), *m_Graph,
+        zbins.Bins);
+    auto& tilesSetup = Passes::LightTilesSetup::addToGraph(baseName.Concatenate("Tiles.Setup"), *m_Graph);
+    auto& tilesSetupOutput = blackboard.Get<Passes::LightTilesSetup::PassData>(tilesSetup);
+    auto& binLightsTiles = Passes::LightTilesBin::addToGraph(baseName.Concatenate("Tiles.Bin"), *m_Graph, {
+        .Tiles = tilesSetupOutput.Tiles,
+        .Depth = depth,
+        .Light = &m_Scene.Lights()});
+    auto& binLightsTilesOutput = blackboard.Get<Passes::LightTilesBin::PassData>(binLightsTiles);
+    auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph(baseName.Concatenate("Tiles.Visualize"), *m_Graph, {
+        .Tiles = tilesSetupOutput.Tiles,
+        .Bins = zbinsResource,
+        .Depth = depth});
+    auto& visualizeTilesOutput = blackboard.Get<Passes::LightTilesVisualize::PassData>(
+        visualizeTiles);
+    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("Tiles.Visualize.Texture"), *m_Graph,
+        visualizeTilesOutput.Color);
+
+    return {
+        .Tiles = binLightsTilesOutput.Tiles,
+        .ZBins = zbinsResource};
+}
+
+Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId baseName, RG::Resource depth)
+{
+    using namespace RG;
+    
+    auto& blackboard = m_Graph->GetBlackboard();
+    
+    struct ClusterLightsInfo
+    {
+        Resource Clusters{};
+    };
+    
+    auto& clustersSetup = Passes::LightClustersSetup::addToGraph(baseName.Concatenate("Clusters.Setup"), *m_Graph);
+    auto& clustersSetupOutput = blackboard.Get<Passes::LightClustersSetup::PassData>(clustersSetup);
+    auto& compactClusters = Passes::LightClustersCompact::addToGraph(baseName.Concatenate("Clusters.Compact"),
+        *m_Graph, {
+        .Clusters = clustersSetupOutput.Clusters,
+        .ClusterVisibility = clustersSetupOutput.ClusterVisibility,
+        .Depth = depth});
+    auto& compactClustersOutput = blackboard.Get<Passes::LightClustersCompact::PassData>(compactClusters);
+    auto& binLightsClusters = Passes::LightClustersBin::addToGraph(baseName.Concatenate("Clusters.Bin"), *m_Graph, {
+        .DispatchIndirect = compactClustersOutput.DispatchIndirect,
+        .Clusters = compactClustersOutput.Clusters,
+        .ActiveClusters = compactClustersOutput.ActiveClusters,
+        .ClustersCount = compactClustersOutput.ActiveClustersCount,
+        .Light = &m_Scene.Lights()});
+    auto& binLightsClustersOutput = blackboard.Get<Passes::LightClustersBin::PassData>(binLightsClusters);
+
+    auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph(baseName.Concatenate("Clusters.Visualize"),
+        *m_Graph, {
+        .Clusters = binLightsClustersOutput.Clusters,
+        .Depth = depth});
+    auto& visualizeClustersOutput = blackboard.Get<Passes::LightClustersVisualize::PassData>(
+        visualizeClusters);
+    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("Clusters.Visualize.Texture"), *m_Graph,
+        visualizeClustersOutput.Color);
+
+    return {
+        .Clusters = binLightsClustersOutput.Clusters};
+}
+
+RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
+{
+    auto& skybox = Passes::Skybox::addToGraph("Skybox"_hsv, *m_Graph, {
+        .SkyboxTexture = m_SkyboxTexture,
+        .Color = color,
+        .Depth = depth,
+        .Resolution = GetFrameContext().Resolution});
+    auto& skyboxOutput = m_Graph->GetBlackboard().Get<Passes::Skybox::PassData>(skybox);
+
+    return skyboxOutput.Color;
 }
 
 Renderer* Renderer::Get()
@@ -720,7 +824,6 @@ void Renderer::OnRender()
 
     BeginFrame();
     /* light update requires cmd in recording state */
-    UpdateLights();
     LightFrustumCuller::CullDepthSort(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
     m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
     m_Scene.Lights().OnUpdate(GetFrameContext());
@@ -928,7 +1031,6 @@ void Renderer::Shutdown()
 
     Device::Destroy(m_Swapchain);
 
-    m_SceneLights.reset();
     m_Graph.reset();
     m_MultiviewVisibility.Shutdown();
     m_ResourceUploader.Shutdown();

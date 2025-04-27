@@ -2613,7 +2613,8 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
         depthStencilState.depthWriteEnable =
             (createInfo.DepthMode == DepthMode::None ||
              createInfo.DepthMode == DepthMode::Read) ? VK_FALSE : VK_TRUE;
-        depthStencilState.depthCompareOp = VK_COMPARE_OP_GREATER_OR_EQUAL;
+        depthStencilState.depthCompareOp = createInfo.DepthTest == DepthTest::GreaterOrEqual ?
+            VK_COMPARE_OP_GREATER_OR_EQUAL : VK_COMPARE_OP_EQUAL;
         depthStencilState.depthBoundsTestEnable = VK_FALSE;
         depthStencilState.stencilTestEnable = VK_FALSE;
         
@@ -3021,7 +3022,7 @@ void Device::Destroy(DescriptorAllocator allocator)
     Resources().RemoveResource(allocator);
 }
 
-void Device::ResetAllocator(DescriptorAllocator allocator)
+void Device::ResetDescriptorAllocator(DescriptorAllocator allocator)
 {
     DeviceResources::DescriptorAllocatorResource& allocatorResource = Resources()[allocator];
     for (auto& pool : allocatorResource.FreePools)

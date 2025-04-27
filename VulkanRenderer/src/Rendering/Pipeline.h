@@ -60,6 +60,9 @@ enum class DynamicStates : u8
 CREATE_ENUM_FLAGS_OPERATORS(DynamicStates)
 
 enum class DepthMode : u8 {Read, ReadWrite, None};
+
+enum class DepthTest : u8 {GreaterOrEqual, Equal};
+
 enum class FaceCullMode : u8 {Front, Back, None};
 
 enum class PrimitiveKind : u8 {Triangle, Point};
@@ -106,6 +109,7 @@ struct PipelineCreateInfo
     VertexInputDescriptionView VertexDescription{};
     DynamicStates DynamicStates{DynamicStates::Default};
     DepthMode DepthMode{DepthMode::ReadWrite};
+    DepthTest DepthTest{DepthTest::GreaterOrEqual};
     FaceCullMode CullMode{FaceCullMode::None};
     AlphaBlending AlphaBlending{AlphaBlending::Over};
     PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};

@@ -203,9 +203,10 @@ namespace RG
         renderTargetAccess.m_Resource = resource;
         if (onLoad == AttachmentLoad::Load)
             renderTargetAccess.m_Resource = AddOrCreateAccess(renderTargetAccess.m_Resource,
-                PipelineStage::ColorOutput, PipelineAccess::ReadColorAttachment);    
-        renderTargetAccess.m_Resource = AddOrCreateAccess(renderTargetAccess.m_Resource,
-            PipelineStage::ColorOutput, PipelineAccess::WriteColorAttachment);
+                PipelineStage::ColorOutput, PipelineAccess::ReadColorAttachment);
+        if (onStore == AttachmentStore::Store)
+            renderTargetAccess.m_Resource = AddOrCreateAccess(renderTargetAccess.m_Resource,
+                PipelineStage::ColorOutput, PipelineAccess::WriteColorAttachment);
         renderTargetAccess.m_ViewSubresource = subresource;
         renderTargetAccess.m_ClearColor = clearColor;
         renderTargetAccess.m_OnLoad = onLoad;
@@ -247,9 +248,10 @@ namespace RG
         depthStencilAccess.m_Resource = resource;
         if (onLoad == AttachmentLoad::Load)
             depthStencilAccess.m_Resource = AddOrCreateAccess(depthStencilAccess.m_Resource,
-                PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::ReadDepthStencilAttachment);    
-        depthStencilAccess.m_Resource = AddOrCreateAccess(depthStencilAccess.m_Resource,
-            PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::WriteDepthStencilAttachment);
+                PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::ReadDepthStencilAttachment);
+        if (onStore == AttachmentStore::Store)
+            depthStencilAccess.m_Resource = AddOrCreateAccess(depthStencilAccess.m_Resource,
+                PipelineStage::DepthEarly | PipelineStage::DepthLate, PipelineAccess::WriteDepthStencilAttachment);
         depthStencilAccess.m_ViewSubresource = subresource;
         depthStencilAccess.m_ClearDepth = clearDepth;
         depthStencilAccess.m_ClearStencil = clearStencil;

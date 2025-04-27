@@ -1,7 +1,6 @@
 #include "LightFrustumCuller.h"
 
 #include "Light.h"
-#include "SceneLight.h"
 #include "Scene/SceneLight2.h"
 #include "Math/Geometry.h"
 #include "Core/Camera.h"
@@ -41,35 +40,6 @@ namespace
         return visible;
     }
 
-    // todo: remove
-    std::vector<PointLight> getVisiblePointLights(SceneLight& light, const Camera& camera)
-    {
-        const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar("Lights.FrustumMax"_hsv);
-        
-        const FrustumPlanes frustum = camera.GetFrustumPlanes();
-        const ProjectionData projection = camera.GetProjectionData();
-
-        std::vector<PointLight> visibleLights;
-        visibleLights.reserve(light.GetPointLightCount());
-        for (auto& pointLight : light.GetPointLights())
-        {
-            Sphere sphere = {
-                .Center = pointLight.Position,
-                .Radius = pointLight.Radius};
-            sphere.Center = glm::vec3{camera.GetView() * glm::vec4{sphere.Center, 1.0f}};
-        
-            bool isVisible = camera.GetType() == CameraType::Perspective ?
-                isVisiblePerspective(sphere, frustum) :
-                isVisibleOrthographic(sphere, frustum, projection);
-            if (isVisible)
-                visibleLights.push_back(pointLight);
-            if (visibleLights.size() == maxLightsPerFrustum)
-                break;
-        }
-
-        return visibleLights;
-    }
-    
     std::vector<u32> getVisibleLights(const SceneLight2& light, const Camera& camera)
     {
         const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar("Lights.FrustumMax"_hsv);
@@ -110,17 +80,6 @@ namespace
 
         return visibleLights;
     }
-
-    // todo: remove
-    void sortByDepth(std::vector<PointLight>& pointLights, const Camera& camera)
-    {
-        Plane sortPlane = camera.GetNearViewPlane();
-
-        std::ranges::sort(pointLights, std::less<>{}, [&sortPlane](auto& light)
-        {
-            return sortPlane.SignedDistance(light.Position);
-        });
-    }
     
     void sortByDepth(const SceneLight2& light, std::vector<u32>& lightIndices, const Camera& camera)
     {
@@ -143,19 +102,6 @@ namespace
             std::unreachable();
         });
     }
-}
-
-void LightFrustumCuller::Cull(SceneLight& light, const Camera& camera)
-{
-    light.SetVisiblePointLights(getVisiblePointLights(light, camera));
-}
-
-void LightFrustumCuller::CullDepthSort(SceneLight& light, const Camera& camera)
-{
-    auto visiblePointLights = getVisiblePointLights(light, camera);
-    sortByDepth(visiblePointLights, camera);
-    
-    light.SetVisiblePointLights(visiblePointLights);
 }
 
 void LightFrustumCuller::Cull(SceneLight2& light, const Camera& camera)

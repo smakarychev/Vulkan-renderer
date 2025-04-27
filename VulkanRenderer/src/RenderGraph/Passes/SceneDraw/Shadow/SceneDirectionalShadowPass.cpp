@@ -23,7 +23,7 @@ RG::Pass& Passes::SceneDirectionalShadow::addToGraph(StringId name, RG::Graph& r
         {
             CPU_PROFILE_FRAME("SceneDirectionalShadow.Setup")
 
-            graph.SetShader("scene-shadow-ugb.shader", *info.DrawInfo.Overrides);
+            graph.SetShader("scene-shadow-ugb.shader", *info.DrawInfo.BucketOverrides);
 
             passData.Resources.CreateFrom(info.DrawInfo, graph);
 

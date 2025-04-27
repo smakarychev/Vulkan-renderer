@@ -5,15 +5,15 @@ struct ZBins;
 
 namespace Passes::LightTilesVisualize
 {
-    struct PassData
+    struct ExecutionInfo
     {
         RG::Resource Tiles{};
-        RG::Resource Camera{};
-        RG::Resource ColorOut{};
-        RG::Resource ZBins{};
+        RG::Resource Bins{};
         RG::Resource Depth{};
     };
-    
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource tiles, RG::Resource depth,
-        RG::Resource bins);
+    struct PassData
+    {
+        RG::Resource Color{};
+    };
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

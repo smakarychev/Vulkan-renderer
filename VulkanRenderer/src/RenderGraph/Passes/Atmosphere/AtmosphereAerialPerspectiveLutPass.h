@@ -3,7 +3,7 @@
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 
-class SceneLight;
+class SceneLight2;
 
 namespace Passes::Atmosphere::AerialPerspective
 {
@@ -19,6 +19,6 @@ namespace Passes::Atmosphere::AerialPerspective
     };
     RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-        RG::Resource atmosphereSettings, const SceneLight& light, const RG::CSMData& csmData);
+        RG::Resource atmosphereSettings, const SceneLight2& light, const RG::CSMData& csmData);
 }
 

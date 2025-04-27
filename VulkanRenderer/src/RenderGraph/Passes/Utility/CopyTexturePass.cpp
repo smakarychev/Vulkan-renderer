@@ -2,20 +2,15 @@
 
 #include "FrameContext.h"
 
-RG::Pass& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource textureIn, RG::Resource textureOut,
-    const glm::vec3& offset, const glm::vec3& size, ImageSizeType sizeType)
+RG::Pass& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.TextureIn = graph.Read(textureIn,
-                ResourceAccessFlags::Copy);
-
-            passData.TextureOut = graph.Write(textureOut,
-                ResourceAccessFlags::Copy);
+            passData.TextureIn = graph.Read(info.TextureIn, ResourceAccessFlags::Copy);
+            passData.TextureOut = graph.Write(info.TextureOut, ResourceAccessFlags::Copy);
 
             graph.UpdateBlackboard(passData);
         },
@@ -31,19 +26,19 @@ RG::Pass& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph,
                 .Top = srcDescription.Dimensions()};
             ImageSubregion dstSubregion = {};
             
-            switch (sizeType)
+            switch (info.SizeType)
             {
             case ImageSizeType::Absolute:
                 dstSubregion = {
                     .Layers = 1,
-                    .Bottom = offset,
-                    .Top = offset + size};
+                    .Bottom = info.Offset,
+                    .Top = info.Offset + info.Size};
                 break;
             case ImageSizeType::Relative:
                 dstSubregion = {
                     .Layers = 1,
-                    .Bottom = Images::getPixelCoordinates(dst, offset, ImageSizeType::Relative),
-                    .Top = Images::getPixelCoordinates(dst, offset + size, ImageSizeType::Relative)};
+                    .Bottom = Images::getPixelCoordinates(dst, info.Offset, ImageSizeType::Relative),
+                    .Top = Images::getPixelCoordinates(dst, info.Offset + info.Size, ImageSizeType::Relative)};
                 break;
             }
 

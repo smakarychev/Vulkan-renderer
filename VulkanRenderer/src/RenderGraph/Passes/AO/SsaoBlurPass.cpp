@@ -5,29 +5,28 @@
 #include "RenderGraph/Passes/Generated/SsaoBlurBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao,
-    RG::Resource colorOut, SsaoBlurPassKind kind)
+RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("SSAO.Blur.Setup")
 
             graph.SetShader("ssao-blur.shader",
                 ShaderSpecializations{
-                    ShaderSpecialization{"IS_VERTICAL"_hsv, kind == SsaoBlurPassKind::Vertical}});
+                    ShaderSpecialization{"IS_VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}});
             
-            const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
-            passData.SsaoOut = RgUtils::ensureResource(colorOut, graph, "ColorOut"_hsv,
+            const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(info.SsaoIn);
+            passData.SsaoOut = RgUtils::ensureResource(info.SsaoOut, graph, "ColorOut"_hsv,
                 GraphTextureDescription{
                     .Width = ssaoDescription.Width,
                     .Height = ssaoDescription.Height,
                     .Format = Format::R8_UNORM});
 
-            passData.SsaoIn = graph.Read(ssao, Compute | Sampled);
+            passData.SsaoIn = graph.Read(info.SsaoIn, Compute | Sampled);
             passData.SsaoOut = graph.Write(passData.SsaoOut, Compute | Storage);
 
             graph.UpdateBlackboard(passData);
@@ -51,6 +50,4 @@ RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, RG
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
         });
-
-    return pass;
 }

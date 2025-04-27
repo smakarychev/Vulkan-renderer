@@ -232,7 +232,7 @@ public:
 
     static DescriptorAllocator CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo);
     static void Destroy(DescriptorAllocator allocator);
-    static void ResetAllocator(DescriptorAllocator allocator);
+    static void ResetDescriptorAllocator(DescriptorAllocator allocator);
 
     static DescriptorArenaAllocator CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());

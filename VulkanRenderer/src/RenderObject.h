@@ -1,27 +1,11 @@
 ﻿#pragma once
 
-#include "ModelAsset.h"
 #include "Settings.h"
 #include "RenderHandle.h"
+#include "SceneAsset.h"
 #include "Math/Geometry.h"
 #include "Math/Transform.h"
 #include "Rendering/Image/Image.h"
-
-class Mesh;
-
-struct Material
-{
-    using MaterialType = assetLib::ModelInfo::MaterialType;
-    using MaterialPropertiesPBR = assetLib::ModelInfo::MaterialPropertiesPBR;
-    MaterialType Type;
-    MaterialPropertiesPBR PropertiesPBR;
-    std::vector<std::string> AlbedoTextures;
-    std::vector<std::string> NormalTextures;
-    std::vector<std::string> MetallicRoughnessTextures;
-    std::vector<std::string> AmbientOcclusionTextures;   
-    std::vector<std::string> EmissiveTextures;   
-};
-
 
 enum class MaterialFlags : u16
 {
@@ -56,14 +40,6 @@ struct MaterialGPU
 
 using RenderObjectTransform = Transform3d;
 
-struct RenderObject
-{
-    RenderHandle<Mesh> Mesh{};
-    RenderHandle<MaterialGPU> MaterialGPU{};
-    RenderHandle<Material> Material{};
-    RenderObjectTransform Transform{};
-};
-
 struct RenderObjectGPU
 {
     glm::mat4 Transform;
@@ -83,6 +59,6 @@ struct RenderObjectGPU2
 
 struct MeshletGPU
 {
-    assetLib::BoundingCone BoundingCone;
+    assetLib::SceneInfo::BoundingCone BoundingCone;
     Sphere BoundingSphere;
 };

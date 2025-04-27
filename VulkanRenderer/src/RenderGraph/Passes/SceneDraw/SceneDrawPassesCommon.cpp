@@ -37,3 +37,24 @@ void SceneDrawPassViewAttachments::Add(StringId viewName, StringId passName, con
 {
     m_Attachments[viewName][passName] = attachments;
 }
+
+void SceneDrawPassViewAttachments::UpdateResources(const RG::DrawAttachments& old,
+    const RG::DrawAttachmentResources& resources)
+{
+    for (auto&& [view, passes] : m_Attachments)
+    {
+        for (auto&& [pass, attachments] : passes)
+        {
+            for (u32 i = 0; i < attachments.Colors.size(); i++)
+            {
+                auto colorIt = std::ranges::find_if(old.Colors, [&](const RG::DrawAttachment& color) {
+                    return color.Resource == attachments.Colors[i].Resource;
+                });
+                if (colorIt != old.Colors.end())
+                    attachments.Colors[i].Resource = resources.Colors[colorIt - old.Colors.begin()];
+            }
+            if (old.Depth && attachments.Depth && old.Depth->Resource == attachments.Depth->Resource)
+                attachments.Depth->Resource = resources.Depth.value_or(RG::Resource{});
+        }
+    }
+}

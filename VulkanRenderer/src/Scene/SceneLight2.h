@@ -64,6 +64,7 @@ public:
     CommonLight& Get(u32 index) { return m_Lights[index]; }
     const CommonLight& Get(u32 index) const { return m_Lights[index]; }
     const Buffers& GetBuffers() const { return m_Buffers; }
+    const std::vector<u32>& VisibleLights() const { return m_VisibleLights; }
 private:
     void UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
     void UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);

@@ -6,15 +6,54 @@
 #undef TINYGLTF_NO_INCLUDE_JSON
 #undef TINYGLTF_NO_STB_IMAGE_WRITE
 
-#include "types.h"
+#include "Math/Geometry.h"
 
 #include <filesystem>
 #include <glm/glm.hpp>
 
 namespace assetLib
 {
+    enum class VertexElement : u32
+    {
+        Position = 0, Normal, Tangent, UV,
+        MaxVal
+    };
+
+    struct VertexGroup
+    {
+        std::array<const void*, (u32)VertexElement::MaxVal> Elements();
+        std::array<u64, (u32)VertexElement::MaxVal> ElementsSizesBytes();
+
+        std::vector<glm::vec3> Positions;
+        std::vector<glm::vec3> Normals;
+        std::vector<glm::vec4> Tangents;
+        std::vector<glm::vec2> UVs;
+    };
+    
     struct SceneInfo
     {
+        static constexpr u32 TRIANGLES_PER_MESHLET = 256;
+        static constexpr u32 VERTICES_PER_MESHLET = 255;
+        using IndexType = u8;
+        struct BoundingCone
+        {
+            i8 AxisX;
+            i8 AxisY;
+            i8 AxisZ;
+            i8 Cutoff;
+        };
+        struct Meshlet
+        {
+            u32 FirstIndex{};
+            u32 IndexCount{};
+
+            u32 FirstVertex{};
+            u32 VertexCount{};
+
+            Sphere BoundingSphere{};
+            BoundingCone BoundingCone{};
+        };
+        
         enum class BufferViewType : u32
         {
             /* vertex attributes */

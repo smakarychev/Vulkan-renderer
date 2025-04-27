@@ -16,7 +16,7 @@ public:
             if (!file.is_directory())
             {
                 ConverterDispatcher dispatcher(path, file);
-                dispatcher.Dispatch<ModelConverter>(ModelConverter::GetWatchedExtensions());
+                dispatcher.Dispatch<SceneConverter>(SceneConverter::GetWatchedExtensions());
                 dispatcher.Dispatch<TextureConverter>(TextureConverter::GetWatchedExtensions());
                 dispatcher.Dispatch<ShaderStageConverter>(ShaderStageConverter::GetWatchedExtensions());
             }

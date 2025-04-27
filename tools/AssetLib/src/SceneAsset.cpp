@@ -3,6 +3,35 @@
 #include "core.h"
 
 #include <glm/gtx/quaternion.hpp>
+#include <nlohmann/json.hpp>
+
+namespace glm
+{
+    void to_json(nlohmann::json& j, const glm::vec4& vec)
+    {
+        j = { { "r", vec.x }, { "g", vec.y }, { "b", vec.z }, { "a", vec.w } };
+    }
+    
+    void from_json(const nlohmann::json& j, glm::vec4& vec)
+    {
+        vec.x = j.at("r").get<f32>();
+        vec.y = j.at("g").get<f32>();
+        vec.z = j.at("b").get<f32>();
+        vec.w = j.at("a").get<f32>();
+    }
+
+    void to_json(nlohmann::json& j, const glm::vec3& vec)
+    {
+        j = { { "x", vec.x }, { "y", vec.y }, { "z", vec.z } };
+    }
+    
+    void from_json(const nlohmann::json& j, glm::vec3& vec)
+    {
+        vec.x = j.at("x").get<f32>();
+        vec.y = j.at("y").get<f32>();
+        vec.z = j.at("z").get<f32>();
+    }
+}
 
 namespace assetLib
 {

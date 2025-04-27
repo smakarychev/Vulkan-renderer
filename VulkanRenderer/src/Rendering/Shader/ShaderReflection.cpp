@@ -90,15 +90,21 @@ namespace
 
     u32 bindlessDescriptorCount(u32 descriptorType)
     {
+        /* divide max count by 2 to allow for non-bindless resources in pipeline */
         switch ((SpvReflectDescriptorType)descriptorType)
         {
         case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER:                
         case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE:          
-        case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER: return Device::GetMaxIndexingImages();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:         return Device::GetMaxIndexingUniformBuffers();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:         return Device::GetMaxIndexingStorageBuffers();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: return Device::GetMaxIndexingUniformBuffersDynamic();
-        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: return Device::GetMaxIndexingStorageBuffersDynamic();
+        case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+            return Device::GetMaxIndexingImages() >> 1;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+            return Device::GetMaxIndexingUniformBuffers() >> 1;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+            return Device::GetMaxIndexingStorageBuffers() >> 1;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+            return Device::GetMaxIndexingUniformBuffersDynamic() >> 1;
+        case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+            return Device::GetMaxIndexingStorageBuffersDynamic() >> 1;
         default:
             ASSERT(false, "Unsupported descriptor bindless type")
             break;

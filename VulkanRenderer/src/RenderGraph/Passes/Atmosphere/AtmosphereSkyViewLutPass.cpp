@@ -1,14 +1,14 @@
 #include "AtmosphereSkyViewLutPass.h"
 
 #include "cvars/CVarSystem.h"
-#include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/AtmosphereSkyViewLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
+#include "Scene/SceneLight2.h"
 
 RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-    RG::Resource atmosphereSettings, const SceneLight& light)
+    RG::Resource atmosphereSettings, const SceneLight2& light)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -27,7 +27,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& rend
                 .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Height"_hsv),
                 .Format = Format::RGBA16_FLOAT});
             passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
-                light.GetBuffers().DirectionalLight);
+                light.GetBuffers().DirectionalLights);
             
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
             passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);

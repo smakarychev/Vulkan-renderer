@@ -341,7 +341,7 @@ struct IndirectDrawCommand
     u32 FirstIndex;
     i32 VertexOffset;
     u32 FirstInstance;
-    RenderHandle<RenderObject> RenderObject;
+    u32 RenderObject;
 };
 struct DrawIndexedIndirectCommand
     : RenderCommandTyped<RenderCommandType::DrawIndexedIndirect, RenderCommandQueueType::Graphics>

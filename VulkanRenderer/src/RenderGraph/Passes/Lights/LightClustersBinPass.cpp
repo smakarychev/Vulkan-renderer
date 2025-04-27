@@ -6,34 +6,44 @@
 #include "RenderGraph/Passes/Generated/LightClustersBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource dispatchIndirect, RG::Resource clusters, RG::Resource activeClusters, RG::Resource clustersCount,
-    const SceneLight& sceneLight)
+RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
+
+    struct PassDataPrivate
+    {
+        Resource Dispatch{};
+        Resource Clusters{};
+        Resource ActiveClusters{};
+        Resource ClusterCount{};
+        SceneLightResources SceneLightResources{};
+    };
     
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataPrivate>(name,
+        [&](Graph& graph, PassDataPrivate& passData)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Bin.Setup")
 
             graph.SetShader("light-clusters-bin.shader");
 
-            passData.Dispatch = graph.Read(dispatchIndirect, Indirect);
+            passData.Dispatch = graph.Read(info.DispatchIndirect, Indirect);
 
-            passData.Clusters = graph.Read(clusters, Compute | Storage);
+            passData.Clusters = graph.Read(info.Clusters, Compute | Storage);
             passData.Clusters = graph.Write(passData.Clusters, Compute | Storage);
             
-            passData.ActiveClusters = graph.Read(activeClusters, Compute | Storage);
+            passData.ActiveClusters = graph.Read(info.ActiveClusters, Compute | Storage);
 
-            passData.ClusterCount = graph.Read(clustersCount, Compute | Storage);
+            passData.ClusterCount = graph.Read(info.ClustersCount, Compute | Storage);
 
-            passData.SceneLightResources = RgUtils::readSceneLight(sceneLight, graph, Compute);
+            passData.SceneLightResources = RgUtils::readSceneLight(*info.Light, graph, Compute);
+
+            PassData passDataPublic = {};
+            passDataPublic.Clusters = passData.Clusters;
             
-            graph.UpdateBlackboard(passData);
+            graph.UpdateBlackboard(passDataPublic);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Bin")
             GPU_PROFILE_FRAME("Lights.Clusters.Bin")

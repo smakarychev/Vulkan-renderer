@@ -123,6 +123,7 @@ struct ShaderPipelineOverrides
 {
     std::optional<DynamicStates> DynamicStates{std::nullopt};
     std::optional<DepthMode> DepthMode{std::nullopt};
+    std::optional<DepthTest> DepthTest{std::nullopt};
     std::optional<FaceCullMode> CullMode{std::nullopt};
     std::optional<AlphaBlending> AlphaBlending{std::nullopt};
     std::optional<PrimitiveKind> PrimitiveKind{std::nullopt};
@@ -136,7 +137,7 @@ struct ShaderOverrides
     ShaderDynamicSpecializations Specializations{};
     ShaderDefines Defines{};
     ShaderPipelineOverrides PipelineOverrides{};
-    u64 Hash{0};
+    u64 Hash{ShaderPipelineOverrides{}.Hash()};
 
     constexpr ShaderOverrides() = default;
 
@@ -148,8 +149,11 @@ struct ShaderOverrides
 
     constexpr ShaderOverrides(ShaderDynamicSpecializations&& specializations, ShaderDefines&& defines,
         ShaderPipelineOverrides&& pipelineOverrides = {});
+    
+    constexpr ShaderOverrides(ShaderPipelineOverrides&& pipelineOverrides);
 
     constexpr ShaderOverrides OverrideBy(const ShaderOverrides& other) const;
+    constexpr ShaderOverrides OverrideBy(Span<const ShaderOverrides> overrides) const;
 };
 
 struct ShaderOverridesView
@@ -161,6 +165,7 @@ struct ShaderOverridesView
 
     constexpr ShaderOverridesView() = default;
     constexpr ShaderOverridesView(ShaderOverrides& overrides);
+    constexpr ShaderOverridesView(ShaderOverrides&& overrides);
 
     template <typename ...Args>
     constexpr ShaderOverridesView(ShaderSpecializations<Args...>&& specializations,
@@ -331,6 +336,7 @@ constexpr u64 ShaderPipelineOverrides::Hash() const
     static_assert(sizeof(ShaderPipelineOverrides) == (
         sizeof(std::optional<::DynamicStates>{}) +
         sizeof(std::optional<::DepthMode>{}) +
+        sizeof(std::optional<::DepthTest>{}) +
         sizeof(std::optional<::FaceCullMode>{}) +
         sizeof(std::optional<::AlphaBlending>{}) +
         sizeof(std::optional<::PrimitiveKind>{}) +
@@ -368,36 +374,77 @@ constexpr ShaderOverrides::ShaderOverrides(ShaderDynamicSpecializations&& specia
     Hash::combine(Hash, pipelineOverrides.Hash());
 }
 
+constexpr ShaderOverrides::ShaderOverrides(ShaderPipelineOverrides&& pipelineOverrides) :
+    PipelineOverrides(pipelineOverrides),
+    Hash(Specializations.Hash)
+{
+    Hash::combine(Hash, Defines.Hash);
+    Hash::combine(Hash, pipelineOverrides.Hash());
+}
+
 constexpr ShaderOverrides ShaderOverrides::OverrideBy(const ShaderOverrides& other) const
+{
+    return OverrideBy(Span<const ShaderOverrides>{other});
+}
+
+constexpr ShaderOverrides ShaderOverrides::OverrideBy(Span<const ShaderOverrides> overrides) const
 {
     ShaderOverrides merged = *this;
 
-    for (auto&& [i, spec] : std::ranges::views::enumerate(other.Specializations.Names))
+    bool recalculateSpecializationsHash = false;
+    bool recalculateDefinesHash = false;
+    
+    for (auto& other : overrides)
     {
-        auto it = std::ranges::find_if(merged.Specializations.Names,
-            [&](auto name){ return name == spec; });
-        if (it == merged.Specializations.Names.end())
+        for (auto&& [i, spec] : std::ranges::views::enumerate(other.Specializations.Names))
         {
-            merged.Specializations.Names.emplace_back(spec);
-            auto& description = other.Specializations.Descriptions[i];
-            merged.Specializations.Descriptions.push_back({
-                .SizeBytes = description.SizeBytes,
-                .Offset = (u32)merged.Specializations.Data.size()});
-            merged.Specializations.Data.append_range(
-                std::span(other.Specializations.Data.data() + description.Offset, description.SizeBytes));                
-            continue;
+            recalculateSpecializationsHash = true;
+            
+            auto it = std::ranges::find_if(merged.Specializations.Names,
+                [&](auto name){ return name == spec; });
+            if (it == merged.Specializations.Names.end())
+            {
+                merged.Specializations.Names.emplace_back(spec);
+                auto& description = other.Specializations.Descriptions[i];
+                merged.Specializations.Descriptions.push_back({
+                    .SizeBytes = description.SizeBytes,
+                    .Offset = (u32)merged.Specializations.Data.size()});
+                merged.Specializations.Data.append_range(
+                    std::span(other.Specializations.Data.data() + description.Offset, description.SizeBytes));                
+                continue;
+            }
+
+            u32 index = u32(it - merged.Specializations.Names.begin());
+            auto& thisDesc = merged.Specializations.Descriptions[index];
+            auto& otherDesc = other.Specializations.Descriptions[i];
+            ASSERT(thisDesc.SizeBytes == otherDesc.SizeBytes, "Unable to merge")
+            std::memcpy(
+                merged.Specializations.Data.data() + thisDesc.Offset,
+                other.Specializations.Data.data() + otherDesc.Offset,
+                otherDesc.SizeBytes);
         }
 
-        u32 index = u32(it - merged.Specializations.Names.begin());
-        auto& thisDesc = merged.Specializations.Descriptions[index];
-        auto& otherDesc = other.Specializations.Descriptions[i];
-        ASSERT(thisDesc.SizeBytes == otherDesc.SizeBytes, "Unable to merge")
-        std::memcpy(
-            merged.Specializations.Data.data() + thisDesc.Offset,
-            other.Specializations.Data.data() + otherDesc.Offset,
-            otherDesc.SizeBytes);
+        for (auto& define : other.Defines.Defines)
+        {
+            recalculateDefinesHash = true;           
+            merged.Defines.Defines.emplace_back(define);
+        }
+
+        merged.PipelineOverrides.DynamicStates = other.PipelineOverrides.DynamicStates.has_value() ?
+            *other.PipelineOverrides.DynamicStates : merged.PipelineOverrides.DynamicStates;
+        merged.PipelineOverrides.DepthMode = other.PipelineOverrides.DepthMode.has_value() ?
+            *other.PipelineOverrides.DepthMode : merged.PipelineOverrides.DepthMode;
+        merged.PipelineOverrides.CullMode = other.PipelineOverrides.CullMode.has_value() ?
+            *other.PipelineOverrides.CullMode : merged.PipelineOverrides.CullMode;
+        merged.PipelineOverrides.AlphaBlending = other.PipelineOverrides.AlphaBlending.has_value() ?
+            *other.PipelineOverrides.AlphaBlending : merged.PipelineOverrides.AlphaBlending;
+        merged.PipelineOverrides.PrimitiveKind = other.PipelineOverrides.PrimitiveKind.has_value() ?
+            *other.PipelineOverrides.PrimitiveKind : merged.PipelineOverrides.PrimitiveKind;
+        merged.PipelineOverrides.ClampDepth = other.PipelineOverrides.ClampDepth.has_value() ?
+            *other.PipelineOverrides.ClampDepth : merged.PipelineOverrides.ClampDepth;
     }
-    if (!other.Specializations.Names.empty())
+    
+    if (recalculateSpecializationsHash)
     {
         merged.Specializations.Hash = 0;
         for (u32 i = 0; i < merged.Specializations.Descriptions.size(); i++)
@@ -410,27 +457,12 @@ constexpr ShaderOverrides ShaderOverrides::OverrideBy(const ShaderOverrides& oth
         }
     }
 
-    for (auto& define : other.Defines.Defines)
-        merged.Defines.Defines.emplace_back(define);
-    if (!other.Defines.Defines.empty())
+    if (recalculateDefinesHash)
     {
         merged.Defines.Hash = 0;
         for (auto& define : merged.Defines.Defines)
             Hash::combine(merged.Defines.Hash, define.Name.Hash() ^ Hash::string(define.Value));
     }
-
-    merged.PipelineOverrides.DynamicStates = other.PipelineOverrides.DynamicStates.has_value() ?
-        *other.PipelineOverrides.DynamicStates : merged.PipelineOverrides.DynamicStates;
-    merged.PipelineOverrides.DepthMode = other.PipelineOverrides.DepthMode.has_value() ?
-        *other.PipelineOverrides.DepthMode : merged.PipelineOverrides.DepthMode;
-    merged.PipelineOverrides.CullMode = other.PipelineOverrides.CullMode.has_value() ?
-        *other.PipelineOverrides.CullMode : merged.PipelineOverrides.CullMode;
-    merged.PipelineOverrides.AlphaBlending = other.PipelineOverrides.AlphaBlending.has_value() ?
-        *other.PipelineOverrides.AlphaBlending : merged.PipelineOverrides.AlphaBlending;
-    merged.PipelineOverrides.PrimitiveKind = other.PipelineOverrides.PrimitiveKind.has_value() ?
-        *other.PipelineOverrides.PrimitiveKind : merged.PipelineOverrides.PrimitiveKind;
-    merged.PipelineOverrides.ClampDepth = other.PipelineOverrides.ClampDepth.has_value() ?
-        *other.PipelineOverrides.ClampDepth : merged.PipelineOverrides.ClampDepth;
 
     merged.Hash = merged.Specializations.Hash;
     Hash::combine(merged.Hash, merged.Defines.Hash);
@@ -440,6 +472,13 @@ constexpr ShaderOverrides ShaderOverrides::OverrideBy(const ShaderOverrides& oth
 }
 
 constexpr ShaderOverridesView::ShaderOverridesView(ShaderOverrides& overrides):
+    Specializations(overrides.Specializations),
+    Defines(overrides.Defines),
+    PipelineOverrides(overrides.PipelineOverrides),
+    Hash(overrides.Hash)
+{}
+
+constexpr ShaderOverridesView::ShaderOverridesView(ShaderOverrides&& overrides):
     Specializations(overrides.Specializations),
     Defines(overrides.Defines),
     PipelineOverrides(overrides.PipelineOverrides),

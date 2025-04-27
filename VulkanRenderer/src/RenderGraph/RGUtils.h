@@ -4,8 +4,6 @@
 #include "RGDrawResources.h"
 
 class SceneLight2;
-class SceneLight;
-class SceneGeometry;
 
 namespace RG
 {
@@ -20,15 +18,9 @@ namespace RG::RgUtils
     Resource ensureResource(Resource resource, Graph& graph, StringId name, Images::Default fallback);    
     Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphBufferDescription& fallback);
 
-    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph);
-    void readDrawAttributes(DrawAttributeBuffers& buffers, Graph& graph, ResourceAccessFlags shaderStage);
-    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph,
-        ResourceAccessFlags shaderStage);
-    
     DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph);
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
 
-    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage);
     SceneLightResources readSceneLight(const SceneLight2& light, Graph& graph, ResourceAccessFlags shaderStage);
     
     IBLData readIBLData(const IBLData& ibl, Graph& graph, ResourceAccessFlags shaderStage);
@@ -75,11 +67,11 @@ namespace RG::RgUtils
     template <typename BindGroup>
     void updateSceneLightBindings(BindGroup& bindGroup, const Resources& resources, const SceneLightResources& lights)
     {
-        Buffer directionalLight = resources.GetBuffer(lights.DirectionalLights);
+        Buffer directionalLights = resources.GetBuffer(lights.DirectionalLights);
         Buffer pointLights = resources.GetBuffer(lights.PointLights);
         Buffer lightsInfo = resources.GetBuffer(lights.LightsInfo);
 
-        bindGroup.SetDirectionalLight({.Buffer = directionalLight});
+        bindGroup.SetDirectionalLights({.Buffer = directionalLights});
         bindGroup.SetPointLights({.Buffer = pointLights});
         bindGroup.SetLightsInfo({.Buffer = lightsInfo});
     }

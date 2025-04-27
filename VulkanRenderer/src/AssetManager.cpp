@@ -1,18 +1,15 @@
 ﻿#include "AssetManager.h"
 
-#include "Model.h"
 #include "Rendering/Shader/Shader.h"
 #include "Scene/Scene.h"
 
 StringUnorderedMap<ShaderReflection> AssetManager::s_Shaders = {};
-StringUnorderedMap<Model> AssetManager::s_Models = {};
 StringUnorderedMap<Image> AssetManager::s_Images = {};
 StringUnorderedMap<SceneInfo> AssetManager::s_Scenes = {};
 
 void AssetManager::Shutdown()
 {
     s_Shaders.clear();
-    s_Models.clear();
     s_Images.clear();
 }
 
@@ -40,18 +37,6 @@ void AssetManager::AddShader(std::string_view name, ShaderReflection&& shader)
 void AssetManager::RemoveShader(std::string_view name)
 {
     s_Shaders.erase(name);
-}
-
-Model* AssetManager::GetModel(std::string_view name)
-{
-    auto it = s_Models.find(name);
-
-    return it == s_Models.end() ? nullptr : &it->second;
-}
-
-void AssetManager::AddModel(std::string_view name, const Model& model)
-{
-    s_Models.emplace(name, model);
 }
 
 Image AssetManager::GetImage(std::string_view name)

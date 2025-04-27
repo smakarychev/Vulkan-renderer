@@ -8,11 +8,16 @@ enum class SsaoBlurPassKind
 
 namespace Passes::SsaoBlur
 {
+    struct ExecutionInfo
+    {
+        RG::Resource SsaoIn{};
+        RG::Resource SsaoOut{};
+        SsaoBlurPassKind BlurKind{SsaoBlurPassKind::Horizontal};
+    };
     struct PassData
     {
         RG::Resource SsaoIn{};
         RG::Resource SsaoOut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut,
-        SsaoBlurPassKind kind);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

@@ -12,8 +12,6 @@ workspace "VulkanRenderer"
     startproject "VulkanRenderer"
 
     linkoptions { 
-        "/NODEFAULTLIB:LIBCMTD.LIB",
-        "/NODEFAULTLIB:MSVCRT.LIB",
         "/IGNORE:4221,4099,4006",
     }
 

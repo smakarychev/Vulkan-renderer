@@ -11,8 +11,6 @@ namespace Passes::SceneMultiviewVisibilityHiz
         SceneVisibilityPassesResources* Resources{nullptr};
         std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Depths{};
         std::array<ImageSubresourceDescription, SceneMultiviewVisibility::MAX_VIEWS> Subresources{};
-        /* array of optionally pregenerated HiZs */
-        std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> HiZs{};
     };
     struct PassData
     {

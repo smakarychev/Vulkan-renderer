@@ -11,6 +11,19 @@ TEST_CASE("Geometry AABB", "[Geometry]")
     AABB aabb{};
     REQUIRE(aabb.Min == glm::vec3{0.0f});
     REQUIRE(aabb.Max == glm::vec3{0.0f});
+    SECTION("Can be created from Sphere")
+    {
+        Sphere sphere{
+            .Center = glm::vec3(1.0f, 2.0f, 3.0f),
+            .Radius = 2.0f};
+        AABB box = AABB::FromSphere(sphere);
+        REQUIRE_THAT(box.Min.x, Catch::Matchers::WithinRel(-1.0f, 1e-6f));
+        REQUIRE_THAT(box.Min.y, Catch::Matchers::WithinAbs(0.0f, 1e-6f));
+        REQUIRE_THAT(box.Min.z, Catch::Matchers::WithinRel(1.0f, 1e-6f));
+        REQUIRE_THAT(box.Max.x, Catch::Matchers::WithinRel(3.0f, 1e-6f));
+        REQUIRE_THAT(box.Max.y, Catch::Matchers::WithinAbs(4.0f, 1e-6f));
+        REQUIRE_THAT(box.Max.z, Catch::Matchers::WithinRel(5.0f, 1e-6f));
+    }
     SECTION("Merge leaves original unchanged")
     {
         AABB other = {

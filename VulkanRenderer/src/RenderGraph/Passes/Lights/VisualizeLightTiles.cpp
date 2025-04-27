@@ -10,14 +10,22 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource tiles,
-    RG::Resource depth, RG::Resource bins)
+RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
+
+    struct PassDataPrivate
+    {
+        Resource Color{};
+        Resource Tiles{};
+        Resource Camera{};
+        Resource ZBins{};
+        Resource Depth{};
+    };
     
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataPrivate>(name,
+        [&](Graph& graph, PassDataPrivate& passData)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize.Setup")
 
@@ -25,32 +33,35 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& rend
 
             auto& globalResources = graph.GetGlobalResources();
 
-            passData.ColorOut = graph.CreateResource("Color"_hsv,
+            passData.Color = graph.CreateResource("Color"_hsv,
                 GraphTextureDescription{
                     .Width = globalResources.Resolution.x,
                     .Height = globalResources.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
 
             passData.ZBins = {};
-            if (bins.IsValid())
-                passData.ZBins = graph.Read(bins, Pixel | Storage);
+            if (info.Bins.IsValid())
+                passData.ZBins = graph.Read(info.Bins, Pixel | Storage);
             
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.Depth = graph.Read(depth, Pixel | Sampled);
-            passData.Tiles = graph.Read(tiles, Pixel | Storage);
+            passData.Color = graph.RenderTarget(passData.Color, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.Depth = graph.Read(info.Depth, Pixel | Sampled);
+            passData.Tiles = graph.Read(info.Tiles, Pixel | Storage);
 
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
 
-            graph.UpdateBlackboard(passData);
+            PassData passDataPublic = {};
+            passDataPublic.Color = passData.Color;
+            
+            graph.UpdateBlackboard(passDataPublic);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize")
             GPU_PROFILE_FRAME("Lights.Tiles.Visualize")
 
             const Shader& shader = resources.GetGraph()->GetShader();
             LightTilesVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetDepth({.Image = resources.GetTexture(depth)}, ImageLayout::Readonly);
+            bindGroup.SetDepth({.Image = resources.GetTexture(passData.Depth)}, ImageLayout::Readonly);
             bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 

@@ -148,13 +148,13 @@ namespace
             for (auto& primitive : meshInfo.primitives)
             {
                 const u32 firstIndex = (u32)(sceneInfo.Scene.accessors[primitive.indices].byteOffset /
-                    sizeof(assetLib::ModelInfo::IndexType));
+                    sizeof(assetLib::SceneInfo::IndexType));
                 const u32 firstVertex = (u32)(sceneInfo.Scene.accessors[primitive.attributes["POSITION"]].byteOffset /
                     sizeof(glm::vec3));
 
                 nlohmann::json meshletAccessorJson = nlohmann::json::parse(primitive.extras_json_string);
                 const u32 firstMeshlet = (u32)((u32)meshletAccessorJson["meshlets"]["byteOffset"] /
-                    sizeof(assetLib::ModelInfo::Meshlet));
+                    sizeof(assetLib::SceneInfo::Meshlet));
                 const u32 meshletsCount = meshletAccessorJson["meshlets"]["count"];
                 AABB meshBoundingBox = {
                     .Min = meshletAccessorJson["bounding_box"]["min"],

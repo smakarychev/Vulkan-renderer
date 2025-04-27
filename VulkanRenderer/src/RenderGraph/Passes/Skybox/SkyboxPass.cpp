@@ -6,41 +6,52 @@
 #include "RenderGraph/Passes/Generated/SkyboxBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, Texture skybox,
-    RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
-{
-    return addToGraph(name, renderGraph, renderGraph.AddExternal("Skybox"_hsv, skybox),
-        colorOut, depthIn, resolution, lodBias);
-}
-
-RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource skybox,
-    RG::Resource colorOut, RG::Resource depthIn, const glm::uvec2& resolution, f32 lodBias)
+RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
+
+    struct ProjectionUBO
+    {
+        glm::mat4 ProjectionInverse{1.0f};
+        glm::mat4 ViewInverse{1.0f};
+    };
+
+    struct PassDataPrivate
+    {
+        Resource Color{};
+        Resource Depth{};
+        Resource Skybox{};
+        Resource Projection{};
+        Resource ShadingSettings{};
+        f32 LodBias{0.0f};
+    };
     
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    Pass& pass = renderGraph.AddRenderPass<PassDataPrivate>(name,
+        [&](Graph& graph, PassDataPrivate& passData)
         {
             CPU_PROFILE_FRAME("Skybox.Setup")
 
             graph.SetShader("skybox.shader");
             
-            passData.ColorOut = RgUtils::ensureResource(colorOut, graph, "Color"_hsv,
+            passData.Color = RgUtils::ensureResource(info.Color, graph, "Color"_hsv,
                 GraphTextureDescription{
-                    .Width = resolution.x,
-                    .Height = resolution.y,
+                    .Width = info.Resolution.x,
+                    .Height = info.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
-            ASSERT(depthIn.IsValid(), "Depth has to be provided")
+            ASSERT(info.Depth.IsValid(), "Depth has to be provided")
 
             passData.Projection = graph.CreateResource("Projection"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(ProjectionUBO)});
             
             auto& globalResources = graph.GetGlobalResources();
+
+            const Resource skybox = info.SkyboxResource.IsValid() ?
+                info.SkyboxResource : graph.AddExternal("Skybox"_hsv, info.SkyboxTexture);
       
             passData.Skybox = graph.Read(skybox, Pixel | Sampled);
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.DepthOut = graph.DepthStencilTarget(depthIn, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.Color = graph.RenderTarget(passData.Color, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.Depth = graph.DepthStencilTarget(info.Depth, AttachmentLoad::Load, AttachmentStore::Store);
             passData.Projection = graph.Read(passData.Projection, Vertex | Uniform);
             ProjectionUBO projection = {
                 .ProjectionInverse = glm::inverse(globalResources.PrimaryCamera->GetProjection()),
@@ -49,16 +60,20 @@ RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, RG::
 
             passData.ShadingSettings = graph.Read(globalResources.ShadingSettings, Pixel | Uniform);
 
-            passData.LodBias = lodBias;
+            passData.LodBias = info.LodBias;
 
-            graph.UpdateBlackboard(passData);
+            PassData passDataPublic = {};
+            passDataPublic.Color = passData.Color;
+            passDataPublic.Depth = passData.Depth;
+
+            graph.UpdateBlackboard(passDataPublic);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
             CPU_PROFILE_FRAME("Skybox")
             GPU_PROFILE_FRAME("Skybox")
 
-            Texture skyboxTexture = resources.GetTexture(passData.Skybox);
+            const Texture skyboxTexture = resources.GetTexture(passData.Skybox);
             const Buffer projectionBuffer = resources.GetBuffer(passData.Projection);
             
             const Shader& shader = resources.GetGraph()->GetShader();

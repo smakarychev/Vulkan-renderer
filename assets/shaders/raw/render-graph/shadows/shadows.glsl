@@ -210,7 +210,7 @@ float sample_shadow_cascade(vec3 ndc, vec3 normal, float light_size_uv, vec2 del
     return pcf_optimized_shadow(uvz, cascade_index);
 }
 
-float shadow(vec3 position, vec3 normal, float light_size, float z_view) {
+float shadow(vec3 position, vec3 normal, vec3 light_direction, float light_size, float z_view) {
     const float SEEMS_THRESHOLD = 0.9f;
 
     z_view = -z_view;
@@ -224,11 +224,12 @@ float shadow(vec3 position, vec3 normal, float light_size, float z_view) {
     for (uint i = 0; i < u_csm_data.csm.cascade_count; i++) {
         if (z_view < u_csm_data.csm.cascades[i]) {
             cascade_index = i;
+            return float(cascade_index);
             break;
         }
     }
     const vec3 position_offset = 
-        get_shadow_offset(normal, u_directional_light.light.direction) / u_csm_data.csm.cascades[cascade_index];
+        get_shadow_offset(normal, light_direction) / u_csm_data.csm.cascades[cascade_index];
     vec4 position_local = u_csm_data.csm.view_projections[cascade_index] * vec4(position + position_offset, 1.0f);
     const float shadow = 
         sample_shadow_cascade(position_local.xyz / position_local.w, normal, light_size_uv, delta, cascade_index);
@@ -245,7 +246,7 @@ float shadow(vec3 position, vec3 normal, float light_size, float z_view) {
 
     if (cascade_relative_distance > SEEMS_THRESHOLD) {
         const vec3 position_offset_next =
-            get_shadow_offset(normal, u_directional_light.light.direction) / u_csm_data.csm.cascades[next_cascade];
+            get_shadow_offset(normal, light_direction) / u_csm_data.csm.cascades[next_cascade];
         position_local = u_csm_data.csm.view_projections[next_cascade] * vec4(position + position_offset_next, 1.0f);
         if (!all(bvec3(abs(position_local.x) < 0.99f, abs(position_local.y) < 0.99f, abs(position_local.z - 0.499f) < 0.499f)))
             return shadow;

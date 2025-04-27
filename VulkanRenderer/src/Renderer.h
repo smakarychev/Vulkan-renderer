@@ -8,10 +8,9 @@
 #include "ResourceUploader.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RenderGraph.h"
-#include "Scene/SceneGeometry.h"
 #include "FrameContext.h"
-#include "Light/SceneLight.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
+#include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
 #include "Scene/Scene.h"
@@ -48,8 +47,34 @@ private:
     void SetupRenderSlimePasses();
     void SetupRenderGraph();
 
-    void UpdateLights();
+    RG::Resource RenderGraphDepthPrepass(const ScenePass& scenePass);
+    SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::Resource& depth, const ScenePass& scenePass);
+    SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::Resource& color, RG::Resource& depth,
+        const ScenePass& scenePass);
 
+    SceneDrawPassDescription RenderGraphVBufferDescription(RG::Resource& vbuffer, RG::Resource& depth,
+        const ScenePass& scenePass);
+    RG::Resource RenderGraphVBufferPbr(RG::Resource& vbuffer, RG::Resource camera);
+    
+    void RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth);
+
+    RG::Resource RenderGraphSSAO(StringId baseName, RG::Resource depth);
+    
+    struct TileLightsInfo
+    {
+        RG::Resource Tiles{};
+        RG::Resource ZBins{};
+    };
+    TileLightsInfo RenderGraphCullLightsTiled(StringId baseName, RG::Resource depth);
+
+    struct ClusterLightsInfo
+    {
+        RG::Resource Clusters{};
+    };
+    ClusterLightsInfo RenderGraphCullLightsClustered(StringId baseName, RG::Resource depth);
+
+    RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
+    
     void Shutdown();
 
     RenderingInfo GetImGuiUIRenderingInfo();
@@ -75,13 +100,11 @@ private:
     ResourceUploader m_ResourceUploader;
 
     std::unique_ptr<BindlessTextureDescriptorsRingBuffer> m_BindlessTextureDescriptorsRingBuffer;
-    ModelCollection m_GraphModelCollection;
-    SceneGeometry m_GraphOpaqueGeometry;
-    SceneGeometry m_GraphTranslucentGeometry;
 
-    std::unique_ptr<SceneLight> m_SceneLights{};
-    
     std::unique_ptr<RG::Graph> m_Graph;
+    RG::Resource m_Ssao{};
+    TileLightsInfo m_TileLightsInfo{};
+    ClusterLightsInfo m_ClusterLightsInfo{};
     
     Texture m_SkyboxTexture{};
     Texture m_SkyboxPrefilterMap{};
@@ -98,9 +121,7 @@ private:
     SceneVisibilityHandle m_OpaqueSetPrimaryVisibility{};
     SceneView m_OpaqueSetPrimaryView{};
 
-    std::shared_ptr<Camera> m_ShadowCamera;
     SceneVisibilityHandle m_OpaqueSetShadowVisibility{};
-    SceneView m_OpaqueSetOverheadView{};
 
     SceneMultiviewVisibility m_MultiviewVisibility{};
     SceneVisibilityPassesResources m_SceneVisibilityResources{};

@@ -1,5 +1,6 @@
 #extension GL_EXT_shader_8bit_storage: require
 #extension GL_EXT_shader_16bit_storage: require
+#extension GL_EXT_scalar_block_layout: require
 
 struct Material {
     vec4 albedo_color;

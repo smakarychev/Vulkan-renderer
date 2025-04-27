@@ -1,6 +1,3 @@
-[submodule "vendor/assimp"]
-	path = vendor/assimp
-	url = https://github.com/smakarychev/assimp
 [submodule "vendor/glfw"]
 	path = vendor/glfw
 	url = https://github.com/smakarychev/glfw

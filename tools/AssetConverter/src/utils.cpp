@@ -6,36 +6,6 @@
 #include <meshoptimizer.h>
 #include <ranges>
 
-namespace
-{
-    assetLib::BoundingSphere mergeSpheres(const assetLib::BoundingSphere& a, const assetLib::BoundingSphere& b)
-    {
-        f32 distance = glm::length(a.Center - b.Center);
-
-        if (distance <= std::abs(a.Radius - b.Radius)) 
-            return a.Radius > b.Radius ? a : b;
-
-        f32 newRadius = (distance + a.Radius + b.Radius) / 2.0f;
-        glm::vec3 newCenter = a.Center + (b.Center - a.Center) * (newRadius - a.Radius) / distance;
-
-        return {newCenter, newRadius};
-    }
-
-    assetLib::BoundingBox boxFromSphere(const assetLib::BoundingSphere& sphere)
-    {
-        return {
-            .Min = sphere.Center - sphere.Radius,
-            .Max = sphere.Center + sphere.Radius};
-    }
-
-    assetLib::BoundingBox mergeBoxes(const assetLib::BoundingBox& a, const assetLib::BoundingBox& b)
-    {
-        return {
-            .Min = glm::min(a.Min, b.Min),
-            .Max = glm::max(a.Max, b.Max)};
-    }
-}
-
 namespace Utils
 {
     void remapMesh(Attributes& attributes, std::vector<u32>& indices)
@@ -99,15 +69,15 @@ namespace Utils
         f32 coneWeight = 0.5f;
 
         std::vector<meshopt_Meshlet> meshoptMeshlets(meshopt_buildMeshletsBound(indices.size(),
-            assetLib::ModelInfo::VERTICES_PER_MESHLET, assetLib::ModelInfo::TRIANGLES_PER_MESHLET));
-        std::vector<u32> meshletVertices(meshoptMeshlets.size() * assetLib::ModelInfo::VERTICES_PER_MESHLET);
-        meshletInfo.Indices.resize(meshoptMeshlets.size() * assetLib::ModelInfo::TRIANGLES_PER_MESHLET * 3);
+            assetLib::SceneInfo::VERTICES_PER_MESHLET, assetLib::SceneInfo::TRIANGLES_PER_MESHLET));
+        std::vector<u32> meshletVertices(meshoptMeshlets.size() * assetLib::SceneInfo::VERTICES_PER_MESHLET);
+        meshletInfo.Indices.resize(meshoptMeshlets.size() * assetLib::SceneInfo::TRIANGLES_PER_MESHLET * 3);
 
         meshoptMeshlets.resize(meshopt_buildMeshlets(meshoptMeshlets.data(),
             meshletVertices.data(), meshletInfo.Indices.data(),
             indices.data(), indices.size(),
             (f32*)attributes.Positions->data(), attributes.Positions->size(), sizeof(glm::vec3),
-            assetLib::ModelInfo::VERTICES_PER_MESHLET, assetLib::ModelInfo::TRIANGLES_PER_MESHLET, coneWeight));
+            assetLib::SceneInfo::VERTICES_PER_MESHLET, assetLib::SceneInfo::TRIANGLES_PER_MESHLET, coneWeight));
 
         const meshopt_Meshlet& lastMeshlet = meshoptMeshlets.back();
 
@@ -117,7 +87,7 @@ namespace Utils
         meshletInfo.Meshlets.reserve(meshoptMeshlets.size());
         for (const auto& meshoptMeshlet : meshoptMeshlets)
         {
-            assetLib::ModelInfo::Meshlet meshlet = {
+            assetLib::SceneInfo::Meshlet meshlet = {
                 .FirstIndex = meshoptMeshlet.triangle_offset,
                 .IndexCount = meshoptMeshlet.triangle_count * 3,
                 .FirstVertex = meshoptMeshlet.vertex_offset,
@@ -127,11 +97,11 @@ namespace Utils
                 &meshletInfo.Indices[meshoptMeshlet.triangle_offset], meshoptMeshlet.triangle_count,
                 (f32*)attributes.Positions->data(), attributes.Positions->size(), sizeof(glm::vec3));
 
-            meshlet.BoundingSphere = assetLib::BoundingSphere{
+            meshlet.BoundingSphere = Sphere{
                 .Center = glm::vec3{meshoptBounds.center[0], meshoptBounds.center[1], meshoptBounds.center[2]},
                 .Radius = meshoptBounds.radius};
 
-            meshlet.BoundingCone = assetLib::BoundingCone{
+            meshlet.BoundingCone = assetLib::SceneInfo::BoundingCone{
                 .AxisX = meshoptBounds.cone_axis_s8[0],
                 .AxisY = meshoptBounds.cone_axis_s8[1],
                 .AxisZ = meshoptBounds.cone_axis_s8[2],
@@ -166,19 +136,19 @@ namespace Utils
         return meshletInfo;
     }
 
-    BoundingVolumes meshBoundingVolumes(const std::vector<assetLib::ModelInfo::Meshlet>& meshlets)
+    BoundingVolumes meshBoundingVolumes(const std::vector<assetLib::SceneInfo::Meshlet>& meshlets)
     {
         if (meshlets.empty())
             return {
                 {.Center = glm::vec3{0.0f}, .Radius = 0.0f},
                 {.Min = glm::vec3{0.0f}, .Max = glm::vec3{0.0f}}};
 
-        assetLib::BoundingSphere boundingSphere = meshlets.front().BoundingSphere;
-        assetLib::BoundingBox boundingBox = boxFromSphere(boundingSphere);
+        Sphere boundingSphere = meshlets.front().BoundingSphere;
+        AABB boundingBox = AABB::FromSphere(boundingSphere);
         for (auto& meshlet : meshlets | std::ranges::views::drop(1))
         {
-            boundingSphere = mergeSpheres(boundingSphere, meshlet.BoundingSphere);
-            boundingBox = mergeBoxes(boundingBox, boxFromSphere(meshlet.BoundingSphere));
+            boundingSphere = boundingSphere.Merge(meshlet.BoundingSphere);
+            boundingBox = boundingBox.Merge(AABB::FromSphere(meshlet.BoundingSphere));
         }
 
         return {

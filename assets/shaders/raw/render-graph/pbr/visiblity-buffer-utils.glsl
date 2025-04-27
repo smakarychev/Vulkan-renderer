@@ -1,63 +1,72 @@
-uvec3 get_indices(VisibilityInfo visibility_info) {
-    IndirectCommand command = u_commands.commands[visibility_info.instance_id];
+uvec3 get_indices(IndirectCommand command, uint triangle_id) {
     uvec3 indices = uvec3(
-        command.vertexOffset + uint(u_indices.indices[command.firstIndex + visibility_info.triangle_id * 3 + 0]),
-        command.vertexOffset + uint(u_indices.indices[command.firstIndex + visibility_info.triangle_id * 3 + 1]),
-        command.vertexOffset + uint(u_indices.indices[command.firstIndex + visibility_info.triangle_id * 3 + 2]));
+        command.vertexOffset + uint(u_indices.indices[command.firstIndex + triangle_id * 3 + 0]),
+        command.vertexOffset + uint(u_indices.indices[command.firstIndex + triangle_id * 3 + 1]),
+        command.vertexOffset + uint(u_indices.indices[command.firstIndex + triangle_id * 3 + 2]));
 
     return indices;
 }
 
-Triangle get_triangle_local(uvec3 indices) {
+Triangle get_triangle_local(uint position_offset, uvec3 indices) {
     Triangle triangle;
-    triangle.a = vec4_from_position(u_positions.positions[indices.x]);
-    triangle.b = vec4_from_position(u_positions.positions[indices.y]);
-    triangle.c = vec4_from_position(u_positions.positions[indices.z]);
+    triangle.a = vec4_from_position(u_ugb_position.positions[position_offset + indices.x]);
+    triangle.b = vec4_from_position(u_ugb_position.positions[position_offset + indices.y]);
+    triangle.c = vec4_from_position(u_ugb_position.positions[position_offset + indices.z]);
 
     return triangle;
 }
 
-void transform_to_clip_space(inout Triangle triangle, VisibilityInfo visibility_info) {
-    IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    object_data object = u_objects.objects[command.render_object];
+void transform_to_clip_space(RenderObject object, inout Triangle triangle, VisibilityInfo visibility_info) {
     triangle.a = u_camera.camera.view_projection * object.model * triangle.a;
     triangle.b = u_camera.camera.view_projection * object.model * triangle.b;
     triangle.c = u_camera.camera.view_projection * object.model * triangle.c;
 }
 
-mat3x2 get_uvs(uvec3 indices) {
-    const vec2 uv_a = vec2(u_uv.uvs[indices.x].u, u_uv.uvs[indices.x].v);
-    const vec2 uv_b = vec2(u_uv.uvs[indices.y].u, u_uv.uvs[indices.y].v);
-    const vec2 uv_c = vec2(u_uv.uvs[indices.z].u, u_uv.uvs[indices.z].v);
+mat3x2 get_uvs(uint uv_offset, uvec3 indices) {
+    const vec2 uv_a = vec2(u_ugb_uv.uvs[uv_offset + indices.x].u, u_ugb_uv.uvs[uv_offset + indices.x].v);
+    const vec2 uv_b = vec2(u_ugb_uv.uvs[uv_offset + indices.y].u, u_ugb_uv.uvs[uv_offset + indices.y].v);
+    const vec2 uv_c = vec2(u_ugb_uv.uvs[uv_offset + indices.z].u, u_ugb_uv.uvs[uv_offset + indices.z].v);
 
     return mat3x2(uv_a, uv_b, uv_c);
 }
 
-mat3 get_normals(uvec3 indices) {
-    const vec3 normal_a = 
-        vec3(u_normals.normals[indices.x].x, u_normals.normals[indices.x].y, u_normals.normals[indices.x].z);
-    const vec3 normal_b = 
-        vec3(u_normals.normals[indices.y].x, u_normals.normals[indices.y].y, u_normals.normals[indices.y].z);
-    const vec3 normal_c = 
-        vec3(u_normals.normals[indices.z].x, u_normals.normals[indices.z].y, u_normals.normals[indices.z].z);
+mat3 get_normals(uint normal_offset, uvec3 indices) {
+    const vec3 normal_a = vec3(
+        u_ugb_normal.normals[normal_offset + indices.x].x,
+        u_ugb_normal.normals[normal_offset + indices.x].y,
+        u_ugb_normal.normals[normal_offset + indices.x].z);
+    const vec3 normal_b = vec3(
+        u_ugb_normal.normals[normal_offset + indices.y].x,
+        u_ugb_normal.normals[normal_offset + indices.y].y,
+        u_ugb_normal.normals[normal_offset + indices.y].z);
+    const vec3 normal_c = vec3(
+        u_ugb_normal.normals[normal_offset + indices.z].x,
+        u_ugb_normal.normals[normal_offset + indices.z].y,
+        u_ugb_normal.normals[normal_offset + indices.z].z);
 
     return mat3(normal_a, normal_b, normal_c);
 }
 
-mat3 get_tangents(uvec3 indices) {
-    const vec3 tangent_a = 
-        vec3(u_tangents.tangents[indices.x].x, u_tangents.tangents[indices.x].y, u_tangents.tangents[indices.x].z);
-    const vec3 tangent_b = 
-        vec3(u_tangents.tangents[indices.y].x, u_tangents.tangents[indices.y].y, u_tangents.tangents[indices.y].z);
-    const vec3 tangent_c = 
-        vec3(u_tangents.tangents[indices.z].x, u_tangents.tangents[indices.z].y, u_tangents.tangents[indices.z].z);
+mat3 get_tangents(uint tangent_offset, uvec3 indices) {
+    const vec3 tangent_a = vec3(
+        u_ugb_tangent.tangents[tangent_offset + indices.x].x,
+        u_ugb_tangent.tangents[tangent_offset + indices.x].y,
+        u_ugb_tangent.tangents[tangent_offset + indices.x].z);
+    const vec3 tangent_b = vec3(
+        u_ugb_tangent.tangents[tangent_offset + indices.y].x,
+        u_ugb_tangent.tangents[tangent_offset + indices.y].y,
+        u_ugb_tangent.tangents[tangent_offset + indices.y].z);
+    const vec3 tangent_c = vec3(
+        u_ugb_tangent.tangents[tangent_offset + indices.z].x,
+        u_ugb_tangent.tangents[tangent_offset + indices.z].y,
+        u_ugb_tangent.tangents[tangent_offset + indices.z].z);
 
     return mat3(tangent_a, tangent_b, tangent_c);
 }
 
 void convert_to_world_space_normal(inout vec3 normal, VisibilityInfo visibility_info) {
     IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    object_data object = u_objects.objects[command.render_object];
+    RenderObject object = u_objects.objects[command.render_object];
 
     normal = normalize((transpose(inverse(object.model)) * vec4(normal, 0.0f)).xyz);
 }
@@ -67,7 +76,7 @@ void convert_to_world_space_normal_tangents(
     inout vec3 tangent, vec3 tangent_dx, vec3 tangent_dy,
     inout vec3 bitangent, inout vec3 bitangent_dx, inout vec3 bitangent_dy, VisibilityInfo visibility_info) {
     IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    object_data object = u_objects.objects[command.render_object];
+    RenderObject object = u_objects.objects[command.render_object];
 
     tangent = normalize((transpose(inverse(object.model)) * vec4(tangent, 0.0f)).xyz);
     normal = normalize((transpose(inverse(object.model)) * vec4(normal, 0.0f)).xyz);
@@ -77,14 +86,6 @@ void convert_to_world_space_normal_tangents(
 
     bitangent_dx = cross(normal_dx, tangent) - cross(tangent_dx, normal);
     bitangent_dy = cross(normal_dy, tangent) - cross(tangent_dy, normal);
-}
-
-Material get_material(VisibilityInfo visibility_info) {
-    const IndirectCommand command = u_commands.commands[visibility_info.instance_id];
-    const uint object_index = command.render_object;
-    const Material material = u_materials.materials[object_index];
-
-    return material;
 }
 
 struct InterpolationData {
@@ -226,9 +227,12 @@ struct GBufferData {
 };
 
 GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
-    const uvec3 indices = get_indices(visibility_info);
-    Triangle triangle = get_triangle_local(indices);
-    transform_to_clip_space(triangle, visibility_info);
+    const IndirectCommand command = u_commands.commands[visibility_info.instance_id];
+    const uvec3 indices = get_indices(command, visibility_info.triangle_id);
+    const RenderObject object = u_objects.objects[command.render_object];
+    
+    Triangle triangle = get_triangle_local(object.position_index, indices);
+    transform_to_clip_space(object, triangle, visibility_info);
     const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.camera.resolution);
 
     const float w = dot(vec3(triangle.a.w, triangle.b.w, triangle.c.w), interpolation_data.barycentric);
@@ -237,13 +241,13 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     const float z_view = position.z;
     position = u_camera.camera.inv_view * position;
 
-    const mat3x2 uvs = get_uvs(indices);
+    const mat3x2 uvs = get_uvs(object.uv_index, indices);
     const mat3x2 uvs_interpolated = interpolate_with_derivatives_2d(interpolation_data, uvs);
     const vec2 uv = vec2(uvs_interpolated[0][0], uvs_interpolated[0][1]);
     const vec2 uv_dx = vec2(uvs_interpolated[1][0], uvs_interpolated[1][1]);
     const vec2 uv_dy = vec2(uvs_interpolated[2][0], uvs_interpolated[2][1]);
 
-    const Material material = get_material(visibility_info);
+    const Material material = u_materials.materials[object.material_id];
 
     vec3 albedo = material.albedo_color.rgb;
     albedo *= textureGrad(nonuniformEXT(sampler2D(u_textures[
@@ -258,14 +262,14 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     const float ao = textureGrad(nonuniformEXT(sampler2D(u_textures[
         material.ambient_occlusion_texture_index], u_sampler)), uv, uv_dx, uv_dy).r;
 
-    const mat3 normals = get_normals(indices);
+    const mat3 normals = get_normals(object.normal_index, indices);
     const mat3 normals_interpolated = interpolate_with_derivatives_3d(interpolation_data, normals);
     const vec3 flat_normal = vec3(normals_interpolated[0][0], normals_interpolated[0][1], normals_interpolated[0][2]);
     vec3 normal = flat_normal;
     const vec3 normal_dx = vec3(normals_interpolated[1][0], normals_interpolated[1][1], normals_interpolated[1][2]);
     const vec3 normal_dy = vec3(normals_interpolated[2][0], normals_interpolated[2][1], normals_interpolated[2][2]);
 
-    const mat3 tangents = get_tangents(indices);
+    const mat3 tangents = get_tangents(object.tangent_index, indices);
     const mat3 tangents_interpolated = interpolate_with_derivatives_3d(interpolation_data, tangents);
     vec3 tangent = vec3(tangents_interpolated[0][0], tangents_interpolated[0][1], tangents_interpolated[0][2]);
     const vec3 tangent_dx = vec3(tangents_interpolated[1][0], tangents_interpolated[1][1], tangents_interpolated[1][2]);

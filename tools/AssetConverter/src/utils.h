@@ -14,15 +14,15 @@ namespace Utils
     void remapMesh(Attributes& attributes, std::vector<u32>& indices);
     struct MeshletInfo
     {
-        std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
-        std::vector<assetLib::ModelInfo::IndexType> Indices;
+        std::vector<assetLib::SceneInfo::Meshlet> Meshlets;
+        std::vector<assetLib::SceneInfo::IndexType> Indices;
     };
     MeshletInfo createMeshlets(Attributes& attributes, const std::vector<u32>& indices);
 
     struct BoundingVolumes
     {
-        assetLib::BoundingSphere Sphere;
-        assetLib::BoundingBox Box;
+        Sphere Sphere;
+        AABB Box;
     };
-    BoundingVolumes meshBoundingVolumes(const std::vector<assetLib::ModelInfo::Meshlet>& meshlets);
+    BoundingVolumes meshBoundingVolumes(const std::vector<assetLib::SceneInfo::Meshlet>& meshlets);
 }

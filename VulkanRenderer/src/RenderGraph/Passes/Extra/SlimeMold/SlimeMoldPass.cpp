@@ -254,8 +254,9 @@ RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMo
 RG::Pass& addCopyDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph,
     const DiffuseSlimeMapPassData& diffuseOutput)
 {
-    return Passes::CopyTexture::addToGraph(name.Concatenate(".Copy"), renderGraph,
-        diffuseOutput.DiffuseMap, diffuseOutput.SlimeMap, glm::vec3{}, glm::vec3{1.0f});
+    return Passes::CopyTexture::addToGraph(name.Concatenate(".Copy"), renderGraph, {
+        .TextureIn = diffuseOutput.DiffuseMap,
+        .TextureOut = diffuseOutput.SlimeMap});
 }
 
 RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,

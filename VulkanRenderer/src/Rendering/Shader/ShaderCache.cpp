@@ -269,7 +269,8 @@ void ShaderCache::HandleStageModification(std::string_view path)
     
     auto baked = ShaderStageConverter::Bake(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), path);
     if (baked.has_value())
-        HandleShaderModification(stages.front().Processed);
+        for (auto& stage : stages)
+            HandleShaderModification(stage.Processed);
 }
 
 void ShaderCache::HandleHeaderModification(std::string_view path)
@@ -364,6 +365,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
         DynamicStates dynamicStates = DynamicStates::Default;
         AlphaBlending alphaBlending = AlphaBlending::Over;
         DepthMode depthMode = DepthMode::ReadWrite;
+        DepthTest depthTest = DepthTest::GreaterOrEqual;
         FaceCullMode cullMode = FaceCullMode::Back;
         PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
         bool clampDepth = false;
@@ -398,6 +400,11 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
                 std::make_pair("read",       DepthMode::Read),
                 std::make_pair("read_write", DepthMode::ReadWrite),
             };
+            
+            static const std::unordered_map<std::string, DepthTest> NAME_TO_DEPTH_TEST_MAP = {
+                std::make_pair("greater_or_equal",  DepthTest::GreaterOrEqual),
+                std::make_pair("equal",             DepthTest::Equal),
+            };
 
             static const std::unordered_map<std::string, FaceCullMode> NAME_TO_CULL_MODE_MAP = {
                 std::make_pair("none",  FaceCullMode::None),
@@ -416,6 +423,8 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
                 alphaBlending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
             if (rasterization.contains("depth_mode"))
                 depthMode = NAME_TO_DEPTH_MODE_MAP.at(rasterization["depth_mode"]);
+            if (rasterization.contains("depth_test"))
+                depthTest = NAME_TO_DEPTH_TEST_MAP.at(rasterization["depth_test"]);
             if (rasterization.contains("cull_mode"))
                 cullMode = NAME_TO_CULL_MODE_MAP.at(rasterization["cull_mode"]);
             if (rasterization.contains("primitive_kind"))
@@ -438,6 +447,7 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
             .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
             .DynamicStates = overrides.PipelineOverrides.DynamicStates.value_or(dynamicStates),
             .DepthMode = overrides.PipelineOverrides.DepthMode.value_or(depthMode),
+            .DepthTest = overrides.PipelineOverrides.DepthTest.value_or(depthTest),
             .CullMode = overrides.PipelineOverrides.CullMode.value_or(cullMode),
             .AlphaBlending = overrides.PipelineOverrides.AlphaBlending.value_or(alphaBlending),
             .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),

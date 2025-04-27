@@ -30,7 +30,7 @@ struct SceneGeometryInfo
     static SceneGeometryInfo FromAsset(assetLib::SceneInfo& sceneInfo,
         BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue);
     
-    std::vector<assetLib::ModelInfo::IndexType> Indices;
+    std::vector<assetLib::SceneInfo::IndexType> Indices;
     std::vector<glm::vec3> Positions;
     std::vector<glm::vec3> Normals;
     std::vector<glm::vec4> Tangents;
@@ -38,7 +38,7 @@ struct SceneGeometryInfo
 
     std::vector<SceneRenderObject> RenderObjects;
     std::vector<MaterialGPU> Materials;
-    std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
+    std::vector<assetLib::SceneInfo::Meshlet> Meshlets;
     
     std::vector<Material2> MaterialsCpu;
 };

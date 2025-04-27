@@ -12,6 +12,8 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
     using namespace RG;
     using enum ResourceAccessFlags;
 
+    // todo: this should do something else if no pass uses occlusion culling, or if hiz info already available
+    
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
@@ -46,6 +48,8 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
 
                     const SceneView& mainVisibilityView = info.MultiviewVisibility->View(pass.Visibility);
                     
+                    DrawAttachments oldAttachments = passData.DrawPassViewAttachments.Get(
+                        pass.View.Name, pass.Pass->Name());
                     DrawAttachments& inputAttachments = passData.DrawPassViewAttachments.Get(
                         pass.View.Name, pass.Pass->Name());
                     if (reocclusion)
@@ -56,13 +60,13 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                             inputAttachments.Depth->Description.OnLoad = AttachmentLoad::Load;
                     }
 
-                    for (SceneBucketHandle bucketHandle : pass.Pass->BucketHandles())
+                    DrawAttachmentResources attachmentResources = {};
+                    for (auto&& [handleIndex, bucketHandle] : std::ranges::views::enumerate(pass.Pass->BucketHandles()))
                     {
                         const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
                         auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
                                     
-                        // todo: do the shader specialization for each bucket here:
-                        auto [colors, depth] = pass.DrawPassInit(
+                        attachmentResources = pass.DrawPassInit(
                             StringId("{}.{}.{}.{}.{}",
                                 name, pass.View.Name, pass.Pass->Name(), bucket.Name(),
                                 reocclusion ? "Reocclusion" : ""),
@@ -72,7 +76,9 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                                 .Resolution = pass.View.Resolution,
                                 .Camera = pass.View.Camera,
                                 .Attachments = inputAttachments,
-                                .Overrides = &bucket.ShaderOverrides});
+                                .BucketOverrides = &bucket.ShaderOverrides});
+                        
+                        auto&& [colors, depth] = attachmentResources;
 
                         for (u32 i = 0; i < colors.size(); i++)
                             inputAttachments.Colors[i].Resource = colors[i];
@@ -88,7 +94,7 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                             inputAttachments.Depth->Resource = *depth;
                         }
 
-                        if (!reocclusion && bucketIndex == 0)
+                        if (!reocclusion && handleIndex == 0)
                         {
                             for (auto& color : inputAttachments.Colors)
                                 color.Description.OnLoad = AttachmentLoad::Load;
@@ -96,6 +102,9 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                                 inputAttachments.Depth->Description.OnLoad = AttachmentLoad::Load;
                         }
                     }
+
+                    // todo: remove this garbage >:(
+                    passData.DrawPassViewAttachments.UpdateResources(oldAttachments, attachmentResources);
                 }
             };
             

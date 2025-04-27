@@ -1,16 +1,16 @@
 #include "AtmosphereAerialPerspectiveLutPass.h"
 
 #include "cvars/CVarSystem.h"
-#include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/AtmosphereAerialPerspectiveLutBindGroup.generated.h"
 #include "RenderGraph/Passes/Generated/ShaderBindGroupBase.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
+#include "Scene/SceneLight2.h"
 
 RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-    RG::Resource atmosphereSettings, const SceneLight& light, const RG::CSMData& csmData)
+    RG::Resource atmosphereSettings, const SceneLight2& light, const RG::CSMData& csmData)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -31,7 +31,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::G
                 .Format = Format::RGBA16_FLOAT,
                 .Kind = ImageKind::Image3d});
             passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
-                light.GetBuffers().DirectionalLight);
+                light.GetBuffers().DirectionalLights);
 
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
             passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);

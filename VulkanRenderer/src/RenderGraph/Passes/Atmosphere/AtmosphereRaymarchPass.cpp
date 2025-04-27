@@ -1,14 +1,14 @@
 #include "AtmosphereRaymarchPass.h"
 
 #include "CameraGPU.h"
-#include "Light/SceneLight.h"
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/AtmosphereRaymarchBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
+#include "Scene/SceneLight2.h"
 
 RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource atmosphereSettings, const Camera& camera, const SceneLight& light,
+    RG::Resource atmosphereSettings, const Camera& camera, const SceneLight2& light,
     RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
     RG::Resource colorIn, const ImageSubresourceDescription& colorSubresource,
     RG::Resource depthIn, bool useSunLuminance)
@@ -24,7 +24,7 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(StringId name, RG::Graph& ren
         graph.SetShader("atmosphere-raymarch.shader");
 
         passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
-            light.GetBuffers().DirectionalLight);
+            light.GetBuffers().DirectionalLights);
         auto& globalResources = graph.GetGlobalResources();
         passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "ColorOut"_hsv,
             GraphTextureDescription{

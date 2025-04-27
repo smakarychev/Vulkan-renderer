@@ -9,7 +9,7 @@
 namespace
 {
     RG::Pass& identifyActiveClusters(StringId name, RG::Graph& renderGraph, RG::Resource clusterVisibility,
-        RG::Resource& depth)
+        RG::Resource depth)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -155,8 +155,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::LightClustersCompact::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource clusters,
-    RG::Resource clusterVisibility, RG::Resource depth)
+RG::Pass& Passes::LightClustersCompact::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -164,15 +163,16 @@ RG::Pass& Passes::LightClustersCompact::addToGraph(StringId name, RG::Graph& ren
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            auto& identify = identifyActiveClusters(name.Concatenate(".Identify"), graph, clusterVisibility, depth);
+            auto& identify = identifyActiveClusters(name.Concatenate(".Identify"), graph,
+                info.ClusterVisibility, info.Depth);
             auto& identifyOutput = graph.GetBlackboard().Get<PassData>(identify);
-            auto& compact = compactActiveClusters(name.Concatenate(".Compact"), graph, clusters,
+            auto& compact = compactActiveClusters(name.Concatenate(".Compact"), graph, info.Clusters,
                 identifyOutput.ClusterVisibility);
             auto& compactOutput = graph.GetBlackboard().Get<PassData>(compact);
             auto& creatDispatch = createIndirectDispatch(name.Concatenate(".CreateDispatch"), graph,
                 compactOutput.ActiveClustersCount);
             auto& createDispatchOutput = graph.GetBlackboard().Get<PassData>(creatDispatch);
-            compactOutput.Depth = depth;
+            compactOutput.Depth = info.Depth;
             compactOutput.DispatchIndirect = createDispatchOutput.DispatchIndirect;
             compactOutput.ActiveClustersCount = createDispatchOutput.ActiveClustersCount;
             

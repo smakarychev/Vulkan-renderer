@@ -2,7 +2,7 @@
 #include <filesystem>
 
 #include "AssetLib.h"
-#include "ModelAsset.h"
+#include "SceneAsset.h"
 #include "ShaderAsset.h"
 #include "TextureAsset.h"
 
@@ -36,45 +36,6 @@ public:
 public:
     static inline const std::vector<std::string> WATCHED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".hdr"};
     static constexpr std::string_view POST_CONVERT_EXTENSION = ".tx";
-};
-
-class ModelConverter
-{
-    using IndexType = assetLib::ModelInfo::IndexType;
-public:
-    struct MeshData
-    {
-        std::string Name;
-        assetLib::VertexGroup VertexGroup;
-        std::vector<IndexType> Indices;
-        std::vector<assetLib::ModelInfo::Meshlet> Meshlets;
-        assetLib::ModelInfo::MaterialType MaterialType;
-        assetLib::ModelInfo::MaterialPropertiesPBR MaterialPropertiesPBR;
-        std::array<assetLib::ModelInfo::MaterialInfo, (u32)assetLib::ModelInfo::MaterialAspect::MaxVal> MaterialInfos;
-    };
-public:
-    static std::vector<std::string> GetWatchedExtensions() { return WATCHED_EXTENSIONS; }
-    static bool WatchesExtension(std::string_view extension)
-    {
-        return std::ranges::find(WATCHED_EXTENSIONS, extension) != WATCHED_EXTENSIONS.end();
-    }
-    
-    static bool NeedsConversion(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
-    static void Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path);
-private:
-    static MeshData ProcessMesh(const aiScene* scene, const aiMesh* mesh, const std::filesystem::path& modelPath);
-    static assetLib::VertexGroup GetMeshVertices(const aiMesh* mesh);
-    static std::vector<u32> GetMeshIndices(const aiMesh* mesh);
-    static assetLib::ModelInfo::MaterialInfo GetMaterialInfo(const aiMaterial* material,
-        assetLib::ModelInfo::MaterialAspect type, const std::filesystem::path& modelPath);
-    static assetLib::ModelInfo::MaterialType GetMaterialType(const aiMaterial* material);
-    static assetLib::ModelInfo::MaterialPropertiesPBR GetMaterialPropertiesPBR(const aiMaterial* material);
-
-    static void ConvertTextures(const std::filesystem::path& initialDirectoryPath, MeshData& meshData);
-    
-public:
-    static inline const std::vector<std::string> WATCHED_EXTENSIONS = {".obj", ".fbx", ".blend", ".gltf"};
-    static constexpr std::string_view POST_CONVERT_EXTENSION = ".model";
 };
 
 class ShaderStageConverter

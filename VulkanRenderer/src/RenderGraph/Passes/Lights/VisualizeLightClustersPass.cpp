@@ -4,14 +4,21 @@
 #include "RenderGraph/Passes/Generated/LightClustersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth,
-    RG::Resource clusters)
+RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
     
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    struct PassDataPrivate
+    {
+        Resource Color{};
+        Resource Clusters{};
+        Resource Camera{};
+        Resource Depth{};
+    };
+    
+    return renderGraph.AddRenderPass<PassDataPrivate>(name,
+        [&](Graph& graph, PassDataPrivate& passData)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Setup")
 
@@ -19,21 +26,24 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& r
 
             auto& globalResources = graph.GetGlobalResources();
 
-            passData.ColorOut = graph.CreateResource("Color"_hsv,
+            passData.Color = graph.CreateResource("Color"_hsv,
                 GraphTextureDescription{
                     .Width = globalResources.Resolution.x,
                     .Height = globalResources.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
             
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.Depth = graph.Read(depth, Pixel | Sampled);
+            passData.Color = graph.RenderTarget(passData.Color, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.Depth = graph.Read(info.Depth, Pixel | Sampled);
             
-            passData.Clusters = graph.Read(clusters, Pixel | Storage);
+            passData.Clusters = graph.Read(info.Clusters, Pixel | Storage);
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
 
-            graph.UpdateBlackboard(passData);
+            PassData passDataPublic = {};
+            passDataPublic.Color = passData.Color;
+            
+            graph.UpdateBlackboard(passDataPublic);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize")
             GPU_PROFILE_FRAME("Lights.Clusters.Visualize")
@@ -41,7 +51,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& r
             const Shader& shader = resources.GetGraph()->GetShader();
             LightClustersVisualizeShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetDepth({.Image = resources.GetTexture(depth)}, ImageLayout::Readonly);
+            bindGroup.SetDepth({.Image = resources.GetTexture(passData.Depth)}, ImageLayout::Readonly);
             bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 

@@ -22,6 +22,13 @@ void Settings::initCvars()
         "The lifetime of staging buffer, in frames",
         300);
 
+    /* main rendering settings */
+    CVarI32 depthPrepass("Renderer.DepthPrepass"_hsv,
+        "Flag if depth prepass enabled (possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+    CVarI32 forwardShading("Renderer.UseForwardShading"_hsv,
+        "Flag if renderer uses forward shading as main rendering pass "
+        "(possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
+
 
     /* lights */
     CVarI32 maxLightsPerFrustum("Lights.FrustumMax"_hsv,

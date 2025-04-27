@@ -7,7 +7,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 
 RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph,
-    const CSM::PassData& csmOutput, RG::Resource colorIn)
+    RG::Resource csmTexture, RG::Resource csmInfo, RG::Resource colorIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -24,7 +24,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph
 
             graph.SetShader("csm-visualize.shader");
             
-            const TextureDescription& csmDescription = Resources(graph).GetTextureDescription(csmOutput.ShadowMap);
+            const TextureDescription& csmDescription = Resources(graph).GetTextureDescription(csmTexture);
             
             passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "ColorOut"_hsv,
                 GraphTextureDescription{
@@ -32,8 +32,8 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph
                     .Height = csmDescription.Height,
                     .Format = Format::RGBA16_FLOAT});
 
-            passData.ShadowMap = graph.Read(csmOutput.ShadowMap, Pixel | Sampled);
-            passData.CSM = graph.Read(csmOutput.CSM, Pixel | Uniform);
+            passData.ShadowMap = graph.Read(csmTexture, Pixel | Sampled);
+            passData.CSM = graph.Read(csmInfo, Pixel | Uniform);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 colorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
                 AttachmentStore::Store, {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}});

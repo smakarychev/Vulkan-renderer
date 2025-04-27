@@ -22,7 +22,7 @@ RG::Pass& Passes::SceneMultiviewVisibilityHiz::addToGraph(StringId name, RG::Gra
                 const bool requireHiZ =
                     info.Depths[i].IsValid() &&
                     enumHasAny(view.VisibilityFlags, SceneVisibilityFlags::OcclusionCull) &&
-                    !info.HiZs[i].IsValid();
+                    !info.Resources->Hiz[i].IsValid();
                 if (!requireHiZ)
                     continue;
 

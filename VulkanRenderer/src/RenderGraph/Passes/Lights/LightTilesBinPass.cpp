@@ -1,19 +1,15 @@
 #include "LightTilesBinPass.h"
 
-#include <tracy/Tracy.hpp>
-
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/LightTilesBinBindGroup.generated.h"
-#include "Rendering/Shader/ShaderCache.h"
 
 namespace RG
 {
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource tiles,
-    RG::Resource depth, const SceneLight& sceneLight)
+RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -25,12 +21,12 @@ RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGrap
 
             graph.SetShader("light-tiles-bin.shader");
 
-            passData.Depth = graph.Read(depth, Compute | Sampled);
+            passData.Depth = graph.Read(info.Depth, Compute | Sampled);
             
-            passData.Tiles = graph.Read(tiles, Compute | Storage);
+            passData.Tiles = graph.Read(info.Tiles, Compute | Storage);
             passData.Tiles = graph.Write(passData.Tiles, Compute | Storage);
             
-            passData.SceneLightResources = RgUtils::readSceneLight(sceneLight, graph, Compute);
+            passData.SceneLightResources = RgUtils::readSceneLight(*info.Light, graph, Compute);
 
             auto& globalResources = graph.GetGlobalResources();
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
@@ -42,7 +38,7 @@ RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGrap
             CPU_PROFILE_FRAME("Lights.Tiles.Bin")
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
-            auto&& [depthTexture, depthDescription] = resources.GetTextureWithDescription(depth);
+            auto&& [depthTexture, depthDescription] = resources.GetTextureWithDescription(passData.Depth);
             
             const Shader& shader = resources.GetGraph()->GetShader();
             LightTilesBinShaderBindGroup bindGroup(shader);

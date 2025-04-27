@@ -5,8 +5,7 @@ namespace Passes::SsaoVisualize
 {
     struct PassData
     {
-        RG::Resource SSAO{};
-        RG::Resource ColorOut{};
+        RG::Resource Color{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao, RG::Resource colorOut);
+    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao);
 }

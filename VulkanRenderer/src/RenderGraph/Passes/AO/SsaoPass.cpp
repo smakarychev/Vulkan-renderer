@@ -34,7 +34,6 @@ namespace
                 .Format = Format::RGBA8_SNORM,
                 .Usage = ImageUsage::Sampled | ImageUsage::Destination}});
 
-        // generate samples
         std::vector<glm::vec4> samples(count);
         for (u32 i = 0; i < samples.size(); i++)
         {
@@ -59,8 +58,11 @@ namespace
     }
 }
 
-RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& renderGraph, RG::Resource depthIn)
+RG::Pass& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
+    using namespace RG;
+    using enum ResourceAccessFlags;
+    
     struct SettingsUBO
     {
         f32 Power{1.0f};
@@ -80,11 +82,18 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& re
         Buffer SamplesBuffer{};
     };
 
-    using namespace RG;
-    using enum ResourceAccessFlags;
+    struct PassDataPrivate
+    {
+        Resource Depth{};
+        Resource SSAO{};
+        Resource NoiseTexture{};
+        Resource Settings{};
+        Resource Camera{};
+        Resource Samples{};
+    };
 
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataPrivate>(name,
+        [&](Graph& graph, PassDataPrivate& passData)
         {
             CPU_PROFILE_FRAME("SSAO.Setup")
             
@@ -94,7 +103,7 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& re
             
             if (!graph.TryGetBlackboardValue<Samples>())
             {
-                auto&& [noise, samplesBuffer] = generateSamples(sampleCount);
+                auto&& [noise, samplesBuffer] = generateSamples(info.MaxSampleCount);
                 Samples samples = {.NoiseTexture = noise, .SamplesBuffer = samplesBuffer};
                 graph.UpdateBlackboard(samples);
             }
@@ -106,26 +115,24 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& re
             passData.Camera = graph.CreateResource("Camera"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(CameraUBO)});
             passData.Samples = graph.AddExternal("Samples"_hsv, samples.SamplesBuffer);
-            const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(depthIn);
+            const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(info.Depth);
             passData.SSAO = graph.CreateResource("SSAO"_hsv, GraphTextureDescription{
                 .Width = depthDescription.Width,
                 .Height = depthDescription.Height,
                 .Format = Format::R8_UNORM});
 
-            passData.DepthIn = graph.Read(depthIn, Compute | Sampled);
+            passData.Depth = graph.Read(info.Depth, Compute | Sampled);
             passData.NoiseTexture = graph.Read(passData.NoiseTexture, Compute | Sampled);
             passData.Settings = graph.Read(passData.Settings, Compute | Uniform);
             passData.Camera = graph.Read(passData.Camera, Compute | Uniform);
             passData.Samples = graph.Read(passData.Samples, Compute | Uniform);
             passData.SSAO = graph.Write(passData.SSAO, Compute | Storage);
 
-            passData.MaxSampleCount = sampleCount;
-
             auto& globalResources = graph.GetGlobalResources();
             
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("AO settings");
-            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, (i32)passData.MaxSampleCount);
+            ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, (i32)info.MaxSampleCount);
             ImGui::DragFloat("Power", &settings.Power, 1e-3f, 0.0f, 5.0f);
             ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
@@ -137,10 +144,13 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& re
                 .Near = globalResources.PrimaryCamera->GetFrustumPlanes().Near,
                 .Far = globalResources.PrimaryCamera->GetFrustumPlanes().Far};
             graph.Upload(passData.Camera, camera);
+
+            PassData passDataPublic = {};
+            passDataPublic.SSAO = passData.SSAO;
             
-            graph.UpdateBlackboard(passData);
+            graph.UpdateBlackboard(passDataPublic);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
             CPU_PROFILE_FRAME("SSAO")
             GPU_PROFILE_FRAME("SSAO")
@@ -149,7 +159,7 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& re
             Buffer cameraBuffer = resources.GetBuffer(passData.Camera);
             Buffer samples = resources.GetBuffer(passData.Samples);
 
-            Texture depthTexture = resources.GetTexture(passData.DepthIn);
+            Texture depthTexture = resources.GetTexture(passData.Depth);
             auto&& [noiseTexture, noiseDescription] = resources.GetTextureWithDescription(passData.NoiseTexture);
             auto&& [ssaoTexture, ssaoDescription] = resources.GetTextureWithDescription(passData.SSAO);
             
@@ -181,6 +191,4 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, u32 sampleCount, RG::Graph& re
                 .Invocations = {ssaoDescription.Width, ssaoDescription.Height, 1},
                 .GroupSize = {16, 16, 1}});
         });
-
-    return pass;
 }

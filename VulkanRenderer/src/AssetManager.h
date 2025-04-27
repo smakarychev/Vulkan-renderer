@@ -6,7 +6,6 @@
 #include "String/StringHeterogeneousHasher.h"
 
 class SceneInfo;
-class Model;
 class ShaderReflection;
 
 class AssetManager
@@ -19,9 +18,6 @@ public:
     static void AddShader(std::string_view name, ShaderReflection&& shader);
     static void RemoveShader(std::string_view name);
 
-    static Model* GetModel(std::string_view);
-    static void AddModel(std::string_view, const Model& model);
-
     static Image GetImage(std::string_view name);
     static void AddImage(std::string_view, Image image);
 
@@ -30,7 +26,6 @@ public:
     
 private:
     static StringUnorderedMap<ShaderReflection> s_Shaders;
-    static StringUnorderedMap<Model> s_Models;
     static StringUnorderedMap<Image> s_Images;
     
     static StringUnorderedMap<SceneInfo> s_Scenes;

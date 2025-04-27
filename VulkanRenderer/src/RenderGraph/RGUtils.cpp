@@ -1,8 +1,6 @@
 #include "RGUtils.h"
 
 #include "RenderGraph.h"
-#include "Scene/SceneGeometry.h"
-#include "Light/SceneLight.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "Scene/SceneLight2.h"
 
@@ -27,37 +25,6 @@ namespace RG::RgUtils
         return resource.IsValid() ?
             resource :
             graph.CreateResource(name, fallback);
-    }
-
-    DrawAttributeBuffers createDrawAttributes(const SceneGeometry& geometry, Graph& graph)
-    {
-        DrawAttributeBuffers buffers = {};
-
-        buffers.Positions = graph.AddExternal("Positions"_hsv, geometry.GetAttributeBuffers().Positions);
-        buffers.Normals = graph.AddExternal("Normals"_hsv, geometry.GetAttributeBuffers().Normals);
-        buffers.Tangents = graph.AddExternal("Tangents"_hsv, geometry.GetAttributeBuffers().Tangents);
-        buffers.UVs = graph.AddExternal("Uvs"_hsv, geometry.GetAttributeBuffers().UVs);
-
-        return buffers;
-    }
-
-    void readDrawAttributes(DrawAttributeBuffers& buffers, Graph& graph, ResourceAccessFlags shaderStage)
-    {
-        using enum ResourceAccessFlags;
-        
-        buffers.Positions = graph.Read(buffers.Positions, shaderStage | Storage);
-        buffers.Normals = graph.Read(buffers.Normals, shaderStage | Storage);
-        buffers.Tangents = graph.Read(buffers.Tangents, shaderStage | Storage);
-        buffers.UVs = graph.Read(buffers.UVs, shaderStage | Storage);
-    }
-
-    DrawAttributeBuffers readDrawAttributes(const SceneGeometry& geometry, Graph& graph,
-        ResourceAccessFlags shaderStage)
-    {
-        DrawAttributeBuffers buffers = createDrawAttributes(geometry, graph);
-        readDrawAttributes(buffers, graph, shaderStage);
-
-        return buffers;
     }
 
     DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph)
@@ -114,26 +81,6 @@ namespace RG::RgUtils
         }
 
         return drawAttachmentResources;
-    }
-
-    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage)
-    {
-        using enum ResourceAccessFlags;
-
-        SceneLightResources resources = {};
-
-        resources.DirectionalLights = graph.AddExternal("Light.Directional"_hsv,
-            light.GetBuffers().DirectionalLight);
-        resources.DirectionalLights = graph.Read(resources.DirectionalLights, shaderStage | Uniform);
-
-        resources.LightsInfo = graph.AddExternal("Light.LightsInfo"_hsv, light.GetBuffers().LightsInfo);
-        resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
-
-        resources.PointLights = graph.AddExternal("Light.PointLights"_hsv, LIGHT_CULLING ?
-                light.GetBuffers().VisiblePointLights : light.GetBuffers().PointLights);
-        resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
-        
-        return resources;
     }
 
     SceneLightResources readSceneLight(const SceneLight2& light, Graph& graph, ResourceAccessFlags shaderStage)
