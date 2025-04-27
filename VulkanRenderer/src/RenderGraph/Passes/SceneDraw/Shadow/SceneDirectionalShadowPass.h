@@ -7,7 +7,7 @@ namespace Passes::SceneDirectionalShadow
     struct ExecutionInfo
     {
         SceneDrawPassExecutionInfo DrawInfo{};
-        const SceneGeometry2* Geometry{nullptr};
+        const SceneGeometry* Geometry{nullptr};
     };
     struct PassData
     {

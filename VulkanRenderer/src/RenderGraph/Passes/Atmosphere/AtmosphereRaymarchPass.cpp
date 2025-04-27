@@ -5,10 +5,10 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/AtmosphereRaymarchBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Scene/SceneLight2.h"
+#include "Scene/SceneLight.h"
 
 RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource atmosphereSettings, const Camera& camera, const SceneLight2& light,
+    RG::Resource atmosphereSettings, const Camera& camera, const SceneLight& light,
     RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
     RG::Resource colorIn, const ImageSubresourceDescription& colorSubresource,
     RG::Resource depthIn, bool useSunLuminance)

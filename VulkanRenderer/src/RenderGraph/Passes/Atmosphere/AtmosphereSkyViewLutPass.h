@@ -2,7 +2,7 @@
 
 #include "RenderGraph/RGResource.h"
 
-class SceneLight2;
+class SceneLight;
 
 namespace Passes::Atmosphere::SkyView
 {
@@ -17,5 +17,5 @@ namespace Passes::Atmosphere::SkyView
     };
     RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
         RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-        RG::Resource atmosphereSettings, const SceneLight2& light);
+        RG::Resource atmosphereSettings, const SceneLight& light);
 }

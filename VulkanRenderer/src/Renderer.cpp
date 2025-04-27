@@ -114,7 +114,7 @@ void Renderer::InitRenderGraph()
                 {
                     .Name = "Opaque material"_hsv,
                     .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const Material2& material = geometry.MaterialsCpu[
+                        const Material& material = geometry.MaterialsCpu[
                             geometry.RenderObjects[renderObject.Index].Material];
                         return enumHasAny(material.Flags, MaterialFlags::Opaque);
                     }
@@ -127,7 +127,7 @@ void Renderer::InitRenderGraph()
                 {
                     .Name = "Opaque material"_hsv,
                     .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const Material2& material = geometry.MaterialsCpu[
+                        const Material& material = geometry.MaterialsCpu[
                             geometry.RenderObjects[renderObject.Index].Material];
                         return enumHasAny(material.Flags, MaterialFlags::Opaque);
                     }
@@ -146,7 +146,7 @@ void Renderer::InitRenderGraph()
                 {
                     .Name = "Opaque material2"_hsv,
                     .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                        const Material2& material = geometry.MaterialsCpu[
+                        const Material& material = geometry.MaterialsCpu[
                             geometry.RenderObjects[renderObject.Index].Material];
                         return renderObject.Index >= 1;
                     },

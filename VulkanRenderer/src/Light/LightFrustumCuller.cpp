@@ -1,7 +1,7 @@
 #include "LightFrustumCuller.h"
 
 #include "Light.h"
-#include "Scene/SceneLight2.h"
+#include "Scene/SceneLight.h"
 #include "Math/Geometry.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
@@ -40,7 +40,7 @@ namespace
         return visible;
     }
 
-    std::vector<u32> getVisibleLights(const SceneLight2& light, const Camera& camera)
+    std::vector<u32> getVisibleLights(const SceneLight& light, const Camera& camera)
     {
         const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar("Lights.FrustumMax"_hsv);
         
@@ -81,7 +81,7 @@ namespace
         return visibleLights;
     }
     
-    void sortByDepth(const SceneLight2& light, std::vector<u32>& lightIndices, const Camera& camera)
+    void sortByDepth(const SceneLight& light, std::vector<u32>& lightIndices, const Camera& camera)
     {
         Plane sortPlane = camera.GetNearViewPlane();
 
@@ -104,12 +104,12 @@ namespace
     }
 }
 
-void LightFrustumCuller::Cull(SceneLight2& light, const Camera& camera)
+void LightFrustumCuller::Cull(SceneLight& light, const Camera& camera)
 {
     light.SetVisibleLights(getVisibleLights(light, camera));
 }
 
-void LightFrustumCuller::CullDepthSort(SceneLight2& light, const Camera& camera)
+void LightFrustumCuller::CullDepthSort(SceneLight& light, const Camera& camera)
 {
     auto visibleLights = getVisibleLights(light, camera);
     sortByDepth(light, visibleLights, camera);

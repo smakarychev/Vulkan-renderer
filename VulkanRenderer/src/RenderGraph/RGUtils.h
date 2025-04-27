@@ -3,7 +3,7 @@
 #include "RenderGraph.h"
 #include "RGDrawResources.h"
 
-class SceneLight2;
+class SceneLight;
 
 namespace RG
 {
@@ -21,7 +21,7 @@ namespace RG::RgUtils
     DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph);
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
 
-    SceneLightResources readSceneLight(const SceneLight2& light, Graph& graph, ResourceAccessFlags shaderStage);
+    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage);
     
     IBLData readIBLData(const IBLData& ibl, Graph& graph, ResourceAccessFlags shaderStage);
     SSAOData readSSAOData(const SSAOData& ssao, Graph& graph, ResourceAccessFlags shaderStage);

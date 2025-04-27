@@ -2,7 +2,7 @@
 
 #include "RenderGraph/RGResource.h"
 
-class SceneGeometry2;
+class SceneGeometry;
 class SceneRenderObjectSet;
 
 namespace Passes::PrepareVisibleMeshletInfo

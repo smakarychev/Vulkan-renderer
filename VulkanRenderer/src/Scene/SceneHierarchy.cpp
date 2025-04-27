@@ -128,7 +128,7 @@ namespace
         uploader.UpdateBuffer(
             renderObjects,
             transform,
-            meshIndex * sizeof(RenderObjectGPU2) + offsetof(RenderObjectGPU2, Transform));
+            meshIndex * sizeof(RenderObjectGPU) + offsetof(RenderObjectGPU, Transform));
     }
 
     void updateLight(CommonLight& light, const glm::mat4& transform)

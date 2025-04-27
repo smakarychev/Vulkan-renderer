@@ -3,7 +3,7 @@
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 
-class SceneLight2;
+class SceneLight;
 
 namespace Passes::LightClustersBin
 {
@@ -13,7 +13,7 @@ namespace Passes::LightClustersBin
         RG::Resource Clusters{};
         RG::Resource ActiveClusters{};
         RG::Resource ClustersCount{};
-        const SceneLight2* Light{nullptr};
+        const SceneLight* Light{nullptr};
     };
     struct PassData
     {

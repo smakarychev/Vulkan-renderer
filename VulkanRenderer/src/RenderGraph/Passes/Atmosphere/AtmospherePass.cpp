@@ -32,7 +32,7 @@ AtmosphereSettings AtmosphereSettings::EarthDefault()
 }
 
 RG::Pass& Passes::Atmosphere::addToGraph(StringId name, RG::Graph& renderGraph,
-    const AtmosphereSettings& atmosphereSettings, const SceneLight2& light, RG::Resource colorIn, RG::Resource depthIn,
+    const AtmosphereSettings& atmosphereSettings, const SceneLight& light, RG::Resource colorIn, RG::Resource depthIn,
     const RG::CSMData& csmData)
 {
     using namespace RG;

@@ -43,7 +43,7 @@ RG::Pass& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGr
                     ShaderSpecialization{"USE_TILED_LIGHTING"_hsv, useTiled},
                     ShaderSpecialization{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
                     ShaderSpecialization{"USE_HYBRID_LIGHTING"_hsv, useHybrid})); 
-            graph.SetShader("scene-ugb.shader", info.CommonOverrides.has_value() ?
+            graph.SetShader("scene-forward-pbr.shader", info.CommonOverrides.has_value() ?
                 defaultOverrides.OverrideBy({*info.CommonOverrides, *info.DrawInfo.BucketOverrides}) :
                 defaultOverrides.OverrideBy(*info.DrawInfo.BucketOverrides));
 

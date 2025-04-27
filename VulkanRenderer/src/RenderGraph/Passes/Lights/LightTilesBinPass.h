@@ -1,7 +1,7 @@
 #pragma once
 #include "RenderGraph/RGDrawResources.h"
 
-class SceneLight2;
+class SceneLight;
 
 namespace Passes::LightTilesBin
 {
@@ -9,7 +9,7 @@ namespace Passes::LightTilesBin
     {
         RG::Resource Tiles{};
         RG::Resource Depth{};
-        const SceneLight2* Light{nullptr};
+        const SceneLight* Light{nullptr};
     };
     struct PassData
     {

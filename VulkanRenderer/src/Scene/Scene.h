@@ -2,9 +2,9 @@
 
 #include "RenderObject.h"
 #include "SceneAsset.h"
-#include "SceneGeometry2.h"
+#include "SceneGeometry.h"
 #include "SceneHierarchy.h"
-#include "SceneLight2.h"
+#include "SceneLight.h"
 #include "Signals/Signal.h"
 
 namespace assetLib
@@ -18,8 +18,8 @@ class BindlessTextureDescriptorsRingBuffer;
 class SceneInfo
 {
     friend class Scene;
-    friend class SceneGeometry2;
-    friend class SceneLight2;
+    friend class SceneGeometry;
+    friend class SceneLight;
     friend class SceneHierarchy;
     friend class SceneRenderObjectSet;
 public:
@@ -47,9 +47,9 @@ public:
     };
 public:
     static Scene CreateEmpty(DeletionQueue& deletionQueue);
-    const SceneGeometry2& Geometry() const { return m_Geometry; }
-    SceneGeometry2& Geometry() { return m_Geometry; }
-    SceneLight2& Lights() { return m_Lights; }
+    const SceneGeometry& Geometry() const { return m_Geometry; }
+    SceneGeometry& Geometry() { return m_Geometry; }
+    SceneLight& Lights() { return m_Lights; }
     SceneHierarchy& Hierarchy() { return m_Hierarchy; }
 
     Signal<NewInstanceData>& GetInstanceAddedSignal() { return m_InstanceAddedSignal; }
@@ -59,8 +59,8 @@ public:
 private:
     SceneInstance RegisterSceneInstance(const SceneInfo& sceneInfo);
 private:
-    SceneGeometry2 m_Geometry{};
-    SceneLight2 m_Lights{};
+    SceneGeometry m_Geometry{};
+    SceneLight m_Lights{};
     SceneHierarchy m_Hierarchy{};
     
     std::unordered_map<const SceneInfo*, u32> m_SceneInstancesMap{};

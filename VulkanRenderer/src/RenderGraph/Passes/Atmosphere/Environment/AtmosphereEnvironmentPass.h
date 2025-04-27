@@ -1,7 +1,7 @@
 #pragma once
 #include "RenderGraph/RGResource.h"
 
-class SceneLight2;
+class SceneLight;
 
 namespace Passes::Atmosphere::Environment
 {
@@ -14,6 +14,6 @@ namespace Passes::Atmosphere::Environment
         RG::Resource ColorOut{};
     };
     RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
-        RG::Resource atmosphereSettings, const SceneLight2& light, RG::Resource skyViewLut);
+        RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut);
 }
 

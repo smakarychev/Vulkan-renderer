@@ -6,11 +6,11 @@
 #include "RenderGraph/Passes/Generated/AtmosphereAerialPerspectiveLutBindGroup.generated.h"
 #include "RenderGraph/Passes/Generated/ShaderBindGroupBase.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Scene/SceneLight2.h"
+#include "Scene/SceneLight.h"
 
 RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-    RG::Resource atmosphereSettings, const SceneLight2& light, const RG::CSMData& csmData)
+    RG::Resource atmosphereSettings, const SceneLight& light, const RG::CSMData& csmData)
 {
     using namespace RG;
     using enum ResourceAccessFlags;

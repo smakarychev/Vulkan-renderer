@@ -181,7 +181,7 @@ ScenePassCreateInfo Passes::SceneCsm::getScenePassCreateInfo(StringId name)
             {
                 .Name = "Opaque material"_hsv,
                 .Filter = [](const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject) {
-                    const Material2& material = geometry.MaterialsCpu[
+                    const Material& material = geometry.MaterialsCpu[
                         geometry.RenderObjects[renderObject.Index].Material];
                     return enumHasAny(material.Flags, MaterialFlags::Opaque);
                 },

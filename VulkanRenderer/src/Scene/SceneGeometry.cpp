@@ -1,4 +1,4 @@
-#include "SceneGeometry2.h"
+#include "SceneGeometry.h"
 
 #include "BindlessTextureDescriptorsRingBuffer.h"
 #include "Vulkan/Device.h"
@@ -202,7 +202,7 @@ namespace
 
     template <typename T>
     void writeSuballocation(BufferArena arena, const std::vector<T>& data, 
-        assetLib::SceneInfo::BufferViewType bufferType, SceneGeometry2::SceneInfoOffsets& offsets, FrameContext& ctx)
+        assetLib::SceneInfo::BufferViewType bufferType, SceneGeometry::SceneInfoOffsets& offsets, FrameContext& ctx)
     {
         static constexpr u32 ALIGNMENT = 1;
         const BufferSuballocation suballocation = suballocateResizeIfFailed(arena,
@@ -223,9 +223,9 @@ SceneGeometryInfo SceneGeometryInfo::FromAsset(assetLib::SceneInfo& sceneInfo,
     return geometryInfo;
 }
 
-SceneGeometry2 SceneGeometry2::CreateEmpty(DeletionQueue& deletionQueue)
+SceneGeometry SceneGeometry::CreateEmpty(DeletionQueue& deletionQueue)
 {
-    SceneGeometry2 geometry = {};
+    SceneGeometry geometry = {};
     geometry.Attributes = Device::CreateBufferArena({
        .Buffer = Device::CreateBuffer({
            .SizeBytes = DEFAULT_ATTRIBUTES_BUFFER_ARENA_SIZE_BYTES,
@@ -260,7 +260,7 @@ SceneGeometry2 SceneGeometry2::CreateEmpty(DeletionQueue& deletionQueue)
     return geometry;
 }
 
-void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
+void SceneGeometry::Add(SceneInstance instance, FrameContext& ctx)
 {
     using enum assetLib::SceneInfo::BufferViewType;
 
@@ -284,14 +284,14 @@ void SceneGeometry2::Add(SceneInstance instance, FrameContext& ctx)
     m_SceneInfoOffsets[&sceneInfo] = sceneInfoOffsets;
 }
 
-SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance instance, FrameContext& ctx)
+SceneGeometry::AddCommandsResult SceneGeometry::AddCommands(SceneInstance instance, FrameContext& ctx)
 {
     using enum assetLib::SceneInfo::BufferViewType;
 
     auto& sceneInfo = *instance.m_SceneInfo;
     const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&sceneInfo];
 
-    const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU2);
+    const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU);
     const u32 meshletCount = (u32)sceneInfo.m_Geometry.Meshlets.size();
     const u64 commandsSizeBytes = meshletCount * sizeof(IndirectDrawCommand);
     const u64 meshletsSizeBytes = meshletCount * sizeof(MeshletGPU);
@@ -299,7 +299,7 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
     PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Commands, commandsSizeBytes, ctx.CommandList);
     PushBuffers::grow<BufferAsymptoticGrowthPolicy>(Meshlets, meshletsSizeBytes, ctx.CommandList);
     
-    RenderObjectGPU2* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU2>({
+    RenderObjectGPU* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU>({
         .Buffer = RenderObjects.Buffer,
         .Description = {
             .SizeBytes = renderObjectsSizeBytes,
@@ -316,7 +316,7 @@ SceneGeometry2::AddCommandsResult SceneGeometry2::AddCommands(SceneInstance inst
            .Offset = Meshlets.Offset}});
 
     const u32 currentMeshletIndex = CommandCount;
-    const u32 currentRenderObjectIndex = (u32)(RenderObjects.Offset / sizeof(RenderObjectGPU2));
+    const u32 currentRenderObjectIndex = (u32)(RenderObjects.Offset / sizeof(RenderObjectGPU));
     u32 meshletIndex = 0;
     for (auto&& [renderObjectIndex, renderObject] : std::ranges::views::enumerate(sceneInfo.m_Geometry.RenderObjects))
     {

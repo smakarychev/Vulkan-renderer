@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SceneGeometry2.h"
+#include "SceneGeometry.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "Rendering/Shader/ShaderOverrides.h"
 #include "String/StringId.h"

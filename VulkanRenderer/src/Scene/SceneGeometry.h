@@ -40,11 +40,10 @@ struct SceneGeometryInfo
     std::vector<MaterialGPU> Materials;
     std::vector<assetLib::SceneInfo::Meshlet> Meshlets;
     
-    std::vector<Material2> MaterialsCpu;
+    std::vector<Material> MaterialsCpu;
 };
 
-/* todo: this has '2' in the name, should be removed once i get rid of old version */
-class SceneGeometry2
+class SceneGeometry
 {
 public:
     struct AddCommandsResult
@@ -53,7 +52,7 @@ public:
         u32 FirstMeshlet{0};
     };
 public:
-    static SceneGeometry2 CreateEmpty(DeletionQueue& deletionQueue);
+    static SceneGeometry CreateEmpty(DeletionQueue& deletionQueue);
     void Add(SceneInstance instance, FrameContext& ctx);
     AddCommandsResult AddCommands(SceneInstance instance, FrameContext& ctx);
 public:
@@ -71,7 +70,7 @@ public:
     PushBuffer Materials{};
     u32 CommandCount{0};
 
-    RenderHandleArray<Material2> MaterialsCpu;
+    RenderHandleArray<Material> MaterialsCpu;
 private:
     std::unordered_map<const SceneInfo*, SceneInfoOffsets> m_SceneInfoOffsets{};
 

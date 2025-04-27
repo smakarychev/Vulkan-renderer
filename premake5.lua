@@ -12,7 +12,7 @@ workspace "VulkanRenderer"
     startproject "VulkanRenderer"
 
     linkoptions { 
-        "/IGNORE:4221,4099,4006",
+        "/IGNORE:4221,4099,4006,4098",
     }
 
     buildoptions {

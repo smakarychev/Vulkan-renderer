@@ -2,17 +2,17 @@
 
 #include "RenderGraph/RGDrawResources.h"
 
-class SceneLight2;
-class SceneGeometry2;
+class SceneLight;
+class SceneGeometry;
 
 namespace Passes::SceneVBufferPbr
 {
     struct ExecutionInfo
     {
-        const SceneGeometry2* Geometry{nullptr};
+        const SceneGeometry* Geometry{nullptr};
         RG::Resource VisibilityTexture{};
         RG::Resource Camera{};
-        const SceneLight2* Lights{nullptr};
+        const SceneLight* Lights{nullptr};
         RG::SSAOData SSAO{};
         RG::IBLData IBL{};
         RG::Resource Clusters{};

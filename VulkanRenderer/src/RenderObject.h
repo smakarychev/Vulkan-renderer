@@ -18,8 +18,7 @@ enum class MaterialFlags : u16
 };
 CREATE_ENUM_FLAGS_OPERATORS(MaterialFlags)
 
-// todo: remove '2' once ready
-struct Material2
+struct Material
 {
     MaterialFlags Flags{MaterialFlags::None};
 };
@@ -41,12 +40,6 @@ struct MaterialGPU
 using RenderObjectTransform = Transform3d;
 
 struct RenderObjectGPU
-{
-    glm::mat4 Transform;
-    Sphere BoundingSphere;
-};
-// todo: remove '2' once ready
-struct RenderObjectGPU2
 {
     glm::mat4 Transform{glm::mat4{1.0}};
     Sphere BoundingSphere{};

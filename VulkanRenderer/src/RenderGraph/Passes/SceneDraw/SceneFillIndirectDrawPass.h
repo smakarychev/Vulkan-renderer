@@ -3,14 +3,14 @@
 #include "RenderGraph/RenderPass.h"
 #include "Scene/ScenePass.h"
 
-class SceneGeometry2;
+class SceneGeometry;
 class SceneRenderObjectSet;
 
 namespace Passes::SceneFillIndirectDraw
 {
     struct ExecutionInfo
     {
-        const SceneGeometry2* Geometry{nullptr};
+        const SceneGeometry* Geometry{nullptr};
         std::array<RG::Resource, MAX_BUCKETS_PER_SET> Draws;
         std::array<RG::Resource, MAX_BUCKETS_PER_SET> DrawInfos;
         u32 BucketCount{0};

@@ -8,7 +8,7 @@
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
 
 RG::Pass& Passes::Atmosphere::Environment::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource atmosphereSettings, const SceneLight2& light, RG::Resource skyViewLut)
+    RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)
 {
     using namespace RG;
     using enum ResourceAccessFlags;

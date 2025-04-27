@@ -2,9 +2,9 @@
 
 #include "LightFrustumCuller.h"
 #include "Core/Camera.h"
-#include "Scene/SceneLight2.h"
+#include "Scene/SceneLight.h"
 
-ZBins LightZBinner::ZBinLights(SceneLight2& light, const Camera& camera)
+ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
 {
     ZBins bins = {};
     

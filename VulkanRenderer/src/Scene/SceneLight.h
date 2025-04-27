@@ -34,8 +34,6 @@ struct CommonLight
     SpotLightData SpotLightData{};
 };
 
-// todo: remove 2 once ready
-
 struct SceneLightInfo
 {
     static SceneLightInfo FromAsset(assetLib::SceneInfo& sceneInfo);
@@ -43,7 +41,7 @@ struct SceneLightInfo
     std::vector<CommonLight> Lights;
 };
 
-class SceneLight2
+class SceneLight
 {
 public:
     struct Buffers
@@ -54,7 +52,7 @@ public:
         Buffer LightsInfo{};
     };
 public:
-    static SceneLight2 CreateEmpty(DeletionQueue& deletionQueue);
+    static SceneLight CreateEmpty(DeletionQueue& deletionQueue);
     void Add(SceneInstance instance);
     void OnUpdate(FrameContext& ctx);
 

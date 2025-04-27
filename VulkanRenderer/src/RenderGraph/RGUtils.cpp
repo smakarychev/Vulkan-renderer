@@ -2,7 +2,7 @@
 
 #include "RenderGraph.h"
 #include "RenderGraph/RGDrawResources.h"
-#include "Scene/SceneLight2.h"
+#include "Scene/SceneLight.h"
 
 namespace RG::RgUtils
 {
@@ -83,7 +83,7 @@ namespace RG::RgUtils
         return drawAttachmentResources;
     }
 
-    SceneLightResources readSceneLight(const SceneLight2& light, Graph& graph, ResourceAccessFlags shaderStage)
+    SceneLightResources readSceneLight(const SceneLight& light, Graph& graph, ResourceAccessFlags shaderStage)
     {
         using enum ResourceAccessFlags;
 

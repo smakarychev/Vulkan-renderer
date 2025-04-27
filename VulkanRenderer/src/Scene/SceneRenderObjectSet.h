@@ -28,7 +28,7 @@ public:
     Buffer RenderObjectHandles() const { return m_RenderObjects.Buffer; }
     Buffer MeshletHandles() const { return m_Meshlets.Buffer; }
 
-    const SceneGeometry2& Geometry() const { return m_Scene->Geometry(); }
+    const SceneGeometry& Geometry() const { return m_Scene->Geometry(); }
 
     const ScenePass& FindPass(StringId name) const;
     const ScenePass* TryFindPass(StringId name) const;

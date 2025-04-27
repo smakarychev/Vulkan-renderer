@@ -1,4 +1,4 @@
-#include "SceneLight2.h"
+#include "SceneLight.h"
 
 #include "FrameContext.h"
 #include "ResourceUploader.h"
@@ -41,9 +41,9 @@ SceneLightInfo SceneLightInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
     return sceneLightInfo;
 }
 
-SceneLight2 SceneLight2::CreateEmpty(DeletionQueue& deletionQueue)
+SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
 {
-    SceneLight2 light = {};
+    SceneLight light = {};
 
     light.m_Buffers.DirectionalLights = Device::CreateBuffer({
         .SizeBytes = sizeof(DirectionalLight),
@@ -61,14 +61,14 @@ SceneLight2 SceneLight2::CreateEmpty(DeletionQueue& deletionQueue)
     return light;
 }
 
-void SceneLight2::Add(SceneInstance instance)
+void SceneLight::Add(SceneInstance instance)
 {
     const SceneLightInfo& lightInfo = instance.m_SceneInfo->m_Lights;
     for (auto& light : lightInfo.Lights)
         m_Lights.push_back(light);
 }
 
-void SceneLight2::OnUpdate(FrameContext& ctx)
+void SceneLight::OnUpdate(FrameContext& ctx)
 {
     u32 directionalLightIndex = 0;
     u32 pointLightIndex = 0;
@@ -99,7 +99,7 @@ void SceneLight2::OnUpdate(FrameContext& ctx)
     m_CachedLightsInfo = lightsInfo;
 }
 
-void SceneLight2::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
+void SceneLight::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
 {
     const DirectionalLight directionalLight = {
         .Direction = light.PositionDirection,
@@ -117,7 +117,7 @@ void SceneLight2::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, Fra
         lightIndex * sizeof(directionalLight));
 }
 
-void SceneLight2::UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
+void SceneLight::UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
 {
     const PointLight pointLight = {
         .Position = light.PositionDirection,

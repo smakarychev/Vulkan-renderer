@@ -26,8 +26,8 @@ Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
 {
     Scene scene = {};
 
-    scene.m_Geometry = SceneGeometry2::CreateEmpty(deletionQueue);
-    scene.m_Lights = SceneLight2::CreateEmpty(deletionQueue);
+    scene.m_Geometry = SceneGeometry::CreateEmpty(deletionQueue);
+    scene.m_Lights = SceneLight::CreateEmpty(deletionQueue);
 
     return scene;
 }
@@ -38,7 +38,7 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
     const SceneInstance instance = RegisterSceneInstance(sceneInfo);
     if (m_SceneInstancesMap[&sceneInfo] == 1)
         m_Geometry.Add(instance, ctx);
-    SceneGeometry2::AddCommandsResult addCommandsResult = m_Geometry.AddCommands(instance, ctx);
+    SceneGeometry::AddCommandsResult addCommandsResult = m_Geometry.AddCommands(instance, ctx);
     m_Lights.Add(instance);
     m_Hierarchy.Add(instance, instantiationData.Transform);
 

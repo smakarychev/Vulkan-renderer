@@ -11,8 +11,8 @@ struct SceneDrawPassDescription;
 class SceneMultiviewVisibility;
 class ScenePass;
 class Camera;
-class SceneLight2;
-class SceneGeometry2;
+class SceneLight;
+class SceneGeometry;
 
 namespace Passes::SceneCsm
 {
@@ -28,7 +28,7 @@ namespace Passes::SceneCsm
     struct ExecutionInfo
     {
         const ScenePass* Pass{nullptr}; 
-        const SceneGeometry2* Geometry{nullptr};
+        const SceneGeometry* Geometry{nullptr};
         SceneMultiviewVisibility* MultiviewVisibility{nullptr};
         /* pass will construct the suitable shadow camera based on main camera frustum */
         const Camera* MainCamera{nullptr};

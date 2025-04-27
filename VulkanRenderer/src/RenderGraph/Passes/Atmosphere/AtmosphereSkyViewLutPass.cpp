@@ -4,11 +4,11 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/AtmosphereSkyViewLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-#include "Scene/SceneLight2.h"
+#include "Scene/SceneLight.h"
 
 RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-    RG::Resource atmosphereSettings, const SceneLight2& light)
+    RG::Resource atmosphereSettings, const SceneLight& light)
 {
     using namespace RG;
     using enum ResourceAccessFlags;

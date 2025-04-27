@@ -4,7 +4,7 @@
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SceneVbufferPbrUgbBindGroup.generated.h"
 #include "Rendering/Shader/ShaderOverrides.h"
-#include "Scene/SceneGeometry2.h"
+#include "Scene/SceneGeometry.h"
 
 RG::Pass& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
