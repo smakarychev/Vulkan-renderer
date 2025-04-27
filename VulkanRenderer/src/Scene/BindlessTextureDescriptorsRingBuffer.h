@@ -4,8 +4,8 @@
 #include "Rendering/Shader/Shader.h"
 
 class Shader;
-/* This class manages descriptor set for bindless textures.
- * The max amount of textures is fixed on creation,
+/* This class manages a descriptor set for bindless textures.
+ * The max number of textures is fixed on creation,
  * if overflow happens, the oldest textures will be swapped with new ones
  * It does not handle deduplication
  */
