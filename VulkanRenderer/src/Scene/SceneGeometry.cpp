@@ -32,7 +32,7 @@ namespace
         memcpy(vec.data(), data, sizeBytes);
     }
     
-    void loadBuffers(SceneGeometryInfo& geometry, assetLib::SceneInfo& sceneInfo, DeletionQueue& deletionQueue)
+    void loadBuffers(SceneGeometryInfo& geometry, assetLib::SceneInfo& sceneInfo)
     {
         using enum assetLib::SceneInfo::BufferViewType;
         ASSERT(sceneInfo.Scene.buffers.size() == 1, "Multiple sub-scenes are not supported")
@@ -216,7 +216,7 @@ SceneGeometryInfo SceneGeometryInfo::FromAsset(assetLib::SceneInfo& sceneInfo,
     BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue)
 {
     SceneGeometryInfo geometryInfo = {};
-    loadBuffers(geometryInfo, sceneInfo, deletionQueue);
+    loadBuffers(geometryInfo, sceneInfo);
     loadMaterials(geometryInfo, sceneInfo, texturesRingBuffer, deletionQueue);
     loadRenderObjects(geometryInfo, sceneInfo);
 
