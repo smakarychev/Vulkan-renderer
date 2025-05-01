@@ -157,6 +157,14 @@ vec3 shade_pbr_directional_light(ShadeInfo shade_info, DirectionalLight light, f
     return (specular + diffuse) * radiance * n_dot_l * (1.0f - directional_shadow);
 }
 
+vec3 shade_pbr_directional_lights(ShadeInfo shade_info, float directional_shadow) {
+    vec3 Lo = vec3(0.0f);
+    for (uint i = 0; i < u_lights_info.info.directional_light_count; i++)
+        Lo += shade_pbr_directional_light(shade_info, u_directional_lights.lights[i], directional_shadow);
+    
+    return Lo;
+}
+
 vec3 shade_pbr_ibl(ShadeInfo shade_info) {
     const vec3 R = reflect(-shade_info.view, shade_info.normal);
     const vec3 irradiance = SH_irradiance_shade(u_irradiance_SH.sh, shade_info.normal).rgb;

@@ -140,8 +140,7 @@ vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     else if (USE_HYBRID_LIGHTING)
         Lo += shade_pbr_point_lights_hybrid(vertex_uv, shade_info);
 
-    if (u_lights_info.info.directional_light_count > 0)
-        Lo += shade_pbr_directional_light(shade_info, u_directional_lights.lights[0], shadow);
+    Lo += shade_pbr_directional_lights(shade_info, shadow);
 
     vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
 
