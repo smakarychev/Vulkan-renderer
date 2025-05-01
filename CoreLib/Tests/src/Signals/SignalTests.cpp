@@ -256,5 +256,16 @@ TEST_CASE("Signal transfer of handlers transfers and leaves original empty", "[S
     other.Emit();
     REQUIRE(numberOfCalls == 2);
 }
+TEST_CASE("Signal destruction leaves its handlers orphaned", "[Signal]")
+{
+    SignalHandler<> handler([](){});
+
+    {
+        Signal signal;
+        handler.Connect(signal);
+        REQUIRE(handler.IsAttached());
+    }
+    REQUIRE(!handler.IsAttached());
+}
 
 // NOLINTEND

@@ -13,6 +13,11 @@ project "CoreLib"
     includedirs {
         "src",
         IncludeDir["glm"],
+        IncludeDir["efsw"],
+    }
+
+    links {
+        "efsw",
     }
 
     filter "system:Linux"
