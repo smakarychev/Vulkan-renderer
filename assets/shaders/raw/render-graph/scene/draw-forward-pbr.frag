@@ -152,6 +152,6 @@ void main() {
     
     out_color = vec4(color, 1.0f);
     #ifdef TEST 
-    out_color = vec4(0.3f, 0.6f, 0.4f, 1.0f);
+    out_color = vec4(1.3f, 0.6f, 0.4f, 1.0f);
     #endif
 }

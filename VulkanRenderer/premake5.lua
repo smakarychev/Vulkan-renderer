@@ -26,7 +26,6 @@ project "VulkanRenderer"
         IncludeDir["tinygltf"],  
         IncludeDir["imgui"],
         IncludeDir["nlohmann-json"],
-        IncludeDir["efsw"],
         "$(VULKAN_SDK)/Include",
     }
 
@@ -36,7 +35,6 @@ project "VulkanRenderer"
     links {
         "glfw",
         "imgui",
-        "efsw",
         "CoreLib",
         "AssetLib",
         "AssetConverterLib",

@@ -10,7 +10,6 @@
 #include <queue>
 #include <memory>
 #include <unordered_set>
-#include <efsw/efsw.hpp>
 
 DescriptorArenaAllocators* ShaderCache::s_Allocators = {nullptr};
 StringUnorderedMap<ShaderCache::FileNode> ShaderCache::s_FileGraph = {};
@@ -20,6 +19,8 @@ std::vector<std::unique_ptr<Shader>> ShaderCache::s_Shaders = {};
 std::vector<ShaderCache::PipelineData> ShaderCache::s_Pipelines = {};
 std::unordered_map<StringId, Descriptors> ShaderCache::s_BindlessDescriptors = {};
 DeletionQueue* ShaderCache::s_FrameDeletionQueue = {};
+FileWatcher ShaderCache::s_FileWatcher = {};
+FileWatcherHandler ShaderCache::s_FileWatcherHandler = {};
 
 namespace
 {
@@ -27,23 +28,6 @@ namespace
 }
 std::vector<std::pair<std::string, std::string>> ShaderCache::s_ToRename = {};
 std::vector<std::filesystem::path> ShaderCache::s_ToReload = {};
-
-struct ShaderCache::FileWatcher
-{
-    efsw::FileWatcher Watcher;
-    std::shared_ptr<efsw::FileWatchListener> Listener;
-
-    FileWatcher() = default;
-    FileWatcher(const FileWatcher&) = delete;
-    FileWatcher& operator=(const FileWatcher&) = delete;
-    FileWatcher(FileWatcher&&) = default;
-    FileWatcher& operator=(FileWatcher&&) = default;
-    ~FileWatcher()
-    {
-        Watcher.removeWatch(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv));
-    }
-};
-std::unique_ptr<ShaderCache::FileWatcher> ShaderCache::s_FileWatcher = {};
 
 Shader::Shader(u32 pipelineIndex,
     const std::array<::Descriptors, MAX_DESCRIPTOR_SETS>& descriptors)
@@ -86,7 +70,9 @@ void ShaderCache::Shutdown()
         deleted[s->m_Pipeline] = true;
         Device::Destroy(s->Pipeline());
     }
-    s_FileWatcher.reset();
+    if (const auto res = s_FileWatcher.StopWatching(); !res.has_value())
+        LOG("Failed to stop file watcher for directory {}. Error: {}",
+            *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), FileWatcher::ErrorDescription(res.error()));
 }
 
 void ShaderCache::OnFrameBegin(FrameContext& ctx)
@@ -496,128 +482,34 @@ ShaderCache::ShaderProxy ShaderCache::ReloadShader(std::string_view path, Reload
 
 void ShaderCache::InitFileWatcher()
 {
-    class Listener : public efsw::FileWatchListener
+    if (const auto res = s_FileWatcher.Watch(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv)); !res.has_value())
+        LOG("Failed to init file watcher for directory {}. Error: {}",
+            *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), FileWatcher::ErrorDescription(res.error()));
+
+    s_FileWatcherHandler = ::FileWatcherHandler([](const FileWatcherEvent& event)
     {
-    private:
-        struct FileUpdateData
+        std::filesystem::path filePath = event.Name;
+
+        /* is it possible that file is deleted or renamed before we begin to process it */
+        if (!std::filesystem::exists(filePath) || std::filesystem::is_directory(filePath))
+            return;
+
+        std::lock_guard lock(g_FileUpdateMutex);
+
+        if (event.Action == FileWatcherEvent::ActionType::Rename)
         {
-            std::string FileName;
-            std::string OldFileName;
-            efsw::Action Action;
-            std::chrono::time_point<std::chrono::high_resolution_clock> TimePoint;
-        };
-    public:
-        void handleFileAction(efsw::WatchID watchId, const std::string& directory, const std::string& filename,
-            efsw::Action action, std::string oldFilename) override
-        {
-            std::string filePath = std::filesystem::weakly_canonical(directory + filename).generic_string();
-            switch (action)
-            {
-            /* `moved` is a rename (the efsw comment seems to be wrong) */
-            case efsw::Actions::Moved:
-            case efsw::Actions::Modified:
-                {
-                    std::scoped_lock lock(m_Mutex);
-                    if (m_PendingFileNames.contains(filePath) && action == efsw::Action::Modified)
-                        break;
-                    m_PendingFileNames.emplace(filePath);
-                    m_FilesToProcess.push({
-                        .FileName = filePath,
-                        .OldFileName = std::filesystem::weakly_canonical(directory + oldFilename).generic_string(),
-                        .Action = action,
-                        .TimePoint = std::chrono::high_resolution_clock::now()});
-                }
-                m_ConditionVariable.notify_one();
-                break;
-            /* at the moment we just ignore `delete` and `add` actions */
-            case efsw::Actions::Add:
-            case efsw::Actions::Delete:
-            default:
-                break;
-            }
+            s_ToRename.emplace_back(event.Name, event.OldName);
+            return;
         }
-        static void StartDebounceThread(std::shared_ptr<Listener> listener)
+
+        if (event.Action != FileWatcherEvent::ActionType::Modify)
         {
-            using namespace std::chrono;
-            using namespace std::chrono_literals;
-
-            static constexpr milliseconds DEBOUNCE_TIME = 85ms;
-
-            std::thread debounce([listener]()
-            {
-                std::weak_ptr listenerWeak = listener;
-
-                for (;;)
-                {
-                    std::shared_ptr<Listener> lockedListener = listenerWeak.lock();
-                    if (!lockedListener)
-                        break;
-
-                    std::unique_lock lock(lockedListener->m_Mutex);
-                    lockedListener->m_ConditionVariable.wait(lock, [&]()
-                    {
-                        return !lockedListener->m_FilesToProcess.empty();
-                    });
-
-                    milliseconds delta = duration_cast<milliseconds>(
-                        high_resolution_clock::now() -
-                        lockedListener->m_FilesToProcess.front().TimePoint);
-                    if (delta < DEBOUNCE_TIME)
-                    {
-                        lock.unlock();
-                        /* we can just sleep, because all other elements in the queue are newer */
-                        std::this_thread::sleep_for(DEBOUNCE_TIME - delta);
-                    }
-
-                    FileUpdateData fileUpdateData = lockedListener->m_FilesToProcess.front();
-                    std::string fileName = fileUpdateData.FileName;
-                    lockedListener->m_FilesToProcess.pop();
-                    lockedListener->m_PendingFileNames.erase(fileName);
-
-                    lockedListener->ProcessResource(fileUpdateData);
-                }
-            });
-
-            debounce.detach();
+            LOG("Unexpected file update action. File {}, Action {}", event.Name, (u32)event.Action);
+            return;
         }
-    private:
-        void ProcessResource(const FileUpdateData& fileUpdateData)
-        {
-            std::filesystem::path filePath = fileUpdateData.FileName;
-
-            /* is it possible that file is deleted or renamed before we begin to process it */
-            if (!std::filesystem::exists(filePath) || std::filesystem::is_directory(filePath))
-                return;
-
-            std::lock_guard lock(g_FileUpdateMutex);
-
-            if (fileUpdateData.Action == efsw::Action::Moved)
-            {
-                s_ToRename.emplace_back(fileUpdateData.FileName, fileUpdateData.OldFileName);
-                return;
-            }
-
-            ASSERT(fileUpdateData.Action == efsw::Action::Modified, "Unexpected file update action")
-            s_ToReload.emplace_back(filePath);
-        }
-    private:
-        /* some editors (like vs code) do something strange when file is updated
-         * e.g. it is updated twice on save, in order for us not to bake resource more times
-         * than necessary we order baking only after some delay
-         */
-        std::queue<FileUpdateData> m_FilesToProcess;
-        std::unordered_set<std::string> m_PendingFileNames;
-
-        std::mutex m_Mutex;
-        std::condition_variable m_ConditionVariable;
-    };
-
-    static constexpr bool IS_RECURSIVE = true;
-    s_FileWatcher = std::make_unique<FileWatcher>();
-    std::shared_ptr<Listener> listener = std::make_shared<Listener>();
-    s_FileWatcher->Listener = listener;
-    Listener::StartDebounceThread(listener);
-    s_FileWatcher->Watcher.addWatch(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv),
-        s_FileWatcher->Listener.get(), IS_RECURSIVE);
-    s_FileWatcher->Watcher.watch();
+        s_ToReload.emplace_back(filePath);
+    });
+    if (const auto res = s_FileWatcher.Subscribe(s_FileWatcherHandler); !res.has_value())
+        LOG("Failed to subscribe to file watcher events for directory {}. Error: {}",
+            *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), FileWatcher::ErrorDescription(res.error()));
 }

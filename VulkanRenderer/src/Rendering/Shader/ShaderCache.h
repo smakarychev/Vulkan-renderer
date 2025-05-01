@@ -3,6 +3,7 @@
 #include "FrameContext.h"
 #include "Shader.h"
 #include "ShaderOverrides.h"
+#include "Platform/FileWatcher.h"
 #include "String/StringHeterogeneousHasher.h"
 #include "String/StringId.h"
 
@@ -101,9 +102,9 @@ private:
 
     static DeletionQueue* s_FrameDeletionQueue;
 
-    struct FileWatcher;
-    static std::unique_ptr<FileWatcher> s_FileWatcher;
-
+    static FileWatcher s_FileWatcher;
+    static FileWatcherHandler s_FileWatcherHandler;
+    
     /* these arrays are filled by file watcher thread, but processed by the main thread to avoid race-conditions */
     static std::vector<std::pair<std::string, std::string>> s_ToRename;
     static std::vector<std::filesystem::path> s_ToReload;

@@ -68,6 +68,7 @@ class FileWatcherHandler
 {
     friend class FileWatcher;
 public:
+    FileWatcherHandler() = default;
     FileWatcherHandler(std::function<void(const FileWatcherEvent&)>&& handlerFn);
     ~FileWatcherHandler();
     
