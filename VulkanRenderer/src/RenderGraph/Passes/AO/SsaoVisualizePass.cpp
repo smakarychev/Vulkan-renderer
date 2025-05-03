@@ -21,7 +21,7 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(StringId name, RG::Graph& renderGrap
         {
             CPU_PROFILE_FRAME("SSAO.Visualize.Setup")
 
-            graph.SetShader("ssao-visualize.shader");
+            graph.SetShader("ssao-visualize"_hsv);
             
             auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
             passData.Color = graph.CreateResource("Color"_hsv,
@@ -50,7 +50,7 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(StringId name, RG::Graph& renderGrap
             bindGroup.SetSsao({.Image = ssaoTexture}, ImageLayout::Readonly);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
         });
 }

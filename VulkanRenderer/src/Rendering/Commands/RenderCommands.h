@@ -313,8 +313,6 @@ struct BindDescriptorArenaAllocatorsCommand
     : RenderCommandTyped<RenderCommandType::BindDescriptorArenaAllocators, RenderCommandQueueType::GC>
 {
     const DescriptorArenaAllocators* Allocators{nullptr};
-    /* `bufferIndex` is usually a frame number from frame context (between 0 and BUFFERED_FRAMES) */
-    u32 BufferIndex{};
 };
 
 struct PushConstantsCommand : RenderCommandTyped<RenderCommandType::PushConstants, RenderCommandQueueType::GC>

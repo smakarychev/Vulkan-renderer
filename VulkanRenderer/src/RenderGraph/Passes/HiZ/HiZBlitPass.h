@@ -30,7 +30,7 @@ namespace Passes::HiZBlit
             {
                 CPU_PROFILE_FRAME("HiZ.Blit.Setup")
 
-                graph.SetShader("hiz.shader",
+                graph.SetShader("hiz"_hsv,
                     ShaderSpecializations{
                         ShaderSpecialization{"DEPTH_MIN_MAX"_hsv, info.CalculateMinMax}});
 
@@ -71,7 +71,7 @@ namespace Passes::HiZBlit
                     bindGroup.SetMinMax({.Buffer = resources.GetBuffer(passData.MinMaxDepth)});
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
                 cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {hizResolution}});

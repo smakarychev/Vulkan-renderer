@@ -25,7 +25,7 @@ RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderG
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Bin.Setup")
 
-            graph.SetShader("light-clusters-bin.shader");
+            graph.SetShader("light-clusters-bin"_hsv);
 
             passData.Dispatch = graph.Read(info.DispatchIndirect, Indirect);
 
@@ -57,7 +57,7 @@ RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderG
             bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.SceneLightResources.LightsInfo)});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {frameContext.PrimaryCamera->GetView()}});

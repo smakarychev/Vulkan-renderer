@@ -15,7 +15,7 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderG
         {
             CPU_PROFILE_FRAME("ShadowCameras.GPU.Setup")
             
-            graph.SetShader("create-shadow-cameras.shader");
+            graph.SetShader("create-shadow-cameras"_hsv);
 
             Resource csmData = graph.CreateResource("CSM.Data"_hsv, GraphBufferDescription{
                 .SizeBytes = sizeof(CSMData)});
@@ -50,7 +50,7 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderG
                 .LightDirection = lightDirection};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});

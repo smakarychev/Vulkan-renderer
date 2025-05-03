@@ -78,7 +78,7 @@ struct ShaderSpecializationsView
 
     constexpr ShaderSpecializationsView(ShaderDynamicSpecializations& specializations);
 
-    PipelineSpecializationsView ToPipelineSpecializationsView(ShaderPipelineTemplate& shaderTemplate);
+    PipelineSpecializationsView ToPipelineSpecializationsView(const ShaderPipelineTemplate& shaderTemplate);
 };
 
 struct ShaderDefine

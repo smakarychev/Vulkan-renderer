@@ -43,7 +43,7 @@ RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, con
             {
                 CPU_PROFILE_FRAME("HiZFull.Setup")
 
-                graph.SetShader("hiz-full.shader");
+                graph.SetShader("depth-reduction"_hsv);
 
                 passData.Depth = graph.Read(minOutput.Depth, Compute | Sampled);
                 passData.HiZMin = graph.Write(minOutput.HiZ, Compute | Storage);
@@ -80,7 +80,7 @@ RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, con
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
                 cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});

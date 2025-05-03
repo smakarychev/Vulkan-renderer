@@ -3,7 +3,7 @@
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 
 BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, const Shader& shader)
-    : m_MaxBindlessCount(maxCount), m_MaterialsShader(&shader)
+    : m_MaxBindlessCount(maxCount), m_MaterialsShader(shader)
 {
     for (u32 i = 0; i < m_DefaultTextures.size(); i++)
         m_DefaultTextures[i] = AddTexture(Images::Default::GetCopy(
@@ -27,8 +27,8 @@ bool BindlessTextureDescriptorsRingBuffer::WillOverflow() const
 
 u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
 {
-    MaterialsShaderBindGroup bindGroup(*m_MaterialsShader);
-    bindGroup.SetTexturesGlobally({.Image = texture}, ImageLayout::Readonly, m_Tail);
+    MaterialsShaderBindGroup bindGroup(m_MaterialsShader);
+    bindGroup.SetTextures({.Image = texture}, ImageLayout::Readonly, m_Tail);
 
     const u32 toReturn = m_Tail;
     if (toReturn >= m_Textures.size())

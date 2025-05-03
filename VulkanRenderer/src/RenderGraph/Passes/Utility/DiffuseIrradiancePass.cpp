@@ -24,7 +24,7 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& render
         {
             CPU_PROFILE_FRAME("DiffuseIrradiance.Setup")
 
-            graph.SetShader("diffuse-irradiance.shader");
+            graph.SetShader("diffuse-irradiance"_hsv);
 
             passData.DiffuseIrradiance = graph.AddExternal("DiffuseIrradiance"_hsv, irradiance);
                 
@@ -56,7 +56,7 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& render
                 .DiffuseIrradianceResolutionInverse = 1.0f / glm::vec2{(f32)irradianceDescription.Width}};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstants}});

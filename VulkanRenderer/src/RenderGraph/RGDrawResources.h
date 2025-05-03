@@ -8,7 +8,6 @@
  * Draw features control what resources are actually used 
  */
 
-class Shader;
 class Camera;
 
 namespace RG

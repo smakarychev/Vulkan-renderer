@@ -23,7 +23,7 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& rend
         {
             CPU_PROFILE_FRAME("DiffuseIrradianceSH.Setup")
 
-            graph.SetShader("diffuse-irradiance-sh.shader",
+            graph.SetShader("diffuse-irradiance-sh"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"REAL_TIME"_hsv, realTime}});
             
@@ -54,7 +54,7 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& rend
                 0;
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {targetMipmap}});

@@ -16,7 +16,7 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& rende
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Setup.Setup")
 
-            graph.SetShader("light-clusters-setup.shader");
+            graph.SetShader("light-clusters-setup"_hsv);
 
             passData.Clusters = graph.CreateResource("Clusters"_hsv, GraphBufferDescription{
                 .SizeBytes = LIGHT_CLUSTER_BINS * sizeof(LightCluster)});
@@ -51,7 +51,7 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& rende
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstant}});

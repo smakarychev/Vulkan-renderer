@@ -15,7 +15,7 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
         {
             CPU_PROFILE_FRAME("RenderObjectVisibilityPass.Setup")
 
-            graph.SetShader("scene-multiview-render-object-visibility.shader",
+            graph.SetShader("scene-multiview-render-object-visibility"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
             
@@ -83,7 +83,7 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
             };
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {PushConstants{

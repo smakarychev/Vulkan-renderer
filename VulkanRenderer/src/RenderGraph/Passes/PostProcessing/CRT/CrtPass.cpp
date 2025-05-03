@@ -26,7 +26,7 @@ RG::Pass& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Res
         {
             CPU_PROFILE_FRAME("CRT.Setup")
 
-            graph.SetShader("crt.shader");
+            graph.SetShader("crt"_hsv);
             
             passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
             
@@ -73,7 +73,7 @@ RG::Pass& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Res
             bindGroup.SetSettings({.Buffer = settingsBuffer});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
         });
 

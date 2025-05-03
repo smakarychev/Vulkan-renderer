@@ -826,14 +826,14 @@ private:
     struct DescriptorArenaAllocatorResource
     {
         using ObjectType = DescriptorArenaAllocatorTag;
-        std::array<void*, BUFFERED_FRAMES> MappedAddresses;
-        std::array<u64, BUFFERED_FRAMES> DeviceAddresses;
+        void* MappedAddress;
+        u64 DeviceAddress;
         u64 SizeBytes{0};
-        u32 CurrentBuffer{0};
         u64 CurrentOffset{0};
         DescriptorsKind Kind{DescriptorsKind::Resource};
         DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
-        std::array<Buffer, BUFFERED_FRAMES> Arenas;
+        Buffer Arena;
+        std::vector<Descriptors> Descriptors;
     };
     struct PipelineLayoutResource
     {
@@ -1797,7 +1797,7 @@ Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& dele
     return buffer;
 }
 
-Buffer Device::AllocateBuffer(BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
+Buffer Device::AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
     VmaAllocationCreateFlags allocationFlags)
 {
     VkBufferCreateInfo bufferCreateInfo = {};
@@ -3042,7 +3042,7 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
     ASSERT(!createInfo.UsedTypes.empty(), "At least one descriptor type is necessary")
     ASSERT(createInfo.Residence == DescriptorAllocatorResidence::CPU, "GPU residence is not supported")
     
-    if (createInfo.Kind == DescriptorsKind::Resource)
+    if (createInfo.Kind == DescriptorsKind::Resource || createInfo.Kind == DescriptorsKind::Materials)
         for (auto type : createInfo.UsedTypes)
             ASSERT(type != DescriptorType::Sampler,
                 "Cannot use allocator of this kind for requested descriptor kinds")
@@ -3055,7 +3055,7 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
     for (auto type : createInfo.UsedTypes)
         maxDescriptorSize = std::max(maxDescriptorSize, GetDescriptorSizeBytes(type));
     
-    u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
+    const u64 arenaSizeBytes = (u64)maxDescriptorSize * createInfo.DescriptorCount;
 
     VkBufferUsageFlags usageFlags = createInfo.Kind == DescriptorsKind::Resource ?
         VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT : VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT;
@@ -3070,13 +3070,11 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
     allocatorResource.Kind = createInfo.Kind;
     allocatorResource.Residence = createInfo.Residence;
     allocatorResource.SizeBytes = arenaSizeBytes;
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        BufferCreateInfo arenaCreateInfo = {.SizeBytes = arenaSizeBytes, .PersistentMapping = true};
-        allocatorResource.Arenas[i] = AllocateBuffer(arenaCreateInfo, usageFlags, allocationFlags);
-        allocatorResource.DeviceAddresses[i] = GetDeviceAddress(allocatorResource.Arenas[i]);
-        allocatorResource.MappedAddresses[i] = GetBufferMappedAddress(allocatorResource.Arenas[i]);
-    }
+    allocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
+    const BufferCreateInfo arenaCreateInfo = {.SizeBytes = arenaSizeBytes, .PersistentMapping = true};
+    allocatorResource.Arena = AllocateBuffer(arenaCreateInfo, usageFlags, allocationFlags);
+    allocatorResource.DeviceAddress = GetDeviceAddress(allocatorResource.Arena);
+    allocatorResource.MappedAddress = GetBufferMappedAddress(allocatorResource.Arena);
 
     DescriptorArenaAllocator allocator = Resources().AddResource(allocatorResource);
     deletionQueue.Enqueue(allocator);
@@ -3086,8 +3084,8 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
 
 void Device::Destroy(DescriptorArenaAllocator allocator)
 {
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        Destroy(Resources()[allocator].Arenas[i]);
+    ResetDescriptorArenaAllocator(allocator);
+    Destroy(Resources()[allocator].Arena);
     Resources().RemoveResource(allocator);
 }
 
@@ -3098,7 +3096,10 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
     for (auto& binding : bindings.Bindings)
         ASSERT(
             (allocatorResource.Kind == DescriptorsKind::Sampler && binding.Type == DescriptorType::Sampler) ||
-            (allocatorResource.Kind == DescriptorsKind::Resource && binding.Type != DescriptorType::Sampler),
+            ((
+                allocatorResource.Kind == DescriptorsKind::Resource ||
+                allocatorResource.Kind == DescriptorsKind::Materials) &&
+                binding.Type != DescriptorType::Sampler),
             "Cannot use this descriptor allocator with such bindings")
     
     auto& descriptorBufferProps = s_State.GPUDescriptorBufferProperties;
@@ -3144,6 +3145,7 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
     descriptorsResource.Allocator = allocator;
     
     Descriptors descriptors = Resources().AddResource(descriptorsResource);
+    allocatorResource.Descriptors.push_back(descriptors);
 
     allocatorResource.CurrentOffset += layoutSizeBytes;
     
@@ -3152,7 +3154,12 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
 
 void Device::ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator)
 {
-    Resources()[allocator].CurrentOffset = 0;
+    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
+    for (Descriptors descriptors : allocatorResource.Descriptors)
+        Resources().RemoveResource(descriptors);
+    allocatorResource.Descriptors.clear();
+    
+    allocatorResource.CurrentOffset = 0;
 }
 
 DescriptorsKind Device::GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator)
@@ -3213,54 +3220,13 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bi
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
     descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
-    VkDescriptorImageInfo descriptorImageInfo;
+    VkDescriptorImageInfo descriptorImageInfo = {};
     descriptorImageInfo.imageView =
         Resources()[image.Image].Views.ViewList[GetImageViewHandle(image.Image, image.Description).m_Index];
     descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
     descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
 
     WriteDescriptor(descriptors, bindingInfo, index, descriptorGetInfo);
-}
-
-void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-    const BufferSubresource& buffer, u32 index)
-{
-    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];
-    u32 currentIndex = allocatorResource.CurrentBuffer; 
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        allocatorResource.CurrentBuffer = i;
-        UpdateDescriptors(descriptors, bindingInfo, buffer, index);
-    }
-    allocatorResource.CurrentBuffer = currentIndex;
-}
-
-void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler)
-{
-    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];
-    u32 currentIndex = allocatorResource.CurrentBuffer; 
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        allocatorResource.CurrentBuffer = i;
-        UpdateDescriptors(descriptors, bindingInfo, sampler);
-    }
-    allocatorResource.CurrentBuffer = currentIndex;
-}
-
-void Device::UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-    const ImageSubresource& image, ImageLayout layout, u32 index)
-{
-    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
-    DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[descriptorsResource.Allocator];
-    u32 currentIndex = allocatorResource.CurrentBuffer; 
-    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-    {
-        allocatorResource.CurrentBuffer = i;
-        UpdateDescriptors(descriptors, bindingInfo, image, layout, index);
-    }
-    allocatorResource.CurrentBuffer = currentIndex;
 }
 
 u32 Device::GetDescriptorSizeBytes(DescriptorType type)
@@ -3286,16 +3252,16 @@ void Device::WriteDescriptor(Descriptors descriptors, DescriptorBindingInfo bind
 {
     auto&& [slot, type] = bindingInfo;
     const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
-    u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
-    u64 innerOffsetBytes = descriptorSizeBytes * index;
+    const u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
+    const u64 innerOffsetBytes = descriptorSizeBytes * index;
     ASSERT(innerOffsetBytes + descriptorSizeBytes <= descriptorsResource.SizeBytes,
         "Trying to write descriptor outside of the allocated region")
 
-    u64 offsetBytes = descriptorsResource.Offsets[slot] + innerOffsetBytes;
+    const u64 offsetBytes = descriptorsResource.Offsets[slot] + innerOffsetBytes;
     const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
         Resources()[descriptorsResource.Allocator];
     vkGetDescriptorEXT(s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
-        (u8*)allocatorResource.MappedAddresses[allocatorResource.CurrentBuffer] + offsetBytes);
+        (u8*)allocatorResource.MappedAddress + offsetBytes);
 }
 
 Fence Device::CreateFence(FenceCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
@@ -4104,9 +4070,6 @@ void Device::ShutdownResources()
 {
     vmaDestroyAllocator(s_State.Allocator);
 
-    /* descriptors are not really api-resources, and they do not have to be cleared */
-    Resources().m_DeallocatedCount += Resources().m_Descriptors.Count();
-    Resources().m_Descriptors.Clear();
     ASSERT(Resources().m_AllocatedCount == Resources().m_DeallocatedCount,
         "Not all driver resources are destroyed")
 }
@@ -4663,9 +4626,8 @@ void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocato
 
     for (auto& allocator : command.Allocators->m_Allocators)
     {
-        DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
-        allocatorResource.CurrentBuffer = command.BufferIndex;
-        const u64 deviceAddress = allocatorResource.DeviceAddresses[command.BufferIndex];
+        const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
+        const u64 deviceAddress = allocatorResource.DeviceAddress;
 
         VkDescriptorBufferBindingInfoEXT binding = {};
         binding.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_BUFFER_BINDING_INFO_EXT;

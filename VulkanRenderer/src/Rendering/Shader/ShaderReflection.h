@@ -36,7 +36,7 @@ public:
     ShaderReflection& operator=(const ShaderReflection&) = delete;
     ShaderReflection& operator=(ShaderReflection&&) = default;
     ~ShaderReflection();
-    
+
     ShaderStage Stages() const { return m_ShaderStages; }
     const std::vector<SpecializationConstant>& SpecializationConstants() const { return m_SpecializationConstants; }
     const VertexInputDescription& VertexInputDescription() const { return m_VertexInputDescription; }

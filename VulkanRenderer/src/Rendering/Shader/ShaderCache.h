@@ -11,101 +11,88 @@ class Shader
 {
     friend class ShaderCache;
 public:
-    Shader(u32 pipelineIndex, const std::array<::Descriptors, MAX_DESCRIPTOR_SETS>& descriptors);
-    Pipeline Pipeline() const;
-    PipelineLayout GetLayout() const;
+    Pipeline Pipeline() const { return m_Pipeline; }
+    PipelineLayout GetLayout() const { return m_PipelineLayout; }
     const ::Descriptors& Descriptors(DescriptorsKind kind) const { return m_Descriptors[(u32)kind]; }
-
-    ShaderOverridesView CopyOverrides() const;
 private:
-    u32 m_Pipeline{0};
+    ::Pipeline m_Pipeline{};
+    PipelineLayout m_PipelineLayout{};
     std::array<::Descriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
-    std::string m_FilePath;
 };
+
+enum class ShaderCacheError
+{
+    FailedToCreatePipeline,
+    FailedToAllocateDescriptors,
+};
+
+using ShaderCacheAllocateResult = std::expected<Shader, ShaderCacheError>;
 
 class ShaderCache
 {
-    friend class Shader;
     static constexpr std::string_view SHADER_EXTENSION = ".shader";
     static constexpr std::string_view SHADER_HEADER_EXTENSION = ".glsl";
 public:
-    static void Init();
-    static void Shutdown();
-    static void SetAllocators(DescriptorArenaAllocators& allocators) { s_Allocators = &allocators; }
-    static void OnFrameBegin(FrameContext& ctx);
-
-    static void AddBindlessDescriptors(StringId name, const Descriptors& descriptors);
+    void Init();
+    void Shutdown();
+    void OnFrameBegin(FrameContext& ctx);
     
-    /* returns shader associated with `name` */
-    static const Shader& Get(StringId name);
-    /* associates shader at `path` with `name` */
-    static const Shader& Register(StringId name, std::string_view path, ShaderOverridesView&& overrides);
-    /* associates shader with another `name` */
-    static const Shader& Register(StringId name, const Shader* shader, ShaderOverridesView&& overrides);
-
+    ShaderCacheAllocateResult Allocate(StringId name, DescriptorArenaAllocators& allocators);
+    ShaderCacheAllocateResult Allocate(StringId name, ShaderOverridesView&& overrides,
+        DescriptorArenaAllocators& allocators);
+    void AddPersistentDescriptors(StringId name, Descriptors descriptors);
 private:
-    static void HandleRename(std::string_view newPath, std::string_view oldPath);
-    static void HandleShaderModification(std::string_view path);
-    static void HandleStageModification(std::string_view path);
-    static void HandleHeaderModification(std::string_view path);
-    static void CreateFileGraph();
-    struct ShaderProxy
+    void InitFileWatcher();
+    void LoadShaderInfos();
+
+    void HandleModifications();
+    void HandleShaderModification(const std::filesystem::path& path);
+    void HandleStageModification(const std::filesystem::path& path);
+    void HandleHeaderModification(const std::filesystem::path& path);
+    void MarkOverridesToReload(StringId name);
+
+    struct PipelineInfo
     {
-        Pipeline Pipeline;
-        PipelineLayout PipelineLayout;
-        std::array<Descriptors, MAX_DESCRIPTOR_SETS> Descriptors;
-        std::vector<std::string> Dependencies;
+        const ShaderPipelineTemplate* PipelineTemplate{nullptr};
+        Pipeline Pipeline{};
+        PipelineLayout Layout{};
+        StringId BindlessName{};
+        u32 BindlessCount{0};
+        bool ShouldReload{false};
     };
-    static const Shader& AddShader(StringId name, u32 pipeline, const ShaderProxy& proxy,
-        std::string_view path);
-    enum class ReloadType { PipelineDescriptors, Descriptors, Pipeline };
-    static ShaderProxy ReloadShader(std::string_view path, ReloadType reloadType,
-        ShaderOverridesView&& overrides);
-    static void InitFileWatcher();
+    std::optional<PipelineInfo> TryCreatePipeline(StringId name, ShaderOverridesView& overrides);
+    const ShaderPipelineTemplate* GetShaderPipelineTemplate(StringId name, const ShaderOverridesView& overrides,
+        std::vector<std::string>& stages);
 private:
-    static DescriptorArenaAllocators* s_Allocators;
-
-    /* each .glsl, .vert, .frag, etc. has a list of other files that depend on it */
-    struct FileNode
+    struct ShaderNameWithOverrides
     {
-        struct ShaderFile
+        StringId Name{};
+        u64 OverridesHash{};
+
+        auto operator<=>(const ShaderNameWithOverrides&) const = default;
+    };
+    struct ShaderNameWithOverridesHasher
+    {
+        constexpr u64 operator()(ShaderNameWithOverrides shader) const
         {
-            std::string Raw;
-            std::string Processed;
-        };
-        std::vector<ShaderFile> Files;
+            u64 hash = shader.Name.Hash();
+            Hash::combine(hash, shader.OverridesHash);
+            
+            return hash;
+        }
     };
-    static StringUnorderedMap<FileNode> s_FileGraph;
-    
-    struct Record
-    {
-        std::vector<Shader*> Shaders; 
-    };
-    /* to achieve hot-reload we need to map each stage file (and its includes) to shaders */
-    static StringUnorderedMap<Record> s_Records;
+ 
+    std::unordered_map<StringId, Descriptors> m_PersistentDescriptors;
+    std::unordered_map<ShaderNameWithOverrides, PipelineInfo, ShaderNameWithOverridesHasher> m_Pipelines;
+    std::unordered_map<StringId, PipelineInfo> m_DefaultPipelines;
+    std::unordered_map<StringId, std::string> m_ShaderNameToPath;
 
-    /* maps associated name to shader */
-    static std::unordered_map<StringId, Shader*> s_ShadersMap;
-    
-    static std::vector<std::unique_ptr<Shader>> s_Shaders;
-
-    /* same shader file may produce different pipelines, based on used-provided overrides */
-    struct PipelineData
-    {
-        Pipeline Pipeline;
-        PipelineLayout PipelineLayout;
-        u64 OverridesHash{0};
-    };
-    static std::vector<PipelineData> s_Pipelines;
-
-    static std::unordered_map<StringId, Descriptors> s_BindlessDescriptors;
-
-    static DeletionQueue* s_FrameDeletionQueue;
-
-    static FileWatcher s_FileWatcher;
-    static FileWatcherHandler s_FileWatcherHandler;
-    
-    /* these arrays are filled by file watcher thread, but processed by the main thread to avoid race-conditions */
-    static std::vector<std::pair<std::string, std::string>> s_ToRename;
-    static std::vector<std::filesystem::path> s_ToReload;
+    /* the fields below are used for hot-reloading */
+    std::unordered_map<StringId, std::vector<ShaderNameWithOverrides>> m_ShaderNameToAllOverrides;
+    StringUnorderedMap<std::vector<StringId>> m_PathToShaders;
+    FileWatcher m_FileWatcher;
+    FileWatcherHandler m_FileWatcherHandler;
+    std::mutex m_FileUpdateMutex;
+    std::vector<std::filesystem::path> m_ShadersToReload;
+    DeletionQueue* m_FrameDeletionQueue{nullptr};
 };

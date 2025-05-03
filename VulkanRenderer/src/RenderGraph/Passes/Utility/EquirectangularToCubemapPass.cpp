@@ -21,7 +21,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("EquirectangularToCubemap.Setup")
 
-                graph.SetShader("equirectangular-to-cubemap.shader");
+                graph.SetShader("equirectangular-to-cubemap"_hsv);
                 
                 passData.Cubemap = graph.AddExternal("Cubemap"_hsv, cubemap);
                 
@@ -52,7 +52,7 @@ namespace
                     .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width}};
                 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
                 cmd.PushConstants({
                 	.PipelineLayout = shader.GetLayout(), 
                 	.Data = {pushConstants}});

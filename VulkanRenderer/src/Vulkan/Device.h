@@ -26,6 +26,7 @@ class DeviceResources;
 struct CopyBufferCommand;
 struct CopyBufferToImageCommand;
 class ProfilerContext;
+struct GLFWwindow;
 
 struct DeviceCreateInfo
 {
@@ -56,7 +57,7 @@ public:
     ~DeletionQueue() { Flush(); }
 
     template <typename Type>
-    void Enqueue(Type& type);
+    void Enqueue(Type type);
 
     void Flush();
 private:
@@ -83,7 +84,7 @@ private:
 };
 
 template <typename Type>
-void DeletionQueue::Enqueue(Type& type)
+void DeletionQueue::Enqueue(Type type)
 {
     using Decayed = std::decay_t<Type>;
     
@@ -246,11 +247,6 @@ public:
         const BufferSubresource& buffer, u32 index);  
     static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler);  
     static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-        const ImageSubresource& image, ImageLayout layout, u32 index);  
-    static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
-        const BufferSubresource& buffer, u32 index);
-    static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler);
-    static void UpdateGlobalDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
         const ImageSubresource& image, ImageLayout layout, u32 index);
 
     static Fence CreateFence(FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
@@ -392,7 +388,7 @@ private:
     static void WriteDescriptor(Descriptors descriptors, DescriptorBindingInfo bindingInfo, u32 index,
         VkDescriptorGetInfoEXT& descriptorGetInfo);
 
-    static Buffer AllocateBuffer(BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
+    static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
         VmaAllocationCreateFlags allocationFlags);
 
     static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPath assetPath);

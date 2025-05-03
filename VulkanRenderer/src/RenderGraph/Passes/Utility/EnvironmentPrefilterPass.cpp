@@ -27,7 +27,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& ren
             {
                 CPU_PROFILE_FRAME("EnvironmentPrefilter.Setup")
 
-                graph.SetShader("environment-prefilter.shader");
+                graph.SetShader("environment-prefilter"_hsv);
 
                 if (mipmap == 0)
                 {
@@ -75,7 +75,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& ren
                     .Roughness = (f32)mipmap / (f32)prefilteredDescription.Mipmaps};
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
                 cmd.PushConstants({
                 	.PipelineLayout = shader.GetLayout(), 
                 	.Data = {pushConstants}});

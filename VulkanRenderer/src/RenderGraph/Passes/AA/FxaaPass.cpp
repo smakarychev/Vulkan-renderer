@@ -14,7 +14,7 @@ RG::Pass& Passes::Fxaa::addToGraph(StringId name, RG::Graph& renderGraph, RG::Re
         {
             CPU_PROFILE_FRAME("Fxaa.Luminance.Setup")
 
-            graph.SetShader("fxaa.shader");
+            graph.SetShader("fxaa"_hsv);
 
             auto& description = graph.GetTextureDescription(colorIn);
             passData.AntiAliased = graph.CreateResource("AntiAliased"_hsv, GraphTextureDescription{
@@ -40,7 +40,7 @@ RG::Pass& Passes::Fxaa::addToGraph(StringId name, RG::Graph& renderGraph, RG::Re
             bindGroup.SetAntialiased({.Image = resources.GetTexture(passData.AntiAliased)}, ImageLayout::General);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {inputDescription.Width, inputDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});

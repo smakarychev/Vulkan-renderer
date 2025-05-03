@@ -29,7 +29,7 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& rend
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize.Setup")
 
-            graph.SetShader("light-tiles-visualize.shader");
+            graph.SetShader("light-tiles-visualize"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
 
@@ -70,7 +70,7 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& rend
                 bindGroup.SetZbins({.Buffer = resources.GetBuffer(passData.ZBins)});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {useZBins}});

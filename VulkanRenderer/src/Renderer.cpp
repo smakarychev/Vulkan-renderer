@@ -68,7 +68,7 @@ Renderer::Renderer() = default;
 void Renderer::Init()
 {
     StringIdRegistry::Init();
-    ShaderCache::Init();
+    m_ShaderCache.Init();
     
     InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
@@ -79,23 +79,44 @@ void Renderer::Init()
     for (auto& ctx : m_FrameContexts)
         ctx.PrimaryCamera = m_Camera.get();
 
-    m_Graph = std::make_unique<RG::Graph>();
+    m_PersistentMaterialAllocator = Device::CreateDescriptorArenaAllocator({
+        .Kind = DescriptorsKind::Materials,
+        .Residence = DescriptorAllocatorResidence::CPU,
+        .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
+        .DescriptorCount = 8192 * 4});
+
+    std::array<DescriptorArenaAllocators, BUFFERED_FRAMES> allocators;
+    for (u32 i = 0; i < BUFFERED_FRAMES; i++)
+    {
+        DescriptorArenaAllocator samplerAllocator = Device::CreateDescriptorArenaAllocator({
+                .Kind = DescriptorsKind::Sampler,
+                .Residence = DescriptorAllocatorResidence::CPU,
+                .UsedTypes = {DescriptorType::Sampler},
+                .DescriptorCount = 256 * 4});
+            
+        DescriptorArenaAllocator resourceAllocator = Device::CreateDescriptorArenaAllocator({
+            .Kind = DescriptorsKind::Resource,
+            .Residence = DescriptorAllocatorResidence::CPU,
+            .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
+            .DescriptorCount = 8192 * 4});
+
+        allocators[i] = DescriptorArenaAllocators(samplerAllocator, resourceAllocator, m_PersistentMaterialAllocator);
+    }
+    
+    m_Graph = std::make_unique<RG::Graph>(allocators, &m_ShaderCache);
     InitRenderGraph();
 }
 
 void Renderer::InitRenderGraph()
 {
-    ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         1024,
-        ShaderCache::Register("Core.Materials"_hsv, "materials.shader", {}));
+        m_ShaderCache.Allocate("materials"_hsv, m_Graph->GetFrameAllocators()).value());
 
     m_Graph->SetBackbuffer(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
 
-    ShaderCache::SetAllocators(m_Graph->GetArenaAllocators());
-    // todo: this is a little weird
-    ShaderCache::AddBindlessDescriptors("main_materials"_hsv,
-        ShaderCache::Get("Core.Materials"_hsv).Descriptors(DescriptorsKind::Materials));
+    m_ShaderCache.AddPersistentDescriptors("main_materials"_hsv,
+        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(DescriptorsKind::Materials));
     
     m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
@@ -272,7 +293,7 @@ void Renderer::SetupRenderGraph()
     blackboard.Update(globalResources);
     
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
-    bindGroup.SetMaterialsGlobally({.Buffer = m_Scene.Geometry().Materials.Buffer});
+    bindGroup.SetMaterials({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
     Resource color = m_Graph->CreateResource("Color"_hsv, GraphTextureDescription{
         .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
@@ -919,7 +940,8 @@ void Renderer::BeginFrame()
             GetFrameContext().DeletionQueue)});
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
-    ShaderCache::OnFrameBegin(GetFrameContext());
+    m_Graph->OnFrameBegin(GetFrameContext());
+    m_ShaderCache.OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().CommandList, GetFrameContext().FrameNumber);
 }
 
@@ -1034,7 +1056,7 @@ void Renderer::Shutdown()
     m_Graph.reset();
     m_MultiviewVisibility.Shutdown();
     m_ResourceUploader.Shutdown();
-    ShaderCache::Shutdown();
+    m_ShaderCache.Shutdown();
     for (auto& ctx : m_FrameContexts)
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();

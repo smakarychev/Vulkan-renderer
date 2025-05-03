@@ -128,7 +128,7 @@ RG::Pass& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMol
         {
             CPU_PROFILE_FRAME("Slime.Update.Setup")
             
-            graph.SetShader("slime.shader",
+            graph.SetShader("slime"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"SLIME_MAP_STAGE"_hsv, true}});
             
@@ -186,7 +186,7 @@ RG::Pass& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMol
             u32 slimeCountDimension = (u32)std::sqrt((f32)slimeCount);
                         
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
@@ -207,7 +207,7 @@ RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMo
         {
             CPU_PROFILE_FRAME("Slime.Diffuse.Setup")
             
-            graph.SetShader("slime.shader",
+            graph.SetShader("slime"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"SLIME_DIFFUSE_STAGE"_hsv, true}});
 
@@ -241,7 +241,7 @@ RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMo
             bindGroup.SetDiffuseMap({.Image = diffuseMap}, ImageLayout::General);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
@@ -270,7 +270,7 @@ RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldConte
         {
             CPU_PROFILE_FRAME("Gradient.Slime.Setup")
 
-            graph.SetShader("slime.shader",
+            graph.SetShader("slime"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"SLIME_GRADIENT_STAGE"_hsv, true}});
 
@@ -325,7 +325,7 @@ RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldConte
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});

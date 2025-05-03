@@ -16,7 +16,7 @@ RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG:
         {
             CPU_PROFILE_FRAME("MeshletVisibilityPass.Setup")
 
-            graph.SetShader("scene-multiview-meshlet-visibility.shader",
+            graph.SetShader("scene-multiview-meshlet-visibility"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}});
             
@@ -105,7 +105,7 @@ RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG:
             };
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {PushConstants{

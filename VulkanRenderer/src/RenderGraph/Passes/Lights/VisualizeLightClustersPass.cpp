@@ -22,7 +22,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& r
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Setup")
 
-            graph.SetShader("light-clusters-visualize.shader");
+            graph.SetShader("light-clusters-depth-layers-visualize"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
 
@@ -56,7 +56,7 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& r
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
         });
 }

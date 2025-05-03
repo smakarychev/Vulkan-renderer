@@ -14,7 +14,7 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(StringId name, RG::Graph& renderGra
     Pass& pass = renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            graph.SetShader("depth-visualize.shader");
+            graph.SetShader("depth-visualize"_hsv);
             
             auto& depthDescription = Resources(graph).GetTextureDescription(depthIn);
             passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "Color"_hsv,
@@ -53,7 +53,7 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(StringId name, RG::Graph& renderGra
                 .IsOrthographic = isOrthographic};
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstants}});

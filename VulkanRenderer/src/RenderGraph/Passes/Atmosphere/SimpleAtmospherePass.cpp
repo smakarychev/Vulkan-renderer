@@ -15,7 +15,7 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(StringId name, RG::Graph& renderG
         {
             CPU_PROFILE_FRAME("Atmosphere.Simple.Setup")
 
-            graph.SetShader("atmosphere-simple.shader");
+            graph.SetShader("atmosphere-simple"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
             passData.ColorOut = graph.CreateResource("Color"_hsv,
@@ -42,7 +42,7 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(StringId name, RG::Graph& renderG
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {(f32)frameContext.FrameNumberTick}});

@@ -19,7 +19,7 @@ RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGrap
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Bin.Setup")
 
-            graph.SetShader("light-tiles-bin.shader");
+            graph.SetShader("light-tiles-bin"_hsv);
 
             passData.Depth = graph.Read(info.Depth, Compute | Sampled);
             
@@ -50,7 +50,7 @@ RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGrap
             bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {glm::vec2{frameContext.Resolution}}});

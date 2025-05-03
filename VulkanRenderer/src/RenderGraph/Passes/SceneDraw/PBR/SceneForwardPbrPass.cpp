@@ -42,8 +42,8 @@ RG::Pass& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGr
                         (f32)Images::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
                     ShaderSpecialization{"USE_TILED_LIGHTING"_hsv, useTiled},
                     ShaderSpecialization{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
-                    ShaderSpecialization{"USE_HYBRID_LIGHTING"_hsv, useHybrid})); 
-            graph.SetShader("scene-forward-pbr.shader", info.CommonOverrides.has_value() ?
+                    ShaderSpecialization{"USE_HYBRID_LIGHTING"_hsv, useHybrid}));
+            graph.SetShader("scene-forward-pbr"_hsv, info.CommonOverrides.has_value() ?
                 defaultOverrides.OverrideBy({*info.CommonOverrides, *info.DrawInfo.BucketOverrides}) :
                 defaultOverrides.OverrideBy(*info.DrawInfo.BucketOverrides));
 
@@ -104,7 +104,7 @@ RG::Pass& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGr
             }
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({

@@ -30,7 +30,7 @@ RG::Pass& Passes::DepthReductionReadback::addToGraph(StringId name, RG::Graph& r
             
             graph.HasSideEffect();
             
-            graph.SetShader("create-shadow-cameras.shader");
+            graph.SetShader("create-shadow-cameras"_hsv);
 
             passData.MinMaxDepth = graph.Read(minMaxDepth, Readback);
 

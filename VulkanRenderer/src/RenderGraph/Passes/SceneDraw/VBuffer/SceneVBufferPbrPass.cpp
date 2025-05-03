@@ -38,7 +38,7 @@ RG::Pass& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGr
             bool useTiled = !useHybrid && info.Tiles.IsValid();
             bool useClustered = !useHybrid &&  info.Clusters.IsValid();
 
-            graph.SetShader("scene-vbuffer-pbr-ugb.shader",
+            graph.SetShader("scene-vbuffer-pbr-ugb"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{
                         "MAX_REFLECTION_LOD"_hsv,
@@ -120,7 +120,7 @@ RG::Pass& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGr
             }
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
         });
 }

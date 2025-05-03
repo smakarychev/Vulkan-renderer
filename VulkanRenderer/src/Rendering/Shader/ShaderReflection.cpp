@@ -405,7 +405,7 @@ assetLib::ShaderStageInfo ShaderReflection::LoadFromAsset(std::string_view path)
     source.resize(shaderInfo.SourceSizeBytes);
     assetLib::unpackShaderStage(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), source.data());
     
-    ShaderModule shaderModule = Device::CreateShaderModule({
+    const ShaderModule shaderModule = Device::CreateShaderModule({
         .Source = source,
         .Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages)},
         Device::DummyDeletionQueue());

@@ -12,9 +12,10 @@
 #include <unordered_set>
 #include <vector>
 
+class Shader;
+class ShaderCache;
 struct ShaderOverridesView;
 struct CVarParameter;
-class Shader;
 
 namespace RG
 {
@@ -224,7 +225,8 @@ namespace RG
     {
         friend class Resources;
     public:
-        Graph();
+        Graph(const std::array<DescriptorArenaAllocators, BUFFERED_FRAMES>& descriptorAllocators,
+            ShaderCache* shaderCache);
         ~Graph();
 
         Resource SetBackbuffer(Texture texture);
@@ -266,8 +268,7 @@ namespace RG
         const BufferDescription& GetBufferDescription(Resource buffer);
         const TextureDescription& GetTextureDescription(Resource texture);
 
-        const DescriptorArenaAllocators& GetArenaAllocators() const { return *m_ArenaAllocators; }
-        DescriptorArenaAllocators& GetArenaAllocators() { return *m_ArenaAllocators; }
+        DescriptorArenaAllocators& GetFrameAllocators() const { return *m_FrameAllocators; }
         Blackboard& GetBlackboard() { return m_Blackboard; }
         const GlobalResources& GetGlobalResources() const { return m_Blackboard.Get<GlobalResources>(); }
 
@@ -279,8 +280,7 @@ namespace RG
         void Reset(FrameContext& frameContext);
         void Compile(FrameContext& frameContext);
         void Execute(FrameContext& frameContext);
-        void OnCmdBegin(FrameContext& frameContext);
-        void OnCmdEnd(FrameContext& frameContext);
+        void OnFrameBegin(FrameContext& frameContext);
         void SubmitPassUploads(FrameContext& frameContext);
         
         template <typename Value>
@@ -295,11 +295,8 @@ namespace RG
         template <typename Value>
         Value& GetOrCreateBlackboardValue();
 
-        void SetShader(std::string_view path) const;
-        void SetShader(std::string_view path, ShaderOverridesView&& overrides) const;
-        void SetShader(const Shader* shader) const;
-        void SetShader(const Shader* shader, ShaderOverridesView&& overrides) const;
-        void CopyShader(const Shader* shader) const;
+        void SetShader(StringId name) const;
+        void SetShader(StringId name, ShaderOverridesView&& overrides) const;
         const Shader& GetShader() const;
         
         std::string MermaidDump() const;
@@ -371,8 +368,10 @@ namespace RG
         DeletionQueue* m_FrameDeletionQueue{nullptr};
         DeletionQueue m_ResolutionDeletionQueue{};
         u32 m_ResolutionChangedFrames{0};
-         
-        std::unique_ptr<DescriptorArenaAllocators> m_ArenaAllocators;
+
+        std::array<DescriptorArenaAllocators, BUFFERED_FRAMES> m_ArenaAllocators;
+        DescriptorArenaAllocators* m_FrameAllocators{&m_ArenaAllocators[0]};
+        ShaderCache* m_ShaderCache{nullptr};
         Blackboard m_Blackboard;
     };
 

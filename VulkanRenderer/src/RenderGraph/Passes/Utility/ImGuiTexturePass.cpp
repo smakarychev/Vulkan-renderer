@@ -137,7 +137,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Texture3dToSlice.Setup")
 
-                graph.SetShader("texture3d-to-slice.shader");
+                graph.SetShader("texture3d-to-slice"_hsv);
 
                 auto& texture3dDescription = Resources(graph).GetTextureDescription(textureIn);
                 passData.Slice = graph.CreateResource("Slice"_hsv,
@@ -162,7 +162,7 @@ namespace
                 bindGroup.SetTexture({.Image = resources.GetTexture(passData.Texture3d)}, ImageLayout::Readonly);
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
                 cmd.PushConstants({
                 	.PipelineLayout = shader.GetLayout(), 
                 	.Data = {sliceNormalized}});

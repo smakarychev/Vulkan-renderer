@@ -2,8 +2,8 @@
 #include "types.h"
 #include "Rendering/Image/ImageUtility.h"
 #include "Rendering/Shader/Shader.h"
+#include "Rendering/Shader/ShaderCache.h"
 
-class Shader;
 /* This class manages a descriptor set for bindless textures.
  * The max number of textures is fixed on creation,
  * if overflow happens, the oldest textures will be swapped with new ones
@@ -19,7 +19,7 @@ public:
     BindlessTextureDescriptorsRingBuffer& operator=(BindlessTextureDescriptorsRingBuffer&&) = delete;
     ~BindlessTextureDescriptorsRingBuffer() = default;
 
-    const Shader& GetMaterialsShader() const { return *m_MaterialsShader; }
+    const Shader& GetMaterialsShader() const { return m_MaterialsShader; }
 
     u32 Size() const;
     u32 FreeSize() const;
@@ -33,7 +33,7 @@ private:
     u32 m_Head{0};
     u32 m_Tail{0};
     u32 m_MaxBindlessCount{0};
-    const Shader* m_MaterialsShader;
+    Shader m_MaterialsShader;
 
     std::array<u32, (u32)Images::DefaultKind::MaxVal> m_DefaultTextures;
     std::vector<Texture> m_Textures;

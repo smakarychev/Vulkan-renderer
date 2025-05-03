@@ -21,7 +21,7 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(StringId name, RG::Graph& ren
     {
         CPU_PROFILE_FRAME("Atmosphere.Raymarch.Setup")
 
-        graph.SetShader("atmosphere-raymarch.shader");
+        graph.SetShader("atmosphere-raymarch"_hsv);
 
         passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
             light.GetBuffers().DirectionalLights);
@@ -83,7 +83,7 @@ RG::Pass& Passes::Atmosphere::Raymarch::addToGraph(StringId name, RG::Graph& ren
             .UseSunLuminance = useSunLuminance};
         
         auto& cmd = frameContext.CommandList;
-        bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+        bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
         cmd.PushConstants({
             .PipelineLayout = shader.GetLayout(), 
             .Data = {pushConstant}});

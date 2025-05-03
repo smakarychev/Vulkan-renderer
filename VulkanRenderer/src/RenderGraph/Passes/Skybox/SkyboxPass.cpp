@@ -32,7 +32,7 @@ RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, cons
         {
             CPU_PROFILE_FRAME("Skybox.Setup")
 
-            graph.SetShader("skybox.shader");
+            graph.SetShader("skybox"_hsv);
             
             passData.Color = RgUtils::ensureResource(info.Color, graph, "Color"_hsv,
                 GraphTextureDescription{
@@ -84,7 +84,7 @@ RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, cons
             bindGroup.SetShading({.Buffer = resources.GetBuffer(passData.ShadingSettings)});
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {passData.LodBias}});

@@ -22,7 +22,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph
         {
             CPU_PROFILE_FRAME("CSM.Visualize.Setup")
 
-            graph.SetShader("csm-visualize.shader");
+            graph.SetShader("csm-visualize"_hsv);
             
             const TextureDescription& csmDescription = Resources(graph).GetTextureDescription(csmTexture);
             
@@ -62,7 +62,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph
             ImGui::End();
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {cascadeIndex.Index}});

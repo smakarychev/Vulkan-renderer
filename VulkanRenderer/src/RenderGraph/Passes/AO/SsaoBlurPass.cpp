@@ -15,7 +15,7 @@ RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, co
         {
             CPU_PROFILE_FRAME("SSAO.Blur.Setup")
 
-            graph.SetShader("ssao-blur.shader",
+            graph.SetShader("ssao-blur"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"IS_VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}});
             
@@ -45,7 +45,7 @@ RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, co
             bindGroup.SetSsaoBlurred({.Image = ssaoOut}, ImageLayout::General);
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});

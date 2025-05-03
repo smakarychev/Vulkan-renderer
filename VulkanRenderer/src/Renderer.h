@@ -13,6 +13,7 @@
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
+#include "Rendering/Shader/ShaderCache.h"
 #include "Scene/Scene.h"
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
@@ -20,7 +21,6 @@
 
 class SlimeMoldPass;
 class SlimeMoldContext;
-;
 class Camera;
 class CameraController;
 
@@ -101,6 +101,9 @@ private:
 
     std::unique_ptr<BindlessTextureDescriptorsRingBuffer> m_BindlessTextureDescriptorsRingBuffer;
 
+    DescriptorArenaAllocator m_PersistentMaterialAllocator;
+
+    ShaderCache m_ShaderCache;
     std::unique_ptr<RG::Graph> m_Graph;
     RG::Resource m_Ssao{};
     TileLightsInfo m_TileLightsInfo{};

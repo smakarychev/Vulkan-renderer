@@ -28,7 +28,7 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
         {
             CPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw.Setup")
 
-            graph.SetShader("scene-fill-indirect-draws.shader");
+            graph.SetShader("scene-fill-indirect-draws"_hsv);
 
             passData.BucketCount = info.BucketCount;
             passData.CommandCount = info.Geometry->CommandCount;
@@ -72,7 +72,7 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
             }
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             /* todo: this can use indirect dispatch */
             cmd.Dispatch({
                .Invocations = {passData.CommandCount, 1, 1},

@@ -16,7 +16,7 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(StringId name, R
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth.Setup")
 
-            graph.SetShader("light-clusters-depth-layers-visualize.shader");
+            graph.SetShader("light-clusters-depth-layers-visualize"_hsv);
             
             auto& depthDescription = Resources(graph).GetTextureDescription(depth);
             passData.ColorOut = graph.CreateResource("Color"_hsv,
@@ -51,7 +51,7 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(StringId name, R
                 .Far = frameContext.PrimaryCamera->GetFar()};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});

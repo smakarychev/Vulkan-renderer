@@ -21,7 +21,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(StringId name, RG::Gra
         {
             CPU_PROFILE_FRAME("Atmosphere.Multiscattering.Setup")
 
-            graph.SetShader("atmosphere-multiscattering-lut.shader");
+            graph.SetShader("atmosphere-multiscattering-lut"_hsv);
 
             passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
@@ -49,7 +49,7 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(StringId name, RG::Gra
             bindGroup.SetMultiscatteringLut({.Image = lutTexture}, ImageLayout::General);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 64},
 				.GroupSize = {1, 1, 64}});

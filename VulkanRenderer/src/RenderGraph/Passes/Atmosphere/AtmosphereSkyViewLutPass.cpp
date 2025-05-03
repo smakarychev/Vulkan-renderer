@@ -18,7 +18,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& rend
         {
             CPU_PROFILE_FRAME("Atmosphere.SkyView.Setup")
 
-            graph.SetShader("atmosphere-sky-view-lut.shader");
+            graph.SetShader("atmosphere-sky-view-lut"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
             
@@ -57,7 +57,7 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& rend
             bindGroup.SetSkyViewLut({.Image = lutTexture}, ImageLayout::General);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});

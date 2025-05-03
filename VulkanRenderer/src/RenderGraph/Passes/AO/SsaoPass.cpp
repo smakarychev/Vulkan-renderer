@@ -97,7 +97,7 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const 
         {
             CPU_PROFILE_FRAME("SSAO.Setup")
             
-            graph.SetShader("ssao.shader",
+            graph.SetShader("ssao"_hsv,
                 ShaderSpecializations{
                     ShaderSpecialization{"MAX_SAMPLES"_hsv, MAX_SAMPLES_COUNT}});
             
@@ -183,7 +183,7 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const 
                 .NoiseSizeInverse = 1.0f / glm::vec2((f32)noiseDescription.Width, (f32)noiseDescription.Height)};
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(),
                 .Data = {pushConstants}});

@@ -8,6 +8,8 @@
 #include <utility>
 #include <vector>
 
+#include "Rendering/Shader/ShaderCache.h"
+
 struct FrameContext;
 
 namespace RG
@@ -90,6 +92,8 @@ namespace RG
         bool m_IsRasterizationPass{false};
         /* passes that write to external resources cannot be culled */
         bool m_CanBeCulled{true};
+        bool m_IsDisabled{false};
+        Shader m_Shader{};
 
         /* mainly for mermaid dump */
         struct BarrierDependencyInfo

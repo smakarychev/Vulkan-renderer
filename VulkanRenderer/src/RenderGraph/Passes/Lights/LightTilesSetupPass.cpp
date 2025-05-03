@@ -16,7 +16,7 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(StringId name, RG::Graph& renderGr
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Setup.Setup")
 
-            graph.SetShader("light-tiles-setup.shader");
+            graph.SetShader("light-tiles-setup"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
 
@@ -52,7 +52,7 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(StringId name, RG::Graph& renderGr
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});

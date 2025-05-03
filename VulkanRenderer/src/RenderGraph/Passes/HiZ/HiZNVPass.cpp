@@ -47,7 +47,7 @@ RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const
             {
                 CPU_PROFILE_FRAME("HiZNV.Setup")
 
-                graph.SetShader("hiz-nv.shader");
+                graph.SetShader("hiz-nv"_hsv);
 
                 passData.Depth = graph.Read(blitOutput.Depth, Compute | Sampled);
                 passData.HiZ = graph.Write(blitOutput.HiZ, Compute | Storage);
@@ -74,7 +74,7 @@ RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
                 cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});

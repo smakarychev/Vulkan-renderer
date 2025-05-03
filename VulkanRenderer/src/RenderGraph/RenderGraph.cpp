@@ -14,21 +14,10 @@
 
 namespace RG
 {
-    Graph::Graph()
+    Graph::Graph(const std::array<DescriptorArenaAllocators, BUFFERED_FRAMES>& descriptorAllocators,
+            ShaderCache* shaderCache)
+        : m_ArenaAllocators(descriptorAllocators), m_ShaderCache(shaderCache)
     {
-        DescriptorArenaAllocator samplerAllocator = Device::CreateDescriptorArenaAllocator({
-            .Kind = DescriptorsKind::Sampler,
-            .Residence = DescriptorAllocatorResidence::CPU,
-            .UsedTypes = {DescriptorType::Sampler},
-            .DescriptorCount = 256 * 4});
-        
-        DescriptorArenaAllocator resourceAllocator = Device::CreateDescriptorArenaAllocator({
-            .Kind = DescriptorsKind::Resource,
-            .Residence = DescriptorAllocatorResidence::CPU,
-            .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
-            .DescriptorCount = 8192 * 4});
-        
-        m_ArenaAllocators = std::make_unique<DescriptorArenaAllocators>(samplerAllocator, resourceAllocator);
     }
 
     Graph::~Graph()
@@ -355,8 +344,6 @@ namespace RG
 
     void Graph::Execute(FrameContext& frameContext)
     {
-        OnCmdBegin(frameContext);
-
         Resources resources = {*this};
         for (auto& pass : m_RenderPasses)
         {
@@ -435,14 +422,16 @@ namespace RG
                 if (depthBias.has_value())
                     frameContext.CommandList.SetDepthBias({
                         .Constant = depthBias->Constant, .Slope = depthBias->Slope});
-                
-                pass->Execute(frameContext, resources);
+
+                if (!pass->m_IsDisabled)
+                    pass->Execute(frameContext, resources);
 
                 frameContext.CommandList.EndRendering({});
             }
             else
             {
-                pass->Execute(frameContext, resources);
+                if (!pass->m_IsDisabled)
+                    pass->Execute(frameContext, resources);
             }
             
             for (auto& splitSignal : pass->m_SplitBarriersToSignal)
@@ -474,16 +463,15 @@ namespace RG
                 *m_FrameDeletionQueue)});
     }
 
-    void Graph::OnCmdBegin(FrameContext& frameContext)
+    void Graph::OnFrameBegin(FrameContext& frameContext)
     {
-        frameContext.CommandList.BindDescriptorArenaAllocators({
-            .Allocators = &GetArenaAllocators(),
-            .BufferIndex = frameContext.FrameNumber});
-    }
-
-    void Graph::OnCmdEnd(FrameContext& frameContext)
-    {
-        SubmitPassUploads(frameContext);
+        m_FrameAllocators = &m_ArenaAllocators[frameContext.FrameNumber];
+        frameContext.CommandList.BindDescriptorArenaAllocators({.Allocators = m_FrameAllocators});
+        if (frameContext.FrameNumberTick >= BUFFERED_FRAMES)
+        {
+            m_FrameAllocators->Reset(DescriptorsKind::Sampler);
+            m_FrameAllocators->Reset(DescriptorsKind::Resource);
+        }
     }
 
     void Graph::SubmitPassUploads(FrameContext& frameContext)
@@ -512,34 +500,27 @@ namespace RG
                 frameContext.DeletionQueue)});
     }
 
-    void Graph::SetShader(std::string_view path) const
+    void Graph::SetShader(StringId name) const
     {
-        ShaderCache::Register(CurrentPass()->GetName(), path, {});
+        SetShader(name, {});
     }
 
-    void Graph::SetShader(std::string_view path, ShaderOverridesView&& overrides) const
+    void Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
     {
-        ShaderCache::Register(CurrentPass()->GetName(), path, std::move(overrides));
-    }
+        const auto res = m_ShaderCache->Allocate(name, std::move(overrides), GetFrameAllocators());
+        if (!res.has_value())
+        {
+            LOG("Error while setting shader {}. Pass will be disabled", name);
+            CurrentPass()->m_IsDisabled = true;
+            return;
+        }
 
-    void Graph::SetShader(const Shader* shader) const
-    {
-        ShaderCache::Register(CurrentPass()->GetName(), shader, {});
-    }
-
-    void Graph::SetShader(const Shader* shader, ShaderOverridesView&& overrides) const
-    {
-        ShaderCache::Register(CurrentPass()->GetName(), shader, std::move(overrides));
-    }
-
-    void Graph::CopyShader(const Shader* shader) const
-    {
-        ShaderCache::Register(CurrentPass()->GetName(), shader, shader->CopyOverrides());
+        CurrentPass()->m_Shader = res.value();
     }
 
     const Shader& Graph::GetShader() const
     {
-        return ShaderCache::Get(CurrentPass()->GetName());
+        return CurrentPass()->m_Shader;
     }
 
     void Graph::PreprocessResources()

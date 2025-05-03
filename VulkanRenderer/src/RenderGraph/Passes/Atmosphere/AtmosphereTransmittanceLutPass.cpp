@@ -21,7 +21,7 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(StringId name, RG::Graph
         {
             CPU_PROFILE_FRAME("Atmosphere.Transmittance.Setup")
 
-            graph.SetShader("atmosphere-transmittance-lut.shader");
+            graph.SetShader("atmosphere-transmittance-lut"_hsv);
 
             passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
                 .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.Transmittance.Width"_hsv),
@@ -46,7 +46,7 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(StringId name, RG::Graph
             bindGroup.SetLut({.Image = lutTexture}, ImageLayout::General);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});

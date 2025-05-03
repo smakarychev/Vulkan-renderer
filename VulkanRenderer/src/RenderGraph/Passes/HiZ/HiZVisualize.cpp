@@ -20,7 +20,7 @@ RG::Pass& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph
         {
             CPU_PROFILE_FRAME("HiZ.Visualize.Setup")
 
-            graph.SetShader("hiz-visualize.shader");
+            graph.SetShader("hiz-visualize"_hsv);
             
             passData.HiZ = graph.Read(hiz,
                 ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);
@@ -55,7 +55,7 @@ RG::Pass& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph
             bindGroup.SetHiz({.Image = hizTexture}, ImageLayout::Readonly);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});

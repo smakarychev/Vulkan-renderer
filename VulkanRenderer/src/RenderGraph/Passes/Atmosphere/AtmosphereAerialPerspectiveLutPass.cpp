@@ -20,7 +20,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::G
         {
             CPU_PROFILE_FRAME("Atmosphere.AerialPerspective.Setup")
 
-            graph.SetShader("atmosphere-aerial-perspective-lut.shader");
+            graph.SetShader("atmosphere-aerial-perspective-lut"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
 
@@ -65,7 +65,7 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::G
             RgUtils::updateCSMBindings(bindGroup, resources, passData.CSMData);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.Dispatch({
 	            .Invocations = {lutDescription.Width, lutDescription.Height, lutDescription.GetDepth()},
 	            .GroupSize = {16, 16, 1}});

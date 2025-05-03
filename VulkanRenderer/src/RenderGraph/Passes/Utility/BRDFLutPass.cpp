@@ -14,7 +14,7 @@ RG::Pass& Passes::BRDFLut::addToGraph(StringId name, RG::Graph& renderGraph, Tex
         {
             CPU_PROFILE_FRAME("BRDFLut.Setup")
 
-            graph.SetShader("brdf-lut.shader");
+            graph.SetShader("brdf-lut"_hsv);
 
             passData.Lut = graph.AddExternal("Lut"_hsv, lut);
 
@@ -42,7 +42,7 @@ RG::Pass& Passes::BRDFLut::addToGraph(StringId name, RG::Graph& renderGraph, Tex
                 .BRDFResolutionInverse = 1.0f / glm::vec2((f32)BRDF_RESOLUTION)};
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstants}});

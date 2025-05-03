@@ -128,9 +128,14 @@ class DescriptorArenaAllocators
 {
     FRIEND_INTERNAL
 public:
-    DescriptorArenaAllocators(DescriptorArenaAllocator samplerAllocator, DescriptorArenaAllocator resourceAllocator);
+    DescriptorArenaAllocators() = default;
+    DescriptorArenaAllocators(
+        DescriptorArenaAllocator samplerAllocator,
+        DescriptorArenaAllocator resourceAllocator,
+        DescriptorArenaAllocator materialAllocator);
     
     DescriptorArenaAllocator Get(DescriptorsKind kind) const;
+    void Reset(DescriptorsKind kind) const;
 private:
     std::array<DescriptorArenaAllocator, (u32)DescriptorsKind::MaxVal> m_Allocators;
 };

@@ -26,7 +26,7 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph
         {
             CPU_PROFILE_FRAME("Scene.PrepareVisibleMeshletInfo.Setup")
 
-            graph.SetShader("scene-prepare-visible-meshlet-info.shader");
+            graph.SetShader("scene-prepare-visible-meshlet-info"_hsv);
 
             passData.MeshletCount = info.RenderObjectSet->MeshletCount();
 
@@ -73,7 +73,7 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph
             bindGroup.SetMeshletInfoCount({.Buffer = resources.GetBuffer(passData.MeshletInfoCount)});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {passData.MeshletCount}});

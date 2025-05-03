@@ -7,9 +7,6 @@
 #include "Synchronization.h"
 #include "types.h"
 
-class ShaderPipelineTemplate;
-struct GLFWwindow;
-
 struct SwapchainFrameSync
 {
     Fence RenderFence;

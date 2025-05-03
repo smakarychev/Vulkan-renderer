@@ -3,7 +3,7 @@
 #include "Shader.h"
 
 PipelineSpecializationsView ShaderSpecializationsView::ToPipelineSpecializationsView(
-    ShaderPipelineTemplate& shaderTemplate)
+    const ShaderPipelineTemplate& shaderTemplate)
 {
     for (u32 i = 0; i < Descriptions.size(); i++)
     {

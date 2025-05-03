@@ -19,7 +19,7 @@ RG::Pass& Passes::SceneVBuffer::addToGraph(StringId name, RG::Graph& renderGraph
         {
             CPU_PROFILE_FRAME("Scene.VBufferUgb.Setup")
 
-            graph.SetShader("scene-vbuffer-ugb.shader", *info.DrawInfo.BucketOverrides);
+            graph.SetShader("scene-vbuffer-ugb"_hsv, *info.DrawInfo.BucketOverrides);
 
             passData.Resources.CreateFrom(info.DrawInfo, graph);
 
@@ -49,7 +49,7 @@ RG::Pass& Passes::SceneVBuffer::addToGraph(StringId name, RG::Graph& renderGraph
             bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({

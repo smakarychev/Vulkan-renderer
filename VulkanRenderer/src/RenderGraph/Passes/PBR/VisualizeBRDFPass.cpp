@@ -16,7 +16,7 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(StringId name, RG::Graph& renderGrap
         {
             CPU_PROFILE_FRAME("BRDF.Visualize.Setup")
 
-            graph.SetShader("brdf-visualize.shader");
+            graph.SetShader("brdf-visualize"_hsv);
             
             passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "ColorOut"_hsv,
                 GraphTextureDescription{
@@ -49,7 +49,7 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(StringId name, RG::Graph& renderGrap
             bindGroup.SetBrdf({.Image = brdf}, ImageLayout::Readonly);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
         });
 

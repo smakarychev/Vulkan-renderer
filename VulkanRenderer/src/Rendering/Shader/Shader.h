@@ -27,9 +27,7 @@ static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expecte
 struct ShaderPipelineTemplateCreateInfo
 {
     ShaderReflection* ShaderReflection{nullptr};
-    DescriptorAllocator Allocator{};
-    DescriptorArenaAllocator ResourceAllocator{};
-    DescriptorArenaAllocator SamplerAllocator{};
+    bool UseDescriptorBuffer{true};
 };
 
 class ShaderPipelineTemplate
@@ -47,56 +45,30 @@ public:
     std::pair<u32, DescriptorBindingInfo> GetSetAndBinding(std::string_view name) const;
     std::array<bool, MAX_DESCRIPTOR_SETS> GetSetPresence() const;
 
-    DescriptorArenaAllocator GetAllocator(DescriptorsKind kind) const;
-
     bool IsComputeTemplate() const;
 
     VertexInputDescription CreateCompatibleVertexDescription(const VertexInputDescription& compatibleTo) const;
 
     const ShaderReflection& GetReflection() const { return *m_ShaderReflection; }
 private:
-    struct Allocator
-    {
-        DescriptorAllocator DescriptorAllocator{};
-        DescriptorArenaAllocator ResourceAllocator{};    
-        DescriptorArenaAllocator SamplerAllocator{};       
-    };
-    Allocator m_Allocator{};
     bool m_UseDescriptorBuffer{false};
 
-    PipelineLayout m_PipelineLayout;
     ShaderReflection* m_ShaderReflection{nullptr};
+    PipelineLayout m_PipelineLayout;
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorsLayouts;
-};
-
-struct ShaderDescriptorSetCreateInfo
-{
-    ShaderPipelineTemplate* ShaderPipelineTemplate;
-    std::array<std::optional<DescriptorSetCreateInfo>, MAX_DESCRIPTOR_SETS> DescriptorInfos;
 };
 
 class ShaderTemplateLibrary
 {
 public:
     static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-        StringId name, DescriptorAllocator allocator);
-    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-        StringId name, DescriptorArenaAllocators& allocators);
-    static ShaderPipelineTemplate* GetShaderTemplate(StringId name, DescriptorArenaAllocators& allocators);
-    
-    static ShaderPipelineTemplate* CreateMaterialsTemplate(StringId name, DescriptorArenaAllocators& allocators);
-
-    static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
-        StringId name, DescriptorArenaAllocators& allocators);
+        StringId name);
     static ShaderPipelineTemplate* GetShaderTemplate(StringId name);
-    static StringId GenerateTemplateName(StringId name, DescriptorAllocator allocator);
-    static StringId GenerateTemplateName(StringId name, DescriptorArenaAllocators& allocators);
+    static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
+        StringId name);
     static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, StringId name);
 private:
-    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths,
-        DescriptorAllocator allocator);
-    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths,
-        DescriptorArenaAllocators& allocators);
+    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths);
 private:
     static std::unordered_map<StringId, ShaderPipelineTemplate> s_Templates;
 };

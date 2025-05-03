@@ -20,7 +20,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Lights.Clusters.Identify.Setup")
 
-                graph.SetShader("light-clusters-compact.shader",
+                graph.SetShader("light-clusters-compact"_hsv,
                     ShaderSpecializations{
                         ShaderSpecialization{"IDENTIFY"_hsv, true}});
 
@@ -51,7 +51,7 @@ namespace
                     .Far = frameContext.PrimaryCamera->GetFar()};
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
                 cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});
@@ -73,7 +73,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Lights.Clusters.Compact.Setup")
 
-                graph.SetShader("light-clusters-compact.shader",
+                graph.SetShader("light-clusters-compact"_hsv,
                     ShaderSpecializations{
                         ShaderSpecialization{"COMPACT"_hsv, true}});
 
@@ -106,7 +106,7 @@ namespace
                 bindGroup.SetCount({.Buffer = resources.GetBuffer(passData.ActiveClustersCount)});
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
                 cmd.Dispatch({
                     .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
                     .GroupSize = {8, 8, 1}});
@@ -124,7 +124,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("Lights.Clusters.CreateDispatch.Setup")
 
-                graph.SetShader("light-clusters-compact.shader",
+                graph.SetShader("light-clusters-compact"_hsv,
                     ShaderSpecializations{
                         ShaderSpecialization{"CREATE_DISPATCH"_hsv, true}});
 
@@ -148,7 +148,7 @@ namespace
                 bindGroup.SetIndirectDispatch({.Buffer = resources.GetBuffer(passData.DispatchIndirect)});
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetArenaAllocators());
+                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
                 cmd.Dispatch({
                     .Invocations = {1, 1, 1}});
             });

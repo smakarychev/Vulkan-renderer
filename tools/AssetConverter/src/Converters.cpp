@@ -1006,12 +1006,11 @@ namespace
     
     void processMesh(SceneProcessContext& ctx, tinygltf::Model& gltf, tinygltf::Mesh& mesh)
     {
-        tinygltf::Mesh backedMesh = mesh;
-        backedMesh.primitives = {};
-        
-        ASSERT(mesh.primitives.size() < 2)
         for (auto& primitive : mesh.primitives)
         {
+            tinygltf::Mesh backedMesh = mesh;
+            backedMesh.primitives = {};
+            
             ASSERT(primitive.mode == TINYGLTF_MODE_TRIANGLES)
             
             tinygltf::Accessor& indexAccessor = gltf.accessors[primitive.indices];
@@ -1067,7 +1066,7 @@ namespace
             if (!hasTangents && hasUVs)
                 generateTriangleTangents(tangents, positions, normals, uvs, indices);
             if (!hasTangents)
-                tangents.resize(tangents.size(), glm::vec4{0.0f, 0.0f, 1.0f, 1.0f});
+                tangents.resize(positions.size(), glm::vec4{0.0f, 0.0f, 1.0f, 1.0f});
             if (!hasUVs)
                 uvs.resize(positions.size(), glm::vec2{0.0});
 
@@ -1106,9 +1105,8 @@ namespace
             backedPrimitive.indices = (i32)currentAccessorIndex + (u32)assetLib::SceneInfo::BufferViewType::Index;
             
             backedMesh.primitives.push_back(backedPrimitive);
+            ctx.BakedScene.meshes.push_back(backedMesh);
         }
-
-        ctx.BakedScene.meshes.push_back(backedMesh);
     }
 }
 

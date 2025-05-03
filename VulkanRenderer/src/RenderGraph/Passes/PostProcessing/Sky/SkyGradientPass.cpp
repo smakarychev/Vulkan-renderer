@@ -34,7 +34,7 @@ RG::Pass& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph,
         {
             CPU_PROFILE_FRAME("Sky.Gradient.Setup")
 
-            graph.SetShader("sky-gradient.shader");
+            graph.SetShader("sky-gradient"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
             
@@ -80,7 +80,7 @@ RG::Pass& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph,
             bindGroup.SetOutImage({.Image = colorOut}, ImageLayout::General);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {imageSize}});

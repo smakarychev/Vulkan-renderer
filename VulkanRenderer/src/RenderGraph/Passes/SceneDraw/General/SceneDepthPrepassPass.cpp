@@ -20,7 +20,7 @@ RG::Pass& Passes::SceneDepthPrepass::addToGraph(StringId name, RG::Graph& render
         {
             CPU_PROFILE_FRAME("Scene.SceneDepthPrepass.Setup")
 
-            graph.SetShader("scene-depth-prepass-ugb.shader", *info.DrawInfo.BucketOverrides);
+            graph.SetShader("scene-depth-prepass-ugb"_hsv, *info.DrawInfo.BucketOverrides);
 
             passData.Resources.CreateFrom(info.DrawInfo, graph);
 
@@ -50,7 +50,7 @@ RG::Pass& Passes::SceneDepthPrepass::addToGraph(StringId name, RG::Graph& render
             bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({

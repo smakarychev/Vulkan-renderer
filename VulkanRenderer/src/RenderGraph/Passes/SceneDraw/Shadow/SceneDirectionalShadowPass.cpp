@@ -23,7 +23,7 @@ RG::Pass& Passes::SceneDirectionalShadow::addToGraph(StringId name, RG::Graph& r
         {
             CPU_PROFILE_FRAME("SceneDirectionalShadow.Setup")
 
-            graph.SetShader("scene-shadow-ugb.shader", *info.DrawInfo.BucketOverrides);
+            graph.SetShader("scene-shadow-ugb"_hsv, *info.DrawInfo.BucketOverrides);
 
             passData.Resources.CreateFrom(info.DrawInfo, graph);
 
@@ -54,7 +54,7 @@ RG::Pass& Passes::SceneDirectionalShadow::addToGraph(StringId name, RG::Graph& r
             bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetArenaAllocators());
+            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({
