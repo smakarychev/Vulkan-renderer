@@ -61,7 +61,8 @@ namespace
     }
 }
 
-RG::Pass& Passes::SceneCsm::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -118,10 +119,8 @@ RG::Pass& Passes::SceneCsm::addToGraph(StringId name, RG::Graph& renderGraph, co
                             shadowGraph, {
                                 .DrawInfo = shadowInfo,
                                 .Geometry = geometry});
-                        auto& shadowOutput =
-                            shadowGraph.GetBlackboard().Get<SceneDirectionalShadow::PassData>(pass);
 
-                        return shadowOutput.Attachments;
+                        return pass.Resources.Attachments;
                     };
             };
 
@@ -165,12 +164,10 @@ RG::Pass& Passes::SceneCsm::addToGraph(StringId name, RG::Graph& renderGraph, co
             
             passData.Near = cameras.ShadowCameras.front().GetFrustumPlanes().Near;
             passData.Far = cameras.ShadowCameras.back().GetFrustumPlanes().Far;
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-        });
+        }).Data;
 }
 
 ScenePassCreateInfo Passes::SceneCsm::getScenePassCreateInfo(StringId name)

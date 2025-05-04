@@ -10,8 +10,8 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource atmosphereSettings)
+Passes::Atmosphere::Transmittance::PassData& Passes::Atmosphere::Transmittance::addToGraph(StringId name,
+    RG::Graph& renderGraph, RG::Resource atmosphereSettings)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -30,8 +30,6 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(StringId name, RG::Graph
                 
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -50,5 +48,5 @@ RG::Pass& Passes::Atmosphere::Transmittance::addToGraph(StringId name, RG::Graph
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }

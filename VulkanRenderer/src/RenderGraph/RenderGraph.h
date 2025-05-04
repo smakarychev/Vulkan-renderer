@@ -231,9 +231,15 @@ namespace RG
 
         Resource SetBackbuffer(Texture texture);
         Resource GetBackbuffer() const;
-        
+
+        template <typename PassData>
+        struct PassWithData
+        {
+            Pass& Pass;
+            PassData& Data;
+        };
         template <typename PassData, typename SetupFn, typename CallbackFn>
-        Pass& AddRenderPass(StringId name, SetupFn&& setup, CallbackFn&& callback);
+        PassWithData<PassData> AddRenderPass(StringId name, SetupFn&& setup, CallbackFn&& callback);
 
         Resource AddExternal(StringId name, Buffer buffer);
         Resource AddExternal(StringId name, Texture texture);
@@ -397,7 +403,7 @@ namespace RG
     };
 
     template <typename PassData, typename SetupFn, typename CallbackFn>
-    Pass& Graph::AddRenderPass(StringId name, SetupFn&& setup, CallbackFn&& callback)
+    Graph::PassWithData<PassData> Graph::AddRenderPass(StringId name, SetupFn&& setup, CallbackFn&& callback)
     {
         ASSERT(!m_PassNameSet.contains(name), "Pass with such name already exists")
         m_PassNameSet.emplace(name);
@@ -414,7 +420,8 @@ namespace RG
         m_RenderPasses.push_back(std::move(pass));
         m_CurrentPassesStack.pop_back();
         
-        return *m_RenderPasses.back().get();
+        return PassWithData<PassData>{*m_RenderPasses.back().get(),
+            *(PassData*)m_RenderPasses.back()->m_ExecutionCallback->GetPassData()};
     }
 
     template <typename T>

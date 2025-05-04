@@ -13,5 +13,5 @@ namespace Passes::Crt
         RG::Resource Settings{};
     };
     
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn, RG::Resource colorTarget);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn, RG::Resource colorTarget);
 }

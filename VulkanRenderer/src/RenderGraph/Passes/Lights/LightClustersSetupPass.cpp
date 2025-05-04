@@ -6,7 +6,7 @@
 #include "Core/Camera.h"
 #include "RenderGraph/Passes/Generated/LightClustersSetupBindGroup.generated.h"
 
-RG::Pass& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& renderGraph)
+Passes::LightClustersSetup::PassData& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& renderGraph)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -23,8 +23,6 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& rende
             passData.ClusterVisibility = graph.CreateResource("Cluster.Visibility"_hsv,
                 GraphBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u8)});
             passData.Clusters = graph.Write(passData.Clusters, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -58,5 +56,5 @@ RG::Pass& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& rende
             cmd.Dispatch({
                 .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z},
                 .GroupSize = {1, 1, 1}});
-        });
+        }).Data;
 }

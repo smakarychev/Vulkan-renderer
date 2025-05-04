@@ -10,14 +10,14 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
+    StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
-        Resource Color{};
         Resource Tiles{};
         Resource Camera{};
         Resource ZBins{};
@@ -48,11 +48,6 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& rend
             passData.Tiles = graph.Read(info.Tiles, Pixel | Storage);
 
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
-
-            PassData passDataPublic = {};
-            passDataPublic.Color = passData.Color;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -75,5 +70,5 @@ RG::Pass& Passes::LightTilesVisualize::addToGraph(StringId name, RG::Graph& rend
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {useZBins}});
             cmd.Draw({.VertexCount = 3});
-        });
+        }).Data;
 }

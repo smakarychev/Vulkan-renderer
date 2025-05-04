@@ -5,17 +5,17 @@
 #include "RenderGraph/Passes/Generated/SsaoVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::SsaoVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao)
+Passes::SsaoVisualize::PassData& Passes::SsaoVisualize::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource ssao)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
         Resource SSAO{};
-        Resource Color{};
     };
-    
+
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
@@ -32,11 +32,6 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(StringId name, RG::Graph& renderGrap
 
             passData.SSAO = graph.Read(ssao, Pixel | Sampled);
             passData.Color = graph.RenderTarget(passData.Color, AttachmentLoad::Load, AttachmentStore::Store);
-
-            PassData passDataPublic = {};
-            passDataPublic.Color = passData.Color;
-
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -52,5 +47,5 @@ RG::Pass& Passes::SsaoVisualize::addToGraph(StringId name, RG::Graph& renderGrap
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        });
+        }).Data;
 }

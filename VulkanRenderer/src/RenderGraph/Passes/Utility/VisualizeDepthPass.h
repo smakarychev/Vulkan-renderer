@@ -10,6 +10,6 @@ namespace Passes::VisualizeDepth
         RG::Resource ColorOut{};
     };
 
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthIn, RG::Resource colorIn,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthIn, RG::Resource colorIn,
         f32 near, f32 far, bool isOrthographic);
 }

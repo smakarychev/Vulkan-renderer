@@ -7,6 +7,6 @@ namespace Passes::Mipmap
     {
         RG::Resource Texture{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture);
 }
 

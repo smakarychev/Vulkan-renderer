@@ -10,6 +10,6 @@ namespace Passes::VisualizeCSM
 
         RG::Resource ColorOut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph,
         RG::Resource csmTexture, RG::Resource csmInfo, RG::Resource colorIn);
 }

@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/LightTilesSetupBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightTilesSetup::addToGraph(StringId name, RG::Graph& renderGraph)
+Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId name, RG::Graph& renderGraph)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -25,8 +25,6 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(StringId name, RG::Graph& renderGr
             passData.Tiles = graph.CreateResource("Tiles"_hsv, GraphBufferDescription{
                 .SizeBytes = (u64)(bins.x * bins.y) * sizeof(LightTile)});
             passData.Tiles = graph.Write(passData.Tiles, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -61,5 +59,5 @@ RG::Pass& Passes::LightTilesSetup::addToGraph(StringId name, RG::Graph& renderGr
             cmd.Dispatch({
                 .Invocations = {bins.x, bins.y, 1},
                 .GroupSize = {1, 1, 1}});
-        });
+        }).Data;
 }

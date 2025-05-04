@@ -5,8 +5,8 @@
 #include "RenderGraph/Passes/HiZ/HiZCommon.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG::Graph& renderGraph,
-    const ExecutionInfo& info)
+Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name,
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -56,8 +56,6 @@ RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG:
                 resources.MeshletInfoCounts[i] = graph.Read(resources.MeshletInfoCounts[i], Compute | Storage);
                 resources.MeshletInfoCounts[i] = graph.Write(resources.MeshletInfoCounts[i], Compute | Storage);
             }
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -113,5 +111,5 @@ RG::Pass& Passes::SceneMultiviewMeshletVisibility::addToGraph(StringId name, RG:
             cmd.Dispatch({
                .Invocations = {passData.Resources->MeshletCount, 1, 1},
                .GroupSize = {64, 1, 1}});
-        });
+        }).Data;
 }

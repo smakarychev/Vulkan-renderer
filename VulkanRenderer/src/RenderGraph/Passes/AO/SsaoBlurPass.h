@@ -19,5 +19,5 @@ namespace Passes::SsaoBlur
         RG::Resource SsaoIn{};
         RG::Resource SsaoOut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

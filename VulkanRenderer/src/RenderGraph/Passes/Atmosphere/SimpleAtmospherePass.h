@@ -14,5 +14,5 @@ namespace Passes::AtmosphereSimple
         RG::Resource TransmittanceLut;
         RG::Resource ColorOut;
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource transmittanceLut);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource transmittanceLut);
 }

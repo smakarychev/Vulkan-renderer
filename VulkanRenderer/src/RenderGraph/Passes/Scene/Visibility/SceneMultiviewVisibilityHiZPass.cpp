@@ -4,7 +4,8 @@
 #include "RenderGraph/Passes/HiZ/HiZFullPass.h"
 #include "RenderGraph/Passes/HiZ/HiZNVPass.h"
 
-RG::Pass& Passes::SceneMultiviewVisibilityHiz::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityHiz::addToGraph(StringId name,
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -33,20 +34,18 @@ RG::Pass& Passes::SceneMultiviewVisibilityHiz::addToGraph(StringId name, RG::Gra
                     auto& hizPass = HiZFull::addToGraph(name.AddVersion(i), graph, {
                         .Depth = info.Depths[i],
                         .Subresource = info.Subresources[i]});
-                    auto& hizOutput = graph.GetBlackboard().Get<HiZFull::PassData>(hizPass);
-                    info.Resources->Hiz[i] = hizOutput.HiZMin;
+                    info.Resources->Hiz[i] = hizPass.HiZMin;
                 }
                 else
                 {
                     auto& hizPass = HiZNV::addToGraph(name.AddVersion(i), graph, {
                         .Depth = info.Depths[i],
                         .Subresource = info.Subresources[i]});
-                    auto& hizOutput = graph.GetBlackboard().Get<HiZNV::PassData>(hizPass);
-                    info.Resources->Hiz[i] = hizOutput.HiZ;
+                    info.Resources->Hiz[i] = hizPass.HiZ;
                 }
             }
         },
         [=](PassData&, FrameContext&, const Resources&)
         {
-        });
+        }).Data;
 }

@@ -8,8 +8,8 @@
 
 namespace
 {
-    RG::Pass& identifyActiveClusters(StringId name, RG::Graph& renderGraph, RG::Resource clusterVisibility,
-        RG::Resource depth)
+    Passes::LightClustersCompact::PassData& identifyActiveClusters(StringId name, RG::Graph& renderGraph,
+        RG::Resource clusterVisibility, RG::Resource depth)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -26,8 +26,6 @@ namespace
 
                 passData.ClusterVisibility = graph.Write(clusterVisibility, Compute | Storage);
                 passData.Depth = graph.Read(depth, Compute | Sampled);
-
-                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -58,11 +56,11 @@ namespace
                 cmd.Dispatch({
                     .Invocations = {depthDescription.Width, depthDescription.Height, 1},
                     .GroupSize = {8, 8, 1}});
-            });
+            }).Data;
     }
 
-    RG::Pass& compactActiveClusters(StringId name, RG::Graph& renderGraph, RG::Resource clusters,
-        RG::Resource clusterVisibility)
+    Passes::LightClustersCompact::PassData& compactActiveClusters(StringId name, RG::Graph& renderGraph,
+        RG::Resource clusters, RG::Resource clusterVisibility)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -89,8 +87,6 @@ namespace
                 passData.ActiveClustersCount = graph.Read(passData.ActiveClustersCount, Compute | Storage);
                 passData.ActiveClustersCount = graph.Write(passData.ActiveClustersCount, Compute | Storage);
                 graph.Upload(passData.ActiveClustersCount, 0);
-
-                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -110,10 +106,11 @@ namespace
                 cmd.Dispatch({
                     .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
                     .GroupSize = {8, 8, 1}});
-            });
+            }).Data;
     }
 
-    RG::Pass& createIndirectDispatch(StringId name, RG::Graph& renderGraph, RG::Resource clusterCount)
+    Passes::LightClustersCompact::PassData& createIndirectDispatch(StringId name, RG::Graph& renderGraph,
+        RG::Resource clusterCount)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -133,8 +130,6 @@ namespace
 
                 passData.ActiveClustersCount = graph.Read(clusterCount, Compute | Storage);
                 passData.DispatchIndirect = graph.Write(passData.DispatchIndirect, Compute | Storage);
-
-                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -151,11 +146,12 @@ namespace
                 bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
                 cmd.Dispatch({
                     .Invocations = {1, 1, 1}});
-            });
+            }).Data;
     }
 }
 
-RG::Pass& Passes::LightClustersCompact::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::LightClustersCompact::PassData& Passes::LightClustersCompact::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -165,20 +161,17 @@ RG::Pass& Passes::LightClustersCompact::addToGraph(StringId name, RG::Graph& ren
         {
             auto& identify = identifyActiveClusters(name.Concatenate(".Identify"), graph,
                 info.ClusterVisibility, info.Depth);
-            auto& identifyOutput = graph.GetBlackboard().Get<PassData>(identify);
             auto& compact = compactActiveClusters(name.Concatenate(".Compact"), graph, info.Clusters,
-                identifyOutput.ClusterVisibility);
-            auto& compactOutput = graph.GetBlackboard().Get<PassData>(compact);
-            auto& creatDispatch = createIndirectDispatch(name.Concatenate(".CreateDispatch"), graph,
-                compactOutput.ActiveClustersCount);
-            auto& createDispatchOutput = graph.GetBlackboard().Get<PassData>(creatDispatch);
-            compactOutput.Depth = info.Depth;
-            compactOutput.DispatchIndirect = createDispatchOutput.DispatchIndirect;
-            compactOutput.ActiveClustersCount = createDispatchOutput.ActiveClustersCount;
-            
-            graph.UpdateBlackboard(compactOutput);
+                identify.ClusterVisibility);
+            auto& createDispatch = createIndirectDispatch(name.Concatenate(".CreateDispatch"), graph,
+                compact.ActiveClustersCount);
+
+            passData = compact;
+            passData.Depth = info.Depth;
+            passData.DispatchIndirect = createDispatch.DispatchIndirect;
+            passData.ActiveClustersCount = createDispatch.ActiveClustersCount;
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-        });
+        }).Data;
 }

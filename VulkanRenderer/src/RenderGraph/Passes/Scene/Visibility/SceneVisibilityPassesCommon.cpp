@@ -4,8 +4,7 @@
 #include "Scene/SceneRenderObjectSet.h"
 
 SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-    RG::Graph& renderGraph,
-    const SceneMultiviewVisibility& sceneMultiviewVisibility)
+    RG::Graph& renderGraph, const SceneMultiviewVisibility& sceneMultiviewVisibility)
 {
     auto& set = sceneMultiviewVisibility.ObjectSet();
     

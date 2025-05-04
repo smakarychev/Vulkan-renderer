@@ -5,13 +5,13 @@
 #include "RenderGraph/Passes/Generated/DepthVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::VisualizeDepth::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthIn,
-    RG::Resource colorIn, f32 near, f32 far, bool isOrthographic)
+Passes::VisualizeDepth::PassData& Passes::VisualizeDepth::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource depthIn, RG::Resource colorIn, f32 near, f32 far, bool isOrthographic)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             graph.SetShader("depth-visualize"_hsv);
@@ -25,8 +25,6 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(StringId name, RG::Graph& renderGra
 
             passData.DepthIn = graph.Read(depthIn, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -58,7 +56,5 @@ RG::Pass& Passes::VisualizeDepth::addToGraph(StringId name, RG::Graph& renderGra
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstants}});
             cmd.Draw({.VertexCount = 3});
-        });
-
-    return pass;
+        }).Data;
 }

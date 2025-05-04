@@ -10,7 +10,7 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::HiZNV::PassData& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     /* https://github.com/nvpro-samples/vk_compute_mipmaps */
     static constexpr u32 MAX_DISPATCH_MIPMAPS = 6;
@@ -28,10 +28,9 @@ RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const
         .Subresource = info.Subresource,
         .ReductionMode = info.ReductionMode,
         .CalculateMinMax = true});
-    auto& blitOutput = renderGraph.GetBlackboard().Get<HiZBlit::PassData>(blit);
     
-    const u32 mipmapCount = (u32)(u8)renderGraph.GetTextureDescription(blitOutput.HiZ).Mipmaps;
-    const glm::uvec2 hizResolution = renderGraph.GetTextureDescription(blitOutput.HiZ).Dimensions();
+    const u32 mipmapCount = (u32)(u8)renderGraph.GetTextureDescription(blit.HiZ).Mipmaps;
+    const glm::uvec2 hizResolution = renderGraph.GetTextureDescription(blit.HiZ).Dimensions();
     u32 width = hizResolution.x;  
     u32 height = hizResolution.y;
 
@@ -42,17 +41,15 @@ RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const
     {
         u32 toBeProcessed = std::min(MAX_DISPATCH_MIPMAPS, mipmapsRemaining);
 
-        Pass& pass = renderGraph.AddRenderPass<PassData>(name.AddVersion(currentMipmap),
+        PassData& data = renderGraph.AddRenderPass<PassData>(name.AddVersion(currentMipmap),
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("HiZNV.Setup")
 
                 graph.SetShader("hiz-nv"_hsv);
 
-                passData.Depth = graph.Read(blitOutput.Depth, Compute | Sampled);
-                passData.HiZ = graph.Write(blitOutput.HiZ, Compute | Storage);
-
-                graph.UpdateBlackboard(passData);
+                passData.Depth = graph.Read(blit.Depth, Compute | Sampled);
+                passData.HiZ = graph.Write(blit.HiZ, Compute | Storage);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -83,7 +80,7 @@ RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const
                 u32 samples = width * height;
                 cmd.Dispatch({
                     .Invocations = {(samples + mask) >> shift, 1, 1}});
-            });
+            }).Data;
 
         width = std::max(1u, width >> toBeProcessed);
         height = std::max(1u, height >> toBeProcessed);
@@ -91,7 +88,7 @@ RG::Pass& Passes::HiZNV::addToGraph(StringId name, RG::Graph& renderGraph, const
         mipmapsRemaining -= toBeProcessed;
 
         if (mipmapsRemaining == 0)
-            return pass;
+            return data;
     }
 
     std::unreachable();

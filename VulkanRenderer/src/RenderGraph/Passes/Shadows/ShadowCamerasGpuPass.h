@@ -11,6 +11,6 @@ namespace Passes::ShadowCamerasGpu
         RG::Resource PrimaryCamera;
         RG::Resource CsmDataOut;
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthMinMax,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthMinMax,
         RG::Resource primaryCamera, const glm::vec3& lightDirection);
 }

@@ -7,7 +7,7 @@ namespace Passes::BRDFLut
     {
         RG::Resource Lut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, Texture lut);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, Texture lut);
     
     TextureDescription getLutDescription();
 }

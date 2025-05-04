@@ -18,6 +18,6 @@ namespace Passes::LightTilesBin
         RG::Resource Camera{};
         RG::SceneLightResources SceneLightResources{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

@@ -9,7 +9,8 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -30,8 +31,6 @@ RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGrap
 
             auto& globalResources = graph.GetGlobalResources();
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
-            
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -57,5 +56,5 @@ RG::Pass& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGrap
             cmd.Dispatch({
                 .Invocations = {depthDescription.Width, depthDescription.Height, 1},
                 .GroupSize = {8, 8, 1}});
-        });
+        }).Data;
 }

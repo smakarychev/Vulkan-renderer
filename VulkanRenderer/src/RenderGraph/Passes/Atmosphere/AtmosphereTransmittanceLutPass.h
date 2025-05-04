@@ -9,7 +9,7 @@ namespace Passes::Atmosphere::Transmittance
         RG::Resource Lut{};
         RG::Resource AtmosphereSettings{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource atmosphereSettings);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource atmosphereSettings);
 }
 
 

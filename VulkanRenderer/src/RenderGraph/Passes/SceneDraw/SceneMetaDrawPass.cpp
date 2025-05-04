@@ -7,7 +7,8 @@
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
 
-RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -35,11 +36,9 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
                         .BucketCount = info.MultiviewVisibility->ObjectSet().BucketCount(),
                         .MeshletInfos = info.Resources->MeshletBucketInfos[visibilityIndex],
                         .MeshletInfoCount = info.Resources->MeshletInfoCounts[visibilityIndex]});
-                auto& fillIndirectDrawsOutput =
-                    graph.GetBlackboard().Get<SceneFillIndirectDraw::PassData>(fillIndirectDraws);
 
-                draws = fillIndirectDrawsOutput.Draws;
-                drawInfos = fillIndirectDrawsOutput.DrawInfos;
+                draws = fillIndirectDraws.Draws;
+                drawInfos = fillIndirectDraws.DrawInfos;
 
                 for (auto& pass : info.DrawPasses)
                 {
@@ -170,10 +169,8 @@ RG::Pass& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGrap
             for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
                 visibilityIndex++)
                 drawWithVisibility(visibilityIndex, /*reocclusion*/true);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-        });
+        }).Data;
 }

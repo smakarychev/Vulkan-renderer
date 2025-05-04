@@ -2,12 +2,12 @@
 
 #include "Renderer.h"
 
-RG::Pass& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
+Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
     RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize, ImageFilter filter)
 {
     using namespace RG;
     
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             passData.TextureIn = graph.Read(textureIn,
@@ -15,8 +15,6 @@ RG::Pass& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Re
 
             passData.TextureOut = graph.Write(textureOut,
                 ResourceAccessFlags::Blit);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -45,7 +43,5 @@ RG::Pass& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Re
                     .Layers = 1,
                     .Bottom = bottom,
                     .Top = top}});
-        });
-
-    return pass;
+        }).Data;
 }

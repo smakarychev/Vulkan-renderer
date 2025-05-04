@@ -6,15 +6,15 @@
 #include "Rendering/Shader/ShaderOverrides.h"
 #include "Scene/SceneGeometry.h"
 
-RG::Pass& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
         Resource VisibilityTexture{};
-        Resource Color{};
         Resource Camera{};
         Resource UGB{};
         Resource Indices{};
@@ -87,11 +87,6 @@ RG::Pass& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGr
             
             auto& globalResources = graph.GetGlobalResources();
             passData.ShadingSettings = graph.Read(globalResources.ShadingSettings, Pixel | Uniform);
-
-            PassData passDataPublic = {};
-            passDataPublic.Color = passData.Color;
-
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -122,5 +117,5 @@ RG::Pass& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGr
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        });
+        }).Data;
 }

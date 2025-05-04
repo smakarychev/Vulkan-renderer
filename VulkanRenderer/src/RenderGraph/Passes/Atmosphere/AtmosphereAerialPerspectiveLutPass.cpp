@@ -8,8 +8,8 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneLight.h"
 
-RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
+Passes::Atmosphere::AerialPerspective::PassData& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name,
+    RG::Graph& renderGraph, RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
     RG::Resource atmosphereSettings, const SceneLight& light, const RG::CSMData& csmData)
 {
     using namespace RG;
@@ -40,8 +40,6 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::G
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
             passData.CSMData = RgUtils::readCSMData(csmData, graph, Compute);
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -69,5 +67,5 @@ RG::Pass& Passes::Atmosphere::AerialPerspective::addToGraph(StringId name, RG::G
             cmd.Dispatch({
 	            .Invocations = {lutDescription.Width, lutDescription.Height, lutDescription.GetDepth()},
 	            .GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }

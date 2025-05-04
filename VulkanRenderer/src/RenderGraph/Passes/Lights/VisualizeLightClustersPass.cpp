@@ -4,14 +4,14 @@
 #include "RenderGraph/Passes/Generated/LightClustersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::LightClustersVisualize::PassData& Passes::LightClustersVisualize::addToGraph(
+    StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
     
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
-        Resource Color{};
         Resource Clusters{};
         Resource Camera{};
         Resource Depth{};
@@ -37,11 +37,6 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& r
             
             passData.Clusters = graph.Read(info.Clusters, Pixel | Storage);
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
-
-            PassData passDataPublic = {};
-            passDataPublic.Color = passData.Color;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -58,5 +53,5 @@ RG::Pass& Passes::LightClustersVisualize::addToGraph(StringId name, RG::Graph& r
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        });
+        }).Data;
 }

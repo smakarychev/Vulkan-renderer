@@ -5,7 +5,7 @@
 #include "RenderGraph/Passes/Generated/DepthReductionBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::HiZFull::PassData& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     static constexpr u32 MAX_DISPATCH_MIPMAPS = 6;
     static constexpr u32 MIPMAP_LEVEL_SHIFT = 5;
@@ -24,11 +24,8 @@ RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, con
         .ReductionMode = HiZ::ReductionMode::Max,
         .CalculateMinMax = false});
 
-    auto& minOutput = renderGraph.GetBlackboard().Get<HiZBlit::PassData>(minBlit);
-    auto& maxOutput = renderGraph.GetBlackboard().Get<HiZBlit::PassData>(maxBlit);
-
-    const u32 mipmapCount = (u32)(u8)renderGraph.GetTextureDescription(minOutput.HiZ).Mipmaps;
-    const glm::uvec2 hizResolution = renderGraph.GetTextureDescription(minOutput.HiZ).Dimensions();
+    const u32 mipmapCount = (u32)(u8)renderGraph.GetTextureDescription(minBlit.HiZ).Mipmaps;
+    const glm::uvec2 hizResolution = renderGraph.GetTextureDescription(minBlit.HiZ).Dimensions();
     u32 width = hizResolution.x;  
     u32 height = hizResolution.y;
 
@@ -38,23 +35,21 @@ RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, con
     while (mipmapsRemaining != 0)
     {
         u32 toBeProcessed = std::min(MAX_DISPATCH_MIPMAPS, mipmapsRemaining);
-        Pass& pass = renderGraph.AddRenderPass<PassData>(name.AddVersion(currentMipmap),
+        PassData& data = renderGraph.AddRenderPass<PassData>(name.AddVersion(currentMipmap),
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("HiZFull.Setup")
 
                 graph.SetShader("depth-reduction"_hsv);
 
-                passData.Depth = graph.Read(minOutput.Depth, Compute | Sampled);
-                minOutput.HiZ = graph.Read(minOutput.HiZ, Compute | Sampled);
-                minOutput.HiZ= graph.Write(minOutput.HiZ, Compute | Storage);
-                maxOutput.HiZ = graph.Read(maxOutput.HiZ, Compute | Sampled);
-                maxOutput.HiZ = graph.Write(maxOutput.HiZ, Compute | Storage);
-                passData.HiZMin = minOutput.HiZ;
-                passData.HiZMax = maxOutput.HiZ;
-                passData.MinMaxDepth = graph.GetBlackboard().Get<HiZBlit::PassData>(minBlit).MinMaxDepth;
-                
-                graph.UpdateBlackboard(passData);
+                passData.Depth = graph.Read(minBlit.Depth, Compute | Sampled);
+                minBlit.HiZ = graph.Read(minBlit.HiZ, Compute | Sampled);
+                minBlit.HiZ= graph.Write(minBlit.HiZ, Compute | Storage);
+                maxBlit.HiZ = graph.Read(maxBlit.HiZ, Compute | Sampled);
+                maxBlit.HiZ = graph.Write(maxBlit.HiZ, Compute | Storage);
+                passData.HiZMin = minBlit.HiZ;
+                passData.HiZMax = maxBlit.HiZ;
+                passData.MinMaxDepth = minBlit.MinMaxDepth;
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -93,7 +88,7 @@ RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, con
                 u32 samples = width * height;
                 cmd.Dispatch({
                     .Invocations = {(samples + mask) >> shift, 1, 1}});
-            });
+            }).Data;
 
         width = std::max(1u, width >> toBeProcessed);
         height = std::max(1u, height >> toBeProcessed);
@@ -101,7 +96,7 @@ RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, con
         mipmapsRemaining -= toBeProcessed;
 
         if (mipmapsRemaining == 0)
-            return pass;
+            return data;
     }
 
     std::unreachable();

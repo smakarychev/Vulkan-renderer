@@ -18,5 +18,5 @@ namespace Passes::LightClustersCompact
         RG::Resource Depth{};
         RG::Resource DispatchIndirect{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

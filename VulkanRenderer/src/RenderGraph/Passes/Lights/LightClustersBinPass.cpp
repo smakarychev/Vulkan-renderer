@@ -6,15 +6,15 @@
 #include "RenderGraph/Passes/Generated/LightClustersBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::LightClustersBin::PassData& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
         Resource Dispatch{};
-        Resource Clusters{};
         Resource ActiveClusters{};
         Resource ClusterCount{};
         SceneLightResources SceneLightResources{};
@@ -37,11 +37,6 @@ RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderG
             passData.ClusterCount = graph.Read(info.ClustersCount, Compute | Storage);
 
             passData.SceneLightResources = RgUtils::readSceneLight(*info.Light, graph, Compute);
-
-            PassData passDataPublic = {};
-            passDataPublic.Clusters = passData.Clusters;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -63,5 +58,5 @@ RG::Pass& Passes::LightClustersBin::addToGraph(StringId name, RG::Graph& renderG
                 .Data = {frameContext.PrimaryCamera->GetView()}});
             cmd.DispatchIndirect({
                 .Buffer = resources.GetBuffer(passData.Dispatch)});
-        });
+        }).Data;
 }

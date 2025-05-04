@@ -23,29 +23,29 @@ namespace
     }
 }
 
-RG::Pass& Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
+RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
     return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
 }
 
-RG::Pass& Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
     
-    struct PassData
+    struct PassDataPrivate
     {
-        Resource Texture{};
+        Resource Texture;
         StringId Name{};
     };
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataPrivate>(name,
+        [&](Graph& graph, PassDataPrivate& passData)
         {
             passData.Texture = graph.Read(textureIn, Pixel | Sampled);
             passData.Name = name;
             graph.HasSideEffect();
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
             CPU_PROFILE_FRAME("ImGui Texture")
             GPU_PROFILE_FRAME("ImGui Texture")
@@ -59,17 +59,15 @@ RG::Pass& Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph
             ImGuiUI::Texture(ImageSubresource{.Image = texture}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
-        });
-
-    return pass;
+        }).Data.Texture;
 }
 
-RG::Pass& Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
+RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
     return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
 }
 
-RG::Pass& Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -83,7 +81,7 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderG
     {
         u32 Layer{0};
     };
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             passData.Texture = graph.Read(textureIn, Pixel | Sampled);
@@ -114,9 +112,7 @@ RG::Pass& Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderG
                 sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
-        });
-
-    return pass;
+        }).Data.Texture;
 }
 
 namespace
@@ -129,10 +125,10 @@ namespace
 
         struct PassData
         {
-            Resource Texture3d{};
             Resource Slice{};
+            Resource Texture3d{};
         };
-        auto& pass = renderGraph.AddRenderPass<PassData>(name,
+        return renderGraph.AddRenderPass<PassData>(name,
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("Texture3dToSlice.Setup")
@@ -148,8 +144,6 @@ namespace
 
                 passData.Texture3d = graph.Read(textureIn, Pixel | Sampled);
                 passData.Slice = graph.RenderTarget(passData.Slice, AttachmentLoad::Load, AttachmentStore::Store);
-
-                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -167,18 +161,16 @@ namespace
                 	.PipelineLayout = shader.GetLayout(), 
                 	.Data = {sliceNormalized}});
                 cmd.Draw({.VertexCount = 3});
-            });
-
-        return renderGraph.GetBlackboard().Get<PassData>(pass).Slice;
+            }).Data.Slice;
     }
 }
 
-RG::Pass& Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
+RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
     return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
 }
 
-RG::Pass& Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
+RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -193,7 +185,7 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGra
     {
         i32 Slice{0};
     };
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             Context& context = graph.GetOrCreateBlackboardValue<Context>();
@@ -207,7 +199,6 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGra
             passData.Name = name;
             passData.Depth = depth;
             graph.HasSideEffect();
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -225,7 +216,5 @@ RG::Pass& Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGra
             ImGuiUI::Texture(ImageSubresource{.Image = slice}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
-        });
-
-    return pass;
+        }).Data.Texture;
 }

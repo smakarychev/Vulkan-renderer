@@ -5,7 +5,8 @@
 #include "RenderGraph/Passes/Generated/SsaoBlurBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -28,8 +29,6 @@ RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, co
 
             passData.SsaoIn = graph.Read(info.SsaoIn, Compute | Sampled);
             passData.SsaoOut = graph.Write(passData.SsaoOut, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -49,5 +48,5 @@ RG::Pass& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph, co
             cmd.Dispatch({
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }

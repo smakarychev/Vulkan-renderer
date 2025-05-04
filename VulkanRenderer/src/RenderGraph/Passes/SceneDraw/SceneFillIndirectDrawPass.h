@@ -22,5 +22,5 @@ namespace Passes::SceneFillIndirectDraw
         std::array<RG::Resource, MAX_BUCKETS_PER_SET> Draws;
         std::array<RG::Resource, MAX_BUCKETS_PER_SET> DrawInfos;
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

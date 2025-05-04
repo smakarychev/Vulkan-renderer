@@ -7,5 +7,5 @@ namespace Passes::SsaoVisualize
     {
         RG::Resource Color{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource ssao);
 }

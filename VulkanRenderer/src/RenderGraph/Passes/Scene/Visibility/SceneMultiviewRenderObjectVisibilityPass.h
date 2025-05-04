@@ -15,5 +15,5 @@ namespace Passes::SceneMultiviewRenderObjectVisibility
     {
         SceneVisibilityPassesResources* Resources{nullptr};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

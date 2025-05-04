@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture cubemap, Buffer irradianceSH, bool realTime)
 {
     return addToGraph(name, renderGraph,
@@ -12,13 +12,13 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& rend
         irradianceSH, realTime);
 }
 
-RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
-    Buffer irradianceSH, bool realTime)
+Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource cubemap, Buffer irradianceSH, bool realTime)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("DiffuseIrradianceSH.Setup")
@@ -31,8 +31,6 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& rend
             
             passData.DiffuseIrradiance = graph.Write(passData.DiffuseIrradiance, Compute | Storage);
             passData.CubemapTexture = graph.Read(cubemap, Compute | Sampled);
-            
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -60,7 +58,5 @@ RG::Pass& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& rend
             	.Data = {targetMipmap}});
             cmd.Dispatch({
                 .Invocations = {1, 1, 1}});
-        });
-
-    return pass;
+        }).Data;
 }

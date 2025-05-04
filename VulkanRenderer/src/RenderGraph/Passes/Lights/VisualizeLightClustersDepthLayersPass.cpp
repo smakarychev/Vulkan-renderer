@@ -6,7 +6,8 @@
 #include "RenderGraph/Passes/Generated/LightClustersDepthLayersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth)
+Passes::LightClustersDepthLayersVisualize::PassData& Passes::LightClustersDepthLayersVisualize::addToGraph(
+    StringId name, RG::Graph& renderGraph, RG::Resource depth)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -27,8 +28,6 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(StringId name, R
 
             passData.Depth = graph.Read(depth, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -56,5 +55,5 @@ RG::Pass& Passes::LightClustersDepthLayersVisualize::addToGraph(StringId name, R
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});
             cmd.Draw({.VertexCount = 3});
-        });
+        }).Data;
 }

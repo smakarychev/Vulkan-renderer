@@ -17,7 +17,7 @@ namespace Passes::Atmosphere::AerialPerspective
         RG::CSMData CSMData{};
         RG::Resource Lut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph,
         RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
         RG::Resource atmosphereSettings, const SceneLight& light, const RG::CSMData& csmData);
 }

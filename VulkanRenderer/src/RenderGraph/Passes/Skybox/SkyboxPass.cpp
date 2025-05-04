@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/SkyboxBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::Skybox::PassData& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -17,17 +17,15 @@ RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, cons
         glm::mat4 ViewInverse{1.0f};
     };
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
-        Resource Color{};
-        Resource Depth{};
         Resource Skybox{};
         Resource Projection{};
         Resource ShadingSettings{};
         f32 LodBias{0.0f};
     };
     
-    Pass& pass = renderGraph.AddRenderPass<PassDataPrivate>(name,
+    return renderGraph.AddRenderPass<PassDataPrivate>(name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
             CPU_PROFILE_FRAME("Skybox.Setup")
@@ -61,12 +59,6 @@ RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, cons
             passData.ShadingSettings = graph.Read(globalResources.ShadingSettings, Pixel | Uniform);
 
             passData.LodBias = info.LodBias;
-
-            PassData passDataPublic = {};
-            passDataPublic.Color = passData.Color;
-            passDataPublic.Depth = passData.Depth;
-
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -89,7 +81,5 @@ RG::Pass& Passes::Skybox::addToGraph(StringId name, RG::Graph& renderGraph, cons
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {passData.LodBias}});
             cmd.Draw({.VertexCount = 6});
-        });
-
-    return pass;
+        }).Data;
 }

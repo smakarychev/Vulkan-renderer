@@ -6,14 +6,14 @@
 #include "RenderGraph/Passes/Generated/SceneShadowUgbBindGroup.generated.h"
 #include "RenderGraph/Passes/Generated/ShadowBindGroup.generated.h"
 
-RG::Pass& Passes::SceneDirectionalShadow::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToGraph(StringId name,
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
-        SceneDrawPassResources Resources{};
         Resource UGB{};
         Resource Objects{};
     };
@@ -34,12 +34,6 @@ RG::Pass& Passes::SceneDirectionalShadow::addToGraph(StringId name, RG::Graph& r
             passData.Objects = graph.AddExternal("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
-
-            PassData passDataPublic = {};
-            passDataPublic.Attachments = passData.Resources.Attachments;
-            
-            graph.UpdateBlackboard(passDataPublic);
-            
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -61,5 +55,5 @@ RG::Pass& Passes::SceneDirectionalShadow::addToGraph(StringId name, RG::Graph& r
                 .DrawBuffer = resources.GetBuffer(passData.Resources.Draws),
                 .CountBuffer = resources.GetBuffer(passData.Resources.DrawInfo),
                 .MaxCount = passData.Resources.MaxDrawCount});
-        });
+        }).Data;
 }

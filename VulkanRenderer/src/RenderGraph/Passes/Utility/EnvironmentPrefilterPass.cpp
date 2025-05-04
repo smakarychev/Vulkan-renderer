@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/EnvironmentPrefilterBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture cubemap, Texture prefiltered)
 {
     return addToGraph(name, renderGraph,
@@ -12,8 +12,8 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& ren
         prefiltered);
 }
 
-RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
-    Texture prefiltered)
+Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource cubemap, Texture prefiltered)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -22,7 +22,7 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& ren
     i8 mipmaps = Device::GetImageDescription(prefiltered).Mipmaps;
     for (i8 mipmap = 0; mipmap < mipmaps; mipmap++)
     {
-        Pass& pass = renderGraph.AddRenderPass<PassData>(name.AddVersion(mipmap),
+        PassData& data = renderGraph.AddRenderPass<PassData>(name.AddVersion(mipmap),
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("EnvironmentPrefilter.Setup")
@@ -39,8 +39,6 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& ren
                 passData.PrefilteredTexture = graph.Write(prefilteredResource, Compute | Storage);
                 prefilteredResource = passData.PrefilteredTexture;
                 passData.Cubemap = graph.Read(cubemap, Compute | Sampled);
-                
-                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -82,10 +80,10 @@ RG::Pass& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& ren
                 cmd.Dispatch({
                     .Invocations = {resolution, resolution, 6},
                     .GroupSize = {32, 32, 1}});
-            });
+            }).Data;
 
         if (mipmap == mipmaps - 1)
-            return pass;
+            return data;
     }
 
     std::unreachable();

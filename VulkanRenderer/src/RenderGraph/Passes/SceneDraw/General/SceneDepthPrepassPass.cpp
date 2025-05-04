@@ -3,14 +3,14 @@
 #include "RenderGraph/RenderGraph.h"
 #include "RenderGraph/Passes/Generated/SceneDepthPrepassUgbBindGroup.generated.h"
 
-RG::Pass& Passes::SceneDepthPrepass::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SceneDepthPrepass::PassData& Passes::SceneDepthPrepass::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
-        SceneDrawPassResources Resources{};
         Resource UGB{};
         Resource Objects{};
     };
@@ -31,11 +31,6 @@ RG::Pass& Passes::SceneDepthPrepass::addToGraph(StringId name, RG::Graph& render
             passData.Objects = graph.AddExternal("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
-
-            PassData passDataPublic = {};
-            passDataPublic.Attachments = passData.Resources.Attachments;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -57,5 +52,5 @@ RG::Pass& Passes::SceneDepthPrepass::addToGraph(StringId name, RG::Graph& render
                 .DrawBuffer = resources.GetBuffer(passData.Resources.Draws),
                 .CountBuffer = resources.GetBuffer(passData.Resources.DrawInfo),
                 .MaxCount = passData.Resources.MaxDrawCount});
-        });
+        }).Data;
 }

@@ -8,5 +8,5 @@ namespace Passes::LightClustersDepthLayersVisualize
         RG::Resource Depth{};
         RG::Resource ColorOut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depth);
 }

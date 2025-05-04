@@ -5,7 +5,8 @@
 #include "RenderGraph/Passes/Generated/HizVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource hiz)
+Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource hiz)
 {
     using namespace RG;
 
@@ -15,7 +16,7 @@ RG::Pass& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph
         f32 IntensityScale{10.0f};
     };
 
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("HiZ.Visualize.Setup")
@@ -32,8 +33,6 @@ RG::Pass& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph
                 .Format = Format::RGBA16_FLOAT});
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 AttachmentLoad::Load, AttachmentStore::Store);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -60,7 +59,5 @@ RG::Pass& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
             cmd.Draw({.VertexCount = 3});
-        });
-
-    return pass;
+        }).Data;
 }

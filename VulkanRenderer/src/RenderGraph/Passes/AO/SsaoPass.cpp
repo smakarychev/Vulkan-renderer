@@ -58,7 +58,7 @@ namespace
     }
 }
 
-RG::Pass& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -82,10 +82,9 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const 
         Buffer SamplesBuffer{};
     };
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
         Resource Depth{};
-        Resource SSAO{};
         Resource NoiseTexture{};
         Resource Settings{};
         Resource Camera{};
@@ -144,11 +143,6 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const 
                 .Near = globalResources.PrimaryCamera->GetFrustumPlanes().Near,
                 .Far = globalResources.PrimaryCamera->GetFrustumPlanes().Far};
             graph.Upload(passData.Camera, camera);
-
-            PassData passDataPublic = {};
-            passDataPublic.SSAO = passData.SSAO;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -190,5 +184,5 @@ RG::Pass& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const 
             cmd.Dispatch({
                 .Invocations = {ssaoDescription.Width, ssaoDescription.Height, 1},
                 .GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }

@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/CsmVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::VisualizeCSM::PassData& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource csmTexture, RG::Resource csmInfo, RG::Resource colorIn)
 {
     using namespace RG;
@@ -17,7 +17,7 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph
         u32 Index{0};
     };
     
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("CSM.Visualize.Setup")
@@ -37,8 +37,6 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph
             passData.ColorOut = graph.RenderTarget(passData.ColorOut,
                 colorIn.IsValid() ? AttachmentLoad::Load : AttachmentLoad::Clear,
                 AttachmentStore::Store, {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}});
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -67,7 +65,5 @@ RG::Pass& Passes::VisualizeCSM::addToGraph(StringId name, RG::Graph& renderGraph
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {cascadeIndex.Index}});
             cmd.Draw({.VertexCount = 3});
-        });
-
-    return pass;
+        }).Data;
 }

@@ -31,7 +31,7 @@ AtmosphereSettings AtmosphereSettings::EarthDefault()
         .OzoneDensity = 1.0f};
 }
 
-RG::Pass& Passes::Atmosphere::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::Atmosphere::PassData& Passes::Atmosphere::addToGraph(StringId name, RG::Graph& renderGraph,
     const AtmosphereSettings& atmosphereSettings, const SceneLight& light, RG::Resource colorIn, RG::Resource depthIn,
     const RG::CSMData& csmData)
 {
@@ -51,44 +51,35 @@ RG::Pass& Passes::Atmosphere::addToGraph(StringId name, RG::Graph& renderGraph,
 
             auto& transmittance = Transmittance::addToGraph("Transmittance"_hsv, graph,
                 passData.AtmosphereSettings);
-            auto& transmittanceOutput = graph.GetBlackboard().Get<Transmittance::PassData>(transmittance);
             
             auto& multiscattering = Multiscattering::addToGraph("Multiscattering"_hsv, graph,
-                transmittanceOutput.Lut, passData.AtmosphereSettings);
-            auto& multiscatteringOutput = graph.GetBlackboard().Get<Multiscattering::PassData>(multiscattering);
+                transmittance.Lut, passData.AtmosphereSettings);
 
             auto& skyView = SkyView::addToGraph("SkyView"_hsv, graph,
-                transmittanceOutput.Lut, multiscatteringOutput.Lut, passData.AtmosphereSettings, light);
-            auto& skyViewOutput = graph.GetBlackboard().Get<SkyView::PassData>(skyView);
+                transmittance.Lut, multiscattering.Lut, passData.AtmosphereSettings, light);
 
             auto& aerialPerspective = AerialPerspective::addToGraph("AerialPerspective"_hsv, graph,
-                multiscatteringOutput.TransmittanceLut, multiscatteringOutput.Lut, passData.AtmosphereSettings, light,
+                multiscattering.TransmittanceLut, multiscattering.Lut, passData.AtmosphereSettings, light,
                 csmData);
-            auto& aerialPerspectiveOutput = graph.GetBlackboard().Get<AerialPerspective::PassData>(aerialPerspective);
 
             static constexpr bool USE_SUN_LUMINANCE = true;
             auto& atmosphere = Raymarch::addToGraph("Raymarch"_hsv, graph,
                 passData.AtmosphereSettings, *globalResources.PrimaryCamera, light,
-                skyViewOutput.Lut, multiscatteringOutput.TransmittanceLut, aerialPerspectiveOutput.Lut,
+                skyView.Lut, multiscattering.TransmittanceLut, aerialPerspective.Lut,
                 colorIn, {}, depthIn, USE_SUN_LUMINANCE);
-            auto& atmosphereOutput = graph.GetBlackboard().Get<Raymarch::PassData>(atmosphere);
             
             auto& environment = Environment::addToGraph("Environment"_hsv, graph,
-                    passData.AtmosphereSettings, light, skyViewOutput.Lut);
-            auto& environmentOutput = graph.GetBlackboard().Get<Environment::PassData>(environment);
+                    passData.AtmosphereSettings, light, skyView.Lut);
 
-
-            passData.TransmittanceLut = transmittanceOutput.Lut;
-            passData.MultiscatteringLut = multiscatteringOutput.Lut;
-            passData.SkyViewLut = skyViewOutput.Lut;
-            passData.AerialPerspectiveLut = aerialPerspectiveOutput.Lut;
-            passData.Atmosphere = atmosphereOutput.ColorOut;
-            passData.AtmosphereSettings = atmosphereOutput.AtmosphereSettings;
-            passData.EnvironmentOut = environmentOutput.ColorOut;
-
-            graph.UpdateBlackboard(passData);
+            passData.TransmittanceLut = transmittance.Lut;
+            passData.MultiscatteringLut = multiscattering.Lut;
+            passData.SkyViewLut = skyView.Lut;
+            passData.AerialPerspectiveLut = aerialPerspective.Lut;
+            passData.Atmosphere = atmosphere.ColorOut;
+            passData.AtmosphereSettings = atmosphere.AtmosphereSettings;
+            passData.EnvironmentOut = environment.ColorOut;
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-        });
+        }).Data;
 }

@@ -10,7 +10,7 @@ namespace
     struct ConvertPassData : Passes::EquirectangularToCubemap::PassData
     {};
     
-    RG::Pass& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGraph,
+    ConvertPassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGraph,
         RG::Resource equirectangular, Texture cubemap)
     {
         using namespace RG;
@@ -27,8 +27,6 @@ namespace
                 
                 passData.Cubemap = graph.Write(passData.Cubemap, Compute | Storage);
                 passData.Equirectangular = graph.Read(equirectangular, Compute | Sampled);
-                
-                graph.UpdateBlackboard(passData);
             },
             [=](ConvertPassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -59,20 +57,20 @@ namespace
                 cmd.Dispatch({
                     .Invocations = {cubemapDescription.Width, cubemapDescription.Width, 6},
                     .GroupSize = {32, 32, 1}});
-            });
+            }).Data;
     }
 }
 
-RG::Pass& Passes::EquirectangularToCubemap::addToGraph(StringId name, RG::Graph& renderGraph,
-    Texture equirectangular, Texture cubemap)
+Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::addToGraph(StringId name,
+    RG::Graph& renderGraph, Texture equirectangular, Texture cubemap)
 {
     return addToGraph(name, renderGraph,
         renderGraph.AddExternal("Equirectangular"_hsv, equirectangular),
         cubemap);
 }
 
-RG::Pass& Passes::EquirectangularToCubemap::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource equirectangular, Texture cubemap)
+Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::addToGraph(StringId name,
+    RG::Graph& renderGraph, RG::Resource equirectangular, Texture cubemap)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -82,16 +80,12 @@ RG::Pass& Passes::EquirectangularToCubemap::addToGraph(StringId name, RG::Graph&
         {
             auto& convert = convertEquirectangularToCubemapPass(name.Concatenate(".Convert"), graph,
                 equirectangular, cubemap);
-            auto& convertOutput = graph.GetBlackboard().Get<ConvertPassData>(convert);
             
-            auto& mipmap = Mipmap::addToGraph(name.Concatenate(".Mipmap"), graph, convertOutput.Cubemap);
-            auto& mipmapOutput = graph.GetBlackboard().Get<Mipmap::PassData>(mipmap);
-            passData.Equirectangular = convertOutput.Equirectangular;
-            passData.Cubemap = mipmapOutput.Texture;
-            
-            graph.UpdateBlackboard(passData);
+            auto& mipmap = Mipmap::addToGraph(name.Concatenate(".Mipmap"), graph, convert.Cubemap);
+            passData.Equirectangular = convert.Equirectangular;
+            passData.Cubemap = mipmap.Texture;
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-        });
+        }).Data;
 }

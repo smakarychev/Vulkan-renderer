@@ -45,7 +45,7 @@ namespace Passes::SceneCsm
         f32 Near{1.0f};
         f32 Far{100.0f};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 
     ScenePassCreateInfo getScenePassCreateInfo(StringId name);
 }

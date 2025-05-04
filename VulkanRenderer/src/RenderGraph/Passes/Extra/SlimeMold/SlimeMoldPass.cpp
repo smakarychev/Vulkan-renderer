@@ -118,7 +118,7 @@ struct GradientPassData
     SlimeMoldContext* SlimeMoldContext{ nullptr };
 };
     
-RG::Pass& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx)
+UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -163,8 +163,6 @@ RG::Pass& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMol
                 ImGui::End();
             ImGui::End();
             graph.Upload(passData.Traits, ctx.GetTraits());
-
-            graph.UpdateBlackboard(passData);
         },
         [=](UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -193,10 +191,10 @@ RG::Pass& addUpdateSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMol
             cmd.Dispatch({
 	            .Invocations = {slimeCountDimension + 1, slimeCountDimension, 1},
 	            .GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }
 
-RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
+DiffuseSlimeMapPassData& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
     const UpdateSlimeMapPassData& updateOutput)
 {
     using namespace RG;
@@ -221,8 +219,6 @@ RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMo
             passData.DiffuseMap = graph.Write(passData.DiffuseMap, Compute | Storage);
 
             passData.SlimeMoldContext = &ctx;
-
-            graph.UpdateBlackboard(passData);
         },
         [=](DiffuseSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -248,10 +244,10 @@ RG::Pass& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMo
             cmd.Dispatch({
 	            .Invocations = { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1},
 	            .GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }
 
-RG::Pass& addCopyDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph,
+Passes::CopyTexture::PassData& addCopyDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph,
     const DiffuseSlimeMapPassData& diffuseOutput)
 {
     return Passes::CopyTexture::addToGraph(name.Concatenate(".Copy"), renderGraph, {
@@ -259,7 +255,7 @@ RG::Pass& addCopyDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph,
         .TextureOut = diffuseOutput.SlimeMap});
 }
 
-RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
+GradientPassData& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
     const DiffuseSlimeMapPassData& diffuseOutput)
 {
     using namespace RG;
@@ -304,8 +300,6 @@ RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldConte
             graph.Upload(passData.Gradient, gradient);
 
             passData.SlimeMoldContext = &ctx;
-
-            graph.UpdateBlackboard(passData);
         },
         [=](GradientPassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -332,11 +326,11 @@ RG::Pass& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeMoldConte
             cmd.Dispatch({
 	            .Invocations = { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1},
 	            .GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }
 }
 
-RG::Pass& Passes::SlimeMold::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::SlimeMold::PassData& Passes::SlimeMold::addToGraph(StringId name, RG::Graph& renderGraph,
     SlimeMoldContext& ctx)
 {
     using namespace RG;
@@ -348,17 +342,14 @@ RG::Pass& Passes::SlimeMold::addToGraph(StringId name, RG::Graph& renderGraph,
             CPU_PROFILE_FRAME("Slime.Setup")
 
             auto& update = addUpdateSlimeMapStage(name, graph, ctx);
-            auto& diffuse = addDiffuseSlimeMapStage(name, graph, ctx,
-                graph.GetBlackboard().Get<UpdateSlimeMapPassData>(update));
-            auto& gradient = addGradientStage(name, graph, ctx,
-                graph.GetBlackboard().Get<DiffuseSlimeMapPassData>(diffuse));
+            auto& diffuse = addDiffuseSlimeMapStage(name, graph, ctx, update);
+            auto& gradient = addGradientStage(name, graph, ctx, diffuse);
 
-            passData.ColorOut = graph.GetBlackboard().Get<GradientPassData>(gradient).GradientMap;
+            passData.ColorOut = gradient.GradientMap;
 
-            addCopyDiffuseSlimeMapStage(name, graph,
-                graph.GetBlackboard().Get<DiffuseSlimeMapPassData>(diffuse));
-
-            graph.UpdateBlackboard(passData);
+            addCopyDiffuseSlimeMapStage(name, graph, diffuse);
         },
-        [=](PassData&, FrameContext&, const Resources&){});
+        [=](PassData&, FrameContext&, const Resources&)
+        {
+        }).Data;
 }

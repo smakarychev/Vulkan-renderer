@@ -8,9 +8,9 @@ namespace Passes::EquirectangularToCubemap
         RG::Resource Cubemap{};
         RG::Resource Equirectangular{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, Texture equirectangular,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, Texture equirectangular,
         Texture cubemap);
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource equirectangular,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource equirectangular,
         Texture cubemap);
 }
 

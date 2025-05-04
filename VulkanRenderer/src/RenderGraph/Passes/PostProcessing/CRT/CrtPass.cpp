@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/CrtBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn,
+Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn,
     RG::Resource colorTarget)
 {
     using namespace RG;
@@ -21,7 +21,7 @@ RG::Pass& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Res
         f32 VignetteRadius{0.025f};
     };
     
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("CRT.Setup")
@@ -52,8 +52,6 @@ RG::Pass& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Res
             ImGui::DragFloat("vignette clear radius", &settings.VignetteRadius, 1e-3f, 0.0f, 1.0f);            
             ImGui::End();
             graph.Upload(passData.Settings, settings);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -75,7 +73,5 @@ RG::Pass& Passes::Crt::addToGraph(StringId name, RG::Graph& renderGraph, RG::Res
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        });
-
-    return pass;
+        }).Data;
 }

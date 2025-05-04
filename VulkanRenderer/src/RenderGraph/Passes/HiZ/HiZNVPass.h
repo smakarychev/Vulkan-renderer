@@ -16,6 +16,6 @@ namespace Passes::HiZNV
         RG::Resource Depth{};
         RG::Resource HiZ{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

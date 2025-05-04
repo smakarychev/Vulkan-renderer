@@ -4,7 +4,7 @@
 #include "RenderGraph/Passes/Generated/AtmosphereSimpleBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::AtmosphereSimple::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::AtmosphereSimple::PassData& Passes::AtmosphereSimple::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut)
 {
     using namespace RG;
@@ -27,8 +27,6 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(StringId name, RG::Graph& renderG
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
             passData.TransmittanceLut = graph.Read(transmittanceLut, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -47,5 +45,5 @@ RG::Pass& Passes::AtmosphereSimple::addToGraph(StringId name, RG::Graph& renderG
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {(f32)frameContext.FrameNumberTick}});
             cmd.Draw({.VertexCount = 3});
-        });
+        }).Data;
 }

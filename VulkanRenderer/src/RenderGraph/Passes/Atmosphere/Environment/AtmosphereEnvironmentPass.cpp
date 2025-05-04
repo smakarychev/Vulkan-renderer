@@ -7,8 +7,8 @@
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
 
-RG::Pass& Passes::Atmosphere::Environment::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)
+Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addToGraph(StringId name,
+    RG::Graph& renderGraph, RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -73,16 +73,13 @@ RG::Pass& Passes::Atmosphere::Environment::addToGraph(StringId name, RG::Graph& 
                     name.Concatenate(".Raymarch").AddVersion(face), graph,
                     atmosphereSettings, camera, light, skyViewLut, {}, {},
                     passData.ColorOut, faceViews[face], {}, USE_SUN_LUMINANCE);
-                auto& atmosphereOutput = graph.GetBlackboard().Get<Raymarch::PassData>(atmosphere);
-                passData.ColorOut = atmosphereOutput.ColorOut;
+                passData.ColorOut = atmosphere.ColorOut;
             }
 
             auto& mipmapped = Mipmap::addToGraph(name.Concatenate(".Mipmaps"), graph, passData.ColorOut);
-            passData.ColorOut = graph.GetBlackboard().Get<Mipmap::PassData>(mipmapped).Texture;
-
-            graph.UpdateBlackboard(passData);
+            passData.ColorOut = mipmapped.Texture;
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-        });
+        }).Data;
 }

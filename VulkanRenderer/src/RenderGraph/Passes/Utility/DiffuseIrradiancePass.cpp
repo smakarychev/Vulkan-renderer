@@ -5,16 +5,16 @@
 #include "Rendering/Shader/ShaderCache.h"
 
 
-RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& renderGraph, Texture cubemap,
-    Texture irradiance)
+Passes::DiffuseIrradiance::PassData& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& renderGraph,
+    Texture cubemap, Texture irradiance)
 {
     return addToGraph(name, renderGraph,
         renderGraph.AddExternal("Cubemap"_hsv, cubemap),
         irradiance);
 }
 
-RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
-    Texture irradiance)
+Passes::DiffuseIrradiance::PassData& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource cubemap, Texture irradiance)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -30,8 +30,6 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& render
                 
             passData.DiffuseIrradiance = graph.Write(passData.DiffuseIrradiance, Compute | Storage);
             passData.Cubemap = graph.Read(cubemap, Compute | Sampled);
-            
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -63,5 +61,5 @@ RG::Pass& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& render
             cmd.Dispatch({
                 .Invocations = {irradianceDescription.Width, irradianceDescription.Width, 6},
                 .GroupSize = {32, 32, 1}});
-        });
+        }).Data;
 }

@@ -4,21 +4,18 @@
 #include "RenderGraph/Passes/Generated/SceneFillIndirectDrawsBindGroup.generated.h"
 #include "Scene/SceneRenderObjectSet.h"
 
-RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& renderGraph,
-    const ExecutionInfo& info)
+Passes::SceneFillIndirectDraw::PassData& Passes::SceneFillIndirectDraw::addToGraph(StringId name,
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
         Resource ReferenceCommands{};
         Resource MeshletInfos{};
         Resource MeshletInfoCount{};
 
-        std::array<Resource, MAX_BUCKETS_PER_SET> Draws;
-        std::array<Resource, MAX_BUCKETS_PER_SET> DrawInfos;
-        
         u32 BucketCount{0};
         u32 CommandCount{0};
     };
@@ -48,12 +45,6 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
                 passData.DrawInfos[i] = graph.Write(passData.DrawInfos[i], Compute | Storage);
                 graph.Upload(passData.DrawInfos[i], SceneBucketDrawInfo{});
             }
-            
-            PassData passDataPublic = {};
-            passDataPublic.Draws = passData.Draws;
-            passDataPublic.DrawInfos = passData.DrawInfos;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -77,5 +68,5 @@ RG::Pass& Passes::SceneFillIndirectDraw::addToGraph(StringId name, RG::Graph& re
             cmd.Dispatch({
                .Invocations = {passData.CommandCount, 1, 1},
                .GroupSize = {256, 1, 1}});
-        });
+        }).Data;
 }

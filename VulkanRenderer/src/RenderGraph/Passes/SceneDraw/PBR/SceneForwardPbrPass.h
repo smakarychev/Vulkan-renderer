@@ -21,8 +21,8 @@ namespace Passes::SceneForwardPbr
     };
     struct PassData
     {
-        RG::DrawAttachmentResources Attachments{};
+        SceneDrawPassResources Resources{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

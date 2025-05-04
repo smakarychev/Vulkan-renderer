@@ -16,5 +16,5 @@ namespace Passes::CopyTexture
         RG::Resource TextureIn;
         RG::Resource TextureOut;
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

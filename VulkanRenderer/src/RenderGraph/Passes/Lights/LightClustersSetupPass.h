@@ -10,5 +10,5 @@ namespace Passes::LightClustersSetup
         RG::Resource Clusters;
         RG::Resource ClusterVisibility;
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph);
 }

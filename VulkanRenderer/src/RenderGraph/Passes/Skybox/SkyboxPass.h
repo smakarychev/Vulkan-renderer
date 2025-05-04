@@ -18,5 +18,5 @@ namespace Passes::Skybox
         RG::Resource Depth{};
     };
     
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

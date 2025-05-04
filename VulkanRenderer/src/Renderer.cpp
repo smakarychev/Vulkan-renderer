@@ -258,8 +258,7 @@ void Renderer::ExecuteSingleTimePasses()
 void Renderer::SetupRenderSlimePasses()
 {
     auto& slime = Passes::SlimeMold::addToGraph("Slime"_hsv, *m_Graph, *m_SlimeMoldContext);
-    auto& slimeOutput = m_Graph->GetBlackboard().Get<Passes::SlimeMold::PassData>(slime);
-    Passes::ImGuiTexture::addToGraph("ImGuiTexture.Mold"_hsv, *m_Graph, slimeOutput.ColorOut);
+    Passes::ImGuiTexture::addToGraph("ImGuiTexture.Mold"_hsv, *m_Graph, slime.ColorOut);
 }
 
 void Renderer::SetupRenderGraph()
@@ -347,18 +346,17 @@ void Renderer::SetupRenderGraph()
             .MultiviewVisibility = &m_MultiviewVisibility,
             .Resources = &m_SceneVisibilityResources,
             .DrawPasses = drawPasses});
-    auto& metaOutput = m_Graph->GetBlackboard().Get<Passes::SceneMetaDraw::PassData>(metaUgb);
 
     if (useForwardPass)
     {
-        color = metaOutput.DrawPassViewAttachments.Get(
+        color = metaUgb.DrawPassViewAttachments.Get(
             m_OpaqueSetPrimaryView.Name, pbrPass.Name()).Colors[0].Resource;
     }
     else
     {
-        depth = metaOutput.DrawPassViewAttachments.Get(
+        depth = metaUgb.DrawPassViewAttachments.Get(
             m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Depth->Resource;
-        vbuffer = metaOutput.DrawPassViewAttachments.Get(
+        vbuffer = metaUgb.DrawPassViewAttachments.Get(
             m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
 
         RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
@@ -367,10 +365,9 @@ void Renderer::SetupRenderGraph()
 
     Resource colorWithSkybox = RenderGraphSkyBox(color, depth);
     auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithSkybox);
-    auto& fxaaOutput = blackboard.Get<Passes::Fxaa::PassData>(fxaa);
     
     Passes::CopyTexture::addToGraph("Copy.MainColor"_hsv, *m_Graph, {
-        .TextureIn = fxaaOutput.AntiAliased,
+        .TextureIn = fxaa.AntiAliased,
         .TextureOut = backbuffer
     });
 
@@ -499,9 +496,8 @@ RG::Resource Renderer::RenderGraphDepthPrepass(const ScenePass& scenePass)
             .Resources = &m_SceneVisibilityResources,
             .DrawPasses = {RenderGraphDepthPrepassDescription(depth, scenePass)}
         });
-    auto& metaOutput = m_Graph->GetBlackboard().Get<Passes::SceneMetaDraw::PassData>(metaPass);
 
-    return metaOutput.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, scenePass.Name()).Depth->Resource;
+    return metaPass.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, scenePass.Name()).Depth->Resource;
 }
 
 SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resource& depth, const ScenePass& scenePass)
@@ -514,11 +510,10 @@ SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resour
             name.Concatenate(".DepthPrepass"), graph, {
                 .DrawInfo = info,
                 .Geometry = &m_Scene.Geometry()});
-        auto& passOutput = graph.GetBlackboard().Get<Passes::SceneDepthPrepass::PassData>(pass);
 
-        depth = *passOutput.Attachments.Depth;
+        depth = *pass.Resources.Attachments.Depth;
 
-        return passOutput.Attachments;
+        return pass.Resources.Attachments;
     };
     
     DrawAttachments attachments = {
@@ -567,9 +562,8 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
             executionInfo.CommonOverrides = ShaderPipelineOverrides({.DepthTest = DepthTest::Equal});
         
         auto& pass = Passes::SceneForwardPbr::addToGraph(name.Concatenate(".UGB"), graph, executionInfo);
-        auto& passOutput = graph.GetBlackboard().Get<Passes::SceneForwardPbr::PassData>(pass);
 
-        return passOutput.Attachments;
+        return pass.Resources.Attachments;
     };
 
     AttachmentLoad depthOnLoad = AttachmentLoad::Clear;
@@ -623,12 +617,11 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource& v
         };
         
         auto& pass = Passes::SceneVBuffer::addToGraph(name.Concatenate(".VBuffer"), graph, executionInfo);
-        auto& passOutput = graph.GetBlackboard().Get<Passes::SceneVBuffer::PassData>(pass);
 
-        vbuffer = passOutput.Attachments.Colors[0];
-        depth = *passOutput.Attachments.Depth;
+        vbuffer = pass.Resources.Attachments.Colors[0];
+        depth = *pass.Resources.Attachments.Depth;
 
-        return passOutput.Attachments;
+        return pass.Resources.Attachments;
     };
 
     DrawAttachments attachments = {
@@ -678,9 +671,8 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource& vbuffer, RG::Resource
         .Tiles = m_TileLightsInfo.Tiles,
         .ZBins = m_TileLightsInfo.ZBins,
     });
-    auto& pbrOutput = m_Graph->GetBlackboard().Get<Passes::SceneVBufferPbr::PassData>(pbr);
 
-    return pbrOutput.Color;
+    return pbr.Color;
 }
 
 void Renderer::RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth)
@@ -706,26 +698,22 @@ RG::Resource Renderer::RenderGraphSSAO(StringId baseName, RG::Resource depth)
     auto& ssao = Passes::Ssao::addToGraph(baseName.Concatenate("SSAO"), *m_Graph, {
         .Depth = depth,
         .MaxSampleCount = 32});
-    auto& ssaoOutput = blackboard.Get<Passes::Ssao::PassData>(ssao);
 
     auto& ssaoBlurHorizontal = Passes::SsaoBlur::addToGraph(baseName.Concatenate("SSAO.Blur.Horizontal"), *m_Graph, {
-        .SsaoIn = ssaoOutput.SSAO,
+        .SsaoIn = ssao.SSAO,
         .SsaoOut = {},
         .BlurKind = SsaoBlurPassKind::Horizontal});
-    auto& ssaoBlurHorizontalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurHorizontal);
     auto& ssaoBlurVertical = Passes::SsaoBlur::addToGraph(baseName.Concatenate("SSAO.Blur.Vertical"), *m_Graph, {
-        .SsaoIn = ssaoBlurHorizontalOutput.SsaoOut,
-        .SsaoOut = ssaoOutput.SSAO,
+        .SsaoIn = ssaoBlurHorizontal.SsaoOut,
+        .SsaoOut = ssao.SSAO,
         .BlurKind = SsaoBlurPassKind::Vertical});
-    auto& ssaoBlurVerticalOutput = blackboard.Get<Passes::SsaoBlur::PassData>(ssaoBlurVertical);
 
     auto& ssaoVisualize = Passes::SsaoVisualize::addToGraph(baseName.Concatenate("SSAO.Visualize"), *m_Graph,
-        ssaoBlurVerticalOutput.SsaoOut);
-    auto& ssaoVisualizeOutput = blackboard.Get<Passes::SsaoVisualize::PassData>(ssaoVisualize);
+        ssaoBlurVertical.SsaoOut);
 
-    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("SSAO.Texture"), *m_Graph, ssaoVisualizeOutput.Color);
+    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("SSAO.Texture"), *m_Graph, ssaoVisualize.Color);
 
-    return ssaoBlurVerticalOutput.SsaoOut;
+    return ssaoBlurVertical.SsaoOut;
 }
 
 Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName, RG::Resource depth)
@@ -744,23 +732,19 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
     Resource zbinsResource = Passes::Upload::addToGraph(baseName.Concatenate("Upload.Light.ZBins"), *m_Graph,
         zbins.Bins);
     auto& tilesSetup = Passes::LightTilesSetup::addToGraph(baseName.Concatenate("Tiles.Setup"), *m_Graph);
-    auto& tilesSetupOutput = blackboard.Get<Passes::LightTilesSetup::PassData>(tilesSetup);
     auto& binLightsTiles = Passes::LightTilesBin::addToGraph(baseName.Concatenate("Tiles.Bin"), *m_Graph, {
-        .Tiles = tilesSetupOutput.Tiles,
+        .Tiles = tilesSetup.Tiles,
         .Depth = depth,
         .Light = &m_Scene.Lights()});
-    auto& binLightsTilesOutput = blackboard.Get<Passes::LightTilesBin::PassData>(binLightsTiles);
     auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph(baseName.Concatenate("Tiles.Visualize"), *m_Graph, {
-        .Tiles = tilesSetupOutput.Tiles,
+        .Tiles = tilesSetup.Tiles,
         .Bins = zbinsResource,
         .Depth = depth});
-    auto& visualizeTilesOutput = blackboard.Get<Passes::LightTilesVisualize::PassData>(
-        visualizeTiles);
     Passes::ImGuiTexture::addToGraph(baseName.Concatenate("Tiles.Visualize.Texture"), *m_Graph,
-        visualizeTilesOutput.Color);
+        visualizeTiles.Color);
 
     return {
-        .Tiles = binLightsTilesOutput.Tiles,
+        .Tiles = binLightsTiles.Tiles,
         .ZBins = zbinsResource};
 }
 
@@ -776,32 +760,27 @@ Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId ba
     };
     
     auto& clustersSetup = Passes::LightClustersSetup::addToGraph(baseName.Concatenate("Clusters.Setup"), *m_Graph);
-    auto& clustersSetupOutput = blackboard.Get<Passes::LightClustersSetup::PassData>(clustersSetup);
     auto& compactClusters = Passes::LightClustersCompact::addToGraph(baseName.Concatenate("Clusters.Compact"),
         *m_Graph, {
-        .Clusters = clustersSetupOutput.Clusters,
-        .ClusterVisibility = clustersSetupOutput.ClusterVisibility,
+        .Clusters = clustersSetup.Clusters,
+        .ClusterVisibility = clustersSetup.ClusterVisibility,
         .Depth = depth});
-    auto& compactClustersOutput = blackboard.Get<Passes::LightClustersCompact::PassData>(compactClusters);
     auto& binLightsClusters = Passes::LightClustersBin::addToGraph(baseName.Concatenate("Clusters.Bin"), *m_Graph, {
-        .DispatchIndirect = compactClustersOutput.DispatchIndirect,
-        .Clusters = compactClustersOutput.Clusters,
-        .ActiveClusters = compactClustersOutput.ActiveClusters,
-        .ClustersCount = compactClustersOutput.ActiveClustersCount,
+        .DispatchIndirect = compactClusters.DispatchIndirect,
+        .Clusters = compactClusters.Clusters,
+        .ActiveClusters = compactClusters.ActiveClusters,
+        .ClustersCount = compactClusters.ActiveClustersCount,
         .Light = &m_Scene.Lights()});
-    auto& binLightsClustersOutput = blackboard.Get<Passes::LightClustersBin::PassData>(binLightsClusters);
 
     auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph(baseName.Concatenate("Clusters.Visualize"),
         *m_Graph, {
-        .Clusters = binLightsClustersOutput.Clusters,
+        .Clusters = binLightsClusters.Clusters,
         .Depth = depth});
-    auto& visualizeClustersOutput = blackboard.Get<Passes::LightClustersVisualize::PassData>(
-        visualizeClusters);
     Passes::ImGuiTexture::addToGraph(baseName.Concatenate("Clusters.Visualize.Texture"), *m_Graph,
-        visualizeClustersOutput.Color);
+        visualizeClusters.Color);
 
     return {
-        .Clusters = binLightsClustersOutput.Clusters};
+        .Clusters = binLightsClusters.Clusters};
 }
 
 RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
@@ -811,9 +790,8 @@ RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
         .Color = color,
         .Depth = depth,
         .Resolution = GetFrameContext().Resolution});
-    auto& skyboxOutput = m_Graph->GetBlackboard().Get<Passes::Skybox::PassData>(skybox);
 
-    return skyboxOutput.Color;
+    return skybox.Color;
 }
 
 Renderer* Renderer::Get()

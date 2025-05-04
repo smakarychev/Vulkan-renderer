@@ -10,8 +10,8 @@ namespace RG
     enum class ResourceAccessFlags;
 }
 
-RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource transmittanceLut, RG::Resource atmosphereSettings)
+Passes::Atmosphere::Multiscattering::PassData& Passes::Atmosphere::Multiscattering::addToGraph(StringId name,
+    RG::Graph& renderGraph, RG::Resource transmittanceLut, RG::Resource atmosphereSettings)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -31,8 +31,6 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(StringId name, RG::Gra
             passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
             passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -53,5 +51,5 @@ RG::Pass& Passes::Atmosphere::Multiscattering::addToGraph(StringId name, RG::Gra
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 64},
 				.GroupSize = {1, 1, 64}});
-        });
+        }).Data;
 }

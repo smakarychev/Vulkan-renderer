@@ -17,8 +17,8 @@ namespace
     }
 }
 
-RG::Pass& Passes::DepthReductionReadback::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource minMaxDepth, const Camera* primaryCamera)
+Passes::DepthReductionReadback::PassData& Passes::DepthReductionReadback::addToGraph(StringId name,
+    RG::Graph& renderGraph, RG::Resource minMaxDepth, const Camera* primaryCamera)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -41,10 +41,8 @@ RG::Pass& Passes::DepthReductionReadback::addToGraph(StringId name, RG::Graph& r
 
             passData.Min = -linearizeDepth(std::bit_cast<f32>(depths.Max), *primaryCamera);
             passData.Max = -linearizeDepth(std::bit_cast<f32>(depths.Min), *primaryCamera);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
-        });
+        }).Data;
 }

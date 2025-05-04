@@ -4,8 +4,8 @@
 #include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthMinMax,
-    RG::Resource primaryCamera, const glm::vec3& lightDirection)
+Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource depthMinMax, RG::Resource primaryCamera, const glm::vec3& lightDirection)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -23,8 +23,6 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderG
             passData.DepthMinMax = graph.Read(depthMinMax, Compute | Uniform);
             passData.PrimaryCamera = graph.Read(primaryCamera, Compute | Uniform);
             passData.CsmDataOut = graph.Write(csmData, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -57,5 +55,5 @@ RG::Pass& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderG
             cmd.Dispatch({
                 .Invocations = {SHADOW_CASCADES, 1, 1},
                 .GroupSize = {MAX_SHADOW_CASCADES, 1, 1}});
-        });
+        }).Data;
 }

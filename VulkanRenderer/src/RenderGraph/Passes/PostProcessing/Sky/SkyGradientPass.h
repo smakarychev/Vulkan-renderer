@@ -9,5 +9,5 @@ namespace Passes::SkyGradient
         RG::Resource Camera;
         RG::Resource Settings;
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource renderTarget);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource renderTarget);
 }

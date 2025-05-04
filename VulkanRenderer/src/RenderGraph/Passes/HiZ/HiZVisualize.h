@@ -8,5 +8,5 @@ namespace Passes::HiZVisualize
         RG::Resource HiZ{};
         RG::Resource ColorOut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource hiz);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource hiz);
 }

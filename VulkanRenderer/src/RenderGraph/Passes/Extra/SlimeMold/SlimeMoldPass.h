@@ -59,5 +59,5 @@ namespace Passes::SlimeMold
     {
         RG::Resource ColorOut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx);
 }

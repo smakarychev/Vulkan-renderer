@@ -6,7 +6,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneLight.h"
 
-RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::Atmosphere::SkyView::PassData& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
     RG::Resource atmosphereSettings, const SceneLight& light)
 {
@@ -35,8 +35,6 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& rend
             passData.DirectionalLight = graph.Read(passData.DirectionalLight, Compute | Uniform);
             passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
             passData.Lut = graph.Write(passData.Lut, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -61,5 +59,5 @@ RG::Pass& Passes::Atmosphere::SkyView::addToGraph(StringId name, RG::Graph& rend
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
-        });
+        }).Data;
 }

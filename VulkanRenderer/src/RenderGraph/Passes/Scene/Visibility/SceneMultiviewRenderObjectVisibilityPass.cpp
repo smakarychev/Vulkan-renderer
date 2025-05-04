@@ -4,8 +4,8 @@
 #include "RenderGraph/Passes/Generated/SceneMultiviewRenderObjectVisibilityBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZCommon.h"
 
-RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name, RG::Graph& renderGraph,
-    const ExecutionInfo& info)
+Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(
+    StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -45,8 +45,6 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
                 resources.RenderObjectVisibility[i] = graph.Write(resources.RenderObjectVisibility[i],
                     Compute | Storage);
             }
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -91,5 +89,5 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
             cmd.Dispatch({
                .Invocations = {passData.Resources->RenderObjectCount, 1, 1},
                .GroupSize = {64, 1, 1}});
-        });
+        }).Data;
 }

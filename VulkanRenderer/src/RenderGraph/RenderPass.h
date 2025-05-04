@@ -25,11 +25,13 @@ namespace RG
         public:
             virtual ~ExecutionCallbackBase() = default;
             virtual void Execute(FrameContext& frameContext, const Resources& passResources) = 0;
+            virtual void* GetPassData() = 0;
         };
     
         template <typename PassData, typename ExecutionLambda>
         class ExecutionCallback final : public ExecutionCallbackBase
         {
+            friend class Graph;
         public:
             ExecutionCallback(const PassData& passData, ExecutionLambda&& executionLambda)
                 : m_ExecutionLambda(std::forward<ExecutionLambda>(executionLambda)), m_PassData(passData)
@@ -39,6 +41,10 @@ namespace RG
             void Execute(FrameContext& frameContext, const Resources& passResources) override
             {
                 m_ExecutionLambda(m_PassData, frameContext, passResources);
+            }
+            void* GetPassData() override
+            {
+                return &m_PassData;
             }
         private:
             ExecutionLambda m_ExecutionLambda;

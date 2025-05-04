@@ -16,5 +16,5 @@ namespace Passes::HiZFull
         RG::Resource HiZMin{};
         RG::Resource HiZMax{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

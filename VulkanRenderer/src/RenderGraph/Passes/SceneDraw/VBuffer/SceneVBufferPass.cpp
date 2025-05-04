@@ -2,14 +2,14 @@
 
 #include "RenderGraph/Passes/Generated/SceneVbufferUgbBindGroup.generated.h"
 
-RG::Pass& Passes::SceneVBuffer::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::SceneVBuffer::PassData& Passes::SceneVBuffer::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
-        SceneDrawPassResources Resources{};
         Resource UGB{};
         Resource Objects{};
     };
@@ -30,11 +30,6 @@ RG::Pass& Passes::SceneVBuffer::addToGraph(StringId name, RG::Graph& renderGraph
             passData.Objects = graph.AddExternal("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
-
-            PassData passDataPublic = {};
-            passDataPublic.Attachments = passData.Resources.Attachments;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -56,5 +51,5 @@ RG::Pass& Passes::SceneVBuffer::addToGraph(StringId name, RG::Graph& renderGraph
                 .DrawBuffer = resources.GetBuffer(passData.Resources.Draws),
                 .CountBuffer = resources.GetBuffer(passData.Resources.DrawInfo),
                 .MaxCount = passData.Resources.MaxDrawCount});
-        });
+        }).Data;
 }

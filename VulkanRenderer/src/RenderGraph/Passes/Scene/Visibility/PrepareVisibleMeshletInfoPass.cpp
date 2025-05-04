@@ -4,19 +4,17 @@
 #include "RenderGraph/Passes/Generated/ScenePrepareVisibleMeshletInfoBindGroup.generated.h"
 #include "Scene/SceneRenderObjectSet.h"
 
-RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph& renderGraph,
-    const ExecutionInfo& info)
+Passes::PrepareVisibleMeshletInfo::PassData& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name,
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
         Resource ReferenceCommands{};
         Resource Buckets{};
         Resource MeshletHandles{};
-        Resource MeshletInfos{};
-        Resource MeshletInfoCount{};
 
         u32 MeshletCount{0};
     };
@@ -52,12 +50,6 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph
             passData.MeshletInfoCount = graph.Read(passData.MeshletInfoCount, Compute | Storage);
             passData.MeshletInfoCount = graph.Write(passData.MeshletInfoCount, Compute | Storage);
             graph.Upload(passData.MeshletInfoCount, 0);
-
-            PassData passDataPublic = {};
-            passDataPublic.MeshletInfos = passData.MeshletInfos;
-            passDataPublic.MeshletInfoCount = passData.MeshletInfoCount;
-
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -80,5 +72,5 @@ RG::Pass& Passes::PrepareVisibleMeshletInfo::addToGraph(StringId name, RG::Graph
             cmd.Dispatch({
                .Invocations = {passData.MeshletCount, 1, 1},
                .GroupSize = {64, 1, 1}});
-        });
+        }).Data;
 }

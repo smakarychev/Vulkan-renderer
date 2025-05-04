@@ -7,15 +7,14 @@
 #include "RenderGraph/Passes/Generated/SceneForwardPbrBindGroup.generated.h"
 #include "Scene/Scene.h"
 
-RG::Pass& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate
+    struct PassDataPrivate : PassData
     {
-        SceneDrawPassResources Resources{};
         Resource UGB{};
         Resource Objects{};
         SceneLightResources Light{};
@@ -74,11 +73,6 @@ RG::Pass& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGr
                 passData.Tiles = graph.Read(info.Tiles, Pixel | Storage);
                 passData.ZBins = graph.Read(info.ZBins, Pixel | Storage);
             }
-            
-            PassData passDataPublic = {};
-            passDataPublic.Attachments = passData.Resources.Attachments;
-            
-            graph.UpdateBlackboard(passDataPublic);
         },
         [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -111,5 +105,5 @@ RG::Pass& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGr
                 .DrawBuffer = resources.GetBuffer(passData.Resources.Draws),
                 .CountBuffer = resources.GetBuffer(passData.Resources.DrawInfo),
                 .MaxCount = passData.Resources.MaxDrawCount});
-        });
+        }).Data;
 }

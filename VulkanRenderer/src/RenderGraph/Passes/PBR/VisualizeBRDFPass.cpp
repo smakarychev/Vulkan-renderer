@@ -5,13 +5,13 @@
 #include "RenderGraph/Passes/Generated/BrdfVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::VisualizeBRDF::addToGraph(StringId name, RG::Graph& renderGraph, Texture brdf,
+Passes::VisualizeBRDF::PassData& Passes::VisualizeBRDF::addToGraph(StringId name, RG::Graph& renderGraph, Texture brdf,
     RG::Resource colorIn, const glm::uvec2& resolution)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
     
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("BRDF.Visualize.Setup")
@@ -34,8 +34,6 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(StringId name, RG::Graph& renderGrap
                 .WrapMode = SamplerWrapMode::ClampBorder});
 
             passData.BRDFSampler = brdfSampler;
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {   
@@ -51,7 +49,5 @@ RG::Pass& Passes::VisualizeBRDF::addToGraph(StringId name, RG::Graph& renderGrap
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        });
-
-    return pass;
+        }).Data;
 }

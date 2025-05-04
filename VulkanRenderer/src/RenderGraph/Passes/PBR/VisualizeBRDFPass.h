@@ -9,6 +9,6 @@ namespace Passes::VisualizeBRDF
         RG::Resource ColorOut{};
         Sampler BRDFSampler{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, Texture brdf, RG::Resource colorIn,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, Texture brdf, RG::Resource colorIn,
         const glm::uvec2& resolution);
 }

@@ -2,17 +2,16 @@
 
 #include "FrameContext.h"
 
-RG::Pass& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::CopyTexture::PassData& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             passData.TextureIn = graph.Read(info.TextureIn, ResourceAccessFlags::Copy);
             passData.TextureOut = graph.Write(info.TextureOut, ResourceAccessFlags::Copy);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -47,7 +46,5 @@ RG::Pass& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph,
                 .Destination = dst,
                 .SourceSubregion = srcSubregion,
                 .DestinationSubregion = dstSubregion});
-        });
-
-    return pass;
+        }).Data;
 }

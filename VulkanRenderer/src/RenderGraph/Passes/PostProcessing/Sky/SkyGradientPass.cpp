@@ -6,7 +6,8 @@
 #include "RenderGraph/Passes/Generated/SkyGradientBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
-RG::Pass& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource renderTarget)
+Passes::SkyGradient::PassData& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource renderTarget)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -29,7 +30,7 @@ RG::Pass& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph,
         glm::uvec2 ImageSize;
     };
 
-    Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+    return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("Sky.Gradient.Setup")
@@ -59,8 +60,6 @@ RG::Pass& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph,
             graph.Upload(passData.Settings, settings);
 
             passData.ColorOut = graph.Write(renderTarget, Compute | Storage);
-
-            graph.UpdateBlackboard(passData);
         },
         [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
         {
@@ -87,7 +86,5 @@ RG::Pass& Passes::SkyGradient::addToGraph(StringId name, RG::Graph& renderGraph,
             cmd.Dispatch({
                 .Invocations = {imageSize, 1},
                 .GroupSize = {32, 32, 1}});
-        });
-
-    return pass;
+        }).Data;
 }

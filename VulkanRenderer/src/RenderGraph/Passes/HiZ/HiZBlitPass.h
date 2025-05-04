@@ -20,7 +20,7 @@ namespace Passes::HiZBlit
         RG::Resource Depth{};
         RG::Resource HiZ{};
     };
-    inline RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+    inline PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
     {
         using namespace RG;
         using enum ResourceAccessFlags;
@@ -48,8 +48,6 @@ namespace Passes::HiZBlit
                 
                 passData.Depth = graph.Read(depth, Compute | Sampled);
                 passData.HiZ = graph.Write(hiz, Compute | Storage);
-
-                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
@@ -77,6 +75,6 @@ namespace Passes::HiZBlit
                     .Data = {hizResolution}});
                 cmd.Dispatch({
                     .Invocations = {(hizResolution.x + 32 - 1) / 32, (hizResolution.y + 32 - 1) / 32, 1}});
-            });
+            }).Data;
     }
 }

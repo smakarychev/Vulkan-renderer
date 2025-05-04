@@ -17,7 +17,7 @@ namespace Passes::Upload
         using namespace RG;
         using enum ResourceAccessFlags;
 
-        Pass& pass = renderGraph.AddRenderPass<PassData>(name,
+        return renderGraph.AddRenderPass<PassData>(name,
             [&](Graph& graph, PassData& passData)
             {
                 auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
@@ -26,14 +26,10 @@ namespace Passes::Upload
                 graph.Write(passData.Resource, Copy);
                 graph.Upload(passData.Resource, std::forward<T>(data));
                 graph.HasSideEffect();
-
-                graph.UpdateBlackboard(passData);
             },
             [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
             {
-            });
-        
-        return renderGraph.GetBlackboard().Get<PassData>(pass).Resource;
+            }).Data.Resource;
     }
 }
 

@@ -40,7 +40,7 @@ namespace Passes::Atmosphere
         RG::Resource Atmosphere{};
         RG::Resource EnvironmentOut{};
     };
-    RG::Pass& addToGraph(StringId name, RG::Graph& renderGraph, const AtmosphereSettings& atmosphereSettings,
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const AtmosphereSettings& atmosphereSettings,
         const SceneLight& light, RG::Resource colorIn, RG::Resource depthIn, const RG::CSMData& csmData);
 }
 
