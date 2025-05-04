@@ -24,14 +24,7 @@ project "ShaderBindGroupGen"
         "AssetLib",
     }
 
-    filter "configurations:Debug"
-		runtime "Debug"
-		symbols "on"
-
-	filter "configurations:Release"
-		runtime "Release"
-		optimize "on"
-        
+	filter "configurations:Release*"
         postbuildcommands { 
             "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{tools_bindir}%{prj.name}/ > nul \
              {COPYDIR} %{prj.location.directory}templates %{tools_bindir}%{prj.name}/templates/ > nul" 

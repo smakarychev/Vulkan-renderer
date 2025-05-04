@@ -71,8 +71,7 @@ RG::Pass& Passes::SceneMultiviewRenderObjectVisibility::addToGraph(StringId name
                         continue;
                     
                     auto&& [hiz, hizDescription] = resources.GetTextureWithDescription(passData.Resources->Hiz[i]);
-                    bindGroup.SetHiz({.Image = hiz}, hizDescription.Format == Format::D32_FLOAT ?
-                        ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly, i);
+                    bindGroup.SetHiz({.Image = hiz}, ImageLayout::Readonly, i);
                 }
             }
             

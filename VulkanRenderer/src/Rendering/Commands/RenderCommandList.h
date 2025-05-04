@@ -49,8 +49,6 @@ public:
     void BindPipelineCompute(BindPipelineComputeCommand&& command);
     void BindImmutableSamplersGraphics(BindImmutableSamplersGraphicsCommand&& command);
     void BindImmutableSamplersCompute(BindImmutableSamplersComputeCommand&& command);
-    void BindDescriptorSetGraphics(BindDescriptorSetGraphicsCommand&& command);
-    void BindDescriptorSetCompute(BindDescriptorSetComputeCommand&& command);
     void BindDescriptorsGraphics(BindDescriptorsGraphicsCommand&& command);
     void BindDescriptorsCompute(BindDescriptorsComputeCommand&& command);
     void BindDescriptorArenaAllocators(BindDescriptorArenaAllocatorsCommand&& command);

@@ -26,11 +26,3 @@ project "CoreLibTests"
         removefiles {
             "src/Platform/Windows/**"
         }
-
-    filter "configurations:Debug"
-		runtime "Debug"
-		symbols "on"
-
-	filter "configurations:Release"
-		runtime "Release"
-		optimize "on"

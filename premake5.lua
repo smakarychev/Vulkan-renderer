@@ -3,7 +3,7 @@ include "dependencies.lua"
 workspace "VulkanRenderer"
     outputdir = "%{cfg.buildcfg}-%{cfg.system}-%{cfg.architecture}"
     tools_bindir = "%{wks.location}tools/bin/"
-    configurations { "Debug", "Release"}
+    configurations { "Debug", "Release", "Debug_DescriptorBuffer", "Release_DescriptorBuffer" }
     architecture "x86_64"
     editandcontinue "Off"
     flags {
@@ -18,6 +18,14 @@ workspace "VulkanRenderer"
     buildoptions {
 		"/utf-8",
     }
+
+    filter "configurations:Debug*"
+		runtime "Debug"
+		symbols "on"
+
+	filter "configurations:Release*"
+		runtime "Release"
+		optimize "on"
 
     
 group "Dependencies"

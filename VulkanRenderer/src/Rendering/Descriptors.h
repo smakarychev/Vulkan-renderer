@@ -39,50 +39,8 @@ struct DescriptorsLayoutCreateInfo
     DescriptorLayoutFlags Flags{DescriptorLayoutFlags::None};
 };
 
-struct DescriptorAllocatorCreateInfo
-{
-    u32 MaxSets{0};
-};
-
-struct DescriptorAllocatorTag{};
-using DescriptorAllocator = ResourceHandleType<DescriptorAllocatorTag>;
-
 struct DescriptorsLayoutTag{};
 using DescriptorsLayout = ResourceHandleType<DescriptorsLayoutTag>;
-
-struct DescriptorSetCreateInfo
-{
-    struct VariableBindingInfo
-    {
-        u32 Slot;
-        u32 Count;
-    };
-    template <typename Binding>
-    struct BoundResource
-    {
-        Binding BindingInfo;
-        u32 Slot;
-        DescriptorType Type;
-    };
-    struct TextureBinding
-    {
-        ImageSubresource Subresource{};
-        Sampler Sampler{};
-        ImageLayout Layout{ImageLayout::Undefined};
-    };
-    using BoundBuffer = BoundResource<BufferSubresource>;
-    using BoundTexture = BoundResource<TextureBinding>;
-
-    DescriptorPoolFlags PoolFlags{0};
-    std::span<const BoundBuffer> Buffers;
-    std::span<const BoundTexture> Textures;
-    DescriptorAllocator Allocator{};
-    DescriptorsLayout Layout{};
-    std::span<const VariableBindingInfo> VariableBindings;
-};
-
-struct DescriptorSetTag{};
-using DescriptorSet = ResourceHandleType<DescriptorSetTag>;
 
 struct DescriptorArenaAllocatorTag{};
 using DescriptorArenaAllocator = ResourceHandleType<DescriptorArenaAllocatorTag>;
@@ -161,10 +119,10 @@ public:
 private:
     static void SortBindings(CacheKey& cacheKey);
 private:
-    struct DescriptorSetLayoutKeyHash
+    struct DescriptorsLayoutKeyHash
     {
         u64 operator()(const CacheKey& cacheKey) const;
     };
     
-    static std::unordered_map<CacheKey, DescriptorsLayout, DescriptorSetLayoutKeyHash> s_LayoutCache;
+    static std::unordered_map<CacheKey, DescriptorsLayout, DescriptorsLayoutKeyHash> s_LayoutCache;
 };

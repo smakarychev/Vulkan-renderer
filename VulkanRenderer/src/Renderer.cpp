@@ -231,10 +231,10 @@ void Renderer::ExecuteSingleTimePasses()
     
     m_IrradianceSH = Device::CreateBuffer({
         .SizeBytes = sizeof(SH9Irradiance),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage});
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform});
     m_SkyIrradianceSH = Device::CreateBuffer({
         .SizeBytes = sizeof(SH9Irradiance),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage});
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform});
 
     m_BRDFLut = Device::CreateImage({
         .Description = Passes::BRDFLut::getLutDescription(),

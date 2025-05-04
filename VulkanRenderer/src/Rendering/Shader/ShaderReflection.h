@@ -20,14 +20,14 @@ public:
         u32 Id;
         ShaderStage ShaderStages;
     };
-    struct DescriptorSetInfo
+    struct DescriptorsInfo
     {
         bool HasBindless{false};
         bool HasImmutableSampler{false};
         std::vector<std::string> DescriptorNames{};
         std::vector<DescriptorBinding> Descriptors{};
     };
-    using DescriptorSets = std::array<DescriptorSetInfo, MAX_DESCRIPTOR_SETS>;
+    using DescriptorSets = std::array<DescriptorsInfo, MAX_DESCRIPTOR_SETS>;
 public:
     static ShaderReflection* ReflectFrom(const std::vector<std::string>& paths);
     ShaderReflection() = default;
@@ -41,7 +41,7 @@ public:
     const std::vector<SpecializationConstant>& SpecializationConstants() const { return m_SpecializationConstants; }
     const VertexInputDescription& VertexInputDescription() const { return m_VertexInputDescription; }
     const std::vector<PushConstantDescription>& PushConstants() const { return m_PushConstants; }
-    const std::array<DescriptorSetInfo, MAX_DESCRIPTOR_SETS>& DescriptorSetsInfo() const
+    const std::array<DescriptorsInfo, MAX_DESCRIPTOR_SETS>& DescriptorSetsInfo() const
     {
         return m_DescriptorSets;
     }
@@ -53,6 +53,6 @@ private:
     std::vector<SpecializationConstant> m_SpecializationConstants;
     ::VertexInputDescription m_VertexInputDescription{};
     std::vector<PushConstantDescription> m_PushConstants{};
-    std::array<DescriptorSetInfo, MAX_DESCRIPTOR_SETS> m_DescriptorSets{};
+    std::array<DescriptorsInfo, MAX_DESCRIPTOR_SETS> m_DescriptorSets{};
     std::vector<ShaderModule> m_Modules;
 };

@@ -27,12 +27,10 @@ static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expecte
 struct ShaderPipelineTemplateCreateInfo
 {
     ShaderReflection* ShaderReflection{nullptr};
-    bool UseDescriptorBuffer{true};
 };
 
 class ShaderPipelineTemplate
 {
-    friend class ShaderDescriptorSet;
 public:
     ShaderPipelineTemplate() = default;
     ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo);
@@ -51,8 +49,6 @@ public:
 
     const ShaderReflection& GetReflection() const { return *m_ShaderReflection; }
 private:
-    bool m_UseDescriptorBuffer{false};
-
     ShaderReflection* m_ShaderReflection{nullptr};
     PipelineLayout m_PipelineLayout;
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorsLayouts;

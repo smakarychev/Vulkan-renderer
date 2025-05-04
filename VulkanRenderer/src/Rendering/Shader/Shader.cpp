@@ -20,7 +20,7 @@ namespace
     };
 
     DescriptorsFlags extractDescriptorsAndFlags(
-        const ShaderReflection::DescriptorSetInfo& descriptorSet, bool useDescriptorBuffer)
+        const ShaderReflection::DescriptorsInfo& descriptorSet)
     {
         DescriptorsFlags descriptorsFlags;
         descriptorsFlags.Descriptors.reserve(descriptorSet.Descriptors.size());
@@ -31,13 +31,8 @@ namespace
             descriptorsFlags.Descriptors.push_back(descriptor);
             DescriptorFlags flags = DescriptorFlags::None;
             if (enumHasAny(descriptor.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::Bindless))
-            {
                 flags |= DescriptorFlags::VariableCount;
-                if (!useDescriptorBuffer)
-                    flags |= DescriptorFlags::PartiallyBound |
-                        DescriptorFlags::UpdateAfterBind |
-                        DescriptorFlags::UpdateUnusedPending;
-            }
+
             descriptorsFlags.Flags.push_back(flags);
         }
 
@@ -45,17 +40,11 @@ namespace
     }
 
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> createDescriptorLayouts(
-        const std::array<ShaderReflection::DescriptorSetInfo, MAX_DESCRIPTOR_SETS>& descriptorSetReflections,
-        bool useDescriptorBuffer)
+        const std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS>& descriptorSetReflections)
     {
         std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> layouts;
 
-        static const DescriptorsLayout EMPTY_LAYOUT_ORDINARY = Device::CreateDescriptorsLayout({}); 
-        static const DescriptorsLayout EMPTY_LAYOUT_DESCRIPTOR_BUFFER = Device::CreateDescriptorsLayout({
-            .Flags = DescriptorLayoutFlags::DescriptorBuffer});
-
-        const DescriptorsLayout EMPTY_LAYOUT = useDescriptorBuffer ?
-            EMPTY_LAYOUT_DESCRIPTOR_BUFFER : EMPTY_LAYOUT_ORDINARY;
+        static const DescriptorsLayout EMPTY_LAYOUT = Device::GetEmptyDescriptorsLayout();
 
         for (u32 i = 0; i < descriptorSetReflections.size(); i++)
         {
@@ -66,13 +55,10 @@ namespace
                 continue;
             }
             
-            DescriptorsFlags descriptorsFlags = extractDescriptorsAndFlags(set, useDescriptorBuffer);
+            DescriptorsFlags descriptorsFlags = extractDescriptorsAndFlags(set);
         
-            DescriptorLayoutFlags layoutFlags = set.HasImmutableSampler ?
-                DescriptorLayoutFlags::EmbeddedImmutableSamplers : DescriptorLayoutFlags::None;
-            if (useDescriptorBuffer)
-                layoutFlags |= DescriptorLayoutFlags::DescriptorBuffer;
-            else if (set.HasBindless)
+            DescriptorLayoutFlags layoutFlags = DescriptorLayoutFlags::None;
+            if (set.HasBindless)
                 layoutFlags |= DescriptorLayoutFlags::UpdateAfterBind;
             
             DescriptorsLayout layout = Device::CreateDescriptorsLayout({
@@ -93,15 +79,12 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
     auto& reflection = *createInfo.ShaderReflection;
     m_ShaderReflection = createInfo.ShaderReflection;
 
-    m_UseDescriptorBuffer = createInfo.UseDescriptorBuffer;
-    
     m_DescriptorsLayouts = createDescriptorLayouts(
-        reflection.DescriptorSetsInfo(),
-        m_UseDescriptorBuffer);
+        reflection.DescriptorSetsInfo());
     
     m_PipelineLayout = Device::CreatePipelineLayout({
         .PushConstants = reflection.PushConstants(),
-        .DescriptorSetLayouts = m_DescriptorsLayouts});
+        .DescriptorsLayouts = m_DescriptorsLayouts});
 }
 
 DescriptorBindingInfo ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
@@ -228,9 +211,7 @@ void ShaderTemplateLibrary::AddShaderTemplate(const ShaderPipelineTemplate& shad
 
 ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string>& paths)
 {
-    // todo: this now assumes the use of DescriptorBuffer
     return ShaderPipelineTemplate({
         .ShaderReflection = ShaderReflection::ReflectFrom(paths),
-        .UseDescriptorBuffer = true
     });
 }

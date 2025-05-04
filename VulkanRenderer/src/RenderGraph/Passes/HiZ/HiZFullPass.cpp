@@ -46,8 +46,12 @@ RG::Pass& Passes::HiZFull::addToGraph(StringId name, RG::Graph& renderGraph, con
                 graph.SetShader("depth-reduction"_hsv);
 
                 passData.Depth = graph.Read(minOutput.Depth, Compute | Sampled);
-                passData.HiZMin = graph.Write(minOutput.HiZ, Compute | Storage);
-                passData.HiZMax = graph.Write(maxOutput.HiZ, Compute | Storage);
+                minOutput.HiZ = graph.Read(minOutput.HiZ, Compute | Sampled);
+                minOutput.HiZ= graph.Write(minOutput.HiZ, Compute | Storage);
+                maxOutput.HiZ = graph.Read(maxOutput.HiZ, Compute | Sampled);
+                maxOutput.HiZ = graph.Write(maxOutput.HiZ, Compute | Storage);
+                passData.HiZMin = minOutput.HiZ;
+                passData.HiZMax = maxOutput.HiZ;
                 passData.MinMaxDepth = graph.GetBlackboard().Get<HiZBlit::PassData>(minBlit).MinMaxDepth;
                 
                 graph.UpdateBlackboard(passData);

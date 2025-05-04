@@ -32,6 +32,13 @@ public:
 
 #define BIT(x) (1 << (x))
 
+#define ENUM_FLAGS_UNARY_NOT(enumType) \
+inline constexpr enumType operator ~(enumType a) \
+{ \
+    static_assert(std::is_enum_v<enumType>, "Provided type is not an enum"); \
+    return enumType(~std::underlying_type_t<enumType>(a)); \
+} \
+
 #define ENUM_FLAGS_BINARY_CONST_OP(enumType, op) \
 inline constexpr enumType operator op(enumType a, enumType b) \
 { \
@@ -68,6 +75,7 @@ constexpr bool enumHasOnly(Enum a, Enum b)
 }
 
 #define CREATE_ENUM_FLAGS_OPERATORS(enumType) \
+    ENUM_FLAGS_UNARY_NOT(enumType) \
     ENUM_FLAGS_BINARY_CONST_OP(enumType, |) \
     ENUM_FLAGS_BINARY_CONST_OP(enumType, &) \
     ENUM_FLAGS_BINARY_CONST_OP(enumType, ^) \

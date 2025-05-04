@@ -148,16 +148,6 @@ void RenderCommandList::BindImmutableSamplersCompute(BindImmutableSamplersComput
     Device::CompileCommand(m_Cmd, command);
 }
 
-void RenderCommandList::BindDescriptorSetGraphics(BindDescriptorSetGraphicsCommand&& command)
-{
-    Device::CompileCommand(m_Cmd, command);
-}
-
-void RenderCommandList::BindDescriptorSetCompute(BindDescriptorSetComputeCommand&& command)
-{
-    Device::CompileCommand(m_Cmd, command);
-}
-
 void RenderCommandList::BindDescriptorsGraphics(BindDescriptorsGraphicsCommand&& command)
 {
     Device::CompileCommand(m_Cmd, command);

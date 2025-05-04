@@ -23,7 +23,7 @@ struct PushConstantDescription
 struct PipelineLayoutCreateInfo
 {
     Span<const PushConstantDescription> PushConstants;
-    Span<const DescriptorsLayout> DescriptorSetLayouts;
+    Span<const DescriptorsLayout> DescriptorsLayouts;
 };
 
 struct PipelineLayoutTag{};
@@ -115,7 +115,6 @@ struct PipelineCreateInfo
     PrimitiveKind PrimitiveKind{PrimitiveKind::Triangle};
     PipelineSpecializationsView Specialization{};
     bool IsComputePipeline{false};
-    bool UseDescriptorBuffer{false};
     bool ClampDepth{false};
 };
 

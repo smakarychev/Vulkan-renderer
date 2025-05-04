@@ -66,7 +66,7 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesVi
 
     const auto setPresence = pipeline.PipelineTemplate->GetSetPresence();
     const bool referencesOtherBindlessSet = pipeline.BindlessName != StringId{};
-    for (u32 i = 0; i <= BINDLESS_DESCRIPTORS_INDEX; i++)
+     for (u32 i = 0; i <= BINDLESS_DESCRIPTORS_INDEX; i++)
     {
         if (!setPresence[i])
             continue;
@@ -310,7 +310,6 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
         .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
         .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
         .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
-        .UseDescriptorBuffer = true,
         .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
         Device::DummyDeletionQueue());
 

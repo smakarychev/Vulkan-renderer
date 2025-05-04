@@ -35,9 +35,7 @@ project "AssetConverter"
         "mikktspace",
     }
 
-    filter "configurations:Debug"
-        runtime "Debug"
-        symbols "on"
+    filter "configurations:Debug*"
         links {
             "shadercd.lib",
             "shaderc_combinedd.lib", 
@@ -45,9 +43,7 @@ project "AssetConverter"
             "shaderc_utild.lib",
         }
 
-    filter "configurations:Release"
-        runtime "Release"
-        optimize "on"
+    filter "configurations:Release*"
         links {
             "shaderc.lib",
             "shaderc_combined.lib", 
@@ -98,9 +94,7 @@ project "AssetConverterLib"
         "mikktspace",
     }
 
-    filter "configurations:Debug"
-        runtime "Debug"
-        symbols "on"
+    filter "configurations:Debug*"
         links {
             "shadercd.lib",
             "shaderc_combinedd.lib", 
@@ -108,9 +102,7 @@ project "AssetConverterLib"
             "shaderc_utild.lib",
         }
 
-    filter "configurations:Release"
-        runtime "Release"
-        optimize "on"
+    filter "configurations:Release*"
         links {
             "shaderc.lib",
             "shaderc_combined.lib", 

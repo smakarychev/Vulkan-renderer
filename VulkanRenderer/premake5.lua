@@ -61,16 +61,17 @@ project "VulkanRenderer"
     }
 
     filter "configurations:Debug"
-        runtime "Debug"
-        symbols "on"
         defines { 
             "VULKAN_VAL_LAYERS",
         }
-        links {
+    
+    filter "configurations:Debug_DescriptorBuffer"
+        defines { 
+            "VULKAN_VAL_LAYERS",
+            "DESCRIPTOR_BUFFER",
         }
 
-    filter "configurations:Release"
-        runtime "Release"
-        optimize "on"
-        links {
+    filter "configurations:Release_DescriptorBuffer"
+        defines {
+            "DESCRIPTOR_BUFFER",
         }

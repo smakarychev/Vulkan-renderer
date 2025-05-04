@@ -5,7 +5,7 @@
 #include <algorithm>
 
 std::unordered_map<DescriptorLayoutCache::CacheKey,
-    DescriptorsLayout, DescriptorLayoutCache::DescriptorSetLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
+    DescriptorsLayout, DescriptorLayoutCache::DescriptorsLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
 
 DescriptorArenaAllocators::DescriptorArenaAllocators(DescriptorArenaAllocator samplerAllocator,
     DescriptorArenaAllocator resourceAllocator, DescriptorArenaAllocator materialAllocator)
@@ -59,7 +59,7 @@ void DescriptorLayoutCache::SortBindings(CacheKey& cacheKey)
         [](const auto& a, const auto& b) { return a.Binding < b.Binding; });
 }
 
-u64 DescriptorLayoutCache::DescriptorSetLayoutKeyHash::operator()(const CacheKey& cacheKey) const
+u64 DescriptorLayoutCache::DescriptorsLayoutKeyHash::operator()(const CacheKey& cacheKey) const
 {
     u64 hash = 0;
     for (auto& binding : cacheKey.m_Bindings)

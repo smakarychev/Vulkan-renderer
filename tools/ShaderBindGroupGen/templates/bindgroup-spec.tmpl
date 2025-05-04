@@ -12,7 +12,7 @@ struct {{name}}ShaderBindGroup : ShaderBindGroupBase<{{name}}ShaderBindGroup>
 {% if is_raster %}
         cmdList.BindPipelineGraphics({.Pipeline = Shader->Pipeline()});
     {% if has_immutable_sampler %}
-        cmdList.BindImmutableSamplersGraphics({.PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
+        cmdList.BindImmutableSamplersGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% else if has_samplers %}
         cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% endif %}
@@ -25,7 +25,7 @@ struct {{name}}ShaderBindGroup : ShaderBindGroupBase<{{name}}ShaderBindGroup>
 {% else %}
         cmdList.BindPipelineCompute({.Pipeline = Shader->Pipeline()});
     {% if has_immutable_sampler %}
-        cmdList.BindImmutableSamplersCompute({.PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
+        cmdList.BindImmutableSamplersCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% else if has_samplers %}
         cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
     {% endif %}

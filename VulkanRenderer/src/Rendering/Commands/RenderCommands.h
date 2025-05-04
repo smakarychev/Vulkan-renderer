@@ -56,7 +56,6 @@ enum class RenderCommandType
 
     BindPipeline,
     BindImmutableSamplers,
-    BindDescriptorSet,
     BindDescriptors,
     BindDescriptorArenaAllocators,
 
@@ -268,30 +267,16 @@ struct BindPipelineComputeCommand
 struct BindImmutableSamplersGraphicsCommand
     : RenderCommandTyped<RenderCommandType::BindImmutableSamplers, RenderCommandQueueType::Graphics>
 {
+    Descriptors Descriptors{};
     PipelineLayout PipelineLayout{};
     u32 Set{};
 };
 struct BindImmutableSamplersComputeCommand
     : RenderCommandTyped<RenderCommandType::BindImmutableSamplers, RenderCommandQueueType::Compute>
 {
+    Descriptors Descriptors{};
     PipelineLayout PipelineLayout{};
     u32 Set{};
-};
-struct BindDescriptorSetGraphicsCommand
-    : RenderCommandTyped<RenderCommandType::BindDescriptors, RenderCommandQueueType::Graphics>
-{
-    DescriptorSet DescriptorSet{};
-    PipelineLayout PipelineLayout{};
-    u32 Set{};
-    Span<const u32> DynamicOffsets{};
-};
-struct BindDescriptorSetComputeCommand
-    : RenderCommandTyped<RenderCommandType::BindDescriptors, RenderCommandQueueType::Compute>
-{
-    DescriptorSet DescriptorSet{};
-    PipelineLayout PipelineLayout{};
-    u32 Set{};
-    Span<const u32> DynamicOffsets{};
 };
 struct BindDescriptorsGraphicsCommand
     : RenderCommandTyped<RenderCommandType::BindDescriptors, RenderCommandQueueType::Graphics>

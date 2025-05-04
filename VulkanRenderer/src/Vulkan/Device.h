@@ -69,7 +69,6 @@ private:
     std::vector<Sampler> m_Samplers;
     std::vector<CommandPool> m_CommandPools;
     std::vector<DescriptorsLayout> m_DescriptorLayouts;
-    std::vector<DescriptorAllocator> m_DescriptorAllocators;
     std::vector<DescriptorArenaAllocator> m_DescriptorArenaAllocators;
     std::vector<PipelineLayout> m_PipelineLayouts;
     std::vector<Pipeline> m_Pipelines;
@@ -105,8 +104,6 @@ void DeletionQueue::Enqueue(Type type)
         m_CommandPools.push_back(type);
     else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
         m_DescriptorLayouts.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, DescriptorAllocator>)
-        m_DescriptorAllocators.push_back(type);
     else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocator>)
         m_DescriptorArenaAllocators.push_back(type);
     else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
@@ -135,6 +132,7 @@ void DeletionQueue::Enqueue(Type type)
 
 class Device
 {
+    friend class DeviceInternal;
 public:
     static void BeginFrame(FrameContext& ctx);
     
@@ -222,19 +220,9 @@ public:
     static void Destroy(ShaderModule shaderModule);
     
     static DescriptorsLayout CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo);
+    static DescriptorsLayout GetEmptyDescriptorsLayout();
     static void Destroy(DescriptorsLayout layout);
     
-    static DescriptorSet CreateDescriptorSet(DescriptorSetCreateInfo&& createInfo);
-    static DescriptorSet AllocateDescriptorSet(DescriptorAllocator allocator, DescriptorsLayout layout,
-        DescriptorPoolFlags poolFlags, const std::vector<u32>& variableBindingCounts);
-    static void DeallocateDescriptorSet(DescriptorAllocator allocator,  DescriptorSet set);
-    static void UpdateDescriptorSet(DescriptorSet descriptorSet, DescriptorBindingInfo bindingInfo,
-        const ImageSubresource& image, Sampler sampler, ImageLayout layout, u32 index);
-
-    static DescriptorAllocator CreateDescriptorAllocator(DescriptorAllocatorCreateInfo&& createInfo);
-    static void Destroy(DescriptorAllocator allocator);
-    static void ResetDescriptorAllocator(DescriptorAllocator allocator);
-
     static DescriptorArenaAllocator CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(DescriptorArenaAllocator allocator);
@@ -347,8 +335,6 @@ public:
     static void CompileCommand(CommandBuffer cmd, const BindPipelineComputeCommand& command);
     static void CompileCommand(CommandBuffer cmd, const BindImmutableSamplersGraphicsCommand& command);
     static void CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComputeCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindDescriptorSetGraphicsCommand& command);
-    static void CompileCommand(CommandBuffer cmd, const BindDescriptorSetComputeCommand& command);
     static void CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command);
     static void CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command);
     static void CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command);
@@ -371,7 +357,6 @@ private:
     static void InitImGuiUI();
     static void ShutdownImGuiUI();
 
-    static u32 GetFreePoolIndexFromAllocator(DescriptorAllocator allocator, DescriptorPoolFlags poolFlags);
 
     static void CreateInstance(const DeviceCreateInfo& createInfo);
     static void CreateSurface(const DeviceCreateInfo& createInfo);
@@ -383,10 +368,6 @@ private:
 
     static void CreateSwapchainImages(Swapchain swapchain);
     static void DestroySwapchainImages(Swapchain swapchain);
-
-    static u32 GetDescriptorSizeBytes(DescriptorType type);
-    static void WriteDescriptor(Descriptors descriptors, DescriptorBindingInfo bindingInfo, u32 index,
-        VkDescriptorGetInfoEXT& descriptorGetInfo);
 
     static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
         VmaAllocationCreateFlags allocationFlags);
@@ -405,7 +386,7 @@ private:
         Span<const u64> waitValues, Span<const PipelineStage> waitStages);
 
     static void BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
+        PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
 private:
     struct State;
     static State s_State;

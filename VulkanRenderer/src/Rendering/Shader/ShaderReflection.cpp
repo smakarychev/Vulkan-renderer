@@ -206,10 +206,10 @@ namespace
         return merged;
     }
 
-    std::array<ShaderReflection::DescriptorSetInfo, MAX_DESCRIPTOR_SETS> processDescriptorSets(
+    std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS> processDescriptorSets(
         const std::vector<ShaderReflection::ShaderStageInfo::DescriptorSet>& sets)
     {
-        std::array<ShaderReflection::DescriptorSetInfo, MAX_DESCRIPTOR_SETS> descriptorSets;
+        std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS> descriptorSets;
         for (auto& set : sets)
         {
             auto& target = descriptorSets[set.Set];
