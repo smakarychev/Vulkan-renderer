@@ -1,7 +1,5 @@
 ﻿#pragma once
 
-#include "RenderingCommon.h"
-
 #include "Buffer/Buffer.h"
 #include "DescriptorsTraits.h"
 #include "Image/Image.h"

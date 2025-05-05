@@ -405,7 +405,8 @@ namespace RG
     template <typename PassData, typename SetupFn, typename CallbackFn>
     Graph::PassWithData<PassData> Graph::AddRenderPass(StringId name, SetupFn&& setup, CallbackFn&& callback)
     {
-        ASSERT(!m_PassNameSet.contains(name), "Pass with such name already exists")
+        if (m_PassNameSet.contains(name))
+            LOG("Warning: Pass with such name already exists ({})", name);
         m_PassNameSet.emplace(name);
         std::unique_ptr<Pass> pass = std::make_unique<Pass>(name);
 
@@ -433,19 +434,19 @@ namespace RG
     template <typename Value>
     void Graph::UpdateBlackboard(Value&& value)
     {
-        GetBlackboard().Update(m_CurrentPassesStack.back()->GetNameHash(), std::forward<Value>(value));
+        GetBlackboard().Update(std::forward<Value>(value));
     }
 
     template <typename Value>
     Value& Graph::GetBlackboardValue()
     {
-        return GetBlackboard().Get<Value>(m_CurrentPassesStack.back()->GetNameHash());
+        return GetBlackboard().Get<Value>();
     }
 
     template <typename Value>
     Value* Graph::TryGetBlackboardValue()
     {
-        return GetBlackboard().TryGet<Value>(m_CurrentPassesStack.back()->GetNameHash());
+        return GetBlackboard().TryGet<Value>();
     }
 
     template <typename Value>
