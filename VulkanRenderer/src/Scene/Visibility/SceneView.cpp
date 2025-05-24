@@ -6,7 +6,7 @@ SceneViewGPU SceneViewGPU::FromSceneView(const SceneView& view)
 {
     u32 viewFlags = {};
     viewFlags |= (u32)(view.Camera->GetType() == CameraType::Orthographic) << IS_ORTHOGRAPHIC_BIT;
-    viewFlags |= (u32)enumHasAny(view.VisibilityFlags, SceneVisibilityFlags::ClampDepth);
+    viewFlags |= (u32)enumHasAny(view.VisibilityFlags, SceneVisibilityFlags::ClampDepth) << CLAMP_DEPTH_BIT;
     glm::uvec2 hizResolution = enumHasAny(view.VisibilityFlags, SceneVisibilityFlags::OcclusionCull) ?
         HiZ::calculateHizResolution(view.Resolution) : glm::uvec2(0);
     return {

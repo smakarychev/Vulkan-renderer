@@ -1,7 +1,7 @@
 #include "HiZNVPass.h"
 
 #include "HiZBlitPass.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/HizNvBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -25,17 +25,21 @@ Passes::HiZNV::PassData& Passes::HiZNV::addToGraph(StringId name, RG::Graph& ren
      */
     auto& blit = HiZBlit::addToGraph(name.Concatenate(".BlitMin"), renderGraph, {
         .Depth = info.Depth,
-        .Subresource = info.Subresource,
         .ReductionMode = info.ReductionMode,
         .CalculateMinMax = true});
     
-    const u32 mipmapCount = (u32)(u8)renderGraph.GetTextureDescription(blit.HiZ).Mipmaps;
-    const glm::uvec2 hizResolution = renderGraph.GetTextureDescription(blit.HiZ).Dimensions();
+    const u32 mipmapCount = (u32)(u8)renderGraph.GetImageDescription(blit.HiZ).Mipmaps;
+    const glm::uvec2 hizResolution = renderGraph.GetImageDescription(blit.HiZ).Dimensions();
     u32 width = hizResolution.x;  
     u32 height = hizResolution.y;
 
     u32 mipmapsRemaining = mipmapCount - 1;
     u32 currentMipmap = 0;
+
+    std::array hizMips = blit.HiZMips;
+
+    for (i8 mipmap = 1; mipmap < (i8)mipmapCount; mipmap++)
+        hizMips[mipmap] = renderGraph.SplitImage(blit.HiZ, {.MipmapBase = mipmap, .Mipmaps = 1});
 
     while (mipmapsRemaining != 0)
     {
@@ -48,30 +52,29 @@ Passes::HiZNV::PassData& Passes::HiZNV::addToGraph(StringId name, RG::Graph& ren
 
                 graph.SetShader("hiz-nv"_hsv);
 
-                passData.Depth = graph.Read(blit.Depth, Compute | Sampled);
-                passData.HiZ = graph.Write(blit.HiZ, Compute | Storage);
+                passData.Depth = graph.ReadImage(blit.Depth, Compute | Sampled);
+                for (u32 i = currentMipmap; i < currentMipmap + toBeProcessed; i++)
+                    hizMips[i] = graph.ReadWriteImage(hizMips[i], Compute | Sampled);
+                if (mipmapsRemaining - toBeProcessed == 0)
+                    blit.HiZ = graph.MergeImage(Span<const Resource>(hizMips.data(), mipmapCount));
+                passData.HiZ = blit.HiZ;
             },
-            [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+            [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
                 CPU_PROFILE_FRAME("HiZNV")
                 GPU_PROFILE_FRAME("HiZNV")
 
-                Texture hiz = resources.GetTexture(passData.HiZ);
-                Span hizViews = Device::GetAdditionalImageViews(hiz);
-                
-                const Shader& shader = resources.GetGraph()->GetShader();
+                const Shader& shader = graph.GetShader();
                 HizNvShaderBindGroup bindGroup(shader);
                 bindGroup.SetInSampler(HiZ::createSampler(info.ReductionMode));
-                bindGroup.SetInImage({.Image = hiz}, ImageLayout::General);
+                bindGroup.SetInImage(graph.GetImageBinding(passData.HiZ));
 
-                for (u32 i = 0; i < hizViews.size(); i++)
-                    bindGroup.SetHizMips({
-                        .Image = hiz,
-                        .Description = hizViews[i]}, ImageLayout::General, i);
+                for (u32 i = 0; i < mipmapCount; i++)
+                    bindGroup.SetHizMips(graph.GetImageBinding(hizMips[i]), i);
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+                bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
                 cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});
@@ -80,7 +83,7 @@ Passes::HiZNV::PassData& Passes::HiZNV::addToGraph(StringId name, RG::Graph& ren
                 u32 samples = width * height;
                 cmd.Dispatch({
                     .Invocations = {(samples + mask) >> shift, 1, 1}});
-            }).Data;
+            });
 
         width = std::max(1u, width >> toBeProcessed);
         height = std::max(1u, height >> toBeProcessed);

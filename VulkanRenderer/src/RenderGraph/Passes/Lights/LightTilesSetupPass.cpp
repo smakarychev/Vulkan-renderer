@@ -2,7 +2,8 @@
 
 #include "Core/Camera.h"
 #include "Light/Light.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Generated/LightTilesSetupBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -22,19 +23,19 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
 
             glm::uvec2 bins = glm::ceil(
                 glm::vec2{globalResources.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
-            passData.Tiles = graph.CreateResource("Tiles"_hsv, GraphBufferDescription{
+            passData.Tiles = graph.Create("Tiles"_hsv, RGBufferDescription{
                 .SizeBytes = (u64)(bins.x * bins.y) * sizeof(LightTile)});
-            passData.Tiles = graph.Write(passData.Tiles, Compute | Storage);
+            passData.Tiles = graph.WriteBuffer(passData.Tiles, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Setup")
             GPU_PROFILE_FRAME("Lights.Tiles.Setup")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             LightTilesSetupShaderBindGroup bindGroup(shader);
             
-            bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
+            bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
 
             struct PushConstant
             {
@@ -50,7 +51,7 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});
@@ -59,5 +60,5 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
             cmd.Dispatch({
                 .Invocations = {bins.x, bins.y, 1},
                 .GroupSize = {1, 1, 1}});
-        }).Data;
+        });
 }

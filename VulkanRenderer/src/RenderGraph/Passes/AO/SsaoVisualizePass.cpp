@@ -23,29 +23,26 @@ Passes::SsaoVisualize::PassData& Passes::SsaoVisualize::addToGraph(StringId name
 
             graph.SetShader("ssao-visualize"_hsv);
             
-            auto& ssaoDescription = Resources(graph).GetTextureDescription(ssao);
-            passData.Color = graph.CreateResource("Color"_hsv,
-                GraphTextureDescription{
-                    .Width = ssaoDescription.Width,
-                    .Height = ssaoDescription.Height,
+            passData.Color = graph.Create("Color"_hsv,
+                RGImageDescription{
+                    .Inference = RGImageInference::Size,
+                    .Reference = ssao,
                     .Format = Format::RGBA16_FLOAT});
 
-            passData.SSAO = graph.Read(ssao, Pixel | Sampled);
-            passData.Color = graph.RenderTarget(passData.Color, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.SSAO = graph.ReadImage(ssao, Pixel | Sampled);
+            passData.Color = graph.RenderTarget(passData.Color, {});
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("SSAO.Visualize")
             GPU_PROFILE_FRAME("SSAO.Visualize")
 
-            Texture ssaoTexture = resources.GetTexture(passData.SSAO);
-
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SsaoVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetSsao({.Image = ssaoTexture}, ImageLayout::Readonly);
+            bindGroup.SetSsao(graph.GetImageBinding(passData.SSAO));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

@@ -1,7 +1,7 @@
 #include "SceneMetaDrawPass.h"
 
 #include "SceneFillIndirectDrawPass.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "Scene/SceneRenderObjectSet.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
@@ -21,9 +21,9 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             CPU_PROFILE_FRAME("SceneMetaDraw")
 
             std::array<Resource, SceneMultiviewVisibility::MAX_VIEWS> passDepths{};
-            std::array<ImageSubresourceDescription, SceneMultiviewVisibility::MAX_VIEWS> passDepthsSubresources{};
-            std::array<Resource, MAX_BUCKETS_PER_SET> draws;
-            std::array<Resource, MAX_BUCKETS_PER_SET> drawInfos;
+            std::array<Resource, MAX_BUCKETS_PER_SET> draws{};
+            std::array<Resource, MAX_BUCKETS_PER_SET> drawInfos{};
+            u32 maxBucketIndex = 0;
 
             auto drawWithVisibility = [&](u32 visibilityIndex, bool reocclusion)
             {
@@ -33,7 +33,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                         .Geometry = &info.MultiviewVisibility->ObjectSet().Geometry(),
                         .Draws = draws,
                         .DrawInfos = drawInfos,
-                        .BucketCount = info.MultiviewVisibility->ObjectSet().BucketCount(),
+                        .BucketCount = maxBucketIndex + 1,
                         .MeshletInfos = info.Resources->MeshletBucketInfos[visibilityIndex],
                         .MeshletInfoCount = info.Resources->MeshletInfoCounts[visibilityIndex]});
 
@@ -47,10 +47,16 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
 
                     const SceneView& mainVisibilityView = info.MultiviewVisibility->View(pass.Visibility);
                     
-                    DrawAttachments oldAttachments = passData.DrawPassViewAttachments.Get(
-                        pass.View.Name, pass.Pass->Name());
                     DrawAttachments& inputAttachments = passData.DrawPassViewAttachments.Get(
                         pass.View.Name, pass.Pass->Name());
+                    
+                    for (auto& color : inputAttachments.Colors)
+                        ASSERT(color.Resource.HasFlags(ResourceFlags::AutoUpdate),
+                            "SceneMetaDraw pass expects all attachments to be created with 'AutoUpdate' flag")
+                    if (inputAttachments.Depth)
+                        ASSERT(inputAttachments.Depth->Resource.HasFlags(ResourceFlags::AutoUpdate),
+                            "SceneMetaDraw pass expects all attachments to be created with 'AutoUpdate' flag")
+                    
                     if (reocclusion)
                     {
                         for (auto& color : inputAttachments.Colors)
@@ -60,7 +66,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     }
 
                     DrawAttachmentResources attachmentResources = {};
-                    for (auto&& [handleIndex, bucketHandle] : std::ranges::views::enumerate(pass.Pass->BucketHandles()))
+                    for (auto&& [handleIndex, bucketHandle] : std::views::enumerate(pass.Pass->BucketHandles()))
                     {
                         const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
                         auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
@@ -79,19 +85,9 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                         
                         auto&& [colors, depth] = attachmentResources;
 
-                        for (u32 i = 0; i < colors.size(); i++)
-                            inputAttachments.Colors[i].Resource = colors[i];
-
                         if (depth.has_value())
-                        {
                             if (pass.View == mainVisibilityView)
-                            {
                                 passDepths[visibilityIndex] = depth.value_or(Resource{});
-                                passDepthsSubresources[visibilityIndex] = inputAttachments.Depth.has_value() ?
-                                    inputAttachments.Depth->Description.Subresource : ImageSubresourceDescription{};
-                            }
-                            inputAttachments.Depth->Resource = *depth;
-                        }
 
                         if (!reocclusion && handleIndex == 0)
                         {
@@ -101,32 +97,28 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                                 inputAttachments.Depth->Description.OnLoad = AttachmentLoad::Load;
                         }
                     }
-
-                    // todo: remove this garbage >:(
-                    passData.DrawPassViewAttachments.UpdateResources(oldAttachments, attachmentResources);
                 }
             };
             
             for (auto& viewPass : info.DrawPasses)
                 passData.DrawPassViewAttachments.Add(viewPass.View.Name, viewPass.Pass->Name(), viewPass.Attachments);
-
-            u32 bucketIndex = 0;
-            for (auto& pass : info.MultiviewVisibility->ObjectSet().Passes())
+            
+            for (auto& pass : info.DrawPasses)
             {
-                for (SceneBucketHandle bucketHandle : pass.BucketHandles())
+                for (auto& bucketHandle : pass.Pass->BucketHandles())
                 {
-                    auto& bucket = pass.BucketFromHandle(
-                        info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle));
-                    draws[bucketIndex] = graph.AddExternal(
+                    const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
+                    auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
+
+                    draws[bucketIndex] = graph.Import(
                         StringId("Draw"_hsv).AddVersion(bucketIndex),
                         bucket.Draws());
-                    drawInfos[bucketIndex] = graph.AddExternal(
+                    drawInfos[bucketIndex] = graph.Import(
                         StringId("DrawInfo"_hsv).AddVersion(bucketIndex),
                         bucket.DrawInfo());
-                    bucketIndex++;
+                    maxBucketIndex = std::max(maxBucketIndex, bucketIndex);
                 }
             }
-            ASSERT(bucketIndex == info.MultiviewVisibility->ObjectSet().BucketCount())
         
             SceneMultiviewRenderObjectVisibility::addToGraph(
                 name.Concatenate("SceneROVisibility"),
@@ -150,8 +142,15 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                 graph, {
                     .MultiviewVisibility = info.MultiviewVisibility,
                     .Resources = info.Resources,
-                    .Depths = passDepths,
-                    .Subresources = passDepthsSubresources});
+                    .Depths = passDepths});
+            for (auto& pass : info.DrawPasses)
+            {
+                const u32 visibilityIndex = info.MultiviewVisibility->VisibilityHandleToIndex(pass.Visibility);
+                if (info.Resources->MinMaxDepthReductions[visibilityIndex].IsValid())
+                    passData.DrawPassViewAttachments.SetMinMaxDepthReduction(
+                        info.MultiviewVisibility->View(pass.Visibility).Name,
+                        info.Resources->MinMaxDepthReductions[visibilityIndex]);
+            }
 
             SceneMultiviewRenderObjectVisibility::addToGraph(
                 name.Concatenate("SceneROReocclusion"),
@@ -170,7 +169,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                 visibilityIndex++)
                 drawWithVisibility(visibilityIndex, /*reocclusion*/true);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData&, FrameContext&, const Graph&)
         {
-        }).Data;
+        });
 }

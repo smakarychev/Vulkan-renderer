@@ -1,7 +1,7 @@
 #include "AtmosphereMultiscatteringPass.h"
 
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/AtmosphereMultiscatteringLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -23,33 +23,32 @@ Passes::Atmosphere::Multiscattering::PassData& Passes::Atmosphere::Multiscatteri
 
             graph.SetShader("atmosphere-multiscattering-lut"_hsv);
 
-            passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
-                .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
-                .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
+            passData.Lut = graph.Create("Lut"_hsv, RGImageDescription{
+                .Width = (f32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
+                .Height = (f32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
                 .Format = Format::RGBA16_FLOAT});
             
-            passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
-            passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);
-            passData.Lut = graph.Write(passData.Lut, Compute | Storage);
+            passData.AtmosphereSettings = graph.ReadBuffer(atmosphereSettings, Compute | Uniform);
+            passData.TransmittanceLut = graph.ReadImage(transmittanceLut, Compute | Sampled);
+            passData.Lut = graph.WriteImage(passData.Lut, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Atmosphere.Multiscattering")
             GPU_PROFILE_FRAME("Atmosphere.Multiscattering")
 
-            auto&& [lutTexture, lutDescription] = resources.GetTextureWithDescription(passData.Lut);
+            auto&& [lutTexture, lutDescription] = graph.GetImageWithDescription(passData.Lut);
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             AtmosphereMultiscatteringLutShaderBindGroup bindGroup(shader);
-            bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
-            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)},
-                ImageLayout::Readonly);
-            bindGroup.SetMultiscatteringLut({.Image = lutTexture}, ImageLayout::General);
+            bindGroup.SetAtmosphereSettings(graph.GetBufferBinding(passData.AtmosphereSettings));
+            bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
+            bindGroup.SetMultiscatteringLut(graph.GetImageBinding(passData.Lut));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 64},
 				.GroupSize = {1, 1, 64}});
-        }).Data;
+        });
 }

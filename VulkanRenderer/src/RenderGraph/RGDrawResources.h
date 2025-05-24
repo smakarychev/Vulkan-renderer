@@ -1,8 +1,7 @@
 #pragma once
 
-#include "RGCommon.h"
+#include "RGAccess.h"
 #include "RGResource.h"
-#include "Rendering/RenderingInfo.h"
 
 /* Draw resources that are commonly used by different draw passes
  * Draw features control what resources are actually used 
@@ -13,7 +12,6 @@ class Camera;
 namespace RG
 {
     struct DrawExecutionInfo;
-    class Resources;
 
     struct IBLData
     {
@@ -33,7 +31,7 @@ namespace RG
         Resource Shadow{};
     };
 
-    struct CSMData
+    struct CsmData
     {
         Resource ShadowMap{};
         Resource CsmInfo{};
@@ -50,12 +48,12 @@ namespace RG
     struct DrawAttachment
     {
         Resource Resource{};
-        ColorAttachmentDescription Description{};
+        RenderTargetAccessDescription Description{};
     };
     struct DepthStencilAttachment
     {
         Resource Resource{};
-        DepthStencilAttachmentDescription Description{};
+        DepthStencilTargetAccessDescription Description{};
         std::optional<DepthBias> DepthBias{};
     };
 

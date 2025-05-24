@@ -312,7 +312,7 @@ constexpr ShaderDefine::ShaderDefine(StringId name, T&& value): Name(name), Valu
 constexpr ShaderDefines::ShaderDefines(Span<const ShaderDefine> defines)
 {
     Defines.resize(defines.size());
-    for (auto&& [i, define] : std::ranges::views::enumerate(defines))
+    for (auto&& [i, define] : std::views::enumerate(defines))
     {
         Hash::combine(Hash, define.Name.Hash() ^ Hash::string(define.Value)),
             Defines[i] = std::move(define);      
@@ -396,7 +396,7 @@ constexpr ShaderOverrides ShaderOverrides::OverrideBy(Span<const ShaderOverrides
     
     for (auto& other : overrides)
     {
-        for (auto&& [i, spec] : std::ranges::views::enumerate(other.Specializations.Names))
+        for (auto&& [i, spec] : std::views::enumerate(other.Specializations.Names))
         {
             recalculateSpecializationsHash = true;
             
@@ -434,6 +434,8 @@ constexpr ShaderOverrides ShaderOverrides::OverrideBy(Span<const ShaderOverrides
             *other.PipelineOverrides.DynamicStates : merged.PipelineOverrides.DynamicStates;
         merged.PipelineOverrides.DepthMode = other.PipelineOverrides.DepthMode.has_value() ?
             *other.PipelineOverrides.DepthMode : merged.PipelineOverrides.DepthMode;
+        merged.PipelineOverrides.DepthTest = other.PipelineOverrides.DepthTest.has_value() ?
+            *other.PipelineOverrides.DepthTest : merged.PipelineOverrides.DepthTest;
         merged.PipelineOverrides.CullMode = other.PipelineOverrides.CullMode.has_value() ?
             *other.PipelineOverrides.CullMode : merged.PipelineOverrides.CullMode;
         merged.PipelineOverrides.AlphaBlending = other.PipelineOverrides.AlphaBlending.has_value() ?

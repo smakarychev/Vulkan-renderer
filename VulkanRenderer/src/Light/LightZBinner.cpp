@@ -7,9 +7,6 @@
 ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
 {
     ZBins bins = {};
-    
-    /* first cull and sort lights by depth */
-    LightFrustumCuller::CullDepthSort(light, camera);
 
     /* bins are uniform in z */
     f32 zSpan = camera.GetFrustumPlanes().Far - camera.GetFrustumPlanes().Near;

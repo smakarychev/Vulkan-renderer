@@ -1,7 +1,8 @@
 #include "AtmosphereSkyViewLutPass.h"
 
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Generated/AtmosphereSkyViewLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneLight.h"
@@ -22,42 +23,40 @@ Passes::Atmosphere::SkyView::PassData& Passes::Atmosphere::SkyView::addToGraph(S
 
             auto& globalResources = graph.GetGlobalResources();
             
-            passData.Lut = graph.CreateResource("Lut"_hsv, GraphTextureDescription{
-                .Width = (u32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Width"_hsv),
-                .Height = (u32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Height"_hsv),
+            passData.Lut = graph.Create("Lut"_hsv, RGImageDescription{
+                .Width = (f32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Width"_hsv),
+                .Height = (f32)*CVars::Get().GetI32CVar("Atmosphere.SkyView.Height"_hsv),
                 .Format = Format::RGBA16_FLOAT});
-            passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
+            passData.DirectionalLight = graph.Import("DirectionalLight"_hsv,
                 light.GetBuffers().DirectionalLights);
             
-            passData.AtmosphereSettings = graph.Read(atmosphereSettings, Compute | Uniform);
-            passData.TransmittanceLut = graph.Read(transmittanceLut, Compute | Sampled);
-            passData.MultiscatteringLut = graph.Read(multiscatteringLut, Compute | Sampled);
-            passData.DirectionalLight = graph.Read(passData.DirectionalLight, Compute | Uniform);
-            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
-            passData.Lut = graph.Write(passData.Lut, Compute | Storage);
+            passData.AtmosphereSettings = graph.ReadBuffer(atmosphereSettings, Compute | Uniform);
+            passData.TransmittanceLut = graph.ReadImage(transmittanceLut, Compute | Sampled);
+            passData.MultiscatteringLut = graph.ReadImage(multiscatteringLut, Compute | Sampled);
+            passData.DirectionalLight = graph.ReadBuffer(passData.DirectionalLight, Compute | Uniform);
+            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Compute | Uniform);
+            passData.Lut = graph.WriteImage(passData.Lut, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Atmosphere.SkyView")
             GPU_PROFILE_FRAME("Atmosphere.SkyView")
 
-            auto&& [lutTexture, lutDescription] = resources.GetTextureWithDescription(passData.Lut);
+            auto& lutDescription = graph.GetImageDescription(passData.Lut);
             
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             AtmosphereSkyViewLutShaderBindGroup bindGroup(shader);
-            bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
-            bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.DirectionalLight)});
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
-            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)}, 
-                ImageLayout::Readonly);
-            bindGroup.SetMultiscatteringLut({.Image = resources.GetTexture(passData.MultiscatteringLut)}, 
-                ImageLayout::Readonly);
-            bindGroup.SetSkyViewLut({.Image = lutTexture}, ImageLayout::General);
+            bindGroup.SetAtmosphereSettings(graph.GetBufferBinding(passData.AtmosphereSettings));
+            bindGroup.SetDirectionalLights(graph.GetBufferBinding(passData.DirectionalLight));
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
+            bindGroup.SetMultiscatteringLut(graph.GetImageBinding(passData.MultiscatteringLut));
+            bindGroup.SetSkyViewLut(graph.GetImageBinding(passData.Lut));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
-        }).Data;
+        });
 }

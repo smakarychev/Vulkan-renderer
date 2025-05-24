@@ -2,12 +2,16 @@
 
 #include "core.h"
 
+#define VOLK_IMPLEMENTATION
+#include <volk.h>
+
 #define VMA_IMPLEMENTATION
 #define VMA_STATIC_VULKAN_FUNCTIONS 0
 #include <vk_mem_alloc.h>
+#include <tracy/TracyVulkan.hpp>
 #include <imgui/imgui_impl_vulkan.h>
-#include <GLFW/glfw3.h>
 #include <imgui/imgui_impl_glfw.h>
+#include <GLFW/glfw3.h>
 #include <filesystem>
 #include <fstream>
 #include <print>
@@ -21,6 +25,7 @@
 #include "Utils/ContainterUtils.h"
 
 #include "Imgui/ImguiUI.h"
+#include "Rendering/DeletionQueue.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "Rendering/Image/ImageUtility.h"
 #include "utils/CoreUtils.h"
@@ -150,7 +155,7 @@ namespace
         ASSERT(!enumHasAll(usage, ImageUsage::Color | ImageUsage::Depth | ImageUsage::Stencil),
             "Image usage cannot include both color and depth/stencil")
 
-        std::vector<std::pair<ImageUsage, VkImageUsageFlags>> MAPPINGS {
+        static const std::vector<std::pair<ImageUsage, VkImageUsageFlags>> MAPPINGS {
             {ImageUsage::Sampled,       VK_IMAGE_USAGE_SAMPLED_BIT},
             {ImageUsage::Color,         VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT},
             {ImageUsage::Depth,         VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT},
@@ -394,7 +399,7 @@ namespace
 
     constexpr VkPipelineStageFlags2 vulkanPipelineStageFromPipelineStage(PipelineStage stage)
     {
-        const std::vector<std::pair<PipelineStage, VkPipelineStageFlags2>> MAPPINGS {
+        static const std::vector<std::pair<PipelineStage, VkPipelineStageFlags2>> MAPPINGS {
             {PipelineStage::Top,                    VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT},
             {PipelineStage::Indirect,               VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT},
             {PipelineStage::VertexInput,            VK_PIPELINE_STAGE_2_VERTEX_INPUT_BIT},
@@ -433,7 +438,7 @@ namespace
 
     constexpr VkAccessFlagBits2 vulkanAccessFlagsFromPipelineAccess(PipelineAccess access)
     {
-        const std::vector<std::pair<PipelineAccess, VkAccessFlagBits2>> MAPPINGS {
+        static const std::vector<std::pair<PipelineAccess, VkAccessFlagBits2>> MAPPINGS {
             {PipelineAccess::ReadIndirect,                  VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT},
             {PipelineAccess::ReadIndex,                     VK_ACCESS_2_INDEX_READ_BIT},
             {PipelineAccess::ReadAttribute,                 VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT},
@@ -470,7 +475,7 @@ namespace
     constexpr VkDependencyFlags vulkanDependencyFlagsFromPipelineDependencyFlags(
         PipelineDependencyFlags dependencyFlags)
     {
-        const std::vector<std::pair<PipelineDependencyFlags, VkDependencyFlags>> MAPPINGS {
+        static const std::vector<std::pair<PipelineDependencyFlags, VkDependencyFlags>> MAPPINGS {
             {PipelineDependencyFlags::ByRegion,     VK_DEPENDENCY_BY_REGION_BIT},
             {PipelineDependencyFlags::DeviceGroup,  VK_DEPENDENCY_DEVICE_GROUP_BIT},
             {PipelineDependencyFlags::FeedbackLoop, VK_DEPENDENCY_FEEDBACK_LOOP_BIT_EXT},
@@ -623,29 +628,6 @@ namespace
         std::unreachable();
     }
 
-    Sampler getImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
-    {
-        Sampler sampler = Device::CreateSampler({
-            .MinificationFilter = filter,
-            .MagnificationFilter = filter,
-            .WrapMode = wrapMode,
-            .BorderColor = borderColor});
-
-        return sampler;
-    }
-    Sampler getImmutableShadowSampler(ImageFilter filter, SamplerDepthCompareMode depthCompareMode)
-    {
-        Sampler sampler = Device::CreateSampler({
-            .MinificationFilter = filter,
-            .MagnificationFilter = filter,
-            .WrapMode = SamplerWrapMode::ClampBorder,
-            .BorderColor = SamplerBorderColor::Black,
-            .DepthCompareMode = depthCompareMode,
-            .WithAnisotropy = false});
-
-        return sampler;
-    }
-
     struct SurfaceDetails
     {
         VkSurfaceCapabilitiesKHR Capabilities;
@@ -695,11 +677,24 @@ class DeviceInternal
 public:
 #ifdef DESCRIPTOR_BUFFER
     static u32 GetDescriptorSizeBytes(DescriptorType type);
-    static void WriteDescriptor(Descriptors descriptors, DescriptorBindingInfo bindingInfo, u32 index,
+    static void WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
         VkDescriptorGetInfoEXT& descriptorGetInfo);
 #else
     static u32 GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags);
 #endif
+    static VmaAllocator& Allocator();
+    static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
+      VmaAllocationCreateFlags allocationFlags);
+    static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
+
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
+        Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
+    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
+        Span<const TimelineSemaphore> semaphores,
+        Span<const u64> waitValues, Span<const PipelineStage> waitStages);
+    static void BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
+        PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
+    static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
 };
 
 class DeviceResources
@@ -897,9 +892,11 @@ private:
     struct DependencyInfoResource
     {
         using ObjectType = DependencyInfoTag;
+        static constexpr u32 MAX_MEMORY_BARRIERS = 2;
         VkDependencyInfo DependencyInfo;
-        std::vector<VkMemoryBarrier2> ExecutionMemoryDependenciesInfo;
-        std::vector<VkImageMemoryBarrier2> LayoutTransitionsInfo;
+        u32 MemoryBarriersCount{0};
+        std::array<VkMemoryBarrier2, MAX_MEMORY_BARRIERS> MemoryBarriers{};
+        std::optional<VkImageMemoryBarrier2> LayoutDependency;
     };
     struct SplitBarrierResource
     {
@@ -1100,71 +1097,6 @@ constexpr auto& DeviceResources::operator[](const Type& type)
     std::unreachable();
 }
 
-void DeletionQueue::Flush()
-{
-    for (auto handle : m_Buffers)
-        Device::Destroy(handle);
-    for (auto handle : m_BufferArenas)
-        Device::Destroy(handle);
-    for (auto handle : m_Images)
-        Device::Destroy(handle);
-    for (auto handle : m_Samplers)
-        Device::Destroy(handle);
-    
-    for (auto handle : m_CommandPools)
-        Device::Destroy(handle);
-    
-    for (auto handle : m_DescriptorLayouts)
-        Device::Destroy(handle);
-    
-    for (auto handle : m_DescriptorArenaAllocators)
-        Device::Destroy(handle);
-    
-    for (auto handle : m_PipelineLayouts)
-        Device::Destroy(handle);
-    for (auto handle : m_Pipelines)
-        Device::Destroy(handle);
-    for (auto handle : m_ShaderModules)
-        Device::Destroy(handle);
-    
-    for (auto handle : m_RenderingAttachments)
-        Device::Destroy(handle);
-    for (auto handle : m_RenderingInfos)
-        Device::Destroy(handle);
-    
-    for (auto handle : m_Fences)
-        Device::Destroy(handle);
-    for (auto handle : m_Semaphores)
-        Device::Destroy(handle);
-    for (auto handle : m_TimelineSemaphore)
-        Device::Destroy(handle);
-    for (auto handle : m_DependencyInfos)
-        Device::Destroy(handle);
-    for (auto handle : m_SplitBarriers)
-        Device::Destroy(handle);
-    
-    for (auto handle : m_Swapchains)
-        Device::Destroy(handle);
-    
-    m_Swapchains.clear();
-    m_Buffers.clear();
-    m_BufferArenas.clear();
-    m_Images.clear();
-    m_Samplers.clear();
-    m_CommandPools.clear();
-    m_DescriptorLayouts.clear();
-    m_DescriptorArenaAllocators.clear();
-    m_PipelineLayouts.clear();
-    m_Pipelines.clear();
-    m_ShaderModules.clear();
-    m_RenderingAttachments.clear();
-    m_RenderingInfos.clear();
-    m_Fences.clear();
-    m_Semaphores.clear();
-    m_DependencyInfos.clear();
-    m_SplitBarriers.clear();
-}
-
 DeviceCreateInfo DeviceCreateInfo::Default(GLFWwindow* window, bool asyncCompute)
 {
     DeviceCreateInfo createInfo = {};
@@ -1235,7 +1167,7 @@ struct Device::State
         {
             return
                 Graphics.Family != QueueInfo::UNSET_FAMILY &&
-                Presentation.Family != QueueInfo::UNSET_FAMILY &&
+                (Presentation.Family != QueueInfo::UNSET_FAMILY || s_State.Surface == VK_NULL_HANDLE) && 
                 Compute.Family != QueueInfo::UNSET_FAMILY;
         }
         std::vector<u32> AsFamilySet() const
@@ -1329,9 +1261,12 @@ void Device::BeginFrame(FrameContext& ctx)
 
 Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
-    std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
+    if (s_State.Surface == VK_NULL_HANDLE)
+        return {};
+
+    static std::vector<VkSurfaceFormatKHR> desiredFormats = {{{
         .format = VK_FORMAT_B8G8R8A8_SRGB, .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR}}};
-    std::vector<VkPresentModeKHR> desiredPresentModes = {{
+    static std::vector<VkPresentModeKHR> desiredPresentModes = {{
         //VK_PRESENT_MODE_IMMEDIATE_KHR,
         VK_PRESENT_MODE_FIFO_RELAXED_KHR}};
     
@@ -1491,7 +1426,7 @@ void Device::CreateSwapchainImages(Swapchain swapchain)
     {
         DeviceResources::ImageResource imageResource = {.Image = images[i], .Description = description};
         colorImages[i] = Resources().AddResource(imageResource);
-        Resources()[colorImages[i]].Views.ViewType.View = CreateVulkanImageView(
+        Resources()[colorImages[i]].Views.ViewType.View = DeviceInternal::CreateVulkanImageView(
             ImageSubresource{.Image = colorImages[i], .Description = {.Mipmaps = 1, .Layers = 1}},
             swapchainResource.ColorFormat);
         Resources()[colorImages[i]].Views.ViewList = &Resources()[colorImages[i]].Views.ViewType.View;
@@ -1688,7 +1623,7 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
             .semaphore = Resources()[semaphore].Semaphore});
 
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
         submitSync.WaitSemaphores, submitSync.WaitStages);
     
     VkSubmitInfo2  submitInfo = {};
@@ -1726,7 +1661,7 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
             .semaphore = Resources()[submitSync.SignalSemaphores[i]].Semaphore,
             .value = submitSync.SignalValues[i]});
 
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = CreateVulkanSemaphoreSubmit(
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
         submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
     
     VkSubmitInfo2  submitInfo = {};
@@ -1754,7 +1689,7 @@ Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& dele
     if (createInfo.PersistentMapping)
         flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
     
-    Buffer buffer = AllocateBuffer(createInfo, vulkanBufferUsageFromUsage(createInfo.Usage), flags);    
+    Buffer buffer = DeviceInternal::AllocateBuffer(createInfo, vulkanBufferUsageFromUsage(createInfo.Usage), flags);    
 
     if (!createInfo.InitialData.empty())
     {
@@ -1776,40 +1711,16 @@ Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& dele
             Destroy(stagingBuffer);
         }
     }
+
     deletionQueue.Enqueue(buffer);
     
     return buffer;
 }
 
-Buffer Device::AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
-    VmaAllocationCreateFlags allocationFlags)
-{
-    VkBufferCreateInfo bufferCreateInfo = {};
-    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = createInfo.SizeBytes;
-    bufferCreateInfo.usage = usage;
-
-    VmaAllocationCreateInfo allocationCreateInfo = {};
-    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-    allocationCreateInfo.flags = allocationFlags;
-
-    DeviceResources::BufferResource bufferResource = {};
-    deviceCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
-        &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
-        "Failed to create a buffer");
-
-    bufferResource.Description.SizeBytes = createInfo.SizeBytes;
-    bufferResource.Description.Usage = createInfo.Usage;
-    if (createInfo.PersistentMapping)
-        bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
-
-    return Resources().AddResource(bufferResource);
-}
-
 void Device::Destroy(Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = Resources().m_Buffers[buffer.m_Id];
-    vmaDestroyBuffer(Allocator(), resource.Buffer, resource.Allocation);
+    vmaDestroyBuffer(DeviceInternal::Allocator(), resource.Buffer, resource.Allocation);
     Resources().RemoveResource(buffer);
 }
 
@@ -1854,20 +1765,20 @@ void* Device::MapBuffer(Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = Resources()[buffer];
     void* mappedData;
-    vmaMapMemory(Allocator(), resource.Allocation, &mappedData);
+    vmaMapMemory(DeviceInternal::Allocator(), resource.Allocation, &mappedData);
     return mappedData;
 }
 
 void Device::UnmapBuffer(Buffer buffer)
 {
     const DeviceResources::BufferResource& resource = Resources()[buffer];
-    vmaUnmapMemory(Allocator(), resource.Allocation);
+    vmaUnmapMemory(DeviceInternal::Allocator(), resource.Allocation);
 }
 
 void Device::SetBufferData(Buffer buffer, Span<const std::byte> data, u64 offsetBytes)
 {
     const DeviceResources::BufferResource& resource = Resources()[buffer];
-    vmaCopyMemoryToAllocation(Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
+    vmaCopyMemoryToAllocation(DeviceInternal::Allocator(), data.data(), resource.Allocation, offsetBytes, data.size());
 }
 
 void Device::SetBufferData(void* mappedAddress, Span<const std::byte> data, u64 offsetBytes)
@@ -2113,9 +2024,26 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
             .ImageSubresource = {
                 .Mipmaps = 1,
                 .Layers = createInfo.Description.GetLayers()}});
+
+        ImageLayout currentLayout = ImageLayout::Destination;
         if (createInfo.CalculateMipmaps)
-            CreateMipmaps(image, cmdList, ImageLayout::Destination);
-        imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
+        {
+            CreateMipmaps(image, cmdList, currentLayout);
+            currentLayout = ImageLayout::Source;
+            imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
+        }
+
+        cmdList.WaitOnBarrier({
+            .DependencyInfo = CreateDependencyInfo({
+                .LayoutTransitionInfo = LayoutTransitionInfo{
+                    .ImageSubresource = imageSubresource,
+                    .SourceStage = PipelineStage::AllTransfer,
+                    .DestinationStage = PipelineStage::AllTransfer,
+                    .SourceAccess = PipelineAccess::None,
+                    .DestinationAccess = PipelineAccess::WriteTransfer,
+                    .OldLayout = currentLayout,
+                    .NewLayout = ImageLayout::Readonly}},
+            deletionQueue)});
     });
     
     return image;
@@ -2125,8 +2053,6 @@ void Device::CreateMipmaps(Image image, RenderCommandList& cmdList,
     ImageLayout currentLayout)
 {
     DeviceResources::ImageResource& imageResource = Resources()[image];
-    if (imageResource.Description.Mipmaps == 1)
-        return;
 
     i32 width = (i32)imageResource.Description.Width;
     i32 height = (i32)imageResource.Description.Height;
@@ -2184,7 +2110,7 @@ void Device::CreateMipmaps(Image image, RenderCommandList& cmdList,
             .DestinationStage = PipelineStage::AllTransfer,
             .SourceAccess = PipelineAccess::None,
             .DestinationAccess = PipelineAccess::WriteTransfer,
-            .OldLayout = ImageLayout::Undefined,
+            .OldLayout = currentLayout,
             .NewLayout = ImageLayout::Destination};
         cmdList.WaitOnBarrier({
             .DependencyInfo = CreateDependencyInfo({
@@ -2258,7 +2184,7 @@ Image Device::AllocateImage(ImageCreateInfo& createInfo)
         ImageUsage::Color | ImageUsage::Depth | ImageUsage::Stencil) ? VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT : 0;
 
     DeviceResources::ImageResource imageResource = {};
-    deviceCheck(vmaCreateImage(Allocator(), &imageCreateInfo, &allocationInfo,
+    deviceCheck(vmaCreateImage(DeviceInternal::Allocator(), &imageCreateInfo, &allocationInfo,
         &imageResource.Image, &imageResource.Allocation, nullptr),
         "Failed to create image");
     imageResource.Description = createInfo.Description;
@@ -2279,7 +2205,7 @@ void Device::Destroy(Image image)
             vkDestroyImageView(s_State.Device, imageResource.Views.ViewList[viewIndex], nullptr);
         delete[] imageResource.Views.ViewList;
     }
-    vmaDestroyImage(Allocator(), imageResource.Image, imageResource.Allocation);
+    vmaDestroyImage(DeviceInternal::Allocator(), imageResource.Image, imageResource.Allocation);
     Resources().RemoveResource(image);
 }
 
@@ -2290,16 +2216,16 @@ void Device::CreateViews(const ImageSubresource& image,
     VkFormat viewFormat = vulkanFormatFromFormat(resource.Description.Format);
     if (additionalViews.empty())
     {
-        resource.Views.ViewType.View = CreateVulkanImageView(image, viewFormat);
+        resource.Views.ViewType.View = DeviceInternal::CreateVulkanImageView(image, viewFormat);
         resource.Views.ViewList = &resource.Views.ViewType.View;
         return;
     }
 
     resource.Views.ViewType.ViewCount = 1 + (u32)resource.Description.AdditionalViews.size();
     resource.Views.ViewList = new VkImageView[resource.Views.ViewType.ViewCount];
-    resource.Views.ViewList[0] = CreateVulkanImageView(image, viewFormat);
+    resource.Views.ViewList[0] = DeviceInternal::CreateVulkanImageView(image, viewFormat);
     for (u32 viewIndex = 0; viewIndex < additionalViews.size(); viewIndex++)
-        resource.Views.ViewList[viewIndex + 1] = CreateVulkanImageView(
+        resource.Views.ViewList[viewIndex + 1] = DeviceInternal::CreateVulkanImageView(
             ImageSubresource{.Image = image.Image, .Description = additionalViews[viewIndex]}, viewFormat);
 }
 
@@ -2709,28 +2635,6 @@ void Device::Destroy(ShaderModule shaderModule)
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
-    static SamplerBorderColor black = SamplerBorderColor::Black;
-    static SamplerBorderColor white = SamplerBorderColor::White;
-    static Sampler immutableSampler = getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::Repeat, black);
-    static Sampler immutableSamplerNearest = getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::Repeat, black);
-    static Sampler immutableSamplerClampEdge =
-        getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampEdge, black);
-    static Sampler immutableSamplerNearestClampEdge =
-        getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampEdge, black);
-    static Sampler immutableSamplerClampBlack =
-        getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, black);
-    static Sampler immutableSamplerNearestClampBlack =
-        getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, black);
-    static Sampler immutableSamplerClampWhite =
-        getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, white);
-    static Sampler immutableSamplerNearestClampWhite =
-        getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, white);
-    
-    static Sampler immutableShadowSampler =
-        getImmutableShadowSampler(ImageFilter::Linear, SamplerDepthCompareMode::Less); 
-    static Sampler immutableShadowNearestSampler =
-        getImmutableShadowSampler(ImageFilter::Nearest, SamplerDepthCompareMode::Less);
-
     ASSERT(createInfo.BindingFlags.size() == createInfo.Bindings.size(),
         "If any element of binding flags is set, every element has to be set")
 
@@ -2769,44 +2673,9 @@ DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& 
             .stageFlags = vulkanShaderStageFromShaderStage(binding.Shaders),
             .pImmutableSamplers = nullptr});
 
-        layoutHasImmutableSamplers |=
-            enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSampler);
-
-        if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampEdge))
-            bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampEdge].Sampler;
-
-        else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampEdge))
-                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampEdge].Sampler;
-
-        else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampBlack))
-                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampBlack].Sampler;
-
-        else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampBlack))
-                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampBlack].Sampler;
-
-        else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampWhite))
-                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerClampWhite].Sampler;
-        
-        else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampWhite))
-                bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearestClampWhite].Sampler;
-        
-        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearest))
-            bindings.back().pImmutableSamplers = &Resources()[immutableSamplerNearest].Sampler;
-        
-        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerShadow))
-                bindings.back().pImmutableSamplers = &Resources()[immutableShadowSampler].Sampler;
-        
-        else if (enumHasAny(binding.DescriptorFlags,
-            assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerShadowNearest))
-            bindings.back().pImmutableSamplers = &Resources()[immutableShadowNearestSampler].Sampler;
-
-        else if (enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSampler))
-            bindings.back().pImmutableSamplers = &Resources()[immutableSampler].Sampler;
+        layoutHasImmutableSamplers |= binding.ImmutableSampler.HasValue();
+        if (binding.ImmutableSampler.HasValue())
+            bindings.back().pImmutableSamplers = &Resources()[binding.ImmutableSampler].Sampler;
     }
     
     VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsCreateInfo = {};
@@ -2898,7 +2767,7 @@ DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaA
     allocatorResource.SizeBytes = arenaSizeBytes;
     allocatorResource.Descriptors.reserve(createInfo.DescriptorCount);
     const BufferCreateInfo arenaCreateInfo = {.SizeBytes = arenaSizeBytes, .PersistentMapping = true};
-    allocatorResource.Arena = AllocateBuffer(arenaCreateInfo, usageFlags, allocationFlags);
+    allocatorResource.Arena = DeviceInternal::AllocateBuffer(arenaCreateInfo, usageFlags, allocationFlags);
     allocatorResource.DeviceAddress = GetDeviceAddress(allocatorResource.Arena);
     allocatorResource.MappedAddress = GetBufferMappedAddress(allocatorResource.Arena);
 
@@ -2941,7 +2810,7 @@ std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator 
         for (u32 bindingIndex = 0; bindingIndex < bindings.Bindings.size(); bindingIndex++)
         {
             auto& binding = bindings.Bindings[bindingIndex];
-            bool isBindless = enumHasAny(binding.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::Bindless);
+            bool isBindless = enumHasAny(binding.Flags, DescriptorFlags::VariableCount);
             ASSERT(
                 (bindingIndex == (u32)bindings.Bindings.size() - 1 && isBindless) ||
                 (bindingIndex != (u32)bindings.Bindings.size() - 1 && !isBindless),
@@ -2994,10 +2863,10 @@ DescriptorsKind Device::GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator
     return Resources()[allocator].Kind;
 }
 
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const BufferSubresource& buffer, u32 index)
 {
-    auto&& [slot, type] = bindingInfo;
+    auto&& [slot, type] = slotInfo;
     ASSERT(type != DescriptorType::TexelStorage && type != DescriptorType::TexelUniform,
         "Texel buffers require format information")
     ASSERT(type != DescriptorType::StorageBufferDynamic && type != DescriptorType::UniformBufferDynamic,
@@ -3025,25 +2894,25 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bi
     // using the fact that 'descriptorGetInfo.data' is union
     descriptorGetInfo.data.pUniformBuffer = &descriptorAddressInfo;
 
-    DeviceInternal::WriteDescriptor(descriptors, bindingInfo, index, descriptorGetInfo);
+    DeviceInternal::WriteDescriptor(descriptors, slotInfo, index, descriptorGetInfo);
 }
 
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler)
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
 {
-    auto&& [slot, type] = bindingInfo;
+    auto&& [slot, type] = slotInfo;
     ASSERT(type == DescriptorType::Sampler)
     
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
     descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
     descriptorGetInfo.data.pSampler = &Resources()[sampler].Sampler;
-    DeviceInternal::WriteDescriptor(descriptors, bindingInfo, 0, descriptorGetInfo);
+    DeviceInternal::WriteDescriptor(descriptors, slotInfo, 0, descriptorGetInfo);
 }
 
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const ImageSubresource& image, ImageLayout layout, u32 index)
 {
-    auto&& [slot, type] = bindingInfo;
+    auto&& [slot, type] = slotInfo;
     VkDescriptorGetInfoEXT descriptorGetInfo = {};
     descriptorGetInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_GET_INFO_EXT;
     descriptorGetInfo.type = vulkanDescriptorTypeFromDescriptorType(type);
@@ -3053,7 +2922,7 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bi
     descriptorImageInfo.imageLayout = vulkanImageLayoutFromImageLayout(layout);
     descriptorGetInfo.data.pSampledImage = &descriptorImageInfo;
 
-    DeviceInternal::WriteDescriptor(descriptors, bindingInfo, index, descriptorGetInfo);
+    DeviceInternal::WriteDescriptor(descriptors, slotInfo, index, descriptorGetInfo);
 }
 #else
 DescriptorArenaAllocator Device::CreateDescriptorArenaAllocator(DescriptorArenaAllocatorCreateInfo&& createInfo,
@@ -3153,10 +3022,10 @@ DescriptorsKind Device::GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator
     return Resources()[allocator].Kind;
 }
 
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const BufferSubresource& buffer, u32 index)
 {
-    auto&& [slot, type] = bindingInfo;
+    auto&& [slot, type] = slotInfo;
     VkDescriptorBufferInfo descriptorBufferInfo = {};
     descriptorBufferInfo.buffer = Resources()[buffer.Buffer].Buffer;
     descriptorBufferInfo.offset = buffer.Description.Offset;
@@ -3174,9 +3043,9 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bi
     vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);
 }
 
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler)
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler)
 {
-    auto&& [slot, type] = bindingInfo;
+    auto&& [slot, type] = slotInfo;
     VkDescriptorImageInfo descriptorTextureInfo = {};
     descriptorTextureInfo.sampler = Resources()[sampler].Sampler;
 
@@ -3191,10 +3060,10 @@ void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bi
     vkUpdateDescriptorSets(s_State.Device, 1, &write, 0, nullptr);
 }
 
-void Device::UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+void Device::UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
     const ImageSubresource& image, ImageLayout layout, u32 index)
 {
-    auto&& [slot, type] = bindingInfo;
+    auto&& [slot, type] = slotInfo;
     VkDescriptorImageInfo descriptorTextureInfo = {};
     descriptorTextureInfo.imageView =
         Resources()[image.Image].Views.ViewList[GetImageViewHandle(image.Image, image.Description).m_Index];
@@ -3346,7 +3215,7 @@ DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInf
         memoryBarrier.dstStageMask = vulkanPipelineStageFromPipelineStage(
             createInfo.ExecutionDependencyInfo->DestinationStage);
 
-        dependencyInfoResource.ExecutionMemoryDependenciesInfo.push_back(memoryBarrier);
+        dependencyInfoResource.MemoryBarriers[dependencyInfoResource.MemoryBarriersCount++] = memoryBarrier;
     }
     if (createInfo.MemoryDependencyInfo.has_value())
     {
@@ -3361,7 +3230,7 @@ DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInf
         memoryBarrier.dstAccessMask = vulkanAccessFlagsFromPipelineAccess(
             createInfo.MemoryDependencyInfo->DestinationAccess);
 
-        dependencyInfoResource.ExecutionMemoryDependenciesInfo.push_back(memoryBarrier);
+        dependencyInfoResource.MemoryBarriers[dependencyInfoResource.MemoryBarriersCount++] = memoryBarrier;
     }
     if (createInfo.LayoutTransitionInfo.has_value())
     {
@@ -3390,7 +3259,7 @@ DependencyInfo Device::CreateDependencyInfo(DependencyInfoCreateInfo&& createInf
             .baseArrayLayer = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.LayerBase,
             .layerCount = (u32)createInfo.LayoutTransitionInfo->ImageSubresource.Description.Layers};
 
-        dependencyInfoResource.LayoutTransitionsInfo.push_back(imageMemoryBarrier);
+        dependencyInfoResource.LayoutDependency = imageMemoryBarrier;
     }
 
     DependencyInfo dependencyInfo = Resources().AddResource(dependencyInfoResource);
@@ -3485,7 +3354,12 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
 
 void Device::CreateSurface(const DeviceCreateInfo& createInfo)
 {
-    ASSERT(createInfo.Window != nullptr, "Window pointer is unset")
+    if (createInfo.Window == nullptr)
+    {
+        LOG("Running Vulkan without swapchain: window pointer is unset");
+        return;
+    }
+
     s_State.Window = createInfo.Window;
     deviceCheck(glfwCreateWindowSurface(s_State.Instance, createInfo.Window, nullptr, &s_State.Surface),
         "Failed to create surface\n");
@@ -3513,11 +3387,14 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
             if ((queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT) && queues.Compute.Family == QueueInfo::UNSET_FAMILY)
                 if (!dedicatedCompute || !(queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT))
                     queues.Compute.Family = i;
-        
-            VkBool32 isPresentationSupported = VK_FALSE;
-            vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, s_State.Surface, &isPresentationSupported);
-            if (isPresentationSupported && queues.Presentation.Family == QueueInfo::UNSET_FAMILY)
-                queues.Presentation.Family = i;
+
+            if (s_State.Surface != VK_NULL_HANDLE)
+            {
+                VkBool32 isPresentationSupported = VK_FALSE;
+                vkGetPhysicalDeviceSurfaceSupportKHR(gpu, i, s_State.Surface, &isPresentationSupported);
+                if (isPresentationSupported && queues.Presentation.Family == QueueInfo::UNSET_FAMILY)
+                    queues.Presentation.Family = i;
+            }
 
             if (queues.IsComplete())
                 break;
@@ -3625,7 +3502,6 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
             return suitable;
         };
         
-        
         State::DeviceQueues deviceQueues = findQueueFamilies(gpu, createInfo.AsyncCompute);
         if (!deviceQueues.IsComplete())
             return false;
@@ -3633,10 +3509,13 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
         bool isEveryExtensionSupported = checkGPUExtensions(gpu, createInfo);
         if (!isEveryExtensionSupported)
             return false;
-    
-        SurfaceDetails surfaceDetails = getSurfaceDetails(gpu, s_State.Surface);
-        if (!surfaceDetails.IsSufficient())
-            return false;
+
+        if (s_State.Surface != VK_NULL_HANDLE)
+        {
+            SurfaceDetails surfaceDetails = getSurfaceDetails(gpu, s_State.Surface);
+            if (!surfaceDetails.IsSufficient())
+                return false;
+        }
 
         bool isEveryFeatureSupported = checkGPUFeatures(gpu);
         if (!isEveryFeatureSupported)
@@ -3682,14 +3561,19 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
 void Device::CreateDevice(const DeviceCreateInfo& createInfo)
 {
     std::vector<u32> queueFamilies = s_State.Queues.AsFamilySet();
-    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos(queueFamilies.size());
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    queueCreateInfos.reserve(queueFamilies.size());
     f32 queuePriority = 1.0f;
     for (u32 i = 0; i < queueFamilies.size(); i++)
     {
-        queueCreateInfos[i].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-        queueCreateInfos[i].queueFamilyIndex = queueFamilies[i];
-        queueCreateInfos[i].queueCount = 1;
-        queueCreateInfos[i].pQueuePriorities = &queuePriority; 
+        if (queueFamilies[i] == QueueInfo::UNSET_FAMILY)
+            continue;
+        VkDeviceQueueCreateInfo queueCreateInfo = {};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = queueFamilies[i];
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+        queueCreateInfos.push_back(queueCreateInfo);
     }
 
     VkPhysicalDeviceVulkan11Features vulkan11Features = {};
@@ -3774,12 +3658,10 @@ void Device::RetrieveDeviceQueues()
     s_State.Queues.Presentation.Queue = {};
     s_State.Queues.Compute.Queue = {};
 
-    vkGetDeviceQueue(s_State.Device, s_State.Queues.Graphics.Family, 0,
-        &s_State.Queues.Graphics.Queue);
-    vkGetDeviceQueue(s_State.Device, s_State.Queues.Presentation.Family, 0,
-        &s_State.Queues.Presentation.Queue);
-    vkGetDeviceQueue(s_State.Device, s_State.Queues.Compute.Family, 0,
-        &s_State.Queues.Compute.Queue);
+    vkGetDeviceQueue(s_State.Device, s_State.Queues.Graphics.Family, 0, &s_State.Queues.Graphics.Queue);
+    if (s_State.Surface != VK_NULL_HANDLE)
+        vkGetDeviceQueue(s_State.Device, s_State.Queues.Presentation.Family, 0, &s_State.Queues.Presentation.Queue);
+    vkGetDeviceQueue(s_State.Device, s_State.Queues.Compute.Family, 0, &s_State.Queues.Compute.Queue);
 }
 
 namespace
@@ -3893,7 +3775,8 @@ void Device::Init(DeviceCreateInfo&& createInfo)
             });
     }
 
-    InitImGuiUI();
+    if (s_State.Surface != VK_NULL_HANDLE)
+        InitImGuiUI();
 }
 
 void Device::Shutdown()
@@ -4060,21 +3943,42 @@ void Device::ShutdownImGuiUI()
     vkDestroyDescriptorPool(s_State.Device, s_State.ImGuiPool, nullptr);
 }
 
-TracyVkCtx Device::CreateTracyGraphicsContext(CommandBuffer cmd)
+ProfilerContext::Ctx Device::CreateTracyGraphicsContext(CommandBuffer cmd)
 {
     TracyVkCtx context = TracyVkContext(s_State.GPU, s_State.Device,
         s_State.Queues.Graphics.Queue, Resources()[cmd].CommandBuffer)
     return context;
 }
 
-void Device::DestroyTracyGraphicsContext(TracyVkCtx context)
+void Device::DestroyTracyGraphicsContext(ProfilerContext::Ctx context)
 {
-    TracyVkDestroy(context)
+    TracyVkDestroy((TracyVkCtx)context)
 }
 
-VkCommandBuffer Device::GetProfilerCommandBuffer(ProfilerContext* context)
+VkCommandBuffer DeviceInternal::GetProfilerCommandBuffer(ProfilerContext* context)
 {
-    return Resources()[context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
+    return Device::Resources()[context->m_GraphicsCommandBuffers[context->m_CurrentFrame]].CommandBuffer;
+}
+
+void Device::CreateGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu, const SourceLocationData& sourceLocationData)
+{
+    static_assert(sizeof(zoneGpu.Impl) >= sizeof(tracy::VkCtxScope));
+    new (&zoneGpu.Impl) tracy::VkCtxScope(
+        (TracyVkCtx)ProfilerContext::Get()->GraphicsContext(),
+        (const tracy::SourceLocationData*)&sourceLocationData,
+        DeviceInternal::GetProfilerCommandBuffer(ProfilerContext::Get()), true);
+}
+
+void Device::DestroyGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu)
+{
+    std::launder((tracy::VkCtxScope*)&zoneGpu.Impl)->~VkCtxScope();
+}
+
+void Device::CollectGpuProfileFrames()
+{
+    TracyVkCollect(
+        ((TracyVkCtx)ProfilerContext::Get()->GraphicsContext()),
+        DeviceInternal::GetProfilerCommandBuffer(ProfilerContext::Get()))
 }
 
 ImTextureID Device::CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout)
@@ -4102,6 +4006,53 @@ void Device::DumpMemoryStats(const std::filesystem::path& path)
     std::ofstream out(path);
     std::print(out, "{}", statsString);
     vmaFreeStatsString(s_State.Allocator, statsString);
+}
+
+void Device::BeginCommandBufferLabel(CommandBuffer cmd, std::string_view label)
+{
+#ifdef VULKAN_VAL_LAYERS
+    VkDebugUtilsLabelEXT debugLabel = {};
+    debugLabel.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
+    debugLabel.pLabelName = label.data();
+    vkCmdBeginDebugUtilsLabelEXT(Resources()[cmd].CommandBuffer, &debugLabel);
+#endif
+}
+
+void Device::EndCommandBufferLabel(CommandBuffer cmd)
+{
+#ifdef VULKAN_VAL_LAYERS
+    vkCmdEndDebugUtilsLabelEXT(Resources()[cmd].CommandBuffer);
+#endif
+}
+
+namespace
+{
+    void nameVulkanHandle(VkDevice device, u64 handle, VkObjectType type, std::string_view name)
+    {
+#ifdef VULKAN_VAL_LAYERS
+        VkDebugUtilsObjectNameInfoEXT bufferName = {};
+        bufferName.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+        bufferName.objectHandle = handle;
+        bufferName.objectType = type;
+        bufferName.pObjectName = name.data();
+        vkSetDebugUtilsObjectNameEXT(device, &bufferName);
+#endif
+    }
+}
+
+void Device::NameBuffer(Buffer buffer, std::string_view name)
+{
+    nameVulkanHandle(s_State.Device, (u64)Resources()[buffer].Buffer, VK_OBJECT_TYPE_BUFFER, name);
+}
+
+void Device::NameImage(Image image, std::string_view name)
+{
+    nameVulkanHandle(s_State.Device, (u64)Resources()[image].Image, VK_OBJECT_TYPE_IMAGE, name);
+}
+
+void Device::NamePipeline(Pipeline pipeline, std::string_view name)
+{
+    nameVulkanHandle(s_State.Device, (u64)Resources()[pipeline].Pipeline, VK_OBJECT_TYPE_PIPELINE, name);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command)
@@ -4404,43 +4355,49 @@ void Device::CompileCommand(CommandBuffer cmd, const WaitOnFullPipelineBarrierCo
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnBarrierCommand& command)
 {
-    VkDependencyInfo vkDependencyInfo = Resources()[command.DependencyInfo].DependencyInfo;
-    vkDependencyInfo.memoryBarrierCount =
-        (u32)Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.size();
-    vkDependencyInfo.pMemoryBarriers = Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.data();
-    vkDependencyInfo.imageMemoryBarrierCount = (u32)Resources()[command.DependencyInfo].LayoutTransitionsInfo.size();
-    vkDependencyInfo.pImageMemoryBarriers = Resources()[command.DependencyInfo].LayoutTransitionsInfo.data();
+    const DeviceResources::DependencyInfoResource& dependencyInfo = Resources()[command.DependencyInfo];
+
+    VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
+    vkDependencyInfo.memoryBarrierCount = dependencyInfo.MemoryBarriersCount;
+    vkDependencyInfo.pMemoryBarriers = dependencyInfo.MemoryBarriers.data();
+    vkDependencyInfo.imageMemoryBarrierCount = dependencyInfo.LayoutDependency ? 1u : 0u;
+    vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
+        std::to_address(dependencyInfo.LayoutDependency) : nullptr;
     vkCmdPipelineBarrier2(Resources()[cmd].CommandBuffer, &vkDependencyInfo);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const SignalSplitBarrierCommand& command)
 {
-    VkDependencyInfo vkDependencyInfo = Resources()[command.DependencyInfo].DependencyInfo;
-    vkDependencyInfo.memoryBarrierCount =
-        (u32)Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.size();
-    vkDependencyInfo.pMemoryBarriers = Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.data();
-    vkDependencyInfo.imageMemoryBarrierCount = (u32)Resources()[command.DependencyInfo].LayoutTransitionsInfo.size();
-    vkDependencyInfo.pImageMemoryBarriers = Resources()[command.DependencyInfo].LayoutTransitionsInfo.data();
+    const DeviceResources::DependencyInfoResource& dependencyInfo = Resources()[command.DependencyInfo];
+
+    VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
+    vkDependencyInfo.memoryBarrierCount = dependencyInfo.MemoryBarriersCount;
+    vkDependencyInfo.pMemoryBarriers = dependencyInfo.MemoryBarriers.data();
+    vkDependencyInfo.imageMemoryBarrierCount = dependencyInfo.LayoutDependency ? 1u : 0u;
+    vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
+        std::to_address(dependencyInfo.LayoutDependency) : nullptr;
     vkCmdSetEvent2(Resources()[cmd].CommandBuffer, Resources()[command.SplitBarrier].Event, &vkDependencyInfo);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const WaitOnSplitBarrierCommand& command)
 {
-    VkDependencyInfo vkDependencyInfo = Resources()[command.DependencyInfo].DependencyInfo;
-    vkDependencyInfo.memoryBarrierCount =
-        (u32)Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.size();
-    vkDependencyInfo.pMemoryBarriers = Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.data();
-    vkDependencyInfo.imageMemoryBarrierCount = (u32)Resources()[command.DependencyInfo].LayoutTransitionsInfo.size();
-    vkDependencyInfo.pImageMemoryBarriers = Resources()[command.DependencyInfo].LayoutTransitionsInfo.data();
+    const DeviceResources::DependencyInfoResource& dependencyInfo = Resources()[command.DependencyInfo];
+
+    VkDependencyInfo vkDependencyInfo = dependencyInfo.DependencyInfo;
+    vkDependencyInfo.memoryBarrierCount = dependencyInfo.MemoryBarriersCount;
+    vkDependencyInfo.pMemoryBarriers = dependencyInfo.MemoryBarriers.data();
+    vkDependencyInfo.imageMemoryBarrierCount = dependencyInfo.LayoutDependency ? 1u : 0u;
+    vkDependencyInfo.pImageMemoryBarriers = dependencyInfo.LayoutDependency ?
+        std::to_address(dependencyInfo.LayoutDependency) : nullptr;
     vkCmdWaitEvents2(Resources()[cmd].CommandBuffer, 1, &Resources()[command.SplitBarrier].Event,
         &vkDependencyInfo);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const ResetSplitBarrierCommand& command)
 {
-    ASSERT(!Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.empty(), "Invalid reset operation")
+    ASSERT(Resources()[command.DependencyInfo].MemoryBarriersCount != 0, "Invalid reset operation")
     vkCmdResetEvent2(Resources()[cmd].CommandBuffer, Resources()[command.SplitBarrier].Event,
-        Resources()[command.DependencyInfo].ExecutionMemoryDependenciesInfo.front().dstStageMask);
+        Resources()[command.DependencyInfo].MemoryBarriers.front().dstStageMask);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindVertexBuffersCommand& command)
@@ -4513,31 +4470,17 @@ void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComput
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
 {
-    BindDescriptors(cmd, *command.Allocators, command.PipelineLayout, command.Descriptors, command.Set,
+    DeviceInternal::BindDescriptors(cmd, *command.Allocators, command.PipelineLayout, command.Descriptors, command.Set,
         VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
-    BindDescriptors(cmd, *command.Allocators, command.PipelineLayout, command.Descriptors, command.Set,
+    DeviceInternal::BindDescriptors(cmd, *command.Allocators, command.PipelineLayout, command.Descriptors, command.Set,
         VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
 #ifdef DESCRIPTOR_BUFFER
-void Device::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
-{
-    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
-    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
-        Resources()[descriptorsResource.Allocator];
-    ASSERT(allocators.Get(allocatorResource.Kind) == descriptorsResource.Allocator,
-        "Descriptors were not allocated by any of the provided allocators")
-
-    u32 allocatorIndex = (u32)allocatorResource.Kind;
-    u64 offset = descriptorsResource.Offsets.front();
-    vkCmdSetDescriptorBufferOffsetsEXT(Resources()[cmd].CommandBuffer, bindPoint,
-        Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);
-}
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
@@ -4561,13 +4504,6 @@ void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocato
         descriptorBufferBindings.data());
 }
 #else
-void Device::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators&,
-    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
-{
-    const DeviceResources::DescriptorsResource& descriptorsResource = Resources()[descriptors];
-    vkCmdBindDescriptorSets(Resources()[cmd].CommandBuffer, bindPoint,
-        Resources()[pipelineLayout].Layout, firstSet, 1, &descriptorsResource.DescriptorSet, 0, nullptr);
-}
 void Device::CompileCommand(CommandBuffer, const BindDescriptorArenaAllocatorsCommand&)
 {
 }
@@ -4616,68 +4552,6 @@ void Device::CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& co
     vkCmdDispatchIndirect(Resources()[cmd].CommandBuffer, Resources()[command.Buffer].Buffer, command.Offset);
 }
 
-VmaAllocator& Device::Allocator()
-{
-    return s_State.Allocator;
-}
-
-VkImageView Device::CreateVulkanImageView(const ImageSubresource& image, VkFormat format)
-{
-    const DeviceResources::ImageResource& imageResource = Resources()[image.Image];
-    VkImageViewCreateInfo createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    createInfo.image = Resources()[image.Image].Image;
-    createInfo.format = format;
-    createInfo.viewType = vulkanImageViewTypeFromImageAndViewKind(imageResource.Description.Kind,
-        image.Description.ImageViewKind);
-    createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-    createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
-    createInfo.subresourceRange.baseMipLevel = (u32)(i32)image.Description.MipmapBase;
-    createInfo.subresourceRange.levelCount = (u32)(i32)image.Description.Mipmaps;
-    createInfo.subresourceRange.baseArrayLayer = (u32)(i32)image.Description.LayerBase;
-    createInfo.subresourceRange.layerCount = (u32)(i32)image.Description.Layers;
-
-    VkImageView imageView;
-
-    deviceCheck(vkCreateImageView(s_State.Device, &createInfo, nullptr, &imageView),
-        "Failed to create image view");
-
-    return imageView;
-}
-
-std::vector<VkSemaphoreSubmitInfo> Device::CreateVulkanSemaphoreSubmit(Span<const Semaphore> semaphores,
-    Span<const PipelineStage> waitStages)
-{
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
-    waitSemaphoreSubmitInfos.reserve(semaphores.size());
-    for (u32 i = 0; i < semaphores.size(); i++)
-        waitSemaphoreSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = Resources()[semaphores[i]].Semaphore,
-            .stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i])});
-
-    return waitSemaphoreSubmitInfos;
-}
-
-std::vector<VkSemaphoreSubmitInfo> Device::CreateVulkanSemaphoreSubmit(Span<const TimelineSemaphore> semaphores,
-    Span<const u64> waitValues, Span<const PipelineStage> waitStages)
-{
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
-    waitSemaphoreSubmitInfos.reserve(semaphores.size());
-    for (u32 i = 0; i < semaphores.size(); i++)
-        waitSemaphoreSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = Resources()[semaphores[i]].Semaphore,
-            .value = waitValues[i],
-            .stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i])});
-
-    return waitSemaphoreSubmitInfos;
-}
-
 #ifdef DESCRIPTOR_BUFFER
 u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
 {
@@ -4697,10 +4571,10 @@ u32 DeviceInternal::GetDescriptorSizeBytes(DescriptorType type)
     }
 }
 
-void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorBindingInfo bindingInfo, u32 index,
+void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo slotInfo, u32 index,
     VkDescriptorGetInfoEXT& descriptorGetInfo)
 {
-    auto&& [slot, type] = bindingInfo;
+    auto&& [slot, type] = slotInfo;
     const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
     const u64 descriptorSizeBytes = GetDescriptorSizeBytes(type);
     const u64 innerOffsetBytes = descriptorSizeBytes * index;
@@ -4712,6 +4586,20 @@ void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorBindingI
         Device::Resources()[descriptorsResource.Allocator];
     vkGetDescriptorEXT(Device::s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)allocatorResource.MappedAddress + offsetBytes);
+}
+void DeviceInternal::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
+    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+{
+    const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
+    const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
+        Device::Resources()[descriptorsResource.Allocator];
+    ASSERT(allocators.Get(allocatorResource.Kind) == descriptorsResource.Allocator,
+        "Descriptors were not allocated by any of the provided allocators")
+
+    u32 allocatorIndex = (u32)allocatorResource.Kind;
+    u64 offset = descriptorsResource.Offsets.front();
+    vkCmdSetDescriptorBufferOffsetsEXT(Device::Resources()[cmd].CommandBuffer, bindPoint,
+        Device::Resources()[pipelineLayout].Layout, firstSet, 1, &allocatorIndex, &offset);
 }
 #else
 u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator allocator, DescriptorPoolFlags poolFlags)
@@ -4745,4 +4633,98 @@ u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator alloc
 
     return index;
 }
+void DeviceInternal::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators&,
+    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+{
+    const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
+    vkCmdBindDescriptorSets(Device::Resources()[cmd].CommandBuffer, bindPoint,
+        Device::Resources()[pipelineLayout].Layout, firstSet, 1, &descriptorsResource.DescriptorSet, 0, nullptr);
+}
 #endif
+
+VmaAllocator& DeviceInternal::Allocator()
+{
+    return Device::s_State.Allocator;
+}
+
+Buffer DeviceInternal::AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
+    VmaAllocationCreateFlags allocationFlags)
+{
+    VkBufferCreateInfo bufferCreateInfo = {};
+    bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    bufferCreateInfo.size = createInfo.SizeBytes;
+    bufferCreateInfo.usage = usage;
+
+    VmaAllocationCreateInfo allocationCreateInfo = {};
+    allocationCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+    allocationCreateInfo.flags = allocationFlags;
+
+    DeviceResources::BufferResource bufferResource = {};
+    deviceCheck(vmaCreateBuffer(Allocator(), &bufferCreateInfo, &allocationCreateInfo,
+        &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
+        "Failed to create a buffer");
+
+    bufferResource.Description.SizeBytes = createInfo.SizeBytes;
+    bufferResource.Description.Usage = createInfo.Usage;
+    if (createInfo.PersistentMapping)
+        bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
+
+    return Device::Resources().AddResource(bufferResource);
+}
+
+VkImageView DeviceInternal::CreateVulkanImageView(const ImageSubresource& image, VkFormat format)
+{
+    const DeviceResources::ImageResource& imageResource = Device::Resources()[image.Image];
+    VkImageViewCreateInfo createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    createInfo.image = Device::Resources()[image.Image].Image;
+    createInfo.format = format;
+    createInfo.viewType = vulkanImageViewTypeFromImageAndViewKind(imageResource.Description.Kind,
+        image.Description.ImageViewKind);
+    createInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    createInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+    createInfo.subresourceRange.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
+    createInfo.subresourceRange.baseMipLevel = (u32)(i32)image.Description.MipmapBase;
+    createInfo.subresourceRange.levelCount = (u32)(i32)image.Description.Mipmaps;
+    createInfo.subresourceRange.baseArrayLayer = (u32)(i32)image.Description.LayerBase;
+    createInfo.subresourceRange.layerCount = (u32)(i32)image.Description.Layers;
+
+    VkImageView imageView;
+
+    deviceCheck(vkCreateImageView(Device::s_State.Device, &createInfo, nullptr, &imageView),
+        "Failed to create image view");
+
+    return imageView;
+}
+
+std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const Semaphore> semaphores,
+    Span<const PipelineStage> waitStages)
+{
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
+    waitSemaphoreSubmitInfos.reserve(semaphores.size());
+    for (u32 i = 0; i < semaphores.size(); i++)
+        waitSemaphoreSubmitInfos.push_back({
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+            .semaphore = Device::Resources()[semaphores[i]].Semaphore,
+            .stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i])});
+
+    return waitSemaphoreSubmitInfos;
+}
+
+std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const TimelineSemaphore> semaphores,
+    Span<const u64> waitValues, Span<const PipelineStage> waitStages)
+{
+    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
+    waitSemaphoreSubmitInfos.reserve(semaphores.size());
+    for (u32 i = 0; i < semaphores.size(); i++)
+        waitSemaphoreSubmitInfos.push_back({
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
+            .semaphore = Device::Resources()[semaphores[i]].Semaphore,
+            .value = waitValues[i],
+            .stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i])});
+
+    return waitSemaphoreSubmitInfos;
+}

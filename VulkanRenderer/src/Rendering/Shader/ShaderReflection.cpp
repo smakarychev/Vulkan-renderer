@@ -4,9 +4,11 @@
 #include "Shader.h"
 #include "Vulkan/Device.h"
 #include "Utils/ContainterUtils.h"
+#include "Rendering/DeletionQueue.h"
 
 #include <spirv_reflect.h>
 
+#include "ShaderAsset.h"
 
 namespace
 {
@@ -116,8 +118,9 @@ namespace
         const assetLib::ShaderStageInfo& second)
     {
         ASSERT(!(first.ShaderStages & second.ShaderStages), "Overlapping shader stages")
-        ASSERT(((first.ShaderStages | second.ShaderStages) & VK_SHADER_STAGE_COMPUTE_BIT) == 0 ||
-               ((first.ShaderStages | second.ShaderStages) & VK_SHADER_STAGE_COMPUTE_BIT) == VK_SHADER_STAGE_COMPUTE_BIT,
+        ASSERT(((first.ShaderStages | second.ShaderStages) & SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT) == 0 ||
+               ((first.ShaderStages | second.ShaderStages) & SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT) ==
+               SPV_REFLECT_SHADER_STAGE_COMPUTE_BIT,
                "Compute shaders cannot be combined with others in pipeline")
 
         assetLib::ShaderStageInfo merged = first;
@@ -206,9 +209,54 @@ namespace
         return merged;
     }
 
-    std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS> processDescriptorSets(
-        const std::vector<ShaderReflection::ShaderStageInfo::DescriptorSet>& sets)
+    Sampler getImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
     {
+        Sampler sampler = Device::CreateSampler({
+            .MinificationFilter = filter,
+            .MagnificationFilter = filter,
+            .WrapMode = wrapMode,
+            .BorderColor = borderColor});
+
+        return sampler;
+    }
+    Sampler getImmutableShadowSampler(ImageFilter filter, SamplerDepthCompareMode depthCompareMode)
+    {
+        Sampler sampler = Device::CreateSampler({
+            .MinificationFilter = filter,
+            .MagnificationFilter = filter,
+            .WrapMode = SamplerWrapMode::ClampBorder,
+            .BorderColor = SamplerBorderColor::Black,
+            .DepthCompareMode = depthCompareMode,
+            .WithAnisotropy = false});
+
+        return sampler;
+    }
+
+    std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS> processDescriptorSets(
+        const std::vector<assetLib::ShaderStageInfo::DescriptorSet>& sets)
+    {
+        static SamplerBorderColor black = SamplerBorderColor::Black;
+        static SamplerBorderColor white = SamplerBorderColor::White;
+        static Sampler immutableSampler = getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::Repeat, black);
+        static Sampler immutableSamplerNearest = getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::Repeat, black);
+        static Sampler immutableSamplerClampEdge =
+            getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampEdge, black);
+        static Sampler immutableSamplerNearestClampEdge =
+            getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampEdge, black);
+        static Sampler immutableSamplerClampBlack =
+            getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, black);
+        static Sampler immutableSamplerNearestClampBlack =
+            getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, black);
+        static Sampler immutableSamplerClampWhite =
+            getImmutableSampler(ImageFilter::Linear, SamplerWrapMode::ClampBorder, white);
+        static Sampler immutableSamplerNearestClampWhite =
+            getImmutableSampler(ImageFilter::Nearest, SamplerWrapMode::ClampBorder, white);
+    
+        static Sampler immutableShadowSampler =
+            getImmutableShadowSampler(ImageFilter::Linear, SamplerDepthCompareMode::Less); 
+        static Sampler immutableShadowNearestSampler =
+            getImmutableShadowSampler(ImageFilter::Nearest, SamplerDepthCompareMode::Less);
+        
         std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS> descriptorSets;
         for (auto& set : sets)
         {
@@ -216,7 +264,6 @@ namespace
             target.Descriptors.resize(set.Descriptors.size());
             target.DescriptorNames.resize(set.Descriptors.size());
             bool containsBindlessDescriptors = false;
-            bool containsImmutableSamplers = false;
             for (u32 descriptorIndex = 0; descriptorIndex < set.Descriptors.size(); descriptorIndex++)
             {
                 auto& name = target.DescriptorNames[descriptorIndex];
@@ -227,10 +274,12 @@ namespace
                     set.Descriptors[descriptorIndex].Type);
                 descriptor.Shaders = shaderStageFromMultipleAssetStages(
                     set.Descriptors[descriptorIndex].ShaderStages);
-                descriptor.DescriptorFlags = set.Descriptors[descriptorIndex].Flags;
 
-                if (enumHasAny(set.Descriptors[descriptorIndex].Flags,
-                    ShaderReflection::ShaderStageInfo::DescriptorSet::Bindless))
+                auto flags = set.Descriptors[descriptorIndex].Flags;
+                if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::Bindless))
+                    descriptor.Flags |= DescriptorFlags::VariableCount;
+
+                if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::Bindless))
                 {
                     containsBindlessDescriptors = true;
                     descriptor.Count = bindlessDescriptorCount(
@@ -240,20 +289,36 @@ namespace
                 {
                     descriptor.Count = set.Descriptors[descriptorIndex].Count;
                 }
-                // every specific version of ImmutableSampler flag also contains the base flag
-                containsImmutableSamplers = containsImmutableSamplers ||
-                    enumHasAny(descriptor.DescriptorFlags,
-                        ShaderReflection::ShaderStageInfo::DescriptorSet::ImmutableSampler);
+
+                if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampEdge))
+                    descriptor.ImmutableSampler = immutableSamplerClampEdge;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampEdge))
+                    descriptor.ImmutableSampler = immutableSamplerNearestClampEdge;
+                else if (enumHasAny(flags,assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampBlack))
+                    descriptor.ImmutableSampler = immutableSamplerClampBlack;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampBlack))
+                    descriptor.ImmutableSampler = immutableSamplerNearestClampBlack;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerClampWhite))
+                    descriptor.ImmutableSampler = immutableSamplerClampWhite;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearestClampWhite))
+                    descriptor.ImmutableSampler = immutableSamplerNearestClampWhite;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerNearest))
+                    descriptor.ImmutableSampler = immutableSamplerNearest;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerShadow))
+                    descriptor.ImmutableSampler = immutableShadowSampler;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerShadowNearest))
+                    descriptor.ImmutableSampler = immutableShadowNearestSampler;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSampler))
+                    descriptor.ImmutableSampler = immutableSampler;
             }
             target.HasBindless = containsBindlessDescriptors;
-            target.HasImmutableSampler = containsImmutableSamplers;
         }
 
         return descriptorSets;
     }
 
     VertexInputDescription processInputDescription(
-        const std::vector<ShaderReflection::InputAttribute>& inputAttributeReflections)
+        const std::vector<assetLib::ShaderStageInfo::InputAttribute>& inputAttributeReflections)
     {
         VertexInputDescription inputDescription = {};
 
@@ -302,7 +367,7 @@ namespace
     }
 
     std::vector<PushConstantDescription> processPushConstantDescriptions(
-        const std::vector<ShaderReflection::PushConstant>& pushConstantReflections)
+        const std::vector<assetLib::ShaderStageInfo::PushConstant>& pushConstantReflections)
     {
         std::vector<PushConstantDescription> pushConstants;
         pushConstants.reserve(pushConstantReflections.size());
@@ -330,6 +395,24 @@ namespace
             if (descriptors[i].Binding == descriptors[i - 1].Binding)
                 descriptors.erase(descriptors.begin() + i);
     }
+
+    std::pair<assetLib::ShaderStageInfo, ShaderModule> loadFromAsset(std::string_view path)
+    {
+        assetLib::File shaderFile;
+        assetLib::loadAssetFile(path, shaderFile);
+        assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
+
+        std::vector<std::byte> source;
+        source.resize(shaderInfo.SourceSizeBytes);
+        assetLib::unpackShaderStage(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), source.data());
+    
+        const ShaderModule shaderModule = Device::CreateShaderModule({
+            .Source = source,
+            .Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages)},
+            Device::DummyDeletionQueue());
+
+        return std::make_pair(shaderInfo, shaderModule);
+    }
 }
 
 
@@ -347,9 +430,10 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& 
     
     for (auto& path : paths)
     {
-        assetLib::ShaderStageInfo shaderAsset = shader.LoadFromAsset(path);
-        allStages |= shaderStageFromAssetStage(shaderAsset.ShaderStages);
-        mergedShaderInfo = mergeReflections(mergedShaderInfo, shaderAsset);
+        auto&& [asset, module] = loadFromAsset(path);
+        shader.m_Modules.push_back(module);
+        allStages |= shaderStageFromAssetStage(asset.ShaderStages);
+        mergedShaderInfo = mergeReflections(mergedShaderInfo, asset);
     }
 
     std::ranges::sort(mergedShaderInfo.DescriptorSets, [](auto& a, auto& b) { return a.Set < b.Set; });
@@ -393,23 +477,4 @@ ShaderReflection::~ShaderReflection()
 {
     for (auto& module : m_Modules)
         Device::DeletionQueue().Enqueue(module);
-}
-
-assetLib::ShaderStageInfo ShaderReflection::LoadFromAsset(std::string_view path)
-{
-    assetLib::File shaderFile;
-    assetLib::loadAssetFile(path, shaderFile);
-    assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
-
-    std::vector<std::byte> source;
-    source.resize(shaderInfo.SourceSizeBytes);
-    assetLib::unpackShaderStage(shaderInfo, shaderFile.Blob.data(), shaderFile.Blob.size(), source.data());
-    
-    const ShaderModule shaderModule = Device::CreateShaderModule({
-        .Source = source,
-        .Stage = shaderStageFromAssetStage(shaderInfo.ShaderStages)},
-        Device::DummyDeletionQueue());
-    m_Modules.push_back(shaderModule);
-
-    return shaderInfo;
 }

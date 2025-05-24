@@ -1,5 +1,5 @@
 #pragma once
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGResource.h"
 
 namespace Passes::Upload
@@ -9,9 +9,6 @@ namespace Passes::Upload
         RG::Resource Resource{};
     };
     template <typename T>
-    RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, T&& data);
-
-    template <typename T>
     RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, T&& data)
     {
         using namespace RG;
@@ -20,16 +17,16 @@ namespace Passes::Upload
         return renderGraph.AddRenderPass<PassData>(name,
             [&](Graph& graph, PassData& passData)
             {
-                auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
-                passData.Resource = graph.CreateResource("Resource"_hsv, GraphBufferDescription{
+                auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(data);
+                passData.Resource = graph.Create("Resource"_hsv, RGBufferDescription{
                     .SizeBytes = sizeBytes});
-                graph.Write(passData.Resource, Copy);
+                passData.Resource = graph.WriteBuffer(passData.Resource, Copy);
                 graph.Upload(passData.Resource, std::forward<T>(data));
                 graph.HasSideEffect();
             },
-            [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+            [=](const PassData&, FrameContext&, const Graph&)
             {
-            }).Data.Resource;
+            }).Resource;
     }
 }
 

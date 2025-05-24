@@ -1,7 +1,8 @@
 #include "VisualizeLightTiles.h"
 
 #include "Light/LightZBinner.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Generated/LightTilesVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -33,42 +34,42 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
 
             auto& globalResources = graph.GetGlobalResources();
 
-            passData.Color = graph.CreateResource("Color"_hsv,
-                GraphTextureDescription{
-                    .Width = globalResources.Resolution.x,
-                    .Height = globalResources.Resolution.y,
+            passData.Color = graph.Create("Color"_hsv,
+                RGImageDescription{
+                    .Width = (f32)globalResources.Resolution.x,
+                    .Height = (f32)globalResources.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
 
             passData.ZBins = {};
             if (info.Bins.IsValid())
-                passData.ZBins = graph.Read(info.Bins, Pixel | Storage);
+                passData.ZBins = graph.ReadBuffer(info.Bins, Pixel | Storage);
             
-            passData.Color = graph.RenderTarget(passData.Color, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.Depth = graph.Read(info.Depth, Pixel | Sampled);
-            passData.Tiles = graph.Read(info.Tiles, Pixel | Storage);
+            passData.Color = graph.RenderTarget(passData.Color, {});
+            passData.Depth = graph.ReadImage(info.Depth, Pixel | Sampled);
+            passData.Tiles = graph.ReadBuffer(info.Tiles, Pixel | Storage);
 
-            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Pixel | Uniform);
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize")
             GPU_PROFILE_FRAME("Lights.Tiles.Visualize")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             LightTilesVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetDepth({.Image = resources.GetTexture(passData.Depth)}, ImageLayout::Readonly);
-            bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
+            bindGroup.SetDepth(graph.GetImageBinding(passData.Depth));
+            bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
 
             bool useZBins = passData.ZBins.IsValid();
             if (useZBins)
-                bindGroup.SetZbins({.Buffer = resources.GetBuffer(passData.ZBins)});
+                bindGroup.SetZbins(graph.GetBufferBinding(passData.ZBins));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {useZBins}});
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

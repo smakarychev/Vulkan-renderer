@@ -1,6 +1,6 @@
 #include "PrepareVisibleMeshletInfoPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/ScenePrepareVisibleMeshletInfoBindGroup.generated.h"
 #include "Scene/SceneRenderObjectSet.h"
 
@@ -28,49 +28,48 @@ Passes::PrepareVisibleMeshletInfo::PassData& Passes::PrepareVisibleMeshletInfo::
 
             passData.MeshletCount = info.RenderObjectSet->MeshletCount();
 
-            passData.ReferenceCommands = graph.AddExternal("ReferenceCommands"_hsv,
+            passData.ReferenceCommands = graph.Import("ReferenceCommands"_hsv,
                 info.RenderObjectSet->Geometry().Commands.Buffer);
-            passData.ReferenceCommands = graph.Read(passData.ReferenceCommands, Compute | Storage);
+            passData.ReferenceCommands = graph.ReadBuffer(passData.ReferenceCommands, Compute | Storage);
 
-            passData.Buckets = graph.AddExternal("Buckets"_hsv,
+            passData.Buckets = graph.Import("Buckets"_hsv,
                 info.RenderObjectSet->BucketBits());
-            passData.Buckets = graph.Read(passData.Buckets, Compute | Storage);
+            passData.Buckets = graph.ReadBuffer(passData.Buckets, Compute | Storage);
             
-            passData.MeshletHandles = graph.AddExternal("MeshletHandles"_hsv,
+            passData.MeshletHandles = graph.Import("MeshletHandles"_hsv,
                 info.RenderObjectSet->MeshletHandles());
-            passData.MeshletHandles = graph.Read(passData.MeshletHandles, Compute | Storage);
+            passData.MeshletHandles = graph.ReadBuffer(passData.MeshletHandles, Compute | Storage);
 
-            passData.MeshletInfos = graph.CreateResource("MeshletInfos"_hsv,
-                GraphBufferDescription{
+            passData.MeshletInfos = graph.Create("MeshletInfos"_hsv,
+                RGBufferDescription{
                     .SizeBytes = sizeof(SceneMeshletBucketInfo) * passData.MeshletCount});
-            passData.MeshletInfos = graph.Write(passData.MeshletInfos, Compute | Storage);
+            passData.MeshletInfos = graph.ReadBuffer(passData.MeshletInfos, Compute | Storage);
 
-            passData.MeshletInfoCount = graph.CreateResource("MeshletInfoCount"_hsv,
-                GraphBufferDescription{.SizeBytes = sizeof(u32)});
-            passData.MeshletInfoCount = graph.Read(passData.MeshletInfoCount, Compute | Storage);
-            passData.MeshletInfoCount = graph.Write(passData.MeshletInfoCount, Compute | Storage);
+            passData.MeshletInfoCount = graph.Create("MeshletInfoCount"_hsv,
+                RGBufferDescription{.SizeBytes = sizeof(u32)});
+            passData.MeshletInfoCount = graph.ReadWriteBuffer(passData.MeshletInfoCount, Compute | Storage);
             graph.Upload(passData.MeshletInfoCount, 0);
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Scene.PrepareVisibleMeshletInfo")
             GPU_PROFILE_FRAME("Scene.PrepareVisibleMeshletInfo")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             ScenePrepareVisibleMeshletInfoShaderBindGroup bindGroup(shader);
-            bindGroup.SetReferenceCommands({.Buffer = resources.GetBuffer(passData.ReferenceCommands)});
-            bindGroup.SetRenderObjectBuckets({.Buffer = resources.GetBuffer(passData.Buckets)});
-            bindGroup.SetMeshletHandles({.Buffer = resources.GetBuffer(passData.MeshletHandles)});
-            bindGroup.SetMeshletInfos({.Buffer = resources.GetBuffer(passData.MeshletInfos)});
-            bindGroup.SetMeshletInfoCount({.Buffer = resources.GetBuffer(passData.MeshletInfoCount)});
+            bindGroup.SetReferenceCommands(graph.GetBufferBinding(passData.ReferenceCommands));
+            bindGroup.SetRenderObjectBuckets(graph.GetBufferBinding(passData.Buckets));
+            bindGroup.SetMeshletHandles(graph.GetBufferBinding(passData.MeshletHandles));
+            bindGroup.SetMeshletInfos(graph.GetBufferBinding(passData.MeshletInfos));
+            bindGroup.SetMeshletInfoCount(graph.GetBufferBinding(passData.MeshletInfoCount));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {passData.MeshletCount}});
             cmd.Dispatch({
                .Invocations = {passData.MeshletCount, 1, 1},
                .GroupSize = {64, 1, 1}});
-        }).Data;
+        });
 }

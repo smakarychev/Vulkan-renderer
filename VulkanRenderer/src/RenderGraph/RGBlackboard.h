@@ -1,11 +1,10 @@
 #pragma once
+
+#include "Utils/Hash.h"
+#include "RGPass.h"
+
 #include <memory>
 #include <unordered_map>
-
-#include "RenderPass.h"
-#include "types.h"
-#include "core.h"
-#include "Utils/Hash.h"
 
 namespace RG
 {

@@ -1,7 +1,7 @@
 #include "EquirectangularToCubemapPass.h"
 
 #include "MipMapPass.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/EquirectangularToCubemapBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -23,24 +23,23 @@ namespace
 
                 graph.SetShader("equirectangular-to-cubemap"_hsv);
                 
-                passData.Cubemap = graph.AddExternal("Cubemap"_hsv, cubemap);
+                passData.Cubemap = graph.Import("Cubemap"_hsv, cubemap);
                 
-                passData.Cubemap = graph.Write(passData.Cubemap, Compute | Storage);
-                passData.Equirectangular = graph.Read(equirectangular, Compute | Sampled);
+                passData.Cubemap = graph.WriteImage(passData.Cubemap, Compute | Storage);
+                passData.Equirectangular = graph.ReadImage(equirectangular, Compute | Sampled);
             },
-            [=](ConvertPassData& passData, FrameContext& frameContext, const Resources& resources)
+            [=](const ConvertPassData& passData, FrameContext& frameContext, const Graph& graph)
             {
                 CPU_PROFILE_FRAME("EquirectangularToCubemap")
                 GPU_PROFILE_FRAME("EquirectangularToCubemap")
 
-                Texture equirectangularTexture = resources.GetTexture(passData.Equirectangular);
-                auto&& [cubemapTexture, cubemapDescription] = resources.GetTextureWithDescription(passData.Cubemap);
+                auto& cubemapDescription = graph.GetImageDescription(passData.Cubemap);
 
-                const Shader& shader = resources.GetGraph()->GetShader();
+                const Shader& shader = graph.GetShader();
                 EquirectangularToCubemapShaderBindGroup bindGroup(shader);
 
-                bindGroup.SetEquirectangular({.Image = equirectangularTexture}, ImageLayout::Readonly);
-                bindGroup.SetCubemap({.Image = cubemapTexture}, ImageLayout::General);
+                bindGroup.SetEquirectangular(graph.GetImageBinding(passData.Equirectangular));
+                bindGroup.SetCubemap(graph.GetImageBinding(passData.Cubemap));
 
                 struct PushConstants
                 {
@@ -50,14 +49,14 @@ namespace
                     .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width}};
                 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+                bindGroup.Bind(cmd, graph.GetFrameAllocators());
                 cmd.PushConstants({
                 	.PipelineLayout = shader.GetLayout(), 
                 	.Data = {pushConstants}});
                 cmd.Dispatch({
                     .Invocations = {cubemapDescription.Width, cubemapDescription.Width, 6},
                     .GroupSize = {32, 32, 1}});
-            }).Data;
+            });
     }
 }
 
@@ -65,7 +64,7 @@ Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::ad
     RG::Graph& renderGraph, Texture equirectangular, Texture cubemap)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal("Equirectangular"_hsv, equirectangular),
+        renderGraph.Import("Equirectangular"_hsv, equirectangular, ImageLayout::Readonly),
         cubemap);
 }
 
@@ -85,7 +84,7 @@ Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::ad
             passData.Equirectangular = convert.Equirectangular;
             passData.Cubemap = mipmap.Texture;
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
-        }).Data;
+        });
 }

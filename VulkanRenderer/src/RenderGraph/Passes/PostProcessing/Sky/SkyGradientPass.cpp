@@ -3,6 +3,7 @@
 #include "CameraGPU.h"
 #include "Renderer.h"
 #include "imgui/imgui.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Generated/SkyGradientBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -39,11 +40,11 @@ Passes::SkyGradient::PassData& Passes::SkyGradient::addToGraph(StringId name, RG
 
             auto& globalResources = graph.GetGlobalResources();
             
-            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Compute | Uniform);
+            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Compute | Uniform);
             
-            passData.Settings = graph.CreateResource("Settings"_hsv, GraphBufferDescription{
+            passData.Settings = graph.Create("Settings"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Settings = graph.Read(passData.Settings, Compute | Uniform);
+            passData.Settings = graph.ReadBuffer(passData.Settings, Compute | Uniform);
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("Sky gradient");
             ImGui::ColorEdit3("sky horizon", (f32*)&settings.SkyColorHorizon);
@@ -59,32 +60,30 @@ Passes::SkyGradient::PassData& Passes::SkyGradient::addToGraph(StringId name, RG
             ImGui::End();
             graph.Upload(passData.Settings, settings);
 
-            passData.ColorOut = graph.Write(renderTarget, Compute | Storage);
+            passData.ColorOut = graph.WriteImage(renderTarget, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Sky.Gradient")
             GPU_PROFILE_FRAME("Sky.Gradient")
 
-            Buffer camera = resources.GetBuffer(passData.Camera);
-            Buffer settingsBuffer = resources.GetBuffer(passData.Settings);
-            auto&& [colorOut, colorOutDescription] = resources.GetTextureWithDescription(passData.ColorOut);
+            auto& colorOutDescription = graph.GetImageDescription(passData.ColorOut);
 
             glm::uvec2 imageSize = {colorOutDescription.Width, colorOutDescription.Height};
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SkyGradientShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera({.Buffer = camera});
-            bindGroup.SetSettings({.Buffer = settingsBuffer});
-            bindGroup.SetOutImage({.Image = colorOut}, ImageLayout::General);
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetSettings(graph.GetBufferBinding(passData.Settings));
+            bindGroup.SetOutImage(graph.GetImageBinding(passData.ColorOut));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {imageSize}});
             cmd.Dispatch({
                 .Invocations = {imageSize, 1},
                 .GroupSize = {32, 32, 1}});
-        }).Data;
+        });
 }

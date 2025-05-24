@@ -15,12 +15,6 @@ struct BufferCreateInfo
 struct BufferTag{};
 using Buffer = ResourceHandleType<BufferTag>;
 
-struct BufferDescription
-{
-    u64 SizeBytes{0};
-    BufferUsage Usage{BufferUsage::None};
-};
-
 struct BufferSubresourceDescription
 {
     static constexpr u64 WHOLE_SIZE{~0ull};
@@ -32,4 +26,12 @@ struct BufferSubresource
 {
     Buffer Buffer{};
     BufferSubresourceDescription Description{};
+};
+
+using BufferBinding = BufferSubresource;
+
+struct BufferDescription
+{
+    u64 SizeBytes{0};
+    BufferUsage Usage{BufferUsage::None};
 };

@@ -1,14 +1,15 @@
 #include "EnvironmentPrefilterPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/EnvironmentPrefilterBindGroup.generated.h"
+#include "Rendering/Image/ImageUtility.h"
 #include "Rendering/Shader/ShaderCache.h"
 
 Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture cubemap, Texture prefiltered)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal("Cubemap"_hsv, cubemap),
+        renderGraph.Import("Cubemap"_hsv, cubemap, ImageLayout::Readonly),
         prefiltered);
 }
 
@@ -31,32 +32,34 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
 
                 if (mipmap == 0)
                 {
-                    passData.PrefilteredTexture = graph.AddExternal(
+                    passData.PrefilteredTexture = graph.Import(
                         "EnvironmentPrefilter"_hsv, prefiltered);
                     prefilteredResource = passData.PrefilteredTexture;
                 }
                     
-                passData.PrefilteredTexture = graph.Write(prefilteredResource, Compute | Storage);
+                passData.PrefilteredTexture = graph.WriteImage(prefilteredResource, Compute | Storage);
                 prefilteredResource = passData.PrefilteredTexture;
-                passData.Cubemap = graph.Read(cubemap, Compute | Sampled);
+                passData.Cubemap = graph.ReadImage(cubemap, Compute | Sampled);
             },
-            [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+            [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
                 CPU_PROFILE_FRAME("EnvironmentPrefilter")
                 GPU_PROFILE_FRAME("EnvironmentPrefilter")
 
-                auto&& [cubemapTexture, cubemapDescription] = resources.GetTextureWithDescription(passData.Cubemap);
+                auto&& [cubemapTexture, cubemapDescription] = graph.GetImageWithDescription(passData.Cubemap);
                 auto&& [prefilteredTexture, prefilteredDescription] =
-                    resources.GetTextureWithDescription(passData.PrefilteredTexture);
+                    graph.GetImageWithDescription(passData.PrefilteredTexture);
 
-                const Shader& shader = resources.GetGraph()->GetShader();
+                const Shader& shader = graph.GetShader();
                 EnvironmentPrefilterShaderBindGroup bindGroup(shader);
 
-                bindGroup.SetEnv({.Image = cubemapTexture}, ImageLayout::Readonly);
+                bindGroup.SetEnv(graph.GetImageBinding(passData.Cubemap));
                 bindGroup.SetPrefilter({
-                    .Image = prefilteredTexture,
-                    .Description = Device::GetAdditionalImageViews(prefilteredTexture)[mipmap]},
-                    ImageLayout::General);
+                    .Subresource = {
+                        .Image = prefilteredTexture,
+                        .Description = Device::GetAdditionalImageViews(prefilteredTexture)[mipmap]
+                    },
+                    .Layout = ImageLayout::General});
 
                 u32 resolution = std::max(1u, prefilteredDescription.Width >> (u32)mipmap);
 
@@ -73,14 +76,14 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
                     .Roughness = (f32)mipmap / (f32)prefilteredDescription.Mipmaps};
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+                bindGroup.Bind(cmd, graph.GetFrameAllocators());
                 cmd.PushConstants({
                 	.PipelineLayout = shader.GetLayout(), 
                 	.Data = {pushConstants}});
                 cmd.Dispatch({
                     .Invocations = {resolution, resolution, 6},
                     .GroupSize = {32, 32, 1}});
-            }).Data;
+            });
 
         if (mipmap == mipmaps - 1)
             return data;

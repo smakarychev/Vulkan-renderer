@@ -145,7 +145,7 @@ namespace Utils
 
         Sphere boundingSphere = meshlets.front().BoundingSphere;
         AABB boundingBox = AABB::FromSphere(boundingSphere);
-        for (auto& meshlet : meshlets | std::ranges::views::drop(1))
+        for (auto& meshlet : meshlets | std::views::drop(1))
         {
             boundingSphere = boundingSphere.Merge(meshlet.BoundingSphere);
             boundingBox = boundingBox.Merge(AABB::FromSphere(meshlet.BoundingSphere));

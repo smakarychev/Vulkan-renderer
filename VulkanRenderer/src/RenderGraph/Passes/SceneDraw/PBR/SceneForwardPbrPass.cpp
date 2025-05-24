@@ -2,9 +2,11 @@
 
 #include "CameraGPU.h"
 #include "FrameContext.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGCommon.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SceneForwardPbrBindGroup.generated.h"
+#include "Rendering/Image/ImageUtility.h"
 #include "Scene/Scene.h"
 
 Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId name, RG::Graph& renderGraph,
@@ -24,6 +26,7 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
         Resource Clusters{};
         Resource Tiles{};
         Resource ZBins{};
+        CsmData CsmData{};
     };
 
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
@@ -48,13 +51,13 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
 
             passData.Resources.CreateFrom(info.DrawInfo, graph);
 
-            passData.UGB = graph.AddExternal("UGB"_hsv,
+            passData.UGB = graph.Import("UGB"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes));
-            passData.UGB = graph.Read(passData.UGB, Vertex | Pixel | Storage);
+            passData.UGB = graph.ReadBuffer(passData.UGB, Vertex | Pixel | Storage);
             
-            passData.Objects = graph.AddExternal("Objects"_hsv,
+            passData.Objects = graph.Import("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer);
-            passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
+            passData.Objects = graph.ReadBuffer(passData.Objects, Vertex | Pixel | Storage);
 
             passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
 
@@ -64,46 +67,51 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
 
             // todo: remove once this is united with view
             auto& globalResources = graph.GetGlobalResources();
-            passData.ShadingSettings = graph.Read(globalResources.ShadingSettings, Pixel | Uniform);
+            passData.ShadingSettings = graph.ReadBuffer(globalResources.ShadingSettings, Pixel | Uniform);
 
             if (info.Clusters.IsValid())
-                passData.Clusters = graph.Read(info.Clusters, Pixel | Storage);
+                passData.Clusters = graph.ReadBuffer(info.Clusters, Pixel | Storage);
             if (info.Tiles.IsValid())
             {
-                passData.Tiles = graph.Read(info.Tiles, Pixel | Storage);
-                passData.ZBins = graph.Read(info.ZBins, Pixel | Storage);
+                passData.Tiles = graph.ReadBuffer(info.Tiles, Pixel | Storage);
+                passData.ZBins = graph.ReadBuffer(info.ZBins, Pixel | Storage);
             }
+
+            if (info.CsmData.ShadowMap.IsValid())
+                passData.CsmData = RgUtils::readCsmData(info.CsmData, graph, Pixel);
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Scene.SceneForwardPbr")
             GPU_PROFILE_FRAME("Scene.SceneForwardPbr")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SceneForwardPbrShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Resources.Camera)});
-            bindGroup.SetUGB({.Buffer = resources.GetBuffer(passData.UGB)});
-            bindGroup.SetCommands({.Buffer = resources.GetBuffer(passData.Resources.Draws)});
-            bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
-            RgUtils::updateSceneLightBindings(bindGroup, resources, passData.Light);
-            RgUtils::updateSSAOBindings(bindGroup, resources, passData.SSAO);
-            RgUtils::updateIBLBindings(bindGroup, resources, passData.IBL);
-            bindGroup.SetShading({.Buffer = resources.GetBuffer(passData.ShadingSettings)});
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Resources.Camera));
+            bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
+            bindGroup.SetCommands(graph.GetBufferBinding(passData.Resources.Draws));
+            bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));
+            RgUtils::updateSceneLightBindings(bindGroup, graph, passData.Light);
+            RgUtils::updateSSAOBindings(bindGroup, graph, passData.SSAO);
+            RgUtils::updateIBLBindings(bindGroup, graph, passData.IBL);
+            bindGroup.SetShading(graph.GetBufferBinding(passData.ShadingSettings));
             if (passData.Clusters.IsValid())
-                bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
+                bindGroup.SetClusters(graph.GetBufferBinding(passData.Clusters));
             if (passData.Tiles.IsValid())
             {
-                bindGroup.SetTiles({.Buffer = resources.GetBuffer(passData.Tiles)});
-                bindGroup.SetZbins({.Buffer = resources.GetBuffer(passData.ZBins)});
+                bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
+                bindGroup.SetZbins(graph.GetBufferBinding(passData.ZBins));
             }
+            if (passData.CsmData.ShadowMap.IsValid())
+                RgUtils::updateCsmBindings(bindGroup, graph, passData.CsmData);
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({
-                .DrawBuffer = resources.GetBuffer(passData.Resources.Draws),
-                .CountBuffer = resources.GetBuffer(passData.Resources.DrawInfo),
+                .DrawBuffer = graph.GetBuffer(passData.Resources.Draws),
+                .CountBuffer = graph.GetBuffer(passData.Resources.DrawInfo),
                 .MaxCount = passData.Resources.MaxDrawCount});
-        }).Data;
+        });
 }

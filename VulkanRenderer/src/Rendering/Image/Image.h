@@ -43,6 +43,12 @@ struct ImageSubresource
     ImageSubresourceDescription Description{};
 };
 
+struct ImageBinding
+{
+    ImageSubresource Subresource{};
+    ImageLayout Layout{ImageLayout::Undefined};
+};
+
 struct ImageDescription
 {
     u32 Width{0};

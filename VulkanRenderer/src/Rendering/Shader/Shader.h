@@ -38,9 +38,9 @@ public:
     PipelineLayout GetPipelineLayout() const { return m_PipelineLayout; }
     DescriptorsLayout GetDescriptorsLayout(u32 index) const { return m_DescriptorsLayouts[index]; }
 
-    DescriptorBindingInfo GetBinding(u32 set, std::string_view name) const;
-    std::optional<DescriptorBindingInfo> TryGetBinding(u32 set, std::string_view name) const;
-    std::pair<u32, DescriptorBindingInfo> GetSetAndBinding(std::string_view name) const;
+    DescriptorSlotInfo GetBinding(u32 set, std::string_view name) const;
+    std::optional<DescriptorSlotInfo> TryGetBinding(u32 set, std::string_view name) const;
+    std::pair<u32, DescriptorSlotInfo> GetSetAndBinding(std::string_view name) const;
     std::array<bool, MAX_DESCRIPTOR_SETS> GetSetPresence() const;
 
     bool IsComputeTemplate() const;

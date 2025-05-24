@@ -4,9 +4,13 @@
 #include "Core/Camera.h"
 #include "Core/Random.h"
 #include "imgui/imgui.h"
-#include "RenderGraph/Passes/Generated/SsaoBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Math/CoreMath.h"
+#include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGCommon.h"
+#include "Rendering/Image/ImageUtility.h"
+
+#include "RenderGraph/Passes/Generated/SsaoBindGroup.generated.h"
 
 namespace
 {
@@ -32,7 +36,8 @@ namespace
                 .Width = RANDOM_SIZE,
                 .Height = RANDOM_SIZE,
                 .Format = Format::RGBA8_SNORM,
-                .Usage = ImageUsage::Sampled | ImageUsage::Destination}});
+                .Usage = ImageUsage::Sampled | ImageUsage::Destination},
+            .CalculateMipmaps = false});
 
         std::vector<glm::vec4> samples(count);
         for (u32 i = 0; i < samples.size(); i++)
@@ -108,24 +113,23 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             }
             Samples& samples = graph.GetBlackboardValue<Samples>();
             
-            passData.NoiseTexture = graph.AddExternal("NoiseTexture"_hsv, samples.NoiseTexture);
-            passData.Settings = graph.CreateResource("Settings"_hsv, GraphBufferDescription{
+            passData.NoiseTexture = graph.Import("NoiseTexture"_hsv, samples.NoiseTexture, ImageLayout::Readonly);
+            passData.Settings = graph.Create("Settings"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Camera = graph.CreateResource("Camera"_hsv, GraphBufferDescription{
+            passData.Camera = graph.Create("Camera"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(CameraUBO)});
-            passData.Samples = graph.AddExternal("Samples"_hsv, samples.SamplesBuffer);
-            const TextureDescription& depthDescription = Resources(graph).GetTextureDescription(info.Depth);
-            passData.SSAO = graph.CreateResource("SSAO"_hsv, GraphTextureDescription{
-                .Width = depthDescription.Width,
-                .Height = depthDescription.Height,
+            passData.Samples = graph.Import("Samples"_hsv, samples.SamplesBuffer);
+            passData.SSAO = graph.Create("SSAO"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Size2d,
+                .Reference = info.Depth,
                 .Format = Format::R8_UNORM});
 
-            passData.Depth = graph.Read(info.Depth, Compute | Sampled);
-            passData.NoiseTexture = graph.Read(passData.NoiseTexture, Compute | Sampled);
-            passData.Settings = graph.Read(passData.Settings, Compute | Uniform);
-            passData.Camera = graph.Read(passData.Camera, Compute | Uniform);
-            passData.Samples = graph.Read(passData.Samples, Compute | Uniform);
-            passData.SSAO = graph.Write(passData.SSAO, Compute | Storage);
+            passData.Depth = graph.ReadImage(info.Depth, Compute | Sampled);
+            passData.NoiseTexture = graph.ReadImage(passData.NoiseTexture, Compute | Sampled);
+            passData.Settings = graph.ReadBuffer(passData.Settings, Compute | Uniform);
+            passData.Camera = graph.ReadBuffer(passData.Camera, Compute | Uniform);
+            passData.Samples = graph.ReadBuffer(passData.Samples, Compute | Uniform);
+            passData.SSAO = graph.WriteImage(passData.SSAO, Compute | Storage);
 
             auto& globalResources = graph.GetGlobalResources();
             
@@ -144,26 +148,21 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
                 .Far = globalResources.PrimaryCamera->GetFrustumPlanes().Far};
             graph.Upload(passData.Camera, camera);
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("SSAO")
             GPU_PROFILE_FRAME("SSAO")
 
-            Buffer setting = resources.GetBuffer(passData.Settings);
-            Buffer cameraBuffer = resources.GetBuffer(passData.Camera);
-            Buffer samples = resources.GetBuffer(passData.Samples);
-
-            Texture depthTexture = resources.GetTexture(passData.Depth);
-            auto&& [noiseTexture, noiseDescription] = resources.GetTextureWithDescription(passData.NoiseTexture);
-            auto&& [ssaoTexture, ssaoDescription] = resources.GetTextureWithDescription(passData.SSAO);
+            auto& noiseDescription = graph.GetImageDescription(passData.NoiseTexture);
+            auto& ssaoDescription = graph.GetImageDescription(passData.SSAO);
             
-            const Shader& shader = resources.GetGraph()->GetShader();SsaoShaderBindGroup bindGroup(shader);
-            bindGroup.SetSettings({.Buffer = setting});
-            bindGroup.SetCamera({.Buffer = cameraBuffer});
-            bindGroup.SetSamples({.Buffer = samples});
-            bindGroup.SetDepthTexture({.Image = depthTexture}, ImageLayout::DepthReadonly);
-            bindGroup.SetNoiseTexture({.Image = noiseTexture}, ImageLayout::Readonly);
-            bindGroup.SetSsao({.Image = ssaoTexture}, ImageLayout::General);
+            const Shader& shader = graph.GetShader();SsaoShaderBindGroup bindGroup(shader);
+            bindGroup.SetSettings(graph.GetBufferBinding(passData.Settings));
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetSamples(graph.GetBufferBinding(passData.Samples));
+            bindGroup.SetDepthTexture(graph.GetImageBinding(passData.Depth));
+            bindGroup.SetNoiseTexture(graph.GetImageBinding(passData.NoiseTexture));
+            bindGroup.SetSsao(graph.GetImageBinding(passData.SSAO));
 
             struct PushConstants
             {
@@ -177,12 +176,12 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
                 .NoiseSizeInverse = 1.0f / glm::vec2((f32)noiseDescription.Width, (f32)noiseDescription.Height)};
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(),
                 .Data = {pushConstants}});
             cmd.Dispatch({
                 .Invocations = {ssaoDescription.Width, ssaoDescription.Height, 1},
                 .GroupSize = {16, 16, 1}});
-        }).Data;
+        });
 }

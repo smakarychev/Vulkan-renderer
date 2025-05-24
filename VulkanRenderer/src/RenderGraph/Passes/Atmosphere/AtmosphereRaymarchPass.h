@@ -6,21 +6,29 @@ class SceneLight;
 
 namespace Passes::Atmosphere::Raymarch
 {
+    struct ExecutionInfo
+    {
+        RG::Resource AtmosphereSettings{};
+        const Camera* Camera{nullptr};
+        const SceneLight* Light{nullptr};
+        RG::Resource SkyViewLut{};
+        RG::Resource TransmittanceLut{};
+        RG::Resource AerialPerspective{};
+        RG::Resource ColorIn{};
+        RG::Resource DepthIn{};
+        bool UseSunLuminance{false};
+    };
     struct PassData
     {
         RG::Resource DepthIn{};
         RG::Resource AtmosphereSettings{};
         RG::Resource SkyViewLut{};
         RG::Resource TransmittanceLut{};
-        RG::Resource AerialPerspectiveLut{};
+        RG::Resource AerialPerspective{};
         RG::Resource Camera{};
         RG::Resource DirectionalLight{};
         RG::Resource ColorOut{};
     };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph,
-        RG::Resource atmosphereSettings, const Camera& camera, const SceneLight& light,
-        RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
-        RG::Resource colorIn, const ImageSubresourceDescription& colorSubresource, RG::Resource depthIn,
-        bool useSunLuminance);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

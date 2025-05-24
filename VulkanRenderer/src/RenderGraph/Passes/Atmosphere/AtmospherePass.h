@@ -1,11 +1,12 @@
 #pragma once
+#include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 
 class SceneLight;
 
 namespace RG
 {
-    struct CSMData;
+    struct CsmData;
 }
 
 struct AtmosphereSettings
@@ -23,24 +24,23 @@ struct AtmosphereSettings
     f32 MieDensity{};
     f32 OzoneDensity{};
 
-
     static AtmosphereSettings EarthDefault();
 };
 
-namespace Passes::Atmosphere
+namespace Passes::Atmosphere::LutPasses
 {
+    struct ExecutionInfo
+    {
+        const AtmosphereSettings* AtmosphereSettings{nullptr};
+        const SceneLight* SceneLight{nullptr};
+    };
     struct PassData
     {
-        RG::Resource DepthIn{};
         RG::Resource AtmosphereSettings{};
         RG::Resource TransmittanceLut{};
         RG::Resource MultiscatteringLut{};
         RG::Resource SkyViewLut{};
-        RG::Resource AerialPerspectiveLut{};
-        RG::Resource Atmosphere{};
-        RG::Resource EnvironmentOut{};
     };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const AtmosphereSettings& atmosphereSettings,
-        const SceneLight& light, RG::Resource colorIn, RG::Resource depthIn, const RG::CSMData& csmData);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

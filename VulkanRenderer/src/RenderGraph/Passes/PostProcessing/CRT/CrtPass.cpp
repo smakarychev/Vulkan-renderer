@@ -2,7 +2,7 @@
 
 #include "Renderer.h"
 #include "imgui/imgui.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CrtBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -28,21 +28,20 @@ Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderG
 
             graph.SetShader("crt"_hsv);
             
-            passData.ColorIn = graph.Read(colorIn, Pixel | Sampled);
+            passData.ColorIn = graph.ReadImage(colorIn, Pixel | Sampled);
             
-            passData.ColorOut = graph.RenderTarget(colorTarget,
-                AttachmentLoad::Load, AttachmentStore::Store);
+            passData.ColorOut = graph.RenderTarget(colorTarget, {});
 
             auto& globalResources = graph.GetGlobalResources();
             
-            passData.Time = graph.CreateResource("Time"_hsv, GraphBufferDescription{
+            passData.Time = graph.Create("Time"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(f32)});
-            passData.Time = graph.Read(passData.Time, Pixel | Uniform);
+            passData.Time = graph.ReadBuffer(passData.Time, Pixel | Uniform);
             graph.Upload(passData.Time, (f32)globalResources.FrameNumberTick);
 
-            passData.Settings = graph.CreateResource("Settings"_hsv, GraphBufferDescription{
+            passData.Settings = graph.Create("Settings"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Settings = graph.Read(passData.Settings, Pixel | Uniform);
+            passData.Settings = graph.ReadBuffer(passData.Settings, Pixel | Uniform);
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("CRT settings");
             ImGui::DragFloat("curvature", &settings.Curvature, 1e-2f, 0.0f, 10.0f);            
@@ -53,25 +52,20 @@ Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderG
             ImGui::End();
             graph.Upload(passData.Settings, settings);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("CRT")
             GPU_PROFILE_FRAME("CRT")
             
-            Texture colorInTexture = resources.GetTexture(passData.ColorIn);
-            Buffer time = resources.GetBuffer(passData.Time);
-            
-            Buffer settingsBuffer = resources.GetBuffer(passData.Settings);
-
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             CrtShaderBindGroup bindGroup(shader);
             bindGroup.SetSampler(Device::CreateSampler({}));
-            bindGroup.SetImage({.Image = colorInTexture}, ImageLayout::Readonly);
-            bindGroup.SetTime({.Buffer = time});
-            bindGroup.SetSettings({.Buffer = settingsBuffer});
+            bindGroup.SetImage(graph.GetImageBinding(passData.ColorIn));
+            bindGroup.SetTime(graph.GetBufferBinding(passData.Time));
+            bindGroup.SetSettings(graph.GetBufferBinding(passData.Settings));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

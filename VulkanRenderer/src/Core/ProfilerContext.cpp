@@ -1,7 +1,32 @@
 ﻿#include "ProfilerContext.h"
 
+#include <client/TracyScoped.hpp>
+
 #include "Vulkan/Device.h"
 #include "Rendering/CommandBuffer.h"
+
+static_assert(sizeof(SourceLocationData) == sizeof(tracy::SourceLocationData));
+
+ProfilerScopedZoneCpu::ProfilerScopedZoneCpu(const SourceLocationData& data)
+{
+    static_assert(sizeof(Impl) >= sizeof(tracy::ScopedZone));
+    new (&Impl) tracy::ScopedZone((const tracy::SourceLocationData*)&data);
+}
+
+ProfilerScopedZoneCpu::~ProfilerScopedZoneCpu()
+{
+    std::launder((tracy::ScopedZone*)&Impl)->~ScopedZone();
+}
+
+ProfilerScopedZoneGpu::ProfilerScopedZoneGpu(const SourceLocationData& data)
+{
+    Device::CreateGpuProfileFrame(*this, data);
+}
+
+ProfilerScopedZoneGpu::~ProfilerScopedZoneGpu()
+{
+    Device::DestroyGpuProfileFrame(*this);
+}
 
 ProfilerContext* ProfilerContext::Get()
 {
@@ -22,7 +47,7 @@ void ProfilerContext::Shutdown()
         Device::DestroyTracyGraphicsContext(ctx);
 }
 
-TracyVkCtx ProfilerContext::GraphicsContext()
+ProfilerContext::Ctx ProfilerContext::GraphicsContext()
 {
     return m_GraphicsContexts[m_CurrentFrame];
 }
@@ -30,5 +55,10 @@ TracyVkCtx ProfilerContext::GraphicsContext()
 void ProfilerContext::NextFrame()
 {
     m_CurrentFrame = (m_CurrentFrame + 1) % BUFFERED_FRAMES;
+}
+
+void ProfilerContext::Collect()
+{
+    Device::CollectGpuProfileFrames();
 }
 

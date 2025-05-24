@@ -15,11 +15,14 @@
 #include "Light/LightFrustumCuller.h"
 #include "Light/LightZBinner.h"
 #include "Light/SH.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/AA/FxaaPass.h"
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"
 #include "RenderGraph/Passes/AO/SsaoPass.h"
 #include "RenderGraph/Passes/AO/SsaoVisualizePass.h"
+#include "RenderGraph/Passes/Atmosphere/AtmosphereAerialPerspectiveLutPass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmospherePass.h"
+#include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
@@ -103,7 +106,8 @@ void Renderer::Init()
         allocators[i] = DescriptorArenaAllocators(samplerAllocator, resourceAllocator, m_PersistentMaterialAllocator);
     }
     
-    m_Graph = std::make_unique<RG::Graph>(allocators, &m_ShaderCache);
+    m_Graph = std::make_unique<RG::Graph>(allocators, m_ShaderCache);
+    m_MermaidExporter = std::make_unique<RG::RGMermaidExporter>();
     InitRenderGraph();
 }
 
@@ -113,14 +117,12 @@ void Renderer::InitRenderGraph()
         1024,
         m_ShaderCache.Allocate("materials"_hsv, m_Graph->GetFrameAllocators()).value());
 
-    m_Graph->SetBackbuffer(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
-
     m_ShaderCache.AddPersistentDescriptors("main_materials"_hsv,
         m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(DescriptorsKind::Materials));
     
-    m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
+    /*m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
-            1, 5000000, *GetFrameContext().ResourceUploader));
+            1, 5000000, *GetFrameContext().ResourceUploader));*/
 
     //SceneConverter::Convert(
     //    *CVars::Get().GetStringCVar("Path.Assets"_hsv),
@@ -178,7 +180,9 @@ void Renderer::InitRenderGraph()
         Passes::SceneCsm::getScenePassCreateInfo("Shadow"_hsv),
     }, Device::DeletionQueue());
 
-    m_MultiviewVisibility.Init(m_OpaqueSet);
+    m_ShadowMultiviewVisibility.Init(m_OpaqueSet);
+    m_PrimaryVisibility.Init(m_OpaqueSet);
+    
     m_OpaqueSetPrimaryView = {
         .Name = "OpaquePrimary"_hsv,
         .Camera = GetFrameContext().PrimaryCamera,
@@ -200,9 +204,35 @@ void Renderer::InitRenderGraph()
                 .Scale = glm::vec3{1.0f},}},
             ctx);
 
+        SceneLightInfo sceneLightInfo = {};
+        sceneLightInfo.Lights = {
+            CommonLight{
+               .Type = LightType::Directional,
+               .PositionDirection = glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)),
+               .Color = glm::vec3(1.0f, 0.2f, 0.3f),
+               .Intensity = 2.0f,
+            }
+        };
+        SceneInfo lights = {};
+        lights.AddLight({
+            .Direction = glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)),
+            .Color = glm::vec3(1.0f, 0.2f, 0.3f),
+            .Intensity = 0.1f,
+        });
+        constexpr u32 POINT_LIGHT_COUNT = 0;
+        for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
+            lights.AddLight({
+                .Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
+                .Color = Random::Float3(0.0f, 1.0f),
+                .Intensity = Random::Float(0.5f, 1.7f),
+                .Radius = Random::Float(0.5f, 8.6f)
+            });
+        m_Scene.Instantiate(lights, {}, ctx);
 
         ctx.ResourceUploader->SubmitUpload(ctx);
     });
+
+    m_Graph->SetWatcher(*m_MermaidExporter);
 }
 
 void Renderer::ExecuteSingleTimePasses()
@@ -240,14 +270,14 @@ void Renderer::ExecuteSingleTimePasses()
         .Description = Passes::BRDFLut::getLutDescription(),
         .CalculateMipmaps = false});
     
-    m_Graph->Reset(GetFrameContext());
+    m_Graph->Reset();
 
-    Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph,
-        equirectangular, m_SkyboxTexture);
+    RG::Resource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph,
+        equirectangular, m_SkyboxTexture).Cubemap;
     Passes::DiffuseIrradianceSH::addToGraph(
-        "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, m_SkyboxTexture, m_IrradianceSH, false);
+        "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap, m_IrradianceSH, false);
     Passes::EnvironmentPrefilter::addToGraph(
-        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, m_SkyboxTexture, m_SkyboxPrefilterMap);
+        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap, m_SkyboxPrefilterMap);
     Passes::BRDFLut::addToGraph(
         "Scene.BRDFLut"_hsv, *m_Graph, m_BRDFLut);
 
@@ -265,9 +295,10 @@ void Renderer::SetupRenderGraph()
 {
     using namespace RG;
     
-    m_Graph->Reset(GetFrameContext());
+    m_Graph->Reset();
+    m_Graph->SetBackbufferImage(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
     auto& blackboard = m_Graph->GetBlackboard();
-    Resource backbuffer = m_Graph->GetBackbuffer();
+    Resource backbuffer = m_Graph->GetBackbufferImage();
 
     SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
     // update camera
@@ -294,31 +325,59 @@ void Renderer::SetupRenderGraph()
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
     bindGroup.SetMaterials({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
-    Resource color = m_Graph->CreateResource("Color"_hsv, GraphTextureDescription{
-        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
-        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+    Resource color = m_Graph->Create("Color"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
+        .Width = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
+        .Height = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::RGBA16_FLOAT});
-    Resource vbuffer = m_Graph->CreateResource("VBuffer"_hsv, GraphTextureDescription{
-        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
-        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+    Resource vbuffer = m_Graph->Create("VBuffer"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
+        .Width = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
+        .Height = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::R32_UINT});
-    Resource depth = m_Graph->CreateResource("Depth"_hsv, GraphTextureDescription{
-        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
-        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+    Resource depth = m_Graph->Create("Depth"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
+        .Width = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
+        .Height = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
         .Format = Format::D32_FLOAT});
     
+    auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
     auto* depthPrepass = m_OpaqueSet.TryFindPass("DepthPrepass"_hsv);
     auto& pbrPass = m_OpaqueSet.FindPass("ForwardPbr"_hsv);
     auto& vbufferPass = m_OpaqueSet.FindPass("Vbuffer"_hsv);
-
-    m_OpaqueSetPrimaryVisibility = m_MultiviewVisibility.AddVisibility(m_OpaqueSetPrimaryView);
     
-    m_SceneVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-        *m_Graph, m_MultiviewVisibility);
-
     std::vector<SceneDrawPassDescription> drawPasses;
 
+    const CommonLight* light = nullptr;
+    m_Scene.IterateLights(LightType::Directional, [&light](const CommonLight& commonLight, Transform3d& localTransform) {
+        light = &commonLight;
+        ImGui::Begin("Directional Light");
+        glm::vec3 euler = glm::eulerAngles(localTransform.Orientation) * 180.0f / glm::pi<f32>();
+        ImGui::DragFloat3("Direction", &euler[0], 1e-1f);
+        ImGui::End();
+        localTransform.Orientation = glm::quat(euler * glm::pi<f32>() / 180.0f);
+        
+        return true;
+    });
+
+    CsmData csmData = {};
+    if (light != nullptr)
+        csmData = RenderGraphShadows(shadowPass, *light);
     
+    m_OpaqueSetPrimaryVisibility = m_PrimaryVisibility.AddVisibility(m_OpaqueSetPrimaryView);
+    m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
+        *m_Graph, m_PrimaryVisibility);
+
+    bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
+    ImGui::Begin("RenderAtmosphere");
+    ImGui::Checkbox("Enabled", &renderAtmosphere);
+    CVars::Get().SetI32CVar("Renderer.Atmosphere"_hsv, renderAtmosphere);
+    ImGui::End();
+    
+    Passes::Atmosphere::LutPasses::PassData* atmosphereLuts = nullptr;
+    if (renderAtmosphere)
+    {
+        atmosphereLuts = &RenderGraphAtmosphereLutPasses();
+        m_SkyIrradianceSHResource = RenderGraphAtmosphereEnvironment(*atmosphereLuts);
+    }
+
     bool useForwardPass = CVars::Get().GetI32CVar("Renderer.UseForwardShading"_hsv).value_or(false);
     ImGui::Begin("ForwardShading");
     ImGui::Checkbox("Enabled", &useForwardPass);
@@ -329,23 +388,28 @@ void Renderer::SetupRenderGraph()
     {
         if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
         {
-            depth = RenderGraphDepthPrepass(*depthPrepass);
+            RenderGraphDepthPrepass(depth, *depthPrepass);
             RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
         }
         
-        drawPasses.push_back(RenderGraphForwardPbrDescription(color, depth, pbrPass));
+        drawPasses.push_back(RenderGraphForwardPbrDescription(color, depth, csmData, pbrPass));
     }
     else
     {
         drawPasses.push_back(RenderGraphVBufferDescription(vbuffer, depth, vbufferPass));
     }
-    
-    m_SceneVisibilityResources.UpdateFromSceneMultiviewVisibility(*m_Graph, m_MultiviewVisibility);
+
     auto& metaUgb = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
         *m_Graph, {
-            .MultiviewVisibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
+            .MultiviewVisibility = &m_PrimaryVisibility,
+            .Resources = &m_PrimaryVisibilityResources,
             .DrawPasses = drawPasses});
+
+    std::swap(
+        m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
+        m_MinMaxDepthReductions[GetFrameContext().FrameNumber]);
+    m_Graph->MarkBufferForExport(metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
+        BufferUsage::Readback);
 
     if (useForwardPass)
     {
@@ -360,147 +424,98 @@ void Renderer::SetupRenderGraph()
             m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
 
         RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
-        color = RenderGraphVBufferPbr(vbuffer, primaryCamera);
+        color = RenderGraphVBufferPbr(vbuffer, primaryCamera, csmData);
     }
-
-    Resource colorWithSkybox = RenderGraphSkyBox(color, depth);
-    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithSkybox);
+   
+    Resource colorWithSky{}; 
+    if (renderAtmosphere)
+        colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, color, depth, csmData);
+    else
+        colorWithSky = RenderGraphSkyBox(color, depth);
+    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithSky);
     
     Passes::CopyTexture::addToGraph("Copy.MainColor"_hsv, *m_Graph, {
         .TextureIn = fxaa.AntiAliased,
         .TextureOut = backbuffer
     });
 
-    /*auto& csmVisualize = Passes::VisualizeCSM::addToGraph("CsmVisualize"_hsv, *m_Graph, {
-        .ShadowMap = metaOutput.DrawPassViewAttachments.Get(
-            sceneCsmInitOutput.MetaPassDescriptions.front().View.Name,
-            m_OpaqueSet.FindPass("Shadow"_hsv).Name()).Depth->Resource,
-        .CSM = sceneCsmInitOutput.CsmInfo,
-        .Near = sceneCsmInitOutput.Near,
-        .Far = sceneCsmInitOutput.Far}, {});
-    auto& csmVisualizeOutput = blackboard.Get<Passes::VisualizeCSM::PassData>(csmVisualize);
-    Passes::ImGuiTexture::addToGraph("CSM.Texture"_hsv, *m_Graph, csmVisualizeOutput.ColorOut);*/
- 
-    
-    // todo: move to proper place (this is just testing atm)
-    /*
-    static bool useDepthReduction = false;
-    static bool stabilizeCascades = false;
-    ImGui::Begin("Shadow settings");
-    ImGui::Checkbox("Use depth reduction", &useDepthReduction);
-    ImGui::Checkbox("Stabilize cascades", &stabilizeCascades);
-    ImGui::End();
-    f32 shadowMin = 0.0f;
-    f32 shadowMax = 200.0f;
-    if (visibilityOutput.MinMaxDepth.IsValid() && useDepthReduction)
-    {
-        auto& minMaxDepthReadback = Passes::DepthReductionReadback::addToGraph("Visibility.Readback.Depth", *m_Graph,
-            visibilityOutput.PreviousMinMaxDepth, GetFrameContext().PrimaryCamera);
-        auto& minMaxDepthReadbackOutput = blackboard.Get<Passes::DepthReductionReadback::PassData>(
-            minMaxDepthReadback);
-        shadowMin = minMaxDepthReadbackOutput.Min;
-        shadowMax = minMaxDepthReadbackOutput.Max;
-    }
-    auto& csm = Passes::CSM::addToGraph("CSM", *m_Graph, {
-        .Geometry = &m_GraphOpaqueGeometry,
-        .MainCamera = m_Camera.get(),
-        .DirectionalLight = &m_SceneLights->GetDirectionalLight(),
-        .ShadowMin = shadowMin,
-        .ShadowMax = shadowMax,
-        .StabilizeCascades = stabilizeCascades,
-        .GeometryBounds = m_GraphOpaqueGeometry.GetBounds()});
-    auto& csmOutput = blackboard.Get<Passes::CSM::PassData>(csm);
-
-    static bool useSky = false;
-    ImGui::Begin("Use sky as env");
-    ImGui::Checkbox("Sky", &useSky);
-    ImGui::End();
-
-    Resource renderedColor = {};
-    Resource renderedDepth = {};
-    
-    // todo: this is temp
-    {
-        if (!blackboard.TryGet<AtmosphereSettings>())
-            blackboard.Update(AtmosphereSettings::EarthDefault());
-
-        AtmosphereSettings& settings = blackboard.Get<AtmosphereSettings>();
-        ImGui::Begin("Atmosphere settings");
-        ImGui::DragFloat3("Rayleigh scattering", &settings.RayleighScattering[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Rayleigh absorption", &settings.RayleighAbsorption[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Mie scattering", &settings.MieScattering[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Mie absorption", &settings.MieAbsorption[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat3("Ozone absorption", &settings.OzoneAbsorption[0], 1e-2f, 0.0f, 100.0f);
-        ImGui::ColorEdit3("Surface albedo", &settings.SurfaceAlbedo[0]);
-        ImGui::DragFloat("Surface", &settings.Surface, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Atmosphere", &settings.Atmosphere, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Rayleigh density", &settings.RayleighDensity, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Mie density", &settings.MieDensity, 1e-2f, 0.0f, 100.0f);
-        ImGui::DragFloat("Ozone density", &settings.OzoneDensity, 1e-2f, 0.0f, 100.0f);
-        ImGui::End();
-        
-        auto& atmosphere = Passes::Atmosphere::addToGraph("Atmosphere", *m_Graph, settings, *m_SceneLights,
-            pbrOutput.ColorOut, visibilityOutput.DepthOut,
-            CSMData{
-                .ShadowMap = csmOutput.ShadowMap,
-                .CSM = csmOutput.CSM});
-        auto& atmosphereOutput = blackboard.Get<Passes::Atmosphere::PassData>(atmosphere);
-        
-        
-        // todo: this is a temp place for it obv
-        {
-            if (useSky)
-                Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH", *m_Graph,
-                    atmosphereOutput.EnvironmentOut, m_SkyIrradianceSH, false);
-        }
-        
-        Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut", *m_Graph, atmosphereOutput.TransmittanceLut);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut", *m_Graph, atmosphereOutput.MultiscatteringLut);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut", *m_Graph, atmosphereOutput.SkyViewLut);
-        Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere", *m_Graph, atmosphereOutput.Atmosphere);
-        Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective.Lut", *m_Graph, atmosphereOutput.AerialPerspectiveLut);
-        Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut", *m_Graph, atmosphereOutput.EnvironmentOut);
-
-        renderedColor = atmosphereOutput.Atmosphere;
-
-        if (!useSky)
-        {
-            auto& skybox = Passes::Skybox::addToGraph("Skybox", *m_Graph,
-                atmosphereOutput.EnvironmentOut, renderedColor, visibilityOutput.DepthOut, GetFrameContext().Resolution, 1.2f);
-            auto& skyboxOutput = blackboard.Get<Passes::Skybox::PassData>(skybox);
-            renderedColor = skyboxOutput.ColorOut;
-        }
-    }
-    */
-
     ImGui::Begin("Debug");
     if (ImGui::Button("Dump memory stats"))
         Device::DumpMemoryStats("./MemoryStats.json");
     ImGui::End();
+
+    m_Graph->ClaimBuffer(
+        metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
+        m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
+        Device::DeletionQueue());
     
-    //SetupRenderSlimePasses();
+    m_Graph->Compile(GetFrameContext());
 }
 
-RG::Resource Renderer::RenderGraphDepthPrepass(const ScenePass& scenePass)
+RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass,
+    const CommonLight& directionalLight)
+{
+    using namespace RG;
+
+    f32 shadowMin = 0.01f;
+    f32 shadowMax = 100.0f;
+    if (m_MinMaxDepthReductions[GetFrameContext().FrameNumber].HasValue())
+    {
+        auto& readBackDepthMinMax = Passes::DepthReductionReadback::addToGraph("DepthReductionReadback"_hsv,
+            *m_Graph, {
+                .MinMaxDepthReduction = m_Graph->Import("DepthReduction"_hsv,
+                    m_MinMaxDepthReductions[GetFrameContext().FrameNumber]),
+                .PrimaryCamera = m_Camera.get()
+            });
+        shadowMin = readBackDepthMinMax.Min;
+        shadowMax = readBackDepthMinMax.Max;
+    }
+    
+    
+    auto& csmInit = Passes::SceneCsm::addToGraph("CSM"_hsv,
+        *m_Graph, {
+            .Pass = &scenePass,
+            .Geometry = &m_Scene.Geometry(),
+            .MultiviewVisibility = &m_ShadowMultiviewVisibility,
+            .MainCamera = m_Camera.get(),
+            .DirectionalLight = DirectionalLight{
+                .Direction = directionalLight.PositionDirection,
+                .Color = directionalLight.Color,
+                .Intensity = directionalLight.Intensity,
+                .Size = directionalLight.Radius},
+            .ShadowMin = shadowMin,
+            .ShadowMax = shadowMax,
+            .StabilizeCascades = false
+        });
+
+    m_ShadowMultiviewVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
+        *m_Graph, m_ShadowMultiviewVisibility);
+    
+    auto& meta = Passes::SceneMetaDraw::addToGraph("MetaCsmPass"_hsv,
+        *m_Graph, {
+            .MultiviewVisibility = &m_ShadowMultiviewVisibility,
+            .Resources = &m_ShadowMultiviewVisibilityResources,
+            .DrawPasses = csmInit.MetaPassDescriptions
+        });
+
+    Passes::SceneCsm::mergeCsm(*m_Graph, csmInit, scenePass, meta.DrawPassViewAttachments);
+
+    return csmInit.CsmData;
+}
+
+void Renderer::RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass)
 {
     using namespace RG;
     
-    Resource depth = m_Graph->CreateResource("Depth"_hsv, GraphTextureDescription{
-        .Width = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
-        .Height = Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
-        .Format = Format::D32_FLOAT});
-    
-    auto& metaPass = Passes::SceneMetaDraw::addToGraph("MetaDepthPrepass"_hsv,
+    Passes::SceneMetaDraw::addToGraph("MetaDepthPrepass"_hsv,
         *m_Graph, {
-            .MultiviewVisibility = &m_MultiviewVisibility,
-            .Resources = &m_SceneVisibilityResources,
+            .MultiviewVisibility = &m_PrimaryVisibility,
+            .Resources = &m_PrimaryVisibilityResources,
             .DrawPasses = {RenderGraphDepthPrepassDescription(depth, scenePass)}
         });
-
-    return metaPass.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, scenePass.Name()).Depth->Resource;
 }
 
-SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resource& depth, const ScenePass& scenePass)
+SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass)
 {
     using namespace RG;
     
@@ -510,8 +525,6 @@ SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resour
             name.Concatenate(".DepthPrepass"), graph, {
                 .DrawInfo = info,
                 .Geometry = &m_Scene.Geometry()});
-
-        depth = *pass.Resources.Attachments.Depth;
 
         return pass.Resources.Attachments;
     };
@@ -535,14 +548,14 @@ SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resour
     };
 }
 
-SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource& color, RG::Resource& depth,
-    const ScenePass& scenePass)
+SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource color, RG::Resource depth,
+    RG::CsmData csmData, const ScenePass& scenePass)
 {
     using namespace RG;
 
     auto initForwardPbr = [&](StringId name, Graph& graph, const SceneDrawPassExecutionInfo& info)
     {
-        const bool useSky = false;
+        bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
         
         Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
             .DrawInfo = info,
@@ -550,13 +563,17 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
             .Lights = &m_Scene.Lights(),
             .SSAO = {.SSAO = m_Ssao},
             .IBL = {
-                .IrradianceSH = m_Graph->AddExternal("IrradianceSH"_hsv, useSky ? m_SkyIrradianceSH : m_IrradianceSH),
-                .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap"_hsv, m_SkyboxPrefilterMap),
-                .BRDF = m_Graph->AddExternal("BRDF"_hsv, m_BRDFLut)
+                .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
+                    m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
+                .PrefilterEnvironment = m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap,
+                    ImageLayout::Readonly),
+                .BRDF = m_Graph->Import("BRDF"_hsv, m_BRDFLut,
+                    ImageLayout::Readonly)
             },
             .Clusters = m_ClusterLightsInfo.Clusters,
             .Tiles = m_TileLightsInfo.Tiles,
             .ZBins = m_TileLightsInfo.ZBins,
+            .CsmData = csmData
         };
         if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
             executionInfo.CommonOverrides = ShaderPipelineOverrides({.DepthTest = DepthTest::Equal});
@@ -570,10 +587,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
     AttachmentStore depthOnStore = AttachmentStore::Store;
 
     if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
-    {
         depthOnLoad = AttachmentLoad::Load;
-        depthOnStore = AttachmentStore::Unspecified;
-    }
     
     DrawAttachments attachments = {
         .Colors = {
@@ -604,7 +618,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
     };
 }
 
-SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource& vbuffer, RG::Resource& depth,
+SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource vbuffer, RG::Resource depth,
     const ScenePass& scenePass)
 {
     using namespace RG;
@@ -617,9 +631,6 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource& v
         };
         
         auto& pass = Passes::SceneVBuffer::addToGraph(name.Concatenate(".VBuffer"), graph, executionInfo);
-
-        vbuffer = pass.Resources.Attachments.Colors[0];
-        depth = *pass.Resources.Attachments.Depth;
 
         return pass.Resources.Attachments;
     };
@@ -652,9 +663,9 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource& v
     };
 }
 
-RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource& vbuffer, RG::Resource camera)
+RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource camera, RG::CsmData csmData)
 {
-    const bool useSky = false;
+    bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
     auto& pbr = Passes::SceneVBufferPbr::addToGraph("VBufferPbr"_hsv, *m_Graph, {
         .Geometry = &m_Scene.Geometry(),
@@ -663,13 +674,15 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource& vbuffer, RG::Resource
         .Lights = &m_Scene.Lights(),
         .SSAO = {.SSAO = m_Ssao},
         .IBL = {
-            .IrradianceSH = m_Graph->AddExternal("IrradianceSH"_hsv, useSky ? m_SkyIrradianceSH : m_IrradianceSH),
-            .PrefilterEnvironment = m_Graph->AddExternal("PrefilterMap"_hsv, m_SkyboxPrefilterMap),
-            .BRDF = m_Graph->AddExternal("BRDF"_hsv, m_BRDFLut)
+            .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
+                m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
+            .PrefilterEnvironment = m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap, ImageLayout::Readonly),
+            .BRDF = m_Graph->Import("BRDF"_hsv, m_BRDFLut, ImageLayout::Readonly)
         },
         .Clusters = m_ClusterLightsInfo.Clusters,
         .Tiles = m_TileLightsInfo.Tiles,
         .ZBins = m_TileLightsInfo.ZBins,
+        .CsmData = csmData,
     });
 
     return pbr.Color;
@@ -693,8 +706,6 @@ RG::Resource Renderer::RenderGraphSSAO(StringId baseName, RG::Resource depth)
 {
     using namespace RG;
 
-    auto& blackboard = m_Graph->GetBlackboard();
-    
     auto& ssao = Passes::Ssao::addToGraph(baseName.Concatenate("SSAO"), *m_Graph, {
         .Depth = depth,
         .MaxSampleCount = 32});
@@ -720,8 +731,6 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
 {
     using namespace RG;
     
-    auto& blackboard = m_Graph->GetBlackboard();
-    
     struct TileLightsInfo
     {
         Resource Tiles{};
@@ -733,11 +742,11 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
         zbins.Bins);
     auto& tilesSetup = Passes::LightTilesSetup::addToGraph(baseName.Concatenate("Tiles.Setup"), *m_Graph);
     auto& binLightsTiles = Passes::LightTilesBin::addToGraph(baseName.Concatenate("Tiles.Bin"), *m_Graph, {
-        .Tiles = tilesSetup.Tiles,
+        .Tiles = tilesSetup.Tiles, 
         .Depth = depth,
         .Light = &m_Scene.Lights()});
     auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph(baseName.Concatenate("Tiles.Visualize"), *m_Graph, {
-        .Tiles = tilesSetup.Tiles,
+        .Tiles = binLightsTiles.Tiles,
         .Bins = zbinsResource,
         .Depth = depth});
     Passes::ImGuiTexture::addToGraph(baseName.Concatenate("Tiles.Visualize.Texture"), *m_Graph,
@@ -794,6 +803,88 @@ RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
     return skybox.Color;
 }
 
+Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasses()
+{
+    auto& blackboard = m_Graph->GetBlackboard();
+    
+    if (!blackboard.TryGet<AtmosphereSettings>())
+        blackboard.Update(AtmosphereSettings::EarthDefault());
+
+    AtmosphereSettings& settings = blackboard.Get<AtmosphereSettings>();
+    ImGui::Begin("Atmosphere settings");
+    ImGui::DragFloat3("Rayleigh scattering", &settings.RayleighScattering[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Rayleigh absorption", &settings.RayleighAbsorption[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Mie scattering", &settings.MieScattering[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Mie absorption", &settings.MieAbsorption[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Ozone absorption", &settings.OzoneAbsorption[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::ColorEdit3("Surface albedo", &settings.SurfaceAlbedo[0]);
+    ImGui::DragFloat("Surface", &settings.Surface, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Atmosphere", &settings.Atmosphere, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Rayleigh density", &settings.RayleighDensity, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Mie density", &settings.MieDensity, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Ozone density", &settings.OzoneDensity, 1e-2f, 0.0f, 100.0f);
+    ImGui::End();
+
+    auto& luts = Passes::Atmosphere::LutPasses::addToGraph("AtmosphereLutPasses"_hsv, *m_Graph, {
+        .AtmosphereSettings = &settings,
+        .SceneLight = &m_Scene.Lights() 
+    });
+    
+    Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut"_hsv, *m_Graph, luts.TransmittanceLut);
+    Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut"_hsv, *m_Graph, luts.MultiscatteringLut);
+    Passes::ImGuiTexture::addToGraph("Atmosphere.SkyView.Lut"_hsv, *m_Graph, luts.SkyViewLut);
+
+    return luts;
+}
+
+RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut)
+{
+    auto& environment = Passes::Atmosphere::Environment::addToGraph("Atmosphere.Environment"_hsv, *m_Graph, {
+        .AtmosphereSettings = lut.AtmosphereSettings,
+        .SceneLight = &m_Scene.Lights(),
+        .SkyViewLut = lut.SkyViewLut
+    });
+
+    const RG::Resource skyIrradianceSH = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
+        environment.ColorOut, m_SkyIrradianceSH, true).DiffuseIrradiance;
+
+    Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph, environment.ColorOut);
+
+    return skyIrradianceSH;
+}
+
+RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
+    RG::Resource color, RG::Resource depth, RG::CsmData csmData)
+{
+    auto& aerialPerspective = Passes::Atmosphere::AerialPerspective::addToGraph("AtmosphereAerialPerspective"_hsv,
+        *m_Graph, {
+        .AtmosphereSettings = lut.AtmosphereSettings,
+        .TransmittanceLut = lut.TransmittanceLut,
+        .MultiscatteringLut = lut.MultiscatteringLut,
+        .SceneLight = &m_Scene.Lights(),
+        .CsmData = csmData
+    });
+
+    static constexpr bool USE_SUN_LUMINANCE = true;
+    auto& atmosphere = Passes::Atmosphere::Raymarch::addToGraph("AtmosphereRaymarch"_hsv, *m_Graph, {
+            .AtmosphereSettings = lut.AtmosphereSettings,
+            .Camera = GetFrameContext().PrimaryCamera,
+            .Light = &m_Scene.Lights(),
+            .SkyViewLut = lut.SkyViewLut,
+            .TransmittanceLut = lut.TransmittanceLut,
+            .AerialPerspective = aerialPerspective.AerialPerspective,
+            .ColorIn = color,
+            .DepthIn = depth,
+            .UseSunLuminance = USE_SUN_LUMINANCE 
+        });
+    
+    Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, atmosphere.ColorOut);
+    Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective"_hsv, *m_Graph,
+        aerialPerspective.AerialPerspective);
+
+    return atmosphere.ColorOut;
+}
+
 Renderer* Renderer::Get()
 {
     static Renderer renderer = {};
@@ -810,24 +901,39 @@ void Renderer::Run()
     while(!glfwWindowShouldClose(m_Window))
     {
         glfwPollEvents();
+        BeginFrame();
+
 
         OnUpdate();
         
         OnRender();
+
+
+        if (!m_FrameEarlyExit)
+        {
+            EndFrame();
+            FrameMark; // tracy
+        }
+        else
+        {
+            m_FrameEarlyExit = false;
+        }
     }
 }
 
-void Renderer::OnRender()
+void Renderer::OnUpdate()
 {
-    CPU_PROFILE_FRAME("On render")
+    CPU_PROFILE_FRAME("On update")
 
-    BeginFrame();
-    /* light update requires cmd in recording state */
+    m_CameraController->OnUpdate(1.0f / 60.0f);
+
     LightFrustumCuller::CullDepthSort(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
     m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
     m_Scene.Lights().OnUpdate(GetFrameContext());
     m_OpaqueSet.OnUpdate(GetFrameContext());
-    m_MultiviewVisibility.OnUpdate(GetFrameContext());
+
+    m_ShadowMultiviewVisibility.OnUpdate(GetFrameContext());
+    m_PrimaryVisibility.OnUpdate(GetFrameContext());
 
     if (Input::GetKey(Key::Space))
     {
@@ -841,6 +947,25 @@ void Renderer::OnRender()
             GetFrameContext());
         LOG("Meshes: {}\tMeshlets: {}\tTriangles: {}",
             m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
+    }
+}
+
+void Renderer::OnRender()
+{
+    CPU_PROFILE_FRAME("On render")
+
+    {
+        // todo: is this even necessary?
+        CPU_PROFILE_FRAME("Initial submit")
+        GPU_PROFILE_FRAME("Initial submit")
+        GetFrameContext().ResourceUploader->SubmitUpload(GetFrameContext());
+        GetFrameContext().CommandList.WaitOnBarrier({.DependencyInfo = Device::CreateDependencyInfo({
+            .MemoryDependencyInfo = MemoryDependencyInfo{
+                .SourceStage = PipelineStage::AllTransfer,
+                .DestinationStage = PipelineStage::AllCommands,
+                .SourceAccess = PipelineAccess::WriteAll,
+                .DestinationAccess = PipelineAccess::ReadAll}},
+            GetFrameContext().DeletionQueue)});
     }
     
     {
@@ -860,32 +985,19 @@ void Renderer::OnRender()
         if (twice)
         {
             if (twice == 1)
-                m_Graph->MermaidDumpHTML("../assets/render graph/graph.html");
+                m_MermaidExporter->ExportToHtml("../assets/render graph/graph.html");
             twice--;
         }
+        else
+        {
+            m_Graph->RemoveWatcher();
+        }
     }
-    
 
     if (!m_FrameEarlyExit)
     {
-        m_Graph->Compile(GetFrameContext());
         m_Graph->Execute(GetFrameContext());
-        
-        EndFrame();
-        
-        FrameMark; // tracy
     }
-    else
-    {
-        m_FrameEarlyExit = false;
-    }
-}
-
-void Renderer::OnUpdate()
-{
-    CPU_PROFILE_FRAME("On update")
-
-    m_CameraController->OnUpdate(1.0f / 60.0f);
 }
 
 void Renderer::BeginFrame()
@@ -951,8 +1063,8 @@ void Renderer::EndFrame()
     u32 frameNumber = GetFrameContext().FrameNumber;
     SwapchainFrameSync& sync = GetFrameContext().FrameSync;
 
-    TracyVkCollect(ProfilerContext::Get()->GraphicsContext(), Device::GetProfilerCommandBuffer(ProfilerContext::Get()))
-
+    GPU_COLLECT_PROFILE_FRAMES()
+    
     m_ResourceUploader.SubmitUpload(GetFrameContext());
 
     Device::EndCommandBuffer(cmd);
@@ -1032,7 +1144,10 @@ void Renderer::Shutdown()
     Device::Destroy(m_Swapchain);
 
     m_Graph.reset();
-    m_MultiviewVisibility.Shutdown();
+    
+    m_ShadowMultiviewVisibility.Shutdown();
+    m_PrimaryVisibility.Shutdown();
+    
     m_ResourceUploader.Shutdown();
     m_ShaderCache.Shutdown();
     for (auto& ctx : m_FrameContexts)
@@ -1073,9 +1188,7 @@ void Renderer::RecreateSwapchain()
         Device::DummyDeletionQueue());
 
     const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
-    m_Graph->SetBackbuffer(swapchain.DrawImage);
-    // todo: to multicast delegate
-    m_Graph->OnResolutionChange();
+    m_Graph->SetBackbufferImage(swapchain.DrawImage);
 
     Input::s_MainViewportSize = swapchain.SwapchainResolution;
     m_Camera->SetViewport(swapchain.SwapchainResolution.x, swapchain.SwapchainResolution.y);
@@ -1091,4 +1204,9 @@ const FrameContext& Renderer::GetFrameContext() const
 FrameContext& Renderer::GetFrameContext()
 {
     return *m_CurrentFrameContext;
+}
+
+u32 Renderer::GetPreviousFrameNumber() const
+{
+    return (m_FrameNumber + BUFFERED_FRAMES - 1) % BUFFERED_FRAMES;
 }

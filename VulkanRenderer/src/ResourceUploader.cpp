@@ -39,6 +39,7 @@ void ResourceUploader::BeginFrame(const FrameContext& ctx)
     state.LastUsedBuffer = INVALID_INDEX;
     state.BufferUploads.clear();
     state.UploadsOffset = 0;
+    state.CurrentBufferOffset = 0;
 }
 
 void ResourceUploader::SubmitUpload(FrameContext& ctx)
@@ -52,6 +53,9 @@ void ResourceUploader::SubmitUpload(FrameContext& ctx)
     for (u32 i = state.UploadsOffset; i < state.BufferUploads.size(); i++)
     {
         auto& upload = state.BufferUploads[i];
+
+        if (upload.SizeBytes == 0)
+            continue;
 
         ctx.CommandList.CopyBuffer({
             .Source = upload.Source,
@@ -81,9 +85,9 @@ void ResourceUploader::ManageLifeTime()
     auto& state = m_PerFrameState[m_CurrentFrame];
 
     u32 lastUsed = std::min(state.LastUsedBuffer, (u32)state.StageBuffers.size() - 1);
-    for (auto& buffer : state.StageBuffers | std::ranges::views::take(lastUsed + 1))
+    for (auto& buffer : state.StageBuffers | std::views::take(lastUsed + 1))
         buffer.LifeTime = 0;
-    for (auto& buffer : state.StageBuffers | std::ranges::views::drop(lastUsed + 1))
+    for (auto& buffer : state.StageBuffers | std::views::drop(lastUsed + 1))
         buffer.LifeTime++;
 
     auto it = std::ranges::remove_if(state.StageBuffers,

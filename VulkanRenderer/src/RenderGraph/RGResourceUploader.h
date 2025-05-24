@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Core/Traits.h"
 #include "ResourceUploader.h"
 #include "RGResource.h"
 
@@ -8,6 +7,7 @@ class ResourceUploader;
 
 namespace RG
 {
+    class Pass;
     /* the resources of render graph are virtual during setup phase,
      * this class is used to record and redirect uploads to physical resources once they're present
      */
@@ -15,11 +15,9 @@ namespace RG
     {
     public:
         template <typename T>
-        void UpdateBuffer(const Pass* pass, Resource buffer, T&& data, u64 bufferOffset = 0);
-
-        void Upload(const Pass* pass, const Resources& resources, ::ResourceUploader& uploader);
-
-        bool HasUploads(const Pass* pass) const;
+        void UpdateBuffer(const Pass& pass, Resource buffer, T&& data, u64 bufferOffset = 0);
+        void Upload(const Pass& pass, const Graph& graph, ::ResourceUploader& uploader);
+        bool HasUploads(const Pass& pass) const;
     private:
         struct PassUploadInfo
         {
@@ -38,12 +36,12 @@ namespace RG
     };
 
     template <typename T>
-    void ResourceUploader::UpdateBuffer(const Pass* pass, Resource buffer, T&& data, u64 bufferOffset)
+    void ResourceUploader::UpdateBuffer(const Pass& pass, Resource buffer, T&& data, u64 bufferOffset)
     {
         if constexpr(std::is_pointer_v<T>)
             LOG("Warning: passing a pointer to `UpdateBuffer`");
 
-        auto& upload = m_Uploads[pass];
+        auto& upload = m_Uploads[&pass];
         
         u64 sourceOffset = upload.UploadData.size();
         auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));

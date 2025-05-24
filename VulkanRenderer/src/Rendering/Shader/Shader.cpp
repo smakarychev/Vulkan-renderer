@@ -29,11 +29,7 @@ namespace
         for (auto& descriptor : descriptorSet.Descriptors)
         {
             descriptorsFlags.Descriptors.push_back(descriptor);
-            DescriptorFlags flags = DescriptorFlags::None;
-            if (enumHasAny(descriptor.DescriptorFlags, assetLib::ShaderStageInfo::DescriptorSet::Bindless))
-                flags |= DescriptorFlags::VariableCount;
-
-            descriptorsFlags.Flags.push_back(flags);
+            descriptorsFlags.Flags.push_back(descriptor.Flags);
         }
 
         return descriptorsFlags;
@@ -87,29 +83,29 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
         .DescriptorsLayouts = m_DescriptorsLayouts});
 }
 
-DescriptorBindingInfo ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
+DescriptorSlotInfo ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
 {
-    std::optional<DescriptorBindingInfo> descriptorBinding = TryGetBinding(set, name);
+    std::optional<DescriptorSlotInfo> descriptorBinding = TryGetBinding(set, name);
     ASSERT(descriptorBinding.has_value(), "No such binding exists: {}", name)
 
     return *descriptorBinding;
 }
 
-std::optional<DescriptorBindingInfo> ShaderPipelineTemplate::TryGetBinding(u32 set, std::string_view name) const
+std::optional<DescriptorSlotInfo> ShaderPipelineTemplate::TryGetBinding(u32 set, std::string_view name) const
 {
     auto& setInfo = m_ShaderReflection->DescriptorSetsInfo()[set];
     for (u32 descriptorIndex = 0; descriptorIndex < setInfo.Descriptors.size(); descriptorIndex++)
         if (setInfo.DescriptorNames[descriptorIndex] == name)
-            return DescriptorBindingInfo{
+            return DescriptorSlotInfo{
                 .Slot = setInfo.Descriptors[descriptorIndex].Binding,
                 .Type = setInfo.Descriptors[descriptorIndex].Type};
 
     return std::nullopt;
 }
 
-std::pair<u32, DescriptorBindingInfo> ShaderPipelineTemplate::GetSetAndBinding(std::string_view name) const
+std::pair<u32, DescriptorSlotInfo> ShaderPipelineTemplate::GetSetAndBinding(std::string_view name) const
 {
-    std::optional<DescriptorBindingInfo> descriptorBinding = std::nullopt;
+    std::optional<DescriptorSlotInfo> descriptorBinding = std::nullopt;
     for (u32 setIndex = 0; setIndex < m_ShaderReflection->DescriptorSetsInfo().size(); setIndex++)
     {
         descriptorBinding = TryGetBinding(setIndex, name);

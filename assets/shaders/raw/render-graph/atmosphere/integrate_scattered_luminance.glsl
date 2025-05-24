@@ -67,8 +67,8 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
         #ifdef WITH_SHADOW_MAP
             const vec3 shadow_ws = u_camera.camera.position + rd * t * vec3(-1, 1, -1);
             const float shadow_z_view = (u_camera.camera.view * vec4(shadow_ws, 1.0f)).z;
-            shadow_map = shadow(u_camera.camera.position + rd * t * vec3(-1, 1, -1), vec3(0, 0, 0), 
-                u_directional_light.light.size, shadow_z_view);
+            shadow_map = shadow(u_camera.camera.position + rd * t * vec3(-1, 1, -1), vec3(0, 0, 0),
+                u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size, shadow_z_view);
         #endif // WITH_SHADOW_MAP
         
         vec3 multiscattering_luminance = vec3(0.0f);

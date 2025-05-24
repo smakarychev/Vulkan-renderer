@@ -20,33 +20,31 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
                 ShaderSpecializations{
                     ShaderSpecialization{"IS_VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}});
             
-            const TextureDescription& ssaoDescription = Resources(graph).GetTextureDescription(info.SsaoIn);
             passData.SsaoOut = RgUtils::ensureResource(info.SsaoOut, graph, "ColorOut"_hsv,
-                GraphTextureDescription{
-                    .Width = ssaoDescription.Width,
-                    .Height = ssaoDescription.Height,
+                RGImageDescription{
+                    .Inference = RGImageInference::Size,
+                    .Reference = info.SsaoIn,
                     .Format = Format::R8_UNORM});
 
-            passData.SsaoIn = graph.Read(info.SsaoIn, Compute | Sampled);
-            passData.SsaoOut = graph.Write(passData.SsaoOut, Compute | Storage);
+            passData.SsaoIn = graph.ReadImage(info.SsaoIn, Compute | Sampled);
+            passData.SsaoOut = graph.WriteImage(passData.SsaoOut, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("SSAO.Blur")
             GPU_PROFILE_FRAME("SSAO.Blur")
             
-            auto&& [ssaoIn, ssaoInDescription] = resources.GetTextureWithDescription(passData.SsaoIn);
-            Texture ssaoOut = resources.GetTexture(passData.SsaoOut);
+            auto&& [ssaoIn, ssaoInDescription] = graph.GetImageWithDescription(passData.SsaoIn);
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SsaoBlurShaderBindGroup bindGroup(shader);
-            bindGroup.SetSsao({.Image = ssaoIn}, ImageLayout::Readonly);
-            bindGroup.SetSsaoBlurred({.Image = ssaoOut}, ImageLayout::General);
+            bindGroup.SetSsao(graph.GetImageBinding(passData.SsaoIn));
+            bindGroup.SetSsaoBlurred(graph.GetImageBinding(passData.SsaoOut));
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
-        }).Data;
+        });
 }

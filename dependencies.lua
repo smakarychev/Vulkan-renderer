@@ -17,3 +17,4 @@ IncludeDir["mikktspace"]	= "%{wks.location}/vendor/mikktspace/src"
 IncludeDir["catch2"]	    = "%{wks.location}/vendor/catch2/src"
 
 IncludeDir["CoreLib"]	    = "%{wks.location}/CoreLib/src"
+IncludeDir["Renderer"]	    = "%{wks.location}/VulkanRenderer/src"

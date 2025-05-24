@@ -70,3 +70,18 @@ private:
     CommandPool m_Pool;
     u32 m_CurrentIndex{0};
 };
+
+class CommandBufferLabel
+{
+public:
+    CommandBufferLabel(CommandBuffer cmd, std::string_view label);
+    ~CommandBufferLabel();
+    CommandBufferLabel(const CommandBufferLabel&) = delete;
+    CommandBufferLabel& operator=(const CommandBufferLabel&) = delete;
+    CommandBufferLabel(CommandBufferLabel&&) = delete;
+    CommandBufferLabel& operator=(CommandBufferLabel&&) = delete;
+private:
+    CommandBuffer m_Cmd{};
+};
+
+#define CMD_EXECUTION_LABEL(cmd, x) CommandBufferLabel C_CONCAT(__command_buffer_label,__LINE__)(cmd, x)

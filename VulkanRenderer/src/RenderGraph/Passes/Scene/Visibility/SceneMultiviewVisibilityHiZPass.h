@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SceneVisibilityPassesCommon.h"
-#include "RenderGraph/RenderPass.h"
+#include "RenderGraph/RGPass.h"
 
 namespace Passes::SceneMultiviewVisibilityHiz
 {
@@ -10,7 +10,6 @@ namespace Passes::SceneMultiviewVisibilityHiz
         ::SceneMultiviewVisibility* MultiviewVisibility{nullptr};
         SceneVisibilityPassesResources* Resources{nullptr};
         std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Depths{};
-        std::array<ImageSubresourceDescription, SceneMultiviewVisibility::MAX_VIEWS> Subresources{};
     };
     struct PassData
     {

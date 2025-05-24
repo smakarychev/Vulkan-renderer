@@ -1,7 +1,7 @@
 #include "LightClustersBinPass.h"
 
 #include "Core/Camera.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/LightClustersBinBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
@@ -27,36 +27,31 @@ Passes::LightClustersBin::PassData& Passes::LightClustersBin::addToGraph(StringI
 
             graph.SetShader("light-clusters-bin"_hsv);
 
-            passData.Dispatch = graph.Read(info.DispatchIndirect, Indirect);
-
-            passData.Clusters = graph.Read(info.Clusters, Compute | Storage);
-            passData.Clusters = graph.Write(passData.Clusters, Compute | Storage);
-            
-            passData.ActiveClusters = graph.Read(info.ActiveClusters, Compute | Storage);
-
-            passData.ClusterCount = graph.Read(info.ClustersCount, Compute | Storage);
-
+            passData.Dispatch = graph.ReadBuffer(info.DispatchIndirect, Indirect);
+            passData.Clusters = graph.ReadWriteBuffer(info.Clusters, Compute | Storage);
+            passData.ActiveClusters = graph.ReadBuffer(info.ActiveClusters, Compute | Storage);
+            passData.ClusterCount = graph.ReadBuffer(info.ClustersCount, Compute | Storage);
             passData.SceneLightResources = RgUtils::readSceneLight(*info.Light, graph, Compute);
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Bin")
             GPU_PROFILE_FRAME("Lights.Clusters.Bin")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             LightClustersBinShaderBindGroup bindGroup(shader);
-            bindGroup.SetClusters({.Buffer = resources.GetBuffer(passData.Clusters)});
-            bindGroup.SetActiveClusters({.Buffer = resources.GetBuffer(passData.ActiveClusters)});
-            bindGroup.SetCount({.Buffer = resources.GetBuffer(passData.ClusterCount)});
-            bindGroup.SetPointLights({.Buffer = resources.GetBuffer(passData.SceneLightResources.PointLights)});
-            bindGroup.SetLightsInfo({.Buffer = resources.GetBuffer(passData.SceneLightResources.LightsInfo)});
+            bindGroup.SetClusters(graph.GetBufferBinding(passData.Clusters));
+            bindGroup.SetActiveClusters(graph.GetBufferBinding(passData.ActiveClusters));
+            bindGroup.SetCount(graph.GetBufferBinding(passData.ClusterCount));
+            bindGroup.SetPointLights(graph.GetBufferBinding(passData.SceneLightResources.PointLights));
+            bindGroup.SetLightsInfo(graph.GetBufferBinding(passData.SceneLightResources.LightsInfo));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {frameContext.PrimaryCamera->GetView()}});
             cmd.DispatchIndirect({
-                .Buffer = resources.GetBuffer(passData.Dispatch)});
-        }).Data;
+                .Buffer = graph.GetBuffer(passData.Dispatch)});
+        });
 }

@@ -1,6 +1,6 @@
 #include "SceneMultiviewVisibilityHiZPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/HiZ/HiZFullPass.h"
 #include "RenderGraph/Passes/HiZ/HiZNVPass.h"
 
@@ -30,22 +30,18 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
                 const bool isPrimaryView = enumHasAny(view.VisibilityFlags, SceneVisibilityFlags::IsPrimaryView);
                 if (isPrimaryView)
                 {
-                    // todo: store min max depth for shadows
-                    auto& hizPass = HiZFull::addToGraph(name.AddVersion(i), graph, {
-                        .Depth = info.Depths[i],
-                        .Subresource = info.Subresources[i]});
+                    auto& hizPass = HiZFull::addToGraph(name.AddVersion(i), graph, {.Depth = info.Depths[i]});
                     info.Resources->Hiz[i] = hizPass.HiZMin;
+                    info.Resources->MinMaxDepthReductions[i] = hizPass.MinMaxDepth;
                 }
                 else
                 {
-                    auto& hizPass = HiZNV::addToGraph(name.AddVersion(i), graph, {
-                        .Depth = info.Depths[i],
-                        .Subresource = info.Subresources[i]});
+                    auto& hizPass = HiZNV::addToGraph(name.AddVersion(i), graph, {.Depth = info.Depths[i]});
                     info.Resources->Hiz[i] = hizPass.HiZ;
                 }
             }
         },
-        [=](PassData&, FrameContext&, const Resources&)
+        [=](const PassData&, FrameContext&, const Graph&)
         {
-        }).Data;
+        });
 }

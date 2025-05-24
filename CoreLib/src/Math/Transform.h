@@ -22,6 +22,20 @@ struct Transform3d
         return {
             .Position = -Position,
             .Orientation = glm::inverse(Orientation),
-            .Scale = 1.0f / Scale};
+            .Scale = 1.0f / Scale
+        };
+    }
+
+    /* Creates a transform, that represents `this` applied after `other`.
+     * For uniform scaling, this produces a transform that is equivalent to `this->ToMatrix() * other.ToMatrix()`
+     * NOTE: gives incorrect result for nonuniform scaling
+     */
+    Transform3d Combine(const Transform3d& other) const
+    {
+        return {
+            .Position = Position + glm::rotate(Orientation, other.Position * Scale),
+            .Orientation = Orientation * other.Orientation,
+            .Scale = Scale * other.Scale
+        };
     }
 };

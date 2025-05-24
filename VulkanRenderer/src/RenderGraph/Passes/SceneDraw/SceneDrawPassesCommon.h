@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Scene/ScenePass.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGDrawResources.h"
 
 #include "Scene/Visibility/SceneVisibility.h"
@@ -47,11 +47,12 @@ class SceneDrawPassViewAttachments
 public:
     const RG::DrawAttachments& Get(StringId viewName, StringId passName) const;
     RG::DrawAttachments& Get(StringId viewName, StringId passName);
+    RG::Resource GetMinMaxDepthReduction(StringId viewName) const;
 
     void Add(StringId viewName, StringId passName, const RG::DrawAttachments& attachments);
-    // todo: remove this once RenderGraph is fixed!
-    void UpdateResources(const RG::DrawAttachments& old, const RG::DrawAttachmentResources& resources);
+    void SetMinMaxDepthReduction(StringId viewName, RG::Resource minMaxDepthReduction);
 private:
     using PassNameToAttachments = std::unordered_map<StringId, RG::DrawAttachments>;
     std::unordered_map<StringId, PassNameToAttachments> m_Attachments;
+    std::unordered_map<StringId, RG::Resource> m_MinMaxDepthReductions;
 };

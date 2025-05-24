@@ -88,3 +88,6 @@ constexpr bool enumHasOnly(Enum a, Enum b)
 #elif defined __clang__ || (defined __GNUC__)
 #   define GENERATOR_PRETTY_FUNCTION __PRETTY_FUNCTION__
 #endif
+
+#define C_CONCAT_(x,y) x##y
+#define C_CONCAT(x,y) C_CONCAT_(x,y)

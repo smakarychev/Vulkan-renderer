@@ -2,7 +2,7 @@
 
 #include "FrameContext.h"
 #include "Core/Camera.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/HiZ/HiZBlitPass.h"
 
 namespace 
@@ -18,7 +18,7 @@ namespace
 }
 
 Passes::DepthReductionReadback::PassData& Passes::DepthReductionReadback::addToGraph(StringId name,
-    RG::Graph& renderGraph, RG::Resource minMaxDepth, const Camera* primaryCamera)
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -30,19 +30,17 @@ Passes::DepthReductionReadback::PassData& Passes::DepthReductionReadback::addToG
             
             graph.HasSideEffect();
             
-            graph.SetShader("create-shadow-cameras"_hsv);
+            passData.MinMaxDepth = graph.ReadBuffer(info.MinMaxDepthReduction, Readback);
 
-            passData.MinMaxDepth = graph.Read(minMaxDepth, Readback);
-
-            Buffer minMax = Resources{graph}.GetBuffer(passData.MinMaxDepth);
+            Buffer minMax = graph.GetBuffer(passData.MinMaxDepth);
             const void* address = Device::MapBuffer(minMax);
             HiZ::MinMaxDepth depths = *(const HiZ::MinMaxDepth*)address;
             Device::UnmapBuffer(minMax);
 
-            passData.Min = -linearizeDepth(std::bit_cast<f32>(depths.Max), *primaryCamera);
-            passData.Max = -linearizeDepth(std::bit_cast<f32>(depths.Min), *primaryCamera);
+            passData.Min = -linearizeDepth(std::bit_cast<f32>(depths.Max), *info.PrimaryCamera);
+            passData.Max = -linearizeDepth(std::bit_cast<f32>(depths.Min), *info.PrimaryCamera);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData&, FrameContext&, const Graph&)
         {
-        }).Data;
+        });
 }

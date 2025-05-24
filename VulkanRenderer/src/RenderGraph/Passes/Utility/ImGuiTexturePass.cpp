@@ -1,8 +1,9 @@
 #include "ImGuiTexturePass.h"
 
+#include "BlitPass.h"
 #include "imgui/imgui.h"
 #include "Imgui/ImguiUI.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/Texture3dToSliceBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -25,7 +26,7 @@ namespace
 
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
-    return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
+    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly));
 }
 
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
@@ -41,30 +42,41 @@ RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGr
     return renderGraph.AddRenderPass<PassDataPrivate>(name,
         [&](Graph& graph, PassDataPrivate& passData)
         {
-            passData.Texture = graph.Read(textureIn, Pixel | Sampled);
+            ImGui::Begin(name.AsString().c_str());
+            const glm::vec2 size = glm::max(glm::vec2(1.0f), getTextureWindowSize(graph.GetImageDescription(textureIn)));
+            passData.Texture = graph.Create("ImguiSource"_hsv, ResourceCreationFlags::Volatile, {
+                .Width = size.x,
+                .Height = size.y,
+                .Format = Format::RGBA16_FLOAT,
+            });
+            ImGui::End();
+
+            passData.Texture = Blit::addToGraph(
+                "ImguiBlit"_hsv, graph, textureIn, passData.Texture, {}, 1.0, ImageFilter::Linear).TextureOut;
+            passData.Texture = graph.ReadImage(passData.Texture, Pixel | Sampled);
             passData.Name = name;
             graph.HasSideEffect();
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("ImGui Texture")
             GPU_PROFILE_FRAME("ImGui Texture")
 
-            auto&& [texture, description] = resources.GetTextureWithDescription(passData.Texture);
-            
+            auto&& [texture, description] = graph.GetImageWithDescription(passData.Texture);
+
             ImGui::Begin(passData.Name.AsString().c_str());
-            glm::vec2 size = getTextureWindowSize(description);
+            const glm::vec2 size = getTextureWindowSize(description);
             Sampler sampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampEdge});
             ImGuiUI::Texture(ImageSubresource{.Image = texture}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
-        }).Data.Texture;
+        }).Texture;
 }
 
 RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
-    return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
+    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly));
 }
 
 RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
@@ -84,17 +96,17 @@ RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& rend
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.Texture = graph.Read(textureIn, Pixel | Sampled);
+            passData.Texture = graph.ReadImage(textureIn, Pixel | Sampled);
             passData.Name = name;
             graph.HasSideEffect();
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("ImGui Texture")
             GPU_PROFILE_FRAME("ImGui Texture")
 
-            Context& context = resources.GetOrCreateValue<Context>();
-            auto&& [texture, description] = resources.GetTextureWithDescription(passData.Texture);
+            Context& context = graph.GetOrCreateBlackboardValue<Context>();
+            auto&& [texture, description] = graph.GetImageWithDescription(passData.Texture);
 
             ASSERT(description.Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
             
@@ -112,7 +124,7 @@ RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& rend
                 sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
-        }).Data.Texture;
+        }).Texture;
 }
 
 namespace
@@ -135,39 +147,38 @@ namespace
 
                 graph.SetShader("texture3d-to-slice"_hsv);
 
-                auto& texture3dDescription = Resources(graph).GetTextureDescription(textureIn);
-                passData.Slice = graph.CreateResource("Slice"_hsv,
-                    GraphTextureDescription{
-                        .Width = texture3dDescription.Width,
-                        .Height = texture3dDescription.Height,
+                passData.Slice = graph.Create("Slice"_hsv,
+                    RGImageDescription{
+                        .Inference = RGImageInference::Size2d,
+                        .Reference = textureIn,
                         .Format = Format::RGBA16_FLOAT});
 
-                passData.Texture3d = graph.Read(textureIn, Pixel | Sampled);
-                passData.Slice = graph.RenderTarget(passData.Slice, AttachmentLoad::Load, AttachmentStore::Store);
+                passData.Texture3d = graph.ReadImage(textureIn, Pixel | Sampled);
+                passData.Slice = graph.RenderTarget(passData.Slice, {});
             },
-            [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+            [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
                 CPU_PROFILE_FRAME("Texture3dToSlice")
                 GPU_PROFILE_FRAME("Texture3dToSlice")
 
-                const Shader& shader = resources.GetGraph()->GetShader();
+                const Shader& shader = graph.GetShader();
                 Texture3dToSliceShaderBindGroup bindGroup(shader);
 
-                bindGroup.SetTexture({.Image = resources.GetTexture(passData.Texture3d)}, ImageLayout::Readonly);
+                bindGroup.SetTexture(graph.GetImageBinding(passData.Texture3d));
 
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+                bindGroup.Bind(cmd, graph.GetFrameAllocators());
                 cmd.PushConstants({
                 	.PipelineLayout = shader.GetLayout(), 
                 	.Data = {sliceNormalized}});
                 cmd.Draw({.VertexCount = 3});
-            }).Data.Slice;
+            }).Slice;
     }
 }
 
 RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture)
 {
-    return addToGraph(name, renderGraph, renderGraph.AddExternal("In"_hsv, texture));
+    return addToGraph(name, renderGraph, renderGraph.Import("In"_hsv, texture, ImageLayout::Readonly));
 }
 
 RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
@@ -189,24 +200,24 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
         [&](Graph& graph, PassData& passData)
         {
             Context& context = graph.GetOrCreateBlackboardValue<Context>();
-            auto& texture3dDescription = Resources(graph).GetTextureDescription(textureIn);
+            auto& texture3dDescription = graph.GetImageDescription(textureIn);
             u32 depth = texture3dDescription.GetDepth();
             f32 sliceNormalized = ((f32)context.Slice + 0.5f) / (f32)depth;
             Resource slice = texture3dTo2dSlicePass(name.Concatenate(".ToSlice"),
                 renderGraph, textureIn, sliceNormalized);
-            passData.Texture = graph.Read(slice, Pixel | Sampled);
+            passData.Texture = graph.ReadImage(slice, Pixel | Sampled);
             
             passData.Name = name;
             passData.Depth = depth;
             graph.HasSideEffect();
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("ImGui Texture")
             GPU_PROFILE_FRAME("ImGui Texture")
 
-            Context& context = resources.GetOrCreateValue<Context>();
-            auto&& [slice, description] = resources.GetTextureWithDescription(passData.Texture);
+            Context& context = graph.GetOrCreateBlackboardValue<Context>();
+            auto&& [slice, description] = graph.GetImageWithDescription(passData.Texture);
             
             ImGui::Begin(passData.Name.AsString().c_str());
             ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, (i32)passData.Depth - 1);
@@ -216,5 +227,5 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
             ImGuiUI::Texture(ImageSubresource{.Image = slice}, sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
-        }).Data.Texture;
+        }).Texture;
 }

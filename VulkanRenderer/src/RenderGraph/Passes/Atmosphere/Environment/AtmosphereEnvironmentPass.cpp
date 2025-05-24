@@ -3,12 +3,14 @@
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
+#include "Rendering/Image/ImageUtility.h"
 
 Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addToGraph(StringId name,
-    RG::Graph& renderGraph, RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut)
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -20,20 +22,15 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
 
             static constexpr bool USE_SUN_LUMINANCE = false;
 
-            std::vector<ImageSubresourceDescription> faceViews(6);
-            for (i8 i = 0; i < 6; i++)
-                faceViews[i] = ImageSubresourceDescription{
-                    .ImageViewKind = ImageViewKind::Image2d, .LayerBase = i, .Layers = 1};    
-            
-            const u32 environmentSize = (u32)*CVars::Get().GetI32CVar("Atmosphere.Environment.Size"_hsv);
-            passData.ColorOut = graph.CreateResource("ColorOut"_hsv, GraphTextureDescription{
+            const f32 environmentSize = (f32)*CVars::Get().GetI32CVar("Atmosphere.Environment.Size"_hsv);
+            passData.ColorOut = graph.Create("EnvironmentColorOut"_hsv, RGImageDescription{
                 .Width = environmentSize,
                 .Height = environmentSize,
-                .Layers = 6,
+                .LayersDepth = 6,
                 .Mipmaps = Images::mipmapCount({environmentSize, environmentSize}),
                 .Format = Format::RGBA16_FLOAT,
-                .Kind = ImageKind::Cubemap,
-                .AdditionalViews = faceViews});
+                .Kind = ImageKind::Cubemap
+            });
 
             auto& globalResources = graph.GetGlobalResources();
             std::vector directions = {
@@ -52,7 +49,10 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 glm::vec3{0.0,-1.0, 0.0},
                 glm::vec3{0.0,-1.0, 0.0},
             };
-            for (u32 face = 0; face < faceViews.size(); face++)
+
+            std::array<Resource, 6> faces{};
+            
+            for (u32 faceIndex = 0; faceIndex < faces.size(); faceIndex++)
             {
                 /* this should not matter at all */
                 static constexpr f32 NEAR = 0.1f;
@@ -61,25 +61,40 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 Camera camera = Camera::Perspective({
                     .BaseInfo = CameraCreateInfo{
                         .Position = globalResources.PrimaryCamera->GetPosition(),
-                        .Orientation = glm::normalize(glm::quatLookAt(directions[face], upVectors[face])),
+                        .Orientation = glm::normalize(glm::quatLookAt(directions[faceIndex], upVectors[faceIndex])),
                         .Near = NEAR,
                         .Far = FAR,
-                        .ViewportWidth = environmentSize,
-                        .ViewportHeight = environmentSize,
-                        .FlipY = false},
+                        .ViewportWidth = (u32)environmentSize,
+                        .ViewportHeight = (u32)environmentSize,
+                        .FlipY = false
+                    },
                     .Fov = glm::radians(90.0f)});
+
+                faces[faceIndex] = graph.SplitImage(passData.ColorOut,
+                    {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
                 
                 auto& atmosphere = Raymarch::addToGraph(
-                    name.Concatenate(".Raymarch").AddVersion(face), graph,
-                    atmosphereSettings, camera, light, skyViewLut, {}, {},
-                    passData.ColorOut, faceViews[face], {}, USE_SUN_LUMINANCE);
-                passData.ColorOut = atmosphere.ColorOut;
+                    name.Concatenate(".Raymarch").AddVersion(faceIndex), graph, {
+                        .AtmosphereSettings = info.AtmosphereSettings,
+                        .Camera = &camera,
+                        .Light = info.SceneLight,
+                        .SkyViewLut = info.SkyViewLut,
+                        .ColorIn = faces[faceIndex],
+                        .UseSunLuminance = USE_SUN_LUMINANCE
+                    });
+                faces[faceIndex] = atmosphere.ColorOut;
             }
 
-            auto& mipmapped = Mipmap::addToGraph(name.Concatenate(".Mipmaps"), graph, passData.ColorOut);
-            passData.ColorOut = mipmapped.Texture;
+            passData.ColorOut = graph.AddRenderPass<Resource>("EnvironmentMipmaps"_hsv,
+                [&](Graph& mipmapGraph, Resource& mipmapData)
+                {
+                    mipmapData = mipmapGraph.MergeImage(faces);
+                    auto& mipmapped = Mipmap::addToGraph(name.Concatenate(".Mipmaps"), graph, mipmapData);
+                    mipmapData = mipmapped.Texture;
+                },
+                [=](const Resource&, FrameContext&, const Graph&){});
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData&, FrameContext&, const Graph&)
         {
-        }).Data;
+        });
 }

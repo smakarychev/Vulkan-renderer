@@ -1,6 +1,6 @@
 #include "DiffuseIrradiancePass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -9,7 +9,7 @@ Passes::DiffuseIrradiance::PassData& Passes::DiffuseIrradiance::addToGraph(Strin
     Texture cubemap, Texture irradiance)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal("Cubemap"_hsv, cubemap),
+        renderGraph.Import("Cubemap"_hsv, cubemap, ImageLayout::Readonly),
         irradiance);
 }
 
@@ -26,25 +26,23 @@ Passes::DiffuseIrradiance::PassData& Passes::DiffuseIrradiance::addToGraph(Strin
 
             graph.SetShader("diffuse-irradiance"_hsv);
 
-            passData.DiffuseIrradiance = graph.AddExternal("DiffuseIrradiance"_hsv, irradiance);
+            passData.DiffuseIrradiance = graph.Import("DiffuseIrradiance"_hsv, irradiance);
                 
-            passData.DiffuseIrradiance = graph.Write(passData.DiffuseIrradiance, Compute | Storage);
-            passData.Cubemap = graph.Read(cubemap, Compute | Sampled);
+            passData.DiffuseIrradiance = graph.WriteImage(passData.DiffuseIrradiance, Compute | Storage);
+            passData.Cubemap = graph.ReadImage(cubemap, Compute | Sampled);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("DiffuseIrradiance")
             GPU_PROFILE_FRAME("DiffuseIrradiance")
 
-            Texture cubemapTexture = resources.GetTexture(passData.Cubemap);
-            auto&& [irradianceTexture, irradianceDescription] =
-                resources.GetTextureWithDescription(passData.DiffuseIrradiance);
+            auto& irradianceDescription = graph.GetImageDescription(passData.DiffuseIrradiance);
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             DiffuseIrradianceShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetEnv({.Image = cubemapTexture}, ImageLayout::Readonly);
-            bindGroup.SetIrradiance({.Image = irradianceTexture}, ImageLayout::General);
+            bindGroup.SetEnv(graph.GetImageBinding(passData.Cubemap));
+            bindGroup.SetIrradiance(graph.GetImageBinding(passData.DiffuseIrradiance));
 
             struct PushConstants
             {
@@ -54,12 +52,12 @@ Passes::DiffuseIrradiance::PassData& Passes::DiffuseIrradiance::addToGraph(Strin
                 .DiffuseIrradianceResolutionInverse = 1.0f / glm::vec2{(f32)irradianceDescription.Width}};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstants}});
             cmd.Dispatch({
                 .Invocations = {irradianceDescription.Width, irradianceDescription.Width, 6},
                 .GroupSize = {32, 32, 1}});
-        }).Data;
+        });
 }

@@ -10,11 +10,7 @@
 #include "Rendering/Swapchain.h"
 #include "Rendering/Synchronization.h"
 
-#include "vk_mem_alloc.h"
 #include <functional>
-
-#include <volk.h>
-#include <tracy/TracyVulkan.hpp>
 
 #include "DeviceSparseSet.h"
 #include "imgui/imgui.h"
@@ -49,86 +45,6 @@ struct ImmediateSubmitContext
     Fence Fence;
     QueueKind QueueKind;
 };
-
-class DeletionQueue
-{
-    FRIEND_INTERNAL
-public:
-    ~DeletionQueue() { Flush(); }
-
-    template <typename Type>
-    void Enqueue(Type type);
-
-    void Flush();
-private:
-    bool m_IsDummy{false};
-    std::vector<Swapchain> m_Swapchains;
-    std::vector<Buffer> m_Buffers;
-    std::vector<BufferArena> m_BufferArenas;
-    std::vector<Image> m_Images;
-    std::vector<Sampler> m_Samplers;
-    std::vector<CommandPool> m_CommandPools;
-    std::vector<DescriptorsLayout> m_DescriptorLayouts;
-    std::vector<DescriptorArenaAllocator> m_DescriptorArenaAllocators;
-    std::vector<PipelineLayout> m_PipelineLayouts;
-    std::vector<Pipeline> m_Pipelines;
-    std::vector<ShaderModule> m_ShaderModules;
-    std::vector<RenderingAttachment> m_RenderingAttachments;
-    std::vector<RenderingInfo> m_RenderingInfos;
-    std::vector<Fence> m_Fences;
-    std::vector<Semaphore> m_Semaphores;
-    std::vector<TimelineSemaphore> m_TimelineSemaphore;
-    std::vector<DependencyInfo> m_DependencyInfos;
-    std::vector<SplitBarrier> m_SplitBarriers;
-};
-
-template <typename Type>
-void DeletionQueue::Enqueue(Type type)
-{
-    using Decayed = std::decay_t<Type>;
-    
-    if (m_IsDummy)
-        return;
-    
-    if constexpr(std::is_same_v<Decayed, Swapchain>)
-        m_Swapchains.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, Buffer>)
-        m_Buffers.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, BufferArena>)
-        m_BufferArenas.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, Image>)
-        m_Images.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, Sampler>)
-        m_Samplers.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, CommandPool>)
-        m_CommandPools.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, DescriptorsLayout>)
-        m_DescriptorLayouts.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, DescriptorArenaAllocator>)
-        m_DescriptorArenaAllocators.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, PipelineLayout>)
-        m_PipelineLayouts.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, Pipeline>)
-        m_Pipelines.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, ShaderModule>)
-        m_ShaderModules.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, RenderingAttachment>)
-        m_RenderingAttachments.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, RenderingInfo>)
-        m_RenderingInfos.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, Fence>)
-        m_Fences.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, Semaphore>)
-        m_Semaphores.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, TimelineSemaphore>)
-        m_TimelineSemaphore.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, DependencyInfo>)
-        m_DependencyInfos.push_back(type);
-    else if constexpr(std::is_same_v<Decayed, SplitBarrier>)
-        m_SplitBarriers.push_back(type);
-    else 
-        static_assert(!sizeof(Type), "No match for type");
-}
 
 class Device
 {
@@ -231,10 +147,10 @@ public:
     static void ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator);
     static DescriptorsKind GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator);
     
-    static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+    static void UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
         const BufferSubresource& buffer, u32 index);  
-    static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo, Sampler sampler);  
-    static void UpdateDescriptors(Descriptors descriptors, DescriptorBindingInfo bindingInfo,
+    static void UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo, Sampler sampler);  
+    static void UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
         const ImageSubresource& image, ImageLayout layout, u32 index);
 
     static Fence CreateFence(FenceCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
@@ -286,17 +202,24 @@ public:
     static u32 GetSubgroupSize();
     static ImmediateSubmitContext GetSubmitContext();
     static void FreeSubmitContext(const ImmediateSubmitContext& ctx);
-
-    static TracyVkCtx CreateTracyGraphicsContext(CommandBuffer cmd);
-    static void DestroyTracyGraphicsContext(TracyVkCtx context);
-    // TODO: FIX ME: direct vkapi usage
-    static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
+    
+    static ProfilerContext::Ctx CreateTracyGraphicsContext(CommandBuffer cmd);
+    static void DestroyTracyGraphicsContext(ProfilerContext::Ctx context);
+    static void CreateGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu, const SourceLocationData& sourceLocationData);
+    static void DestroyGpuProfileFrame(ProfilerScopedZoneGpu& zoneGpu);
+    static void CollectGpuProfileFrames();
 
     static ImTextureID CreateImGuiImage(const ImageSubresource& texture, Sampler sampler, ImageLayout layout);
     static void DestroyImGuiImage(ImTextureID image);
 
     static void DumpMemoryStats(const std::filesystem::path& path);
 
+    static void BeginCommandBufferLabel(CommandBuffer cmd, std::string_view label);
+    static void EndCommandBufferLabel(CommandBuffer cmd);
+    static void NameBuffer(Buffer buffer, std::string_view name);
+    static void NameImage(Image image, std::string_view name);
+    static void NamePipeline(Pipeline pipeline, std::string_view name);
+    
     static void CompileCommand(CommandBuffer cmd, const ExecuteSecondaryBufferCommand& command);
     
     static void CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentCommand& command);
@@ -349,8 +272,6 @@ public:
     static void CompileCommand(CommandBuffer cmd, const DispatchCommand& command);
     static void CompileCommand(CommandBuffer cmd, const DispatchIndirectCommand& command);
 private:
-    static VmaAllocator& Allocator();
-    
     static DeviceResources& Resources();
     static void ShutdownResources();
 
@@ -369,24 +290,11 @@ private:
     static void CreateSwapchainImages(Swapchain swapchain);
     static void DestroySwapchainImages(Swapchain swapchain);
 
-    static Buffer AllocateBuffer(const BufferCreateInfo& createInfo, VkBufferUsageFlags usage,
-        VmaAllocationCreateFlags allocationFlags);
-
     static Image CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPath assetPath);
     static Image CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std::byte> pixels);
     static Image CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer);
     static void PreprocessCreateInfo(ImageCreateInfo& createInfo);
     static Image AllocateImage(ImageCreateInfo& createInfo);
-    static VkImageView CreateVulkanImageView(const ImageSubresource& image, VkFormat format);
-
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        Span<const Semaphore> semaphores, Span<const PipelineStage> waitStages);
-    static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
-        Span<const TimelineSemaphore> semaphores,
-        Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-
-    static void BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
-        PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
 private:
     struct State;
     static State s_State;

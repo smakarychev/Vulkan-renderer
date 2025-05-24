@@ -1,7 +1,7 @@
 #include "MipMapPass.h"
 
 #include "FrameContext.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 
 Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture)
 {
@@ -13,15 +13,15 @@ Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& r
         {
             CPU_PROFILE_FRAME("MipMap.Setup")
 
-            passData.Texture = graph.Write(texture, Blit);
+            passData.Texture = graph.WriteImage(texture, Blit);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("MipMap")
             GPU_PROFILE_FRAME("MipMap")
 
             // todo: nvpro mipmap software generation?
-            Texture sourceTexture = resources.GetTexture(passData.Texture);
+            Texture sourceTexture = graph.GetImage(passData.Texture);
             Device::CreateMipmaps(sourceTexture, frameContext.CommandList, ImageLayout::Destination);
             frameContext.CommandList.WaitOnBarrier({
                 .DependencyInfo = Device::CreateDependencyInfo({
@@ -34,5 +34,5 @@ Passes::Mipmap::PassData& Passes::Mipmap::addToGraph(StringId name, RG::Graph& r
                         .OldLayout = ImageLayout::Source,
                         .NewLayout = ImageLayout::Destination}},
                     frameContext.DeletionQueue)});
-        }).Data;
+        });
 }

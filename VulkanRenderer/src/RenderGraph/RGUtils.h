@@ -1,22 +1,20 @@
 #pragma once
 
-#include "RenderGraph.h"
+#include "RGGraph.h"
 #include "RGDrawResources.h"
 
 class SceneLight;
 
 namespace RG
 {
-    class Resources;
     struct IBLData;
     struct SSAOData;
 }
 
 namespace RG::RgUtils
 {
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphTextureDescription& fallback);    
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, Images::Default fallback);    
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphBufferDescription& fallback);
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const RGImageDescription& fallback);    
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const RGBufferDescription& fallback);
 
     DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph);
     DrawAttachmentResources readWriteDrawAttachments(const DrawAttachments& attachments, Graph& graph);
@@ -27,98 +25,78 @@ namespace RG::RgUtils
     SSAOData readSSAOData(const SSAOData& ssao, Graph& graph, ResourceAccessFlags shaderStage);
     DirectionalShadowData readDirectionalShadowData(const DirectionalShadowData& shadow, Graph& graph,
         ResourceAccessFlags shaderStage);
-    CSMData readCSMData(const CSMData& csm, Graph& graph, ResourceAccessFlags shaderStage);
+    CsmData readCsmData(const CsmData& csm, Graph& graph, ResourceAccessFlags shaderStage);
 
     template <typename BindGroup>
-    void updateDrawAttributeBindings(BindGroup& bindGroup, const Resources& resources,
+    void updateDrawAttributeBindings(BindGroup& bindGroup, const Graph& graph,
         const DrawAttributeBuffers& attributeBuffers);
     template <typename BindGroup>
-    void updateSceneLightBindings(BindGroup& bindGroup, const Resources& resources,
+    void updateSceneLightBindings(BindGroup& bindGroup, const Graph& graph,
         const SceneLightResources& lights);
     template <typename BindGroup>
-    void updateIBLBindings(BindGroup& bindGroup, const Resources& resources, const IBLData& iblData);
+    void updateIBLBindings(BindGroup& bindGroup, const Graph& graph, const IBLData& iblData);
     template <typename BindGroup>
-    void updateSSAOBindings(BindGroup& bindGroup, const Resources& resources, const SSAOData& ssaoData);
+    void updateSSAOBindings(BindGroup& bindGroup, const Graph& graph, const SSAOData& ssaoData);
     template <typename BindGroup>
-    void updateShadowBindings(BindGroup& bindGroup, const Resources& resources,
+    void updateShadowBindings(BindGroup& bindGroup, const Graph& graph,
         const DirectionalShadowData& shadowData);
     template <typename BindGroup>
-    void updateCSMBindings(BindGroup& bindGroup, const Resources& resources,
-        const CSMData& csmData);
+    void updateCsmBindings(BindGroup& bindGroup, const Graph& graph,
+        const CsmData& csmData);
 
     template <typename BindGroup>
-    void updateDrawAttributeBindings(BindGroup& bindGroup, const Resources& resources,
+    void updateDrawAttributeBindings(BindGroup& bindGroup, const Graph& graph,
         const DrawAttributeBuffers& attributeBuffers)
     {
         auto&& [positions, normals, tangents, uvs] = attributeBuffers;
-        if constexpr (requires { bindGroup.SetPositions({.Buffer = resources.GetBuffer(positions)}); })
-            bindGroup.SetPositions({.Buffer = resources.GetBuffer(positions)});
+        if constexpr (requires { bindGroup.SetPositions(graph.GetBufferBinding(positions)); })
+            bindGroup.SetPositions(graph.GetBufferBinding(positions));
 
-        if constexpr (requires { bindGroup.SetNormals({.Buffer = resources.GetBuffer(normals)}); })
-            bindGroup.SetNormals({.Buffer = resources.GetBuffer(normals)});
+        if constexpr (requires { bindGroup.SetNormals(graph.GetBufferBinding(normals)); })
+            bindGroup.SetNormals(graph.GetBufferBinding(normals));
 
-        if constexpr (requires { bindGroup.SetTangents({.Buffer = resources.GetBuffer(tangents)}); })
-            bindGroup.SetTangents({.Buffer = resources.GetBuffer(tangents)});
+        if constexpr (requires { bindGroup.SetTangents(graph.GetBufferBinding(tangents)); })
+            bindGroup.SetTangents(graph.GetBufferBinding(tangents));
 
-        if constexpr (requires { bindGroup.SetUv({.Buffer = resources.GetBuffer(uvs)}); })
-            bindGroup.SetUv({.Buffer = resources.GetBuffer(uvs)});
+        if constexpr (requires { bindGroup.SetUv(graph.GetBufferBinding(uvs)); })
+            bindGroup.SetUv(graph.GetBufferBinding(uvs));
     }
 
     template <typename BindGroup>
-    void updateSceneLightBindings(BindGroup& bindGroup, const Resources& resources, const SceneLightResources& lights)
+    void updateSceneLightBindings(BindGroup& bindGroup, const Graph& graph, const SceneLightResources& lights)
     {
-        Buffer directionalLights = resources.GetBuffer(lights.DirectionalLights);
-        Buffer pointLights = resources.GetBuffer(lights.PointLights);
-        Buffer lightsInfo = resources.GetBuffer(lights.LightsInfo);
-
-        bindGroup.SetDirectionalLights({.Buffer = directionalLights});
-        bindGroup.SetPointLights({.Buffer = pointLights});
-        bindGroup.SetLightsInfo({.Buffer = lightsInfo});
+        bindGroup.SetDirectionalLights(graph.GetBufferBinding(lights.DirectionalLights));
+        bindGroup.SetPointLights(graph.GetBufferBinding(lights.PointLights));
+        bindGroup.SetLightsInfo(graph.GetBufferBinding(lights.LightsInfo));
     }
 
     template <typename BindGroup>
-    void updateIBLBindings(BindGroup& bindGroup, const Resources& resources, const IBLData& iblData)
+    void updateIBLBindings(BindGroup& bindGroup, const Graph& graph, const IBLData& iblData)
     {
-        Buffer irradianceSh = resources.GetBuffer(iblData.IrradianceSH);
-        Texture prefilter = resources.GetTexture(iblData.PrefilterEnvironment);
-        Texture brdf = resources.GetTexture(iblData.BRDF);
-
         // todo: fix me in SHADERS!
-        if constexpr (requires { bindGroup.SetIrradianceSH({.Buffer = irradianceSh}); })
-            bindGroup.SetIrradianceSH({.Buffer = irradianceSh});
-        bindGroup.SetPrefilterMap({.Image = prefilter}, ImageLayout::Readonly);
-        bindGroup.SetBrdf({.Image = brdf}, ImageLayout::Readonly);
+        if constexpr (requires { bindGroup.SetIrradianceSH(graph.GetBufferBinding(iblData.IrradianceSH)); })
+            bindGroup.SetIrradianceSH(graph.GetBufferBinding(iblData.IrradianceSH));
+        bindGroup.SetPrefilterMap(graph.GetImageBinding(iblData.PrefilterEnvironment));
+        bindGroup.SetBrdf(graph.GetImageBinding(iblData.BRDF));
     }
 
     template <typename BindGroup>
-    void updateSSAOBindings(BindGroup& bindGroup, const Resources& resources, const SSAOData& ssaoData)
+    void updateSSAOBindings(BindGroup& bindGroup, const Graph& graph, const SSAOData& ssaoData)
     {
-        Texture ssao = resources.GetTexture(ssaoData.SSAO);
-        bindGroup.SetSsaoTexture({.Image = ssao}, ImageLayout::Readonly);
+        bindGroup.SetSsaoTexture(graph.GetImageBinding(ssaoData.SSAO));
     }
 
     template <typename BindGroup>
-    void updateShadowBindings(BindGroup& bindGroup, const Resources& resources, const DirectionalShadowData& shadowData)
+    void updateShadowBindings(BindGroup& bindGroup, const Graph& graph, const DirectionalShadowData& shadowData)
     {
-        Texture shadow = resources.GetTexture(shadowData.ShadowMap);
-        Buffer shadowBuffer = resources.GetBuffer(shadowData.Shadow);
-
-        bindGroup.SetDirectionalShadowMap({.Image = shadow},
-            Device::GetImageDescription(shadow).Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly);
-
-        bindGroup.SetDirectionalShadowTransform({.Buffer = shadowBuffer});
+        bindGroup.SetDirectionalShadowMap(graph.GetImageBinding(shadowData.ShadowMap));
+        bindGroup.SetDirectionalShadowTransform(graph.GetBufferBinding(shadowData.Shadow));
     }
 
     template <typename BindGroup>
-    void updateCSMBindings(BindGroup& bindGroup, const Resources& resources, const CSMData& csmData)
+    void updateCsmBindings(BindGroup& bindGroup, const Graph& graph, const CsmData& csmData)
     {
-        Texture shadow = resources.GetTexture(csmData.ShadowMap);
-        Buffer csm = resources.GetBuffer(csmData.CsmInfo);
-
-        bindGroup.SetCsm({.Image = shadow},
-            Device::GetImageDescription(shadow).Format == Format::D32_FLOAT ?
-                ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly);
-        bindGroup.SetCsmData({.Buffer = csm});
+        bindGroup.SetCsm(graph.GetImageBinding(csmData.ShadowMap));
+        bindGroup.SetCsmData(graph.GetBufferBinding(csmData.CsmInfo));
     }
 }

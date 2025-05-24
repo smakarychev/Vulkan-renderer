@@ -1,5 +1,6 @@
 #include "BindlessTextureDescriptorsRingBuffer.h"
 
+#include "Vulkan/Device.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 
 BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, const Shader& shader)
@@ -28,7 +29,11 @@ bool BindlessTextureDescriptorsRingBuffer::WillOverflow() const
 u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
 {
     MaterialsShaderBindGroup bindGroup(m_MaterialsShader);
-    bindGroup.SetTextures({.Image = texture}, ImageLayout::Readonly, m_Tail);
+    bindGroup.SetTextures({
+            .Subresource = {.Image = texture},
+            .Layout = ImageLayout::Readonly
+        },
+        m_Tail);
 
     const u32 toReturn = m_Tail;
     if (toReturn >= m_Textures.size())

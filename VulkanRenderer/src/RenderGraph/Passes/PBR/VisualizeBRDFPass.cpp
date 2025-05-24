@@ -19,35 +19,34 @@ Passes::VisualizeBRDF::PassData& Passes::VisualizeBRDF::addToGraph(StringId name
             graph.SetShader("brdf-visualize"_hsv);
             
             passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "ColorOut"_hsv,
-                GraphTextureDescription{
-                    .Width = resolution.x,
-                    .Height = resolution.y,
+                RGImageDescription{
+                    .Width = (f32)resolution.x,
+                    .Height = (f32)resolution.y,
                     .Format = Format::RGBA16_FLOAT});
 
-            passData.BRDF = graph.AddExternal("BRDF"_hsv, brdf);
+            passData.BRDF = graph.Import("BRDF"_hsv, brdf, ImageLayout::Readonly);
 
-            passData.BRDF = graph.Read(passData.BRDF, Pixel | Sampled);
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut,
-                AttachmentLoad::Load, AttachmentStore::Store);
+            passData.BRDF = graph.ReadImage(passData.BRDF, Pixel | Sampled);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
             
             Sampler brdfSampler = Device::CreateSampler({
                 .WrapMode = SamplerWrapMode::ClampBorder});
 
             passData.BRDFSampler = brdfSampler;
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {   
             CPU_PROFILE_FRAME("BRDF.Visualize")
             GPU_PROFILE_FRAME("BRDF.Visualize")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             BrdfVisualizeShaderBindGroup bindGroup(shader);
 
             bindGroup.SetSampler(passData.BRDFSampler);
-            bindGroup.SetBrdf({.Image = brdf}, ImageLayout::Readonly);
+            bindGroup.SetBrdf(graph.GetImageBinding(passData.BRDF));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

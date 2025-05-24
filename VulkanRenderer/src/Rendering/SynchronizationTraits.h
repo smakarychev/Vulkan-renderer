@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core.h"
+#include "types.h"
 
 enum class PipelineStage
 {
@@ -70,7 +71,7 @@ enum class PipelineAccess
 
 CREATE_ENUM_FLAGS_OPERATORS(PipelineAccess)
 
-enum class PipelineDependencyFlags
+enum class PipelineDependencyFlags : u8
 {
     None = 0,
 

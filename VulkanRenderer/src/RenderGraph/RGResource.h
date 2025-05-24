@@ -1,215 +1,221 @@
 #pragma once
 
+#include "types.h"
 #include "Rendering/Buffer/Buffer.h"
-#include "Rendering/SynchronizationTraits.h"
 #include "Rendering/Image/Image.h"
-#include "Rendering/RenderingInfo.h"
 #include "String/StringId.h"
 
 namespace RG
 {
+    enum class ResourceFlags : u8
+    {
+        None = 0,
+        Buffer      = BIT(0),
+        Image       = BIT(1),
+        /* this resource is imported (external) and cannot be aliased */
+        Imported    = BIT(2),
+        /* this resource cannot be aliased */
+        Volatile    = BIT(3),
+        Split       = BIT(4),
+        Merge       = BIT(5),
+
+        /* if the resource version should be automatically updated to the latest */
+        AutoUpdate  = BIT(6),
+    };
+    CREATE_ENUM_FLAGS_OPERATORS(ResourceFlags)
+
+    enum class ResourceCreationFlags : u8
+    {
+        None = 0,
+        /* this resource cannot be aliased */
+        Volatile    = BIT(3),
+        /* if the resource version should be automatically updated to the latest */
+        AutoUpdate  = BIT(6),
+    };
+    CREATE_ENUM_FLAGS_OPERATORS(ResourceCreationFlags)
+
+    static_assert((u8)ResourceCreationFlags::None == (u8)ResourceFlags::None);
+    static_assert((u8)ResourceCreationFlags::AutoUpdate == (u8)ResourceFlags::AutoUpdate);
+    static_assert((u8)ResourceCreationFlags::Volatile == (u8)ResourceFlags::Volatile);
+    
     class Resource
     {
         friend class Graph;
-        friend class Pass;
-        friend class Resources;
-        friend std::ostream & operator<<(std::ostream &os, Resource renderGraphResource);
-        friend struct std::hash<Resource>;
-        
-        static constexpr u32 TYPE_BITS_COUNT = 1u;
-        static constexpr u32 INDEX_BITS_COUNT = 32u - TYPE_BITS_COUNT;
-        static constexpr u32 TYPE_BITS_MASK = (1u << TYPE_BITS_COUNT) - 1;
-        static constexpr u32 INDEX_BITS_MASK = (1u << INDEX_BITS_COUNT) - 1;
-        static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
-
-        static constexpr u32 BUFFER_TYPE = 0;
-        static constexpr u32 TEXTURE_TYPE = 1;
+        friend class GraphWatcher;
+        constexpr static u16 INVALID = (u16)~0;
+        constexpr static u8 NO_EXTRA = (u8)~0;
     public:
-        constexpr bool IsValid() const { return m_Value != NON_INDEX; }
-        auto operator<=>(const Resource& other) const = default;
-    private:
-        constexpr bool IsBuffer() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == BUFFER_TYPE; }
-        constexpr bool IsTexture() const { return ((m_Value >> INDEX_BITS_COUNT) & TYPE_BITS_MASK) == TEXTURE_TYPE; }
-        constexpr u32 Index() const { return m_Value & INDEX_BITS_MASK; }
-
-        static constexpr Resource Texture(u32 index)
-        {
-            Resource texture;
-            texture.m_Value = (TEXTURE_TYPE << INDEX_BITS_COUNT) | index;
+        Resource() = default;
+        Resource(const Resource&) = default;
+        Resource& operator=(const Resource&) = default;
+        Resource(Resource&&) = default;
+        Resource& operator=(Resource&&) = default;
+        ~Resource() = default;
             
-            return texture;
-        }
-        static constexpr Resource Buffer(u32 index)
-        {
-            Resource buffer;
-            buffer.m_Value = (BUFFER_TYPE << INDEX_BITS_COUNT) | index;
-            
-            return buffer;
-        }
+        auto operator<=>(const Resource&) const = default;
+        constexpr bool IsValid() const;
+
+        constexpr ResourceFlags GetFlags() const;
+        constexpr void AddFlags(ResourceFlags flag);
+        constexpr bool HasFlags(ResourceFlags flag) const;
+        constexpr bool IsBuffer() const;
+        constexpr bool IsImage() const;
+
+        std::string AsString() const;
     private:
-        u32 m_Value{NON_INDEX};
-    };
-
-    inline std::ostream& operator<<(std::ostream& os, Resource renderGraphResource)
-    {
-        if (renderGraphResource.m_Value == Resource::NON_INDEX)
-            os << "Resource(EMPTY)";
-        else if (renderGraphResource.IsBuffer())
-            os << std::format("Resource(BUFFER: {})", renderGraphResource.Index());
-        else
-            os << std::format("Resource(TEXTURE: {})", renderGraphResource.Index());
-
-        return os;
-    }
-
-    class ResourceAccess
-    {
-        friend class Graph;
-        friend class Pass;
+        constexpr Resource(ResourceFlags flagsType, u16 index, u16 version);
+        constexpr static Resource Buffer(u16 index, u16 version);
+        constexpr static Resource Image(u16 index, u16 version);
     private:
-        static constexpr bool HasWriteAccess(PipelineAccess access)
-        {
-            return enumHasAny(access,
-                PipelineAccess::WriteShader | PipelineAccess::WriteAll |
-                PipelineAccess::WriteColorAttachment | PipelineAccess::WriteDepthStencilAttachment |
-                PipelineAccess::WriteTransfer | PipelineAccess::WriteHost);
-        }
-        static constexpr bool HasReadAccess(PipelineAccess access)
-        {
-            return enumHasAny(access,
-                PipelineAccess::ReadAll | PipelineAccess::ReadAttribute |
-                PipelineAccess::ReadConditional | PipelineAccess::ReadHost |
-                PipelineAccess::ReadIndex | PipelineAccess::ReadIndirect |
-                PipelineAccess::ReadSampled | PipelineAccess::ReadShader |
-                PipelineAccess::ReadStorage | PipelineAccess::ReadUniform |
-                PipelineAccess::ReadDepthStencilAttachment | PipelineAccess::ReadColorAttachment |
-                PipelineAccess::ReadFeedbackCounter | PipelineAccess::ReadInputAttachment |
-                PipelineAccess::ReadTransfer);
-        }
-    private:
-        Resource m_Resource{};
-        PipelineStage m_Stage{PipelineStage::None};
-        PipelineAccess m_Access{PipelineAccess::None};
+        u16 m_Index = (u16)~0;
+        u16 m_Version = 0;
+        ResourceFlags m_Flags{ResourceFlags::None};
+        u8 m_Extra{NO_EXTRA};
     };
 
-    class RenderTargetAccess
+    struct RGBufferDescription
     {
-        friend class Graph;
-        friend class Pass;
-    private:
-        Resource m_Resource{};
-        ImageSubresourceDescription m_ViewSubresource{};
-        AttachmentLoad m_OnLoad{AttachmentLoad::Unspecified};
-        AttachmentStore m_OnStore{AttachmentStore::Unspecified};
-        ColorClearValue m_ClearColor{};
+        u64 SizeBytes{0};
     };
-
-    class DepthStencilAccess
+    enum class RGImageInference : u8
     {
-        friend class Graph;
-        friend class Pass;
-    private:
-        Resource m_Resource{};
-        ImageSubresourceDescription m_ViewSubresource{};
-        AttachmentLoad m_OnLoad{AttachmentLoad::Unspecified};
-        AttachmentStore m_OnStore{AttachmentStore::Unspecified};
-        f32 m_ClearDepth{};
-        u32 m_ClearStencil{};
-        std::optional<DepthBias> m_DepthBias{};
-        bool m_IsDepthOnly{false};
+        None = 0,
+        Size2d  = BIT(1),
+        Depth   = BIT(2),
+        Format  = BIT(3),
+        Kind    = BIT(4),
+        Filter  = BIT(5),
+        Views   = BIT(6),
+
+        Size = Size2d | Depth,
+        Full = Size | Format | Kind | Filter | Views,
     };
-
-    template <typename T>
-    struct ResourceTraits {};
-
-    template <>
-    struct ResourceTraits<Buffer>
+    CREATE_ENUM_FLAGS_OPERATORS(RGImageInference);
+    
+    struct RGImageDescription
     {
-        using Desc = BufferDescription;
-    };
-
-    template <>
-    struct ResourceTraits<Image>
-    {
-        using Desc = ImageDescription;
-    };
-
-    class ResourceTypeBase
-    {
-        friend class Graph;
-    public:
-        ResourceTypeBase(StringId name)
-            : m_Name(name) {}
-    protected:
-        StringId m_Name{};
-        Resource m_Rename{};
-
-        static constexpr u32 NON_INDEX = std::numeric_limits<u32>::max();
-        u32 m_FirstAccess{NON_INDEX};
-        u32 m_LastAccess{NON_INDEX};
-        bool m_IsExternal{false};
-    };
-
-    template <typename T>
-    class ResourceType : public ResourceTypeBase
-    {
-        friend class Graph;
-        friend class Resources;
-        
-        using Desc = typename ResourceTraits<T>::Desc;
-        using Type = T;
-    public:
-        ResourceType(StringId name, const Desc& desc)
-            : ResourceTypeBase(name), m_Description(desc) {}
-
-        void SetPhysicalResource(std::shared_ptr<T> resource)
-        {
-            m_ResourceRef = resource;
-            m_Resource = resource.get();
-        }
-        void ReleaseResource()
-        {
-            ASSERT(m_Resource, "Cannot release an empty result")
-            m_ResourceRef = nullptr;
-        }
-    private:
-        // store both ref count and raw pointer to be able to alias resources
-        // todo: this is bad, and i should do something else
-        // todo: this is also the reason, why exported textures are stored as std::shared_ptr*
-        std::shared_ptr<T> m_ResourceRef{};
-        T* m_Resource{};
-        Desc m_Description{};
-    };
-
-    using GraphBuffer = ResourceType<Buffer>;
-    using GraphTexture = ResourceType<Image>;
-
-    struct GraphBufferDescription
-    {
-        u64 SizeBytes;
-    };
-
-    struct GraphTextureDescription
-    {
-        u32 Width{};
-        u32 Height{};
-        u32 Layers{1};
+        RGImageInference Inference{RGImageInference::None};
+        f32 Width{1};
+        f32 Height{1};
+        f32 LayersDepth{1};
         i8 Mipmaps{1};
+        Resource Reference{};
         Format Format{Format::Undefined};
         ImageKind Kind{ImageKind::Image2d};
         ImageFilter MipmapFilter{ImageFilter::Linear};
-        std::vector<ImageSubresourceDescription> AdditionalViews{};
     };
+    
+    
+    struct ResourceBase
+    {
+        static constexpr u32 NO_ACCESS = ~0u;
+        u32 FirstAccess{NO_ACCESS};
+        u32 LastAccess{NO_ACCESS};
+
+        Resource AliasedFrom{};
+        bool IsImported{false};
+        bool IsExported{false};
+
+        StringId Name{};
+    };
+    struct BufferResource : ResourceBase
+    {
+        ::BufferDescription Description{};
+        Buffer Resource{};
+    };
+    
+    struct ImageResourceExtraInfo
+    {
+        u16 Version{0};
+        ImageLayout Layout{ImageLayout::Undefined};
+    };
+    enum class ImageResourceState : u8
+    {
+        Merged = 0,
+        Split = 1,
+        MaybeDivergent = 2,
+    };
+    struct ImageResource : ResourceBase
+    {
+        ::ImageDescription Description{};
+        Image Resource{};
+        ImageLayout Layout{ImageLayout::Undefined};
+        u16 LatestVersion{0};
+        ImageResourceState State{ImageResourceState::Merged};
+        std::vector<ImageResourceExtraInfo> Extras{};
+    };
+
+    inline std::string Resource::AsString() const
+    {
+        if (!IsValid())
+            return "Invalid";
+
+        if (IsBuffer())
+            return std::format("Buffer ({}.{})", m_Index, m_Version);
+        if (IsImage())
+            return std::format("Image ({}.{})", m_Index, m_Version);
+        return "Invalid";
+    }
+
+    constexpr Resource::Resource(ResourceFlags flagsType, u16 index, u16 version)
+        : m_Index(index), m_Version(version), m_Flags(flagsType)
+    {
+    }
+
+    constexpr Resource Resource::Buffer(u16 index, u16 version)
+    {
+        return Resource(ResourceFlags::Buffer, index, version);
+    }
+
+    constexpr Resource Resource::Image(u16 index, u16 version)
+    {
+        /* image is merged by default */
+        return Resource(ResourceFlags::Image | ResourceFlags::Merge, index, version);
+    }
+
+    constexpr bool Resource::IsValid() const
+    {
+        return m_Index != INVALID;
+    }
+
+    constexpr ResourceFlags Resource::GetFlags() const
+    {
+        return m_Flags;
+    }
+
+    constexpr void Resource::AddFlags(ResourceFlags flag)
+    {
+        m_Flags |= flag;
+    }
+
+    constexpr bool Resource::HasFlags(ResourceFlags flag) const
+    {
+        return enumHasAny(m_Flags, flag);
+    }
+
+    constexpr bool Resource::IsBuffer() const
+    {
+        return enumHasAny(m_Flags, ResourceFlags::Buffer);
+    }
+
+    constexpr bool Resource::IsImage() const
+    {
+        return enumHasAny(m_Flags, ResourceFlags::Image);
+    }
 }
 
 namespace std
 {
     template <>
-    struct hash<RG::Resource>
-    {
-        usize operator()(const RG::Resource& resource) const noexcept
+    struct formatter<RG::Resource> {
+        constexpr auto parse(format_parse_context& ctx)
         {
-            return hash<u64>()(resource.m_Value);
+            return ctx.begin();
+        }
+
+        auto format(RG::Resource resource, format_context& ctx) const
+        {
+            return format_to(ctx.out(), "{}", resource.AsString());
         }
     };
 }

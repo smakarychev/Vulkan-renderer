@@ -5,6 +5,12 @@ class SceneLight;
 
 namespace Passes::Atmosphere::Environment
 {
+    struct ExecutionInfo
+    {
+        RG::Resource AtmosphereSettings{};
+        const SceneLight* SceneLight{nullptr};
+        RG::Resource SkyViewLut{};
+    };
     struct PassData
     {
         RG::Resource AtmosphereSettings{};
@@ -13,7 +19,6 @@ namespace Passes::Atmosphere::Environment
         RG::Resource DirectionalLight{};
         RG::Resource ColorOut{};
     };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph,
-        RG::Resource atmosphereSettings, const SceneLight& light, RG::Resource skyViewLut);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
 

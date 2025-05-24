@@ -23,8 +23,8 @@ layout(scalar, set = 1, binding = 4) uniform atmosphere_settings {
 } u_atmosphere_settings;
 
 layout(scalar, set = 1, binding = 5) uniform directional_light {
-    DirectionalLight light;
-} u_directional_light;
+    DirectionalLight lights[];
+} u_directional_lights;
 
 layout(set = 1, binding = 6) uniform camera_buffer {
     CameraGPU camera;
@@ -44,7 +44,7 @@ void main() {
     const AtmosphereSettings atm = u_atmosphere_settings.settings;
 
     const vec3 pos = get_view_pos(u_camera.camera.position, atm.surface);
-    const vec3 sun_dir = u_directional_light.light.direction * vec3(1, -1, 1);
+    const vec3 sun_dir = u_directional_lights.lights[0].direction * vec3(1, -1, 1);
     
     vec3 L = vec3(0.0f);
     

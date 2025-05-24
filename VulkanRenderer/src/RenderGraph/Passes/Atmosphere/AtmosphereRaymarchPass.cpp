@@ -1,17 +1,14 @@
 #include "AtmosphereRaymarchPass.h"
 
 #include "CameraGPU.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/AtmosphereRaymarchBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/SceneLight.h"
 
 Passes::Atmosphere::Raymarch::PassData& Passes::Atmosphere::Raymarch::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource atmosphereSettings, const Camera& camera, const SceneLight& light,
-    RG::Resource skyViewLut, RG::Resource transmittanceLut, RG::Resource aerialPerspectiveLut,
-    RG::Resource colorIn, const ImageSubresourceDescription& colorSubresource,
-    RG::Resource depthIn, bool useSunLuminance)
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -23,68 +20,65 @@ Passes::Atmosphere::Raymarch::PassData& Passes::Atmosphere::Raymarch::addToGraph
 
             graph.SetShader("atmosphere-raymarch"_hsv);
 
-            passData.DirectionalLight = graph.AddExternal("DirectionalLight"_hsv,
-                light.GetBuffers().DirectionalLights);
-            auto& globalResources = graph.GetGlobalResources();
-            passData.ColorOut = RgUtils::ensureResource(colorIn, graph, "ColorOut"_hsv,
-                GraphTextureDescription{
-                    .Width = globalResources.Resolution.x,
-                    .Height = globalResources.Resolution.y,
+            passData.DirectionalLight = graph.Import("DirectionalLight"_hsv,
+                info.Light->GetBuffers().DirectionalLights);
+            passData.ColorOut = RgUtils::ensureResource(info.ColorIn, graph, "ColorOut"_hsv,
+                RGImageDescription{
+                    .Width = (f32)info.Camera->GetViewportWidth(),
+                    .Height = (f32)info.Camera->GetViewportHeight(),
                     .Format = Format::RGBA16_FLOAT});
 
-            passData.Camera = graph.CreateResource("Camera"_hsv, GraphBufferDescription{
+            passData.Camera = graph.Create("Camera"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(CameraGPU)});
-            graph.Upload(passData.Camera, CameraGPU::FromCamera(camera, globalResources.Resolution));
+            graph.Upload(passData.Camera, CameraGPU::FromCamera(*info.Camera,
+                glm::vec2(info.Camera->GetViewportWidth(), info.Camera->GetViewportHeight())));
 
-            if (depthIn.IsValid())
-                passData.DepthIn = graph.Read(depthIn, Pixel | Sampled);
+            if (info.DepthIn.IsValid())
+                passData.DepthIn = graph.ReadImage(info.DepthIn, Pixel | Sampled);
 
-            passData.SkyViewLut = graph.Read(skyViewLut, Pixel | Sampled);
-            if (transmittanceLut.IsValid())
-                passData.TransmittanceLut = graph.Read(transmittanceLut, Pixel | Sampled);
-            if (aerialPerspectiveLut.IsValid())
-                passData.AerialPerspectiveLut = graph.Read(aerialPerspectiveLut, Pixel | Sampled);
-            passData.AtmosphereSettings = graph.Read(atmosphereSettings, Pixel | Uniform);
-            passData.DirectionalLight = graph.Read(passData.DirectionalLight, Pixel | Uniform);
-            passData.Camera = graph.Read(passData.Camera, Pixel | Uniform);
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, colorSubresource,
-                AttachmentLoad::Load, AttachmentStore::Store, {});
+            passData.SkyViewLut = graph.ReadImage(info.SkyViewLut, Pixel | Sampled);
+            if (info.TransmittanceLut.IsValid())
+                passData.TransmittanceLut = graph.ReadImage(info.TransmittanceLut, Pixel | Sampled);
+            if (info.AerialPerspective.IsValid())
+                passData.AerialPerspective = graph.ReadImage(info.AerialPerspective, Pixel | Sampled);
+            passData.AtmosphereSettings = graph.ReadBuffer(info.AtmosphereSettings, Pixel | Uniform);
+            passData.DirectionalLight = graph.ReadBuffer(passData.DirectionalLight, Pixel | Uniform);
+            passData.Camera = graph.ReadBuffer(passData.Camera, Pixel | Uniform);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Atmosphere.Raymarch")
             GPU_PROFILE_FRAME("Atmosphere.Raymarch")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             AtmosphereRaymarchShaderBindGroup bindGroup(shader);
             if (passData.DepthIn.IsValid())
-                bindGroup.SetDepth({.Image = resources.GetTexture(passData.DepthIn)}, ImageLayout::DepthReadonly);
+                bindGroup.SetDepth(graph.GetImageBinding(passData.DepthIn));
 
-            bindGroup.SetAtmosphereSettings({.Buffer = resources.GetBuffer(passData.AtmosphereSettings)});
-            bindGroup.SetDirectionalLight({.Buffer = resources.GetBuffer(passData.DirectionalLight)});
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
-            bindGroup.SetSkyViewLut({.Image = resources.GetTexture(passData.SkyViewLut)}, ImageLayout::Readonly);
+            bindGroup.SetAtmosphereSettings(graph.GetBufferBinding(passData.AtmosphereSettings));
+            bindGroup.SetDirectionalLights(graph.GetBufferBinding(passData.DirectionalLight));
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetSkyViewLut(graph.GetImageBinding(passData.SkyViewLut));
             if (passData.TransmittanceLut.IsValid())
-                bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)},
-                    ImageLayout::Readonly);
-            if (passData.AerialPerspectiveLut.IsValid())
-                bindGroup.SetAerialPerspectiveLut({.Image = resources.GetTexture(passData.AerialPerspectiveLut)},
-                    ImageLayout::Readonly);
+                bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
+            if (passData.AerialPerspective.IsValid())
+                bindGroup.SetAerialPerspectiveLut(graph.GetImageBinding(passData.AerialPerspective));
 
             struct PushConstant
             {
-                bool UseDepthBuffer;
-                bool UseSunLuminance;
+                GpuBool UseDepthBuffer;
+                GpuBool UseSunLuminance;
             };
             PushConstant pushConstant = {
                 .UseDepthBuffer = passData.DepthIn.IsValid(),
-                .UseSunLuminance = useSunLuminance};
+                .UseSunLuminance = info.UseSunLuminance};
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstant}});
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

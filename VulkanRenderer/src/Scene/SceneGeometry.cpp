@@ -205,6 +205,8 @@ namespace
         assetLib::SceneInfo::BufferViewType bufferType, SceneGeometry::SceneInfoOffsets& offsets, FrameContext& ctx)
     {
         static constexpr u32 ALIGNMENT = 1;
+        if (data.empty())
+            return;
         const BufferSuballocation suballocation = suballocateResizeIfFailed(arena,
             data.size() * sizeof(T), ALIGNMENT, ctx.CommandList);
         offsets.ElementOffsets[(u32)bufferType] = (u32)(suballocation.Description.Offset / sizeof(T));
@@ -318,7 +320,7 @@ SceneGeometry::AddCommandsResult SceneGeometry::AddCommands(SceneInstance instan
     const u32 currentMeshletIndex = CommandCount;
     const u32 currentRenderObjectIndex = (u32)(RenderObjects.Offset / sizeof(RenderObjectGPU));
     u32 meshletIndex = 0;
-    for (auto&& [renderObjectIndex, renderObject] : std::ranges::views::enumerate(sceneInfo.m_Geometry.RenderObjects))
+    for (auto&& [renderObjectIndex, renderObject] : std::views::enumerate(sceneInfo.m_Geometry.RenderObjects))
     {
         const u32 renderObjectFirstIndex = renderObject.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index];
         const u32 renderObjectFirstVertex = renderObject.FirstVertex + sceneInfoOffsets.ElementOffsets[(u32)Position];

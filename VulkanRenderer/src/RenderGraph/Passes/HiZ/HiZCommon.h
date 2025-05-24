@@ -4,6 +4,7 @@
 
 namespace HiZ
 {
+    static constexpr u32 MAX_MIP_LEVELS = 16;
     enum class ReductionMode
     {
         Min,
@@ -19,5 +20,5 @@ namespace HiZ
     glm::uvec2 calculateHizResolution(const glm::uvec2& depthResolution);
     Sampler createSampler(ReductionMode mode);
     RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution);
-    RG::Resource createMinMaxBuffer(RG::Graph& renderGraph);
+    RG::Resource createMinMaxBufferResource(RG::Graph& renderGraph);
 }

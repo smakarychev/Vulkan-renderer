@@ -1,19 +1,10 @@
 #include "AtmospherePass.h"
 
-#include "AtmosphereAerialPerspectiveLutPass.h"
 #include "AtmosphereMultiscatteringPass.h"
-#include "AtmosphereRaymarchPass.h"
 #include "AtmosphereSkyViewLutPass.h"
 #include "AtmosphereTransmittanceLutPass.h"
-#include "Environment/AtmosphereEnvironmentPass.h"
-#include "RenderGraph/RenderGraph.h"
-#include "RenderGraph/RGUtils.h"
+#include "RenderGraph/RGGraph.h"
 #include "Rendering/Shader/ShaderCache.h"
-
-namespace RG
-{
-    enum class ResourceAccessFlags;
-}
 
 AtmosphereSettings AtmosphereSettings::EarthDefault()
 {
@@ -31,9 +22,8 @@ AtmosphereSettings AtmosphereSettings::EarthDefault()
         .OzoneDensity = 1.0f};
 }
 
-Passes::Atmosphere::PassData& Passes::Atmosphere::addToGraph(StringId name, RG::Graph& renderGraph,
-    const AtmosphereSettings& atmosphereSettings, const SceneLight& light, RG::Resource colorIn, RG::Resource depthIn,
-    const RG::CSMData& csmData)
+Passes::Atmosphere::LutPasses::PassData& Passes::Atmosphere::LutPasses::addToGraph(StringId name,
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -41,13 +31,11 @@ Passes::Atmosphere::PassData& Passes::Atmosphere::addToGraph(StringId name, RG::
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Atmosphere.Setup")
+            CPU_PROFILE_FRAME("Atmosphere.Lut.Setup")
             
-            auto& globalResources = graph.GetGlobalResources();
-
-            passData.AtmosphereSettings = graph.CreateResource("Settings"_hsv, GraphBufferDescription{
+            passData.AtmosphereSettings = graph.Create("Settings"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(AtmosphereSettings)});
-            graph.Upload(passData.AtmosphereSettings, atmosphereSettings);
+            graph.Upload(passData.AtmosphereSettings, *info.AtmosphereSettings);
 
             auto& transmittance = Transmittance::addToGraph("Transmittance"_hsv, graph,
                 passData.AtmosphereSettings);
@@ -56,30 +44,13 @@ Passes::Atmosphere::PassData& Passes::Atmosphere::addToGraph(StringId name, RG::
                 transmittance.Lut, passData.AtmosphereSettings);
 
             auto& skyView = SkyView::addToGraph("SkyView"_hsv, graph,
-                transmittance.Lut, multiscattering.Lut, passData.AtmosphereSettings, light);
-
-            auto& aerialPerspective = AerialPerspective::addToGraph("AerialPerspective"_hsv, graph,
-                multiscattering.TransmittanceLut, multiscattering.Lut, passData.AtmosphereSettings, light,
-                csmData);
-
-            static constexpr bool USE_SUN_LUMINANCE = true;
-            auto& atmosphere = Raymarch::addToGraph("Raymarch"_hsv, graph,
-                passData.AtmosphereSettings, *globalResources.PrimaryCamera, light,
-                skyView.Lut, multiscattering.TransmittanceLut, aerialPerspective.Lut,
-                colorIn, {}, depthIn, USE_SUN_LUMINANCE);
-            
-            auto& environment = Environment::addToGraph("Environment"_hsv, graph,
-                    passData.AtmosphereSettings, light, skyView.Lut);
+                transmittance.Lut, multiscattering.Lut, passData.AtmosphereSettings, *info.SceneLight);
 
             passData.TransmittanceLut = transmittance.Lut;
             passData.MultiscatteringLut = multiscattering.Lut;
             passData.SkyViewLut = skyView.Lut;
-            passData.AerialPerspectiveLut = aerialPerspective.Lut;
-            passData.Atmosphere = atmosphere.ColorOut;
-            passData.AtmosphereSettings = atmosphere.AtmosphereSettings;
-            passData.EnvironmentOut = environment.ColorOut;
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData&, FrameContext&, const Graph&)
         {
-        }).Data;
+        });
 }

@@ -219,15 +219,16 @@ float shadow(vec3 position, vec3 normal, vec3 light_direction, float light_size,
     const float light_size_uv = light_size / max(shadow_size.x, shadow_size.y);
     const vec2 delta = vec2(1.0f) / vec2(shadow_size);
 
-    uint cascade_index = u_csm_data.csm.cascade_count - 1; 
+    uint cascade_index = 0; 
     
-    for (uint i = 0; i < u_csm_data.csm.cascade_count; i++) {
-        if (z_view < u_csm_data.csm.cascades[i]) {
-            cascade_index = i;
-            return float(cascade_index);
+    for (; cascade_index < u_csm_data.csm.cascade_count; cascade_index++) {
+        if (z_view < u_csm_data.csm.cascades[cascade_index]) {
             break;
         }
     }
+    if (cascade_index == u_csm_data.csm.cascade_count)
+        return 0.0f;
+
     const vec3 position_offset = 
         get_shadow_offset(normal, light_direction) / u_csm_data.csm.cascades[cascade_index];
     vec4 position_local = u_csm_data.csm.view_projections[cascade_index] * vec4(position + position_offset, 1.0f);

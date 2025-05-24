@@ -2,7 +2,7 @@
 
 #include "SceneDirectionalShadowPass.h"
 #include "Core/Camera.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesUtils.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
@@ -96,18 +96,12 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                 csmInfo.Far[i] = camera.GetFar();
             }
 
-            std::vector<ImageSubresourceDescription> cascadeViews(SHADOW_CASCADES);
-            for (u32 i = 0;  i < SHADOW_CASCADES; i++)
-                cascadeViews[i] = ImageSubresourceDescription{
-                    .MipmapBase = 0, .Mipmaps = 1, .LayerBase = (i8)i, .Layers = 1};
-            
-            Resource shadow = renderGraph.CreateResource("ShadowMap"_hsv, GraphTextureDescription{
-                .Width = SHADOW_MAP_RESOLUTION,
-                .Height = SHADOW_MAP_RESOLUTION,
-                .Layers = SHADOW_CASCADES,
+            Resource shadow = renderGraph.Create("ShadowMap"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
+                .Width = (f32)SHADOW_MAP_RESOLUTION,
+                .Height = (f32)SHADOW_MAP_RESOLUTION,
+                .LayersDepth = (f32)SHADOW_CASCADES,
                 .Format = Format::D32_FLOAT,
-                .Kind = ImageKind::Image2dArray,
-                .AdditionalViews = cascadeViews});
+                .Kind = ImageKind::Image2dArray});
 
             auto initShadowPassForView = [&](u32 viewIndex)
             {
@@ -124,14 +118,17 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                     };
             };
 
+            std::vector<Resource> cascadeShadows;
+            cascadeShadows.reserve(SHADOW_CASCADES);
             passData.MetaPassDescriptions.reserve(SHADOW_CASCADES);
             for (u32 i = 0; i < SHADOW_CASCADES; i++)
             {
+                Resource cascade = graph.SplitImage(shadow,
+                    {.MipmapBase = 0, .Mipmaps = 1, .LayerBase = (i8)i, .Layers = 1});
                 DrawAttachments attachments = {
                     .Depth = DepthStencilAttachment{
-                        .Resource = shadow,
+                        .Resource = cascade,
                         .Description = {
-                            .Subresource = cascadeViews[i],
                             .OnLoad = AttachmentLoad::Clear,
                             .ClearDepthStencil = {.Depth = 0.0f, .Stencil = 0}},
                         /* todo: for some reason DEPTH_CONSTANT_BIAS does not do anything at all */
@@ -157,18 +154,29 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                 passData.MetaPassDescriptions.push_back(description);
             }
             
-            passData.CsmInfo = graph.CreateResource("CsmInfo"_hsv,
-                GraphBufferDescription{.SizeBytes = sizeof(CsmInfo)});
-            passData.CsmInfo = graph.Write(passData.CsmInfo, Vertex | Uniform | Copy);
-            graph.Upload(passData.CsmInfo, csmInfo);
+            passData.CsmData.CsmInfo = graph.Create("CsmInfo"_hsv,
+                RGBufferDescription{.SizeBytes = sizeof(CsmInfo)});
+            passData.CsmData.CsmInfo = graph.WriteBuffer(passData.CsmData.CsmInfo, Vertex | Uniform | Copy);
+            graph.Upload(passData.CsmData.CsmInfo, csmInfo);
             
             passData.Near = cameras.ShadowCameras.front().GetFrustumPlanes().Near;
             passData.Far = cameras.ShadowCameras.back().GetFrustumPlanes().Far;
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData&, FrameContext&, const Graph&)
         {
-        }).Data;
+        });
 }
+
+void Passes::SceneCsm::mergeCsm(RG::Graph& renderGraph, PassData& passData, const ScenePass& scenePass,
+    const SceneDrawPassViewAttachments& attachments)
+{
+    std::array<RG::Resource, SHADOW_CASCADES> cascades;
+    for (u32 i = 0; i < passData.MetaPassDescriptions.size(); i++)
+        cascades[i] = attachments.Get(passData.MetaPassDescriptions[i].View.Name, scenePass.Name()).Depth->Resource;
+
+    passData.CsmData.ShadowMap = renderGraph.MergeImage(cascades);
+}
+
 
 ScenePassCreateInfo Passes::SceneCsm::getScenePassCreateInfo(StringId name)
 {

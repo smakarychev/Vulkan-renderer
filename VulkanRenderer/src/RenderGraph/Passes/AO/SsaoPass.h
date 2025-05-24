@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 
 namespace Passes::Ssao
 {

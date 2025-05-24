@@ -10,14 +10,14 @@ void SceneDrawPassResources::CreateFrom(const SceneDrawPassExecutionInfo& info, 
 
     MaxDrawCount = (u32)(renderGraph.GetBufferDescription(info.Draws).SizeBytes / sizeof(IndirectDrawCommand));
     
-    Camera = renderGraph.CreateResource("Camera"_hsv,
-        GraphBufferDescription{.SizeBytes = sizeof(CameraGPU)});
-    Camera = renderGraph.Read(Camera, Vertex | Pixel | Uniform);
+    Camera = renderGraph.Create("Camera"_hsv,
+        RGBufferDescription{.SizeBytes = sizeof(CameraGPU)});
+    Camera = renderGraph.ReadBuffer(Camera, Vertex | Pixel | Uniform);
     CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
     renderGraph.Upload(Camera, cameraGPU);
 
-    Draws = renderGraph.Read(info.Draws, Vertex | Indirect);
-    DrawInfo = renderGraph.Read(info.DrawInfo, Vertex | Indirect);
+    Draws = renderGraph.ReadBuffer(info.Draws, Vertex | Indirect);
+    DrawInfo = renderGraph.ReadBuffer(info.DrawInfo, Vertex | Indirect);
             
     Attachments = RgUtils::readWriteDrawAttachments(info.Attachments, renderGraph);
 }
@@ -33,28 +33,17 @@ RG::DrawAttachments& SceneDrawPassViewAttachments::Get(StringId viewName, String
         const_cast<const SceneDrawPassViewAttachments&>(*this).Get(viewName, passName));
 }
 
+RG::Resource SceneDrawPassViewAttachments::GetMinMaxDepthReduction(StringId viewName) const
+{
+    return m_MinMaxDepthReductions.at(viewName);
+}
+
 void SceneDrawPassViewAttachments::Add(StringId viewName, StringId passName, const RG::DrawAttachments& attachments)
 {
     m_Attachments[viewName][passName] = attachments;
 }
 
-void SceneDrawPassViewAttachments::UpdateResources(const RG::DrawAttachments& old,
-    const RG::DrawAttachmentResources& resources)
+void SceneDrawPassViewAttachments::SetMinMaxDepthReduction(StringId viewName, RG::Resource minMaxDepthReduction)
 {
-    for (auto&& [view, passes] : m_Attachments)
-    {
-        for (auto&& [pass, attachments] : passes)
-        {
-            for (u32 i = 0; i < attachments.Colors.size(); i++)
-            {
-                auto colorIt = std::ranges::find_if(old.Colors, [&](const RG::DrawAttachment& color) {
-                    return color.Resource == attachments.Colors[i].Resource;
-                });
-                if (colorIt != old.Colors.end())
-                    attachments.Colors[i].Resource = resources.Colors[colorIt - old.Colors.begin()];
-            }
-            if (old.Depth && attachments.Depth && old.Depth->Resource == attachments.Depth->Resource)
-                attachments.Depth->Resource = resources.Depth.value_or(RG::Resource{});
-        }
-    }
+    m_MinMaxDepthReductions[viewName] = minMaxDepthReduction;
 }

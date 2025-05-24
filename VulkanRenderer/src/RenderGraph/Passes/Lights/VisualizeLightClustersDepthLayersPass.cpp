@@ -1,7 +1,7 @@
 #include "VisualizeLightClustersDepthLayersPass.h"
 
 #include "Core/Camera.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/LightClustersDepthLayersVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
@@ -19,26 +19,23 @@ Passes::LightClustersDepthLayersVisualize::PassData& Passes::LightClustersDepthL
 
             graph.SetShader("light-clusters-depth-layers-visualize"_hsv);
             
-            auto& depthDescription = Resources(graph).GetTextureDescription(depth);
-            passData.ColorOut = graph.CreateResource("Color"_hsv,
-                GraphTextureDescription{
-                    .Width = depthDescription.Width,
-                    .Height = depthDescription.Height,
+            passData.ColorOut = graph.Create("Color"_hsv,
+                RGImageDescription{
+                    .Inference = RGImageInference::Size,
+                    .Reference = depth,
                     .Format = Format::RGBA16_FLOAT});
 
-            passData.Depth = graph.Read(depth, Pixel | Sampled);
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.Depth = graph.ReadImage(depth, Pixel | Sampled);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth")
             GPU_PROFILE_FRAME("Lights.Clusters.Visualize.Depth")
 
-            Texture depthTexture = resources.GetTexture(passData.Depth);
-
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             LightClustersDepthLayersVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetDepth({.Image = depthTexture}, ImageLayout::Readonly);
+            bindGroup.SetDepth(graph.GetImageBinding(passData.Depth));
 
             struct PushConstant
             {
@@ -50,10 +47,10 @@ Passes::LightClustersDepthLayersVisualize::PassData& Passes::LightClustersDepthL
                 .Far = frameContext.PrimaryCamera->GetFar()};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

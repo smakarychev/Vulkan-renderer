@@ -1,6 +1,6 @@
 #include "FxaaPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/FxaaBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -16,31 +16,30 @@ Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& rende
 
             graph.SetShader("fxaa"_hsv);
 
-            auto& description = graph.GetTextureDescription(colorIn);
-            passData.AntiAliased = graph.CreateResource("AntiAliased"_hsv, GraphTextureDescription{
-                .Width = description.Width,
-                .Height = description.Height,
+            passData.AntiAliased = graph.Create("AntiAliased"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Size,
+                .Reference = colorIn,
                 .Format = Format::RGBA16_FLOAT});
             
-            passData.ColorIn = graph.Read(colorIn, Compute | Sampled);
-            passData.AntiAliased = graph.Write(passData.AntiAliased, Compute | Storage);
+            passData.ColorIn = graph.ReadImage(colorIn, Compute | Sampled);
+            passData.AntiAliased = graph.WriteImage(passData.AntiAliased, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Fxaa.Luminance")
             GPU_PROFILE_FRAME("Fxaa.Luminance")
 
-            auto&& [input, inputDescription] = resources.GetTextureWithDescription(passData.ColorIn);
+            auto&& [input, inputDescription] = graph.GetImageWithDescription(passData.ColorIn);
             
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             FxaaShaderBindGroup bindGroup(shader);
-            bindGroup.SetColor({.Image = resources.GetTexture(passData.ColorIn)}, ImageLayout::Readonly);
-            bindGroup.SetAntialiased({.Image = resources.GetTexture(passData.AntiAliased)}, ImageLayout::General);
+            bindGroup.SetColor(graph.GetImageBinding(passData.ColorIn));
+            bindGroup.SetAntialiased(graph.GetImageBinding(passData.AntiAliased));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {inputDescription.Width, inputDescription.Height, 1},
 				.GroupSize = {16, 16, 1}});
-        }).Data;
+        });
 }

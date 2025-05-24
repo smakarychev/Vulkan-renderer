@@ -1,6 +1,6 @@
 #include "SceneFillIndirectDrawPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/SceneFillIndirectDrawsBindGroup.generated.h"
 #include "Scene/SceneRenderObjectSet.h"
 
@@ -30,43 +30,51 @@ Passes::SceneFillIndirectDraw::PassData& Passes::SceneFillIndirectDraw::addToGra
             passData.BucketCount = info.BucketCount;
             passData.CommandCount = info.Geometry->CommandCount;
 
-            passData.ReferenceCommands = graph.AddExternal("ReferenceCommands"_hsv,
+            passData.ReferenceCommands = graph.Import("ReferenceCommands"_hsv,
                 info.Geometry->Commands.Buffer);
-            passData.ReferenceCommands = graph.Read(passData.ReferenceCommands, Compute | Storage);
+            passData.ReferenceCommands = graph.ReadBuffer(passData.ReferenceCommands, Compute | Storage);
 
-            passData.MeshletInfos = graph.Read(info.MeshletInfos, Compute | Storage);
-            passData.MeshletInfoCount = graph.Read(info.MeshletInfoCount, Compute | Uniform);
+            passData.MeshletInfos = graph.ReadBuffer(info.MeshletInfos, Compute | Storage);
+            passData.MeshletInfoCount = graph.ReadBuffer(info.MeshletInfoCount, Compute | Uniform);
 
             for (u32 i = 0; i < passData.BucketCount; i++)
             {
-                passData.Draws[i] = graph.Read(info.Draws[i], Compute | Storage);
-                passData.Draws[i] = graph.Write(passData.Draws[i], Compute | Storage);
-                passData.DrawInfos[i] = graph.Read(info.DrawInfos[i], Compute | Storage);
-                passData.DrawInfos[i] = graph.Write(passData.DrawInfos[i], Compute | Storage);
+                if (!info.Draws[i].IsValid())
+                    continue;
+                
+                passData.Draws[i] = graph.ReadWriteBuffer(info.Draws[i], Compute | Storage);
+                passData.DrawInfos[i] = graph.ReadWriteBuffer(info.DrawInfos[i], Compute | Storage);
                 graph.Upload(passData.DrawInfos[i], SceneBucketDrawInfo{});
             }
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw")
             GPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SceneFillIndirectDrawsShaderBindGroup bindGroup(shader);
-            bindGroup.SetReferenceCommands({.Buffer = resources.GetBuffer(passData.ReferenceCommands)});
-            bindGroup.SetMeshletInfos({.Buffer = resources.GetBuffer(passData.MeshletInfos)});
-            bindGroup.SetMeshletInfoCount({.Buffer = resources.GetBuffer(passData.MeshletInfoCount)});
+            bindGroup.SetReferenceCommands(graph.GetBufferBinding(passData.ReferenceCommands));
+            bindGroup.SetMeshletInfos(graph.GetBufferBinding(passData.MeshletInfos));
+            bindGroup.SetMeshletInfoCount(graph.GetBufferBinding(passData.MeshletInfoCount));
+            u64 availableBucketMask = 0;
             for (u32 bucketIndex = 0; bucketIndex < passData.BucketCount; bucketIndex++)
             {
-                bindGroup.SetDrawCommands({.Buffer = resources.GetBuffer(passData.Draws[bucketIndex])}, bucketIndex);
-                bindGroup.SetDrawInfo({.Buffer = resources.GetBuffer(passData.DrawInfos[bucketIndex])}, bucketIndex);
+                if (!passData.Draws[bucketIndex].IsValid())
+                    continue;
+                availableBucketMask |= (1llu << bucketIndex);
+                bindGroup.SetDrawCommands(graph.GetBufferBinding(passData.Draws[bucketIndex]), bucketIndex);
+                bindGroup.SetDrawInfo(graph.GetBufferBinding(passData.DrawInfos[bucketIndex]), bucketIndex);
             }
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             /* todo: this can use indirect dispatch */
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {availableBucketMask}});
             cmd.Dispatch({
                .Invocations = {passData.CommandCount, 1, 1},
                .GroupSize = {256, 1, 1}});
-        }).Data;
+        });
 }

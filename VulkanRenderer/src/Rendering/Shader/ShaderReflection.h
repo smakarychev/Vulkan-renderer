@@ -11,9 +11,6 @@ static_assert(MAX_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
 class ShaderReflection
 {
 public:
-    using ShaderStageInfo = assetLib::ShaderStageInfo;
-    using InputAttribute = ShaderStageInfo::InputAttribute;
-    using PushConstant = ShaderStageInfo::PushConstant;
     struct SpecializationConstant
     {
         std::string Name;
@@ -23,7 +20,7 @@ public:
     struct DescriptorsInfo
     {
         bool HasBindless{false};
-        bool HasImmutableSampler{false};
+        Sampler ImmutableSampler{};
         std::vector<std::string> DescriptorNames{};
         std::vector<DescriptorBinding> Descriptors{};
     };
@@ -46,8 +43,6 @@ public:
         return m_DescriptorSets;
     }
     const std::vector<ShaderModule>& Shaders() const { return m_Modules; }
-private:
-    ShaderStageInfo LoadFromAsset(std::string_view path);
 private:
     ShaderStage m_ShaderStages{ShaderStage::None};
     std::vector<SpecializationConstant> m_SpecializationConstants;

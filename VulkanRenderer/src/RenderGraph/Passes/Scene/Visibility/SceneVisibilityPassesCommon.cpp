@@ -1,6 +1,6 @@
 #include "SceneVisibilityPassesCommon.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "Scene/SceneRenderObjectSet.h"
 
 SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
@@ -12,39 +12,33 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
     resources.RenderObjectCount = set.RenderObjectCount();
     resources.MeshletCount = set.MeshletCount();
 
-    resources.ReferenceCommands = renderGraph.AddExternal("RederenceCommands"_hsv, set.Geometry().Commands.Buffer);
-    resources.RenderObjects = renderGraph.AddExternal("RenderObjects"_hsv, set.Geometry().RenderObjects.Buffer);
-    resources.Meshlets = renderGraph.AddExternal("Meshlets"_hsv, set.Geometry().Meshlets.Buffer);
-    resources.RenderObjectBuckets = renderGraph.AddExternal("RenderObjectBuckets"_hsv, set.BucketBits());
-    resources.RenderObjectHandles = renderGraph.AddExternal("RenderObjectHandles"_hsv, set.RenderObjectHandles());
-    resources.MeshletHandles = renderGraph.AddExternal("MeshletHandles"_hsv, set.MeshletHandles());
+    resources.ReferenceCommands = renderGraph.Import("RederenceCommands"_hsv, set.Geometry().Commands.Buffer);
+    resources.RenderObjects = renderGraph.Import("RenderObjects"_hsv, set.Geometry().RenderObjects.Buffer);
+    resources.Meshlets = renderGraph.Import("Meshlets"_hsv, set.Geometry().Meshlets.Buffer);
+    resources.RenderObjectBuckets = renderGraph.Import("RenderObjectBuckets"_hsv, set.BucketBits());
+    resources.RenderObjectHandles = renderGraph.Import("RenderObjectHandles"_hsv, set.RenderObjectHandles());
+    resources.MeshletHandles = renderGraph.Import("MeshletHandles"_hsv, set.MeshletHandles());
 
-    resources.UpdateFromSceneMultiviewVisibility(renderGraph, sceneMultiviewVisibility);
-    
-    return resources;
-}
+    resources.VisibilityCount = sceneMultiviewVisibility.VisibilityCount();
+    resources.Views = renderGraph.Create("Views"_hsv, RG::RGBufferDescription{
+        .SizeBytes = sizeof(SceneViewGPU) * resources.VisibilityCount});
 
-void SceneVisibilityPassesResources::UpdateFromSceneMultiviewVisibility(RG::Graph& renderGraph,
-    const SceneMultiviewVisibility& sceneMultiviewVisibility)
-{
-    VisibilityCount = sceneMultiviewVisibility.VisibilityCount();
-    Views = renderGraph.CreateResource("View"_hsv, RG::GraphBufferDescription{
-        .SizeBytes = sizeof(SceneViewGPU) * VisibilityCount});
-
-    for (u32 i = 0; i < VisibilityCount; i++)
+    for (u32 i = 0; i < resources.VisibilityCount; i++)
     {
-        if (RenderObjectVisibility[i].IsValid())
+        if (resources.RenderObjectVisibility[i].IsValid())
             continue;
         
-        RenderObjectVisibility[i] = renderGraph.AddExternal(StringId("Visibility.{}", i),
+        resources.RenderObjectVisibility[i] = renderGraph.Import(StringId("Visibility.{}", i),
             sceneMultiviewVisibility.RenderObjectVisibility({i}));
-        MeshletVisibility[i] = renderGraph.AddExternal(StringId("MeshletVisibility.{}", i),
+        resources.MeshletVisibility[i] = renderGraph.Import(StringId("MeshletVisibility.{}", i),
             sceneMultiviewVisibility.MeshletVisibility({i}));
-        MeshletBucketInfos[i] = renderGraph.CreateResource(StringId("MeshletInfos.{}", i),
-            RG::GraphBufferDescription{.SizeBytes = sizeof(SceneMeshletBucketInfo) * MeshletCount});
-        MeshletInfoCounts[i] = renderGraph.CreateResource(StringId("MeshletInfoCounts.{}", i),
-            RG::GraphBufferDescription{.SizeBytes = sizeof(u32)});
+        resources.MeshletBucketInfos[i] = renderGraph.Create(StringId("MeshletInfos.{}", i),
+            RG::RGBufferDescription{.SizeBytes = sizeof(SceneMeshletBucketInfo) * resources.MeshletCount});
+        resources.MeshletInfoCounts[i] = renderGraph.Create(StringId("MeshletInfoCounts.{}", i),
+            RG::RGBufferDescription{.SizeBytes = sizeof(u32)});
     }
+    
+    return resources;
 }
 
 void SceneVisibilityPassesResources::UploadViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,

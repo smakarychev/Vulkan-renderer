@@ -1,5 +1,6 @@
 #include "ShadowCamerasGpuPass.h"
 
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
@@ -17,24 +18,24 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             
             graph.SetShader("create-shadow-cameras"_hsv);
 
-            Resource csmData = graph.CreateResource("CSM.Data"_hsv, GraphBufferDescription{
-                .SizeBytes = sizeof(CSMData)});
+            Resource csmData = graph.Create("CSM.Data"_hsv, RGBufferDescription{
+                .SizeBytes = sizeof(CsmData)});
 
-            passData.DepthMinMax = graph.Read(depthMinMax, Compute | Uniform);
-            passData.PrimaryCamera = graph.Read(primaryCamera, Compute | Uniform);
-            passData.CsmDataOut = graph.Write(csmData, Compute | Storage);
+            passData.DepthMinMax = graph.ReadBuffer(depthMinMax, Compute | Uniform);
+            passData.PrimaryCamera = graph.ReadBuffer(primaryCamera, Compute | Uniform);
+            passData.CsmDataOut = graph.WriteBuffer(csmData, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("ShadowCameras.GPU")
             GPU_PROFILE_FRAME("ShadowCameras.GPU")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             CreateShadowCamerasShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetMinMax({.Buffer = resources.GetBuffer(passData.DepthMinMax)});
-            bindGroup.SetCsmData({.Buffer = resources.GetBuffer(passData.CsmDataOut)});
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.PrimaryCamera)});
+            bindGroup.SetMinMax(graph.GetBufferBinding(passData.DepthMinMax));
+            bindGroup.SetCsmData(graph.GetBufferBinding(passData.CsmDataOut));
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.PrimaryCamera));
 
             struct PushConstant
             {
@@ -48,12 +49,12 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
                 .LightDirection = lightDirection};
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstant}});
             cmd.Dispatch({
                 .Invocations = {SHADOW_CASCADES, 1, 1},
                 .GroupSize = {MAX_SHADOW_CASCADES, 1, 1}});
-        }).Data;
+        });
 }

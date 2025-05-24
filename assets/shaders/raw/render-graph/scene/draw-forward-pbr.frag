@@ -16,6 +16,7 @@ layout(location = 1) in vec3 vertex_position;
 layout(location = 2) in vec3 vertex_normal;
 layout(location = 3) in vec4 vertex_tangent;
 layout(location = 4) in vec2 vertex_uv;
+layout(location = 5) in float vertex_z_view;
 
 layout(location = 0) out vec4 out_color;
 
@@ -24,6 +25,9 @@ layout(set = 0, binding = 0) uniform sampler u_sampler;
 
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 1) uniform sampler u_sampler_brdf;
+
+@immutable_sampler_shadow
+layout(set = 0, binding = 2) uniform sampler u_sampler_shadow;
 
 layout(set = 1, binding = 0) uniform camera {
     CameraGPU camera;
@@ -65,6 +69,11 @@ layout(set = 1, binding = 12) uniform irradiance_sh {
 layout(set = 1, binding = 13) uniform textureCube u_prefilter_map;
 layout(set = 1, binding = 14) uniform texture2D u_brdf;
 
+layout(set = 1, binding = 15) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 16) uniform csm_data_buffer {
+    CSMData csm;
+} u_csm_data;
+
 layout(std430, set = 2, binding = 0) readonly buffer material {
     Material materials[];
 } u_materials;
@@ -72,6 +81,9 @@ layout(std430, set = 2, binding = 0) readonly buffer material {
 @bindless
 layout(set = 2, binding = 1) uniform texture2D u_textures[];
 
+/* the content of this file depends on descriptor names */
+#include "../shadows/shadows.glsl"
+/* the content of this file depends on descriptor names */
 #include "../pbr/pbr-shading.glsl"
 
 vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao, vec2 frame_uv) {
@@ -102,6 +114,7 @@ void main() {
         discard;
 
     vec3 normal = normalize(vertex_normal);
+    const vec3 flat_normal = normal;
     vec3 tangent = normalize(vertex_tangent.xyz);
     // re-orthogonalize
     tangent = normalize(tangent - dot(tangent, normal) * normal);
@@ -143,8 +156,12 @@ void main() {
     shade_info.depth = gl_FragCoord.z;
 
     const vec2 frame_uv = gl_FragCoord.xy / u_camera.camera.resolution;
-    const float ao = textureLod(sampler2D(u_ssao_texture, u_sampler), frame_uv, 0).r;
-    vec3 color = shade_pbr(shade_info, 0, ao, frame_uv);
+    const float ambient_occlusion = textureLod(sampler2D(u_ssao_texture, u_sampler), frame_uv, 0).r;
+
+    const float shadow = shadow(vertex_position, flat_normal, u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size,
+        vertex_z_view);
+    
+    vec3 color = shade_pbr(shade_info, shadow, ambient_occlusion, frame_uv);
     
     color = tonemap(color, 2.0f);
     color += emissive;

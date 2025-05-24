@@ -42,13 +42,13 @@ struct {{name}}ShaderBindGroup : ShaderBindGroupBase<{{name}}ShaderBindGroup>
     void Set{{binding.name}}(Sampler sampler) const
     {
         Device::UpdateDescriptors(Shader->Descriptors({{ descriptors_kind_string(binding.set) }}),
-            DescriptorBindingInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, sampler);
+            DescriptorSlotInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, sampler);
     }
     {% else %}
-    void Set{{binding.name}}(const {% if is_descriptor_a_buffer(binding.descriptor) %}BufferSubresource& binding{% else %}ImageSubresource& binding, ImageLayout layout{% endif %}{% if binding.count > 1 or binding.is_bindless %}, u32 index{% endif %}) const
+    void Set{{binding.name}}(const {% if is_descriptor_a_buffer(binding.descriptor) %}BufferBinding& buffer{% else %}ImageBinding& image{% endif %}{% if binding.count > 1 or binding.is_bindless %}, u32 index{% endif %}) const
     {
         Device::UpdateDescriptors(Shader->Descriptors({{ descriptors_kind_string(binding.set) }}),
-            DescriptorBindingInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, binding{% if not is_descriptor_a_buffer(binding.descriptor) %}, layout{% endif %}, {% if binding.count > 1 or binding.is_bindless %}index{% else %}0{% endif %});
+            DescriptorSlotInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, {% if is_descriptor_a_buffer(binding.descriptor) %}buffer{% else %}image.Subresource, image.Layout{% endif %}, {% if binding.count > 1 or binding.is_bindless %}index{% else %}0{% endif %});
     }
     {% endif %}
 {% endfor %}

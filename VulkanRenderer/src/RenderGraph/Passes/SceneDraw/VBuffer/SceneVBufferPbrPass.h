@@ -18,6 +18,7 @@ namespace Passes::SceneVBufferPbr
         RG::Resource Clusters{};
         RG::Resource Tiles{};
         RG::Resource ZBins{};
+        RG::CsmData CsmData{};
     };
     struct PassData
     {

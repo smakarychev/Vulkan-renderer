@@ -49,3 +49,4 @@ include "VulkanRenderer"
 
 group "Tests"
 include "CoreLib/Tests"
+include "VulkanRenderer/Tests"

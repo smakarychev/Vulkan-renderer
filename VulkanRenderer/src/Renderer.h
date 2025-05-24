@@ -7,10 +7,11 @@
 
 #include "ResourceUploader.h"
 #include "Core/Camera.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
+#include "RenderGraph/Visualization/RGMermaidExporter.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
 #include "Rendering/Shader/ShaderCache.h"
@@ -18,6 +19,16 @@
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
+
+namespace Passes::Atmosphere::LutPasses
+{
+    struct PassData;
+}
+
+namespace Passes::SceneCsm
+{
+    struct PassData;
+}
 
 class SlimeMoldPass;
 class SlimeMoldContext;
@@ -47,14 +58,16 @@ private:
     void SetupRenderSlimePasses();
     void SetupRenderGraph();
 
-    RG::Resource RenderGraphDepthPrepass(const ScenePass& scenePass);
-    SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::Resource& depth, const ScenePass& scenePass);
-    SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::Resource& color, RG::Resource& depth,
-        const ScenePass& scenePass);
+    RG::CsmData RenderGraphShadows(const ScenePass& scenePass,
+        const CommonLight& directionalLight);
+    void RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass);
+    SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass);
+    SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::Resource color, RG::Resource depth,
+        RG::CsmData csmData, const ScenePass& scenePass);
 
-    SceneDrawPassDescription RenderGraphVBufferDescription(RG::Resource& vbuffer, RG::Resource& depth,
+    SceneDrawPassDescription RenderGraphVBufferDescription(RG::Resource vbuffer, RG::Resource depth,
         const ScenePass& scenePass);
-    RG::Resource RenderGraphVBufferPbr(RG::Resource& vbuffer, RG::Resource camera);
+    RG::Resource RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource camera, RG::CsmData csmData);
     
     void RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth);
 
@@ -74,6 +87,10 @@ private:
     ClusterLightsInfo RenderGraphCullLightsClustered(StringId baseName, RG::Resource depth);
 
     RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
+    Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
+    RG::Resource RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut);
+    RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
+        RG::Resource color, RG::Resource depth, RG::CsmData csmData);
     
     void Shutdown();
 
@@ -84,6 +101,8 @@ private:
     
     const FrameContext& GetFrameContext() const;
     FrameContext& GetFrameContext();
+
+    u32 GetPreviousFrameNumber() const;
 private:
     GLFWwindow* m_Window;
     std::unique_ptr<CameraController> m_CameraController;
@@ -105,6 +124,7 @@ private:
 
     ShaderCache m_ShaderCache;
     std::unique_ptr<RG::Graph> m_Graph;
+    std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;
     RG::Resource m_Ssao{};
     TileLightsInfo m_TileLightsInfo{};
     ClusterLightsInfo m_ClusterLightsInfo{};
@@ -114,6 +134,7 @@ private:
     Texture m_BRDFLut{};
     Buffer m_IrradianceSH{};
     Buffer m_SkyIrradianceSH{};
+    RG::Resource m_SkyIrradianceSHResource{};
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 
@@ -124,10 +145,12 @@ private:
     SceneVisibilityHandle m_OpaqueSetPrimaryVisibility{};
     SceneView m_OpaqueSetPrimaryView{};
 
-    SceneVisibilityHandle m_OpaqueSetShadowVisibility{};
-
-    SceneMultiviewVisibility m_MultiviewVisibility{};
-    SceneVisibilityPassesResources m_SceneVisibilityResources{};
+    std::array<Buffer, BUFFERED_FRAMES> m_MinMaxDepthReductions{};
+    std::array<Buffer, BUFFERED_FRAMES> m_MinMaxDepthReductionsNextFrame{};
+    SceneMultiviewVisibility m_ShadowMultiviewVisibility{};
+    SceneMultiviewVisibility m_PrimaryVisibility{};
+    SceneVisibilityPassesResources m_ShadowMultiviewVisibilityResources{};
+    SceneVisibilityPassesResources m_PrimaryVisibilityResources{};
     
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

@@ -1,7 +1,7 @@
 #include "HiZFullPass.h"
 
 #include "HiZBlitPass.h"
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/DepthReductionBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -15,22 +15,29 @@ Passes::HiZFull::PassData& Passes::HiZFull::addToGraph(StringId name, RG::Graph&
 
     auto& minBlit = HiZBlit::addToGraph(name.Concatenate(".BlitMin"), renderGraph, {
         .Depth = info.Depth,
-        .Subresource = info.Subresource,
         .ReductionMode = HiZ::ReductionMode::Min,
         .CalculateMinMax = true});
     auto& maxBlit = HiZBlit::addToGraph(name.Concatenate(".BlitMax"), renderGraph, {
         .Depth = info.Depth,
-        .Subresource = info.Subresource,
         .ReductionMode = HiZ::ReductionMode::Max,
         .CalculateMinMax = false});
 
-    const u32 mipmapCount = (u32)(u8)renderGraph.GetTextureDescription(minBlit.HiZ).Mipmaps;
-    const glm::uvec2 hizResolution = renderGraph.GetTextureDescription(minBlit.HiZ).Dimensions();
+    const u32 mipmapCount = (u32)(u8)renderGraph.GetImageDescription(minBlit.HiZ).Mipmaps;
+    const glm::uvec2 hizResolution = renderGraph.GetImageDescription(minBlit.HiZ).Dimensions();
     u32 width = hizResolution.x;  
     u32 height = hizResolution.y;
 
     u32 mipmapsRemaining = mipmapCount - 1;
     u32 currentMipmap = 0;
+
+    std::array hiZMinMips = minBlit.HiZMips;
+    std::array hiZMaxMips = maxBlit.HiZMips;
+
+    for (i8 mipmap = 1; mipmap < (i8)mipmapCount; mipmap++)
+    {
+        hiZMinMips[mipmap] = renderGraph.SplitImage(minBlit.HiZ, {.MipmapBase = mipmap, .Mipmaps = 1});
+        hiZMaxMips[mipmap] = renderGraph.SplitImage(maxBlit.HiZ, {.MipmapBase = mipmap, .Mipmaps = 1});
+    }
     
     while (mipmapsRemaining != 0)
     {
@@ -42,44 +49,42 @@ Passes::HiZFull::PassData& Passes::HiZFull::addToGraph(StringId name, RG::Graph&
 
                 graph.SetShader("depth-reduction"_hsv);
 
-                passData.Depth = graph.Read(minBlit.Depth, Compute | Sampled);
-                minBlit.HiZ = graph.Read(minBlit.HiZ, Compute | Sampled);
-                minBlit.HiZ= graph.Write(minBlit.HiZ, Compute | Storage);
-                maxBlit.HiZ = graph.Read(maxBlit.HiZ, Compute | Sampled);
-                maxBlit.HiZ = graph.Write(maxBlit.HiZ, Compute | Storage);
+                passData.Depth = graph.ReadImage(minBlit.Depth, Compute | Sampled);
+                for (u32 i = currentMipmap; i < currentMipmap + toBeProcessed; i++)
+                {
+                    hiZMinMips[i] = graph.ReadWriteImage(hiZMinMips[i], Compute | Sampled);
+                    hiZMaxMips[i] = graph.ReadWriteImage(hiZMaxMips[i], Compute | Sampled);
+                }
+                if (mipmapsRemaining - toBeProcessed == 0)
+                {
+                    minBlit.HiZ = graph.MergeImage(Span<const Resource>(hiZMinMips.data(), mipmapCount));
+                    maxBlit.HiZ = graph.MergeImage(Span<const Resource>(hiZMaxMips.data(), mipmapCount));
+                }
                 passData.HiZMin = minBlit.HiZ;
                 passData.HiZMax = maxBlit.HiZ;
                 passData.MinMaxDepth = minBlit.MinMaxDepth;
             },
-            [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+            [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
                 CPU_PROFILE_FRAME("HiZFull")
                 GPU_PROFILE_FRAME("HiZFull")
 
-                Texture hizMin = resources.GetTexture(passData.HiZMin);
-                Texture hizMax = resources.GetTexture(passData.HiZMax);
-                Span hizViews = Device::GetAdditionalImageViews(hizMin);
-
-                const Shader& shader = resources.GetGraph()->GetShader();
+                const Shader& shader = graph.GetShader();
                 DepthReductionShaderBindGroup bindGroup(shader);
                 bindGroup.SetMinSampler(HiZ::createSampler(HiZ::ReductionMode::Min));
                 bindGroup.SetMaxSampler(HiZ::createSampler(HiZ::ReductionMode::Max));
-                bindGroup.SetMinImage({.Image = hizMin}, ImageLayout::General);
-                bindGroup.SetMaxImage({.Image = hizMax}, ImageLayout::General);
+                bindGroup.SetMinImage(graph.GetImageBinding(passData.HiZMin));
+                bindGroup.SetMaxImage(graph.GetImageBinding(passData.HiZMax));
                 
-                for (u32 i = 0; i < hizViews.size(); i++)
+                for (u32 i = 0; i < mipmapCount; i++)
                 {
-                    bindGroup.SetOutputMin({
-                        .Image = hizMin,
-                        .Description = hizViews[i]}, ImageLayout::General, i);
-                    bindGroup.SetOutputMax({
-                        .Image = hizMax,
-                        .Description = hizViews[i]}, ImageLayout::General, i);
+                    bindGroup.SetOutputMin(graph.GetImageBinding(hiZMinMips[i]), i);
+                    bindGroup.SetOutputMax(graph.GetImageBinding(hiZMaxMips[i]), i);
                 }
 
                 u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+                bindGroup.Bind(cmd, graph.GetFrameAllocators());
                 cmd.PushConstants({
                     .PipelineLayout = shader.GetLayout(), 
                     .Data = {pushConstant}});
@@ -88,7 +93,7 @@ Passes::HiZFull::PassData& Passes::HiZFull::addToGraph(StringId name, RG::Graph&
                 u32 samples = width * height;
                 cmd.Dispatch({
                     .Invocations = {(samples + mask) >> shift, 1, 1}});
-            }).Data;
+            });
 
         width = std::max(1u, width >> toBeProcessed);
         height = std::max(1u, height >> toBeProcessed);

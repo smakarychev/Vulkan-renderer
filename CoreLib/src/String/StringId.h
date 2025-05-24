@@ -73,15 +73,15 @@ namespace std
     };
     
     template <>
-    struct std::formatter<StringId> {
-        constexpr auto parse(std::format_parse_context& ctx)
+    struct formatter<StringId> {
+        constexpr auto parse(format_parse_context& ctx)
         {
             return ctx.begin();
         }
 
-        auto format(StringId id, std::format_context& ctx) const
+        auto format(StringId id, format_context& ctx) const
         {
-            return std::format_to(ctx.out(), "{}", id.AsStringView());
+            return format_to(ctx.out(), "{}", id.AsStringView());
         }
     };
 }

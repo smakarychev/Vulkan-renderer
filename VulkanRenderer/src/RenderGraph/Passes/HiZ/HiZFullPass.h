@@ -7,7 +7,6 @@ namespace Passes::HiZFull
     struct ExecutionInfo
     {
         RG::Resource Depth{};
-        ImageSubresourceDescription Subresource{};
     };
     struct PassData
     {

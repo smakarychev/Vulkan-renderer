@@ -1,6 +1,6 @@
 #include "DiffuseIrradianceSHPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -8,7 +8,7 @@ Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(S
     Texture cubemap, Buffer irradianceSH, bool realTime)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.AddExternal("CubemapTexture"_hsv, cubemap),
+        renderGraph.Import("CubemapTexture"_hsv, cubemap, ImageLayout::Readonly),
         irradianceSH, realTime);
 }
 
@@ -27,24 +27,23 @@ Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(S
                 ShaderSpecializations{
                     ShaderSpecialization{"REAL_TIME"_hsv, realTime}});
             
-            passData.DiffuseIrradiance = graph.AddExternal("DiffuseIrradianceSH"_hsv, irradianceSH);
+            passData.DiffuseIrradiance = graph.Import("DiffuseIrradianceSH"_hsv, irradianceSH);
             
-            passData.DiffuseIrradiance = graph.Write(passData.DiffuseIrradiance, Compute | Storage);
-            passData.CubemapTexture = graph.Read(cubemap, Compute | Sampled);
+            passData.DiffuseIrradiance = graph.WriteBuffer(passData.DiffuseIrradiance, Compute | Storage);
+            passData.CubemapTexture = graph.ReadImage(cubemap, Compute | Sampled);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("DiffuseIrradianceSH")
             GPU_PROFILE_FRAME("DiffuseIrradianceSH")
 
-            Buffer diffuseIrradiance = resources.GetBuffer(passData.DiffuseIrradiance);
-            auto&& [cubemapTexture, cubemapDescription] = resources.GetTextureWithDescription(passData.CubemapTexture);
+            auto& cubemapDescription = graph.GetImageDescription(passData.CubemapTexture);
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             DiffuseIrradianceShShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetSh({.Buffer = diffuseIrradiance});
-            bindGroup.SetEnv({.Image = cubemapTexture}, ImageLayout::Readonly);
+            bindGroup.SetSh(graph.GetBufferBinding(passData.DiffuseIrradiance));
+            bindGroup.SetEnv(graph.GetImageBinding(passData.CubemapTexture));
 
             const u32 realTimeMipmapsCount = (u32)std::log(16.0);
             const u32 targetMipmap = realTime ?
@@ -52,11 +51,11 @@ Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(S
                 0;
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {targetMipmap}});
             cmd.Dispatch({
                 .Invocations = {1, 1, 1}});
-        }).Data;
+        });
 }

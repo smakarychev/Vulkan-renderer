@@ -1,6 +1,7 @@
 #include "BlitPass.h"
 
 #include "Renderer.h"
+#include "Rendering/Image/ImageUtility.h"
 
 Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,
     RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize, ImageFilter filter)
@@ -10,18 +11,18 @@ Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& rende
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.TextureIn = graph.Read(textureIn,
+            passData.TextureIn = graph.ReadImage(textureIn,
                 ResourceAccessFlags::Blit);
 
-            passData.TextureOut = graph.Write(textureOut,
+            passData.TextureOut = graph.WriteImage(textureOut,
                 ResourceAccessFlags::Blit);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             GPU_PROFILE_FRAME("Texture blit")
             
-            auto&& [src, srcDescription] = resources.GetTextureWithDescription(passData.TextureIn);
-            auto&& [dst, dstDescription] = resources.GetTextureWithDescription(passData.TextureOut);
+            auto&& [src, srcDescription] = graph.GetImageWithDescription(passData.TextureIn);
+            auto&& [dst, dstDescription] = graph.GetImageWithDescription(passData.TextureOut);
 
             f32 srcAspect = (f32)srcDescription.Width / (f32)srcDescription.Height;
             f32 dstAspect = (f32)dstDescription.Width / (f32)dstDescription.Height;
@@ -43,5 +44,5 @@ Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& rende
                     .Layers = 1,
                     .Bottom = bottom,
                     .Top = top}});
-        }).Data;
+        });
 }

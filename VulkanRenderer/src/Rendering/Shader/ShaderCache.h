@@ -7,6 +7,8 @@
 #include "String/StringHeterogeneousHasher.h"
 #include "String/StringId.h"
 
+#include <mutex>
+
 class Shader
 {
     friend class ShaderCache;

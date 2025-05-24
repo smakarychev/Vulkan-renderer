@@ -23,6 +23,9 @@ layout(set = 0, binding = 1) uniform sampler u_sampler;
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 2) uniform sampler u_sampler_brdf;
 
+@immutable_sampler_shadow
+layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
+
 layout(set = 1, binding = 0) uniform camera {
     CameraGPU camera;
 } u_camera;
@@ -93,6 +96,11 @@ layout(std430, set = 1, binding = 16) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
+layout(set = 1, binding = 17) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 18) uniform csm_data_buffer {
+    CSMData csm;
+} u_csm_data;
+
 layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];
 } u_materials;
@@ -105,6 +113,8 @@ layout(location = 1) in vec2 vertex_position;
 
 layout(location = 0) out vec4 out_color;
 
+/* the content of this file depends on descriptor names */
+#include "../shadows/shadows.glsl"
 /* the content of this file depends on descriptor names */
 #include "../pbr/visiblity-buffer-utils.glsl"
 /* the content of this file depends on descriptor names */
@@ -185,8 +195,11 @@ void main() {
 
     const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
 
+    const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size, 
+        gbuffer_data.z_view);
+    
     vec3 color;
-    color = shade_pbr(shade_info, 0, ambient_occlusion);
+    color = shade_pbr(shade_info, shadow, ambient_occlusion);
     color = tonemap(color, 2.0f);
 
     color += gbuffer_data.emissive;

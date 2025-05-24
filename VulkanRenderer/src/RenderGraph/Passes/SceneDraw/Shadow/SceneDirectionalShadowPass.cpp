@@ -27,33 +27,33 @@ Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToG
 
             passData.Resources.CreateFrom(info.DrawInfo, graph);
 
-            passData.UGB = graph.AddExternal("UGB"_hsv,
+            passData.UGB = graph.Import("UGB"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes));
-            passData.UGB = graph.Read(passData.UGB, Vertex | Pixel | Storage);
+            passData.UGB = graph.ReadBuffer(passData.UGB, Vertex | Pixel | Storage);
             
-            passData.Objects = graph.AddExternal("Objects"_hsv,
+            passData.Objects = graph.Import("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer);
-            passData.Objects = graph.Read(passData.Objects, Vertex | Pixel | Storage);
+            passData.Objects = graph.ReadBuffer(passData.Objects, Vertex | Pixel | Storage);
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("SceneDirectionalShadow")
             GPU_PROFILE_FRAME("SceneDirectionalShadow")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SceneShadowUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Resources.Camera)});
-            bindGroup.SetUGB({.Buffer = resources.GetBuffer(passData.UGB)});
-            bindGroup.SetCommands({.Buffer = resources.GetBuffer(passData.Resources.Draws)});
-            bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Objects)});
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Resources.Camera));
+            bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
+            bindGroup.SetCommands(graph.GetBufferBinding(passData.Resources.Draws));
+            bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({
-                .DrawBuffer = resources.GetBuffer(passData.Resources.Draws),
-                .CountBuffer = resources.GetBuffer(passData.Resources.DrawInfo),
+                .DrawBuffer =  graph.GetBuffer(passData.Resources.Draws),
+                .CountBuffer = graph.GetBuffer(passData.Resources.DrawInfo),
                 .MaxCount = passData.Resources.MaxDrawCount});
-        }).Data;
+        });
 }

@@ -3,6 +3,7 @@
 #include "core.h"
 
 #include <glm/gtx/quaternion.hpp>
+#include <glm/gtx/matrix_decompose.hpp>
 #include <nlohmann/json.hpp>
 
 namespace glm
@@ -74,30 +75,36 @@ namespace assetLib
         return success;
     }
 
-    glm::mat4 getTransform(tinygltf::Node& node)
+    Transform3d getTransform(tinygltf::Node& node)
     {
+        glm::dvec3 translation{0.0f};
+        glm::dquat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+        glm::dvec3 scale{1.0f};
+        
         if (!node.matrix.empty())
-            return *(glm::dmat4*)node.matrix.data();
-
-        glm::vec3 translation{0.0f};
-        glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
-        glm::vec3 scale{1.0f};
-
-        if (!node.translation.empty())
-            translation = *(glm::dvec3*)node.translation.data();
-        if (!node.rotation.empty())
         {
-            rotation.x = (f32)node.rotation[0];
-            rotation.y = (f32)node.rotation[1];
-            rotation.z = (f32)node.rotation[2];
-            rotation.w = (f32)node.rotation[3];
+            glm::dvec3 scew;
+            glm::dvec4 perspective;
+            glm::decompose(*(glm::dmat4*)node.matrix.data(), scale, rotation, translation, scew, perspective);
         }
-        if (!node.scale.empty())
-            scale = *(glm::dvec3*)node.scale.data();
+        else
+        {
+            if (!node.translation.empty())
+                translation = *(glm::dvec3*)node.translation.data();
+            if (!node.rotation.empty())
+            {
+                rotation.x = (f32)node.rotation[0];
+                rotation.y = (f32)node.rotation[1];
+                rotation.z = (f32)node.rotation[2];
+                rotation.w = (f32)node.rotation[3];
+            }
+            if (!node.scale.empty())
+                scale = *(glm::dvec3*)node.scale.data();
+        }
 
-        return
-            glm::translate(glm::mat4(1.0f), translation) *
-            glm::toMat4(rotation) *
-            glm::scale(glm::mat4(1.0f), scale);
+        return Transform3d{
+            .Position = translation,
+            .Orientation = rotation,
+            .Scale = scale};
     }
 }

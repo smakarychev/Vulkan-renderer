@@ -25,6 +25,9 @@ class SceneInfo
 public:
     static SceneInfo* LoadFromAsset(std::string_view assetPath,
         BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue);
+    
+    void AddLight(const DirectionalLight& light);
+    void AddLight(const PointLight& light);
 private:
     SceneGeometryInfo m_Geometry{};
     SceneLightInfo m_Lights{};
@@ -56,6 +59,13 @@ public:
     
     SceneInstance Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
         FrameContext& ctx);
+    
+    template <typename Fn>
+    requires requires (Fn fn, const CommonLight& light, Transform3d& localTransform)
+    {
+        { fn(light, localTransform) } -> std::same_as<bool>;
+    }
+    void IterateLights(LightType lightType, Fn&& callback);
 private:
     SceneInstance RegisterSceneInstance(const SceneInfo& sceneInfo);
 private:
@@ -68,3 +78,21 @@ private:
 
     Signal<NewInstanceData> m_InstanceAddedSignal{};
 };
+
+template <typename Fn>
+requires requires (Fn fn, const CommonLight& light, Transform3d& localTransform)
+{
+    { fn(light, localTransform) } -> std::same_as<bool>;
+}
+void Scene::IterateLights(LightType lightType, Fn&& callback)
+{
+    for (auto& node : m_Hierarchy.m_Info.Nodes)
+    {
+        if (node.Type != SceneHierarchyNodeType::Light)
+            continue;
+
+        const CommonLight& light = m_Lights.Get(node.PayloadIndex);
+        if (light.Type == lightType && callback(light, node.LocalTransform))
+            break;
+    }
+}

@@ -4,6 +4,7 @@
 #include "ResourceUploader.h"
 #include "Core/Random.h"
 #include "imgui/imgui.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/SlimeBindGroup.generated.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "Rendering/Shader/ShaderCache.h"
@@ -132,15 +133,14 @@ UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderG
                 ShaderSpecializations{
                     ShaderSpecialization{"SLIME_MAP_STAGE"_hsv, true}});
             
-            passData.Traits = graph.AddExternal("Update.Traits"_hsv, ctx.GetTraitsBuffer());
-            passData.Traits = graph.Read(passData.Traits, Compute | Storage);
+            passData.Traits = graph.Import("Update.Traits"_hsv, ctx.GetTraitsBuffer());
+            passData.Traits = graph.ReadBuffer(passData.Traits, Compute | Storage);
 
-            passData.Slime = graph.AddExternal("Update.Slime"_hsv, ctx.GetSlimeBuffer());
-            passData.Slime = graph.Read(passData.Slime, Compute | Storage);
-            passData.Slime = graph.Write(passData.Slime, Compute | Storage);
+            passData.Slime = graph.Import("Update.Slime"_hsv, ctx.GetSlimeBuffer());
+            passData.Slime = graph.ReadWriteBuffer(passData.Slime, Compute | Storage);
 
-            passData.SlimeMap = graph.AddExternal("Update.SlimeMap"_hsv, ctx.GetSlimeMap());
-            passData.SlimeMap = graph.Write(passData.SlimeMap, Compute | Storage);
+            passData.SlimeMap = graph.Import("Update.SlimeMap"_hsv, ctx.GetSlimeMap());
+            passData.SlimeMap = graph.WriteImage(passData.SlimeMap, Compute | Storage);
 
             passData.SlimeMoldContext = &ctx;
 
@@ -164,34 +164,32 @@ UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderG
             ImGui::End();
             graph.Upload(passData.Traits, ctx.GetTraits());
         },
-        [=](UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Slime.Update")
             GPU_PROFILE_FRAME("Slime.Update")
-            Buffer traitsBuffer = resources.GetBuffer(passData.Traits);
-            Buffer slimeBuffer = resources.GetBuffer(passData.Slime);
-            Texture slimeMap = resources.GetTexture(passData.SlimeMap);
 
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
 
-            const Shader& shader = resources.GetGraph()->GetShader();SlimeShaderBindGroup bindGroup(shader);
-            bindGroup.SetTraits({.Buffer = traitsBuffer});
-            bindGroup.SetSlime({.Buffer = slimeBuffer});
-            bindGroup.SetSlimeMap({.Image = slimeMap}, ImageLayout::General);
+            const Shader& shader = graph.GetShader();
+            SlimeShaderBindGroup bindGroup(shader);
+            bindGroup.SetTraits(graph.GetBufferBinding(passData.Traits));
+            bindGroup.SetSlime(graph.GetBufferBinding(passData.Slime));
+            bindGroup.SetSlimeMap(graph.GetImageBinding(passData.SlimeMap));
 
             u32 slimeCount = (u32)moldCtx.GetSlime().size();
             u32 slimeCountDimension = (u32)std::sqrt((f32)slimeCount);
                         
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
             cmd.Dispatch({
 	            .Invocations = {slimeCountDimension + 1, slimeCountDimension, 1},
 	            .GroupSize = {16, 16, 1}});
-        }).Data;
+        });
 }
 
 DiffuseSlimeMapPassData& addDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx,
@@ -210,41 +208,38 @@ DiffuseSlimeMapPassData& addDiffuseSlimeMapStage(StringId name, RG::Graph& rende
                     ShaderSpecialization{"SLIME_DIFFUSE_STAGE"_hsv, true}});
 
             passData.SlimeMap = updateOutput.SlimeMap;
-            passData.SlimeMap = graph.Read(passData.SlimeMap, Compute | Storage);
+            passData.SlimeMap = graph.ReadImage(passData.SlimeMap, Compute | Storage);
 
-            passData.DiffuseMap = graph.CreateResource("Diffuse.DiffuseMap"_hsv, GraphTextureDescription{
-                .Width = ctx.GetBounds().x,
-                .Height = ctx.GetBounds().y,
+            passData.DiffuseMap = graph.Create("Diffuse.DiffuseMap"_hsv, RGImageDescription{
+                .Width = (f32)ctx.GetBounds().x,
+                .Height = (f32)ctx.GetBounds().y,
                 .Format = Format::RGBA16_FLOAT});
-            passData.DiffuseMap = graph.Write(passData.DiffuseMap, Compute | Storage);
+            passData.DiffuseMap = graph.WriteImage(passData.DiffuseMap, Compute | Storage);
 
             passData.SlimeMoldContext = &ctx;
         },
-        [=](DiffuseSlimeMapPassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const DiffuseSlimeMapPassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Slime.Diffuse")
             GPU_PROFILE_FRAME("Slime.Diffuse")
             
-            Texture slimeMap = resources.GetTexture(passData.SlimeMap);
-            Texture diffuseMap = resources.GetTexture(passData.DiffuseMap);
-
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SlimeShaderBindGroup bindGroup(shader);
-            bindGroup.SetSlimeMap({.Image = slimeMap}, ImageLayout::Readonly);
-            bindGroup.SetDiffuseMap({.Image = diffuseMap}, ImageLayout::General);
+            bindGroup.SetSlimeMap(graph.GetImageBinding(passData.SlimeMap));
+            bindGroup.SetDiffuseMap(graph.GetImageBinding(passData.DiffuseMap));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
             cmd.Dispatch({
 	            .Invocations = { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1},
 	            .GroupSize = {16, 16, 1}});
-        }).Data;
+        });
 }
 
 Passes::CopyTexture::PassData& addCopyDiffuseSlimeMapStage(StringId name, RG::Graph& renderGraph,
@@ -271,17 +266,17 @@ GradientPassData& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeM
                     ShaderSpecialization{"SLIME_GRADIENT_STAGE"_hsv, true}});
 
             passData.DiffuseMap = diffuseOutput.DiffuseMap;
-            passData.DiffuseMap = graph.Read(passData.DiffuseMap, Compute | Storage);
+            passData.DiffuseMap = graph.ReadImage(passData.DiffuseMap, Compute | Storage);
 
-            passData.GradientMap = graph.CreateResource("Gradient.GradientMap"_hsv, GraphTextureDescription{
-                .Width = ctx.GetBounds().x,
-                .Height = ctx.GetBounds().y,
+            passData.GradientMap = graph.Create("Gradient.GradientMap"_hsv, RGImageDescription{
+                .Width = (f32)ctx.GetBounds().x,
+                .Height = (f32)ctx.GetBounds().y,
                 .Format = Format::RGBA16_FLOAT});
-            passData.GradientMap = graph.Write(passData.GradientMap, Compute | Storage);
+            passData.GradientMap = graph.WriteImage(passData.GradientMap, Compute | Storage);
 
-            passData.Gradient = graph.CreateResource("Gradient.Colors"_hsv, GraphBufferDescription{
+            passData.Gradient = graph.Create("Gradient.Colors"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(GradientUBO)});
-            passData.Gradient = graph.Read(passData.Gradient, Compute | Uniform);
+            passData.Gradient = graph.ReadImage(passData.Gradient, Compute | Uniform);
 
             auto& gradient = graph.GetOrCreateBlackboardValue<GradientUBO>();
             ImGui::Begin("slime gradient");
@@ -301,32 +296,28 @@ GradientPassData& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeM
 
             passData.SlimeMoldContext = &ctx;
         },
-        [=](GradientPassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const GradientPassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Gradient.Slime")
             GPU_PROFILE_FRAME("Gradient.Slime")
-            Texture diffuseMap = resources.GetTexture(passData.DiffuseMap);
-            Texture gradientMap = resources.GetTexture(passData.GradientMap);
             
-            Buffer gradient = resources.GetBuffer(passData.Gradient);
-            
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SlimeShaderBindGroup bindGroup(shader);
-            bindGroup.SetDiffuseMap({.Image = diffuseMap}, ImageLayout::Readonly);
-            bindGroup.SetGradientMap({.Image = gradientMap}, ImageLayout::General);
-            bindGroup.SetGradientColors({.Buffer = gradient});
+            bindGroup.SetDiffuseMap(graph.GetImageBinding(passData.DiffuseMap));
+            bindGroup.SetGradientMap(graph.GetImageBinding(passData.GradientMap));
+            bindGroup.SetGradientColors(graph.GetBufferBinding(passData.Gradient));
 
             auto& moldCtx = *passData.SlimeMoldContext;
             PushConstants pushConstants = PushConstants::FromContext(moldCtx, frameContext.FrameNumberTick);
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
             cmd.Dispatch({
 	            .Invocations = { moldCtx.GetBounds().x, moldCtx.GetBounds().y, 1},
 	            .GroupSize = {16, 16, 1}});
-        }).Data;
+        });
 }
 }
 
@@ -349,7 +340,7 @@ Passes::SlimeMold::PassData& Passes::SlimeMold::addToGraph(StringId name, RG::Gr
 
             addCopyDiffuseSlimeMapStage(name, graph, diffuse);
         },
-        [=](PassData&, FrameContext&, const Resources&)
+        [=](const PassData&, FrameContext&, const Graph&)
         {
-        }).Data;
+        });
 }

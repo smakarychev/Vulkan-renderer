@@ -1,11 +1,4 @@
-﻿#define VOLK_IMPLEMENTATION
-#include <volk.h>
-
-#ifdef TRACY_ENABLE
-#include "TracyClient.cpp"
-#endif
-
-#include "Renderer.h"
+﻿#include "Renderer.h"
 #include "cvars/CVarSystem.h"
 #include "Platform/PlatformUtils.h"
 

@@ -1,6 +1,6 @@
 #include "SceneMultiviewRenderObjectVisibilityPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/SceneMultiviewRenderObjectVisibilityBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZCommon.h"
 
@@ -23,9 +23,9 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;
-            resources.RenderObjects = renderGraph.Read(resources.RenderObjects, Compute | Storage);
-            resources.RenderObjectHandles = renderGraph.Read(resources.RenderObjectHandles, Compute | Storage);
-            resources.Views = renderGraph.Read(resources.Views, Compute | Uniform);
+            resources.RenderObjects = renderGraph.ReadBuffer(resources.RenderObjects, Compute | Storage);
+            resources.RenderObjectHandles = renderGraph.ReadBuffer(resources.RenderObjectHandles, Compute | Storage);
+            resources.Views = renderGraph.ReadBuffer(resources.Views, Compute | Uniform);
 
             if (info.Stage != SceneVisibilityStage::Reocclusion)
             {
@@ -35,30 +35,28 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             {
                 for (u32 i = 0; i < resources.VisibilityCount; i++)
                     if (enumHasAny(multiview.View({i}).VisibilityFlags, SceneVisibilityFlags::OcclusionCull))
-                        resources.Hiz[i] = graph.Read(resources.Hiz[i], Compute | Sampled);
+                        resources.Hiz[i] = graph.ReadImage(resources.Hiz[i], Compute | Sampled);
             }
 
             for (u32 i = 0; i < resources.VisibilityCount; i++)
             {
-                resources.RenderObjectVisibility[i] = graph.Read(resources.RenderObjectVisibility[i],
-                    Compute | Storage);
-                resources.RenderObjectVisibility[i] = graph.Write(resources.RenderObjectVisibility[i],
+                resources.RenderObjectVisibility[i] = graph.ReadWriteBuffer(resources.RenderObjectVisibility[i],
                     Compute | Storage);
             }
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("RenderObjectVisibilityPass")
             GPU_PROFILE_FRAME("RenderObjectVisibilityPass")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SceneMultiviewRenderObjectVisibilityShaderBindGroup bindGroup(shader);
-            bindGroup.SetObjects({.Buffer = resources.GetBuffer(passData.Resources->RenderObjects)});
-            bindGroup.SetObjectHandles({.Buffer = resources.GetBuffer(passData.Resources->RenderObjectHandles)});
-            bindGroup.SetViews({.Buffer = resources.GetBuffer(passData.Resources->Views)});
+            bindGroup.SetObjects(graph.GetBufferBinding(passData.Resources->RenderObjects));
+            bindGroup.SetObjectHandles(graph.GetBufferBinding(passData.Resources->RenderObjectHandles));
+            bindGroup.SetViews(graph.GetBufferBinding(passData.Resources->Views));
             for (u32 i = 0; i < passData.Resources->VisibilityCount; i++)
                 bindGroup.SetObjectVisibility({
-                    .Buffer = resources.GetBuffer(passData.Resources->RenderObjectVisibility[i])}, i);
+                    .Buffer = graph.GetBuffer(passData.Resources->RenderObjectVisibility[i])}, i);
 
             if (info.Stage == SceneVisibilityStage::Reocclusion)
             {
@@ -68,8 +66,7 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
                     if (!passData.Resources->Hiz[i].IsValid())
                         continue;
                     
-                    auto&& [hiz, hizDescription] = resources.GetTextureWithDescription(passData.Resources->Hiz[i]);
-                    bindGroup.SetHiz({.Image = hiz}, ImageLayout::Readonly, i);
+                    bindGroup.SetHiz(graph.GetImageBinding(passData.Resources->Hiz[i]), i);
                 }
             }
             
@@ -80,7 +77,7 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             };
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {PushConstants{
@@ -89,5 +86,5 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             cmd.Dispatch({
                .Invocations = {passData.Resources->RenderObjectCount, 1, 1},
                .GroupSize = {64, 1, 1}});
-        }).Data;
+        });
 }

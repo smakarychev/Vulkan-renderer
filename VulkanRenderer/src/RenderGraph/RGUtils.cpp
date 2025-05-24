@@ -1,30 +1,23 @@
 #include "RGUtils.h"
 
-#include "RenderGraph.h"
+#include "RGGraph.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "Scene/SceneLight.h"
 
 namespace RG::RgUtils
 {
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphTextureDescription& fallback)
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const RGImageDescription& fallback)
     {
         return resource.IsValid() ?
             resource :
-            graph.CreateResource(name, fallback);
+            graph.Create(name, fallback);
     }
 
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, Images::DefaultKind fallback)
+    Resource ensureResource(Resource resource, Graph& graph, StringId name, const RGBufferDescription& fallback)
     {
         return resource.IsValid() ?
             resource :
-            graph.AddExternal(name, fallback);
-    }
-
-    Resource ensureResource(Resource resource, Graph& graph, StringId name, const GraphBufferDescription& fallback)
-    {
-        return resource.IsValid() ?
-            resource :
-            graph.CreateResource(name, fallback);
+            graph.Create(name, fallback);
     }
 
     DrawAttachmentResources readWriteDrawAttachments(DrawAttachments& attachments, Graph& graph)
@@ -35,20 +28,14 @@ namespace RG::RgUtils
         for (auto& attachment : attachments.Colors)
         {
             attachment.Resource = graph.RenderTarget(
-                attachment.Resource, attachment.Description.Subresource,
-                attachment.Description.OnLoad, attachment.Description.OnStore,
-                attachment.Description.ClearColor);
+                attachment.Resource, attachment.Description);
             drawAttachmentResources.Colors.push_back(attachment.Resource);
         }
         if (attachments.Depth.has_value())
         {
             auto& attachment = *attachments.Depth;
             attachment.Resource = graph.DepthStencilTarget(
-                attachment.Resource, attachment.Description.Subresource,
-                attachment.Description.OnLoad, attachment.Description.OnStore,
-                attachment.DepthBias,
-                attachment.Description.ClearDepthStencil.Depth,
-                attachment.Description.ClearDepthStencil.Stencil);
+                attachment.Resource, attachment.Description, attachment.DepthBias);
             drawAttachmentResources.Depth = attachment.Resource;
         }
 
@@ -63,21 +50,14 @@ namespace RG::RgUtils
         for (auto& attachment : attachments.Colors)
         {
             Resource resource = attachment.Resource;
-            drawAttachmentResources.Colors.push_back(graph.RenderTarget(
-                resource, attachment.Description.Subresource,
-                attachment.Description.OnLoad, attachment.Description.OnStore,
-                attachment.Description.ClearColor));
+            drawAttachmentResources.Colors.push_back(graph.RenderTarget(resource, attachment.Description));
         }
         if (attachments.Depth.has_value())
         {
             auto& attachment = *attachments.Depth;
             Resource resource = attachment.Resource;
             drawAttachmentResources.Depth = graph.DepthStencilTarget(
-                resource, attachment.Description.Subresource,
-                attachment.Description.OnLoad, attachment.Description.OnStore,
-                attachment.DepthBias,
-                attachment.Description.ClearDepthStencil.Depth,
-                attachment.Description.ClearDepthStencil.Stencil);
+                resource, attachment.Description, attachment.DepthBias);
         }
 
         return drawAttachmentResources;
@@ -89,14 +69,14 @@ namespace RG::RgUtils
 
         SceneLightResources resources = {};
 
-        resources.DirectionalLights = graph.AddExternal("Light.Directional"_hsv, light.GetBuffers().DirectionalLights);
-        resources.DirectionalLights = graph.Read(resources.DirectionalLights, shaderStage | Storage);
+        resources.DirectionalLights = graph.Import("Light.Directional"_hsv, light.GetBuffers().DirectionalLights);
+        resources.DirectionalLights = graph.ReadBuffer(resources.DirectionalLights, shaderStage | Storage);
 
-        resources.LightsInfo = graph.AddExternal("Light.LightsInfo"_hsv, light.GetBuffers().LightsInfo);
-        resources.LightsInfo = graph.Read(resources.LightsInfo, shaderStage | Uniform);
+        resources.LightsInfo = graph.Import("Light.LightsInfo"_hsv, light.GetBuffers().LightsInfo);
+        resources.LightsInfo = graph.ReadBuffer(resources.LightsInfo, shaderStage | Uniform);
 
-        resources.PointLights = graph.AddExternal("Light.PointLights"_hsv, light.GetBuffers().PointLights);
-        resources.PointLights = graph.Read(resources.PointLights, shaderStage | Storage);
+        resources.PointLights = graph.Import("Light.PointLights"_hsv, light.GetBuffers().PointLights);
+        resources.PointLights = graph.ReadBuffer(resources.PointLights, shaderStage | Storage);
         
         return resources;
     }
@@ -111,9 +91,9 @@ namespace RG::RgUtils
         
         IBLData iblData = {};
         
-        iblData.IrradianceSH = graph.Read(ibl.IrradianceSH, shaderStage | Uniform);
-        iblData.PrefilterEnvironment = graph.Read(ibl.PrefilterEnvironment, shaderStage | Sampled);
-        iblData.BRDF = graph.Read(ibl.BRDF, shaderStage | Sampled);
+        iblData.IrradianceSH = graph.ReadBuffer(ibl.IrradianceSH, shaderStage | Uniform);
+        iblData.PrefilterEnvironment = graph.ReadImage(ibl.PrefilterEnvironment, shaderStage | Sampled);
+        iblData.BRDF = graph.ReadImage(ibl.BRDF, shaderStage | Sampled);
 
         return iblData;
     }
@@ -122,11 +102,10 @@ namespace RG::RgUtils
     {
         using enum ResourceAccessFlags;
 
-        Resource ssaoResource = RgUtils::ensureResource(ssao.SSAO, graph, "SSAO.Dummy"_hsv,
-            Images::DefaultKind::White);
+        Resource ssaoResource = ssao.SSAO;
 
         SSAOData ssaoData = {};
-        ssaoData.SSAO = graph.Read(ssaoResource, shaderStage | Sampled);
+        ssaoData.SSAO = graph.ReadImage(ssaoResource, shaderStage | Sampled);
 
         return ssaoData;
     }
@@ -138,20 +117,20 @@ namespace RG::RgUtils
 
         DirectionalShadowData shadowData = {};
         
-        shadowData.ShadowMap = graph.Read(shadow.ShadowMap, shaderStage | Sampled);
-        shadowData.Shadow = graph.Read(shadow.Shadow, shaderStage | Uniform);
+        shadowData.ShadowMap = graph.ReadImage(shadow.ShadowMap, shaderStage | Sampled);
+        shadowData.Shadow = graph.ReadBuffer(shadow.Shadow, shaderStage | Uniform);
 
         return shadowData;
     }
 
-    CSMData readCSMData(const CSMData& csm, Graph& graph, ResourceAccessFlags shaderStage)
+    CsmData readCsmData(const CsmData& csm, Graph& graph, ResourceAccessFlags shaderStage)
     {
         using enum ResourceAccessFlags;
 
-        CSMData csmData = {};
+        CsmData csmData = {};
 
-        csmData.ShadowMap = graph.Read(csm.ShadowMap, shaderStage | Sampled);
-        csmData.CsmInfo = graph.Read(csm.CsmInfo, shaderStage | Uniform);
+        csmData.ShadowMap = graph.ReadImage(csm.ShadowMap, shaderStage | Sampled);
+        csmData.CsmInfo = graph.ReadBuffer(csm.CsmInfo, shaderStage | Uniform);
 
         return csmData;
     }

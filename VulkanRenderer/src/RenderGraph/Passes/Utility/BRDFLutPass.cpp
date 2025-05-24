@@ -1,6 +1,6 @@
 #include "BRDFLutPass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/BrdfLutBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -16,21 +16,19 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
 
             graph.SetShader("brdf-lut"_hsv);
 
-            passData.Lut = graph.AddExternal("Lut"_hsv, lut);
+            passData.Lut = graph.Import("Lut"_hsv, lut);
 
-            passData.Lut = graph.Write(passData.Lut, Compute | Storage);
+            passData.Lut = graph.WriteImage(passData.Lut, Compute | Storage);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("BRDFLut")
             GPU_PROFILE_FRAME("BRDFLut")
 
-            Texture lutTexture = resources.GetTexture(passData.Lut);
-
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             BrdfLutShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetBrdf({.Image = lutTexture}, ImageLayout::General);
+            bindGroup.SetBrdf(graph.GetImageBinding(passData.Lut));
 
             struct PushConstants
             {
@@ -40,14 +38,14 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
                 .BRDFResolutionInverse = 1.0f / glm::vec2((f32)BRDF_RESOLUTION)};
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {pushConstants}});
             cmd.Dispatch({
                 .Invocations = {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},
                 .GroupSize = {32, 32, 1}});
-        }).Data;
+        });
 }
 
 TextureDescription Passes::BRDFLut::getLutDescription()

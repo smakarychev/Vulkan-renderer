@@ -2,9 +2,9 @@
 
 #include "types.h"
 #include "Rendering/CommandBuffer.h"
+#include "Rendering/DeletionQueue.h"
 #include "Rendering/Swapchain.h"
 #include "Rendering/Commands/RenderCommandList.h"
-#include "Vulkan/Device.h"
 
 class ResourceUploader;
 class Camera;

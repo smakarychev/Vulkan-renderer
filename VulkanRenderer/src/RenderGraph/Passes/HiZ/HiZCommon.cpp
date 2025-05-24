@@ -1,6 +1,7 @@
 #include "HiZCommon.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
+#include "Rendering/Image/ImageUtility.h"
 #include "Vulkan/Device.h"
 
 namespace
@@ -28,8 +29,8 @@ namespace HiZ
 
     RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution)
     {
-        const u32 width = Math::floorToPowerOf2(depthResolution.x);
-        const u32 height = Math::floorToPowerOf2(depthResolution.y);
+        const f32 width = (f32)Math::floorToPowerOf2(depthResolution.x);
+        const f32 height = (f32)Math::floorToPowerOf2(depthResolution.y);
         const i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, Images::mipmapCount({width, height}));
 
         std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
@@ -37,17 +38,16 @@ namespace HiZ
             additionalViews[i] = ImageSubresourceDescription{
                 .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1};
 
-        return renderGraph.CreateResource("HiZ"_hsv, RG::GraphTextureDescription{
+        return renderGraph.Create("HiZ"_hsv, RG::RGImageDescription{
             .Width = width,
             .Height = height,
             .Mipmaps = mipmapCount,
-            .Format = Format::R32_FLOAT,
-            .AdditionalViews = additionalViews});
+            .Format = Format::R32_FLOAT});
     }
 
-    RG::Resource createMinMaxBuffer(RG::Graph& renderGraph)
+    RG::Resource createMinMaxBufferResource(RG::Graph& renderGraph)
     {
-        return renderGraph.CreateResource("MinMax"_hsv, RG::GraphBufferDescription{
+        return renderGraph.Create("MinMax"_hsv, RG::RGBufferDescription{
             .SizeBytes = sizeof(MinMaxDepth)});
     }
 }

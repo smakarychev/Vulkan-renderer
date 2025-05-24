@@ -22,6 +22,29 @@ namespace
     }
 }
 
+Transform3d CommonLight::GetTransform() const
+{
+    switch (Type)
+    {
+    case LightType::Directional:
+        return Transform3d {
+            .Orientation = glm::quatLookAt(PositionDirection, glm::vec3(0.0f, 1.0f, 0.0f)),
+        };
+    case LightType::Point:
+        return Transform3d {
+            .Position = PositionDirection,
+        };
+    case LightType::Spot:
+        ASSERT(false, "Spot light is not supported")
+        break;
+    default:
+        ASSERT(false, "Light type is not supported")
+        break;
+    }
+    
+    std::unreachable();
+}
+
 SceneLightInfo SceneLightInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
 {
     SceneLightInfo sceneLightInfo = {};
@@ -41,13 +64,35 @@ SceneLightInfo SceneLightInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
     return sceneLightInfo;
 }
 
+void SceneLightInfo::AddLight(const DirectionalLight& light)
+{
+    Lights.push_back({
+        .Type = LightType::Directional,
+        .PositionDirection = light.Direction,
+        .Color = light.Color,
+        .Intensity = light.Intensity,
+        .Radius = light.Size,
+    });
+}
+
+void SceneLightInfo::AddLight(const PointLight& light)
+{
+    Lights.push_back({
+        .Type = LightType::Point,
+        .PositionDirection = light.Position,
+        .Color = light.Color,
+        .Intensity = light.Intensity,
+        .Radius = light.Radius,
+    });
+}
+
 SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
 {
     SceneLight light = {};
 
     light.m_Buffers.DirectionalLights = Device::CreateBuffer({
         .SizeBytes = sizeof(DirectionalLight),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
+        .Usage = BufferUsage::Ordinary | BufferUsage::Uniform | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
     light.m_Buffers.PointLights = Device::CreateBuffer({
         .SizeBytes = sizeof(PointLight),

@@ -2,6 +2,7 @@
 
 #include "FrameContext.h"
 #include "Core/Camera.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SkyboxBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
@@ -33,53 +34,50 @@ Passes::Skybox::PassData& Passes::Skybox::addToGraph(StringId name, RG::Graph& r
             graph.SetShader("skybox"_hsv);
             
             passData.Color = RgUtils::ensureResource(info.Color, graph, "Color"_hsv,
-                GraphTextureDescription{
-                    .Width = info.Resolution.x,
-                    .Height = info.Resolution.y,
+                RGImageDescription{
+                    .Width = (f32)info.Resolution.x,
+                    .Height = (f32)info.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
             ASSERT(info.Depth.IsValid(), "Depth has to be provided")
 
-            passData.Projection = graph.CreateResource("Projection"_hsv, GraphBufferDescription{
+            passData.Projection = graph.Create("Projection"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(ProjectionUBO)});
             
             auto& globalResources = graph.GetGlobalResources();
 
             const Resource skybox = info.SkyboxResource.IsValid() ?
-                info.SkyboxResource : graph.AddExternal("Skybox"_hsv, info.SkyboxTexture);
+                info.SkyboxResource : graph.Import("Skybox"_hsv, info.SkyboxTexture, ImageLayout::Readonly);
       
-            passData.Skybox = graph.Read(skybox, Pixel | Sampled);
-            passData.Color = graph.RenderTarget(passData.Color, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.Depth = graph.DepthStencilTarget(info.Depth, AttachmentLoad::Load, AttachmentStore::Store);
-            passData.Projection = graph.Read(passData.Projection, Vertex | Uniform);
+            passData.Skybox = graph.ReadImage(skybox, Pixel | Sampled);
+            passData.Color = graph.RenderTarget(passData.Color, {});
+            passData.Depth = graph.DepthStencilTarget(info.Depth, {});
+            passData.Projection = graph.ReadBuffer(passData.Projection, Vertex | Uniform);
             ProjectionUBO projection = {
                 .ProjectionInverse = glm::inverse(globalResources.PrimaryCamera->GetProjection()),
                 .ViewInverse = glm::inverse(globalResources.PrimaryCamera->GetView())};
             graph.Upload(passData.Projection, projection);
 
-            passData.ShadingSettings = graph.Read(globalResources.ShadingSettings, Pixel | Uniform);
+            passData.ShadingSettings = graph.ReadBuffer(globalResources.ShadingSettings, Pixel | Uniform);
 
             passData.LodBias = info.LodBias;
         },
-        [=](PassDataPrivate& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Skybox")
             GPU_PROFILE_FRAME("Skybox")
 
-            const Texture skyboxTexture = resources.GetTexture(passData.Skybox);
-            const Buffer projectionBuffer = resources.GetBuffer(passData.Projection);
-            
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             SkyboxShaderBindGroup bindGroup(shader);
 
-            bindGroup.SetSkybox({.Image = skyboxTexture}, ImageLayout::Readonly);
-            bindGroup.SetProjection({.Buffer = projectionBuffer});
-            bindGroup.SetShading({.Buffer = resources.GetBuffer(passData.ShadingSettings)});
+            bindGroup.SetSkybox(graph.GetImageBinding(passData.Skybox));
+            bindGroup.SetProjection(graph.GetBufferBinding(passData.Projection));
+            bindGroup.SetShading(graph.GetBufferBinding(passData.ShadingSettings));
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = shader.GetLayout(), 
             	.Data = {passData.LodBias}});
             cmd.Draw({.VertexCount = 6});
-        }).Data;
+        });
 }

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "SceneVisibilityPassesCommon.h"
-#include "RenderGraph/RenderPass.h"
+#include "RenderGraph/RGPass.h"
 
 namespace Passes::SceneMultiviewMeshletVisibility
 {

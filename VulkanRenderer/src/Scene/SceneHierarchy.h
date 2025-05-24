@@ -2,9 +2,9 @@
 
 #include "types.h"
 #include "SceneInstance.h"
+#include "Math/Transform.h"
 
 #include <vector>
-#include <glm/glm.hpp>
 
 struct FrameContext;
 struct Transform3d;
@@ -33,7 +33,7 @@ struct SceneHierarchyNode
     SceneHierarchyNodeType Type{SceneHierarchyNodeType::Dummy};
     u16 Depth{0};
     SceneHierarchyHandle Parent{};
-    glm::mat4 LocalTransform{1.0f};
+    Transform3d LocalTransform{};
     u32 PayloadIndex{0};
 };
 

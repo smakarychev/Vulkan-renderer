@@ -1,6 +1,7 @@
 #include "SimpleAtmospherePass.h"
 
-#include "RenderGraph/RenderGraph.h"
+#include "RenderGraph/RGGraph.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Generated/AtmosphereSimpleBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -18,32 +19,31 @@ Passes::AtmosphereSimple::PassData& Passes::AtmosphereSimple::addToGraph(StringI
             graph.SetShader("atmosphere-simple"_hsv);
 
             auto& globalResources = graph.GetGlobalResources();
-            passData.ColorOut = graph.CreateResource("Color"_hsv,
-                GraphTextureDescription{
-                    .Width = globalResources.Resolution.x,
-                    .Height = globalResources.Resolution.y,
+            passData.ColorOut = graph.Create("Color"_hsv,
+                RGImageDescription{
+                    .Width = (f32)globalResources.Resolution.x,
+                    .Height = (f32)globalResources.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
 
-            passData.Camera = graph.Read(globalResources.PrimaryCameraGPU, Pixel | Uniform);
-            passData.TransmittanceLut = graph.Read(transmittanceLut, Pixel | Sampled);
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, AttachmentLoad::Load, AttachmentStore::Store);
+            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.TransmittanceLut = graph.ReadImage(transmittanceLut, Pixel | Sampled);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Atmosphere.Simple")
             GPU_PROFILE_FRAME("Atmosphere.Simple")
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             AtmosphereSimpleShaderBindGroup bindGroup(shader);
-            bindGroup.SetTransmittanceLut({.Image = resources.GetTexture(passData.TransmittanceLut)},
-                ImageLayout::Readonly);
-            bindGroup.SetCamera({.Buffer = resources.GetBuffer(passData.Camera)});
+            bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {(f32)frameContext.FrameNumberTick}});
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

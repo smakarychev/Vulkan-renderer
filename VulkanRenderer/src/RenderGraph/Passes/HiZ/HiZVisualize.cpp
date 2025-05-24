@@ -23,41 +23,37 @@ Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, 
 
             graph.SetShader("hiz-visualize"_hsv);
             
-            passData.HiZ = graph.Read(hiz,
+            passData.HiZ = graph.ReadImage(hiz,
                 ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);
-            const TextureDescription& hizDescription = graph.GetTextureDescription(hiz);
-
-            passData.ColorOut = graph.CreateResource("ColorOut"_hsv, GraphTextureDescription{
-                .Width = hizDescription.Width,
-                .Height = hizDescription.Height,
+            passData.ColorOut = graph.Create("ColorOut"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Size,
+                .Reference = hiz,
                 .Format = Format::RGBA16_FLOAT});
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut,
-                AttachmentLoad::Load, AttachmentStore::Store);
+            passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("HiZ.Visualize")
             GPU_PROFILE_FRAME("HiZ.Visualize")
             
-            Texture hizTexture = resources.GetTexture(passData.HiZ);
-            PushConstants& pushConstants = resources.GetOrCreateValue<PushConstants>();
+            PushConstants& pushConstants = graph.GetOrCreateBlackboardValue<PushConstants>();
             ImGui::Begin("HiZ visualize");
             ImGui::DragInt("mip level", (i32*)&pushConstants.MipLevel, 1.0f, 0, 10);            
             ImGui::DragFloat("intensity", &pushConstants.IntensityScale, 10.0f, 1.0f, 1e+4f);            
             ImGui::End();
 
-            const Shader& shader = resources.GetGraph()->GetShader();
+            const Shader& shader = graph.GetShader();
             HizVisualizeShaderBindGroup bindGroup(shader);
             bindGroup.SetSampler(Device::CreateSampler({
                 .MinificationFilter = ImageFilter::Nearest,
                 .MagnificationFilter = ImageFilter::Nearest}));
-            bindGroup.SetHiz({.Image = hizTexture}, ImageLayout::Readonly);
+            bindGroup.SetHiz(graph.GetImageBinding(passData.HiZ));
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, resources.GetGraph()->GetFrameAllocators());
+            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.PushConstants({
                 .PipelineLayout = shader.GetLayout(), 
                 .Data = {pushConstants}});
             cmd.Draw({.VertexCount = 3});
-        }).Data;
+        });
 }

@@ -32,11 +32,15 @@ struct CommonLight
     f32 Intensity{1.0f};
     f32 Radius{1.0f};
     SpotLightData SpotLightData{};
+
+    Transform3d GetTransform() const;
 };
 
 struct SceneLightInfo
 {
     static SceneLightInfo FromAsset(assetLib::SceneInfo& sceneInfo);
+    void AddLight(const DirectionalLight& light);
+    void AddLight(const PointLight& light);
     
     std::vector<CommonLight> Lights;
 };
@@ -75,3 +79,4 @@ private:
     
     Buffers m_Buffers{};
 };
+

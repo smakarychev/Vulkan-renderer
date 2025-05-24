@@ -37,6 +37,7 @@ layout(location = 1) out vec3 vertex_position;
 layout(location = 2) out vec3 vertex_normal;
 layout(location = 3) out vec4 vertex_tangent;
 layout(location = 4) out vec2 vertex_uv;
+layout(location = 5) out float vertex_z_view;
 
 void main() {
     const IndirectCommand command = u_commands.commands[gl_DrawIDARB];
@@ -59,5 +60,7 @@ void main() {
     const UV uv = u_ugb_uv.uvs[render_object.uv_index + gl_VertexIndex];
     vertex_uv = vec2(uv.u, uv.v);
 
+    const vec4 view = u_camera.camera.view * position_v;
+    vertex_z_view = view.z;
     gl_Position = u_camera.camera.view_projection * position_v;
 }

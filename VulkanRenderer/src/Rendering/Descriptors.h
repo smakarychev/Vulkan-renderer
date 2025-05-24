@@ -3,16 +3,10 @@
 #include "Buffer/Buffer.h"
 #include "DescriptorsTraits.h"
 #include "Image/Image.h"
-#include "ShaderAsset.h"
 
 #include <array>
 #include <vector>
 #include <unordered_map>
-
-namespace assetLib
-{
-    struct ShaderStageInfo;
-}
 
 class DescriptorArenaAllocators;
 class ResourceUploader;
@@ -20,12 +14,12 @@ class DescriptorPool;
 
 struct DescriptorBinding
 {
-    using Flags = assetLib::ShaderStageInfo::DescriptorSet::DescriptorFlags;
     u32 Binding;
     DescriptorType Type;
     u32 Count;
     ShaderStage Shaders;
-    Flags DescriptorFlags{Flags::None};
+    DescriptorFlags Flags{DescriptorFlags::None};
+    Sampler ImmutableSampler{};
 
     auto operator<=>(const DescriptorBinding&) const = default;
 };
@@ -46,7 +40,7 @@ using DescriptorArenaAllocator = ResourceHandleType<DescriptorArenaAllocatorTag>
 struct DescriptorsTag{};
 using Descriptors = ResourceHandleType<DescriptorsTag>;
 
-struct DescriptorBindingInfo
+struct DescriptorSlotInfo
 {
     u32 Slot{};
     DescriptorType Type{};

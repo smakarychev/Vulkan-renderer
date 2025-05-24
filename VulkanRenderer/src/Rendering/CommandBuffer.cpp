@@ -25,3 +25,14 @@ void CommandBufferArray::EnsureCapacity(u32 index)
             .Pool = m_Pool,
             .Kind = CommandBufferKind::Primary}));
 }
+
+CommandBufferLabel::CommandBufferLabel(CommandBuffer cmd, std::string_view label)
+    : m_Cmd(cmd)
+{
+    Device::BeginCommandBufferLabel(cmd, label);
+}
+
+CommandBufferLabel::~CommandBufferLabel()
+{
+    Device::EndCommandBufferLabel(m_Cmd);
+}

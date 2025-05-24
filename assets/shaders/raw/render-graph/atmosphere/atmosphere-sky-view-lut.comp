@@ -18,8 +18,8 @@ layout(scalar, set = 1, binding = 3) uniform atmosphere_settings {
 } u_atmosphere_settings;
 
 layout(scalar, set = 1, binding = 4) uniform directional_light {
-    DirectionalLight light;
-} u_directional_light;
+    DirectionalLight lights[];
+} u_directional_lights;
 
 layout(set = 1, binding = 5) uniform camera_buffer {
     CameraGPU camera;
@@ -43,7 +43,7 @@ void main() {
     
     const vec2 zenith_view_cos = sky_view_zen_view_cos_from_uv(atm, uv, r);
     const vec3 up = pos / r;
-    const float mu = dot(u_directional_light.light.direction * vec3(1, -1, 1), up);
+    const float mu = dot(u_directional_lights.lights[0].direction * vec3(1, -1, 1), up);
     const vec3 sun_dir = normalize(vec3(sqrt(1.0f - mu * mu), mu, 0.0f));
     
     const vec3 ro = vec3(0.0f, r, 0.0f);
@@ -54,7 +54,7 @@ void main() {
         zenith_sin * sqrt(1.0f - zenith_view_cos.y * zenith_view_cos.y));
 
     const bool surface = false;
-    const vec3 global_l = u_directional_light.light.color * u_directional_light.light.intensity;
+    const vec3 global_l =u_directional_lights.lights[0].color * u_directional_lights.lights[0].intensity;
 
     const bool use_uniform_phase = false;
     const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm, SKY_STEPS,

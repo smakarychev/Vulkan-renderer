@@ -4,6 +4,7 @@
 #include "core.h"
 #include "Converters.h"
 #include "cvars/CVarSystem.h"
+#include "Vulkan/Device.h"
 
 #include <fstream>
 #include <nlohmann/json.hpp>
@@ -312,6 +313,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
         .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
         .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
         Device::DummyDeletionQueue());
+    Device::NamePipeline(shader.Pipeline, name.AsStringView());
 
     if (json.contains("bindless"))
     {
@@ -351,7 +353,7 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(StringId na
         {
             const auto backed = ShaderStageConverter::Bake(
                 *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options);
-            if (!backed)
+            if (!backed && !std::filesystem::exists(stage))
                 return nullptr;
         }
     }

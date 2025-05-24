@@ -112,7 +112,7 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
             .Depth = node.Depth,
             .Parent = isTopLevel ? SceneHierarchyHandle::INVALID : node.Parent + instanceData.FirstNode,
             .LocalTransform = isTopLevel ?
-                baseTransform.ToMatrix() * node.LocalTransform :
+                baseTransform.Combine(node.LocalTransform) :
                 node.LocalTransform,
             .PayloadIndex = payloadIndex});
     }
@@ -122,13 +122,13 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
 
 namespace
 {
-    void updateMesh(Buffer renderObjects, u32 meshIndex, const glm::mat4& transform,
+    void updateRenderObject(Buffer renderObjects, u32 renderObjectIndex, const glm::mat4& transform,
         ResourceUploader& uploader)
     {
         uploader.UpdateBuffer(
             renderObjects,
             transform,
-            meshIndex * sizeof(RenderObjectGPU) + offsetof(RenderObjectGPU, Transform));
+            renderObjectIndex * sizeof(RenderObjectGPU) + offsetof(RenderObjectGPU, Transform));
     }
 
     void updateLight(CommonLight& light, const glm::mat4& transform)
@@ -155,15 +155,16 @@ void SceneHierarchy::OnUpdate(Scene& scene, FrameContext& ctx)
 
     for (u32 i = 0; i < nodes.size(); i++)
         transforms[i] = nodes[i].Parent == SceneHierarchyHandle::INVALID ?
-            nodes[i].LocalTransform :
-            transforms[nodes[i].Parent.Handle] * nodes[i].LocalTransform;
+            nodes[i].LocalTransform.ToMatrix() :
+            transforms[nodes[i].Parent.Handle] * nodes[i].LocalTransform.ToMatrix();
 
-    for (auto&& [i, node] : std::ranges::views::enumerate(nodes))
+    for (auto&& [i, node] : std::views::enumerate(nodes))
     {
         switch (node.Type)
         {
         case SceneHierarchyNodeType::Mesh:
-            updateMesh(scene.Geometry().RenderObjects.Buffer, node.PayloadIndex, transforms[i], *ctx.ResourceUploader);
+            updateRenderObject(scene.Geometry().RenderObjects.Buffer, node.PayloadIndex, transforms[i],
+                *ctx.ResourceUploader);
             break;
         case SceneHierarchyNodeType::Light:
             updateLight(scene.Lights().Get(node.PayloadIndex), transforms[i]);

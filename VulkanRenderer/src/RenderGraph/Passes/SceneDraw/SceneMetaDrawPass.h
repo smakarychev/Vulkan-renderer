@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
-#include "RenderGraph/RenderPass.h"
+#include "RenderGraph/RGPass.h"
 #include "SceneDrawPassesCommon.h"
 
 namespace Passes::SceneMetaDraw

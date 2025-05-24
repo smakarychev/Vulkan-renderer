@@ -1,6 +1,6 @@
 #pragma once
 
-#include "RenderGraph/RenderPass.h"
+#include "RenderGraph/RGPass.h"
 
 namespace Passes::ImGuiTexture
 {

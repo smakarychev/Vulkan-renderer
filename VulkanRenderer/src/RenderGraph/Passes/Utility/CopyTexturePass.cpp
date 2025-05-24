@@ -1,6 +1,8 @@
 #include "CopyTexturePass.h"
 
 #include "FrameContext.h"
+#include "Rendering/Image/ImageUtility.h"
+#include "RenderGraph/RGGraph.h"
 
 Passes::CopyTexture::PassData& Passes::CopyTexture::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
@@ -10,15 +12,15 @@ Passes::CopyTexture::PassData& Passes::CopyTexture::addToGraph(StringId name, RG
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            passData.TextureIn = graph.Read(info.TextureIn, ResourceAccessFlags::Copy);
-            passData.TextureOut = graph.Write(info.TextureOut, ResourceAccessFlags::Copy);
+            passData.TextureIn = graph.ReadImage(info.TextureIn, ResourceAccessFlags::Copy);
+            passData.TextureOut = graph.WriteImage(info.TextureOut, ResourceAccessFlags::Copy);
         },
-        [=](PassData& passData, FrameContext& frameContext, const Resources& resources)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             GPU_PROFILE_FRAME("Texture copy")
 
-            auto&& [src, srcDescription] = resources.GetTextureWithDescription(passData.TextureIn);
-            auto&& [dst, dstDescription] = resources.GetTextureWithDescription(passData.TextureOut);
+            auto&& [src, srcDescription] = graph.GetImageWithDescription(passData.TextureIn);
+            auto&& [dst, dstDescription] = graph.GetImageWithDescription(passData.TextureOut);
 
             ImageSubregion srcSubregion = {
                 .Layers = 1,
@@ -46,5 +48,5 @@ Passes::CopyTexture::PassData& Passes::CopyTexture::addToGraph(StringId name, RG
                 .Destination = dst,
                 .SourceSubregion = srcSubregion,
                 .DestinationSubregion = dstSubregion});
-        }).Data;
+        });
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <span>
 #include <vector>
 
@@ -12,7 +13,7 @@ public:
 
     constexpr Span() = default;
     constexpr Span(std::span<T> span) : m_Span(span) {}
-    constexpr Span(std::initializer_list<T> initializerList)
+    constexpr Span(std::initializer_list<std::remove_const_t<T>> initializerList)
         : m_Span(initializerList.begin(), initializerList.size()) {}
     constexpr Span(T* pointer, std::size_t size) : m_Span(pointer, size) {}
     constexpr Span(const std::vector<std::remove_const_t<T>>& vector)
@@ -21,11 +22,15 @@ public:
     template <typename R>
     constexpr Span(std::initializer_list<R> initializerList)
         requires std::is_same_v<std::decay_t<T>, std::byte>
-        : m_Span(const_cast<T*>((const T*)initializerList.begin()), initializerList.size() * sizeof(R)) {}
+        : m_Span((const T*)initializerList.begin(), initializerList.size() * sizeof(R)) {}
     template <typename R>
     constexpr Span(const std::vector<R>& vector)
         requires std::is_same_v<std::decay_t<T>, std::byte>
-        : m_Span(const_cast<T*>((const T*)vector.data()), vector.size() * sizeof(R)) {}
+        : m_Span((const T*)vector.data(), vector.size() * sizeof(R)) {}
+
+    template <usize Size>
+    constexpr Span(const std::array<std::remove_const_t<T>, Size>& array)
+        : m_Span(const_cast<T*>(array.data()), Size) {}
 
     constexpr operator std::span<T>() const { return m_Span; }
 
