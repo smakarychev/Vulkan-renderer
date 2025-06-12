@@ -90,7 +90,7 @@ private:
 
     RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
     Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
-    RG::Resource RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut);
+    void RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut);
     RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
         RG::Resource color, RG::Resource depth, RG::CsmData csmData);
     
@@ -137,6 +137,8 @@ private:
     Buffer m_IrradianceSH{};
     Buffer m_SkyIrradianceSH{};
     RG::Resource m_SkyIrradianceSHResource{};
+    Texture m_SkyPrefilterMap{};
+    RG::Resource m_SkyPrefilterMapResource{};
 
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 

@@ -44,7 +44,7 @@ Passes::SceneFillIndirectDraw::PassData& Passes::SceneFillIndirectDraw::addToGra
                 
                 passData.Draws[i] = graph.ReadWriteBuffer(info.Draws[i], Compute | Storage);
                 passData.DrawInfos[i] = graph.ReadWriteBuffer(info.DrawInfos[i], Compute | Storage);
-                graph.Upload(passData.DrawInfos[i], SceneBucketDrawInfo{});
+                passData.DrawInfos[i] = graph.Upload(passData.DrawInfos[i], SceneBucketDrawInfo{});
             }
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)

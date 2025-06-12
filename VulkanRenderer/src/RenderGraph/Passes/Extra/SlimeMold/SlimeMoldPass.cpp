@@ -162,7 +162,7 @@ UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderG
                     ctx.GetTraits()[0] = SlimeMoldContext::RandomTrait();
                 ImGui::End();
             ImGui::End();
-            graph.Upload(passData.Traits, ctx.GetTraits());
+            passData.Traits = graph.Upload(passData.Traits, ctx.GetTraits());
         },
         [=](const UpdateSlimeMapPassData& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -292,7 +292,7 @@ GradientPassData& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeM
                 gradient.D = Random::Float4();
             }
             ImGui::End();
-            graph.Upload(passData.Gradient, gradient);
+            passData.Gradient = graph.Upload(passData.Gradient, gradient);
 
             passData.SlimeMoldContext = &ctx;
         },

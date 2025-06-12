@@ -50,7 +50,7 @@ Intersection intersect_sphere(vec3 ro, vec3 rd, vec3 center, float radius) {
 
 vec3 get_view_pos(vec3 camera_pos, float surface_radius) {
     // add a default view_height of 200m
-    const float base_view_height = 200.0f * 1e-3f;
+    const float base_view_height = 300.0f * 1e-3f;
     return camera_pos * 1e-3f + vec3(0.0f, surface_radius + base_view_height, 0.0f);
 }
 
@@ -168,7 +168,7 @@ vec2 sky_view_zen_view_cos_from_uv(ViewInfo view, vec2 uv, float r) {
 }
 
 vec2 sky_view_uv_from_zen_view_cos(ViewInfo view, bool intersects_surface,
-float cos_zenith, float cos_view, float r) {
+    float cos_zenith, float cos_view, float r) {
 
     const float rho = sqrt(max(r * r - view.surface * view.surface, 0.0f));
     const float cos_theta = rho / r;
@@ -238,6 +238,6 @@ float aerial_perspective_km_to_slice(float km) {
 
 vec3 expose(vec3 color) {
     const vec3 white_point = vec3(1.08241f, 0.96756f, 0.95003f);
-    const float exposure = 15.0f;
+    const float exposure = 10.0f;
     return vec3(1.0 - exp(-color.rgb / white_point * exposure));
 }

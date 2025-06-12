@@ -58,7 +58,7 @@ Passes::SkyGradient::PassData& Passes::SkyGradient::addToGraph(StringId name, RG
             ImGui::DragFloat("sun radius", &settings.SunRadius, 1e-1f, 1.0f, 1024.0f);
             ImGui::DragFloat("sun intensity", &settings.SunIntensity, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
-            graph.Upload(passData.Settings, settings);
+            passData.Settings = graph.Upload(passData.Settings, settings);
 
             passData.ColorOut = graph.WriteImage(renderTarget, Compute | Storage);
         },

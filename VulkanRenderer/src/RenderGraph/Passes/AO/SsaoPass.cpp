@@ -139,14 +139,14 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             ImGui::DragFloat("Power", &settings.Power, 1e-3f, 0.0f, 5.0f);
             ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
-            graph.Upload(passData.Settings, settings);
+            passData.Settings = graph.Upload(passData.Settings, settings);
             
             CameraUBO camera = {
                 .Projection = globalResources.PrimaryCamera->GetProjection(),
                 .ProjectionInverse = glm::inverse(globalResources.PrimaryCamera->GetProjection()),
                 .Near = globalResources.PrimaryCamera->GetFrustumPlanes().Near,
                 .Far = globalResources.PrimaryCamera->GetFrustumPlanes().Far};
-            graph.Upload(passData.Camera, camera);
+            passData.Camera = graph.Upload(passData.Camera, camera);
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {

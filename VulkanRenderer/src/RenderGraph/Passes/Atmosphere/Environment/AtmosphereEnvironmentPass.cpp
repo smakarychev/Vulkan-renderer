@@ -73,7 +73,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
                 Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
                     .SizeBytes = sizeof(ViewInfoGPU)});
-                graph.Upload(viewInfoResource, viewInfo);
+                viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
 
                 faces[faceIndex] = graph.SplitImage(passData.ColorOut,
                     {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});

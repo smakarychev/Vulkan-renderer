@@ -9,10 +9,10 @@ namespace Passes::EnvironmentPrefilter
         RG::Resource PrefilteredTexture{};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, Texture cubemap,
-        Texture prefiltered);
+        Texture prefiltered, bool realTime);
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
-        Texture prefiltered);
+        Texture prefiltered, bool realTime);
 
-    TextureDescription getPrefilteredTextureDescription();
+    TextureDescription getPrefilteredTextureDescription(u32 resolution);
 }
 

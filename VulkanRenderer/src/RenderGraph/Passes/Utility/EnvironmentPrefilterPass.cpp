@@ -6,15 +6,15 @@
 #include "Rendering/Shader/ShaderCache.h"
 
 Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
-    Texture cubemap, Texture prefiltered)
+    Texture cubemap, Texture prefiltered, bool realTime)
 {
     return addToGraph(name, renderGraph,
         renderGraph.Import("Cubemap"_hsv, cubemap, ImageLayout::Readonly),
-        prefiltered);
+        prefiltered, realTime);
 }
 
 Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource cubemap, Texture prefiltered)
+    RG::Resource cubemap, Texture prefiltered, bool realTime)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -28,7 +28,9 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
             {
                 CPU_PROFILE_FRAME("EnvironmentPrefilter.Setup")
 
-                graph.SetShader("environment-prefilter"_hsv);
+                graph.SetShader("environment-prefilter"_hsv,
+                    ShaderSpecializations{
+                        ShaderSpecialization{"REAL_TIME"_hsv, realTime}});
 
                 if (mipmap == 0)
                 {
@@ -82,7 +84,7 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
                 	.Data = {pushConstants}});
                 cmd.Dispatch({
                     .Invocations = {resolution, resolution, 6},
-                    .GroupSize = {32, 32, 1}});
+                    .GroupSize = {8, 8, 1}});
             });
 
         if (mipmap == mipmaps - 1)
@@ -92,17 +94,17 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
     std::unreachable();
 }
 
-TextureDescription Passes::EnvironmentPrefilter::getPrefilteredTextureDescription()
+TextureDescription Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(u32 resolution)
 {
-    i8 mipmapCount = Images::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION});
+    i8 mipmapCount = Images::mipmapCount({resolution, resolution});
     std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
     for (i8 i = 0; i < mipmapCount; i++)
         additionalViews[i] = ImageSubresourceDescription{
             .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 6};
 
     return {
-        .Width = PREFILTER_RESOLUTION,
-        .Height = PREFILTER_RESOLUTION,
+        .Width = resolution,
+        .Height = resolution,
         .LayersDepth = 6,
         .Mipmaps = mipmapCount,
         .Format = Format::RGBA16_FLOAT,

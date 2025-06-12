@@ -37,7 +37,7 @@ Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderG
             passData.Time = graph.Create("Time"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(f32)});
             passData.Time = graph.ReadBuffer(passData.Time, Pixel | Uniform);
-            graph.Upload(passData.Time, (f32)globalResources.FrameNumberTick);
+            passData.Time = graph.Upload(passData.Time, (f32)globalResources.FrameNumberTick);
 
             passData.Settings = graph.Create("Settings"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
@@ -50,7 +50,7 @@ Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderG
             ImGui::DragFloat("vignette power", &settings.VignettePower, 1e-2f, 0.0f, 5.0f);            
             ImGui::DragFloat("vignette clear radius", &settings.VignetteRadius, 1e-3f, 0.0f, 1.0f);            
             ImGui::End();
-            graph.Upload(passData.Settings, settings);
+            passData.Settings = graph.Upload(passData.Settings, settings);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {

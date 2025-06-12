@@ -158,8 +158,8 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
             
             passData.CsmData.CsmInfo = graph.Create("CsmInfo"_hsv,
                 RGBufferDescription{.SizeBytes = sizeof(CsmInfo)});
-            passData.CsmData.CsmInfo = graph.WriteBuffer(passData.CsmData.CsmInfo, Vertex | Uniform | Copy);
-            graph.Upload(passData.CsmData.CsmInfo, csmInfo);
+            passData.CsmData.CsmInfo = graph.WriteBuffer(passData.CsmData.CsmInfo, Vertex | Uniform);
+            passData.CsmData.CsmInfo = graph.Upload(passData.CsmData.CsmInfo, csmInfo);
             
             passData.Near = cameras.ShadowCameras.front().GetFrustumPlanes().Near;
             passData.Far = cameras.ShadowCameras.back().GetFrustumPlanes().Far;

@@ -61,7 +61,7 @@ namespace RG
         void HasSideEffect() const;
 
         template <typename T>
-        void Upload(Resource buffer, T&& data, u64 bufferOffset = 0);
+        Resource Upload(Resource buffer, T&& data, u64 bufferOffset = 0);
 
         Resource SetBackbufferImage(Image backbuffer, ImageLayout layout = ImageLayout::Undefined);
         Resource GetBackbufferImage() const;
@@ -175,10 +175,12 @@ namespace RG
     }
 
     template <typename T>
-    void Graph::Upload(Resource buffer, T&& data, u64 bufferOffset)
+    Resource Graph::Upload(Resource buffer, T&& data, u64 bufferOffset)
     {
         m_ResourceUploader.UpdateBuffer(CurrentPass(), buffer, std::forward<T>(data), bufferOffset);
         m_Buffers[buffer.m_Index].Description.Usage |= BufferUsage::Destination;
+
+        return WriteBuffer(buffer, ResourceAccessFlags::Copy);
     }
 
     template <typename Value>

@@ -44,7 +44,8 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
                 ShaderSpecializations{
                     ShaderSpecialization{
                         "MAX_REFLECTION_LOD"_hsv,
-                        (f32)Images::mipmapCount({PREFILTER_RESOLUTION, PREFILTER_RESOLUTION})},
+                        (f32)Images::mipmapCount(
+                            glm::uvec2(graph.GetImageDescription(info.IBL.PrefilterEnvironment).Width))},
                     ShaderSpecialization{"USE_TILED_LIGHTING"_hsv, useTiled},
                     ShaderSpecialization{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
                     ShaderSpecialization{"USE_HYBRID_LIGHTING"_hsv, useHybrid}});

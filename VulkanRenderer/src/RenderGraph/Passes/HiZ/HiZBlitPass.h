@@ -44,7 +44,7 @@ namespace Passes::HiZBlit
                 {
                     passData.MinMaxDepth = HiZ::createMinMaxBufferResource(graph);
                     passData.MinMaxDepth = graph.ReadWriteBuffer(passData.MinMaxDepth, Compute | Storage);
-                    graph.Upload(passData.MinMaxDepth, HiZ::MinMaxDepth{});
+                    passData.MinMaxDepth = graph.Upload(passData.MinMaxDepth, HiZ::MinMaxDepth{});
                 }
                 
                 passData.Depth = graph.ReadImage(depth, Compute | Sampled);

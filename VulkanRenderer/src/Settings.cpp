@@ -31,6 +31,11 @@ void Settings::initCvars()
     CVarI32 atmosphereRendering("Renderer.Atmosphere"_hsv,
         "Flag if renderer should render sky as physically correct atmosphere "
         "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+    
+    CVarI32 prefilterMapResolution("Renderer.IBL.PrefilterResolution"_hsv,
+        "Resolution of environment prefilter map", 256);
+    CVarI32 prefilterMapResolutionRealtime("Renderer.IBL.PrefilterResolutionRealtime"_hsv,
+        "Resolution of realtime environment prefilter map", 128);
 
     /* render graph */
     CVarI32 renderGraphPoolMaxUnreferencedFrame("RG.UnreferencedResourcesLifetime"_hsv,

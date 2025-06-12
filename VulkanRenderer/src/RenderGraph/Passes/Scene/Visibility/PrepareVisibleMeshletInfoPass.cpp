@@ -48,7 +48,7 @@ Passes::PrepareVisibleMeshletInfo::PassData& Passes::PrepareVisibleMeshletInfo::
             passData.MeshletInfoCount = graph.Create("MeshletInfoCount"_hsv,
                 RGBufferDescription{.SizeBytes = sizeof(u32)});
             passData.MeshletInfoCount = graph.ReadWriteBuffer(passData.MeshletInfoCount, Compute | Storage);
-            graph.Upload(passData.MeshletInfoCount, 0);
+            passData.MeshletInfoCount = graph.Upload(passData.MeshletInfoCount, 0);
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {

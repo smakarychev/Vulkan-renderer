@@ -43,14 +43,14 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
 }
 
 void SceneVisibilityPassesResources::UploadViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
-    RG::Graph& renderGraph) const
+    RG::Graph& renderGraph)
 {
     for (u32 i = 0; i < VisibilityCount; i++)
-        renderGraph.Upload(Views[i], sceneMultiviewVisibility.View({i}).ViewInfo);
+        Views[i] = renderGraph.Upload(Views[i], sceneMultiviewVisibility.View({i}).ViewInfo);
 }
 
-void SceneVisibilityPassesResources::ResetMeshletCounts(RG::Graph& renderGraph) const
+void SceneVisibilityPassesResources::ResetMeshletCounts(RG::Graph& renderGraph)
 {
     for (u32 i = 0; i < VisibilityCount; i++)
-        renderGraph.Upload(MeshletInfoCounts[i], 0lu);
+        MeshletInfoCounts[i] = renderGraph.Upload(MeshletInfoCounts[i], 0lu);
 }

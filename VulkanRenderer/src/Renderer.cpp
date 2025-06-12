@@ -252,7 +252,13 @@ void Renderer::ExecuteSingleTimePasses()
         .CalculateMipmaps = false});
     
     m_SkyboxPrefilterMap = Device::CreateImage({
-        .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(),
+        .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
+            *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolution"_hsv)),
+        .CalculateMipmaps = false});
+    
+    m_SkyPrefilterMap = Device::CreateImage({
+        .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
+            *CVars::Get().GetI32CVar("Renderer.IBL.PrefilterResolutionRealtime"_hsv)),
         .CalculateMipmaps = false});
     
     m_IrradianceSH = Device::CreateBuffer({
@@ -273,7 +279,7 @@ void Renderer::ExecuteSingleTimePasses()
     Passes::DiffuseIrradianceSH::addToGraph(
         "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap, m_IrradianceSH, false);
     Passes::EnvironmentPrefilter::addToGraph(
-        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap, m_SkyboxPrefilterMap);
+        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap, m_SkyboxPrefilterMap, false);
     Passes::BRDFLut::addToGraph(
         "Scene.BRDFLut"_hsv, *m_Graph, m_BRDFLut);
 
@@ -355,7 +361,7 @@ void Renderer::SetupRenderGraph()
     if (renderAtmosphere)
     {
         atmosphereLuts = &RenderGraphAtmosphereLutPasses();
-        m_SkyIrradianceSHResource = RenderGraphAtmosphereEnvironment(*atmosphereLuts);
+        RenderGraphAtmosphereEnvironment(*atmosphereLuts);
     }
 
     bool useForwardPass = CVars::Get().GetI32CVar("Renderer.UseForwardShading"_hsv).value_or(false);
@@ -601,8 +607,8 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
             .IBL = {
                 .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
                     m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
-                .PrefilterEnvironment = m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap,
-                    ImageLayout::Readonly),
+                .PrefilterEnvironment = renderAtmosphere ? m_SkyPrefilterMapResource :
+                    m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap, ImageLayout::Readonly),
                 .BRDF = m_Graph->Import("BRDF"_hsv, m_BRDFLut,
                     ImageLayout::Readonly)
             },
@@ -712,7 +718,8 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource 
         .IBL = {
             .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
                 m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
-            .PrefilterEnvironment = m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap, ImageLayout::Readonly),
+            .PrefilterEnvironment = renderAtmosphere ? m_SkyPrefilterMapResource :
+                m_Graph->Import("PrefilterMap"_hsv, m_SkyboxPrefilterMap, ImageLayout::Readonly),
             .BRDF = m_Graph->Import("BRDF"_hsv, m_BRDFLut, ImageLayout::Readonly)
         },
         .Clusters = m_ClusterLightsInfo.Clusters,
@@ -854,7 +861,7 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
     return luts;
 }
 
-RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut)
+void Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut)
 {
     auto& environment = Passes::Atmosphere::Environment::addToGraph("Atmosphere.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
@@ -862,12 +869,13 @@ RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutP
         .SkyViewLut = lut.SkyViewLut
     });
 
-    const RG::Resource skyIrradianceSH = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
+    m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
         environment.ColorOut, m_SkyIrradianceSH, true).DiffuseIrradiance;
 
-    Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph, environment.ColorOut);
+    m_SkyPrefilterMapResource = Passes::EnvironmentPrefilter::addToGraph(
+        "Scene.EnvironmentPrefilter"_hsv, *m_Graph, environment.ColorOut, m_SkyPrefilterMap, true).PrefilteredTexture;
 
-    return skyIrradianceSH;
+    Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph, environment.ColorOut);
 }
 
 RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,

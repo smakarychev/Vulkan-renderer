@@ -2,12 +2,14 @@
 
 #include "globals.glsl"
 
-layout(local_size_x = 32, local_size_y = 32) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 
 @immutable_sampler
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform textureCube u_env;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly imageCube u_prefilter;
+
+layout(constant_id = 0) const bool REAL_TIME = false;
 
 layout(push_constant) uniform push_constants {
     vec2 u_prefilter_size_inv;
@@ -15,8 +17,7 @@ layout(push_constant) uniform push_constants {
     float u_roughness;
 };
 
-vec4 prefilter(vec3 normal) {
-    const uint n = 1024;
+vec4 prefilter(vec3 normal, uint n) {
     vec3 prefilter = vec3(0.0f);
     float total_weight = 0.0f;
     for (uint i = 0; i < n; i++) {
@@ -50,7 +51,14 @@ void main() {
     if (gl_GlobalInvocationID.x >= image_size.x || gl_GlobalInvocationID.y >= image_size.y)
         return;
     vec3 normal = cubemap_normal_vector(gl_GlobalInvocationID, u_prefilter_size_inv);
-    const vec4 color = prefilter(normal);
+    
+    uint samples;
+    if (REAL_TIME)
+        samples = u_roughness < 0.1f ? 32 : 64;
+    else
+        samples = 1024;
+    
+    const vec4 color = prefilter(normal, samples);
 
     imageStore(u_prefilter, ivec3(gl_GlobalInvocationID), color);
 }

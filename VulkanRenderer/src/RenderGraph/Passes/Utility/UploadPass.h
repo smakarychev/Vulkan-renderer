@@ -20,8 +20,7 @@ namespace Passes::Upload
                 auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(data);
                 passData.Resource = graph.Create("Resource"_hsv, RGBufferDescription{
                     .SizeBytes = sizeBytes});
-                passData.Resource = graph.WriteBuffer(passData.Resource, Copy);
-                graph.Upload(passData.Resource, std::forward<T>(data));
+                passData.Resource = graph.Upload(passData.Resource, std::forward<T>(data));
                 graph.HasSideEffect();
             },
             [=](const PassData&, FrameContext&, const Graph&)

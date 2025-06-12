@@ -84,7 +84,7 @@ namespace
                 passData.ClusterVisibility = graph.ReadWriteBuffer(clusterVisibility, Compute | Storage);
                 passData.ActiveClusters = graph.WriteBuffer(passData.ActiveClusters, Compute | Storage);
                 passData.ActiveClustersCount = graph.ReadWriteBuffer(passData.ActiveClustersCount, Compute | Storage);
-                graph.Upload(passData.ActiveClustersCount, 0);
+                passData.ActiveClustersCount = graph.Upload(passData.ActiveClustersCount, 0);
             },
             [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
