@@ -301,16 +301,16 @@ void Renderer::SetupRenderGraph()
     bindGroup.SetMaterials({.Buffer = m_Scene.Geometry().Materials.Buffer});
 
     Resource color = m_Graph->Create("Color"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
-        .Width = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
-        .Height = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+        .Inference = RGImageInference::Size2d,
+        .Reference = backbuffer,
         .Format = Format::RGBA16_FLOAT});
     Resource vbuffer = m_Graph->Create("VBuffer"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
-        .Width = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
-        .Height = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+        .Inference = RGImageInference::Size2d,
+        .Reference = backbuffer,
         .Format = Format::R32_UINT});
     Resource depth = m_Graph->Create("Depth"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
-        .Width = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.x,
-        .Height = (f32)Device::GetSwapchainDescription(m_Swapchain).DrawResolution.y,
+        .Inference = RGImageInference::Size2d,
+        .Reference = backbuffer,
         .Format = Format::D32_FLOAT});
     
     auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
