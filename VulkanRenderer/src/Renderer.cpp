@@ -191,7 +191,7 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene", 
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/death_valley/scene.scene", 
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
@@ -212,8 +212,8 @@ void Renderer::InitRenderGraph()
         SceneInfo lights = {};
         lights.AddLight({
             .Direction = glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)),
-            .Color = glm::vec3(1.0f, 0.2f, 0.3f),
-            .Intensity = 0.1f,
+            .Color = glm::vec3(1.0f, 1.0f, 1.0f),
+            .Intensity = 5.0f,
         });
         constexpr u32 POINT_LIGHT_COUNT = 0;
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)

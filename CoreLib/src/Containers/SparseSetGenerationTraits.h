@@ -4,6 +4,8 @@
 
 #include <utility>
 
+// todo: this needs allocator support
+
 template <typename T>
 struct SparseSetGenerationTraits
 {

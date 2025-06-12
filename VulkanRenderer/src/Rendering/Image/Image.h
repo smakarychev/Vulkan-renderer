@@ -3,7 +3,7 @@
 #include "ImageTraits.h"
 #include "Sampler.h"
 #include "Rendering/FormatTraits.h"
-#include "Common/Span.h"
+#include "Containers/Span.h"
 
 #include <string_view>
 #include <variant>

@@ -6,6 +6,8 @@
 
 #include "Math/CoreMath.h"
 
+// todo: this needs allocator support
+
 /* Paged sparse set implementation */
 
 static constexpr u32 SPARSE_SET_PAGE_SIZE = 256;

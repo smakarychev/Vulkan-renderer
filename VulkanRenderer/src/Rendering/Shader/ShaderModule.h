@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Common/Span.h"
+#include "Containers/Span.h"
 #include "Rendering/DescriptorsTraits.h"
 #include "Rendering/ResourceHandle.h"
 

@@ -7,6 +7,8 @@ static constexpr u32 DENSE_SET_PAGE_SIZE = 256;
 static_assert(Math::isPowerOf2(DENSE_SET_PAGE_SIZE), "Page size must be a power of 2");
 static const u32 DENSE_SET_PAGE_SIZE_LOG = Math::log2(DENSE_SET_PAGE_SIZE);
 
+// todo: this needs allocator support
+
 template <typename T>
 class DenseSetPaged
 {

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "Common/DenseSetPaged.h"
-#include "Common/SparseSet.h"
+#include "Containers/DenseSetPaged.h"
+#include "Containers/SparseSet.h"
 
 #include "Rendering/ResourceHandle.h"
 

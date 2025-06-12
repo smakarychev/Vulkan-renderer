@@ -4,12 +4,10 @@
 
 #include "Descriptors.h"
 #include "DescriptorsTraits.h"
-#include "Common/Span.h"
+#include "Containers/Span.h"
 #include "Shader/ShaderModule.h"
 
 #include <vector>
-
-#include "utils/hash.h"
 
 class DeletionQueue;
 

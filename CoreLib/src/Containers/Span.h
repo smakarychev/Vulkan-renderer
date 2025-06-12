@@ -13,6 +13,15 @@ public:
 
     constexpr Span() = default;
     constexpr Span(std::span<T> span) : m_Span(span) {}
+    template <typename R>
+    constexpr Span(std::span<R> span)
+        requires std::is_same_v<std::decay_t<T>, std::byte>
+        : m_Span((const T*)span.data(), span.size_bytes()) {}
+    constexpr Span(const Span& span) : m_Span(span) {}
+    template <typename R>
+    constexpr Span(Span<R> span)
+        requires std::is_same_v<std::decay_t<T>, std::byte>
+        : m_Span((const T*)span.data(), span.size() * sizeof(R)) {}
     constexpr Span(std::initializer_list<std::remove_const_t<T>> initializerList)
         : m_Span(initializerList.begin(), initializerList.size()) {}
     constexpr Span(T* pointer, std::size_t size) : m_Span(pointer, size) {}
@@ -31,6 +40,10 @@ public:
     template <usize Size>
     constexpr Span(const std::array<std::remove_const_t<T>, Size>& array)
         : m_Span(const_cast<T*>(array.data()), Size) {}
+    template <typename R, usize Size>
+    constexpr Span(const std::array<R, Size>& array)
+        requires std::is_same_v<std::decay_t<T>, std::byte>
+        : m_Span((const T*)array.data(), Size * sizeof(R)) {}
 
     constexpr operator std::span<T>() const { return m_Span; }
 

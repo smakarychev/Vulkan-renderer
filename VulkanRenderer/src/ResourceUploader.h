@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "Core/Traits.h"
+#include "Containers/Traits.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Vulkan/Device.h"
 

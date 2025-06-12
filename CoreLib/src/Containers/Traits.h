@@ -1,8 +1,9 @@
 #pragma once
+
 #include <span>
 #include <vector>
 
-#include "Common/Span.h"
+#include "Span.h"
 
 template <typename T>
 struct is_span : std::false_type {};

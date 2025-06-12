@@ -2,7 +2,7 @@
 
 #include "Rendering/ResourceHandle.h"
 #include "BufferTraits.h"
-#include "Common/Span.h"
+#include "Containers/Span.h"
 
 struct BufferCreateInfo
 {
