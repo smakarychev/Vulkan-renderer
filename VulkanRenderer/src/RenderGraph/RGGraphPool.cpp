@@ -4,6 +4,8 @@
 #include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
 
+#include <algorithm>
+
 namespace RG
 {
     namespace

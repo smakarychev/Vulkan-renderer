@@ -14,6 +14,7 @@
 #include "Light/LightFrustumCuller.h"
 #include "Light/LightZBinner.h"
 #include "Light/SH.h"
+#include "Math/Random.h"
 #include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/AA/FxaaPass.h"
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"

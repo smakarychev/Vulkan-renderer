@@ -1,8 +1,9 @@
 ﻿#pragma once
-#include <random>
-#include <glm/glm.hpp>
 
 #include "types.h"
+
+#include <random>
+#include <glm/glm.hpp>
 
 class Random
 {
