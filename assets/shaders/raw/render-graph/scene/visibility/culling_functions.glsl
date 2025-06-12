@@ -14,7 +14,7 @@ bool is_backface_meshlet_visible_orthographic(vec3 cone_axis, float cone_cutoff)
     return -cone_axis.z < cone_cutoff;
 }
 
-bool is_frustum_visible_orthographic(vec3 sphere_origin, float radius, ViewData view) {
+bool is_frustum_visible_orthographic(vec3 sphere_origin, float radius, ViewInfo view) {
     bool visible = true;
     visible = visible && abs(view.frustum_right_x * sphere_origin.x + view.projection_bias_x) < 1.0f + view.frustum_right_x * radius;
     visible = visible && abs(view.frustum_top_y * sphere_origin.y + view.projection_bias_y) < 1.0f + view.frustum_top_y * radius;
@@ -25,7 +25,7 @@ bool is_frustum_visible_orthographic(vec3 sphere_origin, float radius, ViewData 
     return visible;
 }
 
-bool is_frustum_visible(vec3 sphere_origin, float radius, ViewData view) {
+bool is_frustum_visible(vec3 sphere_origin, float radius, ViewInfo view) {
     bool visible = true;
     visible = visible && view.frustum_right_x * abs(sphere_origin.x) + sphere_origin.z * view.frustum_right_z < radius;
     visible = visible && view.frustum_top_y * abs(sphere_origin.y) + sphere_origin.z * view.frustum_top_z < radius;
@@ -36,7 +36,7 @@ bool is_frustum_visible(vec3 sphere_origin, float radius, ViewData view) {
     return visible;
 }
 
-bool is_occlusion_visible(vec3 sphere_origin, float radius, ViewData view, sampler hiz_sampler, texture2D hiz) {
+bool is_occlusion_visible(vec3 sphere_origin, float radius, ViewInfo view, sampler hiz_sampler, texture2D hiz) {
     if (sphere_origin.z + radius >= -view.frustum_near)
         return true;
 
@@ -56,8 +56,8 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, ViewData view, sampl
     // clip space -> uv space
     aabb = aabb.xwzy * vec4(-0.5f, 0.5f, -0.5f, 0.5f) + vec4(0.5f);
 
-    const float width =  (aabb.x - aabb.z) * view.hiz_width;
-    const float height = (aabb.y - aabb.w) * view.hiz_height;
+    const float width =  (aabb.x - aabb.z) * view.hiz_resolution.x;
+    const float height = (aabb.y - aabb.w) * view.hiz_resolution.y;
 
     const float level = ceil(log2(max(width, height)));
 
@@ -71,7 +71,7 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, ViewData view, sampl
     return projected_depth >= depth;
 }
 
-bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, ViewData view, sampler hiz_sampler, 
+bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, ViewInfo view, sampler hiz_sampler, 
     texture2D hiz) {
 
     if (sphere_origin.z + radius >= -view.frustum_near)
@@ -88,8 +88,8 @@ bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, ViewDat
     // clip space -> uv space
     aabb = aabb.xyzw * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
 
-    const float width =  (aabb.z - aabb.x) * view.hiz_width;
-    const float height = (aabb.y - aabb.w) * view.hiz_height;
+    const float width =  (aabb.z - aabb.x) * view.hiz_resolution.x;
+    const float height = (aabb.y - aabb.w) * view.hiz_resolution.y;
 
     const float level = ceil(log2(max(width, height)));
 
@@ -114,9 +114,9 @@ bool is_frustum_triangle_visible(vec4 aabb) {
     return aabb.z >= 0 && aabb.x <= 1 && aabb.y >= 0 && aabb.w <= 1;
 }
 
-bool is_occlusion_triangle_visible(vec4 aabb, float z, ViewData view, sampler hiz_sampler, texture2D hiz) {
-    const float width = (aabb.z - aabb.x) * view.hiz_width;
-    const float height = (aabb.y - aabb.w) * view.hiz_height;
+bool is_occlusion_triangle_visible(vec4 aabb, float z, ViewInfo view, sampler hiz_sampler, texture2D hiz) {
+    const float width = (aabb.z - aabb.x) * view.hiz_resolution.x;
+    const float height = (aabb.y - aabb.w) * view.hiz_resolution.y;
     const float level = ceil(log2(max(width, height)));
 
     const float depth = textureLod(sampler2D(hiz, hiz_sampler),(aabb.xy + aabb.zw) * 0.5, level).r;

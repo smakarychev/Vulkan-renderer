@@ -5,12 +5,17 @@
 // todo: finish me! so far the greatest problem is that I did not account for a fact that camera might come from gpu...
 namespace Passes::ShadowCamerasGpu
 {
+    struct ExecutionInfo
+    {
+        RG::Resource DepthMinMax{};
+        RG::Resource View{};
+        glm::vec3 LightDirection{};
+    };
     struct PassData
     {
+        RG::Resource ViewInfo;
         RG::Resource DepthMinMax;
-        RG::Resource PrimaryCamera;
         RG::Resource CsmDataOut;
     };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource depthMinMax,
-        RG::Resource primaryCamera, const glm::vec3& lightDirection);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

@@ -20,7 +20,7 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
     struct PassDataPrivate : PassData
     {
         Resource Tiles{};
-        Resource Camera{};
+        Resource ViewInfo{};
         Resource ZBins{};
         Resource Depth{};
     };
@@ -48,7 +48,7 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
             passData.Depth = graph.ReadImage(info.Depth, Pixel | Sampled);
             passData.Tiles = graph.ReadBuffer(info.Tiles, Pixel | Storage);
 
-            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Pixel | Uniform);
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -59,7 +59,7 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
             LightTilesVisualizeShaderBindGroup bindGroup(shader);
             bindGroup.SetDepth(graph.GetImageBinding(passData.Depth));
             bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
 
             bool useZBins = passData.ZBins.IsValid();
             if (useZBins)

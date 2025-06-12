@@ -69,14 +69,18 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                         .FlipY = false
                     },
                     .Fov = glm::radians(90.0f)});
+                ViewInfoGPU viewInfo = *info.PrimaryView;
+                viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
+                Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
+                    .SizeBytes = sizeof(ViewInfoGPU)});
+                graph.Upload(viewInfoResource, viewInfo);
 
                 faces[faceIndex] = graph.SplitImage(passData.ColorOut,
                     {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
                 
                 auto& atmosphere = Raymarch::addToGraph(
                     name.Concatenate(".Raymarch").AddVersion(faceIndex), graph, {
-                        .AtmosphereSettings = info.AtmosphereSettings,
-                        .Camera = &camera,
+                        .ViewInfo = viewInfoResource,
                         .Light = info.SceneLight,
                         .SkyViewLut = info.SkyViewLut,
                         .ColorIn = faces[faceIndex],

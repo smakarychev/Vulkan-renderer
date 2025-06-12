@@ -1,6 +1,6 @@
 #include "SkyGradientPass.h"
 
-#include "CameraGPU.h"
+#include "ViewInfoGPU.h"
 #include "Renderer.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/RGCommon.h"
@@ -40,7 +40,7 @@ Passes::SkyGradient::PassData& Passes::SkyGradient::addToGraph(StringId name, RG
 
             auto& globalResources = graph.GetGlobalResources();
             
-            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Compute | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Compute | Uniform);
             
             passData.Settings = graph.Create("Settings"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
@@ -73,7 +73,7 @@ Passes::SkyGradient::PassData& Passes::SkyGradient::addToGraph(StringId name, RG
 
             const Shader& shader = graph.GetShader();
             SkyGradientShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetCamera(graph.GetBufferBinding(passData.ViewInfo));
             bindGroup.SetSettings(graph.GetBufferBinding(passData.Settings));
             bindGroup.SetOutImage(graph.GetImageBinding(passData.ColorOut));
 

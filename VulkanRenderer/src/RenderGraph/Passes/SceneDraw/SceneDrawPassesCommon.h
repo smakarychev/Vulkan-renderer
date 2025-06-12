@@ -15,7 +15,7 @@ struct SceneDrawPassExecutionInfo
     RG::Resource Draws{};
     RG::Resource DrawInfo{};
     glm::uvec2 Resolution{};
-    const Camera* Camera{nullptr};
+    RG::Resource ViewInfo{};
     RG::DrawAttachments Attachments{};
     ShaderOverrides* BucketOverrides{nullptr};
 };
@@ -23,7 +23,7 @@ struct SceneDrawPassResources
 {
     RG::Resource Draws{};
     RG::Resource DrawInfo{};
-    RG::Resource Camera{};
+    RG::Resource ViewInfo{};
     RG::DrawAttachmentResources Attachments{};
     u32 MaxDrawCount{0};
 
@@ -37,7 +37,7 @@ struct SceneDrawPassDescription
 {
     const ScenePass* Pass{nullptr};
     SceneDrawPassInitFn DrawPassInit{};    
-    SceneView View{};
+    SceneView SceneView{};
     SceneVisibilityHandle Visibility{};
     RG::DrawAttachments Attachments{};
 };

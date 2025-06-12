@@ -1,6 +1,6 @@
 #version 460
 
-#include "../../camera.glsl"
+#include "../../view_info.glsl"
 #include "../tonemapping.glsl"
 
 layout(location = 0) out vec4 out_color;
@@ -11,9 +11,9 @@ layout(location = 0) in vec2 vertex_uv;
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
 
-layout(set = 1, binding = 1) uniform camera_buffer {
-    CameraGPU camera;
-} u_camera;
+layout(set = 1, binding = 1) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(push_constant) uniform push_constants {
     float u_frame_tick;
@@ -257,10 +257,10 @@ void main() {
     //generate_sky_view_lut();
     //return;
     
-    const vec2 aspect = vec2(u_camera.camera.resolution.x / u_camera.camera.resolution.y, 1.0f);
+    const vec2 aspect = vec2(u_view_info.view.resolution.x / u_view_info.view.resolution.y, 1.0f);
     const vec3 local_ray_dir = vec3(aspect * (vec2(vertex_uv.x, 1.0f - vertex_uv.y) - 0.5f) * 2.0f, -1.0f);
-    const vec3 ro = u_camera.camera.position;
-    const vec3 rd = normalize(vec3(u_camera.camera.inv_view * vec4(local_ray_dir, 0.0f)));
+    const vec3 ro = u_view_info.view.position;
+    const vec3 rd = normalize(vec3(u_view_info.view.inv_view * vec4(local_ray_dir, 0.0f)));
     
     const Intersection atmosphere_intersection = intersect_sphere(ro, rd, center, atmosphere_radius); 
     if (atmosphere_intersection.depth == no_hit) {

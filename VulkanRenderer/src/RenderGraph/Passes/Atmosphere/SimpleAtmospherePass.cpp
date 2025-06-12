@@ -25,7 +25,7 @@ Passes::AtmosphereSimple::PassData& Passes::AtmosphereSimple::addToGraph(StringI
                     .Height = (f32)globalResources.Resolution.y,
                     .Format = Format::RGBA16_FLOAT});
 
-            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Pixel | Uniform);
             passData.TransmittanceLut = graph.ReadImage(transmittanceLut, Pixel | Sampled);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
         },
@@ -37,7 +37,7 @@ Passes::AtmosphereSimple::PassData& Passes::AtmosphereSimple::addToGraph(StringI
             const Shader& shader = graph.GetShader();
             AtmosphereSimpleShaderBindGroup bindGroup(shader);
             bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());

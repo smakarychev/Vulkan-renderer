@@ -4,9 +4,8 @@
 #include <tracy/Tracy.hpp>
 
 #include "AssetManager.h"
-#include "CameraGPU.h"
+#include "ViewInfoGPU.h"
 #include "Converters.h"
-#include "ShadingSettingsGPU.h"
 #include "Core/Input.h"
 #include "cvars/CVarSystem.h"
 
@@ -116,6 +115,8 @@ void Renderer::InitRenderGraph()
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         1024,
         m_ShaderCache.Allocate("materials"_hsv, m_Graph->GetFrameAllocators()).value());
+    m_TransmittanceLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
+        Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
 
     m_ShaderCache.AddPersistentDescriptors("main_materials"_hsv,
         m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(DescriptorsKind::Materials));
@@ -183,19 +184,13 @@ void Renderer::InitRenderGraph()
     m_ShadowMultiviewVisibility.Init(m_OpaqueSet);
     m_PrimaryVisibility.Init(m_OpaqueSet);
     
-    m_OpaqueSetPrimaryView = {
-        .Name = "OpaquePrimary"_hsv,
-        .Camera = GetFrameContext().PrimaryCamera,
-        .Resolution = GetFrameContext().Resolution,
-        .VisibilityFlags = SceneVisibilityFlags::IsPrimaryView | SceneVisibilityFlags::OcclusionCull};
-    
     /* initial submit */
     Device::ImmediateSubmit([&](RenderCommandList& cmdList)
     {
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene",
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/lights_test/scene.scene", 
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
@@ -297,30 +292,10 @@ void Renderer::SetupRenderGraph()
     
     m_Graph->Reset();
     m_Graph->SetBackbufferImage(Device::GetSwapchainDescription(m_Swapchain).DrawImage);
-    auto& blackboard = m_Graph->GetBlackboard();
+
+    UpdateGlobalRenderGraphResources();
+
     Resource backbuffer = m_Graph->GetBackbufferImage();
-
-    SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
-    // update camera
-    CameraGPU cameraGPU = CameraGPU::FromCamera(*m_Camera, swapchain.SwapchainResolution);
-    static ShadingSettingsGPU shadingSettingsGPU = {
-        .EnvironmentPower = 1.0f,
-        .SoftShadows = false};
-    ImGui::Begin("Shading Settings");
-    ImGui::DragFloat("Environment power", &shadingSettingsGPU.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
-    ImGui::Checkbox("Soft shadows", (bool*)&shadingSettingsGPU.SoftShadows);
-    ImGui::End();
-
-    Resource shadingSettings = Passes::Upload::addToGraph("Upload.ShadingSettings"_hsv, *m_Graph, shadingSettingsGPU);
-    Resource primaryCamera = Passes::Upload::addToGraph("Upload.PrimaryCamera"_hsv, *m_Graph, cameraGPU);
-    
-    GlobalResources globalResources = {
-        .FrameNumberTick = GetFrameContext().FrameNumberTick,
-        .Resolution = GetFrameContext().Resolution,
-        .PrimaryCamera = m_Camera.get(),
-        .PrimaryCameraGPU = primaryCamera,
-        .ShadingSettings = shadingSettings};
-    blackboard.Update(globalResources);
     
     MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
     bindGroup.SetMaterials({.Buffer = m_Scene.Geometry().Materials.Buffer});
@@ -360,6 +335,10 @@ void Renderer::SetupRenderGraph()
     CsmData csmData = {};
     if (light != nullptr)
         csmData = RenderGraphShadows(shadowPass, *light);
+
+    m_OpaqueSetPrimaryView = {
+        .Name = "OpaquePrimary"_hsv,
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfo};
     
     m_OpaqueSetPrimaryVisibility = m_PrimaryVisibility.AddVisibility(m_OpaqueSetPrimaryView);
     m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
@@ -424,7 +403,7 @@ void Renderer::SetupRenderGraph()
             m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
 
         RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
-        color = RenderGraphVBufferPbr(vbuffer, primaryCamera, csmData);
+        color = RenderGraphVBufferPbr(vbuffer, m_Graph->GetGlobalResources().PrimaryViewInfoResource, csmData);
     }
    
     Resource colorWithSky{}; 
@@ -448,8 +427,64 @@ void Renderer::SetupRenderGraph()
         metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         Device::DeletionQueue());
+
+    if (atmosphereLuts)
+    {
+        m_Graph->MarkImageForExport(atmosphereLuts->TransmittanceLut);
+        m_Graph->ClaimImage(atmosphereLuts->TransmittanceLut, m_TransmittanceLut, Device::DeletionQueue());
+
+        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_TransmittanceLutBindlessIndex, m_TransmittanceLut);
+    }
     
     m_Graph->Compile(GetFrameContext());
+}
+
+void Renderer::UpdateGlobalRenderGraphResources() const
+{
+    using namespace RG;
+    
+    auto& blackboard = m_Graph->GetBlackboard();
+
+    SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
+
+    if (!blackboard.TryGet<GlobalResources>())
+    {
+        ViewInfoGPU primaryView = {};
+        primaryView.Atmosphere = AtmosphereSettings::EarthDefault();
+        blackboard.Update<GlobalResources>({.PrimaryViewInfo = primaryView});
+    }
+
+    GlobalResources& globalResources = blackboard.Get<GlobalResources>();
+    ViewInfoGPU& primaryView = globalResources.PrimaryViewInfo;
+
+    primaryView.Camera = CameraGPU::FromCamera(*m_Camera, swapchain.SwapchainResolution,
+        VisibilityFlags::IsPrimaryView | VisibilityFlags::OcclusionCull);
+    
+    primaryView.ShadingSettings.TransmittanceLut = m_TransmittanceLutBindlessIndex;
+    ImGui::Begin("Shading Settings");
+    ImGui::DragFloat("Environment power", &primaryView.ShadingSettings.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
+    ImGui::Checkbox("Soft shadows", (bool*)&primaryView.ShadingSettings.SoftShadows);
+    ImGui::End();
+
+    ImGui::Begin("Atmosphere settings");
+    ImGui::DragFloat3("Rayleigh scattering", &primaryView.Atmosphere.RayleighScattering[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Rayleigh absorption", &primaryView.Atmosphere.RayleighAbsorption[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Mie scattering", &primaryView.Atmosphere.MieScattering[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Mie absorption", &primaryView.Atmosphere.MieAbsorption[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat3("Ozone absorption", &primaryView.Atmosphere.OzoneAbsorption[0], 1e-2f, 0.0f, 100.0f);
+    ImGui::ColorEdit3("Surface albedo", &primaryView.Atmosphere.SurfaceAlbedo[0]);
+    ImGui::DragFloat("Surface", &primaryView.Atmosphere.Surface, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Atmosphere", &primaryView.Atmosphere.Atmosphere, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Rayleigh density", &primaryView.Atmosphere.RayleighDensity, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Mie density", &primaryView.Atmosphere.MieDensity, 1e-2f, 0.0f, 100.0f);
+    ImGui::DragFloat("Ozone density", &primaryView.Atmosphere.OzoneDensity, 1e-2f, 0.0f, 100.0f);
+    ImGui::End();
+
+    globalResources.FrameNumberTick = GetFrameContext().FrameNumberTick;
+    globalResources.Resolution = GetFrameContext().Resolution;
+    globalResources.PrimaryCamera = m_Camera.get();
+    globalResources.PrimaryViewInfoResource = Passes::Upload::addToGraph(
+        "Upload.GlobalGraphData"_hsv, *m_Graph, globalResources.PrimaryViewInfo);
 }
 
 RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass,
@@ -542,7 +577,7 @@ SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resour
     return {
         .Pass = &scenePass,
         .DrawPassInit = initDepthPrepass, 
-        .View = m_OpaqueSetPrimaryView,
+        .SceneView = m_OpaqueSetPrimaryView,
         .Visibility = m_OpaqueSetPrimaryVisibility,
         .Attachments = attachments
     };
@@ -612,7 +647,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
     return {
         .Pass = &scenePass,
         .DrawPassInit = initForwardPbr, 
-        .View = m_OpaqueSetPrimaryView,
+        .SceneView = m_OpaqueSetPrimaryView,
         .Visibility = m_OpaqueSetPrimaryVisibility,
         .Attachments = attachments
     };
@@ -657,20 +692,20 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource vb
     return {
         .Pass = &scenePass,
         .DrawPassInit = initVbuffer, 
-        .View = m_OpaqueSetPrimaryView,
+        .SceneView = m_OpaqueSetPrimaryView,
         .Visibility = m_OpaqueSetPrimaryVisibility,
         .Attachments = attachments
     };
 }
 
-RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource camera, RG::CsmData csmData)
+RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource viewInfo, RG::CsmData csmData)
 {
     bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
     auto& pbr = Passes::SceneVBufferPbr::addToGraph("VBufferPbr"_hsv, *m_Graph, {
         .Geometry = &m_Scene.Geometry(),
         .VisibilityTexture = vbuffer,
-        .Camera = camera,
+        .ViewInfo = viewInfo,
         .Lights = &m_Scene.Lights(),
         .SSAO = {.SSAO = m_Ssao},
         .IBL = {
@@ -795,6 +830,7 @@ Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId ba
 RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
 {
     auto& skybox = Passes::Skybox::addToGraph("Skybox"_hsv, *m_Graph, {
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .SkyboxTexture = m_SkyboxTexture,
         .Color = color,
         .Depth = depth,
@@ -805,28 +841,8 @@ RG::Resource Renderer::RenderGraphSkyBox(RG::Resource color, RG::Resource depth)
 
 Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasses()
 {
-    auto& blackboard = m_Graph->GetBlackboard();
-    
-    if (!blackboard.TryGet<AtmosphereSettings>())
-        blackboard.Update(AtmosphereSettings::EarthDefault());
-
-    AtmosphereSettings& settings = blackboard.Get<AtmosphereSettings>();
-    ImGui::Begin("Atmosphere settings");
-    ImGui::DragFloat3("Rayleigh scattering", &settings.RayleighScattering[0], 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat3("Rayleigh absorption", &settings.RayleighAbsorption[0], 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat3("Mie scattering", &settings.MieScattering[0], 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat3("Mie absorption", &settings.MieAbsorption[0], 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat3("Ozone absorption", &settings.OzoneAbsorption[0], 1e-2f, 0.0f, 100.0f);
-    ImGui::ColorEdit3("Surface albedo", &settings.SurfaceAlbedo[0]);
-    ImGui::DragFloat("Surface", &settings.Surface, 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat("Atmosphere", &settings.Atmosphere, 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat("Rayleigh density", &settings.RayleighDensity, 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat("Mie density", &settings.MieDensity, 1e-2f, 0.0f, 100.0f);
-    ImGui::DragFloat("Ozone density", &settings.OzoneDensity, 1e-2f, 0.0f, 100.0f);
-    ImGui::End();
-
     auto& luts = Passes::Atmosphere::LutPasses::addToGraph("AtmosphereLutPasses"_hsv, *m_Graph, {
-        .AtmosphereSettings = &settings,
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .SceneLight = &m_Scene.Lights() 
     });
     
@@ -840,7 +856,7 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
 RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut)
 {
     auto& environment = Passes::Atmosphere::Environment::addToGraph("Atmosphere.Environment"_hsv, *m_Graph, {
-        .AtmosphereSettings = lut.AtmosphereSettings,
+        .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
         .SceneLight = &m_Scene.Lights(),
         .SkyViewLut = lut.SkyViewLut
     });
@@ -858,7 +874,7 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
 {
     auto& aerialPerspective = Passes::Atmosphere::AerialPerspective::addToGraph("AtmosphereAerialPerspective"_hsv,
         *m_Graph, {
-        .AtmosphereSettings = lut.AtmosphereSettings,
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .TransmittanceLut = lut.TransmittanceLut,
         .MultiscatteringLut = lut.MultiscatteringLut,
         .SceneLight = &m_Scene.Lights(),
@@ -867,16 +883,15 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
 
     static constexpr bool USE_SUN_LUMINANCE = true;
     auto& atmosphere = Passes::Atmosphere::Raymarch::addToGraph("AtmosphereRaymarch"_hsv, *m_Graph, {
-            .AtmosphereSettings = lut.AtmosphereSettings,
-            .Camera = GetFrameContext().PrimaryCamera,
-            .Light = &m_Scene.Lights(),
-            .SkyViewLut = lut.SkyViewLut,
-            .TransmittanceLut = lut.TransmittanceLut,
-            .AerialPerspective = aerialPerspective.AerialPerspective,
-            .ColorIn = color,
-            .DepthIn = depth,
-            .UseSunLuminance = USE_SUN_LUMINANCE 
-        });
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+        .Light = &m_Scene.Lights(),
+        .SkyViewLut = lut.SkyViewLut,
+        .TransmittanceLut = lut.TransmittanceLut,
+        .AerialPerspective = aerialPerspective.AerialPerspective,
+        .ColorIn = color,
+        .DepthIn = depth,
+        .UseSunLuminance = USE_SUN_LUMINANCE 
+    });
     
     Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, atmosphere.ColorOut);
     Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective"_hsv, *m_Graph,

@@ -58,7 +58,7 @@ project "VulkanRenderer"
     language "C++"
     cppdialect "C++20"
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    objdir ("bin-int/" .. outputdir .. "/VulkanRenderer")
     
     files (project_files)
     includedirs (project_includes)
@@ -93,7 +93,7 @@ project "VulkanRendererLib"
     language "C++"
     cppdialect "C++20"
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    objdir ("bin-int/" .. outputdir .. "/VulkanRenderer")
     
     files (project_files)
     removefiles { "src/main.cpp" }

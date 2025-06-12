@@ -11,7 +11,7 @@ namespace Passes::SceneVBufferPbr
     {
         const SceneGeometry* Geometry{nullptr};
         RG::Resource VisibilityTexture{};
-        RG::Resource Camera{};
+        RG::Resource ViewInfo{};
         const SceneLight* Lights{nullptr};
         RG::SSAOData SSAO{};
         RG::IBLData IBL{};

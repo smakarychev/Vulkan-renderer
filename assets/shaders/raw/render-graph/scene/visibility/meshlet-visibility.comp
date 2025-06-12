@@ -15,8 +15,8 @@ layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
 
 layout(scalar, set = 1, binding = 1) uniform view_buffer {
-    ViewData views[MAX_VIEWS];
-} u_views;
+    ViewInfo view;
+} u_views[MAX_VIEWS];
 
 layout(std430, set = 1, binding = 2) readonly buffer reference_command_buffer {
     IndirectCommand commands[];
@@ -61,26 +61,26 @@ layout(push_constant) uniform push_constants {
 
 bool is_visible(vec3 origin, float radius, uint view_index) {
     bool visible = true;
-    if (is_orthographic(u_views.views[view_index]))
+    if (is_orthographic(u_views[view_index].view))
         visible = visible &&
-            is_frustum_visible_orthographic(origin, radius, u_views.views[view_index]);
+            is_frustum_visible_orthographic(origin, radius, u_views[view_index].view);
     else
         visible = visible &&
-            is_frustum_visible(origin, radius, u_views.views[view_index]);
+            is_frustum_visible(origin, radius, u_views[view_index].view);
 
     return visible;
 }
 
 bool is_reocclusion_visible(vec3 origin, float radius, uint view_index) {
     bool visible = true;
-    if (is_orthographic(u_views.views[view_index]))
+    if (is_orthographic(u_views[view_index].view))
         visible = visible &&
-            is_frustum_visible_orthographic(origin, radius, u_views.views[view_index]) &&
-            is_occlusion_visible_orthographic(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+            is_frustum_visible_orthographic(origin, radius, u_views[view_index].view) &&
+            is_occlusion_visible_orthographic(origin, radius, u_views[view_index].view, u_sampler, u_hiz[view_index]);
     else
         visible = visible &&
-            is_frustum_visible(origin, radius, u_views.views[view_index]) &&
-            is_occlusion_visible(origin, radius, u_views.views[view_index], u_sampler, u_hiz[view_index]);
+            is_frustum_visible(origin, radius, u_views[view_index].view) &&
+            is_occlusion_visible(origin, radius, u_views[view_index].view, u_sampler, u_hiz[view_index]);
 
     return visible;
 }
@@ -126,9 +126,9 @@ void main() {
     const float radius = meshlet.r * scale;
 
     for (uint i = 0; i < u_view_count; i++) {
-        const ViewData view = u_views.views[i];
+        const ViewInfo view = u_views[i].view;
 
-        vec3 origin_view = vec3(view.view_matrix * origin_world);
+        vec3 origin_view = vec3(view.view * origin_world);
         if (is_depth_clamped(view))
             origin_view.z = min(origin_view.z, -view.frustum_near);
 

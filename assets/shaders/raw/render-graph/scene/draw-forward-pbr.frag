@@ -29,9 +29,9 @@ layout(set = 0, binding = 1) uniform sampler u_sampler_brdf;
 @immutable_sampler_shadow
 layout(set = 0, binding = 2) uniform sampler u_sampler_shadow;
 
-layout(set = 1, binding = 0) uniform camera {
-    CameraGPU camera;
-} u_camera;
+layout(set = 1, binding = 0) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(scalar, set = 1, binding = 4) readonly buffer directional_lights {
     DirectionalLight lights[];
@@ -59,18 +59,14 @@ layout(scalar, set = 1, binding = 9) readonly buffer zbins {
 
 layout(set = 1, binding = 10) uniform texture2D u_ssao_texture;
 
-layout(set = 1, binding = 11) uniform shading_settings {
-    ShadingSettings settings;
-} u_shading;
-
-layout(set = 1, binding = 12) uniform irradiance_sh {
+layout(set = 1, binding = 11) uniform irradiance_sh {
     SH9Irradiance sh;
 } u_irradiance_SH;
-layout(set = 1, binding = 13) uniform textureCube u_prefilter_map;
-layout(set = 1, binding = 14) uniform texture2D u_brdf;
+layout(set = 1, binding = 12) uniform textureCube u_prefilter_map;
+layout(set = 1, binding = 13) uniform texture2D u_brdf;
 
-layout(set = 1, binding = 15) uniform texture2DArray u_csm;
-layout(scalar, set = 1, binding = 16) uniform csm_data_buffer {
+layout(set = 1, binding = 14) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 15) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
@@ -85,8 +81,9 @@ layout(set = 2, binding = 1) uniform texture2D u_textures[];
 #include "../shadows/shadows.glsl"
 /* the content of this file depends on descriptor names */
 #include "../pbr/pbr-shading.glsl"
+#include "../atmosphere/atmosphere-functions.glsl"
 
-vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao, vec2 frame_uv) {
+vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao, vec2 frame_uv, vec3 transmittance) {
     vec3 Lo = vec3(0.0f);
 
     if (USE_TILED_LIGHTING)
@@ -96,13 +93,31 @@ vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao, vec2 frame_uv) {
     else if (USE_HYBRID_LIGHTING)
         Lo += shade_pbr_point_lights_hybrid(frame_uv, shade_info);
 
-    Lo += shade_pbr_directional_lights(shade_info, shadow);
+    Lo += shade_pbr_directional_lights(shade_info, shadow, transmittance);
 
-    const vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
+    const vec3 ambient = shade_pbr_ibl(shade_info) * u_view_info.view.environment_power;
 
     vec3 color = Lo + ambient;
 
     return color * ao;
+}
+
+vec3 get_transmittance() {
+    vec3 transmittance = vec3(1.0f);
+    const vec3 atm_pos = get_view_pos(u_view_info.view.position, u_view_info.view.surface);
+    const vec3 sun_dir = u_directional_lights.lights[0].direction * vec3(1, -1, 1);
+    const float r = length(atm_pos);
+    if (r < u_view_info.view.atmosphere) {
+        const vec3 up = atm_pos / r;
+        const float mu = dot(up, sun_dir);
+        if (mu < 0.0f)
+            return vec3(0.0f);
+        const vec2 transmittance_uv = transmittance_uv_from_r_mu(u_view_info.view, r, dot(up, sun_dir));
+        transmittance *= textureLod(nonuniformEXT(sampler2D(u_textures[
+            u_view_info.view.transmittance_lut], u_sampler)), transmittance_uv, 0).rgb;
+    }
+
+    return transmittance;
 }
 
 void main() {
@@ -143,7 +158,7 @@ void main() {
     ShadeInfo shade_info;
     shade_info.position = vertex_position;
     shade_info.normal = normal;
-    shade_info.view = normalize(u_camera.camera.position - vertex_position);
+    shade_info.view = normalize(u_view_info.view.position - vertex_position);
     shade_info.n_dot_v = clamp(dot(shade_info.normal, shade_info.view), 0.0f, 1.0f);
     shade_info.perceptual_roughness = perceptual_roughness;
     shade_info.alpha_roughness = perceptual_roughness * perceptual_roughness;
@@ -155,13 +170,14 @@ void main() {
     shade_info.alpha = 1.0f; // unused
     shade_info.depth = gl_FragCoord.z;
 
-    const vec2 frame_uv = gl_FragCoord.xy / u_camera.camera.resolution;
+    const vec2 frame_uv = gl_FragCoord.xy / u_view_info.view.resolution;
     const float ambient_occlusion = textureLod(sampler2D(u_ssao_texture, u_sampler), frame_uv, 0).r;
 
     const float shadow = shadow(vertex_position, flat_normal, u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size,
         vertex_z_view);
     
-    vec3 color = shade_pbr(shade_info, shadow, ambient_occlusion, frame_uv);
+    const vec3 transmittance = get_transmittance();
+    vec3 color = shade_pbr(shade_info, shadow, ambient_occlusion, frame_uv, transmittance);
     
     color = tonemap(color, 2.0f);
     color += emissive;

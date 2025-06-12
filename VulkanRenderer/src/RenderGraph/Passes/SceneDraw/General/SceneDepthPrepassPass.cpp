@@ -39,7 +39,7 @@ Passes::SceneDepthPrepass::PassData& Passes::SceneDepthPrepass::addToGraph(Strin
 
             const Shader& shader = graph.GetShader();
             SceneDepthPrepassUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Resources.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.Resources.ViewInfo));
             bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
             bindGroup.SetCommands(graph.GetBufferBinding(passData.Resources.Draws));
             bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));

@@ -48,7 +48,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     const SceneView& mainVisibilityView = info.MultiviewVisibility->View(pass.Visibility);
                     
                     DrawAttachments& inputAttachments = passData.DrawPassViewAttachments.Get(
-                        pass.View.Name, pass.Pass->Name());
+                        pass.SceneView.Name, pass.Pass->Name());
                     
                     for (auto& color : inputAttachments.Colors)
                         ASSERT(color.Resource.HasFlags(ResourceFlags::AutoUpdate),
@@ -73,20 +73,19 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                                     
                         attachmentResources = pass.DrawPassInit(
                             StringId("{}.{}.{}.{}.{}",
-                                name, pass.View.Name, pass.Pass->Name(), bucket.Name(),
+                                name, pass.SceneView.Name, pass.Pass->Name(), bucket.Name(),
                                 reocclusion ? "Reocclusion" : ""),
                             graph, {
                                 .Draws = draws[bucketIndex],
                                 .DrawInfo = drawInfos[bucketIndex],
-                                .Resolution = pass.View.Resolution,
-                                .Camera = pass.View.Camera,
+                                .ViewInfo = info.Resources->Views[visibilityIndex],
                                 .Attachments = inputAttachments,
                                 .BucketOverrides = &bucket.ShaderOverrides});
                         
                         auto&& [colors, depth] = attachmentResources;
 
                         if (depth.has_value())
-                            if (pass.View == mainVisibilityView)
+                            if (pass.SceneView == mainVisibilityView)
                                 passDepths[visibilityIndex] = depth.value_or(Resource{});
 
                         if (!reocclusion && handleIndex == 0)
@@ -101,7 +100,7 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             };
             
             for (auto& viewPass : info.DrawPasses)
-                passData.DrawPassViewAttachments.Add(viewPass.View.Name, viewPass.Pass->Name(), viewPass.Attachments);
+                passData.DrawPassViewAttachments.Add(viewPass.SceneView.Name, viewPass.Pass->Name(), viewPass.Attachments);
             
             for (auto& pass : info.DrawPasses)
             {

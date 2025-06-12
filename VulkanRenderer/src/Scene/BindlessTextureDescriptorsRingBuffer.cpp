@@ -48,6 +48,17 @@ u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
     return toReturn;
 }
 
+void BindlessTextureDescriptorsRingBuffer::SetTexture(u32 index, Texture texture)
+{
+    MaterialsShaderBindGroup bindGroup(m_MaterialsShader);
+    bindGroup.SetTextures({
+            .Subresource = {.Image = texture},
+            .Layout = ImageLayout::Readonly
+        },
+        index);
+    m_Textures[index] = texture;
+}
+
 u32 BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(Images::DefaultKind texture) const
 {
     return m_DefaultTextures[(u32)texture];

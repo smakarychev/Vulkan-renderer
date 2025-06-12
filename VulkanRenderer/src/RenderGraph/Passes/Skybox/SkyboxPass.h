@@ -5,6 +5,7 @@ namespace Passes::Skybox
 {
     struct ExecutionInfo
     {
+        RG::Resource ViewInfo{};
         Texture SkyboxTexture{};
         RG::Resource SkyboxResource{};
         RG::Resource Color{};

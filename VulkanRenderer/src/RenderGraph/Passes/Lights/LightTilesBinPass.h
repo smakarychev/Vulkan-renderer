@@ -13,9 +13,9 @@ namespace Passes::LightTilesBin
     };
     struct PassData
     {
+        RG::Resource ViewInfo{};
         RG::Resource Tiles{};
         RG::Resource Depth{};
-        RG::Resource Camera{};
         RG::SceneLightResources SceneLightResources{};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

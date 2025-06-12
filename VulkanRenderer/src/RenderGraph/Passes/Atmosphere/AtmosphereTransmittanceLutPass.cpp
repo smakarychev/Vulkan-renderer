@@ -11,7 +11,7 @@ namespace RG
 }
 
 Passes::Atmosphere::Transmittance::PassData& Passes::Atmosphere::Transmittance::addToGraph(StringId name,
-    RG::Graph& renderGraph, RG::Resource atmosphereSettings)
+    RG::Graph& renderGraph, RG::Resource viewInfo)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -28,7 +28,7 @@ Passes::Atmosphere::Transmittance::PassData& Passes::Atmosphere::Transmittance::
                 .Height = (f32)*CVars::Get().GetI32CVar("Atmosphere.Transmittance.Height"_hsv),
                 .Format = Format::RGBA16_FLOAT});
                 
-            passData.AtmosphereSettings = graph.ReadBuffer(atmosphereSettings, Compute | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(viewInfo, Compute | Uniform);
             passData.Lut = graph.WriteImage(passData.Lut, Compute | Storage);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
@@ -40,7 +40,7 @@ Passes::Atmosphere::Transmittance::PassData& Passes::Atmosphere::Transmittance::
 
             const Shader& shader = graph.GetShader();
             AtmosphereTransmittanceLutShaderBindGroup bindGroup(shader);
-            bindGroup.SetAtmosphereSettings(graph.GetBufferBinding(passData.AtmosphereSettings));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
             bindGroup.SetLut(graph.GetImageBinding(passData.Lut));
 
             auto& cmd = frameContext.CommandList;

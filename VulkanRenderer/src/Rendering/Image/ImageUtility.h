@@ -10,6 +10,8 @@ namespace Images
     i8 mipmapCount(const glm::uvec2& resolution);
     i8 mipmapCount(const glm::uvec3& resolution);
     glm::uvec3 getPixelCoordinates(Image image, const glm::vec3& coordinate, ImageSizeType sizeType);
+
+    glm::uvec2 floorResolutionToPowerOfTwo(const glm::uvec2& resolution);
     
     enum class DefaultKind
     {

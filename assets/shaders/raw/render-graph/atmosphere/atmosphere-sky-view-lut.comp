@@ -13,35 +13,30 @@ layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
 layout(set = 1, binding = 1) uniform texture2D u_multiscattering_lut;
 layout(set = 1, binding = 2, rgba16f) uniform writeonly image2D u_sky_view_lut;
 
-layout(scalar, set = 1, binding = 3) uniform atmosphere_settings {
-    AtmosphereSettings settings;
-} u_atmosphere_settings;
+layout(scalar, set = 1, binding = 3) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(scalar, set = 1, binding = 4) uniform directional_light {
     DirectionalLight lights[];
 } u_directional_lights;
-
-layout(set = 1, binding = 5) uniform camera_buffer {
-    CameraGPU camera;
-} u_camera;
 
 #define WITH_MULTISCATTERING
 #include "integrate_scattered_luminance.glsl"
 #undef WITH_MULTISCATTERING
 
 void main() {
+    const ViewInfo view = u_view_info.view;
+    
     const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     if (coord.x >= SKY_VIEW_LUT_WIDTH || coord.y >= SKY_VIEW_LUT_HEIGHT) 
         return;
-    
     const vec2 uv = vec2(coord) / vec2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT);
-    
-    const AtmosphereSettings atm = u_atmosphere_settings.settings;
 
-    const vec3 pos = get_view_pos(u_camera.camera.position, atm.surface);
+    const vec3 pos = get_view_pos(view.position, view.surface);
     const float r = length(pos);
     
-    const vec2 zenith_view_cos = sky_view_zen_view_cos_from_uv(atm, uv, r);
+    const vec2 zenith_view_cos = sky_view_zen_view_cos_from_uv(view, uv, r);
     const vec3 up = pos / r;
     const float mu = dot(u_directional_lights.lights[0].direction * vec3(1, -1, 1), up);
     const vec3 sun_dir = normalize(vec3(sqrt(1.0f - mu * mu), mu, 0.0f));
@@ -54,10 +49,10 @@ void main() {
         zenith_sin * sqrt(1.0f - zenith_view_cos.y * zenith_view_cos.y));
 
     const bool surface = false;
-    const vec3 global_l =u_directional_lights.lights[0].color * u_directional_lights.lights[0].intensity;
+    const vec3 global_l = u_directional_lights.lights[0].color * u_directional_lights.lights[0].intensity;
 
     const bool use_uniform_phase = false;
-    const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm, SKY_STEPS,
+    const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, view, SKY_STEPS,
         surface, global_l, use_uniform_phase, MAX_DEPTH);
     
     imageStore(u_sky_view_lut, coord, vec4(expose(scattering.L), 1.0f));

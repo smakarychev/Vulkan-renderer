@@ -6,16 +6,20 @@ class SceneLight;
 
 namespace Passes::Atmosphere::SkyView
 {
-    struct PassData
+    struct ExecutionInfo
     {
+        RG::Resource ViewInfo{};
         RG::Resource TransmittanceLut{};
         RG::Resource MultiscatteringLut{};
-        RG::Resource AtmosphereSettings{};
+        const SceneLight* Light{nullptr};
+    };
+    struct PassData
+    {
+        RG::Resource ViewInfo{};
+        RG::Resource TransmittanceLut{};
+        RG::Resource MultiscatteringLut{};
         RG::Resource DirectionalLight{};
-        RG::Resource Camera{};
         RG::Resource Lut{};
     };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph,
-        RG::Resource transmittanceLut, RG::Resource multiscatteringLut,
-        RG::Resource atmosphereSettings, const SceneLight& light);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

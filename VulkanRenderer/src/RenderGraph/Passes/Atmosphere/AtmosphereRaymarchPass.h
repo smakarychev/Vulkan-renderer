@@ -8,8 +8,7 @@ namespace Passes::Atmosphere::Raymarch
 {
     struct ExecutionInfo
     {
-        RG::Resource AtmosphereSettings{};
-        const Camera* Camera{nullptr};
+        RG::Resource ViewInfo{};
         const SceneLight* Light{nullptr};
         RG::Resource SkyViewLut{};
         RG::Resource TransmittanceLut{};
@@ -20,12 +19,11 @@ namespace Passes::Atmosphere::Raymarch
     };
     struct PassData
     {
+        RG::Resource ViewInfo{};
         RG::Resource DepthIn{};
-        RG::Resource AtmosphereSettings{};
         RG::Resource SkyViewLut{};
         RG::Resource TransmittanceLut{};
         RG::Resource AerialPerspective{};
-        RG::Resource Camera{};
         RG::Resource DirectionalLight{};
         RG::Resource ColorOut{};
     };

@@ -136,17 +136,19 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                     }
                 };
 
+                ViewInfoGPU viewInfo = {};
+                viewInfo.Camera = CameraGPU::FromCamera(cameras.ShadowCameras[i], glm::uvec2{SHADOW_MAP_RESOLUTION},
+                    VisibilityFlags::ClampDepth | VisibilityFlags::OcclusionCull);
+                
                 SceneView view = {
                     .Name = StringId("{}.View.{}", name, i),
-                    .Camera = &cameras.ShadowCameras[i],
-                    .Resolution = glm::uvec2{SHADOW_MAP_RESOLUTION},
-                    .VisibilityFlags = SceneVisibilityFlags::ClampDepth | SceneVisibilityFlags::OcclusionCull
+                    .ViewInfo = viewInfo
                 };
 
                 SceneDrawPassDescription description = {
                     .Pass = info.Pass,
                     .DrawPassInit = initShadowPassForView(i),
-                    .View = view,
+                    .SceneView = view,
                     .Visibility = info.MultiviewVisibility->AddVisibility(view),
                     .Attachments = attachments
                 };
@@ -172,7 +174,7 @@ void Passes::SceneCsm::mergeCsm(RG::Graph& renderGraph, PassData& passData, cons
 {
     std::array<RG::Resource, SHADOW_CASCADES> cascades;
     for (u32 i = 0; i < passData.MetaPassDescriptions.size(); i++)
-        cascades[i] = attachments.Get(passData.MetaPassDescriptions[i].View.Name, scenePass.Name()).Depth->Resource;
+        cascades[i] = attachments.Get(passData.MetaPassDescriptions[i].SceneView.Name, scenePass.Name()).Depth->Resource;
 
     passData.CsmData.ShadowMap = renderGraph.MergeImage(cascades);
 }

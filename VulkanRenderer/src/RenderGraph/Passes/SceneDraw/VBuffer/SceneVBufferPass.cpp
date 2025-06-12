@@ -38,7 +38,7 @@ Passes::SceneVBuffer::PassData& Passes::SceneVBuffer::addToGraph(StringId name, 
 
             const Shader& shader = graph.GetShader();
             SceneVbufferUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Resources.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.Resources.ViewInfo));
             bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
             bindGroup.SetCommands(graph.GetBufferBinding(passData.Resources.Draws));
             bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));

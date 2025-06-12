@@ -17,20 +17,16 @@ layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
 layout(set = 1, binding = 1) uniform texture2D u_multiscattering_lut;
 layout(set = 1, binding = 2, rgba16f) uniform writeonly image3D u_aerial_perspective_lut;
 
-layout(scalar, set = 1, binding = 3) uniform atmosphere_settings {
-    AtmosphereSettings settings;
-} u_atmosphere_settings;
+layout(scalar, set = 1, binding = 3) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(scalar, set = 1, binding = 4) uniform directional_light {
     DirectionalLight lights[];
 } u_directional_lights;
 
-layout(set = 1, binding = 5) uniform camera_buffer {
-    CameraGPU camera;
-} u_camera;
-
-layout(set = 1, binding = 6) uniform texture2DArray u_csm;
-layout(scalar, set = 1, binding = 7) uniform csm_data_buffer {
+layout(set = 1, binding = 5) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 6) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
@@ -45,16 +41,18 @@ layout(scalar, set = 1, binding = 7) uniform csm_data_buffer {
 #undef WITH_MULTISCATTERING
 
 void main() {
+    const ViewInfo view = u_view_info.view;
+    
     const ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
     const vec2 uv = vec2(coord.xy) / vec2(AERIAL_PERSPECTIVE_LUT_RES);
     const vec3 clip = vec3(uv * 2.0f - 1.0f, -0.5f);
-    vec4 unprojected = u_camera.camera.inv_projection * vec4(clip, 1.0f);
+    
+    vec4 unprojected = view.inv_projection * vec4(clip, 1.0f);
     unprojected.xyz /= unprojected.w;
-    vec3 rd = normalize(u_camera.camera.inv_view * vec4(unprojected.xyz, 0.0f)).xyz * vec3(1, -1, 1);
+    vec3 rd = normalize(view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz * vec3(1, -1, 1);
 
-    const AtmosphereSettings atm = u_atmosphere_settings.settings;
  
-    const vec3 ro = get_view_pos(u_camera.camera.position, atm.surface);
+    const vec3 ro = get_view_pos(view.position, view.surface);
     
     // redistribute the slices so that they follow a square distribution
     float slice = (float(coord.z) + 0.5f) / AERIAL_PERSPECTIVE_LUT_RES;
@@ -64,8 +62,8 @@ void main() {
     vec3 voxel_center = ro + slice_km * rd;
     // offset voxel to be on the ground
     const float voxel_height = length(voxel_center);
-    if (voxel_height <= atm.surface + PLANET_RADIUS_OFFSET_KM) {
-        voxel_center = normalize(voxel_center) * (atm.surface + PLANET_RADIUS_OFFSET_KM + 1e-3f);
+    if (voxel_height <= view.surface + PLANET_RADIUS_OFFSET_KM) {
+        voxel_center = normalize(voxel_center) * (view.surface + PLANET_RADIUS_OFFSET_KM + 1e-3f);
         slice_km = length(voxel_center - ro);
         rd = normalize(voxel_center - ro);
     }
@@ -77,7 +75,7 @@ void main() {
     const bool use_uniform_phase = false;
     const float samples = max(1.0f, float(coord.z + 1.0f) * 2.0f);
 
-    const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm,
+    const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, view,
         samples, surface, global_l, use_uniform_phase, slice_km);
     const float transmittance = dot(scattering.Transmittance, vec3(1.0f / 3.0f));
     

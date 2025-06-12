@@ -29,19 +29,20 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             resources.RenderObjectBuckets = renderGraph.ReadBuffer(resources.RenderObjectBuckets, Compute | Storage);
             resources.Meshlets = renderGraph.ReadBuffer(resources.Meshlets, Compute | Storage);
             resources.MeshletHandles = renderGraph.ReadBuffer(resources.MeshletHandles, Compute | Storage);
-            resources.Views = renderGraph.ReadBuffer(resources.Views, Compute | Uniform);
 
             resources.ResetMeshletCounts(graph);
             
             if (info.Stage == SceneVisibilityStage::Reocclusion)
             {
                 for (u32 i = 0; i < resources.VisibilityCount; i++)
-                    if (enumHasAny(multiview.View({i}).VisibilityFlags, SceneVisibilityFlags::OcclusionCull))
+                    if (enumHasAny(multiview.View({i}).ViewInfo.Camera.VisibilityFlags, VisibilityFlags::OcclusionCull))
                         resources.Hiz[i] = graph.ReadImage(resources.Hiz[i], Compute | Sampled);
             }
 
             for (u32 i = 0; i < resources.VisibilityCount; i++)
             {
+                resources.Views[i] = renderGraph.ReadBuffer( resources.Views[i], Compute | Uniform);
+                
                 resources.RenderObjectVisibility[i] = graph.ReadBuffer(resources.RenderObjectVisibility[i],
                     Compute | Storage);
                 resources.MeshletVisibility[i] = graph.ReadWriteBuffer(resources.MeshletVisibility[i],
@@ -64,9 +65,9 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             bindGroup.SetRenderObjectBuckets(graph.GetBufferBinding(passData.Resources->RenderObjectBuckets));
             bindGroup.SetMeshlets(graph.GetBufferBinding(passData.Resources->Meshlets));
             bindGroup.SetMeshletHandles(graph.GetBufferBinding(passData.Resources->MeshletHandles));
-            bindGroup.SetViews(graph.GetBufferBinding(passData.Resources->Views));
             for (u32 i = 0; i < passData.Resources->VisibilityCount; i++)
             {
+                bindGroup.SetViews(graph.GetBufferBinding(passData.Resources->Views[i]), i);
                 bindGroup.SetObjectVisibility(
                     graph.GetBufferBinding(passData.Resources->RenderObjectVisibility[i]), i);
                 bindGroup.SetMeshletVisibility(

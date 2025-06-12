@@ -14,9 +14,9 @@ layout(set = 1, binding = 1) readonly buffer clusters {
     Cluster clusters[];
 } u_clusters;
 
-layout(set = 1, binding = 2) uniform camera {
-    CameraGPU camera;
-} u_camera;
+layout(set = 1, binding = 2) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 vec3 color(float t) {
     const vec3 a = vec3(0.5f, 0.5f, 0.5f);		
@@ -34,7 +34,7 @@ vec3 color_heatmap(float t) {
 
 void main() {
     const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
-    const uint slice = slice_index(depth, u_camera.camera.near, u_camera.camera.far, LIGHT_CLUSTER_BINS_Z);
+    const uint slice = slice_index(depth, u_view_info.view.near, u_view_info.view.far, LIGHT_CLUSTER_BINS_Z);
     const uint cluster_index = get_cluster_index(vertex_uv, slice);
 
     const Cluster cluster = u_clusters.clusters[cluster_index];

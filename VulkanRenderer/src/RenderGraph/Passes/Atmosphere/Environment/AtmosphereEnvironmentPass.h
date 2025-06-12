@@ -1,21 +1,21 @@
 #pragma once
 #include "RenderGraph/RGResource.h"
 
+struct ViewInfoGPU;
 class SceneLight;
 
 namespace Passes::Atmosphere::Environment
 {
     struct ExecutionInfo
     {
-        RG::Resource AtmosphereSettings{};
+        const ViewInfoGPU* PrimaryView{nullptr};
         const SceneLight* SceneLight{nullptr};
         RG::Resource SkyViewLut{};
     };
     struct PassData
     {
-        RG::Resource AtmosphereSettings{};
+        RG::Resource ViewInfo{};
         RG::Resource SkyViewLut{};
-        RG::Resource Camera{};
         RG::Resource DirectionalLight{};
         RG::Resource ColorOut{};
     };

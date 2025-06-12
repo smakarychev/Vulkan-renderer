@@ -11,7 +11,7 @@ namespace RG
 }
 
 Passes::Atmosphere::Multiscattering::PassData& Passes::Atmosphere::Multiscattering::addToGraph(StringId name,
-    RG::Graph& renderGraph, RG::Resource transmittanceLut, RG::Resource atmosphereSettings)
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -28,8 +28,8 @@ Passes::Atmosphere::Multiscattering::PassData& Passes::Atmosphere::Multiscatteri
                 .Height = (f32)*CVars::Get().GetI32CVar("Atmosphere.Multiscattering.Size"_hsv),
                 .Format = Format::RGBA16_FLOAT});
             
-            passData.AtmosphereSettings = graph.ReadBuffer(atmosphereSettings, Compute | Uniform);
-            passData.TransmittanceLut = graph.ReadImage(transmittanceLut, Compute | Sampled);
+            passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Compute | Uniform);
+            passData.TransmittanceLut = graph.ReadImage(info.TransmittanceLut, Compute | Sampled);
             passData.Lut = graph.WriteImage(passData.Lut, Compute | Storage);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
@@ -41,7 +41,7 @@ Passes::Atmosphere::Multiscattering::PassData& Passes::Atmosphere::Multiscatteri
 
             const Shader& shader = graph.GetShader();
             AtmosphereMultiscatteringLutShaderBindGroup bindGroup(shader);
-            bindGroup.SetAtmosphereSettings(graph.GetBufferBinding(passData.AtmosphereSettings));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
             bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
             bindGroup.SetMultiscatteringLut(graph.GetImageBinding(passData.Lut));
 

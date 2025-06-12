@@ -13,10 +13,7 @@ namespace HiZ
 {
     glm::uvec2 calculateHizResolution(const glm::uvec2& depthResolution)
     {
-        const u32 width = Math::floorToPowerOf2(depthResolution.x);
-        const u32 height = Math::floorToPowerOf2(depthResolution.y);
-
-        return glm::uvec2(width, height);
+        return Images::floorResolutionToPowerOfTwo(depthResolution);
     }
 
     Sampler createSampler(ReductionMode mode)

@@ -51,6 +51,14 @@ namespace Images
             (u32)((f32)size.x * coordinate.x), (u32)((f32)size.y * coordinate.y), (u32)((f32)size.z * coordinate.z)};
     }
 
+    glm::uvec2 floorResolutionToPowerOfTwo(const glm::uvec2& resolution)
+    {
+        const u32 width = Math::floorToPowerOf2(resolution.x);
+        const u32 height = Math::floorToPowerOf2(resolution.y);
+
+        return glm::uvec2(width, height);
+    }
+
     std::array<Default::ImageData, (u32)DefaultKind::MaxVal> Default::s_DefaultImages = {};
     
     void Default::Init()

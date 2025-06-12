@@ -1,6 +1,6 @@
 #include "SceneDirectionalShadowPass.h"
 
-#include "CameraGPU.h"
+#include "ViewInfoGPU.h"
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
 #include "RenderGraph/Passes/Generated/SceneShadowUgbBindGroup.generated.h"
@@ -42,7 +42,7 @@ Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToG
 
             const Shader& shader = graph.GetShader();
             SceneShadowUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Resources.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.Resources.ViewInfo));
             bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
             bindGroup.SetCommands(graph.GetBufferBinding(passData.Resources.Draws));
             bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));

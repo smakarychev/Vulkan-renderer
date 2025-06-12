@@ -14,9 +14,9 @@ layout(set = 1, binding = 1) readonly buffer tiles {
     Tile tiles[];
 } u_tiles;
 
-layout(scalar, set = 1, binding = 2) uniform camera {
-    CameraGPU camera;
-} u_camera;
+layout(set = 1, binding = 2) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(scalar, set = 1, binding = 3) readonly buffer zbins {
     ZBin bins[];
@@ -42,7 +42,7 @@ vec3 color_heatmap(float t) {
 
 void main() {
     const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
-    const uint zbin_index = get_zbin_index(depth, u_camera.camera.near, u_camera.camera.far);
+    const uint zbin_index = get_zbin_index(depth, u_view_info.view.near, u_view_info.view.far);
     
     const uint light_min = uint(u_zbins.bins[zbin_index].min);
     const uint light_max = uint(u_zbins.bins[zbin_index].max);
@@ -50,7 +50,7 @@ void main() {
     const uint bin_min = u_use_zbins ? light_min / BIN_BIT_SIZE : 0;
     const uint bin_max = u_use_zbins ? light_max / BIN_BIT_SIZE : BIN_COUNT - 1;
     
-    const uint tile_index = get_tile_index(vertex_uv, u_camera.camera.resolution);
+    const uint tile_index = get_tile_index(vertex_uv, u_view_info.view.resolution);
     const Tile tile = u_tiles.tiles[tile_index];
     uint light_count = 0;
     for (uint i = bin_min; i <= bin_max; i++) {

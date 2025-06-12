@@ -30,7 +30,7 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
             passData.SceneLightResources = RgUtils::readSceneLight(*info.Light, graph, Compute);
 
             auto& globalResources = graph.GetGlobalResources();
-            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Compute | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Compute | Uniform);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -46,7 +46,7 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
             bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
             bindGroup.SetPointLights(graph.GetBufferBinding(passData.SceneLightResources.PointLights));
             bindGroup.SetLightsInfo(graph.GetBufferBinding(passData.SceneLightResources.LightsInfo));
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
             
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());

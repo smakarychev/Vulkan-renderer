@@ -4,9 +4,9 @@
 
 #extension GL_ARB_shader_draw_parameters: enable
 
-layout(set = 1, binding = 0) uniform camera_buffer {
-    CameraGPU camera;
-} u_camera;
+layout(set = 1, binding = 0) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(std430, set = 1, binding = 1) readonly buffer ugb_position {
     Position positions[];
@@ -43,5 +43,5 @@ void main() {
     const UV uv = u_ugb_uv.uvs[render_object.uv_index + gl_VertexIndex];
     vertex_uv = vec2(uv.u, uv.v);
 
-    gl_Position = u_camera.camera.view_projection * model * vec4(position_v, 1.0);
+    gl_Position = u_view_info.view.view_projection * model * vec4(position_v, 1.0);
 }

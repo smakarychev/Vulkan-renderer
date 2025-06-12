@@ -6,10 +6,10 @@ namespace Passes::Atmosphere::Transmittance
 {
     struct PassData
     {
+        RG::Resource ViewInfo{};
         RG::Resource Lut{};
-        RG::Resource AtmosphereSettings{};
     };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource atmosphereSettings);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource viewInfo);
 }
 
 

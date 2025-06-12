@@ -17,7 +17,7 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
     struct PassDataPrivate : PassData
     {
         Resource VisibilityTexture{};
-        Resource Camera{};
+        Resource ViewInfo{};
         Resource UGB{};
         Resource Indices{};
         Resource Commands{};
@@ -25,7 +25,6 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
         SceneLightResources Light{};
         SSAOData SSAO{};
         IBLData IBL{};
-        Resource ShadingSettings{};
         Resource Clusters{};
         Resource Tiles{};
         Resource ZBins{};
@@ -87,10 +86,7 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
 
             passData.VisibilityTexture = graph.ReadImage(info.VisibilityTexture, Pixel | Sampled);
             
-            passData.Camera = graph.ReadBuffer(info.Camera, Pixel | Uniform);
-            
-            auto& globalResources = graph.GetGlobalResources();
-            passData.ShadingSettings = graph.ReadBuffer(globalResources.ShadingSettings, Pixel | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Pixel | Uniform);
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -99,7 +95,7 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
 
             const Shader& shader = graph.GetShader();
             SceneVbufferPbrUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
             bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
             bindGroup.SetIndices(graph.GetBufferBinding(passData.Indices));
             bindGroup.SetCommands(graph.GetBufferBinding(passData.Commands));
@@ -108,7 +104,6 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
             RgUtils::updateSceneLightBindings(bindGroup, graph, passData.Light);
             RgUtils::updateSSAOBindings(bindGroup, graph, passData.SSAO);
             RgUtils::updateIBLBindings(bindGroup, graph, passData.IBL);
-            bindGroup.SetShading(graph.GetBufferBinding(passData.ShadingSettings));
             if (passData.Clusters.IsValid())
                 bindGroup.SetClusters(graph.GetBufferBinding(passData.Clusters));
             if (passData.Tiles.IsValid())

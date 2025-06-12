@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RGResource.h"
+#include "ViewInfoGPU.h"
 #include "Rendering/Shader/Shader.h"
 
 class Camera;
@@ -12,8 +13,8 @@ namespace RG
         u64 FrameNumberTick{0};
         glm::uvec2 Resolution{};
         const Camera* PrimaryCamera{nullptr}; 
-        Resource PrimaryCameraGPU{};
-        Resource ShadingSettings{};
+        ViewInfoGPU PrimaryViewInfo{};
+        Resource PrimaryViewInfoResource{};
     };
 }
 

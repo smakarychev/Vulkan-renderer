@@ -1,5 +1,5 @@
 #include "../../light.glsl"
-#include "../../camera.glsl"
+#include "../../view_info.glsl"
 #include "../../utility.glsl"
 #include "../common.glsl"
 

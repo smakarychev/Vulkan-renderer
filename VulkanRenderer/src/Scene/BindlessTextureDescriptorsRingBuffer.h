@@ -26,6 +26,7 @@ public:
     
     bool WillOverflow() const;
     u32 AddTexture(Texture texture);
+    void SetTexture(u32 index, Texture texture);
     u32 GetDefaultTexture(Images::DefaultKind texture) const;
 private:
     u32 GetNextIndex(u32 index) const;

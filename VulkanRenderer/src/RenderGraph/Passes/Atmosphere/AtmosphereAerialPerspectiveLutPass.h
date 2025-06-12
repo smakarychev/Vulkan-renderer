@@ -9,7 +9,7 @@ namespace Passes::Atmosphere::AerialPerspective
 {
     struct ExecutionInfo
     {
-        RG::Resource AtmosphereSettings{};
+        RG::Resource ViewInfo{};
         RG::Resource TransmittanceLut{};
         RG::Resource MultiscatteringLut{};
         const SceneLight* SceneLight{nullptr};
@@ -17,11 +17,10 @@ namespace Passes::Atmosphere::AerialPerspective
     };
     struct PassData
     {
+        RG::Resource ViewInfo{};
         RG::Resource TransmittanceLut{};
         RG::Resource MultiscatteringLut{};
-        RG::Resource AtmosphereSettings{};
         RG::Resource DirectionalLight{};
-        RG::Resource Camera{};
         RG::CsmData CsmData{};
         RG::Resource AerialPerspective{};
     };

@@ -17,8 +17,3 @@ VisibilityInfo unpack_visibility(uint packed) {
     visibilityInfo.instance_id = packed >> TRIANGLE_BITS;
     return visibilityInfo;
 }
-
-struct ShadingSettings {
-    float environment_power;
-    bool soft_shadows;  
-};

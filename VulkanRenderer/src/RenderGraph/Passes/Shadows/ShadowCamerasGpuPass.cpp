@@ -6,7 +6,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 
 Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource depthMinMax, RG::Resource primaryCamera, const glm::vec3& lightDirection)
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -21,8 +21,8 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             Resource csmData = graph.Create("CSM.Data"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(CsmData)});
 
-            passData.DepthMinMax = graph.ReadBuffer(depthMinMax, Compute | Uniform);
-            passData.PrimaryCamera = graph.ReadBuffer(primaryCamera, Compute | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(info.View, Compute | Uniform);
+            passData.DepthMinMax = graph.ReadBuffer(info.DepthMinMax, Compute | Uniform);
             passData.CsmDataOut = graph.WriteBuffer(csmData, Compute | Storage);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
@@ -33,9 +33,9 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             const Shader& shader = graph.GetShader();
             CreateShadowCamerasShaderBindGroup bindGroup(shader);
 
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
             bindGroup.SetMinMax(graph.GetBufferBinding(passData.DepthMinMax));
             bindGroup.SetCsmData(graph.GetBufferBinding(passData.CsmDataOut));
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.PrimaryCamera));
 
             struct PushConstant
             {
@@ -46,7 +46,7 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             PushConstant pushConstant = {
                 .ShadowSize = SHADOW_MAP_RESOLUTION,
                 .CascadeCount = SHADOW_CASCADES,
-                .LightDirection = lightDirection};
+                .LightDirection = info.LightDirection};
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, graph.GetFrameAllocators());

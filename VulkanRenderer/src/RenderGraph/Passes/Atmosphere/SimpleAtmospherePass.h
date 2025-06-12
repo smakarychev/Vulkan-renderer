@@ -10,7 +10,7 @@ namespace Passes::AtmosphereSimple
 {
     struct PassData
     {
-        RG::Resource Camera;
+        RG::Resource ViewInfo;
         RG::Resource TransmittanceLut;
         RG::Resource ColorOut;
     };

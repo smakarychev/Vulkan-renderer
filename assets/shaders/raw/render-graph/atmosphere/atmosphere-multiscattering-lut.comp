@@ -14,9 +14,9 @@ layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
 layout(set = 1, binding = 1, rgba16f) uniform writeonly image2D u_multiscattering_lut;
 
-layout(scalar, set = 1, binding = 2) uniform atmosphere_settings {
-    AtmosphereSettings settings;
-} u_atmosphere_settings;
+layout(scalar, set = 1, binding = 2) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 #include "integrate_scattered_luminance.glsl"
 
@@ -30,13 +30,13 @@ void main() {
 
     const vec2 uv = sub_uv_to_unit(vec2(coord + 0.5f) / vec2(MULTISCATTERING_LUT_RES), vec2(MULTISCATTERING_LUT_RES));
 
-    AtmosphereSettings atm = u_atmosphere_settings.settings;
+    ViewInfo view = u_view_info.view;
     
     const float mu = uv.x * 2.0f - 1.0f;
     const vec3 sun_dir = normalize(vec3(0.0f, mu, sqrt(1.0f - mu * mu)));
     
-    const float r = atm.surface +
-        clamp(uv.y + PLANET_RADIUS_OFFSET_UV, 0.0f, 1.0f) * (atm.atmosphere - atm.surface - PLANET_RADIUS_OFFSET_UV);
+    const float r = view.surface +
+        clamp(uv.y + PLANET_RADIUS_OFFSET_UV, 0.0f, 1.0f) * (view.atmosphere - view.surface - PLANET_RADIUS_OFFSET_UV);
     const vec3 ro = vec3(0.0f, r, 0.0f);
     vec3 rd;
 
@@ -65,7 +65,7 @@ void main() {
         const bool surface = true;
         const bool use_uniform_phase = true;
         const vec3 global_l = vec3(1.0f);
-        const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, atm, MULTISCATTERING_STEPS,
+        const Scattering scattering = integrate_scattered_luminance(uv, ro, rd, sun_dir, view, MULTISCATTERING_STEPS,
             surface, global_l, use_uniform_phase, MAX_DEPTH);
 
         if (gl_SubgroupSize == 64) {

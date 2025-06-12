@@ -22,8 +22,6 @@ Passes::Atmosphere::AerialPerspective::PassData& Passes::Atmosphere::AerialPersp
 
             graph.SetShader("atmosphere-aerial-perspective-lut"_hsv);
 
-            auto& globalResources = graph.GetGlobalResources();
-
             passData.AerialPerspective = graph.Create("Lut"_hsv, RGImageDescription{
                 .Width = (f32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
                 .Height = (f32)*CVars::Get().GetI32CVar("Atmosphere.AerialPerspective.Size"_hsv),
@@ -33,11 +31,10 @@ Passes::Atmosphere::AerialPerspective::PassData& Passes::Atmosphere::AerialPersp
             passData.DirectionalLight = graph.Import("DirectionalLight"_hsv,
                 info.SceneLight->GetBuffers().DirectionalLights);
 
-            passData.AtmosphereSettings = graph.ReadBuffer(info.AtmosphereSettings, Compute | Uniform);
             passData.TransmittanceLut = graph.ReadImage(info.TransmittanceLut, Compute | Sampled);
             passData.MultiscatteringLut = graph.ReadImage(info.MultiscatteringLut, Compute | Sampled);
             passData.DirectionalLight = graph.ReadBuffer(passData.DirectionalLight, Compute | Uniform);
-            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Compute | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Compute | Uniform);
             passData.CsmData = RgUtils::readCsmData(info.CsmData, graph, Compute);
             passData.AerialPerspective = graph.WriteImage(passData.AerialPerspective, Compute | Storage);
         },
@@ -51,9 +48,8 @@ Passes::Atmosphere::AerialPerspective::PassData& Passes::Atmosphere::AerialPersp
             const Shader& shader = graph.GetShader();
             AtmosphereAerialPerspectiveLutShaderBindGroup bindGroup(shader);
             
-            bindGroup.SetAtmosphereSettings(graph.GetBufferBinding(passData.AtmosphereSettings));
-            bindGroup.SetDirectionalLights(graph.GetBufferBinding(passData.AtmosphereSettings));
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
+            bindGroup.SetDirectionalLights(graph.GetBufferBinding(passData.DirectionalLight));
             bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
             bindGroup.SetMultiscatteringLut(graph.GetImageBinding(passData.MultiscatteringLut));
             bindGroup.SetAerialPerspectiveLut(graph.GetImageBinding(passData.AerialPerspective));

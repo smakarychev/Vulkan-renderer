@@ -25,7 +25,13 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             auto& resources = *passData.Resources;
             resources.RenderObjects = renderGraph.ReadBuffer(resources.RenderObjects, Compute | Storage);
             resources.RenderObjectHandles = renderGraph.ReadBuffer(resources.RenderObjectHandles, Compute | Storage);
-            resources.Views = renderGraph.ReadBuffer(resources.Views, Compute | Uniform);
+            
+            for (u32 i = 0; i < resources.VisibilityCount; i++)
+            {
+                resources.Views[i] = renderGraph.ReadBuffer(resources.Views[i], Compute | Uniform);
+                resources.RenderObjectVisibility[i] = graph.ReadWriteBuffer(resources.RenderObjectVisibility[i],
+                    Compute | Storage);
+            }
 
             if (info.Stage != SceneVisibilityStage::Reocclusion)
             {
@@ -34,14 +40,8 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             else
             {
                 for (u32 i = 0; i < resources.VisibilityCount; i++)
-                    if (enumHasAny(multiview.View({i}).VisibilityFlags, SceneVisibilityFlags::OcclusionCull))
+                    if (enumHasAny(multiview.View({i}).ViewInfo.Camera.VisibilityFlags, VisibilityFlags::OcclusionCull))
                         resources.Hiz[i] = graph.ReadImage(resources.Hiz[i], Compute | Sampled);
-            }
-
-            for (u32 i = 0; i < resources.VisibilityCount; i++)
-            {
-                resources.RenderObjectVisibility[i] = graph.ReadWriteBuffer(resources.RenderObjectVisibility[i],
-                    Compute | Storage);
             }
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
@@ -53,10 +53,12 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             SceneMultiviewRenderObjectVisibilityShaderBindGroup bindGroup(shader);
             bindGroup.SetObjects(graph.GetBufferBinding(passData.Resources->RenderObjects));
             bindGroup.SetObjectHandles(graph.GetBufferBinding(passData.Resources->RenderObjectHandles));
-            bindGroup.SetViews(graph.GetBufferBinding(passData.Resources->Views));
             for (u32 i = 0; i < passData.Resources->VisibilityCount; i++)
+            {
+                bindGroup.SetViews(graph.GetBufferBinding(passData.Resources->Views[i]), i);
                 bindGroup.SetObjectVisibility({
                     .Buffer = graph.GetBuffer(passData.Resources->RenderObjectVisibility[i])}, i);
+            }
 
             if (info.Stage == SceneVisibilityStage::Reocclusion)
             {

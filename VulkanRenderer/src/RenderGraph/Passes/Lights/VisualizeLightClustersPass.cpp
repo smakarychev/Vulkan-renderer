@@ -14,7 +14,7 @@ Passes::LightClustersVisualize::PassData& Passes::LightClustersVisualize::addToG
     struct PassDataPrivate : PassData
     {
         Resource Clusters{};
-        Resource Camera{};
+        Resource ViewInfo{};
         Resource Depth{};
     };
     
@@ -37,7 +37,7 @@ Passes::LightClustersVisualize::PassData& Passes::LightClustersVisualize::addToG
             passData.Depth = graph.ReadImage(info.Depth, Pixel | Sampled);
             
             passData.Clusters = graph.ReadBuffer(info.Clusters, Pixel | Storage);
-            passData.Camera = graph.ReadBuffer(globalResources.PrimaryCameraGPU, Pixel | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Pixel | Uniform);
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -49,7 +49,7 @@ Passes::LightClustersVisualize::PassData& Passes::LightClustersVisualize::addToG
 
             bindGroup.SetDepth(graph.GetImageBinding(passData.Depth));
             bindGroup.SetClusters(graph.GetBufferBinding(passData.Clusters));
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
 
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());

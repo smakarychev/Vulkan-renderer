@@ -26,9 +26,9 @@ layout(set = 0, binding = 2) uniform sampler u_sampler_brdf;
 @immutable_sampler_shadow
 layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
 
-layout(set = 1, binding = 0) uniform camera {
-    CameraGPU camera;
-} u_camera;
+layout(set = 1, binding = 0) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(scalar, set = 1, binding = 1) readonly buffer directional_lights {
     DirectionalLight lights[];
@@ -56,48 +56,44 @@ layout(scalar, set = 1, binding = 6) readonly buffer zbins {
 
 layout(set = 1, binding = 7) uniform texture2D u_ssao_texture;
 
-layout(set = 1, binding = 8) uniform shading_settings {
-    ShadingSettings settings;
-} u_shading;
-
-layout(set = 1, binding = 9) uniform irradiance_sh {
+layout(set = 1, binding = 8) uniform irradiance_sh {
     SH9Irradiance sh;
 } u_irradiance_SH;
-layout(set = 1, binding = 10) uniform textureCube u_prefilter_map;
-layout(set = 1, binding = 11) uniform texture2D u_brdf;
+layout(set = 1, binding = 9) uniform textureCube u_prefilter_map;
+layout(set = 1, binding = 10) uniform texture2D u_brdf;
 
-layout(set = 1, binding = 12) uniform utexture2D u_visibility_texture;
+layout(set = 1, binding = 11) uniform utexture2D u_visibility_texture;
 
-layout(std430, set = 1, binding = 13) readonly buffer command_buffer {
+layout(std430, set = 1, binding = 12) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(scalar, set = 1, binding = 14) readonly buffer objects_buffer {
+layout(scalar, set = 1, binding = 13) readonly buffer objects_buffer {
     RenderObject objects[];
 } u_objects;
 
-layout(std430, set = 1, binding = 15) readonly buffer ugb_position {
+layout(std430, set = 1, binding = 14) readonly buffer ugb_position {
     Position positions[];
 } u_ugb_position;
 
-layout(std430, set = 1, binding = 15) readonly buffer ugb_normal {
+layout(std430, set = 1, binding = 14) readonly buffer ugb_normal {
     Normal normals[];
 } u_ugb_normal;
 
-layout(std430, set = 1, binding = 15) readonly buffer ugb_tangent {
+layout(std430, set = 1, binding = 14) readonly buffer ugb_tangent {
     Tangent tangents[];
 } u_ugb_tangent;
 
-layout(std430, set = 1, binding = 15) readonly buffer ugb_uv {
+layout(std430, set = 1, binding = 14) readonly buffer ugb_uv {
     UV uvs[];
 } u_ugb_uv;
 
-layout(std430, set = 1, binding = 16) readonly buffer indices_buffer {
+layout(std430, set = 1, binding = 15) readonly buffer indices_buffer {
     uint8_t indices[];
 } u_indices;
 
-layout(set = 1, binding = 17) uniform texture2DArray u_csm;
-layout(scalar, set = 1, binding = 18) uniform csm_data_buffer {
+layout(set = 1, binding = 16) uniform texture2DArray u_csm;
+layout(scalar, set = 1, binding = 17) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
@@ -119,6 +115,7 @@ layout(location = 0) out vec4 out_color;
 #include "../pbr/visiblity-buffer-utils.glsl"
 /* the content of this file depends on descriptor names */
 #include "../pbr/pbr-shading.glsl"
+#include "../atmosphere/atmosphere-functions.glsl"
 
 uint hash(uint x) {
     uint state = x * 747796405u + 2891336453u;
@@ -140,7 +137,7 @@ vec3 color_hash(uint x) {
     return to_color(hash_val);
 }
 
-vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
+vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao, vec3 transmittance) {
     vec3 Lo = vec3(0.0f);
 
     if (USE_TILED_LIGHTING)
@@ -150,13 +147,31 @@ vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao) {
     else if (USE_HYBRID_LIGHTING)
         Lo += shade_pbr_point_lights_hybrid(vertex_uv, shade_info);
 
-    Lo += shade_pbr_directional_lights(shade_info, shadow);
+    Lo += shade_pbr_directional_lights(shade_info, shadow, transmittance);
 
-    vec3 ambient = shade_pbr_ibl(shade_info) * u_shading.settings.environment_power;
+    vec3 ambient = shade_pbr_ibl(shade_info) * u_view_info.view.environment_power;
 
     vec3 color = Lo + ambient;
 
     return color * ao;
+}
+
+vec3 get_transmittance() {
+    vec3 transmittance = vec3(1.0f);
+    const vec3 atm_pos = get_view_pos(u_view_info.view.position, u_view_info.view.surface);
+    const vec3 sun_dir = u_directional_lights.lights[0].direction * vec3(1, -1, 1);
+    const float r = length(atm_pos);
+    if (r < u_view_info.view.atmosphere) {
+        const vec3 up = atm_pos / r;
+        const float mu = dot(up, sun_dir);
+        if (mu < 0.0f)
+            return vec3(0.0f);
+        const vec2 transmittance_uv = transmittance_uv_from_r_mu(u_view_info.view, r, dot(up, sun_dir));
+        transmittance *= textureLod(nonuniformEXT(sampler2D(u_textures[
+            u_view_info.view.transmittance_lut], u_sampler)), transmittance_uv, 0).rgb;
+    }
+    
+    return transmittance;
 }
 
 void main() {
@@ -180,7 +195,7 @@ void main() {
     ShadeInfo shade_info;
     shade_info.position = gbuffer_data.position;
     shade_info.normal = gbuffer_data.normal;
-    shade_info.view = normalize(u_camera.camera.position - shade_info.position);
+    shade_info.view = normalize(u_view_info.view.position - shade_info.position);
     shade_info.n_dot_v = clamp(dot(shade_info.normal, shade_info.view), 0.0f, 1.0f);
     shade_info.perceptual_roughness = perceptual_roughness;
     shade_info.alpha_roughness = perceptual_roughness * perceptual_roughness;
@@ -197,9 +212,12 @@ void main() {
 
     const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size, 
         gbuffer_data.z_view);
+
+
+    const vec3 transmittance = get_transmittance();
     
     vec3 color;
-    color = shade_pbr(shade_info, shadow, ambient_occlusion);
+    color = shade_pbr(shade_info, shadow, ambient_occlusion, transmittance);
     color = tonemap(color, 2.0f);
 
     color += gbuffer_data.emissive;

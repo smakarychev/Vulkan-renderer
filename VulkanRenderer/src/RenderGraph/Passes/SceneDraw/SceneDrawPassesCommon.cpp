@@ -1,6 +1,6 @@
 #include "SceneDrawPassesCommon.h"
 
-#include "CameraGPU.h"
+#include "ViewInfoGPU.h"
 #include "RenderGraph/RGUtils.h"
 
 void SceneDrawPassResources::CreateFrom(const SceneDrawPassExecutionInfo& info, RG::Graph& renderGraph)
@@ -9,12 +9,8 @@ void SceneDrawPassResources::CreateFrom(const SceneDrawPassExecutionInfo& info, 
     using enum ResourceAccessFlags;
 
     MaxDrawCount = (u32)(renderGraph.GetBufferDescription(info.Draws).SizeBytes / sizeof(IndirectDrawCommand));
-    
-    Camera = renderGraph.Create("Camera"_hsv,
-        RGBufferDescription{.SizeBytes = sizeof(CameraGPU)});
-    Camera = renderGraph.ReadBuffer(Camera, Vertex | Pixel | Uniform);
-    CameraGPU cameraGPU = CameraGPU::FromCamera(*info.Camera, info.Resolution);
-    renderGraph.Upload(Camera, cameraGPU);
+
+    ViewInfo = renderGraph.ReadBuffer(info.ViewInfo, Vertex | Pixel | Uniform);
 
     Draws = renderGraph.ReadBuffer(info.Draws, Vertex | Indirect);
     DrawInfo = renderGraph.ReadBuffer(info.DrawInfo, Vertex | Indirect);

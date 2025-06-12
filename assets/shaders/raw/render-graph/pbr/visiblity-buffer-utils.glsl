@@ -17,9 +17,9 @@ Triangle get_triangle_local(uint position_offset, uvec3 indices) {
 }
 
 void transform_to_clip_space(RenderObject object, inout Triangle triangle, VisibilityInfo visibility_info) {
-    triangle.a = u_camera.camera.view_projection * object.model * triangle.a;
-    triangle.b = u_camera.camera.view_projection * object.model * triangle.b;
-    triangle.c = u_camera.camera.view_projection * object.model * triangle.c;
+    triangle.a = u_view_info.view.view_projection * object.model * triangle.a;
+    triangle.b = u_view_info.view.view_projection * object.model * triangle.b;
+    triangle.c = u_view_info.view.view_projection * object.model * triangle.c;
 }
 
 mat3x2 get_uvs(uint uv_offset, uvec3 indices) {
@@ -233,13 +233,13 @@ GBufferData get_gbuffer_data(VisibilityInfo visibility_info) {
     
     Triangle triangle = get_triangle_local(object.position_index, indices);
     transform_to_clip_space(object, triangle, visibility_info);
-    const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_camera.camera.resolution);
+    const InterpolationData interpolation_data = get_interpolation_data(triangle, vertex_position, u_view_info.view.resolution);
 
     const float w = dot(vec3(triangle.a.w, triangle.b.w, triangle.c.w), interpolation_data.barycentric);
-    const float z = -w * u_camera.camera.projection[2][2] + u_camera.camera.projection[3][2];
-    vec4 position = u_camera.camera.inv_projection * vec4(vertex_position * w, z, w);
+    const float z = -w * u_view_info.view.projection[2][2] + u_view_info.view.projection[3][2];
+    vec4 position = u_view_info.view.inv_projection * vec4(vertex_position * w, z, w);
     const float z_view = position.z;
-    position = u_camera.camera.inv_view * position;
+    position = u_view_info.view.inv_view * position;
 
     const mat3x2 uvs = get_uvs(object.uv_index, indices);
     const mat3x2 uvs_interpolated = interpolate_with_derivatives_2d(interpolation_data, uvs);

@@ -13,7 +13,7 @@ struct SceneVisibilityPassesResources
     RG::Resource RenderObjectBuckets{};
     RG::Resource RenderObjectHandles{};
     RG::Resource MeshletHandles{};
-    RG::Resource Views{};
+    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Views{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Hiz{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MinMaxDepthReductions{};
 
@@ -31,6 +31,6 @@ struct SceneVisibilityPassesResources
         const SceneMultiviewVisibility& sceneMultiviewVisibility);
 
     void UploadViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
-        RG::Graph& renderGraph);
-    void ResetMeshletCounts(RG::Graph& renderGraph);
+        RG::Graph& renderGraph) const;
+    void ResetMeshletCounts(RG::Graph& renderGraph) const;
 };

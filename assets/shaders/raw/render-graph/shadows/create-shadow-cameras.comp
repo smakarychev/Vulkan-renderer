@@ -3,8 +3,7 @@
 #version 460
 
 #include "../../shadow.glsl"
-#include "../../camera.glsl"
-#include "../culling/multiview/common.glsl"
+#include "../scene/visibility/common.glsl"
 
 #extension GL_EXT_scalar_block_layout: require
 #extension GL_EXT_control_flow_attributes: require
@@ -21,13 +20,9 @@ layout(scalar, set = 1, binding = 1) writeonly buffer csm_data {
     CSMData csm_data;
 } u_csm_data;
 
-layout(set = 1, binding = 2) uniform camera {
-    CameraGPU camera;
-} u_camera;
-
-layout(scalar, set = 1, binding = 3) writeonly buffer view_buffer {
-    ViewData views[MAX_VIEWS];
-} u_views;
+layout(set = 1, binding = 2) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(push_constant) uniform push_constants {
     uint u_shadow_size;
@@ -66,8 +61,8 @@ void main() {
         return;
     
     float cascades[MAX_CASCADES];
-    const float f = u_camera.camera.far;
-    const float n = u_camera.camera.near;
+    const float f = u_view_info.view.far;
+    const float n = u_view_info.view.near;
     const float range_max = f - n;
     const float min_z = n + u_min_max.min * range_max;
     const float max_z = n + u_min_max.max * range_max;
@@ -97,7 +92,7 @@ void main() {
 
     [[unroll]]
     for(uint i = 0; i < 8; i++) {
-        const vec4 corner = u_camera.camera.inv_view_projection * vec4(frustum_ws[i], 1.0f);
+        const vec4 corner = u_view_info.view.inv_view_projection * vec4(frustum_ws[i], 1.0f);
         frustum_ws[i] = corner.xyz / corner.w;
     }
     
@@ -138,7 +133,7 @@ void main() {
     vec3 maxes = vec3(-float_max, -float_max, -float_max);
     [[unroll]]
     for(uint i = 0; i < 8; i++) {
-        const vec3 corner = vec3(u_camera.camera.view * vec4(frustum_ws[i], 1.0f));
+        const vec3 corner = vec3(u_view_info.view.view * vec4(frustum_ws[i], 1.0f));
         mins = min(mins, corner);
         maxes = max(maxes, corner);
     }

@@ -1,6 +1,6 @@
 #include "SceneForwardPbrPass.h"
 
-#include "CameraGPU.h"
+#include "ViewInfoGPU.h"
 #include "FrameContext.h"
 #include "RenderGraph/RGCommon.h"
 #include "RenderGraph/RGGraph.h"
@@ -22,7 +22,6 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
         SceneLightResources Light{};
         SSAOData SSAO{};
         IBLData IBL{};
-        Resource ShadingSettings{};
         Resource Clusters{};
         Resource Tiles{};
         Resource ZBins{};
@@ -65,10 +64,6 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
 
             passData.IBL = RgUtils::readIBLData(info.IBL, graph, Pixel);
 
-            // todo: remove once this is united with view
-            auto& globalResources = graph.GetGlobalResources();
-            passData.ShadingSettings = graph.ReadBuffer(globalResources.ShadingSettings, Pixel | Uniform);
-
             if (info.Clusters.IsValid())
                 passData.Clusters = graph.ReadBuffer(info.Clusters, Pixel | Storage);
             if (info.Tiles.IsValid())
@@ -87,14 +82,13 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
 
             const Shader& shader = graph.GetShader();
             SceneForwardPbrShaderBindGroup bindGroup(shader);
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Resources.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.Resources.ViewInfo));
             bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
             bindGroup.SetCommands(graph.GetBufferBinding(passData.Resources.Draws));
             bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));
             RgUtils::updateSceneLightBindings(bindGroup, graph, passData.Light);
             RgUtils::updateSSAOBindings(bindGroup, graph, passData.SSAO);
             RgUtils::updateIBLBindings(bindGroup, graph, passData.IBL);
-            bindGroup.SetShading(graph.GetBufferBinding(passData.ShadingSettings));
             if (passData.Clusters.IsValid())
                 bindGroup.SetClusters(graph.GetBufferBinding(passData.Clusters));
             if (passData.Tiles.IsValid())

@@ -15,6 +15,7 @@
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
 #include "Rendering/Shader/ShaderCache.h"
+#include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
@@ -57,6 +58,7 @@ private:
     void ExecuteSingleTimePasses();
     void SetupRenderSlimePasses();
     void SetupRenderGraph();
+    void UpdateGlobalRenderGraphResources() const;
 
     RG::CsmData RenderGraphShadows(const ScenePass& scenePass,
         const CommonLight& directionalLight);
@@ -67,7 +69,7 @@ private:
 
     SceneDrawPassDescription RenderGraphVBufferDescription(RG::Resource vbuffer, RG::Resource depth,
         const ScenePass& scenePass);
-    RG::Resource RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource camera, RG::CsmData csmData);
+    RG::Resource RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource viewInfo, RG::CsmData csmData);
     
     void RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth);
 
@@ -151,6 +153,9 @@ private:
     SceneMultiviewVisibility m_PrimaryVisibility{};
     SceneVisibilityPassesResources m_ShadowMultiviewVisibilityResources{};
     SceneVisibilityPassesResources m_PrimaryVisibilityResources{};
+
+    Texture m_TransmittanceLut{};
+    u32 m_TransmittanceLutBindlessIndex{};
     
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};
