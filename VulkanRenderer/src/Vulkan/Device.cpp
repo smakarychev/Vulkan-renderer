@@ -2110,7 +2110,7 @@ void Device::CreateMipmaps(Image image, RenderCommandList& cmdList,
             .DestinationStage = PipelineStage::AllTransfer,
             .SourceAccess = PipelineAccess::None,
             .DestinationAccess = PipelineAccess::WriteTransfer,
-            .OldLayout = currentLayout,
+            .OldLayout = ImageLayout::Undefined,
             .NewLayout = ImageLayout::Destination};
         cmdList.WaitOnBarrier({
             .DependencyInfo = CreateDependencyInfo({
