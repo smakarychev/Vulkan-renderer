@@ -15,7 +15,7 @@ namespace Passes::Atmosphere::LutPasses
     struct ExecutionInfo
     {
         RG::Resource ViewInfo{};
-        const SceneLight* SceneLight{nullptr};
+        const SceneLight* Light{nullptr};
     };
     struct PassData
     {

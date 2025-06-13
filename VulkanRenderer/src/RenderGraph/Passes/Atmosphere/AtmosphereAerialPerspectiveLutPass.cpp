@@ -29,7 +29,7 @@ Passes::Atmosphere::AerialPerspective::PassData& Passes::Atmosphere::AerialPersp
                 .Format = Format::RGBA16_FLOAT,
                 .Kind = ImageKind::Image3d});
             passData.DirectionalLight = graph.Import("DirectionalLight"_hsv,
-                info.SceneLight->GetBuffers().DirectionalLights);
+                info.Light->GetBuffers().DirectionalLights);
 
             passData.TransmittanceLut = graph.ReadImage(info.TransmittanceLut, Compute | Sampled);
             passData.MultiscatteringLut = graph.ReadImage(info.MultiscatteringLut, Compute | Sampled);

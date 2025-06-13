@@ -59,7 +59,7 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
                 info.Geometry->RenderObjects.Buffer);
             passData.Objects = graph.ReadBuffer(passData.Objects, Vertex | Pixel | Storage);
 
-            passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
+            passData.Light = RgUtils::readSceneLight(*info.Light, graph, Pixel);
 
             passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
 

@@ -81,7 +81,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 auto& atmosphere = Raymarch::addToGraph(
                     name.Concatenate(".Raymarch").AddVersion(faceIndex), graph, {
                         .ViewInfo = viewInfoResource,
-                        .Light = info.SceneLight,
+                        .Light = info.Light,
                         .SkyViewLut = info.SkyViewLut,
                         .ColorIn = faces[faceIndex],
                         .UseSunLuminance = USE_SUN_LUMINANCE

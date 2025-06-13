@@ -12,7 +12,7 @@ namespace Passes::Atmosphere::AerialPerspective
         RG::Resource ViewInfo{};
         RG::Resource TransmittanceLut{};
         RG::Resource MultiscatteringLut{};
-        const SceneLight* SceneLight{nullptr};
+        const SceneLight* Light{nullptr};
         RG::CsmData CsmData{};
     };
     struct PassData

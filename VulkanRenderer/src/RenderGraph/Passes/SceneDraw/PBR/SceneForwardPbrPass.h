@@ -12,7 +12,7 @@ namespace Passes::SceneForwardPbr
         SceneDrawPassExecutionInfo DrawInfo{};
         std::optional<ShaderOverrides> CommonOverrides{std::nullopt};
         const SceneGeometry* Geometry{nullptr};
-        const SceneLight* Lights{nullptr};
+        const SceneLight* Light{nullptr};
         RG::SSAOData SSAO{};
         RG::IBLData IBL{};
         RG::Resource Clusters{};

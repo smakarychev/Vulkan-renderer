@@ -9,7 +9,7 @@ namespace Passes::Atmosphere::Environment
     struct ExecutionInfo
     {
         const ViewInfoGPU* PrimaryView{nullptr};
-        const SceneLight* SceneLight{nullptr};
+        const SceneLight* Light{nullptr};
         RG::Resource SkyViewLut{};
     };
     struct PassData

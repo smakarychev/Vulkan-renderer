@@ -602,7 +602,7 @@ SceneDrawPassDescription Renderer::RenderGraphForwardPbrDescription(RG::Resource
         Passes::SceneForwardPbr::ExecutionInfo executionInfo = {
             .DrawInfo = info,
             .Geometry = &m_Scene.Geometry(),
-            .Lights = &m_Scene.Lights(),
+            .Light = &m_Scene.Lights(),
             .SSAO = {.SSAO = m_Ssao},
             .IBL = {
                 .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
@@ -713,7 +713,7 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource 
         .Geometry = &m_Scene.Geometry(),
         .VisibilityTexture = vbuffer,
         .ViewInfo = viewInfo,
-        .Lights = &m_Scene.Lights(),
+        .Light = &m_Scene.Lights(),
         .SSAO = {.SSAO = m_Ssao},
         .IBL = {
             .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
@@ -851,7 +851,7 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
 {
     auto& luts = Passes::Atmosphere::LutPasses::addToGraph("AtmosphereLutPasses"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .SceneLight = &m_Scene.Lights() 
+        .Light = &m_Scene.Lights() 
     });
     
     Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut"_hsv, *m_Graph, luts.TransmittanceLut);
@@ -865,7 +865,7 @@ void Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::P
 {
     auto& environment = Passes::Atmosphere::Environment::addToGraph("Atmosphere.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
-        .SceneLight = &m_Scene.Lights(),
+        .Light = &m_Scene.Lights(),
         .SkyViewLut = lut.SkyViewLut
     });
 
@@ -886,7 +886,7 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .TransmittanceLut = lut.TransmittanceLut,
         .MultiscatteringLut = lut.MultiscatteringLut,
-        .SceneLight = &m_Scene.Lights(),
+        .Light = &m_Scene.Lights(),
         .CsmData = csmData
     });
 

@@ -31,7 +31,7 @@ Passes::Atmosphere::LutPasses::PassData& Passes::Atmosphere::LutPasses::addToGra
                 .ViewInfo = passData.ViewInfo,
                 .TransmittanceLut = transmittance.Lut,
                 .MultiscatteringLut = multiscattering.Lut,
-                .Light = info.SceneLight
+                .Light = info.Light
             });
 
             passData.TransmittanceLut = transmittance.Lut;

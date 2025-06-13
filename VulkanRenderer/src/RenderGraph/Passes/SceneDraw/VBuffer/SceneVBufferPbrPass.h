@@ -12,7 +12,7 @@ namespace Passes::SceneVBufferPbr
         const SceneGeometry* Geometry{nullptr};
         RG::Resource VisibilityTexture{};
         RG::Resource ViewInfo{};
-        const SceneLight* Lights{nullptr};
+        const SceneLight* Light{nullptr};
         RG::SSAOData SSAO{};
         RG::IBLData IBL{};
         RG::Resource Clusters{};

@@ -71,7 +71,7 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
                     .Format = Format::RGBA16_FLOAT});
             passData.Color = graph.RenderTarget(color, {.OnLoad = AttachmentLoad::Clear});
 
-            passData.Light = RgUtils::readSceneLight(*info.Lights, graph, Pixel);
+            passData.Light = RgUtils::readSceneLight(*info.Light, graph, Pixel);
             if (info.Clusters.IsValid())
                 passData.Clusters = graph.ReadBuffer(info.Clusters, Pixel | Storage);
             if (info.Tiles.IsValid())
