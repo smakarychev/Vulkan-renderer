@@ -21,7 +21,7 @@ layout(set = 0, binding = 0) uniform sampler u_sampler_visibility;
 layout(set = 0, binding = 1) uniform sampler u_sampler;
 
 @immutable_sampler_clamp_edge
-layout(set = 0, binding = 2) uniform sampler u_sampler_brdf;
+layout(set = 0, binding = 2) uniform sampler u_sampler_ce;
 
 @immutable_sampler_shadow
 layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
@@ -157,19 +157,21 @@ vec3 shade_pbr(ShadeInfo shade_info, float shadow, float ao, vec3 transmittance)
 }
 
 vec3 get_transmittance() {
-    vec3 transmittance = vec3(1.0f);
     const vec3 atm_pos = get_view_pos(u_view_info.view.position, u_view_info.view.surface);
     const vec3 sun_dir = u_directional_lights.lights[0].direction * vec3(1, -1, 1);
     const float r = length(atm_pos);
-    if (r < u_view_info.view.atmosphere) {
-        const vec3 up = atm_pos / r;
-        const float mu = dot(up, sun_dir);
-        if (mu < 0.0f)
-            return vec3(0.0f);
-        const vec2 transmittance_uv = transmittance_uv_from_r_mu(u_view_info.view, r, dot(up, sun_dir));
-        transmittance *= textureLod(nonuniformEXT(sampler2D(u_textures[
-            u_view_info.view.transmittance_lut], u_sampler)), transmittance_uv, 0).rgb;
+    const vec3 up = atm_pos / r;
+    
+    const bool intersects_surface = intersect_sphere(atm_pos, sun_dir, vec3(0.0f) + PLANET_RADIUS_OFFSET_KM * up, u_view_info.view.surface).depth != NO_HIT;
+    if (intersects_surface) {
+        return vec3(0.0f);
     }
+    
+    vec3 transmittance = vec3(0.0f);
+    const float mu = dot(up, sun_dir);
+    const vec2 transmittance_uv = transmittance_uv_from_r_mu(u_view_info.view, r, dot(up, sun_dir));
+    transmittance = textureLod(nonuniformEXT(sampler2D(u_textures[
+        u_view_info.view.transmittance_lut], u_sampler_ce)), transmittance_uv, 0).rgb;
     
     return transmittance;
 }

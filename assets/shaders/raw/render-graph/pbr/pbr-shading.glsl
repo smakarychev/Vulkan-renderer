@@ -176,7 +176,7 @@ vec3 shade_pbr_ibl(ShadeInfo shade_info) {
 
     const float lod = shade_info.perceptual_roughness * MAX_REFLECTION_LOD;
     const vec3 prefiltered = textureLod(samplerCube(u_prefilter_map, u_sampler), R, lod).rgb;
-    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_brdf),
+    const vec2 brdf = textureLod(sampler2D(u_brdf, u_sampler_ce),
     vec2(shade_info.n_dot_v, shade_info.perceptual_roughness), 0).rg;
 
     const vec3 diffuse = irradiance * shade_info.diffuse_color;
