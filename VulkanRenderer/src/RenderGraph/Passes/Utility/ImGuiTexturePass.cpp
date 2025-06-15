@@ -147,7 +147,7 @@ namespace
 
                 graph.SetShader("texture3d-to-slice"_hsv);
 
-                passData.Slice = graph.Create("Slice"_hsv,
+                passData.Slice = graph.Create("Slice"_hsv, ResourceCreationFlags::Volatile,
                     RGImageDescription{
                         .Inference = RGImageInference::Size2d,
                         .Reference = textureIn,
@@ -199,7 +199,7 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            Context& context = graph.GetOrCreateBlackboardValue<Context>();
+            Context& context = graph.GetOrCreateBlackboardValue<Context>(name.Hash());
             auto& texture3dDescription = graph.GetImageDescription(textureIn);
             u32 depth = texture3dDescription.GetDepth();
             f32 sliceNormalized = ((f32)context.Slice + 0.5f) / (f32)depth;
@@ -216,7 +216,7 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
             CPU_PROFILE_FRAME("ImGui Texture")
             GPU_PROFILE_FRAME("ImGui Texture")
 
-            Context& context = graph.GetOrCreateBlackboardValue<Context>();
+            Context& context = graph.GetOrCreateBlackboardValue<Context>(name.Hash());
             auto&& [slice, description] = graph.GetImageWithDescription(passData.Texture);
             
             ImGui::Begin(passData.Name.AsString().c_str());

@@ -90,6 +90,15 @@ namespace RG
         Value* TryGetBlackboardValue() const;
         template <typename Value>
         Value& GetOrCreateBlackboardValue() const;
+        
+        template <typename Value>
+        void UpdateBlackboard(Value&& value, u64 hash) const;
+        template <typename Value>
+        Value& GetBlackboardValue(u64 hash) const;
+        template <typename Value>
+        Value* TryGetBlackboardValue(u64 hash) const;
+        template <typename Value>
+        Value& GetOrCreateBlackboardValue(u64 hash) const;
 
         void SetShader(StringId name) const;
         void SetShader(StringId name, ShaderOverridesView&& overrides) const;
@@ -208,5 +217,32 @@ namespace RG
             UpdateBlackboard(Value{});
 
         return GetBlackboardValue<Value>();
+    }
+
+    template <typename Value>
+    void Graph::UpdateBlackboard(Value&& value, u64 hash) const
+    {
+        m_Blackboard.Update(std::forward<Value>(value), hash);
+    }
+
+    template <typename Value>
+    Value& Graph::GetBlackboardValue(u64 hash) const
+    {
+        return m_Blackboard.Get<Value>(hash);
+    }
+
+    template <typename Value>
+    Value* Graph::TryGetBlackboardValue(u64 hash) const
+    {
+        return m_Blackboard.TryGet<Value>(hash);
+    }
+
+    template <typename Value>
+    Value& Graph::GetOrCreateBlackboardValue(u64 hash) const
+    {
+        if (!TryGetBlackboardValue<Value>(hash))
+            UpdateBlackboard(Value{}, hash);
+
+        return GetBlackboardValue<Value>(hash);
     }
 }
