@@ -240,7 +240,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
         std::this_thread::sleep_for(FileWatcherSettings::DEFAULT_DEBOUNCE_DURATION * 1.5);
         REQUIRE(timesCalled == 1);
     }
-    SECTION("Filewatcher handler does not have to outlive filewath")
+    SECTION("Filewatcher handler does not have to outlive filewatch")
     {
         bool called = false;
         fs::path existing = testDir / "text.txt";

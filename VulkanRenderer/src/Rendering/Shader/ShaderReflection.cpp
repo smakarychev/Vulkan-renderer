@@ -1,7 +1,7 @@
 #include "ShaderReflection.h"
 
 #include "AssetManager.h"
-#include "Shader.h"
+#include "ShaderPipelineTemplate.h"
 #include "Vulkan/Device.h"
 #include "Utils/ContainterUtils.h"
 #include "Rendering/DeletionQueue.h"
@@ -418,6 +418,7 @@ namespace
 
 ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& paths)
 {
+    // todo: invert this: asset manager should call the ShaderReflection, not the other way around
     std::string shaderKey = AssetManager::GetShaderKey(paths);
 
     if (ShaderReflection* cachedShader = AssetManager::GetShader(shaderKey))
@@ -475,6 +476,6 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& 
 
 ShaderReflection::~ShaderReflection()
 {
-    for (auto& module : m_Modules)
+    for (auto module : m_Modules)
         Device::DeletionQueue().Enqueue(module);
 }

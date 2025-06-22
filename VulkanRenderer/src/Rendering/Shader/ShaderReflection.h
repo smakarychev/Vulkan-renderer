@@ -29,8 +29,8 @@ public:
     static ShaderReflection* ReflectFrom(const std::vector<std::string>& paths);
     ShaderReflection() = default;
     ShaderReflection(const ShaderReflection&) = delete;
-    ShaderReflection(ShaderReflection&&) = default;
     ShaderReflection& operator=(const ShaderReflection&) = delete;
+    ShaderReflection(ShaderReflection&&) = default;
     ShaderReflection& operator=(ShaderReflection&&) = default;
     ~ShaderReflection();
 

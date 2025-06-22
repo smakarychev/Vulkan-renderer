@@ -2,6 +2,8 @@
 
 #include "material.glsl"
 
+layout(local_size_x = 1) in;
+
 layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];
 } u_materials;

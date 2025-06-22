@@ -120,7 +120,8 @@ void Renderer::InitRenderGraph()
         Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
 
     m_ShaderCache.AddPersistentDescriptors("main_materials"_hsv,
-        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(DescriptorsKind::Materials));
+        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(DescriptorsKind::Materials),
+        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().DescriptorsLayout(DescriptorsKind::Materials));
     
     /*m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,

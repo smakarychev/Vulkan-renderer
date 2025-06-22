@@ -1,6 +1,6 @@
 ﻿#include "AssetManager.h"
 
-#include "Rendering/Shader/Shader.h"
+#include "Rendering/Shader/ShaderPipelineTemplate.h"
 #include "Scene/Scene.h"
 
 StringUnorderedMap<ShaderReflection> AssetManager::s_Shaders = {};

@@ -1,6 +1,6 @@
 #include "ShaderOverrides.h"
 
-#include "Shader.h"
+#include "ShaderPipelineTemplate.h"
 
 PipelineSpecializationsView ShaderSpecializationsView::ToPipelineSpecializationsView(
     const ShaderPipelineTemplate& shaderTemplate)

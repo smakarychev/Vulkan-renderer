@@ -2,7 +2,7 @@
 
 #include "RGResource.h"
 #include "ViewInfoGPU.h"
-#include "Rendering/Shader/Shader.h"
+#include "Rendering/Shader/ShaderPipelineTemplate.h"
 
 class Camera;
 

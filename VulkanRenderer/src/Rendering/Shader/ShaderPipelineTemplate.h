@@ -27,6 +27,7 @@ static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expecte
 struct ShaderPipelineTemplateCreateInfo
 {
     ShaderReflection* ShaderReflection{nullptr};
+    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> DescriptorLayoutOverrides{};
 };
 
 class ShaderPipelineTemplate
@@ -57,14 +58,9 @@ private:
 class ShaderTemplateLibrary
 {
 public:
-    static ShaderPipelineTemplate* LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-        StringId name);
     static ShaderPipelineTemplate* GetShaderTemplate(StringId name);
-    static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
+    static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo,
         StringId name);
-    static void AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, StringId name);
-private:
-    static ShaderPipelineTemplate CreateFromPaths(const std::vector<std::string>& paths);
 private:
     static std::unordered_map<StringId, ShaderPipelineTemplate> s_Templates;
 };

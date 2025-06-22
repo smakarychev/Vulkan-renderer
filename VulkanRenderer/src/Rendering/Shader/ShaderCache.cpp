@@ -74,31 +74,41 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesVi
 
         if (i == BINDLESS_DESCRIPTORS_INDEX && referencesOtherBindlessSet)
             continue;
+
+        const DescriptorsLayout descriptorsLayout = pipeline.PipelineTemplate->GetDescriptorsLayout(i);
         
         std::optional<Descriptors> descriptors = Device::AllocateDescriptors(
             allocators.Get((DescriptorsKind)i),
-            pipeline.PipelineTemplate->GetDescriptorsLayout(i), {
+            descriptorsLayout, {
                 .Bindings = pipeline.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i].Descriptors,
                 .BindlessCount = pipeline.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i].HasBindless ?
-                    pipeline.BindlessCount : 0});
+                    pipeline.BindlessCount : 0
+            });
         if (!descriptors.has_value())
             return std::unexpected(ShaderCacheError::FailedToAllocateDescriptors);
 
         shader.m_Descriptors[i] = *descriptors;
+        shader.m_DescriptorLayouts[i] = descriptorsLayout;
     }
 
     if (referencesOtherBindlessSet)
-        shader.m_Descriptors[BINDLESS_DESCRIPTORS_INDEX] =
-            {m_PersistentDescriptors.at(pipeline.BindlessName)};
+    {
+        const DescriptorsWithLayout& referencedDescriptors = m_PersistentDescriptors.at(pipeline.BindlessName);
+        shader.m_Descriptors[BINDLESS_DESCRIPTORS_INDEX] = referencedDescriptors.Descriptors;
+        shader.m_DescriptorLayouts[BINDLESS_DESCRIPTORS_INDEX] = referencedDescriptors.Layout;
+    }
     
     return shader;
 }
 
-void ShaderCache::AddPersistentDescriptors(StringId name, Descriptors descriptors)
+void ShaderCache::AddPersistentDescriptors(StringId name, Descriptors descriptors, DescriptorsLayout descriptorsLayout)
 {
     if (m_PersistentDescriptors.contains(name))
         LOG("Warning: persistent descriptors with name '{}' were already added", name);
-    m_PersistentDescriptors[name] = descriptors;
+    m_PersistentDescriptors[name] = {
+        .Descriptors = descriptors,
+        .Layout = descriptorsLayout
+    };
 }
 
 void ShaderCache::InitFileWatcher()
@@ -211,8 +221,21 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
     stages.reserve(json["shader_stages"].size());
     for (auto& stage : json["shader_stages"])
         stages.push_back(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + std::string{stage});
+
+    StringId referencedBindlessSet = {};
+    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> descriptorsLayoutsOverrides{};
+    if (json.contains("bindless"))
+    {
+        referencedBindlessSet = StringId::FromString(json.at("bindless").get<std::string>());
+        if (!m_PersistentDescriptors.contains(referencedBindlessSet))
+            return std::nullopt;
+        
+        descriptorsLayoutsOverrides[BINDLESS_DESCRIPTORS_INDEX] =
+            m_PersistentDescriptors.at(referencedBindlessSet).Layout;
+    }
     
-    const ShaderPipelineTemplate* shaderTemplate = GetShaderPipelineTemplate(name, overrides, stages);
+    const ShaderPipelineTemplate* shaderTemplate =
+        GetShaderPipelineTemplate(name, overrides, stages, descriptorsLayoutsOverrides);
     if (shaderTemplate == nullptr)
         return std::nullopt;
 
@@ -315,10 +338,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
         Device::DummyDeletionQueue());
     Device::NamePipeline(shader.Pipeline, name.AsStringView());
 
-    if (json.contains("bindless"))
-    {
-        shader.BindlessName = StringId::FromString(json.at("bindless").get<std::string>());
-    }
+    shader.BindlessName = referencedBindlessSet;
     shader.BindlessCount =
         shaderTemplate->GetReflection().DescriptorSetsInfo()[BINDLESS_DESCRIPTORS_INDEX].HasBindless ?
         json.value("bindless_count", 0u) : 0u;
@@ -327,7 +347,8 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
 }
 
 const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(StringId name,
-    const ShaderOverridesView& overrides, std::vector<std::string>& stages)
+    const ShaderOverridesView& overrides, std::vector<std::string>& stages,
+    const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides)
 {
     ShaderStageConverter::Options options = {};
     if (overrides.Defines.Hash != 0)
@@ -360,5 +381,8 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(StringId na
     
     AssetManager::RemoveShader(AssetManager::GetShaderKey(stages));
     
-    return ShaderTemplateLibrary::ReloadShaderPipelineTemplate(stages, name);
+    return ShaderTemplateLibrary::ReloadShaderPipelineTemplate({
+        .ShaderReflection = ShaderReflection::ReflectFrom(stages),
+        .DescriptorLayoutOverrides = descriptorLayoutOverrides
+    }, name);
 }

@@ -59,6 +59,11 @@ void BindlessTextureDescriptorsRingBuffer::SetTexture(u32 index, Texture texture
     m_Textures[index] = texture;
 }
 
+Texture BindlessTextureDescriptorsRingBuffer::GetTexture(u32 index) const
+{
+    return m_Textures[index];
+}
+
 u32 BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(Images::DefaultKind texture) const
 {
     return m_DefaultTextures[(u32)texture];

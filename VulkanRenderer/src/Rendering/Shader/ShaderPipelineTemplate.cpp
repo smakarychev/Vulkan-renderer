@@ -1,4 +1,4 @@
-﻿#include "Shader.h"
+﻿#include "ShaderPipelineTemplate.h"
 
 #include <ranges>
 #include <algorithm>
@@ -36,7 +36,8 @@ namespace
     }
 
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> createDescriptorLayouts(
-        const std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS>& descriptorSetReflections)
+        const std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS>& descriptorSetReflections,
+        const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides)
     {
         std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> layouts;
 
@@ -48,6 +49,12 @@ namespace
             if (set.Descriptors.empty())
             {
                 layouts[i] = EMPTY_LAYOUT;
+                continue;
+            }
+
+            if (descriptorLayoutOverrides[i].HasValue())
+            {
+                layouts[i] = descriptorLayoutOverrides[i];
                 continue;
             }
             
@@ -76,7 +83,7 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
     m_ShaderReflection = createInfo.ShaderReflection;
 
     m_DescriptorsLayouts = createDescriptorLayouts(
-        reflection.DescriptorSetsInfo());
+        reflection.DescriptorSetsInfo(), createInfo.DescriptorLayoutOverrides);
     
     m_PipelineLayout = Device::CreatePipelineLayout({
         .PushConstants = reflection.PushConstants(),
@@ -177,19 +184,10 @@ VertexInputDescription ShaderPipelineTemplate::CreateCompatibleVertexDescription
 
 std::unordered_map<StringId, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
 
-ShaderPipelineTemplate* ShaderTemplateLibrary::LoadShaderPipelineTemplate(const std::vector<std::string>& paths,
-    StringId name)
+ShaderPipelineTemplate* ShaderTemplateLibrary::ReloadShaderPipelineTemplate(
+    ShaderPipelineTemplateCreateInfo&& createInfo, StringId name)
 {
-    if (!GetShaderTemplate(name))
-        AddShaderTemplate(CreateFromPaths(paths), name);
-    
-    return GetShaderTemplate(name);
-}
-
-ShaderPipelineTemplate* ShaderTemplateLibrary::ReloadShaderPipelineTemplate(const std::vector<std::string>& paths,
-    StringId name)
-{
-    s_Templates[name] = CreateFromPaths(paths);
+    s_Templates[name] = ShaderPipelineTemplate(std::move(createInfo));
     
     return GetShaderTemplate(name);
 }
@@ -198,16 +196,4 @@ ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(StringId name)
 {
     auto it = s_Templates.find(name);
     return it == s_Templates.end() ? nullptr : &it->second;
-}
-
-void ShaderTemplateLibrary::AddShaderTemplate(const ShaderPipelineTemplate& shaderTemplate, StringId name)
-{
-    s_Templates.emplace(std::make_pair(name, shaderTemplate));
-}
-
-ShaderPipelineTemplate ShaderTemplateLibrary::CreateFromPaths(const std::vector<std::string>& paths)
-{
-    return ShaderPipelineTemplate({
-        .ShaderReflection = ShaderReflection::ReflectFrom(paths),
-    });
 }

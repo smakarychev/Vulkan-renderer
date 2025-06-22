@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "FrameContext.h"
-#include "Shader.h"
+#include "ShaderPipelineTemplate.h"
 #include "ShaderOverrides.h"
 #include "Platform/FileWatcher.h"
 #include "String/StringHeterogeneousHasher.h"
@@ -16,10 +16,12 @@ public:
     Pipeline Pipeline() const { return m_Pipeline; }
     PipelineLayout GetLayout() const { return m_PipelineLayout; }
     const ::Descriptors& Descriptors(DescriptorsKind kind) const { return m_Descriptors[(u32)kind]; }
+    const ::DescriptorsLayout& DescriptorsLayout(DescriptorsKind kind) const { return m_DescriptorLayouts[(u32)kind]; }
 private:
     ::Pipeline m_Pipeline{};
     PipelineLayout m_PipelineLayout{};
     std::array<::Descriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
+    std::array<::DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorLayouts;
 };
 
 enum class ShaderCacheError
@@ -42,7 +44,7 @@ public:
     ShaderCacheAllocateResult Allocate(StringId name, DescriptorArenaAllocators& allocators);
     ShaderCacheAllocateResult Allocate(StringId name, ShaderOverridesView&& overrides,
         DescriptorArenaAllocators& allocators);
-    void AddPersistentDescriptors(StringId name, Descriptors descriptors);
+    void AddPersistentDescriptors(StringId name, Descriptors descriptors, DescriptorsLayout descriptorsLayout);
 private:
     void InitFileWatcher();
     void LoadShaderInfos();
@@ -64,7 +66,8 @@ private:
     };
     std::optional<PipelineInfo> TryCreatePipeline(StringId name, ShaderOverridesView& overrides);
     const ShaderPipelineTemplate* GetShaderPipelineTemplate(StringId name, const ShaderOverridesView& overrides,
-        std::vector<std::string>& stages);
+        std::vector<std::string>& stages,
+        const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
 private:
     struct ShaderNameWithOverrides
     {
@@ -83,8 +86,12 @@ private:
             return hash;
         }
     };
- 
-    std::unordered_map<StringId, Descriptors> m_PersistentDescriptors;
+    struct DescriptorsWithLayout
+    {
+        Descriptors Descriptors{};
+        DescriptorsLayout Layout{};
+    };
+    std::unordered_map<StringId, DescriptorsWithLayout> m_PersistentDescriptors;
     std::unordered_map<ShaderNameWithOverrides, PipelineInfo, ShaderNameWithOverridesHasher> m_Pipelines;
     std::unordered_map<StringId, PipelineInfo> m_DefaultPipelines;
     std::unordered_map<StringId, std::string> m_ShaderNameToPath;

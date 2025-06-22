@@ -1,7 +1,7 @@
 #pragma once
 #include "types.h"
 #include "Rendering/Image/ImageUtility.h"
-#include "Rendering/Shader/Shader.h"
+#include "Rendering/Shader/ShaderPipelineTemplate.h"
 #include "Rendering/Shader/ShaderCache.h"
 
 /* This class manages a descriptor set for bindless textures.
@@ -27,6 +27,7 @@ public:
     bool WillOverflow() const;
     u32 AddTexture(Texture texture);
     void SetTexture(u32 index, Texture texture);
+    Texture GetTexture(u32 index) const;
     u32 GetDefaultTexture(Images::DefaultKind texture) const;
 private:
     u32 GetNextIndex(u32 index) const;
