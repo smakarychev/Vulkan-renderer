@@ -50,4 +50,7 @@ struct ViewInfo {
     float environment_power;
     bool soft_shadows;
     uint transmittance_lut;
+    uint sky_view_lut;
+    
+    float frame_number;
 };

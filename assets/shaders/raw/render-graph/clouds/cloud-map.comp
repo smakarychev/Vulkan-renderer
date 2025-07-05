@@ -1,0 +1,49 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 1, binding = 0, rgba16f) uniform writeonly image2D u_cloud_map;
+
+layout(push_constant) uniform push_constants {
+    float u_perlin_coverage_min;
+    float u_perlin_coverage_max;
+    float u_worley_coverage_min;
+    float u_worley_coverage_max;
+    float u_perlin_worley_fraction;
+    float u_coverage_bias;
+};
+
+float get_coverage(vec2 uv) {
+    const float perlin_frequency = 8.0f;
+    const float worley_frequency = 4.0f;
+    float perlin_worley = perlin_worley(
+        vec3(uv, perlin_frequency * 333),
+        perlin_frequency, worley_frequency,
+        vec2(u_perlin_coverage_min, u_perlin_coverage_max),
+        vec2(u_worley_coverage_min, u_worley_coverage_max),
+        u_perlin_worley_fraction);
+    return remap_01(perlin_worley, u_coverage_bias, 1.0);
+}
+
+float get_type(vec2 uv) {
+    const float perlin_frequency = 8.0f;
+    
+    return remap_01(perlin_5_octaves(vec3(uv, 0), perlin_frequency, true), 0.8f, 1.5f);
+}
+
+void main() {
+    const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    const ivec2 image_size = imageSize(u_cloud_map);
+    const vec2 texture_size_inv = 1.0f / image_size;
+    const vec2 uv = (vec2(coord) + 0.5f) * texture_size_inv;
+
+    if (coord.x >= image_size.x || coord.y >= image_size.y) {
+        return;
+    }
+
+    const float coverage = get_coverage(uv);
+    const float type = get_type(uv);
+    imageStore(u_cloud_map, coord, vec4(vec3(coverage, coverage, type), 1.0f));
+}

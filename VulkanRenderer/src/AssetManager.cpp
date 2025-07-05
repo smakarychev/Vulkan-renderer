@@ -29,9 +29,9 @@ ShaderReflection* AssetManager::GetShader(std::string_view name)
     return it == s_Shaders.end() ? nullptr : &it->second;
 }
 
-void AssetManager::AddShader(std::string_view name, ShaderReflection&& shader)
+ShaderReflection* AssetManager::AddShader(std::string_view name, ShaderReflection&& shader)
 {
-    s_Shaders.emplace(name, std::move(shader));
+    return &s_Shaders.emplace(name, std::move(shader)).first->second;
 }
 
 void AssetManager::RemoveShader(std::string_view name)

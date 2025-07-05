@@ -1,0 +1,77 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 8) in;
+
+layout(constant_id = 0) const bool IS_HIGH_FREQUENCY = false;
+
+layout(set = 1, binding = 0, rgba16f) uniform writeonly image3D u_cloud_shape;
+
+layout(push_constant) uniform push_constants {
+    float u_perlin_coverage_min;
+    float u_perlin_coverage_max;
+    float u_worley_coverage_min;
+    float u_worley_coverage_max;
+    float u_perlin_worley_fraction;
+};
+
+float low_frequency(vec3 uv) {
+    const float perlin_frequency = 8.0f;
+    const float worley_frequency = 4.0f;
+    const float perlin_worley = perlin_worley(
+        uv,
+        perlin_frequency, worley_frequency,
+        vec2(u_perlin_coverage_min, u_perlin_coverage_max),
+        vec2(u_worley_coverage_min, u_worley_coverage_max),
+        u_perlin_worley_fraction);
+    
+    const float worley_0 = worley(uv, worley_frequency * 2.0f);
+    const float worley_1 = worley(uv, worley_frequency * 4.0f);
+    const float worley_2 = worley(uv, worley_frequency * 8.0f);
+    const float worley_3 = worley(uv, worley_frequency * 16.0f);
+    
+    const float worley_fbm_0 = worley_0 * 0.625f + worley_1 * 0.25f + worley_2 * 0.125f;
+    const float worley_fbm_1 = worley_1 * 0.625f + worley_2 * 0.25f + worley_3 * 0.125f;
+    const float worley_fbm_2 = worley_2 * 0.75f + worley_3 * 0.25f;
+    
+    const float low_freq_fbm = worley_fbm_0 * 0.625f + worley_fbm_1 * 0.25f + worley_fbm_2 * 0.125f;
+    float base_shape = perlin_worley;
+    
+    return remap_01(base_shape, low_freq_fbm - 1.0f, 1.0f);
+}
+
+float high_frequency(vec3 uv) {
+    const float worley_frequency = 2.0f;
+
+    const float worley_0 = worley(uv, worley_frequency * 1.0f);
+    const float worley_1 = worley(uv, worley_frequency * 2.0f);
+    const float worley_2 = worley(uv, worley_frequency * 4.0f);
+    const float worley_3 = worley(uv, worley_frequency * 8.0f);
+
+    const float worley_fbm_0 = worley_0 * 0.625f + worley_1 * 0.25f + worley_2 * 0.125f;
+    const float worley_fbm_1 = worley_1 * 0.625f + worley_2 * 0.25f + worley_3 * 0.125f;
+    const float worley_fbm_2 = worley_2 * 0.75f + worley_3 * 0.25f;
+
+    return clamp(worley_fbm_0 * 0.625f + worley_fbm_1 * 0.25f + worley_fbm_2 * 0.125f, 0.0f, 1.0f);
+}
+
+void main() {
+    const ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    const ivec3 image_size = imageSize(u_cloud_shape);
+    const vec3 texture_size_inv = 1.0f / image_size;
+    const vec3 uv = (vec3(coord) + 0.5f) * texture_size_inv;
+
+    if (coord.x >= image_size.x || coord.y >= image_size.y || coord.z >= image_size.z) {
+        return;
+    }
+
+    if (IS_HIGH_FREQUENCY) {
+        const float shape = high_frequency(uv);
+        imageStore(u_cloud_shape, coord, vec4(shape));
+    }
+    else {
+        const float shape = low_frequency(uv);
+        imageStore(u_cloud_shape, coord, vec4(shape));
+    }
+}

@@ -81,6 +81,7 @@ struct ShadingSettings
     f32 EnvironmentPower{1.0f};
     u32 SoftShadows{false};
     RenderHandle<Image> TransmittanceLut{};
+    RenderHandle<Image> SkyViewLut{};
 };
 
 /*
@@ -92,4 +93,5 @@ struct ViewInfoGPU
     CameraGPU Camera{};
     AtmosphereSettings Atmosphere{};
     ShadingSettings ShadingSettings{};
+    f32 FrameNumber{0.0f};
 };

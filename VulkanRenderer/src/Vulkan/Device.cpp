@@ -28,7 +28,6 @@
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "Rendering/Image/ImageUtility.h"
-#include "utils/CoreUtils.h"
 
 namespace
 {
@@ -1936,6 +1935,7 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
 Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPath assetPath)
 {
     {
+        // todo: invert this: asset manager should call the device, not the other way around
         Image image = AssetManager::GetImage(assetPath);
         if (image.HasValue())
         {
@@ -3310,6 +3310,7 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
             },
             [](const char* req) { LOG("Unsupported instance extension: {}\n", req); });
     };
+#ifdef VULKAN_VAL_LAYERS
     auto checkInstanceValidationLayers = [](const DeviceCreateInfo& createInfo)
     {
         u32 availableValidationLayerCount = 0;
@@ -3321,6 +3322,7 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
             [](const char* req, const VkLayerProperties& avail) { return std::strcmp(req, avail.layerName) == 0; },
             [](const char* req) { LOG("Unsupported validation layer: {}\n", req); });
     };
+#endif
     
     VkApplicationInfo applicationInfo = {};
     applicationInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;

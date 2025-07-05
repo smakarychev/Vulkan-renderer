@@ -378,11 +378,13 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(StringId na
                 return nullptr;
         }
     }
-    
-    AssetManager::RemoveShader(AssetManager::GetShaderKey(stages));
+
+    std::string shaderReflectionKey = AssetManager::GetShaderKey(stages);
+    AssetManager::RemoveShader(shaderReflectionKey);
+    ShaderReflection* reflection = AssetManager::AddShader(shaderReflectionKey, ShaderReflection::ReflectFrom(stages));
     
     return ShaderTemplateLibrary::ReloadShaderPipelineTemplate({
-        .ShaderReflection = ShaderReflection::ReflectFrom(stages),
+        .ShaderReflection = reflection,
         .DescriptorLayoutOverrides = descriptorLayoutOverrides
     }, name);
 }

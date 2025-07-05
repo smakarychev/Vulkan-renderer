@@ -76,6 +76,16 @@ void Settings::initCvars()
         "Size of the each face of atmosphere environment skybox",
         128);
 
+    /* clouds */
+    CVarI32 cloudMapSize("Clouds.CloudMap.Size"_hsv,
+        "Size of the cloud map",
+        2048);
+
+    CVarI32 cloudCurlNoiseSize("Clouds.CloudCurlNoise.Size"_hsv,
+        "Size of the cloud curl noise",
+        128);
+    
+
     /* scene */
     static constexpr u32 DEFAULT_RENDER_OBJECT_COUNT = 1024;
     static constexpr u32 DEFAULT_MESHLET_COUNT = 1024 * 64;

@@ -192,7 +192,8 @@ namespace RG
     {
         m_Images.push_back({
             .Resource = Device::CreateImage({
-                .Description = image
+                .Description = image,
+                .CalculateMipmaps = false,
             }, Device::DummyDeletionQueue()),
             .Description = image,
             .Handle = resource,

@@ -1,0 +1,62 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(set = 1, binding = 0, rgba16f) uniform writeonly image2D u_curl_noise;
+
+vec3 remap_01_noclamp(vec3 val, float nmin, float nmax) {
+    return (val - nmin) / (nmax - nmin);
+}
+
+void main() {
+    const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    const ivec2 image_size = imageSize(u_curl_noise);
+    const vec2 texture_size_inv = 1.0f / image_size;
+    const vec2 uv = (vec2(coord) + 0.5f) * texture_size_inv;
+
+    if (coord.x >= image_size.x || coord.y >= image_size.y) {
+        return;
+    }
+
+    float epsilon = 0.05;
+    float noise1, noise2, a, b;
+    vec3 c;
+
+    const float curl_noise_scale = 4.0f;
+    const vec3 pos = vec3(uv, 0.0f) * curl_noise_scale;
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f, epsilon, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, -epsilon, 0.0), false);
+    a = (noise1 - noise2) / (2 * epsilon);
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f, epsilon), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f, -epsilon), false);
+    b = (noise1 - noise2) / (2 * epsilon);
+
+    c.x = a - b;
+
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f,  epsilon), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f, -epsilon), false);
+    a = (noise1 - noise2) / (2 * epsilon);
+    noise1 = perlin_5_octaves(pos.xyz + vec3( epsilon, 0.0f, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(-epsilon, 0.0f, 0.0), false);
+    b = (noise1 - noise2) / (2 * epsilon);
+
+    c.y = a - b;
+
+    noise1 = perlin_5_octaves(pos.xyz + vec3( epsilon, 0.0f, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(-epsilon, 0.0f, 0.0), false);
+    a = (noise1 - noise2) / (2 * epsilon);
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f,  epsilon, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, -epsilon, 0.0), false);
+    b = (noise1 - noise2) / (2 * epsilon);
+
+    c.z = a - b;
+
+    const float remap_low = -0.5;
+    const float remap_high = 3.0;
+    vec3 noise = remap_01_noclamp(c, remap_low, remap_high);
+    noise = encode_curl(noise);
+    
+    imageStore(u_curl_noise, coord, vec4(noise, 1.0f));
+}

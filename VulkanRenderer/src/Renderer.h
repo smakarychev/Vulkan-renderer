@@ -9,6 +9,8 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
+#include "RenderGraph/Passes/Clouds/CloudsCommon.h"
+#include "RenderGraph/Passes/Clouds/CloudsPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "RenderGraph/Visualization/RGMermaidExporter.h"
@@ -91,8 +93,25 @@ private:
     RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
     Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
     void RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut);
-    RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
+
+    struct AtmosphereInfo
+    {
+        RG::Resource AerialPerspectiveLut{};
+        RG::Resource ColorWithAtmosphere{};
+    };
+    AtmosphereInfo RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
         RG::Resource color, RG::Resource depth, RG::CsmData csmData);
+
+    struct CloudMapsInfo
+    {
+        RG::Resource CloudMap{};
+        RG::Resource CloudShapeLowFrequency{};
+        RG::Resource CloudShapeHighFrequency{};
+        RG::Resource CloudCurlNoise{};
+    };
+    CloudMapsInfo RenderGraphGetCloudMaps();
+    RG::Resource RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color, RG::Resource aerialPerspective,
+        RG::Resource depth);
     
     void Shutdown();
 
@@ -140,6 +159,15 @@ private:
     Texture m_SkyPrefilterMap{};
     RG::Resource m_SkyPrefilterMapResource{};
 
+    Texture m_CloudMap{};
+    Texture m_CloudShapeLowFrequency{};
+    Texture m_CloudShapeHighFrequency{};
+    Texture m_CloudCurlNoise{};
+    Passes::Clouds::CloudsNoiseParameters m_CloudMapNoiseParameters{};
+    Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
+    Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};
+    Passes::Clouds::CloudParameters m_CloudParameters{};
+    
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 
     SceneInfo* m_TestScene{nullptr};
@@ -157,7 +185,11 @@ private:
     SceneVisibilityPassesResources m_PrimaryVisibilityResources{};
 
     Texture m_TransmittanceLut{};
+    Texture m_SkyViewLut{};
     u32 m_TransmittanceLutBindlessIndex{};
+    u32 m_SkyViewLutBindlessIndex{};
+
+    u32 m_BlueNoiseBindlessIndex{};
     
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

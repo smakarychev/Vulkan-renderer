@@ -61,7 +61,7 @@ public:
         FrameContext& ctx);
     
     template <typename Fn>
-    requires requires (Fn fn, const CommonLight& light, Transform3d& localTransform)
+    requires requires (Fn fn, CommonLight& light, Transform3d& localTransform)
     {
         { fn(light, localTransform) } -> std::same_as<bool>;
     }
@@ -80,7 +80,7 @@ private:
 };
 
 template <typename Fn>
-requires requires (Fn fn, const CommonLight& light, Transform3d& localTransform)
+requires requires (Fn fn, CommonLight& light, Transform3d& localTransform)
 {
     { fn(light, localTransform) } -> std::same_as<bool>;
 }
@@ -91,7 +91,7 @@ void Scene::IterateLights(LightType lightType, Fn&& callback)
         if (node.Type != SceneHierarchyNodeType::Light)
             continue;
 
-        const CommonLight& light = m_Lights.Get(node.PayloadIndex);
+        CommonLight& light = m_Lights.Get(node.PayloadIndex);
         if (light.Type == lightType && callback(light, node.LocalTransform))
             break;
     }

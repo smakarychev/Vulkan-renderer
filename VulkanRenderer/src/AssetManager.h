@@ -15,7 +15,7 @@ public:
     
     static std::string GetShaderKey(const std::vector<std::string>& paths);
     static ShaderReflection* GetShader(std::string_view name);
-    static void AddShader(std::string_view name, ShaderReflection&& shader);
+    static ShaderReflection* AddShader(std::string_view name, ShaderReflection&& shader);
     static void RemoveShader(std::string_view name);
 
     static Image GetImage(std::string_view name);

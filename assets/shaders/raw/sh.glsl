@@ -55,6 +55,10 @@ vec3 SH_irradiance_shade(SH9Irradiance irradiance, vec3 dir) {
     return a + b + c;
 }
 
+vec3 SH_irradiance_shade_constant(SH9Irradiance irradiance) {
+    return vec3(irradiance.AR.w, irradiance.AG.w, irradiance.AB.w);
+}
+
 SH9 SH_evaluate_irradiance_prenormalized(f16vec3 dir) {
     // E_lm = Ah_l * L_lm = Ah_l * K_lm * <4pi/N * sum(L * Yh_lm)>
     // E = sum(E_lm * Y_lm) = sum(Ah_l * K_lm^2 * <4pi/N * sum(L * Yh_lm)> * Yh_lm)

@@ -416,14 +416,8 @@ namespace
 }
 
 
-ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& paths)
+ShaderReflection ShaderReflection::ReflectFrom(const std::vector<std::string>& paths)
 {
-    // todo: invert this: asset manager should call the ShaderReflection, not the other way around
-    std::string shaderKey = AssetManager::GetShaderKey(paths);
-
-    if (ShaderReflection* cachedShader = AssetManager::GetShader(shaderKey))
-        return cachedShader;
-
     ShaderReflection shader;
 
     ShaderStage allStages = ShaderStage::None;
@@ -469,9 +463,7 @@ ShaderReflection* ShaderReflection::ReflectFrom(const std::vector<std::string>& 
     shader.m_PushConstants = processPushConstantDescriptions(mergedShaderInfo.PushConstants);
     shader.m_DescriptorSets = processDescriptorSets(mergedShaderInfo.DescriptorSets);
 
-    AssetManager::AddShader(shaderKey, std::move(shader));
-    
-    return AssetManager::GetShader(shaderKey);
+    return shader;
 }
 
 ShaderReflection::~ShaderReflection()
