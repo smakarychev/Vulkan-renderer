@@ -34,13 +34,13 @@ layout(push_constant) uniform push_constants {
 void main() {
     const ViewInfo view = u_view_info.view;
     
-    const vec3 clip = vec3(vec2(vertex_uv) * 2.0f - 1.0f, -1.0f);
+    const vec3 clip = vec3(vec2(vertex_uv) * 2.0f - 1.0f, 1.0f);
     vec4 unprojected = view.inv_projection * vec4(clip, 1.0f);
     unprojected.xyz /= unprojected.w;
-    const vec3 rd = normalize(view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz * vec3(1, -1, 1);
+    const vec3 rd = normalize(view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz;
 
     const vec3 pos = get_view_pos(view.position, view.surface);
-    const vec3 sun_dir = u_directional_lights.lights[0].direction * vec3(1, -1, 1);
+    const vec3 sun_dir = -u_directional_lights.lights[0].direction;
     
     vec3 L = vec3(0.0f);
     
@@ -56,7 +56,7 @@ void main() {
             const vec3 forward = normalize(cross(right, up));
             const float light_view_cos = normalize(vec2(dot(sun_dir, forward), dot(sun_dir, right))).x;
 
-            const bool intersects_surface = intersect_sphere(pos, rd, vec3(0.0f), view.surface).t != NO_HIT;
+            const bool intersects_surface = intersect_sphere(pos, rd, vec3(0.0f), view.surface).depth != 0.0;
 
             const vec2 sky_view_uv = sky_view_uv_from_zen_view_cos(view, intersects_surface, mu, light_view_cos, r);
             

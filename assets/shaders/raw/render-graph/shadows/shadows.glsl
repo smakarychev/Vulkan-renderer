@@ -206,7 +206,7 @@ vec3 get_shadow_offset(vec3 normal, vec3 light_direction) {
 float sample_shadow_cascade(vec3 ndc, vec3 normal, float light_size_uv, vec2 delta, uint cascade_index) {
     const float const_bias = 5e-3f;
     vec3 uvz = vec3(vec2(ndc.xy * 0.5f) + 0.5f, ndc.z);
-    uvz.z += const_bias;
+    uvz.z = max(uvz.z + const_bias, 1e-7f);
     return pcf_optimized_shadow(uvz, cascade_index);
 }
 

@@ -13,7 +13,6 @@
 
 #define PI 3.14159265359f
 
-#define NO_HIT 3.402823466e+38f
 #define MAX_DEPTH 3.402823466e+38f
 
 #define TRANSMITTANCE_STEPS 40.0f
@@ -23,6 +22,8 @@
 
 #define PLANET_RADIUS_OFFSET_UV 0.01f
 #define PLANET_RADIUS_OFFSET_KM 0.01f
+
+#define DEFAULT_VIEW_HEIGHT_M 300.0f
 
 struct Intersection {
     float t;
@@ -36,11 +37,11 @@ Intersection intersect_sphere(vec3 ro, vec3 rd, vec3 center, float radius) {
     const float t = b * b - c;
     // no hit
     if (t < 0.0f)
-        return Intersection(NO_HIT, NO_HIT);
+        return Intersection(0, 0);
 
     const float tsqrt = sqrt(t);
     if (-b < -tsqrt)
-        return Intersection(NO_HIT, NO_HIT);
+        return Intersection(0, 0);
 
     if (-b > tsqrt)
         return Intersection(-b - tsqrt, 2.0f * tsqrt);
@@ -49,13 +50,12 @@ Intersection intersect_sphere(vec3 ro, vec3 rd, vec3 center, float radius) {
 }
 
 vec3 get_view_pos(vec3 camera_pos, float surface_radius) {
-    // add a default view_height of 200m
-    const float base_view_height = 300.0f * 1e-3f;
+    const float base_view_height = DEFAULT_VIEW_HEIGHT_M * 1e-3f;
     return camera_pos * 1e-3f + vec3(0.0f, surface_radius + base_view_height, 0.0f);
 }
 
 vec3 get_world_pos(vec3 view_pos, float surface_radius) {
-    const float base_view_height = 200.0f * 1e-3f;
+    const float base_view_height = DEFAULT_VIEW_HEIGHT_M * 1e-3f;
     return (view_pos - vec3(0.0f, surface_radius + base_view_height, 0.0f)) * 1e+3f;
 }
 
@@ -91,9 +91,9 @@ MediaSample sample_media(vec3 x, vec3 center, ViewInfo view) {
     const vec3 ozone_absorption = view.ozone_absorption.rgb * max(0.0f, 1.0f - abs(altitude_km - 25.0f) / 15.0f);
 
     media.extinction =
-    media.rayleigh + rayleigh_absorption +
-    media.mie + mie_absorption +
-    ozone_absorption;
+        media.rayleigh + rayleigh_absorption +
+        media.mie + mie_absorption +
+        ozone_absorption;
 
     return media;
 }
@@ -200,7 +200,7 @@ vec2 sky_view_uv_from_zen_view_cos(ViewInfo view, bool intersects_surface,
 float get_visibility(ViewInfo view, vec3 ro, vec3 rd, vec3 center) {
     const float surface = intersect_sphere(ro, rd, center, view.surface).t;
 
-    return surface == NO_HIT ? 1.0f : 0.0f;
+    return surface == 0.0f ? 1.0f : 0.0f;
 }
 
 vec2 multiscattering_uv_from_r_mu(ViewInfo view, float r, float mu) {
@@ -212,13 +212,13 @@ vec2 multiscattering_uv_from_r_mu(ViewInfo view, float r, float mu) {
 
 vec3 get_sun_luminance(vec3 ro, vec3 rd, vec3 sun_dir, float surface_radius) {
     const float aperture_degrees = 0.545f;
-    const vec3 sun_luminance = vec3(8e+4f);
+    const vec3 sun_luminance = vec3(8e+6f);
     const float cos_half_apex = cos(0.5f * aperture_degrees * PI / 180.0f);
     const float cos_view_sun = dot(rd, sun_dir);
 
     if (cos_view_sun > cos_half_apex) {
-        const float t_surface = intersect_sphere(ro, rd, vec3(0.0f), surface_radius).t;
-        if (t_surface == NO_HIT) {
+        const float depth_surface = intersect_sphere(ro, rd, vec3(0.0f), surface_radius).depth;
+        if (depth_surface == 0.0f) {
             return sun_luminance * clamp(3 * (cos_view_sun - cos_half_apex) / (cos_half_apex), 0.0, 1.0f);
         }
     }

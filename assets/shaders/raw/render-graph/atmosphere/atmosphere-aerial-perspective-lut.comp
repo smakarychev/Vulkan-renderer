@@ -45,11 +45,11 @@ void main() {
     
     const ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
     const vec2 uv = vec2(coord.xy) / vec2(AERIAL_PERSPECTIVE_LUT_RES);
-    const vec3 clip = vec3(uv * 2.0f - 1.0f, -0.5f);
+    const vec3 clip = vec3(uv * 2.0f - 1.0f, 1.0f);
     
     vec4 unprojected = view.inv_projection * vec4(clip, 1.0f);
     unprojected.xyz /= unprojected.w;
-    vec3 rd = normalize(view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz * vec3(1, -1, 1);
+    vec3 rd = normalize(view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz;
 
  
     const vec3 ro = get_view_pos(view.position, view.surface);
@@ -68,7 +68,7 @@ void main() {
         rd = normalize(voxel_center - ro);
     }
 
-    const vec3 sun_dir = u_directional_lights.lights[0].direction * vec3(1, -1, 1);
+    const vec3 sun_dir = -u_directional_lights.lights[0].direction;
 
     const bool surface = false;
     const vec3 global_l = vec3(1.0f);

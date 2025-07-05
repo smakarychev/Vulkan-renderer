@@ -162,7 +162,7 @@ vec3 get_transmittance() {
     const float r = length(atm_pos);
     const vec3 up = atm_pos / r;
     
-    const bool intersects_surface = intersect_sphere(atm_pos, sun_dir, vec3(0.0f) + PLANET_RADIUS_OFFSET_KM * up, u_view_info.view.surface).depth != NO_HIT;
+    const bool intersects_surface = intersect_sphere(atm_pos, sun_dir, vec3(0.0f) + PLANET_RADIUS_OFFSET_KM * up, u_view_info.view.surface).depth != 0.0f;
     if (intersects_surface) {
         return vec3(0.0f);
     }

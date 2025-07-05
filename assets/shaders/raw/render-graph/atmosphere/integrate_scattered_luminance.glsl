@@ -18,8 +18,8 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
 
     float depth = atmosphere_intersection.depth;
     const float to_surface_depth = surface_intersection.t - atmosphere_intersection.t;
-    if (surface_intersection.t == NO_HIT) {
-        if (atmosphere_intersection.t == NO_HIT)
+    if (surface_intersection.depth == 0.0f) {
+        if (atmosphere_intersection.depth == 0.0f)
             return scattering;
     } else {
         depth = min(depth, to_surface_depth);
@@ -65,9 +65,9 @@ Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir
         
         float shadow_map = 0.0f;
         #ifdef WITH_SHADOW_MAP
-            const vec3 shadow_ws = view.position + rd * t * vec3(-1, 1, -1);
+            const vec3 shadow_ws = view.position + rd * t;
             const float shadow_z_view = (view.view * vec4(shadow_ws, 1.0f)).z;
-            shadow_map = shadow(view.position + rd * t * vec3(-1, 1, -1), vec3(0, 0, 0),
+            shadow_map = shadow(shadow_ws, vec3(0, 0, 0),
                 u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size, shadow_z_view);
         #endif // WITH_SHADOW_MAP
         
