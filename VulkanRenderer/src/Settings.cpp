@@ -79,7 +79,7 @@ void Settings::initCvars()
     /* clouds */
     CVarI32 cloudMapSize("Clouds.CloudMap.Size"_hsv,
         "Size of the cloud map",
-        2048);
+        512);
 
     CVarI32 cloudCurlNoiseSize("Clouds.CloudCurlNoise.Size"_hsv,
         "Size of the cloud curl noise",

@@ -214,20 +214,11 @@ void Renderer::InitRenderGraph()
                 .Scale = glm::vec3{10.0f},}},
             ctx);
 
-        SceneLightInfo sceneLightInfo = {};
-        sceneLightInfo.Lights = {
-            CommonLight{
-               .Type = LightType::Directional,
-               .PositionDirection = glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)),
-               .Color = glm::vec3(1.0f, 0.2f, 0.3f),
-               .Intensity = 2.0f,
-            }
-        };
         SceneInfo lights = {};
         lights.AddLight({
             .Direction = glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
-            .Intensity = 5.0f,
+            .Intensity = 2.5f,
         });
         constexpr u32 POINT_LIGHT_COUNT = 0;
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
@@ -960,6 +951,15 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
 {
     using namespace RG;
 
+    static bool isInitialized = false;
+    if (!isInitialized)
+    {
+        m_CloudShapeLowFrequencyNoiseParameters.PerlinCoverageMin = 0.56f;
+        m_CloudShapeLowFrequencyNoiseParameters.WorleyCoverageMin = 0.25f;
+        m_CloudShapeLowFrequencyNoiseParameters.WorleyCoverageMax = 0.52f;
+        isInitialized = true;
+    }
+    
     ImGui::Begin("Cloud Maps");
 
     auto imguiNoiseParametersControls = [](const std::string& name,

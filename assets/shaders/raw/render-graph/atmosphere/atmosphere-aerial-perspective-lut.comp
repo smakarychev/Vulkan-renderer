@@ -71,7 +71,8 @@ void main() {
     const vec3 sun_dir = -u_directional_lights.lights[0].direction;
 
     const bool surface = false;
-    const vec3 global_l = vec3(1.0f);
+    const vec3 global_l = u_directional_lights.lights[0].color *
+        min(u_directional_lights.lights[0].intensity, 1.0f);
     const bool use_uniform_phase = false;
     const float samples = max(1.0f, float(coord.z + 1.0f) * 2.0f);
 

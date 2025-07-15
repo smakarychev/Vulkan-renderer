@@ -19,7 +19,7 @@ float get_coverage(vec2 uv) {
     const float perlin_frequency = 8.0f;
     const float worley_frequency = 4.0f;
     float perlin_worley = perlin_worley(
-        vec3(uv, perlin_frequency * 333),
+        vec3(uv, perlin_frequency * 256),
         perlin_frequency, worley_frequency,
         vec2(u_perlin_coverage_min, u_perlin_coverage_max),
         vec2(u_worley_coverage_min, u_worley_coverage_max),
@@ -28,9 +28,9 @@ float get_coverage(vec2 uv) {
 }
 
 float get_type(vec2 uv) {
-    const float perlin_frequency = 8.0f;
+    const float perlin_frequency = 4.0f;
     
-    return remap_01(perlin_5_octaves(vec3(uv, 0), perlin_frequency, true), 0.8f, 1.5f);
+    return remap_01(perlin_3_octaves(vec3(uv, 0), perlin_frequency, true), 0.45f, 1.6f);
 }
 
 void main() {
