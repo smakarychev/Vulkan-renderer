@@ -19,7 +19,9 @@ Passes::Atmosphere::Raymarch::PassData& Passes::Atmosphere::Raymarch::addToGraph
         {
             CPU_PROFILE_FRAME("Atmosphere.Raymarch.Setup")
 
-            graph.SetShader("atmosphere-raymarch"_hsv);
+            graph.SetShader("atmosphere-raymarch"_hsv, ShaderOverrides{
+                ShaderDefines({ShaderDefine("HAS_CLOUDS"_hsv, info.Clouds.IsValid())})
+            });
 
             passData.DirectionalLight = graph.Import("DirectionalLight"_hsv,
                 info.Light->GetBuffers().DirectionalLights);
@@ -33,6 +35,8 @@ Passes::Atmosphere::Raymarch::PassData& Passes::Atmosphere::Raymarch::addToGraph
                 passData.TransmittanceLut = graph.ReadImage(info.TransmittanceLut, Pixel | Sampled);
             if (info.AerialPerspective.IsValid())
                 passData.AerialPerspective = graph.ReadImage(info.AerialPerspective, Pixel | Sampled);
+            if (info.Clouds.IsValid())
+                passData.Clouds = graph.ReadImage(info.Clouds, Pixel | Sampled);
             passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Pixel | Uniform);
             passData.DirectionalLight = graph.ReadBuffer(passData.DirectionalLight, Pixel | Uniform);
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
@@ -54,6 +58,8 @@ Passes::Atmosphere::Raymarch::PassData& Passes::Atmosphere::Raymarch::addToGraph
                 bindGroup.SetTransmittanceLut(graph.GetImageBinding(passData.TransmittanceLut));
             if (passData.AerialPerspective.IsValid())
                 bindGroup.SetAerialPerspectiveLut(graph.GetImageBinding(passData.AerialPerspective));
+            if (passData.Clouds.IsValid())
+                bindGroup.SetClouds(graph.GetImageBinding(passData.Clouds));
 
             struct PushConstant
             {

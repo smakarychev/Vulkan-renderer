@@ -94,13 +94,8 @@ private:
     Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
     void RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut);
 
-    struct AtmosphereInfo
-    {
-        RG::Resource AerialPerspectiveLut{};
-        RG::Resource ColorWithAtmosphere{};
-    };
-    AtmosphereInfo RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
-        RG::Resource color, RG::Resource depth, RG::CsmData csmData);
+    RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut, RG::Resource aerialPerspective,
+        RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds);
 
     struct CloudMapsInfo
     {
@@ -110,7 +105,12 @@ private:
         RG::Resource CloudCurlNoise{};
     };
     CloudMapsInfo RenderGraphGetCloudMaps();
-    RG::Resource RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color, RG::Resource aerialPerspective,
+    struct CloudsInfo
+    {
+        RG::Resource Color{};
+        RG::Resource Depth{};
+    };
+    CloudsInfo RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color, RG::Resource aerialPerspective,
         RG::Resource depth);
     
     void Shutdown();

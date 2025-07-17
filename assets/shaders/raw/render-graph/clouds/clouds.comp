@@ -30,17 +30,18 @@ layout(set = 1, binding = 2) uniform texture3D u_cloud_high_frequency;
 layout(set = 1, binding = 3) uniform texture2D u_cloud_curl_noise;
 layout(set = 1, binding = 4) uniform texture2D u_depth;
 layout(set = 1, binding = 5) uniform texture3D u_aerial_perspective_lut;
-layout(set = 1, binding = 6, rgba16f) uniform image2D u_out_color;
+layout(set = 1, binding = 6, rgba16f) uniform writeonly image2D u_out_color;
+layout(set = 1, binding = 7, rg16f) uniform writeonly image2D u_out_depth;
 
-layout(scalar, set = 1, binding = 7) uniform view_info {
+layout(scalar, set = 1, binding = 8) uniform view_info {
     ViewInfo view;
 } u_view_info;
 
-layout(set = 1, binding = 8) uniform irradiance_sh {
+layout(set = 1, binding = 9) uniform irradiance_sh {
     SH9Irradiance sh;
 } u_irradiance_SH;
 
-layout(scalar, set = 1, binding = 9) readonly buffer directional_lights {
+layout(scalar, set = 1, binding = 10) readonly buffer directional_lights {
     DirectionalLight lights[];
 } u_directional_lights;
 
@@ -445,7 +446,12 @@ float atmosphere_blend(float depth) {
     return smoothstep(0.0f, 1.0f, fade);
 }
 
-vec4 cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
+struct CloudInfo {
+    vec4 color;
+    vec2 depth;
+};
+
+CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     const float angle_zenith = clamp(dot(rd, vec3(0.0f, 1.0f, 0.0f)), 0.0f, 1.0f);
     const float MAX_STEPS = mix(64.0f, 96.0f, 1.0f - angle_zenith);
     const float MAX_DISTANCE = 30000.0f;
@@ -457,14 +463,14 @@ vec4 cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     Intersection earth_intersection = 
         intersect_sphere(ro + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f), rd, EARTH_CENTER, EARTH_RADIUS);
     if (earth_intersection.t != 0 && earth_intersection.t < cloud_intersection.t + cloud_intersection.depth) {
-        return vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth));
     }
     if (cloud_intersection.t > depth) {
-        return vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth));
     }
     cloud_intersection.depth = min(cloud_intersection.depth, depth - cloud_intersection.t);
     if (cloud_intersection.depth == 0.0f) {
-        return vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth));
     }
 
     const float step_size = cloud_intersection.depth / MAX_STEPS;
@@ -540,8 +546,8 @@ vec4 cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     in_scattering = tonemap(in_scattering, 16.0f);
     in_scattering = (1.0f - aerial_perspective.a) * in_scattering + aerial_perspective.rgb * (1.0f - transmittance);
     in_scattering = mix(in_scattering, fog.rgb * (1.0f - transmittance), fog.a);
-    
-    return vec4(in_scattering, transmittance);
+
+    return CloudInfo(vec4(in_scattering, transmittance), vec2(avg_depth, depth));
 }
 
 void main() {
@@ -563,10 +569,10 @@ void main() {
     const float depth = textureLod(sampler2D(u_depth, u_sampler_ce), uv, 0).r;
     const float linear_depth = depth == 0.0f ?
         CLOUDS_MAX_RADIUS : -linearize_reverse_z(depth, u_view_info.view.near, u_view_info.view.far);
-    vec4 color = imageLoad(u_out_color, coord);
 
     shape_blue_noise = blue_noise_sample(coord);
     light_blue_noise = blue_noise_sample(coord + ivec2(1));
-    vec4 cloud_color = cloud(uv, ro, rd, linear_depth);
-    imageStore(u_out_color, coord, vec4(color.rgb * cloud_color.a + cloud_color.rgb, color.a * (1.0f - cloud_color.a)));
+    const CloudInfo cloud_info = cloud(uv, ro, rd, linear_depth);
+    imageStore(u_out_color, coord, vec4(cloud_info.color));
+    imageStore(u_out_depth, coord, vec4(cloud_info.depth.rg, 0.0f, 0.0f));
 }

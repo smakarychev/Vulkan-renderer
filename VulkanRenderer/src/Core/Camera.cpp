@@ -7,10 +7,10 @@
 
 static constexpr glm::vec3 DEFAULT_POSITION		= glm::vec3(0.0f);
 static const     glm::quat DEFAULT_ORIENTATION	= glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f));
-static constexpr f32  DEFAULT_FOV				= glm::radians(45.0f);
-static constexpr f32  DEFAULT_ASPECT			= 16.0f / 9.0f;
-static constexpr f32  DEFAULT_NEAR				= 0.1f;
-static constexpr f32  DEFAULT_FAR				= 5000.0f;
+static constexpr f32  DEFAULT_FOV               = glm::radians(60.0f);
+static constexpr f32  DEFAULT_ASPECT            = 16.0f / 9.0f;
+static constexpr f32  DEFAULT_NEAR              = 0.1f;
+static constexpr f32  DEFAULT_FAR               = 5000.0f;
 
 Camera::Camera(CameraType type)
     :
@@ -408,7 +408,7 @@ void CameraController::OrbitOnUpdate(f32 dt)
                 m_Camera->UpdateViewProjection();
             }
         }
-			
+            
     }	
 }
 

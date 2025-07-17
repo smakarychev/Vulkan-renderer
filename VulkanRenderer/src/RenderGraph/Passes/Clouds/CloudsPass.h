@@ -58,6 +58,7 @@ namespace Passes::Clouds
         RG::Resource DepthIn{};
         RG::Resource AerialPerspectiveLut{};
         RG::Resource ColorOut{};
+        RG::Resource DepthOut{};
         RG::Resource IrradianceSH{};
         RG::Resource DirectionalLights{};
     };

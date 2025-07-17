@@ -25,7 +25,7 @@
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
-#include "RenderGraph/Passes/Clouds/CloudCurlNoise.h"
+#include "RenderGraph/Passes/Clouds/CloudCurlNoisePass.h"
 #include "RenderGraph/Passes/Clouds/CloudMapGenerationPass.h"
 #include "RenderGraph/Passes/Clouds/CloudShapeNoisePass.h"
 #include "RenderGraph/Passes/Clouds/CloudsPass.h"
@@ -216,7 +216,7 @@ void Renderer::InitRenderGraph()
 
         SceneInfo lights = {};
         lights.AddLight({
-            .Direction = glm::normalize(glm::vec3(0.1f, -1.0f, 0.0f)),
+            .Direction = glm::normalize(glm::vec3(0.3f, -1.0f, 0.1f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
             .Intensity = 2.5f,
         });
@@ -420,26 +420,32 @@ void Renderer::SetupRenderGraph()
         color = RenderGraphVBufferPbr(vbuffer, m_Graph->GetGlobalResources().PrimaryViewInfoResource, csmData);
     }
 
-    AtmosphereInfo atmosphereInfo = {};
-    Resource colorWithSky{}; 
+    Resource colorWithSky{};
+    CloudMapsInfo cloudMaps = {};
     if (renderAtmosphere)
     {
-        atmosphereInfo = RenderGraphAtmosphere(*atmosphereLuts, color, depth, csmData);
-        colorWithSky = atmosphereInfo.ColorWithAtmosphere;        
+        auto& aerialPerspective = Passes::Atmosphere::AerialPerspective::addToGraph("AtmosphereAerialPerspective"_hsv,
+            *m_Graph, {
+            .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+            .TransmittanceLut = atmosphereLuts->TransmittanceLut,
+            .MultiscatteringLut = atmosphereLuts->MultiscatteringLut,
+            .Light = &m_Scene.Lights(),
+            .CsmData = csmData
+        });
+        
+        cloudMaps = RenderGraphGetCloudMaps();
+
+        const CloudsInfo clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, depth);
+        colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.AerialPerspective,
+            color, depth, csmData, clouds.Color);
     }
     else
     {
         colorWithSky = RenderGraphSkyBox(color, depth);
     }
 
-    auto cloudMaps = RenderGraphGetCloudMaps();
+    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithSky);
 
-    Resource colorWithClouds = RenderGraphClouds(cloudMaps, colorWithSky,
-        atmosphereInfo.AerialPerspectiveLut, depth);
-    
-    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithClouds);
-
-    
     Passes::CopyTexture::addToGraph("Copy.MainColor"_hsv, *m_Graph, {
         .TextureIn = fxaa.AntiAliased,
         .TextureOut = backbuffer
@@ -467,14 +473,17 @@ void Renderer::SetupRenderGraph()
         m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_SkyViewLutBindlessIndex, m_SkyViewLut);
     }
 
-    if (!m_CloudMap.HasValue())
-        m_Graph->ClaimImage(cloudMaps.CloudMap, m_CloudMap, Device::DeletionQueue());
-    if (!m_CloudShapeLowFrequency.HasValue())
-        m_Graph->ClaimImage(cloudMaps.CloudShapeLowFrequency, m_CloudShapeLowFrequency, Device::DeletionQueue());
-    if (!m_CloudShapeHighFrequency.HasValue())
-        m_Graph->ClaimImage(cloudMaps.CloudShapeHighFrequency, m_CloudShapeHighFrequency, Device::DeletionQueue());
-    if (!m_CloudCurlNoise.HasValue())
-        m_Graph->ClaimImage(cloudMaps.CloudCurlNoise, m_CloudCurlNoise, Device::DeletionQueue());
+    if (renderAtmosphere)
+    {
+        if (!m_CloudMap.HasValue())
+            m_Graph->ClaimImage(cloudMaps.CloudMap, m_CloudMap, Device::DeletionQueue());
+        if (!m_CloudShapeLowFrequency.HasValue())
+            m_Graph->ClaimImage(cloudMaps.CloudShapeLowFrequency, m_CloudShapeLowFrequency, Device::DeletionQueue());
+        if (!m_CloudShapeHighFrequency.HasValue())
+            m_Graph->ClaimImage(cloudMaps.CloudShapeHighFrequency, m_CloudShapeHighFrequency, Device::DeletionQueue());
+        if (!m_CloudCurlNoise.HasValue())
+            m_Graph->ClaimImage(cloudMaps.CloudCurlNoise, m_CloudCurlNoise, Device::DeletionQueue());
+    }
     
     m_Graph->Compile(GetFrameContext());
 }
@@ -914,25 +923,17 @@ void Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::P
     Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph, environment.ColorOut);
 }
 
-Renderer::AtmosphereInfo Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
-    RG::Resource color, RG::Resource depth, RG::CsmData csmData)
+RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
+    RG::Resource aerialPerspective, RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds)
 {
-    auto& aerialPerspective = Passes::Atmosphere::AerialPerspective::addToGraph("AtmosphereAerialPerspective"_hsv,
-        *m_Graph, {
-        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .TransmittanceLut = lut.TransmittanceLut,
-        .MultiscatteringLut = lut.MultiscatteringLut,
-        .Light = &m_Scene.Lights(),
-        .CsmData = csmData
-    });
-
     static constexpr bool USE_SUN_LUMINANCE = true;
     auto& atmosphere = Passes::Atmosphere::Raymarch::addToGraph("AtmosphereRaymarch"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Light = &m_Scene.Lights(),
         .SkyViewLut = lut.SkyViewLut,
         .TransmittanceLut = lut.TransmittanceLut,
-        .AerialPerspective = aerialPerspective.AerialPerspective,
+        .AerialPerspective = aerialPerspective,
+        .Clouds = clouds,
         .ColorIn = color,
         .DepthIn = depth,
         .UseSunLuminance = USE_SUN_LUMINANCE 
@@ -940,11 +941,9 @@ Renderer::AtmosphereInfo Renderer::RenderGraphAtmosphere(Passes::Atmosphere::Lut
     
     Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, atmosphere.ColorOut);
     Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective"_hsv, *m_Graph,
-        aerialPerspective.AerialPerspective);
+        aerialPerspective);
 
-    return {
-        .AerialPerspectiveLut = atmosphere.AerialPerspective,
-        .ColorWithAtmosphere = atmosphere.ColorOut};
+    return atmosphere.ColorOut;
 }
 
 Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
@@ -984,7 +983,9 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     };
     
     ImGui::Begin("CloudMap");
-    const bool isCloudMapDirty = imguiNoiseParametersControls("Cloud map noise", m_CloudMapNoiseParameters);
+    bool isCloudMapDirty = imguiNoiseParametersControls("Cloud map noise", m_CloudMapNoiseParameters);
+    if (ImGui::Button("Regenerate"))
+        isCloudMapDirty = true;
     ImGui::End();
 
     Resource cloudMapResource = {};
@@ -1008,7 +1009,9 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     isShapeDirty |= imguiNoiseParametersControls("Low frequency shape noise", m_CloudShapeLowFrequencyNoiseParameters);
     isShapeDirty |= imguiNoiseParametersControls("High frequency shape noise",
         m_CloudShapeHighFrequencyNoiseParameters);
-
+    if (ImGui::Button("Regenerate"))
+        isShapeDirty = true;
+    
     Resource lowFrequencyNoiseResource = {};
     Resource highFrequencyNoiseResource = {};
     if (!isShapeDirty && m_CloudShapeLowFrequency.HasValue() && m_CloudShapeHighFrequency.HasValue())
@@ -1066,7 +1069,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     };
 }
 
-RG::Resource Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color,
+Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color,
     RG::Resource aerialPerspective, RG::Resource depth)
 {
     ImGui::Begin("Clouds Parameters");
@@ -1119,7 +1122,13 @@ RG::Resource Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Res
         .CloudParameters = &m_CloudParameters,
     });
 
-    return clouds.ColorOut;
+    Passes::ImGuiTexture::addToGraph("Clouds.Color"_hsv, *m_Graph, clouds.ColorOut);
+    Passes::ImGuiTexture::addToGraph("Clouds.Depth"_hsv, *m_Graph, clouds.DepthOut);
+
+    return {
+        .Color = clouds.ColorOut,
+        .Depth = clouds.DepthOut
+    };
 }
 
 Renderer* Renderer::Get()

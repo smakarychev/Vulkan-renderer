@@ -19,6 +19,17 @@ Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& r
             passData.DirectionalLights = graph.Import("DirectionalLight"_hsv,
                 info.Light->GetBuffers().DirectionalLights);
 
+            passData.ColorOut = graph.Create("Clouds.Color"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Size2d,
+                .Reference = info.ColorIn,
+                .Format = Format::RGBA16_FLOAT,
+            });
+            passData.DepthOut = graph.Create("Clouds.Depth"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Size2d,
+                .Reference = info.DepthIn,
+                .Format = Format::RG16_FLOAT,
+            });
+      
             passData.CloudMap = graph.ReadImage(info.CloudMap, Compute | Sampled);
             passData.CloudShapeLowFrequencyMap = graph.ReadImage(info.CloudShapeLowFrequencyMap, Compute | Sampled);
             passData.CloudShapeHighFrequencyMap = graph.ReadImage(info.CloudShapeHighFrequencyMap, Compute | Sampled);
@@ -26,7 +37,8 @@ Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& r
             passData.AerialPerspectiveLut = graph.ReadImage(info.AerialPerspectiveLut, Compute | Sampled);
             passData.DepthIn = graph.ReadImage(info.DepthIn, Compute | Sampled);
             passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Compute | Uniform);
-            passData.ColorOut = graph.ReadWriteImage(info.ColorIn, Compute | Storage);
+            passData.ColorOut = graph.WriteImage(passData.ColorOut, Compute | Storage);
+            passData.DepthOut = graph.WriteImage(passData.DepthOut, Compute | Storage);
             passData.IrradianceSH = graph.ReadBuffer(info.IrradianceSH, Compute | Uniform);
             passData.DirectionalLights = graph.ReadBuffer(passData.DirectionalLights, Compute | Uniform);
         },
@@ -47,6 +59,7 @@ Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& r
             bindGroup.SetDepth(graph.GetImageBinding(passData.DepthIn));
             bindGroup.SetAerialPerspectiveLut(graph.GetImageBinding(passData.AerialPerspectiveLut));
             bindGroup.SetOutColor(graph.GetImageBinding(passData.ColorOut));
+            bindGroup.SetOutDepth(graph.GetImageBinding(passData.DepthOut));
             bindGroup.SetIrradianceSH(graph.GetBufferBinding(passData.IrradianceSH));
             bindGroup.SetDirectionalLights(graph.GetBufferBinding(passData.DirectionalLights));
 

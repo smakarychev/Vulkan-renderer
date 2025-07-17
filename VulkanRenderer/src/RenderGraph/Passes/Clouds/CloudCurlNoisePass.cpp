@@ -1,4 +1,4 @@
-#include "CloudCurlNoise.h"
+#include "CloudCurlNoisePass.h"
 
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
