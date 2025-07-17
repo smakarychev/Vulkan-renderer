@@ -41,6 +41,25 @@ float low_frequency(vec3 uv) {
     return remap_01(base_shape, low_freq_fbm - 1.0f, 1.0f);
 }
 
+float low_frequency_alligator(vec3 uv) {
+    const float perlin_frequency = 8.0f;
+    const float alligator_frequency = 4.0f;
+    const float curly_alligator = remap_01(curly_alligator(uv, alligator_frequency),
+        u_worley_coverage_min, u_worley_coverage_max);
+    
+    const float alligator_0 = alligator(uv, alligator_frequency * 2.0f);
+    const float alligator_1 = alligator(uv, alligator_frequency * 4.0f);
+    const float alligator_2 = alligator(uv, alligator_frequency * 8.0f);
+    const float alligator_3 = alligator(uv, alligator_frequency * 16.0f);
+    
+    const float alligator_fbm_0 = alligator_0 * 0.625f + alligator_1 * 0.25f + alligator_2 * 0.125f;
+    const float alligator_fbm_1 = alligator_1 * 0.625f + alligator_2 * 0.25f + alligator_3 * 0.125f;
+    const float alligator_fbm_2 = alligator_2 * 0.75f +  alligator_3 * 0.25f;
+    
+    const float low_freq_fbm = alligator_fbm_0 * 0.625f + alligator_fbm_1 * 0.25f + alligator_fbm_2 * 0.125f;
+    return remap_01(curly_alligator, 0, 1.0f);
+}
+
 float high_frequency(vec3 uv) {
     const float worley_frequency = 2.0f;
 
@@ -56,6 +75,22 @@ float high_frequency(vec3 uv) {
     return clamp(worley_fbm_0 * 0.625f + worley_fbm_1 * 0.25f + worley_fbm_2 * 0.125f, 0.0f, 1.0f);
 }
 
+float high_frequency_alligator(vec3 uv) {
+    const float alligator_frequency = 2.0f;
+
+    const float alligator_0 = alligator(uv, alligator_frequency * 1.0f);
+    const float alligator_1 = alligator(uv, alligator_frequency * 2.0f);
+    const float alligator_2 = alligator(uv, alligator_frequency * 4.0f);
+    const float alligator_3 = alligator(uv, alligator_frequency * 8.0f);
+
+    const float alligator_fbm_0 = alligator_0 * 0.625f + alligator_1 * 0.25f + alligator_2 * 0.125f;
+    const float alligator_fbm_1 = alligator_1 * 0.625f + alligator_2 * 0.25f + alligator_3 * 0.125f;
+    const float alligator_fbm_2 = alligator_2 * 0.75f  + alligator_3 * 0.25f;
+
+    return clamp(alligator_fbm_0 * 0.625f + alligator_fbm_1 * 0.25f + alligator_fbm_2 * 0.125f, 0.0f, 1.0f);
+}
+
+
 void main() {
     const ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
     const ivec3 image_size = imageSize(u_cloud_shape);
@@ -67,10 +102,12 @@ void main() {
     }
 
     if (IS_HIGH_FREQUENCY) {
+        //const float shape = high_frequency_alligator(uv);
         const float shape = high_frequency(uv);
         imageStore(u_cloud_shape, coord, vec4(shape));
     }
     else {
+        //const float shape = low_frequency_alligator(uv);
         const float shape = low_frequency(uv);
         imageStore(u_cloud_shape, coord, vec4(shape));
     }

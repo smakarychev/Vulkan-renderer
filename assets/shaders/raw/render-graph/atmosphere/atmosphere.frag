@@ -17,12 +17,13 @@ layout(set = 1, binding = 0) uniform texture2D u_depth;
 layout(set = 1, binding = 1) uniform texture2D u_sky_view_lut;
 layout(set = 1, binding = 2) uniform texture2D u_transmittance_lut;
 layout(set = 1, binding = 3) uniform texture3D u_aerial_perspective_lut;
+layout(set = 1, binding = 4) uniform texture2D u_clouds;
 
-layout(scalar, set = 1, binding = 4) uniform view_info {
+layout(scalar, set = 1, binding = 5) uniform view_info {
     ViewInfo view;
 } u_view_info;
 
-layout(scalar, set = 1, binding = 5) uniform directional_light {
+layout(scalar, set = 1, binding = 6) uniform directional_light {
     DirectionalLight lights[];
 } u_directional_lights;
 
@@ -68,7 +69,12 @@ void main() {
                     textureLod(sampler2D(u_transmittance_lut, u_sampler), transmittance_uv, 0).rgb;
             }
                 
+#if HAS_CLOUDS
+            const vec4 clouds = textureLod(sampler2D(u_clouds, u_sampler), vertex_uv, 0);
+            out_color = vec4(L * clouds.a + clouds.rgb, 1.0);
+#else
             out_color = vec4(L, 1.0);
+#endif
             return;
         }
     }

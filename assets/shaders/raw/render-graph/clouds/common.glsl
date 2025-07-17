@@ -10,6 +10,10 @@ float remap_01(float val, float nmin, float nmax) {
     return clamp((val - nmin) / (nmax - nmin), 0.0f, 1.0f);
 }
 
+vec3 remap_01_noclamp(vec3 val, float nmin, float nmax) {
+    return (val - nmin) / (nmax - nmin);
+}
+
 vec3 encode_curl(vec3 noise) {
     return (noise + 1.0f) * 0.5f;
 }
@@ -284,6 +288,55 @@ float worley_3_octaves(vec3 p, float s)
     return worley_3_octaves(p, s, 0.0f);
 }
 
+float alligator(vec3 p, float s, float seed, bool inverted) {
+    const vec3 voronoi = voronoi(p, s, seed, true);
+    if (!inverted)
+        return 1 - voronoi.y - voronoi.x;
+    
+    return voronoi.x - voronoi.y;
+}
+
+float alligator(vec3 p, float s, float seed) {
+    const vec3 voronoi = voronoi(p, s, seed, true);
+    
+    return voronoi.x - voronoi.y;
+}
+
+float alligator(vec3 p, float s) {
+    return alligator(p, s, 0, true);
+}
+
+float alligator_2_octaves(vec3 p, float s, float seed)
+{
+    vec3 xyz = p;
+
+    float alligator_value1 = alligator(xyz, 1.0f * s, seed, true);
+    float alligator_value2 = alligator(xyz, 2.0f * s, seed, true);
+
+    return alligator_value1 + alligator_value2 * 0.5f;
+}
+
+float alligator_2_octaves(vec3 p, float s)
+{
+    return alligator_2_octaves(p, s, 0.0f);
+}
+
+float alligator_3_octaves(vec3 p, float s, float seed)
+{
+    vec3 xyz = p;
+
+    float alligator_value1 = alligator(xyz, 1.0f * s, seed, true);
+    float alligator_value2 = alligator(xyz, 2.0f * s, seed, true);
+    float alligator_value3 = alligator(xyz, 4.0f * s, seed, true);
+
+    return alligator_value1 + alligator_value2 * 0.5f + alligator_value3 * 0.25f;
+}
+
+float alligator_3_octaves(vec3 p, float s)
+{
+    return alligator_3_octaves(p, s, 0.0f);
+}
+
 float perlin_worley(vec3 p, float p_freq, float w_freq, vec2 p_min_max, vec2 w_min_max, float mix_multiplier) {
     const float perlin = remap_01(perlin_7_octaves(p, p_freq, true), p_min_max.x, p_min_max.y);
     const float worley = remap_01(worley_3_octaves(p, w_freq), w_min_max.x, w_min_max.y);
@@ -291,4 +344,50 @@ float perlin_worley(vec3 p, float p_freq, float w_freq, vec2 p_min_max, vec2 w_m
     const float perlin_worley = remap_clamp(worley, 0.0f, 1.0f, perlin * mix_multiplier, 1.0f);
     
     return perlin_worley;
+}
+
+vec3 curl_noise(vec3 uv, float frequency) {
+    const float epsilon = 0.05f;
+    float noise1, noise2, a, b;
+    vec3 c;
+
+    const vec3 pos = uv * frequency;
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f, epsilon, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, -epsilon, 0.0), false);
+    a = (noise1 - noise2) / (2 * epsilon);
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f, epsilon), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f, -epsilon), false);
+    b = (noise1 - noise2) / (2 * epsilon);
+
+    c.x = a - b;
+
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f,  epsilon), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, 0.0f, -epsilon), false);
+    a = (noise1 - noise2) / (2 * epsilon);
+    noise1 = perlin_5_octaves(pos.xyz + vec3( epsilon, 0.0f, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(-epsilon, 0.0f, 0.0), false);
+    b = (noise1 - noise2) / (2 * epsilon);
+
+    c.y = a - b;
+
+    noise1 = perlin_5_octaves(pos.xyz + vec3( epsilon, 0.0f, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(-epsilon, 0.0f, 0.0), false);
+    a = (noise1 - noise2) / (2 * epsilon);
+    noise1 = perlin_5_octaves(pos.xyz + vec3(0.0f,  epsilon, 0.0), false);
+    noise2 = perlin_5_octaves(pos.xyz + vec3(0.0f, -epsilon, 0.0), false);
+    b = (noise1 - noise2) / (2 * epsilon);
+
+    c.z = a - b;
+
+    const float remap_low = -0.5;
+    const float remap_high = 3.0;
+    vec3 noise = remap_01_noclamp(c, remap_low, remap_high);
+    
+    return noise;
+}
+
+float curly_alligator(vec3 p, float freq) {
+    const float alligator = 1.0 - alligator_3_octaves(p + curl_noise(p, freq) / 20, freq);
+    
+    return alligator;
 }
