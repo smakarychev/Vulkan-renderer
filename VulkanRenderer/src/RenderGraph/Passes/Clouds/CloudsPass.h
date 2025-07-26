@@ -5,6 +5,11 @@ class SceneLight;
 
 namespace Passes::Clouds
 {
+    enum class CloudsRenderingMode : u8
+    {
+        FullResolution,
+        Reprojection,
+    };
     struct CloudParameters
     {
         f32 CloudMapMetersPerTexel{35.0};
@@ -13,12 +18,12 @@ namespace Passes::Clouds
         f32 DetailNoiseContribution = 0.1f;
         f32 DetailNoiseHeightModifier = 3.0f;
         f32 WindAngle{glm::radians(35.0f)};
-        f32 WindSpeed{1.0f};
+        f32 WindSpeed{0.25f};
         f32 WindUprightAmount{0.1f};
         f32 WindHorizontalSkew{500.0f};
         
         f32 CoverageWindAngle{glm::radians(-135.0f)};
-        f32 CoverageWindSpeed{2.0f};
+        f32 CoverageWindSpeed{0.08f};
         f32 CoverageWindHorizontalSkew{100.0f};
 
         glm::vec4 AnvilStratus{0.0f, 0.0f, 0.0f, 0.0f};
@@ -43,10 +48,10 @@ namespace Passes::Clouds
         RG::Resource CloudCurlNoise{};
         RG::Resource DepthIn{};
         RG::Resource AerialPerspectiveLut{};
-        RG::Resource ColorIn{};
         RG::Resource IrradianceSH{};
         const SceneLight* Light{nullptr};
         const CloudParameters* CloudParameters{nullptr};
+        CloudsRenderingMode CloudsRenderingMode{CloudsRenderingMode::FullResolution};
     };
     struct PassData
     {
@@ -57,10 +62,10 @@ namespace Passes::Clouds
         RG::Resource CloudCurlNoise{};
         RG::Resource DepthIn{};
         RG::Resource AerialPerspectiveLut{};
-        RG::Resource ColorOut{};
-        RG::Resource DepthOut{};
         RG::Resource IrradianceSH{};
         RG::Resource DirectionalLights{};
+        RG::Resource ColorOut{};
+        RG::Resource DepthOut{};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);    
 }

@@ -5,7 +5,7 @@
 #include "core.h"
 #include "Input.h"
 
-static constexpr glm::vec3 DEFAULT_POSITION		= glm::vec3(0.0f);
+static constexpr glm::vec3 DEFAULT_POSITION     = glm::vec3(0.0f);
 static const     glm::quat DEFAULT_ORIENTATION	= glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f));
 static constexpr f32  DEFAULT_FOV               = glm::radians(60.0f);
 static constexpr f32  DEFAULT_ASPECT            = 16.0f / 9.0f;

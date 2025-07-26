@@ -911,7 +911,9 @@ namespace RG
                 description.Format == Format::D32_FLOAT_S8_UINT)
                 return description.Format == Format::D32_FLOAT ?
                     ImageLayout::DepthReadonly : ImageLayout::DepthStencilReadonly;
-            return ImageLayout::Readonly;
+
+            return enumHasAny(description.Usage, ImageUsage::Sampled) ?
+                ImageLayout::Readonly : ImageLayout::General;
         };
         
         std::vector<ImageResourceAccessConflict> imageConflicts;

@@ -1,5 +1,6 @@
 ﻿#include "CloudsPass.h"
 
+#include "CloudsCommon.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CloudsBindGroup.generated.h"
 #include "Scene/SceneLight.h"
@@ -14,18 +15,28 @@ Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& r
         {
             CPU_PROFILE_FRAME("Clouds.Setup")
 
-            graph.SetShader("clouds"_hsv);
+            graph.SetShader("clouds"_hsv, ShaderOverrides{
+                ShaderDefines({
+                    ShaderDefine("REPROJECTION"_hsv, info.CloudsRenderingMode == CloudsRenderingMode::Reprojection)
+                })
+            });
 
             passData.DirectionalLights = graph.Import("DirectionalLight"_hsv,
                 info.Light->GetBuffers().DirectionalLights);
 
+            const f32 relativeSize = info.CloudsRenderingMode == CloudsRenderingMode::Reprojection ?
+                REPROJECTION_RELATIVE_SIZE : 1.0f;
             passData.ColorOut = graph.Create("Clouds.Color"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,
-                .Reference = info.ColorIn,
+                .Width = relativeSize,
+                .Height = relativeSize,
+                .Reference = info.DepthIn,
                 .Format = Format::RGBA16_FLOAT,
             });
             passData.DepthOut = graph.Create("Clouds.Depth"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,
+                .Width = relativeSize,
+                .Height = relativeSize,
                 .Reference = info.DepthIn,
                 .Format = Format::RG16_FLOAT,
             });

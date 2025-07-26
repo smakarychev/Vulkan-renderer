@@ -103,7 +103,7 @@ float transmittance = 1.0f;
 float blue_noise_sample(ivec2 coords) {
     float blue_noise = 
         texelFetch(nonuniformEXT(sampler2D(u_textures[u_blue_noise_index], u_sampler_nearest)), coords.xy % 128, 0).r;
-    return fract(blue_noise + u_view_info.view.frame_number * 1.6180339887 * 1e-3);
+    return fract(blue_noise + u_view_info.view.frame_number * 1.6180339887);
 }
 
 Intersection get_intersection_with_clouds(vec3 ro, vec3 rd) {
@@ -172,7 +172,7 @@ vec3 cloud_type(vec4 cloud_map) {
 
 vec4 height_gradient_type(vec3 cloud_type) {
     const vec4 stratus = vec4(0.01f, 0.1f, 0.15f, 0.2f);
-    const vec4 stratocumulus = vec4(0.01f, 0.08f, 0.3f, 0.4f);
+    const vec4 stratocumulus = vec4(0.11f, 0.18f, 0.3f, 0.4f);
     const vec4 cumulus = vec4(0.0f, 0.06f, 0.7f, 0.99f);
 
     return stratus * cloud_type.x + stratocumulus * cloud_type.y + cumulus * cloud_type.z;
@@ -321,6 +321,7 @@ float get_volumetric_shadowing(float sigma_t, float density_light, float in_scat
         remap_clamp(mu, 0.7f, 1.0f, secondary * 0.45f, secondary * 0.2f),
         primary
     );
+    
     return attenuation_probability * in_scattering_probability * 4.0f;
 }
 
@@ -456,22 +457,25 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     const float MAX_STEPS = mix(64.0f, 96.0f, 1.0f - angle_zenith);
     const float MAX_DISTANCE = 30000.0f;
     const float MIN_TRANSMITTANCE = 5e-3f;
-    
+   
+    float depth_t = depth == 0.0f ? DEPTH_MAX : depth;
     
     Intersection cloud_intersection = get_intersection_with_clouds(ro, rd);
-    cloud_intersection.depth = min(cloud_intersection.depth, MAX_DISTANCE);
     Intersection earth_intersection = 
         intersect_sphere(ro + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f), rd, EARTH_CENTER, EARTH_RADIUS);
     if (earth_intersection.t != 0 && earth_intersection.t < cloud_intersection.t + cloud_intersection.depth) {
-        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth));
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth_t, depth_t));
     }
     if (cloud_intersection.t > depth) {
-        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth));
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth_t));
     }
-    cloud_intersection.depth = min(cloud_intersection.depth, depth - cloud_intersection.t);
     if (cloud_intersection.depth == 0.0f) {
-        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth));
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth_t));
     }
+
+    cloud_intersection.depth = depth == 0.0f ? cloud_intersection.depth : 
+        min(cloud_intersection.depth, depth);
+    cloud_intersection.depth = min(cloud_intersection.depth, MAX_DISTANCE);
 
     const float step_size = cloud_intersection.depth / MAX_STEPS;
     const vec3 step = step_size * rd;
@@ -487,6 +491,7 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     float in_cloud = 0.0;
     float previous_density = 0.0f;
     uint cloud_misses = 0;
+    
     for (float i = 0; i < MAX_STEPS && transmittance > MIN_TRANSMITTANCE; i++) {
         const vec4 cloud_map = sample_cloud_map(t);
         
@@ -511,6 +516,7 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
                 in_scattering += transmittance * luminance_intergal;
                 depth_weighted_transmittance += transmittance * length(t - ro);
                 depth_weighted_transmittance_total += transmittance;
+
                 transmittance *= sample_transmittance;
             }
             
@@ -540,18 +546,26 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
 
     const vec4 aerial_perspective =
         aerial_perspective_weigth *
-        textureLod(sampler3D(u_aerial_perspective_lut, u_sampler), vec3(uv, aerial_slice_w), 0.0f);
+        textureLod(sampler3D(u_aerial_perspective_lut, u_sampler_ce), vec3(uv, aerial_slice_w), 0.0f);
     const vec4 fog = height_fog(avg_depth, ro, rd, mu);
     
     in_scattering = tonemap(in_scattering, 16.0f);
     in_scattering = (1.0f - aerial_perspective.a) * in_scattering + aerial_perspective.rgb * (1.0f - transmittance);
     in_scattering = mix(in_scattering, fog.rgb * (1.0f - transmittance), fog.a);
 
-    return CloudInfo(vec4(in_scattering, transmittance), vec2(avg_depth, depth));
+    return CloudInfo(
+        vec4(in_scattering, transmittance), 
+        vec2(distance(t, ro), depth_t));
 }
 
 void main() {
-    const ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 out_coord = coord;
+#if REPROJECTION
+    coord *= REPROJECTION_RES;
+    coord += REPROJECTION_OFFSETS[u_view_info.view.frame_number_u32 % REPROJECTION_RES_2D];
+#endif // REPROJECTION
+    
     const ivec2 image_size = textureSize(u_depth, 0);
     const vec2 texture_size_inv = 1.0f / image_size;
     const vec2 uv = (vec2(coord) + 0.5f) * texture_size_inv;
@@ -573,6 +587,6 @@ void main() {
     shape_blue_noise = blue_noise_sample(coord);
     light_blue_noise = blue_noise_sample(coord + ivec2(1));
     const CloudInfo cloud_info = cloud(uv, ro, rd, linear_depth);
-    imageStore(u_out_color, coord, vec4(cloud_info.color));
-    imageStore(u_out_depth, coord, vec4(cloud_info.depth.rg, 0.0f, 0.0f));
+    imageStore(u_out_color, out_coord, vec4(cloud_info.color));
+    imageStore(u_out_depth, out_coord, vec4(cloud_info.depth.rg, 0.0f, 0.0f));
 }

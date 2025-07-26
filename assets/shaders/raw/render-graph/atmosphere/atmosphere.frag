@@ -66,15 +66,15 @@ void main() {
                 const vec2 transmittance_uv = transmittance_uv_from_r_mu(view, r, dot(up, sun_dir));
                 L += 
                     get_sun_luminance(pos, rd, sun_dir, view.surface) *
-                    textureLod(sampler2D(u_transmittance_lut, u_sampler), transmittance_uv, 0).rgb;
+                    textureLod(sampler2D(u_transmittance_lut, u_sampler), transmittance_uv, 0).rgb * 1e-2;
             }
                 
 #if HAS_CLOUDS
             const vec4 clouds = textureLod(sampler2D(u_clouds, u_sampler), vertex_uv, 0);
             out_color = vec4(L * clouds.a + clouds.rgb, 1.0);
-#else
+#else // HAS_CLOUDS
             out_color = vec4(L, 1.0);
-#endif
+#endif // HAS_CLOUDS
             return;
         }
     }

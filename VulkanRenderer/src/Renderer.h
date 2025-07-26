@@ -107,8 +107,12 @@ private:
     CloudMapsInfo RenderGraphGetCloudMaps();
     struct CloudsInfo
     {
+        RG::Resource ColorPrevious{};
+        RG::Resource DepthPrevious{};
+        RG::Resource ReprojectionPrevious{};
         RG::Resource Color{};
         RG::Resource Depth{};
+        RG::Resource Reprojection{};
     };
     CloudsInfo RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color, RG::Resource aerialPerspective,
         RG::Resource depth);
@@ -163,10 +167,16 @@ private:
     Texture m_CloudShapeLowFrequency{};
     Texture m_CloudShapeHighFrequency{};
     Texture m_CloudCurlNoise{};
+    std::array<Texture, 2> m_CloudColorAccumulation{};
+    std::array<Texture, 2> m_CloudDepthAccumulation{};
+    std::array<Texture, 2> m_CloudReprojectionFactor{};
+    u32 m_CloudsAccumulationIndex{0};
+    u32 m_CloudsAccumulationIndexPrev{1};
     Passes::Clouds::CloudsNoiseParameters m_CloudMapNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};
     Passes::Clouds::CloudParameters m_CloudParameters{};
+    bool m_CloudsReprojectionEnabled{true};
     
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 

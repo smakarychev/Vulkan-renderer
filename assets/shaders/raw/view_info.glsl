@@ -30,7 +30,36 @@ struct ViewInfo {
     vec2 hiz_resolution;
     uint view_flags;
     uint unused_0;
-    
+
+
+    mat4 prev_view_projection;
+    mat4 prev_projection;
+    mat4 prev_view;
+
+    vec3 prev_position;
+    float prev_near;
+    vec3 prev_forward;
+    float prev_far;
+
+    mat4 prev_inv_view_projection;
+    mat4 prev_inv_projection;
+    mat4 prev_inv_view;
+
+    float prev_frustum_top_y;
+    float prev_frustum_top_z;
+    float prev_frustum_right_x;
+    float prev_frustum_right_z;
+    float prev_frustum_near;
+    float prev_frustum_far;
+    float prev_projection_width;
+    float prev_projection_height;
+    float prev_projection_bias_x;
+    float prev_projection_bias_y;
+
+    vec2 prev_resolution;
+    vec2 prev_hiz_resolution;
+    uint prev_view_flags;
+    uint prev_unused_0;
 
     vec4 rayleigh_scattering;
     vec4 rayleigh_absorption;
@@ -53,4 +82,5 @@ struct ViewInfo {
     uint sky_view_lut;
     
     float frame_number;
+    uint frame_number_u32;
 };

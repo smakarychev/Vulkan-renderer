@@ -27,6 +27,7 @@
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Clouds/CloudCurlNoisePass.h"
 #include "RenderGraph/Passes/Clouds/CloudMapGenerationPass.h"
+#include "RenderGraph/Passes/Clouds/CloudReprojectPass.h"
 #include "RenderGraph/Passes/Clouds/CloudShapeNoisePass.h"
 #include "RenderGraph/Passes/Clouds/CloudsPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
@@ -422,6 +423,7 @@ void Renderer::SetupRenderGraph()
 
     Resource colorWithSky{};
     CloudMapsInfo cloudMaps = {};
+    CloudsInfo clouds = {};
     if (renderAtmosphere)
     {
         auto& aerialPerspective = Passes::Atmosphere::AerialPerspective::addToGraph("AtmosphereAerialPerspective"_hsv,
@@ -435,7 +437,7 @@ void Renderer::SetupRenderGraph()
         
         cloudMaps = RenderGraphGetCloudMaps();
 
-        const CloudsInfo clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, depth);
+        clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, depth);
         colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.AerialPerspective,
             color, depth, csmData, clouds.Color);
     }
@@ -483,7 +485,25 @@ void Renderer::SetupRenderGraph()
             m_Graph->ClaimImage(cloudMaps.CloudShapeHighFrequency, m_CloudShapeHighFrequency, Device::DeletionQueue());
         if (!m_CloudCurlNoise.HasValue())
             m_Graph->ClaimImage(cloudMaps.CloudCurlNoise, m_CloudCurlNoise, Device::DeletionQueue());
+
+        if (m_CloudsReprojectionEnabled && !m_CloudColorAccumulation.front().HasValue())
+        {
+            m_Graph->MarkImageForExport(clouds.ColorPrevious, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
+            m_Graph->MarkImageForExport(clouds.DepthPrevious, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
+            m_Graph->MarkImageForExport(clouds.ReprojectionPrevious, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
+            m_Graph->MarkImageForExport(clouds.Color, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
+            m_Graph->MarkImageForExport(clouds.Depth, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
+            m_Graph->MarkImageForExport(clouds.Reprojection, ImageUsage::Storage | ImageUsage::Sampled | ImageUsage::Source);
+            m_Graph->ClaimImage(clouds.ColorPrevious, m_CloudColorAccumulation[0], Device::DeletionQueue());
+            m_Graph->ClaimImage(clouds.Color, m_CloudColorAccumulation[1], Device::DeletionQueue());
+            m_Graph->ClaimImage(clouds.DepthPrevious, m_CloudDepthAccumulation[0], Device::DeletionQueue());
+            m_Graph->ClaimImage(clouds.Depth, m_CloudDepthAccumulation[1], Device::DeletionQueue());
+            m_Graph->ClaimImage(clouds.ReprojectionPrevious, m_CloudReprojectionFactor[0], Device::DeletionQueue());
+            m_Graph->ClaimImage(clouds.Reprojection, m_CloudReprojectionFactor[1], Device::DeletionQueue());
+        }
     }
+
+    std::swap(m_CloudsAccumulationIndex, m_CloudsAccumulationIndexPrev);
     
     m_Graph->Compile(GetFrameContext());
 }
@@ -506,6 +526,8 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     GlobalResources& globalResources = blackboard.Get<GlobalResources>();
     ViewInfoGPU& primaryView = globalResources.PrimaryViewInfo;
 
+    if (m_FrameNumber > 0)
+        primaryView.PreviousCamera = primaryView.Camera;
     primaryView.Camera = CameraGPU::FromCamera(*m_Camera, swapchain.SwapchainResolution,
         VisibilityFlags::IsPrimaryView | VisibilityFlags::OcclusionCull);
     
@@ -531,6 +553,7 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     ImGui::End();
 
     primaryView.FrameNumber = (f32)GetFrameContext().FrameNumberTick;
+    primaryView.FrameNumberU32 = (u32)GetFrameContext().FrameNumberTick;
 
     globalResources.FrameNumberTick = GetFrameContext().FrameNumberTick;
     globalResources.Resolution = GetFrameContext().Resolution;
@@ -1101,6 +1124,9 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
     ImGui::DragFloat("HG eccentricity", &m_CloudParameters.HGEccentricity, 1e-2f, 0.0f, 1.0f);
     ImGui::DragFloat("HG backward eccentricity", &m_CloudParameters.HGBackwardEccentricity, 1e-2f, -1.0f, 0.0f);
     ImGui::DragFloat("HG mix", &m_CloudParameters.HGMixCoefficient, 1e-2f, 0.0f, 1.0f);
+    
+    ImGui::Checkbox("Reprojection", &m_CloudsReprojectionEnabled);
+    
     ImGui::End();
 
     m_CloudParameters.BlueNoiseBindlessIndex = m_BlueNoiseBindlessIndex;
@@ -1115,16 +1141,63 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
         .CloudCurlNoise = cloudMaps.CloudCurlNoise, 
         .DepthIn = depth,
         .AerialPerspectiveLut = aerialPerspective,
-        .ColorIn = color,
         .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
             m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
         .Light = &m_Scene.Lights(),
         .CloudParameters = &m_CloudParameters,
+        .CloudsRenderingMode = m_CloudsReprojectionEnabled ?
+            Passes::Clouds::CloudsRenderingMode::Reprojection : Passes::Clouds::CloudsRenderingMode::FullResolution,
     });
 
     Passes::ImGuiTexture::addToGraph("Clouds.Color"_hsv, *m_Graph, clouds.ColorOut);
     Passes::ImGuiTexture::addToGraph("Clouds.Depth"_hsv, *m_Graph, clouds.DepthOut);
 
+    if (m_CloudsReprojectionEnabled)
+    {
+        auto& reprojection = Passes::CloudReproject::addToGraph("Clouds.Reproject"_hsv, *m_Graph, {
+            .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+            .Color = clouds.ColorOut,
+            .Depth = clouds.DepthOut,
+            .ColorAccumulationIn = m_FrameNumber > 1 ?
+                m_Graph->Import("Clouds.Color.Accumulation.In"_hsv,
+                    m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev], ImageLayout::Readonly) :
+                RG::Resource{},
+            .DepthAccumulationIn = m_FrameNumber > 1 ?
+                m_Graph->Import("Clouds.Depth.Accumulation.In"_hsv,
+                    m_CloudDepthAccumulation[m_CloudsAccumulationIndexPrev], ImageLayout::Source) :
+                RG::Resource{},
+            .ReprojectionFactorIn = m_FrameNumber > 1 ?
+                m_Graph->Import("Clouds.ReprojectionFactor.In"_hsv,
+                    m_CloudReprojectionFactor[m_CloudsAccumulationIndexPrev], ImageLayout::Source) :
+                RG::Resource{},
+            .ColorAccumulationOut = m_FrameNumber > 1 ?
+                m_Graph->Import("Clouds.Color.Accumulation"_hsv,
+                    m_CloudColorAccumulation[m_CloudsAccumulationIndex]) :
+                RG::Resource{},
+            .DepthAccumulationOut = m_FrameNumber > 1 ?
+                m_Graph->Import("Clouds.Depth.Accumulation"_hsv,
+                    m_CloudDepthAccumulation[m_CloudsAccumulationIndex]) :
+                RG::Resource{},
+            .ReprojectionFactorOut = m_FrameNumber > 1 ?
+                m_Graph->Import("Clouds.ReprojectionFactor"_hsv,
+                    m_CloudReprojectionFactor[m_CloudsAccumulationIndex]) :
+                RG::Resource{}
+        });
+
+        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Color"_hsv, *m_Graph, reprojection.ColorAccumulationOut);
+        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Depth"_hsv, *m_Graph, reprojection.DepthAccumulationOut);
+        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Factor"_hsv, *m_Graph, reprojection.ReprojectionFactorOut);
+
+        return {
+            .ColorPrevious = reprojection.ColorAccumulationIn,
+            .DepthPrevious = reprojection.DepthAccumulationIn,
+            .ReprojectionPrevious = reprojection.ReprojectionFactorIn,
+            .Color = reprojection.ColorAccumulationOut,
+            .Depth = reprojection.DepthAccumulationOut,
+            .Reprojection = reprojection.ReprojectionFactorOut
+        };
+    }
+    
     return {
         .Color = clouds.ColorOut,
         .Depth = clouds.DepthOut
