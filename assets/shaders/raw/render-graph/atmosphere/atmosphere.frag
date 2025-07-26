@@ -97,6 +97,11 @@ void main() {
         weigth * 
         textureLod(sampler3D(u_aerial_perspective_lut, u_sampler), vec3(vertex_uv, aerial_slice_w), 0);
     L = aerial_perspective.rgb;
-    
+
+#if HAS_CLOUDS
+    const vec4 clouds = textureLod(sampler2D(u_clouds, u_sampler), vertex_uv, 0);
+    out_color = vec4(L * clouds.a + clouds.rgb * (1.0f - aerial_perspective.a), (aerial_perspective.a + 1.0f - clouds.a));
+#else // HAS_CLOUDS
     out_color = vec4(L, aerial_perspective.a);
+#endif // HAS_CLOUDS
 }
