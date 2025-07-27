@@ -120,6 +120,7 @@ void main() {
         else {
             out_color = variance_clamp_color(render_coord, out_color);    
             out_color = mix(color, out_color, prev_reprojection_factor);
+            out_depth = depth;
             out_reprojection_factor = get_reprojection_factor(prev_reprojection_factor, reprojection_factors.y);
         }
     } else {
