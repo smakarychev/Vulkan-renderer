@@ -18,12 +18,13 @@ layout(set = 1, binding = 1) uniform texture2D u_sky_view_lut;
 layout(set = 1, binding = 2) uniform texture2D u_transmittance_lut;
 layout(set = 1, binding = 3) uniform texture3D u_aerial_perspective_lut;
 layout(set = 1, binding = 4) uniform texture2D u_clouds;
+layout(set = 1, binding = 5) uniform texture2D u_clouds_depth;
 
-layout(scalar, set = 1, binding = 5) uniform view_info {
+layout(scalar, set = 1, binding = 6) uniform view_info {
     ViewInfo view;
 } u_view_info;
 
-layout(scalar, set = 1, binding = 6) uniform directional_light {
+layout(scalar, set = 1, binding = 7) uniform directional_light {
     DirectionalLight lights[];
 } u_directional_lights;
 
@@ -46,8 +47,16 @@ void main() {
     vec3 L = vec3(0.0f);
     
     const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
+    out_color = vec4(L, 1.0);
+    const float linear_depth = -linearize_reverse_z(depth, view.near, view.far);
+#if HAS_CLOUDS
+    const float cloudsDepth = textureLod(sampler2D(u_clouds_depth, u_sampler), vertex_uv, 0).r;
+#else // HAS_CLOUDS
+    const float cloudsDepth = linear_depth;
+#endif // HAS_CLOUDS
+
     // draw the atmosphere behind the geometry
-    if (!u_use_depth_buffer || depth == 0.0) {
+    if (!u_use_depth_buffer || depth == 0) {
         const float r = length(pos);
         if (r < view.atmosphere) {
             const vec3 up = pos / r;
@@ -83,7 +92,6 @@ void main() {
     }
     
     // draw the aerial persective on top of the geometry
-    const float linear_depth = -linearize_reverse_z(depth, view.near, view.far);
     float slice = aerial_perspective_km_to_slice(linear_depth / 1000);
     float weigth = 1.0f;
     if (slice < 0.5f) {

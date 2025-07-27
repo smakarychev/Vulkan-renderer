@@ -179,11 +179,11 @@ vec4 height_gradient_type(vec3 cloud_type) {
 }
 
 float height_density_gradient(float height, vec3 cloud_type) {
-    vec4 gradient = height_gradient_type(cloud_type);
+    const vec4 gradient = height_gradient_type(cloud_type);
     
-    return clamp(
-        remap(height, gradient.x, gradient.y, 0.0f, 1.0f) * 
-        remap(height, gradient.z, gradient.w, 1.0f, 0.0f), 0.0f, 1.0f);
+    return 
+        remap_clamp(height, gradient.x, gradient.y, 0.0f, 1.0f) * 
+        remap_clamp(height, gradient.z, gradient.w, 1.0f, 0.0f);
 }
 
 float anvil_deformation(float coverage, float height, vec3 cloud_type) {
@@ -249,7 +249,7 @@ float sample_cloud_density(vec3 p, vec4 cloud_map, float mip_level, bool sample_
 float cloud_light_march(vec3 p, vec3 rd) {
     float density = 0.0f;
     
-    const float sample_count = 6;
+    const float sample_count = 8;
     const float sample_t = 0.5f;
     
     float lod_offset = 0.5f;
@@ -263,7 +263,7 @@ float cloud_light_march(vec3 p, vec3 rd) {
         
         const float delta = t1 - t0;
         const float t = t0 + delta * sample_t + delta * light_blue_noise;
-        const float shadow_t = 1000.0f * t;
+        const float shadow_t = 512.0f * t;
         const float step_size = shadow_t - last_step;
         last_step = shadow_t;
         const vec3 sample_point = p + rd * shadow_t;
@@ -464,13 +464,13 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     Intersection earth_intersection = 
         intersect_sphere(ro + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f), rd, EARTH_CENTER, EARTH_RADIUS);
     if (earth_intersection.t != 0 && earth_intersection.t < cloud_intersection.t + cloud_intersection.depth) {
-        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth_t, depth_t));
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(DEPTH_MAX, depth_t));
     }
     if (cloud_intersection.t > depth) {
-        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth_t));
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(DEPTH_MAX, depth_t));
     }
     if (cloud_intersection.depth == 0.0f) {
-        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(depth, depth_t));
+        return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(DEPTH_MAX, depth_t));
     }
 
     cloud_intersection.depth = depth == 0.0f ? cloud_intersection.depth : 
@@ -555,7 +555,7 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
 
     return CloudInfo(
         vec4(in_scattering, transmittance), 
-        vec2(distance(t, ro), depth_t));
+        vec2(transmittance > 0.99f ? depth_t : avg_depth, depth_t));
 }
 
 void main() {

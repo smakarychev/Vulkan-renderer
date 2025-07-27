@@ -95,7 +95,7 @@ private:
     void RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut);
 
     RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut, RG::Resource aerialPerspective,
-        RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds);
+        RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds, RG::Resource cloudsDepth);
 
     struct CloudMapsInfo
     {

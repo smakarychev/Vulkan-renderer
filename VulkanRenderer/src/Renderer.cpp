@@ -439,7 +439,7 @@ void Renderer::SetupRenderGraph()
 
         clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, depth);
         colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.AerialPerspective,
-            color, depth, csmData, clouds.Color);
+            color, depth, csmData, clouds.Color, clouds.Depth);
     }
     else
     {
@@ -947,7 +947,8 @@ void Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::P
 }
 
 RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
-    RG::Resource aerialPerspective, RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds)
+    RG::Resource aerialPerspective, RG::Resource color, RG::Resource depth, RG::CsmData csmData,
+    RG::Resource clouds, RG::Resource cloudsDepth)
 {
     static constexpr bool USE_SUN_LUMINANCE = true;
     auto& atmosphere = Passes::Atmosphere::Raymarch::addToGraph("AtmosphereRaymarch"_hsv, *m_Graph, {
@@ -957,6 +958,7 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
         .TransmittanceLut = lut.TransmittanceLut,
         .AerialPerspective = aerialPerspective,
         .Clouds = clouds,
+        .CloudsDepth = cloudsDepth,
         .ColorIn = color,
         .DepthIn = depth,
         .UseSunLuminance = USE_SUN_LUMINANCE 

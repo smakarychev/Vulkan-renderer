@@ -27,7 +27,7 @@ namespace Passes::Clouds
         f32 CoverageWindHorizontalSkew{100.0f};
 
         glm::vec4 AnvilStratus{0.0f, 0.0f, 0.0f, 0.0f};
-        glm::vec4 AnvilStratocumulus{0.5f, 0.0f, 6.5f, 0.5f};
+        glm::vec4 AnvilStratocumulus{0.5f, 0.0f, 6.5f, 2.5f};
         glm::vec4 AnvilCumulus{0.5f, 0.5f, 0.5f, 0.6f};
 
         f32 CurlNoiseScaleMultiplier{0.3f};
