@@ -402,3 +402,16 @@ const ivec2 REPROJECTION_OFFSETS[REPROJECTION_RES_2D] = {
     ivec2(1,0), ivec2(1,1), ivec2(3,3), ivec2(0,0),
     ivec2(2,2), ivec2(1,3), ivec2(3,0), ivec2(0,2)
 };
+
+const vec3 CLOUDS_SCATTERING = vec3(1.0f * 0.07f);
+const float CLOUDS_EXTINCTION = 0.07f;
+const vec3 EARTH_CENTER = vec3(0.0f);
+const float EARTH_RADIUS = 6360000.0f;
+const float CLOUDS_MIN_RADIUS = EARTH_RADIUS + 1500.0f;
+const float CLOUDS_MAX_RADIUS = CLOUDS_MIN_RADIUS + 3500.0f;
+
+float relative_height(vec3 p, float height, vec2 cloudMinMax) {
+    const float to_center = distance(p + vec3(0.0f, height, 0.0f), EARTH_CENTER);
+
+    return (to_center - cloudMinMax.x) / (cloudMinMax.y - cloudMinMax.x);
+}

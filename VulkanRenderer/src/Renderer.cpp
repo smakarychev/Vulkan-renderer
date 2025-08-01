@@ -26,10 +26,11 @@
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Clouds/CloudCurlNoisePass.h"
-#include "RenderGraph/Passes/Clouds/CloudMapGenerationPass.h"
 #include "RenderGraph/Passes/Clouds/CloudReprojectPass.h"
 #include "RenderGraph/Passes/Clouds/CloudShapeNoisePass.h"
-#include "RenderGraph/Passes/Clouds/CloudsPass.h"
+#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudsPass.h"
+#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudCoveragePass.h"
+#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudProfileMapPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/SceneForwardPbrPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
@@ -477,14 +478,16 @@ void Renderer::SetupRenderGraph()
 
     if (renderAtmosphere)
     {
-        if (!m_CloudMap.HasValue())
-            m_Graph->ClaimImage(cloudMaps.CloudMap, m_CloudMap, Device::DeletionQueue());
+        if (!m_CloudCoverage.HasValue())
+            m_Graph->ClaimImage(cloudMaps.Coverage, m_CloudCoverage, Device::DeletionQueue());
+        if (!m_CloudProfileMap.HasValue())
+            m_Graph->ClaimImage(cloudMaps.Profile, m_CloudProfileMap, Device::DeletionQueue());
         if (!m_CloudShapeLowFrequency.HasValue())
-            m_Graph->ClaimImage(cloudMaps.CloudShapeLowFrequency, m_CloudShapeLowFrequency, Device::DeletionQueue());
+            m_Graph->ClaimImage(cloudMaps.ShapeLowFrequency, m_CloudShapeLowFrequency, Device::DeletionQueue());
         if (!m_CloudShapeHighFrequency.HasValue())
-            m_Graph->ClaimImage(cloudMaps.CloudShapeHighFrequency, m_CloudShapeHighFrequency, Device::DeletionQueue());
+            m_Graph->ClaimImage(cloudMaps.ShapeHighFrequency, m_CloudShapeHighFrequency, Device::DeletionQueue());
         if (!m_CloudCurlNoise.HasValue())
-            m_Graph->ClaimImage(cloudMaps.CloudCurlNoise, m_CloudCurlNoise, Device::DeletionQueue());
+            m_Graph->ClaimImage(cloudMaps.CurlNoise, m_CloudCurlNoise, Device::DeletionQueue());
 
         if (m_CloudsReprojectionEnabled && !m_CloudColorAccumulation.front().HasValue())
         {
@@ -979,8 +982,10 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     if (!isInitialized)
     {
         m_CloudShapeLowFrequencyNoiseParameters.PerlinCoverageMin = 0.56f;
+        m_CloudShapeLowFrequencyNoiseParameters.PerlinCoverageMax = 0.836f;
         m_CloudShapeLowFrequencyNoiseParameters.WorleyCoverageMin = 0.25f;
         m_CloudShapeLowFrequencyNoiseParameters.WorleyCoverageMax = 0.52f;
+        m_CloudShapeLowFrequencyNoiseParameters.PerlinWorleyFraction = 0.75f;
         isInitialized = true;
     }
     
@@ -1007,28 +1012,75 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         return isDirty;
     };
     
-    ImGui::Begin("CloudMap");
-    bool isCloudMapDirty = imguiNoiseParametersControls("Cloud map noise", m_CloudMapNoiseParameters);
+    ImGui::Begin("CloudCoverage");
+    bool isCloudCoverageDirty = imguiNoiseParametersControls("Cloud coverage noise", m_CloudCoverageNoiseParameters);
     if (ImGui::Button("Regenerate"))
-        isCloudMapDirty = true;
+        isCloudCoverageDirty = true;
     ImGui::End();
 
-    Resource cloudMapResource = {};
-    if (!isCloudMapDirty && m_CloudMap.HasValue())
+    Resource cloudCoverageResource = {};
+    Resource cloudProfileMapResource = {};
+
+    const bool loadCoverage = (bool)CVars::Get().GetI32CVar("Clouds.LoadCoverage"_hsv, bool(1));
+    const bool loadProfile = (bool)CVars::Get().GetI32CVar("Clouds.LoadProfile"_hsv, bool(1));
+    if (loadCoverage)
     {
-        cloudMapResource = m_Graph->Import("CloudMap.Import"_hsv, m_CloudMap, ImageLayout::Readonly);
+        if (!m_CloudCoverage.HasValue())
+            m_CloudCoverage = Device::CreateImage({
+               .DataSource = "../assets/textures/clouds/coverage.tx",
+               .Description = {.Usage = ImageUsage::Sampled},
+               .CalculateMipmaps = false
+           });
+       cloudCoverageResource = m_Graph->Import("CloudCoverage.Loaded"_hsv, m_CloudCoverage, ImageLayout::Readonly);
     }
     else
     {
-        auto& cloudMap = Passes::CloudMapGeneration::addToGraph("CloudMapGen"_hsv, *m_Graph, {
-            .CloudMap = m_CloudMap,
-            .NoiseParameters = &m_CloudMapNoiseParameters,
-        });
-        cloudMapResource = cloudMap.CloudMap;
-        if (!m_CloudMap.HasValue())
-            m_Graph->MarkImageForExport(cloudMap.CloudMap);
+        if (!isCloudCoverageDirty && m_CloudCoverage.HasValue())
+        {
+            cloudCoverageResource = m_Graph->Import("CloudCoverage.Import"_hsv, m_CloudCoverage, ImageLayout::Readonly);
+        }
+        else
+        {
+            auto& cloudCoverage = Passes::Clouds::VP::Coverage::addToGraph("CoverageMapGen"_hsv, *m_Graph, {
+                .CoverageMap = m_CloudCoverage,
+                .NoiseParameters = &m_CloudCoverageNoiseParameters,
+            });
+            cloudCoverageResource = cloudCoverage.CoverageMap;
+            if (!m_CloudCoverage.HasValue())
+                m_Graph->MarkImageForExport(cloudCoverageResource);
+        }
     }
-    Passes::ImGuiTexture::addToGraph("CloudMap.Tex"_hsv, *m_Graph, cloudMapResource);
+    if (loadProfile)
+    {
+        if (!m_CloudProfileMap.HasValue())
+            m_CloudProfileMap = Device::CreateImage({
+                .DataSource = "../assets/textures/clouds/profile.tx",
+                .Description = {.Usage = ImageUsage::Sampled},
+                .CalculateMipmaps = false
+            });
+        cloudProfileMapResource = m_Graph->Import("CloudProfileMap.Loaded"_hsv,
+            m_CloudProfileMap, ImageLayout::Readonly);
+    }
+    else
+    {
+        if (!isCloudCoverageDirty && m_CloudProfileMap.HasValue())
+        {
+            cloudProfileMapResource = m_Graph->Import("CloudProfileMap.Import"_hsv, 
+                m_CloudProfileMap, ImageLayout::Readonly);
+        }
+        else
+        {
+            auto& cloudProfileMap = Passes::Clouds::VP::ProfileMap::addToGraph("ProfileMapGen"_hsv, *m_Graph, {
+                .ProfileMap = m_CloudProfileMap,
+            });
+            cloudProfileMapResource = cloudProfileMap.ProfileMap;
+            if (!m_CloudProfileMap.HasValue())
+                m_Graph->MarkImageForExport(cloudProfileMapResource);
+        }    
+    }
+    
+    Passes::ImGuiTexture::addToGraph("CloudCoverage.Tex"_hsv, *m_Graph, cloudCoverageResource);
+    Passes::ImGuiTexture::addToGraph("CloudProfileMap.Tex"_hsv, *m_Graph, cloudProfileMapResource);
 
     bool isShapeDirty = false;
     isShapeDirty |= imguiNoiseParametersControls("Low frequency shape noise", m_CloudShapeLowFrequencyNoiseParameters);
@@ -1087,10 +1139,11 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     ImGui::End();
     
     return {
-        .CloudMap = cloudMapResource,
-        .CloudShapeLowFrequency = lowFrequencyNoiseResource,
-        .CloudShapeHighFrequency = highFrequencyNoiseResource,
-        .CloudCurlNoise = curlNoiseResource,
+        .Coverage = cloudCoverageResource,
+        .Profile = cloudProfileMapResource,
+        .ShapeLowFrequency = lowFrequencyNoiseResource,
+        .ShapeHighFrequency = highFrequencyNoiseResource,
+        .CurlNoise = curlNoiseResource,
     };
 }
 
@@ -1104,7 +1157,6 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
     m_CloudParameters.ShapeNoiseScale = 1.0f / shapeNoiseScale;
     ImGui::DragFloat("Detail noise scale multiplier", &m_CloudParameters.DetailNoiseScaleMultiplier, 1e-2f, 0.0f);
     f32 windAngle = glm::degrees(m_CloudParameters.WindAngle);
-    f32 coverageWindAngle = glm::degrees(m_CloudParameters.CoverageWindAngle);
     ImGui::DragFloat("Detail noise contribution", &m_CloudParameters.DetailNoiseContribution, 1e-2f, 0.0f);
     ImGui::DragFloat("Detail noise height modifier", &m_CloudParameters.DetailNoiseHeightModifier, 1e-1f, 0.0f);
     ImGui::DragFloat("Wind angle", &windAngle, 1e-1f);
@@ -1112,10 +1164,6 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
     ImGui::DragFloat("Wind speed", &m_CloudParameters.WindSpeed, 1e-2f);
     ImGui::DragFloat("Wind upright amount", &m_CloudParameters.WindUprightAmount, 1e-2f);
     ImGui::DragFloat("Wind horizontal skew", &m_CloudParameters.WindHorizontalSkew, 1e+1f);
-    ImGui::DragFloat("Coverage wind angle", &coverageWindAngle, 1e-1f);
-    m_CloudParameters.CoverageWindAngle = glm::radians(coverageWindAngle);
-    ImGui::DragFloat("Coverage wind speed", &m_CloudParameters.CoverageWindSpeed, 1e-2f);
-    ImGui::DragFloat("Coverage wind horizontal skew", &m_CloudParameters.CoverageWindHorizontalSkew, 1e+1f);
     ImGui::DragFloat4("Anvil stratus", &m_CloudParameters.AnvilStratus[0], 1e-2f);
     ImGui::DragFloat4("Anvil stratocumulus", &m_CloudParameters.AnvilStratocumulus[0], 1e-2f);
     ImGui::DragFloat4("Anvil cumulus", &m_CloudParameters.AnvilCumulus[0], 1e-2f);
@@ -1135,12 +1183,13 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
-    auto& clouds = Passes::Clouds::addToGraph("Clouds"_hsv, *m_Graph, {
+    auto& clouds = Passes::Clouds::VP::addToGraph("Clouds"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .CloudMap = cloudMaps.CloudMap,
-        .CloudShapeLowFrequencyMap = cloudMaps.CloudShapeLowFrequency,
-        .CloudShapeHighFrequencyMap = cloudMaps.CloudShapeHighFrequency, 
-        .CloudCurlNoise = cloudMaps.CloudCurlNoise, 
+        .CloudCoverage = cloudMaps.Coverage,
+        .CloudProfile = cloudMaps.Profile,
+        .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,
+        .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
+        .CloudCurlNoise = cloudMaps.CurlNoise, 
         .DepthIn = depth,
         .AerialPerspectiveLut = aerialPerspective,
         .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
@@ -1148,7 +1197,8 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
         .Light = &m_Scene.Lights(),
         .CloudParameters = &m_CloudParameters,
         .CloudsRenderingMode = m_CloudsReprojectionEnabled ?
-            Passes::Clouds::CloudsRenderingMode::Reprojection : Passes::Clouds::CloudsRenderingMode::FullResolution,
+            Passes::Clouds::VP::CloudsRenderingMode::Reprojection :
+            Passes::Clouds::VP::CloudsRenderingMode::FullResolution,
     });
 
     Passes::ImGuiTexture::addToGraph("Clouds.Color"_hsv, *m_Graph, clouds.ColorOut);
@@ -1183,7 +1233,8 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
             .ReprojectionFactorOut = m_FrameNumber > 1 ?
                 m_Graph->Import("Clouds.ReprojectionFactor"_hsv,
                     m_CloudReprojectionFactor[m_CloudsAccumulationIndex]) :
-                RG::Resource{}
+                RG::Resource{},
+            .CloudParameters = &m_CloudParameters,
         });
 
         Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Color"_hsv, *m_Graph, reprojection.ColorAccumulationOut);

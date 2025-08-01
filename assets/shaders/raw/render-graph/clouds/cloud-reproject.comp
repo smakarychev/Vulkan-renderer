@@ -4,6 +4,7 @@
 #include "../common.glsl"
 #include "../../view_info.glsl"
 #include "../../utility.glsl"
+#include "../atmosphere/atmosphere-functions.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -31,9 +32,19 @@ layout(scalar, set = 1, binding = 8) uniform view_info {
     ViewInfo view;
 } u_view_info;
 
+layout(push_constant, scalar) uniform push_constants {
+    float u_wind_angle;
+    float u_wind_speed;
+    float u_wind_upright_amount;
+    float u_wind_horizontal_skew;
+};
+
+const float VIEW_HEIGHT = DEFAULT_VIEW_HEIGHT_M;
+
 const vec2 reprojection_factors = vec2(0.6f, 0.85f);
 ivec2 image_size = imageSize(u_cloud_color_accumulation_out);
 vec2 image_size_inv = 1.0f / image_size;
+vec3 wind_direction = vec3(cos(u_wind_angle), -u_wind_upright_amount, sin(u_wind_angle));
 
 float get_reprojection_factor(float prev, float new) {
     return mix(prev, new, 1.0f - exp(-0.07f));
@@ -80,6 +91,10 @@ void main() {
     vec4 unprojected = u_view_info.view.inv_projection * clip;
     unprojected /= unprojected.w;
     unprojected.xyz = mat3(u_view_info.view.inv_view) * unprojected.xyz;
+
+    //unprojected.xyz += layer.relative_height * wind_direction * u_wind_horizontal_skew;
+    unprojected.xyz -= wind_direction * u_wind_speed;
+    
     unprojected.xyz = mat3(u_view_info.view.prev_view) * unprojected.xyz;
     vec4 reprojected = u_view_info.view.prev_projection * unprojected;
     reprojected /= reprojected.w;

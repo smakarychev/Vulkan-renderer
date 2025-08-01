@@ -1,9 +1,9 @@
 #include "CloudReprojectPass.h"
 
-#include "CloudMapGenerationPass.h"
 #include "CloudsCommon.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CloudReprojectBindGroup.generated.h"
+#include "VerticalProfile/VPCloudsPass.h"
 
 Passes::CloudReproject::PassData& Passes::CloudReproject::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
@@ -91,9 +91,26 @@ Passes::CloudReproject::PassData& Passes::CloudReproject::addToGraph(StringId na
             bindGroup.SetCloudDepthAccumulationOut(graph.GetImageBinding(passData.DepthAccumulationOut));
             bindGroup.SetCloudReprojectionFactorOut(graph.GetImageBinding(passData.ReprojectionFactorOut));
 
+            struct PushConstant
+            {
+                f32 WindAngle{};
+                f32 WindSpeed{};
+                f32 WindUpright{};
+                f32 WindSkew{};
+            };
+
+            PushConstant pushConstant = {
+                .WindAngle = info.CloudParameters->WindAngle,
+                .WindSpeed = info.CloudParameters->WindSpeed,
+                .WindUpright = info.CloudParameters->WindUprightAmount,
+                .WindSkew = info.CloudParameters->WindHorizontalSkew};
+            
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, graph.GetFrameAllocators());
-            
+            cmd.PushConstants({
+                .PipelineLayout = shader.GetLayout(),
+                .Data = {pushConstant}
+            });
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
                 .GroupSize = {8, 8, 1}

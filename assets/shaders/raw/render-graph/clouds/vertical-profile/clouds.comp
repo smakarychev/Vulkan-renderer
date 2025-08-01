@@ -1,12 +1,12 @@
 #version 460
 
-#include "common.glsl"
 #include "../common.glsl"
-#include "../../view_info.glsl"
-#include "../../light.glsl"
-#include "../../sh.glsl"
-#include "../../utility.glsl"
-#include "../atmosphere/atmosphere-functions.glsl"
+#include "../../common.glsl"
+#include "../../../view_info.glsl"
+#include "../../../light.glsl"
+#include "../../../sh.glsl"
+#include "../../../utility.glsl"
+#include "../../atmosphere/atmosphere-functions.glsl"
 
 layout(local_size_x = 8, local_size_y = 8) in;
 
@@ -24,24 +24,25 @@ layout(set = 0, binding = 1) uniform sampler u_sampler_nearest;
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 2) uniform sampler u_sampler_ce;
 
-layout(set = 1, binding = 0) uniform texture2D u_cloud_map;
-layout(set = 1, binding = 1) uniform texture3D u_cloud_low_frequency;
-layout(set = 1, binding = 2) uniform texture3D u_cloud_high_frequency;
-layout(set = 1, binding = 3) uniform texture2D u_cloud_curl_noise;
-layout(set = 1, binding = 4) uniform texture2D u_depth;
-layout(set = 1, binding = 5) uniform texture3D u_aerial_perspective_lut;
-layout(set = 1, binding = 6, rgba16f) uniform writeonly image2D u_out_color;
-layout(set = 1, binding = 7, rg16f) uniform writeonly image2D u_out_depth;
+layout(set = 1, binding = 0) uniform texture2D u_cloud_coverage;
+layout(set = 1, binding = 1) uniform texture2D u_cloud_profile;
+layout(set = 1, binding = 2) uniform texture3D u_cloud_low_frequency;
+layout(set = 1, binding = 3) uniform texture3D u_cloud_high_frequency;
+layout(set = 1, binding = 4) uniform texture2D u_cloud_curl_noise;
+layout(set = 1, binding = 5) uniform texture2D u_depth;
+layout(set = 1, binding = 6) uniform texture3D u_aerial_perspective_lut;
+layout(set = 1, binding = 7, rgba16f) uniform writeonly image2D u_out_color;
+layout(set = 1, binding = 8, rg16f) uniform writeonly image2D u_out_depth;
 
-layout(scalar, set = 1, binding = 8) uniform view_info {
+layout(scalar, set = 1, binding = 9) uniform view_info {
     ViewInfo view;
 } u_view_info;
 
-layout(set = 1, binding = 9) uniform irradiance_sh {
+layout(set = 1, binding = 10) uniform irradiance_sh {
     SH9Irradiance sh;
 } u_irradiance_SH;
 
-layout(scalar, set = 1, binding = 10) readonly buffer directional_lights {
+layout(scalar, set = 1, binding = 11) readonly buffer directional_lights {
     DirectionalLight lights[];
 } u_directional_lights;
 
@@ -54,7 +55,7 @@ layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
 layout(set = 2, binding = 1) uniform texture2D u_textures[];
 
 layout(push_constant, scalar) uniform push_constants {
-    // shape
+// shape
     float u_cloud_map_meters_per_texel;
     float u_shape_noise_scale;
     float u_detail_noise_scale_multiplier;
@@ -66,10 +67,6 @@ layout(push_constant, scalar) uniform push_constants {
     float u_wind_upright_amount;
     float u_wind_horizontal_skew;
 
-    float u_coverage_wind_angle;
-    float u_coverage_wind_speed;
-    float u_coverage_wind_horizontal_skew;
-
     vec4 u_anvil_stratus;
     vec4 u_anvil_stratocumulus;
     vec4 u_anvil_cumulus;
@@ -78,31 +75,26 @@ layout(push_constant, scalar) uniform push_constants {
     float u_curl_noise_height;
     float u_curl_noise_contribution;
 
-    // shading
+// shading
     float u_hg_eccentricity;
     float u_hg_eccentricity_backward;
     float u_hg_mix_coefficient;
     uint u_blue_noise_index;
 };
 
-const vec3 CLOUDS_SCATTERING = vec3(0.71f * 0.1f, 0.86f * 0.1f, 1.0f * 0.1f);
-const float CLOUDS_EXTINCTION = 0.1f;
-const vec3 EARTH_CENTER = vec3(0.0f);
-const float EARTH_RADIUS = 6360000.0f;
 const float VIEW_HEIGHT = DEFAULT_VIEW_HEIGHT_M;
-const float CLOUDS_MIN_RADIUS = EARTH_RADIUS + 1500.0f;
-const float CLOUDS_MAX_RADIUS = CLOUDS_MIN_RADIUS + 3500.0f;
 
-ivec2 cloud_map_size = textureSize(u_cloud_map, 0);
+ivec2 cloud_map_size = textureSize(u_cloud_coverage, 0);
 vec2 cloud_map_size_inv = 1.0f / cloud_map_size;
 float shape_blue_noise = 0.0f;
 float light_blue_noise = 0.0f;
 vec3 light_dir = -u_directional_lights.lights[0].direction;
 float transmittance = 1.0f;
+vec3 wind_direction = vec3(cos(u_wind_angle), -u_wind_upright_amount, sin(u_wind_angle));
 
 float blue_noise_sample(ivec2 coords) {
-    float blue_noise = 
-        texelFetch(nonuniformEXT(sampler2D(u_textures[u_blue_noise_index], u_sampler_nearest)), coords.xy % 128, 0).r;
+    float blue_noise =
+    texelFetch(nonuniformEXT(sampler2D(u_textures[u_blue_noise_index], u_sampler_nearest)), coords.xy % 128, 0).r;
     return fract(blue_noise + u_view_info.view.frame_number * 1.6180339887);
 }
 
@@ -135,123 +127,127 @@ Intersection get_intersection_with_clouds(vec3 ro, vec3 rd) {
 
 float HenyeyGreenstein(float cosh, float g) {
     return (1.0f / (4.0f * PI)) *
-        ((1.0f - g * g) / pow(1.0f + g * g - 2.0f * g * cosh, 1.5f));
+    ((1.0f - g * g) / pow(1.0f + g * g - 2.0f * g * cosh, 1.5f));
 }
 
-float relative_height(vec3 p, vec2 cloudMinMax) {
-    const float to_center = distance(p + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f), EARTH_CENTER);
+struct CloudLayerInfo {
+    float coverage;
+    float relative_height;
+    vec4 profile;
+    vec2 gradient_top;
+    vec2 gradient_bottom;
+    vec3 type_top;
+    vec3 type_bottom;
+};
 
-    return (to_center - cloudMinMax.x) / (cloudMinMax.y - cloudMinMax.x);
+vec3 cloud_type_vec(float type) {
+    return vec3(
+    1.0f - clamp(type * 2.0f, 0.0f, 1.0f),
+    1.0f - abs(type - 0.5f) * 2.0f,
+    clamp(2.0f * (type - 0.5f), 0.0f, 1.0f));
 }
 
+vec2 height_gradient_top(CloudLayerInfo layer) {
+    const vec2 stratus = vec2(0.15f, 0.2f);
+    const vec2 stratocumulus = vec2(0.3f, 0.4f);
+    const vec2 cumulus = vec2(0.7f, 0.99f);
 
-vec4 sample_cloud_map(vec3 p) {
+    return stratus * layer.type_top.x + stratocumulus * layer.type_top.y + cumulus * layer.type_top.z;
+}
+
+vec2 height_gradient_bottom(CloudLayerInfo layer) {
+    const vec2 stratus = vec2(0.01f, 0.1f);
+    const vec2 stratocumulus = vec2(0.01f, 0.18f);
+    const vec2 cumulus = vec2(0.0f, 0.06f);
+
+    return stratus * layer.type_bottom.x + stratocumulus * layer.type_bottom.y + cumulus * layer.type_bottom.z;
+}
+
+CloudLayerInfo sample_cloud_layer(vec3 p) {
     vec3 v = (p - EARTH_CENTER);
     v /= length(v);
-
-    float height = relative_height(p, vec2(CLOUDS_MIN_RADIUS, CLOUDS_MAX_RADIUS));
-    vec2 wind_direction = vec2(cos(u_coverage_wind_angle), sin(u_coverage_wind_angle));
-    p.xz += height * wind_direction * u_coverage_wind_horizontal_skew;
-    p.xz += wind_direction * u_view_info.view.frame_number * u_coverage_wind_speed;
     
-    const vec2 uv_planar = (p.xz * cloud_map_size_inv / u_cloud_map_meters_per_texel + 1.0f) / 2.0f;
+    CloudLayerInfo layer;
+    layer.relative_height = relative_height(p, EARTH_RADIUS + VIEW_HEIGHT, vec2(CLOUDS_MIN_RADIUS, CLOUDS_MAX_RADIUS));
+    p.xz += layer.relative_height * wind_direction.xy * u_wind_horizontal_skew;
+    p.xz += wind_direction.xy * u_view_info.view.frame_number * u_wind_speed;
+    const vec2 uv_planar = (p.xz * cloud_map_size_inv / u_cloud_map_meters_per_texel + 1.0f) * 0.5f;
+    layer.coverage = textureLod(sampler2D(u_cloud_coverage, u_sampler), uv_planar, 0).r;
+    layer.profile = textureLod(sampler2D(u_cloud_profile, u_sampler), uv_planar, 0);
+    layer.type_bottom = cloud_type_vec(layer.profile.y);
+    layer.type_top = cloud_type_vec(layer.profile.x);
+    layer.gradient_bottom = clamp(height_gradient_bottom(layer) + layer.profile.z, layer.profile.z, layer.profile.w);
+    layer.gradient_top = clamp(height_gradient_top(layer) + layer.profile.z, layer.profile.z, layer.profile.w);
     
-    vec4 cloud_map = textureLod(sampler2D(u_cloud_map, u_sampler), uv_planar, 0);
-    
-    return vec4(cloud_map);
+    return layer;
 }
 
-vec3 cloud_type(vec4 cloud_map) {
-    float type = cloud_map.b;
-    
-    return vec3(
-        1.0f - clamp(type * 2.0f, 0.0f, 1.0f),
-        1.0f - abs(type - 0.5f) * 2.0f,
-        clamp(2.0f * (type - 0.5f), 0.0f, 1.0f));
-}
-
-vec4 height_gradient_type(vec3 cloud_type) {
-    const vec4 stratus = vec4(0.01f, 0.1f, 0.15f, 0.2f);
-    const vec4 stratocumulus = vec4(0.11f, 0.18f, 0.3f, 0.4f);
-    const vec4 cumulus = vec4(0.0f, 0.06f, 0.7f, 0.99f);
-
-    return stratus * cloud_type.x + stratocumulus * cloud_type.y + cumulus * cloud_type.z;
-}
-
-float height_density_gradient(float height, vec3 cloud_type) {
-    const vec4 gradient = height_gradient_type(cloud_type);
-    
+float get_vertical_profile(CloudLayerInfo layer) {
     return 
-        remap_clamp(height, gradient.x, gradient.y, 0.0f, 1.0f) * 
-        remap_clamp(height, gradient.z, gradient.w, 1.0f, 0.0f);
+        remap_clamp(layer.relative_height, layer.gradient_bottom.x, layer.gradient_bottom.y, 0, 1) * 
+        remap_clamp(layer.relative_height, layer.gradient_top.x, layer.gradient_top.y, 1, 0); 
 }
 
-float anvil_deformation(float coverage, float height, vec3 cloud_type) {
+float anvil_deformation(CloudLayerInfo layer, float profile) {
     const vec4 anvil_type =
-        u_anvil_stratus * cloud_type.x +
-        u_anvil_stratocumulus * cloud_type.y +
-        u_anvil_cumulus * cloud_type.z;
-
-    const vec4 height_gradient = height_gradient_type(cloud_type);
-    
+        u_anvil_stratus * layer.type_top.x +
+        u_anvil_stratocumulus * layer.type_top.y +
+        u_anvil_cumulus * layer.type_top.z;
     const float anvil_bottom = pow(
-        coverage, 
-        remap_clamp(height, height_gradient.r, height_gradient.b, mix(1.0, anvil_type.r, anvil_type.g), 1.0f));
+        profile,
+        remap_clamp(layer.relative_height, layer.gradient_bottom.x, layer.gradient_bottom.y,
+            mix(1.0, anvil_type.r, anvil_type.g), 1.0f));
     const float anvil_top = pow(
-        coverage,
-        remap_clamp(height, height_gradient.g, height_gradient.a, 1.0f, mix(1.0, anvil_type.b, anvil_type.a)));
-    
+        profile,
+        remap_clamp(layer.relative_height, layer.gradient_top.x, layer.gradient_top.y, 
+        1.0f, mix(1.0, anvil_type.b, anvil_type.a)));
+
     return clamp(anvil_bottom + anvil_top, 0.0f, 1.0f);
 }
 
-float sample_cloud_density(vec3 p, vec4 cloud_map, float mip_level, bool sample_detail) {
-    const vec3 cloud_type = cloud_type(cloud_map);
-    const float relative_height = relative_height(p, vec2(CLOUDS_MIN_RADIUS, CLOUDS_MAX_RADIUS));
-    const float height_gradient = height_density_gradient(relative_height, cloud_type);
-    
-    const vec3 wind_direction = vec3(cos(u_wind_angle), -u_wind_upright_amount, sin(u_wind_angle));
-    p += relative_height * wind_direction * u_wind_horizontal_skew;
+float sample_cloud_density(vec3 p, float mip_level, bool sample_detail) {
+    const CloudLayerInfo layer = sample_cloud_layer(p);
+    p += layer.relative_height * wind_direction * u_wind_horizontal_skew;
     p += wind_direction * u_view_info.view.frame_number * u_wind_speed;
 
     const vec3 low_frequency_sample_p = p * u_shape_noise_scale;
     float cloud_sample = textureLod(
         sampler3D(u_cloud_low_frequency, u_sampler), low_frequency_sample_p, mip_level).r;
-    cloud_sample *= height_gradient;
     
-    float coverage = cloud_map.r;
-    const float anvil = anvil_deformation(coverage, relative_height, cloud_type);
-    coverage *= anvil;
-    cloud_sample = remap(cloud_sample, coverage, 1.0f, 0.0f, 1.0f);
-    cloud_sample *= coverage;
-    
+    const float vertical_profile = get_vertical_profile(layer);
+    float dimensional_profile = vertical_profile * layer.coverage;
+    const float anvil = anvil_deformation(layer, dimensional_profile);
+    dimensional_profile *= anvil;
+    cloud_sample = clamp(cloud_sample - (1 - dimensional_profile), 0.0, 1.0f);
+
     if (cloud_sample > 0 && sample_detail) {
         vec3 high_frequency_sample_p = low_frequency_sample_p * u_detail_noise_scale_multiplier;
 
         const vec3 curl_sample = decode_curl(textureLod(
-            sampler2D(u_cloud_curl_noise, u_sampler), 
+        sampler2D(u_cloud_curl_noise, u_sampler),
             p.xz * u_shape_noise_scale * u_curl_noise_scale_multiplier, 0).rgb);
         high_frequency_sample_p += curl_sample *
-            clamp(pow(1.0f - relative_height, u_curl_noise_height), 0.0f, 1.0f) *
+            clamp(pow(1.0f - layer.relative_height, u_curl_noise_height), 0.0f, 1.0f) *
             u_curl_noise_contribution;
 
         const float high_frequency_sample = textureLod(
             sampler3D(u_cloud_high_frequency, u_sampler), high_frequency_sample_p, mip_level).r;
 
         const float high_frequency_modifier = mix(1.0 - high_frequency_sample, high_frequency_sample,
-            clamp(relative_height * u_detail_noise_height_modifier, 0.0f, 1.0f));
+            clamp(layer.relative_height * u_detail_noise_height_modifier, 0.0f, 1.0f));
 
         cloud_sample = remap(cloud_sample, high_frequency_modifier * u_detail_noise_contribution, 1.0, 0.0, 1.0);
     }
-    
+
     return max(cloud_sample, 0.0f);
 }
 
 float cloud_light_march(vec3 p, vec3 rd) {
     float density = 0.0f;
-    
+
     const float sample_count = 8;
     const float sample_t = 0.5f;
-    
+
     float lod_offset = 0.5f;
     float last_step = 0;
     [[unroll]]
@@ -260,7 +256,7 @@ float cloud_light_march(vec3 p, vec3 rd) {
         float t1 = (i + 1) / sample_count;
         t0 = t0 * t0;
         t1 = t1 * t1;
-        
+
         const float delta = t1 - t0;
         const float t = t0 + delta * sample_t + delta * light_blue_noise;
         const float shadow_t = 512.0f * t;
@@ -268,11 +264,10 @@ float cloud_light_march(vec3 p, vec3 rd) {
         last_step = shadow_t;
         const vec3 sample_point = p + rd * shadow_t;
 
-        const vec4 cloud_map = sample_cloud_map(sample_point);
-        density += sample_cloud_density(sample_point, cloud_map, lod_offset, false) * step_size;
+        density += sample_cloud_density(sample_point, floor(lod_offset), false) * step_size;
         lod_offset += 0.5f;
     }
-    
+
     return density;
 }
 
@@ -282,7 +277,7 @@ vec3 get_atmosphere_transmittance(vec3 p) {
     const vec3 up = atm_pos / r;
 
     const bool intersects_surface = intersect_sphere(
-        atm_pos, light_dir, vec3(0.0f), u_view_info.view.surface).depth != 0.0f;
+    atm_pos, light_dir, vec3(0.0f), u_view_info.view.surface).depth != 0.0f;
     if (intersects_surface) {
         return vec3(0.0f);
     }
@@ -303,14 +298,14 @@ vec3 get_luminance(float height, vec3 p) {
     const float ambient_multiplier = 1.0f;
     const vec3 ambient = SH_irradiance_shade_constant(u_irradiance_SH.sh) * ambient_multiplier * vertical_gradient;
     const vec3 directional = l0 * get_atmosphere_transmittance(p);
-    
+
     return ambient + directional;
 }
 
 float get_in_scattering_probability(float height) {
     const float vertical_probability = pow(remap_clamp(height, 0.07f, 0.14f, 0.3f, 1.0f), 0.8f);
     const float in_scattering_probability = vertical_probability;
-    
+
     return vertical_probability;
 }
 
@@ -321,25 +316,25 @@ float get_volumetric_shadowing(float sigma_t, float density_light, float in_scat
         remap_clamp(mu, 0.7f, 1.0f, secondary * 0.45f, secondary * 0.2f),
         primary
     );
-    
+
     return attenuation_probability * in_scattering_probability * 4.0f;
 }
 
 vec3 get_l_scattered(
     vec3 p,
-    float sigma_s_mult, float sigma_t_mult, float phase, float sample_density, 
+    float sigma_s_mult, float sigma_t_mult, float phase, float sample_density,
     float density_light, float in_scattering_probability, float height, float mu) {
-    
+
     const vec3 sigma_s = CLOUDS_SCATTERING * sigma_s_mult;
     const float sigma_t = CLOUDS_EXTINCTION * sigma_t_mult;
-    
+
     const float volumetric_shadowing = get_volumetric_shadowing(sigma_t, density_light, in_scattering_probability, mu);
     const vec3 luminance = get_luminance(height, p);
     const float sample_transmittance = exp(-sample_density * sigma_t);
-    
+
     vec3 scattered = volumetric_shadowing * phase * luminance * sigma_s;
     scattered = (scattered - scattered * sample_transmittance) / max(sigma_t, 1e-7f);
-    
+
     return scattered;
 }
 
@@ -351,7 +346,7 @@ vec3 get_l_multiscattered(
     const float CLOUD_MULTISCATTERING_STEPS = 4.0f;
     const float SIGMA_S = 0.45f;
     const float SIGMA_T = 0.5f;
-    
+
     const float UNIFORM_PHASE = 1.0f / (4.0f * PI);
     float phase_mix = u_hg_eccentricity;
     float orig = hg_phase;
@@ -359,10 +354,10 @@ vec3 get_l_multiscattered(
         HenyeyGreenstein(mu, u_hg_eccentricity_backward) * 1,
         hg_phase,
         transmittance * exp(-density_light * CLOUDS_EXTINCTION * u_hg_mix_coefficient));
-    
+
     float sigma_s_mult = 1.0f;
     float sigma_t_mult = 1.0f;
-    
+
     const float in_scattering_probability = get_in_scattering_probability(height);
     vec3 l_scattered = vec3(0.0f);
     [[unroll]]
@@ -376,19 +371,19 @@ vec3 get_l_multiscattered(
         sigma_s_mult *= SIGMA_S;
         sigma_t_mult *= SIGMA_T;
     }
-    
+
     return l_scattered;
 }
 
-vec3 integrate_scattered_luminance(vec3 p, float hg_phase, float sample_density, vec3 light_dir, float mu,
-    vec4 cloud_map, float lod) {
+vec3 integrate_scattered_luminance(vec3 p, float hg_phase, float sample_density, vec3 light_dir, float mu, float lod) {
 
     const float dl = cloud_light_march(p, light_dir);
-    const float relative_height = relative_height(p, vec2(CLOUDS_MIN_RADIUS, CLOUDS_MAX_RADIUS));
-    
-    const vec3 l_multiscattered = get_l_multiscattered(p, hg_phase, sample_density, 
-        dl, relative_height, mu);
-    
+    const float relative_height = relative_height(p, EARTH_RADIUS + VIEW_HEIGHT,
+        vec2(CLOUDS_MIN_RADIUS, CLOUDS_MAX_RADIUS));
+
+    const vec3 l_multiscattered = get_l_multiscattered(p, hg_phase, sample_density,
+    dl, relative_height, mu);
+
     return l_multiscattered;
 }
 
@@ -397,7 +392,7 @@ float height_fog_amount(float depth, vec3 ro, vec3 rd) {
     const float fog_start = 0.0f;
     const float fog_end = 500.0f;
     const float fog_density = 5e-4f;
-    
+
     const float start_falloff = clamp((depth - fog_start_view) / fog_start_view, 0.0f, 1.0f);
     const float fog_falloff_scale = 1.0f / (max(0.01f, fog_end - fog_start));
     const float fog_falloff = 6.907755f * fog_falloff_scale;
@@ -410,40 +405,40 @@ float height_fog_amount(float depth, vec3 ro, vec3 rd) {
     const float height_line_falloff = max(min_line_height - fog_start, 0.0f);
 
     const float base_height_fog_distance = clamp((fog_start - min_line_height) / effective_z, 0.0f, depth);
-    const float exp_fog_distance = depth - base_height_fog_distance; 
+    const float exp_fog_distance = depth - base_height_fog_distance;
     const float exp_height_line_intergral =
-        exp(-height_line_falloff * fog_falloff) * 
+        exp(-height_line_falloff * fog_falloff) *
         (1.0f - exp(-exp_fog_distance * effective_z * fog_falloff)) / (effective_z * fog_falloff);
 
     const float optical_depth_height_fog = fog_density * start_falloff *
         (base_height_fog_distance + exp_height_line_intergral);
     const float transmittance = exp(-optical_depth_height_fog);
-    
+
     return 1.0f - transmittance;
 }
 
 vec4 height_fog(float depth, vec3 ro, vec3 rd, float mu) {
     const vec3 l0 = u_directional_lights.lights[0].color * u_directional_lights.lights[0].intensity;
     const vec3 directional = l0 * get_atmosphere_transmittance(ro + rd * depth);
-    
+
     const float phase = HenyeyGreenstein(mu, 0.6f) * (1.0f / (4.0f * PI));
 
     const vec3 right = normalize(cross(vec3(0, 1, 0), rd));
     const vec3 forward = normalize(cross(right, vec3(0, 1, 0)));
     const float light_view_cos = normalize(vec2(dot(light_dir, forward), dot(light_dir, right))).x;
-    const vec2 sky_view_uv = 
+    const vec2 sky_view_uv =
         sky_view_uv_from_zen_view_cos(u_view_info.view, false, 0.0f, light_view_cos, u_view_info.view.surface);
-    
+
     vec3 fog_color = textureLod(nonuniformEXT(sampler2D(u_textures[
-        u_view_info.view.sky_view_lut], u_sampler_ce)), sky_view_uv, 0).rgb; 
-    
-    return vec4(fog_color + directional * phase, height_fog_amount(depth, ro, rd)); 
+        u_view_info.view.sky_view_lut], u_sampler_ce)), sky_view_uv, 0).rgb;
+
+    return vec4(fog_color + directional * phase, height_fog_amount(depth, ro, rd));
 }
 
 float atmosphere_blend(float depth) {
     const float distance = clamp(depth * 0.0000125f, 0.0f, 1.0f);
     const float fade = pow(distance, 2.0f);
-    
+
     return smoothstep(0.0f, 1.0f, fade);
 }
 
@@ -454,15 +449,14 @@ struct CloudInfo {
 
 CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     const float angle_zenith = clamp(dot(rd, vec3(0.0f, 1.0f, 0.0f)), 0.0f, 1.0f);
-    const float MAX_STEPS = mix(64.0f, 96.0f, 1.0f - angle_zenith);
-    const float MAX_DISTANCE = 30000.0f;
+    const float MAX_STEPS = mix(64.0f, 158.0f, 1.0f - angle_zenith);
     const float MIN_TRANSMITTANCE = 5e-3f;
-   
+
     float depth_t = depth == 0.0f ? DEPTH_MAX : depth;
-    
+
     Intersection cloud_intersection = get_intersection_with_clouds(ro, rd);
-    Intersection earth_intersection = 
-        intersect_sphere(ro + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f), rd, EARTH_CENTER, EARTH_RADIUS);
+    Intersection earth_intersection =
+    intersect_sphere(ro + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f), rd, EARTH_CENTER, EARTH_RADIUS);
     if (earth_intersection.t != 0 && earth_intersection.t < cloud_intersection.t + cloud_intersection.depth) {
         return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(DEPTH_MAX, depth_t));
     }
@@ -473,8 +467,9 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
         return CloudInfo(vec4(0.0f, 0.0f, 0.0f, 1.0f), vec2(DEPTH_MAX, depth_t));
     }
 
-    cloud_intersection.depth = depth == 0.0f ? cloud_intersection.depth : 
+    cloud_intersection.depth = depth == 0.0f ? cloud_intersection.depth :
         min(cloud_intersection.depth, depth);
+    const float MAX_DISTANCE = cloud_intersection.t > 256 * 64.0f ? 30000.0f : 256 * 64.0f;
     cloud_intersection.depth = min(cloud_intersection.depth, MAX_DISTANCE);
 
     const float step_size = cloud_intersection.depth / MAX_STEPS;
@@ -483,23 +478,21 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     float depth_weighted_transmittance = 0.0f;
     float depth_weighted_transmittance_total = 0.0f;
     vec3 in_scattering = vec3(0.0f);
-    
+
     const float mu = dot(rd, light_dir);
-    
+
     const float phase = max(HenyeyGreenstein(mu, u_hg_eccentricity), 0.9f * HenyeyGreenstein(mu, 0.9f));
-    
+
     float in_cloud = 0.0;
     float previous_density = 0.0f;
     uint cloud_misses = 0;
-    
+
     for (float i = 0; i < MAX_STEPS && transmittance > MIN_TRANSMITTANCE; i++) {
-        const vec4 cloud_map = sample_cloud_map(t);
-        
         const float lod = clamp(i * step_size / MAX_DISTANCE, 0.0f, 6.0f);
-        
+
         if (in_cloud > 0.0) {
-            float sample_density = sample_cloud_density(t, cloud_map, lod, true);
-            
+            float sample_density = sample_cloud_density(t, lod, true);
+
             if (sample_density == 0.0f && previous_density == 0.0f) {
                 cloud_misses += 1;
             }
@@ -511,20 +504,19 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
                 const float ds = sample_density * step_size;
                 const float sample_transmittance = exp(-ds * CLOUDS_EXTINCTION);
                 const vec3 luminance_intergal = integrate_scattered_luminance(
-                    t, phase, ds, light_dir, mu, cloud_map, lod
-                );
+                    t, phase, ds, light_dir, mu, lod);
                 in_scattering += transmittance * luminance_intergal;
                 depth_weighted_transmittance += transmittance * length(t - ro);
                 depth_weighted_transmittance_total += transmittance;
 
                 transmittance *= sample_transmittance;
             }
-            
+
             t += step;
 
             previous_density = sample_density;
         } else {
-            in_cloud = sample_cloud_density(t, cloud_map, lod + 1.0f, false);
+            in_cloud = sample_cloud_density(t, lod + 1.0f, false);
             if (in_cloud == 0) {
                 t += step * 2.0f;
                 continue;
@@ -533,7 +525,7 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
             }
         }
     }
-    
+
     const float avg_depth = depth_weighted_transmittance / max(depth_weighted_transmittance_total, 1e-7f);
     float aerial_perspective_slice = aerial_perspective_km_to_slice(avg_depth * 1e-3f);
     float aerial_perspective_weigth = 1.0f;
@@ -548,24 +540,24 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
         aerial_perspective_weigth *
         textureLod(sampler3D(u_aerial_perspective_lut, u_sampler_ce), vec3(uv, aerial_slice_w), 0.0f);
     const vec4 fog = height_fog(avg_depth, ro, rd, mu);
-    
+
     in_scattering = tonemap(in_scattering, 16.0f);
     in_scattering = (1.0f - aerial_perspective.a) * in_scattering + aerial_perspective.rgb * (1.0f - transmittance);
     in_scattering = mix(in_scattering, fog.rgb * (1.0f - transmittance), fog.a);
 
     return CloudInfo(
-        vec4(in_scattering, transmittance), 
-        vec2(transmittance > 0.99f ? depth_t : avg_depth, depth_t));
+    vec4(in_scattering, transmittance),
+    vec2(transmittance > 0.99f ? depth_t : avg_depth, depth_t));
 }
 
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 out_coord = coord;
-#if REPROJECTION
+    #if REPROJECTION
     coord *= REPROJECTION_RES;
     coord += REPROJECTION_OFFSETS[u_view_info.view.frame_number_u32 % REPROJECTION_RES_2D];
-#endif // REPROJECTION
-    
+    #endif // REPROJECTION
+
     const ivec2 image_size = textureSize(u_depth, 0);
     const vec2 texture_size_inv = 1.0f / image_size;
     const vec2 uv = (vec2(coord) + 0.5f) * texture_size_inv;
@@ -579,10 +571,10 @@ void main() {
     unprojected.xyz /= unprojected.w;
     const vec3 rd = normalize(u_view_info.view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz;
     const vec3 ro = u_view_info.view.position;
-    
+
     const float depth = textureLod(sampler2D(u_depth, u_sampler_ce), uv, 0).r;
     const float linear_depth = depth == 0.0f ?
-        CLOUDS_MAX_RADIUS : -linearize_reverse_z(depth, u_view_info.view.near, u_view_info.view.far);
+    CLOUDS_MAX_RADIUS : -linearize_reverse_z(depth, u_view_info.view.near, u_view_info.view.far);
 
     shape_blue_noise = blue_noise_sample(coord);
     light_blue_noise = blue_noise_sample(coord + ivec2(1));

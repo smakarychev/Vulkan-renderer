@@ -77,6 +77,13 @@ void Settings::initCvars()
         128);
 
     /* clouds */
+    CVarI32 cloudUseExternalCoverageMap("Clouds.LoadCoverage"_hsv,
+        "Flag if cloud coverage map should be loaded from disk "
+        "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)false);
+    CVarI32 cloudUseExternalProfileMap("Clouds.LoadProfile"_hsv,
+        "Flag if cloud profile map should be loaded from disk "
+        "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+    
     CVarI32 cloudMapSize("Clouds.CloudMap.Size"_hsv,
         "Size of the cloud map",
         512);

@@ -1,6 +1,11 @@
 #pragma once
 #include "RenderGraph/RGResource.h"
 
+namespace Passes::Clouds::VP
+{
+    struct CloudParameters;
+}
+
 namespace Passes::CloudReproject
 {
     struct ExecutionInfo
@@ -14,6 +19,7 @@ namespace Passes::CloudReproject
         RG::Resource ColorAccumulationOut{};
         RG::Resource DepthAccumulationOut{};
         RG::Resource ReprojectionFactorOut{};
+        const Clouds::VP::CloudParameters* CloudParameters{nullptr};
     };
     struct PassData
     {

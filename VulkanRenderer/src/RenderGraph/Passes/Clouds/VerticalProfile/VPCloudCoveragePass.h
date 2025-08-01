@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "RenderGraph/RGResource.h"
 
 namespace Passes::Clouds
@@ -6,17 +6,18 @@ namespace Passes::Clouds
     struct CloudsNoiseParameters;
 }
 
-namespace Passes::CloudMapGeneration
+namespace Passes::Clouds::VP::Coverage
 {
     struct ExecutionInfo
     {
-        /* optional external cloud map image */
-        Image CloudMap{};
-        const Clouds::CloudsNoiseParameters* NoiseParameters{nullptr};
+        /* optional external coverage map image */
+        Image CoverageMap{};
+        const CloudsNoiseParameters* NoiseParameters{nullptr};
     };
     struct PassData
     {
-        RG::Resource CloudMap{};
+        RG::Resource CoverageMap{};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
+

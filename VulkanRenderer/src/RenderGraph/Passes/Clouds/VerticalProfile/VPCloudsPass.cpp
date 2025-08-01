@@ -1,11 +1,12 @@
-﻿#include "CloudsPass.h"
+﻿#include "VPCloudsPass.h"
 
-#include "CloudsCommon.h"
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/CloudsBindGroup.generated.h"
+#include "RenderGraph/Passes/Clouds/CloudsCommon.h"
+#include "RenderGraph/Passes/Generated/CloudVpBindGroup.generated.h"
 #include "Scene/SceneLight.h"
 
-Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
+Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::Graph& renderGraph,
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -13,9 +14,9 @@ Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& r
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Clouds.Setup")
+            CPU_PROFILE_FRAME("VP.Clouds.Setup")
 
-            graph.SetShader("clouds"_hsv, ShaderOverrides{
+            graph.SetShader("cloud-vp"_hsv, ShaderOverrides{
                 ShaderDefines({
                     ShaderDefine("REPROJECTION"_hsv, info.CloudsRenderingMode == CloudsRenderingMode::Reprojection)
                 })
@@ -41,7 +42,8 @@ Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& r
                 .Format = Format::RG16_FLOAT,
             });
       
-            passData.CloudMap = graph.ReadImage(info.CloudMap, Compute | Sampled);
+            passData.CloudCoverage = graph.ReadImage(info.CloudCoverage, Compute | Sampled);
+            passData.CloudProfile = graph.ReadImage(info.CloudProfile, Compute | Sampled);
             passData.CloudShapeLowFrequencyMap = graph.ReadImage(info.CloudShapeLowFrequencyMap, Compute | Sampled);
             passData.CloudShapeHighFrequencyMap = graph.ReadImage(info.CloudShapeHighFrequencyMap, Compute | Sampled);
             passData.CloudCurlNoise = graph.ReadImage(info.CloudCurlNoise, Compute | Sampled);
@@ -55,15 +57,16 @@ Passes::Clouds::PassData& Passes::Clouds::addToGraph(StringId name, RG::Graph& r
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
-            CPU_PROFILE_FRAME("Clouds")
-            GPU_PROFILE_FRAME("Clouds")
+            CPU_PROFILE_FRAME("VP.Clouds")
+            GPU_PROFILE_FRAME("VP.Clouds")
 
             const glm::uvec2 resolution = graph.GetImageDescription(passData.ColorOut).Dimensions();
 
             const Shader& shader = graph.GetShader();
-            CloudsShaderBindGroup bindGroup(shader);
+            CloudVpShaderBindGroup bindGroup(shader);
             bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
-            bindGroup.SetCloudMap(graph.GetImageBinding(passData.CloudMap));
+            bindGroup.SetCloudCoverage(graph.GetImageBinding(passData.CloudCoverage));
+            bindGroup.SetCloudProfile(graph.GetImageBinding(passData.CloudProfile));
             bindGroup.SetCloudLowFrequency(graph.GetImageBinding(passData.CloudShapeLowFrequencyMap));
             bindGroup.SetCloudHighFrequency(graph.GetImageBinding(passData.CloudShapeHighFrequencyMap));
             bindGroup.SetCloudCurlNoise(graph.GetImageBinding(passData.CloudCurlNoise));

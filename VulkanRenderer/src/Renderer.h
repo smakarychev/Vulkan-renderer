@@ -10,7 +10,7 @@
 #include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
 #include "RenderGraph/Passes/Clouds/CloudsCommon.h"
-#include "RenderGraph/Passes/Clouds/CloudsPass.h"
+#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudsPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "RenderGraph/Visualization/RGMermaidExporter.h"
@@ -99,10 +99,11 @@ private:
 
     struct CloudMapsInfo
     {
-        RG::Resource CloudMap{};
-        RG::Resource CloudShapeLowFrequency{};
-        RG::Resource CloudShapeHighFrequency{};
-        RG::Resource CloudCurlNoise{};
+        RG::Resource Coverage{};
+        RG::Resource Profile{};
+        RG::Resource ShapeLowFrequency{};
+        RG::Resource ShapeHighFrequency{};
+        RG::Resource CurlNoise{};
     };
     CloudMapsInfo RenderGraphGetCloudMaps();
     struct CloudsInfo
@@ -163,7 +164,8 @@ private:
     Texture m_SkyPrefilterMap{};
     RG::Resource m_SkyPrefilterMapResource{};
 
-    Texture m_CloudMap{};
+    Texture m_CloudCoverage{};
+    Texture m_CloudProfileMap{};
     Texture m_CloudShapeLowFrequency{};
     Texture m_CloudShapeHighFrequency{};
     Texture m_CloudCurlNoise{};
@@ -172,10 +174,10 @@ private:
     std::array<Texture, 2> m_CloudReprojectionFactor{};
     u32 m_CloudsAccumulationIndex{0};
     u32 m_CloudsAccumulationIndexPrev{1};
-    Passes::Clouds::CloudsNoiseParameters m_CloudMapNoiseParameters{};
+    Passes::Clouds::CloudsNoiseParameters m_CloudCoverageNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};
-    Passes::Clouds::CloudParameters m_CloudParameters{};
+    Passes::Clouds::VP::CloudParameters m_CloudParameters{};
     bool m_CloudsReprojectionEnabled{true};
     
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
