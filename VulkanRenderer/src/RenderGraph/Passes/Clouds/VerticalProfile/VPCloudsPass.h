@@ -18,7 +18,7 @@ namespace Passes::Clouds::VP
         f32 DetailNoiseContribution = 0.1f;
         f32 DetailNoiseHeightModifier = 3.0f;
         f32 WindAngle{glm::radians(35.0f)};
-        f32 WindSpeed{0.25f};
+        f32 WindSpeed{0.15f};
         f32 WindUprightAmount{0.1f};
         f32 WindHorizontalSkew{500.0f};
         
@@ -32,7 +32,6 @@ namespace Passes::Clouds::VP
 
         f32 HGEccentricity{0.2f};
         f32 HGBackwardEccentricity{-0.15f};
-        f32 HGMixCoefficient{0.67f};
         u32 BlueNoiseBindlessIndex{~0u};
     };
     struct ExecutionInfo

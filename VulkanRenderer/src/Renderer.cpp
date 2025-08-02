@@ -1173,7 +1173,6 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
 
     ImGui::DragFloat("HG eccentricity", &m_CloudParameters.HGEccentricity, 1e-2f, 0.0f, 1.0f);
     ImGui::DragFloat("HG backward eccentricity", &m_CloudParameters.HGBackwardEccentricity, 1e-2f, -1.0f, 0.0f);
-    ImGui::DragFloat("HG mix", &m_CloudParameters.HGMixCoefficient, 1e-2f, 0.0f, 1.0f);
     
     ImGui::Checkbox("Reprojection", &m_CloudsReprojectionEnabled);
     
