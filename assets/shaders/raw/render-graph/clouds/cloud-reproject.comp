@@ -93,6 +93,8 @@ void main() {
     unprojected.xyz = mat3(u_view_info.view.inv_view) * unprojected.xyz;
 
     //unprojected.xyz += layer.relative_height * wind_direction * u_wind_horizontal_skew;
+    // todo: use delta time here and in main shader
+    // todo: it does not seem to work for some reason...
     unprojected.xyz -= wind_direction * u_wind_speed;
     
     unprojected.xyz = mat3(u_view_info.view.prev_view) * unprojected.xyz;

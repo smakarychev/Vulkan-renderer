@@ -1164,9 +1164,6 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
     ImGui::DragFloat("Wind speed", &m_CloudParameters.WindSpeed, 1e-2f);
     ImGui::DragFloat("Wind upright amount", &m_CloudParameters.WindUprightAmount, 1e-2f);
     ImGui::DragFloat("Wind horizontal skew", &m_CloudParameters.WindHorizontalSkew, 1e+1f);
-    ImGui::DragFloat4("Anvil stratus", &m_CloudParameters.AnvilStratus[0], 1e-2f);
-    ImGui::DragFloat4("Anvil stratocumulus", &m_CloudParameters.AnvilStratocumulus[0], 1e-2f);
-    ImGui::DragFloat4("Anvil cumulus", &m_CloudParameters.AnvilCumulus[0], 1e-2f);
     ImGui::DragFloat("Curl noise scale multiplier", &m_CloudParameters.CurlNoiseScaleMultiplier, 1e-3f);
     ImGui::DragFloat("Curl noise height", &m_CloudParameters.CurlNoiseHeight, 1e-3f);
     ImGui::DragFloat("Curl noise contribution", &m_CloudParameters.CurlNoiseContribution, 1e-3f);

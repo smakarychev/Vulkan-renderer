@@ -394,7 +394,7 @@ float curly_alligator(vec3 p, float freq) {
 
 const int REPROJECTION_RES = 4;
 const int REPROJECTION_RES_2D = 16;
-const float DEPTH_MAX = 3.402823e+38f;
+const float DEPTH_MAX = 65504.0f;
 
 const ivec2 REPROJECTION_OFFSETS[REPROJECTION_RES_2D] = {
     ivec2(2,1), ivec2(1,2), ivec2(2,0), ivec2(0,1),

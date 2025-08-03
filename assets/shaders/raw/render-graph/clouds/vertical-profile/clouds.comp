@@ -46,7 +46,6 @@ layout(scalar, set = 1, binding = 11) readonly buffer directional_lights {
     DirectionalLight lights[];
 } u_directional_lights;
 
-
 layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];
 } u_materials;
@@ -66,10 +65,6 @@ layout(push_constant, scalar) uniform push_constants {
     float u_wind_speed;
     float u_wind_upright_amount;
     float u_wind_horizontal_skew;
-
-    vec4 u_anvil_stratus;
-    vec4 u_anvil_stratocumulus;
-    vec4 u_anvil_cumulus;
 
     float u_curl_noise_scale_multiplier;
     float u_curl_noise_height;
@@ -144,7 +139,6 @@ struct ShadingInfo {
     float sample_transmittance;
     float primary_phase;
     float secondary_phase;
-    float step_size;
 };
 
 vec3 cloud_type_vec(float type) {
@@ -252,7 +246,7 @@ float cloud_light_march(vec3 p, vec3 rd) {
 
         const float delta = t1 - t0;
         const float t = t0 + delta * sample_t + delta * light_blue_noise;
-        const float shadow_t = 256.0f * t;
+        const float shadow_t = 384.0f * t;
         const float step_size = shadow_t - last_step;
         last_step = shadow_t;
         const vec3 sample_point = p + rd * shadow_t;
@@ -301,8 +295,8 @@ vec3 get_direct_scattering(CloudLayerInfo layer, ShadingInfo shading) {
 }
 
 vec3 get_ambient_scattering(CloudLayerInfo layer, ShadingInfo shading) {
-    const float vertical_gradient = remap_01(layer.relative_height, 0.2f, 0.4f);
-    const float ambient_multiplier = 0.6f;
+    const float vertical_gradient = remap_01(layer.relative_height, 0.2f, 0.6f);
+    const float ambient_multiplier = 0.5f;
     const vec3 ambient = SH_irradiance_shade_constant(u_irradiance_SH.sh) * ambient_multiplier * vertical_gradient;
     const float scattering = pow(1.0f - layer.dimensional_profile, 0.5f);
     
@@ -413,7 +407,7 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
 
     const float mu = dot(rd, light_dir);
 
-    const float phase = max(HenyeyGreenstein(mu, u_hg_eccentricity), 0.9f * HenyeyGreenstein(mu, 0.9f));
+    const float phase = max(HenyeyGreenstein(mu, u_hg_eccentricity), 0.4f * HenyeyGreenstein(mu, 0.88f));
 
     float in_cloud = 0.0;
     float previous_density = 0.0f;
@@ -443,7 +437,6 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
                 shading.sample_transmittance = sample_transmittance;
                 shading.primary_phase = phase;
                 shading.secondary_phase = HenyeyGreenstein(mu, u_hg_eccentricity_backward);
-                shading.step_size = step_size;
                 const vec3 light_energy = get_light_energy(layer, shading);
                 in_scattering += transmittance * light_energy;
                 depth_weighted_transmittance += transmittance * length(t - ro);
@@ -487,7 +480,7 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
 
     return CloudInfo(
         vec4(in_scattering, transmittance),
-        vec2(transmittance > 0.99f ? depth_t : avg_depth, depth_t));
+        vec2(transmittance > 0.99f ? DEPTH_MAX : avg_depth, depth_t));
 }
 
 void main() {

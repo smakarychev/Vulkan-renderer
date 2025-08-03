@@ -21,10 +21,6 @@ namespace Passes::Clouds::VP
         f32 WindSpeed{0.15f};
         f32 WindUprightAmount{0.1f};
         f32 WindHorizontalSkew{500.0f};
-        
-        glm::vec4 AnvilStratus{0.0f, 0.0f, 0.0f, 0.0f};
-        glm::vec4 AnvilStratocumulus{0.5f, 0.0f, 6.5f, 2.5f};
-        glm::vec4 AnvilCumulus{0.5f, 0.5f, 0.5f, 0.6f};
 
         f32 CurlNoiseScaleMultiplier{0.3f};
         f32 CurlNoiseHeight{0.6f};
