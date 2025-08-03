@@ -32,8 +32,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 .Kind = ImageKind::Cubemap
             });
 
-            auto& globalResources = graph.GetGlobalResources();
-            std::vector directions = {
+            static const std::vector DIRECTIONS = {
                 glm::vec3{ 1.0, 0.0, 0.0},
                 glm::vec3{-1.0, 0.0, 0.0},
                 glm::vec3{ 0.0, 1.0, 0.0},
@@ -41,7 +40,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 glm::vec3{ 0.0, 0.0, 1.0},
                 glm::vec3{ 0.0, 0.0,-1.0},
             };
-            std::vector upVectors = {
+            static const std::vector UP_VECTORS = {
                 glm::vec3{0.0,-1.0, 0.0},
                 glm::vec3{0.0,-1.0, 0.0},
                 glm::vec3{0.0, 0.0, 1.0},
@@ -60,8 +59,8 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 
                 Camera camera = Camera::Perspective({
                     .BaseInfo = CameraCreateInfo{
-                        .Position = globalResources.PrimaryCamera->GetPosition(),
-                        .Orientation = glm::normalize(glm::quatLookAt(directions[faceIndex], upVectors[faceIndex])),
+                        .Position = info.PrimaryView->Camera.Position,
+                        .Orientation = glm::normalize(glm::quatLookAt(DIRECTIONS[faceIndex], UP_VECTORS[faceIndex])),
                         .Near = NEAR,
                         .Far = FAR,
                         .ViewportWidth = (u32)environmentSize,
