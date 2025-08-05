@@ -17,7 +17,8 @@ void ShaderCache::Init()
 
 void ShaderCache::Shutdown()
 {
-    for (const PipelineInfo& pipeline : m_Pipelines | std::views::values)
+    for (const PipelineInfo& pipeline : m_Pipelines | std::views::values |
+        std::views::filter([](const PipelineInfo& pipeline){ return pipeline.Pipeline.HasValue(); }))
         Device::Destroy(pipeline.Pipeline);
 
     if (const auto res = m_FileWatcher.StopWatching(); !res.has_value())
