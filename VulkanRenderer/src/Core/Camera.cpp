@@ -5,6 +5,8 @@
 #include "core.h"
 #include "Input.h"
 
+#include <vector>
+
 static constexpr glm::vec3 DEFAULT_POSITION     = glm::vec3(0.0f);
 static const     glm::quat DEFAULT_ORIENTATION	= glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f));
 static constexpr f32  DEFAULT_FOV               = glm::radians(60.0f);
@@ -80,6 +82,42 @@ Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
     camera.UpdateViewProjection();
 
     return camera;
+}
+
+Camera Camera::EnvironmentCapture(const glm::vec3& position, u32 viewportSize, u32 faceIndex)
+{
+    static const std::vector DIRECTIONS = {
+        glm::vec3{ 1.0, 0.0, 0.0},
+        glm::vec3{-1.0, 0.0, 0.0},
+        glm::vec3{ 0.0, 1.0, 0.0},
+        glm::vec3{ 0.0,-1.0, 0.0},
+        glm::vec3{ 0.0, 0.0, 1.0},
+        glm::vec3{ 0.0, 0.0,-1.0},
+    };
+    static const std::vector UP_VECTORS = {
+        glm::vec3{0.0,-1.0, 0.0},
+        glm::vec3{0.0,-1.0, 0.0},
+        glm::vec3{0.0, 0.0, 1.0},
+        glm::vec3{0.0, 0.0,-1.0},
+        glm::vec3{0.0,-1.0, 0.0},
+        glm::vec3{0.0,-1.0, 0.0},
+    };
+    
+    /* this should not matter at all */
+    static constexpr f32 NEAR = 0.1f;
+    static constexpr f32 FAR = 1.0f;
+                
+    return Perspective({
+        .BaseInfo = CameraCreateInfo{
+            .Position = position,
+            .Orientation = glm::normalize(glm::quatLookAt(DIRECTIONS[faceIndex], UP_VECTORS[faceIndex])),
+            .Near = NEAR,
+            .Far = FAR,
+            .ViewportWidth = viewportSize,
+            .ViewportHeight = viewportSize,
+            .FlipY = false
+        },
+        .Fov = glm::radians(90.0f)});
 }
 
 void Camera::SetType(CameraType type)

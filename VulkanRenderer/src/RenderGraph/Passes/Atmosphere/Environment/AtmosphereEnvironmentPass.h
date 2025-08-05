@@ -11,6 +11,8 @@ namespace Passes::Atmosphere::Environment
         const ViewInfoGPU* PrimaryView{nullptr};
         const SceneLight* Light{nullptr};
         RG::Resource SkyViewLut{};
+        /* optional external color image resource */
+        RG::Resource ColorIn{};
     };
     struct PassData
     {

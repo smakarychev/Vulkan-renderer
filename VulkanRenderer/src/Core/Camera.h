@@ -68,6 +68,7 @@ public:
 
     static Camera Perspective(const PerspectiveCameraCreateInfo& info);
     static Camera Orthographic(const OrthographicCameraCreateInfo& info);
+    static Camera EnvironmentCapture(const glm::vec3& position, u32 viewportSize, u32 faceIndex);
 
     void SetType(CameraType type);
     CameraType GetType() const { return m_CameraType; }
