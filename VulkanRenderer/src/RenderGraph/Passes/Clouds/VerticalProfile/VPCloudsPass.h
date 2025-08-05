@@ -39,11 +39,16 @@ namespace Passes::Clouds::VP
         RG::Resource CloudShapeHighFrequencyMap{};
         RG::Resource CloudCurlNoise{};
         RG::Resource DepthIn{};
+        /* optional external color target resource */
+        RG::Resource ColorOut{};
+        /* optional external depth target resource */
+        RG::Resource DepthOut{}; 
         RG::Resource AerialPerspectiveLut{};
         RG::Resource IrradianceSH{};
         const SceneLight* Light{nullptr};
         const CloudParameters* CloudParameters{nullptr};
         CloudsRenderingMode CloudsRenderingMode{CloudsRenderingMode::FullResolution};
+        bool IsEnvironmentCapture{false};
     };
     struct PassData
     {

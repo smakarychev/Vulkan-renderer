@@ -18,7 +18,8 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
 
             graph.SetShader("cloud-vp"_hsv, ShaderOverrides{
                 ShaderDefines({
-                    ShaderDefine("REPROJECTION"_hsv, info.CloudsRenderingMode == CloudsRenderingMode::Reprojection)
+                    ShaderDefine("REPROJECTION"_hsv, info.CloudsRenderingMode == CloudsRenderingMode::Reprojection),
+                    ShaderDefine("ENVIRONMENT_CAPTURE"_hsv, info.IsEnvironmentCapture),
                 })
             });
 
@@ -27,31 +28,44 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
 
             const f32 relativeSize = info.CloudsRenderingMode == CloudsRenderingMode::Reprojection ?
                 REPROJECTION_RELATIVE_SIZE : 1.0f;
-            passData.ColorOut = graph.Create("Clouds.Color"_hsv, RGImageDescription{
-                .Inference = RGImageInference::Size2d,
-                .Width = relativeSize,
-                .Height = relativeSize,
-                .Reference = info.DepthIn,
-                .Format = Format::RGBA16_FLOAT,
-            });
-            passData.DepthOut = graph.Create("Clouds.Depth"_hsv, RGImageDescription{
-                .Inference = RGImageInference::Size2d,
-                .Width = relativeSize,
-                .Height = relativeSize,
-                .Reference = info.DepthIn,
-                .Format = Format::RG16_FLOAT,
-            });
+            if (!info.ColorOut.IsValid())
+                passData.ColorOut = graph.Create("Clouds.Color"_hsv, RGImageDescription{
+                    .Inference = RGImageInference::Size2d,
+                    .Width = relativeSize,
+                    .Height = relativeSize,
+                    .Reference = info.DepthIn,
+                    .Format = Format::RGBA16_FLOAT,
+                });
+            else
+                passData.ColorOut = info.ColorOut;
+            if (!info.DepthOut.IsValid() && !info.IsEnvironmentCapture)
+                passData.DepthOut = graph.Create("Clouds.Depth"_hsv, RGImageDescription{
+                    .Inference = RGImageInference::Size2d,
+                    .Width = relativeSize,
+                    .Height = relativeSize,
+                    .Reference = info.DepthIn,
+                    .Format = Format::RG16_FLOAT,
+                });
+            else
+                passData.DepthOut = info.DepthOut;
       
             passData.CloudCoverage = graph.ReadImage(info.CloudCoverage, Compute | Sampled);
             passData.CloudProfile = graph.ReadImage(info.CloudProfile, Compute | Sampled);
             passData.CloudShapeLowFrequencyMap = graph.ReadImage(info.CloudShapeLowFrequencyMap, Compute | Sampled);
             passData.CloudShapeHighFrequencyMap = graph.ReadImage(info.CloudShapeHighFrequencyMap, Compute | Sampled);
             passData.CloudCurlNoise = graph.ReadImage(info.CloudCurlNoise, Compute | Sampled);
-            passData.AerialPerspectiveLut = graph.ReadImage(info.AerialPerspectiveLut, Compute | Sampled);
-            passData.DepthIn = graph.ReadImage(info.DepthIn, Compute | Sampled);
+            if (!info.IsEnvironmentCapture)
+            {
+                passData.AerialPerspectiveLut = graph.ReadImage(info.AerialPerspectiveLut, Compute | Sampled);
+                passData.DepthIn = graph.ReadImage(info.DepthIn, Compute | Sampled);
+                passData.DepthOut = graph.WriteImage(passData.DepthOut, Compute | Storage);
+                passData.ColorOut = graph.WriteImage(passData.ColorOut, Compute | Storage);
+            }
+            else
+            {
+                passData.ColorOut = graph.ReadWriteImage(passData.ColorOut, Compute | Storage);
+            }
             passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Compute | Uniform);
-            passData.ColorOut = graph.WriteImage(passData.ColorOut, Compute | Storage);
-            passData.DepthOut = graph.WriteImage(passData.DepthOut, Compute | Storage);
             passData.IrradianceSH = graph.ReadBuffer(info.IrradianceSH, Compute | Uniform);
             passData.DirectionalLights = graph.ReadBuffer(passData.DirectionalLights, Compute | Uniform);
         },
@@ -70,10 +84,13 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
             bindGroup.SetCloudLowFrequency(graph.GetImageBinding(passData.CloudShapeLowFrequencyMap));
             bindGroup.SetCloudHighFrequency(graph.GetImageBinding(passData.CloudShapeHighFrequencyMap));
             bindGroup.SetCloudCurlNoise(graph.GetImageBinding(passData.CloudCurlNoise));
-            bindGroup.SetDepth(graph.GetImageBinding(passData.DepthIn));
-            bindGroup.SetAerialPerspectiveLut(graph.GetImageBinding(passData.AerialPerspectiveLut));
+            if (!info.IsEnvironmentCapture)
+            {
+                bindGroup.SetDepth(graph.GetImageBinding(passData.DepthIn));
+                bindGroup.SetAerialPerspectiveLut(graph.GetImageBinding(passData.AerialPerspectiveLut));
+                bindGroup.SetOutDepth(graph.GetImageBinding(passData.DepthOut));
+            }
             bindGroup.SetOutColor(graph.GetImageBinding(passData.ColorOut));
-            bindGroup.SetOutDepth(graph.GetImageBinding(passData.DepthOut));
             bindGroup.SetIrradianceSH(graph.GetBufferBinding(passData.IrradianceSH));
             bindGroup.SetDirectionalLights(graph.GetBufferBinding(passData.DirectionalLights));
 

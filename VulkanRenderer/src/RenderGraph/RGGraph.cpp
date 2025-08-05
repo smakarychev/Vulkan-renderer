@@ -1290,6 +1290,10 @@ namespace RG
         imageResource.Description = Device::GetImageDescription(image);
         imageResource.Resource = image;
         imageResource.Layout = layout;
+        imageResource.Extras.resize(imageResource.Description.AdditionalViews.size(), ImageResourceExtraInfo{
+            .Version = 0,
+            .Layout = layout
+        });
         m_Images.push_back(imageResource);
 
         return resource;
@@ -1364,26 +1368,39 @@ namespace RG
 
     Resource Graph::SplitImage(Resource main, ImageSubresourceDescription subresource)
     {
-        RG_CHECK_RETURN(main.IsImage() && !main.HasFlags(ResourceFlags::Imported),
-            "Failed to split image resource: {}. Resource have to be internal image", main)
+        RG_CHECK_RETURN(main.IsImage(), "Failed to split image resource: {}. Resource in not an image", main)
 
         auto& image = m_Images[main.m_Index];
         
-        const u16 subresourceIndex = (u16)image.Description.AdditionalViews.size();
-        RG_CHECK_RETURN(subresourceIndex < std::numeric_limits<u8>::max() - 1,
-            "Failed to split image resource: {}. Too many splits exist already", main)
-
         Resource split = main;
-        image.Description.AdditionalViews.push_back(subresource);
-        image.Extras.push_back({
-            .Version = split.m_Version,
-            .Layout = ImageLayout::Undefined
-        });
+        u16 subresourceIndex = {};
+        auto it = std::ranges::find(image.Description.AdditionalViews, subresource);
+        if (it == image.Description.AdditionalViews.end())
+        {
+            RG_CHECK_RETURN(!main.HasFlags(ResourceFlags::Imported),
+                "Failed to split image resource: {}. "
+                "Resource have to be internal image in order to have additional views", main)
+            
+            subresourceIndex = (u16)image.Description.AdditionalViews.size();
+            RG_CHECK_RETURN(subresourceIndex < std::numeric_limits<u8>::max() - 1,
+                "Failed to split image resource: {}. Too many splits exist already", main)
+            image.Description.AdditionalViews.push_back(subresource);
+            image.Extras.push_back({
+                .Version = split.m_Version,
+                .Layout = ImageLayout::Undefined
+            });
+        }
+        else
+        {
+            subresourceIndex = (u16)std::distance(image.Description.AdditionalViews.begin(), it);    
+        }
+        
         split.m_Flags &= ~ResourceFlags::Merge;
         split.AddFlags(ResourceFlags::Split);
         split.m_Extra = (u8)subresourceIndex;
         image.State = ImageResourceState::Split;
-
+        image.ActiveSplitCount += 1;
+        
         /* this uses separate pass instead of directly calling `ReadImage` to allow for split outside Pass */
         if (m_PassIndicesStack.empty())
         {
@@ -1409,6 +1426,7 @@ namespace RG
         RG_CHECK_RETURN(!splits.empty(), "Failed to merge image: nothing to merge")
 
         const u16 index = splits.front().m_Index;
+        auto& image = m_Images[index];
 
         for (const Resource split : splits | std::views::drop(1))
         {
@@ -1416,10 +1434,7 @@ namespace RG
             RG_CHECK_RETURN(split.HasFlags(ResourceFlags::Split),
                 "Failed to merge image: resource is not a split {}", split)
         }
-        RG_CHECK_RETURN(splits.size() == m_Images[index].Description.AdditionalViews.size(),
-            "Failed to merge image: must merge on all splits")
-
-        auto& image = m_Images[index];
+        RG_CHECK_RETURN(splits.size() == image.ActiveSplitCount, "Failed to merge image: must merge on all splits")
         
         Resource merged = splits.front();
         merged.m_Flags &= ~ResourceFlags::Split;

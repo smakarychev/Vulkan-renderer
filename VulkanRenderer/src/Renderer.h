@@ -90,13 +90,6 @@ private:
     };
     ClusterLightsInfo RenderGraphCullLightsClustered(StringId baseName, RG::Resource depth);
 
-    RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
-    Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
-    void RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut);
-
-    RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut, RG::Resource aerialPerspective,
-        RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds, RG::Resource cloudsDepth);
-
     struct CloudMapsInfo
     {
         RG::Resource Coverage{};
@@ -106,6 +99,14 @@ private:
         RG::Resource CurlNoise{};
     };
     CloudMapsInfo RenderGraphGetCloudMaps();
+    RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
+    Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
+    RG::Resource RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut,
+        const CloudMapsInfo& cloudMaps);
+
+    RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut, RG::Resource aerialPerspective,
+        RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds, RG::Resource cloudsDepth);
+
     struct CloudsInfo
     {
         RG::Resource ColorPrevious{};
@@ -163,6 +164,8 @@ private:
     RG::Resource m_SkyIrradianceSHResource{};
     Texture m_SkyPrefilterMap{};
     RG::Resource m_SkyPrefilterMapResource{};
+    
+    Texture m_SkyAtmosphereWithCloudsEnvironment{};
 
     Texture m_CloudCoverage{};
     Texture m_CloudProfileMap{};

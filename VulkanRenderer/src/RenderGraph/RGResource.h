@@ -141,6 +141,7 @@ namespace RG
         Image Resource{};
         ImageLayout Layout{ImageLayout::Undefined};
         u16 LatestVersion{0};
+        u16 ActiveSplitCount{0};
         ImageResourceState State{ImageResourceState::Merged};
         std::vector<ImageResourceExtraInfo> Extras{};
     };

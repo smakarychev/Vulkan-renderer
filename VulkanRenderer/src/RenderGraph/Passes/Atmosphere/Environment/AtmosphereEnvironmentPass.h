@@ -13,6 +13,7 @@ namespace Passes::Atmosphere::Environment
         RG::Resource SkyViewLut{};
         /* optional external color image resource */
         RG::Resource ColorIn{};
+        Span<const u32> FaceIndices;
     };
     struct PassData
     {

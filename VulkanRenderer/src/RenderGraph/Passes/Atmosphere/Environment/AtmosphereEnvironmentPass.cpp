@@ -37,9 +37,10 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                 });
 
             std::array<Resource, 6> faces{};
-            
-            for (u32 faceIndex = 0; faceIndex < faces.size(); faceIndex++)
+
+            for (u32 i = 0; i < info.FaceIndices.size(); i++)
             {
+                const u32 faceIndex = info.FaceIndices[i];
                 const Camera camera = Camera::EnvironmentCapture(info.PrimaryView->Camera.Position,
                     (u32)environmentSize, faceIndex);
                 ViewInfoGPU viewInfo = *info.PrimaryView;
@@ -48,7 +49,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                     .SizeBytes = sizeof(ViewInfoGPU)});
                 viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
 
-                faces[faceIndex] = graph.SplitImage(passData.ColorOut,
+                faces[i] = graph.SplitImage(passData.ColorOut,
                     {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
                 
                 auto& atmosphere = Raymarch::addToGraph(
@@ -56,20 +57,13 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                         .ViewInfo = viewInfoResource,
                         .Light = info.Light,
                         .SkyViewLut = info.SkyViewLut,
-                        .ColorIn = faces[faceIndex],
+                        .ColorIn = faces[i],
                         .UseSunLuminance = USE_SUN_LUMINANCE
                     });
-                faces[faceIndex] = atmosphere.ColorOut;
+                faces[i] = atmosphere.ColorOut;
             }
 
-            passData.ColorOut = graph.AddRenderPass<Resource>("EnvironmentMipmaps"_hsv,
-                [&](Graph& mipmapGraph, Resource& mipmapData)
-                {
-                    mipmapData = mipmapGraph.MergeImage(faces);
-                    auto& mipmapped = Mipmap::addToGraph(name.Concatenate(".Mipmaps"), graph, mipmapData);
-                    mipmapData = mipmapped.Texture;
-                },
-                [=](const Resource&, FrameContext&, const Graph&){});
+            passData.ColorOut = graph.MergeImage(Span<const Resource>(faces.data(), info.FaceIndices.size()));
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

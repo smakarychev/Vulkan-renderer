@@ -263,11 +263,23 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         RG::Graph graph;
         RG::Resource image = graph.Create("MyImage"_hsv, RG::RGImageDescription{});
         REQUIRE(graph.GetImageDescription(image).AdditionalViews.empty());
+        RG::Resource split0 = graph.SplitImage(image, {.LayerBase = 1});
+        REQUIRE(graph.GetImageDescription(image).AdditionalViews.size() == 1);
+        REQUIRE(&graph.GetImageDescription(image) == &graph.GetImageDescription(split0));
+        RG::Resource split1 = graph.SplitImage(image, {.LayerBase = 2});
+        REQUIRE(graph.GetImageDescription(image).AdditionalViews.size() == 2);
+        REQUIRE(&graph.GetImageDescription(image) == &graph.GetImageDescription(split1));
+    }
+    SECTION("Identicals splits do result in single resource")
+    {
+        RG::Graph graph;
+        RG::Resource image = graph.Create("MyImage"_hsv, RG::RGImageDescription{});
+        REQUIRE(graph.GetImageDescription(image).AdditionalViews.empty());
         RG::Resource split0 = graph.SplitImage(image, {});
         REQUIRE(graph.GetImageDescription(image).AdditionalViews.size() == 1);
         REQUIRE(&graph.GetImageDescription(image) == &graph.GetImageDescription(split0));
         RG::Resource split1 = graph.SplitImage(image, {});
-        REQUIRE(graph.GetImageDescription(image).AdditionalViews.size() == 2);
+        REQUIRE(graph.GetImageDescription(image).AdditionalViews.size() == 1);
         REQUIRE(&graph.GetImageDescription(image) == &graph.GetImageDescription(split1));
     }
     SECTION("Can merge split image")
@@ -275,9 +287,9 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
         RG::Graph graph;
         RG::Resource image = graph.Create("MyImage"_hsv, RG::RGImageDescription{});
         RG::Resource image2 = graph.Create("MyImage2"_hsv, RG::RGImageDescription{});
-        RG::Resource split0 = graph.SplitImage(image, {});
-        RG::Resource split1 = graph.SplitImage(image, {});
-        RG::Resource split2 = graph.SplitImage(image2, {});
+        RG::Resource split0 = graph.SplitImage(image, {.LayerBase = 1});
+        RG::Resource split1 = graph.SplitImage(image, {.LayerBase = 2});
+        RG::Resource split2 = graph.SplitImage(image2, {.LayerBase = 3});
 
         RG::Resource failedDifferentResource = graph.MergeImage({split0, split2});
         REQUIRE(!failedDifferentResource.IsValid());

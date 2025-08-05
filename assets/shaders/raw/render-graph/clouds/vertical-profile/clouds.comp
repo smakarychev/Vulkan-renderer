@@ -31,7 +31,11 @@ layout(set = 1, binding = 3) uniform texture3D u_cloud_high_frequency;
 layout(set = 1, binding = 4) uniform texture2D u_cloud_curl_noise;
 layout(set = 1, binding = 5) uniform texture2D u_depth;
 layout(set = 1, binding = 6) uniform texture3D u_aerial_perspective_lut;
+#if !ENVIRONMENT_CAPTURE
 layout(set = 1, binding = 7, rgba16f) uniform writeonly image2D u_out_color;
+#else // ENVIRONMENT_CAPTURE
+layout(set = 1, binding = 7, rgba16f) uniform image2D u_out_color;
+#endif // ENVIRONMENT_CAPTURE
 layout(set = 1, binding = 8, rg16f) uniform writeonly image2D u_out_depth;
 
 layout(scalar, set = 1, binding = 9) uniform view_info {
@@ -232,7 +236,11 @@ float sample_cloud_density(CloudLayerInfo layer, vec3 p, float mip_level, bool s
 float cloud_light_march(vec3 p, vec3 rd) {
     float density = 0.0f;
 
+#if !ENVIRONMENT_CAPTURE
     const float sample_count = 8;
+#else // ENVIRONMENT_CAPTURE
+    const float sample_count = 6;
+#endif // ENVIRONMENT_CAPTURE
     const float sample_t = 0.5f;
 
     float lod_offset = 0.5f;
@@ -375,7 +383,15 @@ struct CloudInfo {
 
 CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     const float angle_zenith = clamp(dot(rd, vec3(0.0f, 1.0f, 0.0f)), 0.0f, 1.0f);
+#if !ENVIRONMENT_CAPTURE
     const float MAX_STEPS = mix(64.0f, 158.0f, 1.0f - angle_zenith);
+    const float MIN_LOD = 0.0f;
+    const bool SAMPLE_DETAIL = true;
+#else // ENVIRONMENT_CAPTURE
+    const float MAX_STEPS = mix(32.0f, 48.0f, 1.0f - angle_zenith);
+    const float MIN_LOD = 3.0f;
+    const bool SAMPLE_DETAIL = false;
+#endif // ENVIRONMENT_CAPTURE
     const float MIN_TRANSMITTANCE = 5e-3f;
 
     float depth_t = depth == 0.0f ? DEPTH_MAX : depth;
@@ -415,10 +431,10 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
 
     for (float i = 0; i < MAX_STEPS && transmittance > MIN_TRANSMITTANCE; i++) {
         const CloudLayerInfo layer = sample_cloud_layer(t);
-        const float lod = clamp(i * step_size / MAX_DISTANCE, 0.0f, 6.0f);
+        const float lod = clamp(i * step_size / MAX_DISTANCE, MIN_LOD, 6.0f);
 
         if (in_cloud > 0.0) {
-            float sample_density = sample_cloud_density(layer, t, lod, true);
+            float sample_density = sample_cloud_density(layer, t, lod, SAMPLE_DETAIL);
 
             if (sample_density == 0.0f && previous_density == 0.0f) {
                 cloud_misses += 1;
@@ -460,6 +476,10 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     }
 
     const float avg_depth = depth_weighted_transmittance / max(depth_weighted_transmittance_total, 1e-7f);
+
+    in_scattering = tonemap(in_scattering, 16.0f);
+
+#if !ENVIRONMENT_CAPTURE
     float aerial_perspective_slice = aerial_perspective_km_to_slice(avg_depth * 1e-3f);
     float aerial_perspective_weigth = 1.0f;
     if (aerial_perspective_slice < 0.5f) {
@@ -468,14 +488,13 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
         aerial_perspective_slice = 0.5f;
     }
     const float aerial_slice_w = sqrt(aerial_perspective_slice / AERIAL_PERSPECTIVE_LUT_RES);
-
     const vec4 aerial_perspective =
         aerial_perspective_weigth *
         textureLod(sampler3D(u_aerial_perspective_lut, u_sampler_ce), vec3(uv, aerial_slice_w), 0.0f);
-    const vec4 fog = height_fog(avg_depth, ro, rd, mu);
-
-    in_scattering = tonemap(in_scattering, 16.0f);
     in_scattering = (1.0f - aerial_perspective.a) * in_scattering + aerial_perspective.rgb * (1.0f - transmittance);
+#endif // ENVIRONMENT_CAPTURE
+
+    const vec4 fog = height_fog(avg_depth, ro, rd, mu);
     in_scattering = mix(in_scattering, fog.rgb * (1.0f - transmittance), fog.a);
 
     return CloudInfo(
@@ -486,12 +505,14 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 out_coord = coord;
-    #if REPROJECTION
+#if REPROJECTION
     coord *= REPROJECTION_RES;
     coord += REPROJECTION_OFFSETS[u_view_info.view.frame_number_u32 % REPROJECTION_RES_2D];
-    #endif // REPROJECTION
+    const ivec2 image_size = imageSize(u_out_color) * REPROJECTION_RES;
+#else // REPROJECTION
+    const ivec2 image_size = imageSize(u_out_color);
+#endif // REPROJECTION
 
-    const ivec2 image_size = textureSize(u_depth, 0);
     const vec2 texture_size_inv = 1.0f / image_size;
     const vec2 uv = (vec2(coord) + 0.5f) * texture_size_inv;
 
@@ -505,13 +526,27 @@ void main() {
     const vec3 rd = normalize(u_view_info.view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz;
     const vec3 ro = u_view_info.view.position;
 
+#if !ENVIRONMENT_CAPTURE
     const float depth = textureLod(sampler2D(u_depth, u_sampler_ce), uv, 0).r;
     const float linear_depth = depth == 0.0f ?
-    CLOUDS_MAX_RADIUS : -linearize_reverse_z(depth, u_view_info.view.near, u_view_info.view.far);
-
+        CLOUDS_MAX_RADIUS : -linearize_reverse_z(depth, u_view_info.view.near, u_view_info.view.far);
     shape_blue_noise = blue_noise_sample(coord);
     light_blue_noise = blue_noise_sample(coord + ivec2(1));
+#else // ENVIRONMENT_CAPTURE
+    const float linear_depth = CLOUDS_MAX_RADIUS;
+    shape_blue_noise = 0.0f;
+    light_blue_noise = 0.0f;
+#endif // ENVIRONMENT_CAPTURE
+
     const CloudInfo cloud_info = cloud(uv, ro, rd, linear_depth);
+
+#if !ENVIRONMENT_CAPTURE
     imageStore(u_out_color, out_coord, vec4(cloud_info.color));
     imageStore(u_out_depth, out_coord, vec4(cloud_info.depth.rg, 0.0f, 0.0f));
+#else // ENVIRONMENT_CAPTURE
+    const vec4 color = imageLoad(u_out_color, out_coord);
+    imageStore(u_out_color, out_coord,
+        vec4(color.rgb * cloud_info.color.a + cloud_info.color.rgb,
+        1.0f - cloud_info.color.a + color.a * cloud_info.color.a));
+#endif // ENVIRONMENT_CAPTURE
 }
