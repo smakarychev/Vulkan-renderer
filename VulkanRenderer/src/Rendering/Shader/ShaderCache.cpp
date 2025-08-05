@@ -31,13 +31,14 @@ void ShaderCache::OnFrameBegin(FrameContext& ctx)
     HandleModifications();
 }
 
-ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, DescriptorArenaAllocators& allocators)
+ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, DescriptorArenaAllocators& allocators,
+    ShaderCacheAllocationHint allocationHint)
 {
-    return Allocate(name, {}, allocators);
+    return Allocate(name, {}, allocators, allocationHint);
 }
 
 ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesView&& overrides,
-    DescriptorArenaAllocators& allocators)
+    DescriptorArenaAllocators& allocators, ShaderCacheAllocationHint allocationHint)
 {
     const ShaderNameWithOverrides nameWithOverrides{.Name = name, .OverridesHash = overrides.Hash};
 
@@ -46,7 +47,7 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesVi
     const bool hasPipeline = m_Pipelines.contains(nameWithOverrides);
     if (!hasPipeline || m_Pipelines.at(nameWithOverrides).ShouldReload)
     {
-        const std::optional<PipelineInfo> pipelineInfo = TryCreatePipeline(name, overrides);
+        const std::optional<PipelineInfo> pipelineInfo = TryCreatePipeline(name, overrides, allocationHint);
         if (pipelineInfo.has_value())
         {
             if (hasPipeline)
@@ -211,7 +212,8 @@ void ShaderCache::MarkOverridesToReload(StringId name)
         m_Pipelines.at(override).ShouldReload = true;
 }
 
-std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId name, ShaderOverridesView& overrides)
+std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId name, ShaderOverridesView& overrides,
+    ShaderCacheAllocationHint allocationHint)
 {
     const std::string& path = m_ShaderNameToPath.at(name);
     std::ifstream in(path);
@@ -239,109 +241,117 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
     if (shaderTemplate == nullptr)
         return std::nullopt;
 
-    std::vector<Format> colorFormats;
-    std::optional<Format> depthFormat;
-    DynamicStates dynamicStates = DynamicStates::Default;
-    AlphaBlending alphaBlending = AlphaBlending::Over;
-    DepthMode depthMode = DepthMode::ReadWrite;
-    DepthTest depthTest = DepthTest::GreaterOrEqual;
-    FaceCullMode cullMode = FaceCullMode::Back;
-    PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
-    bool clampDepth = false;
-    
-    for (auto& dynamicState : json["dynamic_states"])
+    auto createPipeline = [&]() -> Pipeline
     {
-        static const std::unordered_map<std::string, DynamicStates> NAME_TO_STATE_MAP = {
-            std::make_pair("viewport", DynamicStates::Viewport),
-            std::make_pair("scissor", DynamicStates::Scissor),
-            std::make_pair("depth_bias", DynamicStates::DepthBias),
-            std::make_pair("default", DynamicStates::Default),
-        };
-
-        auto it = NAME_TO_STATE_MAP.find(dynamicState);
-        if (it == NAME_TO_STATE_MAP.end())
+        std::vector<Format> colorFormats;
+        std::optional<Format> depthFormat;
+        DynamicStates dynamicStates = DynamicStates::Default;
+        AlphaBlending alphaBlending = AlphaBlending::Over;
+        DepthMode depthMode = DepthMode::ReadWrite;
+        DepthTest depthTest = DepthTest::GreaterOrEqual;
+        FaceCullMode cullMode = FaceCullMode::Back;
+        PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
+        bool clampDepth = false;
+        
+        for (auto& dynamicState : json["dynamic_states"])
         {
-            LOG("Unrecognized dynamic state: {}", std::string{dynamicState});
-            continue;
+            static const std::unordered_map<std::string, DynamicStates> NAME_TO_STATE_MAP = {
+                std::make_pair("viewport", DynamicStates::Viewport),
+                std::make_pair("scissor", DynamicStates::Scissor),
+                std::make_pair("depth_bias", DynamicStates::DepthBias),
+                std::make_pair("default", DynamicStates::Default),
+            };
+
+            auto it = NAME_TO_STATE_MAP.find(dynamicState);
+            if (it == NAME_TO_STATE_MAP.end())
+            {
+                LOG("Unrecognized dynamic state: {}", std::string{dynamicState});
+                continue;
+            }
+            dynamicStates |= it->second;
         }
-        dynamicStates |= it->second;
-    }
 
-    if (!shaderTemplate->IsComputeTemplate())
-    {
-        static const std::unordered_map<std::string, AlphaBlending> NAME_TO_BLENDING_MAP = {
-            std::make_pair("none", AlphaBlending::None),
-            std::make_pair("over", AlphaBlending::Over),
-        };
+        if (!shaderTemplate->IsComputeTemplate())
+        {
+            static const std::unordered_map<std::string, AlphaBlending> NAME_TO_BLENDING_MAP = {
+                std::make_pair("none", AlphaBlending::None),
+                std::make_pair("over", AlphaBlending::Over),
+            };
 
-        static const std::unordered_map<std::string, DepthMode> NAME_TO_DEPTH_MODE_MAP = {
-            std::make_pair("none",       DepthMode::None),
-            std::make_pair("read",       DepthMode::Read),
-            std::make_pair("read_write", DepthMode::ReadWrite),
-        };
-        
-        static const std::unordered_map<std::string, DepthTest> NAME_TO_DEPTH_TEST_MAP = {
-            std::make_pair("greater_or_equal",  DepthTest::GreaterOrEqual),
-            std::make_pair("equal",             DepthTest::Equal),
-        };
+            static const std::unordered_map<std::string, DepthMode> NAME_TO_DEPTH_MODE_MAP = {
+                std::make_pair("none",       DepthMode::None),
+                std::make_pair("read",       DepthMode::Read),
+                std::make_pair("read_write", DepthMode::ReadWrite),
+            };
+            
+            static const std::unordered_map<std::string, DepthTest> NAME_TO_DEPTH_TEST_MAP = {
+                std::make_pair("greater_or_equal",  DepthTest::GreaterOrEqual),
+                std::make_pair("equal",             DepthTest::Equal),
+            };
 
-        static const std::unordered_map<std::string, FaceCullMode> NAME_TO_CULL_MODE_MAP = {
-            std::make_pair("none",  FaceCullMode::None),
-            std::make_pair("front", FaceCullMode::Front),
-            std::make_pair("back",  FaceCullMode::Back),
-        };
+            static const std::unordered_map<std::string, FaceCullMode> NAME_TO_CULL_MODE_MAP = {
+                std::make_pair("none",  FaceCullMode::None),
+                std::make_pair("front", FaceCullMode::Front),
+                std::make_pair("back",  FaceCullMode::Back),
+            };
 
-        static const std::unordered_map<std::string, PrimitiveKind> NAME_TO_PRIMITIVE_MAP = {
-            std::make_pair("triangle",  PrimitiveKind::Triangle),
-            std::make_pair("point",     PrimitiveKind::Point),
-        };
+            static const std::unordered_map<std::string, PrimitiveKind> NAME_TO_PRIMITIVE_MAP = {
+                std::make_pair("triangle",  PrimitiveKind::Triangle),
+                std::make_pair("point",     PrimitiveKind::Point),
+            };
 
-        auto& rasterization = json["rasterization"];
-        
-        if (rasterization.contains("alpha_blending"))
-            alphaBlending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
-        if (rasterization.contains("depth_mode"))
-            depthMode = NAME_TO_DEPTH_MODE_MAP.at(rasterization["depth_mode"]);
-        if (rasterization.contains("depth_test"))
-            depthTest = NAME_TO_DEPTH_TEST_MAP.at(rasterization["depth_test"]);
-        if (rasterization.contains("cull_mode"))
-            cullMode = NAME_TO_CULL_MODE_MAP.at(rasterization["cull_mode"]);
-        if (rasterization.contains("primitive_kind"))
-            primitiveKind = NAME_TO_PRIMITIVE_MAP.at(rasterization["primitive_kind"]);
-        if (rasterization.contains("depth_clamp"))
-            clampDepth = rasterization["depth_clamp"];
+            auto& rasterization = json["rasterization"];
+            
+            if (rasterization.contains("alpha_blending"))
+                alphaBlending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
+            if (rasterization.contains("depth_mode"))
+                depthMode = NAME_TO_DEPTH_MODE_MAP.at(rasterization["depth_mode"]);
+            if (rasterization.contains("depth_test"))
+                depthTest = NAME_TO_DEPTH_TEST_MAP.at(rasterization["depth_test"]);
+            if (rasterization.contains("cull_mode"))
+                cullMode = NAME_TO_CULL_MODE_MAP.at(rasterization["cull_mode"]);
+            if (rasterization.contains("primitive_kind"))
+                primitiveKind = NAME_TO_PRIMITIVE_MAP.at(rasterization["primitive_kind"]);
+            if (rasterization.contains("depth_clamp"))
+                clampDepth = rasterization["depth_clamp"];
 
-        colorFormats.reserve(rasterization["colors"].size());
-        for (auto& color : rasterization["colors"])
-            colorFormats.push_back(FormatUtils::formatFromString(color));
-        if (rasterization.contains("depth"))
-            depthFormat = FormatUtils::formatFromString(rasterization["depth"]);
-    }
+            colorFormats.reserve(rasterization["colors"].size());
+            for (auto& color : rasterization["colors"])
+                colorFormats.push_back(FormatUtils::formatFromString(color));
+            if (rasterization.contains("depth"))
+                depthFormat = FormatUtils::formatFromString(rasterization["depth"]);
+        }
+
+        const Pipeline pipeline = Device::CreatePipeline({
+            .PipelineLayout = shaderTemplate->GetPipelineLayout(),
+            .Shaders = shaderTemplate->GetReflection().Shaders(),
+            .ColorFormats = colorFormats,
+            .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
+            .DynamicStates = overrides.PipelineOverrides.DynamicStates.value_or(dynamicStates),
+            .DepthMode = overrides.PipelineOverrides.DepthMode.value_or(depthMode),
+            .DepthTest = overrides.PipelineOverrides.DepthTest.value_or(depthTest),
+            .CullMode = overrides.PipelineOverrides.CullMode.value_or(cullMode),
+            .AlphaBlending = overrides.PipelineOverrides.AlphaBlending.value_or(alphaBlending),
+            .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
+            .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
+            .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
+            .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
+            Device::DummyDeletionQueue());
+        Device::NamePipeline(pipeline, name.AsStringView());
+
+        return pipeline;
+    };
 
     PipelineInfo shader = {};
     shader.PipelineTemplate = shaderTemplate;
     shader.Layout = shaderTemplate->GetPipelineLayout();
-    shader.Pipeline = Device::CreatePipeline({
-        .PipelineLayout = shader.Layout,
-        .Shaders = shaderTemplate->GetReflection().Shaders(),
-        .ColorFormats = colorFormats,
-        .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
-        .DynamicStates = overrides.PipelineOverrides.DynamicStates.value_or(dynamicStates),
-        .DepthMode = overrides.PipelineOverrides.DepthMode.value_or(depthMode),
-        .DepthTest = overrides.PipelineOverrides.DepthTest.value_or(depthTest),
-        .CullMode = overrides.PipelineOverrides.CullMode.value_or(cullMode),
-        .AlphaBlending = overrides.PipelineOverrides.AlphaBlending.value_or(alphaBlending),
-        .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
-        .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
-        .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
-        .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
-        Device::DummyDeletionQueue());
-    Device::NamePipeline(shader.Pipeline, name.AsStringView());
-
     shader.BindlessName = referencedBindlessSet;
     shader.BindlessCount =
         shaderTemplate->GetReflection().DescriptorSetsInfo()[BINDLESS_DESCRIPTORS_INDEX].HasBindless ?
         json.value("bindless_count", 0u) : 0u;
+
+    if (enumHasAny(allocationHint, ShaderCacheAllocationHint::Pipeline))
+        shader.Pipeline = createPipeline();
 
     return shader;
 }

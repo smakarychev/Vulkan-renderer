@@ -121,7 +121,8 @@ void Renderer::InitRenderGraph()
 {
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         1024,
-        m_ShaderCache.Allocate("materials"_hsv, m_Graph->GetFrameAllocators()).value());
+        m_ShaderCache.Allocate("materials"_hsv,
+            m_Graph->GetFrameAllocators(), ShaderCacheAllocationHint::Descriptors).value());
     m_TransmittanceLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
         Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
     m_SkyViewLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(

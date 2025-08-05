@@ -29,6 +29,14 @@ enum class ShaderCacheError
     FailedToCreatePipeline,
     FailedToAllocateDescriptors,
 };
+enum class ShaderCacheAllocationHint : u8
+{
+    Pipeline    = BIT(0),
+    Descriptors = BIT(1),
+
+    Complete = Pipeline | Descriptors,
+};
+CREATE_ENUM_FLAGS_OPERATORS(ShaderCacheAllocationHint)
 
 using ShaderCacheAllocateResult = std::expected<Shader, ShaderCacheError>;
 
@@ -41,9 +49,11 @@ public:
     void Shutdown();
     void OnFrameBegin(FrameContext& ctx);
     
-    ShaderCacheAllocateResult Allocate(StringId name, DescriptorArenaAllocators& allocators);
+    ShaderCacheAllocateResult Allocate(StringId name, DescriptorArenaAllocators& allocators,
+        ShaderCacheAllocationHint allocationHint = ShaderCacheAllocationHint::Complete);
     ShaderCacheAllocateResult Allocate(StringId name, ShaderOverridesView&& overrides,
-        DescriptorArenaAllocators& allocators);
+        DescriptorArenaAllocators& allocators,
+        ShaderCacheAllocationHint allocationHint = ShaderCacheAllocationHint::Complete);
     void AddPersistentDescriptors(StringId name, Descriptors descriptors, DescriptorsLayout descriptorsLayout);
 private:
     void InitFileWatcher();
@@ -64,7 +74,8 @@ private:
         u32 BindlessCount{0};
         bool ShouldReload{false};
     };
-    std::optional<PipelineInfo> TryCreatePipeline(StringId name, ShaderOverridesView& overrides);
+    std::optional<PipelineInfo> TryCreatePipeline(StringId name, ShaderOverridesView& overrides,
+        ShaderCacheAllocationHint allocationHint);
     const ShaderPipelineTemplate* GetShaderPipelineTemplate(StringId name, const ShaderOverridesView& overrides,
         std::vector<std::string>& stages,
         const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
