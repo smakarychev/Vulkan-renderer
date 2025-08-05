@@ -1427,25 +1427,16 @@ namespace RG
         merged.m_Version = image.LatestVersion;
         merged.m_Extra = Resource::NO_EXTRA;
         image.State = ImageResourceState::Merged;
+        image.ActiveSplitCount -= (u16)splits.size();
         
-        /* this uses separate pass instead of directly calling `ReadImage` to allow for merge outside Pass */
-        if (m_PassIndicesStack.empty())
-        {
-            AddRenderPass<std::nullptr_t>("Merge"_hsv,
-               [&](Graph& graph, std::nullptr_t&)
-               {
-                   graph.AddImageAccess(merged, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
-                   for (const Resource split : splits)
-                       graph.AddImageAccess(split, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
-               },
-               [=](const std::nullptr_t&, FrameContext&, const Graph&){});
-        }
-        else
-        {
-            AddImageAccess(merged, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
-            for (const Resource split : splits)
-                AddImageAccess(split, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
-        }
+        AddRenderPass<std::nullptr_t>("Merge"_hsv,
+           [&](Graph& graph, std::nullptr_t&)
+           {
+               graph.AddImageAccess(merged, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
+               for (const Resource split : splits)
+                   graph.AddImageAccess(split, AccessType::Merge, image, PipelineStage::None, PipelineAccess::None);
+           },
+           [=](const std::nullptr_t&, FrameContext&, const Graph&){});
 
         return merged;
     }
