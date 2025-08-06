@@ -958,9 +958,11 @@ RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutP
         .FaceIndices = m_FrameNumber == 0 ? Span<const u32>({0, 1, 2, 3, 4, 5}) : Span<const u32>({faceIndex})
     });
 
+    m_SkyIrradianceSHResource = m_Graph->Import("SkyIrradiance.Import"_hsv, m_SkyIrradianceSH);
+    
     if (m_FrameNumber == 0)
         m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
-            environment.ColorOut, m_SkyIrradianceSH, true).DiffuseIrradiance;
+            environment.ColorOut, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
         
     auto& cloudsEnvironment = Passes::Clouds::VP::Environment::addToGraph("Clouds.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
@@ -970,7 +972,7 @@ RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutP
         .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
         .CloudCurlNoise = cloudMaps.CurlNoise, 
         .ColorIn = environment.ColorOut,
-        .IrradianceSH = m_Graph->Import("Irradiance.Imported"_hsv, m_SkyIrradianceSH),
+        .IrradianceSH = m_SkyIrradianceSHResource,
         .Light = &m_Scene.Lights(),
         .CloudParameters = &m_CloudParameters,
         .CloudsRenderingMode = Passes::Clouds::VP::CloudsRenderingMode::FullResolution,
@@ -982,7 +984,7 @@ RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutP
     cloudsEnvironment.ColorOut = mipmapped.Texture;
 
     m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
-            cloudsEnvironment.ColorOut, m_SkyIrradianceSH, true).DiffuseIrradiance;
+            cloudsEnvironment.ColorOut, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
 
     m_SkyPrefilterMapResource = Passes::EnvironmentPrefilter::addToGraph(
         "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.ColorOut, m_SkyPrefilterMap,

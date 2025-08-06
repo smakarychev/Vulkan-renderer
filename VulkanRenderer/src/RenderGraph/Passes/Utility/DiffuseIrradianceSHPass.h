@@ -12,4 +12,6 @@ namespace Passes::DiffuseIrradianceSH
         Buffer irradianceSH, bool realTime);
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
         Buffer irradianceSH, bool realTime);
+    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
+        RG::Resource irradianceSH, bool realTime);
 }

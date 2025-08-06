@@ -8,12 +8,19 @@ Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(S
     Texture cubemap, Buffer irradianceSH, bool realTime)
 {
     return addToGraph(name, renderGraph,
-        renderGraph.Import("CubemapTexture"_hsv, cubemap, ImageLayout::Readonly),
-        irradianceSH, realTime);
+        renderGraph.Import("CubemapTexture.Import"_hsv, cubemap, ImageLayout::Readonly),
+        renderGraph.Import("DiffuseIrradianceSH.Import"_hsv, irradianceSH), realTime);
 }
 
 Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
     RG::Resource cubemap, Buffer irradianceSH, bool realTime)
+{
+    return addToGraph(name, renderGraph, cubemap,
+        renderGraph.Import("DiffuseIrradianceSH.Import"_hsv, irradianceSH), realTime);
+}
+
+Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
+    RG::Resource cubemap, RG::Resource irradianceSH, bool realTime)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
@@ -27,9 +34,7 @@ Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(S
                 ShaderSpecializations{
                     ShaderSpecialization{"REAL_TIME"_hsv, realTime}});
             
-            passData.DiffuseIrradiance = graph.Import("DiffuseIrradianceSH"_hsv, irradianceSH);
-            
-            passData.DiffuseIrradiance = graph.WriteBuffer(passData.DiffuseIrradiance, Compute | Storage);
+            passData.DiffuseIrradiance = graph.WriteBuffer(irradianceSH, Compute | Storage);
             passData.CubemapTexture = graph.ReadImage(cubemap, Compute | Sampled);
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
@@ -53,8 +58,8 @@ Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(S
             auto& cmd = frameContext.CommandList;
             bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
-            	.PipelineLayout = shader.GetLayout(), 
-            	.Data = {targetMipmap}});
+                .PipelineLayout = shader.GetLayout(), 
+                .Data = {targetMipmap}});
             cmd.Dispatch({
                 .Invocations = {1, 1, 1}});
         });
