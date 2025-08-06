@@ -440,7 +440,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         {
             RG::Resource Resource{};
         };
-        renderGraph.AddRenderPass<PassData>("Level0"_hsv,
+        auto merged = renderGraph.AddRenderPass<PassData>("Level0"_hsv,
             [&](RG::Graph& graph, PassData& passData)
             {
                 RG::Resource image = graph.Create("MyImage"_hsv, RG::RGImageDescription{
@@ -455,16 +455,20 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
                 split1 = graph.WriteImage(split1, Compute | Storage);
                 split1 = graph.WriteImage(split1, Compute | Storage);
 
-                RG::Resource merge = graph.MergeImage({split0, split1});
-                merge = graph.WriteImage(merge, Compute | Storage);
-                REQUIRE(merge.IsValid());
-
-                passData.Resource = image;
-
-                renderGraph.Compile(ctx);
-                SUCCEED();
+                passData.Resource =  graph.MergeImage({split0, split1});;
+                REQUIRE(passData.Resource.IsValid());
+            },
+            [&](const PassData& passData, FrameContext& ctx, const RG::Graph& graph){}).Resource;
+        
+        renderGraph.AddRenderPass<PassData>("Level1"_hsv,
+            [&](RG::Graph& graph, PassData& passData)
+            {
+                passData.Resource = graph.WriteImage(merged, Compute | Storage);
+                REQUIRE(passData.Resource.IsValid());
             },
             [&](const PassData& passData, FrameContext& ctx, const RG::Graph& graph){});
+
+        renderGraph.Compile(ctx);
     }
     SECTION("Cannot access main splitted resource, before it was merged")
     {
@@ -621,7 +625,7 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
         REQUIRE(watcher.Barriers.front().BarrierType == RG::GraphWatcher::BarrierInfo::Type::Barrier);
         REQUIRE(watcher.Barriers.front().DependencyInfo.LayoutTransitionInfo.has_value());
         REQUIRE(watcher.Barriers.front().DependencyInfo.LayoutTransitionInfo.value().NewLayout
-            == ImageLayout::Readonly);
+            == ImageLayout::General);
     }
     SECTION("Images have correct layout transition")
     {
@@ -717,8 +721,8 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
             if (barrier.DependencyInfo.LayoutTransitionInfo.has_value() &&
                 barrier.DependencyInfo.LayoutTransitionInfo->SourceStage == PipelineStage::None)
                 hasLayoutTranstion = true;
-            if (barrier.DependencyInfo.LayoutTransitionInfo.has_value() &&
-                barrier.DependencyInfo.LayoutTransitionInfo->SourceStage == PipelineStage::ComputeShader &&
+            if (barrier.DependencyInfo.MemoryDependencyInfo.has_value() &&
+                barrier.DependencyInfo.MemoryDependencyInfo->SourceStage == PipelineStage::ComputeShader &&
                 renderGraph.GetImage(barrier.Resource) == renderGraph.GetImage(out.Image))
                 hasImageWriteDependency = true;
             else if (barrier.DependencyInfo.ExecutionDependencyInfo.has_value())
@@ -835,14 +839,15 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
             if (barrier.DependencyInfo.LayoutTransitionInfo.has_value() &&
                 barrier.DependencyInfo.LayoutTransitionInfo->SourceStage == PipelineStage::None)
                 hasLayoutTranstion = true;
-            if (barrier.DependencyInfo.LayoutTransitionInfo.has_value() &&
-                barrier.DependencyInfo.LayoutTransitionInfo->SourceStage == PipelineStage::ComputeShader &&
+            if (barrier.DependencyInfo.MemoryDependencyInfo.has_value() &&
+                barrier.DependencyInfo.MemoryDependencyInfo->SourceStage == PipelineStage::ComputeShader &&
+                barrier.Resource.IsImage() &&
                 renderGraph.GetImage(barrier.Resource) == renderGraph.GetImage(out.Image))
                 hasImageWriteDependency = true;
-            else if (barrier.DependencyInfo.MemoryDependencyInfo.has_value())
-                if (barrier.Resource.IsBuffer() &&
-                    renderGraph.GetBuffer(barrier.Resource) == renderGraph.GetBuffer(out.Buffer))
-                    hasBufferMemoryDependency = true;
+            else if (barrier.DependencyInfo.MemoryDependencyInfo.has_value() &&
+                barrier.Resource.IsBuffer() &&
+                renderGraph.GetBuffer(barrier.Resource) == renderGraph.GetBuffer(out.Buffer))
+                hasBufferMemoryDependency = true;
         }
         REQUIRE(watcher.Barriers.size() == 3);
         REQUIRE(hasLayoutTranstion);
