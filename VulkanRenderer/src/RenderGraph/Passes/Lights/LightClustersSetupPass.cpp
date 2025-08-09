@@ -4,6 +4,7 @@
 #include "RenderGraph/RGGraph.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Core/Camera.h"
+#include "cvars/CVarSystem.h"
 #include "RenderGraph/Passes/Generated/LightClustersSetupBindGroup.generated.h"
 
 Passes::LightClustersSetup::PassData& Passes::LightClustersSetup::addToGraph(StringId name, RG::Graph& renderGraph)
@@ -45,7 +46,7 @@ Passes::LightClustersSetup::PassData& Passes::LightClustersSetup::addToGraph(Str
             PushConstant pushConstant = {
                 .RenderSize = frameContext.Resolution,
                 .Near = frameContext.PrimaryCamera->GetNear(),
-                .Far = frameContext.PrimaryCamera->GetFar(),
+                .Far = *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv),
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.CommandList;

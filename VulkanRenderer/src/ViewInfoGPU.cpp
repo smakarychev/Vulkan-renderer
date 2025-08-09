@@ -1,6 +1,7 @@
 ﻿#include "ViewInfoGPU.h"
 
 #include "Core/Camera.h"
+#include "cvars/CVarSystem.h"
 #include "Rendering/Image/ImageUtility.h"
 
 CameraGPU CameraGPU::FromCamera(const Camera& camera, const glm::uvec2& resolution, ::VisibilityFlags visibilityFlags)
@@ -10,19 +11,20 @@ CameraGPU CameraGPU::FromCamera(const Camera& camera, const glm::uvec2& resoluti
     viewFlags |= (u32)enumHasAny(visibilityFlags, VisibilityFlags::ClampDepth) << CLAMP_DEPTH_BIT;
     const glm::uvec2 hizResolution = enumHasAny(visibilityFlags, VisibilityFlags::OcclusionCull) ?
         Images::floorResolutionToPowerOfTwo(resolution) : glm::uvec2(0);
-    
+    const f32 maxCullDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxGeometryCullDistance"_hsv);
+
     CameraGPU cameraGPU = {
         .ViewProjection = camera.GetViewProjection(),
         .Projection = camera.GetProjection(),
         .View = camera.GetView(),
         .Position = camera.GetPosition(),
-        .Near = camera.GetFrustumPlanes().Near,
+        .Near = camera.GetNear(),
         .Forward = camera.GetForward(),
-        .Far = camera.GetFrustumPlanes().Far,
+        .Far = camera.GetFar(),
         .InverseViewProjection = glm::inverse(camera.GetViewProjection()),
         .InverseProjection = glm::inverse(camera.GetProjection()),
         .InverseView = glm::inverse(camera.GetView()),
-        .FrustumPlanes = camera.GetFrustumPlanes(),
+        .FrustumPlanes = camera.GetFrustumPlanes(maxCullDistance),
         .ProjectionData = camera.GetProjectionData(),
         .Resolution = glm::vec2{resolution},
         .HiZResolution = hizResolution,

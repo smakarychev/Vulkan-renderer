@@ -4,6 +4,7 @@
 #include "RenderGraph/RGGraph.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Core/Camera.h"
+#include "cvars/CVarSystem.h"
 #include "RenderGraph/Passes/Generated/LightClustersCompactBindGroup.generated.h"
 
 namespace
@@ -46,7 +47,7 @@ namespace
                 };
                 PushConstant pushConstant = {
                     .Near = frameContext.PrimaryCamera->GetNear(),
-                    .Far = frameContext.PrimaryCamera->GetFar()};
+                    .Far = *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv)};
 
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());

@@ -43,8 +43,6 @@ namespace Passes::SceneCsm
     {
         std::vector<SceneDrawPassDescription> MetaPassDescriptions;
         RG::CsmData CsmData{};
-        f32 Near{1.0f};
-        f32 Far{100.0f};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
     void mergeCsm(RG::Graph& renderGraph, PassData& passData, const ScenePass& scenePass,

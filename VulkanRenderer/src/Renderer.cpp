@@ -546,6 +546,9 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     
     primaryView.ShadingSettings.TransmittanceLut = m_TransmittanceLutBindlessIndex;
     primaryView.ShadingSettings.SkyViewLut = m_SkyViewLutBindlessIndex;
+    primaryView.ShadingSettings.VolumetricCloudShadow = m_VolumetricShadowBindlessIndex;
+    primaryView.ShadingSettings.MaxLightCullDistance =
+        *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
     ImGui::Begin("Shading Settings");
     ImGui::DragFloat("Environment power", &primaryView.ShadingSettings.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
     ImGui::Checkbox("Soft shadows", (bool*)&primaryView.ShadingSettings.SoftShadows);

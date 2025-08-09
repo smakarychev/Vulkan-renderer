@@ -12,7 +12,7 @@ static const     glm::quat DEFAULT_ORIENTATION	= glm::angleAxis(0.0f, glm::vec3(
 static constexpr f32  DEFAULT_FOV               = glm::radians(60.0f);
 static constexpr f32  DEFAULT_ASPECT            = 16.0f / 9.0f;
 static constexpr f32  DEFAULT_NEAR              = 0.1f;
-static constexpr f32  DEFAULT_FAR               = 5000.0f;
+static constexpr f32  DEFAULT_FAR               = std::numeric_limits<f32>::infinity();
 
 Camera::Camera(CameraType type)
     :
@@ -182,13 +182,13 @@ glm::vec3 Camera::GetRight() const
     return glm::rotate(m_Orientation, glm::vec3(1.0f, 0.0f, 0.0f));
 }
 
-FrustumPlanes Camera::GetFrustumPlanes() const
+FrustumPlanes Camera::GetFrustumPlanes(f32 maxDistance) const
 {
     const glm::mat4& mat = GetProjection();
 
     FrustumPlanes frustumPlanes = {};
     frustumPlanes.Near = m_NearClipPlane;
-    frustumPlanes.Far  = m_FarClipPlane;
+    frustumPlanes.Far  = std::min(m_FarClipPlane, maxDistance);
     
     switch (m_CameraType)
     {
@@ -273,6 +273,22 @@ void Camera::UpdateViewMatrix()
     m_ViewMatrix = glm::toMat4(glm::inverse(m_Orientation)) * glm::translate(glm::mat4(1.0f), -m_Position);
 }
 
+namespace
+{
+    glm::mat4 infiniteReverseDepthProjection(f32 fov, f32 aspect, f32 near)
+    {
+        const f32 tanHalfFov = tan(fov * 0.5f);
+
+        glm::mat4 projection(0.0f);
+        projection[0][0] = 1.0f / (aspect * tanHalfFov);
+        projection[1][1] = 1.0f / (tanHalfFov);
+        projection[2][3] = -1.0f;
+        projection[3][2] = near;
+        
+        return projection;
+    }
+}
+
 void Camera::UpdateProjectionMatrix()
 {
     m_Aspect = (f32)m_ViewportWidth / (f32)m_ViewportHeight;
@@ -281,7 +297,7 @@ void Camera::UpdateProjectionMatrix()
     {
     case CameraType::Perspective:
     {
-        m_ProjectionMatrix = glm::perspectiveRH_ZO(m_FieldOfView, m_Aspect, m_FarClipPlane, m_NearClipPlane);
+        m_ProjectionMatrix = infiniteReverseDepthProjection(m_FieldOfView, m_Aspect, m_NearClipPlane);
         break;
     }
     case CameraType::Orthographic:

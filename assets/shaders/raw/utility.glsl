@@ -1,5 +1,5 @@
 float linearize_reverse_z(float z, float n, float f) {
-    return f * n / ((n - f) * z - n);
+    return -n / z;
 }
 
 float linearize_reverse_z_ortho(float z, float n, float f) {
@@ -7,7 +7,7 @@ float linearize_reverse_z_ortho(float z, float n, float f) {
 }
 
 float project_reverse_z(float z, float n, float f) {
-    return (f * n / z + n) / (n - f);
+    return -n / z;
 }
 
 float project_reverse_z_ortho(float z, float n, float f) {

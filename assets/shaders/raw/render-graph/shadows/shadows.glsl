@@ -2,13 +2,6 @@
 
 #extension GL_EXT_samplerless_texture_functions: require
 
-float linearize_depth(float z, uint cascade_index) {
-    const float f = u_csm_data.csm.far[cascade_index];
-    const float n = u_csm_data.csm.near[cascade_index];
-    
-    return (f - n) * z - f;
-}
-
 float random(vec4 seed) {
     float dot_product = dot(seed, vec4(12.9898,78.233,45.164,94.673));
     return fract(sin(dot_product) * 43758.5453);
@@ -18,27 +11,6 @@ mat2 random_rotation(vec4 seed) {
     const float theta = random(seed);
     
     return mat2(cos(theta), sin(theta), -sin(theta), cos(theta));
-}
-
-vec2 find_occluder(float receiver_z, vec3 uvz, float light_size_uv, uint cascade_index) {
-    const float search_width = light_size_uv * (receiver_z + u_csm_data.csm.near[cascade_index]) / receiver_z;
-    
-    float sum = 0.0f;
-    float count = 0.0f;
-    
-    const mat2 random_rotation = random_rotation(uvz.xyzz);
-    
-    const uint poisson_samples = 16;
-    for (uint i = 0; i < poisson_samples; i++) {
-        const vec2 uv = random_rotation * search_width * POISSON_16[i] + uvz.xy;
-        const float depth = textureLod(sampler2DArray(u_csm, u_sampler_shadow), vec3(uv, float(cascade_index)), 0).r;
-        if (depth > uvz.z) {
-            count++;
-            sum += depth;
-        }
-    }
-    
-    return vec2(-linearize_depth(sum / count, cascade_index), count);
 }
 
 float sample_shadow(vec3 uvz, vec2 delta, float cascade) {
@@ -166,33 +138,6 @@ float pcf_optimized_shadow(vec3 uvz, uint cascade_index) {
     
         return sum * 1.0f / 2704;
     #endif
-}
-
-float pcf_sample_shadow_poisson(vec3 uvz, vec3 normal, float scale, uint cascade_index) {
-    float shadow_factor = 0.0f;
-
-    const mat2 random_rotation = random_rotation(uvz.xyzz);
-    
-    const uint poisson_samples = 16;
-    for (uint i = 0; i < poisson_samples; i++) {
-        shadow_factor += sample_shadow(uvz, random_rotation * scale * POISSON_16[i], float(cascade_index));
-    }
-    shadow_factor /= float(poisson_samples);
-
-    return shadow_factor;
-}
-
-float pcss_sample_shadow(vec3 position, vec3 uvz, vec3 normal, float light_size_uv, uint cascade_index) {
-    float receiver_z = (u_csm_data.csm.views[cascade_index] * vec4(position, 1.0f)).z;
-    
-    const vec2 occluder_info = find_occluder(receiver_z, uvz, light_size_uv, cascade_index);
-    if (occluder_info.y == 0)
-        return 0.0f;
-    
-    float penumbra_width = (receiver_z - occluder_info.x) * light_size_uv / occluder_info.x;
-    float filter_radius = u_csm_data.csm.near[cascade_index] * penumbra_width / receiver_z;
-
-    return pcf_sample_shadow_poisson(uvz, normal, filter_radius, cascade_index);
 }
 
 vec3 get_shadow_offset(vec3 normal, vec3 light_direction) {

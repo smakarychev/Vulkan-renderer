@@ -74,13 +74,6 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
         f32 Radius{0.075f};
         u32 Samples{32};
     };
-    struct CameraUBO
-    {
-        glm::mat4 Projection{glm::mat4{1.0f}};
-        glm::mat4 ProjectionInverse{glm::mat4{1.0f}};
-        f32 Near{0.0f};
-        f32 Far{1000.0f};
-    };
     struct Samples
     {
         Texture NoiseTexture{};
@@ -92,7 +85,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
         Resource Depth{};
         Resource NoiseTexture{};
         Resource Settings{};
-        Resource Camera{};
+        Resource ViewInfo{};
         Resource Samples{};
     };
 
@@ -116,23 +109,21 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             passData.NoiseTexture = graph.Import("NoiseTexture"_hsv, samples.NoiseTexture, ImageLayout::Readonly);
             passData.Settings = graph.Create("Settings"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SettingsUBO)});
-            passData.Camera = graph.Create("Camera"_hsv, RGBufferDescription{
-                .SizeBytes = sizeof(CameraUBO)});
             passData.Samples = graph.Import("Samples"_hsv, samples.SamplesBuffer);
             passData.SSAO = graph.Create("SSAO"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,
                 .Reference = info.Depth,
                 .Format = Format::R8_UNORM});
 
+            auto& globalResources = graph.GetGlobalResources();
+            
             passData.Depth = graph.ReadImage(info.Depth, Compute | Sampled);
             passData.NoiseTexture = graph.ReadImage(passData.NoiseTexture, Compute | Sampled);
             passData.Settings = graph.ReadBuffer(passData.Settings, Compute | Uniform);
-            passData.Camera = graph.ReadBuffer(passData.Camera, Compute | Uniform);
+            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Compute | Uniform);
             passData.Samples = graph.ReadBuffer(passData.Samples, Compute | Uniform);
             passData.SSAO = graph.WriteImage(passData.SSAO, Compute | Storage);
 
-            auto& globalResources = graph.GetGlobalResources();
-            
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("AO settings");
             ImGui::DragInt("Samples", (i32*)&settings.Samples, 0.25f, 0, (i32)info.MaxSampleCount);
@@ -140,13 +131,6 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             ImGui::DragFloat("Radius", &settings.Radius, 1e-3f, 0.0f, 1.0f);
             ImGui::End();
             passData.Settings = graph.Upload(passData.Settings, settings);
-            
-            CameraUBO camera = {
-                .Projection = globalResources.PrimaryCamera->GetProjection(),
-                .ProjectionInverse = glm::inverse(globalResources.PrimaryCamera->GetProjection()),
-                .Near = globalResources.PrimaryCamera->GetFrustumPlanes().Near,
-                .Far = globalResources.PrimaryCamera->GetFrustumPlanes().Far};
-            passData.Camera = graph.Upload(passData.Camera, camera);
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -158,7 +142,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             
             const Shader& shader = graph.GetShader();SsaoShaderBindGroup bindGroup(shader);
             bindGroup.SetSettings(graph.GetBufferBinding(passData.Settings));
-            bindGroup.SetCamera(graph.GetBufferBinding(passData.Camera));
+            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
             bindGroup.SetSamples(graph.GetBufferBinding(passData.Samples));
             bindGroup.SetDepthTexture(graph.GetImageBinding(passData.Depth));
             bindGroup.SetNoiseTexture(graph.GetImageBinding(passData.NoiseTexture));

@@ -3,6 +3,8 @@
 #version 460
 
 #include "common.glsl"
+#include "../../utility.glsl"
+#include "../../view_info.glsl"
 
 #extension GL_EXT_samplerless_texture_functions: enable
 
@@ -46,9 +48,9 @@ layout(set = 1, binding = 4) uniform samples {
     vec4 samples[MAX_SAMPLES];
 } u_samples;
 
-layout(set = 1, binding = 5) uniform camera {
-    Camera camera;
-} u_camera;
+layout(scalar, set = 1, binding = 5) uniform view_info {
+    ViewInfo view;
+} u_view_info;
 
 layout(push_constant) uniform push_constants {
     vec2 u_ssao_size_inv;
@@ -57,7 +59,7 @@ layout(push_constant) uniform push_constants {
 };
 
 float linear_depth(float depth) {
-    return linear_depth(depth, u_camera.camera.near, u_camera.camera.far);
+    return -linearize_reverse_z(depth, u_view_info.view.near, u_view_info.view.far);
 }
 
 void main() {
@@ -69,7 +71,7 @@ void main() {
         const uvec2 pixel_coords = top_left + unflatten2d(i, TILE_SIZE);
         const vec2 uv = (vec2(pixel_coords) + 0.5f) * u_ssao_size_inv;
         const float depth = textureLod(sampler2D(u_depth_texture, u_depth_sampler), uv, 0).r;
-        const vec3 position = reconstruct_position(uv, depth, u_camera.camera.projection_inverse);
+        const vec3 position = reconstruct_position(uv, depth, u_view_info.view.inv_projection);
 
         s_positions[i] = position.xy;
         s_depths[i] = position.z;
@@ -86,7 +88,7 @@ void main() {
     };
     
     const float center_depth = s_depths[ids[0]];
-    if (center_depth >= u_camera.camera.far)
+    if (center_depth >= u_view_info.view.far)
         return;
     
     const uint best_horizontal = abs(s_depths[ids[1]] - center_depth) < abs(s_depths[ids[2]] - center_depth) ? 1 : 2;
@@ -117,7 +119,7 @@ void main() {
         const vec3 sample_local = u_samples.samples[i].xyz;
         const vec3 sample_point = TBN * sample_local * u_settings.settings.radius + center_position;
         
-        vec4 proj = u_camera.camera.projection * vec4(sample_point, 1.0f);
+        vec4 proj = u_view_info.view.projection * vec4(sample_point, 1.0f);
         proj.xyz /= proj.w;
         proj.xy = proj.xy * vec2(0.5f, -0.5f) + vec2(0.5f, 0.5f);
     

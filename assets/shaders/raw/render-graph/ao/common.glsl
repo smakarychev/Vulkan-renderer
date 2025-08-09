@@ -6,13 +6,6 @@ uint flatten2d(uvec2 coords, uint size) {
     return coords.x + coords.y * size;
 }
 
-float linear_depth(float depth, float near, float far) {
-    float z_n = 2.0f * depth - 1.0f;
-    float lin = 2.0f * far * near / (near + far - z_n * (near - far));
-    
-    return lin;
-}
-
 vec3 reconstruct_position(vec2 uv, float z, mat4 inverse_view_projection) {
 	float x = uv.x * 2.0f - 1.0f;
 	float y = (1.0f - uv.y) * 2.0f - 1.0f;

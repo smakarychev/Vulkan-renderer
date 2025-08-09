@@ -34,7 +34,8 @@ vec3 color_heatmap(float t) {
 
 void main() {
     const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
-    const uint slice = slice_index(depth, u_view_info.view.near, u_view_info.view.far, LIGHT_CLUSTER_BINS_Z);
+    const uint slice = slice_index(depth, u_view_info.view.near, u_view_info.view.max_light_cull_distance,
+        LIGHT_CLUSTER_BINS_Z);
     const uint cluster_index = get_cluster_index(vertex_uv, slice);
 
     const Cluster cluster = u_clusters.clusters[cluster_index];

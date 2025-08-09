@@ -22,7 +22,7 @@ float linearize(float depth) {
     if (u_is_orthographic)
         return z;
     
-    return (2.0 * n) / (f + n - z * (f - n));
+    return n / z;
 }
 
 void main() {

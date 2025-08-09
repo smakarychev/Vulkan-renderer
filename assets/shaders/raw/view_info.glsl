@@ -80,8 +80,15 @@ struct ViewInfo {
 
     float environment_power;
     bool soft_shadows;
+    float max_light_cull_distance;
     uint transmittance_lut;
     uint sky_view_lut;
+    uint volumetric_cloud_shadow;
+    uint padding[2];
+
+    mat4 volumetric_cloud_view_projection;
+    mat4 volumetric_cloud_view;
+    
     
     float frame_number;
     uint frame_number_u32;

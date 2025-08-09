@@ -63,10 +63,7 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, ViewInfo view, sampl
 
     const float depth = textureLod(sampler2D(hiz, hiz_sampler), (aabb.xy + aabb.zw) * 0.5f, level).r;
 
-    const float coeff = 1.0f / (view.frustum_far - view.frustum_near);
-    const float projected_depth = coeff *
-        (-view.frustum_far * view.frustum_near / (sphere_origin.z + radius) -
-        view.frustum_near);
+    const float projected_depth = -view.frustum_near / (sphere_origin.z + radius);
 
     return projected_depth >= depth;
 }

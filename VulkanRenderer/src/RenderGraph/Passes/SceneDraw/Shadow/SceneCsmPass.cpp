@@ -2,6 +2,7 @@
 
 #include "SceneDirectionalShadowPass.h"
 #include "Core/Camera.h"
+#include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesUtils.h"
@@ -16,22 +17,25 @@ namespace
         ImGui::DragFloat("Lambda", &SPLIT_LAMBDA, 1e-2f, 0.0f, 1.0f);
         ImGui::End();
 
-        f32 near = std::max(mainCamera.GetFrustumPlanes().Near, shadowMin);
-        f32 far = std::min(mainCamera.GetFrustumPlanes().Far, shadowMax);
+        const f32 maxShadowDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxShadowDistance"_hsv);
+        const FrustumPlanes frustum = mainCamera.GetFrustumPlanes(maxShadowDistance);
+        
+        const f32 near = std::max(frustum.Near, shadowMin);
+        const f32 far = std::min(frustum.Far, shadowMax);
 
-        f32 depthRange = far - near;
-        f32 depthRatio = far / near;
+        const f32 depthRange = far - near;
+        const f32 depthRatio = far / near;
         
         std::vector depthSplits(SHADOW_CASCADES, 0.0f);
         for (u32 i = 0; i < SHADOW_CASCADES; i++)
         {
             /* https://developer.nvidia.com/gpugems/gpugems3/
              * part-ii-light-and-shadows/chapter-10-parallel-split-shadow-maps-programmable-gpus */
-            f32 iOverN = (f32)(i + 1) / (f32)SHADOW_CASCADES;
-            f32 cLog = near * std::pow(depthRatio, iOverN);
-            f32 cUniform = near + depthRange * iOverN;
+            const f32 iOverN = (f32)(i + 1) / (f32)SHADOW_CASCADES;
+            const f32 cLog = near * std::pow(depthRatio, iOverN);
+            const f32 cUniform = near + depthRange * iOverN;
 
-            f32 split = Math::lerp(cLog, cUniform, SPLIT_LAMBDA);
+            const f32 split = Math::lerp(cLog, cUniform, SPLIT_LAMBDA);
             depthSplits[i] = split;
         }
 
@@ -160,9 +164,6 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                 RGBufferDescription{.SizeBytes = sizeof(CsmInfo)});
             passData.CsmData.CsmInfo = graph.WriteBuffer(passData.CsmData.CsmInfo, Vertex | Uniform);
             passData.CsmData.CsmInfo = graph.Upload(passData.CsmData.CsmInfo, csmInfo);
-            
-            passData.Near = cameras.ShadowCameras.front().GetFrustumPlanes().Near;
-            passData.Far = cameras.ShadowCameras.back().GetFrustumPlanes().Far;
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

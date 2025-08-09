@@ -10,10 +10,8 @@ namespace
     f32 linearizeDepth(f32 z, const Camera& camera)
     {
         ASSERT(camera.GetType() == CameraType::Perspective, "Only perspective linearization is implemented")
-        f32 n = camera.GetFrustumPlanes().Near;
-        f32 f = camera.GetFrustumPlanes().Far;
 
-        return f * n / ((n - f) * z - n);
+        return -camera.GetNear() / z;
     }
 }
 

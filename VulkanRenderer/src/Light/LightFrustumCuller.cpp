@@ -43,8 +43,9 @@ namespace
     std::vector<u32> getVisibleLights(const SceneLight& light, const Camera& camera)
     {
         const u32 maxLightsPerFrustum = (u32)*CVars::Get().GetI32CVar("Lights.FrustumMax"_hsv);
+        const f32 maxLightCullDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
         
-        const FrustumPlanes frustum = camera.GetFrustumPlanes();
+        const FrustumPlanes frustum = camera.GetFrustumPlanes(maxLightCullDistance);
         const ProjectionData projection = camera.GetProjectionData();
 
         std::vector<u32> visibleLights;

@@ -42,7 +42,7 @@ vec3 color_heatmap(float t) {
 
 void main() {
     const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
-    const uint zbin_index = get_zbin_index(depth, u_view_info.view.near, u_view_info.view.far);
+    const uint zbin_index = get_zbin_index(depth, u_view_info.view.near, u_view_info.view.max_light_cull_distance);
     
     const uint light_min = uint(u_zbins.bins[zbin_index].min);
     const uint light_max = uint(u_zbins.bins[zbin_index].max);

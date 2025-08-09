@@ -37,6 +37,13 @@ void Settings::initCvars()
     CVarI32 prefilterMapResolutionRealtime("Renderer.IBL.PrefilterResolutionRealtime"_hsv,
         "Resolution of realtime environment prefilter map", 128);
 
+    CVarF32 maxLightCullDistance("Renderer.Limits.MaxLightCullDistance"_hsv,
+        "The maximum distance at which point light are being processed, in meters", 8192);
+    CVarF32 maxGeometryCullDistance("Renderer.Limits.MaxGeometryCullDistance"_hsv,
+        "The maximum distance at which geometry is being processed, in meters", 8192);
+    CVarF32 maxShadowDistance("Renderer.Limits.MaxShadowDistance"_hsv,
+        "The maximum distance at which shadows are drawn, in meters", 4096);
+
     /* render graph */
     CVarI32 renderGraphPoolMaxUnreferencedFrame("RG.UnreferencedResourcesLifetime"_hsv,
         "Number of frames unreferenced resource are kept in memory before being freed", 4);

@@ -1,6 +1,7 @@
 #include "LightTilesSetupPass.h"
 
 #include "Core/Camera.h"
+#include "cvars/CVarSystem.h"
 #include "Light/Light.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGCommon.h"
@@ -21,7 +22,7 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
 
             auto& globalResources = graph.GetGlobalResources();
 
-            glm::uvec2 bins = glm::ceil(
+            const glm::uvec2 bins = glm::ceil(
                 glm::vec2{globalResources.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
             passData.Tiles = graph.Create("Tiles"_hsv, RGBufferDescription{
                 .SizeBytes = (u64)(bins.x * bins.y) * sizeof(LightTile)});
@@ -47,7 +48,7 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
             PushConstant pushConstant = {
                 .RenderSize = frameContext.Resolution,
                 .Near = frameContext.PrimaryCamera->GetNear(),
-                .Far = frameContext.PrimaryCamera->GetFar(),
+                .Far = *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv),
                 .ProjectionInverse = glm::inverse(frameContext.PrimaryCamera->GetProjection())};
 
             auto& cmd = frameContext.CommandList;

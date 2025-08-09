@@ -2,6 +2,7 @@
 
 #include "LightFrustumCuller.h"
 #include "Core/Camera.h"
+#include "cvars/CVarSystem.h"
 #include "Scene/SceneLight.h"
 
 ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
@@ -9,7 +10,9 @@ ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
     ZBins bins = {};
 
     /* bins are uniform in z */
-    f32 zSpan = camera.GetFrustumPlanes().Far - camera.GetFrustumPlanes().Near;
+    const f32 maxLightCullDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
+    const FrustumPlanes frustum = camera.GetFrustumPlanes(maxLightCullDistance);
+    f32 zSpan = frustum.Far - frustum.Near;
     u16 pointLightIndex = 0;
     for (u32 visibleLight : light.VisibleLights())
     {

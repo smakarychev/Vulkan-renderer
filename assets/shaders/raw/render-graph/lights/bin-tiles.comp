@@ -52,7 +52,7 @@ bool is_in_tile_frustum(uint tile_index, vec3 position, float radius) {
     
     bool is_in_tile = true;
     is_in_tile = is_in_tile && position.z - radius < -u_view_info.view.near;
-    is_in_tile = is_in_tile && position.z + radius > -u_view_info.view.far;
+    is_in_tile = is_in_tile && position.z + radius > -u_view_info.view.max_light_cull_distance;
     is_in_tile = is_in_tile && is_inside_plane(tile.planes[0], position, radius);
     is_in_tile = is_in_tile && is_inside_plane(tile.planes[1], position, radius);
     is_in_tile = is_in_tile && is_inside_plane(tile.planes[2], position, radius);
@@ -113,8 +113,10 @@ void main() {
     depth_max = uintBitsToFloat(s_depth_range.x);
     
     // form aabb
-    const float depth_min_view = linearize_reverse_z(depth_min, u_view_info.view.near, u_view_info.view.far);
-    const float depth_max_view = linearize_reverse_z(depth_max, u_view_info.view.near, u_view_info.view.far);
+    const float depth_min_view = linearize_reverse_z(depth_min, u_view_info.view.near,
+        u_view_info.view.max_light_cull_distance);
+    const float depth_max_view = linearize_reverse_z(depth_max, u_view_info.view.near,
+        u_view_info.view.max_light_cull_distance);
     
     if (gl_LocalInvocationIndex == 0) {
         const vec4 min_screen = vec4(vec2(gl_WorkGroupID.xy * tile_size), 1.0f, 1.0f);
@@ -138,7 +140,8 @@ void main() {
     // 2.5d culling
     const float depth_range_inverse = 31.0f / (depth_max_view - depth_min_view);
     for (uint i = 0; i < sample_count; i++) {
-        const float depth_view = linearize_reverse_z(depth_samples_local[i], u_view_info.view.near, u_view_info.view.far);
+        const float depth_view = linearize_reverse_z(depth_samples_local[i], u_view_info.view.near,
+            u_view_info.view.max_light_cull_distance);
         const uint depth_bit = uint(max(0.0f, min(31.0f, floor((depth_view - depth_min_view) * depth_range_inverse))));
         const uint subgoup_mask = subgroupOr(1 << depth_bit);
         if (subgroupElect())
