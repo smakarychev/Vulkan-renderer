@@ -27,15 +27,13 @@ void SceneInfo::AddLight(const DirectionalLight& light)
     const u32 lightIndex = (u32)m_Lights.Lights.size();
     m_Lights.AddLight(light);
 
-    m_Hierarchy.Nodes = {
-        SceneHierarchyNode{
-            .Type = SceneHierarchyNodeType::Light,
-            .Depth = 0,
-            .Parent = {SceneHierarchyHandle::INVALID},
-            .LocalTransform = m_Lights.Lights.back().GetTransform(),
-            .PayloadIndex = lightIndex
-        }
-    };
+    m_Hierarchy.Nodes.push_back(SceneHierarchyNode{
+        .Type = SceneHierarchyNodeType::Light,
+        .Depth = 0,
+        .Parent = {SceneHierarchyHandle::INVALID},
+        .LocalTransform = m_Lights.Lights.back().GetTransform(),
+        .PayloadIndex = lightIndex
+    });
 }
 
 void SceneInfo::AddLight(const PointLight& light)
@@ -43,15 +41,13 @@ void SceneInfo::AddLight(const PointLight& light)
     const u32 lightIndex = (u32)m_Lights.Lights.size();
     m_Lights.AddLight(light);
 
-    m_Hierarchy.Nodes = {
-        SceneHierarchyNode{
-            .Type = SceneHierarchyNodeType::Light,
-            .Depth = 0,
-            .Parent = {SceneHierarchyHandle::INVALID},
-            .LocalTransform = m_Lights.Lights.back().GetTransform(),
-            .PayloadIndex = lightIndex
-        }
-    };
+    m_Hierarchy.Nodes.push_back(SceneHierarchyNode{
+        .Type = SceneHierarchyNodeType::Light,
+        .Depth = 0,
+        .Parent = {SceneHierarchyHandle::INVALID},
+        .LocalTransform = m_Lights.Lights.back().GetTransform(),
+        .PayloadIndex = lightIndex
+    });
 }
 
 Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
