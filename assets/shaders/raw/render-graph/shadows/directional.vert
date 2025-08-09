@@ -7,7 +7,7 @@
 
 layout(constant_id = 0) const bool COMPOUND_INDEX = false;
 
-layout(set = 1, binding = 0) uniform view_info {
+layout(scalar, set = 1, binding = 0) uniform view_info {
     ViewInfo view;
 } u_view_info;
 

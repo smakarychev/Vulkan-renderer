@@ -14,7 +14,7 @@ layout(set = 1, binding = 1) readonly buffer tiles {
     Tile tiles[];
 } u_tiles;
 
-layout(set = 1, binding = 2) uniform view_info {
+layout(scalar, set = 1, binding = 2) uniform view_info {
     ViewInfo view;
 } u_view_info;
 

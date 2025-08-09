@@ -5,7 +5,7 @@
 
 #extension GL_ARB_shader_draw_parameters: enable
 
-layout(set = 1, binding = 0) uniform view_info {
+layout(scalar, set = 1, binding = 0) uniform view_info {
     ViewInfo view;
 } u_view_info;
 

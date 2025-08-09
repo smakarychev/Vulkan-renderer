@@ -20,7 +20,7 @@ layout(scalar, set = 1, binding = 1) writeonly buffer csm_data {
     CSMData csm_data;
 } u_csm_data;
 
-layout(set = 1, binding = 2) uniform view_info {
+layout(scalar, set = 1, binding = 2) uniform view_info {
     ViewInfo view;
 } u_view_info;
 

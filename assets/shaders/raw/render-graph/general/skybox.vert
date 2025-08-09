@@ -14,7 +14,7 @@ const vec2 vertices[6] = {
     vec2( 1.0f, -1.0f),
 };
 
-layout(set = 1, binding = 1) uniform view_info {
+layout(scalar, set = 1, binding = 1) uniform view_info {
     ViewInfo view;
 } u_view_info;
 

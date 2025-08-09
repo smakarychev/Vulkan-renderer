@@ -1,3 +1,5 @@
+#extension GL_EXT_scalar_block_layout: require
+
 const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
 const uint VIEW_CLAMP_DEPTH_BIT = 1;
 

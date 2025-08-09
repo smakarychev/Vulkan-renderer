@@ -29,7 +29,7 @@ layout(set = 0, binding = 1) uniform sampler u_sampler_ce;
 @immutable_sampler_shadow
 layout(set = 0, binding = 2) uniform sampler u_sampler_shadow;
 
-layout(set = 1, binding = 0) uniform view_info {
+layout(scalar, set = 1, binding = 0) uniform view_info {
     ViewInfo view;
 } u_view_info;
 

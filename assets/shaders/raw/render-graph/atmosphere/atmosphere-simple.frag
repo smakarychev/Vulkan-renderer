@@ -11,7 +11,7 @@ layout(location = 0) in vec2 vertex_uv;
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
 
-layout(set = 1, binding = 1) uniform view_info {
+layout(scalar, set = 1, binding = 1) uniform view_info {
     ViewInfo view;
 } u_view_info;
 

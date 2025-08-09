@@ -24,7 +24,7 @@ layout(scalar, set = 1, binding = 3) uniform lights_info {
     LightsInfo info;
 } u_lights_info;
 
-layout(set = 1, binding = 4) uniform view_info {
+layout(scalar, set = 1, binding = 4) uniform view_info {
     ViewInfo view;
 } u_view_info;
 
