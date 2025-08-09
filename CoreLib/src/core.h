@@ -2,6 +2,7 @@
 
 #include <format>
 #include <iostream>
+#include <stacktrace>
 
 class Logger
 {
@@ -27,7 +28,7 @@ public:
 #ifdef NDEBUG
 #define ASSERT(x, ...) ((void)0)
 #else
-#define ASSERT(x, ...) if(x) {} else { LOG("Assertion failed"); LOG(__VA_ARGS__); __debugbreak(); }
+#define ASSERT(x, ...) if(x) {} else { LOG("Assertion failed"); LOG(__VA_ARGS__); LOG("{}", std::stacktrace::current()); __debugbreak(); }
 #endif
 
 #define BIT(x) (1 << (x))

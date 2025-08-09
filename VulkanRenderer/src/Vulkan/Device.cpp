@@ -666,6 +666,7 @@ namespace
         if (res != VK_SUCCESS)
         {
             LOG(message.data());
+            LOG("{}", std::stacktrace::current());
             abort();
         }
     }
