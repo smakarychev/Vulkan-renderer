@@ -1,0 +1,252 @@
+#version 460
+
+#include "../common.glsl"
+#include "../../common.glsl"
+#include "../../../view_info.glsl"
+#include "../../../utility.glsl"
+#include "../../atmosphere/atmosphere-functions.glsl"
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+#extension GL_EXT_samplerless_texture_functions: require
+#extension GL_EXT_scalar_block_layout: require 
+#extension GL_EXT_control_flow_attributes: require 
+
+@immutable_sampler
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+
+layout(set = 1, binding = 0) uniform texture2D u_cloud_coverage;
+layout(set = 1, binding = 1) uniform texture2D u_cloud_profile;
+layout(set = 1, binding = 2) uniform texture3D u_cloud_low_frequency;
+layout(set = 1, binding = 3) uniform texture3D u_cloud_high_frequency;
+layout(set = 1, binding = 4) uniform texture2D u_cloud_curl_noise;
+layout(set = 1, binding = 5, r11f_g11f_b10f) uniform writeonly image2D u_out_bsm;
+
+layout(scalar, set = 1, binding = 6) uniform view_info {
+    ViewInfo view;
+} u_view_info;
+
+layout(push_constant, scalar) uniform push_constants {
+// shape
+    float u_cloud_map_meters_per_texel;
+    float u_shape_noise_scale;
+    float u_detail_noise_scale_multiplier;
+    float u_detail_noise_contribution;
+    float u_detail_noise_height_modifier;
+
+    float u_wind_angle;
+    float u_wind_speed;
+    float u_wind_upright_amount;
+    float u_wind_horizontal_skew;
+
+    float u_curl_noise_scale_multiplier;
+    float u_curl_noise_height;
+    float u_curl_noise_contribution;
+
+    uint unused[3];
+};
+
+const float VIEW_HEIGHT = DEFAULT_VIEW_HEIGHT_M;
+ivec2 cloud_map_size = textureSize(u_cloud_coverage, 0);
+vec2 cloud_map_size_inv = 1.0f / cloud_map_size;
+vec3 wind_direction = vec3(cos(u_wind_angle), -u_wind_upright_amount, sin(u_wind_angle));
+
+Intersection get_intersection_with_clouds(vec3 ro, vec3 rd) {
+    const vec3 ro_view = ro + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f);
+
+    float tmin = 0.0f, distance = 0.0f;
+    const Intersection max_intersection = intersect_sphere(ro_view, rd, EARTH_CENTER, CLOUDS_MAX_RADIUS);
+    if (max_intersection.depth == 0) {
+        return Intersection(0, 0);
+    }
+    const Intersection min_intersection = intersect_sphere(ro_view, rd, EARTH_CENTER, CLOUDS_MIN_RADIUS);
+    if (min_intersection.depth == 0) {
+        tmin = max_intersection.t;
+        distance = max_intersection.depth;
+    }
+    else {
+        float top = max_intersection.t > 0.0f ? max_intersection.t : max_intersection.t + max_intersection.depth;
+        float bottom = min_intersection.t > 0.0f ? min_intersection.t : min_intersection.t + min_intersection.depth;
+        if (min_intersection.t > 0.0) {
+            top = 0.0f;
+        }
+        tmin = min(top, bottom);
+        distance = max(top, bottom);
+        distance = distance - tmin;
+    }
+
+    return Intersection(tmin, distance);
+}
+
+struct CloudLayerInfo {
+    float relative_height;
+    float type;
+    float coverage;
+    float dimensional_profile;
+};
+
+vec3 cloud_type_vec(float type) {
+    return vec3(
+        1.0f - clamp(type * 2.0f, 0.0f, 1.0f),
+        1.0f - abs(type - 0.5f) * 2.0f,
+        clamp(2.0f * (type - 0.5f), 0.0f, 1.0f));
+}
+
+vec2 height_gradient_top(float type) {
+    const vec3 type_vec = cloud_type_vec(type);
+
+    const vec2 stratus = vec2(0.15f, 0.2f);
+    const vec2 stratocumulus = vec2(0.3f, 0.4f);
+    const vec2 cumulus = vec2(0.7f, 0.99f);
+
+    return stratus * type_vec.x + stratocumulus * type_vec.y + cumulus * type_vec.z;
+}
+
+vec2 height_gradient_bottom(float type) {
+    const vec3 type_vec = cloud_type_vec(type);
+
+    const vec2 stratus = vec2(0.01f, 0.1f);
+    const vec2 stratocumulus = vec2(0.01f, 0.18f);
+    const vec2 cumulus = vec2(0.01f, 0.06f);
+
+    return stratus * type_vec.x + stratocumulus * type_vec.y + cumulus * type_vec.z;
+}
+
+float get_vertical_profile(CloudLayerInfo layer, vec2 gradient_bottom, vec2 gradient_top) {
+    return
+        remap_clamp(layer.relative_height, gradient_bottom.x, gradient_bottom.y, 0, 1) *
+        remap_clamp(layer.relative_height, gradient_top.x, gradient_top.y, 1, 0);
+}
+
+CloudLayerInfo sample_cloud_layer(vec3 p) {
+    vec3 v = (p - EARTH_CENTER);
+    v /= length(v);
+
+    CloudLayerInfo layer;
+    layer.relative_height = relative_height(p, EARTH_RADIUS + VIEW_HEIGHT, vec2(CLOUDS_MIN_RADIUS, CLOUDS_MAX_RADIUS));
+    p.xz += layer.relative_height * wind_direction.xy * u_wind_horizontal_skew;
+    p.xz += wind_direction.xy * u_view_info.view.frame_number * u_wind_speed;
+    const vec2 uv_planar = (p.xz * cloud_map_size_inv / u_cloud_map_meters_per_texel + 1.0f) * 0.5f;
+    const float coverage = textureLod(sampler2D(u_cloud_coverage, u_sampler), uv_planar, 0).r;
+    const vec4 profile = textureLod(sampler2D(u_cloud_profile, u_sampler), uv_planar, 0);
+    const vec2 gradient_bottom = clamp(height_gradient_bottom(profile.y) + profile.z, profile.z, profile.w);
+    const vec2 gradient_top = clamp(height_gradient_top(profile.x) + profile.z, profile.z, profile.w);
+
+    const float vertical_profile = get_vertical_profile(layer, gradient_bottom, gradient_top);
+    const float dimensional_profile = vertical_profile * coverage;
+    layer.type = profile.x;
+    layer.coverage = coverage;
+    layer.dimensional_profile = dimensional_profile;
+
+    return layer;
+}
+
+float sample_cloud_density(CloudLayerInfo layer, vec3 p, float mip_level, bool sample_detail) {
+    p += layer.relative_height * wind_direction * u_wind_horizontal_skew;
+    p += wind_direction * u_view_info.view.frame_number * u_wind_speed;
+
+    const vec3 low_frequency_sample_p = p * u_shape_noise_scale;
+    float cloud_sample = textureLod(
+        sampler3D(u_cloud_low_frequency, u_sampler), low_frequency_sample_p, mip_level).r;
+
+    cloud_sample = clamp(cloud_sample - (1 - layer.dimensional_profile), 0.0, 1.0f);
+
+    if (cloud_sample > 0 && sample_detail) {
+        vec3 high_frequency_sample_p = low_frequency_sample_p * u_detail_noise_scale_multiplier;
+
+        const vec3 curl_sample = decode_curl(textureLod(
+            sampler2D(u_cloud_curl_noise, u_sampler),
+        p.xz * u_shape_noise_scale * u_curl_noise_scale_multiplier, 0).rgb);
+        high_frequency_sample_p += curl_sample *
+            clamp(pow(1.0f - layer.relative_height, u_curl_noise_height), 0.0f, 1.0f) *
+            u_curl_noise_contribution;
+
+        const float high_frequency_sample = textureLod(
+            sampler3D(u_cloud_high_frequency, u_sampler), high_frequency_sample_p, mip_level).r;
+
+        const float high_frequency_modifier = mix(1.0 - high_frequency_sample, high_frequency_sample,
+            clamp(layer.relative_height * u_detail_noise_height_modifier, 0.0f, 1.0f));
+
+        cloud_sample = remap(cloud_sample, high_frequency_modifier * u_detail_noise_contribution, 1.0, 0.0, 1.0);
+    }
+
+    return max(cloud_sample, 0.0f);
+}
+
+vec3 cloud_shadow(vec2 uv, vec3 ro, vec3 rd, float depth) {
+    const vec3 surface_normal = normalize(ro);
+    const float angle_zenith = clamp(dot(rd, surface_normal), 0.0f, 1.0f);
+    const float MAX_STEPS = mix(16.0f, 32.0f, 1 - angle_zenith);
+    const float MIN_LOD = 1.0f;
+    const bool SAMPLE_DETAIL = true;
+    const float MIN_TRANSMITTANCE = 5e-3f;
+
+    float depth_t = depth == 0.0f ? DEPTH_MAX : depth;
+
+    Intersection cloud_intersection = get_intersection_with_clouds(ro, rd);
+    Intersection earth_intersection =
+        intersect_sphere(ro + vec3(0.0f, EARTH_RADIUS + VIEW_HEIGHT, 0.0f), rd, EARTH_CENTER, EARTH_RADIUS);
+    if (earth_intersection.t != 0 && earth_intersection.t < cloud_intersection.t + cloud_intersection.depth) {
+        return vec3(0);
+    }
+    if (cloud_intersection.t > depth) {
+        return vec3(0);
+    }
+    if (cloud_intersection.depth == 0.0f) {
+        return vec3(0);
+    }
+
+    cloud_intersection.depth = depth == 0.0f ? cloud_intersection.depth :
+        min(cloud_intersection.depth, depth);
+    const float MAX_DISTANCE = cloud_intersection.t > 256 * 64.0f ? 30000.0f : 256 * 64.0f;
+    cloud_intersection.depth = min(cloud_intersection.depth, MAX_DISTANCE);
+
+    const float step_size = cloud_intersection.depth / MAX_STEPS;
+    const vec3 step = step_size * rd;
+    vec3 t = ro + cloud_intersection.t * rd;
+    
+    float front_depth = DEPTH_MAX;
+    float total_depth = 0;
+    float total_extinction = 0;
+    float in_cloud_samples = 0;
+    
+    for (float i = 0; i < MAX_STEPS; i++) {
+        const CloudLayerInfo layer = sample_cloud_layer(t);
+        const float lod = clamp(i * step_size / MAX_DISTANCE, MIN_LOD, 6.0f);
+
+        float sample_density = sample_cloud_density(layer, t, lod, SAMPLE_DETAIL);
+
+        if (sample_density > 0.0f) {
+            front_depth = min(front_depth, step_size * i);
+            const float ds = sample_density * step_size;
+            total_extinction += sample_density;
+            total_depth += ds;
+            in_cloud_samples += 1;
+        }
+
+        t += step;
+    }
+
+    return vec3(
+        cloud_intersection.t + front_depth,
+        total_extinction * CLOUDS_EXTINCTION / max(in_cloud_samples, 1), 
+        total_depth);
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    const ivec2 image_size = imageSize(u_out_bsm);
+    const vec2 texture_size_inv = 1.0f / image_size;
+    const vec2 uv = (vec2(coord) + 0.5f) * texture_size_inv;
+
+    if (coord.x >= image_size.x || coord.y >= image_size.y) {
+        return;
+    }
+
+    const vec3 clip = vec3(vec2(uv) * 2.0f - 1.0f, -1.0f);
+    vec4 unprojected = u_view_info.view.inv_projection * vec4(clip, 1.0f);
+    const vec3 rd = normalize(u_view_info.view.inv_view * vec4(unprojected.xyz, 0.0f)).xyz;
+    const vec3 ro = u_view_info.view.position;
+    
+    imageStore(u_out_bsm, coord, vec4(cloud_shadow(uv, ro, rd, DEPTH_MAX), 0.0f));
+}

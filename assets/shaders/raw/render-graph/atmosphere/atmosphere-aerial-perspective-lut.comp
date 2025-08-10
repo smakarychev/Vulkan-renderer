@@ -4,6 +4,7 @@
 #version 460
 
 #include "common.glsl"
+#include "../common.glsl"
 #include "../../shadow.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
@@ -12,6 +13,8 @@ layout(local_size_x = 16, local_size_y = 16) in;
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 @immutable_sampler_shadow
 layout(set = 0, binding = 1) uniform sampler u_sampler_shadow;
+@immutable_sampler_clamp_black
+layout(set = 0, binding = 2) uniform sampler u_sampler_black;
 
 layout(set = 1, binding = 0) uniform texture2D u_transmittance_lut;
 layout(set = 1, binding = 1) uniform texture2D u_multiscattering_lut;
@@ -29,6 +32,13 @@ layout(set = 1, binding = 5) uniform texture2DArray u_csm;
 layout(scalar, set = 1, binding = 6) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
+
+layout(std430, set = 2, binding = 0) readonly buffer material_buffer {
+    Material materials[];
+} u_materials;
+
+@bindless
+layout(set = 2, binding = 1) uniform texture2D u_textures[];
 
 #define FILTER_SIZE 2
 #include "../shadows/shadows.glsl"

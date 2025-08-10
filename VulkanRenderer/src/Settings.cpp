@@ -40,7 +40,7 @@ void Settings::initCvars()
     CVarF32 maxLightCullDistance("Renderer.Limits.MaxLightCullDistance"_hsv,
         "The maximum distance at which point light are being processed, in meters", 8192);
     CVarF32 maxGeometryCullDistance("Renderer.Limits.MaxGeometryCullDistance"_hsv,
-        "The maximum distance at which geometry is being processed, in meters", 8192);
+        "The maximum distance at which geometry is being processed, in meters", 131072);
     CVarF32 maxShadowDistance("Renderer.Limits.MaxShadowDistance"_hsv,
         "The maximum distance at which shadows are drawn, in meters", 4096);
 
@@ -98,6 +98,14 @@ void Settings::initCvars()
     CVarI32 cloudCurlNoiseSize("Clouds.CloudCurlNoise.Size"_hsv,
         "Size of the cloud curl noise",
         128);
+    
+    CVarI32 cloudShadowMapSize("Clouds.ShadowMap.Size"_hsv,
+        "Size of the cloud shadow map",
+        512);
+    
+    CVarF32 cloudsExtent("Clouds.Extent"_hsv,
+        "Clouds extent in meters",
+        16 * 1024);
     
 
     /* scene */

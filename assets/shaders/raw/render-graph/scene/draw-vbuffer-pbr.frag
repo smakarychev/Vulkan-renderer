@@ -5,7 +5,6 @@
 #include "../pbr/common.glsl"
 #include "../pbr/pbr.glsl"
 
-#extension GL_EXT_nonuniform_qualifier: require
 #extension GL_EXT_samplerless_texture_functions: require
 #extension GL_KHR_shader_subgroup_arithmetic: require
 
@@ -23,8 +22,11 @@ layout(set = 0, binding = 1) uniform sampler u_sampler;
 @immutable_sampler_clamp_edge
 layout(set = 0, binding = 2) uniform sampler u_sampler_ce;
 
+@immutable_sampler_clamp_black
+layout(set = 0, binding = 3) uniform sampler u_sampler_black;
+
 @immutable_sampler_shadow
-layout(set = 0, binding = 3) uniform sampler u_sampler_shadow;
+layout(set = 0, binding = 4) uniform sampler u_sampler_shadow;
 
 layout(scalar, set = 1, binding = 0) uniform view_info {
     ViewInfo view;
@@ -212,14 +214,15 @@ void main() {
 
     const float ambient_occlusion = gbuffer_data.ao * textureLod(sampler2D(u_ssao_texture, u_sampler), vertex_uv, 0).r;
 
-    const float shadow = shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size, 
+    float shadow = 1.0 - shadow(gbuffer_data.position, gbuffer_data.flat_normal, u_directional_lights.lights[0].direction, u_directional_lights.lights[0].size, 
         gbuffer_data.z_view);
-
-
+    const float cloud_shadow = cloud_volumetric_shadow(gbuffer_data.position, u_view_info.view,
+        u_textures[u_view_info.view.volumetric_cloud_shadow], u_sampler_black);
+    shadow *= (1.0f - cloud_shadow  * u_view_info.view.volumetric_cloud_shadow_strength);
     const vec3 transmittance = get_transmittance();
     
     vec3 color;
-    color = shade_pbr(shade_info, shadow, ambient_occlusion, transmittance);
+    color = shade_pbr(shade_info, 1 - shadow, ambient_occlusion, transmittance);
     color = tonemap(color, 2.0f);
 
     color += gbuffer_data.emissive;

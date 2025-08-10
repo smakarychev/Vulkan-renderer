@@ -118,6 +118,12 @@ private:
     };
     CloudsInfo RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color, RG::Resource aerialPerspective,
         RG::Resource depth);
+    struct CloudShadowInfo
+    {
+        RG::Resource Shadow{};
+        CameraGPU Camera{};
+    };
+    CloudShadowInfo RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps);
     
     void Shutdown();
 
@@ -182,6 +188,7 @@ private:
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};
     Passes::Clouds::VP::CloudParameters m_CloudParameters{};
     bool m_CloudsReprojectionEnabled{true};
+    CommonLight* m_SunLight{nullptr};
     
     std::shared_ptr<SlimeMoldContext> m_SlimeMoldContext;
 
@@ -201,10 +208,11 @@ private:
 
     Texture m_TransmittanceLut{};
     Texture m_SkyViewLut{};
+    Texture m_VolumetricCloudShadow{};
     u32 m_TransmittanceLutBindlessIndex{};
     u32 m_SkyViewLutBindlessIndex{};
-
     u32 m_BlueNoiseBindlessIndex{};
+    u32 m_VolumetricShadowBindlessIndex{};
     
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

@@ -1,6 +1,8 @@
 #include "poisson_samples.glsl"
 
 #extension GL_EXT_samplerless_texture_functions: require
+#extension GL_EXT_nonuniform_qualifier: require
+
 
 float random(vec4 seed) {
     float dot_product = dot(seed, vec4(12.9898,78.233,45.164,94.673));
@@ -203,4 +205,17 @@ float shadow(vec3 position, vec3 normal, vec3 light_direction, float light_size,
     }
 
     return shadow;
+}
+
+float cloud_volumetric_shadow(vec3 position, ViewInfo view, texture2D shadow_texture, sampler shadow_sampler) {
+    vec4 cloud_shadow_local_pos = view.volumetric_cloud_view * vec4(position, 1.0f);
+    vec4 cloud_shadow_projected = view.volumetric_cloud_view_projection * vec4(position, 1.0f);
+    const vec2 cloud_shadow_uv = (cloud_shadow_projected.xy * 0.5f + 0.5f);
+    const vec3 cloud_shadow_sample = textureLod(nonuniformEXT(sampler2D(shadow_texture, shadow_sampler)),
+        cloud_shadow_uv, 0).rgb;
+    float cloud_shadow = min(cloud_shadow_sample.b,
+        cloud_shadow_sample.g * max(0, cloud_shadow_sample.r - cloud_shadow_local_pos.z));
+    cloud_shadow = 1.0 - exp(-cloud_shadow);
+    
+    return cloud_shadow;
 }

@@ -50,7 +50,7 @@ layout(scalar, set = 1, binding = 11) readonly buffer directional_lights {
     DirectionalLight lights[];
 } u_directional_lights;
 
-layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
+layout(std430, set = 2, binding = 0) readonly buffer material_buffer {
     Material materials[];
 } u_materials;
 
@@ -87,7 +87,6 @@ vec2 cloud_map_size_inv = 1.0f / cloud_map_size;
 float shape_blue_noise = 0.0f;
 float light_blue_noise = 0.0f;
 vec3 light_dir = -u_directional_lights.lights[0].direction;
-float transmittance = 1.0f;
 vec3 wind_direction = vec3(cos(u_wind_angle), -u_wind_upright_amount, sin(u_wind_angle));
 vec3 l0 = u_directional_lights.lights[0].color * u_directional_lights.lights[0].intensity;
 
@@ -419,6 +418,7 @@ CloudInfo cloud(vec2 uv, vec3 ro, vec3 rd, float depth) {
     vec3 t = ro + (cloud_intersection.t + step_size * shape_blue_noise) * rd;
     float depth_weighted_transmittance = 0.0f;
     float depth_weighted_transmittance_total = 0.0f;
+    float transmittance = 1.0f;
     vec3 in_scattering = vec3(0.0f);
 
     const float mu = dot(rd, light_dir);

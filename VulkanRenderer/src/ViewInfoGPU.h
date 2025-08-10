@@ -81,11 +81,12 @@ struct ShadingSettings
     f32 EnvironmentPower{1.0f};
     u32 SoftShadows{false};
     f32 MaxLightCullDistance{1.0f};
+    f32 VolumetricCloudShadowStrength{0.3f};
     RenderHandle<Image> TransmittanceLut{};
     RenderHandle<Image> SkyViewLut{};
     RenderHandle<Image> VolumetricCloudShadow{};
 
-    u32 Padding[2]{};
+    u32 Padding[1]{};
 
     glm::mat4 VolumetricCloudViewProjection{};
     glm::mat4 VolumetricCloudView{};

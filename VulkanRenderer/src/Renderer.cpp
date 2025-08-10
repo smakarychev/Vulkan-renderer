@@ -32,6 +32,7 @@
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudCoveragePass.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudProfileMapPass.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudsEnvironmentPass.h"
+#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudShadowPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/SceneForwardPbrPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
@@ -129,6 +130,8 @@ void Renderer::InitRenderGraph()
         Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
     m_SkyViewLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
         Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
+    m_VolumetricShadowBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
+        Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
 
     // todo: this is currently a rgb image, which is wasteful, I need to provide format hints to image converter
     m_BlueNoiseBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
@@ -211,12 +214,13 @@ void Renderer::InitRenderGraph()
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
             *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/death_valley/scene.scene", 
+            //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/huge_plane/scene.scene", 
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
                 .Position = glm::vec3{0.0f, -1.5f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-                .Scale = glm::vec3{10.0f},}},
+                .Scale = glm::vec3{1000.0f},}},
             ctx);
 
         SceneInfo lights = {};
@@ -336,10 +340,9 @@ void Renderer::SetupRenderGraph()
     auto& vbufferPass = m_OpaqueSet.FindPass("Vbuffer"_hsv);
     
     std::vector<SceneDrawPassDescription> drawPasses;
-
-    const CommonLight* light = nullptr;
-    m_Scene.IterateLights(LightType::Directional, [&light](CommonLight& commonLight, Transform3d& localTransform) {
-        light = &commonLight;
+    
+    m_Scene.IterateLights(LightType::Directional, [this](CommonLight& commonLight, Transform3d& localTransform) {
+        m_SunLight = &commonLight;
         ImGui::Begin("Directional Light");
         glm::vec3 euler = glm::eulerAngles(localTransform.Orientation) * 180.0f / glm::pi<f32>();
         ImGui::DragFloat3("Direction", &euler[0], 1e-1f);
@@ -352,8 +355,8 @@ void Renderer::SetupRenderGraph()
     });
 
     CsmData csmData = {};
-    if (light != nullptr)
-        csmData = RenderGraphShadows(shadowPass, *light);
+    if (m_SunLight != nullptr)
+        csmData = RenderGraphShadows(shadowPass, *m_SunLight);
 
     m_OpaqueSetPrimaryView = {
         .Name = "OpaquePrimary"_hsv,
@@ -428,10 +431,13 @@ void Renderer::SetupRenderGraph()
         color = RenderGraphVBufferPbr(vbuffer, m_Graph->GetGlobalResources().PrimaryViewInfoResource, csmData);
     }
 
+    CloudShadowInfo cloudShadow = {};
     Resource colorWithSky{};
     CloudsInfo clouds = {};
     if (renderAtmosphere)
     {
+        cloudShadow = RenderGraphCloudShadows(cloudMaps);
+        
         auto& aerialPerspective = Passes::Atmosphere::AerialPerspective::addToGraph("AtmosphereAerialPerspective"_hsv,
             *m_Graph, {
             .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
@@ -467,7 +473,7 @@ void Renderer::SetupRenderGraph()
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         Device::DeletionQueue());
 
-    if (atmosphereLuts)
+    if (renderAtmosphere)
     {
         m_Graph->MarkImageForExport(atmosphereLuts->TransmittanceLut);
         m_Graph->ClaimImage(atmosphereLuts->TransmittanceLut, m_TransmittanceLut, Device::DeletionQueue());
@@ -475,8 +481,14 @@ void Renderer::SetupRenderGraph()
         m_Graph->MarkImageForExport(atmosphereLuts->SkyViewLut);
         m_Graph->ClaimImage(atmosphereLuts->SkyViewLut, m_SkyViewLut, Device::DeletionQueue());
 
+        m_Graph->MarkImageForExport(cloudShadow.Shadow, ImageUsage::Sampled);
+        m_Graph->ClaimImage(cloudShadow.Shadow, m_VolumetricCloudShadow, Device::DeletionQueue());
+
+        // todo: this should not be necessary to set it every frame
         m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_TransmittanceLutBindlessIndex, m_TransmittanceLut);
         m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_SkyViewLutBindlessIndex, m_SkyViewLut);
+        m_BindlessTextureDescriptorsRingBuffer->SetTexture(m_VolumetricShadowBindlessIndex,
+            m_VolumetricCloudShadow);
     }
 
     if (renderAtmosphere)
@@ -549,9 +561,21 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     primaryView.ShadingSettings.VolumetricCloudShadow = m_VolumetricShadowBindlessIndex;
     primaryView.ShadingSettings.MaxLightCullDistance =
         *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
+
+    const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
+    if (m_SunLight && renderAtmosphere)
+    {
+        const CameraGPU cloudShadowCamera = Passes::Clouds::VP::Shadow::createShadowCamera(
+            *globalResources.PrimaryCamera, primaryView, m_SunLight->PositionDirection);
+        primaryView.ShadingSettings.VolumetricCloudViewProjection = cloudShadowCamera.ViewProjection;
+        primaryView.ShadingSettings.VolumetricCloudView = cloudShadowCamera.View;
+    }
+    
     ImGui::Begin("Shading Settings");
     ImGui::DragFloat("Environment power", &primaryView.ShadingSettings.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
     ImGui::Checkbox("Soft shadows", (bool*)&primaryView.ShadingSettings.SoftShadows);
+    ImGui::DragFloat("Volumetric cloud shadows strength", &primaryView.ShadingSettings.VolumetricCloudShadowStrength,
+        1e-2f, 0.0f, 1.0f);
     ImGui::End();
 
     ImGui::Begin("Atmosphere settings");
@@ -1300,6 +1324,28 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
     return {
         .Color = clouds.ColorOut,
         .Depth = clouds.DepthOut
+    };
+}
+
+Renderer::CloudShadowInfo Renderer::RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps)
+{
+    auto& cloudShadow = Passes::Clouds::VP::Shadow::addToGraph("CloudsShadow"_hsv, *m_Graph, {
+        .PrimaryCamera = m_Graph->GetGlobalResources().PrimaryCamera,
+        .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
+        .CloudCoverage = cloudMaps.Coverage,
+        .CloudProfile = cloudMaps.Profile,
+        .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,
+        .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
+        .CloudCurlNoise = cloudMaps.CurlNoise, 
+        .Light = m_SunLight,
+        .CloudParameters = &m_CloudParameters,
+    });
+
+    Passes::ImGuiTexture::addToGraph("Clouds.Shadow"_hsv, *m_Graph, cloudShadow.DepthOut);
+
+    return {
+        .Shadow = cloudShadow.DepthOut,
+        .Camera = cloudShadow.ShadowCamera
     };
 }
 

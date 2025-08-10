@@ -71,7 +71,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
     struct SettingsUBO
     {
         f32 Power{1.0f};
-        f32 Radius{0.075f};
+        f32 Radius{1.0f};
         u32 Samples{32};
     };
     struct Samples
