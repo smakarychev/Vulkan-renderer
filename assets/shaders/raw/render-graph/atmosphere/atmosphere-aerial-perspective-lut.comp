@@ -54,7 +54,7 @@ void main() {
     const ViewInfo view = u_view_info.view;
     
     const ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
-    const vec2 uv = vec2(coord.xy) / vec2(AERIAL_PERSPECTIVE_LUT_RES);
+    const vec2 uv = (vec2(coord.xy) + 0.5f) / vec2(AERIAL_PERSPECTIVE_LUT_RES);
     const vec3 clip = vec3(uv * 2.0f - 1.0f, 1.0f);
     
     vec4 unprojected = view.inv_projection * vec4(clip, 1.0f);
