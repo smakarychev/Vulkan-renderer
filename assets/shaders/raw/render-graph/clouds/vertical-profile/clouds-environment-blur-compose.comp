@@ -1,0 +1,23 @@
+#version 460
+
+#define BLUR_DATA_TYPE vec4
+#define BLUR_IMAGE_LOAD(uv) textureLod(sampler2D(u_clouds, u_sampler), uv, 0)
+
+#if VERTICAL
+#define BLUR_IMAGE_STORE(coord, color) imageStore(u_clouds_atmosphere_blurred, coord, color)
+#else // VERTICAl
+#define BLUR_IMAGE_STORE(coord, color) { \
+    const vec4 atmosphere = imageLoad(u_clouds_atmosphere_blurred, coord); \
+    imageStore(u_clouds_atmosphere_blurred, coord, \
+        vec4(atmosphere.rgb * color.a + color.rgb, 1.0f - color.a + atmosphere.a * color.a)); \
+}
+#endif // VERTICAL
+
+#define BLUR_IMAGE_SIZE textureSize(u_clouds, 0)
+
+@immutable_sampler
+layout(set = 0, binding = 0) uniform sampler u_sampler;
+layout(set = 1, binding = 0) uniform texture2D u_clouds;
+layout(set = 1, binding = 1, rgba16f) uniform image2D u_clouds_atmosphere_blurred;
+
+#include "../../utility/gaussian-blur-sep2.glsl"

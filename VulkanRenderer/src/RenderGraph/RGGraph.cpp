@@ -1261,6 +1261,8 @@ namespace RG
         ImageResource image = {};
         image.Name = name;
         image.Description = CreateImageDescription(description);
+        if (enumHasAny(description.Inference, RGImageInference::Views))
+            image.Extras = m_Images[description.Reference.m_Index].Extras;
         m_Images.push_back(image);
 
         resource.AddFlags((ResourceFlags)(creationFlags));

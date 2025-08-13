@@ -31,11 +31,7 @@ layout(set = 1, binding = 3) uniform texture3D u_cloud_high_frequency;
 layout(set = 1, binding = 4) uniform texture2D u_cloud_curl_noise;
 layout(set = 1, binding = 5) uniform texture2D u_depth;
 layout(set = 1, binding = 6) uniform texture3D u_aerial_perspective_lut;
-#if !ENVIRONMENT_CAPTURE
-layout(set = 1, binding = 7, rgba16f) uniform writeonly image2D u_out_color;
-#else // ENVIRONMENT_CAPTURE
 layout(set = 1, binding = 7, rgba16f) uniform image2D u_out_color;
-#endif // ENVIRONMENT_CAPTURE
 layout(set = 1, binding = 8, rg16f) uniform writeonly image2D u_out_depth;
 
 layout(scalar, set = 1, binding = 9) uniform view_info {
@@ -541,12 +537,7 @@ void main() {
     const CloudInfo cloud_info = cloud(uv, ro, rd, linear_depth);
 
 #if !ENVIRONMENT_CAPTURE
-    imageStore(u_out_color, out_coord, vec4(cloud_info.color));
     imageStore(u_out_depth, out_coord, vec4(cloud_info.depth.rg, 0.0f, 0.0f));
-#else // ENVIRONMENT_CAPTURE
-    const vec4 color = imageLoad(u_out_color, out_coord);
-    imageStore(u_out_color, out_coord,
-        vec4(color.rgb * cloud_info.color.a + cloud_info.color.rgb,
-        1.0f - cloud_info.color.a + color.a * cloud_info.color.a));
 #endif // ENVIRONMENT_CAPTURE
+    imageStore(u_out_color, out_coord, vec4(cloud_info.color));
 }

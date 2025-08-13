@@ -59,12 +59,8 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
                 passData.AerialPerspectiveLut = graph.ReadImage(info.AerialPerspectiveLut, Compute | Sampled);
                 passData.DepthIn = graph.ReadImage(info.DepthIn, Compute | Sampled);
                 passData.DepthOut = graph.WriteImage(passData.DepthOut, Compute | Storage);
-                passData.ColorOut = graph.WriteImage(passData.ColorOut, Compute | Storage);
             }
-            else
-            {
-                passData.ColorOut = graph.ReadWriteImage(passData.ColorOut, Compute | Storage);
-            }
+            passData.ColorOut = graph.WriteImage(passData.ColorOut, Compute | Storage);
             passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Compute | Uniform);
             passData.IrradianceSH = graph.ReadBuffer(info.IrradianceSH, Compute | Uniform);
             passData.DirectionalLights = graph.ReadBuffer(passData.DirectionalLights, Compute | Uniform);
