@@ -1,31 +1,13 @@
 #version 460
 
-layout(local_size_x = 16, local_size_y = 16) in;
-
-layout(constant_id = 0) const bool IS_VERTICAL = true;
+#define BLUR_DATA_TYPE float
+#define BLUR_IMAGE_LOAD(uv) textureLod(sampler2D(u_ssao, u_sampler), uv, 0).r
+#define BLUR_IMAGE_STORE(coord, color) imageStore(u_ssao_blurred, coord, vec4(color))
+#define BLUR_IMAGE_SIZE textureSize(u_ssao, 0)
 
 @immutable_sampler
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_ssao;
 layout(set = 1, binding = 1, r8) uniform writeonly image2D u_ssao_blurred;
 
-void main() {
-    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
-    
-    const int kernel_size = 2;
-    
-    float ssao = 0.0f;
-    
-    for (int i = -kernel_size; i <= kernel_size; i++) {
-        ivec2 delta;
-        if (IS_VERTICAL)
-            delta = ivec2(0, i);
-        else
-            delta = ivec2(i, 0);
-
-        ssao += texelFetch(sampler2D(u_ssao, u_sampler), coord + delta, 0).r;
-    }
-    ssao /= 2 * kernel_size + 1; 
-
-    imageStore(u_ssao_blurred, coord, vec4(ssao));
-}
+#include "../utility/gaussian-blur-sep2.glsl"

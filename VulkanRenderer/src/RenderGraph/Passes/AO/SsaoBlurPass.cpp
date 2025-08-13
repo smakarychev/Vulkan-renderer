@@ -16,9 +16,9 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
         {
             CPU_PROFILE_FRAME("SSAO.Blur.Setup")
 
-            graph.SetShader("ssao-blur"_hsv,
-                ShaderSpecializations{
-                    ShaderSpecialization{"IS_VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}});
+            graph.SetShader("ssao-blur"_hsv, ShaderDefines({
+                    ShaderDefine{"VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}
+            }));
             
             passData.SsaoOut = RgUtils::ensureResource(info.SsaoOut, graph, "ColorOut"_hsv,
                 RGImageDescription{
@@ -45,6 +45,6 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
             bindGroup.Bind(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
-				.GroupSize = {16, 16, 1}});
+				.GroupSize = {8, 8, 1}});
         });
 }

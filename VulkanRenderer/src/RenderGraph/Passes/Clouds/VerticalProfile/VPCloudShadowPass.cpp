@@ -27,9 +27,9 @@ namespace
             {
                 CPU_PROFILE_FRAME("VP.Clouds.ShadowBlur.Setup")
 
-                graph.SetShader("cloud-vp-shadow-blur"_hsv, ShaderSpecializations{
-                    ShaderSpecialization{"IS_VERTICAL"_hsv, isVerticalBlur}
-                });
+                graph.SetShader("cloud-vp-shadow-blur"_hsv, ShaderDefines({
+                    ShaderDefine{"VERTICAL"_hsv, isVerticalBlur}
+                }));
 
                 passData.Blurred = graph.Create("Shadow.Blurred"_hsv, RGImageDescription{
                     .Inference = RGImageInference::Full,
