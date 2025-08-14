@@ -2,7 +2,7 @@
 
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Clouds/CloudsCommon.h"
+#include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Generated/CloudVpCoverageBindGroup.generated.h"
 
 Passes::Clouds::VP::Coverage::PassData& Passes::Clouds::VP::Coverage::addToGraph(StringId name, RG::Graph& renderGraph,

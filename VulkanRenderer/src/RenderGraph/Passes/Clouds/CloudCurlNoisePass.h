@@ -1,7 +1,7 @@
 #pragma once
 #include "RenderGraph/RGResource.h"
 
-namespace Passes::CloudCurlNoise
+namespace Passes::Clouds::CurlNoise
 {
     struct ExecutionInfo
     {

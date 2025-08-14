@@ -1,11 +1,11 @@
 #include "CloudReprojectPass.h"
 
-#include "CloudsCommon.h"
+#include "CloudCommon.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CloudReprojectBindGroup.generated.h"
-#include "VerticalProfile/VPCloudsPass.h"
+#include "VerticalProfile/VPCloudPass.h"
 
-Passes::CloudReproject::PassData& Passes::CloudReproject::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::Clouds::Reproject::PassData& Passes::Clouds::Reproject::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
@@ -14,7 +14,7 @@ Passes::CloudReproject::PassData& Passes::CloudReproject::addToGraph(StringId na
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Clouds.Reproject.Setup")
+            CPU_PROFILE_FRAME("Cloud.Reproject.Setup")
 
             graph.SetShader("cloud-reproject"_hsv);
 
@@ -22,20 +22,20 @@ Passes::CloudReproject::PassData& Passes::CloudReproject::addToGraph(StringId na
             {
                 passData.ColorAccumulationIn = graph.Create("Color.Accumulation.In"_hsv, RGImageDescription{
                     .Inference = RGImageInference::Size2d | RGImageInference::Format,
-                    .Width = Clouds::REPROJECTION_RELATIVE_SIZE_INV,
-                    .Height = Clouds::REPROJECTION_RELATIVE_SIZE_INV,
+                    .Width = REPROJECTION_RELATIVE_SIZE_INV,
+                    .Height = REPROJECTION_RELATIVE_SIZE_INV,
                     .Reference = info.Color,
                 });
                 passData.DepthAccumulationIn = graph.Create("Depth.Accumulation.In"_hsv, RGImageDescription{
                     .Inference = RGImageInference::Size2d | RGImageInference::Format,
-                    .Width = Clouds::REPROJECTION_RELATIVE_SIZE_INV,
-                    .Height = Clouds::REPROJECTION_RELATIVE_SIZE_INV,
+                    .Width = REPROJECTION_RELATIVE_SIZE_INV,
+                    .Height = REPROJECTION_RELATIVE_SIZE_INV,
                     .Reference = info.Depth,
                 });
                 passData.ReprojectionFactorIn = graph.Create("Depth.ReprojectionFactor.In"_hsv, RGImageDescription{
                     .Inference = RGImageInference::Size2d,
-                    .Width = Clouds::REPROJECTION_RELATIVE_SIZE_INV,
-                    .Height = Clouds::REPROJECTION_RELATIVE_SIZE_INV,
+                    .Width = REPROJECTION_RELATIVE_SIZE_INV,
+                    .Height = REPROJECTION_RELATIVE_SIZE_INV,
                     .Reference = info.Color,
                     .Format = Format::R8_UNORM,
                 });
@@ -74,8 +74,8 @@ Passes::CloudReproject::PassData& Passes::CloudReproject::addToGraph(StringId na
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
-            CPU_PROFILE_FRAME("Clouds.Reproject")
-            GPU_PROFILE_FRAME("Clouds.Reproject")
+            CPU_PROFILE_FRAME("Cloud.Reproject")
+            GPU_PROFILE_FRAME("Cloud.Reproject")
 
             const glm::uvec2 resolution = graph.GetImageDescription(passData.ColorAccumulationOut).Dimensions();
             

@@ -4,7 +4,7 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CloudCurlBindGroup.generated.h"
 
-Passes::CloudCurlNoise::PassData& Passes::CloudCurlNoise::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::Clouds::CurlNoise::PassData& Passes::Clouds::CurlNoise::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
@@ -13,7 +13,7 @@ Passes::CloudCurlNoise::PassData& Passes::CloudCurlNoise::addToGraph(StringId na
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("CloudCurlNoise.Setup")
+            CPU_PROFILE_FRAME("Cloud.CurlNoise.Setup")
 
             graph.SetShader("cloud-curl"_hsv);
 
@@ -36,8 +36,8 @@ Passes::CloudCurlNoise::PassData& Passes::CloudCurlNoise::addToGraph(StringId na
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
-            CPU_PROFILE_FRAME("CloudCurlNoise")
-            GPU_PROFILE_FRAME("CloudCurlNoise")
+            CPU_PROFILE_FRAME("Cloud.CurlNoise")
+            GPU_PROFILE_FRAME("Cloud.CurlNoise")
             
             const glm::uvec2 resolution = graph.GetImageDescription(passData.CloudCurlNoise).Dimensions();
 

@@ -6,7 +6,7 @@ namespace Passes::Clouds::VP
     struct CloudParameters;
 }
 
-namespace Passes::CloudReproject
+namespace Passes::Clouds::Reproject
 {
     struct ExecutionInfo
     {
@@ -19,7 +19,7 @@ namespace Passes::CloudReproject
         RG::Resource ColorAccumulationOut{};
         RG::Resource DepthAccumulationOut{};
         RG::Resource ReprojectionFactorOut{};
-        const Clouds::VP::CloudParameters* CloudParameters{nullptr};
+        const VP::CloudParameters* CloudParameters{nullptr};
     };
     struct PassData
     {

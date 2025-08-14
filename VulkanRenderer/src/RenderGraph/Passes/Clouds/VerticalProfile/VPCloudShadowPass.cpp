@@ -1,7 +1,7 @@
 #include "VPCloudShadowPass.h"
 
 #include "ViewInfoGPU.h"
-#include "VPCloudsPass.h"
+#include "VPCloudPass.h"
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CloudVpShadowBindGroup.generated.h"
@@ -25,7 +25,7 @@ namespace
         return renderGraph.AddRenderPass<PassData>(name,
             [&](Graph& graph, PassData& passData)
             {
-                CPU_PROFILE_FRAME("VP.Clouds.ShadowBlur.Setup")
+                CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur.Setup")
 
                 graph.SetShader("cloud-vp-shadow-blur"_hsv, ShaderDefines({
                     ShaderDefine{"VERTICAL"_hsv, isVerticalBlur}
@@ -41,8 +41,8 @@ namespace
             },
             [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
-                CPU_PROFILE_FRAME("VP.Clouds.ShadowBlur")
-                GPU_PROFILE_FRAME("VP.Clouds.ShadowBlur")
+                CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
+                GPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
 
                 const glm::uvec2 resolution = graph.GetImageDescription(passData.Shadow).Dimensions();
 
@@ -71,7 +71,7 @@ namespace
         return renderGraph.AddRenderPass<PassData>(name,
             [&](Graph& graph, PassData& passData)
             {
-                CPU_PROFILE_FRAME("VP.Clouds.Shadow.Setup")
+                CPU_PROFILE_FRAME("VP.Cloud.Shadow.Setup")
 
                 graph.SetShader("cloud-vp-shadow"_hsv);
 
@@ -102,8 +102,8 @@ namespace
             },
             [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
-                CPU_PROFILE_FRAME("VP.Clouds.Shadow")
-                GPU_PROFILE_FRAME("VP.Clouds.Shadow")
+                CPU_PROFILE_FRAME("VP.Cloud.Shadow")
+                GPU_PROFILE_FRAME("VP.Cloud.Shadow")
 
                 const glm::uvec2 resolution = graph.GetImageDescription(passData.DepthOut).Dimensions();
 

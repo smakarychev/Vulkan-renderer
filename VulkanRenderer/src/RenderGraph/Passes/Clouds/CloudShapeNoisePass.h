@@ -6,7 +6,7 @@ namespace Passes::Clouds
     struct CloudsNoiseParameters;
 }
 
-namespace Passes::CloudShapeNoise
+namespace Passes::Clouds::ShapeNoise
 {
     struct ExecutionInfo
     {
@@ -16,8 +16,8 @@ namespace Passes::CloudShapeNoise
         Image LowFrequencyTexture{};
         /* optional external high frequency image */
         Image HighFrequencyTexture{};
-        const Clouds::CloudsNoiseParameters* LowFrequencyNoiseParameters{nullptr};
-        const Clouds::CloudsNoiseParameters* HighFrequencyNoiseParameters{nullptr};
+        const CloudsNoiseParameters* LowFrequencyNoiseParameters{nullptr};
+        const CloudsNoiseParameters* HighFrequencyNoiseParameters{nullptr};
     };
     struct PassData
     {

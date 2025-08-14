@@ -28,10 +28,10 @@
 #include "RenderGraph/Passes/Clouds/CloudCurlNoisePass.h"
 #include "RenderGraph/Passes/Clouds/CloudReprojectPass.h"
 #include "RenderGraph/Passes/Clouds/CloudShapeNoisePass.h"
-#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudsPass.h"
+#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudPass.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudCoveragePass.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudProfileMapPass.h"
-#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudsEnvironmentPass.h"
+#include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudEnvironmentPass.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudShadowPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/SceneForwardPbrPass.h"
@@ -1174,7 +1174,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     }
     else
     {
-        auto& cloudShape = Passes::CloudShapeNoise::addToGraph("CloudShapeNoise"_hsv, *m_Graph, {
+        auto& cloudShape = Passes::Clouds::ShapeNoise::addToGraph("CloudShapeNoise"_hsv, *m_Graph, {
             .LowFrequencyTextureSize = 128.0f,
             .HighFrequencyTextureSize = 32.0f,
             .LowFrequencyTexture = m_CloudShapeLowFrequency,
@@ -1199,7 +1199,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     }
     else
     {
-        auto& curlNoise = Passes::CloudCurlNoise::addToGraph("CloudsCurlNoise"_hsv, *m_Graph, {
+        auto& curlNoise = Passes::Clouds::CurlNoise::addToGraph("CloudsCurlNoise"_hsv, *m_Graph, {
             .CloudCurlNoise = m_CloudCurlNoise
         });
         curlNoiseResource = curlNoise.CloudCurlNoise;
@@ -1276,7 +1276,7 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
     
     if (m_CloudsReprojectionEnabled)
     {
-        auto& reprojection = Passes::CloudReproject::addToGraph("Clouds.Reproject"_hsv, *m_Graph, {
+        auto& reprojection = Passes::Clouds::Reproject::addToGraph("Clouds.Reproject"_hsv, *m_Graph, {
             .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
             .Color = clouds.ColorOut,
             .Depth = clouds.DepthOut,

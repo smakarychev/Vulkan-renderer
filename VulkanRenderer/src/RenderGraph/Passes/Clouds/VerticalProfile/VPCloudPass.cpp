@@ -1,7 +1,7 @@
-﻿#include "VPCloudsPass.h"
+﻿#include "VPCloudPass.h"
 
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Clouds/CloudsCommon.h"
+#include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Generated/CloudVpBindGroup.generated.h"
 #include "Scene/SceneLight.h"
 
@@ -14,7 +14,7 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("VP.Clouds.Setup")
+            CPU_PROFILE_FRAME("VP.Cloud.Setup")
 
             graph.SetShader("cloud-vp"_hsv, ShaderOverrides{
                 ShaderDefines({
@@ -67,8 +67,8 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
         },
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
-            CPU_PROFILE_FRAME("VP.Clouds")
-            GPU_PROFILE_FRAME("VP.Clouds")
+            CPU_PROFILE_FRAME("VP.Cloud")
+            GPU_PROFILE_FRAME("VP.Cloud")
 
             const glm::uvec2 resolution = graph.GetImageDescription(passData.ColorOut).Dimensions();
 

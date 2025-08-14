@@ -1,6 +1,6 @@
 #pragma once
 
-#include "VPCloudsPass.h"
+#include "VPCloudPass.h"
 
 struct ViewInfoGPU;
 

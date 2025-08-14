@@ -1,10 +1,10 @@
-#include "VPCloudsEnvironmentPass.h"
+#include "VPCloudEnvironmentPass.h"
 
 #include "ViewInfoGPU.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Clouds/CloudsCommon.h"
+#include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Generated/CloudVpEnvironmentBlurComposeBindGroup.generated.h"
 
 namespace

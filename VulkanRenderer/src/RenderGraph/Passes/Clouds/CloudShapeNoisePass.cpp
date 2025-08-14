@@ -1,6 +1,6 @@
 #include "CloudShapeNoisePass.h"
 
-#include "CloudsCommon.h"
+#include "CloudCommon.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CloudShapeBindGroup.generated.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
@@ -17,7 +17,7 @@ namespace
         return renderGraph.AddRenderPass<Resource>(name,
             [&](Graph& graph, Resource& shapeTexture)
             {
-                CPU_PROFILE_FRAME("CloudsShapeTexture.Setup")
+                CPU_PROFILE_FRAME("Cloud.ShapeTexture.Setup")
 
                 graph.SetShader("cloud-shape"_hsv,
                     ShaderSpecializations{
@@ -44,8 +44,8 @@ namespace
             },
             [=](const Resource& shapeTexture, FrameContext& frameContext, const Graph& graph)
             {
-                CPU_PROFILE_FRAME("CloudsShapeTexture")
-                GPU_PROFILE_FRAME("CloudsShapeTexture")
+                CPU_PROFILE_FRAME("Cloud.ShapeTexture")
+                GPU_PROFILE_FRAME("Cloud.ShapeTexture")
 
                 const Shader& shader = graph.GetShader();
                 CloudShapeShaderBindGroup bindGroup(shader);
@@ -66,7 +66,7 @@ namespace
     }
 }
 
-Passes::CloudShapeNoise::PassData& Passes::CloudShapeNoise::addToGraph(StringId name, RG::Graph& renderGraph,
+Passes::Clouds::ShapeNoise::PassData& Passes::Clouds::ShapeNoise::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
@@ -75,7 +75,7 @@ Passes::CloudShapeNoise::PassData& Passes::CloudShapeNoise::addToGraph(StringId 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
-            CPU_PROFILE_FRAME("Clouds.Setup")
+            CPU_PROFILE_FRAME("Cloud.ShapeNoise.Setup")
 
             passData.LowFrequencyTexture = createShapeTexture("LowFrequency"_hsv, graph, info.LowFrequencyTextureSize,
                 false, *info.LowFrequencyNoiseParameters, info.LowFrequencyTexture);
