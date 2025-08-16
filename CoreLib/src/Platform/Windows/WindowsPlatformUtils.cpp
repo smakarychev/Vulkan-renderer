@@ -1,12 +1,7 @@
 #include "core.h"
 #include "Platform/PlatformUtils.h"
 #include "types.h"
-
-#ifdef _WIN32
-
-#define WIN32_LEAN_AND_MEAN
-#include <Windows.h>
-#undef WIN32_LEAN_AND_MEAN
+#include "WindowsInclude.h"
 
 namespace
 {
@@ -137,6 +132,3 @@ namespace Platform
     }
     }
 }
-
-
-#endif // _WIN32
