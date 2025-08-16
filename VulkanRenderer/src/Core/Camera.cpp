@@ -199,7 +199,7 @@ FrustumPlanes Camera::GetFrustumPlanes(f32 maxDistance) const
 
         frustumPlanes.RightX = mat[0][0] * rightLengthInverse;
         frustumPlanes.RightZ = rightLengthInverse;
-        frustumPlanes.TopY = std::abs(mat[1][1]) * topLengthInverse;
+        frustumPlanes.TopY = mat[1][1] * topLengthInverse;
         frustumPlanes.TopZ = topLengthInverse;
         break;
     }
@@ -207,7 +207,7 @@ FrustumPlanes Camera::GetFrustumPlanes(f32 maxDistance) const
     {
         frustumPlanes.RightX = mat[0][0];
         frustumPlanes.RightZ = 0.0f;
-        frustumPlanes.TopY = std::abs(mat[1][1]);
+        frustumPlanes.TopY = mat[1][1];
         frustumPlanes.TopZ = 0.0f;
         break;
     }
@@ -258,7 +258,7 @@ ProjectionData Camera::GetProjectionData() const
 {
     const glm::mat4& mat = GetProjection();
     
-    return {mat[0][0], std::abs(mat[1][1]), mat[3][0], std::abs(mat[3][1])};
+    return {mat[0][0], mat[1][1], mat[3][0], mat[3][1]};
 }
 
 Plane Camera::GetNearViewPlane() const

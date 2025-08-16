@@ -16,8 +16,9 @@ bool is_backface_meshlet_visible_orthographic(vec3 cone_axis, float cone_cutoff)
 
 bool is_frustum_visible_orthographic(vec3 sphere_origin, float radius, ViewInfo view) {
     bool visible = true;
-    visible = visible && abs(view.frustum_right_x * sphere_origin.x + view.projection_bias_x) < 1.0f + view.frustum_right_x * radius;
-    visible = visible && abs(view.frustum_top_y * sphere_origin.y + view.projection_bias_y) < 1.0f + view.frustum_top_y * radius;
+
+    visible = visible && abs(view.frustum_right_x * sphere_origin.x + view.projection_bias_x) < 1 + abs(view.frustum_right_x) * radius;
+    visible = visible && abs(view.frustum_top_y * sphere_origin.y + view.projection_bias_y) < 1 + abs(view.frustum_top_y) * radius;
     visible = visible &&
         sphere_origin.z - radius <= -view.frustum_near &&
         sphere_origin.z + radius >= -view.frustum_far;
@@ -54,10 +55,10 @@ bool is_occlusion_visible(vec3 sphere_origin, float radius, ViewInfo view, sampl
     vec4 aabb = vec4(minx, miny, maxx, maxy) *
         vec4(view.projection_width, view.projection_height, view.projection_width, view.projection_height);
     // clip space -> uv space
-    aabb = aabb.xwzy * vec4(-0.5f, 0.5f, -0.5f, 0.5f) + vec4(0.5f);
+    aabb = aabb.xyzw * -0.5f + 0.5f;
 
-    const float width =  (aabb.x - aabb.z) * view.hiz_resolution.x;
-    const float height = (aabb.y - aabb.w) * view.hiz_resolution.y;
+    const float width  = (aabb.x - aabb.z) * view.hiz_resolution.x;
+    const float height = (aabb.w - aabb.y) * view.hiz_resolution.y;
 
     const float level = ceil(log2(max(width, height)));
 
@@ -83,9 +84,9 @@ bool is_occlusion_visible_orthographic(vec3 sphere_origin, float radius, ViewInf
         vec4(view.projection_width, view.projection_height, view.projection_width, view.projection_height) +
         vec4(view.projection_bias_x, view.projection_bias_y, view.projection_bias_x, view.projection_bias_y);
     // clip space -> uv space
-    aabb = aabb.xyzw * vec4(0.5f, -0.5f, 0.5f, -0.5f) + vec4(0.5f);
+    aabb = aabb.xyzw * 0.5f + vec4(0.5f);
 
-    const float width =  (aabb.z - aabb.x) * view.hiz_resolution.x;
+    const float width  = (aabb.z - aabb.x) * view.hiz_resolution.x;
     const float height = (aabb.y - aabb.w) * view.hiz_resolution.y;
 
     const float level = ceil(log2(max(width, height)));
