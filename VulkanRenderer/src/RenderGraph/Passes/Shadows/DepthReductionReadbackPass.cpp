@@ -30,7 +30,7 @@ Passes::DepthReductionReadback::PassData& Passes::DepthReductionReadback::addToG
             
             passData.MinMaxDepth = graph.ReadBuffer(info.MinMaxDepthReduction, Readback);
 
-            Buffer minMax = graph.GetBuffer(passData.MinMaxDepth);
+            const Buffer minMax = graph.GetBuffer(passData.MinMaxDepth);
             const void* address = Device::MapBuffer(minMax);
             HiZ::MinMaxDepth depths = *(const HiZ::MinMaxDepth*)address;
             Device::UnmapBuffer(minMax);

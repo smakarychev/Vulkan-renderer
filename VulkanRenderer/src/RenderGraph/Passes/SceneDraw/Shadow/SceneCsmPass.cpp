@@ -52,9 +52,9 @@ namespace
         
         for (u32 i = 0; i < SHADOW_CASCADES; i++)
         {
-            f32 previousDepth = i > 0 ? cascades[i - 1] : shadowMin;
-            f32 depth = cascades[i];
-            FrustumCorners corners = mainCamera.GetFrustumCorners(previousDepth, depth);
+            const f32 previousDepth = i > 0 ? cascades[i - 1] : shadowMin;
+            const f32 depth = cascades[i];
+            const FrustumCorners corners = mainCamera.GetFrustumCorners(previousDepth, depth);
             if (stabilizeCascades)
                 cameras.push_back(ShadowUtils::shadowCameraStable(corners, geometryBounds, lightDirection, up));
             else
@@ -82,7 +82,7 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
             CPU_PROFILE_FRAME("SceneCsm.Setup")
 
             Cameras& cameras = graph.GetOrCreateBlackboardValue<Cameras>();
-            std::vector cascades = calculateDepthCascades(*info.MainCamera, info.ShadowMin, info.ShadowMax);
+            const std::vector cascades = calculateDepthCascades(*info.MainCamera, info.ShadowMin, info.ShadowMax);
             cameras.ShadowCameras =
                 createShadowCameras(*info.MainCamera, info.DirectionalLight.Direction, cascades,
                     std::max(info.ShadowMin, info.MainCamera->GetNear()),

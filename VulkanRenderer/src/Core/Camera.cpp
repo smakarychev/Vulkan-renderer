@@ -69,8 +69,8 @@ Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
     camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
     camera.m_FlipY = info.BaseInfo.FlipY;
 
-    f32 halfHeight = (info.Top - info.Bottom) * 0.5f;
-    f32 halfWidth = (info.Right - info.Left) * 0.5f;
+    const f32 halfHeight = (info.Top - info.Bottom) * 0.5f;
+    const f32 halfWidth = (info.Right - info.Left) * 0.5f;
     camera.m_FieldOfView = 2.0f * std::atan(halfHeight / std::abs(info.BaseInfo.Near));
     camera.m_Aspect = halfWidth / halfHeight;
 
@@ -302,10 +302,10 @@ void Camera::UpdateProjectionMatrix()
     }
     case CameraType::Orthographic:
     {
-        f32 orthoHeight = 2.0f * std::tan(m_FieldOfView * 0.5f) * (m_NearClipPlane + 1.0f);
-        f32 orthoWidth = orthoHeight * m_Aspect;
-        f32 x = orthoWidth * 0.5f;
-        f32 y = orthoHeight * 0.5f;
+        const f32 orthoHeight = 2.0f * std::tan(m_FieldOfView * 0.5f) * (m_NearClipPlane + 1.0f);
+        const f32 orthoWidth = orthoHeight * m_Aspect;
+        const f32 x = orthoWidth * 0.5f;
+        const f32 y = orthoHeight * 0.5f;
         m_ProjectionMatrix = glm::orthoRH_ZO(-x, x, -y, y, m_FarClipPlane, m_NearClipPlane);
         break;
     }
@@ -363,8 +363,8 @@ void CameraController::OnUpdate(f32 dt)
 
 void CameraController::FPSOnUpdate(f32 dt)
 {
-    f32 prevMouseX = m_MouseCoordinates.x;
-    f32 prevMouseY = m_MouseCoordinates.y;
+    const f32 prevMouseX = m_MouseCoordinates.x;
+    const f32 prevMouseY = m_MouseCoordinates.y;
     m_MouseCoordinates.x = Input::MousePosition().x;
     m_MouseCoordinates.y = Input::MousePosition().y;
 
@@ -377,10 +377,12 @@ void CameraController::FPSOnUpdate(f32 dt)
     m_Yaw += xOffset;
     m_Pitch += yOffset;
 
-    if (m_Pitch > glm::radians(89.99f)) m_Pitch = glm::radians(89.99f);
-    else if (m_Pitch < glm::radians(-89.99f)) m_Pitch = glm::radians(-89.99f);
+    if (m_Pitch > glm::radians(89.99f))
+        m_Pitch = glm::radians(89.99f);
+    else if (m_Pitch < glm::radians(-89.99f))
+        m_Pitch = glm::radians(-89.99f);
 
-    glm::quat newOrientation = glm::quat(glm::vec3(m_Pitch, m_Yaw, 0.0f));
+    const glm::quat newOrientation = glm::quat(glm::vec3(m_Pitch, m_Yaw, 0.0f));
     m_Camera->SetOrientation(newOrientation);
 
     glm::vec3 velocityVector = {};
@@ -411,15 +413,15 @@ void CameraController::OrbitOnUpdate(f32 dt)
 {
     if (Input::GetKey(Key::LeftAlt))
     {
-        f32 prevMouseX = m_MouseCoordinates.x;
-        f32 prevMouseY = m_MouseCoordinates.y;
+        const f32 prevMouseX = m_MouseCoordinates.x;
+        const f32 prevMouseY = m_MouseCoordinates.y;
         m_MouseCoordinates = Input::MousePosition();
         f32 xOffset =   m_MouseCoordinates.x - prevMouseX;
         f32 yOffset = -(m_MouseCoordinates.y - prevMouseY);
 
         if (Input::GetMouseButton(Mouse::ButtonRight))
         {
-            f32 deltaDistance = yOffset * ZoomSpeed() * dt;
+            const f32 deltaDistance = yOffset * ZoomSpeed() * dt;
             m_Distance += deltaDistance;
             if (m_Distance < 0.0f)
                 m_Distance = 1;
@@ -437,7 +439,7 @@ void CameraController::OrbitOnUpdate(f32 dt)
                 xOffset *= -m_TranslationSpeed * dt * m_Distance;
                 yOffset *= m_TranslationSpeed * dt * m_Distance;
                 m_FocalPoint += xOffset * m_Camera->GetRight() + yOffset * m_Camera->GetUp();
-                glm::vec3 newCameraPosition = m_FocalPoint - m_Distance * m_Camera->GetForward();
+                const glm::vec3 newCameraPosition = m_FocalPoint - m_Distance * m_Camera->GetForward();
                 m_Camera->SetPosition(newCameraPosition);
                 m_Camera->UpdateViewMatrix();
                 m_Camera->UpdateViewProjection();
@@ -449,13 +451,13 @@ void CameraController::OrbitOnUpdate(f32 dt)
             {
                 xOffset *=  m_RotationSpeed * dt;
                 yOffset *= -m_RotationSpeed * dt;
-                f32 yawSign = m_Camera->GetUp().y < 0 ? 1.0f : -1.0f;
+                const f32 yawSign = m_Camera->GetUp().y < 0 ? 1.0f : -1.0f;
                 m_Yaw += xOffset * yawSign * m_RotationSpeed;
                 m_Pitch += yOffset * m_RotationSpeed;
 
-                glm::quat newOrientation = glm::quat(glm::vec3(m_Pitch, m_Yaw, 0.0f));
+                const glm::quat newOrientation = glm::quat(glm::vec3(m_Pitch, m_Yaw, 0.0f));
                 m_Camera->SetOrientation(newOrientation);
-                glm::vec3 newPosition = m_FocalPoint - m_Distance * m_Camera->GetForward();
+                const glm::vec3 newPosition = m_FocalPoint - m_Distance * m_Camera->GetForward();
                 m_Camera->SetPosition(newPosition);
 
                 m_Camera->UpdateViewMatrix();
@@ -468,7 +470,7 @@ void CameraController::OrbitOnUpdate(f32 dt)
 
 f32 CameraController::ZoomSpeed()
 {
-    f32 dist = std::max(m_Distance * 0.2f, 0.0f);
+    const f32 dist = std::max(m_Distance * 0.2f, 0.0f);
     f32 speed = dist * dist;
     speed = std::min(speed, 100.0f);
     return speed;
