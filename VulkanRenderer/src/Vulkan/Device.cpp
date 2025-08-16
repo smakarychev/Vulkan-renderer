@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <fstream>
 #include <print>
+#include <ranges>
 
 #include "AssetManager.h"
 #include "FrameContext.h"
@@ -1716,19 +1717,19 @@ void Device::SubmitCommandBuffer(CommandBuffer cmd, QueueKind queueKind, Fence f
 void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queueKind,
     const BufferSubmitSyncInfo& submitSync)
 {
-    std::vector<VkCommandBufferSubmitInfo> commandBufferSubmitInfos;
-    commandBufferSubmitInfos.reserve(cmds.size());
-    for (auto& cmd : cmds)
-        commandBufferSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-            .commandBuffer = Resources()[cmd].CommandBuffer});
-
-    std::vector<VkSemaphoreSubmitInfo> signalSemaphoreSubmitInfos;
-    signalSemaphoreSubmitInfos.reserve(submitSync.SignalSemaphores.size());
-    for (auto& semaphore : submitSync.SignalSemaphores)
-        signalSemaphoreSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = Resources()[semaphore].Semaphore});
+    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
+    for (auto&& [i, cmd] : std::views::enumerate(cmds))
+    {
+        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferSubmitInfos[i].commandBuffer = Resources()[cmd].CommandBuffer;
+    }
+        
+    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
+    {
+        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreSubmitInfos[i].semaphore = Resources()[semaphore].Semaphore;
+    }
 
     std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
         submitSync.WaitSemaphores, submitSync.WaitStages);
@@ -1753,21 +1754,21 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
     for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
         Resources()[submitSync.SignalSemaphores[i]].Timeline = submitSync.SignalValues[i];
 
-    std::vector<VkCommandBufferSubmitInfo> commandBufferSubmitInfos;
-    commandBufferSubmitInfos.reserve(cmds.size());
-    for (auto& cmd : cmds)
-        commandBufferSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO,
-            .commandBuffer = Resources()[cmd].CommandBuffer});
+    std::vector commandBufferSubmitInfos(cmds.size(), VkCommandBufferSubmitInfo{});
+    for (auto&& [i, cmd] : std::views::enumerate(cmds))
+    {
+        commandBufferSubmitInfos[i].sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+        commandBufferSubmitInfos[i].commandBuffer = Resources()[cmd].CommandBuffer;
+    }
 
-    std::vector<VkSemaphoreSubmitInfo> signalSemaphoreSubmitInfos;
-    signalSemaphoreSubmitInfos.reserve(submitSync.SignalSemaphores.size());
-    for (u32 i = 0; i < submitSync.SignalSemaphores.size(); i++)
-        signalSemaphoreSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = Resources()[submitSync.SignalSemaphores[i]].Semaphore,
-            .value = submitSync.SignalValues[i]});
-
+    std::vector signalSemaphoreSubmitInfos(submitSync.SignalSemaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(submitSync.SignalSemaphores))
+    {
+        signalSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        signalSemaphoreSubmitInfos[i].semaphore = Resources()[semaphore].Semaphore;
+        signalSemaphoreSubmitInfos[i].value = submitSync.SignalValues[i];
+    }
+    
     std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos = DeviceInternal::CreateVulkanSemaphoreSubmit(
         submitSync.WaitSemaphores, submitSync.WaitValues, submitSync.WaitStages);
     
@@ -4813,28 +4814,28 @@ VkImageView DeviceInternal::CreateVulkanImageView(const ImageSubresource& image,
 std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const Semaphore> semaphores,
     Span<const PipelineStage> waitStages)
 {
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
-    waitSemaphoreSubmitInfos.reserve(semaphores.size());
-    for (u32 i = 0; i < semaphores.size(); i++)
-        waitSemaphoreSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = Device::Resources()[semaphores[i]].Semaphore,
-            .stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i])});
-
+    std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
+    {
+        waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waitSemaphoreSubmitInfos[i].semaphore = Device::Resources()[semaphore].Semaphore;
+        waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
+    }
+    
     return waitSemaphoreSubmitInfos;
 }
 
 std::vector<VkSemaphoreSubmitInfo> DeviceInternal::CreateVulkanSemaphoreSubmit(Span<const TimelineSemaphore> semaphores,
     Span<const u64> waitValues, Span<const PipelineStage> waitStages)
 {
-    std::vector<VkSemaphoreSubmitInfo> waitSemaphoreSubmitInfos;
-    waitSemaphoreSubmitInfos.reserve(semaphores.size());
-    for (u32 i = 0; i < semaphores.size(); i++)
-        waitSemaphoreSubmitInfos.push_back({
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO,
-            .semaphore = Device::Resources()[semaphores[i]].Semaphore,
-            .value = waitValues[i],
-            .stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i])});
-
+    std::vector waitSemaphoreSubmitInfos(semaphores.size(), VkSemaphoreSubmitInfo{});
+    for (auto&& [i, semaphore] : std::views::enumerate(semaphores))
+    {
+        waitSemaphoreSubmitInfos[i].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+        waitSemaphoreSubmitInfos[i].semaphore = Device::Resources()[semaphore].Semaphore;
+        waitSemaphoreSubmitInfos[i].value = waitValues[i];
+        waitSemaphoreSubmitInfos[i].stageMask = vulkanPipelineStageFromPipelineStage(waitStages[i]);
+    }
+    
     return waitSemaphoreSubmitInfos;
 }
