@@ -6,7 +6,6 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
-#include "RenderGraph/Passes/Utility/MipMapPass.h"
 #include "Rendering/Image/ImageUtility.h"
 
 Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addToGraph(StringId name,

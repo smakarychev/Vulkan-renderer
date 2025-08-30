@@ -13,8 +13,6 @@ namespace Passes::Atmosphere::Raymarch
         RG::Resource SkyViewLut{};
         RG::Resource TransmittanceLut{};
         RG::Resource AerialPerspective{};
-        RG::Resource Clouds{};
-        RG::Resource CloudsDepth{};
         RG::Resource ColorIn{};
         RG::Resource DepthIn{};
         bool UseSunLuminance{false};
@@ -26,8 +24,6 @@ namespace Passes::Atmosphere::Raymarch
         RG::Resource SkyViewLut{};
         RG::Resource TransmittanceLut{};
         RG::Resource AerialPerspective{};
-        RG::Resource Clouds{};
-        RG::Resource CloudsDepth{};
         RG::Resource DirectionalLight{};
         RG::Resource ColorOut{};
     };

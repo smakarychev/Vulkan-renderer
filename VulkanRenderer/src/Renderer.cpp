@@ -25,6 +25,7 @@
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
+#include "RenderGraph/Passes/Clouds/CloudComposePass.h"
 #include "RenderGraph/Passes/Clouds/CloudCurlNoisePass.h"
 #include "RenderGraph/Passes/Clouds/CloudReprojectPass.h"
 #include "RenderGraph/Passes/Clouds/CloudShapeNoisePass.h"
@@ -1051,18 +1052,24 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
         .SkyViewLut = lut.SkyViewLut,
         .TransmittanceLut = lut.TransmittanceLut,
         .AerialPerspective = aerialPerspective,
-        .Clouds = clouds,
-        .CloudsDepth = cloudsDepth,
         .ColorIn = color,
         .DepthIn = depth,
         .UseSunLuminance = USE_SUN_LUMINANCE 
     });
+
+    auto& composed = Passes::Clouds::Compose::addToGraph("CloudsCompose"_hsv, *m_Graph, {
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+        .SceneColor = atmosphere.ColorOut,
+        .SceneDepth = depth,
+        .CloudColor = clouds,
+        .CloudDepth = cloudsDepth
+    });
     
-    Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, atmosphere.ColorOut);
+    Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, composed.ColorOut);
     Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective"_hsv, *m_Graph,
         aerialPerspective);
 
-    return atmosphere.ColorOut;
+    return composed.ColorOut;
 }
 
 Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
