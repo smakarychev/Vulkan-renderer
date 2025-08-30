@@ -3991,7 +3991,7 @@ void Device::ShutdownResources()
 
 void Device::InitImGuiUI()
 {
-    std::array poolSizes = {
+    static constexpr std::array poolSizes = {
         VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLER, 1000},
         VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000},
         VkDescriptorPoolSize{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000},
@@ -4230,7 +4230,6 @@ void Device::CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& comm
     const DeviceResources::RenderingInfoResource& renderingInfoResource = Resources()[command.RenderingInfo];
     
     VkRenderingInfo renderingInfoVulkan = {};
-    renderingInfoVulkan = {};
     renderingInfoVulkan.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
     renderingInfoVulkan.layerCount = 1;
     renderingInfoVulkan.renderArea = VkRect2D{
