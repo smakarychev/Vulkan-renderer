@@ -6,6 +6,7 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Generated/CloudVpEnvironmentBlurComposeBindGroup.generated.h"
+#include "Rendering/Image/ImageUtility.h"
 
 namespace
 {
@@ -25,35 +26,54 @@ namespace
                 if (info.CloudsRenderingMode == Passes::Clouds::VP::CloudsRenderingMode::Reprojection)
                     environmentSize *= Passes::Clouds::REPROJECTION_RELATIVE_SIZE;
 
-                passData.ColorOut = graph.Create("CloudsEnvironment"_hsv, RGImageDescription{
-                    .Inference = RGImageInference::Format | RGImageInference::Size2d,
-                    .Reference = info.ColorIn,
-                });
-
-                const Camera camera = Camera::EnvironmentCapture(info.PrimaryView->Camera.Position,
-                        (u32)environmentSize, info.FaceIndex);
-                ViewInfoGPU viewInfo = *info.PrimaryView;
-                viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
-                Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
-                    .SizeBytes = sizeof(ViewInfoGPU)});
-                viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
-
-                auto& clouds = Passes::Clouds::VP::addToGraph(
-                    name.Concatenate(".Clouds").AddVersion(info.FaceIndex), graph, {
-                        .ViewInfo = viewInfoResource,
-                        .CloudCoverage = info.CloudCoverage,
-                        .CloudProfile = info.CloudProfile,
-                        .CloudShapeLowFrequencyMap = info.CloudShapeLowFrequencyMap,
-                        .CloudShapeHighFrequencyMap = info.CloudShapeHighFrequencyMap,
-                        .CloudCurlNoise = info.CloudCurlNoise,
-                        .ColorOut = passData.ColorOut,
-                        .IrradianceSH = info.IrradianceSH,
-                        .Light = info.Light,
-                        .CloudParameters = info.CloudParameters,
-                        .CloudsRenderingMode = info.CloudsRenderingMode,
-                        .IsEnvironmentCapture = true
+                if (info.ColorIn.IsValid())
+                    passData.CloudEnvironment = info.ColorIn;
+                else 
+                    passData.CloudEnvironment = graph.Create("CloudsEnvironment"_hsv, RGImageDescription{
+                        .Width = environmentSize,
+                        .Height = environmentSize,
+                        .LayersDepth = 6,
+                        .Mipmaps = Images::mipmapCount({environmentSize, environmentSize}),
+                        .Format = Format::RGBA16_FLOAT,
+                        .Kind = ImageKind::Cubemap
                     });
-                passData.ColorOut = clouds.ColorOut;
+
+                std::array<Resource, 6> faces{};
+
+                for (u32 i = 0; i < info.FaceIndices.size(); i++)
+                {
+                    const u32 faceIndex = info.FaceIndices[i];
+                    faces[i] = graph.SplitImage(passData.CloudEnvironment,
+                        {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
+                    
+                    const Camera camera = Camera::EnvironmentCapture(info.PrimaryView->Camera.Position,
+                        (u32)environmentSize, faceIndex);
+                    ViewInfoGPU viewInfo = *info.PrimaryView;
+                    viewInfo.Camera = CameraGPU::FromCamera(camera, {environmentSize, environmentSize});
+                    Resource viewInfoResource = graph.Create("ViewInfo"_hsv, RGBufferDescription{
+                        .SizeBytes = sizeof(ViewInfoGPU)});
+                    viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
+
+                    auto& clouds = Passes::Clouds::VP::addToGraph(
+                        name.Concatenate(".Clouds").AddVersion(faceIndex), graph, {
+                            .ViewInfo = viewInfoResource,
+                            .CloudCoverage = info.CloudCoverage,
+                            .CloudProfile = info.CloudProfile,
+                            .CloudShapeLowFrequencyMap = info.CloudShapeLowFrequencyMap,
+                            .CloudShapeHighFrequencyMap = info.CloudShapeHighFrequencyMap,
+                            .CloudCurlNoise = info.CloudCurlNoise,
+                            .ColorOut = faces[i],
+                            .IrradianceSH = info.IrradianceSH,
+                            .Light = info.Light,
+                            .CloudParameters = info.CloudParameters,
+                            .CloudsRenderingMode = info.CloudsRenderingMode,
+                            .IsEnvironmentCapture = true
+                        });
+                    faces[i] = clouds.ColorOut;
+                }
+                
+                passData.CloudEnvironment = graph.MergeImage(
+                    Span<const Resource>(faces.data(), info.FaceIndices.size()));
             },
             [=](const PassData&, FrameContext&, const Graph&)
             {
@@ -83,7 +103,7 @@ namespace
 
                 if (isVerticalBlur)
                     passData.ColorOut = graph.Create("CloudsBlurVertical"_hsv, RGImageDescription{
-                        .Inference = RGImageInference::Full,
+                        .Inference = RGImageInference::Format | RGImageInference::Size2d,
                         .Reference = clouds,
                     });
                 else
@@ -125,13 +145,25 @@ Passes::Clouds::VP::Environment::PassData& Passes::Clouds::VP::Environment::addT
         [&](Graph& graph, PassData& passData)
         {
             passData = renderPass(name, renderGraph, info);
-            Resource atmosphereFace = graph.SplitImage(info.ColorIn,
-                {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)info.FaceIndex, .Layers = 1});
-            const Resource blurred = blurComposePass("CloudEnvironmentVerticalBlur"_hsv, graph, passData.ColorOut,
-                {}, true);
-            atmosphereFace = blurComposePass("CloudEnvironmentHorizontalBlur"_hsv, graph, blurred,
-                atmosphereFace, false);
-            passData.ColorOut = graph.MergeImage({atmosphereFace});
+            std::array<Resource, 6> cloudFaces{};
+            std::array<Resource, 6> atmosphereFaces{};
+            
+            for (u32 i = 0; i < info.FaceIndices.size(); i++)
+            {
+                const u32 faceIndex = info.FaceIndices[i];
+                cloudFaces[i] = graph.SplitImage(passData.CloudEnvironment,
+                    {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
+                atmosphereFaces[i] = graph.SplitImage(info.AtmosphereEnvironment,
+                    {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
+                const Resource blurred = blurComposePass("CloudEnvironmentVerticalBlur"_hsv, graph, cloudFaces[i],
+                    {}, true);
+                atmosphereFaces[i] = blurComposePass("CloudEnvironmentHorizontalBlur"_hsv, graph, blurred,
+                    atmosphereFaces[i], false);
+            }
+            passData.CloudEnvironment = graph.MergeImage(
+                Span<const Resource>(cloudFaces.data(), info.FaceIndices.size()));
+            passData.AtmosphereWithCloudsEnvironment = graph.MergeImage(
+                Span<const Resource>(atmosphereFaces.data(), info.FaceIndices.size()));
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

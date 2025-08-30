@@ -220,7 +220,9 @@ void Renderer::InitRenderGraph()
             .Transform = {
                 .Position = glm::vec3{0.0f, -1.5f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-                .Scale = glm::vec3{1000.0f},}},
+                .Scale = glm::vec3{1000.0f},
+                //.Scale = glm::vec3{1.0f},
+                }},
             ctx);
 
         SceneInfo lights = {};
@@ -374,7 +376,7 @@ void Renderer::SetupRenderGraph()
     
     Passes::Atmosphere::LutPasses::PassData* atmosphereLuts = nullptr;
     CloudMapsInfo cloudMaps = {};
-    Resource skyAtmosphereWithCloudsEnvironment = {};
+    AtmosphereEnvironmentInfo skyAtmosphereWithCloudsEnvironment = {};
     if (renderAtmosphere)
     {
         atmosphereLuts = &RenderGraphAtmosphereLutPasses();
@@ -408,7 +410,7 @@ void Renderer::SetupRenderGraph()
             .MultiviewVisibility = &m_PrimaryVisibility,
             .Resources = &m_PrimaryVisibilityResources,
             .DrawPasses = drawPasses});
-
+    
     std::swap(
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         m_MinMaxDepthReductions[GetFrameContext().FrameNumber]);
@@ -449,7 +451,7 @@ void Renderer::SetupRenderGraph()
         
         clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, depth);
         colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.AerialPerspective,
-            color, depth, csmData, clouds.Color, clouds.Depth);
+            color, depth, csmData, clouds.Color, clouds.Depth, skyAtmosphereWithCloudsEnvironment.CloudsEnvironment);
     }
     else
     {
@@ -522,9 +524,15 @@ void Renderer::SetupRenderGraph()
 
         if (!m_SkyAtmosphereWithCloudsEnvironment.HasValue())
         {
-            m_Graph->MarkImageForExport(skyAtmosphereWithCloudsEnvironment);
-            m_Graph->ClaimImage(skyAtmosphereWithCloudsEnvironment, m_SkyAtmosphereWithCloudsEnvironment,
-                Device::DeletionQueue());
+            m_Graph->MarkImageForExport(skyAtmosphereWithCloudsEnvironment.AtmosphereWithClouds);
+            m_Graph->ClaimImage(skyAtmosphereWithCloudsEnvironment.AtmosphereWithClouds,
+                m_SkyAtmosphereWithCloudsEnvironment, Device::DeletionQueue());
+        }
+        if (!m_CloudsEnvironment.HasValue())
+        {
+            m_Graph->MarkImageForExport(skyAtmosphereWithCloudsEnvironment.CloudsEnvironment);
+            m_Graph->ClaimImage(skyAtmosphereWithCloudsEnvironment.CloudsEnvironment,
+                m_CloudsEnvironment, Device::DeletionQueue());
         }
     }
 
@@ -969,8 +977,8 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
     return luts;
 }
 
-RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut,
-    const CloudMapsInfo& cloudMaps)
+Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
+    Passes::Atmosphere::LutPasses::PassData& lut, const CloudMapsInfo& cloudMaps)
 {
     const u32 faceIndex = (u32)(m_FrameNumber % 6);
     
@@ -997,37 +1005,44 @@ RG::Resource Renderer::RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutP
         .CloudProfile = cloudMaps.Profile,
         .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,
         .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
-        .CloudCurlNoise = cloudMaps.CurlNoise, 
-        .ColorIn = environment.ColorOut,
+        .CloudCurlNoise = cloudMaps.CurlNoise,
+        .ColorIn = m_CloudsEnvironment.HasValue() ?
+            m_Graph->Import("CloudsEnvironment.Imported"_hsv, m_CloudsEnvironment, ImageLayout::Readonly) :
+            RG::Resource{},
+        .AtmosphereEnvironment = environment.ColorOut,
         .IrradianceSH = m_SkyIrradianceSHResource,
         .Light = &m_Scene.Lights(),
         .CloudParameters = &m_CloudParameters,
         .CloudsRenderingMode = Passes::Clouds::VP::CloudsRenderingMode::FullResolution,
-        .FaceIndex = faceIndex
+        .FaceIndices = m_FrameNumber == 0 ? Span<const u32>({0, 1, 2, 3, 4, 5}) : Span<const u32>({faceIndex})
     });
 
     auto& mipmapped = Passes::Mipmap::addToGraph("AtmosphereEnvironment.Mipmaps"_hsv, *m_Graph,
-        cloudsEnvironment.ColorOut);
-    cloudsEnvironment.ColorOut = mipmapped.Texture;
+        cloudsEnvironment.AtmosphereWithCloudsEnvironment);
+    cloudsEnvironment.AtmosphereWithCloudsEnvironment = mipmapped.Texture;
 
     m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
-            cloudsEnvironment.ColorOut, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
+        cloudsEnvironment.AtmosphereWithCloudsEnvironment, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
 
     m_SkyPrefilterMapResource = Passes::EnvironmentPrefilter::addToGraph(
-        "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.ColorOut, m_SkyPrefilterMap,
+        "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.AtmosphereWithCloudsEnvironment, m_SkyPrefilterMap,
         true).PrefilteredTexture;
     
     // todo: usual imgui treatment
     //Passes::ImGuiCubeTexture::addToGraph("Clouds.Env"_hsv, *m_Graph, cloudsEnv.ColorOut);
 
-    Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph, cloudsEnvironment.ColorOut);
+    Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph,
+        cloudsEnvironment.AtmosphereWithCloudsEnvironment);
 
-    return cloudsEnvironment.ColorOut;
+    return {
+        .AtmosphereWithClouds = cloudsEnvironment.AtmosphereWithCloudsEnvironment,
+        .CloudsEnvironment = cloudsEnvironment.CloudEnvironment
+    };
 }
 
 RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut,
     RG::Resource aerialPerspective, RG::Resource color, RG::Resource depth, RG::CsmData csmData,
-    RG::Resource clouds, RG::Resource cloudsDepth)
+    RG::Resource clouds, RG::Resource cloudsDepth, RG::Resource cloudsEnvironment)
 {
     static constexpr bool USE_SUN_LUMINANCE = true;
     auto& atmosphere = Passes::Atmosphere::Raymarch::addToGraph("AtmosphereRaymarch"_hsv, *m_Graph, {

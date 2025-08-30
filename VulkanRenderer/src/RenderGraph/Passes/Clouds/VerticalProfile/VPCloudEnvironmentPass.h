@@ -14,12 +14,15 @@ namespace Passes::Clouds::VP::Environment
         RG::Resource CloudShapeLowFrequencyMap{};
         RG::Resource CloudShapeHighFrequencyMap{};
         RG::Resource CloudCurlNoise{};
+        RG::Resource CloudEnvironment{};
+        /* optional external color image resource */
         RG::Resource ColorIn{};
+        RG::Resource AtmosphereEnvironment{};
         RG::Resource IrradianceSH{};
         const SceneLight* Light{nullptr};
         const CloudParameters* CloudParameters{nullptr};
         CloudsRenderingMode CloudsRenderingMode{CloudsRenderingMode::FullResolution};
-        u32 FaceIndex{0};
+        Span<const u32> FaceIndices;
     };
     struct PassData
     {
@@ -31,7 +34,8 @@ namespace Passes::Clouds::VP::Environment
         RG::Resource CloudCurlNoise{};
         RG::Resource IrradianceSH{};
         RG::Resource DirectionalLights{};
-        RG::Resource ColorOut{};
+        RG::Resource CloudEnvironment{};
+        RG::Resource AtmosphereWithCloudsEnvironment{};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);    
 }

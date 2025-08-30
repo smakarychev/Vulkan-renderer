@@ -101,11 +101,17 @@ private:
     CloudMapsInfo RenderGraphGetCloudMaps();
     RG::Resource RenderGraphSkyBox(RG::Resource color, RG::Resource depth);
     Passes::Atmosphere::LutPasses::PassData& RenderGraphAtmosphereLutPasses();
-    RG::Resource RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut,
+    struct AtmosphereEnvironmentInfo
+    {
+        RG::Resource AtmosphereWithClouds{};
+        RG::Resource CloudsEnvironment{};
+    };
+    AtmosphereEnvironmentInfo RenderGraphAtmosphereEnvironment(Passes::Atmosphere::LutPasses::PassData& lut,
         const CloudMapsInfo& cloudMaps);
 
     RG::Resource RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::PassData& lut, RG::Resource aerialPerspective,
-        RG::Resource color, RG::Resource depth, RG::CsmData csmData, RG::Resource clouds, RG::Resource cloudsDepth);
+        RG::Resource color, RG::Resource depth, RG::CsmData csmData,
+        RG::Resource clouds, RG::Resource cloudsDepth, RG::Resource cloudsEnvironment);
 
     struct CloudsInfo
     {
@@ -172,6 +178,7 @@ private:
     RG::Resource m_SkyPrefilterMapResource{};
     
     Texture m_SkyAtmosphereWithCloudsEnvironment{};
+    Texture m_CloudsEnvironment{};
 
     Texture m_CloudCoverage{};
     Texture m_CloudProfileMap{};
