@@ -74,12 +74,6 @@ private:
         u32 BindlessCount{0};
         bool ShouldReload{false};
     };
-    std::optional<PipelineInfo> TryCreatePipeline(StringId name, ShaderOverridesView& overrides,
-        ShaderCacheAllocationHint allocationHint);
-    const ShaderPipelineTemplate* GetShaderPipelineTemplate(StringId name, const ShaderOverridesView& overrides,
-        std::vector<std::string>& stages,
-        const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
-private:
     struct ShaderNameWithOverrides
     {
         StringId Name{};
@@ -87,6 +81,12 @@ private:
 
         auto operator<=>(const ShaderNameWithOverrides&) const = default;
     };
+    std::optional<PipelineInfo> TryCreatePipeline(const ShaderNameWithOverrides& name, ShaderOverridesView& overrides,
+        ShaderCacheAllocationHint allocationHint);
+    const ShaderPipelineTemplate* GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
+        const ShaderOverridesView& overrides, std::vector<std::string>& stages,
+        const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
+private:
     struct ShaderNameWithOverridesHasher
     {
         constexpr u64 operator()(ShaderNameWithOverrides shader) const
@@ -104,6 +104,8 @@ private:
     };
     std::unordered_map<StringId, DescriptorsWithLayout> m_PersistentDescriptors;
     std::unordered_map<ShaderNameWithOverrides, PipelineInfo, ShaderNameWithOverridesHasher> m_Pipelines;
+    std::unordered_map<ShaderNameWithOverrides, ShaderPipelineTemplate, ShaderNameWithOverridesHasher>
+        m_ShaderPipelineTemplates;
     std::unordered_map<StringId, PipelineInfo> m_DefaultPipelines;
     std::unordered_map<StringId, std::string> m_ShaderNameToPath;
 

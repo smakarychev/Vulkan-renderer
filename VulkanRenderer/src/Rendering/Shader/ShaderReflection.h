@@ -30,8 +30,8 @@ public:
     ShaderReflection() = default;
     ShaderReflection(const ShaderReflection&) = delete;
     ShaderReflection& operator=(const ShaderReflection&) = delete;
-    ShaderReflection(ShaderReflection&&) = default;
-    ShaderReflection& operator=(ShaderReflection&&) = default;
+    ShaderReflection(ShaderReflection&& other) noexcept;
+    ShaderReflection& operator=(ShaderReflection&& other) noexcept;
     ~ShaderReflection();
 
     ShaderStage Stages() const { return m_ShaderStages; }

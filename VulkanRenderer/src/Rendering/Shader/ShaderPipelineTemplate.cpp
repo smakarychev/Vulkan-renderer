@@ -181,19 +181,3 @@ VertexInputDescription ShaderPipelineTemplate::CreateCompatibleVertexDescription
 
     return adapted;
 }
-
-std::unordered_map<StringId, ShaderPipelineTemplate> ShaderTemplateLibrary::s_Templates = {};
-
-ShaderPipelineTemplate* ShaderTemplateLibrary::ReloadShaderPipelineTemplate(
-    ShaderPipelineTemplateCreateInfo&& createInfo, StringId name)
-{
-    s_Templates[name] = ShaderPipelineTemplate(std::move(createInfo));
-    
-    return GetShaderTemplate(name);
-}
-
-ShaderPipelineTemplate* ShaderTemplateLibrary::GetShaderTemplate(StringId name)
-{
-    auto it = s_Templates.find(name);
-    return it == s_Templates.end() ? nullptr : &it->second;
-}

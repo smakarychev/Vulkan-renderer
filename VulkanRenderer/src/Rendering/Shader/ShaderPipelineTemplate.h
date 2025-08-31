@@ -54,14 +54,3 @@ private:
     PipelineLayout m_PipelineLayout;
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorsLayouts;
 };
-
-class ShaderTemplateLibrary
-{
-public:
-    static ShaderPipelineTemplate* GetShaderTemplate(StringId name);
-    static ShaderPipelineTemplate* ReloadShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&& createInfo,
-        StringId name);
-private:
-    static std::unordered_map<StringId, ShaderPipelineTemplate> s_Templates;
-};
-

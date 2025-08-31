@@ -37,7 +37,6 @@
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/SceneForwardPbrPass.h"
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
-#include "RenderGraph/Passes/HiZ/HiZNVPass.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
 #include "RenderGraph/Passes/Lights/LightClustersBinPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersCompactPass.h"

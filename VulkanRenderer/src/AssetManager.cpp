@@ -31,12 +31,13 @@ ShaderReflection* AssetManager::GetShader(std::string_view name)
 
 ShaderReflection* AssetManager::AddShader(std::string_view name, ShaderReflection&& shader)
 {
-    return &s_Shaders.emplace(name, std::move(shader)).first->second;
-}
+    auto it = s_Shaders.find(name);
+    if (it == s_Shaders.end())
+        return &s_Shaders.emplace(name, std::move(shader)).first->second;
 
-void AssetManager::RemoveShader(std::string_view name)
-{
-    s_Shaders.erase(name);
+    it->second = std::move(shader);
+    
+    return &it->second;
 }
 
 Image AssetManager::GetImage(std::string_view name)

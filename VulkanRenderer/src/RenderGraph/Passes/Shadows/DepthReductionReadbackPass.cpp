@@ -3,7 +3,7 @@
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/HiZ/HiZBlitPass.h"
+#include "RenderGraph/Passes/HiZ/HiZCommon.h"
 
 namespace 
 {

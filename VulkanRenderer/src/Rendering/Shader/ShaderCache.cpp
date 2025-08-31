@@ -48,7 +48,8 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesVi
     const bool hasPipeline = m_Pipelines.contains(nameWithOverrides);
     if (!hasPipeline || m_Pipelines.at(nameWithOverrides).ShouldReload)
     {
-        const std::optional<PipelineInfo> pipelineInfo = TryCreatePipeline(name, overrides, allocationHint);
+        const std::optional<PipelineInfo> pipelineInfo = TryCreatePipeline(
+            nameWithOverrides, overrides, allocationHint);
         if (pipelineInfo.has_value())
         {
             if (hasPipeline)
@@ -213,10 +214,10 @@ void ShaderCache::MarkOverridesToReload(StringId name)
         m_Pipelines.at(override).ShouldReload = true;
 }
 
-std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId name, ShaderOverridesView& overrides,
-    ShaderCacheAllocationHint allocationHint)
+std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const ShaderNameWithOverrides& name,
+    ShaderOverridesView& overrides, ShaderCacheAllocationHint allocationHint)
 {
-    const std::string& path = m_ShaderNameToPath.at(name);
+    const std::string& path = m_ShaderNameToPath.at(name.Name);
     std::ifstream in(path);
     nlohmann::json json = nlohmann::json::parse(std::ifstream{path});
 
@@ -338,7 +339,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
             .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
             .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
             Device::DummyDeletionQueue());
-        Device::NamePipeline(pipeline, name.AsStringView());
+        Device::NamePipeline(pipeline, name.Name.AsStringView());
 
         return pipeline;
     };
@@ -357,7 +358,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(StringId
     return shader;
 }
 
-const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(StringId name,
+const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
     const ShaderOverridesView& overrides, std::vector<std::string>& stages,
     const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides)
 {
@@ -381,7 +382,7 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(StringId na
         stagePath.replace_extension(ShaderStageConverter::POST_CONVERT_EXTENSION);
         stage = stagePath.string();
         if (ShaderStageConverter::NeedsConversion(
-                *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options))
+            *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options))
         {
             const auto backed = ShaderStageConverter::Bake(
                 *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options);
@@ -390,12 +391,13 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(StringId na
         }
     }
 
-    std::string shaderReflectionKey = AssetManager::GetShaderKey(stages);
-    AssetManager::RemoveShader(shaderReflectionKey);
+    const std::string shaderReflectionKey = AssetManager::GetShaderKey(stages);
     ShaderReflection* reflection = AssetManager::AddShader(shaderReflectionKey, ShaderReflection::ReflectFrom(stages));
-    
-    return ShaderTemplateLibrary::ReloadShaderPipelineTemplate({
+
+    auto& pipelineTemplate = m_ShaderPipelineTemplates[name] = ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo{
         .ShaderReflection = reflection,
         .DescriptorLayoutOverrides = descriptorLayoutOverrides
-    }, name);
+    });
+    
+    return &pipelineTemplate;
 }

@@ -26,20 +26,20 @@ namespace HiZ
 
     RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution)
     {
+        return createHiz(renderGraph, depthResolution, ReductionMode::Min);
+    }
+
+    RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode)
+    {
         const f32 width = (f32)Math::floorToPowerOf2(depthResolution.x);
         const f32 height = (f32)Math::floorToPowerOf2(depthResolution.y);
         const i8 mipmapCount = std::min(MAX_MIPMAP_COUNT, Images::mipmapCount({width, height}));
-
-        std::vector<ImageSubresourceDescription> additionalViews(mipmapCount);
-        for (i8 i = 0; i < mipmapCount; i++)
-            additionalViews[i] = ImageSubresourceDescription{
-                .MipmapBase = i, .Mipmaps = 1, .LayerBase = 0, .Layers = 1};
 
         return renderGraph.Create("HiZ"_hsv, RG::RGImageDescription{
             .Width = width,
             .Height = height,
             .Mipmaps = mipmapCount,
-            .Format = Format::R32_FLOAT});
+            .Format = mode == ReductionMode::MinMax ? Format::RG16_FLOAT : Format::R16_FLOAT});
     }
 
     RG::Resource createMinMaxBufferResource(RG::Graph& renderGraph)

@@ -1,8 +1,7 @@
 #include "SceneMultiviewVisibilityHiZPass.h"
 
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/HiZ/HiZFullPass.h"
-#include "RenderGraph/Passes/HiZ/HiZNVPass.h"
+#include "RenderGraph/Passes/HiZ/HiZPass.h"
 
 Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityHiz::addToGraph(StringId name,
     RG::Graph& renderGraph, const ExecutionInfo& info)
@@ -29,17 +28,14 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
 
                 const bool isPrimaryView =
                     enumHasAny(view.ViewInfo.Camera.VisibilityFlags, VisibilityFlags::IsPrimaryView);
-                if (isPrimaryView)
-                {
-                    auto& hizPass = HiZFull::addToGraph(name.AddVersion(i), graph, {.Depth = info.Depths[i]});
-                    info.Resources->Hiz[i] = hizPass.HiZMin;
-                    info.Resources->MinMaxDepthReductions[i] = hizPass.MinMaxDepth;
-                }
-                else
-                {
-                    auto& hizPass = HiZNV::addToGraph(name.AddVersion(i), graph, {.Depth = info.Depths[i]});
-                    info.Resources->Hiz[i] = hizPass.HiZ;
-                }
+                auto& hiz = HiZ::addToGraph(name.AddVersion(i), graph, {
+                        .Depth = info.Depths[i],
+                        .ReductionMode = isPrimaryView ? ::HiZ::ReductionMode::MinMax : ::HiZ::ReductionMode::Min,
+                        .CalculateMinMaxDepthBuffer = isPrimaryView
+                    });
+                
+                info.Resources->Hiz[i] = hiz.HiZ;
+                info.Resources->MinMaxDepthReductions[i] = hiz.DepthMinMax;
             }
         },
         [=](const PassData&, FrameContext&, const Graph&)

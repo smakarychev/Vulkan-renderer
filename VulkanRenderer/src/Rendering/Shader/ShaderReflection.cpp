@@ -466,6 +466,35 @@ ShaderReflection ShaderReflection::ReflectFrom(const std::vector<std::string>& p
     return shader;
 }
 
+ShaderReflection::ShaderReflection(ShaderReflection&& other) noexcept
+{
+    for (auto module : m_Modules)
+        Device::DeletionQueue().Enqueue(module);
+    m_ShaderStages = std::move(other.m_ShaderStages);
+    m_SpecializationConstants = std::move(other.m_SpecializationConstants);
+    m_VertexInputDescription = std::move(other.m_VertexInputDescription);
+    m_PushConstants = std::move(other.m_PushConstants);
+    m_DescriptorSets = std::move(other.m_DescriptorSets);
+    m_Modules = std::move(other.m_Modules);
+}
+
+ShaderReflection& ShaderReflection::operator=(ShaderReflection&& other) noexcept
+{
+    if (this == &other)
+        return *this;
+    
+    for (auto module : m_Modules)
+        Device::DeletionQueue().Enqueue(module);
+    m_ShaderStages = std::move(other.m_ShaderStages);
+    m_SpecializationConstants = std::move(other.m_SpecializationConstants);
+    m_VertexInputDescription = std::move(other.m_VertexInputDescription);
+    m_PushConstants = std::move(other.m_PushConstants);
+    m_DescriptorSets = std::move(other.m_DescriptorSets);
+    m_Modules = std::move(other.m_Modules);
+    
+    return *this;
+}
+
 ShaderReflection::~ShaderReflection()
 {
     for (auto module : m_Modules)
