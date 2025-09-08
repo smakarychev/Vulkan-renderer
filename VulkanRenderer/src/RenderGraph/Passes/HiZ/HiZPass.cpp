@@ -111,8 +111,12 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
                     })
                 });
 
-                for (u32 i = currentMipmap; i < currentMipmap + toBeProcessed; i++)
-                    blit.HiZMips[i] = graph.ReadWriteImage(blit.HiZMips[i], Compute | Sampled);
+                const u32 sourceMipmapIndex = currentMipmap;
+                blit.HiZMips[sourceMipmapIndex] = graph.ReadImage(blit.HiZMips[sourceMipmapIndex], Compute | Sampled);
+                
+                for (u32 i = 0; i < toBeProcessed; i++)
+                    blit.HiZMips[sourceMipmapIndex + i + 1] =
+                        graph.ReadWriteImage(blit.HiZMips[sourceMipmapIndex + i + 1], Compute | Sampled);
                 if (mipmapsRemaining - toBeProcessed == 0)
                     blit.HiZ = graph.MergeImage(Span<const Resource>(blit.HiZMips.data(), mipmapCount));
                 passData.HiZ = blit.HiZ;

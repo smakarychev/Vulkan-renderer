@@ -672,7 +672,7 @@ namespace RG
             if (accesses.size() <= 1)
                 return;
             
-            std::ranges::sort(accesses, std::less{}, [](const ResourceAccess& access) -> u64
+            std::ranges::stable_sort(accesses, std::less{}, [](const ResourceAccess& access) -> u64
             {
                 return ((u64)access.PassIndex << 32) | access.Resource.m_Index;
             });
@@ -683,6 +683,7 @@ namespace RG
             {
                 if (accesses[i].Resource.m_Index == merged.back().Resource.m_Index &&
                     accesses[i].PassIndex == merged.back().PassIndex &&
+                    accesses[i].Resource.m_Extra == merged.back().Resource.m_Extra &&
                     !enumHasAny(merged.back().Type, AccessType::Split | AccessType::Merge))
                 {
                     merged.back().Type |= accesses[i].Type;
