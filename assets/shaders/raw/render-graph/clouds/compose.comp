@@ -35,7 +35,7 @@ void main() {
         imageStore(u_clouds_composed, coord, vec4(scene_color, 1.0f));
     } else {
         const vec4 cloud_color = textureLod(sampler2D(u_clouds, u_sampler), uv, 0);
-        imageStore(u_clouds_composed, coord, vec4(scene_color * cloud_color.a + cloud_color.rgb * (1.0 - cloud_color.a), 1.0));
+        imageStore(u_clouds_composed, coord, vec4(scene_color * cloud_color.a + cloud_color.rgb, 1.0));
     }
     
 }
