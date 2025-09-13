@@ -20,9 +20,11 @@
 #extension GL_KHR_shader_subgroup_shuffle: enable
 #extension GL_KHR_shader_subgroup_arithmetic: enable
 
+@immutable_sampler_min
 layout(set = 0, binding = 0) uniform sampler u_min_sampler;
 
 #if HIZ_MIN_MAX
+@immutable_sampler_max
 layout(set = 0, binding = 1) uniform sampler u_max_sampler;
 #endif // HIZ_MIN_MAX
 

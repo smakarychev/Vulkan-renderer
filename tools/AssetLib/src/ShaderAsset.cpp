@@ -30,33 +30,32 @@ namespace
             else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampEdge))
                 flags |= DescriptorFlags::ImmutableSamplerClampEdge;
 
-            else if (flagString == assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerNearestClampEdge))
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampEdge))
                     flags |= DescriptorFlags::ImmutableSamplerNearestClampEdge;
 
-            else if (flagString == assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerClampBlack))
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampBlack))
                     flags |= DescriptorFlags::ImmutableSamplerClampBlack;
 
-            else if (flagString == assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerNearestClampBlack))
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampBlack))
                     flags |= DescriptorFlags::ImmutableSamplerNearestClampBlack;
 
-            else if (flagString == assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerClampWhite))
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampWhite))
                     flags |= DescriptorFlags::ImmutableSamplerClampWhite;
 
-            else if (flagString == assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerNearestClampWhite))
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampWhite))
                     flags |= DescriptorFlags::ImmutableSamplerNearestClampWhite;
 
-            else if (flagString == assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerShadow))
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadow))
                     flags |= DescriptorFlags::ImmutableSamplerShadow;
 
-            else if (flagString == assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerShadowNearest))
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadowNearest))
                     flags |= DescriptorFlags::ImmutableSamplerShadowNearest;
+            
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerReductionMin))
+                    flags |= DescriptorFlags::ImmutableSamplerReductionMin;
+            
+            else if (flagString == assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerReductionMax))
+                    flags |= DescriptorFlags::ImmutableSamplerReductionMax;
 
             else
                 ASSERT(false, "Unrecognized flag {}", flagString)
@@ -84,32 +83,31 @@ namespace
             flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampEdge));
 
         if (flags & DescriptorFlags::ImmutableSamplerNearestClampEdge)
-            flagsStrings.push_back(assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerNearestClampEdge));
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampEdge));
         
         if (flags & DescriptorFlags::ImmutableSamplerClampBlack)
-            flagsStrings.push_back(assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerClampBlack));
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampBlack));
         
         if (flags & DescriptorFlags::ImmutableSamplerNearestClampBlack)
-            flagsStrings.push_back(assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerNearestClampBlack));
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampBlack));
         
         if (flags & DescriptorFlags::ImmutableSamplerClampWhite)
-            flagsStrings.push_back(assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerClampWhite));
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerClampWhite));
         
         if (flags & DescriptorFlags::ImmutableSamplerNearestClampWhite)
-            flagsStrings.push_back(assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerNearestClampWhite));
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerNearestClampWhite));
         
         if (flags & DescriptorFlags::ImmutableSamplerShadow)
-            flagsStrings.push_back(assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerShadow));
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadow));
         
         if (flags & DescriptorFlags::ImmutableSamplerShadowNearest)
-            flagsStrings.push_back(assetLib::descriptorFlagToString(
-                DescriptorFlags::ImmutableSamplerShadowNearest));
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadowNearest));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerReductionMin)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerReductionMin));
+        
+        if (flags & DescriptorFlags::ImmutableSamplerReductionMax)
+            flagsStrings.push_back(assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerReductionMax));
 
         return flagsStrings;
     }
@@ -329,6 +327,10 @@ namespace assetLib
             return "immutable_sampler_shadow";
         case DescriptorFlags::ImmutableSamplerShadowNearest:
             return "immutable_sampler_shadow_nearest";
+        case DescriptorFlags::ImmutableSamplerReductionMin:
+            return "immutable_sampler_min";
+        case DescriptorFlags::ImmutableSamplerReductionMax:
+            return "immutable_sampler_max";
         default:
             ASSERT(false, "Unsupported flag")
         }

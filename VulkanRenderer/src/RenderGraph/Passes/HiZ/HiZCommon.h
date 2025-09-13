@@ -19,9 +19,6 @@ namespace HiZ
     };
 
     glm::uvec2 calculateHizResolution(const glm::uvec2& depthResolution);
-    Sampler createSampler(ReductionMode mode);
-    // todo: delete this overload
-    RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution);
     RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode);
     RG::Resource createMinMaxBufferResource(RG::Graph& renderGraph);
 }

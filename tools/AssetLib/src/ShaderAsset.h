@@ -45,6 +45,8 @@ namespace assetLib
                 ImmutableSamplerNearestClampWhite   = BIT(10),
                 ImmutableSamplerShadow              = BIT(11),
                 ImmutableSamplerShadowNearest       = BIT(12),
+                ImmutableSamplerReductionMin        = BIT(13),
+                ImmutableSamplerReductionMax        = BIT(14),
             };
             
             struct DescriptorBinding

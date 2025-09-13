@@ -11,6 +11,7 @@ layout(local_size_x = 64) in;
 layout(constant_id = 0) const bool REOCCLUSION = false;
 layout(constant_id = 1) const bool SINGLE_PASS = false;
 
+@immutable_sampler_min
 layout(set = 0, binding = 0) uniform sampler u_sampler;
 layout(set = 1, binding = 0) uniform texture2D u_hiz[MAX_VIEWS];
 

@@ -80,7 +80,6 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
 
             if (info.Stage == SceneVisibilityStage::Reocclusion)
             {
-                bindGroup.SetSampler(HiZ::createSampler(HiZ::ReductionMode::Min));
                 for (u32 i = 0; i < passData.Resources->VisibilityCount; i++)
                 {
                     if (!passData.Resources->Hiz[i].IsValid())

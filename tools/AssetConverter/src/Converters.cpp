@@ -346,7 +346,7 @@ std::string ShaderStageConverter::GetBakedFileName(const std::filesystem::path& 
 std::vector<ShaderStageConverter::DescriptorFlagInfo> ShaderStageConverter::ReadDescriptorsFlags(std::string_view shaderSource)
 {
     // weird flex but ok
-    std::vector<ShaderStageConverter::DescriptorFlags> flags = {
+    static const std::vector FLAGS = {
         DescriptorFlags::Dynamic,
         DescriptorFlags::Bindless,
         DescriptorFlags::ImmutableSampler,
@@ -359,11 +359,13 @@ std::vector<ShaderStageConverter::DescriptorFlagInfo> ShaderStageConverter::Read
         DescriptorFlags::ImmutableSamplerNearestClampWhite,
         DescriptorFlags::ImmutableSamplerShadow,
         DescriptorFlags::ImmutableSamplerShadowNearest,
+        DescriptorFlags::ImmutableSamplerReductionMin,
+        DescriptorFlags::ImmutableSamplerReductionMax,
     };
 
     std::vector<DescriptorFlagInfo> descriptorFlagsUnmerged = {};
     
-    for (auto flag : flags)
+    for (auto flag : FLAGS)
     {
         std::string keyword = std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(flag);
             
@@ -554,7 +556,7 @@ std::vector<ShaderStageConverter::InputAttributeBindingInfo> ShaderStageConverte
 
 void ShaderStageConverter::RemoveMetaKeywords(std::string& shaderSource)
 {
-    std::vector<std::string> keywords = {
+    static const std::vector keywords = {
         std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::Dynamic),
         std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::Bindless),
         std::string{META_KEYWORD_PREFIX} + assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSampler),
@@ -575,6 +577,10 @@ void ShaderStageConverter::RemoveMetaKeywords(std::string& shaderSource)
             assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadow),
         std::string{META_KEYWORD_PREFIX} +
             assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerShadowNearest),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerReductionMin),
+        std::string{META_KEYWORD_PREFIX} +
+            assetLib::descriptorFlagToString(DescriptorFlags::ImmutableSamplerReductionMax),
         std::string{META_KEYWORD_PREFIX} + "binding",
     };
 

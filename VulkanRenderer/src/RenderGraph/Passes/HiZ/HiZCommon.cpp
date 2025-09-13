@@ -16,19 +16,6 @@ namespace HiZ
         return Images::floorResolutionToPowerOfTwo(depthResolution);
     }
 
-    Sampler createSampler(ReductionMode mode)
-    {
-        return Device::CreateSampler({
-            .ReductionMode = mode == ReductionMode::Min ? SamplerReductionMode::Min : SamplerReductionMode::Max,
-            .MaxLod = MAX_MIPMAP_COUNT,
-            .WithAnisotropy = false});
-    }
-
-    RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution)
-    {
-        return createHiz(renderGraph, depthResolution, ReductionMode::Min);
-    }
-
     RG::Resource createHiz(RG::Graph& renderGraph, const glm::uvec2& depthResolution, ReductionMode mode)
     {
         const f32 width = (f32)Math::floorToPowerOf2(depthResolution.x);

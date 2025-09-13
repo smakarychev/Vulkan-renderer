@@ -55,13 +55,10 @@ namespace
 
                 const Shader& shader = graph.GetShader();
                 HizCombinedShaderBindGroup bindGroup(shader);
-                bindGroup.SetMinSampler(HiZ::createSampler(HiZ::ReductionMode::Min));
                 bindGroup.SetInput(graph.GetImageBinding(passData.Depth));
                 bindGroup.SetOutput(graph.GetImageBinding(passData.HiZMips[0]), 0);
                 if (info.CalculateMinMaxDepthBuffer)
                     bindGroup.SetMinMax(graph.GetBufferBinding(passData.DepthMinMax));
-                if (info.ReductionMode == HiZ::ReductionMode::MinMax)
-                    bindGroup.SetMaxSampler(HiZ::createSampler(HiZ::ReductionMode::Max));
 
                 auto& cmd = frameContext.CommandList;
                 bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
@@ -129,12 +126,9 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
 
                 const Shader& shader = graph.GetShader();
                 HizCombinedShaderBindGroup bindGroup(shader);
-                bindGroup.SetMinSampler(::HiZ::createSampler(::HiZ::ReductionMode::Min));
                 bindGroup.SetInput(graph.GetImageBinding(passData.HiZ));
                 if (info.CalculateMinMaxDepthBuffer)
                     bindGroup.SetMinMax(graph.GetBufferBinding(passData.DepthMinMax));
-                if (info.ReductionMode == ::HiZ::ReductionMode::MinMax)
-                    bindGroup.SetMaxSampler(::HiZ::createSampler(::HiZ::ReductionMode::Max));
                 
                 for (u32 i = 0; i < mipmapCount; i++)
                     bindGroup.SetOutput(graph.GetImageBinding(blit.HiZMips[i]), i);

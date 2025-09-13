@@ -211,25 +211,29 @@ namespace
 
     Sampler getImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
     {
-        Sampler sampler = Device::CreateSampler({
+        return Device::CreateSampler({
             .MinificationFilter = filter,
             .MagnificationFilter = filter,
             .WrapMode = wrapMode,
             .BorderColor = borderColor});
-
-        return sampler;
     }
     Sampler getImmutableShadowSampler(ImageFilter filter, SamplerDepthCompareMode depthCompareMode)
     {
-        Sampler sampler = Device::CreateSampler({
+        return Device::CreateSampler({
             .MinificationFilter = filter,
             .MagnificationFilter = filter,
             .WrapMode = SamplerWrapMode::ClampBorder,
             .BorderColor = SamplerBorderColor::Black,
             .DepthCompareMode = depthCompareMode,
             .WithAnisotropy = false});
-
-        return sampler;
+    }
+    Sampler getImmutableReductionSampler(SamplerReductionMode reductionMode)
+    {
+        static constexpr f32 MAX_LOD = 16.0f;
+        return Device::CreateSampler({
+           .ReductionMode = reductionMode,
+           .MaxLod = MAX_LOD,
+           .WithAnisotropy = false});
     }
 
     std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS> processDescriptorSets(
@@ -256,6 +260,9 @@ namespace
             getImmutableShadowSampler(ImageFilter::Linear, SamplerDepthCompareMode::Less); 
         static Sampler immutableShadowNearestSampler =
             getImmutableShadowSampler(ImageFilter::Nearest, SamplerDepthCompareMode::Less);
+
+        static Sampler immutableReductionMinSampler = getImmutableReductionSampler(SamplerReductionMode::Min);
+        static Sampler immutableReductionMaxSampler = getImmutableReductionSampler(SamplerReductionMode::Max);
         
         std::array<ShaderReflection::DescriptorsInfo, MAX_DESCRIPTOR_SETS> descriptorSets;
         for (auto& set : sets)
@@ -308,6 +315,10 @@ namespace
                     descriptor.ImmutableSampler = immutableShadowSampler;
                 else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerShadowNearest))
                     descriptor.ImmutableSampler = immutableShadowNearestSampler;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerReductionMin))
+                    descriptor.ImmutableSampler = immutableReductionMinSampler;
+                else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSamplerReductionMax))
+                    descriptor.ImmutableSampler = immutableReductionMaxSampler;
                 else if (enumHasAny(flags, assetLib::ShaderStageInfo::DescriptorSet::ImmutableSampler))
                     descriptor.ImmutableSampler = immutableSampler;
             }
