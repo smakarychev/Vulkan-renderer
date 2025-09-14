@@ -4037,8 +4037,8 @@ void Device::InitImGuiUI()
     imguiInitInfo.PipelineRenderingCreateInfo.pColorAttachmentFormats = &format;
     ImGui_ImplVulkan_LoadFunctions([](const char* functionName, void* instance)
     {
-        return vkGetInstanceProcAddr(*(VkInstance*)instance, functionName);
-    }, &s_State.Instance);
+        return vkGetInstanceProcAddr((VkInstance)instance, functionName);
+    }, s_State.Instance);
     ImGui_ImplVulkan_Init(&imguiInitInfo);
     ImGui_ImplVulkan_CreateFontsTexture();
 }
