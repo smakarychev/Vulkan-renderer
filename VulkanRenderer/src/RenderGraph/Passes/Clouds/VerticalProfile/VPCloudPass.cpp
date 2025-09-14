@@ -33,7 +33,7 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
                     .Inference = RGImageInference::Size2d,
                     .Width = relativeSize,
                     .Height = relativeSize,
-                    .Reference = info.DepthIn,
+                    .Reference = graph.GetBackbufferImage(),
                     .Format = Format::RGBA16_FLOAT,
                 });
             else
@@ -43,7 +43,7 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
                     .Inference = RGImageInference::Size2d,
                     .Width = relativeSize,
                     .Height = relativeSize,
-                    .Reference = info.DepthIn,
+                    .Reference = graph.GetBackbufferImage(),
                     .Format = Format::RG16_FLOAT,
                 });
             else
@@ -58,6 +58,7 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
             {
                 passData.AerialPerspectiveLut = graph.ReadImage(info.AerialPerspectiveLut, Compute | Sampled);
                 passData.DepthIn = graph.ReadImage(info.DepthIn, Compute | Sampled);
+                passData.MinMaxDepthIn = graph.ReadImage(info.MinMaxDepthIn, Compute | Sampled);
                 passData.DepthOut = graph.WriteImage(passData.DepthOut, Compute | Storage);
             }
             passData.ColorOut = graph.WriteImage(passData.ColorOut, Compute | Storage);
@@ -83,6 +84,7 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
             if (!info.IsEnvironmentCapture)
             {
                 bindGroup.SetDepth(graph.GetImageBinding(passData.DepthIn));
+                bindGroup.SetMinMaxDepth(graph.GetImageBinding(passData.MinMaxDepthIn));
                 bindGroup.SetAerialPerspectiveLut(graph.GetImageBinding(passData.AerialPerspectiveLut));
                 bindGroup.SetOutDepth(graph.GetImageBinding(passData.DepthOut));
             }

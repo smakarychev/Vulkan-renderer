@@ -39,6 +39,7 @@ namespace Passes::Clouds::VP
         RG::Resource CloudShapeHighFrequencyMap{};
         RG::Resource CloudCurlNoise{};
         RG::Resource DepthIn{};
+        RG::Resource MinMaxDepthIn{};
         /* optional external color target resource */
         RG::Resource ColorOut{};
         /* optional external depth target resource */
@@ -59,6 +60,7 @@ namespace Passes::Clouds::VP
         RG::Resource CloudShapeHighFrequencyMap{};
         RG::Resource CloudCurlNoise{};
         RG::Resource DepthIn{};
+        RG::Resource MinMaxDepthIn{};
         RG::Resource AerialPerspectiveLut{};
         RG::Resource IrradianceSH{};
         RG::Resource DirectionalLights{};

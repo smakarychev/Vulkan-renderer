@@ -389,7 +389,7 @@ void Renderer::SetupRenderGraph()
     ImGui::Checkbox("Enabled", &useForwardPass);
     CVars::Get().SetI32CVar("Renderer.UseForwardShading"_hsv, useForwardPass);
     ImGui::End();
-    
+
     if (useForwardPass)
     {
         if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
@@ -417,6 +417,7 @@ void Renderer::SetupRenderGraph()
     m_Graph->MarkBufferForExport(metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
         BufferUsage::Readback);
 
+    Resource minMaxDepth = {};
     if (useForwardPass)
     {
         color = metaUgb.DrawPassViewAttachments.Get(
@@ -428,6 +429,8 @@ void Renderer::SetupRenderGraph()
             m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Depth->Resource;
         vbuffer = metaUgb.DrawPassViewAttachments.Get(
             m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
+        minMaxDepth =
+            m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)];
 
         RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
         color = RenderGraphVBufferPbr(vbuffer, m_Graph->GetGlobalResources().PrimaryViewInfoResource, csmData);
@@ -449,7 +452,7 @@ void Renderer::SetupRenderGraph()
             .CsmData = csmData
         });
         
-        clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, depth);
+        clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, minMaxDepth, depth);
         colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.AerialPerspective,
             color, depth, csmData, clouds.Color, clouds.Depth, skyAtmosphereWithCloudsEnvironment.CloudsEnvironment);
     }
@@ -1243,7 +1246,7 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
 }
 
 Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color,
-    RG::Resource aerialPerspective, RG::Resource depth)
+    RG::Resource aerialPerspective, RG::Resource minMaxDepth, RG::Resource sceneDepth)
 {
     ImGui::Begin("Clouds Parameters");
     ImGui::DragFloat("Meters per texel", &m_CloudParameters.CloudMapMetersPerTexel, 1e-2f, 0.0f);
@@ -1281,7 +1284,8 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
         .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,
         .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
         .CloudCurlNoise = cloudMaps.CurlNoise, 
-        .DepthIn = depth,
+        .DepthIn = sceneDepth,
+        .MinMaxDepthIn = minMaxDepth,
         .AerialPerspectiveLut = aerialPerspective,
         .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
             m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
@@ -1301,6 +1305,7 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
             .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
             .Color = clouds.ColorOut,
             .Depth = clouds.DepthOut,
+            .SceneDepth = sceneDepth,
             .ColorAccumulationIn = m_FrameNumber > 1 ?
                 m_Graph->Import("Clouds.Color.Accumulation.In"_hsv,
                     m_CloudColorAccumulation[m_CloudsAccumulationIndexPrev], ImageLayout::Readonly) :

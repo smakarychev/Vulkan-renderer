@@ -13,6 +13,7 @@ namespace Passes::Clouds::Reproject
         RG::Resource ViewInfo{};
         RG::Resource Color{};
         RG::Resource Depth{};
+        RG::Resource SceneDepth{};
         RG::Resource ColorAccumulationIn{};
         RG::Resource DepthAccumulationIn{};
         RG::Resource ReprojectionFactorIn{};
@@ -26,6 +27,7 @@ namespace Passes::Clouds::Reproject
         RG::Resource ViewInfo{};
         RG::Resource Color{};
         RG::Resource Depth{};
+        RG::Resource SceneDepth{};
         RG::Resource ColorAccumulationIn{};
         RG::Resource DepthAccumulationIn{};
         RG::Resource ReprojectionFactorIn{};

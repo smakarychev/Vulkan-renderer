@@ -21,14 +21,15 @@ layout(set = 0, binding = 1) uniform sampler u_sampler_nearest;
 
 layout(set = 1, binding = 0) uniform texture2D u_cloud_color;
 layout(set = 1, binding = 1) uniform texture2D u_cloud_depth;
-layout(set = 1, binding = 2) uniform texture2D u_cloud_color_accumulation_in;
-layout(set = 1, binding = 3) uniform texture2D u_cloud_depth_accumulation_in;
-layout(set = 1, binding = 4) uniform texture2D u_cloud_reprojection_factor_in;
-layout(set = 1, binding = 5, rgba16f) uniform writeonly image2D u_cloud_color_accumulation_out;
-layout(set = 1, binding = 6, rg16f) uniform writeonly image2D u_cloud_depth_accumulation_out;
-layout(set = 1, binding = 7, r8) uniform writeonly image2D u_cloud_reprojection_factor_out;
+layout(set = 1, binding = 2) uniform texture2D u_scene_depth;
+layout(set = 1, binding = 3) uniform texture2D u_cloud_color_accumulation_in;
+layout(set = 1, binding = 4) uniform texture2D u_cloud_depth_accumulation_in;
+layout(set = 1, binding = 5) uniform texture2D u_cloud_reprojection_factor_in;
+layout(set = 1, binding = 6, rgba16f) uniform writeonly image2D u_cloud_color_accumulation_out;
+layout(set = 1, binding = 7, rg16f) uniform writeonly image2D u_cloud_depth_accumulation_out;
+layout(set = 1, binding = 8, r8) uniform writeonly image2D u_cloud_reprojection_factor_out;
 
-layout(scalar, set = 1, binding = 8) uniform view_info {
+layout(scalar, set = 1, binding = 9) uniform view_info {
     ViewInfo view;
 } u_view_info;
 
@@ -85,9 +86,13 @@ void main() {
     const vec2 uv = (vec2(coord) + 0.5f) * image_size_inv;
     
     const vec4 color = textureLod(sampler2D(u_cloud_color, u_sampler_nearest), uv, 0);
-    const vec4 depth = textureLod(sampler2D(u_cloud_depth, u_sampler_nearest), uv, 0);
+    const float depth = textureLod(sampler2D(u_cloud_depth, u_sampler_nearest), uv, 0).r;
     
-    const vec4 clip = vec4(uv * 2 - 1, project_reverse_z(-depth.y, u_view_info.view.near, u_view_info.view.far), 1);
+    const float scene_depth = texelFetch(sampler2D(u_scene_depth, u_sampler_nearest), coord, 0).r;
+    const float scene_depth_linear = -linearize_reverse_z(max(scene_depth, 1e-7),
+        u_view_info.view.near, u_view_info.view.far);
+    
+    const vec4 clip = vec4(uv * 2 - 1, project_reverse_z(-depth, u_view_info.view.near, u_view_info.view.far), 1);
     vec4 unprojected = u_view_info.view.inv_projection * clip;
     unprojected /= unprojected.w;
     unprojected.xyz = mat3(u_view_info.view.inv_view) * unprojected.xyz;
@@ -105,6 +110,9 @@ void main() {
 
     const vec4 prev_color = textureLod(sampler2D(u_cloud_color_accumulation_in, u_sampler), prev_uv, 0);
     const vec4 prev_depth = textureLod(sampler2D(u_cloud_depth_accumulation_in, u_sampler), prev_uv, 0);
+    const float prev_depth_linear_t = -linearize_reverse_z(max(prev_depth.g, 1e-7),
+        u_view_info.view.near, u_view_info.view.far);
+    
     const float prev_reprojection_factor = textureLod(sampler2D(u_cloud_reprojection_factor_in, u_sampler), prev_uv, 0).x;
 
     if (coord.x >= image_size.x || coord.y >= image_size.y) {
@@ -115,10 +123,10 @@ void main() {
         prev_uv.x < 0.0f || prev_uv.x > 1.0f || prev_uv.y < 0.0f || prev_uv.y > 1.0f) {
 
         const vec4 color = textureLod(sampler2D(u_cloud_color, u_sampler), uv, 0);
-        const vec4 depth = textureLod(sampler2D(u_cloud_depth, u_sampler), uv, 0);
+        const float depth = textureLod(sampler2D(u_cloud_depth, u_sampler), uv, 0).r;
         
         imageStore(u_cloud_color_accumulation_out, coord, color);
-        imageStore(u_cloud_depth_accumulation_out, coord, depth);
+        imageStore(u_cloud_depth_accumulation_out, coord, vec4(depth, scene_depth, 0.0f, 0.0f));
         imageStore(u_cloud_reprojection_factor_out, coord, vec4(0.05f, 0.0f, 0.0f, 0.0f));
         
         return;
@@ -129,45 +137,28 @@ void main() {
     float out_reprojection_factor = prev_reprojection_factor;
 
     if (is_drawn_pixel) {
-        if (abs(depth.g - prev_depth.g) > depth.g * 0.1f) {
+        if (abs(scene_depth_linear - prev_depth_linear_t) > scene_depth_linear * 0.1f) {
             out_color = color;
-            out_depth = depth;
+            out_depth.x = depth;
             out_reprojection_factor = reprojection_factors.x;
         }
         else {
             out_color = variance_clamp_color(render_coord, out_color);    
             out_color = mix(color, out_color, prev_reprojection_factor);
-            out_depth = depth;
+            out_depth.x = depth;
             out_reprojection_factor = get_reprojection_factor(prev_reprojection_factor, reprojection_factors.y);
         }
     } else {
-        if (abs(depth.g - prev_depth.g) > depth.g * 0.1f) {
-            float closest_depth = DEPTH_MAX;
-            for (int y = -1; y <= 1; y++) {
-                for (int x = -1; x <= 1; x++) {
-                    if (x == 0 && y == 0)
-                        continue;
-
-                    const ivec2 offset = ivec2(x, y);
-                    ivec2 neighbor = render_coord + offset;
-                    neighbor = clamp(neighbor, ivec2(0), image_size / REPROJECTION_RES - 1);
-
-                    const vec4 neighbor_depth = texelFetch(sampler2D(u_cloud_depth, u_sampler_nearest), neighbor, 0);
-                    if (neighbor_depth.x > closest_depth) {
-                        closest_depth = neighbor_depth.x;
-                        out_color = texelFetch(sampler2D(u_cloud_color, u_sampler_nearest), neighbor, 0);
-                        out_depth = neighbor_depth;
-                    }
-                }
-            }
-            
-            out_reprojection_factor = get_reprojection_factor(prev_reprojection_factor, reprojection_factors.x);
+        if (abs(scene_depth_linear - prev_depth_linear_t) > scene_depth_linear * 0.1f) {
+            out_color = variance_clamp_color(render_coord, out_color);;
+            out_reprojection_factor = 0;
         } 
         else {
             out_reprojection_factor = get_reprojection_factor(prev_reprojection_factor, reprojection_factors.y);
         }
     }
 
+    out_depth.g = scene_depth;
     imageStore(u_cloud_color_accumulation_out, coord, out_color);
     imageStore(u_cloud_depth_accumulation_out, coord, out_depth);
     imageStore(u_cloud_reprojection_factor_out, coord, vec4(out_reprojection_factor, 0.0f, 0.0f, 0.0f));

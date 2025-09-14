@@ -65,6 +65,7 @@ Passes::Clouds::Reproject::PassData& Passes::Clouds::Reproject::addToGraph(Strin
             passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Compute | Uniform);
             passData.Color = graph.ReadImage(info.Color, Compute | Sampled);
             passData.Depth = graph.ReadImage(info.Depth, Compute | Sampled);
+            passData.SceneDepth = graph.ReadImage(info.SceneDepth, Compute | Sampled);
             passData.ColorAccumulationIn = graph.ReadWriteImage(passData.ColorAccumulationIn, Compute | Sampled | Storage);
             passData.DepthAccumulationIn = graph.ReadWriteImage(passData.DepthAccumulationIn, Compute | Sampled | Storage);
             passData.ReprojectionFactorIn = graph.ReadWriteImage(passData.ReprojectionFactorIn, Compute | Sampled | Storage);
@@ -84,6 +85,7 @@ Passes::Clouds::Reproject::PassData& Passes::Clouds::Reproject::addToGraph(Strin
             bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
             bindGroup.SetCloudColor(graph.GetImageBinding(passData.Color));
             bindGroup.SetCloudDepth(graph.GetImageBinding(passData.Depth));
+            bindGroup.SetSceneDepth(graph.GetImageBinding(passData.SceneDepth));
             bindGroup.SetCloudColorAccumulationIn(graph.GetImageBinding(passData.ColorAccumulationIn));
             bindGroup.SetCloudDepthAccumulationIn(graph.GetImageBinding(passData.DepthAccumulationIn));
             bindGroup.SetCloudReprojectionFactorIn(graph.GetImageBinding(passData.ReprojectionFactorIn));

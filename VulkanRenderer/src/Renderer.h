@@ -123,7 +123,7 @@ private:
         RG::Resource Reprojection{};
     };
     CloudsInfo RenderGraphClouds(const CloudMapsInfo& cloudMaps, RG::Resource color, RG::Resource aerialPerspective,
-        RG::Resource depth);
+        RG::Resource minMaxDepth, RG::Resource sceneDepth);
     struct CloudShadowInfo
     {
         RG::Resource Shadow{};
