@@ -21,7 +21,8 @@ project "AssetConverter"
         IncludeDir["spirv_reflect"],	
         IncludeDir["meshoptimizer"],   
         IncludeDir["tinygltf"],    
-        IncludeDir["mikktspace"],    
+        IncludeDir["mikktspace"],        
+        IncludeDir["nlohmann-json"],
     }
 
     libdirs {
@@ -41,6 +42,7 @@ project "AssetConverter"
             "shaderc_combinedd.lib", 
             "shaderc_sharedd.lib", 
             "shaderc_utild.lib",
+            "slangd.lib",
         }
 
     filter "configurations:Release*"
@@ -49,6 +51,7 @@ project "AssetConverter"
             "shaderc_combined.lib", 
             "shaderc_shared.lib", 
             "shaderc_util.lib",
+            "slang.lib",
         }
         postbuildcommands { 
             "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{wks.location}tools/bin/ > nul" 
@@ -81,6 +84,7 @@ project "AssetConverterLib"
         IncludeDir["meshoptimizer"],    
         IncludeDir["tinygltf"],    
         IncludeDir["mikktspace"],    
+        IncludeDir["nlohmann-json"],
     }
 
     libdirs {
@@ -100,6 +104,7 @@ project "AssetConverterLib"
             "shaderc_combinedd.lib", 
             "shaderc_sharedd.lib", 
             "shaderc_utild.lib",
+            "slangd.lib",
         }
 
     filter "configurations:Release*"
@@ -108,4 +113,5 @@ project "AssetConverterLib"
             "shaderc_combined.lib", 
             "shaderc_shared.lib", 
             "shaderc_util.lib",
+            "slang.lib",
         }

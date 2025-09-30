@@ -82,7 +82,6 @@ public:
     static constexpr u32 MAX_PIPELINE_DESCRIPTOR_SETS = 4;
 
     static constexpr std::string_view META_KEYWORD_PREFIX = "@";
-
 };
 
 class SceneConverter
