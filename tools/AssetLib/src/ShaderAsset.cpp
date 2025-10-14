@@ -281,7 +281,7 @@ namespace assetLib
         
         assetLib::File assetFile = {};
         
-        u64 blobSizeBytes = Utils::compressToBlob(assetFile.Blob, source, info.SourceSizeBytes);
+        u64 blobSizeBytes = assetlib::utils::packLz4(assetFile.Blob, source, info.SourceSizeBytes);
         metadata["asset"]["blob_size_bytes"] = blobSizeBytes;
         metadata["asset"]["type"] = assetTypeToString(AssetType::Shader);
         

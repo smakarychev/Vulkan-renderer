@@ -23,6 +23,7 @@ project "AssetConverter"
         IncludeDir["tinygltf"],    
         IncludeDir["mikktspace"],        
         IncludeDir["nlohmann-json"],
+        IncludeDir["glaze"],
     }
 
     libdirs {
@@ -85,6 +86,7 @@ project "AssetConverterLib"
         IncludeDir["tinygltf"],    
         IncludeDir["mikktspace"],    
         IncludeDir["nlohmann-json"],
+        IncludeDir["glaze"],
     }
 
     libdirs {

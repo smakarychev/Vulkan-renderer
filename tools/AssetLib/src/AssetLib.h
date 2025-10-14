@@ -18,6 +18,8 @@ namespace assetLib
         std::vector<u8> Blob;
     };
 
+    using AssetBlob = std::vector<std::byte>;
+
     enum class CompressionMode : u32
     {
         None,
@@ -26,12 +28,13 @@ namespace assetLib
     
     struct AssetInfoBase
     {
-        CompressionMode CompressionMode;
         std::string OriginalFile;
         std::string BlobFile;
-        u64 BlobSizeBytes;
         AssetType Type;
         u32 Version;
+        CompressionMode CompressionMode;
+        u64 BlobSizeBytes;
+        AssetBlob Blob;
     };
     
     bool saveAssetFile(std::string_view assetPath, std::string_view blobPath, const File& file);

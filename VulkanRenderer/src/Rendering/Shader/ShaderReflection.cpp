@@ -128,7 +128,7 @@ namespace
         merged.ShaderStages |= second.ShaderStages;
 
         // merge specialization constants
-        merged.SpecializationConstants = Utils::mergeSets(merged.SpecializationConstants, second.SpecializationConstants,
+        merged.SpecializationConstants = utils::mergeSets(merged.SpecializationConstants, second.SpecializationConstants,
             [](const auto& a, const auto& b)
             {
                 if (a.Id == b.Id)
@@ -149,7 +149,7 @@ namespace
         merged.InputAttributes.append_range(second.InputAttributes);
 
         // merge push constants
-        merged.PushConstants = Utils::mergeSets(merged.PushConstants, second.PushConstants,
+        merged.PushConstants = utils::mergeSets(merged.PushConstants, second.PushConstants,
             [](const auto& a, const auto& b)
             {
                 if (a.Offset == b.Offset && a.SizeBytes == b.SizeBytes)
@@ -166,7 +166,7 @@ namespace
             });
 
         // merge descriptor sets
-        merged.DescriptorSets = Utils::mergeSets(merged.DescriptorSets, second.DescriptorSets,
+        merged.DescriptorSets = utils::mergeSets(merged.DescriptorSets, second.DescriptorSets,
             [](const auto& a, const auto& b)
             {
                 if (a.Set == b.Set)
@@ -178,7 +178,7 @@ namespace
             [](const auto& a, const auto& b)
             {
                 assetLib::ShaderStageInfo::DescriptorSet mergedSet = a;
-                mergedSet.Descriptors = Utils::mergeSets(mergedSet.Descriptors, b.Descriptors,
+                mergedSet.Descriptors = utils::mergeSets(mergedSet.Descriptors, b.Descriptors,
                     [](const auto& a, const auto& b)
                     {
                         if (a.Binding == b.Binding)

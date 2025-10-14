@@ -1,35 +1,79 @@
 ﻿#include "utils.h"
 
-#include <numeric>
+#include "core.h"
 
-#include "lz4.h"
+#include <lz4.h>
 
-namespace Utils
+namespace assetlib::utils
 {
-    u64 compressToBlob(std::vector<u8>& blob, const void* source, u64 sourceSizeBytes)
-    {
-        u32 compressedSizeBound = LZ4_compressBound((i32)sourceSizeBytes);
-        blob.resize(compressedSizeBound);
-        u32 compressedSize = LZ4_compress_default((const char*)source, (char*)blob.data(), (i32)sourceSizeBytes,
-            (i32)compressedSizeBound);
-        blob.resize(compressedSize);
+u64 packLz4(std::vector<u8>& destination, const void* source, u64 sourceSizeBytes)
+{
+    const u32 compressedSizeBound = LZ4_compressBound((i32)sourceSizeBytes);
+    destination.resize(compressedSizeBound);
+    const u32 compressedSize = LZ4_compress_default((const char*)source, (char*)destination.data(), (i32)sourceSizeBytes,
+        (i32)compressedSizeBound);
+    destination.resize(compressedSize);
 
-        return (u64)compressedSize;
-    }
+    return compressedSize;
+}
 
-    u64 compressToBlob(std::vector<u8>& blob, const std::vector<const void*>& sources,
-        const std::vector<u64>& sourceSizesBytes)
+std::vector<std::byte> pack(Span<const std::byte> source, CompressionMode compressionMode)
+{
+    switch (compressionMode)
     {
-        u64 totalSize = std::accumulate(sourceSizesBytes.begin(), sourceSizesBytes.end(), 0llu);
-        std::vector<u8> accumulated(totalSize);
-        u64 offset = 0;
-        for (u32 i = 0; i < sources.size(); i++)
-        {
-            memcpy(accumulated.data() + offset, sources[i], sourceSizesBytes[i]);
-            offset += sourceSizesBytes[i];
-        }
-        return compressToBlob(blob, accumulated.data(), accumulated.size());
+    case CompressionMode::Raw:
+        return packRaw(source);
+    case CompressionMode::LZ4:
+        return packLz4(source);
+    default:
+        ASSERT(false, "Unexpected compression mode: {}", (u32)compressionMode)
+        return packRaw(source);
     }
 }
 
+std::vector<std::byte> packLz4(Span<const std::byte> source)
+{
+    const u32 compressedSizeBound = LZ4_compressBound((i32)source.size());
+    std::vector<std::byte> destination(compressedSizeBound);
+    const u32 compressedSize = LZ4_compress_default((const char*)source.data(), (char*)destination.data(),
+        (i32)source.size(), (i32)compressedSizeBound);
+    destination.resize(compressedSize);
 
+    return destination;
+}
+
+std::vector<std::byte> packRaw(Span<const std::byte> source)
+{
+    return std::vector(source.begin(), source.end());
+}
+
+std::vector<std::byte> unpack(Span<const std::byte> source, u64 unpackedSize, CompressionMode compressionMode)
+{
+    switch (compressionMode)
+    {
+    case CompressionMode::Raw:
+        return unpackRaw(source);
+    case CompressionMode::LZ4:
+        return unpackLz4(source, unpackedSize);
+    default:
+        ASSERT(false, "Unexpected compression mode: {}", (u32)compressionMode)
+        return unpackRaw(source);
+    }
+}
+
+std::vector<std::byte> unpackLz4(Span<const std::byte> source, u64 unpackedSize)
+{
+    if (unpackedSize == source.size())
+        return unpackRaw(source);
+    
+    std::vector<std::byte> unpacked(unpackedSize);
+    LZ4_decompress_safe((const char*)source.data(), (char*)unpacked.data(), (i32)source.size(), (i32)unpackedSize);
+
+    return unpacked;
+}
+
+std::vector<std::byte> unpackRaw(Span<const std::byte> source)
+{
+    return std::vector(source.begin(), source.end());
+}
+}

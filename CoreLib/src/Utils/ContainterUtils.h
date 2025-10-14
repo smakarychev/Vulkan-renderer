@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <vector>
 
-namespace Utils
+namespace utils
 {
     template <typename T, typename V, typename Fn, typename Lg>
     requires requires(Fn comparator, Lg logger, const T& req, const V& avail)

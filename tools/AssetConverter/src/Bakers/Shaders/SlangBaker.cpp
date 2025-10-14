@@ -1,99 +1,26 @@
 #include "SlangBaker.h"
 
 #include "core.h"
+#include "Bakers/BakersUtils.h"
+#include "Utils/Hash.h"
+#include "v2/Shaders/ShaderLoadInfo.h"
+#include "v2/Shaders/SlangShaderAsset.h"
 
+#include <fstream>
 #include <queue>
 #include <stack>
 #include <unordered_map>
 #include <ranges>
+#include <source_location>
+#include <glaze/json/generic.hpp>
+#include <glaze/json/prettify.hpp>
 #include <glm/vec3.hpp>
-#include <nlohmann/json.hpp>
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
 #include <slang/slang-com-helper.h>
 
-// todo: move to assetlib
-namespace assetLib
-{
-
-enum class ShaderStage : u8
-{
-    None = 0,
-    Vertex = BIT(0),
-    Pixel = BIT(1),
-    Compute = BIT(2),
-};
-
-enum class ShaderBindingType : u8
-{
-    None,
-    Sampler,
-    Image,
-    ImageStorage,
-    TexelUniform,
-    TexelStorage,
-    UniformBuffer,
-    UniformTexelBuffer,
-    StorageBuffer,
-    StorageTexelBuffer,
-    UniformBufferDynamic,
-    StorageBufferDynamic,
-    Input,
-};
-
-enum class ShaderBindingAccess : u8
-{
-    Read,
-    Write,
-    ReadWrite,
-};
-
-enum class ShaderBindingAttributes
-{
-    None = 0,
-};
-
-struct ShaderBinding
-{
-    std::string Name;
-    ShaderStage ShaderStages{};
-    u32 Count{1};
-    u32 Binding{0};
-    ShaderBindingType Type{ShaderBindingType::None};
-    ShaderBindingAccess Access{ShaderBindingAccess::Read};
-    ShaderBindingAttributes Attributes{ShaderBindingAttributes::None};
-};
-
-struct ShaderBindingSet
-{
-    u32 Set{0};
-    std::vector<ShaderBinding> Bindings;
-};
-
-struct ShaderPushConstant
-{
-    u32 SizeBytes{};
-    u32 Offset{};
-    ShaderStage ShaderStages{};
-};
-
-struct ShaderEntryPoint
-{
-    std::string Name;
-    ShaderStage ShaderStage{};
-    glm::uvec3 ThreadGroupSize{};
-};
-
-struct ShaderAsset
-{
-    std::vector<ShaderBindingSet> BindingSets{};
-    std::vector<ShaderEntryPoint> EntryPoints{};
-};
-
-}
-
-CREATE_ENUM_FLAGS_OPERATORS(assetLib::ShaderStage);
-CREATE_ENUM_FLAGS_OPERATORS(assetLib::ShaderBindingAttributes);
+#define CHECK_RETURN_IO_ERROR(x, error, ...) \
+    if (!(x)) { return std::unexpected(IoError{.Code = error, .Message = std::format(__VA_ARGS__)}); }
 
 namespace bakers
 {
@@ -113,7 +40,7 @@ slang::IGlobalSession& getGlobalSession()
     return *globalSession;
 }
 
-slang::ISession& getSession(const SlangBakeSetting& settings)
+slang::ISession& getSession(const SlangBakeSettings& settings)
 {
     /* slang sessions must be unique for each #define list */
     static std::unordered_map<u64, ::Slang::ComPtr<slang::ISession>> sessions;
@@ -132,7 +59,11 @@ slang::ISession& getSession(const SlangBakeSetting& settings)
         slang::CompilerOptionEntry{
             .name = slang::CompilerOptionName::Optimization,
             .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = SLANG_OPTIMIZATION_LEVEL_HIGH}
-        }
+        },
+        slang::CompilerOptionEntry{
+            .name = slang::CompilerOptionName::VulkanUseEntryPointName,
+            .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = true}
+        },
     };
 
     std::vector<slang::PreprocessorMacroDesc> macros(settings.Defines.size());
@@ -142,9 +73,15 @@ slang::ISession& getSession(const SlangBakeSetting& settings)
             .value = define.second.c_str()
         };
 
-    slang::SessionDesc sessionDesc = {
+    std::vector<const char*> includePaths(settings.IncludePaths.size());
+    for (auto&& [i, path] : std::views::enumerate(settings.IncludePaths))
+        includePaths[i] = path.c_str();
+
+    const slang::SessionDesc sessionDesc = {
         .targets = &targetDesc,
         .targetCount = 1,
+        .searchPaths = includePaths.data(),
+        .searchPathCount = (SlangInt)includePaths.size(),
         .preprocessorMacros = macros.data(),
         .preprocessorMacroCount = (SlangInt)macros.size(),
         .compilerOptionEntries = options.data(),
@@ -159,9 +96,9 @@ slang::ISession& getSession(const SlangBakeSetting& settings)
     return *newSession->second;
 }
 
-assetLib::ShaderBindingType slangBindingTypeToBindingType(slang::BindingType bindingType)
+assetlib::ShaderBindingType slangBindingTypeToBindingType(slang::BindingType bindingType)
 {
-    using enum assetLib::ShaderBindingType;
+    using enum assetlib::ShaderBindingType;
     switch (bindingType)
     {
     case slang::BindingType::Sampler:
@@ -188,69 +125,188 @@ assetLib::ShaderBindingType slangBindingTypeToBindingType(slang::BindingType bin
     }
 }
 
+std::string slangTypeKindToString(slang::TypeReflection::Kind kind)
+{
+    using enum slang::TypeReflection::Kind;
+    switch (kind)
+    {
+    case Struct: return "struct";
+    case Array: return "array";
+    case Matrix: return "matrix";
+    case Vector: return "vector";
+    case Scalar: return "scalar";
+    case ConstantBuffer: return "constant_buffer";
+    case Resource: return "resource";
+    case SamplerState: return "sampler";
+    case TextureBuffer: return "texture_buffer";
+    case ShaderStorageBuffer: return "shader_storage_buffer";
+    case ParameterBlock: return "parameter_block";
+    case GenericTypeParameter: return "generic_parameter";
+    case Interface: return "interface";
+    case OutputStream: return "output_stream";
+    case Specialized: return "specialized";
+    case Feedback: return "feedback";
+    case Pointer: return "pointer";
+    case DynamicResource: return "dynamic_resource";
+    default:
+        ASSERT(false)
+        return "";
+    }
+}
+
+std::string slangScalarTypeToString(slang::TypeReflection::ScalarType scalarType)
+{
+    switch (scalarType)
+    {
+    case slang::TypeReflection::Void: return "void";
+    case slang::TypeReflection::Bool: return "bool";
+    case slang::TypeReflection::Int8: return "i8";
+    case slang::TypeReflection::UInt8: return "u8";
+    case slang::TypeReflection::Int16: return "i16";
+    case slang::TypeReflection::UInt16: return "u16";
+    case slang::TypeReflection::Int32: return "i32";
+    case slang::TypeReflection::UInt32: return "u32";
+    case slang::TypeReflection::Int64: return "i64";
+    case slang::TypeReflection::UInt64: return "u64";
+    case slang::TypeReflection::Float16: return "f16";
+    case slang::TypeReflection::Float32: return "f32";
+    case slang::TypeReflection::Float64: return "f64";
+    default:
+        ASSERT(false)
+        return "";
+    }
+}
+
+std::string slangMatrixTypeToString(slang::TypeLayoutReflection* typeLayout)
+{
+    const u32 rowCount = typeLayout->getRowCount();
+    const u32 colCount = typeLayout->getColumnCount();
+
+    /* the element type of matrix is vector, which contradicts math definition and logic >:( */
+    slang::TypeLayoutReflection* elementTypeLayout = typeLayout->getElementTypeLayout()->getElementTypeLayout();
+    ASSERT(rowCount > 0 && rowCount <= 4)
+    ASSERT(colCount > 0 && colCount <= 4)
+    ASSERT(elementTypeLayout->getKind() == slang::TypeReflection::Kind::Scalar)
+    switch (elementTypeLayout->getScalarType())
+    {
+    case slang::TypeReflection::Int32:
+        return std::format("imat{}x{}", colCount, rowCount);
+    case slang::TypeReflection::UInt32:
+        return std::format("umat{}x{}", colCount, rowCount);
+    case slang::TypeReflection::Float32:
+        return std::format("mat{}x{}", colCount, rowCount);
+    case slang::TypeReflection::Float64:
+        return std::format("dmat{}x{}", colCount, rowCount);
+    default:
+        ASSERT(false, "Unsupported vector layout type {}", (u32)elementTypeLayout->getScalarType())
+        return "mat";
+    }
+}
+
+std::string slangVectorTypeToString(slang::TypeLayoutReflection* typeLayout)
+{
+    const u32 elementCount = (u32)typeLayout->getElementCount();
+    slang::TypeLayoutReflection* elementTypeLayout = typeLayout->getElementTypeLayout();
+    ASSERT(elementCount > 0 && elementCount <= 4)
+    ASSERT(elementTypeLayout->getKind() == slang::TypeReflection::Kind::Scalar)
+    switch (elementTypeLayout->getScalarType())
+    {
+    case slang::TypeReflection::Bool:
+        return std::format("bvec{}", elementCount);
+    case slang::TypeReflection::Int32:
+        return std::format("ivec{}", elementCount);
+    case slang::TypeReflection::UInt32:
+        return std::format("uvec{}", elementCount);
+    case slang::TypeReflection::Float32:
+        return std::format("vec{}", elementCount);
+    case slang::TypeReflection::Float64:
+        return std::format("dvec{}", elementCount);
+    default:
+        ASSERT(false, "Unsupported vector layout type {}", (u32)elementTypeLayout->getScalarType())
+        return "vec";
+    }
+}
+
+assetlib::ShaderScalarType slangScalarTypeToScalarType(slang::TypeReflection::ScalarType type)
+{
+    switch (type)
+    {
+    case slang::TypeReflection::Bool: return assetlib::ShaderScalarType::Bool;
+    case slang::TypeReflection::Int32: return assetlib::ShaderScalarType::Int;
+    case slang::TypeReflection::UInt32: return assetlib::ShaderScalarType::Uint;
+    case slang::TypeReflection::Float32: return assetlib::ShaderScalarType::Float;
+    case slang::TypeReflection::Float64: return assetlib::ShaderScalarType::Double;
+    default:
+        ASSERT(false, "Unsupported scalar type {}", (u32)type)
+        return assetlib::ShaderScalarType::None;
+    }
+}
+
+std::string createVariableName(const std::string& currentName, slang::VariableLayoutReflection* variableLayout)
+{
+    return variableLayout->getName() ? std::format("{}_{}", currentName, variableLayout->getName()) : currentName;
+}
+
+constexpr std::string_view SHADER_ATTRIBUTE_BINDLESS = "Bindless";
+constexpr std::string_view SHADER_ATTRIBUTE_IMMUTABLE_SAMPLER = "ImmutableSampler";
+constexpr std::string_view SHADER_ATTRIBUTE_REFLECT_TYPE = "ReflectType";
+
 class UniformTypeReflector
 {
 public:
-    nlohmann::json Reflect(const std::string& baseName, slang::VariableLayoutReflection* variableLayout)
+    UniformTypeReflector(const Context& ctx) : m_Ctx(&ctx) {}
+    glz::generic Reflect(const std::string& baseName, slang::VariableLayoutReflection* variableLayout)
     {
-        m_BaseName = baseName;
+        m_CurrentName = baseName;
         return *ReflectVariableLayout(variableLayout);
     }
 private:
-    std::optional<nlohmann::json> ReflectVariableLayout(slang::VariableLayoutReflection* variableLayout)
+    std::optional<glz::generic> ReflectVariableLayout(slang::VariableLayoutReflection* variableLayout)
     {
         slang::TypeLayoutReflection* typeLayout = variableLayout->getTypeLayout();
         if (!typeLayout->getSize())
             return std::nullopt;
 
-        nlohmann::json reflection = ReflectCommonVariableInfo(variableLayout);
-        const std::string currentBaseName = m_BaseName;
-        m_BaseName = reflection["name"].get<std::string>();
-        reflection["type"] = ReflectTypeLayout(typeLayout);
-        m_BaseName = currentBaseName;
-        
+        glz::generic reflection = ReflectCommonVariableInfo(variableLayout);
+        const std::string oldName = m_CurrentName;
+        m_CurrentName = reflection[Slang::TYPE_REFLECTION_NAME].get<std::string>();
+        reflection[Slang::TYPE_REFLECTION_TYPE] = ReflectTypeLayout(typeLayout);
+        m_CurrentName = oldName;
+
+        return reflection;
+    }
+
+    glz::generic ReflectCommonVariableInfo(slang::VariableLayoutReflection* variableLayout) const
+    {
+        glz::generic reflection = {};
+        reflection["name"] = createVariableName(m_CurrentName, variableLayout);
+        reflection["offset"] = variableLayout->getOffset();
+
         return reflection;
     }
     
-    nlohmann::json ReflectCommonVariableInfo(slang::VariableLayoutReflection* variableLayout)
+    glz::generic ReflectTypeLayout(slang::TypeLayoutReflection* typeLayout)
     {
-        nlohmann::json reflection = {};
-        const char* variableName = variableLayout->getName();
-        reflection["name"] = variableName ? std::format("{}_{}", m_BaseName, variableName) : m_BaseName;
-        reflection["offset"] = variableLayout->getOffset();
-        reflection["size"] = variableLayout->getTypeLayout()->getSize();
-        reflection["kind"] = SlangTypeKindToString(variableLayout->getTypeLayout()->getKind());
-        
-        return reflection;
-    }
+        glz::generic reflection = {};
 
-    nlohmann::json ReflectTypeLayout(slang::TypeLayoutReflection* typeLayout)
-    {
-        nlohmann::json reflection = {};
+        ReflectCommonTypeInfo(typeLayout, reflection);
+        
         switch (typeLayout->getKind())
         {
+        case slang::TypeReflection::Kind::Struct:
+            ReflectStruct(typeLayout, reflection);
+            break;
         case slang::TypeReflection::Kind::Array:
-            reflection["element_count"] = typeLayout->getElementCount();
-            reflection["element"] = ReflectTypeLayout(typeLayout->getElementTypeLayout());
+            ReflectArray(typeLayout, reflection);
             break;
         case slang::TypeReflection::Kind::Matrix:
-            reflection = SlangMatrixTypeToString(typeLayout);
+            reflection = slangMatrixTypeToString(typeLayout);
             break;
         case slang::TypeReflection::Kind::Vector:
-            reflection = SlangVectorTypeToString(typeLayout);
+            reflection = slangVectorTypeToString(typeLayout);
             break;
         case slang::TypeReflection::Kind::Scalar:
-            reflection = SlangScalarTypeToString(typeLayout->getScalarType());
-            break;
-        case slang::TypeReflection::Kind::Struct:
-            reflection["fields"] = {};
-            for (u32 i = 0; i < typeLayout->getFieldCount(); i++)
-            {
-                const std::optional<nlohmann::json> reflectionField =
-                    ReflectVariableLayout(typeLayout->getFieldByIndex(i));
-                if (reflectionField.has_value())
-                    reflection["fields"].push_back(*reflectionField);    
-            }
+            reflection = slangScalarTypeToString(typeLayout->getScalarType());
             break;
         default:
             ASSERT(false)
@@ -260,115 +316,312 @@ private:
         return reflection;
     }
 
-    static std::string SlangTypeKindToString(slang::TypeReflection::Kind kind)
+    static void ReflectCommonTypeInfo(slang::TypeLayoutReflection* typeLayout, glz::generic& reflection)
     {
-        using enum slang::TypeReflection::Kind;
-        switch (kind)
+        reflection["size"] = typeLayout->getSize();
+        reflection["kind"] = slangTypeKindToString(typeLayout->getKind());
+    }
+
+    void ReflectStruct(slang::TypeLayoutReflection* typeLayout, glz::generic& reflection)
+    {
+        const auto reflectionTarget = FindStructTypeReflectionAttribute(typeLayout);
+
+        /* if we have type reflection attribute, we have to clear the current name,
+         * so that struct fields have canonical name, that does not depend on specific shader binding names
+         */
+        std::string oldName = {};
+        if (reflectionTarget.has_value())
         {
-        case Struct:                return "struct";
-        case Array:                 return "array";
-        case Matrix:                return "matrix";
-        case Vector:                return "vector";
-        case Scalar:                return "scalar";
-        case ConstantBuffer:        return "constant_buffer";
-        case Resource:              return "resource";
-        case SamplerState:          return "sampler";
-        case TextureBuffer:         return "texture_buffer";
-        case ShaderStorageBuffer:   return "shader_storage_buffer";
-        case ParameterBlock:        return "parameter_block";
-        case GenericTypeParameter:  return "generic_parameter";
-        case Interface:             return "interface";
-        case OutputStream:          return "output_stream";
-        case Specialized:           return "specialized";
-        case Feedback:              return "feedback";
-        case Pointer:               return "pointer";
-        case DynamicResource:       return "dynamic_resource";
+            oldName = m_CurrentName;
+            m_CurrentName = "";
+        }
+
+        reflection[Slang::TYPE_REFLECTION_TYPE_STRUCT_NAME] = typeLayout->getName();
+        reflection[Slang::TYPE_REFLECTION_STRUCT_FIELDS] = std::vector<glz::generic>();
+        for (u32 i = 0; i < typeLayout->getFieldCount(); i++)
+        {
+            const std::optional<glz::generic> reflectionField =
+                ReflectVariableLayout(typeLayout->getFieldByIndex(i));
+            if (reflectionField.has_value())
+                reflection[Slang::TYPE_REFLECTION_STRUCT_FIELDS].get<std::vector<glz::generic>>().push_back(
+                    *reflectionField);
+        }
+
+        if (!reflectionTarget.has_value())
+            return;
+        
+        CollapseStructReflectionToTarget(reflection, *reflectionTarget);
+
+        m_CurrentName = oldName;
+    }
+
+    void CollapseStructReflectionToTarget(glz::generic& reflection, const std::string& target) const
+    {
+        namespace fs = std::filesystem;
+        const fs::path targetPath =
+            fs::weakly_canonical(m_Ctx->InitialDirectory / Slang::TYPE_REFLECTION_BASE_PATH / target);
+        
+        WriteStructReflection(reflection, targetPath);
+        reflection = glz::generic{};
+        reflection[Slang::TYPE_REFLECTION_TARGET] = target;
+    }
+
+    static void WriteStructReflection(const glz::generic& reflection, const std::filesystem::path& targetPath)
+    {
+        namespace fs = std::filesystem;
+
+        const std::string reflectionString = glz::write<glz::opts{.prettify = true}>(reflection).value_or("{}");
+        
+        if (fs::exists(targetPath))
+        {
+            std::ifstream in(targetPath.string(), std::ios::binary | std::ios::ate);
+            const isize targetSize = in.tellg();
+            in.seekg(0, std::ios::beg);
+            std::string targetString(targetSize, 0);
+            in.read(targetString.data(), targetSize);
+            in.close();
+
+            const u32 reflectionHash = Hash::murmur3b32((const u8*)reflectionString.data(), reflectionString.length());        
+            const u32 targetHash = Hash::murmur3b32((const u8*)targetString.data(), targetString.length());        
+
+            if (targetHash == reflectionHash)
+                return;
+        }
+        
+        if (!fs::exists(targetPath))
+            fs::create_directories(targetPath.parent_path());
+
+        std::ofstream out(targetPath.string(), std::ios::binary);
+        out.write(reflectionString.data(), (isize)reflectionString.length());
+    }
+
+    void ReflectArray(slang::TypeLayoutReflection* typeLayout, glz::generic& reflection)
+    {
+        reflection[Slang::TYPE_REFLECTION_ARRAY_ELEMENT_COUNT] = typeLayout->getElementCount();
+        reflection[Slang::TYPE_REFLECTION_ARRAY_ELEMENT] = ReflectTypeLayout(typeLayout->getElementTypeLayout());
+    }
+
+    static std::optional<std::string> FindStructTypeReflectionAttribute(slang::TypeLayoutReflection* typeLayout)
+    {
+        const u32 attributeCount = typeLayout->getType()->getUserAttributeCount();
+        for (u32 i = 0; i < attributeCount; i++)
+        {
+            slang::UserAttribute* attribute = typeLayout->getType()->getUserAttributeByIndex(i);
+            const std::string name = attribute->getName();
+            if (name == SHADER_ATTRIBUTE_REFLECT_TYPE)
+            {
+                ASSERT(typeLayout->getKind() == slang::TypeReflection::Kind::Struct)
+                
+                usize reflectionNameLength = 0;
+                const char* reflectionName = attribute->getArgumentValueString(0, &reflectionNameLength);
+                std::string reflectionTarget(reflectionName, reflectionNameLength);
+
+                static constexpr std::string_view TYPE_EXTENSION = ".type";
+                if (!reflectionTarget.ends_with(TYPE_EXTENSION))
+                    reflectionTarget.append(TYPE_EXTENSION);
+                
+                return reflectionTarget;
+            }                
+        }
+
+        return std::nullopt;
+    }
+
+    std::string m_CurrentName{};
+    const Context* m_Ctx{nullptr};
+};
+
+class LeafReflector
+{
+public:
+    virtual ~LeafReflector() = default;
+    virtual void ReflectTypeLayout(slang::TypeLayoutReflection* typeLayout) {}
+protected:
+    void ReflectVariableLayout(slang::VariableLayoutReflection* variableLayout)
+    {
+        const std::string oldName = m_CurrentName;
+        m_CurrentVariable = variableLayout;
+        m_CurrentName = createVariableName(m_CurrentName, variableLayout);
+        ReflectTypeLayout(variableLayout->getTypeLayout());
+        m_CurrentName = oldName;
+    }
+protected:
+    std::string m_CurrentName{};
+    slang::VariableLayoutReflection* m_CurrentVariable{};
+};
+
+class InputAttributeReflector final : public LeafReflector
+{
+public:
+    std::vector<assetlib::ShaderInputAttribute> Reflect(slang::VariableLayoutReflection* variableLayout)
+    {
+        ReflectVariableLayout(variableLayout);
+
+        std::vector<assetlib::ShaderInputAttribute> reflection = std::move(m_InputAttributes);
+        m_InputAttributes.clear();
+
+        return reflection;
+    }
+
+private:
+    void ReflectTypeLayout(slang::TypeLayoutReflection* typeLayout) override
+    {
+        switch (typeLayout->getKind())
+        {
+        case slang::TypeReflection::Kind::Struct:
+            ReflectStruct(typeLayout);
+            break;
+        case slang::TypeReflection::Kind::Array:
+            ReflectArray(typeLayout);
+            break;
+        case slang::TypeReflection::Kind::Matrix:
+            ReflectMatrix(typeLayout);
+            break;
+        case slang::TypeReflection::Kind::Vector:
+            ReflectVector(typeLayout);
+            break;
+        case slang::TypeReflection::Kind::Scalar:
+            ReflectScalar(typeLayout);
+            break;
         default:
-            ASSERT(false)
-            return "";
+            break;
         }
     }
 
-    static std::string SlangMatrixTypeToString(slang::TypeLayoutReflection* typeLayout)
+    void ReflectStruct(slang::TypeLayoutReflection* typeLayout)
     {
+        for (u32 i = 0; i < typeLayout->getFieldCount(); i++)
+            ReflectVariableLayout(typeLayout->getFieldByIndex(i));
+    }
+
+    void ReflectArray(slang::TypeLayoutReflection* typeLayout)
+    {
+        const u32 elementCount = (u32)typeLayout->getElementCount();
+
+        const u32 currentInputIndex = (u32)m_InputAttributes.size();
+        ReflectTypeLayout(typeLayout->getElementTypeLayout());
+        const u32 newInputs = (u32)m_InputAttributes.size() - currentInputIndex;
+        if (newInputs == 0)
+            return;
+
+        for (u32 elementIndex = 1; elementIndex < elementCount; elementIndex++)
+        {
+            for (u32 inputIndex = 0; inputIndex < newInputs; inputIndex++)
+            {
+                auto input = m_InputAttributes[currentInputIndex + inputIndex];
+                input.Location = (u32)m_InputAttributes.size();
+                m_InputAttributes.push_back(input);
+            }
+        }
+    }
+
+    void ReflectMatrix(slang::TypeLayoutReflection* typeLayout)
+    {
+        if (typeLayout->getSize(slang::ParameterCategory::VaryingInput) == 0)
+            return;
+
         const u32 rowCount = typeLayout->getRowCount();
         const u32 colCount = typeLayout->getColumnCount();
 
-        /* the element type of matrix is vector, which contradicts math definition and logic >:( */
-        slang::TypeLayoutReflection* elementTypeLayout = typeLayout->getElementTypeLayout()->getElementTypeLayout();
-        ASSERT(rowCount > 0 && rowCount <= 4)
-        ASSERT(colCount > 0 && colCount <= 4)
-        ASSERT(elementTypeLayout->getKind() == slang::TypeReflection::Kind::Scalar)
-        switch (elementTypeLayout->getScalarType())
+        for (u32 i = 0; i < rowCount; i++)
         {
-        case slang::TypeReflection::Int32:
-            return std::format("imat{}x{}", colCount, rowCount);
-        case slang::TypeReflection::UInt32:
-            return std::format("umat{}x{}", colCount, rowCount);
-        case slang::TypeReflection::Float32:
-            return std::format("mat{}x{}", colCount, rowCount);
-        case slang::TypeReflection::Float64:
-            return std::format("dmat{}x{}", colCount, rowCount);
-        default:
-            ASSERT(false, "Unsupported vector layout type {}", (u32)elementTypeLayout->getScalarType())
-            return "mat";
+            m_InputAttributes.push_back({
+                .Name = m_CurrentName,
+                .Location = (u32)m_InputAttributes.size(),
+                .ElementCount = colCount,
+                .ElementScalar = slangScalarTypeToScalarType(typeLayout->getElementTypeLayout()->getScalarType())
+            });
         }
     }
 
-    static std::string SlangVectorTypeToString(slang::TypeLayoutReflection* typeLayout)
+    void ReflectVector(slang::TypeLayoutReflection* typeLayout)
     {
-        const u32 elementCount = (u32)typeLayout->getElementCount();
-        slang::TypeLayoutReflection* elementTypeLayout = typeLayout->getElementTypeLayout();
-        ASSERT(elementCount > 0 && elementCount <= 4)
-        ASSERT(elementTypeLayout->getKind() == slang::TypeReflection::Kind::Scalar)
-        switch (elementTypeLayout->getScalarType())
-        {
-        case slang::TypeReflection::Bool:
-            return std::format("bvec{}", elementCount);
-        case slang::TypeReflection::Int32:
-            return std::format("ivec{}", elementCount);
-        case slang::TypeReflection::UInt32:
-            return std::format("uvec{}", elementCount);
-        case slang::TypeReflection::Float32:
-            return std::format("vec{}", elementCount);
-        case slang::TypeReflection::Float64:
-            return std::format("dvec{}", elementCount);
-        default:
-            ASSERT(false, "Unsupported vector layout type {}", (u32)elementTypeLayout->getScalarType())
-            return "vec";
-        }
-    }
-    
-    static std::string SlangScalarTypeToString(slang::TypeReflection::ScalarType scalarType)
-    {
-        switch (scalarType)
-        {
-        case slang::TypeReflection::Void:       return "void";
-        case slang::TypeReflection::Bool:       return "bool";
-        case slang::TypeReflection::Int32:      return "i32";
-        case slang::TypeReflection::UInt32:     return "u32";
-        case slang::TypeReflection::Int64:      return "i64";
-        case slang::TypeReflection::UInt64:     return "u64";
-        case slang::TypeReflection::Float16:    return "f16";
-        case slang::TypeReflection::Float32:    return "f32";
-        case slang::TypeReflection::Float64:    return "f64";
-        case slang::TypeReflection::Int8:       return "i8";
-        case slang::TypeReflection::UInt8:      return "u8";
-        case slang::TypeReflection::Int16:      return "i16";
-        case slang::TypeReflection::UInt16:     return "u16";
-        default:
-            ASSERT(false)
-            return "";
-        }
+        if (typeLayout->getSize(slang::ParameterCategory::VaryingInput) == 0)
+            return;
+
+        m_InputAttributes.push_back({
+            .Name = m_CurrentName,
+            .Location = (u32)m_InputAttributes.size(),
+            .ElementCount = (u32)typeLayout->getElementCount(),
+            .ElementScalar = slangScalarTypeToScalarType(typeLayout->getElementTypeLayout()->getScalarType())
+        });
     }
 
-    std::string m_BaseName{};
+    void ReflectScalar(slang::TypeLayoutReflection* typeLayout)
+    {
+        if (typeLayout->getSize(slang::ParameterCategory::VaryingInput) == 0)
+            return;
+
+        m_InputAttributes.push_back({
+            .Name = m_CurrentName,
+            .Location = (u32)m_InputAttributes.size(),
+            .ElementCount = 1,
+            .ElementScalar = slangScalarTypeToScalarType(typeLayout->getScalarType())
+        });
+    }
+private:
+    std::vector<assetlib::ShaderInputAttribute> m_InputAttributes;
 };
 
-class LayoutReflector
+class SpecializationConstantsReflector final : public LeafReflector
 {
 public:
-    void Reflect(slang::IComponentType* program)
+    std::vector<assetlib::ShaderSpecializationConstants> Reflect(assetlib::ShaderStage shaderStages,
+        slang::VariableLayoutReflection* variableLayout)
+    {
+        m_ShaderStages = shaderStages;
+        ReflectVariableLayout(variableLayout);
+
+        std::vector<assetlib::ShaderSpecializationConstants> reflection = std::move(m_SpecializationConstants);
+        m_SpecializationConstants.clear();
+
+        return reflection;
+    }
+
+private:
+    void ReflectTypeLayout(slang::TypeLayoutReflection* typeLayout) override
+    {
+        switch (typeLayout->getKind())
+        {
+        case slang::TypeReflection::Kind::Struct:
+            ReflectStruct(typeLayout);
+            break;
+        case slang::TypeReflection::Kind::Scalar:
+            ReflectScalar(typeLayout);
+            break;
+        default:
+            break;
+        }
+    }
+
+    void ReflectStruct(slang::TypeLayoutReflection* typeLayout)
+    {
+        for (u32 i = 0; i < typeLayout->getFieldCount(); i++)
+            ReflectVariableLayout(typeLayout->getFieldByIndex(i));
+    }
+
+    void ReflectScalar(slang::TypeLayoutReflection* typeLayout)
+    {
+        if (typeLayout->getSize(slang::ParameterCategory::SpecializationConstant) == 0)
+            return;
+
+        m_SpecializationConstants.push_back({
+            .Name = m_CurrentName,
+            .Id = (u32)m_CurrentVariable->getOffset(slang::ParameterCategory::SpecializationConstant),
+            .Type = slangScalarTypeToScalarType(typeLayout->getScalarType()),
+            .ShaderStages = m_ShaderStages
+        });
+    }
+private:
+    std::vector<assetlib::ShaderSpecializationConstants> m_SpecializationConstants;
+    assetlib::ShaderStage m_ShaderStages{assetlib::ShaderStage::None};
+};
+
+class ShaderReflector
+{
+public:
+    ShaderReflector(const Context& ctx) : m_Ctx(&ctx) {}
+    assetlib::ShaderHeader Reflect(std::vector<slang::IModule*>& modules, slang::IComponentType* program)
     {
         slang::ProgramLayout* layout = program->getLayout();
         ReflectGlobalLayout(layout);
@@ -379,7 +632,15 @@ public:
             m_CurrentShaderStages = GetEntryPointShaderStage(layout->getEntryPointByIndex(i));
             ReflectEntryPointLayout(layout->getEntryPointByIndex(i));
         }
+
+        ReflectDependencies(modules);
+
+        assetlib::ShaderHeader shaderInfo = std::move(m_ShaderInfo);
+        m_ShaderInfo = {};
+
+        return shaderInfo;
     }
+
 private:
     struct ParameterBlockInfo
     {
@@ -387,26 +648,28 @@ private:
         slang::TypeLayoutReflection* TypeLayout{nullptr};
         slang::VariableLayoutReflection* VariableLayout{nullptr};
     };
-    struct UniformTypeReflectionInfo
-    {
-        u32 Set{0};
-        nlohmann::json Reflection{};
-    };
+
     void ReflectGlobalLayout(slang::ProgramLayout* layout)
     {
         const u32 entryPointCount = (u32)layout->getEntryPointCount();
         for (u32 i = 0; i < entryPointCount; i++)
             m_CurrentShaderStages |= GetEntryPointShaderStage(layout->getEntryPointByIndex(i));
-        
+
         m_ParameterBlocksToReflect.push({
             .Name = "",
             .TypeLayout = layout->getGlobalParamsTypeLayout(),
-            .VariableLayout = layout->getGlobalParamsVarLayout()});
+            .VariableLayout = layout->getGlobalParamsVarLayout()
+        });
         ReflectParameterBlocks();
+
+        SpecializationConstantsReflector specializationConstantsReflector = {};
+        m_ShaderInfo.SpecializationConstants = specializationConstantsReflector.Reflect(m_CurrentShaderStages,
+            layout->getGlobalParamsVarLayout());
     }
+
     void ReflectEntryPointLayout(slang::EntryPointLayout* layout)
     {
-        m_EntryPoints.push_back({
+        m_ShaderInfo.EntryPoints.push_back({
             .Name = layout->getName(),
             .ShaderStage = m_CurrentShaderStages,
             .ThreadGroupSize = GetEntryPointThreadGroupSize(layout)
@@ -414,9 +677,40 @@ private:
         m_ParameterBlocksToReflect.push({
             .Name = "",
             .TypeLayout = layout->getTypeLayout(),
-            .VariableLayout = layout->getVarLayout()});
+            .VariableLayout = layout->getVarLayout()
+        });
         ReflectParameterBlocks();
+
+        if (enumHasAny(m_CurrentShaderStages, assetlib::ShaderStage::Vertex))
+        {
+            InputAttributeReflector inputReflector = {};
+            m_ShaderInfo.InputAttributes = inputReflector.Reflect(layout->getVarLayout());
+        }
     }
+
+    void ReflectDependencies(std::vector<slang::IModule*>& modules)
+    {
+        i32 dependencyCount = 0;
+        for (auto* module : modules)
+            dependencyCount += module->getDependencyFileCount();
+        if (dependencyCount == 0)
+            return;
+
+        m_ShaderInfo.Includes.reserve(dependencyCount);
+        for (auto* module : modules)
+        {
+            for (i32 i = 0; i < dependencyCount; i++)
+            {
+                std::string dependency = module->getDependencyFilePath(i);
+                const auto it = std::ranges::find(m_ShaderInfo.Includes, dependency);
+                if (it != m_ShaderInfo.Includes.end())
+                    continue;
+                
+                m_ShaderInfo.Includes.push_back(std::move(dependency));
+            }    
+        }
+    }
+
     void ReflectParameterBlocks()
     {
         while (!m_ParameterBlocksToReflect.empty())
@@ -424,48 +718,53 @@ private:
             ParameterBlockInfo parameterBlockInfo = m_ParameterBlocksToReflect.top();
             m_ParameterBlocksToReflect.pop();
 
+            glz::generic uniformBufferReflection = {};
+            if (parameterBlockInfo.TypeLayout->getSize())
+                uniformBufferReflection = ReflectUniformBuffer(parameterBlockInfo);
             ReflectParameterBlock(parameterBlockInfo);
-
+            
             if (!m_CurrentBindings.empty())
             {
-                m_Sets.push_back({
-                    .Set = (u32)m_Sets.size(),
-                    .Bindings = std::move(m_CurrentBindings)
+                m_ShaderInfo.BindingSets.push_back({
+                    .Set = (u32)m_ShaderInfo.BindingSets.size(),
+                    .Bindings = std::move(m_CurrentBindings),
+                    .UniformType = glz::write<glz::opts{.prettify = true}>(uniformBufferReflection).value_or("{}")
                 });
                 m_CurrentBindings.clear();
             }
         }
     }
+
     void ReflectParameterBlock(const ParameterBlockInfo& blockInfo)
     {
-        if (blockInfo.TypeLayout->getSize())
-            ReflectUniformBuffer(blockInfo);
         ReflectRanges(blockInfo);
     }
-    void ReflectUniformBuffer(const ParameterBlockInfo& blockInfo)
+
+    glz::generic ReflectUniformBuffer(const ParameterBlockInfo& blockInfo)
     {
-        UniformTypeReflector uniformTypeReflector = {};
-        m_UniformTypeReflections.push_back({
-            .Set = (u32)m_Sets.size(),
-            .Reflection = uniformTypeReflector.Reflect(blockInfo.Name, blockInfo.VariableLayout)
-        });
-        
-        assetLib::ShaderBinding uniformBuffer = {
+        UniformTypeReflector uniformTypeReflector(*m_Ctx);
+        glz::generic uniformTypeReflection = uniformTypeReflector.Reflect(blockInfo.Name, blockInfo.VariableLayout);
+
+        assetlib::ShaderBinding uniformBuffer = {
             .Name = blockInfo.Name + "_auto_uniform",
             .ShaderStages = m_CurrentShaderStages,
             .Count = 1,
             .Binding = (u32)m_CurrentBindings.size(),
-            .Type = assetLib::ShaderBindingType::UniformBuffer,
-            .Access = assetLib::ShaderBindingAccess::Read,
+            .Type = assetlib::ShaderBindingType::UniformBuffer,
+            .Access = assetlib::ShaderBindingAccess::Read,
         };
 
         m_CurrentBindings.push_back(std::move(uniformBuffer));
+
+        return uniformTypeReflection;
     }
+
     void ReflectRanges(const ParameterBlockInfo& blockInfo)
     {
         ReflectBindingRanges(blockInfo);
         ReflectSubObjectRanges(blockInfo);
     }
+
     void ReflectBindingRanges(const ParameterBlockInfo& blockInfo)
     {
         const i32 rangeCount = (i32)blockInfo.TypeLayout->getDescriptorSetDescriptorRangeCount(RELATIVE_SET_INDEX);
@@ -473,23 +772,25 @@ private:
         for (i32 rangeIndex = 0; rangeIndex < rangeCount; rangeIndex++)
             ReflectBindingRange(blockInfo, rangeIndex);
     }
+
     void ReflectBindingRange(const ParameterBlockInfo& blockInfo, i32 rangeIndex)
     {
         const slang::BindingType bindingType =
             blockInfo.TypeLayout->getDescriptorSetDescriptorRangeType(RELATIVE_SET_INDEX, rangeIndex);
-        
+
         if (bindingType == slang::BindingType::PushConstant)
             return;
 
-        u32 descriptorCount =
+        const u32 descriptorCount =
             (u32)blockInfo.TypeLayout->getDescriptorSetDescriptorRangeDescriptorCount(RELATIVE_SET_INDEX, rangeIndex);
-        assetLib::ShaderBinding binding = {
+        assetlib::ShaderBinding binding = {
             .Name = GetBindingName(blockInfo, rangeIndex),
             .ShaderStages = m_CurrentShaderStages,
             .Count = descriptorCount,
             .Binding = (u32)m_CurrentBindings.size(),
             .Type = slangBindingTypeToBindingType(bindingType),
             .Access = GetResourceAccess(blockInfo, rangeIndex),
+            .Attributes = GetBindingAttributes(blockInfo, rangeIndex)
         };
 
         m_CurrentBindings.push_back(std::move(binding));
@@ -502,20 +803,20 @@ private:
         for (i32 rangeIndex = rangeCount - 1; rangeIndex >= 0; rangeIndex--)
             ReflectSubObjectRange(blockInfo, rangeIndex);
     }
+
     void ReflectSubObjectRange(const ParameterBlockInfo& blockInfo, i32 rangeIndex)
     {
         const i32 bindingRangeIndex = (i32)blockInfo.TypeLayout->getSubObjectRangeBindingRangeIndex(rangeIndex);
-        const slang::BindingType bindingType = blockInfo.TypeLayout->getBindingRangeType(bindingRangeIndex);
-        switch (bindingType)
+        switch (blockInfo.TypeLayout->getBindingRangeType(bindingRangeIndex))
         {
         case slang::BindingType::ParameterBlock:
             m_ParameterBlocksToReflect.push({
                 .Name = std::format("{}_{}",
                     blockInfo.Name, blockInfo.TypeLayout->getBindingRangeLeafVariable(bindingRangeIndex)->getName()),
                 .TypeLayout =
-                    blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementTypeLayout(),
+                blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementTypeLayout(),
                 .VariableLayout =
-                    blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementVarLayout()
+                blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementVarLayout()
             });
             break;
         case slang::BindingType::PushConstant:
@@ -525,19 +826,21 @@ private:
             break;
         }
     }
+
     void ReflectPushConstant(slang::TypeLayoutReflection* constantBufferTypeLayout)
     {
         slang::TypeLayoutReflection* elementTypeLayout = constantBufferTypeLayout->getElementTypeLayout();
         const u32 elementSize = (u32)elementTypeLayout->getSize();
-        if(elementSize == 0)
+        if (elementSize == 0)
             return;
 
-        m_PushConstant = {
+        m_ShaderInfo.PushConstant = {
             .SizeBytes = elementSize,
             .Offset = 0,
             .ShaderStages = m_CurrentShaderStages
         };
     }
+
     static std::string GetBindingName(const ParameterBlockInfo& blockInfo, i32 rangeIndex)
     {
         slang::VariableReflection* variableReflection = blockInfo.TypeLayout->getBindingRangeLeafVariable(rangeIndex);
@@ -547,113 +850,226 @@ private:
         if (!name)
             return blockInfo.Name;
 
-        return std::format("{}_{}", blockInfo.Name, name); 
+        return std::format("{}_{}", blockInfo.Name, name);
     }
-    static assetLib::ShaderBindingAccess GetResourceAccess(const ParameterBlockInfo& blockInfo, i32 rangeIndex)
+
+    static assetlib::ShaderBindingAccess GetResourceAccess(const ParameterBlockInfo& blockInfo, i32 rangeIndex)
     {
         slang::TypeReflection* typeReflection =
             blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(rangeIndex)->getType();
 
         ASSERT(typeReflection)
         if (!typeReflection)
-            return assetLib::ShaderBindingAccess::Read;
+            return assetlib::ShaderBindingAccess::Read;
 
         switch (typeReflection->getResourceAccess())
         {
         case SLANG_RESOURCE_ACCESS_READ:
-            return assetLib::ShaderBindingAccess::Read;
+            return assetlib::ShaderBindingAccess::Read;
         case SLANG_RESOURCE_ACCESS_READ_WRITE:
-            return assetLib::ShaderBindingAccess::ReadWrite;
+            return assetlib::ShaderBindingAccess::ReadWrite;
         case SLANG_RESOURCE_ACCESS_WRITE:
-            return assetLib::ShaderBindingAccess::Write;
+            return assetlib::ShaderBindingAccess::Write;
         case SLANG_RESOURCE_ACCESS_NONE:
-            return assetLib::ShaderBindingAccess::Read;
+            return assetlib::ShaderBindingAccess::Read;
         default:
             ASSERT(false)
-            return assetLib::ShaderBindingAccess::Read;
+            return assetlib::ShaderBindingAccess::Read;
         }
     }
-    static assetLib::ShaderStage GetEntryPointShaderStage(slang::EntryPointLayout* entryPointLayout)
+
+    static assetlib::ShaderBindingAttributes GetBindingAttributes(const ParameterBlockInfo& blockInfo, i32 rangeIndex)
+    {
+        slang::VariableReflection* variableReflection =
+            blockInfo.TypeLayout->getBindingRangeLeafVariable(rangeIndex);
+
+        assetlib::ShaderBindingAttributes attributes = assetlib::ShaderBindingAttributes::None;
+        
+        if (!variableReflection)
+            return attributes;
+        
+        const u32 attributeCount = variableReflection->getUserAttributeCount();
+        for (u32 i = 0; i < attributeCount; i++)
+        {
+            slang::UserAttribute* attribute = variableReflection->getUserAttributeByIndex(i);
+            const std::string name = attribute->getName();
+            if (name == SHADER_ATTRIBUTE_BINDLESS)
+            {
+                attributes |= assetlib::ShaderBindingAttributes::Bindless;
+            }
+            else if (name == SHADER_ATTRIBUTE_IMMUTABLE_SAMPLER)
+            {
+                attributes |= assetlib::ShaderBindingAttributes::ImmutableSampler;
+
+                i32 samplerFlags = 0;
+                attribute->getArgumentValueInt(0, &samplerFlags);
+
+                if (samplerFlags & (i32)assetlib::ShaderBindingAttributes::ImmutableSamplerNearest)
+                    attributes |= assetlib::ShaderBindingAttributes::ImmutableSamplerNearest;
+                if (samplerFlags & (i32)assetlib::ShaderBindingAttributes::ImmutableSamplerClampEdge)
+                    attributes |= assetlib::ShaderBindingAttributes::ImmutableSamplerClampEdge;
+                if (samplerFlags & (i32)assetlib::ShaderBindingAttributes::ImmutableSamplerClampBlack)
+                    attributes |= assetlib::ShaderBindingAttributes::ImmutableSamplerClampBlack;
+                if (samplerFlags & (i32)assetlib::ShaderBindingAttributes::ImmutableSamplerClampWhite)
+                    attributes |= assetlib::ShaderBindingAttributes::ImmutableSamplerClampWhite;
+                if (samplerFlags & (i32)assetlib::ShaderBindingAttributes::ImmutableSamplerShadow)
+                    attributes |= assetlib::ShaderBindingAttributes::ImmutableSamplerShadow;
+                if (samplerFlags & (i32)assetlib::ShaderBindingAttributes::ImmutableSamplerReductionMin)
+                    attributes |= assetlib::ShaderBindingAttributes::ImmutableSamplerReductionMin;
+                if (samplerFlags & (i32)assetlib::ShaderBindingAttributes::ImmutableSamplerReductionMax)
+                    attributes |= assetlib::ShaderBindingAttributes::ImmutableSamplerReductionMax;
+            }
+        }
+
+        return attributes;
+    }
+
+    static assetlib::ShaderStage GetEntryPointShaderStage(slang::EntryPointLayout* entryPointLayout)
     {
         switch (entryPointLayout->getStage())
         {
         case SLANG_STAGE_VERTEX:
-            return assetLib::ShaderStage::Vertex;
+            return assetlib::ShaderStage::Vertex;
         case SLANG_STAGE_COMPUTE:
-            return assetLib::ShaderStage::Compute;
+            return assetlib::ShaderStage::Compute;
         case SLANG_STAGE_PIXEL:
-            return assetLib::ShaderStage::Pixel;
+            return assetlib::ShaderStage::Pixel;
         default:
             ASSERT(false, "Unsupported entry point stage")
-            return assetLib::ShaderStage::None;
+            return assetlib::ShaderStage::None;
         }
     }
+
     glm::uvec3 GetEntryPointThreadGroupSize(slang::EntryPointLayout* entryPointLayout) const
     {
-        if (m_CurrentShaderStages != assetLib::ShaderStage::Compute)
+        if (m_CurrentShaderStages != assetlib::ShaderStage::Compute)
             return glm::uvec3(0);
         u64 group[3]{};
         entryPointLayout->getComputeThreadGroupSize(3, group);
 
         return glm::uvec3(group[0], group[1], group[2]);
     }
-    
-    std::vector<UniformTypeReflectionInfo> m_UniformTypeReflections;
-    std::vector<assetLib::ShaderBinding> m_CurrentBindings;
-    std::vector<assetLib::ShaderBindingSet> m_Sets;
-    std::vector<assetLib::ShaderEntryPoint> m_EntryPoints;
-    assetLib::ShaderPushConstant m_PushConstant{};
-    assetLib::ShaderStage m_CurrentShaderStages{assetLib::ShaderStage::None};
+
+    assetlib::ShaderHeader m_ShaderInfo{};
+
+    std::vector<assetlib::ShaderBinding> m_CurrentBindings;
+    assetlib::ShaderStage m_CurrentShaderStages{assetlib::ShaderStage::None};
     std::stack<ParameterBlockInfo> m_ParameterBlocksToReflect;
+    const Context* m_Ctx{nullptr};
     
     static constexpr i32 RELATIVE_SET_INDEX = 0;
 };
 
 }
 
-BakeResult Slang::Bake(const std::filesystem::path& path, const SlangBakeSetting& settings, const Context& ctx)
+IoResult<void> Slang::BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
+    const Context& ctx)
 {
-    // todo: correct errors
+    auto baked = Bake(path, settings, ctx);
+    if (!baked.has_value())
+        return std::unexpected(baked.error());
+
+    const AssetPaths paths = getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType);
+
+    auto shaderHeader = assetlib::shader::packHeader(baked->Header);
+    if (!shaderHeader.has_value())
+        return std::unexpected(shaderHeader.error());
+    
+    const std::vector<std::byte> spirv = assetlib::shader::packBinary(baked->Spirv, ctx.CompressionMode);
+    
+    assetlib::AssetFile assetFile = {};
+    assetFile.IoInfo = {
+        .HeaderFile = paths.HeaderPath.string(),
+        .BinaryFile = paths.BinaryPath.string(),
+        .BinarySizeBytes = baked->Spirv.size(),
+        .BinarySizeBytesCompressed = spirv.size(),
+        .CompressionMode = ctx.CompressionMode,
+    };
+    assetFile.Metadata = assetlib::shader::generateMetadata(path.string());
+    assetFile.AssetSpecificInfo = std::move(*shaderHeader);    
+
+    switch (ctx.IoType)
+    {
+    case assetlib::AssetFileIoType::Separate:
+        return assetlib::io::saveAssetFile(assetFile, spirv);
+    case assetlib::AssetFileIoType::Combined:
+        return assetlib::io::saveAssetFileCombined(assetFile, spirv);
+    default:
+        return std::unexpected{IoError{IoError::ErrorCode::GeneralError, "Unknown io type"}};
+    }
+}
+
+IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,
+    const SlangBakeSettings& settings, const Context& ctx)
+{
     slang::ISession& session = getSession(settings);
     ::Slang::ComPtr<slang::IBlob> diagnosticsBlob;
 
-    slang::IModule* shaderModule = session.loadModule(path.string().c_str(), diagnosticsBlob.writeRef());
-    if (!shaderModule)
-        return std::unexpected{BakeError::Unknown};
+    const auto loadInfo = assetlib::shader::readLoadInfo(path);
+    if (!loadInfo.has_value())
+        return std::unexpected(loadInfo.error());
 
-    ::Slang::ComPtr<slang::IEntryPoint> entryPoint;
-    shaderModule->findEntryPointByName("computeMain", entryPoint.writeRef());
-    if (!entryPoint)
-        return std::unexpected{BakeError::Unknown};
+    std::vector<slang::IModule*> shaderModules;
+    shaderModules.reserve(loadInfo->EntryPoints.size());
+    for (const auto& entryPoint : loadInfo->EntryPoints)
+    {
+        slang::IModule* shaderModule = session.loadModule(entryPoint.Path.c_str(), diagnosticsBlob.writeRef());
+        CHECK_RETURN_IO_ERROR(shaderModule, IoError::ErrorCode::FailedToLoad,
+            "Shader::Bake: failed to load shader module: {} ({})",
+            (const char*)diagnosticsBlob->getBufferPointer(), entryPoint.Path)
 
-    const std::array componentTypes = {
-        (slang::IComponentType*)shaderModule,
-        (slang::IComponentType*)entryPoint
-    };
+        shaderModules.push_back(shaderModule);
+    }
 
+    std::vector<::Slang::ComPtr<slang::IEntryPoint>> entryPoints;
+    entryPoints.resize(loadInfo->EntryPoints.size());
+    for (auto&& [i, entryPoint] : std::views::enumerate(loadInfo->EntryPoints))
+    {
+        shaderModules[i]->findEntryPointByName(entryPoint.Name.c_str(), entryPoints[i].writeRef());
+        CHECK_RETURN_IO_ERROR(entryPoints[i], IoError::ErrorCode::FailedToLoad,
+            "Shader::Bake: failed to load shader entry point module: {} ({})", entryPoint.Name, entryPoint.Path)
+    }
+
+    auto it = std::ranges::unique(shaderModules);
+    shaderModules.erase(it.begin(), shaderModules.end());
+    
+    std::vector<slang::IComponentType*> componentTypes;
+    componentTypes.reserve(entryPoints.size() + shaderModules.size());
+    for (auto* module : shaderModules)
+        componentTypes.push_back(module);
+    for (auto& entryPoint : entryPoints)
+        componentTypes.push_back(entryPoint);
+    
     ::Slang::ComPtr<slang::IComponentType> composedProgram;
-    auto res = session.createCompositeComponentType(componentTypes.data(), componentTypes.size(),
+    auto res = session.createCompositeComponentType(componentTypes.data(), (SlangInt)componentTypes.size(),
         composedProgram.writeRef(), diagnosticsBlob.writeRef());
-    if (SLANG_FAILED(res))
-        return std::unexpected{BakeError::Unknown};
+    CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
+        "Shader::Bake: failed to create composed shader program: {} ({})",
+        (const char*)diagnosticsBlob->getBufferPointer(), path.string())
 
     ::Slang::ComPtr<slang::IComponentType> linkedProgram;
     res = composedProgram->link(linkedProgram.writeRef(), diagnosticsBlob.writeRef());
-    if (SLANG_FAILED(res))
-        return std::unexpected{BakeError::Unknown};
+    CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
+        "Shader::Bake: failed to link shader program: {} ({})",
+        (const char*)diagnosticsBlob->getBufferPointer(), path.string())
 
     ::Slang::ComPtr<slang::IBlob> spirvCode;
-    res = linkedProgram->getEntryPointCode(
-        /*entryPointIndex=*/ 0,
+    res = linkedProgram->getTargetCode(
         /*targetIndex=*/ 0,
         spirvCode.writeRef(),
         diagnosticsBlob.writeRef());
-    if (SLANG_FAILED(res))
-        return std::unexpected{BakeError::Unknown};
+    CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
+        "Shader::Bake: failed to get shader spirv: {} ({})",
+        (const char*)diagnosticsBlob->getBufferPointer(), path.string())
 
-    LayoutReflector reflector = {};
-    reflector.Reflect(linkedProgram);
-
-    return {};
+    ShaderReflector reflector(ctx);
+    assetlib::ShaderAsset shaderAsset = {};
+    shaderAsset.Header = reflector.Reflect(shaderModules, linkedProgram); 
+    shaderAsset.Spirv.resize(spirvCode->getBufferSize());
+    memcpy(shaderAsset.Spirv.data(), spirvCode->getBufferPointer(), spirvCode->getBufferSize());
+    
+    return shaderAsset;
 }
 }
+
+#undef CHECK_RETURN_IO_ERROR

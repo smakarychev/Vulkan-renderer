@@ -6,7 +6,7 @@
 #include <meshoptimizer.h>
 #include <ranges>
 
-namespace Utils
+namespace utils
 {
     void remapMesh(Attributes& attributes, std::vector<u32>& indices)
     {

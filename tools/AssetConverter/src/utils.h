@@ -2,7 +2,7 @@
 
 #include "Converters.h"
 
-namespace Utils
+namespace utils
 {
     struct Attributes
     {

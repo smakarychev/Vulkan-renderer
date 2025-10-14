@@ -16,6 +16,8 @@ tools/*/bin
 tools/*/bin-int
 *.spv
 *.blob
+*.bin
+*.sl_shader
 *.tx
 vendor/imgui/bin
 *.stage

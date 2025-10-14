@@ -1,20 +1,21 @@
 #pragma once
-#include <expected>
+
+#include "v2/AssetLibV2.h"
+
 #include <filesystem>
 
 namespace bakers
 {
 
-enum class BakeError
-{
-    Unknown = 0,
-};
-
-using BakeResult = std::expected<void, BakeError>;
+using IoError = ::assetlib::io::IoError;
+template <typename T>
+using IoResult = ::assetlib::io::IoResult<T>;
 
 struct Context
 {
     std::filesystem::path InitialDirectory{};
+    assetlib::CompressionMode CompressionMode{assetlib::CompressionMode::LZ4};
+    assetlib::AssetFileIoType IoType{assetlib::AssetFileIoType::Separate};
 };
 
 }

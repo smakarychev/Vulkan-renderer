@@ -1076,14 +1076,14 @@ namespace
             if (!hasUVs)
                 uvs.resize(positions.size(), glm::vec2{0.0});
 
-            Utils::Attributes attributes {
+            utils::Attributes attributes {
                 .Positions = &positions,
                 .Normals = &normals,
                 .Tangents = &tangents,
                 .UVs = &uvs};
-            Utils::remapMesh(attributes, indices);
-            auto&& [meshlets, meshletIndices] = Utils::createMeshlets(attributes, indices);
-            auto&& [sphere, box] = Utils::meshBoundingVolumes(meshlets);
+            utils::remapMesh(attributes, indices);
+            auto&& [meshlets, meshletIndices] = utils::createMeshlets(attributes, indices);
+            auto&& [sphere, box] = utils::meshBoundingVolumes(meshlets);
 
             i32 currentAccessorIndex = (i32)ctx.BakedScene.accessors.size();
             ctx.BakedScene.accessors.push_back(ctx.CreateAccessor(positions, ctx.Positions));

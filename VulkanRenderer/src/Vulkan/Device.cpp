@@ -1380,13 +1380,13 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
     
     SurfaceDetails surfaceDetails = getSurfaceDetails(s_State.GPU, s_State.Surface);
     VkSurfaceCapabilitiesKHR capabilities = surfaceDetails.Capabilities;
-    VkSurfaceFormatKHR colorFormat = Utils::getIntersectionOrDefault(
+    VkSurfaceFormatKHR colorFormat = utils::getIntersectionOrDefault(
         desiredFormats, surfaceDetails.Formats,
         [](VkSurfaceFormatKHR des, VkSurfaceFormatKHR avail)
         {
             return des.format == avail.format && des.colorSpace == avail.colorSpace;
         });
-    VkPresentModeKHR presentMode = Utils::getIntersectionOrDefault(
+    VkPresentModeKHR presentMode = utils::getIntersectionOrDefault(
         desiredPresentModes, surfaceDetails.PresentModes,
         [](VkPresentModeKHR des, VkPresentModeKHR avail)
         {
@@ -3412,7 +3412,7 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
         std::vector<VkExtensionProperties> availableExtensions(availableExtensionCount);
         vkEnumerateInstanceExtensionProperties(nullptr, &availableExtensionCount, availableExtensions.data());
 
-        return Utils::checkArrayContainsSubArray(createInfo.InstanceExtensions, availableExtensions,
+        return utils::checkArrayContainsSubArray(createInfo.InstanceExtensions, availableExtensions,
             [](const char* req, const VkExtensionProperties& avail)
             {
                 return std::strcmp(req, avail.extensionName) == 0;
@@ -3427,7 +3427,7 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
         std::vector<VkLayerProperties> availableLayers(availableValidationLayerCount);
         vkEnumerateInstanceLayerProperties(&availableValidationLayerCount, availableLayers.data());
 
-        return Utils::checkArrayContainsSubArray(createInfo.InstanceValidationLayers, availableLayers,
+        return utils::checkArrayContainsSubArray(createInfo.InstanceValidationLayers, availableLayers,
             [](const char* req, const VkLayerProperties& avail) { return std::strcmp(req, avail.layerName) == 0; },
             [](const char* req) { LOG("Unsupported validation layer: {}\n", req); });
     };
@@ -3524,7 +3524,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
             std::vector<VkExtensionProperties> availableExtensions(availableExtensionCount);
             vkEnumerateDeviceExtensionProperties(gpu, nullptr, &availableExtensionCount, availableExtensions.data());
 
-            return Utils::checkArrayContainsSubArray(createInfo.DeviceExtensions, availableExtensions,
+            return utils::checkArrayContainsSubArray(createInfo.DeviceExtensions, availableExtensions,
                 [](const char* req, const VkExtensionProperties& avail)
                 {
                     return std::strcmp(req, avail.extensionName) == 0;
