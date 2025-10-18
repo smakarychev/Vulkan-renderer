@@ -110,10 +110,15 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
             if (file.Action == FileWatcherEvent::ActionType::Modify)
                 called = file.Name == existing;
         });
-        std::ofstream out(existing);
-        out << "t";
+        {
+            std::ofstream out(existing);
+            out << "t";
+        }
         watcher.Subscribe(handler);
-        out << "t";
+        {
+            std::ofstream out(existing);
+            out << "t";
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         REQUIRE(called);
     }
