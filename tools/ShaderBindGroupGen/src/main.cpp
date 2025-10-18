@@ -9,7 +9,7 @@
 #include <unordered_set>
 
 #include "Platform/PlatformUtils.h"
-#include "Utils/Hash.h"
+#include "Utils/HashUtils.h"
 
 namespace fs = std::filesystem;
 

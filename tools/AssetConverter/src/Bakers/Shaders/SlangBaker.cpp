@@ -2,8 +2,9 @@
 
 #include "core.h"
 #include "Bakers/BakersUtils.h"
-#include "Utils/Hash.h"
+#include "Utils/HashUtils.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
+#include "v2/Shaders/ShaderUniform.h"
 #include "v2/Shaders/SlangShaderAsset.h"
 
 #include <fstream>

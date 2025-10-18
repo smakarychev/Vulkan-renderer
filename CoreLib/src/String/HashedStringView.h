@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Utils/Hash.h"
+#include "Utils/HashUtils.h"
 
 /* NOTE: this object does not own the string */
 class HashedStringView

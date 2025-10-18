@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Utils/Hash.h"
+#include "Utils/HashUtils.h"
 
 #include <memory>
 #include <unordered_map>
