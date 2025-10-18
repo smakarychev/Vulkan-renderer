@@ -1,5 +1,9 @@
 #include "catch2/catch_test_macros.hpp"
 #include "utils/HashUtils.h"
+#include "utils/HashFileUtils.h"
+
+#include <filesystem>
+#include <fstream>
 
 
 // NOLINTBEGIN
@@ -41,6 +45,37 @@ TEST_CASE("murmur3b32", "[Utils][Hash]")
         REQUIRE(Hash::murmur3b32((const u8*)"ππππππππ", 16, 0x9747b28c) == 0xd58063c1);
     }
 }
+TEST_CASE("murmur3b32 file", "[Utils][Hash]")
+{
+    namespace fs = std::filesystem;
+    fs::path testDir = fs::temp_directory_path();
+    testDir /= "HashTests";
+    fs::create_directory(testDir);
+    
+    SECTION("existing file hash is computed correctly")
+    {
+        fs::path output = testDir / "temp";
+        while (fs::exists(output))
+            fs::remove_all(output);
+
+        const std::string toHash = "Hello world!";
+        std::ofstream out(output.string(), std::ios::binary);
+        REQUIRE(out.is_open());
+        out.write(toHash.data(), toHash.size());
+        out.close();
+
+        REQUIRE(Hash::murmur3b32File(output) == Hash::murmur3b32((const u8*)toHash.data(), toHash.size()));
+    }
+    SECTION("nonexisting file hash in nullopt")
+    {
+        fs::path nonexisting = testDir / "temp";
+        if (fs::exists(nonexisting))
+            fs::remove_all(nonexisting);
+
+        REQUIRE(!Hash::murmur3b32File(nonexisting).has_value());
+    }
+}
+
 TEST_CASE("fnv1a32 (Hash::bytes32)", "[Utils][Hash]")
 {
     SECTION("empty string seed should give offsetBasis")
