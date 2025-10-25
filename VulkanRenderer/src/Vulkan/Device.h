@@ -145,7 +145,6 @@ public:
     static std::optional<Descriptors> AllocateDescriptors(DescriptorArenaAllocator allocator,
         DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
     static void ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator);
-    static DescriptorsKind GetDescriptorArenaAllocatorKind(DescriptorArenaAllocator allocator);
     
     static void UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,
         const BufferSubresource& buffer, u32 index);  

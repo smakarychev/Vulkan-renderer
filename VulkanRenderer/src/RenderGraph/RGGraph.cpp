@@ -354,10 +354,7 @@ namespace RG
         m_FrameAllocators = &m_ArenaAllocators[frameContext.FrameNumber];
         frameContext.CommandList.BindDescriptorArenaAllocators({.Allocators = m_FrameAllocators});
         if (frameContext.FrameNumberTick >= BUFFERED_FRAMES)
-        {
-            m_FrameAllocators->Reset(DescriptorsKind::Sampler);
-            m_FrameAllocators->Reset(DescriptorsKind::Resource);
-        }
+            m_FrameAllocators->ResetNonBindless();
     }
 
     void Graph::Compile(FrameContext& frameContext)
@@ -1791,3 +1788,4 @@ namespace RG
 }
 
 #undef RG_CHECK_RETURN
+#undef RG_CHECK_RETURN_VOID

@@ -1,28 +1,15 @@
 ﻿#pragma once
 
 #include <array>
-#include <vector>
 
 #include "ShaderReflection.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
 #include "types.h"
-#include "String/StringId.h"
-
 
 class RenderCommandList;
 struct PushConstantDescription;
 class DescriptorLayoutCache;
-
-enum class DescriptorKind : u32
-{
-    Global = 0,
-    Pass = 1,
-    Material = 2
-};
-
-static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
-static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expected to be at index 2");
 
 struct ShaderPipelineTemplateCreateInfo
 {

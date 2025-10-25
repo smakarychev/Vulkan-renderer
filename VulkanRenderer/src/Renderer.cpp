@@ -92,7 +92,7 @@ void Renderer::Init()
         ctx.PrimaryCamera = m_Camera.get();
 
     m_PersistentMaterialAllocator = Device::CreateDescriptorArenaAllocator({
-        .Kind = DescriptorsKind::Materials,
+        .DescriptorSet = BINDLESS_DESCRIPTORS_INDEX,
         .Residence = DescriptorAllocatorResidence::CPU,
         .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
         .DescriptorCount = 8192 * 4});
@@ -101,18 +101,18 @@ void Renderer::Init()
     for (u32 i = 0; i < BUFFERED_FRAMES; i++)
     {
         DescriptorArenaAllocator samplerAllocator = Device::CreateDescriptorArenaAllocator({
-                .Kind = DescriptorsKind::Sampler,
+                .DescriptorSet = 0,
                 .Residence = DescriptorAllocatorResidence::CPU,
                 .UsedTypes = {DescriptorType::Sampler},
                 .DescriptorCount = 256 * 4});
             
         DescriptorArenaAllocator resourceAllocator = Device::CreateDescriptorArenaAllocator({
-            .Kind = DescriptorsKind::Resource,
+            .DescriptorSet = 1,
             .Residence = DescriptorAllocatorResidence::CPU,
             .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
             .DescriptorCount = 8192 * 4});
 
-        allocators[i] = DescriptorArenaAllocators(samplerAllocator, resourceAllocator, m_PersistentMaterialAllocator);
+        allocators[i] = DescriptorArenaAllocators({samplerAllocator, resourceAllocator, m_PersistentMaterialAllocator});
     }
     
     m_Graph = std::make_unique<RG::Graph>(allocators, m_ShaderCache);
@@ -141,8 +141,8 @@ void Renderer::InitRenderGraph()
         }));
 
     m_ShaderCache.AddPersistentDescriptors("main_materials"_hsv,
-        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(DescriptorsKind::Materials),
-        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().DescriptorsLayout(DescriptorsKind::Materials));
+        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(BINDLESS_DESCRIPTORS_INDEX),
+        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().DescriptorsLayout(BINDLESS_DESCRIPTORS_INDEX));
     
     /*m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,

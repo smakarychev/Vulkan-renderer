@@ -15,8 +15,8 @@ class Shader
 public:
     Pipeline Pipeline() const { return m_Pipeline; }
     PipelineLayout GetLayout() const { return m_PipelineLayout; }
-    const ::Descriptors& Descriptors(DescriptorsKind kind) const { return m_Descriptors[(u32)kind]; }
-    const ::DescriptorsLayout& DescriptorsLayout(DescriptorsKind kind) const { return m_DescriptorLayouts[(u32)kind]; }
+    const ::Descriptors& Descriptors(u32 index) const { return m_Descriptors[index]; }
+    const ::DescriptorsLayout& DescriptorsLayout(u32 index) const { return m_DescriptorLayouts[index]; }
 private:
     ::Pipeline m_Pipeline{};
     PipelineLayout m_PipelineLayout{};

@@ -81,7 +81,7 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesVi
         const DescriptorsLayout descriptorsLayout = pipeline.PipelineTemplate->GetDescriptorsLayout(i);
         
         std::optional<Descriptors> descriptors = Device::AllocateDescriptors(
-            allocators.Get((DescriptorsKind)i),
+            allocators.Get(i),
             descriptorsLayout, {
                 .Bindings = pipeline.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i].Descriptors,
                 .BindlessCount = pipeline.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i].HasBindless ?

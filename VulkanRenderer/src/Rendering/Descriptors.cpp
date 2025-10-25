@@ -1,32 +1,39 @@
 ﻿#include "Descriptors.h"
 
+#include "Shader/ShaderPipelineTemplate.h"
 #include "Vulkan/Device.h"
 
 #include <algorithm>
+#include <ranges>
 
 std::unordered_map<DescriptorLayoutCache::CacheKey,
     DescriptorsLayout, DescriptorLayoutCache::DescriptorsLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};
 
-DescriptorArenaAllocators::DescriptorArenaAllocators(DescriptorArenaAllocator samplerAllocator,
-    DescriptorArenaAllocator resourceAllocator, DescriptorArenaAllocator materialAllocator)
-    : m_Allocators({samplerAllocator, resourceAllocator, materialAllocator})
+DescriptorArenaAllocators::DescriptorArenaAllocators(Span<const DescriptorArenaAllocator> allocators)
 {
-    ASSERT(Device::GetDescriptorArenaAllocatorKind(resourceAllocator) == DescriptorsKind::Resource,
-        "Provided 'resource' allocator isn't actually a resource allocator")
-    ASSERT(Device::GetDescriptorArenaAllocatorKind(samplerAllocator) == DescriptorsKind::Sampler,
-        "Provided 'sampler' allocator isn't actually a sampler allocator")
-    ASSERT(Device::GetDescriptorArenaAllocatorKind(materialAllocator) == DescriptorsKind::Materials,
-        "Provided 'material' allocator isn't actually a resource allocator")
+    ASSERT(allocators.size() <= MAX_DESCRIPTOR_SETS)
+    for (auto&& [i, allocator] : std::views::enumerate(allocators))
+        m_Allocators[i] = allocator;
+    m_AllocatorCount = (u32)allocators.size();
 }
 
-DescriptorArenaAllocator DescriptorArenaAllocators::Get(DescriptorsKind kind) const
+DescriptorArenaAllocator DescriptorArenaAllocators::Get(u32 index) const
 {
-    return m_Allocators[(u32)kind];
+    ASSERT(index < m_AllocatorCount);
+    return m_Allocators[index];
 }
 
-void DescriptorArenaAllocators::Reset(DescriptorsKind kind) const
+void DescriptorArenaAllocators::ResetNonBindless() const
 {
-    Device::ResetDescriptorArenaAllocator(m_Allocators[(u32)kind]);
+    for (u32 i = 0; i < m_AllocatorCount; i++)
+        if (i != BINDLESS_DESCRIPTORS_INDEX)
+            Device::ResetDescriptorArenaAllocator(m_Allocators[i]);
+}
+
+void DescriptorArenaAllocators::Reset(u32 index) const
+{
+    ASSERT(index < m_AllocatorCount);
+    Device::ResetDescriptorArenaAllocator(m_Allocators[index]);
 }
 
 DescriptorLayoutCache::CacheKey DescriptorLayoutCache::CreateCacheKey(const DescriptorsLayoutCreateInfo& createInfo)

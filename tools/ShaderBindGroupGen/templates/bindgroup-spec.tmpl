@@ -12,28 +12,28 @@ struct {{name}}ShaderBindGroup : ShaderBindGroupBase<{{name}}ShaderBindGroup>
 {% if is_raster %}
         cmdList.BindPipelineGraphics({.Pipeline = Shader->Pipeline()});
     {% if has_immutable_sampler %}
-        cmdList.BindImmutableSamplersGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
+        cmdList.BindImmutableSamplersGraphics({.Descriptors = Shader->Descriptors(0), .PipelineLayout = Shader->GetLayout(), .Set = 0});
     {% else if has_samplers %}
-        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
+        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors(0), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = 0});
     {% endif %}
     {% if has_resources %}
-        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(1) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(1) }}});
+        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors(1), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = 1});
     {% endif %}
     {% if has_materials %}
-        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(2) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(2) }}});
+        cmdList.BindDescriptorsGraphics({.Descriptors = Shader->Descriptors(2), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = 2});
     {% endif %}
 {% else %}
         cmdList.BindPipelineCompute({.Pipeline = Shader->Pipeline()});
     {% if has_immutable_sampler %}
-        cmdList.BindImmutableSamplersCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
+        cmdList.BindImmutableSamplersCompute({.Descriptors = Shader->Descriptors(0), .PipelineLayout = Shader->GetLayout(), .Set = 0});
     {% else if has_samplers %}
-        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(0) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(0) }}});
+        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors(0), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = 0});
     {% endif %}
     {% if has_resources %}
-        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(1) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(1) }}});
+        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors(1), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = 1});
     {% endif %}
     {% if has_materials %}
-        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors({{ descriptors_kind_string(2) }}), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = (u32){{ descriptors_kind_string(2) }}});
+        cmdList.BindDescriptorsCompute({.Descriptors = Shader->Descriptors(2), .Allocators = &allocators, .PipelineLayout = Shader->GetLayout(), .Set = 2});
     {% endif %}
 {% endif %}
     }
@@ -41,13 +41,13 @@ struct {{name}}ShaderBindGroup : ShaderBindGroupBase<{{name}}ShaderBindGroup>
     {% if binding.set == 0 %}
     void Set{{binding.name}}(Sampler sampler) const
     {
-        Device::UpdateDescriptors(Shader->Descriptors({{ descriptors_kind_string(binding.set) }}),
+        Device::UpdateDescriptors(Shader->Descriptors({{ binding.set }}),
             DescriptorSlotInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, sampler);
     }
     {% else %}
     void Set{{binding.name}}(const {% if is_descriptor_a_buffer(binding.descriptor) %}BufferBinding& buffer{% else %}ImageBinding& image{% endif %}{% if binding.count > 1 or binding.is_bindless %}, u32 index{% endif %}) const
     {
-        Device::UpdateDescriptors(Shader->Descriptors({{ descriptors_kind_string(binding.set) }}),
+        Device::UpdateDescriptors(Shader->Descriptors({{ binding.set }}),
             DescriptorSlotInfo{.Slot = {{binding.binding}}, .Type = {{ descriptor_type_string(binding.descriptor) }}}, {% if is_descriptor_a_buffer(binding.descriptor) %}buffer{% else %}image.Subresource, image.Layout{% endif %}, {% if binding.count > 1 or binding.is_bindless %}index{% else %}0{% endif %});
     }
     {% endif %}

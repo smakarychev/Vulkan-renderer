@@ -8,6 +8,13 @@
 #include <vector>
 #include <unordered_map>
 
+// todo: probably 4
+static constexpr u32 MAX_DESCRIPTOR_SETS = 3;
+static_assert(MAX_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
+
+static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
+static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expected to be at index 2");
+
 class DescriptorArenaAllocators;
 class ResourceUploader;
 class DescriptorPool;
@@ -46,12 +53,6 @@ struct DescriptorSlotInfo
     DescriptorType Type{};
 };
 
-enum class DescriptorsKind
-{
-    Sampler = 0, Resource = 1, Materials = 2,
-    MaxVal
-};
-
 enum class DescriptorAllocatorResidence
 {
     CPU, GPU
@@ -68,7 +69,7 @@ struct DescriptorAllocatorAllocationBindings
 
 struct DescriptorArenaAllocatorCreateInfo
 {
-    DescriptorsKind Kind{DescriptorsKind::Resource};
+    u32 DescriptorSet{0};
     DescriptorAllocatorResidence Residence{DescriptorAllocatorResidence::CPU};
     Span<const DescriptorType> UsedTypes;
     u32 DescriptorCount{0};
@@ -79,15 +80,14 @@ class DescriptorArenaAllocators
     FRIEND_INTERNAL
 public:
     DescriptorArenaAllocators() = default;
-    DescriptorArenaAllocators(
-        DescriptorArenaAllocator samplerAllocator,
-        DescriptorArenaAllocator resourceAllocator,
-        DescriptorArenaAllocator materialAllocator);
+    DescriptorArenaAllocators(Span<const DescriptorArenaAllocator> allocators);
     
-    DescriptorArenaAllocator Get(DescriptorsKind kind) const;
-    void Reset(DescriptorsKind kind) const;
+    DescriptorArenaAllocator Get(u32 index) const;
+    void ResetNonBindless() const;
+    void Reset(u32 index) const;
 private:
-    std::array<DescriptorArenaAllocator, (u32)DescriptorsKind::MaxVal> m_Allocators;
+    std::array<DescriptorArenaAllocator, MAX_DESCRIPTOR_SETS> m_Allocators;
+    u32 m_AllocatorCount{0};
 };
 
 class DescriptorLayoutCache

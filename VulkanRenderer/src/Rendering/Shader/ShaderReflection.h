@@ -4,10 +4,6 @@
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
 
-// todo: probably 4
-static constexpr u32 MAX_DESCRIPTOR_SETS = 3;
-static_assert(MAX_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
-
 class ShaderReflection
 {
 public:
