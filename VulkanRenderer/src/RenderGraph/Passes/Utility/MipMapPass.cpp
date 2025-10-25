@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "MipMapPass.h"
 
 #include "FrameContext.h"

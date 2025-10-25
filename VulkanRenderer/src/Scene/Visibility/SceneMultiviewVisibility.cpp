@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneMultiviewVisibility.h"
 
 #include "FrameContext.h"

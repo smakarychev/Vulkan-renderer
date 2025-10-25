@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "RGResourceUploader.h"
 
 #include "RGGraph.h"

@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "VPCloudEnvironmentPass.h"
 
 #include "ViewInfoGPU.h"

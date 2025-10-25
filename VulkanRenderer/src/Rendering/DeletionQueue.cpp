@@ -1,4 +1,6 @@
-﻿#include "DeletionQueue.h"
+﻿#include "rendererpch.h"
+
+#include "DeletionQueue.h"
 
 #include "Vulkan/Device.h"
 

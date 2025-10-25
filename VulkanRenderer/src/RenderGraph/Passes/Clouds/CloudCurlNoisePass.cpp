@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "CloudCurlNoisePass.h"
 
 #include "cvars/CVarSystem.h"

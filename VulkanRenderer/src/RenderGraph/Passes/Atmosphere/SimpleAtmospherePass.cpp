@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SimpleAtmospherePass.h"
 
 #include "RenderGraph/RGGraph.h"

@@ -37,6 +37,7 @@ include "vendor/mikktspace"
 include "vendor/imgui"
 include "vendor/efsw"
 include "vendor/catch2"
+include "vendor/tracy"
 
 group "Tools"
 include "tools/AssetLib"

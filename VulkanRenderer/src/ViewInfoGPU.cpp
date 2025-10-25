@@ -1,4 +1,6 @@
-﻿#include "ViewInfoGPU.h"
+﻿#include "rendererpch.h"
+
+#include "ViewInfoGPU.h"
 
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"

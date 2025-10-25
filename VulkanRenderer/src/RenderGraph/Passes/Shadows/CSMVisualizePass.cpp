@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "CSMVisualizePass.h"
 
 #include "FrameContext.h"

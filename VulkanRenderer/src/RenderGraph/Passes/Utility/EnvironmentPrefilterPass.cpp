@@ -1,3 +1,7 @@
+#include "rendererpch.h"
+
+#include "rendererpch.h"
+
 #include "EnvironmentPrefilterPass.h"
 
 #include "RenderGraph/RGGraph.h"

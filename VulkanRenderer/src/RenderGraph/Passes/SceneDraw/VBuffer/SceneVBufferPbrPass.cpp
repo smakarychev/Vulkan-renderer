@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneVBufferPbrPass.h"
 
 #include "RenderGraph/RGCommon.h"

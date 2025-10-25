@@ -1,10 +1,9 @@
-﻿#include "RGMermaidExporter.h"
+﻿#include "rendererpch.h"
+
+#include "RGMermaidExporter.h"
 
 #include "RenderGraph/RGPass.h"
 #include "RenderGraph/RGResource.h"
-
-#include <format>
-#include <fstream>
 
 namespace RG
 {

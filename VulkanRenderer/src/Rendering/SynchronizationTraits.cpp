@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SynchronizationTraits.h"
 
 namespace SynchronizationTraits

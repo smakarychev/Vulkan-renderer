@@ -1,6 +1,7 @@
+#include "rendererpch.h"
+
 #include "BlitPass.h"
 
-#include "Renderer.h"
 #include "Rendering/Image/ImageUtility.h"
 
 Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,

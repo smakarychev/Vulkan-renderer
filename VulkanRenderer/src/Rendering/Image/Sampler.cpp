@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "Sampler.h"
 
 SamplerCache::CacheKey SamplerCache::CreateCacheKey(const SamplerCreateInfo& createInfo)

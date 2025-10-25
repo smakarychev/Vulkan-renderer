@@ -1,4 +1,6 @@
-﻿#include "Device.h"
+﻿#include "rendererpch.h"
+
+#include "Device.h"
 
 #include "core.h"
 
@@ -12,10 +14,6 @@
 #include <imgui/imgui_impl_vulkan.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <GLFW/glfw3.h>
-#include <filesystem>
-#include <fstream>
-#include <print>
-#include <ranges>
 
 #include "AssetManager.h"
 #include "FrameContext.h"

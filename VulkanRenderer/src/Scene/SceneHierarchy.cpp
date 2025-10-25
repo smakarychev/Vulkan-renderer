@@ -1,12 +1,11 @@
+#include "rendererpch.h"
+
 #include "SceneHierarchy.h"
 
 #include "ResourceUploader.h"
 #include "Scene.h"
 #include "SceneAsset.h"
 #include "FrameContext.h"
-
-#include <queue>
-#include <ranges>
 
 SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
 {

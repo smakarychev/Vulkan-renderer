@@ -1,4 +1,6 @@
-﻿#include "VPCloudPass.h"
+﻿#include "rendererpch.h"
+
+#include "VPCloudPass.h"
 
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"

@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "Light.h"
 
 bool DirectionalLight::operator==(const DirectionalLight& other) const

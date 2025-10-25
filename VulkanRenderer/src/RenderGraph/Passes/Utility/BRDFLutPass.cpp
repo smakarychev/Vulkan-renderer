@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "BRDFLutPass.h"
 
 #include "RenderGraph/RGGraph.h"

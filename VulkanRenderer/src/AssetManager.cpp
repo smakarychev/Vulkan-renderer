@@ -1,4 +1,6 @@
-﻿#include "AssetManager.h"
+﻿#include "rendererpch.h"
+
+#include "AssetManager.h"
 
 #include "Rendering/Shader/ShaderPipelineTemplate.h"
 #include "Scene/Scene.h"

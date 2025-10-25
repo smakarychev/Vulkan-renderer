@@ -1,1 +1,3 @@
-﻿#include "RenderObject.h"
+﻿#include "rendererpch.h"
+
+#include "RenderObject.h"

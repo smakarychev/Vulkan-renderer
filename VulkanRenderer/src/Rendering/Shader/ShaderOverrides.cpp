@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "ShaderOverrides.h"
 
 #include "ShaderPipelineTemplate.h"

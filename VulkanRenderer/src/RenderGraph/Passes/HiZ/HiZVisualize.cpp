@@ -1,6 +1,7 @@
+#include "rendererpch.h"
+
 #include "HiZVisualize.h"
 
-#include "Renderer.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/Passes/Generated/HizVisualizeBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"

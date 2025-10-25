@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "ImageTraits.h"
 
 namespace ImageTraits

@@ -1,8 +1,11 @@
+#include "rendererpch.h"
+
 #include "ShadowCamerasGpuPass.h"
 
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroup.generated.h"
+
 #include "Rendering/Shader/ShaderCache.h"
 
 Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderGraph,

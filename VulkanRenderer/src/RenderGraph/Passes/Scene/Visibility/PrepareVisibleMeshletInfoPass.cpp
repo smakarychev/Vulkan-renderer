@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "PrepareVisibleMeshletInfoPass.h"
 
 #include "RenderGraph/RGGraph.h"

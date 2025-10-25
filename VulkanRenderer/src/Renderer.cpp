@@ -1,6 +1,7 @@
+#include "rendererpch.h"
+
 #include "Renderer.h"
 
-#include <numbers>
 #include <tracy/Tracy.hpp>
 
 #include "AssetManager.h"

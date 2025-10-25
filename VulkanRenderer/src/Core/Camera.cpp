@@ -1,11 +1,8 @@
-﻿#include "Camera.h"
+﻿#include "rendererpch.h"
 
-#include <array>
+#include "Camera.h"
 
-#include "core.h"
 #include "Input.h"
-
-#include <vector>
 
 static constexpr glm::vec3 DEFAULT_POSITION     = glm::vec3(0.0f);
 static const     glm::quat DEFAULT_ORIENTATION	= glm::angleAxis(0.0f, glm::vec3(1.0f, 0.0f, 0.0f));

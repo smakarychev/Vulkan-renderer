@@ -1,10 +1,9 @@
-﻿#include "Descriptors.h"
+﻿#include "rendererpch.h"
+
+#include "Descriptors.h"
 
 #include "Shader/ShaderPipelineTemplate.h"
 #include "Vulkan/Device.h"
-
-#include <algorithm>
-#include <ranges>
 
 std::unordered_map<DescriptorLayoutCache::CacheKey,
     DescriptorsLayout, DescriptorLayoutCache::DescriptorsLayoutKeyHash> DescriptorLayoutCache::s_LayoutCache = {};

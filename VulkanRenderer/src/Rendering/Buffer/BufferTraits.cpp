@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "BufferTraits.h"
 
 namespace BufferTraits

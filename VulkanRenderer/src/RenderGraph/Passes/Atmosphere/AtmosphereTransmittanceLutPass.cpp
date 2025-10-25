@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "AtmosphereTransmittanceLutPass.h"
 
 #include "cvars/CVarSystem.h"

@@ -1,11 +1,8 @@
-﻿#include "CVarSystem.h"
+﻿#include "rendererpch.h"
+
+#include "CVarSystem.h"
 
 #include "types.h"
-
-#include <array>
-#include <string>
-#include <unordered_map>
-
 
 enum class CVarType : u8
 {

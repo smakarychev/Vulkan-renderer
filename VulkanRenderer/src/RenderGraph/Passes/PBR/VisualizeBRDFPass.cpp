@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "VisualizeBRDFPass.h"
 
 #include "FrameContext.h"

@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneDrawPassesCommon.h"
 
 #include "ViewInfoGPU.h"

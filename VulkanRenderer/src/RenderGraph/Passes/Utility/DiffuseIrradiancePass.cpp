@@ -1,9 +1,10 @@
+#include "rendererpch.h"
+
 #include "DiffuseIrradiancePass.h"
 
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceBindGroup.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
-
 
 Passes::DiffuseIrradiance::PassData& Passes::DiffuseIrradiance::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture cubemap, Texture irradiance)

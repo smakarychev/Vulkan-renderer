@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneMultiviewVisibilityHiZPass.h"
 
 #include "RenderGraph/RGGraph.h"

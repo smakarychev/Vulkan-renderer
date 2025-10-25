@@ -1,4 +1,6 @@
-﻿#include "ShaderCache.h"
+﻿#include "rendererpch.h"
+
+#include "ShaderCache.h"
 
 #include "AssetManager.h"
 #include "core.h"
@@ -6,7 +8,6 @@
 #include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
 
-#include <fstream>
 #include <nlohmann/json.hpp>
 
 void ShaderCache::Init()

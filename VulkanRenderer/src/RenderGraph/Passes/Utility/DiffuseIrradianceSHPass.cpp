@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "DiffuseIrradianceSHPass.h"
 
 #include "RenderGraph/RGGraph.h"

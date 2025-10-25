@@ -1,6 +1,7 @@
+#include "rendererpch.h"
+
 #include "LightZBinner.h"
 
-#include "LightFrustumCuller.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
 #include "Scene/SceneLight.h"

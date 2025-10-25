@@ -1,7 +1,7 @@
-﻿#include "ResourceUploader.h"
+﻿#include "rendererpch.h"
 
-#include <algorithm>
-#include <ranges>
+#include "ResourceUploader.h"
+
 #include <tracy/Tracy.hpp>
 
 #include "FrameContext.h"

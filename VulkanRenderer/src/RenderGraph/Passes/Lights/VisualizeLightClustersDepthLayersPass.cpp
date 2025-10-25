@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "VisualizeLightClustersDepthLayersPass.h"
 
 #include "Core/Camera.h"

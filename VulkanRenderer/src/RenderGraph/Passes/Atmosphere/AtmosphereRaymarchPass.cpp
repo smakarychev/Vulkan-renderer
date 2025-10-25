@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "AtmosphereRaymarchPass.h"
 
 #include "ViewInfoGPU.h"

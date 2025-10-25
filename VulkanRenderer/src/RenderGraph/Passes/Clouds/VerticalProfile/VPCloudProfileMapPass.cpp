@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "VPCloudProfileMapPass.h"
 
 #include "cvars/CVarSystem.h"

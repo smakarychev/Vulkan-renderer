@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "DepthReductionReadbackPass.h"
 
 #include "FrameContext.h"

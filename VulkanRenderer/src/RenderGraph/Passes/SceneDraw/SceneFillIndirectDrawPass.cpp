@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneFillIndirectDrawPass.h"
 
 #include "RenderGraph/RGGraph.h"

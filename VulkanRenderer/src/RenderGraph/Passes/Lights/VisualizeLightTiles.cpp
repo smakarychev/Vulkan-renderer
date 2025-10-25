@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "VisualizeLightTiles.h"
 
 #include "Light/LightZBinner.h"

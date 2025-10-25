@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "ShaderReflection.h"
 
 #include "AssetManager.h"

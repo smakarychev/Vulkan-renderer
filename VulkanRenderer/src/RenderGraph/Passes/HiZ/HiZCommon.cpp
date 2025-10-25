@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "HiZCommon.h"
 
 #include "RenderGraph/RGGraph.h"

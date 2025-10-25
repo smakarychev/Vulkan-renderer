@@ -1,10 +1,10 @@
-﻿#include "RGGraphPool.h"
+﻿#include "rendererpch.h"
+
+#include "RGGraphPool.h"
 
 #include "Settings.h"
 #include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
-
-#include <algorithm>
 
 namespace RG
 {

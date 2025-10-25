@@ -1,6 +1,4 @@
-﻿#include "Settings.h"
-
-#include <filesystem>
+﻿#include "rendererpch.h"
 
 #include "cvars/CVarSystem.h"
 #include "Rendering/Commands/RenderCommands.h"

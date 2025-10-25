@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "VisualizeDepthPass.h"
 
 #include "FrameContext.h"

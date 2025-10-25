@@ -1,4 +1,6 @@
-﻿#include "Image.h"
+﻿#include "rendererpch.h"
+
+#include "Image.h"
 
 u32 ImageDescription::GetDepth() const
 {

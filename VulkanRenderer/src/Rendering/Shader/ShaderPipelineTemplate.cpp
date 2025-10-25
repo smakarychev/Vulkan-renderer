@@ -1,7 +1,6 @@
-﻿#include "ShaderPipelineTemplate.h"
+﻿#include "rendererpch.h"
 
-#include <ranges>
-#include <algorithm>
+#include "ShaderPipelineTemplate.h"
 
 #include "AssetManager.h"
 #include "core.h"
@@ -9,7 +8,6 @@
 #include "Vulkan/Device.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
-#include "Rendering/Commands/RenderCommandList.h"
 
 namespace
 {

@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "CopyTexturePass.h"
 
 #include "FrameContext.h"

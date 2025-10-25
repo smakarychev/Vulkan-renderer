@@ -1,6 +1,7 @@
+#include "rendererpch.h"
+
 #include "CrtPass.h"
 
-#include "Renderer.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/CrtBindGroup.generated.h"

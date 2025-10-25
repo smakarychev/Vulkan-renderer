@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneDirectionalShadowPass.h"
 
 #include "ViewInfoGPU.h"

@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "LightClustersCompactPass.h"
 
 #include "Light/Light.h"

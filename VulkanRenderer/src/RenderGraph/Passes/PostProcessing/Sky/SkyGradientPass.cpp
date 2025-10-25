@@ -1,7 +1,8 @@
+#include "rendererpch.h"
+
 #include "SkyGradientPass.h"
 
 #include "ViewInfoGPU.h"
-#include "Renderer.h"
 #include "imgui/imgui.h"
 #include "RenderGraph/RGCommon.h"
 #include "RenderGraph/Passes/Generated/SkyGradientBindGroup.generated.h"

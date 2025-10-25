@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "AtmosphereAerialPerspectiveLutPass.h"
 
 #include "cvars/CVarSystem.h"

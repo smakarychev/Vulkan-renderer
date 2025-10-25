@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "ImGuiTexturePass.h"
 
 #include "BlitPass.h"

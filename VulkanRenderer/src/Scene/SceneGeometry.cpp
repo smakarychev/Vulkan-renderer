@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneGeometry.h"
 
 #include "BindlessTextureDescriptorsRingBuffer.h"

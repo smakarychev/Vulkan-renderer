@@ -2,7 +2,6 @@ local project_files = {
     "src/**.h",
     "src/**.cpp",
     "src/RenderGraph/Passes/Generated/**",
-    IncludeDir["tracy"] .. "/TracyClient.cpp"
 }
 
 local project_includes = {
@@ -28,6 +27,7 @@ local project_libdirs = {
 local project_links = {
     "glfw",
     "imgui",
+    "tracy",
     "CoreLib",
     "AssetLib",
     "AssetConverterLib",
@@ -66,6 +66,9 @@ project "VulkanRenderer"
     links (project_links)
     defines (project_defines)
 
+    pchheader "rendererpch.h"
+    pchsource "src/rendererpch.cpp"
+
     prebuildcommands {
         "\
         if not exist %{tools_bindir}/AssetConverter.exe (\
@@ -102,6 +105,9 @@ project "VulkanRendererLib"
     libdirs (project_libdirs)
     links (project_links)
     defines (project_defines)
+
+    pchheader "rendererpch.h"
+    pchsource "src/rendererpch.cpp"
 
     filter "configurations:Debug"
         defines (project_debug_defines)

@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneVBufferPass.h"
 
 #include "RenderGraph/Passes/Generated/SceneVbufferUgbBindGroup.generated.h"

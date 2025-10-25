@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "AtmospherePass.h"
 
 #include "AtmosphereMultiscatteringPass.h"

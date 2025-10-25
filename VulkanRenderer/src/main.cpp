@@ -1,4 +1,6 @@
-﻿#include "Renderer.h"
+﻿#include "rendererpch.h"
+
+#include "Renderer.h"
 #include "cvars/CVarSystem.h"
 #include "Platform/PlatformUtils.h"
 

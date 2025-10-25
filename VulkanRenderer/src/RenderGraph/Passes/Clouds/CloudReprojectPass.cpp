@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "CloudReprojectPass.h"
 
 #include "CloudCommon.h"

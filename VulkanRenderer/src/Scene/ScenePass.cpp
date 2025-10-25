@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "ScenePass.h"
 
 #include "ResourceUploader.h"

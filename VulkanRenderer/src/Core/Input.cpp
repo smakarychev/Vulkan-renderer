@@ -1,7 +1,10 @@
-﻿#include "Input.h"
+﻿#include "rendererpch.h"
+
+#include "Input.h"
 
 #include "Renderer.h"
-#include "GLFW/glfw3.h"
+
+#include <GLFW/glfw3.h>
 
 glm::vec2 Input::s_MainViewportOffset   = glm::vec2(0.0f, 0.0f);
 glm::vec2 Input::s_MainViewportSize     = glm::vec2(1600.0f, 900.0f);

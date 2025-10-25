@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "VisualizeLightClustersPass.h"
 
 #include "RenderGraph/RGGraph.h"

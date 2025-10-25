@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneCsmPass.h"
 
 #include "SceneDirectionalShadowPass.h"

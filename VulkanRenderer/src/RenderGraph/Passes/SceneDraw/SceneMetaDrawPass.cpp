@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SceneMetaDrawPass.h"
 
 #include "SceneFillIndirectDrawPass.h"

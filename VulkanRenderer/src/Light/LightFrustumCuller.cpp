@@ -1,13 +1,11 @@
+#include "rendererpch.h"
+
 #include "LightFrustumCuller.h"
 
-#include "Light.h"
 #include "Scene/SceneLight.h"
 #include "Math/Geometry.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
-
-#include <algorithm>
-#include <vector>
 
 namespace
 {

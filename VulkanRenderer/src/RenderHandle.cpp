@@ -1,4 +1,6 @@
-﻿#include "RenderHandle.h"
+﻿#include "rendererpch.h"
+
+#include "RenderHandle.h"
 
 #include "RenderObject.h"
 #include "Rendering/Image/Image.h"

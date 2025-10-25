@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "Scene.h"
 
 #include "AssetManager.h"

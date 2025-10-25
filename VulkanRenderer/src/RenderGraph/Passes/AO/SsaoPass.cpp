@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "SsaoPass.h"
 
 #include "FrameContext.h"

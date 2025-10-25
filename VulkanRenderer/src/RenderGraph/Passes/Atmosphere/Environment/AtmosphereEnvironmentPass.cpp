@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "AtmosphereEnvironmentPass.h"
 
 #include "FrameContext.h"

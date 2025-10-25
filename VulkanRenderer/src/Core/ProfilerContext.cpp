@@ -1,4 +1,6 @@
-﻿#include "ProfilerContext.h"
+﻿#include "rendererpch.h"
+
+#include "ProfilerContext.h"
 
 #include <client/TracyScoped.hpp>
 

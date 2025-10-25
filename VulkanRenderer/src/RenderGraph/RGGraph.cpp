@@ -1,9 +1,8 @@
-﻿#include "RGGraph.h"
+﻿#include "rendererpch.h"
+
+#include "RGGraph.h"
 
 #include "Vulkan/Device.h"
-
-#include <array>
-#include <numeric>
 
 #include "RGGraphWatcher.h"
 

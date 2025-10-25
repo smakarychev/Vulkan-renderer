@@ -1,3 +1,5 @@
+#include "rendererpch.h"
+
 #include "BindlessTextureDescriptorsRingBuffer.h"
 
 #include "Vulkan/Device.h"
