@@ -67,7 +67,7 @@ struct ShaderBindingSet
 {
     u32 Set{0};
     std::vector<ShaderBinding> Bindings;
-    std::string UniformType;
+    std::string UniformType{};
 };
 
 struct ShaderPushConstant
@@ -80,11 +80,19 @@ struct ShaderPushConstant
 enum class ShaderScalarType : u8
 {
     None = 0,
+    Void,
     Bool,
-    Float,
-    Int,
-    Uint,
-    Double,
+    I32,
+    U32,
+    I64,
+    U64,
+    F16,
+    F32,
+    F64,
+    I8,
+    U8,
+    I16,
+    U16,
 };
 
 struct ShaderInputAttribute
@@ -112,6 +120,7 @@ struct ShaderEntryPoint
 
 struct ShaderHeader
 {
+    std::string Name{};
     std::vector<ShaderEntryPoint> EntryPoints{};
     std::vector<ShaderBindingSet> BindingSets{};
     ShaderPushConstant PushConstant{};

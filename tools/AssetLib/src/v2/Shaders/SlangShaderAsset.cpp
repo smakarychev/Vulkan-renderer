@@ -5,6 +5,7 @@
 
 #include "v2/Reflection/AssetLibReflectionUtility.inl"
 
+template <> struct ::glz::meta<assetlib::ShaderBinding> : assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<assetlib::ShaderBindingSet> : assetlib::reflection::CamelCase {
     using T = assetlib::ShaderBindingSet;
     static constexpr auto READ_U = [](T& set, glz::raw_json&& input) { set.UniformType = std::move(input.str); };
@@ -39,28 +40,27 @@ AssetMetadata generateMetadata(std::string_view fileName)
     };
 }
 
-std::expected<ShaderHeader, io::IoError> unpackHeader(const AssetFile& assetFile)
+io::IoResult<ShaderHeader> unpackHeader(const AssetFile& assetFile)
 {
     const auto result = glz::read_json<ShaderHeader>(assetFile.AssetSpecificInfo);
-    if (!result.has_value())
-        return std::unexpected(io::IoError{io::IoError::ErrorCode::GeneralError,
-            glz::format_error(result.error(), assetFile.AssetSpecificInfo)});
+    ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::GeneralError,
+        "Assetlib: Failed to unpack: {}", glz::format_error(result.error(), assetFile.AssetSpecificInfo))
 
     return *result;
 }
 
-std::expected<AssetBinary, io::IoError> unpackBinary(const AssetFile& assetFile, const AssetBinary& assetBinary)
+io::IoResult<AssetBinary> unpackBinary(const AssetFile& assetFile, const AssetBinary& assetBinary)
 {
     return utils::unpack(assetBinary, assetFile.IoInfo.BinarySizeBytes, assetFile.IoInfo.CompressionMode); 
 }
 
 io::IoResult<AssetCustomHeaderType> packHeader(const ShaderHeader& shaderHeader)
 {
-    const auto header = glz::write_json(shaderHeader);
+    auto header = glz::write_json(shaderHeader);
     ASSETLIB_CHECK_RETURN_IO_ERROR(header.has_value(), io::IoError::ErrorCode::GeneralError,
         "Assetlib: Failed to pack: {}", glz::format_error(header.error()))
 
-    return std::move(*header);
+    return *header;
 }
 
 AssetBinary packBinary(AssetBinary& spirv, CompressionMode compressionMode)

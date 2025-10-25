@@ -11,12 +11,15 @@ project "ShaderBindGroupGen"
     }
 
     includedirs {
+        "src",
         "%{wks.location}/CoreLib/src",
         "%{wks.location}/tools/AssetLib/src",
         
         IncludeDir["spirv_reflect"],
         IncludeDir["nlohmann-json"],
+        IncludeDir["glaze"],
         IncludeDir["inja"],
+        IncludeDir["glm"],
     }
 
     links {
