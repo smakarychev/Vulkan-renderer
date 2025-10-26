@@ -380,7 +380,6 @@ struct Writer
     }
     void WriteResourceContainers()
     {
-        WriteLine("");
         if (Counts.Samplers > 0)
         {
             WriteLine(std::format("std::array<SamplerBindingInfoRG, {}> m_SamplerBindings{{}};", Counts.Samplers));
@@ -414,7 +413,7 @@ std::string SlangGenerator::GenerateCommonFile() const
     std::string commonFile = std::string(utils::getPreamble()).append("\n");
     commonFile += R"(
 #include "Rendering/Shader/ShaderCache.h"
-#include "Rendering/RenderGraph/RGGraph.h"
+#include "RenderGraph/RGGraph.h"
 #include "Rendering/Commands/RenderCommandList.h"
 
 struct BindGroupBaseRG
@@ -478,7 +477,7 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const asse
     writer.WriteLine(std::format("struct {} : BindGroupBaseRG", generatedStructName));
     writer.WriteLine("{");
     writer.Push();
-    writer.WriteLine("using ShaderBindGroupBaseRG::ShaderBindGroupBaseRG;");
+    writer.WriteLine("using BindGroupBaseRG::BindGroupBaseRG;");
     for (auto& embedded : embeddedStructs | std::views::values)
         writer.WriteEmbeddedUniformTypes(embedded);
     for (auto& set : shader.BindingSets)

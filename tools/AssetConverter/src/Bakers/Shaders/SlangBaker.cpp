@@ -710,7 +710,7 @@ private:
         m_ShaderInfo.Includes.reserve(dependencyCount);
         for (auto* module : modules)
         {
-            for (i32 i = 0; i < dependencyCount; i++)
+            for (i32 i = 0; i < module->getDependencyFileCount(); i++)
             {
                 std::string dependency = module->getDependencyFilePath(i);
                 const auto it = std::ranges::find(m_ShaderInfo.Includes, dependency);
