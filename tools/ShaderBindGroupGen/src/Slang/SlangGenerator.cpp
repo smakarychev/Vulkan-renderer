@@ -364,19 +364,30 @@ struct Writer
         Pop();
         WriteLine("}");
     }
-    void WriteBindEntryPoint(const assetlib::ShaderEntryPoint& entryPoint)
+    void WriteBindPipelineType(const std::string& type)
     {
         WriteLine(std::format("void Bind{}(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators)",
-            utils::canonicalizeName(entryPoint.Name)));
+            type));
         WriteLine("{");
         Push();
-        if (entryPoint.ShaderStage == assetlib::ShaderStage::Compute)
-            WriteLine("cmdList.BindPipelineCompute({.Pipeline = Shader->Pipeline()});");
-        else
-            WriteLine("cmdList.BindPipelineGraphics({.Pipeline = Shader->Pipeline()});");
+        WriteLine(std::format("cmdList.BindPipeline{}({{.Pipeline = Shader->Pipeline()}});", type));
         WriteLine("BindDescriptors(cmdList, allocators);");
         Pop();
         WriteLine("}");
+    }
+    void WriteBind(const std::vector<assetlib::ShaderEntryPoint>& entryPoints)
+    {
+        bool hasGraphics = false;
+        bool hasCompute = false;
+        for (auto& entry : entryPoints)
+        {
+            hasGraphics = hasGraphics || entry.ShaderStage != assetlib::ShaderStage::Compute;
+            hasCompute = hasCompute || entry.ShaderStage == assetlib::ShaderStage::Compute;
+        }
+        if (hasGraphics)
+            WriteBindPipelineType("Graphics");
+        if (hasCompute)
+            WriteBindPipelineType("Compute");
     }
     void WriteResourceContainers()
     {
@@ -511,8 +522,7 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const asse
             }
         }
     }
-    for (auto& entryPoint : shader.EntryPoints)
-        writer.WriteBindEntryPoint(entryPoint);
+    writer.WriteBind(shader.EntryPoints);
     writer.WriteBeginPrivate();
     writer.WriteBindDescriptors();
     writer.WriteResourceContainers();
