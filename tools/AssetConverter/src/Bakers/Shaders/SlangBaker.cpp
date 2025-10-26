@@ -189,7 +189,7 @@ std::string createVariableName(const std::string& currentName, slang::VariableLa
 
 constexpr std::string_view SHADER_ATTRIBUTE_BINDLESS = "Bindless";
 constexpr std::string_view SHADER_ATTRIBUTE_IMMUTABLE_SAMPLER = "ImmutableSampler";
-constexpr std::string_view SHADER_ATTRIBUTE_REFLECT_TYPE = "ReflectType";
+constexpr std::string_view SHADER_ATTRIBUTE_STANDALONE_TYPE = "StandaloneType";
 
 class UniformTypeReflector
 {
@@ -302,7 +302,7 @@ private:
 
     void ReflectStruct(slang::TypeLayoutReflection* typeLayout, UniformType& reflection)
     {
-        auto reflectionTarget = FindStructTypeReflectionAttribute(typeLayout);
+        auto reflectionTarget = FindStructTypeStandaloneAttribute(typeLayout);
         const bool isEmbedded = !reflectionTarget.has_value();
         
         if (!m_ProcessedEmbeddedStructTypes.contains(typeLayout->getType()))
@@ -405,14 +405,14 @@ private:
         };
     }
 
-    static std::optional<std::string> FindStructTypeReflectionAttribute(slang::TypeLayoutReflection* typeLayout)
+    static std::optional<std::string> FindStructTypeStandaloneAttribute(slang::TypeLayoutReflection* typeLayout)
     {
         const u32 attributeCount = typeLayout->getType()->getUserAttributeCount();
         for (u32 i = 0; i < attributeCount; i++)
         {
             slang::UserAttribute* attribute = typeLayout->getType()->getUserAttributeByIndex(i);
             const std::string name = attribute->getName();
-            if (name == SHADER_ATTRIBUTE_REFLECT_TYPE)
+            if (name == SHADER_ATTRIBUTE_STANDALONE_TYPE)
             {
                 ASSERT(typeLayout->getKind() == slang::TypeReflection::Kind::Struct)
                 
