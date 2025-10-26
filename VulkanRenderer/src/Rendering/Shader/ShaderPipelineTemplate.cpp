@@ -2,7 +2,6 @@
 
 #include "ShaderPipelineTemplate.h"
 
-#include "AssetManager.h"
 #include "core.h"
 #include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
@@ -88,39 +87,6 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
         .DescriptorsLayouts = m_DescriptorsLayouts});
 }
 
-DescriptorSlotInfo ShaderPipelineTemplate::GetBinding(u32 set, std::string_view name) const
-{
-    std::optional<DescriptorSlotInfo> descriptorBinding = TryGetBinding(set, name);
-    ASSERT(descriptorBinding.has_value(), "No such binding exists: {}", name)
-
-    return *descriptorBinding;
-}
-
-std::optional<DescriptorSlotInfo> ShaderPipelineTemplate::TryGetBinding(u32 set, std::string_view name) const
-{
-    auto& setInfo = m_ShaderReflection->DescriptorSetsInfo()[set];
-    for (u32 descriptorIndex = 0; descriptorIndex < setInfo.Descriptors.size(); descriptorIndex++)
-        if (setInfo.DescriptorNames[descriptorIndex] == name)
-            return DescriptorSlotInfo{
-                .Slot = setInfo.Descriptors[descriptorIndex].Binding,
-                .Type = setInfo.Descriptors[descriptorIndex].Type};
-
-    return std::nullopt;
-}
-
-std::pair<u32, DescriptorSlotInfo> ShaderPipelineTemplate::GetSetAndBinding(std::string_view name) const
-{
-    std::optional<DescriptorSlotInfo> descriptorBinding = std::nullopt;
-    for (u32 setIndex = 0; setIndex < m_ShaderReflection->DescriptorSetsInfo().size(); setIndex++)
-    {
-        descriptorBinding = TryGetBinding(setIndex, name);
-        if (descriptorBinding.has_value())
-            return {setIndex, *descriptorBinding};
-    }
-    ASSERT(false, "No such binding exists: {}", name)
-    std::unreachable();
-}
-
 std::array<bool, MAX_DESCRIPTOR_SETS> ShaderPipelineTemplate::GetSetPresence() const
 {
     std::array<bool, MAX_DESCRIPTOR_SETS> presence = {};
@@ -133,49 +99,4 @@ std::array<bool, MAX_DESCRIPTOR_SETS> ShaderPipelineTemplate::GetSetPresence() c
 bool ShaderPipelineTemplate::IsComputeTemplate() const
 {
     return enumHasOnly(m_ShaderReflection->Stages(), ShaderStage::Compute);
-}
-
-VertexInputDescription ShaderPipelineTemplate::CreateCompatibleVertexDescription(
-    const VertexInputDescription& compatibleTo) const
-{
-    // adapt vertex input layout
-    const VertexInputDescription& available = m_ShaderReflection->VertexInputDescription();
-    const VertexInputDescription& compatible = compatibleTo;
-    ASSERT(available.Bindings.size() <= compatible.Bindings.size(), "Incompatible vertex inputs")
-    
-    VertexInputDescription adapted;
-    adapted.Bindings = compatible.Bindings;
-    adapted.Attributes.reserve(compatible.Attributes.size());
-
-    for (u32 availableIndex = 0; availableIndex < available.Attributes.size(); availableIndex++)
-    {
-        const auto& avail = available.Attributes[availableIndex];
-        std::vector<VertexInputDescription::Attribute> candidates;
-        candidates.reserve(compatible.Attributes.size());
-        for (u32 compatibleIndex = availableIndex; compatibleIndex < compatible.Attributes.size(); compatibleIndex++)
-        {
-            const auto& comp = compatible.Attributes[compatibleIndex];
-            if (comp.Index == avail.Index && comp.Format == avail.Format)
-                candidates.push_back(comp);
-        }
-        for (u32 candidateIndex = 0; candidateIndex < candidates.size(); candidateIndex++)
-        {
-            const auto& candidate = candidates[candidateIndex];
-            if (candidate.BindingIndex == avail.BindingIndex)
-            {
-                adapted.Attributes.push_back(candidate);
-                break;
-            }
-            if (candidateIndex == candidates.size() - 1)
-            {
-                LOG("WARNING: compatible attribute found, but binding mismatch detected: expected {} but got {}",
-                    avail.BindingIndex, candidate.BindingIndex);
-                adapted.Attributes.push_back(candidate);
-                break;
-            }
-        }
-        ASSERT(adapted.Attributes.size() == availableIndex + 1, "Incompatible vertex inputs")
-    }
-
-    return adapted;
 }
