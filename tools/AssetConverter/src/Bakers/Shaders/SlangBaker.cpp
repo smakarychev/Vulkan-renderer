@@ -14,6 +14,7 @@
 #include <unordered_map>
 #include <ranges>
 #include <source_location>
+#include <unordered_set>
 #include <glaze/json/generic.hpp>
 #include <glaze/json/prettify.hpp>
 #include <glm/vec3.hpp>
@@ -192,23 +193,37 @@ constexpr std::string_view SHADER_ATTRIBUTE_REFLECT_TYPE = "ReflectType";
 
 class UniformTypeReflector
 {
-    using Uniform = assetlib::ShaderUniformVariable;
+    using Uniform = assetlib::ShaderUniform;
+    using UniformVariable = assetlib::ShaderUniformVariable;
     using UniformType = assetlib::ShaderUniformType;
 public:
     UniformTypeReflector(const Context& ctx, const SlangBakeSettings& settings) : m_Ctx(&ctx), m_Settings(&settings) {}
     std::optional<Uniform> Reflect(const std::string& baseName, slang::VariableLayoutReflection* variableLayout)
     {
         m_CurrentName = baseName;
-        return *ReflectVariableLayout(variableLayout);
+        std::optional<UniformVariable> rootResult = ReflectVariableLayout(variableLayout);
+        if (!rootResult.has_value())
+            return std::nullopt;
+
+        UniformVariable& root = *rootResult;
+        PromoteRootToEmbeddedStructIfNecessary(root);
+        
+        Uniform uniform = {
+            .Root = root,
+            .EmbeddedStructs = std::move(m_EmbeddedStructs)
+        };
+        m_EmbeddedStructs.clear();
+        
+        return uniform;
     }
 private:
-    std::optional<Uniform> ReflectVariableLayout(slang::VariableLayoutReflection* variableLayout)
+    std::optional<UniformVariable> ReflectVariableLayout(slang::VariableLayoutReflection* variableLayout)
     {
         slang::TypeLayoutReflection* typeLayout = variableLayout->getTypeLayout();
         if (!typeLayout->getSize())
             return std::nullopt;
 
-        Uniform reflection = {};
+        UniformVariable reflection = {};
         ReflectCommonVariableInfo(variableLayout, reflection);
         const std::string oldName = m_CurrentName;
         m_CurrentName = reflection.Name;
@@ -217,8 +232,32 @@ private:
 
         return reflection;
     }
+    void PromoteRootToEmbeddedStructIfNecessary(UniformVariable& root)
+    {
+        if (std::holds_alternative<assetlib::ShaderUniformTypeStructReference>(root.Type.Type))
+            return;
+        
+        ASSERT(!std::holds_alternative<std::shared_ptr<assetlib::ShaderUniformTypeStruct>>(root.Type.Type),
+            "Struct type is unexpected at this stage: {}", root.Name)
+        assetlib::ShaderUniformTypeStruct promoted = {
+            .TypeName = root.Name,
+            .Fields = {{
+                .Name = "_value",
+                .OffsetBytes = 0,
+                .Type = root.Type,
+            }}
+        };
+        const assetlib::AssetId assetId = {};
+        m_EmbeddedStructs.push_back({.Struct = std::move(promoted), .Id = assetId});
+        root.Type.TypeKind = assetlib::ShaderUniformTypeKind::Struct;
+        root.Type.Type = assetlib::ShaderUniformTypeStructReference{
+            .Target = std::to_string(assetId.AsU64()),
+            .TypeName = root.Name,
+            .IsEmbedded = true
+        };
+    }
 
-    void ReflectCommonVariableInfo(slang::VariableLayoutReflection* variableLayout, Uniform& variable) const
+    void ReflectCommonVariableInfo(slang::VariableLayoutReflection* variableLayout, UniformVariable& variable) const
     {
         variable.Name = createVariableName(m_CurrentName, variableLayout);
         variable.OffsetBytes = (u32)variableLayout->getOffset();
@@ -263,58 +302,54 @@ private:
 
     void ReflectStruct(slang::TypeLayoutReflection* typeLayout, UniformType& reflection)
     {
-        const auto reflectionTarget = FindStructTypeReflectionAttribute(typeLayout);
-
-        /* if we have type reflection attribute, we have to clear the current name,
-         * so that struct fields have canonical name, that do not depend on specific shader binding names
-         */
-        std::string oldName = {};
-        if (reflectionTarget.has_value())
+        auto reflectionTarget = FindStructTypeReflectionAttribute(typeLayout);
+        const bool isEmbedded = !reflectionTarget.has_value();
+        
+        if (!m_ProcessedEmbeddedStructTypes.contains(typeLayout->getType()))
         {
-            oldName = m_CurrentName;
-            m_CurrentName = "";
+            const assetlib::AssetId assetId = {};
+            assetlib::ShaderUniformTypeStruct structType = GetStructTypeReflection(typeLayout);
+            if (isEmbedded)
+                m_EmbeddedStructs.push_back({.Struct = std::move(structType), .Id = assetId});
+            else
+                WriteStructReflection(structType, *reflectionTarget);
+            m_ProcessedEmbeddedStructTypes.emplace(typeLayout->getType(), assetId);
         }
+        
+        if (isEmbedded)
+            reflectionTarget = std::to_string(m_ProcessedEmbeddedStructTypes.at(typeLayout->getType()).AsU64());
 
+        reflection.Type = assetlib::ShaderUniformTypeStructReference{
+            .Target = *reflectionTarget,
+            .TypeName = typeLayout->getName(),
+            .IsEmbedded = isEmbedded
+        };
+    }
+
+    assetlib::ShaderUniformTypeStruct GetStructTypeReflection(slang::TypeLayoutReflection* typeLayout)
+    {
+        std::string oldName = std::exchange(m_CurrentName, "");
         assetlib::ShaderUniformTypeStruct structReflection = {
             .TypeName = typeLayout->getName()
         };
         structReflection.Fields.reserve(typeLayout->getFieldCount());
         for (u32 i = 0; i < typeLayout->getFieldCount(); i++)
         {
-            const std::optional<Uniform> reflectionField = ReflectVariableLayout(typeLayout->getFieldByIndex(i));
+            const std::optional<UniformVariable> reflectionField =
+                ReflectVariableLayout(typeLayout->getFieldByIndex(i));
             if (reflectionField.has_value())
                 structReflection.Fields.push_back(*reflectionField);
         }
+        m_CurrentName = std::move(oldName);
 
-        if (!reflectionTarget.has_value())
-        {
-            reflection.Type = std::make_shared<assetlib::ShaderUniformTypeStruct>(std::move(structReflection));    
-            return;
-        }
-        
-        reflection.Type = CollapseStructReflectionToTarget(structReflection, *reflectionTarget);
-
-        m_CurrentName = oldName;
+        return structReflection;
     }
 
-    assetlib::ShaderUniformTypeStructReference CollapseStructReflectionToTarget(
-        const assetlib::ShaderUniformTypeStruct& reflection, const std::string& target) const
+    void WriteStructReflection(const assetlib::ShaderUniformTypeStruct& reflection, const std::string& target)
     {
         namespace fs = std::filesystem;
         const fs::path targetPath = 
             fs::weakly_canonical(m_Ctx->InitialDirectory / m_Settings->UniformReflectionDirectoryName / target);
-        
-        WriteStructReflection(reflection, targetPath);
-        return {
-            .Target = target,
-            .TypeName = reflection.TypeName
-        };
-    }
-
-    static void WriteStructReflection(const assetlib::ShaderUniformTypeStruct& reflection,
-        const std::filesystem::path& targetPath)
-    {
-        namespace fs = std::filesystem;
 
         std::string reflectionString = assetlib::shader::packUniformStruct(reflection).value_or("{}");
         reflectionString = glz::prettify_json(reflectionString);
@@ -398,6 +433,8 @@ private:
     std::string m_CurrentName{};
     const Context* m_Ctx{nullptr};
     const SlangBakeSettings* m_Settings{nullptr};
+    std::unordered_map<slang::TypeReflection*, assetlib::AssetId> m_ProcessedEmbeddedStructTypes;
+    std::vector<assetlib::ShaderUniformTypeEmbeddedStruct> m_EmbeddedStructs;
 };
 
 class LeafReflector
@@ -590,11 +627,12 @@ class ShaderReflector
 {
 public:
     ShaderReflector(const Context& ctx, const SlangBakeSettings& settings) : m_Ctx(&ctx), m_Settings(&settings) {}
-    assetlib::ShaderHeader Reflect(std::vector<slang::IModule*>& modules, slang::IComponentType* program)
+    assetlib::ShaderHeader Reflect(std::vector<slang::IModule*>& modules, slang::IComponentType* program,
+        const std::vector<::Slang::ComPtr<slang::IMetadata>>& entryPointMetadata)
     {
         slang::ProgramLayout* layout = program->getLayout();
         ReflectGlobalLayout(layout);
-
+        
         const u32 entryPointCount = (u32)layout->getEntryPointCount();
         for (u32 i = 0; i < entryPointCount; i++)
         {
@@ -604,6 +642,10 @@ public:
 
         ReflectDependencies(modules);
 
+        for (auto& set : m_ShaderInfo.BindingSets)
+            for (auto& binding : set.Bindings)
+                binding.ShaderStages = GetBindingStageUsage(set.Set, binding.Binding, layout, entryPointMetadata);
+        
         assetlib::ShaderHeader shaderInfo = std::move(m_ShaderInfo);
         m_ShaderInfo = {};
 
@@ -680,6 +722,28 @@ private:
         }
     }
 
+    static assetlib::ShaderStage GetBindingStageUsage(u32 setIndex, u32 bindingIndex, slang::ProgramLayout* layout,
+        const std::vector<::Slang::ComPtr<slang::IMetadata>>& entryPointMetadata)
+    {
+        assetlib::ShaderStage stages = {};
+        
+        for (u32 i = 0; i < entryPointMetadata.size(); i++)
+        {
+            const assetlib::ShaderStage entryPointStage = GetEntryPointShaderStage(layout->getEntryPointByIndex(i));
+            auto& metadata = entryPointMetadata[i];
+            
+            bool isUsed = false;
+            metadata->isParameterLocationUsed(SLANG_PARAMETER_CATEGORY_DESCRIPTOR_TABLE_SLOT,
+                setIndex, bindingIndex, isUsed);
+            if (!isUsed)
+                continue;
+
+            stages |= entryPointStage;
+        }
+
+        return stages;
+    }
+
     void ReflectParameterBlocks()
     {
         while (!m_ParameterBlocksToReflect.empty())
@@ -687,7 +751,7 @@ private:
             ParameterBlockInfo parameterBlockInfo = m_ParameterBlocksToReflect.top();
             m_ParameterBlocksToReflect.pop();
 
-            std::optional<assetlib::ShaderUniformVariable> uniformBufferReflection = std::nullopt;
+            std::optional<assetlib::ShaderUniform> uniformBufferReflection = std::nullopt;
             if (parameterBlockInfo.TypeLayout->getSize())
                 uniformBufferReflection = ReflectUniformBuffer(parameterBlockInfo);
             ReflectParameterBlock(parameterBlockInfo);
@@ -711,16 +775,15 @@ private:
         ReflectRanges(blockInfo);
     }
 
-    std::optional<assetlib::ShaderUniformVariable> ReflectUniformBuffer(const ParameterBlockInfo& blockInfo)
+    std::optional<assetlib::ShaderUniform> ReflectUniformBuffer(const ParameterBlockInfo& blockInfo)
     {
         UniformTypeReflector uniformTypeReflector(*m_Ctx, *m_Settings);
         
-        std::optional<assetlib::ShaderUniformVariable> uniformTypeReflection =
+        std::optional<assetlib::ShaderUniform> uniformTypeReflection =
             uniformTypeReflector.Reflect(blockInfo.Name, blockInfo.VariableLayout);
 
         assetlib::ShaderBinding uniformBuffer = {
-            .Name = blockInfo.Name + "_auto_uniform",
-            .ShaderStages = m_CurrentShaderStages,
+            .Name = blockInfo.Name,
             .Count = 1,
             .Binding = (u32)m_CurrentBindings.size(),
             .Type = assetlib::ShaderBindingType::UniformBuffer,
@@ -758,7 +821,6 @@ private:
             (u32)blockInfo.TypeLayout->getDescriptorSetDescriptorRangeDescriptorCount(RELATIVE_SET_INDEX, rangeIndex);
         assetlib::ShaderBinding binding = {
             .Name = GetBindingName(blockInfo, rangeIndex),
-            .ShaderStages = m_CurrentShaderStages,
             .Count = descriptorCount,
             .Binding = (u32)m_CurrentBindings.size(),
             .Type = slangBindingTypeToBindingType(bindingType),
@@ -1036,9 +1098,19 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,
         "Shader::Bake: failed to get shader spirv: {} ({})",
         (const char*)diagnosticsBlob->getBufferPointer(), path.string())
 
+    std::vector<::Slang::ComPtr<slang::IMetadata>> entryPointMetadata(linkedProgram->getLayout()->getEntryPointCount());
+    for (u32 i = 0; i < linkedProgram->getLayout()->getEntryPointCount(); i++)
+    {
+        res = linkedProgram->getEntryPointMetadata(i, 0, entryPointMetadata[i].writeRef(), diagnosticsBlob.writeRef());
+        CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
+            "Shader::Bake: failed to get shader entry point metadata: {} ({})",
+            (const char*)diagnosticsBlob->getBufferPointer(), path.string())
+    }
+    
+
     ShaderReflector reflector(ctx, settings);
     assetlib::ShaderAsset shaderAsset = {};
-    shaderAsset.Header = reflector.Reflect(shaderModules, linkedProgram);
+    shaderAsset.Header = reflector.Reflect(shaderModules, linkedProgram, entryPointMetadata);
     shaderAsset.Header.Name = loadInfo->Name;
     shaderAsset.Spirv.resize(spirvCode->getBufferSize());
     memcpy(shaderAsset.Spirv.data(), spirvCode->getBufferPointer(), spirvCode->getBufferSize());

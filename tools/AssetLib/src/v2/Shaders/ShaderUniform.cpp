@@ -1,6 +1,7 @@
 #include "ShaderUniform.h"
 
 #include <glaze/json/write.hpp>
+#include "v2/Reflection/AssetLibReflectionUtility.inl"
 
 template <>
 struct ::glz::meta<assetlib::ShaderUniformTypeScalar> : assetlib::reflection::CamelCase {};
@@ -19,7 +20,11 @@ struct ::glz::meta<assetlib::ShaderUniformVariable> : assetlib::reflection::Came
 template <>
 struct ::glz::meta<assetlib::ShaderUniformTypeStruct> : assetlib::reflection::CamelCase{};
 template <>
+struct ::glz::meta<assetlib::ShaderUniformTypeEmbeddedStruct> : assetlib::reflection::CamelCase{};
+template <>
 struct ::glz::meta<assetlib::ShaderUniformTypeStructReference> : assetlib::reflection::CamelCase{};
+template <>
+struct ::glz::meta<assetlib::ShaderUniform> : assetlib::reflection::CamelCase{};
 
 namespace assetlib::shader
 {
@@ -41,7 +46,7 @@ io::IoResult<ShaderUniformTypeStruct> unpackUniformStruct(const std::string& uni
     return *result;
 }
 
-io::IoResult<std::string> packUniform(const ShaderUniformVariable& uniform)
+io::IoResult<std::string> packUniform(const ShaderUniform& uniform)
 {
     auto uniformString = glz::write_json(uniform);
     ASSETLIB_CHECK_RETURN_IO_ERROR(uniformString.has_value(), io::IoError::ErrorCode::GeneralError,
@@ -50,9 +55,9 @@ io::IoResult<std::string> packUniform(const ShaderUniformVariable& uniform)
     return *uniformString;
 }
 
-io::IoResult<ShaderUniformVariable> unpackUniform(const std::string& uniform)
+io::IoResult<ShaderUniform> unpackUniform(const std::string& uniform)
 {
-    auto result = glz::read_json<ShaderUniformVariable>(uniform);
+    auto result = glz::read_json<ShaderUniform>(uniform);
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::GeneralError,
         "Assetlib: Failed to unpack: {}", glz::format_error(result.error(), uniform))
 

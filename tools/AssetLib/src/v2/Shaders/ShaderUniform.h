@@ -55,8 +55,9 @@ struct ShaderUniformTypeArray;
 struct ShaderUniformTypeStruct;
 struct ShaderUniformTypeStructReference
 {
-    std::string Target = {};
-    std::string TypeName = {};
+    std::string Target{};
+    std::string TypeName{};
+    bool IsEmbedded{};
 };
 
 using ShaderUniformTypeVariant = std::variant<
@@ -93,12 +94,24 @@ struct ShaderUniformTypeStruct
     std::vector<ShaderUniformVariable> Fields{};
 };
 
+struct ShaderUniformTypeEmbeddedStruct
+{
+    ShaderUniformTypeStruct Struct{};
+    AssetId Id{};
+};
+
+struct ShaderUniform
+{
+    ShaderUniformVariable Root{};
+    std::vector<ShaderUniformTypeEmbeddedStruct> EmbeddedStructs{};
+};
+
 namespace shader
 {
 io::IoResult<std::string> packUniformStruct(const ShaderUniformTypeStruct& uniformStruct);
 io::IoResult<ShaderUniformTypeStruct> unpackUniformStruct(const std::string& uniformStruct);
 
-io::IoResult<std::string> packUniform(const ShaderUniformVariable& uniform);
-io::IoResult<ShaderUniformVariable> unpackUniform(const std::string& uniform);
+io::IoResult<std::string> packUniform(const ShaderUniform& uniform);
+io::IoResult<ShaderUniform> unpackUniform(const std::string& uniform);
 }
 }

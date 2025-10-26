@@ -19,6 +19,8 @@ public:
     AssetId& operator=(AssetId&&) noexcept = default;
     ~AssetId() = default;
 
+    auto operator<=>(const AssetId&) const = default;
+    
     void Generate();
     constexpr u64 AsU64() const { return m_Id; }
     constexpr void FromU64(u64 value) { m_Id = value; }
