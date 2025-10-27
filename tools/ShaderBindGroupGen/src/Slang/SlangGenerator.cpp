@@ -139,7 +139,8 @@ struct Writer
     }
     void BeginSetResourceFunction(const assetlib::ShaderBinding& binding)
     {
-        std::string line = std::format("void Set{}(RG::Resource resource", utils::canonicalizeName(binding.Name));
+        std::string line = std::format("RG::Resource Set{}(RG::Resource resource",
+            utils::canonicalizeName(binding.Name));
         if (binding.Count > 1)
             line.append(", u32 index");
         line.append(", RG::ResourceAccessFlags additionalAccess = RG::ResourceAccessFlags::None)");
@@ -151,7 +152,7 @@ struct Writer
     void BeginSetUniformFunction(const assetlib::ShaderBinding& binding, const std::string& uniformType,
         const std::string& uniformParameter)
     {
-        std::string line = std::format("void Set{}(const {}& {}",
+        std::string line = std::format("RG::Resource Set{}(const {}& {}",
             utils::canonicalizeName(binding.Name), uniformType, uniformParameter);
         if (binding.Count > 1)
             line.append(", u32 index");
@@ -163,6 +164,7 @@ struct Writer
     }
     void EndSetResourceFunction()
     {
+        WriteLine("return resource;");
         Pop();
         WriteLine("}");
     }
@@ -175,7 +177,7 @@ struct Writer
             AddError(std::format("Failed to infer usage for binding {}", binding.Name));
             return;
         }
-        WriteLine(std::format("Graph->{}{}(resource, {} | {} | additionalAccess);",
+        WriteLine(std::format("resource = Graph->{}{}(resource, {} | {} | additionalAccess);",
             accessToString(binding.Access), bindingTypeToString(binding.Type),
             shaderStagesToGraphUsage(binding.ShaderStages), bindingTypeToGraphUsage(binding.Type)));
     }
