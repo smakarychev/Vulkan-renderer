@@ -17,7 +17,7 @@ std::string_view shaderScalarTypeToString(assetlib::ShaderScalarType type)
 {
     switch (type)
     {
-    case assetlib::ShaderScalarType::Bool: return "bool";
+    case assetlib::ShaderScalarType::Bool: return "b32";
     case assetlib::ShaderScalarType::I32: return "i32";
     case assetlib::ShaderScalarType::U32: return "u32";
     case assetlib::ShaderScalarType::I64: return "i64";

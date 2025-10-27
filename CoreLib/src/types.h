@@ -19,4 +19,6 @@ using isize = i64;
 using f32 = float;
 using f64 = double;
 
+using b32 = u32;
+
 using namespace std::literals;
