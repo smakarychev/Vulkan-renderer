@@ -13,14 +13,12 @@
 #include <stack>
 #include <unordered_map>
 #include <ranges>
-#include <source_location>
 #include <unordered_set>
 #include <glaze/json/generic.hpp>
 #include <glaze/json/prettify.hpp>
 #include <glm/vec3.hpp>
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
-#include <slang/slang-com-helper.h>
 
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
     if (!(x)) { return std::unexpected(IoError{.Code = error, .Message = std::format(__VA_ARGS__)}); }
@@ -996,6 +994,33 @@ private:
     static constexpr i32 RELATIVE_SET_INDEX = 0;
 };
 
+std::string getBakedDefineAwareFileName(const std::filesystem::path& path, u64 definesHash)
+{
+    if (definesHash == 0)
+        return path.filename().string();
+    
+    return std::format("{}-{}{}", path.stem().string(), definesHash, path.extension().string());
+}
+
+AssetPaths convertPathsToDefineAwarePaths(const AssetPaths& paths, u64 definesHash)
+{
+    AssetPaths converted = paths;
+    converted.HeaderPath.replace_filename(getBakedDefineAwareFileName(converted.HeaderPath, definesHash));
+    converted.BinaryPath.replace_filename(getBakedDefineAwareFileName(converted.BinaryPath, definesHash));
+
+    return converted;
+}
+
+}
+
+std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& originalFile, const SlangBakeSettings& settings,
+    const Context& ctx)
+{
+    std::filesystem::path path = getPostBakePath(originalFile, ctx);
+    path.replace_filename(getBakedDefineAwareFileName(path, settings.DefinesHash));
+    path.replace_extension(POST_BAKE_EXTENSION);
+
+    return path;
 }
 
 IoResult<void> Slang::BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
@@ -1005,7 +1030,8 @@ IoResult<void> Slang::BakeToFile(const std::filesystem::path& path, const SlangB
     if (!baked.has_value())
         return std::unexpected(baked.error());
 
-    const AssetPaths paths = getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType);
+    const AssetPaths paths = convertPathsToDefineAwarePaths(
+        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType), settings.DefinesHash);
 
     auto shaderHeader = assetlib::shader::packHeader(baked->Header);
     if (!shaderHeader.has_value())
@@ -1031,7 +1057,7 @@ IoResult<void> Slang::BakeToFile(const std::filesystem::path& path, const SlangB
     case assetlib::AssetFileIoType::Combined:
         return assetlib::io::saveAssetFileCombined(assetFile, spirv);
     default:
-        return std::unexpected{IoError{IoError::ErrorCode::GeneralError, "Unknown io type"}};
+        return std::unexpected(IoError{IoError::ErrorCode::GeneralError, "Unknown io type"});
     }
 }
 

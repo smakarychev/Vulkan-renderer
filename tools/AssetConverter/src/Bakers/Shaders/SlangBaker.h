@@ -7,7 +7,6 @@
 
 namespace bakers
 {
-
 struct SlangBakeSettings
 {
     std::vector<std::pair<std::string, std::string>> Defines;
@@ -19,11 +18,13 @@ struct SlangBakeSettings
 class Slang
 {
 public:
-    IoResult<void> BakeToFile(const std::filesystem::path& path,
+    static std::filesystem::path GetBakedPath(const std::filesystem::path& originalFile,
         const SlangBakeSettings& settings, const Context& ctx);
+    
+    IoResult<void> BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings, const Context& ctx);
 
-    IoResult<assetlib::ShaderAsset> Bake(const std::filesystem::path& path,
-        const SlangBakeSettings& settings, const Context& ctx);
+    IoResult<assetlib::ShaderAsset> Bake(const std::filesystem::path& path, const SlangBakeSettings& settings,
+        const Context& ctx);
 private:
     // todo: this is a temp name until there are conflicts with the old asset system
     static constexpr std::string_view POST_BAKE_EXTENSION = ".sl_shader";
