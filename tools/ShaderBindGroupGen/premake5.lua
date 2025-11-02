@@ -31,7 +31,8 @@ project "ShaderBindGroupGen"
 
 	filter "configurations:Release*"
         postbuildcommands { 
-            "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{tools_bindir}%{prj.name}/ > nul \
-             {COPYDIR} %{prj.location.directory}templates %{tools_bindir}%{prj.name}/templates/ > nul" 
+            "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{tools_bindir}%{prj.name}/ > nul",
+            "{COPYDIR} %{prj.location.directory}templates %{tools_bindir}%{prj.name}/templates/ > nul" ,
+            "{COPYDIR} %{prj.location.directory}resources/* %{tools_bindir}%{prj.name}/ > nul" 
         }
 		
