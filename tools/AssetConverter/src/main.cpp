@@ -11,6 +11,6 @@ i32 main(i32 argc, char** argv)
         std::cout << "Usage: AssetConverter <directory>\n";
         return 1;
     }
-    //SceneConverter::Convert("E:/Repos/C++/Gamedev/vulkan-renderer/assets", "E:/Repos/C++/Gamedev/vulkan-renderer/assets/models/medieval fantasy book/scene.gltf");
+    
     AssetConverter::BakeDirectory(std::filesystem::weakly_canonical(argv[1]));
 }
