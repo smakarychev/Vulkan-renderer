@@ -8,7 +8,7 @@ i32 main()
 {
     Settings::initCvars();
     
-    platform::runSubProcess("../tools/bin/AssetConverter.exe",
+    platform::runSubProcess("../tools/bin/AssetConverter/AssetConverter.exe",
         {CVars::Get().GetStringCVar("Path.Assets"_hsv, "../assets")});
 
     Renderer* renderer = Renderer::Get();
