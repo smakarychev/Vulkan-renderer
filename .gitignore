@@ -27,3 +27,4 @@ tools/bin
 vendor/*/bin
 **/Tests/bin
 **/Tests/bin-int
+assets/shaders/**/*.type
