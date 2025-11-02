@@ -9,7 +9,7 @@ namespace bakers
 {
 struct SlangBakeSettings
 {
-    Span<const std::pair<std::string, std::string>> Defines;
+    Span<const std::pair<std::string, std::string>> Defines{};
     u64 DefinesHash{0};
     std::vector<std::string> IncludePaths;
     std::string UniformReflectionDirectoryName{"uniform_types"};

@@ -1,13 +1,12 @@
 #pragma once
 
-#include <string>
-#include <vector>
-
 #include "types.h"
 #include "AssetId.h"
 #include "Containers/Result.h"
 #include "Containers/Span.h"
 
+#include <string>
+#include <vector>
 #include <filesystem>
 
 namespace assetlib
@@ -95,6 +94,46 @@ IoResult<AssetBinary> loadAssetFileCombinedBinaries(const AssetFile& file);
 IoResult<AssetBinary> loadAssetFileCombinedBinaries(const AssetFile& file, u64 offsetBytes, u64 sizeBytes);
 }
 
+}
+
+namespace std
+{
+template <>
+struct formatter<assetlib::io::IoError::ErrorCode> {
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+    auto format(assetlib::io::IoError::ErrorCode code, format_context& ctx) const
+    {
+        switch (code)
+        {
+        case assetlib::io::IoError::ErrorCode::GeneralError:
+            return format_to(ctx.out(), "GeneralError");
+        case assetlib::io::IoError::ErrorCode::FailedToCreate:
+            return format_to(ctx.out(), "FailedToCreate");
+        case assetlib::io::IoError::ErrorCode::FailedToOpen:
+            return format_to(ctx.out(), "FailedToOpen");
+        case assetlib::io::IoError::ErrorCode::FailedToLoad:
+            return format_to(ctx.out(), "FailedToLoad");
+        case assetlib::io::IoError::ErrorCode::WrongFormat:
+            return format_to(ctx.out(), "WrongFormat");
+        default:
+            return format_to(ctx.out(), "Unknown error");
+        }
+    }
+};
+template <>
+struct formatter<assetlib::io::IoError> {
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+    auto format(const assetlib::io::IoError& error, format_context& ctx) const
+    {
+        return format_to(ctx.out(), "{} ({})", error.Message, error.Code);
+    }
+};
 }
 
 #define ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, ...) \

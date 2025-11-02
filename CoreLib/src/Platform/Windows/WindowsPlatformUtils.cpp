@@ -5,48 +5,48 @@
 
 namespace
 {
-    // the result of this function must not outlive its origin string
-    std::vector<std::string_view> splitStringTransient(std::string_view string, std::string_view delimiter)
+// the result of this function must not outlive its origin string
+std::vector<std::string_view> splitStringTransient(std::string_view string, std::string_view delimiter)
+{
+    std::vector<std::string_view> result;
+
+    const u32 delimiterLength = (u32)delimiter.length();
+    u64 offset = 0;
+    u64 pos = string.find(delimiter);
+    while (pos != std::string::npos)
     {
-        std::vector<std::string_view> result;
-
-        const u32 delimiterLength = (u32)delimiter.length();
-        u64 offset = 0;
-        u64 pos = string.find(delimiter);
-        while (pos != std::string::npos)
-        {
-            result.push_back(string.substr(offset, pos - offset));
-            offset = pos + delimiterLength;
-            pos = string.find(delimiter, offset);
-        }
-
-        if (offset < string.length())
-            result.push_back(string.substr(offset));
-
-        return result;
+        result.push_back(string.substr(offset, pos - offset));
+        offset = pos + delimiterLength;
+        pos = string.find(delimiter, offset);
     }
+
+    if (offset < string.length())
+        result.push_back(string.substr(offset));
+
+    return result;
+}
 }
 
-namespace Platform
+namespace platform
 {
-    std::filesystem::path getExecutablePath()
-    {
-        constexpr usize bufferSize = 1024;
-        WCHAR nameBuf[bufferSize];
-        GetModuleFileName(nullptr, nameBuf, bufferSize);
+std::filesystem::path getExecutablePath()
+{
+    constexpr usize bufferSize = 1024;
+    WCHAR nameBuf[bufferSize]{};
+    GetModuleFileName(nullptr, nameBuf, bufferSize);
 
-        return {nameBuf};
-    }
+    return {nameBuf};
+}
 
-    void runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args)
-    {
-        STARTUPINFO si;
+void runSubProcess(const std::filesystem::path& executablePath, const std::vector<std::string>& args)
+{
+    STARTUPINFO si;
     PROCESS_INFORMATION pi;
     HANDLE childOutRead, childOutWrite;
-    
+
     SECURITY_ATTRIBUTES securityAttributes;
-    securityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES); 
-    securityAttributes.bInheritHandle = TRUE; 
+    securityAttributes.nLength = sizeof(SECURITY_ATTRIBUTES);
+    securityAttributes.bInheritHandle = TRUE;
     securityAttributes.lpSecurityDescriptor = nullptr;
 
     if (!CreatePipe(&childOutRead, &childOutWrite, &securityAttributes, 0))
@@ -70,7 +70,7 @@ namespace Platform
     std::wstring wArgString;
     wArgString.resize(wideLength);
     MultiByteToWideChar(CP_UTF8, kFlags, argString.data(), (i32)argString.size(), wArgString.data(), wideLength);
-    
+
     auto status = CreateProcess(
         executablePath.relative_path().c_str(),
         LPWSTR(wArgString.data()),
@@ -91,9 +91,9 @@ namespace Platform
         std::string lineTail = {};
         for (;;)
         {
-            DWORD bytesRead; 
+            DWORD bytesRead;
             CHAR buffer[256];
-            
+
             if (!ReadFile(childOutRead, buffer, sizeof(buffer), &bytesRead, nullptr) || bytesRead == 0)
             {
                 DWORD exitCode;
@@ -112,7 +112,7 @@ namespace Platform
                 lineTail = {};
                 lines.erase(lines.begin());
             }
-            
+
             if (unfinishedLine)
             {
                 lineTail += lines.back();
@@ -130,5 +130,5 @@ namespace Platform
 
         CloseHandle(childOutRead);
     }
-    }
+}
 }

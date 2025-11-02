@@ -4,7 +4,7 @@
 
 #include <filesystem>
 
-namespace Platform
+namespace platform
 {
     using DllHandle = u64;
     static constexpr DllHandle INVALID_DLL_HANDLE = ~(DllHandle)0;

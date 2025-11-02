@@ -3,7 +3,7 @@
 
 #include "WindowsInclude.h"
 
-namespace Platform
+namespace platform
 {
     DllHandle dllOpen(const std::filesystem::path& path)
     {

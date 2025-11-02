@@ -1025,6 +1025,59 @@ AssetPaths convertPathsToDefineAwarePaths(const AssetPaths& paths, u64 definesHa
     return converted;
 }
 
+IoResult<assetlib::ShaderAsset> loadShaderAsset(const std::filesystem::path& path, const Context& ctx)
+{
+    IoResult<assetlib::AssetFileAndBinary> assetFileRead;
+    if (ctx.IoType == assetlib::AssetFileIoType::Combined)
+        assetFileRead = assetlib::io::loadAssetFileCombined(path);
+    else
+        assetFileRead = assetlib::io::loadAssetFile(path);
+    if (!assetFileRead.has_value())
+        return std::unexpected(assetFileRead.error());
+
+    auto unpackedHeader = assetlib::shader::unpackHeader(assetFileRead->File);
+    if (!unpackedHeader.has_value())
+        return std::unexpected(unpackedHeader.error());
+
+    auto unpackedBinary = assetlib::shader::unpackBinary(assetFileRead->File, assetFileRead->Binary);
+    if (!unpackedBinary.has_value())
+        return std::unexpected(unpackedBinary.error());
+
+    return assetlib::ShaderAsset{
+        .Header = std::move(*unpackedHeader),
+        .Spirv = std::move(*unpackedBinary),
+    };
+}
+
+bool requiresBaking(const std::filesystem::path& path, const std::filesystem::path& bakedPath, const Context& ctx)
+{
+    namespace fs = std::filesystem;
+    if (!fs::exists(bakedPath))
+        return true;
+
+    const auto lastBaked = fs::last_write_time(bakedPath);
+    if (lastBaked < fs::last_write_time(path))
+        return true;
+
+    IoResult<assetlib::AssetFile> assetFileRead;
+    if (ctx.IoType == assetlib::AssetFileIoType::Combined)
+        assetFileRead = assetlib::io::loadAssetFileCombinedHeader(bakedPath);
+    else
+        assetFileRead = assetlib::io::loadAssetFileHeader(bakedPath);
+    if (!assetFileRead.has_value())
+        return true;
+
+    const auto unpackHeader = assetlib::shader::unpackHeader(*assetFileRead);
+    if (!unpackHeader.has_value())
+        return true;
+
+    for (auto& include : unpackHeader->Includes)
+        if (fs::exists(include) && lastBaked < fs::last_write_time(include))
+            return true;
+
+    return false; 
+}
+
 }
 
 std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& originalFile, const SlangBakeSettings& settings,
@@ -1040,12 +1093,14 @@ std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& originalF
 IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
     const Context& ctx)
 {
+    const AssetPaths paths = convertPathsToDefineAwarePaths(
+        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType), settings.DefinesHash);
+    if (!requiresBaking(path, paths.HeaderPath, ctx))
+        return loadShaderAsset(paths.HeaderPath, ctx);
+    
     auto baked = Bake(path, settings, ctx);
     if (!baked.has_value())
         return baked;
-
-    const AssetPaths paths = convertPathsToDefineAwarePaths(
-        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType), settings.DefinesHash);
 
     auto shaderHeader = assetlib::shader::packHeader(baked->Header);
     if (!shaderHeader.has_value())
@@ -1061,7 +1116,7 @@ IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& p
         .BinarySizeBytesCompressed = spirv.size(),
         .CompressionMode = ctx.CompressionMode,
     };
-    assetFile.Metadata = assetlib::shader::generateMetadata(path.string());
+    assetFile.Metadata = assetlib::shader::generateMetadata(path.generic_string());
     assetFile.AssetSpecificInfo = std::move(*shaderHeader);    
 
     IoResult<void> saveResult = {};
