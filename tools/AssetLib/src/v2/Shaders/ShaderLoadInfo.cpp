@@ -34,6 +34,7 @@ struct glz::meta<assetlib::ShaderRasterizationAlphaBlending> : assetlib::reflect
     using enum assetlib::ShaderRasterizationAlphaBlending;
     static constexpr auto value = glz::enumerate(None, Over);
 };
+template <> struct glz::meta<assetlib::ShaderLoadRasterizationColor> : assetlib::reflection::CamelCase {}; 
 template <> struct glz::meta<assetlib::ShaderLoadRasterizationInfo> : assetlib::reflection::CamelCase {}; 
 template <> struct glz::meta<assetlib::ShaderLoadInfo::EntryPoint> : assetlib::reflection::CamelCase {}; 
 template <> struct glz::meta<assetlib::ShaderLoadInfo> : assetlib::reflection::CamelCase {}; 

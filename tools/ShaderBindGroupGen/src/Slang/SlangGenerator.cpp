@@ -2,15 +2,19 @@
 
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
+#include "Bakers/Shaders/SlangBaker.h"
+#include "v2/Shaders/SlangShaderAsset.h"
+#include "v2/Shaders/ShaderLoadInfo.h"
 
 #include <ranges>
 #include <unordered_set>
 
-namespace 
+namespace
 {
-std::string accessToString(assetlib::ShaderBindingAccess access)
+std::string_view accessToString(assetlib::ShaderBindingAccess access)
 {
-    switch (access) {
+    switch (access)
+    {
     case assetlib::ShaderBindingAccess::Read: return "Read";
     case assetlib::ShaderBindingAccess::Write: return "Write";
     case assetlib::ShaderBindingAccess::ReadWrite: return "ReadWrite";
@@ -20,7 +24,7 @@ std::string accessToString(assetlib::ShaderBindingAccess access)
     }
 }
 
-std::string bindingTypeToString(assetlib::ShaderBindingType bindingType)
+std::string_view bindingTypeToString(assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
@@ -53,7 +57,7 @@ std::string shaderStagesToGraphUsage(assetlib::ShaderStage stage)
     return stages;
 }
 
-std::string bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType)
+std::string_view bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
@@ -75,7 +79,7 @@ std::string bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType)
     }
 }
 
-std::string bindingTypeToDescriptorTypeString(assetlib::ShaderBindingType bindingType)
+std::string_view bindingTypeToDescriptorTypeString(assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
@@ -95,27 +99,87 @@ std::string bindingTypeToDescriptorTypeString(assetlib::ShaderBindingType bindin
     }
 }
 
+std::string_view formatFromShaderImageFormat(assetlib::ShaderImageFormat format)
+{
+    switch (format)
+    {
+    case assetlib::ShaderImageFormat::Undefined: return "Format::Undefined";
+    case assetlib::ShaderImageFormat::R8_UNORM: return "Format::R8_UNORM";
+    case assetlib::ShaderImageFormat::R8_SNORM: return "Format::R8_SNORM";
+    case assetlib::ShaderImageFormat::R8_UINT: return "Format::R8_UINT";
+    case assetlib::ShaderImageFormat::R8_SINT: return "Format::R8_SINT";
+    case assetlib::ShaderImageFormat::R8_SRGB: return "Format::R8_SRGB";
+    case assetlib::ShaderImageFormat::RG8_UNORM: return "Format::RG8_UNORM";
+    case assetlib::ShaderImageFormat::RG8_SNORM: return "Format::RG8_SNORM";
+    case assetlib::ShaderImageFormat::RG8_UINT: return "Format::RG8_UINT";
+    case assetlib::ShaderImageFormat::RG8_SINT: return "Format::RG8_SINT";
+    case assetlib::ShaderImageFormat::RG8_SRGB: return "Format::RG8_SRGB";
+    case assetlib::ShaderImageFormat::RGBA8_UNORM: return "Format::RGBA8_UNORM";
+    case assetlib::ShaderImageFormat::RGBA8_SNORM: return "Format::RGBA8_SNORM";
+    case assetlib::ShaderImageFormat::RGBA8_UINT: return "Format::RGBA8_UINT";
+    case assetlib::ShaderImageFormat::RGBA8_SINT: return "Format::RGBA8_SINT";
+    case assetlib::ShaderImageFormat::RGBA8_SRGB: return "Format::RGBA8_SRGB";
+    case assetlib::ShaderImageFormat::R16_UNORM: return "Format::R16_UNORM";
+    case assetlib::ShaderImageFormat::R16_SNORM: return "Format::R16_SNORM";
+    case assetlib::ShaderImageFormat::R16_UINT: return "Format::R16_UINT";
+    case assetlib::ShaderImageFormat::R16_SINT: return "Format::R16_SINT";
+    case assetlib::ShaderImageFormat::R16_FLOAT: return "Format::R16_FLOAT";
+    case assetlib::ShaderImageFormat::RG16_UNORM: return "Format::RG16_UNORM";
+    case assetlib::ShaderImageFormat::RG16_SNORM: return "Format::RG16_SNORM";
+    case assetlib::ShaderImageFormat::RG16_UINT: return "Format::RG16_UINT";
+    case assetlib::ShaderImageFormat::RG16_SINT: return "Format::RG16_SINT";
+    case assetlib::ShaderImageFormat::RG16_FLOAT: return "Format::RG16_FLOAT";
+    case assetlib::ShaderImageFormat::RGBA16_UNORM: return "Format::RGBA16_UNORM";
+    case assetlib::ShaderImageFormat::RGBA16_SNORM: return "Format::RGBA16_SNORM";
+    case assetlib::ShaderImageFormat::RGBA16_UINT: return "Format::RGBA16_UINT";
+    case assetlib::ShaderImageFormat::RGBA16_SINT: return "Format::RGBA16_SINT";
+    case assetlib::ShaderImageFormat::RGBA16_FLOAT: return "Format::RGBA16_FLOAT";
+    case assetlib::ShaderImageFormat::R32_UINT: return "Format::R32_UINT";
+    case assetlib::ShaderImageFormat::R32_SINT: return "Format::R32_SINT";
+    case assetlib::ShaderImageFormat::R32_FLOAT: return "Format::R32_FLOAT";
+    case assetlib::ShaderImageFormat::RG32_UINT: return "Format::RG32_UINT";
+    case assetlib::ShaderImageFormat::RG32_SINT: return "Format::RG32_SINT";
+    case assetlib::ShaderImageFormat::RG32_FLOAT: return "Format::RG32_FLOAT";
+    case assetlib::ShaderImageFormat::RGB32_UINT: return "Format::RGB32_UINT";
+    case assetlib::ShaderImageFormat::RGB32_SINT: return "Format::RGB32_SINT";
+    case assetlib::ShaderImageFormat::RGB32_FLOAT: return "Format::RGB32_FLOAT";
+    case assetlib::ShaderImageFormat::RGBA32_UINT: return "Format::RGBA32_UINT";
+    case assetlib::ShaderImageFormat::RGBA32_SINT: return "Format::RGBA32_SINT";
+    case assetlib::ShaderImageFormat::RGBA32_FLOAT: return "Format::RGBA32_FLOAT";
+    case assetlib::ShaderImageFormat::RGB10A2: return "Format::RGB10A2";
+    case assetlib::ShaderImageFormat::R11G11B10: return "Format::R11G11B10";
+    case assetlib::ShaderImageFormat::D32_FLOAT: return "Format::D32_FLOAT";
+    case assetlib::ShaderImageFormat::D24_UNORM_S8_UINT: return "Format::D24_UNORM_S8_UINT";
+    case assetlib::ShaderImageFormat::D32_FLOAT_S8_UINT: return "Format::D32_FLOAT_S8_UINT";
+    default:
+        ASSERT(false)
+        return "Format::Undefined";
+    }
+}
+
 struct Writer
 {
     static constexpr u32 INDENT_SPACES = 4;
+
     struct CountInfo
     {
         u32 Buffers{0};
         u32 Images{0};
         u32 Samplers{0};
     };
-    
+
     std::stringstream Stream;
     u32 IndentLevel{0};
     bool HasBindlessImages{false};
     bool HasBindlessBuffers{false};
     CountInfo Counts{};
     std::optional<assetlib::io::IoError> Error;
-    
+
     void Push()
     {
         IndentLevel += INDENT_SPACES;
     }
+
     void Pop()
     {
         ASSERT(IndentLevel >= INDENT_SPACES)
@@ -126,17 +190,20 @@ struct Writer
     {
         Stream << std::string(IndentLevel, ' ');
     }
+
     void WriteLine(std::string_view line)
     {
         WriteIndent();
         Stream << line << "\n";
     }
+
     void AddError(const std::string& message)
     {
         if (!Error.has_value())
             Error = {.Code = assetlib::io::IoError::ErrorCode::GeneralError, .Message = {}};
         Error->Message.append(message).append("\n");
     }
+
     void BeginSetResourceFunction(const assetlib::ShaderBinding& binding)
     {
         std::string line = std::format("RG::Resource Set{}(RG::Resource resource",
@@ -149,6 +216,7 @@ struct Writer
         Push();
         WriteLine("using enum RG::ResourceAccessFlags;");
     }
+
     void BeginSetUniformFunction(const assetlib::ShaderBinding& binding, const std::string& uniformType,
         const std::string& uniformParameter)
     {
@@ -162,25 +230,27 @@ struct Writer
         Push();
         WriteLine("using enum RG::ResourceAccessFlags;");
     }
+
     void EndSetResourceFunction()
     {
         WriteLine("return resource;");
         Pop();
         WriteLine("}");
     }
+
     void WriteResourceAccess(const assetlib::ShaderBinding& binding)
     {
         const std::string shaderAccess = shaderStagesToGraphUsage(binding.ShaderStages);
-        const std::string graphUsage = bindingTypeToGraphUsage(binding.Type);
+        const std::string_view graphUsage = bindingTypeToGraphUsage(binding.Type);
         if (shaderAccess.empty() || graphUsage.empty())
         {
             AddError(std::format("Failed to infer usage for binding {}", binding.Name));
             return;
         }
         WriteLine(std::format("resource = Graph->{}{}(resource, {} | {} | additionalAccess);",
-            accessToString(binding.Access), bindingTypeToString(binding.Type),
-            shaderStagesToGraphUsage(binding.ShaderStages), bindingTypeToGraphUsage(binding.Type)));
+            accessToString(binding.Access), bindingTypeToString(binding.Type), shaderAccess, graphUsage));
     }
+
     static std::string GetBindingInfoContentString(const assetlib::ShaderBindingSet& set,
         const assetlib::ShaderBinding& binding)
     {
@@ -195,6 +265,7 @@ struct Writer
             bindingTypeToDescriptorTypeString(binding.Type),
             binding.Count > 1 ? "index" : "0");
     }
+
     void WriteSampler(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& sampler)
     {
         if (sampler.Count > 1)
@@ -220,6 +291,7 @@ struct Writer
         WriteLine("}");
         Counts.Samplers += sampler.Count;
     }
+
     void WriteOrdinaryImage(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& image)
     {
         const std::string line = std::format("m_ImageBindings[m_ImageCount] = ImageBindingInfoRG{{{}}};",
@@ -228,6 +300,7 @@ struct Writer
         WriteLine("m_ImageCount += 1;");
         Counts.Images += image.Count;
     }
+
     void WriteBindlessImage(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& image)
     {
         HasBindlessImages = true;
@@ -235,6 +308,7 @@ struct Writer
             GetBindingInfoContentString(set, image));
         WriteLine(line);
     }
+
     void WriteOrdinaryBuffer(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& buffer)
     {
         const std::string line = std::format("m_BufferBindings[m_BufferCount] = BufferBindingInfoRG{{{}}};",
@@ -243,6 +317,7 @@ struct Writer
         WriteLine("m_BufferCount += 1;");
         Counts.Buffers += buffer.Count;
     }
+
     void WriteBindlessBuffer(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& buffer)
     {
         HasBindlessBuffers = true;
@@ -250,6 +325,7 @@ struct Writer
             GetBindingInfoContentString(set, buffer));
         WriteLine(line);
     }
+
     void WriteImage(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& image)
     {
         BeginSetResourceFunction(image);
@@ -260,6 +336,7 @@ struct Writer
             WriteOrdinaryImage(set, image);
         EndSetResourceFunction();
     }
+
     void WriteBuffer(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& buffer)
     {
         BeginSetResourceFunction(buffer);
@@ -270,6 +347,7 @@ struct Writer
             WriteOrdinaryBuffer(set, buffer);
         EndSetResourceFunction();
     }
+
     void WriteEmbeddedUniformTypes(const std::string& uniform)
     {
         std::stringstream ss(uniform);
@@ -277,12 +355,13 @@ struct Writer
         while (std::getline(ss, line))
             WriteLine(line);
     }
+
     void WriteUniformBinding(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& uniformBinding,
         const std::string& uniformType, const std::string& uniformParameter)
     {
         BeginSetUniformFunction(uniformBinding, uniformType, uniformParameter);
         WriteLine(std::format("RG::Resource resource = Graph->Create(\"{}\"_hsv, RG::RGBufferDescription{{"
-                  ".SizeBytes = sizeof({})}};", uniformType, uniformType));
+            ".SizeBytes = sizeof({})}};", uniformType, uniformType));
         WriteResourceAccess(uniformBinding);
         if (enumHasAny(uniformBinding.Attributes, assetlib::ShaderBindingAttributes::Bindless))
             WriteBindlessBuffer(set, uniformBinding);
@@ -290,23 +369,37 @@ struct Writer
             WriteOrdinaryBuffer(set, uniformBinding);
         EndSetResourceFunction();
     }
+
+    void WriteRasterizationInfo(const assetlib::ShaderLoadRasterizationInfo& rasterization)
+    {
+        for (auto& color : rasterization.Colors)
+            WriteLine(std::format("static Format Get{}AttachmentFormat() {{ return {}; }}",
+                utils::canonicalizeName(color.Name), formatFromShaderImageFormat(color.Format)));
+        if (rasterization.Depth.has_value())
+            WriteLine(std::format("static Format GetDepthFormat() {{ return {}; }}",
+                formatFromShaderImageFormat(*rasterization.Depth)));
+    }
+
     void BeginForLoop(std::string_view count)
     {
         WriteLine(std::format("for (u32 i = 0; i < {}; i++)", count));
         WriteLine("{");
         Push();
     }
+
     void BeginForEachLoop(std::string_view range)
     {
         WriteLine(std::format("for (auto& binding : {})", range));
         WriteLine("{");
         Push();
     }
+
     void EndForLoop()
     {
         Pop();
         WriteLine("}");
     }
+
     void WriteBeginPrivate()
     {
         Pop();
@@ -314,9 +407,11 @@ struct Writer
         WriteLine("private:");
         Push();
     }
+
     void WriteBindDescriptors()
     {
-        WriteLine("void BindDescriptors(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators)");
+        WriteLine(
+            "void BindDescriptors(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators) const");
         WriteLine("{");
         Push();
         if (Counts.Samplers > 0)
@@ -324,7 +419,7 @@ struct Writer
             BeginForLoop("m_SamplerCount");
             WriteLine("auto& binding = m_SamplerBindings[i];");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                      "DescriptorSlotInfo{.Slot = binding.Slot, .Type = DescriptorType::Sampler}, sampler);");
+                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = DescriptorType::Sampler}, sampler);");
             EndForLoop();
         }
         if (Counts.Buffers > 0)
@@ -332,16 +427,16 @@ struct Writer
             BeginForLoop("m_BufferCount");
             WriteLine("auto& binding = m_BufferBindings[i];");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                      "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
-                      "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
+                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
+                "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
             EndForLoop();
         }
         if (HasBindlessBuffers)
         {
             BeginForEachLoop("m_BufferBindlessBindings");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                      "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
-                      "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
+                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
+                "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
             EndForLoop();
         }
         if (Counts.Images > 0)
@@ -350,8 +445,8 @@ struct Writer
             WriteLine("auto& binding = m_ImageBindings[i];");
             WriteLine("auto& image = Graph->GetImageBinding(binding.Resource);");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                      "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
-                      "image.Subresource, image.Layout, binding.ArrayOffset);");
+                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
+                "image.Subresource, image.Layout, binding.ArrayOffset);");
             EndForLoop();
         }
         if (HasBindlessImages)
@@ -359,16 +454,18 @@ struct Writer
             BeginForEachLoop("m_ImageBindlessBindings");
             WriteLine("auto& image = Graph->GetImageBinding(binding.Resource);");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                      "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
-                      "image.Subresource, image.Layout, binding.ArrayOffset);");
+                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
+                "image.Subresource, image.Layout, binding.ArrayOffset);");
             EndForLoop();
         }
         Pop();
         WriteLine("}");
     }
+
     void WriteBindPipelineType(const std::string& type)
     {
-        WriteLine(std::format("void Bind{}(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators)",
+        WriteLine(std::format(
+            "void Bind{}(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators) const",
             type));
         WriteLine("{");
         Push();
@@ -377,6 +474,7 @@ struct Writer
         Pop();
         WriteLine("}");
     }
+
     void WriteBind(const std::vector<assetlib::ShaderEntryPoint>& entryPoints)
     {
         bool hasGraphics = false;
@@ -391,6 +489,7 @@ struct Writer
         if (hasCompute)
             WriteBindPipelineType("Compute");
     }
+
     void WriteResourceContainers()
     {
         if (Counts.Samplers > 0)
@@ -416,8 +515,9 @@ struct Writer
 };
 }
 
-SlangGenerator::SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator)
-    : m_UniformTypeGenerator(&uniformTypeGenerator)
+SlangGenerator::SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator,
+    const std::filesystem::path& shadersDirectory)
+    : m_UniformTypeGenerator(&uniformTypeGenerator), m_ShadersDirectory(shadersDirectory)
 {
 }
 
@@ -439,7 +539,7 @@ struct BindGroupBaseRG
     const ::Shader* Shader{nullptr};
 };
 )";
-    
+
     return commonFile;
 }
 
@@ -453,8 +553,24 @@ std::filesystem::path SlangGenerator::GetCommonFilePath(const std::filesystem::p
     return generationPath / GENERATED_COMMON_FILE_NAME;
 }
 
-assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const assetlib::ShaderHeader& shader) const
+assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std::filesystem::path& path) const
 {
+    auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
+    if (!shaderLoadInfo.has_value())
+        return std::unexpected(shaderLoadInfo.error());
+
+    const std::filesystem::path bakedPath =
+        bakers::Slang::GetBakedPath(path, {}, {.InitialDirectory = m_ShadersDirectory});
+    auto assetFileResult = assetlib::io::loadAssetFileHeader(bakedPath);
+    if (!assetFileResult.has_value())
+        return std::unexpected(assetFileResult.error());
+
+    auto shaderUnpack = assetlib::shader::unpackHeader(*assetFileResult);
+    if (!shaderUnpack.has_value())
+        return std::unexpected(shaderUnpack.error());
+
+    const assetlib::ShaderHeader& shader = *shaderUnpack;
+
     std::unordered_set<std::filesystem::path> standaloneUniforms;
 
     std::unordered_map<assetlib::AssetId, std::string> embeddedStructs;
@@ -468,7 +584,7 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const asse
         auto& uniform = *uniformResult;
         for (auto&& [id, embedded] : uniform.EmbeddedStructs)
             embeddedStructs.emplace(id, embedded);
-        
+
         if (uniform.IsStandalone)
             for (auto& include : uniform.Includes)
                 standaloneUniforms.insert(std::move(include));
@@ -477,7 +593,7 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const asse
 
     std::string generatedStructName = std::format("{}BindGroupRG", utils::canonicalizeName(shader.Name));
     std::string generatedFileName = std::format("{}.generated.h", generatedStructName);
-    
+
     Writer writer;
 
     writer.WriteLine(utils::getPreamble());
@@ -524,13 +640,15 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const asse
             }
         }
     }
+    if (shaderLoadInfo->RasterizationInfo.has_value())
+        writer.WriteRasterizationInfo(*shaderLoadInfo->RasterizationInfo);
     writer.WriteBind(shader.EntryPoints);
     writer.WriteBeginPrivate();
     writer.WriteBindDescriptors();
     writer.WriteResourceContainers();
     writer.Pop();
     writer.WriteLine("};");
-    
+
     return SlangGeneratorResult{
         .Generated = writer.Stream.str(),
         .FileName = generatedFileName

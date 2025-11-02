@@ -57,8 +57,13 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesVi
     const bool hasPipeline = m_Pipelines.contains(nameWithOverrides);
     if (!hasPipeline || m_Pipelines.at(nameWithOverrides).ShouldReload)
     {
-        const std::optional<PipelineInfo> pipelineInfo = TryCreatePipeline(
-            nameWithOverrides, overrides, allocationType);
+        std::optional<PipelineInfo> pipelineInfo = std::nullopt;
+        
+        if (std::filesystem::path(m_ShaderNameToPath.at(nameWithOverrides.Name)).extension().string() ==
+            SHADER_EXTENSION_SLANG)
+            pipelineInfo = TryCreateSlangPipeline(nameWithOverrides, overrides, allocationType);
+        else
+            pipelineInfo = TryCreatePipeline(nameWithOverrides, overrides, allocationType);
         if (pipelineInfo.has_value())
         {
             if (hasPipeline)
@@ -255,7 +260,7 @@ void ShaderCache::MarkOverridesToReload(StringId name)
 }
 
 std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const ShaderNameWithOverrides& name,
-    ShaderOverridesView& overrides, ShaderCacheAllocationType allocationHint)
+    ShaderOverridesView& overrides, ShaderCacheAllocationType allocationType)
 {
     const std::string& path = m_ShaderNameToPath.at(name.Name);
     std::ifstream in(path);
@@ -394,7 +399,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const Sh
         shaderTemplate->GetReflection().DescriptorSetsInfo()[BINDLESS_DESCRIPTORS_INDEX].HasBindless ?
         json.value("bindless_count", 0u) : 0u;
 
-    if (enumHasAny(allocationHint, ShaderCacheAllocationType::Pipeline))
+    if (enumHasAny(allocationType, ShaderCacheAllocationType::Pipeline))
         shader.Pipeline = createPipeline();
 
     return shader;
@@ -510,7 +515,7 @@ constexpr PrimitiveKind primitiveKindModeFromAssetPrimitiveKind(assetlib::Shader
 
 // todo: rename once ready
 std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreateSlangPipeline(const ShaderNameWithOverrides& name,
-    ShaderOverridesView& overrides, ShaderCacheAllocationType allocationHint)
+    ShaderOverridesView& overrides, ShaderCacheAllocationType allocationType)
 {
     const std::string& path = m_ShaderNameToPath.at(name.Name);
 
@@ -558,16 +563,20 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreateSlangPipeline(con
             primitiveKind = primitiveKindModeFromAssetPrimitiveKind(rasterization.PrimitiveKind);
             clampDepth = rasterization.ClampDepth;
 
-            colorFormats.reserve(rasterization.ColorFormats.size());
-            for (auto format : rasterization.ColorFormats)
-                colorFormats.push_back(formatFromAssetImageFormat(format));
-            if (rasterization.DepthFormat.has_value())
-                depthFormat = formatFromAssetImageFormat(*rasterization.DepthFormat);
+            colorFormats.reserve(rasterization.Colors.size());
+            for (auto& color : rasterization.Colors)
+                colorFormats.push_back(formatFromAssetImageFormat(color.Format));
+            if (rasterization.Depth.has_value())
+                depthFormat = formatFromAssetImageFormat(*rasterization.Depth);
         }
+
+        ASSERT(shaderTemplate->GetReflection().Shaders().size() == 1)
+        std::array<ShaderModule, MAX_PIPELINE_SHADER_COUNT> shaderModules{};
+        std::ranges::fill(shaderModules, shaderTemplate->GetReflection().Shaders().front());
         
         const Pipeline pipeline = Device::CreatePipeline({
             .PipelineLayout = shaderTemplate->GetPipelineLayout(),
-            .Shaders = shaderTemplate->GetReflection().Shaders(),
+            .Shaders = Span(shaderModules.data(), shaderTemplate->GetShaderStages().size()),
             .ShaderStages = shaderTemplate->GetShaderStages(),
             .ShaderEntryPoints = shaderTemplate->GetEntryPoints(),
             .ColorFormats = colorFormats,
@@ -595,7 +604,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreateSlangPipeline(con
         shaderTemplate->GetReflection().DescriptorSetsInfo()[BINDLESS_DESCRIPTORS_INDEX].HasBindless ?
         shaderLoadInfo->BindlessCount.value_or(0u) : 0u;
 
-    if (enumHasAny(allocationHint, ShaderCacheAllocationType::Pipeline))
+    if (enumHasAny(allocationType, ShaderCacheAllocationType::Pipeline))
         shader.Pipeline = createPipeline();
 
     return shader;

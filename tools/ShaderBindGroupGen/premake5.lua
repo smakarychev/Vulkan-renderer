@@ -14,6 +14,7 @@ project "ShaderBindGroupGen"
         "src",
         "%{wks.location}/CoreLib/src",
         "%{wks.location}/tools/AssetLib/src",
+        "%{wks.location}/tools/AssetConverter/src",
         
         IncludeDir["spirv_reflect"],
         IncludeDir["nlohmann-json"],
@@ -25,6 +26,7 @@ project "ShaderBindGroupGen"
     links {
         "CoreLib",
         "AssetLib",
+        "AssetConverterLib",
     }
 
 	filter "configurations:Release*"
