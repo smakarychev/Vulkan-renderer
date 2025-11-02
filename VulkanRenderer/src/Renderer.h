@@ -9,6 +9,8 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
+#include "Bakers/BakerContext.h"
+#include "Bakers/Shaders/SlangBaker.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
@@ -161,6 +163,8 @@ private:
 
     DescriptorArenaAllocator m_PersistentMaterialAllocator;
 
+    bakers::Context m_BakerCtx{};
+    bakers::SlangBakeSettings m_SlangBakeSettings{};
     ShaderCache m_ShaderCache;
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;

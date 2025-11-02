@@ -9,6 +9,12 @@
 
 #include <mutex>
 
+namespace bakers
+{
+struct SlangBakeSettings;
+struct Context;
+}
+
 class Shader
 {
     friend class ShaderCache;
@@ -29,35 +35,37 @@ enum class ShaderCacheError
     FailedToCreatePipeline,
     FailedToAllocateDescriptors,
 };
-enum class ShaderCacheAllocationHint : u8
+enum class ShaderCacheAllocationType : u8
 {
     Pipeline    = BIT(0),
     Descriptors = BIT(1),
 
     Complete = Pipeline | Descriptors,
 };
-CREATE_ENUM_FLAGS_OPERATORS(ShaderCacheAllocationHint)
+CREATE_ENUM_FLAGS_OPERATORS(ShaderCacheAllocationType)
 
 using ShaderCacheAllocateResult = std::expected<Shader, ShaderCacheError>;
 
 class ShaderCache
 {
     static constexpr std::string_view SHADER_EXTENSION = ".shader";
+    static constexpr std::string_view SHADER_EXTENSION_SLANG = ".slang_shader";
     static constexpr std::string_view SHADER_HEADER_EXTENSION = ".glsl";
 public:
-    void Init();
+    void Init(bakers::Context& bakersCtx, const bakers::SlangBakeSettings& bakeSettings);
     void Shutdown();
     void OnFrameBegin(FrameContext& ctx);
     
     ShaderCacheAllocateResult Allocate(StringId name, DescriptorArenaAllocators& allocators,
-        ShaderCacheAllocationHint allocationHint = ShaderCacheAllocationHint::Complete);
+        ShaderCacheAllocationType allocationType = ShaderCacheAllocationType::Complete);
     ShaderCacheAllocateResult Allocate(StringId name, ShaderOverridesView&& overrides,
         DescriptorArenaAllocators& allocators,
-        ShaderCacheAllocationHint allocationHint = ShaderCacheAllocationHint::Complete);
+        ShaderCacheAllocationType allocationType = ShaderCacheAllocationType::Complete);
     void AddPersistentDescriptors(StringId name, Descriptors descriptors, DescriptorsLayout descriptorsLayout);
 private:
     void InitFileWatcher();
     void LoadShaderInfos();
+    void LoadSlangShaderInfo(const std::filesystem::path& path);
 
     void HandleModifications();
     void HandleShaderModification(const std::filesystem::path& path);
@@ -82,9 +90,14 @@ private:
         auto operator<=>(const ShaderNameWithOverrides&) const = default;
     };
     std::optional<PipelineInfo> TryCreatePipeline(const ShaderNameWithOverrides& name, ShaderOverridesView& overrides,
-        ShaderCacheAllocationHint allocationHint);
+        ShaderCacheAllocationType allocationHint);
+    std::optional<PipelineInfo> TryCreateSlangPipeline(const ShaderNameWithOverrides& name, ShaderOverridesView& overrides,
+        ShaderCacheAllocationType allocationHint);
     const ShaderPipelineTemplate* GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
         const ShaderOverridesView& overrides, std::vector<std::string>& stages,
+        const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
+    const ShaderPipelineTemplate* GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
+        const ShaderOverridesView& overrides, const std::filesystem::path& path,
         const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
 private:
     struct ShaderNameWithOverridesHasher
@@ -107,7 +120,11 @@ private:
     std::unordered_map<ShaderNameWithOverrides, ShaderPipelineTemplate, ShaderNameWithOverridesHasher>
         m_ShaderPipelineTemplates;
     std::unordered_map<StringId, PipelineInfo> m_DefaultPipelines;
+    // todo: why is that a sting and not a std::filesystem::path?
     std::unordered_map<StringId, std::string> m_ShaderNameToPath;
+
+    bakers::Context* m_BakersCtx{nullptr};
+    const bakers::SlangBakeSettings* m_BakeSettings{nullptr};
 
     /* the fields below are used for hot-reloading */
     std::unordered_map<StringId, std::vector<ShaderNameWithOverrides>> m_ShaderNameToAllOverrides;

@@ -966,7 +966,6 @@ private:
     {
         using ObjectType = ShaderModuleTag;
         VkShaderModule Module{VK_NULL_HANDLE};
-        VkShaderStageFlagBits Stage{};
     };
     struct RenderingAttachmentResource
     {
@@ -2512,15 +2511,15 @@ Pipeline Device::CreatePipeline(PipelineCreateInfo&& createInfo, ::DeletionQueue
     VkPipelineLayout layout = Resources()[createInfo.PipelineLayout].Layout;
     std::vector<VkPipelineShaderStageCreateInfo> shaders;
     shaders.reserve(createInfo.Shaders.size());
-    for (auto& shader : createInfo.Shaders)
+    for (auto&& [i, shader] : std::views::enumerate(createInfo.Shaders))
     {
         auto& module = Resources()[shader];
 
         VkPipelineShaderStageCreateInfo shaderStageCreateInfo = {};
         shaderStageCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStageCreateInfo.stage = vulkanStageBitFromShaderStage(createInfo.ShaderStages[i]);
         shaderStageCreateInfo.module = module.Module;
-        shaderStageCreateInfo.stage = module.Stage;
-        shaderStageCreateInfo.pName = createInfo.ShaderEntryPoint.data();
+        shaderStageCreateInfo.pName = createInfo.ShaderEntryPoints[i].data();
 
         shaders.push_back(shaderStageCreateInfo);
     }
@@ -2727,7 +2726,6 @@ ShaderModule Device::CreateShaderModule(ShaderModuleCreateInfo&& createInfo, ::D
     DeviceResources::ShaderModuleResource shaderModuleResource = {};
     deviceCheck(vkCreateShaderModule(s_State.Device, &moduleCreateInfo, nullptr, &shaderModuleResource.Module),
          "Failed to create shader module");
-    shaderModuleResource.Stage = vulkanStageBitFromShaderStage(createInfo.Stage);
     
     ShaderModule module = Resources().AddResource(shaderModuleResource);
     deletionQueue.Enqueue(module);

@@ -85,6 +85,10 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
     m_PipelineLayout = Device::CreatePipelineLayout({
         .PushConstants = reflection.PushConstants(),
         .DescriptorsLayouts = m_DescriptorsLayouts});
+
+    m_ShaderStageCount = (u32)createInfo.ShaderEntryPoints.size();
+    std::ranges::copy(createInfo.ShaderEntryPoints, m_ShaderEntryPoints.begin());
+    std::ranges::copy(createInfo.ShaderStages, m_ShaderStages.begin());
 }
 
 std::array<bool, MAX_DESCRIPTOR_SETS> ShaderPipelineTemplate::GetSetPresence() const

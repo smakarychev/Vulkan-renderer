@@ -21,10 +21,10 @@ class DescriptorPool;
 
 struct DescriptorBinding
 {
-    u32 Binding;
-    DescriptorType Type;
-    u32 Count;
-    ShaderStage Shaders;
+    u32 Binding{};
+    DescriptorType Type{};
+    u32 Count{};
+    ShaderStage Shaders{};
     DescriptorFlags Flags{DescriptorFlags::None};
     Sampler ImmutableSampler{};
 

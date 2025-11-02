@@ -81,7 +81,14 @@ Renderer::Renderer() = default;
 void Renderer::Init()
 {
     StringIdRegistry::Init();
-    m_ShaderCache.Init();
+    m_BakerCtx = {
+        .InitialDirectory =  "../assets/shaders/slang/",
+    };
+    m_SlangBakeSettings = {
+        .IncludePaths = {"../assets/shaders/slang/raw"},
+        .UniformReflectionDirectoryName = "uniform_types",
+    };
+    m_ShaderCache.Init(m_BakerCtx, m_SlangBakeSettings);
     
     InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
@@ -126,7 +133,7 @@ void Renderer::InitRenderGraph()
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
         1024,
         m_ShaderCache.Allocate("materials"_hsv,
-            m_Graph->GetFrameAllocators(), ShaderCacheAllocationHint::Descriptors).value());
+            m_Graph->GetFrameAllocators(), ShaderCacheAllocationType::Descriptors).value());
     m_TransmittanceLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
         Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
     m_SkyViewLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(

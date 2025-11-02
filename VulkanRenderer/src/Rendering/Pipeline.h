@@ -11,6 +11,8 @@
 
 class DeletionQueue;
 
+static constexpr u32 MAX_PIPELINE_SHADER_COUNT = 5;
+
 struct PushConstantDescription
 {
     u32 SizeBytes{};
@@ -101,7 +103,8 @@ struct PipelineCreateInfo
 {
     PipelineLayout PipelineLayout{};
     Span<const ShaderModule> Shaders{};
-    std::string_view ShaderEntryPoint{"main"};
+    Span<const ShaderStage> ShaderStages{};
+    Span<const std::string> ShaderEntryPoints{};
     Span<const Format> ColorFormats{};
     Format DepthFormat{Format::Undefined};
     VertexInputDescriptionView VertexDescription{};
