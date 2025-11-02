@@ -5,6 +5,7 @@
 #include "AssetManager.h"
 #include "core.h"
 #include "Converters.h"
+#include "Bakers/Bakers.h"
 #include "Bakers/BakersUtils.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "cvars/CVarSystem.h"
@@ -60,7 +61,7 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesVi
         std::optional<PipelineInfo> pipelineInfo = std::nullopt;
         
         if (std::filesystem::path(m_ShaderNameToPath.at(nameWithOverrides.Name)).extension().string() ==
-            SHADER_EXTENSION_SLANG)
+            bakers::SHADER_ASSET_EXTENSION)
             pipelineInfo = TryCreateSlangPipeline(nameWithOverrides, overrides, allocationType);
         else
             pipelineInfo = TryCreatePipeline(nameWithOverrides, overrides, allocationType);
@@ -162,7 +163,7 @@ void ShaderCache::LoadShaderInfos()
 
         auto& path = file.path();
 
-        if (path.extension() == SHADER_EXTENSION_SLANG)
+        if (path.extension() == bakers::SHADER_ASSET_EXTENSION)
         {
             LoadSlangShaderInfo(path);
             continue;

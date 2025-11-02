@@ -49,7 +49,6 @@ using ShaderCacheAllocateResult = std::expected<Shader, ShaderCacheError>;
 class ShaderCache
 {
     static constexpr std::string_view SHADER_EXTENSION = ".shader";
-    static constexpr std::string_view SHADER_EXTENSION_SLANG = ".slang_shader";
     static constexpr std::string_view SHADER_HEADER_EXTENSION = ".glsl";
 public:
     void Init(bakers::Context& bakersCtx, const bakers::SlangBakeSettings& bakeSettings);
