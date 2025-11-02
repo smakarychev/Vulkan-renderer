@@ -55,7 +55,8 @@ project "AssetConverter"
             "slang.lib",
         }
         postbuildcommands { 
-            "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{wks.location}/tools/bin/AssetConverter/ > nul" 
+            "{COPYDIR} %{cfg.buildtarget.directory}*.exe %{tools_bindir}%{prj.name}/ > nul",
+            "{COPYDIR} %{prj.location.directory}resources/* %{tools_bindir}%{prj.name}/ > nul" 
         }
     
 project "AssetConverterLib"
