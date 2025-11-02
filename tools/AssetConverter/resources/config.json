@@ -1,5 +1,5 @@
 {
   "shaderBakerSettings": {
-    "includeDirectory": "../../assets/shaders/slang/raw"
+    "includeDirectory": "../../../assets/shaders/slang/raw"
   }
 }
