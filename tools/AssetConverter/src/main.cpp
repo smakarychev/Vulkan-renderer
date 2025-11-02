@@ -81,7 +81,7 @@ i32 main(i32 argc, char** argv)
 
         bakers::BakersDispatcher dispatcher(file);
         
-        dispatcher.Dispatch({SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
+        dispatcher.Dispatch({bakers::SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
             bakers::Slang baker;
             auto baked = baker.BakeToFile(path, shaderBakeSettings, bakerContext);
             if (!baked)
