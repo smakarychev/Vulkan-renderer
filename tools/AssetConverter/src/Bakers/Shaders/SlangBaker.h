@@ -9,10 +9,10 @@ namespace bakers
 {
 struct SlangBakeSettings
 {
-    std::vector<std::pair<std::string, std::string>> Defines;
+    Span<const std::pair<std::string, std::string>> Defines;
     u64 DefinesHash{0};
     std::vector<std::string> IncludePaths;
-    std::string UniformReflectionDirectoryName{};
+    std::string UniformReflectionDirectoryName{"uniform_types"};
 };
 
 class Slang
@@ -21,7 +21,8 @@ public:
     static std::filesystem::path GetBakedPath(const std::filesystem::path& originalFile,
         const SlangBakeSettings& settings, const Context& ctx);
     
-    IoResult<void> BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings, const Context& ctx);
+    IoResult<assetlib::ShaderAsset> BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
+        const Context& ctx);
 
     IoResult<assetlib::ShaderAsset> Bake(const std::filesystem::path& path, const SlangBakeSettings& settings,
         const Context& ctx);

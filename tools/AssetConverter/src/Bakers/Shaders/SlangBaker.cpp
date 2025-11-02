@@ -152,7 +152,7 @@ assetlib::ShaderUniformTypeKind slangTypeKindToTypeKind(slang::TypeReflection::K
     case DynamicResource: return assetlib::ShaderUniformTypeKind::DynamicResource;
     default:
         ASSERT(false)
-        return assetlib::ShaderUniformTypeKind::None;;
+        return assetlib::ShaderUniformTypeKind::None;
     }
 }
 
@@ -494,8 +494,13 @@ private:
 
     void ReflectStruct(slang::TypeLayoutReflection* typeLayout)
     {
+        const u32 currentBinding = GetLastBinding();
+        const u32 currentIndex = (u32)m_InputAttributes.size();
         for (u32 i = 0; i < typeLayout->getFieldCount(); i++)
             ReflectVariableLayout(typeLayout->getFieldByIndex(i));
+
+        for (u32 i = currentIndex; i < m_InputAttributes.size(); i++)
+            m_InputAttributes[i].Binding = currentBinding + 1;
     }
 
     void ReflectArray(slang::TypeLayoutReflection* typeLayout)
@@ -513,6 +518,7 @@ private:
             for (u32 inputIndex = 0; inputIndex < newInputs; inputIndex++)
             {
                 auto input = m_InputAttributes[currentInputIndex + inputIndex];
+                input.Binding = GetLastBinding() + 1;
                 input.Location = (u32)m_InputAttributes.size();
                 m_InputAttributes.push_back(input);
             }
@@ -531,6 +537,7 @@ private:
         {
             m_InputAttributes.push_back({
                 .Name = m_CurrentName,
+                .Binding = GetLastBinding() + 1,
                 .Location = (u32)m_InputAttributes.size(),
                 .ElementCount = colCount,
                 .ElementScalar = slangScalarTypeToScalarType(typeLayout->getElementTypeLayout()->getScalarType())
@@ -545,6 +552,7 @@ private:
 
         m_InputAttributes.push_back({
             .Name = m_CurrentName,
+            .Binding = GetLastBinding() + 1,
             .Location = (u32)m_InputAttributes.size(),
             .ElementCount = (u32)typeLayout->getElementCount(),
             .ElementScalar = slangScalarTypeToScalarType(typeLayout->getElementTypeLayout()->getScalarType())
@@ -558,10 +566,16 @@ private:
 
         m_InputAttributes.push_back({
             .Name = m_CurrentName,
+            .Binding = GetLastBinding() + 1,
             .Location = (u32)m_InputAttributes.size(),
             .ElementCount = 1,
             .ElementScalar = slangScalarTypeToScalarType(typeLayout->getScalarType())
         });
+    }
+
+    u32 GetLastBinding() const
+    {
+        return m_InputAttributes.empty() ? 0 : m_InputAttributes.back().Binding;
     }
 private:
     std::vector<assetlib::ShaderInputAttribute> m_InputAttributes;
@@ -1023,12 +1037,12 @@ std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& originalF
     return path;
 }
 
-IoResult<void> Slang::BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
+IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
     const Context& ctx)
 {
     auto baked = Bake(path, settings, ctx);
     if (!baked.has_value())
-        return std::unexpected(baked.error());
+        return baked;
 
     const AssetPaths paths = convertPathsToDefineAwarePaths(
         getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType), settings.DefinesHash);
@@ -1050,15 +1064,22 @@ IoResult<void> Slang::BakeToFile(const std::filesystem::path& path, const SlangB
     assetFile.Metadata = assetlib::shader::generateMetadata(path.string());
     assetFile.AssetSpecificInfo = std::move(*shaderHeader);    
 
+    IoResult<void> saveResult = {};
     switch (ctx.IoType)
     {
     case assetlib::AssetFileIoType::Separate:
-        return assetlib::io::saveAssetFile(assetFile, spirv);
+        saveResult = assetlib::io::saveAssetFile(assetFile, spirv);
+        break;
     case assetlib::AssetFileIoType::Combined:
-        return assetlib::io::saveAssetFileCombined(assetFile, spirv);
+        saveResult = assetlib::io::saveAssetFileCombined(assetFile, spirv);
+        break;
     default:
         return std::unexpected(IoError{IoError::ErrorCode::GeneralError, "Unknown io type"});
     }
+    if (!saveResult.has_value())
+        return std::unexpected(saveResult.error());
+
+    return baked;
 }
 
 IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,

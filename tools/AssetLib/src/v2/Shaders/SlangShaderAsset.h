@@ -98,6 +98,12 @@ enum class ShaderScalarType : u8
 struct ShaderInputAttribute
 {
     std::string Name{};
+    /*
+     * generally, every attribute has its own binding
+     * structs have implicit behaviour: every field in the struct is assumed to be the same binding slot
+     * this way, it is possible to describe both interleaved and separated input arguments
+     */
+    u32 Binding{};
     u32 Location{};
     u32 ElementCount{};
     ShaderScalarType ElementScalar{ShaderScalarType::None};
