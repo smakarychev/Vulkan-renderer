@@ -380,6 +380,19 @@ struct Writer
                 formatFromShaderImageFormat(*rasterization.Depth)));
     }
 
+    void WriteGroupSizeInfo(const std::vector<assetlib::ShaderEntryPoint>& entryPoints)
+    {
+        for (auto& entry : entryPoints)
+        {
+            if (entry.ShaderStage != assetlib::ShaderStage::Compute)
+                continue;
+
+            WriteLine(std::format("static glm::uvec3 Get{}GroupSize() {{ return glm::uvec3{{{}, {}, {}}}; }}",
+               utils::canonicalizeName(entry.Name),
+               entry.ThreadGroupSize.x, entry.ThreadGroupSize.y, entry.ThreadGroupSize.z));
+        }
+    }
+
     void BeginForLoop(std::string_view count)
     {
         WriteLine(std::format("for (u32 i = 0; i < {}; i++)", count));
@@ -408,16 +421,17 @@ struct Writer
         Push();
     }
 
-    void WriteBindDescriptors()
+    void WriteBindDescriptorsType(const assetlib::ShaderHeader& shader, const std::string& type)
     {
-        WriteLine(
-            "void BindDescriptors(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators) const");
+        WriteLine(std::format(
+            "void Bind{}Descriptors(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators) const",
+            type));
         WriteLine("{");
         Push();
         if (Counts.Samplers > 0)
         {
             BeginForLoop("m_SamplerCount");
-            WriteLine("auto& binding = m_SamplerBindings[i];");
+            WriteLine("const auto& binding = m_SamplerBindings[i];");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = DescriptorType::Sampler}, sampler);");
             EndForLoop();
@@ -425,7 +439,7 @@ struct Writer
         if (Counts.Buffers > 0)
         {
             BeginForLoop("m_BufferCount");
-            WriteLine("auto& binding = m_BufferBindings[i];");
+            WriteLine("const auto& binding = m_BufferBindings[i];");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
                 "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
@@ -442,8 +456,8 @@ struct Writer
         if (Counts.Images > 0)
         {
             BeginForLoop("m_ImageCount");
-            WriteLine("auto& binding = m_ImageBindings[i];");
-            WriteLine("auto& image = Graph->GetImageBinding(binding.Resource);");
+            WriteLine("const auto& binding = m_ImageBindings[i];");
+            WriteLine("const auto& image = Graph->GetImageBinding(binding.Resource);");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
                 "image.Subresource, image.Layout, binding.ArrayOffset);");
@@ -452,11 +466,29 @@ struct Writer
         if (HasBindlessImages)
         {
             BeginForEachLoop("m_ImageBindlessBindings");
-            WriteLine("auto& image = Graph->GetImageBinding(binding.Resource);");
+            WriteLine("const auto& image = Graph->GetImageBinding(binding.Resource);");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
                 "image.Subresource, image.Layout, binding.ArrayOffset);");
             EndForLoop();
+        }
+        for (auto&& [i, set] : std::views::enumerate(shader.BindingSets))
+        {
+            const bool hasImmutableSampler = std::ranges::any_of(set.Bindings, 
+                [](const assetlib::ShaderBinding& binding) {
+                    return enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::ImmutableSampler);
+                });
+            if (hasImmutableSampler)
+                WriteLine(std::format(
+                    "cmdList.BindImmutableSamplers{}({{"
+                    ".Descriptors = Shader->Descriptors({}), .PipelineLayout = Shader->GetLayout(), .Set = {}}});",
+                    type, set.Set, set.Set));
+            else
+                WriteLine(std::format(
+                    "cmdList.BindDescriptors{}({{"
+                    ".Descriptors = Shader->Descriptors({}), .Allocators = &allocators, "
+                    ".PipelineLayout = Shader->GetLayout(), .Set = {}}});",
+                    type, set.Set, set.Set));
         }
         Pop();
         WriteLine("}");
@@ -470,24 +502,9 @@ struct Writer
         WriteLine("{");
         Push();
         WriteLine(std::format("cmdList.BindPipeline{}({{.Pipeline = Shader->Pipeline()}});", type));
-        WriteLine("BindDescriptors(cmdList, allocators);");
+        WriteLine(std::format("Bind{}Descriptors(cmdList, allocators);", type));
         Pop();
         WriteLine("}");
-    }
-
-    void WriteBind(const std::vector<assetlib::ShaderEntryPoint>& entryPoints)
-    {
-        bool hasGraphics = false;
-        bool hasCompute = false;
-        for (auto& entry : entryPoints)
-        {
-            hasGraphics = hasGraphics || entry.ShaderStage != assetlib::ShaderStage::Compute;
-            hasCompute = hasCompute || entry.ShaderStage == assetlib::ShaderStage::Compute;
-        }
-        if (hasGraphics)
-            WriteBindPipelineType("Graphics");
-        if (hasCompute)
-            WriteBindPipelineType("Compute");
     }
 
     void WriteResourceContainers()
@@ -531,6 +548,23 @@ std::string SlangGenerator::GenerateCommonFile() const
 
 struct BindGroupBaseRG
 {
+    struct SamplerBindingInfoRG
+    {
+        u32 Set{0};
+        u32 Slot{0};
+        Sampler Sampler{};
+    };
+    struct BindingInfoRG
+    {
+        u32 Set{0};
+        u32 Slot{0};
+        DescriptorType DescriptorType{};
+        RG::Resource Resource{};
+        u32 ArrayOffset{0};
+    };
+    using BufferBindingInfoRG = BindingInfoRG;
+    using ImageBindingInfoRG = BindingInfoRG;
+
     BindGroupBaseRG() = default;
     BindGroupBaseRG(RG::Graph& graph, const Shader& shader)
         : Graph(&graph), Shader(&shader) {}
@@ -577,6 +611,8 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
     std::vector<std::pair<std::string, std::string>> uniformsTypeAndParameterNamesForSet(shader.BindingSets.size());
     for (auto& set : shader.BindingSets)
     {
+        if (set.UniformType.empty())
+            continue;
         auto uniformResult = m_UniformTypeGenerator->Generate(set.UniformType);
         if (!uniformResult.has_value())
             return std::unexpected(uniformResult.error());
@@ -642,9 +678,26 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
     }
     if (shaderLoadInfo->RasterizationInfo.has_value())
         writer.WriteRasterizationInfo(*shaderLoadInfo->RasterizationInfo);
-    writer.WriteBind(shader.EntryPoints);
+    writer.WriteGroupSizeInfo(shader.EntryPoints);
+    
+    bool hasGraphics = false;
+    bool hasCompute = false;
+    for (auto& entry : shader.EntryPoints)
+    {
+        hasGraphics = hasGraphics || entry.ShaderStage != assetlib::ShaderStage::Compute;
+        hasCompute = hasCompute || entry.ShaderStage == assetlib::ShaderStage::Compute;
+    }
+
+    if (hasGraphics)
+        writer.WriteBindPipelineType("Graphics");
+    if (hasCompute)
+        writer.WriteBindPipelineType("Compute");
+    
     writer.WriteBeginPrivate();
-    writer.WriteBindDescriptors();
+    if (hasGraphics)
+        writer.WriteBindDescriptorsType(shader, "Graphics");
+    if (hasCompute)
+        writer.WriteBindDescriptorsType(shader, "Compute");
     writer.WriteResourceContainers();
     writer.Pop();
     writer.WriteLine("};");

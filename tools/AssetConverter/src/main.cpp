@@ -8,13 +8,17 @@
 #include <filesystem>
 #include <glaze/glaze.hpp>
 
+namespace fs = std::filesystem;
+
 struct ShaderBakerSettings
 {
     std::filesystem::path IncludeDirectory{};
+    std::string ShadersDirectoryName{"shaders/"};
 };
 
 struct Config
 {
+    std::filesystem::path InitialDirectory{};
     std::optional<ShaderBakerSettings> ShaderBakerSettings{std::nullopt};
 };
 
@@ -44,16 +48,6 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
 
 i32 main(i32 argc, char** argv)
 {
-    namespace fs = std::filesystem;
-    if (argc < 2)
-    {
-        LOG("Usage: AssetConverter <directory>");
-        return 1;
-    }
-
-    AssetConverter::BakeDirectory(std::filesystem::weakly_canonical(argv[1]));
-
-    
     fs::current_path(platform::getExecutablePath().parent_path());
     const fs::path configPath = "config.json";
     if (!fs::exists(configPath))
@@ -65,16 +59,15 @@ i32 main(i32 argc, char** argv)
     std::optional<Config> config = readConfig(configPath);
     if (!config)
         return 1;
-    
-    
-    const std::filesystem::path initialDirectory = argv[1];
+
+    auto shaderBakerSettings = config->ShaderBakerSettings.value_or(ShaderBakerSettings{});
     bakers::Context bakerContext{
-        .InitialDirectory = initialDirectory,
+        .InitialDirectory = config->InitialDirectory / shaderBakerSettings.ShadersDirectoryName,
     };
     bakers::SlangBakeSettings shaderBakeSettings{
-        .IncludePaths = {config->ShaderBakerSettings.value_or(ShaderBakerSettings{}).IncludeDirectory.string()},
+        .IncludePaths = {shaderBakerSettings.IncludeDirectory.string()},
     };
-    for (const auto& file : fs::recursive_directory_iterator(initialDirectory))
+    for (const auto& file : fs::recursive_directory_iterator(config->InitialDirectory))
     {
         if (file.is_directory())
             continue;
@@ -90,4 +83,12 @@ i32 main(i32 argc, char** argv)
                 LOG("Baked shader file: {}", path.string());
         });
     }
+    
+    if (argc < 2)
+    {
+        LOG("Usage: AssetConverter <directory>");
+        return 1;
+    }
+
+    AssetConverter::BakeDirectory(std::filesystem::weakly_canonical(argv[1]));
 }

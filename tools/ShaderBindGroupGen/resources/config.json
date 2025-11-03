@@ -1,5 +1,5 @@
 {
-  "shadersPath": "../../../assets/shaders/",
-  "generationPath": "../../../VulkanRenderer/src/RenderGraph/Passes/Generated/",
+  "shadersPath": "../../../assets/shaders",
+  "generationPath": "../../../VulkanRenderer/src/RenderGraph/Passes/Generated",
   "uniformSearchPath": "../../../assets/shaders/uniform_types"
 }

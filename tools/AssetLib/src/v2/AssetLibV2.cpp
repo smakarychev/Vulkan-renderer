@@ -90,8 +90,8 @@ namespace io
 {
 IoResult<void> saveAssetFile(const AssetFile& file, Span<const std::byte> binaryData)
 {
-    const auto& headerPath = file.IoInfo.HeaderFile;
-    const auto& binaryPath = file.IoInfo.BinaryFile;
+    const fs::path& headerPath = file.IoInfo.HeaderFile;
+    const fs::path& binaryPath = file.IoInfo.BinaryFile;
     ASSETLIB_CHECK_RETURN_IO_ERROR(!headerPath.empty() && !binaryPath.empty(), IoError::ErrorCode::FailedToCreate,
         "Assetlib: File paths are not set: header: {}, binary: {}", headerPath.string(), binaryPath.string())
     
@@ -156,7 +156,7 @@ IoResult<AssetBinary> loadAssetFileBinaries(const AssetFile& file)
 
 IoResult<AssetBinary> loadAssetFileBinaries(const AssetFile& file, u64 offsetBytes, u64 sizeBytes)
 {
-    const fs::path binaryPath = file.IoInfo.BinaryFile;
+    const fs::path& binaryPath = file.IoInfo.BinaryFile;
 
     std::ifstream binaryIn(binaryPath, std::ios::binary | std::ios::ate);
     ASSETLIB_CHECK_RETURN_IO_ERROR(binaryIn.good(), IoError::ErrorCode::FailedToOpen,
@@ -180,7 +180,7 @@ IoResult<void> saveAssetFileCombined(const AssetFile& file, Span<const std::byte
     ASSETLIB_CHECK_RETURN_IO_ERROR(file.IoInfo.HeaderFile == file.IoInfo.BinaryFile, IoError::ErrorCode::FailedToCreate,
         "Assetlib: File paths for combined assets have to be equal")
 
-    const fs::path path = file.IoInfo.HeaderFile;
+    const fs::path& path = file.IoInfo.HeaderFile;
     ASSETLIB_CHECK_RETURN_IO_ERROR(!path.empty(), IoError::ErrorCode::FailedToCreate, "Assetlib: File path is not set")
     
     const bool success = fs::exists(fs::path(path).parent_path()) ||
@@ -272,7 +272,7 @@ IoResult<AssetBinary> loadAssetFileCombinedBinaries(const AssetFile& file)
 IoResult<AssetBinary> loadAssetFileCombinedBinaries(const AssetFile& file, u64 offsetBytes, u64 sizeBytes)
 {
     const isize headerSizeBytes = (isize)file.IoInfo.HeaderSizeBytes;
-    const fs::path binaryPath = file.IoInfo.BinaryFile;
+    const fs::path& binaryPath = file.IoInfo.BinaryFile;
 
     std::ifstream binaryIn(binaryPath, std::ios::binary);
     ASSETLIB_CHECK_RETURN_IO_ERROR(binaryIn.good(), IoError::ErrorCode::FailedToOpen,

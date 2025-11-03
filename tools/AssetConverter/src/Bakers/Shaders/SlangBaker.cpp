@@ -639,7 +639,7 @@ class ShaderReflector
 {
 public:
     ShaderReflector(const Context& ctx, const SlangBakeSettings& settings) : m_Ctx(&ctx), m_Settings(&settings) {}
-    assetlib::ShaderHeader Reflect(std::vector<slang::IModule*>& modules, slang::IComponentType* program,
+    IoResult<assetlib::ShaderHeader> Reflect(std::vector<slang::IModule*>& modules, slang::IComponentType* program,
         const std::vector<::Slang::ComPtr<slang::IMetadata>>& entryPointMetadata)
     {
         slang::ProgramLayout* layout = program->getLayout();
@@ -660,6 +660,9 @@ public:
         
         assetlib::ShaderHeader shaderInfo = std::move(m_ShaderInfo);
         m_ShaderInfo = {};
+
+        if (m_Error.has_value())
+            return std::unexpected(*m_Error);
 
         return shaderInfo;
     }
@@ -724,7 +727,8 @@ private:
         {
             for (i32 i = 0; i < module->getDependencyFileCount(); i++)
             {
-                std::string dependency = module->getDependencyFilePath(i);
+                std::string dependency =
+                    std::filesystem::weakly_canonical(module->getDependencyFilePath(i)).generic_string();
                 const auto it = std::ranges::find(m_ShaderInfo.Includes, dependency);
                 if (it != m_ShaderInfo.Includes.end())
                     continue;
@@ -770,6 +774,10 @@ private:
             
             if (!m_CurrentBindings.empty())
             {
+                const bool isValid = ValidateBindings(m_CurrentBindings);
+                if (!isValid)
+                    return;
+                
                 m_ShaderInfo.BindingSets.push_back({
                     .Set = (u32)m_ShaderInfo.BindingSets.size(),
                     .Bindings = std::move(m_CurrentBindings),
@@ -997,8 +1005,31 @@ private:
         return glm::uvec3(group[0], group[1], group[2]);
     }
 
-    assetlib::ShaderHeader m_ShaderInfo{};
+    bool ValidateBindings(const std::vector<assetlib::ShaderBinding>& bindings) const
+    {
+        const bool hasImmutableSampler = std::ranges::any_of(bindings, 
+            [](const assetlib::ShaderBinding& binding) {
+                return enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::ImmutableSampler);
+            });
+        const bool hasOnlyImmutableSamplers = std::ranges::all_of(bindings, 
+            [](const assetlib::ShaderBinding& binding) {
+                return enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::ImmutableSampler);
+            });
 
+        const bool isValidImmutableSamplers = !hasImmutableSampler || hasOnlyImmutableSamplers;
+        if (!isValidImmutableSamplers)
+        {
+            IoError error = m_Error.value_or(IoError{});
+            error.Code = IoError::ErrorCode::GeneralError;
+            error.Message = "Invalid bindings configuration. "
+                            "If parameter group has immutable samplers, it must not have bindings of any other type";
+        }
+
+        return isValidImmutableSamplers;
+    }
+
+    assetlib::ShaderHeader m_ShaderInfo{};
+    std::optional<IoError> m_Error{std::nullopt};
     std::vector<assetlib::ShaderBinding> m_CurrentBindings;
     assetlib::ShaderStage m_CurrentShaderStages{assetlib::ShaderStage::None};
     std::stack<ParameterBlockInfo> m_ParameterBlocksToReflect;
@@ -1110,13 +1141,13 @@ IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& p
     
     assetlib::AssetFile assetFile = {};
     assetFile.IoInfo = {
-        .HeaderFile = paths.HeaderPath.generic_string(),
-        .BinaryFile = paths.BinaryPath.generic_string(),
+        .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
+        .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
         .BinarySizeBytes = baked->Spirv.size(),
         .BinarySizeBytesCompressed = spirv.size(),
         .CompressionMode = ctx.CompressionMode,
     };
-    assetFile.Metadata = assetlib::shader::generateMetadata(path.generic_string());
+    assetFile.Metadata = assetlib::shader::generateMetadata(std::filesystem::weakly_canonical(path).generic_string());
     assetFile.AssetSpecificInfo = std::move(*shaderHeader);    
 
     IoResult<void> saveResult = {};
@@ -1208,11 +1239,13 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,
             "Shader::Bake: failed to get shader entry point metadata: {} ({})",
             (const char*)diagnosticsBlob->getBufferPointer(), path.string())
     }
-    
 
     ShaderReflector reflector(ctx, settings);
     assetlib::ShaderAsset shaderAsset = {};
-    shaderAsset.Header = reflector.Reflect(shaderModules, linkedProgram, entryPointMetadata);
+    auto reflectedHeader = reflector.Reflect(shaderModules, linkedProgram, entryPointMetadata);
+    CHECK_RETURN_IO_ERROR(reflectedHeader.has_value(), IoError::ErrorCode::GeneralError,
+           "Shader::Bake: failed to reflect shader: {} ({})", reflectedHeader.error(), path.string())
+    shaderAsset.Header = std::move(*reflectedHeader);
     shaderAsset.Header.Name = loadInfo->Name;
     shaderAsset.Spirv.resize(spirvCode->getBufferSize());
     memcpy(shaderAsset.Spirv.data(), spirvCode->getBufferPointer(), spirvCode->getBufferSize());

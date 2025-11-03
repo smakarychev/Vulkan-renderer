@@ -82,7 +82,7 @@ void Renderer::Init()
 {
     StringIdRegistry::Init();
     m_BakerCtx = {
-        .InitialDirectory =  "../assets/shaders/slang/",
+        .InitialDirectory = *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv),
     };
     m_SlangBakeSettings = {
         .IncludePaths = {"../assets/shaders/slang/raw"},
