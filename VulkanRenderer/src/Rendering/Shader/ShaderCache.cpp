@@ -224,7 +224,9 @@ void ShaderCache::HandleModifications()
         const std::string extension = file.extension().string();
         if (extension == SHADER_EXTENSION)
             HandleShaderModification(file);
-        else if (ShaderStageConverter::WatchesExtension(extension))
+        else if (
+            ShaderStageConverter::WatchesExtension(extension) ||
+            bakers::SHADER_ASSET_RAW_EXTENSION == extension)
             HandleStageModification(file);
         else if (extension == SHADER_HEADER_EXTENSION)
             HandleHeaderModification(file);
