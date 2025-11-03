@@ -65,6 +65,10 @@ slang::ISession& getSession(const SlangBakeSettings& settings)
             .name = slang::CompilerOptionName::VulkanUseEntryPointName,
             .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = true}
         },
+        slang::CompilerOptionEntry{
+            .name = slang::CompilerOptionName::GLSLForceScalarLayout,
+            .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = true}
+        },
     };
 
     std::vector<slang::PreprocessorMacroDesc> macros(settings.Defines.size());
