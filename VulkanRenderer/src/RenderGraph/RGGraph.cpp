@@ -1650,22 +1650,25 @@ namespace RG
         return m_Blackboard.Get<GlobalResources>();
     }
 
-    void Graph::SetShader(StringId name) const
+    const Shader& Graph::SetShader(StringId name) const
     {
-        SetShader(name, {});
+        return SetShader(name, {});
     }
 
-    void Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
+    const Shader& Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
     {
         const auto res = m_ShaderCache->Allocate(name, std::move(overrides), GetFrameAllocators());
         if (!res.has_value())
         {
+            static constexpr Shader DUMMY = {};
             LOG("Error while setting shader {}. Pass will be disabled", name);
             CurrentPass().m_Flags |= PassFlags::Disabled;
-            return;
+            return DUMMY;
         }
 
         CurrentPass().m_Shader = res.value();
+        
+        return GetShader();
     }
 
     const Shader& Graph::GetShader() const
