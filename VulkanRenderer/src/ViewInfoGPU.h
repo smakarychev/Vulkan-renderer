@@ -101,7 +101,9 @@ struct ViewInfoGPU
     CameraGPU Camera{};
     CameraGPU PreviousCamera{};
     AtmosphereSettings Atmosphere{};
+    u32 Padding[3]{};
     ShadingSettings ShadingSettings{};
     f32 FrameNumber{0.0f};
     u32 FrameNumberU32{0};
+    u32 Padding3[2]{};
 };

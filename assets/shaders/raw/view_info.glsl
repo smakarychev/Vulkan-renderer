@@ -75,7 +75,7 @@ struct ViewInfo {
     float rayleigh_density;
     float mie_density;
     float ozone_density;
-
+    uint unused_3[3];
     
 
     float environment_power;
@@ -92,4 +92,5 @@ struct ViewInfo {
     
     float frame_number;
     uint frame_number_u32;
+    uint unused5[2];
 };
