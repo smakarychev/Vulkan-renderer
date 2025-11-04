@@ -4,8 +4,7 @@
 
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
-#include "RenderGraph/Passes/Generated/SsaoBlurBindGroup.generated.h"
-#include "Rendering/Shader/ShaderCache.h"
+#include "RenderGraph/Passes/Generated/SsaoBlurBindGroupRG.generated.h"
 
 Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
@@ -13,40 +12,36 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    using PassDataBind = PassDataWithBind<PassData, SsaoBlurBindGroupRG>;
+
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("SSAO.Blur.Setup")
 
-            graph.SetShader("ssao-blur"_hsv, ShaderDefines({
-                    ShaderDefine{"VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}
-            }));
-            
-            passData.SsaoOut = RgUtils::ensureResource(info.SsaoOut, graph, "ColorOut"_hsv,
-                RGImageDescription{
+            passData.BindGroup = SsaoBlurBindGroupRG(graph, graph.SetShader("ssaoBlur"_hsv, ShaderDefines({
+                ShaderDefine{"VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}
+            })));
+
+            passData.SsaoIn = passData.BindGroup.SetResourcesSsao(info.SsaoIn);
+            passData.SsaoOut= passData.BindGroup.SetResourcesSsaoBlurred(
+                RgUtils::ensureResource(info.SsaoOut, graph, "ColorOut"_hsv, RGImageDescription{
                     .Inference = RGImageInference::Size,
                     .Reference = info.SsaoIn,
-                    .Format = Format::R8_UNORM});
-
-            passData.SsaoIn = graph.ReadImage(info.SsaoIn, Compute | Sampled);
-            passData.SsaoOut = graph.WriteImage(passData.SsaoOut, Compute | Storage);
+                    .Format = Format::R8_UNORM
+            }));
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("SSAO.Blur")
             GPU_PROFILE_FRAME("SSAO.Blur")
             
-            auto&& [ssaoIn, ssaoInDescription] = graph.GetImageWithDescription(passData.SsaoIn);
+            auto& ssaoInDescription = graph.GetImageDescription(passData.SsaoIn);
 
-            const Shader& shader = graph.GetShader();
-            SsaoBlurShaderBindGroup bindGroup(shader);
-            bindGroup.SetSsao(graph.GetImageBinding(passData.SsaoIn));
-            bindGroup.SetSsaoBlurred(graph.GetImageBinding(passData.SsaoOut));
-            
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
-				.GroupSize = {8, 8, 1}});
+				.GroupSize = passData.BindGroup.GetMainGroupSize()});
         });
 }
