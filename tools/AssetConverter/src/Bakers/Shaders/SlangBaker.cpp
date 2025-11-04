@@ -48,11 +48,16 @@ slang::ISession& getSession(const SlangBakeSettings& settings)
     static const SlangProfileID PROFILE_ID = getGlobalSession().findProfile("spirv_1_5");
 
     if (sessions.contains(settings.DefinesHash))
-        return *sessions.at(settings.DefinesHash);
+    {
+        if (!settings.EnableHotReloading)
+            return *sessions.at(settings.DefinesHash);
+        sessions.erase(settings.DefinesHash);
+    }
 
     slang::TargetDesc targetDesc = {
         .format = SLANG_SPIRV,
         .profile = PROFILE_ID,
+        .forceGLSLScalarBufferLayout = true,
     };
 
     std::array options =

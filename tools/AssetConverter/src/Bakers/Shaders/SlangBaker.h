@@ -13,6 +13,7 @@ struct SlangBakeSettings
     u64 DefinesHash{0};
     std::vector<std::string> IncludePaths;
     std::string UniformReflectionDirectoryName{"uniform_types"};
+    bool EnableHotReloading{false};
 };
 
 class Slang

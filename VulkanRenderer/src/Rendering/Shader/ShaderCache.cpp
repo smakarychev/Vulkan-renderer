@@ -676,7 +676,8 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(const Shade
     bakers::SlangBakeSettings settings = {
         .Defines = defines,
         .DefinesHash = overrides.Defines.Hash,
-        .IncludePaths = m_BakeSettings->IncludePaths
+        .IncludePaths = m_BakeSettings->IncludePaths,
+        .EnableHotReloading = (bool)CVars::Get().GetI32CVar("Renderer.Shaders.HotReload"_hsv).value_or(true)
     };
     auto baked = baker.BakeToFile(path, settings, *m_BakersCtx);
     if (!baked)

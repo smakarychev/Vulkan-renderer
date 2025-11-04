@@ -5,14 +5,11 @@
 #include "FrameContext.h"
 #include "Core/Camera.h"
 #include "imgui/imgui.h"
-#include "Rendering/Shader/ShaderCache.h"
 #include "Math/Random.h"
 #include "Math/CoreMath.h"
-#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGCommon.h"
 #include "Rendering/Image/ImageUtility.h"
-
-#include "RenderGraph/Passes/Generated/SsaoBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/SsaoBindGroupRG.generated.h"
 
 namespace
 {
@@ -82,7 +79,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
         Buffer SamplesBuffer{};
     };
 
-    struct PassDataPrivate : PassData
+    struct PassDataPrivate : PassDataWithBind<PassData, SsaoBindGroupRG>
     {
         Resource Depth{};
         Resource NoiseTexture{};
@@ -95,10 +92,10 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
         [&](Graph& graph, PassDataPrivate& passData)
         {
             CPU_PROFILE_FRAME("SSAO.Setup")
-            
-            graph.SetShader("ssao"_hsv,
-                ShaderSpecializations{
-                    ShaderSpecialization{"MAX_SAMPLES"_hsv, MAX_SAMPLES_COUNT}});
+
+            passData.BindGroup = SsaoBindGroupRG(graph, graph.SetShader("ssao"_hsv, ShaderDefines({
+                ShaderDefine("MAX_SAMPLES"_hsv, MAX_SAMPLES_COUNT)
+            })));
             
             if (!graph.TryGetBlackboardValue<Samples>())
             {
@@ -107,24 +104,21 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
                 graph.UpdateBlackboard(samples);
             }
             Samples& samples = graph.GetBlackboardValue<Samples>();
-            
-            passData.NoiseTexture = graph.Import("NoiseTexture"_hsv, samples.NoiseTexture, ImageLayout::Readonly);
-            passData.Settings = graph.Create("Settings"_hsv, RGBufferDescription{
-                .SizeBytes = sizeof(SettingsUBO)});
-            passData.Samples = graph.Import("Samples"_hsv, samples.SamplesBuffer);
-            passData.SSAO = graph.Create("SSAO"_hsv, RGImageDescription{
-                .Inference = RGImageInference::Size2d,
-                .Reference = info.Depth,
-                .Format = Format::R8_UNORM});
 
             auto& globalResources = graph.GetGlobalResources();
-            
-            passData.Depth = graph.ReadImage(info.Depth, Compute | Sampled);
-            passData.NoiseTexture = graph.ReadImage(passData.NoiseTexture, Compute | Sampled);
-            passData.Settings = graph.ReadBuffer(passData.Settings, Compute | Uniform);
-            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Compute | Uniform);
-            passData.Samples = graph.ReadBuffer(passData.Samples, Compute | Uniform);
-            passData.SSAO = graph.WriteImage(passData.SSAO, Compute | Storage);
+            passData.NoiseTexture = passData.BindGroup.SetResourcesNoise(
+                graph.Import("NoiseTexture"_hsv, samples.NoiseTexture, ImageLayout::Readonly));
+            passData.Settings = passData.BindGroup.SetResourcesSettings(
+                graph.Create("Settings"_hsv, RGBufferDescription{.SizeBytes = sizeof(SettingsUBO)}));
+            passData.Samples = passData.BindGroup.SetResourcesSamples(
+                graph.Import("Samples"_hsv, samples.SamplesBuffer));
+            passData.SSAO = passData.BindGroup.SetResourcesSsao(graph.Create("SSAO"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Size2d,
+                .Reference = info.Depth,
+                .Format = Format::R8_UNORM
+            }));
+            passData.Depth = passData.BindGroup.SetResourcesDepth(info.Depth);
+            passData.ViewInfo = passData.BindGroup.SetResourcesView(globalResources.PrimaryViewInfoResource);
 
             auto& settings = graph.GetOrCreateBlackboardValue<SettingsUBO>();
             ImGui::Begin("AO settings");
@@ -142,14 +136,6 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             auto& noiseDescription = graph.GetImageDescription(passData.NoiseTexture);
             auto& ssaoDescription = graph.GetImageDescription(passData.SSAO);
             
-            const Shader& shader = graph.GetShader();SsaoShaderBindGroup bindGroup(shader);
-            bindGroup.SetSettings(graph.GetBufferBinding(passData.Settings));
-            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
-            bindGroup.SetSamples(graph.GetBufferBinding(passData.Samples));
-            bindGroup.SetDepthTexture(graph.GetImageBinding(passData.Depth));
-            bindGroup.SetNoiseTexture(graph.GetImageBinding(passData.NoiseTexture));
-            bindGroup.SetSsao(graph.GetImageBinding(passData.SSAO));
-
             struct PushConstants
             {
                 glm::vec2 SsaoSizeInverse;
@@ -159,15 +145,18 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             PushConstants pushConstants = {
                 .SsaoSizeInverse = 1.0f / glm::vec2((f32)ssaoDescription.Width, (f32)ssaoDescription.Height),
                 .SsaoSize = glm::vec2((f32)ssaoDescription.Width, (f32)ssaoDescription.Height),
-                .NoiseSizeInverse = 1.0f / glm::vec2((f32)noiseDescription.Width, (f32)noiseDescription.Height)};
+                .NoiseSizeInverse = 1.0f / glm::vec2((f32)noiseDescription.Width, (f32)noiseDescription.Height)
+            };
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
-                .PipelineLayout = shader.GetLayout(),
-                .Data = {pushConstants}});
+                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .Data = {pushConstants}
+            });
             cmd.Dispatch({
                 .Invocations = {ssaoDescription.Width, ssaoDescription.Height, 1},
-                .GroupSize = {16, 16, 1}});
+                .GroupSize = passData.BindGroup.GetMainGroupSize()
+            });
         });
 }

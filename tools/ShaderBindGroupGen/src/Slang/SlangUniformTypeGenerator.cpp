@@ -175,9 +175,9 @@ struct UniformWriter
                 if (!structReference.IsEmbedded &&
                     std::ranges::find(TypeReferences, structReference.Target) == TypeReferences.end())
                     TypeReferences.push_back(structReference.Target);
-                Stream
-                    << std::format("::{}::", GEN_NAMESPACE_NAME)
-                    << utils::canonicalizeName(structReference.TypeName);
+                if (!structReference.IsEmbedded)
+                    Stream << std::format("::{}::", GEN_NAMESPACE_NAME);
+                Stream << utils::canonicalizeName(structReference.TypeName);
             },
         }, type.Type);
     }

@@ -13,6 +13,9 @@ void Settings::initCvars()
     CVarString shadersPathFull("Path.Shaders.Full"_hsv, "Full path to shaders", 
         (std::filesystem::path(assetsPath.Get()) / shadersPath.Get()).generic_string());
 
+    CVarI32 shaderHotReloading("Renderer.Shaders.HotReload"_hsv,
+        "Flag if shader hot reloading is enabled (possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+
     CVarI32 resourceUploaderStagingSize("Uploader.StagingSizeBytes"_hsv,
         "The size of staging buffer used to upload data, in bytes",
         16 * 1024 * 1024);
