@@ -10,7 +10,6 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     using PassDataBind = PassDataWithBind<PassData, SsaoBlurBindGroupRG>;
 

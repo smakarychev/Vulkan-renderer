@@ -129,7 +129,7 @@ void main(
         }
     }
     ao /= max(1.0f, float(resources.settings.samples));
-    ao = pow(clamp(1.0f - ao, 0.0f, 1.0f), resources.settings.power);
+    ao = pow(saturate(1.0f - ao), resources.settings.power);
 
     resources.ssao[dispatchThreadID] = ao;
 }

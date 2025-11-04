@@ -65,7 +65,6 @@ namespace
 Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
     
     struct SettingsUBO
     {
