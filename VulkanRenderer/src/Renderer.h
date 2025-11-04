@@ -129,7 +129,7 @@ private:
     struct CloudShadowInfo
     {
         RG::Resource Shadow{};
-        CameraGPU Camera{};
+        ViewInfoGPU View{};
     };
     CloudShadowInfo RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps);
     

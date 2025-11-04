@@ -34,7 +34,7 @@ namespace Passes::Clouds::VP::Shadow
         RG::Resource CloudShapeHighFrequencyMap{};
         RG::Resource CloudCurlNoise{};
         RG::Resource DepthOut{};
-        CameraGPU ShadowCamera{};
+        ViewInfoGPU ShadowView{};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
     CameraGPU createShadowCamera(const Camera& primaryCamera, const ViewInfoGPU& primaryView,

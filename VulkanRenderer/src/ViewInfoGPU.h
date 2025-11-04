@@ -1,12 +1,14 @@
 #pragma once
 
+#include "core.h"
 #include "types.h"
 
 #include <glm/glm.hpp>
 
-#include "RenderHandle.h"
-#include "Core/Camera.h"
-#include "Rendering/Image/Image.h"
+#include "RenderGraph/Passes/Generated/Types/AtmosphereSettingsUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/CameraUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/ShadingSettingsUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/ViewInfoUniform.generated.h"
 
 class Camera;
 
@@ -17,7 +19,7 @@ class Camera;
  * - can not do backface culling, because different scene buckets require different winding
  * - frustum and screen-size culling may be more efficient with smaller meshlets
  */
-enum class VisibilityFlags
+enum class VisibilityFlags : u32
 {
     None = 0,
     ClampDepth      = BIT(1),
@@ -27,83 +29,29 @@ enum class VisibilityFlags
 
 CREATE_ENUM_FLAGS_OPERATORS(VisibilityFlags)
 
-struct CameraGPU
+struct CameraGPU : gen::Camera
 {
     static constexpr u32 IS_ORTHOGRAPHIC_BIT = 0;
     static constexpr u32 CLAMP_DEPTH_BIT = 1;
-
-    glm::mat4 ViewProjection{glm::mat4{1.0f}};
-    glm::mat4 Projection{glm::mat4{1.0f}};
-    glm::mat4 View{glm::mat4{1.0f}};
-
-    glm::vec3 Position{};
-    f32 Near{0.1f};
-    glm::vec3 Forward{glm::vec3{0.0f, 0.0f, 1.0f}};
-    f32 Far{1000.0f};
-
-    glm::mat4 InverseViewProjection{glm::mat4{1.0f}};
-    glm::mat4 InverseProjection{glm::mat4{1.0f}};
-    glm::mat4 InverseView{glm::mat4{1.0f}};
-
-    FrustumPlanes FrustumPlanes{};
-    ProjectionData ProjectionData{};
-
-    glm::vec2 Resolution{1.0f};
-    glm::vec2 HiZResolution{};
-
-    u32 ViewFlagsGpu{0};
-    VisibilityFlags VisibilityFlags{VisibilityFlags::None};
-
-    static CameraGPU FromCamera(const Camera& camera, const glm::uvec2& resolution, ::VisibilityFlags visibilityFlags
+    static CameraGPU FromCamera(const ::Camera& camera, const glm::uvec2& resolution, ::VisibilityFlags visibilityFlags
         = VisibilityFlags::None);
 };
 
-struct AtmosphereSettings
+struct AtmosphereSettings : gen::AtmosphereSettings
 {
-    glm::vec4 RayleighScattering{};
-    glm::vec4 RayleighAbsorption{};
-    glm::vec4 MieScattering{};
-    glm::vec4 MieAbsorption{};
-    glm::vec4 OzoneAbsorption{};
-    glm::vec4 SurfaceAlbedo{};
-    
-    f32 Surface{};
-    f32 Atmosphere{};
-    f32 RayleighDensity{};
-    f32 MieDensity{};
-    f32 OzoneDensity{};
-
     static AtmosphereSettings EarthDefault();
 };
 
-struct ShadingSettings
+struct ShadingSettings : gen::ShadingSettings
 {
-    f32 EnvironmentPower{1.0f};
-    u32 SoftShadows{false};
-    f32 MaxLightCullDistance{1.0f};
-    f32 VolumetricCloudShadowStrength{0.35f};
-    RenderHandle<Image> TransmittanceLut{};
-    RenderHandle<Image> SkyViewLut{};
-    RenderHandle<Image> VolumetricCloudShadow{};
-
-    u32 Padding[1]{};
-
-    glm::mat4 VolumetricCloudViewProjection{};
-    glm::mat4 VolumetricCloudView{};
+    static ShadingSettings Default();
 };
 
 /*
  * Used for most of the 'pbr' passes of render graph
  * Reflected in `view.glsl`
  */
-struct ViewInfoGPU
+struct ViewInfoGPU : gen::ViewInfo
 {
-    CameraGPU Camera{};
-    CameraGPU PreviousCamera{};
-    AtmosphereSettings Atmosphere{};
-    u32 Padding[3]{};
-    ShadingSettings ShadingSettings{};
-    f32 FrameNumber{0.0f};
-    u32 FrameNumberU32{0};
-    u32 Padding3[2]{};
+    static ViewInfoGPU Default();
 };

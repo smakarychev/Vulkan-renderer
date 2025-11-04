@@ -42,7 +42,8 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             else
             {
                 for (u32 i = 0; i < resources.VisibilityCount; i++)
-                    if (enumHasAny(multiview.View({i}).ViewInfo.Camera.VisibilityFlags, VisibilityFlags::OcclusionCull))
+                    if (enumHasAny((VisibilityFlags)multiview.View({i}).ViewInfo.Camera.VisibilityFlags,
+                        VisibilityFlags::OcclusionCull))
                         resources.Hiz[i] = graph.ReadImage(resources.Hiz[i], Compute | Sampled);
             }
         },

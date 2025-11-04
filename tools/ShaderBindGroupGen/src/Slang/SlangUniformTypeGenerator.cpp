@@ -72,6 +72,8 @@ std::string shaderMatrixTypeToString(assetlib::ShaderScalarType scalar, u32 rows
     }
 }
 
+static constexpr std::string_view GEN_NAMESPACE_NAME = "gen";
+
 struct UniformWriter
 {
     static constexpr u32 INDENT_SPACES = 4;
@@ -170,9 +172,12 @@ struct UniformWriter
             },
             [this](const assetlib::ShaderUniformTypeStructReference& structReference)
             {
-                if (!structReference.IsEmbedded)
+                if (!structReference.IsEmbedded &&
+                    std::ranges::find(TypeReferences, structReference.Target) == TypeReferences.end())
                     TypeReferences.push_back(structReference.Target);
-                Stream << utils::canonicalizeName(structReference.TypeName);
+                Stream
+                    << std::format("::{}::", GEN_NAMESPACE_NAME)
+                    << utils::canonicalizeName(structReference.TypeName);
             },
         }, type.Type);
     }
@@ -334,9 +339,11 @@ assetlib::io::IoResult<void> SlangUniformTypeGenerator::WriteStandaloneUniformTy
         content.append("#include <glm/glm.hpp>\n");
     if (writer.HasArrayDependency)
         content.append("#include <array>\n");
-    
-    content.append("\n").append(writer.Stream.str()).append("\n");
 
+    content.append(std::format("\nnamespace {}\n{{\n", GEN_NAMESPACE_NAME));
+    content.append(writer.Stream.str());
+    content.append("}\n");
+    
     if (!std::filesystem::exists(outputPath.parent_path()))
         std::filesystem::create_directories(outputPath.parent_path());
 

@@ -142,7 +142,7 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                     }
                 };
 
-                ViewInfoGPU viewInfo = {};
+                ViewInfoGPU viewInfo = ViewInfoGPU::Default();
                 viewInfo.Camera = CameraGPU::FromCamera(cameras.ShadowCameras[i], glm::uvec2{SHADOW_MAP_RESOLUTION},
                     VisibilityFlags::ClampDepth | VisibilityFlags::OcclusionCull);
                 

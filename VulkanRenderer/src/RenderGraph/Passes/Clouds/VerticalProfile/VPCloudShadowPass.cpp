@@ -77,11 +77,11 @@ namespace
 
                 graph.SetShader("cloud-vp-shadow"_hsv);
 
+                ViewInfoGPU viewInfo = *info.PrimaryView;
                 passData.ViewInfo = graph.Create("ViewInfo"_hsv, RGBufferDescription{
                     .SizeBytes = sizeof(ViewInfoGPU)});
                 const Camera& primaryCamera = *info.PrimaryCamera;
                 const glm::vec3 lightDirection = info.Light->PositionDirection;
-                ViewInfoGPU viewInfo = *info.PrimaryView;
                 viewInfo.Camera =
                     Passes::Clouds::VP::Shadow::createShadowCamera(primaryCamera, *info.PrimaryView, lightDirection);
                 passData.ViewInfo = graph.Upload(passData.ViewInfo, viewInfo);
@@ -100,7 +100,7 @@ namespace
                     graph.ReadImage(info.CloudShapeHighFrequencyMap, Compute | Sampled);
                 passData.CloudCurlNoise = graph.ReadImage(info.CloudCurlNoise, Compute | Sampled);
                 passData.DepthOut = graph.WriteImage(passData.DepthOut, Compute | Storage);
-                passData.ShadowCamera = viewInfo.Camera;
+                passData.ShadowView = viewInfo;
             },
             [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
             {
@@ -178,5 +178,6 @@ CameraGPU Passes::Clouds::VP::Shadow::createShadowCamera(const Camera& primaryCa
         .Top = cloudsExtent});
     ShadowUtils::stabilizeShadowProjection(shadowCamera, resolution);
 
-    return CameraGPU::FromCamera(shadowCamera, glm::uvec2(resolution), primaryView.Camera.VisibilityFlags);
+    return CameraGPU::FromCamera(shadowCamera, glm::uvec2(resolution),
+        (VisibilityFlags)primaryView.Camera.VisibilityFlags);
 }

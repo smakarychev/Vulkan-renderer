@@ -6,7 +6,7 @@
 #include "cvars/CVarSystem.h"
 #include "Rendering/Image/ImageUtility.h"
 
-CameraGPU CameraGPU::FromCamera(const Camera& camera, const glm::uvec2& resolution, ::VisibilityFlags visibilityFlags)
+CameraGPU CameraGPU::FromCamera(const ::Camera& camera, const glm::uvec2& resolution, ::VisibilityFlags visibilityFlags)
 {
     u32 viewFlags = {};
     viewFlags |= (u32)(camera.GetType() == CameraType::Orthographic) << IS_ORTHOGRAPHIC_BIT;
@@ -15,7 +15,10 @@ CameraGPU CameraGPU::FromCamera(const Camera& camera, const glm::uvec2& resoluti
         Images::floorResolutionToPowerOfTwo(resolution) : glm::uvec2(0);
     const f32 maxCullDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxGeometryCullDistance"_hsv);
 
-    CameraGPU cameraGPU = {
+    const auto& frustumPlanes = camera.GetFrustumPlanes(maxCullDistance);
+    const auto& projectionData = camera.GetProjectionData();
+    
+    CameraGPU cameraGPU = {{
         .ViewProjection = camera.GetViewProjection(),
         .Projection = camera.GetProjection(),
         .View = camera.GetView(),
@@ -26,20 +29,28 @@ CameraGPU CameraGPU::FromCamera(const Camera& camera, const glm::uvec2& resoluti
         .InverseViewProjection = glm::inverse(camera.GetViewProjection()),
         .InverseProjection = glm::inverse(camera.GetProjection()),
         .InverseView = glm::inverse(camera.GetView()),
-        .FrustumPlanes = camera.GetFrustumPlanes(maxCullDistance),
-        .ProjectionData = camera.GetProjectionData(),
+        .FrustumTopY = frustumPlanes.TopY,
+        .FrustumTopZ = frustumPlanes.TopZ,
+        .FrustumRightX = frustumPlanes.RightX,
+        .FrustumRightZ = frustumPlanes.RightZ,
+        .FrustumNear = frustumPlanes.Near,
+        .FrustumFar = frustumPlanes.Far,
+        .ProjectionWidth = projectionData.Width,
+        .ProjectionHeight = projectionData.Height,
+        .ProjectionBiasX = projectionData.BiasX,
+        .ProjectionBiasY = projectionData.BiasY,
         .Resolution = glm::vec2{resolution},
-        .HiZResolution = hizResolution,
-        .ViewFlagsGpu = viewFlags,
-        .VisibilityFlags = visibilityFlags,
-    };
+        .HizResolution = hizResolution,
+        .ViewFlags = viewFlags,
+        .VisibilityFlags = (u32)visibilityFlags,
+    }};
 
     return cameraGPU;
 }
 
 AtmosphereSettings AtmosphereSettings::EarthDefault()
 {
-    return {
+    return {{
         .RayleighScattering = glm::vec4{0.005802f, 0.013558f, 0.0331f, 1.0f},
         .RayleighAbsorption = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f},
         .MieScattering = glm::vec4{0.003996f, 0.003996f, 0.003996f, 1.0f},
@@ -50,5 +61,24 @@ AtmosphereSettings AtmosphereSettings::EarthDefault()
         .Atmosphere = 6460.0f,
         .RayleighDensity = 1.0f,
         .MieDensity = 1.0f,
-        .OzoneDensity = 1.0f};
+        .OzoneDensity = 1.0f
+    }};
+}
+
+ShadingSettings ShadingSettings::Default()
+{
+    return {{
+        .EnvironmentPower = 1.0f,
+        .SoftShadows = false,
+        .MaxLightCullDistance = 1.0f,
+        .VolumetricCloudShadowStrength = 0.35f,
+    }};
+}
+
+ViewInfoGPU ViewInfoGPU::Default()
+{
+    return {{
+        .Atmosphere = AtmosphereSettings::EarthDefault(),
+        .Shading = ShadingSettings::Default()
+    }};
 }

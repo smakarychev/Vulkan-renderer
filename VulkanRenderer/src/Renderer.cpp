@@ -562,8 +562,7 @@ void Renderer::UpdateGlobalRenderGraphResources() const
 
     if (!blackboard.TryGet<GlobalResources>())
     {
-        ViewInfoGPU primaryView = {};
-        primaryView.Atmosphere = AtmosphereSettings::EarthDefault();
+        ViewInfoGPU primaryView = ViewInfoGPU::Default();
         blackboard.Update<GlobalResources>({.PrimaryViewInfo = primaryView});
     }
 
@@ -575,10 +574,10 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     primaryView.Camera = CameraGPU::FromCamera(*m_Camera, swapchain.SwapchainResolution,
         VisibilityFlags::IsPrimaryView | VisibilityFlags::OcclusionCull);
     
-    primaryView.ShadingSettings.TransmittanceLut = m_TransmittanceLutBindlessIndex;
-    primaryView.ShadingSettings.SkyViewLut = m_SkyViewLutBindlessIndex;
-    primaryView.ShadingSettings.VolumetricCloudShadow = m_VolumetricShadowBindlessIndex;
-    primaryView.ShadingSettings.MaxLightCullDistance =
+    primaryView.Shading.TransmittanceLut = m_TransmittanceLutBindlessIndex;
+    primaryView.Shading.SkyViewLut = m_SkyViewLutBindlessIndex;
+    primaryView.Shading.VolumetricCloudShadow = m_VolumetricShadowBindlessIndex;
+    primaryView.Shading.MaxLightCullDistance =
         *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
@@ -586,14 +585,14 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     {
         const CameraGPU cloudShadowCamera = Passes::Clouds::VP::Shadow::createShadowCamera(
             *globalResources.PrimaryCamera, primaryView, m_SunLight->PositionDirection);
-        primaryView.ShadingSettings.VolumetricCloudViewProjection = cloudShadowCamera.ViewProjection;
-        primaryView.ShadingSettings.VolumetricCloudView = cloudShadowCamera.View;
+        primaryView.Shading.VolumetricCloudViewProjection = cloudShadowCamera.ViewProjection;
+        primaryView.Shading.VolumetricCloudView = cloudShadowCamera.View;
     }
     
     ImGui::Begin("Shading Settings");
-    ImGui::DragFloat("Environment power", &primaryView.ShadingSettings.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
-    ImGui::Checkbox("Soft shadows", (bool*)&primaryView.ShadingSettings.SoftShadows);
-    ImGui::DragFloat("Volumetric cloud shadows strength", &primaryView.ShadingSettings.VolumetricCloudShadowStrength,
+    ImGui::DragFloat("Environment power", &primaryView.Shading.EnvironmentPower, 1e-2f, 0.0f, 1.0f);
+    ImGui::Checkbox("Soft shadows", (bool*)&primaryView.Shading.SoftShadows);
+    ImGui::DragFloat("Volumetric cloud shadows strength", &primaryView.Shading.VolumetricCloudShadowStrength,
         1e-2f, 0.0f, 1.0f);
     ImGui::End();
 
@@ -1379,7 +1378,7 @@ Renderer::CloudShadowInfo Renderer::RenderGraphCloudShadows(const CloudMapsInfo&
 
     return {
         .Shadow = cloudShadow.DepthOut,
-        .Camera = cloudShadow.ShadowCamera
+        .View = cloudShadow.ShadowView
     };
 }
 

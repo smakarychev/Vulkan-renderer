@@ -3580,6 +3580,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
                 deviceVulkan12Features.scalarBlockLayout == VK_TRUE &&
                 deviceVulkan13Features.dynamicRendering == VK_TRUE &&
                 deviceVulkan13Features.synchronization2 == VK_TRUE &&
+                deviceVulkan13Features.shaderDemoteToHelperInvocation == VK_TRUE &&
                 conditionalRenderingFeaturesExt.conditionalRendering == VK_TRUE &&
                 physicalDeviceIndexTypeUint8FeaturesExt.indexTypeUint8 == VK_TRUE;
 #ifdef DESCRIPTOR_BUFFER
@@ -3706,6 +3707,7 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
     vulkan13Features.pNext = &vulkan12Features;
     vulkan13Features.dynamicRendering = VK_TRUE;
     vulkan13Features.synchronization2 = VK_TRUE;
+    vulkan13Features.shaderDemoteToHelperInvocation = VK_TRUE;
 
     VkPhysicalDeviceConditionalRenderingFeaturesEXT conditionalRenderingFeaturesExt = {};
     conditionalRenderingFeaturesExt.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT;
