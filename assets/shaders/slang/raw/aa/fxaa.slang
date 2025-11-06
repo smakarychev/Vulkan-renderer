@@ -34,7 +34,7 @@ float luminance(float2 uv) {
 struct Luma {
     float m, l, r, b, t, bl, br, tl, tr; 
     float min, max, contrast;  
-};
+}
 
 Luma calculateLuma(float2 uv, float2 delta) {
     Luma luma;
@@ -83,7 +83,7 @@ struct Edge {
     float step;
     float gradient;
     float otherLuma;
-};
+}
 
 Edge calculateEdge(Luma luma, float2 delta) {
     Edge edge;
@@ -179,8 +179,6 @@ float getEdgeBlendFactor(Luma luma, Edge edge, float2 uv, float2 delta) {
   
     return 0.5f - distance / (distancePositive + distanceNegative);
 }
-
-
 
 [shader("compute")]
 [numthreads(16, 16, 1)]
