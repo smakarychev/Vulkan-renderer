@@ -3,7 +3,7 @@
 #include "HiZVisualize.h"
 
 #include "imgui/imgui.h"
-#include "RenderGraph/Passes/Generated/HizVisualizeBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/HizVisualizeBindGroupRG.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
 Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph,
@@ -17,22 +17,23 @@ Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, 
         f32 IntensityScale{10.0f};
     };
 
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    using PassDataBind = PassDataWithBind<PassData, HizVisualizeBindGroupRG>;
+
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("HiZ.Visualize.Setup")
 
-            graph.SetShader("hiz-visualize"_hsv);
-            
-            passData.HiZ = graph.ReadImage(hiz,
-                ResourceAccessFlags::Pixel | ResourceAccessFlags::Sampled);
+            passData.BindGroup = HizVisualizeBindGroupRG(graph, graph.SetShader("hizVisualize"_hsv));
+
+            passData.HiZ = passData.BindGroup.SetResourcesHiz(hiz);
             passData.ColorOut = graph.Create("ColorOut"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size,
                 .Reference = hiz,
-                .Format = Format::RGBA16_FLOAT});
+                .Format = passData.BindGroup.GetHizAttachmentFormat()});
             passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("HiZ.Visualize")
             GPU_PROFILE_FRAME("HiZ.Visualize")
@@ -43,17 +44,10 @@ Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, 
             ImGui::DragFloat("intensity", &pushConstants.IntensityScale, 10.0f, 1.0f, 1e+4f);            
             ImGui::End();
 
-            const Shader& shader = graph.GetShader();
-            HizVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetSampler(Device::CreateSampler({
-                .MinificationFilter = ImageFilter::Nearest,
-                .MagnificationFilter = ImageFilter::Nearest}));
-            bindGroup.SetHiz(graph.GetImageBinding(passData.HiZ));
-
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
-                .PipelineLayout = shader.GetLayout(), 
+                .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 .Data = {pushConstants}});
             cmd.Draw({.VertexCount = 3});
         });

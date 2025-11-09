@@ -3,7 +3,8 @@
 #include "HiZPass.h"
 
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/HizCombinedBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/HizBlitBindGroupRG.generated.h"
+#include "RenderGraph/Passes/Generated/HizGenerateBindGroupRG.generated.h"
 
 namespace
 {
@@ -13,26 +14,26 @@ namespace
         RG::Resource HiZ{};
         RG::Resource DepthMinMax{};
         std::array<RG::Resource, HiZ::MAX_MIP_LEVELS> HiZMips{};
+        HizBlitBindGroupRG BindGroup{};
     };
 
     BlitPassData& blitPass(StringId name, RG::Graph& renderGraph, const Passes::HiZ::ExecutionInfo& info)
     {
         using namespace RG;
-        using enum ResourceAccessFlags;
 
         return renderGraph.AddRenderPass<BlitPassData>(name,
             [&](Graph& graph, BlitPassData& passData)
             {
                 CPU_PROFILE_FRAME("HiZCombined.Blit.Setup")
 
-                graph.SetShader("hiz-combined"_hsv, ShaderOverrides{
+                passData.BindGroup = HizBlitBindGroupRG(graph, graph.SetShader("hizBlit"_hsv, ShaderOverrides{
                     ShaderDefines({
                         ShaderDefine("HIZ_BLIT"_hsv, true),
                         ShaderDefine("HIZ_GENERATE"_hsv, false),
                         ShaderDefine("HIZ_MIN_MAX"_hsv, info.ReductionMode == HiZ::ReductionMode::MinMax),
                         ShaderDefine("HIZ_MIN_MAX_DEPTH_BUFFER"_hsv, info.CalculateMinMaxDepthBuffer),
                     })
-                });
+                }));
 
                 passData.HiZ = HiZ::createHiz(graph, graph.GetImageDescription(info.Depth).Dimensions(),
                     info.ReductionMode);
@@ -40,13 +41,13 @@ namespace
 
                 if (info.CalculateMinMaxDepthBuffer)
                 {
-                    passData.DepthMinMax = HiZ::createMinMaxBufferResource(graph);
-                    passData.DepthMinMax = graph.ReadWriteBuffer(passData.DepthMinMax, Compute | Storage);
+                    passData.DepthMinMax = passData.BindGroup.SetResourcesMinMax(
+                        HiZ::createMinMaxBufferResource(graph));
                     passData.DepthMinMax = graph.Upload(passData.DepthMinMax, HiZ::MinMaxDepth{});
                 }
-
-                passData.Depth = graph.ReadImage(info.Depth, Compute | Sampled);
-                passData.HiZMips[0] = graph.WriteImage(passData.HiZMips[0], Compute | Storage);
+                
+                passData.Depth = passData.BindGroup.SetResourcesInput(info.Depth);
+                passData.HiZMips[0] = passData.BindGroup.SetResourcesOutput(passData.HiZMips[0], 0);
             },
             [=](const BlitPassData& passData, FrameContext& frameContext, const Graph& graph)
             {
@@ -55,18 +56,11 @@ namespace
 
                 const glm::uvec2 hizResolution = graph.GetImageDescription(passData.HiZ).Dimensions();
 
-                const Shader& shader = graph.GetShader();
-                HizCombinedShaderBindGroup bindGroup(shader);
-                bindGroup.SetInput(graph.GetImageBinding(passData.Depth));
-                bindGroup.SetOutput(graph.GetImageBinding(passData.HiZMips[0]), 0);
-                if (info.CalculateMinMaxDepthBuffer)
-                    bindGroup.SetMinMax(graph.GetBufferBinding(passData.DepthMinMax));
-
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
+                passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
                 cmd.Dispatch({
                     .Invocations = {hizResolution.x, hizResolution.y, 1},
-                    .GroupSize = {8, 8, 1}
+                    .GroupSize = passData.BindGroup.GetBlitPassGroupSize()
                 });
             });
     }
@@ -78,7 +72,6 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
     static constexpr u32 MIPMAP_LEVEL_SHIFT = 5;
 
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     auto& blit = blitPass("HiZCombined.Blit"_hsv, renderGraph, info);
 
@@ -93,53 +86,52 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
     for (i8 mipmap = 1; mipmap < (i8)mipmapCount; mipmap++)
         blit.HiZMips[mipmap] = renderGraph.SplitImage(blit.HiZ, {.MipmapBase = mipmap, .Mipmaps = 1});
 
+    using PassDataBind = PassDataWithBind<PassData, HizGenerateBindGroupRG>;
+
     while (mipmapsRemaining != 0)
     {
         u32 toBeProcessed = std::min(MAX_DISPATCH_MIPMAPS, mipmapsRemaining);
-        PassData& data = renderGraph.AddRenderPass<PassData>(name.AddVersion(currentMipmap),
-            [&](Graph& graph, PassData& passData)
+        PassData& data = renderGraph.AddRenderPass<PassDataBind>(name.AddVersion(currentMipmap),
+            [&](Graph& graph, PassDataBind& passData)
             {
                 CPU_PROFILE_FRAME("HiZCombined.Setup")
 
-                graph.SetShader("hiz-combined"_hsv, ShaderOverrides{
+                passData.BindGroup = HizGenerateBindGroupRG(graph, graph.SetShader("hizGenerate"_hsv, ShaderOverrides{
                     ShaderDefines({
-                        ShaderDefine("HIZ_BLIT"_hsv, false),
-                        ShaderDefine("HIZ_GENERATE"_hsv, true),
-                        ShaderDefine("HIZ_MIN_MAX"_hsv, info.ReductionMode == ::HiZ::ReductionMode::MinMax),
-                        ShaderDefine("HIZ_MIN_MAX_DEPTH_BUFFER"_hsv, info.CalculateMinMaxDepthBuffer),
-                    })
-                });
+                         ShaderDefine("HIZ_BLIT"_hsv, false),
+                         ShaderDefine("HIZ_GENERATE"_hsv, true),
+                         ShaderDefine("HIZ_MIN_MAX"_hsv, info.ReductionMode == ::HiZ::ReductionMode::MinMax),
+                         ShaderDefine("HIZ_MIN_MAX_DEPTH_BUFFER"_hsv, info.CalculateMinMaxDepthBuffer),
+                     })
+                }));
 
                 const u32 sourceMipmapIndex = currentMipmap;
-                blit.HiZMips[sourceMipmapIndex] = graph.ReadImage(blit.HiZMips[sourceMipmapIndex], Compute | Sampled);
-                
-                for (u32 i = 0; i < toBeProcessed; i++)
-                    blit.HiZMips[sourceMipmapIndex + i + 1] =
-                        graph.ReadWriteImage(blit.HiZMips[sourceMipmapIndex + i + 1], Compute | Sampled);
+                blit.HiZMips[sourceMipmapIndex] = passData.BindGroup.SetResourcesInput(blit.HiZMips[sourceMipmapIndex]);
+
+                for (u32 i = 0; i < toBeProcessed + 1; i++)
+                {
+                    u32 index = sourceMipmapIndex + i;
+                    if (index >= mipmapCount)
+                        break;
+
+                    blit.HiZMips[index] = passData.BindGroup.SetResourcesOutput(blit.HiZMips[index], index);
+                }
+                    
                 if (mipmapsRemaining - toBeProcessed == 0)
                     blit.HiZ = graph.MergeImage(Span<const Resource>(blit.HiZMips.data(), mipmapCount));
                 passData.HiZ = blit.HiZ;
                 passData.DepthMinMax = blit.DepthMinMax;
             },
-            [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+            [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
             {
                 CPU_PROFILE_FRAME("HiZCombined")
                 GPU_PROFILE_FRAME("HiZCombined")
 
-                const Shader& shader = graph.GetShader();
-                HizCombinedShaderBindGroup bindGroup(shader);
-                bindGroup.SetInput(graph.GetImageBinding(passData.HiZ));
-                if (info.CalculateMinMaxDepthBuffer)
-                    bindGroup.SetMinMax(graph.GetBufferBinding(passData.DepthMinMax));
-                
-                for (u32 i = 0; i < mipmapCount; i++)
-                    bindGroup.SetOutput(graph.GetImageBinding(blit.HiZMips[i]), i);
-
                 const u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, graph.GetFrameAllocators());
+                passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
                 cmd.PushConstants({
-                    .PipelineLayout = shader.GetLayout(),
+                    .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
                     .Data = {pushConstant}
                 });
                 const u32 shift = toBeProcessed > 5 ? 12 : 10;

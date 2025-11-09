@@ -72,7 +72,7 @@ std::string_view bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType
     case assetlib::ShaderBindingType::UniformTexelBuffer:
     case assetlib::ShaderBindingType::StorageBuffer:
     case assetlib::ShaderBindingType::StorageTexelBuffer:
-        return "Buffer";
+        return "Storage";
     default:
         ASSERT(false)
         return "";
