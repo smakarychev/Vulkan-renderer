@@ -3,7 +3,6 @@
 #include "types.h"
 
 #include <glm/glm.hpp>
-#include <glm/gtx/quaternion.hpp>
 
 #include "Transform.h"
 

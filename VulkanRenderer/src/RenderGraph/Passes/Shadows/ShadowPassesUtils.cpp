@@ -15,7 +15,7 @@ namespace
     
         f32 boundingSphereRadius = 0.0f;
         for (auto& p : frustumCorners)
-            boundingSphereRadius = std::max(boundingSphereRadius, glm::distance2(p, centroid));
+            boundingSphereRadius = std::max(boundingSphereRadius, glm::dot(p - centroid, p - centroid));
         boundingSphereRadius = std::sqrt(boundingSphereRadius);
 
         f32 geometryRadius = glm::distance((geometryBounds.Max + geometryBounds.Min) * 0.5f, geometryBounds.Max);

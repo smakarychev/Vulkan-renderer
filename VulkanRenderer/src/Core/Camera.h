@@ -5,7 +5,7 @@
 #include "types.h"
 
 #include <glm/glm.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include "Math/Geometry.h"
 

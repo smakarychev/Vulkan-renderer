@@ -1,7 +1,7 @@
 #pragma once
 
 #include <glm/glm.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 struct Transform3d
 {
@@ -13,7 +13,7 @@ struct Transform3d
     {
         return
             glm::translate(glm::mat4{1.0f}, Position) * 
-            glm::toMat4(Orientation) * 
+            glm::mat4_cast(Orientation) * 
             glm::scale(glm::mat4{1.0f}, Scale);
     }
 
@@ -33,7 +33,7 @@ struct Transform3d
     Transform3d Combine(const Transform3d& other) const
     {
         return {
-            .Position = Position + glm::rotate(Orientation, other.Position * Scale),
+            .Position = Position + Orientation * other.Position * Scale,
             .Orientation = Orientation * other.Orientation,
             .Scale = Scale * other.Scale
         };

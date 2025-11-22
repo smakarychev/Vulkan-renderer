@@ -1,8 +1,6 @@
 ﻿#include "utils.h"
 
 #include <vector>
-#include <glm/glm.hpp>
-#include <glm/gtx/norm.hpp>
 #include <meshoptimizer.h>
 #include <ranges>
 

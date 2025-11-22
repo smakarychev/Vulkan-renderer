@@ -27,7 +27,7 @@
 #include <spirv_reflect.cpp>
 
 #include <glm/glm.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 #include <format>
 #include <fstream>

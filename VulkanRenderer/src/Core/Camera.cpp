@@ -166,17 +166,17 @@ void Camera::SetViewport(u32 width, u32 height)
 
 glm::vec3 Camera::GetForward() const
 {
-    return glm::rotate(m_Orientation, glm::vec3(0.0f, 0.0f, -1.0f));
+    return m_Orientation * glm::vec3(0.0f, 0.0f, -1.0f);
 }
 
 glm::vec3 Camera::GetUp() const
 {
-    return glm::rotate(m_Orientation, glm::vec3(0.0f, 1.0f, 0.0f));
+    return m_Orientation * glm::vec3(0.0f, 1.0f, 0.0f);
 }
 
 glm::vec3 Camera::GetRight() const
 {
-    return glm::rotate(m_Orientation, glm::vec3(1.0f, 0.0f, 0.0f));
+    return m_Orientation * glm::vec3(1.0f, 0.0f, 0.0f);
 }
 
 FrustumPlanes Camera::GetFrustumPlanes(f32 maxDistance) const
@@ -267,7 +267,7 @@ Plane Camera::GetNearViewPlane() const
 
 void Camera::UpdateViewMatrix()
 {
-    m_ViewMatrix = glm::toMat4(glm::inverse(m_Orientation)) * glm::translate(glm::mat4(1.0f), -m_Position);
+    m_ViewMatrix = glm::mat4_cast(glm::inverse(m_Orientation)) * glm::translate(glm::mat4(1.0f), -m_Position);
 }
 
 namespace
@@ -396,7 +396,7 @@ void CameraController::FPSOnUpdate(f32 dt)
     if (Input::GetKey(Key::LeftShift))
         speed *= m_TranslationSpeedBoostFPS;
 
-    if (glm::length2(velocityVector) > 0.0f)
+    if (glm::dot(velocityVector, velocityVector) > 0.0f)
         velocityVector = speed * glm::normalize(velocityVector);
 
     m_Camera->SetPosition(m_Camera->GetPosition() + velocityVector);
