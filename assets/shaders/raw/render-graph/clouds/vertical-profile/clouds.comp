@@ -174,7 +174,7 @@ vec2 height_gradient_bottom(float type) {
 float get_vertical_profile(CloudLayerInfo layer, vec2 gradient_bottom, vec2 gradient_top) {
     return
         remap_clamp(layer.relative_height, gradient_bottom.x, gradient_bottom.y, 0, 1) *
-        remap_clamp(layer.relative_height, gradient_top.x, gradient_top.y, 1, 0);
+        clamp(remap(layer.relative_height, gradient_top.x, gradient_top.y, 1, 0), 0, 1);
 }
 
 CloudLayerInfo sample_cloud_layer(vec3 p) {
