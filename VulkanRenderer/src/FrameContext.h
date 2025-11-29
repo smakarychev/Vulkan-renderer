@@ -9,11 +9,17 @@
 class ResourceUploader;
 class Camera;
 
+struct FrameSync
+{
+    Fence RenderFence;
+    Semaphore PresentSemaphore;
+};
+
 struct FrameContext
 {
     u32 CommandBufferIndex{0};
     
-    SwapchainFrameSync FrameSync{};
+    FrameSync FrameSync{};
     u32 FrameNumber{};
     u64 FrameNumberTick{};
 

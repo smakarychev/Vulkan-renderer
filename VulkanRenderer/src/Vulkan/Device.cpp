@@ -832,6 +832,7 @@ private:
         VkSwapchainKHR Swapchain{VK_NULL_HANDLE};
         VkFormat ColorFormat{};
         SwapchainDescription Description{};
+        std::vector<Semaphore> RenderSemaphores{};
     };
     struct BufferResource
     {
@@ -1475,27 +1476,10 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
                 .Format = createInfo.DepthStencilFormat,
                 .Usage = ImageUsage::Depth | ImageUsage::Stencil | ImageUsage::Sampled}},
             DummyDeletionQueue())};
-    swapchainResource.Description.Sync.assign_range(createInfo.FrameSyncs);
-    if (swapchainResource.Description.Sync.empty())
-    {
-        swapchainResource.Description.Sync.reserve(BUFFERED_FRAMES);
-        for (u32 i = 0; i < BUFFERED_FRAMES; i++)
-        {
-            Fence renderFence = CreateFence({
-                .IsSignaled = true});
-            Semaphore renderSemaphore = CreateSemaphore();
-            Semaphore presentSemaphore = CreateSemaphore();
 
-            swapchainResource.Description.Sync.push_back({
-                .RenderFence = renderFence,
-                .RenderSemaphore = renderSemaphore,
-                .PresentSemaphore = presentSemaphore});
-        }
-    }
-    ASSERT(swapchainResource.Description.Sync.size() == BUFFERED_FRAMES,
-        "Frame synchronization structures for swapchain have to be provided for every frame-in-flight ({})",
-        BUFFERED_FRAMES)
-
+    swapchainResource.RenderSemaphores.reserve(imageCount);
+    for (u32 i = 0; i < imageCount; i++)
+        swapchainResource.RenderSemaphores.push_back({CreateSemaphore(DummyDeletionQueue())});
     Swapchain swapchain = Resources().AddResource(swapchainResource);
     CreateSwapchainImages(swapchain);
     deletionQueue.Enqueue(swapchain);
@@ -1506,7 +1490,9 @@ Swapchain Device::CreateSwapchain(SwapchainCreateInfo&& createInfo, ::DeletionQu
 void Device::Destroy(Swapchain swapchain)
 {
     DestroySwapchainImages(swapchain);
-    vkDestroySwapchainKHR(s_State.Device, Resources().m_Swapchains[swapchain.m_Id].Swapchain, nullptr);
+    vkDestroySwapchainKHR(s_State.Device, Resources()[swapchain].Swapchain, nullptr);
+    for (Semaphore semaphore : Resources()[swapchain].RenderSemaphores)
+        Destroy(semaphore);
     Resources().RemoveResource(swapchain);
 }
 
@@ -1553,31 +1539,27 @@ void Device::DestroySwapchainImages(Swapchain swapchain)
     Destroy(swapchainResource.Description.DepthImage);
 }
 
-u32 Device::AcquireNextImage(Swapchain swapchain, u32 frameNumber)
+u32 Device::AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore presentSemaphore)
 {
-    DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
-    const SwapchainFrameSync& frameSync = swapchainResource.Description.Sync[frameNumber];
-    
-    WaitForFence(frameSync.RenderFence);
+    WaitForFence(renderFence);
 
     u32 imageIndex;
     VkResult res = vkAcquireNextImageKHR(s_State.Device, Resources()[swapchain].Swapchain,
-        10'000'000'000, Resources()[frameSync.PresentSemaphore].Semaphore, VK_NULL_HANDLE,
+        10'000'000'000, Resources()[presentSemaphore].Semaphore, VK_NULL_HANDLE,
         &imageIndex);
     if (res == VK_ERROR_OUT_OF_DATE_KHR)
         return INVALID_SWAPCHAIN_IMAGE;
     
     ASSERT(res == VK_SUCCESS || res == VK_SUBOPTIMAL_KHR, "Failed to acquire swapchain image")
 
-    ResetFence(frameSync.RenderFence);
+    ResetFence(renderFence);
     
     return imageIndex;
 }
 
-bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, u32 imageIndex)
+bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex)
 {
     DeviceResources::SwapchainResource& swapchainResource = Resources()[swapchain];
-    const SwapchainFrameSync& frameSync = swapchainResource.Description.Sync[frameNumber];
     
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -1585,7 +1567,7 @@ bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, 
     presentInfo.pSwapchains = &Resources()[swapchain].Swapchain;
     presentInfo.pImageIndices = &imageIndex;
     presentInfo.waitSemaphoreCount = 1;
-    presentInfo.pWaitSemaphores = &Resources()[frameSync.RenderSemaphore].Semaphore;
+    presentInfo.pWaitSemaphores = &Resources()[swapchainResource.RenderSemaphores[imageIndex]].Semaphore;
 
     VkResult result = vkQueuePresentKHR(s_State.Queues.GetQueueByKind(queueKind).Queue, &presentInfo);
     
@@ -1598,6 +1580,11 @@ bool Device::Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, 
 SwapchainDescription& Device::GetSwapchainDescription(Swapchain swapchain)
 {
     return Resources()[swapchain].Description;
+}
+
+Semaphore Device::GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageIndex)
+{
+    return Resources()[swapchain].RenderSemaphores[imageIndex];
 }
 
 CommandBuffer Device::CreateCommandBuffer(CommandBufferCreateInfo&& createInfo)
@@ -3489,7 +3476,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
 
         return queues;
     };
-    
+
     auto isGPUSuitable = [&findQueueFamilies](VkPhysicalDevice gpu,
         const DeviceCreateInfo& createInfo)
     {

@@ -54,9 +54,10 @@ public:
     
     static Swapchain CreateSwapchain(SwapchainCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Swapchain swapchain);
-    static u32 AcquireNextImage(Swapchain swapchain, u32 frameNumber);
-    static bool Present(Swapchain swapchain, QueueKind queueKind, u32 frameNumber, u32 imageIndex);
+    static u32 AcquireNextImage(Swapchain swapchain, Fence renderFence, Semaphore presentSemaphore);
+    static bool Present(Swapchain swapchain, QueueKind queueKind, u32 imageIndex);
     static SwapchainDescription& GetSwapchainDescription(Swapchain swapchain);
+    static Semaphore GetSwapchainRenderSemaphore(Swapchain swapchain, u32 imageIndex);
     
     static CommandBuffer CreateCommandBuffer(CommandBufferCreateInfo&& createInfo);
     static CommandPool CreateCommandPool(CommandPoolCreateInfo&& createInfo,

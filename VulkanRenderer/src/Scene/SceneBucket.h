@@ -27,7 +27,7 @@ struct SceneMeshletBucketInfo
 /* pass over filtered render objects of a scene */
 
 using SceneBucketHandle = u32;
-static constexpr SceneBucketHandle INVALID_SCENE_BUCKET{~0lu};
+static constexpr SceneBucketHandle INVALID_SCENE_BUCKET{~0u};
 
 struct SceneBucketCreateInfo
 {

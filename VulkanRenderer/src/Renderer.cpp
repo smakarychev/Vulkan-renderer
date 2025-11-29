@@ -1502,8 +1502,8 @@ void Renderer::BeginFrame()
     CPU_PROFILE_FRAME("Begin frame")
 
     Device::BeginFrame(GetFrameContext());
-    u32 frameNumber = GetFrameContext().FrameNumber;
-    m_SwapchainImageIndex = Device::AcquireNextImage(m_Swapchain, frameNumber);
+    const FrameSync& frameSync = GetFrameContext().FrameSync;
+    m_SwapchainImageIndex = Device::AcquireNextImage(m_Swapchain, frameSync.RenderFence, frameSync.PresentSemaphore);
     if (m_SwapchainImageIndex == INVALID_SWAPCHAIN_IMAGE)
     {
         m_FrameEarlyExit = true;
@@ -1557,9 +1557,6 @@ void Renderer::EndFrame()
         .Swapchain = m_Swapchain,
         .ImageIndex = m_SwapchainImageIndex});
     
-    u32 frameNumber = GetFrameContext().FrameNumber;
-    SwapchainFrameSync& sync = GetFrameContext().FrameSync;
-
     GPU_COLLECT_PROFILE_FRAMES()
     
     m_ResourceUploader.SubmitUpload(GetFrameContext());
@@ -1568,12 +1565,11 @@ void Renderer::EndFrame()
     
     Device::SubmitCommandBuffer(cmd, QueueKind::Graphics, BufferSubmitSyncInfo{
         .WaitStages = {PipelineStage::ColorOutput},
-        .WaitSemaphores = {sync.PresentSemaphore},
-        .SignalSemaphores = {sync.RenderSemaphore},
-        .Fence = sync.RenderFence});
+        .WaitSemaphores = {GetFrameContext().FrameSync.PresentSemaphore},
+        .SignalSemaphores = {Device::GetSwapchainRenderSemaphore(m_Swapchain, m_SwapchainImageIndex)},
+        .Fence = GetFrameContext().FrameSync.RenderFence});
     
-    bool isFramePresentSuccessful = Device::Present(m_Swapchain, QueueKind::Presentation,
-        frameNumber, m_SwapchainImageIndex); 
+    bool isFramePresentSuccessful = Device::Present(m_Swapchain, QueueKind::Presentation, m_SwapchainImageIndex); 
     bool shouldRecreateSwapchain = m_IsWindowResized || !isFramePresentSuccessful;
     if (shouldRecreateSwapchain)
         RecreateSwapchain();
@@ -1614,8 +1610,11 @@ void Renderer::InitRenderingStructures()
             .QueueKind = QueueKind::Graphics,
             .PerBufferReset = true});
 
-        m_FrameContexts[i].FrameSync = swapchain.Sync[i];
         m_FrameContexts[i].FrameNumber = i;
+        m_FrameContexts[i].FrameSync = {
+            .RenderFence = Device::CreateFence({.IsSignaled = true}),
+            .PresentSemaphore = Device::CreateSemaphore(),
+        };
         m_FrameContexts[i].Resolution = swapchain.SwapchainResolution;
 
         m_FrameContexts[i].Cmd =  Device::CreateCommandBuffer({
@@ -1675,14 +1674,8 @@ void Renderer::RecreateSwapchain()
     
     Device::WaitIdle();
 
-
-    const SwapchainDescription& oldSwapchain = Device::GetSwapchainDescription(m_Swapchain);
-    auto frameSync = oldSwapchain.Sync;
     Device::Destroy(m_Swapchain);
-    
-    m_Swapchain = Device::CreateSwapchain({
-        .FrameSyncs = frameSync},
-        Device::DummyDeletionQueue());
+    m_Swapchain = Device::CreateSwapchain({}, Device::DummyDeletionQueue());
 
     const SwapchainDescription& swapchain = Device::GetSwapchainDescription(m_Swapchain);
     m_Graph->SetBackbufferImage(swapchain.DrawImage);
