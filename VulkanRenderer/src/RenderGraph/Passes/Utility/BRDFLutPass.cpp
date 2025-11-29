@@ -3,34 +3,27 @@
 #include "BRDFLutPass.h"
 
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/BrdfLutBindGroup.generated.h"
-#include "Rendering/Shader/ShaderCache.h"
+#include "RenderGraph/Passes/Generated/IntegrateBrdfLutBindGroupRG.generated.h"
 
 Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph& renderGraph, Texture lut)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    using PassDataBind = PassDataWithBind<PassData, IntegrateBrdfLutBindGroupRG>;
+    
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("BRDFLut.Setup")
 
-            graph.SetShader("brdf-lut"_hsv);
+            passData.BindGroup = IntegrateBrdfLutBindGroupRG(graph, graph.SetShader("integrateBrdfLut"_hsv));
 
-            passData.Lut = graph.Import("Lut"_hsv, lut);
-
-            passData.Lut = graph.WriteImage(passData.Lut, Compute | Storage);
+            passData.Lut = passData.BindGroup.SetResourcesBrdf(graph.Import("Lut"_hsv, lut));
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("BRDFLut")
             GPU_PROFILE_FRAME("BRDFLut")
-
-            const Shader& shader = graph.GetShader();
-            BrdfLutShaderBindGroup bindGroup(shader);
-
-            bindGroup.SetBrdf(graph.GetImageBinding(passData.Lut));
 
             struct PushConstants
             {
@@ -40,13 +33,13 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
                 .BRDFResolutionInverse = 1.0f / glm::vec2((f32)BRDF_RESOLUTION)};
             
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
-            	.PipelineLayout = shader.GetLayout(), 
+            	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
             	.Data = {pushConstants}});
             cmd.Dispatch({
                 .Invocations = {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},
-                .GroupSize = {32, 32, 1}});
+                .GroupSize = passData.BindGroup.GetComputeMainGroupSize()});
         });
 }
 
