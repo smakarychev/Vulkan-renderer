@@ -36,7 +36,8 @@ void main() {
     const MeshletBucketInfo meshlet = u_meshlet_infos.infos[id];
     uint64_t buckets = subgroupOr(meshlet.buckets) & u_available_buckets_mask;
     while (buckets > 0) {
-        const uint bit_index = uint(findLSB(buckets));
+        int bit_index = findLSB(uint(buckets));
+        bit_index = bit_index != -1 ? bit_index : findLSB(uint(buckets >> 32)) + 32;
         const uint64_t bit = uint64_t(1) << bit_index;
         const bool has_bit = (meshlet.buckets & bit) != 0;
         const uvec4 has_bit_ballot = subgroupBallot(has_bit);
