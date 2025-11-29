@@ -11,6 +11,7 @@ struct Scattering {
 Scattering integrate_scattered_luminance(vec2 uv, vec3 ro, vec3 rd, vec3 sun_dir, ViewInfo view,
     float sample_count, bool surface, vec3 global_l, bool use_uniform_phase, float max_depth) {
     Scattering scattering;
+    scattering.Multiscattering = vec3(0);
 
     const vec3 center = vec3(0.0f);
     const Intersection atmosphere_intersection = intersect_sphere(ro, rd, center, view.atmosphere);
