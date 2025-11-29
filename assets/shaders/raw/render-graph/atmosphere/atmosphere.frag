@@ -43,9 +43,12 @@ void main() {
     const vec3 sun_dir = -u_directional_lights.lights[0].direction;
     
     vec3 L = vec3(0.0f);
-    const float depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
+    float depth = 0.0f;
+    if (u_use_depth_buffer) {
+        depth = textureLod(sampler2D(u_depth, u_sampler), vertex_uv, 0).r;
+    }
     out_color = vec4(L, 1.0);
-
+    
     // draw the atmosphere behind the geometry
     if (!u_use_depth_buffer || depth == 0) {
         const float r = length(pos);
