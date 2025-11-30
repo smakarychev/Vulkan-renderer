@@ -1,4 +1,5 @@
 implementing lib;
 
-public static float PI = 3.14159265359f;
-public static float TAU = PI * 2.0f;
+public static const float PI = 3.14159265359f;
+public static const float TAU = PI * 2.0f;
+public static const float PI_INVERSE = 1.0f / PI;
