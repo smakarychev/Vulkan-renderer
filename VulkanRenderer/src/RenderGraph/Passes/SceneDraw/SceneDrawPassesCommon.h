@@ -27,7 +27,9 @@ struct SceneDrawPassResources
     RG::DrawAttachmentResources Attachments{};
     u32 MaxDrawCount{0};
 
+    // todo: remove this once ready
     void CreateFrom(const SceneDrawPassExecutionInfo& info, RG::Graph& renderGraph);
+    void InitFrom(const SceneDrawPassExecutionInfo& info, RG::Graph& renderGraph);
 };
 
 using SceneDrawPassInitFn =

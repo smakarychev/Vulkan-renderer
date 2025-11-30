@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RenderHandle.h"
+#include "RenderGraph/Passes/Generated/Types/IndirectCommandUniform.generated.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Rendering/CommandBuffer.h"
 #include "Rendering/Image/Image.h"
@@ -316,16 +317,7 @@ struct DrawIndexedCommand : RenderCommandTyped<RenderCommandType::DrawIndexed, R
     u32 IndexCount{};
     u32 BaseInstance{};
 };
-struct RenderObject;
-struct IndirectDrawCommand
-{
-    u32 IndexCount;
-    u32 InstanceCount;
-    u32 FirstIndex;
-    i32 VertexOffset;
-    u32 FirstInstance;
-    u32 RenderObject;
-};
+struct IndirectDrawCommand : gen::IndirectCommand {};
 struct DrawIndexedIndirectCommand
     : RenderCommandTyped<RenderCommandType::DrawIndexedIndirect, RenderCommandQueueType::Graphics>
 {

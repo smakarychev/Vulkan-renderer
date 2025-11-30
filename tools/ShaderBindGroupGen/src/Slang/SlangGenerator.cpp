@@ -361,7 +361,8 @@ struct Writer
     {
         BeginSetUniformFunction(uniformBinding, uniformType, uniformParameter);
         WriteLine(std::format("RG::Resource resource = Graph->Create(\"{}\"_hsv, RG::RGBufferDescription{{"
-            ".SizeBytes = sizeof({})}};", uniformType, uniformType));
+            ".SizeBytes = sizeof({})}});", uniformType, uniformType));
+        WriteLine(std::format("resource = Graph->Upload(resource, {});", uniformParameter));
         WriteResourceAccess(uniformBinding);
         if (enumHasAny(uniformBinding.Attributes, assetlib::ShaderBindingAttributes::Bindless))
             WriteBindlessBuffer(set, uniformBinding);

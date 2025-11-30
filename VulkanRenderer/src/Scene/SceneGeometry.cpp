@@ -328,26 +328,28 @@ SceneGeometry::AddCommandsResult SceneGeometry::AddCommands(SceneInstance instan
         const u32 renderObjectFirstVertex = renderObject.FirstVertex + sceneInfoOffsets.ElementOffsets[(u32)Position];
         const u32 renderObjectMaterial = renderObject.Material + sceneInfoOffsets.MaterialOffset;
         
-        renderObjects[renderObjectIndex] = {
+        renderObjects[renderObjectIndex] = {{
             /* this value is irrelevant, because the transform will be set by SceneHierarchy */
             .Transform = glm::mat4(1.0f),
-            .BoundingSphere = renderObject.BoundingSphere,
-            .MaterialGPU = renderObjectMaterial,
-            .PositionsOffset = sceneInfoOffsets.ElementOffsets[(u32)Position] + renderObjectFirstVertex,
-            .NormalsOffset = sceneInfoOffsets.ElementOffsets[(u32)Normal] + renderObjectFirstVertex,
-            .TangentsOffset = sceneInfoOffsets.ElementOffsets[(u32)Tangent] + renderObjectFirstVertex,
-            .UVsOffset = sceneInfoOffsets.ElementOffsets[(u32)Uv] + renderObjectFirstVertex};
+            .BoundingSphere = glm::vec4(renderObject.BoundingSphere.Center, renderObject.BoundingSphere.Radius),
+            .MaterialId = renderObjectMaterial,
+            .PositionIndex = sceneInfoOffsets.ElementOffsets[(u32)Position] + renderObjectFirstVertex,
+            .NormalIndex = sceneInfoOffsets.ElementOffsets[(u32)Normal] + renderObjectFirstVertex,
+            .TangentIndex = sceneInfoOffsets.ElementOffsets[(u32)Tangent] + renderObjectFirstVertex,
+            .UvIndex = sceneInfoOffsets.ElementOffsets[(u32)Uv] + renderObjectFirstVertex
+        }};
 
         for (u32 localMeshletIndex = 0; localMeshletIndex < renderObject.MeshletCount; localMeshletIndex++)
         {
             auto& meshlet = sceneInfo.m_Geometry.Meshlets[renderObject.FirstMeshlet + localMeshletIndex];
-            commands[meshletIndex] = IndirectDrawCommand{
+            commands[meshletIndex] = IndirectDrawCommand{{
                 .IndexCount = meshlet.IndexCount,
                 .InstanceCount = 1,
                 .FirstIndex = meshlet.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index] + renderObjectFirstIndex,
                 .VertexOffset = (i32)meshlet.FirstVertex,
                 .FirstInstance = currentMeshletIndex + meshletIndex,
-                .RenderObject = (u32)renderObjectIndex + currentRenderObjectIndex};
+                .RenderObject = (u32)renderObjectIndex + currentRenderObjectIndex
+            }};
             meshlets[meshletIndex] = {
                 .BoundingCone = meshlet.BoundingCone,
                 .BoundingSphere = {.Center = meshlet.BoundingSphere.Center, .Radius = meshlet.BoundingSphere.Radius}};

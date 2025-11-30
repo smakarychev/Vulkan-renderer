@@ -5,8 +5,8 @@
 #include "ViewInfoGPU.h"
 #include "FrameContext.h"
 #include "RenderGraph/RGUtils.h"
-#include "RenderGraph/Passes/Generated/SceneShadowUgbBindGroup.generated.h"
 #include "RenderGraph/Passes/Generated/ShadowBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/ShadowDirectionalUgbBindGroupRG.generated.h"
 
 Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToGraph(StringId name,
     RG::Graph& renderGraph, const ExecutionInfo& info)
@@ -14,7 +14,7 @@ Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToG
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate : PassData
+    struct PassDataPrivate : PassDataWithBind<PassData, ShadowDirectionalUgbBindGroupRG>
     {
         Resource UGB{};
         Resource Objects{};
@@ -25,32 +25,24 @@ Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToG
         {
             CPU_PROFILE_FRAME("SceneDirectionalShadow.Setup")
 
-            graph.SetShader("scene-shadow-ugb"_hsv, *info.DrawInfo.BucketOverrides);
+            passData.BindGroup = ShadowDirectionalUgbBindGroupRG(graph,
+                graph.SetShader("shadowDirectionalUgb"_hsv, *info.DrawInfo.BucketOverrides));
 
-            passData.Resources.CreateFrom(info.DrawInfo, graph);
-
-            passData.UGB = graph.Import("UGB"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes));
-            passData.UGB = graph.ReadBuffer(passData.UGB, Vertex | Pixel | Storage);
-            
-            passData.Objects = graph.Import("Objects"_hsv,
-                info.Geometry->RenderObjects.Buffer);
-            passData.Objects = graph.ReadBuffer(passData.Objects, Vertex | Pixel | Storage);
+            passData.Resources.InitFrom(info.DrawInfo, graph);
+            passData.UGB = passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
+                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
+            passData.Objects = passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
+                info.Geometry->RenderObjects.Buffer));
+            passData.Resources.ViewInfo = passData.BindGroup.SetResourcesView(info.DrawInfo.ViewInfo);
+            passData.BindGroup.SetResourcesCommands(graph.Import("Commands"_hsv, info.Geometry->Commands.Buffer));
         },
         [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("SceneDirectionalShadow")
             GPU_PROFILE_FRAME("SceneDirectionalShadow")
 
-            const Shader& shader = graph.GetShader();
-            SceneShadowUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.Resources.ViewInfo));
-            bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
-            bindGroup.SetCommands(graph.GetBufferBinding(passData.Resources.Draws));
-            bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));
-
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)});
             cmd.DrawIndexedIndirectCount({

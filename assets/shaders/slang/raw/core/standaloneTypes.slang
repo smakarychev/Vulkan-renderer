@@ -1,9 +1,12 @@
 module standaloneTypes;
 
 import "core/viewInfo";
+import "core/geometry";
 
 struct Resources {
     ViewInfo view;
+    RenderObject ro;
+    IndirectCommand ic;
 }
 
 ParameterBlock<Resources> resources;

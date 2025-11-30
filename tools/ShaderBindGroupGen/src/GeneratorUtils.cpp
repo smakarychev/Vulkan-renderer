@@ -9,6 +9,9 @@ std::string canonicalizeName(const std::string& name, bool firstIsUppercase)
     auto toUpper = [](char c) {
         return (c >= 'a' && c <= 'z') ? static_cast<char>(c - 'a' + 'A') : c;
     };
+    auto toLower = [](char c) {
+        return (c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c;
+    };
     
     std::string canonicalized;
     canonicalized.reserve(name.size());
@@ -31,7 +34,7 @@ std::string canonicalizeName(const std::string& name, bool firstIsUppercase)
             }
             else
             {
-                canonicalized.push_back(c);
+                canonicalized.push_back(canonicalized.empty() ? toLower(c) : c);
             }
         }
     }

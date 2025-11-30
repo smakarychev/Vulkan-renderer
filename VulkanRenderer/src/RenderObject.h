@@ -1,10 +1,10 @@
 ﻿#pragma once
 
-#include "Settings.h"
 #include "RenderHandle.h"
 #include "SceneAsset.h"
 #include "Math/Geometry.h"
 #include "Math/Transform.h"
+#include "RenderGraph/Passes/Generated/Types/RenderObjectUniform.generated.h"
 #include "Rendering/Image/Image.h"
 
 enum class MaterialFlags : u16
@@ -39,16 +39,7 @@ struct MaterialGPU
 
 using RenderObjectTransform = Transform3d;
 
-struct RenderObjectGPU
-{
-    glm::mat4 Transform{glm::mat4{1.0}};
-    Sphere BoundingSphere{};
-    RenderHandle<MaterialGPU> MaterialGPU{};
-    u32 PositionsOffset{0};
-    u32 NormalsOffset{0};
-    u32 TangentsOffset{0};
-    u32 UVsOffset{0};
-};
+struct RenderObjectGPU : gen::RenderObject {};
 
 struct MeshletGPU
 {
