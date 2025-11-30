@@ -49,5 +49,6 @@ TextureDescription Passes::BRDFLut::getLutDescription()
         .Width = BRDF_RESOLUTION,
         .Height = BRDF_RESOLUTION,
         .Format = Format::RG16_FLOAT,
-        .Usage = ImageUsage::Sampled | ImageUsage::Storage};
+        .Usage = ImageUsage::Sampled | ImageUsage::Storage | ImageUsage::Source
+    };
 }
