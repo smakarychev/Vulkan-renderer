@@ -19,5 +19,5 @@ ParameterBlock<HizVisualizeResources> resources;
 float4 main(FullScreenVSOutput input,
     uniform uint mipmap,
     uniform float intensity) {
-    return float4(resources.hiz.SampleLevel(samplers.sampler, input.UV, mipmap).rrr * intensity, 1.0f);
+    return float4(resources.hiz.SampleLevel(samplers.sampler, input.uv, mipmap).rrr * intensity, 1.0f);
 }

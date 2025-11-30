@@ -17,5 +17,5 @@ ParameterBlock<SsaoVisualizeResources> resources;
 
 [shader("pixel")]
 float4 main(FullScreenVSOutput input) {
-    return float4(resources.ssao.SampleLevel(samplers.sampler, input.UV, 0).rrr, 1.0f);
+    return float4(resources.ssao.SampleLevel(samplers.sampler, input.uv, 0).rrr, 1.0f);
 }
