@@ -191,6 +191,8 @@ assetlib::ShaderScalarType slangScalarTypeToScalarType(slang::TypeReflection::Sc
 
 std::string createVariableName(const std::string& currentName, slang::VariableLayoutReflection* variableLayout)
 {
+    if (currentName.empty())
+        return variableLayout->getName() ? variableLayout->getName() : currentName;
     return variableLayout->getName() ? std::format("{}_{}", currentName, variableLayout->getName()) : currentName;
 }
 
