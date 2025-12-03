@@ -57,7 +57,7 @@
 #include "RenderGraph/Passes/SceneDraw/Shadow/SceneDirectionalShadowPass.h"
 #include "RenderGraph/Passes/SceneDraw/VBuffer/SceneVBufferPass.h"
 #include "RenderGraph/Passes/SceneDraw/VBuffer/SceneVBufferPbrPass.h"
-#include "RenderGraph/Passes/Shadows/CSMVisualizePass.h"
+#include "RenderGraph/Passes/Shadows/CsmVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
