@@ -8,6 +8,7 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/Texture3dToSliceBindGroupRG.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
+#include "RenderGraph/Passes/Utility/ChannelCompositionInfo.h"
 
 namespace
 {
@@ -148,7 +149,9 @@ namespace
             {
                 CPU_PROFILE_FRAME("Texture3dToSlice.Setup")
 
-                passData.BindGroup = Texture3dToSliceBindGroupRG(graph, graph.SetShader("texture3dToSlice"_hsv));
+                passData.BindGroup = Texture3dToSliceBindGroupRG(graph, graph.SetShader("texture3dToSlice"_hsv,
+                    ShaderDefines({
+                        ShaderDefine{"A_CHANNEL"_hsv, (u32)Passes::Channel::One}})));
 
                 passData.Slice = graph.Create("Slice"_hsv, ResourceCreationFlags::Volatile,
                     RGImageDescription{
