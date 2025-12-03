@@ -6,7 +6,7 @@
 #include "imgui/imgui.h"
 #include "Imgui/ImguiUI.h"
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/Texture3dToSliceBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/Texture3dToSliceBindGroupRG.generated.h"
 #include "Rendering/Shader/ShaderCache.h"
 
 namespace
@@ -141,21 +141,22 @@ namespace
         {
             Resource Slice{};
             Resource Texture3d{};
+            Texture3dToSliceBindGroupRG BindGroup;
         };
         return renderGraph.AddRenderPass<PassData>(name,
             [&](Graph& graph, PassData& passData)
             {
                 CPU_PROFILE_FRAME("Texture3dToSlice.Setup")
 
-                graph.SetShader("texture3d-to-slice"_hsv);
+                passData.BindGroup = Texture3dToSliceBindGroupRG(graph, graph.SetShader("texture3dToSlice"_hsv));
 
                 passData.Slice = graph.Create("Slice"_hsv, ResourceCreationFlags::Volatile,
                     RGImageDescription{
                         .Inference = RGImageInference::Size2d,
                         .Reference = textureIn,
-                        .Format = Format::RGBA16_FLOAT});
+                        .Format = Texture3dToSliceBindGroupRG::GetColorAttachmentFormat()});
 
-                passData.Texture3d = graph.ReadImage(textureIn, Pixel | Sampled);
+                passData.Texture3d = passData.BindGroup.SetResourcesTexture(textureIn);
                 passData.Slice = graph.RenderTarget(passData.Slice, {});
             },
             [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
@@ -163,15 +164,10 @@ namespace
                 CPU_PROFILE_FRAME("Texture3dToSlice")
                 GPU_PROFILE_FRAME("Texture3dToSlice")
 
-                const Shader& shader = graph.GetShader();
-                Texture3dToSliceShaderBindGroup bindGroup(shader);
-
-                bindGroup.SetTexture(graph.GetImageBinding(passData.Texture3d));
-
                 auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, graph.GetFrameAllocators());
+                passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
                 cmd.PushConstants({
-                	.PipelineLayout = shader.GetLayout(), 
+                	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 	.Data = {sliceNormalized}});
                 cmd.Draw({.VertexCount = 3});
             }).Slice;
