@@ -20,7 +20,6 @@
 #include "RenderGraph/Passes/AA/FxaaPass.h"
 #include "RenderGraph/Passes/AO/SsaoBlurPass.h"
 #include "RenderGraph/Passes/AO/SsaoPass.h"
-#include "RenderGraph/Passes/AO/SsaoVisualizePass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereAerialPerspectiveLutPass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
@@ -57,7 +56,6 @@
 #include "RenderGraph/Passes/SceneDraw/Shadow/SceneDirectionalShadowPass.h"
 #include "RenderGraph/Passes/SceneDraw/VBuffer/SceneVBufferPass.h"
 #include "RenderGraph/Passes/SceneDraw/VBuffer/SceneVBufferPbrPass.h"
-#include "RenderGraph/Passes/Shadows/CsmVisualizePass.h"
 #include "RenderGraph/Passes/Shadows/DepthReductionReadbackPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesCommon.h"
 #include "RenderGraph/Passes/Skybox/SkyboxPass.h"
@@ -668,6 +666,9 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass,
 
     Passes::SceneCsm::mergeCsm(*m_Graph, csmInit, scenePass, meta.DrawPassViewAttachments);
 
+    Passes::ImGuiArrayTexture::addToGraph("Csm atlas"_hsv, *m_Graph, csmInit.CsmData.ShadowMap,
+        Passes::ImGuiArrayTexture::DrawAs::Atlas, Passes::ChannelComposition::RComposition());
+
     return csmInit.CsmData;
 }
 
@@ -888,10 +889,8 @@ RG::Resource Renderer::RenderGraphSSAO(StringId baseName, RG::Resource depth)
         .SsaoOut = ssao.SSAO,
         .BlurKind = SsaoBlurPassKind::Vertical});
 
-    auto& ssaoVisualize = Passes::SsaoVisualize::addToGraph(baseName.Concatenate("SSAO.Visualize"), *m_Graph,
-        ssaoBlurVertical.SsaoOut);
-
-    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("SSAO.Texture"), *m_Graph, ssaoVisualize.Color);
+    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("SSAO.Visualize"), *m_Graph, ssaoBlurVertical.SsaoOut,
+        Passes::ChannelComposition::RComposition());
 
     return ssaoBlurVertical.SsaoOut;
 }
@@ -1076,7 +1075,7 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
     
     Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, composed.ColorOut);
     Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective"_hsv, *m_Graph,
-        aerialPerspective);
+        aerialPerspective, Passes::ChannelComposition::RGBComposition());
 
     return composed.ColorOut;
 }
@@ -1184,7 +1183,8 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         }    
     }
     
-    Passes::ImGuiTexture::addToGraph("CloudCoverage.Tex"_hsv, *m_Graph, cloudCoverageResource);
+    Passes::ImGuiTexture::addToGraph("CloudCoverage.Tex"_hsv, *m_Graph, cloudCoverageResource,
+        Passes::ChannelComposition::RComposition());
     Passes::ImGuiTexture::addToGraph("CloudProfileMap.Tex"_hsv, *m_Graph, cloudProfileMapResource);
 
     bool isShapeDirty = false;
@@ -1237,8 +1237,10 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         m_Graph->MarkImageForExport(curlNoiseResource);
     }
     
-    Passes::ImGuiTexture3d::addToGraph("LowFreq.Tex"_hsv, *m_Graph, lowFrequencyNoiseResource);
-    Passes::ImGuiTexture3d::addToGraph("HighFreq.Tex"_hsv, *m_Graph, highFrequencyNoiseResource);
+    Passes::ImGuiTexture3d::addToGraph("LowFreq.Tex"_hsv, *m_Graph, lowFrequencyNoiseResource,
+        Passes::ChannelComposition::RComposition());
+    Passes::ImGuiTexture3d::addToGraph("HighFreq.Tex"_hsv, *m_Graph, highFrequencyNoiseResource,
+        Passes::ChannelComposition::RComposition());
     Passes::ImGuiTexture::addToGraph("CurlNoise.Tex"_hsv, *m_Graph, curlNoiseResource);
     
     ImGui::End();

@@ -40,10 +40,13 @@ Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& rende
                 .Filter = filter,
                 .SourceSubregion = {
                     .Layers = 1,
-                    .Top = srcDescription.Dimensions()},
+                    .Top = srcDescription.Dimensions()
+                },
                 .DestinationSubregion = {
                     .Layers = 1,
                     .Bottom = bottom,
-                    .Top = top}});
+                    .Top = top
+                }
+            });
         });
 }

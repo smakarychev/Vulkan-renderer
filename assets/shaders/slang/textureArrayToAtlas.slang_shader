@@ -1,5 +1,5 @@
 {
-  "name": "ssaoVisualize",
+  "name": "textureArrayToAtlas",
   "entryPoints": [
     {
       "name": "fullscreenMain",
@@ -7,14 +7,14 @@
     },
     {
       "name": "main",
-      "path": "ao/ssaoVisualize.slang"
+      "path": "utility/textureArrayToAtlas.slang"
     }
   ],
   "rasterizationInfo": {
     "colors": [
       {
         "format": "RGBA16_FLOAT",
-        "name": "ssao"
+        "name": "color"
       }
     ]
   }
