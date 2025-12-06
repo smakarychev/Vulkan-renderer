@@ -98,6 +98,9 @@ public:
     glm::vec3 GetUp() const;
     glm::vec3 GetRight() const;
 
+    f32 GetFov() const;
+    f32 GetAspect() const;
+
     FrustumPlanes GetFrustumPlanes(f32 maxDistance) const;
     FrustumCorners GetFrustumCorners() const;
     FrustumCorners GetFrustumCorners(f32 maxDistance) const;
@@ -123,7 +126,7 @@ private:
 
     f32 m_Aspect;
     f32 m_NearClipPlane, m_FarClipPlane;
-    f32 m_FieldOfView;
+    f32 m_Fov;
     u32 m_ViewportWidth = 1600, m_ViewportHeight = 900;
 
     bool m_FlipY{true};

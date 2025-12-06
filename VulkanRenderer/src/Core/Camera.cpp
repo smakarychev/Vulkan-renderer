@@ -16,7 +16,7 @@ Camera::Camera(CameraType type)
     m_CameraType(type),
     m_Position(DEFAULT_POSITION), m_Orientation(DEFAULT_ORIENTATION),
     m_Aspect(DEFAULT_ASPECT),
-    m_NearClipPlane(DEFAULT_NEAR), m_FarClipPlane(DEFAULT_FAR), m_FieldOfView(DEFAULT_FOV)
+    m_NearClipPlane(DEFAULT_NEAR), m_FarClipPlane(DEFAULT_FAR), m_Fov(DEFAULT_FOV)
 {
     UpdateViewMatrix();
     UpdateProjectionMatrix();
@@ -28,7 +28,7 @@ Camera::Camera(CameraType type, const glm::vec3& position, f32 fov, f32 aspect)
     m_CameraType(type),
     m_Position(position), m_Orientation(DEFAULT_ORIENTATION),
     m_Aspect(aspect),
-    m_NearClipPlane(DEFAULT_NEAR), m_FarClipPlane(DEFAULT_FAR), m_FieldOfView(fov)
+    m_NearClipPlane(DEFAULT_NEAR), m_FarClipPlane(DEFAULT_FAR), m_Fov(fov)
 {
     UpdateViewMatrix();
     UpdateProjectionMatrix();
@@ -46,7 +46,7 @@ Camera Camera::Perspective(const PerspectiveCameraCreateInfo& info)
     camera.m_ViewportHeight = info.BaseInfo.ViewportHeight;
     camera.m_FlipY = info.BaseInfo.FlipY;
 
-    camera.m_FieldOfView = info.Fov;
+    camera.m_Fov = info.Fov;
     camera.m_Aspect = (f32)camera.m_ViewportWidth / (f32)camera.m_ViewportHeight;
     camera.UpdateViewMatrix();
     camera.UpdateProjectionMatrix();
@@ -68,7 +68,7 @@ Camera Camera::Orthographic(const OrthographicCameraCreateInfo& info)
 
     const f32 halfHeight = (info.Top - info.Bottom) * 0.5f;
     const f32 halfWidth = (info.Right - info.Left) * 0.5f;
-    camera.m_FieldOfView = 2.0f * std::atan(halfHeight / std::abs(info.BaseInfo.Near));
+    camera.m_Fov = 2.0f * std::atan(halfHeight / std::abs(info.BaseInfo.Near));
     camera.m_Aspect = halfWidth / halfHeight;
 
     camera.UpdateViewMatrix();
@@ -179,6 +179,16 @@ glm::vec3 Camera::GetRight() const
     return m_Orientation * glm::vec3(1.0f, 0.0f, 0.0f);
 }
 
+f32 Camera::GetFov() const
+{
+    return m_Fov;
+}
+
+f32 Camera::GetAspect() const
+{
+    return m_Aspect;
+}
+
 FrustumPlanes Camera::GetFrustumPlanes(f32 maxDistance) const
 {
     const glm::mat4& mat = GetProjection();
@@ -225,17 +235,17 @@ FrustumCorners Camera::GetFrustumCorners(f32 maxDistance) const
 
 FrustumCorners Camera::GetFrustumCorners(f32 minDistance, f32 maxDistance) const
 {
-    f32 near = std::max(m_NearClipPlane, minDistance);
-    f32 far = std::min(m_FarClipPlane, maxDistance);
+    const f32 near = std::max(m_NearClipPlane, minDistance);
+    const f32 far = std::min(m_FarClipPlane, maxDistance);
     
-    glm::vec3 nearCenter = GetForward() * near;
-    glm::vec3 farCenter = GetForward() * far;
+    const glm::vec3 nearCenter = GetForward() * near;
+    const glm::vec3 farCenter = GetForward() * far;
 
-    f32 tanFov = std::tan(m_FieldOfView * 0.5f);
-    f32 nearHeight = tanFov * near;
-    f32 nearWidth = nearHeight * m_Aspect;
-    f32 farHeight = tanFov * far;
-    f32 farWidth = farHeight * m_Aspect;
+    const f32 tanFov = std::tan(m_Fov * 0.5f);
+    const f32 nearHeight = tanFov * near;
+    const f32 nearWidth = nearHeight * m_Aspect;
+    const f32 farHeight = tanFov * far;
+    const f32 farWidth = farHeight * m_Aspect;
 
     FrustumCorners p = {};
 
@@ -294,12 +304,12 @@ void Camera::UpdateProjectionMatrix()
     {
     case CameraType::Perspective:
     {
-        m_ProjectionMatrix = infiniteReverseDepthProjection(m_FieldOfView, m_Aspect, m_NearClipPlane);
+        m_ProjectionMatrix = infiniteReverseDepthProjection(m_Fov, m_Aspect, m_NearClipPlane);
         break;
     }
     case CameraType::Orthographic:
     {
-        const f32 orthoHeight = 2.0f * std::tan(m_FieldOfView * 0.5f) * (m_NearClipPlane + 1.0f);
+        const f32 orthoHeight = 2.0f * std::tan(m_Fov * 0.5f) * (m_NearClipPlane + 1.0f);
         const f32 orthoWidth = orthoHeight * m_Aspect;
         const f32 x = orthoWidth * 0.5f;
         const f32 y = orthoHeight * 0.5f;

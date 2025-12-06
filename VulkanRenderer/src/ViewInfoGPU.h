@@ -49,7 +49,6 @@ struct ShadingSettings : gen::ShadingSettings
 
 /*
  * Used for most of the 'pbr' passes of render graph
- * Reflected in `view.glsl`
  */
 struct ViewInfoGPU : gen::ViewInfo
 {

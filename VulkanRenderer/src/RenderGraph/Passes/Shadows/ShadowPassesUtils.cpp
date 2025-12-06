@@ -35,7 +35,8 @@ namespace
         return {
             .Min = min,
             .Max = max,
-            .Centroid = centroid};
+            .Centroid = centroid
+        };
     }
 }
 

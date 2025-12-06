@@ -28,8 +28,7 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
         if (resources.RenderObjectVisibility[i].IsValid())
             continue;
 
-        resources.Views[i] = renderGraph.Create("View"_hsv, RG::RGBufferDescription{
-            .SizeBytes = sizeof(ViewInfoGPU)});
+        resources.Views[i] = renderGraph.Create("View"_hsv, RG::RGBufferDescription{.SizeBytes = sizeof(ViewInfoGPU)});
         
         resources.RenderObjectVisibility[i] = renderGraph.Import(StringId("Visibility.{}", i),
             sceneMultiviewVisibility.RenderObjectVisibility({i}));

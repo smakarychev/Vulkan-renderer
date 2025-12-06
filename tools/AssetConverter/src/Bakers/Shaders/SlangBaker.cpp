@@ -45,7 +45,7 @@ slang::ISession& getSession(const SlangBakeSettings& settings)
 {
     /* slang sessions must be unique for each #define list */
     static std::unordered_map<u64, ::Slang::ComPtr<slang::ISession>> sessions;
-    static const SlangProfileID PROFILE_ID = getGlobalSession().findProfile("spirv_1_5");
+    static const SlangProfileID PROFILE_ID = getGlobalSession().findProfile("spirv_1_6");
 
     if (sessions.contains(settings.DefinesHash))
     {
@@ -68,11 +68,11 @@ slang::ISession& getSession(const SlangBakeSettings& settings)
         },
         slang::CompilerOptionEntry{
             .name = slang::CompilerOptionName::VulkanUseEntryPointName,
-            .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = true}
+            .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = 1}
         },
         slang::CompilerOptionEntry{
             .name = slang::CompilerOptionName::GLSLForceScalarLayout,
-            .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = true}
+            .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = 1}
         },
     };
 

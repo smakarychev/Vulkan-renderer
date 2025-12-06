@@ -12,6 +12,10 @@ struct ViewInfo {
     float near;
     vec3 forward;
     float far;
+    vec3 right;
+    float unused_6;
+    vec3 up;
+    float unused_7;
 
     mat4 inv_view_projection;
     mat4 inv_projection;
@@ -42,6 +46,10 @@ struct ViewInfo {
     float prev_near;
     vec3 prev_forward;
     float prev_far;
+    vec3 prev_right;
+    float unused_8;
+    vec3 prev_up;
+    float unused_9;
 
     mat4 prev_inv_view_projection;
     mat4 prev_inv_projection;

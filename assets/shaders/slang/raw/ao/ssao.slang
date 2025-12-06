@@ -34,7 +34,7 @@ struct SsaoResources {
     Texture2D depth;
     RWTexture2D<float> ssao;
     ConstantBuffer<float4[MAX_SAMPLES]> samples;
-    ConstantBuffer<ViewInfo, ScalarDataLayout> view;
+    ConstantBuffer<ViewInfo> view;
     ConstantBuffer<Settings> settings;
 }
 

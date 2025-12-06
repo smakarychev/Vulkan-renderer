@@ -19,6 +19,10 @@ public struct Camera {
     public float near;
     public float3 forward;
     public float far;
+    public float3 right;
+    public float fov;
+    public float3 up;
+    public float aspectRatio;
 
     public float4x4 inverseViewProjection;
     public float4x4 inverseProjection;
@@ -66,7 +70,7 @@ public struct ShadingSettings {
     public uint transmittanceLut;
     public uint skyViewLut;
     public uint volumetricCloudShadow;
-    uint unused4;
+    uint unused0;
 
     public float4x4 volumetricCloudViewProjection;
     public float4x4 volumetricCloudView;

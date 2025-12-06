@@ -64,6 +64,7 @@
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/DiffuseIrradianceSHPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/EnvironmentPrefilterPass.h"
+#include "RenderGraph/Passes/Shadows/ShadowCamerasGpuPass.h"
 #include "RenderGraph/Passes/Utility/EquirectangularToCubemapPass.h"
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
@@ -224,9 +225,9 @@ void Renderer::InitRenderGraph()
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
-                .Position = glm::vec3{0.0f, -1.5f, -7.0f},
+                .Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-                .Scale = glm::vec3{1000.0f},
+                .Scale = glm::vec3{750.0f},
                 //.Scale = glm::vec3{1.0f},
                 }},
             ctx);
@@ -416,6 +417,12 @@ void Renderer::SetupRenderGraph()
             .MultiviewVisibility = &m_PrimaryVisibility,
             .Resources = &m_PrimaryVisibilityResources,
             .DrawPasses = drawPasses});
+
+    auto& gpuShadowCameras = Passes::ShadowCamerasGpu::addToGraph("ShadowCameraGpu"_hsv, *m_Graph, {
+        .DepthMinMax = metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
+        .View = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+        .LightDirection = m_SunLight->PositionDirection
+    }); 
     
     std::swap(
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],

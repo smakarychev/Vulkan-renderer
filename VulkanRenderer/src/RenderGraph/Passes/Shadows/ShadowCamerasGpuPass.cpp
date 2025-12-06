@@ -2,9 +2,11 @@
 
 #include "ShadowCamerasGpuPass.h"
 
+#include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGDrawResources.h"
-#include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroupRG.generated.h"
+#include "RenderGraph/Passes/SceneDraw/Shadow/SceneCsmPass.h"
 
 #include "Rendering/Shader/ShaderCache.h"
 
@@ -14,50 +16,48 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    using PassDataBind = PassDataWithBind<PassData, CreateShadowCamerasBindGroupRG>;
+
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("ShadowCameras.GPU.Setup")
-            
-            graph.SetShader("create-shadow-cameras"_hsv);
 
-            Resource csmData = graph.Create("CSM.Data"_hsv, RGBufferDescription{
-                .SizeBytes = sizeof(CsmData)});
+            passData.BindGroup = CreateShadowCamerasBindGroupRG(graph, graph.SetShader("createShadowCameras"_hsv));
 
-            passData.ViewInfo = graph.ReadBuffer(info.View, Compute | Uniform);
-            passData.DepthMinMax = graph.ReadBuffer(info.DepthMinMax, Compute | Uniform);
-            passData.CsmDataOut = graph.WriteBuffer(csmData, Compute | Storage);
+            const Resource csmData = graph.Create("CSM.Data"_hsv, RGBufferDescription{
+                .SizeBytes = sizeof(SceneCsm::CsmInfo)});
+
+            passData.ViewInfo = passData.BindGroup.SetResourcesView(info.View);
+            passData.DepthMinMax = passData.BindGroup.SetResourcesMinMax(info.DepthMinMax);
+            passData.CsmDataOut = passData.BindGroup.SetResourcesCsm(csmData);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("ShadowCameras.GPU")
             GPU_PROFILE_FRAME("ShadowCameras.GPU")
-
-            const Shader& shader = graph.GetShader();
-            CreateShadowCamerasShaderBindGroup bindGroup(shader);
-
-            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
-            bindGroup.SetMinMax(graph.GetBufferBinding(passData.DepthMinMax));
-            bindGroup.SetCsmData(graph.GetBufferBinding(passData.CsmDataOut));
 
             struct PushConstant
             {
                 u32 ShadowSize;
                 u32 CascadeCount;
+                f32 MaxShadowDistance;
                 glm::vec3 LightDirection;
             };
             PushConstant pushConstant = {
                 .ShadowSize = SHADOW_MAP_RESOLUTION,
                 .CascadeCount = SHADOW_CASCADES,
-                .LightDirection = info.LightDirection};
+                .MaxShadowDistance = *CVars::Get().GetF32CVar("Renderer.Limits.MaxShadowDistance"_hsv),
+                .LightDirection = info.LightDirection
+            };
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
-            	.PipelineLayout = shader.GetLayout(), 
+            	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
             	.Data = {pushConstant}});
             cmd.Dispatch({
                 .Invocations = {SHADOW_CASCADES, 1, 1},
-                .GroupSize = {MAX_SHADOW_CASCADES, 1, 1}});
+                .GroupSize = passData.BindGroup.GetMainGroupSize()});
         });
 }
