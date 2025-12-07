@@ -363,10 +363,6 @@ void Renderer::SetupRenderGraph()
         return true;
     });
 
-    CsmData csmData = {};
-    if (m_SunLight != nullptr)
-        csmData = RenderGraphShadows(shadowPass, *m_SunLight);
-
     m_OpaqueSetPrimaryView = {
         .Name = "OpaquePrimary"_hsv,
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfo};
@@ -397,57 +393,20 @@ void Renderer::SetupRenderGraph()
     CVars::Get().SetI32CVar("Renderer.UseForwardShading"_hsv, useForwardPass);
     ImGui::End();
 
+    Passes::SceneMetaDraw::PassData* metaUgb = nullptr;
     if (useForwardPass)
-    {
-        if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
-        {
-            RenderGraphDepthPrepass(depth, *depthPrepass);
-            RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
-        }
-        
-        drawPasses.push_back(RenderGraphForwardPbrDescription(color, depth, csmData, pbrPass));
-    }
+        metaUgb = &RenderGraphForwardPass(color, depth);
     else
-    {
-        drawPasses.push_back(RenderGraphVBufferDescription(vbuffer, depth, vbufferPass));
-    }
+        metaUgb = &RenderGraphVBuffer(vbuffer, color, depth);
 
-    auto& metaUgb = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
-        *m_Graph, {
-            .MultiviewVisibility = &m_PrimaryVisibility,
-            .Resources = &m_PrimaryVisibilityResources,
-            .DrawPasses = drawPasses});
-
-    auto& gpuShadowCameras = Passes::ShadowCamerasGpu::addToGraph("ShadowCameraGpu"_hsv, *m_Graph, {
-        .DepthMinMax = metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
-        .View = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .LightDirection = m_SunLight->PositionDirection
-    }); 
-    
     std::swap(
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         m_MinMaxDepthReductions[GetFrameContext().FrameNumber]);
-    m_Graph->MarkBufferForExport(metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
+    m_Graph->MarkBufferForExport(metaUgb->DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
         BufferUsage::Readback);
 
-    Resource minMaxDepth = {};
-    if (useForwardPass)
-    {
-        color = metaUgb.DrawPassViewAttachments.Get(
-            m_OpaqueSetPrimaryView.Name, pbrPass.Name()).Colors[0].Resource;
-    }
-    else
-    {
-        depth = metaUgb.DrawPassViewAttachments.Get(
-            m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Depth->Resource;
-        vbuffer = metaUgb.DrawPassViewAttachments.Get(
-            m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
-        minMaxDepth =
-            m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)];
-
-        RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
-        color = RenderGraphVBufferPbr(vbuffer, m_Graph->GetGlobalResources().PrimaryViewInfoResource, csmData);
-    }
+    Resource minMaxDepth =
+        m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)];
 
     CloudShadowInfo cloudShadow = {};
     Resource colorWithSky{};
@@ -462,12 +421,12 @@ void Renderer::SetupRenderGraph()
             .TransmittanceLut = atmosphereLuts->TransmittanceLut,
             .MultiscatteringLut = atmosphereLuts->MultiscatteringLut,
             .Light = &m_Scene.Lights(),
-            .CsmData = csmData
+            .CsmData = m_CsmData
         });
         
         clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, minMaxDepth, depth);
         colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.AerialPerspective,
-            color, depth, csmData, clouds.Color, clouds.Depth, skyAtmosphereWithCloudsEnvironment.CloudsEnvironment);
+            color, depth, m_CsmData, clouds.Color, clouds.Depth, skyAtmosphereWithCloudsEnvironment.CloudsEnvironment);
     }
     else
     {
@@ -487,7 +446,7 @@ void Renderer::SetupRenderGraph()
     ImGui::End();
 
     m_Graph->ClaimBuffer(
-        metaUgb.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
+        metaUgb->DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         Device::DeletionQueue());
 
@@ -625,25 +584,32 @@ void Renderer::UpdateGlobalRenderGraphResources() const
         "Upload.GlobalGraphData"_hsv, *m_Graph, globalResources.PrimaryViewInfo);
 }
 
-RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass,
-    const CommonLight& directionalLight)
+RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const CommonLight& directionalLight)
 {
     using namespace RG;
 
+    bool useGpuShadowCameras = CVars::Get().GetI32CVar("Renderer.UseGpuShadowCameras"_hsv).value_or(false);
+    ImGui::Begin("UseGpuShadowCameras");
+    ImGui::Checkbox("Enabled", &useGpuShadowCameras);
+    CVars::Get().SetI32CVar("Renderer.UseGpuShadowCameras"_hsv, useGpuShadowCameras);
+    ImGui::End();
+
     f32 shadowMin = 0.01f;
     f32 shadowMax = 100.0f;
-    if (m_MinMaxDepthReductions[GetFrameContext().FrameNumber].HasValue())
+    if (!useGpuShadowCameras)
     {
-        auto& readBackDepthMinMax = Passes::DepthReductionReadback::addToGraph("DepthReductionReadback"_hsv,
-            *m_Graph, {
-                .MinMaxDepthReduction = m_Graph->Import("DepthReduction"_hsv,
-                    m_MinMaxDepthReductions[GetFrameContext().FrameNumber]),
-                .PrimaryCamera = m_Camera.get()
-            });
-        shadowMin = readBackDepthMinMax.Min;
-        shadowMax = readBackDepthMinMax.Max;
+        if (m_MinMaxDepthReductions[GetFrameContext().FrameNumber].HasValue())
+        {
+            auto& readBackDepthMinMax = Passes::DepthReductionReadback::addToGraph("DepthReductionReadback"_hsv,
+                *m_Graph, {
+                    .MinMaxDepthReduction = m_Graph->Import("DepthReduction"_hsv,
+                        m_MinMaxDepthReductions[GetFrameContext().FrameNumber]),
+                    .PrimaryCamera = m_Camera.get()
+                });
+            shadowMin = readBackDepthMinMax.Min;
+            shadowMax = readBackDepthMinMax.Max;
+        }
     }
-    
     
     auto& csmInit = Passes::SceneCsm::addToGraph("CSM"_hsv,
         *m_Graph, {
@@ -658,6 +624,8 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass,
                 .Size = directionalLight.Radius},
             .ShadowMin = shadowMin,
             .ShadowMax = shadowMax,
+            .DepthMinMaxBuffer = m_DepthMinMaxCurrentFrame,
+            .CreateCamerasInGpu = useGpuShadowCameras,
             .StabilizeCascades = false
         });
 
@@ -679,16 +647,18 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass,
     return csmInit.CsmData;
 }
 
-void Renderer::RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass)
+Passes::SceneMetaDraw::PassData& Renderer::RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass)
 {
     using namespace RG;
     
-    Passes::SceneMetaDraw::addToGraph("MetaDepthPrepass"_hsv,
+    auto& meta = Passes::SceneMetaDraw::addToGraph("MetaDepthPrepass"_hsv,
         *m_Graph, {
             .MultiviewVisibility = &m_PrimaryVisibility,
             .Resources = &m_PrimaryVisibilityResources,
             .DrawPasses = {RenderGraphDepthPrepassDescription(depth, scenePass)}
         });
+
+    return meta;
 }
 
 SceneDrawPassDescription Renderer::RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass)
@@ -863,6 +833,63 @@ RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource 
     });
 
     return pbr.Color;
+}
+
+Passes::SceneMetaDraw::PassData& Renderer::RenderGraphForwardPass(RG::Resource& color, RG::Resource& depth)
+{
+    auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
+    auto* depthPrepass = m_OpaqueSet.TryFindPass("DepthPrepass"_hsv);
+    auto& pbrPass = m_OpaqueSet.FindPass("ForwardPbr"_hsv);
+
+    if (CVars::Get().GetI32CVar("Renderer.DepthPrepass"_hsv).value_or(false))
+    {
+        auto& depthPrepassMeta = RenderGraphDepthPrepass(depth, *depthPrepass);
+        m_DepthMinMaxCurrentFrame = depthPrepassMeta.DrawPassViewAttachments.GetMinMaxDepthReduction(
+            m_OpaqueSetPrimaryView.Name);
+        depth = depthPrepassMeta.DrawPassViewAttachments.Get(
+            m_OpaqueSetPrimaryView.Name, depthPrepass->Name()).Depth->Resource;
+
+        RenderGraphOnFrameDepthGenerated(depthPrepass->Name(), depth);
+    }
+
+    if (m_SunLight != nullptr)
+        m_CsmData = RenderGraphShadows(shadowPass, *m_SunLight);
+    
+    auto& meta = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
+        *m_Graph, {
+            .MultiviewVisibility = &m_PrimaryVisibility,
+            .Resources = &m_PrimaryVisibilityResources,
+            .DrawPasses = {RenderGraphForwardPbrDescription(color, depth, m_CsmData, pbrPass)}
+        });
+
+    color = meta.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, pbrPass.Name()).Colors[0].Resource;
+
+    return meta;
+}
+
+Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color,
+    RG::Resource& depth)
+{
+    auto& shadowPass = m_OpaqueSet.FindPass("Shadow"_hsv);
+    auto& vbufferPass = m_OpaqueSet.FindPass("Vbuffer"_hsv);
+    
+    auto& meta = Passes::SceneMetaDraw::addToGraph("MetaUgb"_hsv,
+        *m_Graph, {
+            .MultiviewVisibility = &m_PrimaryVisibility,
+            .Resources = &m_PrimaryVisibilityResources,
+            .DrawPasses = {RenderGraphVBufferDescription(vbuffer, depth, vbufferPass)}});
+
+    m_DepthMinMaxCurrentFrame = meta.DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name);
+
+    if (m_SunLight != nullptr)
+        m_CsmData = RenderGraphShadows(shadowPass, *m_SunLight);
+
+    depth = meta.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Depth->Resource;
+    vbuffer = meta.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
+    RenderGraphOnFrameDepthGenerated("VBufferDepth"_hsv, depth);
+    color = RenderGraphVBufferPbr(vbuffer, m_Graph->GetGlobalResources().PrimaryViewInfoResource, m_CsmData);
+
+    return meta;
 }
 
 void Renderer::RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth)

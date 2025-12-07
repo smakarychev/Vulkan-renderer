@@ -13,9 +13,10 @@ namespace Passes::ShadowCamerasGpu
     };
     struct PassData
     {
-        RG::Resource ViewInfo;
-        RG::Resource DepthMinMax;
-        RG::Resource CsmDataOut;
+        RG::Resource ViewInfo{};
+        RG::Resource DepthMinMax{};
+        RG::Resource CsmData{};
+        std::array<RG::Resource, SHADOW_CASCADES> ShadowViews{};
     };
     PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

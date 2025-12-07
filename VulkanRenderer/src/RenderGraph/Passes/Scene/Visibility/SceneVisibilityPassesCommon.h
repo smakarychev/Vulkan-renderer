@@ -30,7 +30,7 @@ struct SceneVisibilityPassesResources
         RG::Graph& renderGraph,
         const SceneMultiviewVisibility& sceneMultiviewVisibility);
 
-    void UploadViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
+    void InitViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
         RG::Graph& renderGraph);
     void ResetMeshletCounts(RG::Graph& renderGraph);
 };

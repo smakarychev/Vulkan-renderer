@@ -25,14 +25,19 @@
 #include "Scene/SceneRenderObjectSet.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
 
+namespace Passes::SceneMetaDraw
+{
+struct PassData;
+}
+
 namespace Passes::Atmosphere::LutPasses
 {
-    struct PassData;
+struct PassData;
 }
 
 namespace Passes::SceneCsm
 {
-    struct PassData;
+struct PassData;
 }
 
 class SlimeMoldPass;
@@ -66,7 +71,7 @@ private:
 
     RG::CsmData RenderGraphShadows(const ScenePass& scenePass,
         const CommonLight& directionalLight);
-    void RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass);
+    Passes::SceneMetaDraw::PassData& RenderGraphDepthPrepass(RG::Resource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphDepthPrepassDescription(RG::Resource depth, const ScenePass& scenePass);
     SceneDrawPassDescription RenderGraphForwardPbrDescription(RG::Resource color, RG::Resource depth,
         RG::CsmData csmData, const ScenePass& scenePass);
@@ -74,6 +79,10 @@ private:
     SceneDrawPassDescription RenderGraphVBufferDescription(RG::Resource vbuffer, RG::Resource depth,
         const ScenePass& scenePass);
     RG::Resource RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource viewInfo, RG::CsmData csmData);
+
+    Passes::SceneMetaDraw::PassData& RenderGraphForwardPass(RG::Resource& color, RG::Resource& depth);
+    Passes::SceneMetaDraw::PassData& RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color,
+        RG::Resource& depth);
     
     void RenderGraphOnFrameDepthGenerated(StringId passName, RG::Resource depth);
 
@@ -171,6 +180,9 @@ private:
     RG::Resource m_Ssao{};
     TileLightsInfo m_TileLightsInfo{};
     ClusterLightsInfo m_ClusterLightsInfo{};
+
+    RG::Resource m_DepthMinMaxCurrentFrame{};
+    RG::CsmData m_CsmData{};
     
     Texture m_SkyboxTexture{};
     Texture m_SkyboxPrefilterMap{};

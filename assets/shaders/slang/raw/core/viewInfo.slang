@@ -2,8 +2,8 @@ module viewInfo;
 
 import "attributes";
 
-static const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
-static const uint VIEW_CLAMP_DEPTH_BIT = 1;
+public static const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
+public static const uint VIEW_CLAMP_DEPTH_BIT = 1;
 
 [StandaloneType("camera")]
 public struct Camera {

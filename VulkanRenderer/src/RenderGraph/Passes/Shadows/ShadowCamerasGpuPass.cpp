@@ -2,6 +2,7 @@
 
 #include "ShadowCamerasGpuPass.h"
 
+#include "ViewInfoGPU.h"
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGDrawResources.h"
@@ -30,7 +31,13 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
 
             passData.ViewInfo = passData.BindGroup.SetResourcesView(info.View);
             passData.DepthMinMax = passData.BindGroup.SetResourcesMinMax(info.DepthMinMax);
-            passData.CsmDataOut = passData.BindGroup.SetResourcesCsm(csmData);
+            passData.CsmData = passData.BindGroup.SetResourcesCsm(csmData);
+            for (u32 i = 0; i < passData.ShadowViews.size(); i++)
+            {
+                passData.ShadowViews[i] = graph.Create("CSM.ShadowView"_hsv, RGBufferDescription{
+                    .SizeBytes = sizeof(ViewInfoGPU)});
+                passData.ShadowViews[i] = passData.BindGroup.SetResourcesShadowViews(passData.ShadowViews[i], i);
+            }
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {

@@ -23,13 +23,14 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
                 auto& view = info.MultiviewVisibility->View({i});
                 const bool requireHiZ =
                     info.Depths[i].IsValid() &&
-                    enumHasAny((VisibilityFlags)view.ViewInfo.Camera.VisibilityFlags, VisibilityFlags::OcclusionCull) &&
+                    enumHasAny(view.ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull) &&
                     !info.Resources->Hiz[i].IsValid();
                 if (!requireHiZ)
                     continue;
 
                 const bool isPrimaryView =
-                    enumHasAny((VisibilityFlags)view.ViewInfo.Camera.VisibilityFlags, VisibilityFlags::IsPrimaryView);
+                    view.ViewInfo.IsViewInfoGPU() &&
+                    enumHasAny(view.ViewInfo.VisibilityFlags(), VisibilityFlags::IsPrimaryView);
                 auto& hiz = HiZ::addToGraph(name.AddVersion(i), graph, {
                         .Depth = info.Depths[i],
                         .ReductionMode = isPrimaryView ? ::HiZ::ReductionMode::MinMax : ::HiZ::ReductionMode::Min,

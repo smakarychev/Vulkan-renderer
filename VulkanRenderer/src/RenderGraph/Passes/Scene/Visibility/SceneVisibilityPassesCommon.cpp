@@ -43,11 +43,16 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
     return resources;
 }
 
-void SceneVisibilityPassesResources::UploadViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
+void SceneVisibilityPassesResources::InitViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
     RG::Graph& renderGraph)
 {
     for (u32 i = 0; i < VisibilityCount; i++)
-        Views[i] = renderGraph.Upload(Views[i], sceneMultiviewVisibility.View({i}).ViewInfo);
+    {
+        if (sceneMultiviewVisibility.View({i}).ViewInfo.IsViewInfoGPU())
+            Views[i] = renderGraph.Upload(Views[i], sceneMultiviewVisibility.View({i}).ViewInfo.AsViewInfoGPU());
+        else
+            Views[i] = sceneMultiviewVisibility.View({i}).ViewInfo.AsHandle<RG::Resource>();
+    }
 }
 
 void SceneVisibilityPassesResources::ResetMeshletCounts(RG::Graph& renderGraph)

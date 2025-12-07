@@ -5,8 +5,10 @@
 #include "SceneDirectionalShadowPass.h"
 #include "Core/Camera.h"
 #include "cvars/CVarSystem.h"
+#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/SceneDraw/SceneDrawPassesCommon.h"
+#include "RenderGraph/Passes/Shadows/ShadowCamerasGpuPass.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesUtils.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
 
@@ -84,22 +86,42 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
             CPU_PROFILE_FRAME("SceneCsm.Setup")
 
             Cameras& cameras = graph.GetOrCreateBlackboardValue<Cameras>();
-            const std::vector cascades = calculateDepthCascades(*info.MainCamera, info.ShadowMin, info.ShadowMax);
-            cameras.ShadowCameras =
-                createShadowCameras(*info.MainCamera, info.DirectionalLight.Direction, cascades,
-                    std::max(info.ShadowMin, info.MainCamera->GetNear()),
-                    info.GeometryBounds, info.StabilizeCascades);
-
-            CsmInfo& csmInfo = graph.GetOrCreateBlackboardValue<CsmInfo>();
-            csmInfo.CascadeCount = SHADOW_CASCADES;
-            std::ranges::copy(cascades.begin(), cascades.end(), csmInfo.Cascades.begin());
-            for (u32 i = 0; i < cameras.ShadowCameras.size(); i++)
+            std::array<Resource, SHADOW_CASCADES> gpuViews = {};
+            if (!info.CreateCamerasInGpu)
             {
-                auto& camera = cameras.ShadowCameras[i];
-                csmInfo.ViewProjections[i] = camera.GetViewProjection();
-                csmInfo.Views[i] = camera.GetView();
-                csmInfo.Near[i] = camera.GetNear();
-                csmInfo.Far[i] = camera.GetFar();
+                const std::vector cascades = calculateDepthCascades(*info.MainCamera, info.ShadowMin, info.ShadowMax);
+                cameras.ShadowCameras =
+                    createShadowCameras(*info.MainCamera, info.DirectionalLight.Direction, cascades,
+                        std::max(info.ShadowMin, info.MainCamera->GetNear()),
+                        info.GeometryBounds, info.StabilizeCascades);
+
+                CsmInfo& csmInfo = graph.GetOrCreateBlackboardValue<CsmInfo>();
+                csmInfo.CascadeCount = SHADOW_CASCADES;
+                std::ranges::copy(cascades.begin(), cascades.end(), csmInfo.Cascades.begin());
+                for (u32 i = 0; i < cameras.ShadowCameras.size(); i++)
+                {
+                    auto& camera = cameras.ShadowCameras[i];
+                    csmInfo.ViewProjections[i] = camera.GetViewProjection();
+                    csmInfo.Views[i] = camera.GetView();
+                    csmInfo.Near[i] = camera.GetNear();
+                    csmInfo.Far[i] = camera.GetFar();
+                }
+
+                passData.CsmData.CsmInfo = graph.Create("CsmInfo"_hsv,
+                    RGBufferDescription{.SizeBytes = sizeof(CsmInfo)});
+                passData.CsmData.CsmInfo = graph.Upload(passData.CsmData.CsmInfo, csmInfo);
+            }
+            else
+            {
+                auto& gpuShadowCameras = ShadowCamerasGpu::addToGraph(name.Concatenate(".ShadowCameraGpu"), graph, {
+                    .DepthMinMax = info.DepthMinMaxBuffer,
+                    .View = graph.GetGlobalResources().PrimaryViewInfoResource,
+                    .LightDirection = info.DirectionalLight.Direction
+                });
+
+                passData.CsmData.CsmInfo = gpuShadowCameras.CsmData;
+                std::ranges::copy(gpuShadowCameras.ShadowViews.begin(), gpuShadowCameras.ShadowViews.end(),
+                    gpuViews.begin());
             }
 
             Resource shadow = renderGraph.Create("ShadowMap"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
@@ -142,13 +164,24 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                     }
                 };
 
-                ViewInfoGPU viewInfo = ViewInfoGPU::Default();
-                viewInfo.Camera = CameraGPU::FromCamera(cameras.ShadowCameras[i], glm::uvec2{SHADOW_MAP_RESOLUTION},
-                    VisibilityFlags::ClampDepth | VisibilityFlags::OcclusionCull);
+                SceneViewInfo sceneViewInfo = {};
+                VisibilityFlags visibilityFlags = VisibilityFlags::ClampDepth | VisibilityFlags::OcclusionCull;
+                if (!info.CreateCamerasInGpu)
+                {
+                    ViewInfoGPU viewInfo = ViewInfoGPU::Default();
+                    viewInfo.Camera = CameraGPU::FromCamera(cameras.ShadowCameras[i], glm::uvec2{SHADOW_MAP_RESOLUTION},
+                        visibilityFlags);
+                    sceneViewInfo = viewInfo;
+                }
+                else
+                {
+                    sceneViewInfo = SceneViewInfo(gpuViews[i], visibilityFlags);
+                }
+                
                 
                 SceneView view = {
                     .Name = StringId("{}.View.{}", name, i),
-                    .ViewInfo = viewInfo
+                    .ViewInfo = sceneViewInfo
                 };
 
                 SceneDrawPassDescription description = {
@@ -162,10 +195,7 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                 passData.MetaPassDescriptions.push_back(description);
             }
             
-            passData.CsmData.CsmInfo = graph.Create("CsmInfo"_hsv,
-                RGBufferDescription{.SizeBytes = sizeof(CsmInfo)});
-            passData.CsmData.CsmInfo = graph.WriteBuffer(passData.CsmData.CsmInfo, Vertex | Uniform);
-            passData.CsmData.CsmInfo = graph.Upload(passData.CsmData.CsmInfo, csmInfo);
+            
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

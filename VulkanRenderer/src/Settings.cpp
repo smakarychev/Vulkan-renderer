@@ -30,6 +30,9 @@ void Settings::initCvars()
     CVarI32 forwardShading("Renderer.UseForwardShading"_hsv,
         "Flag if renderer uses forward shading as main rendering pass "
         "(possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
+    CVarI32 gpuShadowCameras("Renderer.UseGpuShadowCameras"_hsv,
+        "Flag if renderer create shadow cameras on gpu "
+        "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
     CVarI32 atmosphereRendering("Renderer.Atmosphere"_hsv,
         "Flag if renderer should render sky as physically correct atmosphere "
         "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
