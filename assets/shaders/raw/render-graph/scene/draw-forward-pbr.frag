@@ -70,7 +70,7 @@ layout(scalar, set = 1, binding = 15) uniform csm_data_buffer {
     CSMData csm;
 } u_csm_data;
 
-layout(std430, set = 2, binding = 0) readonly buffer material {
+layout(scalar, set = 2, binding = 0) readonly buffer material {
     Material materials[];
 } u_materials;
 

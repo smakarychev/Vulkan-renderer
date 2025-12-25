@@ -8,7 +8,7 @@ bool DirectionalLight::operator==(const DirectionalLight& other) const
         Direction == other.Direction &&
         Color == other.Color &&
         Intensity == other.Intensity &&
-        Size == other.Size;
+        Radius == other.Radius;
 }
 
 bool PointLight::operator==(const PointLight& other) const

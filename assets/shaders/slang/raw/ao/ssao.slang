@@ -41,16 +41,8 @@ struct SsaoResources {
 ParameterBlock<SsaoSamplers> samplers;
 ParameterBlock<SsaoResources> resources;
 
-uint2 unflatten2d(uint index, uint size) {
-    return uint2(index % size, index / size); 
-}
-
-uint flatten2d(uint2 coords, uint size) {
-    return coords.x + coords.y * size;
-}
-
 [shader("compute")]
-[numthreads(16, 16, 1)]
+[numthreads(GROUP_SIZE, GROUP_SIZE, 1)]
 void main(
     uint2 dispatchThreadID: SV_DispatchThreadID,
     uint2 workGroupID: SV_GroupID,
@@ -124,7 +116,8 @@ void main(
             const float depthReal = proj.z;
             const float depthSample = resources.depth.SampleLevel(samplers.depthSampler, proj.xy, 0).r;
             float depthFix = smoothstep(0.0f, 1.0f,
-                resources.settings.radius / abs(proj.w - resources.view.camera.linearizeReverseZ(depthSample)));
+                resources.settings.radius / 
+                abs(proj.w - Camera.linearizeReverseZInf(depthSample, resources.view.camera.near)));
             ao += float(depthSample >= depthReal) * depthFix;
         }
     }

@@ -36,8 +36,8 @@ static constexpr u32 LIGHT_CLUSTER_BINS = LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_B
 static_assert(LIGHT_CLUSTER_BINS < std::numeric_limits<u16>::max(),
     "Shaders assume that there are less than 1 << 16 clusters. It is possible to change `active_clusters` type to u32");
 
-static constexpr u32 LIGHT_TILE_SIZE_X = 8;
-static constexpr u32 LIGHT_TILE_SIZE_Y = 8;
+static constexpr u32 LIGHT_TILE_SIZE_X = 16;
+static constexpr u32 LIGHT_TILE_SIZE_Y = 16;
 static constexpr u32 LIGHT_TILE_BINS_Z = 8096;
 static_assert(LIGHT_TILE_SIZE_X >= 8 && LIGHT_TILE_SIZE_Y >= 8,
     "Shaders assume that light tile size is at least 8 pixels in each dimension");

@@ -50,7 +50,8 @@ namespace
                 	.Data = {pushConstants}});
                 cmd.Dispatch({
                     .Invocations = {cubemapDescription.Width, cubemapDescription.Width, 6},
-                    .GroupSize = passData.BindGroup.GetComputeMainGroupSize()});
+                    .GroupSize = passData.BindGroup.GetComputeMainGroupSize()
+                });
             });
     }
 }

@@ -1,6 +1,7 @@
 module viewInfo;
 
 import "attributes";
+import "light/light";
 
 public static const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
 public static const uint VIEW_CLAMP_DEPTH_BIT = 1;
@@ -9,7 +10,18 @@ public static const uint VIEW_CLAMP_DEPTH_BIT = 1;
 public struct Camera {
     public bool isOrthographic() { return ((viewFlags >> VIEW_IS_ORTHOGRAPHIC_BIT) & 1u) == 1; }
     public bool isDepthClamped() { return ((viewFlags >> VIEW_CLAMP_DEPTH_BIT) & 1u) == 1; }
-    public float linearizeReverseZ(float z) { return -near / z;}
+
+    public float3 screenToView(float3 screen) {
+        const float2 ndc = screen.xy / resolution;
+        float4 clip = float4(ndc * 2.0f - 1.0f, screen.z, 1.0f);
+        const float4 view = mul(clip, inverseProjection);
+
+        return view.xyz / view.w;
+    }
+
+    public static float linearizeReverseZInf(float z, float n) { return -n / z; }
+    public static float linearizeReverseZ(float z, float n, float f) { return f * n / ((n - f) * z - n); }
+    public static float linearizeReverseZOrtho(float z, float n, float f) { return (f - n) * z - f; }
 
     public float4x4 viewProjection;
     public float4x4 projection;
@@ -63,6 +75,10 @@ public struct AtmosphereSettings {
 
 [StandaloneType("shadingSettings")]
 public struct ShadingSettings {
+    public static DirectionalLight primaryDirectionalLight(StructuredBuffer<DirectionalLight> lights) {
+        return lights[0];
+    }
+
     public float environmentPower;
     public bool softShadows;
     public float maxLightCullDistance;
@@ -70,7 +86,11 @@ public struct ShadingSettings {
     public uint transmittanceLut;
     public uint skyViewLut;
     public uint volumetricCloudShadow;
-    uint unused0;
+
+    public uint directionalLightCount;
+    public uint pointLightCount;
+    public bool lightCullingUseZBins;
+    public uint2 lightCullTileCount;
 
     public float4x4 volumetricCloudViewProjection;
     public float4x4 volumetricCloudView;
@@ -83,7 +103,7 @@ public struct ViewInfo {
     public AtmosphereSettings atmosphere;
     uint unused0[3];
 
-    ShadingSettings shading;
+    public ShadingSettings shading;
 
     public float frameNumber;
     public uint frameNumberU32;

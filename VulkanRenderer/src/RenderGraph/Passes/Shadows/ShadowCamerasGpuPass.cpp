@@ -65,6 +65,7 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             	.Data = {pushConstant}});
             cmd.Dispatch({
                 .Invocations = {SHADOW_CASCADES, 1, 1},
-                .GroupSize = passData.BindGroup.GetMainGroupSize()});
+                .GroupSize = passData.BindGroup.GetMainGroupSize()
+            });
         });
 }

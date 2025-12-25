@@ -2,7 +2,7 @@
 
 #include "material.glsl"
 
-layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
+layout(scalar, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];
 } u_materials;
 

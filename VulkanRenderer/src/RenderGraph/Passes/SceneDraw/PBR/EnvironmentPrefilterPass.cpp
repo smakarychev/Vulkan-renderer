@@ -73,7 +73,8 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
                 	.Data = {pushConstants}});
                 cmd.Dispatch({
                     .Invocations = {resolution, resolution, 6},
-                    .GroupSize = passData.BindGroup.GetComputeMainGroupSize()});
+                    .GroupSize = passData.BindGroup.GetComputeMainGroupSize()
+                });
             });
 
         if (mipmap == mipmapCount - 1)

@@ -50,7 +50,7 @@ layout(scalar, set = 1, binding = 12) readonly buffer directional_lights {
     DirectionalLight lights[];
 } u_directional_lights;
 
-layout(std430, set = 2, binding = 0) readonly buffer material_buffer {
+layout(scalar, set = 2, binding = 0) readonly buffer material_buffer {
     Material materials[];
 } u_materials;
 
@@ -528,7 +528,7 @@ void main() {
 
 #if !ENVIRONMENT_CAPTURE
     const float depth = textureLod(sampler2D(u_min_max_depth, u_sampler_min), uv, 5).r;
-    const float linear_depth = -linearize_reverse_z(max(depth, 1e-12f), u_view_info.view.near, u_view_info.view.far);
+    const float linear_depth = -linearize_reverse_z_inf(max(depth, 1e-12f), u_view_info.view.near);
     shape_blue_noise = blue_noise_sample(coord);
     light_blue_noise = blue_noise_sample(coord + ivec2(1));
 #else // ENVIRONMENT_CAPTURE

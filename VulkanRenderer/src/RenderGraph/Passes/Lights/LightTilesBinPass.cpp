@@ -2,61 +2,44 @@
 
 #include "LightTilesBinPass.h"
 
-#include "RenderGraph/RGCommon.h"
 #include "RenderGraph/RGGraph.h"
-#include "RenderGraph/RGUtils.h"
-#include "RenderGraph/Passes/Generated/LightTilesBinBindGroup.generated.h"
-
-namespace RG
-{
-    enum class ResourceAccessFlags;
-}
+#include "RenderGraph/Passes/Generated/LightTilesBinBindGroupRG.generated.h"
+#include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
+#include "Scene/SceneLight.h"
 
 Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
     using enum ResourceAccessFlags;
+
+    using PassDataBind = PassDataWithBind<PassData, LightTilesBinBindGroupRG>;
     
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Bin.Setup")
 
-            graph.SetShader("light-tiles-bin"_hsv);
+            passData.BindGroup = LightTilesBinBindGroupRG(graph, graph.SetShader("lightTilesBin"_hsv));
 
-            passData.Depth = graph.ReadImage(info.Depth, Compute | Sampled);
-            
-            passData.Tiles = graph.ReadWriteBuffer(info.Tiles, Compute | Storage);
-            
-            passData.SceneLightResources = RgUtils::readSceneLight(*info.Light, graph, Compute);
-
-            auto& globalResources = graph.GetGlobalResources();
-            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Compute | Uniform);
+            passData.Depth = passData.BindGroup.SetResourcesDepth(info.Depth);
+            passData.Tiles = passData.BindGroup.SetResourcesTiles(info.Tiles);
+            passData.PointLights = passData.BindGroup.SetResourcesPointLights(
+                graph.Import("Light.PointLights"_hsv, info.Light->GetBuffers().PointLights));
+            passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Bin")
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
             auto& depthDescription = graph.GetImageDescription(passData.Depth);
             
-            const Shader& shader = graph.GetShader();
-            LightTilesBinShaderBindGroup bindGroup(shader);
-            
-            bindGroup.SetDepth(graph.GetImageBinding(passData.Depth));
-            bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
-            bindGroup.SetPointLights(graph.GetBufferBinding(passData.SceneLightResources.PointLights));
-            bindGroup.SetLightsInfo(graph.GetBufferBinding(passData.SceneLightResources.LightsInfo));
-            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
-            
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(frameContext.CommandList, graph.GetFrameAllocators());
-            cmd.PushConstants({
-                .PipelineLayout = shader.GetLayout(), 
-                .Data = {glm::vec2{frameContext.Resolution}}});
+            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.Dispatch({
                 .Invocations = {depthDescription.Width, depthDescription.Height, 1},
-                .GroupSize = {8, 8, 1}});
+                .GroupSize = {LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y, 1}
+            });
         });
 }

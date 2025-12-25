@@ -35,6 +35,7 @@ Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& rende
             passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {description.Width, description.Height, 1},
-				.GroupSize = passData.BindGroup.GetMainGroupSize()});
+				.GroupSize = passData.BindGroup.GetMainGroupSize()
+            });
         });
 }

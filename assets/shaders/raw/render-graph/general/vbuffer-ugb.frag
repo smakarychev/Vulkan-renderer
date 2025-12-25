@@ -15,7 +15,7 @@ layout(std430, set = 1, binding = 3) readonly buffer command_buffer {
     IndirectCommand commands[];
 } u_commands;
 
-layout(std430, set = 2, binding = 0) readonly buffer material_buffer{
+layout(scalar, set = 2, binding = 0) readonly buffer material_buffer{
     Material materials[];
 } u_materials;
 

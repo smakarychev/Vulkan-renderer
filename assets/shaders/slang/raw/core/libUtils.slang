@@ -20,3 +20,13 @@ public bool isSaturated(float2 val) {
 public bool isSaturated(float3 val) {
     return isSaturated(val.xy) && isSaturated(val.z);
 }
+
+/// Get 2d index from 1d index of a 2d grid cell
+public uint2 unflatten2d(uint index, uint2 size) {
+    return uint2(index % size.x, index / size.y); 
+}
+
+/// Get 1d index for a cell of a 2d grid
+public uint flatten2d(uint2 coords, uint2 size) {
+    return coords.x + coords.y * size.x;
+}

@@ -25,8 +25,8 @@ void main() {
     const vec2 image_size_inverse = 1.0f / textureSize(u_scene_color, 0);
     const vec2 uv = vec2(coord + 0.5f) * image_size_inverse;
     
-    const float scene_depth = -linearize_reverse_z(textureLod(sampler2D(u_scene_depth, u_sampler), uv, 0).r, 
-        u_view_info.view.near, u_view_info.view.far);
+    const float scene_depth = -linearize_reverse_z_inf(textureLod(sampler2D(u_scene_depth, u_sampler), uv, 0).r, 
+        u_view_info.view.near);
     const float clouds_depth = textureLod(sampler2D(u_clouds_depth, u_sampler), uv, 0).r;
     
     const vec3 scene_color = textureLod(sampler2D(u_scene_color, u_sampler), uv, 0).rgb;

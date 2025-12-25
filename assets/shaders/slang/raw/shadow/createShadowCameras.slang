@@ -91,8 +91,8 @@ void main(uint dispatchThreadID: SV_DispatchThreadID,
     float cascades[CsmData.MAX_CASCADES];
     float f = min(camera.far, maxShadowDistance);
     float n = camera.near;
-    const float depthMin = -camera.linearizeReverseZ(asfloat(resources.minMax.max));
-    const float depthMax = -camera.linearizeReverseZ(asfloat(resources.minMax.min));
+    const float depthMin = -Camera.linearizeReverseZInf(asfloat(resources.minMax.max), camera.near);
+    const float depthMax = -Camera.linearizeReverseZInf(asfloat(resources.minMax.min), camera.near);
     f = min(f, depthMax);
     n = max(n, depthMin);
     const float ratio = f / n;

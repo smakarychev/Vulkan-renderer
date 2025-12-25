@@ -83,7 +83,7 @@ public struct SH2 {
 
     /// Add two SH2
     /// @param sh2 SH2 to be added
-    public SH2 add(SH2 sh2) {
+    public SH2 add(const SH2 sh2) {
         SH2 sh;
         [unroll]
         for (uint i = 0; i < 5 + 3 + 1; i++)
@@ -112,7 +112,7 @@ public struct SH2RGB {
     SH2 b;
 
     /// Constructs SH2RGB by multiplying SH2 with color
-    public __init(SH2 sh, float16_t3 color) {
+    public __init(const SH2 sh, float16_t3 color) {
         r = sh.multiply(color.r);
         g = sh.multiply(color.g);
         b = sh.multiply(color.b);
@@ -130,7 +130,7 @@ public struct SH2RGB {
 
     /// Add two SH2RGB
     /// @param sh2 SH2RGB to be added
-    public SH2RGB add(SH2RGB sh2) {
+    public SH2RGB add(const SH2RGB sh2) {
         SH2RGB sh;
         sh.r = r.add(sh2.r);
         sh.g = g.add(sh2.g);
@@ -151,7 +151,7 @@ public struct SH2Irradiance {
     float4 c;
 
     /// Constructs SH2Irradiance from SH2RGB
-    public __init(SH2RGB sh) {
+    public __init(const SH2RGB sh) {
         ar.x = PI_INVERSE * float(sh.r.lm[3]);
         ar.y = PI_INVERSE * float(sh.r.lm[1]);
         ar.z = PI_INVERSE * float(sh.r.lm[2]);

@@ -220,32 +220,45 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/death_valley/scene.scene", 
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/dragon/scene.scene", 
             //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/huge_plane/scene.scene", 
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
-                .Position = glm::vec3{1500.0f, -500.0f, -7.0f},
+                //.Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-                .Scale = glm::vec3{750.0f},
+                //.Scale = glm::vec3{750.0f},
                 //.Scale = glm::vec3{1.0f},
                 }},
             ctx);
 
         SceneInfo lights = {};
-        lights.AddLight({
+        lights.AddLight({{
             .Direction = glm::normalize(glm::vec3(0.3f, -1.0f, 0.1f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
             .Intensity = 2.5f,
-        });
-        constexpr u32 POINT_LIGHT_COUNT = 0;
+        }});
+        constexpr u32 POINT_LIGHT_COUNT = 64;
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
-            lights.AddLight({
-                .Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
+        {
+            const auto pos =
+                glm::vec3{Random::Float(-2.0f, 2.0f), Random::Float(0.0f, 2.0f), Random::Float(-2.0f, 2.0f)};
+            const float rad = Random::Float(0.5f, 8.6f);
+            lights.AddLight({{
+                //.Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
+                .Position = pos,
                 .Color = Random::Float3(0.0f, 1.0f),
-                .Intensity = Random::Float(0.5f, 1.7f),
-                .Radius = Random::Float(0.5f, 8.6f)
-            });
+                .Intensity = Random::Float(0.5f, 3.7f),
+                .Radius = rad
+            }});
+            /*m_Scene.Instantiate(*m_TestScene, {
+                .Transform = {
+                    .Position = pos,
+                    .Scale = glm::vec3{rad},
+                    //.Scale = glm::vec3{1.0f},
+                }},
+                ctx);*/
+        }
         m_Scene.Instantiate(lights, {}, ctx);
 
         ctx.ResourceUploader->SubmitUpload(ctx);
@@ -543,6 +556,13 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     primaryView.Shading.VolumetricCloudShadow = m_VolumetricShadowBindlessIndex;
     primaryView.Shading.MaxLightCullDistance =
         *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
+    primaryView.Shading.DirectionalLightCount = m_Scene.Lights().DirectionalLightCount();
+    primaryView.Shading.PointLightCount = m_Scene.Lights().PointLightCount();
+    // todo: toC VAR
+    primaryView.Shading.LightCullingUseZBins = true;
+    primaryView.Shading.LightCullTileCount =
+        (swapchain.SwapchainResolution + glm::uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y) - glm::uvec2(1)) /
+        glm::uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y);
 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     if (m_SunLight && renderAtmosphere)
@@ -581,7 +601,7 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     globalResources.Resolution = GetFrameContext().Resolution;
     globalResources.PrimaryCamera = m_Camera.get();
     globalResources.PrimaryViewInfoResource = Passes::Upload::addToGraph(
-        "Upload.GlobalGraphData"_hsv, *m_Graph, globalResources.PrimaryViewInfo);
+        "Upload.GlobalGraphData"_hsv, *m_Graph, primaryView);
 }
 
 RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const CommonLight& directionalLight)
@@ -617,11 +637,12 @@ RG::CsmData Renderer::RenderGraphShadows(const ScenePass& scenePass, const Commo
             .Geometry = &m_Scene.Geometry(),
             .MultiviewVisibility = &m_ShadowMultiviewVisibility,
             .MainCamera = m_Camera.get(),
-            .DirectionalLight = DirectionalLight{
+            .DirectionalLight = DirectionalLight{{
                 .Direction = directionalLight.PositionDirection,
                 .Color = directionalLight.Color,
                 .Intensity = directionalLight.Intensity,
-                .Size = directionalLight.Radius},
+                .Radius = directionalLight.Radius
+            }},
             .ShadowMin = shadowMin,
             .ShadowMax = shadowMax,
             .DepthMinMaxBuffer = m_DepthMinMaxCurrentFrame,
@@ -942,12 +963,16 @@ Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName,
     auto zbins = LightZBinner::ZBinLights(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
     Resource zbinsResource = Passes::Upload::addToGraph(baseName.Concatenate("Upload.Light.ZBins"), *m_Graph,
         zbins.Bins);
-    auto& tilesSetup = Passes::LightTilesSetup::addToGraph(baseName.Concatenate("Tiles.Setup"), *m_Graph);
+    auto& tilesSetup = Passes::LightTilesSetup::addToGraph(baseName.Concatenate("Tiles.Setup"), *m_Graph, {
+        .ViewInfo =  m_Graph->GetGlobalResources().PrimaryViewInfoResource
+    });
     auto& binLightsTiles = Passes::LightTilesBin::addToGraph(baseName.Concatenate("Tiles.Bin"), *m_Graph, {
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Tiles = tilesSetup.Tiles, 
         .Depth = depth,
         .Light = &m_Scene.Lights()});
     auto& visualizeTiles = Passes::LightTilesVisualize::addToGraph(baseName.Concatenate("Tiles.Visualize"), *m_Graph, {
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Tiles = binLightsTiles.Tiles,
         .Bins = zbinsResource,
         .Depth = depth});

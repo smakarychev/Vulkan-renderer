@@ -8,8 +8,8 @@ const uint LIGHT_CLUSTER_BINS_X = 60;
 const uint LIGHT_CLUSTER_BINS_Y = 32;
 const uint LIGHT_CLUSTER_BINS_Z = 18;
 
-const uint LIGHT_TILE_SIZE_X = 8;
-const uint LIGHT_TILE_SIZE_Y = 8;
+const uint LIGHT_TILE_SIZE_X = 16;
+const uint LIGHT_TILE_SIZE_Y = 16;
 const uint LIGHT_TILE_BINS_Z = 8096;
 
 const uint BIN_DISPATCH_SIZE = 256;
@@ -45,7 +45,7 @@ uint get_zbin_index(float depth, float near, float far) {
 
 uint get_tile_index(vec2 uv, vec2 resolution) {
     const uvec2 tile_size = uvec2(floor(resolution / vec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y)));
-    const uvec2 tile_index = uvec2(floor(vec2(uv.x, 1.0f - uv.y) * tile_size));
+    const uvec2 tile_index = uvec2(floor(vec2(uv.x, uv.y) * tile_size));
 
     return tile_index.x + tile_index.y * tile_size.x;
 }

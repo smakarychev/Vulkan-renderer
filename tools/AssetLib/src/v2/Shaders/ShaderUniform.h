@@ -78,6 +78,7 @@ struct ShaderUniformType
 struct ShaderUniformVariable
 {
     std::string Name{};
+    std::optional<std::string> DefaultValue{std::nullopt};
     u32 OffsetBytes{0};
     ShaderUniformType Type{};
 };

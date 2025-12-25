@@ -98,8 +98,7 @@ namespace
 
         static constexpr u32 INVALID_TEXTURE = ~0lu;
         std::vector loadedTextures(sceneInfo.Scene.textures.size(), INVALID_TEXTURE);
-        auto processTexture = [&](const auto& texture, Format format, RenderHandle<Texture> fallback) ->
-            RenderHandle<Texture> {
+        auto processTexture = [&](const auto& texture, Format format, u32 fallback) -> u32 {
             if (texture.index < 0)
                 return fallback;
             if (texture.texCoord > 0)
@@ -117,24 +116,25 @@ namespace
         geometry.MaterialsCpu.reserve(sceneInfo.Scene.materials.size());
         for (auto& material : sceneInfo.Scene.materials)
         {
-            geometry.Materials.push_back({
+            geometry.Materials.push_back({{
                 .Albedo = glm::vec4{*(glm::dvec4*)material.pbrMetallicRoughness.baseColorFactor.data()},
                 .Metallic = (f32)material.pbrMetallicRoughness.metallicFactor,
                 .Roughness = (f32)material.pbrMetallicRoughness.roughnessFactor,
-                .AlbedoTextureHandle = processTexture(
+                .AlbedoTexture = processTexture(
                     material.pbrMetallicRoughness.baseColorTexture, Format::RGBA8_SRGB,
                     texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
-                .NormalTextureHandle = processTexture(
+                .NormalTexture = processTexture(
                     material.normalTexture, Format::RGBA8_UNORM,
                     texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::NormalMap)),
-                .MetallicRoughnessTextureHandle = processTexture(
+                .MetallicRoughnessTexture = processTexture(
                     material.pbrMetallicRoughness.metallicRoughnessTexture, Format::RGBA8_UNORM,
                     texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
                 // todo:
-                .AmbientOcclusionTextureHandle = texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White),
-                .EmissiveTextureHandle = processTexture(
+                .AmbientOcclusionTexture = texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White),
+                .EmissiveTexture = processTexture(
                     material.emissiveTexture, Format::RGBA8_SRGB,
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::Black))});
+                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::Black))
+            }});
 
             geometry.MaterialsCpu.push_back({
                 .Flags = materialToMaterialFlags(material)});

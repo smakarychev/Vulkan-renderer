@@ -52,7 +52,11 @@ public:
     static Scene CreateEmpty(DeletionQueue& deletionQueue);
     const SceneGeometry& Geometry() const { return m_Geometry; }
     SceneGeometry& Geometry() { return m_Geometry; }
+
+    const SceneLight& Lights() const { return m_Lights; }
     SceneLight& Lights() { return m_Lights; }
+
+    const SceneHierarchy& Hierarchy() const { return m_Hierarchy; }
     SceneHierarchy& Hierarchy() { return m_Hierarchy; }
 
     Signal<NewInstanceData>& GetInstanceAddedSignal() { return m_InstanceAddedSignal; }

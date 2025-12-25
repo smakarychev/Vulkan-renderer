@@ -39,7 +39,8 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
             	.Data = {pushConstants}});
             cmd.Dispatch({
                 .Invocations = {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},
-                .GroupSize = passData.BindGroup.GetComputeMainGroupSize()});
+                .GroupSize = passData.BindGroup.GetComputeMainGroupSize()
+            });
         });
 }
 

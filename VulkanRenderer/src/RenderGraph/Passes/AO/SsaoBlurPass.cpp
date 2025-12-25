@@ -41,6 +41,7 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
             passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
-				.GroupSize = passData.BindGroup.GetMainGroupSize()});
+				.GroupSize = passData.BindGroup.GetMainGroupSize()
+            });
         });
 }

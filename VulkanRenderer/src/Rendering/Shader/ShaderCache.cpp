@@ -522,7 +522,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreateSlangPipeline(con
 {
     const std::string& path = m_ShaderNameToPath.at(name.Name);
 
-    auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
+    const auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
     if (!shaderLoadInfo.has_value())
         return std::nullopt;
     

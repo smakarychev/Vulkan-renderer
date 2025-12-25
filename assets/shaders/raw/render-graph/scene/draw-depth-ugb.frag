@@ -8,7 +8,7 @@ layout(location = 0) in flat uint vertex_material_id;
 layout(location = 1) in vec3 vertex_position;
 layout(location = 2) in vec2 vertex_uv;
 
-layout(std430, set = 2, binding = 0) readonly buffer material {
+layout(scalar, set = 2, binding = 0) readonly buffer material {
     Material materials[];
 } u_materials;
 

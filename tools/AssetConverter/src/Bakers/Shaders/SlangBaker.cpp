@@ -199,6 +199,7 @@ std::string createVariableName(const std::string& currentName, slang::VariableLa
 constexpr std::string_view SHADER_ATTRIBUTE_BINDLESS = "Bindless";
 constexpr std::string_view SHADER_ATTRIBUTE_IMMUTABLE_SAMPLER = "ImmutableSampler";
 constexpr std::string_view SHADER_ATTRIBUTE_STANDALONE_TYPE = "StandaloneType";
+constexpr std::string_view SHADER_ATTRIBUTE_DEFAULT_VALUE = "DefaultValue";
 
 class UniformTypeReflector
 {
@@ -269,6 +270,7 @@ private:
     void ReflectCommonVariableInfo(slang::VariableLayoutReflection* variableLayout, UniformVariable& variable) const
     {
         variable.Name = createVariableName(m_CurrentName, variableLayout);
+        variable.DefaultValue = FindDefaultValueAttribute(variableLayout);
         variable.OffsetBytes = (u32)variableLayout->getOffset();
     }
     
@@ -433,6 +435,25 @@ private:
                     reflectionTarget.append(assetlib::SHADER_UNIFORM_TYPE_EXTENSION);
                 
                 return reflectionTarget;
+            }                
+        }
+
+        return std::nullopt;
+    }
+
+    static std::optional<std::string> FindDefaultValueAttribute(slang::VariableLayoutReflection* variableLayout)
+    {
+        const u32 attributeCount = variableLayout->getVariable()->getUserAttributeCount();
+        for (u32 i = 0; i < attributeCount; i++)
+        {
+            slang::UserAttribute* attribute = variableLayout->getVariable()->getUserAttributeByIndex(i);
+            const std::string name = attribute->getName();
+            if (name == SHADER_ATTRIBUTE_DEFAULT_VALUE)
+            {
+                usize defaultValueLength = 0;
+                const char* defaultValue = attribute->getArgumentValueString(0, &defaultValueLength);
+
+                return std::string(defaultValue, defaultValueLength);
             }                
         }
 

@@ -80,7 +80,7 @@ void main() {
     }
     
     // draw the aerial persective on top of the geometry
-    const float linear_depth = -linearize_reverse_z(depth, view.near, view.far);
+    const float linear_depth = -linearize_reverse_z_inf(depth, view.near);
     float slice = aerial_perspective_km_to_slice(linear_depth / 1000);
     float weigth = 1.0f;
     if (slice < 0.5f) {

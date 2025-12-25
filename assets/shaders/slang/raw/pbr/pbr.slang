@@ -1,5 +1,8 @@
 module pbr;
 
+__include "shadingInfo";
+__include "pbrShading";
+
 import "core/lib";
 
 /// Returns GGX sampled point on a unit sphere:
@@ -87,4 +90,15 @@ public float disneyDiffuse(float NoV, float NoL, float NoH, float linearRoughnes
     const float viewScatter = fresnelSchlick(NoV, f0, fd90).r;
 
     return lightScatter * viewScatter * energyFactor;
+}
+
+/// Returns falloff in range of 0 to 1 for a point light
+/// @param distance2 squared distance between a shaded point and point light
+/// @param radius raduis of a point light
+/// @return Inverted falloff amount
+internal float pointLightFalloff(float distance2, float radius) {
+    const float distance2OverRadius2 = distance2 / (radius * radius);
+    const float nom = saturate(1.0f - distance2OverRadius2 * distance2OverRadius2);
+    
+    return nom * nom / (distance2 + 1.0f);
 }

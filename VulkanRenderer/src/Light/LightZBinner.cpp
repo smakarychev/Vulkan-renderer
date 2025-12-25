@@ -24,16 +24,15 @@ ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
             {
                 Sphere sphere = {
                     .Center = commonLight.PositionDirection,
-                    .Radius = commonLight.Radius};
+                    .Radius = commonLight.Radius
+                };
                 sphere.Center = glm::vec3{camera.GetView() * glm::vec4{sphere.Center, 1.0f}};
         
-                f32 distanceMin = -sphere.Center.z - sphere.Radius;
-                f32 distanceMax = -sphere.Center.z + sphere.Radius;
-                distanceMin = std::max(distanceMin, 0.0f);
-                ASSERT(distanceMax >= 0.0, "Lights supposed to be frustum culled before z-binning")
+                const f32 distanceMin = std::max(-sphere.Center.z - sphere.Radius, 0.0f);
+                const f32 distanceMax = -sphere.Center.z + sphere.Radius;
 
-                u32 binMinIndex = (u32)(distanceMin / zSpan * LIGHT_TILE_BINS_Z);
-                u32 binMaxIndex = (u32)(distanceMax / zSpan * LIGHT_TILE_BINS_Z);
+                const u32 binMinIndex = (u32)(distanceMin / zSpan * LIGHT_TILE_BINS_Z);
+                const u32 binMaxIndex = (u32)(distanceMax / zSpan * LIGHT_TILE_BINS_Z);
 
                 for (u32 binIndex = binMinIndex; binIndex <= binMaxIndex; binIndex++)
                 {

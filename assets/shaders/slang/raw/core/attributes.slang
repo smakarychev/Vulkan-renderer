@@ -27,3 +27,8 @@ struct ImmutableSamplerAttribute {
 struct StandaloneTypeAttribute {
     string name;
 }
+
+[__AttributeUsage(_AttributeTargets.Var)]
+struct DefaultValueAttribute {
+    string value;
+}

@@ -89,10 +89,10 @@ void main() {
     const float depth = textureLod(sampler2D(u_cloud_depth, u_sampler_nearest), uv, 0).r;
     
     const float scene_depth = texelFetch(sampler2D(u_scene_depth, u_sampler_nearest), coord, 0).r;
-    const float scene_depth_linear = -linearize_reverse_z(max(scene_depth, 1e-7),
-        u_view_info.view.near, u_view_info.view.far);
+    const float scene_depth_linear = -linearize_reverse_z_inf(max(scene_depth, 1e-7),
+        u_view_info.view.near);
     
-    const vec4 clip = vec4(uv * 2 - 1, project_reverse_z(-depth, u_view_info.view.near, u_view_info.view.far), 1);
+    const vec4 clip = vec4(uv * 2 - 1, project_reverse_z_inf(-depth, u_view_info.view.near, u_view_info.view.far), 1);
     vec4 unprojected = u_view_info.view.inv_projection * clip;
     unprojected /= unprojected.w;
     unprojected.xyz = mat3(u_view_info.view.inv_view) * unprojected.xyz;
@@ -110,8 +110,8 @@ void main() {
 
     const vec4 prev_color = textureLod(sampler2D(u_cloud_color_accumulation_in, u_sampler), prev_uv, 0);
     const vec4 prev_depth = textureLod(sampler2D(u_cloud_depth_accumulation_in, u_sampler), prev_uv, 0);
-    const float prev_depth_linear_t = -linearize_reverse_z(max(prev_depth.g, 1e-7),
-        u_view_info.view.near, u_view_info.view.far);
+    const float prev_depth_linear_t = -linearize_reverse_z_inf(max(prev_depth.g, 1e-7),
+        u_view_info.view.near);
     
     const float prev_reprojection_factor = textureLod(sampler2D(u_cloud_reprojection_factor_in, u_sampler), prev_uv, 0).x;
 

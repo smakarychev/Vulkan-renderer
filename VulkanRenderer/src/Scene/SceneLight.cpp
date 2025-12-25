@@ -5,6 +5,7 @@
 #include "FrameContext.h"
 #include "ResourceUploader.h"
 #include "Scene.h"
+#include "ViewInfoGPU.h"
 #include "Light/Light.h"
 #include "Rendering/Buffer/BufferUtility.h"
 #include "Vulkan/Device.h"
@@ -73,7 +74,7 @@ void SceneLightInfo::AddLight(const DirectionalLight& light)
         .PositionDirection = light.Direction,
         .Color = light.Color,
         .Intensity = light.Intensity,
-        .Radius = light.Size,
+        .Radius = light.Radius,
     });
 }
 
@@ -148,11 +149,12 @@ void SceneLight::OnUpdate(FrameContext& ctx)
 
 void SceneLight::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
 {
-    const DirectionalLight directionalLight = {
+    const DirectionalLight directionalLight = {{
         .Direction = light.PositionDirection,
         .Color = light.Color,
         .Intensity = light.Intensity,
-        .Size = light.Radius};
+        .Radius = light.Radius
+    }};
     ::Buffers::grow(m_Buffers.DirectionalLights, sizeof(directionalLight) * (lightIndex + 1), ctx.CommandList);
     if (m_CachedDirectionalLights.size() <= lightIndex)
         m_CachedDirectionalLights.resize(lightIndex + 1);
@@ -166,11 +168,12 @@ void SceneLight::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, Fram
 
 void SceneLight::UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)
 {
-    const PointLight pointLight = {
+    const PointLight pointLight = {{
         .Position = light.PositionDirection,
         .Color = light.Color,
         .Intensity = light.Intensity,
-        .Radius = light.Radius};
+        .Radius = light.Radius
+    }};
     ::Buffers::grow(m_Buffers.PointLights, sizeof(pointLight) * (lightIndex + 1), ctx.CommandList);
     if (m_CachedPointLights.size() <= lightIndex)
         m_CachedPointLights.resize(lightIndex + 1);

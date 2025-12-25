@@ -2,16 +2,8 @@
 
 #include "VisualizeLightTiles.h"
 
-#include "Light/LightZBinner.h"
-#include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGCommon.h"
-#include "RenderGraph/Passes/Generated/LightTilesVisualizeBindGroup.generated.h"
-#include "Rendering/Shader/ShaderCache.h"
-
-namespace RG
-{
-    enum class ResourceAccessFlags;
-}
+#include "RenderGraph/Passes/Generated/LightTilesVisualizeBindGroupRG.generated.h"
 
 Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
     StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
@@ -19,20 +11,14 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
     using namespace RG;
     using enum ResourceAccessFlags;
 
-    struct PassDataPrivate : PassData
-    {
-        Resource Tiles{};
-        Resource ViewInfo{};
-        Resource ZBins{};
-        Resource Depth{};
-    };
+    using PassDataBind = PassDataWithBind<PassData, LightTilesVisualizeBindGroupRG>;
     
-    return renderGraph.AddRenderPass<PassDataPrivate>(name,
-        [&](Graph& graph, PassDataPrivate& passData)
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize.Setup")
 
-            graph.SetShader("light-tiles-visualize"_hsv);
+            passData.BindGroup = LightTilesVisualizeBindGroupRG(graph, graph.SetShader("lightTilesVisualize"_hsv));
 
             auto& globalResources = graph.GetGlobalResources();
 
@@ -40,38 +26,23 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
                 RGImageDescription{
                     .Width = (f32)globalResources.Resolution.x,
                     .Height = (f32)globalResources.Resolution.y,
-                    .Format = Format::RGBA16_FLOAT});
+                    .Format = LightTilesVisualizeBindGroupRG::GetTilesAttachmentFormat()});
 
-            passData.ZBins = {};
             if (info.Bins.IsValid())
-                passData.ZBins = graph.ReadBuffer(info.Bins, Pixel | Storage);
+                passData.BindGroup.SetResourcesZbins(info.Bins);
+            passData.BindGroup.SetResourcesDepth(info.Depth);
+            passData.BindGroup.SetResourcesTiles(info.Tiles);
+            passData.BindGroup.SetResourcesView(info.ViewInfo);
             
             passData.Color = graph.RenderTarget(passData.Color, {});
-            passData.Depth = graph.ReadImage(info.Depth, Pixel | Sampled);
-            passData.Tiles = graph.ReadBuffer(info.Tiles, Pixel | Storage);
-
-            passData.ViewInfo = graph.ReadBuffer(globalResources.PrimaryViewInfoResource, Pixel | Uniform);
         },
-        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize")
             GPU_PROFILE_FRAME("Lights.Tiles.Visualize")
 
-            const Shader& shader = graph.GetShader();
-            LightTilesVisualizeShaderBindGroup bindGroup(shader);
-            bindGroup.SetDepth(graph.GetImageBinding(passData.Depth));
-            bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
-            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
-
-            bool useZBins = passData.ZBins.IsValid();
-            if (useZBins)
-                bindGroup.SetZbins(graph.GetBufferBinding(passData.ZBins));
-
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
-            cmd.PushConstants({
-            	.PipelineLayout = shader.GetLayout(), 
-            	.Data = {useZBins}});
+            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
         });
 }

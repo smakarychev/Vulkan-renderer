@@ -526,9 +526,9 @@ struct Writer
             WriteLine("u32 m_ImageCount{};");
         }
         if (HasBindlessBuffers)
-            WriteLine("std::vector<BufferBindingInfoRG> m_BufferBindlessBindings{{}};");
+            WriteLine("std::vector<BufferBindingInfoRG> m_BufferBindlessBindings{};");
         if (HasBindlessImages)
-            WriteLine("std::vector<ImageBindingInfoRG> m_ImageBindlessBindings{{}};");
+            WriteLine("std::vector<ImageBindingInfoRG> m_ImageBindlessBindings{};");
     }
 };
 }

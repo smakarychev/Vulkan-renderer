@@ -51,6 +51,7 @@ void main() {
     const uint bin_max = u_use_zbins ? light_max / BIN_BIT_SIZE : BIN_COUNT - 1;
     
     const uint tile_index = get_tile_index(vertex_uv, u_view_info.view.resolution);
+    
     const Tile tile = u_tiles.tiles[tile_index];
     uint light_count = 0;
     for (uint i = bin_min; i <= bin_max; i++) {

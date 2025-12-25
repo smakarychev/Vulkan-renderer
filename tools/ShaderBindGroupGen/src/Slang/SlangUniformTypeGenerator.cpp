@@ -72,7 +72,7 @@ std::string shaderMatrixTypeToString(assetlib::ShaderScalarType scalar, u32 rows
     }
 }
 
-static constexpr std::string_view GEN_NAMESPACE_NAME = "gen";
+constexpr std::string_view GEN_NAMESPACE_NAME = "gen";
 
 struct UniformWriter
 {
@@ -108,7 +108,10 @@ struct UniformWriter
     void WriteNameEOL(const assetlib::ShaderUniformVariable& variable)
     {
         WriteName(variable);
-        Stream << "{};\n";
+        if (variable.DefaultValue.has_value())
+            Stream << "{" << *variable.DefaultValue << "};\n";
+        else
+            Stream << "{};\n";
     }
 
     void WriteUniform(const assetlib::ShaderUniform& uniform)

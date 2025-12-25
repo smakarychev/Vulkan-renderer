@@ -7,29 +7,22 @@
 
 #include "Settings.h"
 #include "Math/Geometry.h"
+#include "RenderGraph/Passes/Generated/Types/DirectionalLightUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/PointLightUniform.generated.h"
 
-struct DirectionalLight
+struct DirectionalLight : gen::DirectionalLight
 {
-    glm::vec3 Direction{0.0f, -1.0f, 0.0f};
-    glm::vec3 Color{1.0f};
-    f32 Intensity{1.0f};
-    f32 Size{1.0f};
-
     bool operator==(const DirectionalLight& other) const;
 };
 
 // todo: remove me in favour of sphere and tube lights
 
-struct PointLight
+struct PointLight : gen::PointLight
 {
-    glm::vec3 Position{0.0f};
-    glm::vec3 Color{1.0f};
-    f32 Intensity{1.0f};
-    f32 Radius{1.0f};
-
     bool operator==(const PointLight& other) const;
 };
 
+// todo: remove me completely once fully slang
 struct LightsInfo
 {
     u32 DirectionalLightCount{};

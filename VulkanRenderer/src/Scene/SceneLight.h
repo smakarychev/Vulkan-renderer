@@ -8,6 +8,7 @@
 #include <vector>
 #include <glm/glm.hpp>
 
+struct ShadingSettings;
 struct FrameContext;
 
 enum class LightType : u8
@@ -67,6 +68,9 @@ public:
     const CommonLight& Get(u32 index) const { return m_Lights[index]; }
     const Buffers& GetBuffers() const { return m_Buffers; }
     const std::vector<u32>& VisibleLights() const { return m_VisibleLights; }
+
+    u32 DirectionalLightCount() const { return m_CachedLightsInfo.DirectionalLightCount; }
+    u32 PointLightCount() const { return m_CachedLightsInfo.PointLightCount; }
 private:
     void UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
     void UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
