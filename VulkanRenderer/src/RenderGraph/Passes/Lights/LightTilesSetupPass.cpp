@@ -20,7 +20,7 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Setup.Setup")
 
-            passData.BindGroup = LightTilesSetupBindGroupRG(graph, graph.SetShader("lightTilesSetup"_hsv));
+            passData.BindGroup = LightTilesSetupBindGroupRG(graph);
 
             auto& globalResources = graph.GetGlobalResources();
             const glm::uvec2 bins = glm::ceil(

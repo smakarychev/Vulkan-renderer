@@ -25,8 +25,7 @@ Passes::SceneDirectionalShadow::PassData& Passes::SceneDirectionalShadow::addToG
         {
             CPU_PROFILE_FRAME("SceneDirectionalShadow.Setup")
 
-            passData.BindGroup = ShadowDirectionalUgbBindGroupRG(graph,
-                graph.SetShader("shadowDirectionalUgb"_hsv, *info.DrawInfo.BucketOverrides));
+            passData.BindGroup = ShadowDirectionalUgbBindGroupRG(graph, *info.DrawInfo.BucketOverrides);
 
             passData.Resources.InitFrom(info.DrawInfo, graph);
             passData.UGB = passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,

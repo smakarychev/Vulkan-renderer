@@ -18,9 +18,9 @@ void setupTiles(
     uniform ParameterBlock<CreateTilesResources> resources) {
 
     const uint2 tileId = dispatchThreadID.xy;
-    const uint2 tileCount = resources.view.shading.lightCullTileCount;
     
-    if (tileId.x >= tileCount.x || tileId.y >= tileCount.y) 
+    if (tileId.x >= resources.view.shading.lightCullTileCount.x ||
+        tileId.y >= resources.view.shading.lightCullTileCount.y) 
         return;
 
     const float2 tileSize = float2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y);
@@ -55,14 +55,14 @@ void setupTiles(
     for (uint i = 0; i < BIN_COUNT; i++)
         tile.bins[i] = 0;
 
-    resources.tiles[tileId.x + tileId.y * tileCount.x] = tile;
+    resources.tiles[flatten2d(tileId, resources.view.shading.lightCullTileCount)] = tile;
 }
 
 struct BinLightTilesResources {
     RWStructuredBuffer<LightTile> tiles;
     StructuredBuffer<PointLight> pointLights;
     ConstantBuffer<ViewInfo> view;
-    Texture2D depth;
+    Texture2D<float> depth;
 }
 
 struct AABB {
@@ -82,13 +82,11 @@ void binLightsTiles(
     uint2 groupThreadID: SV_GroupThreadID,
     uint2 groupID: SV_GroupID,
     uniform ParameterBlock<BinLightTilesResources> resources) {
-
     if (groupIndex == 0) {
         sDepthRange = uint2(~0, 0);
         sDepthMask = 0;
     }
 
-    const uint2 tileCount = resources.view.shading.lightCullTileCount;
     const uint2 tileSize = uint2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y);
     
     // determine the min and max depth per tile
@@ -101,7 +99,7 @@ void binLightsTiles(
     for (uint tile = 0; tile < BIN_LIGHTS_TILES_PER_WORKGROUP_SQ; tile++) {
         uint2 coord = dispatchThreadID * BIN_LIGHTS_TILES_PER_WORKGROUP.xy + unflatten2d(tile, BIN_LIGHTS_TILES_PER_WORKGROUP);
         coord = min(coord, uint2(resources.view.camera.resolution) - 1);
-        const float depth = resources.depth[coord].r;
+        const float depth = resources.depth[coord];
         depthMin = min(depthMin, depth);
         depthMax = max(depthMax, depth);
         depthSamplesLocal[tile] = depth;
@@ -171,19 +169,23 @@ void binLightsTiles(
     }
     GroupMemoryBarrierWithGroupSync();
 
-    const uint tileIndex = groupID.x + groupID.y * tileCount.x;
+    const uint tileIndex = flatten2d(groupID, resources.view.shading.lightCullTileCount);
     const LightTile tile = resources.tiles[tileIndex];
 
     // finally, cull the lights
-    for (uint i = groupIndex; i < resources.view.shading.pointLightCount; i += BIN_LIGHTS_TILES_WORKGROUP * BIN_LIGHTS_TILES_WORKGROUP) {
+    for (uint i = groupIndex; i < resources.view.shading.pointLightCount;
+        i += BIN_LIGHTS_TILES_WORKGROUP * BIN_LIGHTS_TILES_WORKGROUP) {
+            
         const PointLight light = resources.pointLights[i];
         const float radius = light.radius;
         float3 position = light.position;
         position = mul(float4(position, 1.0f), resources.view.camera.view).xyz;
         
         if (isInTileFrustum(tile, position, radius, resources.view.camera.near, resources.view.shading.maxLightCullDistance)) {
-            const uint binIndex = i / BIN_BIT_SIZE;
-            const uint binIndexMin = i % BIN_BIT_SIZE;
+            static_assert((BIN_BIT_SIZE & (BIN_BIT_SIZE - 1)) == 0, "BIN_BIT_SIZE is assumed to be a power of 2");
+
+            const uint binIndex = i >> BIN_BIT_SIZE_LOG;
+            const uint binIndexMin = i & (BIN_BIT_SIZE - 1);
             if (lightCulling.distanceAabbSquared(position, sAabb.min, sAabb.max) <= radius * radius) {
                 if ((lightMask(position, radius, depthMinView, depthRangeInverse) & sDepthMask) != 0) {
                     InterlockedOr(resources.tiles[tileIndex].bins[binIndex], 1 << binIndexMin);
@@ -194,7 +196,8 @@ void binLightsTiles(
 }
 
 bool isInsidePlane(const Plane plane, float3 position, float radius) {
-    return dot(plane.plane.xyz, position) - plane.plane.w < radius;
+    // plane.w is always zero here
+    return dot(plane.plane.xyz, position) /*- plane.plane.w*/ < radius;
 }
 
 bool isInTileFrustum(const LightTile tile, float3 position, float radius, float near, float far) {
@@ -232,7 +235,7 @@ struct VisualizeLightTilesResources {
     StructuredBuffer<LightTile> tiles;
     StructuredBuffer<LightZBin> zbins;
     ConstantBuffer<ViewInfo> view;
-    Texture2D depth;
+    Texture2D<float> depth;
 }
 
 [shader("pixel")]
@@ -264,20 +267,6 @@ float4 visualizeLightTiles(
         lightCount += countbits(tile.bins[i]);
     }
     
-    const uint MAX_LIGHTS_TO_COLOR = 32;
-    return float4(colorHeatMap(saturate(float(lightCount) / MAX_LIGHTS_TO_COLOR)), 1.0f);
-}
-
-float3 visualizeTilesColor(float t) {
-    const float3 a = float3(0.5f, 0.5f, 0.5f);		
-    const float3 b = float3(0.5f, 0.5f, 0.5f);	
-    const float3 c = float3(1.0f, 1.0f, 1.0f);	
-    const float3 d = float3(0.3f, 0.2f, 0.2f);
-    
-    return a + b * cos(2.0f * 3.1415f * (c * t + d));
-}
-
-float3 colorHeatMap(float t) {
-    t = t * 3.1415 * 0.5f;
-    return float3(sin(t), sin(2.0f * t), cos(t));
+    const uint MAX_LIGHTS_TO_COLOR = 64;
+    return float4(color.heatmap(saturate(float(lightCount) / MAX_LIGHTS_TO_COLOR)), 1.0f);
 }

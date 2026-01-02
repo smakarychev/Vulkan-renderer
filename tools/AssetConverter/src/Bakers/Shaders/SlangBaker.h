@@ -3,7 +3,14 @@
 #include "Bakers/BakerContext.h"
 #include "types.h"
 #include "Containers/Result.h"
+#include "String/StringId.h"
+#include "v2/Shaders/ShaderLoadInfo.h"
 #include "v2/Shaders/SlangShaderAsset.h"
+
+namespace assetlib
+{
+struct ShaderLoadInfo;
+}
 
 namespace bakers
 {
@@ -19,14 +26,19 @@ struct SlangBakeSettings
 class Slang
 {
 public:
-    static std::filesystem::path GetBakedPath(const std::filesystem::path& originalFile,
-        const SlangBakeSettings& settings, const Context& ctx);
+    static constexpr auto MAIN_VARIANT = HashedStringView(assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME);
     
-    IoResult<assetlib::ShaderAsset> BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
-        const Context& ctx);
+    static std::filesystem::path GetBakedPath(const std::filesystem::path& originalFile, StringId variant,
+        const SlangBakeSettings& settings, const Context& ctx);
 
-    IoResult<assetlib::ShaderAsset> Bake(const std::filesystem::path& path, const SlangBakeSettings& settings,
+    IoResult<void> BakeVariantsToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
         const Context& ctx);
+    
+    IoResult<assetlib::ShaderAsset> BakeToFile(const std::filesystem::path& path, StringId variant,
+        const SlangBakeSettings& settings, const Context& ctx);
+
+    IoResult<assetlib::ShaderAsset> Bake(const assetlib::ShaderLoadInfo& loadInfo,
+        const assetlib::ShaderLoadInfo::Variant& variant, const SlangBakeSettings& settings, const Context& ctx);
 private:
     // todo: this is a temp name until there are conflicts with the old asset system
     static constexpr std::string_view POST_BAKE_EXTENSION = ".sl_shader";

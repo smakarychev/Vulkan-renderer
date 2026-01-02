@@ -1,6 +1,8 @@
 #include "ShaderLoadInfo.h"
 
 #include "ShaderImageFormat.inl"
+#include "Utils/HashFileUtils.h"
+#include "Utils/HashUtils.h"
 
 #include <glaze/glaze.hpp>
 
@@ -36,8 +38,22 @@ struct glz::meta<assetlib::ShaderRasterizationAlphaBlending> : assetlib::reflect
 };
 template <> struct glz::meta<assetlib::ShaderLoadRasterizationColor> : assetlib::reflection::CamelCase {}; 
 template <> struct glz::meta<assetlib::ShaderLoadRasterizationInfo> : assetlib::reflection::CamelCase {}; 
-template <> struct glz::meta<assetlib::ShaderLoadInfo::EntryPoint> : assetlib::reflection::CamelCase {}; 
-template <> struct glz::meta<assetlib::ShaderLoadInfo> : assetlib::reflection::CamelCase {}; 
+template <> struct glz::meta<assetlib::ShaderLoadInfo::EntryPoint> : assetlib::reflection::CamelCase {};
+template <> struct glz::meta<assetlib::ShaderLoadInfo::Variant> : assetlib::reflection::CamelCase {};
+template <> struct glz::meta<assetlib::ShaderLoadInfo> : assetlib::reflection::CamelCase {};
+
+namespace 
+{
+void calculateShaderVariantHashes(assetlib::ShaderLoadInfo& shaderLoadInfo)
+{
+    for (auto& variant : shaderLoadInfo.Variants)
+    {
+        variant.NameHash = Hash::string(variant.Name);
+        for (auto&& [defineName, defineValue] : variant.Defines)
+            Hash::combine(variant.DefinesHash, Hash::string(defineName) ^ Hash::string(defineValue));
+    }
+}
+}
 
 namespace assetlib::shader
 {
@@ -46,9 +62,22 @@ io::IoResult<ShaderLoadInfo> readLoadInfo(const std::filesystem::path& path)
     using namespace io;
 
     ShaderLoadInfo loadInfo = {};
-    const glz::error_ctx error = glz::read_file_json(loadInfo, path.string(), std::string{});
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    ASSETLIB_CHECK_RETURN_IO_ERROR(in.good(), IoError::ErrorCode::FailedToOpen,
+        "ShaderLoadInfo: Failed to open: {}", path.string())
+    const isize size = in.tellg();
+    in.seekg(0, std::ios::beg);
+    std::string buffer(size, 0);
+    in.read(buffer.data(), size);
+    in.close();
+    
+    const glz::error_ctx error = glz::read_json(loadInfo, buffer);
     ASSETLIB_CHECK_RETURN_IO_ERROR(!error, IoError::ErrorCode::GeneralError,
-        "ShaderLoadInfo: Failed to parse: {} ({})", glz::format_error(error), path.string())
+        "ShaderLoadInfo: Failed to parse: {} ({})", glz::format_error(error, buffer), path.string())
+
+    calculateShaderVariantHashes(loadInfo);
+    if (loadInfo.Variants.empty())
+        loadInfo.Variants.push_back(ShaderLoadInfo::Variant::MainVariant());
     
     return loadInfo;
 }

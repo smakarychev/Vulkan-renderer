@@ -11,6 +11,153 @@
 
 namespace
 {
+struct BindingsInfo
+{
+public:
+    struct Signature
+    {
+        std::string Name;
+        u32 Count{1};
+
+        bool operator==(const Signature& other) const
+        {
+            return Name == other.Name && Count == other.Count;
+        }
+    };
+    struct SignatureHasher
+    {
+        u64 operator()(const Signature& signature) const
+        {
+            u64 hash = Hash::string(signature.Name);
+            Hash::combine(hash, std::hash<u32>{}(signature.Count));
+            
+            return hash;
+        }
+    };
+    struct AccessVariant
+    {
+        std::vector<u32> Variants;
+        assetlib::ShaderStage ShaderStages{};
+        u32 Binding{0};
+        assetlib::ShaderBindingType Type{assetlib::ShaderBindingType::None};
+        assetlib::ShaderBindingAccess Access{assetlib::ShaderBindingAccess::Read};
+        assetlib::ShaderBindingAttributes Attributes{assetlib::ShaderBindingAttributes::None};
+    };
+
+    std::unordered_map<Signature, std::vector<AccessVariant>, SignatureHasher> Bindings;
+public:
+    void AddAccessVariant(const Signature& signature, const AccessVariant& accessVariant)
+    {
+        ASSERT(accessVariant.Variants.size() == 1)
+
+        if (!Bindings.contains(signature))
+        {
+            Bindings[signature] = {accessVariant};
+            return;
+        }
+        
+        const auto it = std::ranges::find_if(Bindings[signature], [accessVariant](auto& access) {
+            return
+                access.ShaderStages == accessVariant.ShaderStages &&
+                access.Binding == accessVariant.Binding &&
+                access.Type == accessVariant.Type &&
+                access.Access == accessVariant.Access &&
+                access.Attributes == accessVariant.Attributes;
+        });
+        if (it == Bindings[signature].end())
+            Bindings[signature].push_back(accessVariant);
+        else
+            it->Variants.push_back(accessVariant.Variants.front());
+    }
+    
+    bool HasSamplers(const Signature& signature) const
+    {
+        return std::ranges::any_of(Bindings.at(signature), [](auto& access) {
+            return access.Type == assetlib::ShaderBindingType::Sampler;
+        });
+    }
+
+    bool OnlySamplers(const Signature& signature) const
+    {
+        return std::ranges::all_of(Bindings.at(signature), [](auto& access) {
+            return access.Type == assetlib::ShaderBindingType::Sampler;
+        });
+    }
+};
+
+bool bindingAccessIsDivergent(const std::vector<BindingsInfo::AccessVariant>& accesses,
+    const std::vector<std::string>& variants)
+{
+    // access is divergent if binding is used differently across variants
+    // (e.g. read-only in one variant and read-write in other),
+    // or if it is not present in some variants (e.g. binding declaration is hidden behind #ifdef)
+    return accesses.size() != 1 || accesses.front().Variants.size() < variants.size();
+}
+
+struct UniformBindingsInfo
+{
+    struct Signature
+    {
+        std::string Type;
+        std::string Parameter;
+        BindingsInfo::Signature BindingSignature;
+
+        bool operator==(const Signature& other) const
+        {
+            return Type == other.Type && Parameter == other.Parameter && BindingSignature == other.BindingSignature;
+        }
+    };
+    struct SignatureHasher
+    {
+        u64 operator()(const Signature& signature) const
+        {
+            u64 hash = Hash::string(signature.Type);
+            Hash::combine(hash, Hash::string(signature.Parameter));
+            Hash::combine(hash, BindingsInfo::SignatureHasher{}(signature.BindingSignature));
+            
+            return hash;
+        }
+    };
+
+    std::unordered_map<Signature, std::vector<u32>, SignatureHasher> Bindings;
+public:
+    void Add(const Signature& signature, u32 variant)
+    {
+        Bindings[signature].push_back(variant);
+    }
+};
+
+struct BindingSetsInfo
+{
+    struct Signature
+    {
+        bool HasImmutableSamplers{false};
+        u32 Set{};
+
+        bool operator==(const Signature& other) const
+        {
+            return HasImmutableSamplers == other.HasImmutableSamplers && Set == other.Set;
+        }
+    };
+    struct SignatureHasher
+    {
+        u64 operator()(const Signature& signature) const
+        {
+            u64 hash = std::hash<bool>{}(signature.HasImmutableSamplers);
+            Hash::combine(hash, std::hash<u32>{}(signature.Set));
+            
+            return hash;
+        }
+    };
+
+    std::unordered_map<Signature, std::vector<u32>, SignatureHasher> Sets;
+public:
+    void Add(const Signature& signature, u32 variant)
+    {
+        Sets[signature].push_back(variant);
+    }
+};
+
 std::string_view accessToString(assetlib::ShaderBindingAccess access)
 {
     switch (access)
@@ -57,7 +204,7 @@ std::string shaderStagesToGraphUsage(assetlib::ShaderStage stage)
     return stages;
 }
 
-std::string_view bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType)
+std::string bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
@@ -76,6 +223,22 @@ std::string_view bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType
     default:
         ASSERT(false)
         return "";
+    }
+}
+
+bool isBuffer(assetlib::ShaderBindingType bindingType)
+{
+    switch (bindingType)
+    {
+    case assetlib::ShaderBindingType::TexelUniform:
+    case assetlib::ShaderBindingType::TexelStorage:
+    case assetlib::ShaderBindingType::UniformBuffer:
+    case assetlib::ShaderBindingType::UniformTexelBuffer:
+    case assetlib::ShaderBindingType::StorageBuffer:
+    case assetlib::ShaderBindingType::StorageTexelBuffer:
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -204,11 +367,11 @@ struct Writer
         Error->Message.append(message).append("\n");
     }
 
-    void BeginSetResourceFunction(const assetlib::ShaderBinding& binding)
+    void BeginSetResourceFunction(const BindingsInfo::Signature& signature)
     {
         std::string line = std::format("RG::Resource Set{}(RG::Resource resource",
-            utils::canonicalizeName(binding.Name));
-        if (binding.Count > 1)
+            utils::canonicalizeName(signature.Name));
+        if (signature.Count > 1)
             line.append(", u32 index");
         line.append(", RG::ResourceAccessFlags additionalAccess = RG::ResourceAccessFlags::None)");
         WriteLine(line);
@@ -217,12 +380,11 @@ struct Writer
         WriteLine("using enum RG::ResourceAccessFlags;");
     }
 
-    void BeginSetUniformFunction(const assetlib::ShaderBinding& binding, const std::string& uniformType,
-        const std::string& uniformParameter)
+    void BeginSetUniformFunction(const UniformBindingsInfo::Signature& signature)
     {
         std::string line = std::format("RG::Resource Set{}(const {}& {}",
-            utils::canonicalizeName(binding.Name), uniformType, uniformParameter);
-        if (binding.Count > 1)
+            utils::canonicalizeName(signature.BindingSignature.Name), signature.Type, signature.Parameter);
+        if (signature.BindingSignature.Count > 1)
             line.append(", u32 index");
         line.append(", RG::ResourceAccessFlags additionalAccess = RG::ResourceAccessFlags::None)");
         WriteLine(line);
@@ -238,21 +400,23 @@ struct Writer
         WriteLine("}");
     }
 
-    void WriteResourceAccess(const assetlib::ShaderBinding& binding)
+    bool WriteResourceAccess(const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
     {
-        const std::string shaderAccess = shaderStagesToGraphUsage(binding.ShaderStages);
-        const std::string_view graphUsage = bindingTypeToGraphUsage(binding.Type);
+        const std::string shaderAccess = shaderStagesToGraphUsage(access.ShaderStages);
+        const std::string graphUsage = bindingTypeToGraphUsage(access.Type);
         if (shaderAccess.empty() || graphUsage.empty())
         {
-            AddError(std::format("Failed to infer usage for binding {}", binding.Name));
-            return;
+            AddError(std::format("Failed to infer usage for binding {}", signature.Name));
+            return false;
         }
         WriteLine(std::format("resource = Graph->{}{}(resource, {} | {} | additionalAccess);",
-            accessToString(binding.Access), bindingTypeToString(binding.Type), shaderAccess, graphUsage));
+            accessToString(access.Access), bindingTypeToString(access.Type), shaderAccess, graphUsage));
+
+        return true;
     }
 
-    static std::string GetBindingInfoContentString(const assetlib::ShaderBindingSet& set,
-        const assetlib::ShaderBinding& binding)
+    static std::string GetBindingInfoContentString(u32 set,
+        const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
     {
         return std::format(
             ".Set = {}, "
@@ -260,92 +424,128 @@ struct Writer
             ".DescriptorType = {}, "
             ".Resource = resource, "
             ".ArrayOffset = {}",
-            set.Set,
-            binding.Binding,
-            bindingTypeToDescriptorTypeString(binding.Type),
-            binding.Count > 1 ? "index" : "0");
+            set,
+            access.Binding,
+            bindingTypeToDescriptorTypeString(access.Type),
+            signature.Count > 1 ? "index" : "0");
     }
 
-    void WriteSampler(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& sampler)
-    {
-        if (sampler.Count > 1)
-        {
-            AddError(std::format("Array of samplers are not supported: {}", sampler.Name));
-            return;
-        }
-        if (enumHasAny(sampler.Attributes, assetlib::ShaderBindingAttributes::ImmutableSampler))
-            return;
-
-        WriteLine(std::format("void Set{}(Sampler sampler)", utils::canonicalizeName(sampler.Name)));
-        WriteLine("{");
-        Push();
-        WriteLine(std::format("m_SamplerBindings[m_SamplerCount] = SamplerBindingInfoRG{{"
-            ".Set = {}, "
-            ".Slot = {}, "
-            ".Sampler = sampler}};",
-            set.Set,
-            sampler.Binding,
-            bindingTypeToDescriptorTypeString(sampler.Type)));
-        WriteLine("m_SamplerCount += 1;");
-        Pop();
-        WriteLine("}");
-        Counts.Samplers += sampler.Count;
-    }
-
-    void WriteOrdinaryImage(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& image)
+    void WriteOrdinaryImage(u32 set,
+        const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
     {
         const std::string line = std::format("m_ImageBindings[m_ImageCount] = ImageBindingInfoRG{{{}}};",
-            GetBindingInfoContentString(set, image));
+            GetBindingInfoContentString(set, signature, access));
         WriteLine(line);
         WriteLine("m_ImageCount += 1;");
-        Counts.Images += image.Count;
+        Counts.Images += signature.Count;
     }
 
-    void WriteBindlessImage(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& image)
+    void WriteBindlessImage(u32 set,
+        const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
     {
         HasBindlessImages = true;
         const std::string line = std::format("m_ImageBindlessBindings.push_back(ImageBindingInfoRG{{{}}});",
-            GetBindingInfoContentString(set, image));
+            GetBindingInfoContentString(set, signature, access));
         WriteLine(line);
     }
 
-    void WriteOrdinaryBuffer(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& buffer)
+    void WriteOrdinaryBuffer(u32 set,
+        const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
     {
         const std::string line = std::format("m_BufferBindings[m_BufferCount] = BufferBindingInfoRG{{{}}};",
-            GetBindingInfoContentString(set, buffer));
+            GetBindingInfoContentString(set, signature, access));
         WriteLine(line);
         WriteLine("m_BufferCount += 1;");
-        Counts.Buffers += buffer.Count;
+        Counts.Buffers += signature.Count;
     }
 
-    void WriteBindlessBuffer(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& buffer)
+    void WriteBindlessBuffer(u32 set,
+        const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
     {
         HasBindlessBuffers = true;
         const std::string line = std::format("m_BufferBindlessBindings.push_back(BufferBindingInfoRG{{{}}});",
-            GetBindingInfoContentString(set, buffer));
+            GetBindingInfoContentString(set, signature, access));
         WriteLine(line);
     }
 
-    void WriteImage(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& image)
+    bool OnlyMainVariant(const std::vector<std::string>& variants)
     {
-        BeginSetResourceFunction(image);
-        WriteResourceAccess(image);
-        if (enumHasAny(image.Attributes, assetlib::ShaderBindingAttributes::Bindless))
-            WriteBindlessImage(set, image);
-        else
-            WriteOrdinaryImage(set, image);
-        EndSetResourceFunction();
+        return
+            variants.empty() ||
+            variants.size() == 1 && variants.front() == assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME;
     }
 
-    void WriteBuffer(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& buffer)
+    void WriteVariantsEnum(const std::vector<std::string>& variants)
     {
-        BeginSetResourceFunction(buffer);
-        WriteResourceAccess(buffer);
-        if (enumHasAny(buffer.Attributes, assetlib::ShaderBindingAttributes::Bindless))
-            WriteBindlessBuffer(set, buffer);
-        else
-            WriteOrdinaryBuffer(set, buffer);
-        EndSetResourceFunction();
+        if (OnlyMainVariant(variants))
+            return;
+        WriteLine("enum class Variants : u8");
+        WriteLine("{");
+        Push();
+        for (auto& variant : variants)
+            WriteLine(std::format("{},", utils::canonicalizeName(variant)));
+        Pop();
+        WriteLine("};");
+    }
+    
+    void WriteConstructor(std::string_view structName, std::string_view shaderName,
+        const std::vector<std::string>& variants)
+    {
+        WriteLine(std::format("{}() = default;", structName));
+        
+        if (OnlyMainVariant(variants))
+        {
+            WriteLine(std::format("{}(RG::Graph& graph)", structName));
+            WriteLine(std::format("\t: BindGroupBaseRG(graph, graph.SetShader(\"{}\"_hsv)) {{}}", shaderName));
+            WriteLine(std::format("{}(RG::Graph& graph, ShaderOverridesView&& overrides)", structName));
+            WriteLine(std::format("\t: BindGroupBaseRG(graph, graph.SetShader(\"{}\"_hsv, std::move(overrides))) {{}}",
+                shaderName));
+            return;
+        }
+
+        WriteLine(std::format("{}(RG::Graph& graph, Variants variant)", structName));
+        WriteLine("\t: BindGroupBaseRG(graph), m_Variant(variant)");
+        WriteLine("{");
+        Push();
+        WriteLine("switch (m_Variant)");
+        WriteLine("{");
+        for (auto& variant : variants)
+        {
+            WriteLine(std::format("case Variants::{}:", utils::canonicalizeName(variant)));
+            Push();
+            WriteLine(std::format(R"(Shader = &graph.SetShader("{}"_hsv, "{}"_hsv);)", shaderName, variant));
+            WriteLine("break;");
+            Pop();
+        }
+        WriteLine("}");
+        Pop();
+        WriteLine("}");
+
+        WriteLine(std::format("{}(RG::Graph& graph, Variants variant, ShaderOverridesView&& overrides)", structName));
+        WriteLine("\t: BindGroupBaseRG(graph), m_Variant(variant)");
+        WriteLine("{");
+        Push();
+        WriteLine("switch (m_Variant)");
+        WriteLine("{");
+        for (auto& variant : variants)
+        {
+            WriteLine(std::format("case Variants::{}:", utils::canonicalizeName(variant)));
+            Push();
+            WriteLine(std::format(R"(Shader = &graph.SetShader("{}"_hsv, "{}"_hsv, std::move(overrides));)",
+                shaderName, variant));
+            WriteLine("break;");
+            Pop();
+        }
+        WriteLine("}");
+        Pop();
+        WriteLine("}");
+    }
+    
+    void WriteVariantEnumField(const std::vector<std::string>& variants)
+    {
+        if (OnlyMainVariant(variants))
+            return;
+        WriteLine(std::format("Variants m_Variant{{Variants::{}}};", utils::canonicalizeName(variants.front())));
     }
 
     void WriteEmbeddedUniformTypes(const std::string& uniform)
@@ -356,19 +556,194 @@ struct Writer
             WriteLine(line);
     }
 
-    void WriteUniformBinding(const assetlib::ShaderBindingSet& set, const assetlib::ShaderBinding& uniformBinding,
-        const std::string& uniformType, const std::string& uniformParameter)
+    bool ValidateAccessVariants(const BindingsInfo& bindings, const BindingsInfo::Signature& signature)
     {
-        BeginSetUniformFunction(uniformBinding, uniformType, uniformParameter);
-        WriteLine(std::format("RG::Resource resource = Graph->Create(\"{}\"_hsv, RG::RGBufferDescription{{"
-            ".SizeBytes = sizeof({})}});", uniformType, uniformType));
-        WriteLine(std::format("resource = Graph->Upload(resource, {});", uniformParameter));
-        WriteResourceAccess(uniformBinding);
-        if (enumHasAny(uniformBinding.Attributes, assetlib::ShaderBindingAttributes::Bindless))
-            WriteBindlessBuffer(set, uniformBinding);
-        else
-            WriteOrdinaryBuffer(set, uniformBinding);
+        const bool hasSamplers = bindings.HasSamplers(signature);
+        const bool onlySamplers = bindings.OnlySamplers(signature);
+
+        if (hasSamplers && !onlySamplers)
+        {
+            AddError("Sampler-Resource divergence is not supported");
+            return false;
+        }
+
+        return true;
+    }
+
+    void BeginDivergenceSwitch(bool isDivergent)
+    {
+        if (isDivergent)
+        {
+            WriteLine("switch (m_Variant)");
+            WriteLine("{");
+            Push();
+        }
+    }
+    
+    void EndDivergenceSwitch(bool isDivergent)
+    {
+        if (isDivergent)
+        {
+            WriteLine("default:");
+            Push();
+            WriteLine("break;");
+            Pop();
+            Pop();
+            WriteLine("}");
+        }
+    }
+
+    void BeginDivergenceCase(bool isDivergent, const std::vector<u32> accessVariants,
+        const std::vector<std::string>& variants)
+    {
+        if (isDivergent)
+        {
+            for (auto& variant : accessVariants)
+                WriteLine(std::format("case Variants::{}:", utils::canonicalizeName(variants[variant])));
+            Push();
+        }
+    }
+    void EndDivergenceCase(bool isDivergent)
+    {
+        if (isDivergent)
+        {
+            WriteLine("break;");
+            Pop();
+        }
+    }
+
+    void WriteSamplerBindings(u32 set, const BindingsInfo::Signature& signature,
+        const std::vector<BindingsInfo::AccessVariant>& accesses, const std::vector<std::string>& variants,
+        bool isDivergent)
+    {
+        if (signature.Count > 1)
+        {
+            AddError(std::format("Array of samplers are not supported: {}", signature.Name));
+            return;
+        }
+
+        const bool isImmutableAcrossDivergence =
+            !isDivergent && enumHasAny(accesses.front().Attributes,
+                assetlib::ShaderBindingAttributes::ImmutableSampler) ||
+            std::ranges::all_of(accesses, [](auto& access) {
+                return enumHasAny(access.Attributes,assetlib::ShaderBindingAttributes::ImmutableSampler);
+        });
+
+        if (isImmutableAcrossDivergence)
+            return;
+
+        WriteLine(std::format("void Set{}(Sampler sampler)", utils::canonicalizeName(signature.Name)));
+        WriteLine("{");
+        Push();
+
+        BeginDivergenceSwitch(isDivergent);
+        for (auto& access : accesses)
+        {
+            BeginDivergenceCase(isDivergent, access.Variants, variants);
+
+            WriteLine(std::format("m_SamplerBindings[m_SamplerCount] = SamplerBindingInfoRG{{"
+                ".Set = {}, "
+                ".Slot = {}, "
+                ".Sampler = sampler}};",
+                set,
+                access.Binding
+            ));
+            WriteLine("m_SamplerCount += 1;");
+
+            EndDivergenceCase(isDivergent);
+        }
+        EndDivergenceSwitch(isDivergent);
+        
+        Pop();
+        WriteLine("}");
+        Counts.Samplers += signature.Count;
+    }
+
+    void WriteResourceBindingsFunctionBody(u32 set,
+        const BindingsInfo::Signature& signature, const std::vector<BindingsInfo::AccessVariant>& accesses,
+        const std::vector<std::string>& variants, bool isDivergent)
+    {
+        BeginDivergenceSwitch(isDivergent);
+        for (auto& access : accesses)
+        {
+            BeginDivergenceCase(isDivergent, access.Variants, variants);
+
+            bool success = WriteResourceAccess(signature, access);
+            if (success)
+            {
+                if (enumHasAny(access.Attributes, assetlib::ShaderBindingAttributes::Bindless))
+                    isBuffer(access.Type) ?
+                        WriteBindlessBuffer(set, signature, access) : WriteBindlessImage(set, signature, access);
+                else
+                    isBuffer(access.Type) ?
+                        WriteOrdinaryBuffer(set, signature, access) : WriteOrdinaryImage(set, signature, access);
+            }
+
+            EndDivergenceCase(isDivergent);
+        }
+        EndDivergenceSwitch(isDivergent);
+    }
+        
+    void WriteResourceBindings(u32 set, const BindingsInfo::Signature& signature,
+        const std::vector<BindingsInfo::AccessVariant>& accesses, const std::vector<std::string>& variants,
+        bool isDivergent)
+    {
+        BeginSetResourceFunction(signature);
+        WriteResourceBindingsFunctionBody(set, signature, accesses, variants, isDivergent);
         EndSetResourceFunction();
+    }
+
+    void WriteBindings(u32 set, const BindingsInfo& bindings,
+        const std::vector<std::string>& variants)
+    {
+        for (auto&& [signature, accessVariants] : bindings.Bindings)
+        {
+            const bool isValid = ValidateAccessVariants(bindings, signature);
+            if (!isValid)
+            {
+                AddError(std::format("Validate binding failed for set {}", set));
+                continue;
+            }
+
+            const bool isDivergent = bindingAccessIsDivergent(accessVariants, variants);
+
+            if (bindings.OnlySamplers(signature))
+            {
+                WriteSamplerBindings(set, signature, accessVariants, variants, isDivergent);
+                continue;
+            }
+
+            WriteResourceBindings(set, signature, accessVariants, variants, isDivergent);
+        }
+    }
+
+    void WriteUniformBindings(u32 set, const UniformBindingsInfo& uniforms,
+        const BindingsInfo& bindings, const std::vector<std::string>& variants)
+    {
+        if (uniforms.Bindings.empty())
+            return;
+        
+        if (uniforms.Bindings.size() > 1)
+        {
+            AddError("Divergent uniforms are not supported");
+            return;
+        }
+
+        for (auto&& [uniformSignature, _] : uniforms.Bindings)
+        {
+            BeginSetUniformFunction(uniformSignature);
+
+            WriteLine(std::format("RG::Resource resource = Graph->Create(\"{}\"_hsv, RG::RGBufferDescription{{"
+                ".SizeBytes = sizeof({})}});", uniformSignature.Type, uniformSignature.Type));
+            WriteLine(std::format("resource = Graph->Upload(resource, {});", uniformSignature.Parameter));
+
+            auto& bindingSignature = uniformSignature.BindingSignature;
+            auto& bindingAccesses = bindings.Bindings.at(bindingSignature);
+            WriteResourceBindingsFunctionBody(set, bindingSignature, bindingAccesses, variants,
+                bindingAccessIsDivergent(bindingAccesses, variants));
+
+            EndSetResourceFunction();
+        }
     }
 
     void WriteRasterizationInfo(const assetlib::ShaderLoadRasterizationInfo& rasterization)
@@ -422,7 +797,8 @@ struct Writer
         Push();
     }
 
-    void WriteBindDescriptorsType(const assetlib::ShaderHeader& shader, const std::string& type)
+    void WriteBindDescriptorsType(const std::vector<BindingSetsInfo>& bindingSets,
+        const std::vector<std::string>& variants, const std::string& type)
     {
         WriteLine(std::format(
             "void Bind{}Descriptors(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators) const",
@@ -473,23 +849,26 @@ struct Writer
                 "image.Subresource, image.Layout, binding.ArrayOffset);");
             EndForLoop();
         }
-        for (auto&& [i, set] : std::views::enumerate(shader.BindingSets))
+        for (auto& set : bindingSets)
         {
-            const bool hasImmutableSampler = std::ranges::any_of(set.Bindings, 
-                [](const assetlib::ShaderBinding& binding) {
-                    return enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::ImmutableSampler);
-                });
-            if (hasImmutableSampler)
-                WriteLine(std::format(
-                    "cmdList.BindImmutableSamplers{}({{"
-                    ".Descriptors = Shader->Descriptors({}), .PipelineLayout = Shader->GetLayout(), .Set = {}}});",
-                    type, set.Set, set.Set));
-            else
-                WriteLine(std::format(
-                    "cmdList.BindDescriptors{}({{"
-                    ".Descriptors = Shader->Descriptors({}), .Allocators = &allocators, "
-                    ".PipelineLayout = Shader->GetLayout(), .Set = {}}});",
-                    type, set.Set, set.Set));
+            const bool isDivergent = set.Sets.size() > 1 || set.Sets.begin()->second.size() != variants.size();
+            BeginDivergenceSwitch(isDivergent);
+            for (auto&& [signature, accessVariants] : set.Sets)
+            {
+                BeginDivergenceCase(isDivergent, accessVariants, variants);
+                if (signature.HasImmutableSamplers)
+                    WriteLine(std::format(
+                        "cmdList.BindImmutableSamplers{}({{"
+                        ".Descriptors = Shader->Descriptors({}), .PipelineLayout = Shader->GetLayout(), .Set = {}}});",
+                        type, signature.Set, signature.Set));
+                else
+                    WriteLine(std::format(
+                        "cmdList.BindDescriptors{}({{"
+                        ".Descriptors = Shader->Descriptors({}), .Allocators = &allocators, "
+                        ".PipelineLayout = Shader->GetLayout(), .Set = {}}});",
+                        type, signature.Set, signature.Set));
+                EndDivergenceCase(isDivergent);
+            }
         }
         Pop();
         WriteLine("}");
@@ -507,7 +886,7 @@ struct Writer
         Pop();
         WriteLine("}");
     }
-
+    
     void WriteResourceContainers()
     {
         if (Counts.Samplers > 0)
@@ -569,6 +948,8 @@ struct BindGroupBaseRG
     BindGroupBaseRG() = default;
     BindGroupBaseRG(RG::Graph& graph, const Shader& shader)
         : Graph(&graph), Shader(&shader) {}
+    BindGroupBaseRG(RG::Graph& graph)
+        : Graph(&graph) {}
 
     RG::Graph* Graph{nullptr};
     const ::Shader* Shader{nullptr};
@@ -594,41 +975,97 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
     if (!shaderLoadInfo.has_value())
         return std::unexpected(shaderLoadInfo.error());
 
-    const std::filesystem::path bakedPath =
-        bakers::Slang::GetBakedPath(path, {}, {.InitialDirectory = m_ShadersDirectory});
-    auto assetFileResult = assetlib::io::loadAssetFileHeader(bakedPath);
-    if (!assetFileResult.has_value())
-        return std::unexpected(assetFileResult.error());
-
-    auto shaderUnpack = assetlib::shader::unpackHeader(*assetFileResult);
-    if (!shaderUnpack.has_value())
-        return std::unexpected(shaderUnpack.error());
-
-    const assetlib::ShaderHeader& shader = *shaderUnpack;
-
+    std::vector<std::string> variants;
     std::unordered_set<std::filesystem::path> standaloneUniforms;
-
     std::unordered_map<assetlib::AssetId, std::string> embeddedStructs;
-    std::vector<std::pair<std::string, std::string>> uniformsTypeAndParameterNamesForSet(shader.BindingSets.size());
-    for (auto& set : shader.BindingSets)
+
+    std::vector<BindingSetsInfo> bindingsSetsInfoPerSet;
+    std::vector<BindingsInfo> bindingsInfoPerSet;
+    std::vector<UniformBindingsInfo> uniformBindingsInfoPerSet;
+    std::vector<assetlib::ShaderEntryPoint> entryPoints;
+    
+    for (auto& variant : shaderLoadInfo->Variants)
     {
-        if (set.UniformType.empty())
-            continue;
-        auto uniformResult = m_UniformTypeGenerator->Generate(set.UniformType);
-        if (!uniformResult.has_value())
-            return std::unexpected(uniformResult.error());
+        const u32 variantIndex = (u32)variants.size();
+        variants.push_back(variant.Name);
+        
+        const std::filesystem::path bakedPath =
+        bakers::Slang::GetBakedPath(path, StringId::FromString(variant.Name), {},
+            {.InitialDirectory = m_ShadersDirectory});
+        auto assetFileResult = assetlib::io::loadAssetFileHeader(bakedPath);
+        if (!assetFileResult.has_value())
+            return std::unexpected(assetFileResult.error());
 
-        auto& uniform = *uniformResult;
-        for (auto&& [id, embedded] : uniform.EmbeddedStructs)
-            embeddedStructs.emplace(id, embedded);
+        auto shaderUnpack = assetlib::shader::unpackHeader(*assetFileResult);
+        if (!shaderUnpack.has_value())
+            return std::unexpected(shaderUnpack.error());
 
-        if (uniform.IsStandalone)
-            for (auto& include : uniform.Includes)
-                standaloneUniforms.insert(std::move(include));
-        uniformsTypeAndParameterNamesForSet[set.Set] = std::make_pair(uniform.TypeName, uniform.ParameterName);
+        const assetlib::ShaderHeader& shader = *shaderUnpack;
+
+        if (entryPoints.empty())
+            entryPoints = shader.EntryPoints;
+        
+        for (auto& set : shader.BindingSets)
+        {
+            if (set.Set >= bindingsSetsInfoPerSet.size())
+                bindingsSetsInfoPerSet.resize(set.Set + 1);
+            bindingsSetsInfoPerSet[set.Set].Add(
+                {
+                    .HasImmutableSamplers = std::ranges::any_of(set.Bindings, [](const assetlib::ShaderBinding& binding)
+                        {
+                            return enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::ImmutableSampler);
+                        }),
+                    .Set = set.Set
+                }, variantIndex);
+            
+            if (set.Set >= bindingsInfoPerSet.size())
+                bindingsInfoPerSet.resize(set.Set + 1);
+            for (auto& binding : set.Bindings)
+                bindingsInfoPerSet[set.Set].AddAccessVariant(
+                    {
+                        .Name = binding.Name,
+                        .Count = binding.Count
+                    },
+                    {
+                        .Variants = {variantIndex},
+                        .ShaderStages = binding.ShaderStages,
+                        .Binding = binding.Binding,
+                        .Type = binding.Type,
+                        .Access = binding.Access,
+                        .Attributes = binding.Attributes 
+                    });
+            
+            if (set.UniformType.empty())
+                continue;
+            auto uniformResult = m_UniformTypeGenerator->Generate(set.UniformType);
+            if (!uniformResult.has_value())
+                return std::unexpected(uniformResult.error());
+
+            auto& uniform = *uniformResult;
+            for (auto&& [id, embedded] : uniform.EmbeddedStructs)
+                embeddedStructs.emplace(id, embedded);
+
+            if (uniform.IsStandalone)
+                for (auto& include : uniform.Includes)
+                    standaloneUniforms.insert(std::move(include));
+
+            if (set.Set >= uniformBindingsInfoPerSet.size())
+                uniformBindingsInfoPerSet.resize(set.Set + 1);
+
+            uniformBindingsInfoPerSet[set.Set].Add(
+                {
+                    .Type = uniform.TypeName,
+                    .Parameter = uniform.ParameterName,
+                    .BindingSignature =
+                        {
+                            .Name = set.Bindings.front().Name,
+                            .Count = set.Bindings.front().Count
+                        }
+                }, variantIndex);
+        }
     }
-
-    std::string generatedStructName = std::format("{}BindGroupRG", utils::canonicalizeName(shader.Name));
+    
+    std::string generatedStructName = std::format("{}BindGroupRG", utils::canonicalizeName(shaderLoadInfo->Name));
     std::string generatedFileName = std::format("{}.generated.h", generatedStructName);
 
     Writer writer;
@@ -643,47 +1080,21 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
     writer.WriteLine(std::format("struct {} : BindGroupBaseRG", generatedStructName));
     writer.WriteLine("{");
     writer.Push();
-    writer.WriteLine("using BindGroupBaseRG::BindGroupBaseRG;");
+    writer.WriteVariantsEnum(variants);
+    writer.WriteConstructor(generatedStructName, shaderLoadInfo->Name, variants);
     for (auto& embedded : embeddedStructs | std::views::values)
         writer.WriteEmbeddedUniformTypes(embedded);
-    for (auto& set : shader.BindingSets)
-    {
-        /* auto-uniform binding is always the first one */
-        if (!uniformsTypeAndParameterNamesForSet[set.Set].first.empty())
-            writer.WriteUniformBinding(set, set.Bindings.front(),
-                uniformsTypeAndParameterNamesForSet[set.Set].first,
-                uniformsTypeAndParameterNamesForSet[set.Set].second);
-        for (auto& binding : set.Bindings)
-        {
-            switch (binding.Type)
-            {
-            case assetlib::ShaderBindingType::Sampler:
-                writer.WriteSampler(set, binding);
-                break;
-            case assetlib::ShaderBindingType::Image:
-            case assetlib::ShaderBindingType::ImageStorage:
-                writer.WriteImage(set, binding);
-                break;
-            case assetlib::ShaderBindingType::TexelUniform:
-            case assetlib::ShaderBindingType::TexelStorage:
-            case assetlib::ShaderBindingType::UniformBuffer:
-            case assetlib::ShaderBindingType::UniformTexelBuffer:
-            case assetlib::ShaderBindingType::StorageBuffer:
-            case assetlib::ShaderBindingType::StorageTexelBuffer:
-                writer.WriteBuffer(set, binding);
-                break;
-            default:
-                break;
-            }
-        }
-    }
+    for (u32 i = 0; i < uniformBindingsInfoPerSet.size(); i++)
+        writer.WriteUniformBindings(i, uniformBindingsInfoPerSet[i], bindingsInfoPerSet[i], variants);
+    for (u32 i = 0; i < bindingsInfoPerSet.size(); i++)
+        writer.WriteBindings(i, bindingsInfoPerSet[i], variants);
     if (shaderLoadInfo->RasterizationInfo.has_value())
         writer.WriteRasterizationInfo(*shaderLoadInfo->RasterizationInfo);
-    writer.WriteGroupSizeInfo(shader.EntryPoints);
+    writer.WriteGroupSizeInfo(entryPoints);
     
     bool hasGraphics = false;
     bool hasCompute = false;
-    for (auto& entry : shader.EntryPoints)
+    for (auto& entry : entryPoints)
     {
         hasGraphics = hasGraphics || entry.ShaderStage != assetlib::ShaderStage::Compute;
         hasCompute = hasCompute || entry.ShaderStage == assetlib::ShaderStage::Compute;
@@ -696,9 +1107,10 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
     
     writer.WriteBeginPrivate();
     if (hasGraphics)
-        writer.WriteBindDescriptorsType(shader, "Graphics");
+        writer.WriteBindDescriptorsType(bindingsSetsInfoPerSet, variants, "Graphics");
     if (hasCompute)
-        writer.WriteBindDescriptorsType(shader, "Compute");
+        writer.WriteBindDescriptorsType(bindingsSetsInfoPerSet, variants, "Compute");
+    writer.WriteVariantEnumField(variants);
     writer.WriteResourceContainers();
     writer.Pop();
     writer.WriteLine("};");

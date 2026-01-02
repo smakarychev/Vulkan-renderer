@@ -16,7 +16,6 @@
 #include <unordered_set>
 #include <glaze/json/generic.hpp>
 #include <glaze/json/prettify.hpp>
-#include <glm/vec3.hpp>
 #include <slang/slang.h>
 #include <slang/slang-com-ptr.h>
 
@@ -27,6 +26,26 @@ namespace bakers
 {
 namespace
 {
+std::optional<assetlib::ShaderLoadInfo::Variant> findShaderVariant(const assetlib::ShaderLoadInfo& loadInfo,
+    StringId variant)
+{
+    auto it = std::ranges::find_if(loadInfo.Variants, [&variant](const auto& shaderVariant) {
+        return shaderVariant.NameHash == variant.Hash();
+    });
+    if (it == loadInfo.Variants.end())
+        return std::nullopt;
+    
+    return *it;
+}
+
+u64 getShaderVariantDefinesHash(const assetlib::ShaderLoadInfo::Variant& variant, u64 definesHash)
+{
+    if (variant.DefinesHash != 0)
+        Hash::combine(definesHash, variant.DefinesHash);
+
+    return definesHash;
+}
+
 slang::IGlobalSession& getGlobalSession()
 {
     static std::once_flag once = {};
@@ -41,17 +60,19 @@ slang::IGlobalSession& getGlobalSession()
     return *globalSession;
 }
 
-slang::ISession& getSession(const SlangBakeSettings& settings)
+slang::ISession& getSession(const SlangBakeSettings& settings, const assetlib::ShaderLoadInfo::Variant& variant)
 {
     /* slang sessions must be unique for each #define list */
     static std::unordered_map<u64, ::Slang::ComPtr<slang::ISession>> sessions;
     static const SlangProfileID PROFILE_ID = getGlobalSession().findProfile("spirv_1_6");
 
-    if (sessions.contains(settings.DefinesHash))
+    u64 definesHash = getShaderVariantDefinesHash(variant, settings.DefinesHash);
+    
+    if (sessions.contains(definesHash))
     {
         if (!settings.EnableHotReloading)
-            return *sessions.at(settings.DefinesHash);
-        sessions.erase(settings.DefinesHash);
+            return *sessions.at(definesHash);
+        sessions.erase(definesHash);
     }
 
     slang::TargetDesc targetDesc = {
@@ -76,12 +97,17 @@ slang::ISession& getSession(const SlangBakeSettings& settings)
         },
     };
 
-    std::vector<slang::PreprocessorMacroDesc> macros(settings.Defines.size());
+    std::vector<slang::PreprocessorMacroDesc> macros(settings.Defines.size() + variant.Defines.size());
     for (auto&& [i, define] : std::views::enumerate(settings.Defines))
         macros[i] = {
             .name = define.first.c_str(),
             .value = define.second.c_str()
         };
+    for (auto&& [i, define] : std::views::enumerate(variant.Defines))
+        macros[i + settings.Defines.size()] = {
+            .name = define.first.c_str(),
+            .value = define.second.c_str()
+    };
 
     std::vector<const char*> includePaths(settings.IncludePaths.size());
     for (auto&& [i, path] : std::views::enumerate(settings.IncludePaths))
@@ -101,7 +127,7 @@ slang::ISession& getSession(const SlangBakeSettings& settings)
     ::Slang::ComPtr<slang::ISession> session;
     const auto res = getGlobalSession().createSession(sessionDesc, session.writeRef());
     ASSERT(!SLANG_FAILED(res), "Failed to create slang-api session")
-    const auto [newSession, _] = sessions.emplace(settings.DefinesHash, std::move(session));
+    const auto [newSession, _] = sessions.emplace(definesHash, std::move(session));
 
     return *newSession->second;
 }
@@ -1071,7 +1097,7 @@ private:
     static constexpr i32 RELATIVE_SET_INDEX = 0;
 };
 
-std::string getBakedDefineAwareFileName(const std::filesystem::path& path, u64 definesHash)
+std::string getBakedDefineAwareVariantFileName(const std::filesystem::path& path, u64 definesHash)
 {
     if (definesHash == 0)
         return path.filename().string();
@@ -1082,8 +1108,8 @@ std::string getBakedDefineAwareFileName(const std::filesystem::path& path, u64 d
 AssetPaths convertPathsToDefineAwarePaths(const AssetPaths& paths, u64 definesHash)
 {
     AssetPaths converted = paths;
-    converted.HeaderPath.replace_filename(getBakedDefineAwareFileName(converted.HeaderPath, definesHash));
-    converted.BinaryPath.replace_filename(getBakedDefineAwareFileName(converted.BinaryPath, definesHash));
+    converted.HeaderPath.replace_filename(getBakedDefineAwareVariantFileName(converted.HeaderPath, definesHash));
+    converted.BinaryPath.replace_filename(getBakedDefineAwareVariantFileName(converted.BinaryPath, definesHash));
 
     return converted;
 }
@@ -1143,27 +1169,66 @@ bool requiresBaking(const std::filesystem::path& path, const std::filesystem::pa
 
 }
 
-std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& originalFile, const SlangBakeSettings& settings,
-    const Context& ctx)
+std::filesystem::path Slang::GetBakedPath(const std::filesystem::path& originalFile, StringId variant,
+    const SlangBakeSettings& settings, const Context& ctx)
 {
+    u64 definesHash = settings.DefinesHash;
+    if (variant.Hash() != MAIN_VARIANT.Hash())
+    {
+        const auto loadInfo = assetlib::shader::readLoadInfo(originalFile);
+        if (!loadInfo.has_value())
+            return {};
+
+        const auto shaderVariant = findShaderVariant(*loadInfo, variant);
+        if (!shaderVariant.has_value())
+            return {};
+        
+        definesHash = getShaderVariantDefinesHash(*shaderVariant, definesHash);
+    }
+    
     std::filesystem::path path = getPostBakePath(originalFile, ctx);
-    path.replace_filename(getBakedDefineAwareFileName(path, settings.DefinesHash));
+    path.replace_filename(getBakedDefineAwareVariantFileName(path, definesHash));
     path.replace_extension(POST_BAKE_EXTENSION);
 
     return path;
 }
 
-IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
+IoResult<void> Slang::BakeVariantsToFile(const std::filesystem::path& path, const SlangBakeSettings& settings,
     const Context& ctx)
 {
+    const auto loadInfo = assetlib::shader::readLoadInfo(path);
+    if (!loadInfo.has_value())
+        return std::unexpected(loadInfo.error());
+
+    for (auto& variant : loadInfo->Variants)
+    {
+        auto baked = BakeToFile(path, StringId::FromString(variant.Name), settings, ctx);
+        CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} (variant {})",
+            baked.error().Message, variant.Name)
+    }
+
+    return {};
+}
+
+IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& path, StringId variant,
+    const SlangBakeSettings& settings, const Context& ctx)
+{
+    const auto loadInfo = assetlib::shader::readLoadInfo(path);
+    if (!loadInfo.has_value())
+        return std::unexpected(loadInfo.error());
+
+    const auto shaderVariant = findShaderVariant(*loadInfo, variant);
+    CHECK_RETURN_IO_ERROR(shaderVariant.has_value(), IoError::ErrorCode::GeneralError,
+        "Cannot find specified variant in shader: {} ({})", variant.AsStringView(), path.string())
+
     const AssetPaths paths = convertPathsToDefineAwarePaths(
-        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType), settings.DefinesHash);
+        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType),
+        getShaderVariantDefinesHash(*shaderVariant, settings.DefinesHash));
     if (!requiresBaking(path, paths.HeaderPath, ctx))
         return loadShaderAsset(paths.HeaderPath, ctx);
     
-    auto baked = Bake(path, settings, ctx);
-    if (!baked.has_value())
-        return baked;
+    auto baked = Bake(*loadInfo, *shaderVariant, settings, ctx);
+    CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
 
     auto shaderHeader = assetlib::shader::packHeader(baked->Header);
     if (!shaderHeader.has_value())
@@ -1200,19 +1265,15 @@ IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& p
     return baked;
 }
 
-IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,
-    const SlangBakeSettings& settings, const Context& ctx)
+IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderLoadInfo& loadInfo,
+    const assetlib::ShaderLoadInfo::Variant& variant, const SlangBakeSettings& settings, const Context& ctx)
 {
-    slang::ISession& session = getSession(settings);
+    slang::ISession& session = getSession(settings, variant);
     ::Slang::ComPtr<slang::IBlob> diagnosticsBlob;
 
-    const auto loadInfo = assetlib::shader::readLoadInfo(path);
-    if (!loadInfo.has_value())
-        return std::unexpected(loadInfo.error());
-
     std::vector<slang::IModule*> shaderModules;
-    shaderModules.reserve(loadInfo->EntryPoints.size());
-    for (const auto& entryPoint : loadInfo->EntryPoints)
+    shaderModules.reserve(loadInfo.EntryPoints.size());
+    for (const auto& entryPoint : loadInfo.EntryPoints)
     {
         slang::IModule* shaderModule = session.loadModule(entryPoint.Path.c_str(), diagnosticsBlob.writeRef());
         CHECK_RETURN_IO_ERROR(shaderModule, IoError::ErrorCode::FailedToLoad,
@@ -1223,8 +1284,8 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,
     }
 
     std::vector<::Slang::ComPtr<slang::IEntryPoint>> entryPoints;
-    entryPoints.resize(loadInfo->EntryPoints.size());
-    for (auto&& [i, entryPoint] : std::views::enumerate(loadInfo->EntryPoints))
+    entryPoints.resize(loadInfo.EntryPoints.size());
+    for (auto&& [i, entryPoint] : std::views::enumerate(loadInfo.EntryPoints))
     {
         shaderModules[i]->findEntryPointByName(entryPoint.Name.c_str(), entryPoints[i].writeRef());
         CHECK_RETURN_IO_ERROR(entryPoints[i], IoError::ErrorCode::FailedToLoad,
@@ -1245,14 +1306,12 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,
     auto res = session.createCompositeComponentType(componentTypes.data(), (SlangInt)componentTypes.size(),
         composedProgram.writeRef(), diagnosticsBlob.writeRef());
     CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
-        "Shader::Bake: failed to create composed shader program: {} ({})",
-        (const char*)diagnosticsBlob->getBufferPointer(), path.string())
+        "Shader::Bake: failed to create composed shader program: {}", (const char*)diagnosticsBlob->getBufferPointer())
 
     ::Slang::ComPtr<slang::IComponentType> linkedProgram;
     res = composedProgram->link(linkedProgram.writeRef(), diagnosticsBlob.writeRef());
     CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
-        "Shader::Bake: failed to link shader program: {} ({})",
-        (const char*)diagnosticsBlob->getBufferPointer(), path.string())
+        "Shader::Bake: failed to link shader program: {}", (const char*)diagnosticsBlob->getBufferPointer())
 
     ::Slang::ComPtr<slang::IBlob> spirvCode;
     res = linkedProgram->getTargetCode(
@@ -1260,25 +1319,24 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const std::filesystem::path& path,
         spirvCode.writeRef(),
         diagnosticsBlob.writeRef());
     CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
-        "Shader::Bake: failed to get shader spirv: {} ({})",
-        (const char*)diagnosticsBlob->getBufferPointer(), path.string())
+        "Shader::Bake: failed to get shader spirv: {}", (const char*)diagnosticsBlob->getBufferPointer())
 
     std::vector<::Slang::ComPtr<slang::IMetadata>> entryPointMetadata(linkedProgram->getLayout()->getEntryPointCount());
     for (u32 i = 0; i < linkedProgram->getLayout()->getEntryPointCount(); i++)
     {
         res = linkedProgram->getEntryPointMetadata(i, 0, entryPointMetadata[i].writeRef(), diagnosticsBlob.writeRef());
         CHECK_RETURN_IO_ERROR(!SLANG_FAILED(res), IoError::ErrorCode::GeneralError,
-            "Shader::Bake: failed to get shader entry point metadata: {} ({})",
-            (const char*)diagnosticsBlob->getBufferPointer(), path.string())
+            "Shader::Bake: failed to get shader entry point metadata: {}",
+            (const char*)diagnosticsBlob->getBufferPointer())
     }
 
     ShaderReflector reflector(ctx, settings);
     assetlib::ShaderAsset shaderAsset = {};
     auto reflectedHeader = reflector.Reflect(shaderModules, linkedProgram, entryPointMetadata);
     CHECK_RETURN_IO_ERROR(reflectedHeader.has_value(), IoError::ErrorCode::GeneralError,
-           "Shader::Bake: failed to reflect shader: {} ({})", reflectedHeader.error(), path.string())
+           "Shader::Bake: failed to reflect shader: {}", reflectedHeader.error())
     shaderAsset.Header = std::move(*reflectedHeader);
-    shaderAsset.Header.Name = loadInfo->Name;
+    shaderAsset.Header.Name = loadInfo.Name;
     shaderAsset.Spirv.resize(spirvCode->getBufferSize());
     memcpy(shaderAsset.Spirv.data(), spirvCode->getBufferPointer(), spirvCode->getBufferSize());
     

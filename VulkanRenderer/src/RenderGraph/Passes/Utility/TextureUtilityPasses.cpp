@@ -26,12 +26,13 @@ RG::Resource Passes::Texture2dToTexture2d::addToGraph(StringId name, RG::Graph& 
         {
             CPU_PROFILE_FRAME("Texture2dToTexture2d.Setup")
 
-            passData.BindGroup = Texture2dToTexture2dBindGroupRG(graph, graph.SetShader("texture2dToTexture2d"_hsv,
+            passData.BindGroup = Texture2dToTexture2dBindGroupRG(graph,
                 ShaderDefines({
                     ShaderDefine{"R_CHANNEL"_hsv, (u32)channelComposition.R},
                     ShaderDefine{"G_CHANNEL"_hsv, (u32)channelComposition.G},
                     ShaderDefine{"B_CHANNEL"_hsv, (u32)channelComposition.B},
-                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}})));
+                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}
+                }));
 
             passData.TextureOut = graph.Create("Out"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,
@@ -71,12 +72,13 @@ RG::Resource Passes::Texture3dToSlice::addToGraph(StringId name, RG::Graph& rend
         {
             CPU_PROFILE_FRAME("Texture3dToSlice.Setup")
 
-            passData.BindGroup = Texture3dToSliceBindGroupRG(graph, graph.SetShader("texture3dToSlice"_hsv,
+            passData.BindGroup = Texture3dToSliceBindGroupRG(graph,
                 ShaderDefines({
                     ShaderDefine{"R_CHANNEL"_hsv, (u32)channelComposition.R},
                     ShaderDefine{"G_CHANNEL"_hsv, (u32)channelComposition.G},
                     ShaderDefine{"B_CHANNEL"_hsv, (u32)channelComposition.B},
-                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}})));
+                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}
+                }));
 
             passData.Slice = graph.Create("Slice"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,
@@ -119,12 +121,13 @@ RG::Resource Passes::TextureArrayToSlice::addToGraph(StringId name, RG::Graph& r
         {
             CPU_PROFILE_FRAME("TextureArrayToSlice.Setup")
 
-            passData.BindGroup = TextureArrayToSliceBindGroupRG(graph, graph.SetShader("textureArrayToSlice"_hsv,
+            passData.BindGroup = TextureArrayToSliceBindGroupRG(graph,
                 ShaderDefines({
                     ShaderDefine{"R_CHANNEL"_hsv, (u32)channelComposition.R},
                     ShaderDefine{"G_CHANNEL"_hsv, (u32)channelComposition.G},
                     ShaderDefine{"B_CHANNEL"_hsv, (u32)channelComposition.B},
-                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}})));
+                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}
+                }));
             
             passData.Slice = graph.Create("ColorOut"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,
@@ -170,12 +173,12 @@ RG::Resource Passes::TextureArrayToAtlas::addToGraph(StringId name, RG::Graph& r
         {
             CPU_PROFILE_FRAME("TextureArrayToAtlas.Setup")
 
-            passData.BindGroup = TextureArrayToAtlasBindGroupRG(graph, graph.SetShader("textureArrayToAtlas"_hsv,
+            passData.BindGroup = TextureArrayToAtlasBindGroupRG(graph,
                 ShaderDefines({
                     ShaderDefine{"R_CHANNEL"_hsv, (u32)channelComposition.R},
                     ShaderDefine{"G_CHANNEL"_hsv, (u32)channelComposition.G},
                     ShaderDefine{"B_CHANNEL"_hsv, (u32)channelComposition.B},
-                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}})));
+                    ShaderDefine{"A_CHANNEL"_hsv, (u32)channelComposition.A}}));
 
             passData.Atlas = graph.Create("ColorOut"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,

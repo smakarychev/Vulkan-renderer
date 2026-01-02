@@ -24,7 +24,7 @@ Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, 
         {
             CPU_PROFILE_FRAME("HiZ.Visualize.Setup")
 
-            passData.BindGroup = HizVisualizeBindGroupRG(graph, graph.SetShader("hizVisualize"_hsv));
+            passData.BindGroup = HizVisualizeBindGroupRG(graph);
 
             passData.HiZ = passData.BindGroup.SetResourcesHiz(hiz);
             passData.ColorOut = graph.Create("ColorOut"_hsv, RGImageDescription{

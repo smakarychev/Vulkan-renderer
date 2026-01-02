@@ -45,13 +45,17 @@ void ShaderCache::OnFrameBegin(FrameContext& ctx)
 ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, DescriptorArenaAllocators& allocators,
     ShaderCacheAllocationType allocationType)
 {
-    return Allocate(name, {}, allocators, allocationType);
+    return Allocate(name, bakers::Slang::MAIN_VARIANT, {}, allocators, allocationType);
 }
 
-ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, ShaderOverridesView&& overrides,
-    DescriptorArenaAllocators& allocators, ShaderCacheAllocationType allocationType)
+ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, std::optional<StringId> variant,
+    ShaderOverridesView&& overrides, DescriptorArenaAllocators& allocators, ShaderCacheAllocationType allocationType)
 {
-    const ShaderNameWithOverrides nameWithOverrides{.Name = name, .OverridesHash = overrides.Hash};
+    const ShaderNameWithOverrides nameWithOverrides{
+        .Name = name,
+        .Variant = variant.has_value() ? *variant : bakers::Slang::MAIN_VARIANT,
+        .OverridesHash = overrides.Hash
+    };
 
     Shader shader = {};
 
@@ -196,8 +200,6 @@ void ShaderCache::LoadShaderInfos()
 // todo: rename once ready
 void ShaderCache::LoadSlangShaderInfo(const std::filesystem::path& path)
 {
-    auto bakedPath = bakers::Slang::GetBakedPath(path, *m_BakeSettings, *m_BakersCtx);
-
     auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
     if (!shaderLoadInfo.has_value())
         return;
@@ -205,16 +207,22 @@ void ShaderCache::LoadSlangShaderInfo(const std::filesystem::path& path)
     const StringId name = StringId::FromString(shaderLoadInfo->Name);
     m_ShaderNameToPath.emplace(name, fs::weakly_canonical(path).generic_string());
 
-    auto assetFile = assetlib::io::loadAssetFileHeader(bakedPath);
-    if (!assetFile.has_value())
-        return;
+    for (auto& variant : shaderLoadInfo->Variants)
+    {
+        auto bakedPath = bakers::Slang::GetBakedPath(path, StringId::FromString(variant.Name),
+            *m_BakeSettings, *m_BakersCtx);
 
-    auto shaderHeader = assetlib::shader::unpackHeader(*assetFile);
-    if (!shaderHeader.has_value())
-        return;
+        auto assetFile = assetlib::io::loadAssetFileHeader(bakedPath);
+        if (!assetFile.has_value())
+            return;
 
-    for (auto& include : shaderHeader->Includes)
-        m_PathToShaders[include].push_back(name);
+        auto shaderHeader = assetlib::shader::unpackHeader(*assetFile);
+        if (!shaderHeader.has_value())
+            return;
+
+        for (auto& include : shaderHeader->Includes)
+            m_PathToShaders[include].push_back(name);
+    }
 }
 
 void ShaderCache::HandleModifications()
@@ -679,11 +687,12 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(const Shade
         .IncludePaths = m_BakeSettings->IncludePaths,
         .EnableHotReloading = (bool)CVars::Get().GetI32CVar("Renderer.Shaders.HotReload"_hsv).value_or(true)
     };
-    auto baked = baker.BakeToFile(path, settings, *m_BakersCtx);
+    auto baked = baker.BakeToFile(path, name.Variant, settings, *m_BakersCtx);
     if (!baked)
         return nullptr;
 
-    auto shaderReflectionResult = ShaderReflection::ReflectFromSlang(baker.GetBakedPath(path, settings, *m_BakersCtx));
+    auto shaderReflectionResult = ShaderReflection::ReflectFromSlang(baker.GetBakedPath(path, name.Variant, settings,
+        *m_BakersCtx));
     if (!shaderReflectionResult.has_value())
         return nullptr;
 

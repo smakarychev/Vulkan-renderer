@@ -1,6 +1,7 @@
 module lightCulling;
 
 __include "lightTilesBin";
+__include "lightClustersBin";
 
 import "core/viewInfo";
 
@@ -22,11 +23,11 @@ public static const uint BIN_LIGHTS_TILES_PER_WORKGROUP_SQ =
 public static const uint BIN_DISPATCH_SIZE = 256;
 
 namespace lightCulling {
-internal uint sliceIndex(float depth, float n, float f, uint count) {
+internal uint sliceIndex(float depth, float n, float f) {
     const float z = (n - f) * depth - n;
     const float logInv = 1.0f / log(f / n);
 
-    return uint(floor(log(f) * count * logInv - log(-z) * count * logInv));
+    return uint(floor(log(f) * LIGHT_CLUSTER_BINS_Z * logInv - log(-z) * LIGHT_CLUSTER_BINS_Z * logInv));
 }
 
 public uint sliceIndexLinearDepth(float z, float n, float f) {
@@ -36,13 +37,11 @@ public uint sliceIndexLinearDepth(float z, float n, float f) {
         uint(floor(log(f) * LIGHT_CLUSTER_BINS_Z * logInv - log(-z) * LIGHT_CLUSTER_BINS_Z * logInv)) - 1;
 }
 
-public uint clusterIndex(float2 uv, uint slice) {
+public uint getClusterIndex(float2 uv, uint slice) {
     const uint3 indices =
-        uint3(uint2(float2(uv.x, 1.0f - uv.y) * float2(LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y)), slice);
+        uint3(uint2(float2(uv.x, uv.y) * float2(LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y)), slice);
 
-    return indices.x +
-        indices.y * LIGHT_CLUSTER_BINS_X +
-        indices.z * LIGHT_CLUSTER_BINS_X * LIGHT_CLUSTER_BINS_Y;
+    return flatten3d(indices, uint3(LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z));
 }
 
 public uint getZBinIndex(float depth, float near, float far) {
@@ -77,7 +76,8 @@ public float distanceAabbSquared(float3 point, float4 min, float4 max) {
 }
 
 public static const uint VIEW_MAX_LIGHTS = 1024;
-public static const uint BIN_BIT_SIZE = 32;
+internal static const uint BIN_BIT_SIZE_LOG = 5;
+public static const uint BIN_BIT_SIZE = 1 << BIN_BIT_SIZE_LOG;
 public static const uint BIN_COUNT = VIEW_MAX_LIGHTS / BIN_BIT_SIZE;
 
 public struct LightCluster {

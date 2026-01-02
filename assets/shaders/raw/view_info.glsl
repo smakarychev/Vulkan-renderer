@@ -97,6 +97,8 @@ struct ViewInfo {
     uint directional_light_count;
     uint point_light_count;
     uint unused0[3];
+    
+    vec4 unused1[3];
 
     mat4 volumetric_cloud_view_projection;
     mat4 volumetric_cloud_view;

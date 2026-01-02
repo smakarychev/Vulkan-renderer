@@ -2,123 +2,82 @@
 
 #include "SceneVBufferPbrPass.h"
 
-#include "RenderGraph/RGCommon.h"
-#include "RenderGraph/RGGraph.h"
-#include "RenderGraph/RGUtils.h"
-#include "RenderGraph/Passes/Generated/SceneVbufferPbrUgbBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/SceneVbufferPbrBindGroupRG.generated.h"
 #include "Rendering/Image/ImageUtility.h"
-#include "Rendering/Shader/ShaderOverrides.h"
 #include "Scene/SceneGeometry.h"
+#include "Scene/SceneLight.h"
 
 Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
+    using PassDataBind = PassDataWithBind<PassData, SceneVbufferPbrBindGroupRG>;
 
-    struct PassDataPrivate : PassData
-    {
-        Resource VisibilityTexture{};
-        Resource ViewInfo{};
-        Resource UGB{};
-        Resource Indices{};
-        Resource Commands{};
-        Resource Objects{};
-        SceneLightResources Light{};
-        SSAOData SSAO{};
-        IBLData IBL{};
-        Resource Clusters{};
-        Resource Tiles{};
-        Resource ZBins{};
-        CsmData CsmData{};
-    };
-
-    return renderGraph.AddRenderPass<PassDataPrivate>(name,
-        [&](Graph& graph, PassDataPrivate& passData)
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
-            CPU_PROFILE_FRAME("Pbr.Visibility.IBL.Setup")
+            CPU_PROFILE_FRAME("Pbr.Visibility.Setup")
 
-            bool useHybrid = info.Tiles.IsValid() && info.Clusters.IsValid();
-            bool useTiled = !useHybrid && info.Tiles.IsValid();
-            bool useClustered = !useHybrid &&  info.Clusters.IsValid();
+            const bool useHybrid = info.Tiles.IsValid() && info.Clusters.IsValid();
+            const bool useTiled = !useHybrid && info.Tiles.IsValid();
+            const bool useClustered = !useHybrid &&  info.Clusters.IsValid();
 
-            graph.SetShader("scene-vbuffer-pbr-ugb"_hsv,
-                ShaderSpecializations{
-                    ShaderSpecialization{
-                        "MAX_REFLECTION_LOD"_hsv,
-                        (f32)Images::mipmapCount(
-                            glm::uvec2(graph.GetImageDescription(info.IBL.PrefilterEnvironment).Width))},
-                    ShaderSpecialization{"USE_TILED_LIGHTING"_hsv, useTiled},
-                    ShaderSpecialization{"USE_CLUSTERED_LIGHTING"_hsv, useClustered},
-                    ShaderSpecialization{"USE_HYBRID_LIGHTING"_hsv, useHybrid}});
-
-            passData.Commands = graph.Import("Commands"_hsv, info.Geometry->Commands.Buffer);
-            passData.Commands = graph.ReadBuffer(passData.Commands, Pixel | Storage);
-
-            passData.Objects = graph.Import("Objects"_hsv, info.Geometry->RenderObjects.Buffer);
-            passData.Objects = graph.ReadBuffer(passData.Objects, Pixel | Storage);
-
-            passData.UGB = graph.Import("UGB"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes));
-            passData.UGB = graph.ReadBuffer(passData.UGB, Pixel | Storage);
-
-            passData.Indices = graph.Import("Indices"_hsv,
-                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices));
-            passData.Indices = graph.ReadBuffer(passData.Indices, Pixel | Storage);
-
-            Resource color = graph.Create("Color"_hsv,
+            auto variant = SceneVbufferPbrBindGroupRG::Variants::Hybrid;
+            if (useTiled)
+                variant = SceneVbufferPbrBindGroupRG::Variants::Tiled;
+            if (useClustered)
+                variant = SceneVbufferPbrBindGroupRG::Variants::Clustered;
+            
+            passData.BindGroup = SceneVbufferPbrBindGroupRG(graph, variant, ShaderSpecializations(
+                ShaderSpecialization{
+                    "MAX_REFLECTION_LOD"_hsv, (f32)Images::mipmapCount(
+                            glm::uvec2(graph.GetImageDescription(info.IBL.PrefilterEnvironment).Width))
+                }
+            ));
+            
+            passData.BindGroup.SetResourcesVbuffer(info.VisibilityTexture);
+            passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
+                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
+            passData.BindGroup.SetResourcesView(info.ViewInfo);
+            passData.BindGroup.SetResourcesCommands(graph.Import("Commands"_hsv, info.Geometry->Commands.Buffer));
+            passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
+                info.Geometry->RenderObjects.Buffer));
+            passData.BindGroup.SetResourcesIndices(graph.Import("Indices"_hsv,
+                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)));
+            passData.BindGroup.SetResourcesCsmData(info.CsmData.CsmInfo);
+            passData.BindGroup.SetResourcesCsmTexture(info.CsmData.ShadowMap);
+            passData.BindGroup.SetResourcesSsao(info.SSAO.SSAO);
+            passData.BindGroup.SetResourcesDirectionalLights(graph.Import("Light.Directional"_hsv,
+                info.Light->GetBuffers().DirectionalLights));
+            passData.BindGroup.SetResourcesPointLights(graph.Import("Light.Point"_hsv,
+                info.Light->GetBuffers().PointLights));
+            if (useTiled || useHybrid)
+            {
+                passData.BindGroup.SetResourcesLightZBins(info.ZBins);
+                passData.BindGroup.SetResourcesLightTiles(info.Tiles);
+            }
+            if (useClustered || useHybrid)
+            {
+                passData.BindGroup.SetResourcesLightClusters(info.Clusters);
+            }
+            passData.BindGroup.SetResourcesPrefilteredEnvironment(info.IBL.PrefilterEnvironment);
+            passData.BindGroup.SetResourcesBrdf(info.IBL.BRDF);
+            passData.BindGroup.SetResourcesIrradianceSH(info.IBL.IrradianceSH);
+            
+            const Resource color = graph.Create("Color"_hsv,
                 RGImageDescription{
                     .Inference = RGImageInference::Size,
                     .Reference = info.VisibilityTexture,
-                    .Format = Format::RGBA16_FLOAT});
+                    .Format = SceneVbufferPbrBindGroupRG::GetColorAttachmentFormat()});
             passData.Color = graph.RenderTarget(color, {.OnLoad = AttachmentLoad::Clear});
-
-            passData.Light = RgUtils::readSceneLight(*info.Light, graph, Pixel);
-            if (info.Clusters.IsValid())
-                passData.Clusters = graph.ReadBuffer(info.Clusters, Pixel | Storage);
-            if (info.Tiles.IsValid())
-            {
-                passData.Tiles = graph.ReadBuffer(info.Tiles, Pixel | Storage);
-                passData.ZBins = graph.ReadBuffer(info.ZBins, Pixel | Storage);
-            }
-            passData.IBL = RgUtils::readIBLData(info.IBL, graph, Pixel);
-            passData.SSAO = RgUtils::readSSAOData(info.SSAO, graph, Pixel);
-
-            if (info.CsmData.ShadowMap.IsValid())
-                passData.CsmData = RgUtils::readCsmData(info.CsmData, graph, Pixel);
-
-            passData.VisibilityTexture = graph.ReadImage(info.VisibilityTexture, Pixel | Sampled);
-            
-            passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Pixel | Uniform);
         },
-        [=](const PassDataPrivate& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
-            CPU_PROFILE_FRAME("PBR Visibility pass")
-            GPU_PROFILE_FRAME("PBR Visibility pass")
+            CPU_PROFILE_FRAME("Pbr.Visibility")
+            GPU_PROFILE_FRAME("Pbr.Visibility")
 
-            const Shader& shader = graph.GetShader();
-            SceneVbufferPbrUgbShaderBindGroup bindGroup(shader);
-            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
-            bindGroup.SetUGB(graph.GetBufferBinding(passData.UGB));
-            bindGroup.SetIndices(graph.GetBufferBinding(passData.Indices));
-            bindGroup.SetCommands(graph.GetBufferBinding(passData.Commands));
-            bindGroup.SetObjects(graph.GetBufferBinding(passData.Objects));
-            bindGroup.SetVisibilityTexture(graph.GetImageBinding(passData.VisibilityTexture));
-            RgUtils::updateSceneLightBindings(bindGroup, graph, passData.Light);
-            RgUtils::updateSSAOBindings(bindGroup, graph, passData.SSAO);
-            RgUtils::updateIBLBindings(bindGroup, graph, passData.IBL);
-            if (passData.Clusters.IsValid())
-                bindGroup.SetClusters(graph.GetBufferBinding(passData.Clusters));
-            if (passData.Tiles.IsValid())
-            {
-                bindGroup.SetTiles(graph.GetBufferBinding(passData.Tiles));
-                bindGroup.SetZbins(graph.GetBufferBinding(passData.ZBins));
-            }
-            if (passData.CsmData.ShadowMap.IsValid())
-                RgUtils::updateCsmBindings(bindGroup, graph, passData.CsmData);
-            
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
             cmd.Draw({.VertexCount = 3});
         });
 }

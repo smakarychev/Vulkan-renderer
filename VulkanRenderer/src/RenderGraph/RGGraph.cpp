@@ -1652,12 +1652,23 @@ namespace RG
 
     const Shader& Graph::SetShader(StringId name) const
     {
-        return SetShader(name, {});
+        return SetShader(name, std::nullopt, {});
+    }
+
+    const Shader& Graph::SetShader(StringId name, StringId variant) const
+    {
+        return SetShader(name, variant, {});
     }
 
     const Shader& Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
     {
-        const auto res = m_ShaderCache->Allocate(name, std::move(overrides), GetFrameAllocators());
+        return SetShader(name, std::nullopt, std::move(overrides));
+    }
+
+    const Shader& Graph::SetShader(StringId name, std::optional<StringId> variant,
+        ShaderOverridesView&& overrides) const
+    {
+        const auto res = m_ShaderCache->Allocate(name, variant, std::move(overrides), GetFrameAllocators());
         if (!res.has_value())
         {
             static constexpr Shader DUMMY = {};

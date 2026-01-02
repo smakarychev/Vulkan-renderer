@@ -31,6 +31,8 @@ public struct PbrShadingInfo {
     public float3 specularColor;
     /// Screen pixel uv coorinates
     public float2 screenUv;
+    /// Shadow value for shaded point
+    public float directionalShadow;
 
     public static float3 calculateF0(float4 albedo, float metallic) {
         const float reflectance = 0.5f;

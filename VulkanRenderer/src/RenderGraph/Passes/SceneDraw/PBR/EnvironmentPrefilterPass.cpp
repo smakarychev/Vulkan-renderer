@@ -38,8 +38,8 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
             {
                 CPU_PROFILE_FRAME("EnvironmentPrefilter.Setup")
 
-                passData.BindGroup = EnvironmentPrefilterBindGroupRG(graph, graph.SetShader("environmentPrefilter"_hsv,
-                    ShaderSpecializations(ShaderSpecialization{"REAL_TIME"_hsv, realTime})));
+                passData.BindGroup = EnvironmentPrefilterBindGroupRG(graph,
+                    ShaderSpecializations(ShaderSpecialization{"REAL_TIME"_hsv, realTime}));
 
                 passData.PrefilteredTexture = passData.BindGroup.SetResourcesPrefiltered(mips[mipmap]);
                 passData.Cubemap = passData.BindGroup.SetResourcesEnvironment(cubemap);

@@ -75,10 +75,6 @@ public struct AtmosphereSettings {
 
 [StandaloneType("shadingSettings")]
 public struct ShadingSettings {
-    public static DirectionalLight primaryDirectionalLight(StructuredBuffer<DirectionalLight> lights) {
-        return lights[0];
-    }
-
     public float environmentPower;
     public bool softShadows;
     public float maxLightCullDistance;
@@ -91,6 +87,11 @@ public struct ShadingSettings {
     public uint pointLightCount;
     public bool lightCullingUseZBins;
     public uint2 lightCullTileCount;
+
+    public float4 atmosphereTransmittanceAtView;
+    public float3 primaryDirectionalLightDirection;
+    public float primaryDirectionalLightIntensity;
+    public float4 primaryDirectionalLightColor;
 
     public float4x4 volumetricCloudViewProjection;
     public float4x4 volumetricCloudView;

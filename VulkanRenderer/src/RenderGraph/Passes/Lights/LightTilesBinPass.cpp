@@ -20,7 +20,7 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Bin.Setup")
 
-            passData.BindGroup = LightTilesBinBindGroupRG(graph, graph.SetShader("lightTilesBin"_hsv));
+            passData.BindGroup = LightTilesBinBindGroupRG(graph);
 
             passData.Depth = passData.BindGroup.SetResourcesDepth(info.Depth);
             passData.Tiles = passData.BindGroup.SetResourcesTiles(info.Tiles);

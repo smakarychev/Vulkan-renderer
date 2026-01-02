@@ -19,7 +19,7 @@ struct Resources {
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
 
-float4 prefilter(float3 normal, uint n, float2 environmentSizeInverse, float roughness,) {
+float4 prefilter(float3 normal, uint n, float2 environmentSizeInverse, float roughness) {
     float3 prefilter = float3(0.0f);
     float totalWeight = 0.0f;
     for (uint i = 0; i < n; i++) {

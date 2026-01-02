@@ -14,7 +14,7 @@ public:
     StringId(const HashedStringView& string);
     template <typename ... Types>
     requires (sizeof...(Types) > 0)
-    StringId(const std::format_string<Types...> formatString, Types&&... args);
+    StringId(const std::format_string<Types...>& formatString, Types&&... args);
     /* It is implemented as static method because it is supposedly pretty easy to forget `sv`:
      *  StringId a = StringId("Hello"sv);
      *  StringId b = StringId("Hello");
@@ -41,7 +41,7 @@ private:
 
 template <typename ... Types>
 requires (sizeof...(Types) > 0)
-StringId::StringId(const std::format_string<Types...> formatString, Types&&... args)
+StringId::StringId(const std::format_string<Types...>& formatString, Types&&... args)
 {
     *this = FromString(std::format(formatString, std::forward<Types>(args)...));
 }
@@ -63,25 +63,25 @@ private:
 
 namespace std
 {
-    template <>
-    struct hash<StringId>
+template <>
+struct hash<StringId>
+{
+    usize operator()(const StringId stringId) const noexcept
     {
-        usize operator()(const StringId stringId) const noexcept
-        {
-            return stringId.Hash();
-        }
-    };
-    
-    template <>
-    struct formatter<StringId> {
-        constexpr auto parse(format_parse_context& ctx)
-        {
-            return ctx.begin();
-        }
+        return stringId.Hash();
+    }
+};
 
-        auto format(StringId id, format_context& ctx) const
-        {
-            return format_to(ctx.out(), "{}", id.AsStringView());
-        }
-    };
+template <>
+struct formatter<StringId> {
+    constexpr auto parse(format_parse_context& ctx)
+    {
+        return ctx.begin();
+    }
+
+    auto format(StringId id, format_context& ctx) const
+    {
+        return format_to(ctx.out(), "{}", id.AsStringView());
+    }
+};
 }

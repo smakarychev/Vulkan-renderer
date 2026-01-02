@@ -60,6 +60,8 @@ i32 main(i32 argc, char** argv)
     if (!config)
         return 1;
 
+    StringIdRegistry::Init();
+
     auto shaderBakerSettings = config->ShaderBakerSettings.value_or(ShaderBakerSettings{});
     bakers::Context bakerContext{
         .InitialDirectory = config->InitialDirectory / shaderBakerSettings.ShadersDirectoryName,
@@ -76,7 +78,7 @@ i32 main(i32 argc, char** argv)
         
         dispatcher.Dispatch({bakers::SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
             bakers::Slang baker;
-            auto baked = baker.BakeToFile(path, shaderBakeSettings, bakerContext);
+            auto baked = baker.BakeVariantsToFile(path, shaderBakeSettings, bakerContext);
             if (!baked)
                 LOG("Failed to bake file: {} ({})", baked.error(), path.string());
             else

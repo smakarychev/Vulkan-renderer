@@ -18,9 +18,9 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
         {
             CPU_PROFILE_FRAME("SSAO.Blur.Setup")
 
-            passData.BindGroup = SsaoBlurBindGroupRG(graph, graph.SetShader("ssaoBlur"_hsv, ShaderDefines({
+            passData.BindGroup = SsaoBlurBindGroupRG(graph, ShaderDefines({
                 ShaderDefine{"VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}
-            })));
+            }));
 
             passData.SsaoIn = passData.BindGroup.SetResourcesSsao(info.SsaoIn);
             passData.SsaoOut= passData.BindGroup.SetResourcesSsaoBlurred(

@@ -22,3 +22,9 @@ public struct IndirectCommand {
     public uint firstInstance;
     public uint renderObject;
 }
+
+public struct IndirectDispatchCommand {
+    public uint x;
+    public uint y;
+    public uint z;
+};

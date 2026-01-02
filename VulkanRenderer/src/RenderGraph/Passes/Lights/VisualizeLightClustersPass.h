@@ -5,6 +5,7 @@ namespace Passes::LightClustersVisualize
 {
     struct ExecutionInfo
     {
+        RG::Resource ViewInfo{};
         RG::Resource Clusters{};
         RG::Resource Depth{};
     };

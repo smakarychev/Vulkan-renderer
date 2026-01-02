@@ -1,6 +1,8 @@
 #pragma once
 
 #include "ShaderImageFormat.h"
+#include "Utils/HashFileUtils.h"
+#include "Utils/HashUtils.h"
 #include "v2/AssetLibV2.h"
 
 namespace assetlib
@@ -54,8 +56,25 @@ struct ShaderLoadInfo
         std::string Name{};
         std::string Path{};
     };
+    static constexpr std::string_view SHADER_VARIANT_MAIN_NAME = "SHADER_VARIANT_MAIN";
+    struct Variant
+    {
+        std::string Name;
+        std::vector<std::pair<std::string, std::string>> Defines{};
+        u64 NameHash{};
+        u64 DefinesHash{};
+
+        static Variant MainVariant()
+        {
+            return {
+                .Name = std::string(SHADER_VARIANT_MAIN_NAME),
+                .NameHash = Hash::string(SHADER_VARIANT_MAIN_NAME),
+            };
+        }
+    };
 
     std::vector<EntryPoint> EntryPoints{};
+    std::vector<Variant> Variants{};
     std::optional<std::string> BindlessSetReference{std::nullopt};
     std::optional<u32> BindlessCount{std::nullopt};
     std::optional<ShaderLoadRasterizationInfo> RasterizationInfo{std::nullopt};

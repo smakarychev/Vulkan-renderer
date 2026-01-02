@@ -23,8 +23,7 @@ namespace
             {
                 CPU_PROFILE_FRAME("EquirectangularToCubemap.Setup")
 
-                passData.BindGroup = EquirectangularToCubemapBindGroupRG(graph,
-                    graph.SetShader("equirectangularToCubemap"_hsv));
+                passData.BindGroup = EquirectangularToCubemapBindGroupRG(graph);
                 
                 passData.Cubemap = passData.BindGroup.SetResourcesCubemap(graph.Import("Cubemap"_hsv, cubemap));
                 passData.Equirectangular = passData.BindGroup.SetResourcesEquirectangular(equirectangular);

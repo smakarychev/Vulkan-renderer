@@ -16,7 +16,7 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
         {
             CPU_PROFILE_FRAME("BRDFLut.Setup")
 
-            passData.BindGroup = IntegrateBrdfLutBindGroupRG(graph, graph.SetShader("integrateBrdfLut"_hsv));
+            passData.BindGroup = IntegrateBrdfLutBindGroupRG(graph);
 
             passData.Lut = passData.BindGroup.SetResourcesBrdf(graph.Import("Lut"_hsv, lut));
         },

@@ -57,7 +57,7 @@ public:
     
     ShaderCacheAllocateResult Allocate(StringId name, DescriptorArenaAllocators& allocators,
         ShaderCacheAllocationType allocationType = ShaderCacheAllocationType::Complete);
-    ShaderCacheAllocateResult Allocate(StringId name, ShaderOverridesView&& overrides,
+    ShaderCacheAllocateResult Allocate(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides,
         DescriptorArenaAllocators& allocators,
         ShaderCacheAllocationType allocationType = ShaderCacheAllocationType::Complete);
     void AddPersistentDescriptors(StringId name, Descriptors descriptors, DescriptorsLayout descriptorsLayout);
@@ -84,6 +84,7 @@ private:
     struct ShaderNameWithOverrides
     {
         StringId Name{};
+        StringId Variant{};
         u64 OverridesHash{};
 
         auto operator<=>(const ShaderNameWithOverrides&) const = default;
@@ -104,6 +105,7 @@ private:
         constexpr u64 operator()(ShaderNameWithOverrides shader) const
         {
             u64 hash = shader.Name.Hash();
+            Hash::combine(hash, shader.Variant.Hash());
             Hash::combine(hash, shader.OverridesHash);
             
             return hash;

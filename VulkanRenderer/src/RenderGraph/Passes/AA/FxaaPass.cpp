@@ -14,7 +14,7 @@ Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& rende
         {
             CPU_PROFILE_FRAME("Fxaa.Luminance.Setup")
 
-            passData.BindGroup = FxaaBindGroupRG(graph, graph.SetShader("fxaa"_hsv));
+            passData.BindGroup = FxaaBindGroupRG(graph);
             
             passData.AntiAliased = graph.Create("AntiAliased"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size,

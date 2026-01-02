@@ -18,7 +18,7 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize.Setup")
 
-            passData.BindGroup = LightTilesVisualizeBindGroupRG(graph, graph.SetShader("lightTilesVisualize"_hsv));
+            passData.BindGroup = LightTilesVisualizeBindGroupRG(graph);
 
             auto& globalResources = graph.GetGlobalResources();
 

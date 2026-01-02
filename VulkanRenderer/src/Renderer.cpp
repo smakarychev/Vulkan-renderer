@@ -23,6 +23,7 @@
 #include "RenderGraph/Passes/Atmosphere/AtmosphereAerialPerspectiveLutPass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
+#include "RenderGraph/Passes/Atmosphere/AtmosphereTransmittanceAtViewPass.h"
 #include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Clouds/CloudComposePass.h"
@@ -39,7 +40,6 @@
 #include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
 #include "RenderGraph/Passes/Lights/LightClustersBinPass.h"
-#include "RenderGraph/Passes/Lights/LightClustersCompactPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersSetupPass.h"
 #include "RenderGraph/Passes/Lights/LightTilesBinPass.h"
 #include "RenderGraph/Passes/Lights/LightTilesSetupPass.h"
@@ -242,7 +242,7 @@ void Renderer::InitRenderGraph()
         for (u32 i = 0; i < POINT_LIGHT_COUNT; i++)
         {
             const auto pos =
-                glm::vec3{Random::Float(-2.0f, 2.0f), Random::Float(0.0f, 2.0f), Random::Float(-2.0f, 2.0f)};
+                glm::vec3{Random::Float(-5.0f, 5.0f), Random::Float(0.0f, 2.0f), Random::Float(-5.0f, 5.0f)};
             const float rad = Random::Float(0.5f, 8.6f);
             lights.AddLight({{
                 //.Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
@@ -563,6 +563,13 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     primaryView.Shading.LightCullTileCount =
         (swapchain.SwapchainResolution + glm::uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y) - glm::uvec2(1)) /
         glm::uvec2(LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y);
+
+    if (m_SunLight)
+    {
+        primaryView.Shading.PrimaryDirectionalLightDirection = m_SunLight->PositionDirection;
+        primaryView.Shading.PrimaryDirectionalLightColor = glm::vec4(m_SunLight->Color, 1.0f);
+        primaryView.Shading.PrimaryDirectionalLightIntensity = m_SunLight->Intensity;
+    }
 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     if (m_SunLight && renderAtmosphere)
@@ -995,23 +1002,23 @@ Renderer::ClusterLightsInfo Renderer::RenderGraphCullLightsClustered(StringId ba
         Resource Clusters{};
     };
     
-    auto& clustersSetup = Passes::LightClustersSetup::addToGraph(baseName.Concatenate("Clusters.Setup"), *m_Graph);
-    auto& compactClusters = Passes::LightClustersCompact::addToGraph(baseName.Concatenate("Clusters.Compact"),
-        *m_Graph, {
+    auto& clustersSetup = Passes::LightClustersSetup::addToGraph(baseName.Concatenate("Clusters.Setup"), *m_Graph, {
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource
+    });
+    auto& binLightsClusters = Passes::LightClustersBin::addToGraph(baseName.Concatenate("Clusters.Bin"), *m_Graph, {
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Clusters = clustersSetup.Clusters,
         .ClusterVisibility = clustersSetup.ClusterVisibility,
-        .Depth = depth});
-    auto& binLightsClusters = Passes::LightClustersBin::addToGraph(baseName.Concatenate("Clusters.Bin"), *m_Graph, {
-        .DispatchIndirect = compactClusters.DispatchIndirect,
-        .Clusters = compactClusters.Clusters,
-        .ActiveClusters = compactClusters.ActiveClusters,
-        .ClustersCount = compactClusters.ActiveClustersCount,
-        .Light = &m_Scene.Lights()});
+        .Depth = depth,
+        .Light = &m_Scene.Lights()
+    });
 
     auto& visualizeClusters = Passes::LightClustersVisualize::addToGraph(baseName.Concatenate("Clusters.Visualize"),
         *m_Graph, {
+        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Clusters = binLightsClusters.Clusters,
-        .Depth = depth});
+        .Depth = depth
+    });
     Passes::ImGuiTexture::addToGraph(baseName.Concatenate("Clusters.Visualize.Texture"), *m_Graph,
         visualizeClusters.Color);
 
@@ -1037,6 +1044,12 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
         .Light = &m_Scene.Lights() 
     });
+
+    m_Graph->GetBlackboard().Get<RG::GlobalResources>().PrimaryViewInfoResource =
+        Passes::AtmosphereLutTransmittanceAtView::addToGraph("AtmosphereTransmittanceAtView"_hsv, *m_Graph, {
+            .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+            .TransmittanceLut = luts.TransmittanceLut 
+    }).ViewInfo;
     
     Passes::ImGuiTexture::addToGraph("Atmosphere.Transmittance.Lut"_hsv, *m_Graph, luts.TransmittanceLut);
     Passes::ImGuiTexture::addToGraph("Atmosphere.Multiscattering.Lut"_hsv, *m_Graph, luts.MultiscatteringLut);

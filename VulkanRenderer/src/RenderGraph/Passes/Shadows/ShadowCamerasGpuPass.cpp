@@ -24,7 +24,7 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
         {
             CPU_PROFILE_FRAME("ShadowCameras.GPU.Setup")
 
-            passData.BindGroup = CreateShadowCamerasBindGroupRG(graph, graph.SetShader("createShadowCameras"_hsv));
+            passData.BindGroup = CreateShadowCamerasBindGroupRG(graph);
 
             const Resource csmData = graph.Create("CSM.Data"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SceneCsm::CsmInfo)});

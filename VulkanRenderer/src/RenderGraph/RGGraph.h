@@ -101,7 +101,9 @@ public:
     Value& GetOrCreateBlackboardValue(u64 hash) const;
 
     const Shader& SetShader(StringId name) const;
+    const Shader& SetShader(StringId name, StringId variant) const;
     const Shader& SetShader(StringId name, ShaderOverridesView&& overrides) const;
+    const Shader& SetShader(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides) const;
     const Shader& GetShader() const;
 
 private:

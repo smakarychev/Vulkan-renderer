@@ -9,10 +9,10 @@ namespace Passes::LightClustersBin
 {
     struct ExecutionInfo
     {
-        RG::Resource DispatchIndirect{};
+        RG::Resource ViewInfo{};
         RG::Resource Clusters{};
-        RG::Resource ActiveClusters{};
-        RG::Resource ClustersCount{};
+        RG::Resource ClusterVisibility{};
+        RG::Resource Depth{};
         const SceneLight* Light{nullptr};
     };
     struct PassData

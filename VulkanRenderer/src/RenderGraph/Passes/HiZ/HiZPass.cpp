@@ -26,14 +26,14 @@ namespace
             {
                 CPU_PROFILE_FRAME("HiZCombined.Blit.Setup")
 
-                passData.BindGroup = HizBlitBindGroupRG(graph, graph.SetShader("hizBlit"_hsv, ShaderOverrides{
+                passData.BindGroup = HizBlitBindGroupRG(graph, ShaderOverrides{
                     ShaderDefines({
                         ShaderDefine("HIZ_BLIT"_hsv, true),
                         ShaderDefine("HIZ_GENERATE"_hsv, false),
                         ShaderDefine("HIZ_MIN_MAX"_hsv, info.ReductionMode == HiZ::ReductionMode::MinMax),
                         ShaderDefine("HIZ_MIN_MAX_DEPTH_BUFFER"_hsv, info.CalculateMinMaxDepthBuffer),
                     })
-                }));
+                });
 
                 passData.HiZ = HiZ::createHiz(graph, graph.GetImageDescription(info.Depth).Dimensions(),
                     info.ReductionMode);
@@ -96,14 +96,14 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
             {
                 CPU_PROFILE_FRAME("HiZCombined.Setup")
 
-                passData.BindGroup = HizGenerateBindGroupRG(graph, graph.SetShader("hizGenerate"_hsv, ShaderOverrides{
+                passData.BindGroup = HizGenerateBindGroupRG(graph, ShaderOverrides{
                     ShaderDefines({
                          ShaderDefine("HIZ_BLIT"_hsv, false),
                          ShaderDefine("HIZ_GENERATE"_hsv, true),
                          ShaderDefine("HIZ_MIN_MAX"_hsv, info.ReductionMode == ::HiZ::ReductionMode::MinMax),
                          ShaderDefine("HIZ_MIN_MAX_DEPTH_BUFFER"_hsv, info.CalculateMinMaxDepthBuffer),
                      })
-                }));
+                });
 
                 const u32 sourceMipmapIndex = currentMipmap;
                 blit.HiZMips[sourceMipmapIndex] = passData.BindGroup.SetResourcesInput(blit.HiZMips[sourceMipmapIndex]);

@@ -92,9 +92,9 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
         {
             CPU_PROFILE_FRAME("SSAO.Setup")
 
-            passData.BindGroup = SsaoBindGroupRG(graph, graph.SetShader("ssao"_hsv, ShaderDefines({
+            passData.BindGroup = SsaoBindGroupRG(graph, ShaderDefines({
                 ShaderDefine("MAX_SAMPLES"_hsv, MAX_SAMPLES_COUNT)
-            })));
+            }));
             
             if (!graph.TryGetBlackboardValue<Samples>())
             {
