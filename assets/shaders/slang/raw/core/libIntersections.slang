@@ -3,7 +3,7 @@ implementing lib;
 /// Represents first ray-object intersection
 public struct Intersection {
     public bool missed() { return depth == 0; }
-    __init(float t_, float depth_) { t = t_; depth = depth_;}
+    public __init(float t_, float depth_) { t = t_; depth = depth_;}
 	public float t;
     public float depth;
 }

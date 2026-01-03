@@ -6,22 +6,19 @@ class SceneLight;
 
 namespace Passes::Atmosphere::Environment
 {
-    struct ExecutionInfo
-    {
-        const ViewInfoGPU* PrimaryView{nullptr};
-        const SceneLight* Light{nullptr};
-        RG::Resource SkyViewLut{};
-        /* optional external color image resource */
-        RG::Resource ColorIn{};
-        Span<const u32> FaceIndices;
-    };
-    struct PassData
-    {
-        RG::Resource ViewInfo{};
-        RG::Resource SkyViewLut{};
-        RG::Resource DirectionalLight{};
-        RG::Resource ColorOut{};
-    };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
-}
+struct ExecutionInfo
+{
+    const ViewInfoGPU* PrimaryView{nullptr};
+    RG::Resource SkyViewLut{};
+    /* optional external color image resource */
+    RG::Resource ColorIn{};
+    Span<const u32> FaceIndices;
+};
 
+struct PassData
+{
+    RG::Resource Color{};
+};
+
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+}

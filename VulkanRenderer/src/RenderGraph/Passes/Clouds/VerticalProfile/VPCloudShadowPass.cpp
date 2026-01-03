@@ -5,133 +5,115 @@
 #include "ViewInfoGPU.h"
 #include "VPCloudPass.h"
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/CloudVpShadowBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/CloudsVPShadowBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Generated/CloudVpShadowBlurBindGroup.generated.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesUtils.h"
 #include "Scene/SceneLight.h"
 
 namespace 
 {
-    RG::Resource blurPass(StringId name, RG::Graph& renderGraph, RG::Resource shadow, bool isVerticalBlur)
-    {
-        using namespace RG;
-        using enum ResourceAccessFlags;
+RG::Resource blurPass(StringId name, RG::Graph& renderGraph, RG::Resource shadow, bool isVerticalBlur)
+{
+    using namespace RG;
+    using enum ResourceAccessFlags;
 
-        struct PassData
+    struct PassData
+    {
+        Resource Shadow{};
+        Resource Blurred{};
+    };
+    
+    return renderGraph.AddRenderPass<PassData>(name,
+        [&](Graph& graph, PassData& passData)
         {
-            Resource Shadow{};
-            Resource Blurred{};
-        };
-        
-        return renderGraph.AddRenderPass<PassData>(name,
-            [&](Graph& graph, PassData& passData)
-            {
-                CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur.Setup")
+            CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur.Setup")
 
-                graph.SetShader("cloud-vp-shadow-blur"_hsv, ShaderDefines({
-                    ShaderDefine{"VERTICAL"_hsv, isVerticalBlur}
-                }));
+            graph.SetShader("cloud-vp-shadow-blur"_hsv, ShaderDefines({
+                ShaderDefine{"VERTICAL"_hsv, isVerticalBlur}
+            }));
 
-                passData.Blurred = graph.Create("Shadow.Blurred"_hsv, RGImageDescription{
-                    .Inference = RGImageInference::Full,
-                    .Reference = shadow,
-                });
+            passData.Blurred = graph.Create("Shadow.Blurred"_hsv, RGImageDescription{
+                .Inference = RGImageInference::Full,
+                .Reference = shadow,
+            });
 
-                passData.Shadow = graph.ReadImage(shadow, Compute | Sampled);
-                passData.Blurred = graph.WriteImage(passData.Blurred, Compute | Storage);
-            },
-            [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
-            {
-                CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
-                GPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
+            passData.Shadow = graph.ReadImage(shadow, Compute | Sampled);
+            passData.Blurred = graph.WriteImage(passData.Blurred, Compute | Storage);
+        },
+        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        {
+            CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
+            GPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
 
-                const glm::uvec2 resolution = graph.GetImageDescription(passData.Shadow).Dimensions();
+            const glm::uvec2 resolution = graph.GetImageDescription(passData.Shadow).Dimensions();
 
-                const Shader& shader = graph.GetShader();
-                CloudVpShadowBlurShaderBindGroup bindGroup(shader);
-                bindGroup.SetShadow(graph.GetImageBinding(passData.Shadow));
-                bindGroup.SetShadowBlurred(graph.GetImageBinding(passData.Blurred));
+            const Shader& shader = graph.GetShader();
+            CloudVpShadowBlurShaderBindGroup bindGroup(shader);
+            bindGroup.SetShadow(graph.GetImageBinding(passData.Shadow));
+            bindGroup.SetShadowBlurred(graph.GetImageBinding(passData.Blurred));
 
-                auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            auto& cmd = frameContext.CommandList;
+            bindGroup.Bind(cmd, graph.GetFrameAllocators());
 
-                cmd.Dispatch({
-                    .Invocations = {resolution.x, resolution.y, 1},
-                    .GroupSize = {8, 8, 1}
-                });
-            }).Blurred;
-    }
+            cmd.Dispatch({
+                .Invocations = {resolution.x, resolution.y, 1},
+                .GroupSize = {8, 8, 1}
+            });
+        }).Blurred;
+}
 
-    Passes::Clouds::VP::Shadow::PassData& renderShadowsPass(StringId name, RG::Graph& renderGraph,
-        const Passes::Clouds::VP::Shadow::ExecutionInfo& info)
-    {
-        using namespace RG;
-        using enum ResourceAccessFlags;
-        using PassData = Passes::Clouds::VP::Shadow::PassData;
+Passes::Clouds::VP::Shadow::PassData& renderShadowsPass(StringId name, RG::Graph& renderGraph,
+    const Passes::Clouds::VP::Shadow::ExecutionInfo& info)
+{
+    using namespace RG;
+    using enum ResourceAccessFlags;
+    using PassDataBind = PassDataWithBind<Passes::Clouds::VP::Shadow::PassData, CloudsVPShadowBindGroupRG>;
 
-        return renderGraph.AddRenderPass<PassData>(name,
-            [&](Graph& graph, PassData& passData)
-            {
-                CPU_PROFILE_FRAME("VP.Cloud.Shadow.Setup")
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
+        {
+            CPU_PROFILE_FRAME("VP.Cloud.Shadow.Setup")
 
-                graph.SetShader("cloud-vp-shadow"_hsv);
+            passData.BindGroup = CloudsVPShadowBindGroupRG(graph);
 
-                ViewInfoGPU viewInfo = *info.PrimaryView;
-                passData.ViewInfo = graph.Create("ViewInfo"_hsv, RGBufferDescription{
-                    .SizeBytes = sizeof(ViewInfoGPU)});
-                const Camera& primaryCamera = *info.PrimaryCamera;
-                const glm::vec3 lightDirection = info.Light->PositionDirection;
-                viewInfo.Camera =
-                    Passes::Clouds::VP::Shadow::createShadowCamera(primaryCamera, *info.PrimaryView, lightDirection);
-                passData.ViewInfo = graph.Upload(passData.ViewInfo, viewInfo);
+            ViewInfoGPU viewInfo = *info.PrimaryView;
+            const Camera& primaryCamera = *info.PrimaryCamera;
+            const glm::vec3 lightDirection = info.Light->PositionDirection;
+            viewInfo.Camera =
+                Passes::Clouds::VP::Shadow::createShadowCamera(primaryCamera, *info.PrimaryView, lightDirection);
+            passData.ShadowView = viewInfo;
 
-                passData.DepthOut = graph.Create("Clouds.Depth"_hsv, RGImageDescription{
+            passData.Shadow = passData.BindGroup.SetResourcesShadow(graph.Create("Clouds.Depth"_hsv,
+                RGImageDescription{
                     .Width = (f32)CVars::Get().GetI32CVar("Clouds.ShadowMap.Size"_hsv).value_or(1),
                     .Height = (f32)CVars::Get().GetI32CVar("Clouds.ShadowMap.Size"_hsv).value_or(1),
                     .Format = Format::R11G11B10,
-                });
+            }));
+            
+            passData.BindGroup.SetResourcesView(graph.Upload(graph.Create("ViewInfo"_hsv, RGBufferDescription{
+                .SizeBytes = sizeof(ViewInfoGPU)}), viewInfo));
+            passData.BindGroup.SetResourcesCoverage(info.CloudCoverage);
+            passData.BindGroup.SetResourcesProfile(info.CloudProfile);
+            passData.BindGroup.SetResourcesLowFrequency(info.CloudShapeLowFrequencyMap);
+            passData.BindGroup.SetResourcesHighFrequency(info.CloudShapeHighFrequencyMap);
+            passData.BindGroup.SetResourcesCurlNoise(info.CloudCurlNoise);
+            passData.BindGroup.SetResourcesParameters(info.CloudParameters);
+        },
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        {
+            CPU_PROFILE_FRAME("VP.Cloud.Shadow")
+            GPU_PROFILE_FRAME("VP.Cloud.Shadow")
 
-                passData.ViewInfo = graph.ReadBuffer(passData.ViewInfo, Compute | Uniform);
-                passData.CloudCoverage = graph.ReadImage(info.CloudCoverage, Compute | Sampled);
-                passData.CloudProfile = graph.ReadImage(info.CloudProfile, Compute | Sampled);
-                passData.CloudShapeLowFrequencyMap = graph.ReadImage(info.CloudShapeLowFrequencyMap, Compute | Sampled);
-                passData.CloudShapeHighFrequencyMap =
-                    graph.ReadImage(info.CloudShapeHighFrequencyMap, Compute | Sampled);
-                passData.CloudCurlNoise = graph.ReadImage(info.CloudCurlNoise, Compute | Sampled);
-                passData.DepthOut = graph.WriteImage(passData.DepthOut, Compute | Storage);
-                passData.ShadowView = viewInfo;
-            },
-            [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
-            {
-                CPU_PROFILE_FRAME("VP.Cloud.Shadow")
-                GPU_PROFILE_FRAME("VP.Cloud.Shadow")
+            const glm::uvec2 resolution = graph.GetImageDescription(passData.Shadow).Dimensions();
 
-                const glm::uvec2 resolution = graph.GetImageDescription(passData.DepthOut).Dimensions();
-
-                const Shader& shader = graph.GetShader();
-                CloudVpShadowShaderBindGroup bindGroup(shader);
-                bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
-                bindGroup.SetCloudCoverage(graph.GetImageBinding(passData.CloudCoverage));
-                bindGroup.SetCloudProfile(graph.GetImageBinding(passData.CloudProfile));
-                bindGroup.SetCloudLowFrequency(graph.GetImageBinding(passData.CloudShapeLowFrequencyMap));
-                bindGroup.SetCloudHighFrequency(graph.GetImageBinding(passData.CloudShapeHighFrequencyMap));
-                bindGroup.SetCloudCurlNoise(graph.GetImageBinding(passData.CloudCurlNoise));
-                bindGroup.SetOutBsm(graph.GetImageBinding(passData.DepthOut));
-
-                auto& cmd = frameContext.CommandList;
-                bindGroup.Bind(cmd, graph.GetFrameAllocators());
-
-                cmd.PushConstants({
-                    .PipelineLayout = shader.GetLayout(),
-                    .Data = {*info.CloudParameters}
-                });
-                cmd.Dispatch({
-                    .Invocations = {resolution.x, resolution.y, 1},
-                    .GroupSize = {8, 8, 1}
-                });
+            auto& cmd = frameContext.CommandList;
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            cmd.Dispatch({
+                .Invocations = {resolution.x, resolution.y, 1},
+                .GroupSize = passData.BindGroup.GetCloudsVPShadowGroupSize()
             });
-    }
+        });
+}
 }
 
 Passes::Clouds::VP::Shadow::PassData& Passes::Clouds::VP::Shadow::addToGraph(StringId name, RG::Graph& renderGraph,
@@ -144,8 +126,8 @@ Passes::Clouds::VP::Shadow::PassData& Passes::Clouds::VP::Shadow::addToGraph(Str
         [&](Graph& graph, PassData& passData)
         {
             passData = renderShadowsPass(name, graph, info);
-            const Resource blurred = blurPass("CloudShadowVerticalBlur"_hsv, graph, passData.DepthOut, true);
-            passData.DepthOut = blurPass("CloudShadowHorizontalBlur"_hsv, graph, blurred, false);
+            const Resource blurred = blurPass("CloudShadowVerticalBlur"_hsv, graph, passData.Shadow, true);
+            passData.Shadow = blurPass("CloudShadowHorizontalBlur"_hsv, graph, blurred, false);
         },
         [=](const PassData&, FrameContext&, const Graph&){});
 }
@@ -154,7 +136,7 @@ CameraGPU Passes::Clouds::VP::Shadow::createShadowCamera(const Camera& primaryCa
     const glm::vec3& lightDirection)
 {
     static constexpr f32 SNAP = 500.0f;
-    static constexpr f32 SHADOW_POS_HEIGHT = 10000.0f;
+    static constexpr f32 SHADOW_POS_HEIGHT = 15000.0f;
     static constexpr f32 CLOUDS_PADDING = 100.0f;
     const u32 resolution = (u32)CVars::Get().GetI32CVar("Clouds.ShadowMap.Size"_hsv).value_or(1);
     const f32 cloudsExtent = CVars::Get().GetF32CVar("Clouds.Extent"_hsv).value_or(1);
@@ -175,7 +157,8 @@ CameraGPU Passes::Clouds::VP::Shadow::createShadowCamera(const Camera& primaryCa
         .Left = -cloudsExtent,
         .Right = cloudsExtent,
         .Bottom = -cloudsExtent,
-        .Top = cloudsExtent});
+        .Top = cloudsExtent
+    });
     ShadowUtils::stabilizeShadowProjection(shadowCamera, resolution);
 
     return CameraGPU::FromCamera(shadowCamera, glm::uvec2(resolution),

@@ -177,7 +177,7 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
                 renderGraph, textureIn, sliceNormalized, channelComposition);
             passData = imgui2dTexturePass(name, graph, slice, [&, depth=depth]()
             {
-                ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, (i32)depth);
+                ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, (i32)depth - 1);
             });
             graph.HasSideEffect();
         },
@@ -215,7 +215,7 @@ RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& ren
                     renderGraph, textureIn, context.Slice, channelComposition);
                 passData = imgui2dTexturePass(name, graph, slice, [&, layers=layers]()
                 {
-                    ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, (i32)layers);
+                    ImGui::DragInt("Slice", &context.Slice, 0.1f, 0, (i32)layers - 1);
                 });
             }
             else

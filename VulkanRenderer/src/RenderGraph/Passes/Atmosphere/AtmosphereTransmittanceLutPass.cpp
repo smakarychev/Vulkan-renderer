@@ -6,7 +6,7 @@
 #include "RenderGraph/Passes/Generated/AtmosphereLutTransmittanceBindGroupRG.generated.h"
 
 Passes::Atmosphere::Transmittance::PassData& Passes::Atmosphere::Transmittance::addToGraph(StringId name,
-    RG::Graph& renderGraph, RG::Resource viewInfo)
+    RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<PassData, AtmosphereLutTransmittanceBindGroupRG>;
@@ -24,7 +24,7 @@ Passes::Atmosphere::Transmittance::PassData& Passes::Atmosphere::Transmittance::
                 .Format = Format::RGBA16_FLOAT
             }));
 
-            passData.BindGroup.SetResourcesView(viewInfo);
+            passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {

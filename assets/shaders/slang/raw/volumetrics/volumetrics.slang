@@ -2,6 +2,10 @@ module volumetrics;
 
 __include "integrateAtmosphereScatteredLumunance";
 __include "atmosphereLuts";
+__include "atmosphereRender";
+__include "clouds/clouds";
+__include "clouds/cloudsVPInfo";
+__include "clouds/cloudsVP";
 
 import "core/attributes";
 import "core/lib";
@@ -38,6 +42,10 @@ internal float3 getViewPosition(float3 cameraPos, float surfaceRadius) {
     const float baseViewHeight = DEFAULT_VIEW_HEIGHT_M * 1e-3f;
     
     return cameraPos * 1e-3f + float3(0.0f, surfaceRadius + baseViewHeight, 0.0f);
+}
+
+internal float3 getViewPositionMeters(float3 cameraPos, float surfaceRadiusMeters) {
+    return cameraPos + float3(0.0f, surfaceRadiusMeters + DEFAULT_VIEW_HEIGHT_M, 0.0f);
 }
 
 internal float3 getWorldPosition(float3 viewPos, float surfaceRadius) {

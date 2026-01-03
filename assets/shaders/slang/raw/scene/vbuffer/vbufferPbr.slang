@@ -20,6 +20,8 @@ struct Samplers {
     SamplerState linearSampler;
     [ImmutableSampler(SamplerFlags.Shadow | SamplerFlags.Linear)]
     SamplerComparisonState shadowSampler;
+    [ImmutableSampler(SamplerFlags.ClampBlack | SamplerFlags.Linear)]
+    SamplerState blackSampler;
     PbrShadingSamplers pbr;
 }
 
@@ -56,7 +58,10 @@ float4 main(FullScreenVSOutput input) {
     PcfShadowSampler pcfShadowSampler;
     CsmShadow csmShadow = CsmShadow(resources.csm.csmData, resources.csm.csmTexture, samplers.shadowSampler,
         resources.view.shading.primaryDirectionalLightDirection);
-    const float shadow = csmShadow.sample(pcfShadowSampler, gData.position, gData.normal, gData.viewZ);
+    float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, gData.position, gData.normal, gData.viewZ);
+    CloudsShadow cloudsShadow = CloudsShadow(
+        resources.view, materials.textures[resources.view.shading.volumetricCloudShadow], samplers.blackSampler);
+    shadow *= 1.0f - cloudsShadow.sample(gData.position);
 
     PbrShadingInfo shadingInfo;
     shadingInfo.position = gData.position;
@@ -75,9 +80,7 @@ float4 main(FullScreenVSOutput input) {
     shadingInfo.screenUv = input.uv;
     shadingInfo.directionalShadow = shadow;
 
-
     const float ao = resources.ssao.SampleLevel(samplers.linearSampler, input.uv, 0) * materialData.ao;
 
     return float4(pbrShade(resources.view, shadingInfo, samplers.pbr, resources.pbr), 1.0f);
-    return float4(shadingInfo.diffuseColor * (1.0f - shadow) * ao, 1.0f);
 }

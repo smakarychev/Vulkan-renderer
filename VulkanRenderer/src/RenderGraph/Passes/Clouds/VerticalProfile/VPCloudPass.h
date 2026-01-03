@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "RenderGraph/RGResource.h"
+#include "RenderGraph/Passes/Generated/Types/CloudsVPParametersUniform.generated.h"
 
 class SceneLight;
 
@@ -10,26 +11,7 @@ namespace Passes::Clouds::VP
         FullResolution,
         Reprojection,
     };
-    struct CloudParameters
-    {
-        f32 CloudMapMetersPerTexel{64.0};
-        f32 ShapeNoiseScale = 1.0f / 4000.0f;
-        f32 DetailNoiseScaleMultiplier = 8.0f;
-        f32 DetailNoiseContribution = 0.1f;
-        f32 DetailNoiseHeightModifier = 3.0f;
-        f32 WindAngle{glm::radians(35.0f)};
-        f32 WindSpeed{0.15f};
-        f32 WindUprightAmount{0.1f};
-        f32 WindHorizontalSkew{500.0f};
-
-        f32 CurlNoiseScaleMultiplier{0.3f};
-        f32 CurlNoiseHeight{0.6f};
-        f32 CurlNoiseContribution{0.8f};
-
-        f32 HGEccentricity{0.2f};
-        f32 HGBackwardEccentricity{-0.15f};
-        u32 BlueNoiseBindlessIndex{~0u};
-    };
+    struct CloudParameters : gen::CloudsVPParameters {};
     struct ExecutionInfo
     {
         RG::Resource ViewInfo{};

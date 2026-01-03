@@ -59,6 +59,8 @@ public struct Camera {
 
 [StandaloneType("atmosphereSettings")]
 public struct AtmosphereSettings {
+    public static const float EARTH_RADIUS_DEFAULT_KM = 6360.0f;
+
     public float4 rayleighScattering;
     public float4 rayleighAbsorption;
     public float4 mieScattering;

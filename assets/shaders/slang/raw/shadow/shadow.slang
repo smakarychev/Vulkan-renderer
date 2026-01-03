@@ -1,6 +1,7 @@
 module shadow;
 
 __include "pcfShadowSampler";
+__include "cloudsShadow";
 __include "csmShadow";
 __include "shadowUtility";
 

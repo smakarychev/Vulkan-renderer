@@ -5,9 +5,11 @@ import "shadow/shadow";
 public struct AmosphereScatteredLuminanceInfo {
     public SamplerState linearSampler;
     public SamplerComparisonState shadowSampler;
+    public SamplerState blackSampler;
     public Texture2D transmittanceLut;
     public Texture2D multiscatteringLut;
     public CsmResources csm;
+    public Texture2D cloudShadow;
 
     public ConstantBuffer<ViewInfo> view;
     public float3 globalL;
@@ -83,10 +85,10 @@ internal struct AmosphereScatteredLuminance {
 
                 PcfShadowSampler pcfShadowSampler;
                 CsmShadow csmShadow = CsmShadow(info.csm.csmData, info.csm.csmTexture, info.shadowSampler, info.sunDir);
-                const float shadow = csmShadow.sample(pcfShadowSampler, shadowWs, float3(0.0f), shadowZView);
-                shadowMap = 1 - shadow;
+                shadowMap = 1.0f - csmShadow.sample(pcfShadowSampler, shadowWs, float3(0.0f), shadowZView);
 
-                // todo: add cloud shadows here:
+                CloudsShadow cloudShadow = CloudsShadow(info.view, info.cloudShadow, info.blackSampler);
+                shadowMap *= 1.0f - cloudShadow.sample(shadowWs);
             }
 
             float3 multiscatteringLuminance = float3(0.0f);

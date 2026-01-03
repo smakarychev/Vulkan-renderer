@@ -22,9 +22,8 @@
 #include "RenderGraph/Passes/AO/SsaoPass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereAerialPerspectiveLutPass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmospherePass.h"
-#include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
+#include "RenderGraph/Passes/Atmosphere/AtmosphereRenderPass.h"
 #include "RenderGraph/Passes/Atmosphere/AtmosphereTransmittanceAtViewPass.h"
-#include "RenderGraph/Passes/Atmosphere/SimpleAtmospherePass.h"
 #include "RenderGraph/Passes/Atmosphere/Environment/AtmosphereEnvironmentPass.h"
 #include "RenderGraph/Passes/Clouds/CloudComposePass.h"
 #include "RenderGraph/Passes/Clouds/CloudCurlNoisePass.h"
@@ -220,14 +219,14 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/dragon/scene.scene", 
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/death_valley/scene.scene", 
             //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/huge_plane/scene.scene", 
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
-                //.Position = glm::vec3{1500.0f, -500.0f, -7.0f},
+                .Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-                //.Scale = glm::vec3{750.0f},
+                .Scale = glm::vec3{750.0f},
                 //.Scale = glm::vec3{1.0f},
                 }},
             ctx);
@@ -433,12 +432,11 @@ void Renderer::SetupRenderGraph()
             .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
             .TransmittanceLut = atmosphereLuts->TransmittanceLut,
             .MultiscatteringLut = atmosphereLuts->MultiscatteringLut,
-            .Light = &m_Scene.Lights(),
             .CsmData = m_CsmData
         });
         
-        clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.AerialPerspective, minMaxDepth, depth);
-        colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.AerialPerspective,
+        clouds = RenderGraphClouds(cloudMaps, color, aerialPerspective.Lut, minMaxDepth, depth);
+        colorWithSky = RenderGraphAtmosphere(*atmosphereLuts, aerialPerspective.Lut,
             color, depth, m_CsmData, clouds.Color, clouds.Depth, skyAtmosphereWithCloudsEnvironment.CloudsEnvironment);
     }
     else
@@ -1042,7 +1040,6 @@ Passes::Atmosphere::LutPasses::PassData& Renderer::RenderGraphAtmosphereLutPasse
 {
     auto& luts = Passes::Atmosphere::LutPasses::addToGraph("AtmosphereLutPasses"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .Light = &m_Scene.Lights() 
     });
 
     m_Graph->GetBlackboard().Get<RG::GlobalResources>().PrimaryViewInfoResource =
@@ -1065,7 +1062,6 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
     
     auto& environment = Passes::Atmosphere::Environment::addToGraph("Atmosphere.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
-        .Light = &m_Scene.Lights(),
         .SkyViewLut = lut.SkyViewLut,
         .ColorIn = m_SkyAtmosphereWithCloudsEnvironment.HasValue() ?
             m_Graph->Import("AtmosphereEnvironment.Imported"_hsv, m_SkyAtmosphereWithCloudsEnvironment,
@@ -1078,7 +1074,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
     
     if (m_FrameNumber == 0)
         m_SkyIrradianceSHResource = Passes::DiffuseIrradianceSH::addToGraph("Sky.DiffuseIrradianceSH"_hsv, *m_Graph,
-            environment.ColorOut, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
+            environment.Color, m_SkyIrradianceSHResource, true).DiffuseIrradiance;
         
     auto& cloudsEnvironment = Passes::Clouds::VP::Environment::addToGraph("Clouds.Environment"_hsv, *m_Graph, {
         .PrimaryView = &m_Graph->GetGlobalResources().PrimaryViewInfo,
@@ -1090,7 +1086,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         .ColorIn = m_CloudsEnvironment.HasValue() ?
             m_Graph->Import("CloudsEnvironment.Imported"_hsv, m_CloudsEnvironment, ImageLayout::Readonly) :
             RG::Resource{},
-        .AtmosphereEnvironment = environment.ColorOut,
+        .AtmosphereEnvironment = environment.Color,
         .IrradianceSH = m_SkyIrradianceSHResource,
         .Light = &m_Scene.Lights(),
         .CloudParameters = &m_CloudParameters,
@@ -1125,21 +1121,18 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
     RG::Resource aerialPerspective, RG::Resource color, RG::Resource depth, RG::CsmData csmData,
     RG::Resource clouds, RG::Resource cloudsDepth, RG::Resource cloudsEnvironment)
 {
-    static constexpr bool USE_SUN_LUMINANCE = true;
-    auto& atmosphere = Passes::Atmosphere::Raymarch::addToGraph("AtmosphereRaymarch"_hsv, *m_Graph, {
+    auto& atmosphere = Passes::Atmosphere::Render::addToGraph("AtmosphereRender"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .Light = &m_Scene.Lights(),
         .SkyViewLut = lut.SkyViewLut,
-        .TransmittanceLut = lut.TransmittanceLut,
         .AerialPerspective = aerialPerspective,
         .ColorIn = color,
         .DepthIn = depth,
-        .UseSunLuminance = USE_SUN_LUMINANCE 
+        .IsPrimaryView = true 
     });
 
     auto& composed = Passes::Clouds::Compose::addToGraph("CloudsCompose"_hsv, *m_Graph, {
         .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfoResource,
-        .SceneColor = atmosphere.ColorOut,
+        .SceneColor = atmosphere.Color,
         .SceneDepth = depth,
         .CloudColor = clouds,
         .CloudDepth = cloudsDepth
@@ -1444,14 +1437,14 @@ Renderer::CloudShadowInfo Renderer::RenderGraphCloudShadows(const CloudMapsInfo&
         .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,
         .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
         .CloudCurlNoise = cloudMaps.CurlNoise, 
+        .CloudParameters = Passes::Upload::addToGraph("Upload.CloudParameters"_hsv, *m_Graph, m_CloudParameters),
         .Light = m_SunLight,
-        .CloudParameters = &m_CloudParameters,
     });
 
-    Passes::ImGuiTexture::addToGraph("Clouds.Shadow"_hsv, *m_Graph, cloudShadow.DepthOut);
+    Passes::ImGuiTexture::addToGraph("Clouds.Shadow"_hsv, *m_Graph, cloudShadow.Shadow);
 
     return {
-        .Shadow = cloudShadow.DepthOut,
+        .Shadow = cloudShadow.Shadow,
         .View = cloudShadow.ShadowView
     };
 }

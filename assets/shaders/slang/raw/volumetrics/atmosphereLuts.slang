@@ -1,5 +1,7 @@
 implementing volumetrics;
 
+import "core/materials/material";
+
 struct TransmittanceLutResources {
     RWTexture2D<float4> lut;
     ConstantBuffer<ViewInfo> view;
@@ -175,4 +177,139 @@ void multiscatteringLut(
     L = L * geomSum;
 
     resources.multiscatteringLut[dispatchThreadID.xy] = float4(L, 1.0f);
+}
+
+struct AerialPerspectiveLutSamplers {
+    [ImmutableSampler(SamplerFlags.Linear | SamplerFlags.ClampEdge)]
+    SamplerState sampler;
+    [ImmutableSampler(SamplerFlags.Shadow | SamplerFlags.Linear)]
+    SamplerComparisonState shadowSampler;
+    [ImmutableSampler(SamplerFlags.ClampBlack | SamplerFlags.Linear)]
+    SamplerState blackSampler;
+}
+
+struct AerialPerspectiveLutResources {
+    Texture2D<float4> transmittanceLut;
+    Texture2D<float4> multiscatteringLut;
+    RWTexture3D<float4> aerialPerspectiveLut;
+    CsmResources csm;
+    ConstantBuffer<ViewInfo> view;
+}
+
+[shader("compute")]
+[numthreads(16, 16, 1)]
+void aerialPerspectiveLut(
+    uint3 dispatchThreadID: SV_DispatchThreadID,
+    uniform ParameterBlock<AerialPerspectiveLutSamplers> samplers,
+    uniform ParameterBlock<AerialPerspectiveLutResources> resources,
+    uniform ParameterBlock<StandardPbrMaterials> materials) {
+
+    const float2 uv = (float2(dispatchThreadID.xy) + 0.5f) / float2(AERIAL_PERSPECTIVE_LUT_RES);
+    const float3 clip = float3(uv * 2.0f - 1.0f, 1.0f);
+    
+    float4 unprojected = mul(float4(clip, 1.0f), resources.view.camera.inverseProjection);
+    unprojected.xyz /= unprojected.w;
+    
+    float3 rd = normalize(mul(float4(unprojected.xyz, 0.0f), resources.view.camera.inverseView).xyz);
+    const float3 ro = getViewPosition(resources.view.camera.position, resources.view.atmosphere.surface);
+    
+    // redistribute the slices so that they follow a square distribution
+    float slice = (float(dispatchThreadID.z) + 0.5f) / AERIAL_PERSPECTIVE_LUT_RES;
+    slice = (slice * slice) * AERIAL_PERSPECTIVE_LUT_RES;
+    
+    float sliceKm = aerialPerspectiveSliceToKm(slice);
+    float3 voxelCenter = ro + sliceKm * rd;
+    // offset voxel to be on the ground
+    const float voxelHeight = length(voxelCenter);
+    if (voxelHeight <= resources.view.atmosphere.surface + PLANET_RADIUS_OFFSET_KM) {
+        voxelCenter = normalize(voxelCenter) * (resources.view.atmosphere.surface + PLANET_RADIUS_OFFSET_KM + 1e-3f);
+        sliceKm = length(voxelCenter - ro);
+        rd = normalize(voxelCenter - ro);
+    }
+
+    AmosphereScatteredLuminanceInfo scatteringInfo;
+    scatteringInfo.linearSampler = samplers.sampler;
+    scatteringInfo.shadowSampler = samplers.shadowSampler;
+    scatteringInfo.blackSampler = samplers.blackSampler;
+    scatteringInfo.transmittanceLut = resources.transmittanceLut;
+    scatteringInfo.multiscatteringLut = resources.multiscatteringLut;
+    scatteringInfo.csm = resources.csm;
+    scatteringInfo.cloudShadow = materials.textures[resources.view.shading.volumetricCloudShadow];
+    scatteringInfo.view = resources.view;
+    scatteringInfo.globalL = 
+        resources.view.shading.primaryDirectionalLightColor.rgb * 
+        resources.view.shading.primaryDirectionalLightIntensity;
+    scatteringInfo.sunDir = -resources.view.shading.primaryDirectionalLightDirection;
+    scatteringInfo.maxDepth = sliceKm;
+    scatteringInfo.sampleCount = max(1.0f, float(dispatchThreadID.z + 1.0f) * 2.0f);
+
+    const AmosphereScatteredLuminance scattering = AmosphereScatteredLuminance.integrate<
+        /*withShadow*/ true,
+        /*withMultiscattering*/ true,
+        /*withSurfaceReflection*/ false,
+        /*useUniformPhase*/ false>(scatteringInfo, ro, rd);
+    const float transmittance = dot(scattering.transmittance, float3(1.0f / 3.0f));
+
+    resources.aerialPerspectiveLut[dispatchThreadID] = float4(expose(scattering.luminance), 1.0f - transmittance);
+}
+
+struct SkyviewLutSamplers {
+    [ImmutableSampler(SamplerFlags.Linear | SamplerFlags.ClampEdge)]
+    SamplerState sampler;
+}
+
+struct SkyviewLutResources {
+    Texture2D<float4> transmittanceLut;
+    Texture2D<float4> multiscatteringLut;
+    RWTexture2D<float4> skyView;
+    ConstantBuffer<ViewInfo> view;
+}
+
+[shader("compute")]
+[numthreads(16, 16, 1)]
+void skyviewLut(
+    uint2 dispatchThreadID: SV_DispatchThreadID,
+    uniform ParameterBlock<SkyviewLutSamplers> samplers,
+    uniform ParameterBlock<SkyviewLutResources> resources) {
+
+    if (dispatchThreadID.x >= SKY_VIEW_LUT_WIDTH || dispatchThreadID.y >= SKY_VIEW_LUT_HEIGHT) 
+        return;
+
+    const float2 uv = (float2(dispatchThreadID) + 0.5f) / float2(SKY_VIEW_LUT_WIDTH, SKY_VIEW_LUT_HEIGHT);
+
+    const float3 position = getViewPosition(resources.view.camera.position, resources.view.atmosphere.surface);
+    const float r = length(position);
+    const float2 zenithViewCos = skyViewZenCosFromUv(resources.view.atmosphere, uv, r);
+    const float3 up = position / r;
+    const float mu = dot(-resources.view.shading.primaryDirectionalLightDirection, up);
+    const float3 sunDir = normalize(float3(sqrt(max(1.0f - mu * mu, 0)), mu, 0.0f));
+    
+    const float3 ro = float3(0.0f, r, 0.0f);
+    const float zenithSin = sqrt(1.0f - zenithViewCos.x * zenithViewCos.x);
+    const float3 rd = float3(
+        zenithSin * zenithViewCos.y,
+        zenithViewCos.x,
+        zenithSin * sqrt(1.0f - zenithViewCos.y * zenithViewCos.y)
+    );
+
+
+    AmosphereScatteredLuminanceInfo scatteringInfo;
+    scatteringInfo.linearSampler = samplers.sampler;
+    scatteringInfo.transmittanceLut = resources.transmittanceLut;
+    scatteringInfo.multiscatteringLut = resources.multiscatteringLut;
+    scatteringInfo.view = resources.view;
+    scatteringInfo.globalL = 
+        resources.view.shading.primaryDirectionalLightColor.rgb * 
+        resources.view.shading.primaryDirectionalLightIntensity;
+    scatteringInfo.sunDir = sunDir;
+    scatteringInfo.maxDepth = MAX_DEPTH;
+    scatteringInfo.sampleCount = SKY_STEPS;
+
+    const AmosphereScatteredLuminance scattering = AmosphereScatteredLuminance.integrate<
+        /*withShadow*/ false,
+        /*withMultiscattering*/ true,
+        /*withSurfaceReflection*/ false,
+        /*useUniformPhase*/ false>(scatteringInfo, ro, rd);
+
+    resources.skyView[dispatchThreadID] = float4(expose(scattering.luminance), 1.0f);
 }

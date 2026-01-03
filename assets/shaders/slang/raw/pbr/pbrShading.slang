@@ -29,18 +29,18 @@ public struct PbrShadingResources {
 }
 
 internal float3 pbrShadePointLight(const PbrShadingInfo shadingInfo, const PointLight light) {
-    float3 lightDir = light.position - shadingInfo.position;
-    const float distance2 = dot(lightDir, lightDir);
+    float3 lightDirection = light.position - shadingInfo.position;
+    const float distance2 = dot(lightDirection, lightDirection);
     const float falloff = pointLightFalloff(distance2, light.radius);
-    lightDir = normalize(lightDir);
+    lightDirection = normalize(lightDirection);
 
     const float3 radiance = light.color * light.intensity * falloff;
 
-    const float3 H = normalize(lightDir + shadingInfo.view);
+    const float3 H = normalize(lightDirection + shadingInfo.view);
 
     const float NoH = saturate(dot(shadingInfo.normal, H));
-    const float NoL = saturate(dot(shadingInfo.normal, lightDir));
-    const float HoL = saturate(dot(H, lightDir));
+    const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
+    const float HoL = saturate(dot(H, lightDirection));
 
     const float D = ggxNormalDistribution(NoH, shadingInfo.roughness);
     const float V = ggxVSmithHeightCorrelated(shadingInfo.NoV, NoL, shadingInfo.roughness);
@@ -197,7 +197,7 @@ public float3 pbrShadeDirectionalLight(const ViewInfo view, const PbrShadingInfo
     const float3 H = normalize(lightDirection + shadingInfo.view);
 
     const float NoH = saturate(dot(shadingInfo.normal, H));
-    const float NoL = saturate(dot(shadingInfo.normal, lightDirection));
+    const float NoL = clamp(dot(shadingInfo.normal, lightDirection), 1e-5f, 1.0f);
     const float HoL = saturate(dot(H, lightDirection));
 
     const float D = ggxNormalDistribution(NoH, shadingInfo.roughness);
@@ -207,7 +207,7 @@ public float3 pbrShadeDirectionalLight(const ViewInfo view, const PbrShadingInfo
     const float3 diffuse = (float3(1.0f) - F) * shadingInfo.diffuseColor * PI_INVERSE;
     const float3 specular = D * V * F;
     
-    return (specular + diffuse) * radiance * NoL * (1.0f - shadow);
+    return (specular + diffuse) * radiance * NoL * shadow;
 }
 
 public float3 pbrShadeDirectionalLights(const ViewInfo view, const PbrShadingInfo shadingInfo,
@@ -217,7 +217,7 @@ public float3 pbrShadeDirectionalLights(const ViewInfo view, const PbrShadingInf
         pbrShadeDirectionalLight(view, shadingInfo, resources.directionalLights[0], shadingInfo.directionalShadow) *
         view.shading.atmosphereTransmittanceAtView.rgb;
     for (uint i = 1; i < view.shading.directionalLightCount; i++) {
-        Lo += pbrShadeDirectionalLight(view, shadingInfo, resources.directionalLights[i], 0.0f);
+        Lo += pbrShadeDirectionalLight(view, shadingInfo, resources.directionalLights[i], 1.0f);
     }
 
     return Lo;

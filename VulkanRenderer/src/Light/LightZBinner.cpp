@@ -32,7 +32,7 @@ ZBins LightZBinner::ZBinLights(SceneLight& light, const Camera& camera)
                 const f32 distanceMax = -sphere.Center.z + sphere.Radius;
 
                 const u32 binMinIndex = (u32)(distanceMin / zSpan * LIGHT_TILE_BINS_Z);
-                const u32 binMaxIndex = (u32)(distanceMax / zSpan * LIGHT_TILE_BINS_Z);
+                const u32 binMaxIndex = std::min((u32)(distanceMax / zSpan * LIGHT_TILE_BINS_Z), LIGHT_TILE_BINS_Z - 1);
 
                 for (u32 binIndex = binMinIndex; binIndex <= binMaxIndex; binIndex++)
                 {

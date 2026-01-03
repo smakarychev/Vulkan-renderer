@@ -1,8 +1,8 @@
 implementing shadow;
 
-#ifndef FILTER_SIZE
-#define FILTER_SIZE 7
-#endif // FILTER_SIZE
+#ifndef PCF_FILTER_SIZE
+#define PCF_FILTER_SIZE 7
+#endif // PCF_FILTER_SIZE
 
 public struct PcfShadowSampler : IShadowSampler {
     float samplePcf(const IShadowCtx ctx, float2 baseUv, float2 deltaPx, float2 shadowSizeInverseerse, float z) {
@@ -25,9 +25,9 @@ public struct PcfShadowSampler : IShadowSampler {
 
         float sum = 0;
 
-#if FILTER_SIZE == 2
+#if PCF_FILTER_SIZE == 2
         return ctx.sample(uv, z);
-#elif FILTER_SIZE == 3
+#elif PCF_FILTER_SIZE == 3
         const float uw0 = (3 - 2 * s);
         const float uw1 = (1 + 2 * s);
     
@@ -46,7 +46,7 @@ public struct PcfShadowSampler : IShadowSampler {
         sum += uw1 * vw1 * samplePcf(ctx, baseUv, float2(u1, v1), shadowSizeInverse, z);
 
         return sum * 1.0f / 16;
-#elif FILTER_SIZE == 5
+#elif PCF_FILTER_SIZE == 5
         const float uw0 = (4 - 3 * s);
         const float uw1 = 7;
         const float uw2 = (1 + 3 * s);
@@ -76,7 +76,7 @@ public struct PcfShadowSampler : IShadowSampler {
         sum += uw2 * vw2 * samplePcf(ctx, baseUv, float2(u2, v2), shadowSizeInverse, z);
     
         return sum * 1.0f / 144;
-#else // FILTER_SIZE == 7
+#else // PCF_FILTER_SIZE == 7
         const float uw0 = (5 * s - 6);
         const float uw1 = (11 * s - 28);
         const float uw2 = -(11 * s + 17);

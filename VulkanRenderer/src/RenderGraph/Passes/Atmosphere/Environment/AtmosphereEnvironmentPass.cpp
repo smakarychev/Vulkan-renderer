@@ -7,28 +7,25 @@
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/RGCommon.h"
-#include "RenderGraph/Passes/Atmosphere/AtmosphereRaymarchPass.h"
+#include "RenderGraph/Passes/Atmosphere/AtmosphereRenderPass.h"
 #include "Rendering/Image/ImageUtility.h"
 
 Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addToGraph(StringId name,
     RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
             CPU_PROFILE_FRAME("Atmosphere.Environment.Setup")
 
-            static constexpr bool USE_SUN_LUMINANCE = false;
-
             const f32 environmentSize = (f32)*CVars::Get().GetI32CVar("Atmosphere.Environment.Size"_hsv);
 
             if (info.ColorIn.IsValid())
-                passData.ColorOut = info.ColorIn;
+                passData.Color = info.ColorIn;
             else 
-                passData.ColorOut = graph.Create("EnvironmentColorOut"_hsv, RGImageDescription{
+                passData.Color = graph.Create("EnvironmentColorOut"_hsv, RGImageDescription{
                     .Width = environmentSize,
                     .Height = environmentSize,
                     .LayersDepth = 6,
@@ -50,21 +47,20 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                     .SizeBytes = sizeof(ViewInfoGPU)});
                 viewInfoResource = graph.Upload(viewInfoResource, viewInfo);
 
-                faces[i] = graph.SplitImage(passData.ColorOut,
+                faces[i] = graph.SplitImage(passData.Color,
                     {.ImageViewKind = ImageViewKind::Image2d, .LayerBase = (i8)faceIndex, .Layers = 1});
                 
-                auto& atmosphere = Raymarch::addToGraph(
-                    name.Concatenate(".Raymarch").AddVersion(faceIndex), graph, {
+                auto& atmosphere = Render::addToGraph(
+                    name.Concatenate(".Render").AddVersion(faceIndex), graph, {
                         .ViewInfo = viewInfoResource,
-                        .Light = info.Light,
                         .SkyViewLut = info.SkyViewLut,
                         .ColorIn = faces[i],
-                        .UseSunLuminance = USE_SUN_LUMINANCE
+                        .IsPrimaryView = false
                     });
-                faces[i] = atmosphere.ColorOut;
+                faces[i] = atmosphere.Color;
             }
 
-            passData.ColorOut = graph.MergeImage(Span<const Resource>(faces.data(), info.FaceIndices.size()));
+            passData.Color = graph.MergeImage(Span<const Resource>(faces.data(), info.FaceIndices.size()));
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

@@ -5,6 +5,7 @@ import "core/geometry";
 import "light/light";
 import "materials/material";
 import "shadow/shadow";
+import "volumetrics/volumetrics";
 
 struct Resources {
     ViewInfo view;
@@ -14,6 +15,7 @@ struct Resources {
     DirectionalLight dl;
     StandardPbrMaterial standardPbrMaterial;
     CsmData csm;
+    CloudsVPParameters cvp;
 }
 
 ParameterBlock<Resources> resources;
