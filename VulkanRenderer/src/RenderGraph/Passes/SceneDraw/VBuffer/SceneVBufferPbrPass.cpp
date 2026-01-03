@@ -20,21 +20,21 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
 
             const bool useHybrid = info.Tiles.IsValid() && info.Clusters.IsValid();
             const bool useTiled = !useHybrid && info.Tiles.IsValid();
-            const bool useClustered = !useHybrid &&  info.Clusters.IsValid();
+            const bool useClustered = !useHybrid && info.Clusters.IsValid();
 
             auto variant = SceneVbufferPbrBindGroupRG::Variants::Hybrid;
             if (useTiled)
                 variant = SceneVbufferPbrBindGroupRG::Variants::Tiled;
             if (useClustered)
                 variant = SceneVbufferPbrBindGroupRG::Variants::Clustered;
-            
+
             passData.BindGroup = SceneVbufferPbrBindGroupRG(graph, variant, ShaderSpecializations(
                 ShaderSpecialization{
                     "MAX_REFLECTION_LOD"_hsv, (f32)Images::mipmapCount(
-                            glm::uvec2(graph.GetImageDescription(info.IBL.PrefilterEnvironment).Width))
+                        glm::uvec2(graph.GetImageDescription(info.IBL.PrefilterEnvironment).Width))
                 }
             ));
-            
+
             passData.BindGroup.SetResourcesVbuffer(info.VisibilityTexture);
             passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
@@ -63,12 +63,13 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
             passData.BindGroup.SetResourcesPrefilteredEnvironment(info.IBL.PrefilterEnvironment);
             passData.BindGroup.SetResourcesBrdf(info.IBL.BRDF);
             passData.BindGroup.SetResourcesIrradianceSH(info.IBL.IrradianceSH);
-            
+
             const Resource color = graph.Create("Color"_hsv,
                 RGImageDescription{
                     .Inference = RGImageInference::Size,
                     .Reference = info.VisibilityTexture,
-                    .Format = SceneVbufferPbrBindGroupRG::GetColorAttachmentFormat()});
+                    .Format = SceneVbufferPbrBindGroupRG::GetColorAttachmentFormat()
+                });
             passData.Color = graph.RenderTarget(color, {.OnLoad = AttachmentLoad::Clear});
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)

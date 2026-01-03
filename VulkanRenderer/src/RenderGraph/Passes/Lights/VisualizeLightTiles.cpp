@@ -9,10 +9,8 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
     StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     using PassDataBind = PassDataWithBind<PassData, LightTilesVisualizeBindGroupRG>;
-    
+
     return renderGraph.AddRenderPass<PassDataBind>(name,
         [&](Graph& graph, PassDataBind& passData)
         {
@@ -26,14 +24,15 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
                 RGImageDescription{
                     .Width = (f32)globalResources.Resolution.x,
                     .Height = (f32)globalResources.Resolution.y,
-                    .Format = LightTilesVisualizeBindGroupRG::GetTilesAttachmentFormat()});
+                    .Format = LightTilesVisualizeBindGroupRG::GetTilesAttachmentFormat()
+                });
 
             if (info.Bins.IsValid())
                 passData.BindGroup.SetResourcesZbins(info.Bins);
             passData.BindGroup.SetResourcesDepth(info.Depth);
             passData.BindGroup.SetResourcesTiles(info.Tiles);
             passData.BindGroup.SetResourcesView(info.ViewInfo);
-            
+
             passData.Color = graph.RenderTarget(passData.Color, {});
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)

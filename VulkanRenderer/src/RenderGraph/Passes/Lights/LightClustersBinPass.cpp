@@ -34,7 +34,6 @@ PassDataIdentify& identifyActiveClusters(StringId name, RG::Graph& renderGraph,
     RG::Resource clusterVisibility, RG::Resource depth, RG::Resource view)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
     using PassData = PassDataWithBind<PassDataIdentify, LightClustersCompactIdentifyBindGroupRG>;
     
     return renderGraph.AddRenderPass<PassData>(name,

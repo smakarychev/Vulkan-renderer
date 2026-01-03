@@ -9,8 +9,6 @@ Passes::LightClustersSetup::PassData& Passes::LightClustersSetup::addToGraph(Str
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     using PassDataBind = PassDataWithBind<PassData, LightClustersSetupBindGroupRG>;
     
     return renderGraph.AddRenderPass<PassDataBind>(name,

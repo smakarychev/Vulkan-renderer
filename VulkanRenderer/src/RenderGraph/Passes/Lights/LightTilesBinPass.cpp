@@ -11,10 +11,8 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     using PassDataBind = PassDataWithBind<PassData, LightTilesBinBindGroupRG>;
-    
+
     return renderGraph.AddRenderPass<PassDataBind>(name,
         [&](Graph& graph, PassDataBind& passData)
         {
@@ -34,7 +32,7 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
             auto& depthDescription = graph.GetImageDescription(passData.Depth);
-            
+
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.Dispatch({

@@ -12,9 +12,11 @@ struct ExecutionInfo
     RG::Resource Bins{};
     RG::Resource Depth{};
 };
+
 struct PassData
 {
     RG::Resource Color{};
 };
+
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

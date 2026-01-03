@@ -11,8 +11,6 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     using PassDataBind = PassDataWithBind<PassData, LightTilesSetupBindGroupRG>;
     
     return renderGraph.AddRenderPass<PassDataBind>(name,
