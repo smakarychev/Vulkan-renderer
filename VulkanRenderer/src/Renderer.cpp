@@ -42,7 +42,6 @@
 #include "RenderGraph/Passes/Lights/LightClustersSetupPass.h"
 #include "RenderGraph/Passes/Lights/LightTilesBinPass.h"
 #include "RenderGraph/Passes/Lights/LightTilesSetupPass.h"
-#include "RenderGraph/Passes/Lights/VisualizeLightClustersDepthLayersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
