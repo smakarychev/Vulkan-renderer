@@ -3,22 +3,20 @@
 #include "VPCloudCoveragePass.h"
 
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Clouds/CloudCommon.h"
-#include "RenderGraph/Passes/Generated/CloudVpCoverageBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/CloudsMapCoverageBindGroupRG.generated.h"
 
 Passes::Clouds::VP::Coverage::PassData& Passes::Clouds::VP::Coverage::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
+    using PassDataBind = PassDataWithBind<PassData, CloudsMapCoverageBindGroupRG>;
 
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("VP.CoverageMap.Setup")
 
-            graph.SetShader("cloud-vp-coverage"_hsv);
+            passData.BindGroup = CloudsMapCoverageBindGroupRG(graph);
 
             if (info.CoverageMap.HasValue())
             {
@@ -35,28 +33,21 @@ Passes::Clouds::VP::Coverage::PassData& Passes::Clouds::VP::Coverage::addToGraph
                 });
             }
 
-            passData.CoverageMap = graph.WriteImage(passData.CoverageMap, Compute | Storage);
+            passData.CoverageMap = passData.BindGroup.SetResourcesCoverage(passData.CoverageMap);
+            passData.BindGroup.SetResourcesParameters(info.NoiseParameters);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("VP.CoverageMap")
             GPU_PROFILE_FRAME("VP.CoverageMap")
             
             const glm::uvec2 resolution = graph.GetImageDescription(passData.CoverageMap).Dimensions();
 
-            const Shader& shader = graph.GetShader();
-            CloudVpCoverageShaderBindGroup bindGroup(shader);
-            bindGroup.SetCoverageMap(graph.GetImageBinding(passData.CoverageMap));
-
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
-            cmd.PushConstants({
-                .PipelineLayout = shader.GetLayout(),
-                .Data = {*info.NoiseParameters}
-            });
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
-                .GroupSize = {8, 8, 1}
+                .GroupSize = passData.BindGroup.GetCloudCoverageNoiseGroupSize()
             });
         });
 }

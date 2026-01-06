@@ -4,6 +4,7 @@ __include "integrateAtmosphereScatteredLumunance";
 __include "atmosphereLuts";
 __include "atmosphereRender";
 __include "clouds/clouds";
+__include "clouds/cloudsMap";
 __include "clouds/cloudsVPInfo";
 __include "clouds/cloudsVP";
 

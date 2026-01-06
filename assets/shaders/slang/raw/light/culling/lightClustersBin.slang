@@ -72,10 +72,6 @@ void setupClusters(
     resources.visibility[clusterIndex] = 0;
 }
 
-float getCascadeDepth(uint zIndex, float n, float f) {
-    return n * pow(f / n, float(zIndex) / float(LIGHT_CLUSTER_BINS_Z));
-}
-
 struct CompactIdentifyClustersResources {
     ConstantBuffer<ViewInfo> view;
     RWStructuredBuffer<uint8_t> visibility;
@@ -205,12 +201,6 @@ void binLightsClusters(
     }    
 }
 
-bool isInCluster(const LightCluster cluster, float3 position, float radius) {
-    const float distance2 = lightCulling.distanceAabbSquared(position, cluster.min, cluster.max);
-
-    return distance2 <= radius * radius;
-}
-
 struct VisualizeLightClustersSamplers {
     [ImmutableSampler(SamplerFlags.Nearest)]
     SamplerState sampler;
@@ -265,4 +255,14 @@ float4 visualizeLightClustersCascades(
         resources.view.camera.near, resources.view.shading.maxLightCullDistance);
 
     return float4(color.hash(slice), 1.0f);
+}
+
+float getCascadeDepth(uint zIndex, float n, float f) {
+    return n * pow(f / n, float(zIndex) / float(LIGHT_CLUSTER_BINS_Z));
+}
+
+bool isInCluster(const LightCluster cluster, float3 position, float radius) {
+    const float distance2 = lightCulling.distanceAabbSquared(position, cluster.min, cluster.max);
+
+    return distance2 <= radius * radius;
 }

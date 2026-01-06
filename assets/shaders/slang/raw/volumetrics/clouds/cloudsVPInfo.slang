@@ -1,6 +1,5 @@
 implementing volumetrics;
 
-import "core/attributes";
 import "core/viewInfo";
 
 [StandaloneType("cloudsVPParameters")]

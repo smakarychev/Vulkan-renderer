@@ -1210,9 +1210,12 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
         }
         else
         {
+            const Resource coverageParametersBuffer = Passes::Upload::addToGraph(
+                "CoverageNoiseParameters"_hsv, *m_Graph, m_CloudCoverageNoiseParameters);
+            
             auto& cloudCoverage = Passes::Clouds::VP::Coverage::addToGraph("CoverageMapGen"_hsv, *m_Graph, {
                 .CoverageMap = m_CloudCoverage,
-                .NoiseParameters = &m_CloudCoverageNoiseParameters,
+                .NoiseParameters = coverageParametersBuffer,
             });
             cloudCoverageResource = cloudCoverage.CoverageMap;
             if (!m_CloudCoverage.HasValue())
@@ -1269,13 +1272,18 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     }
     else
     {
+        const Resource lowFrequencyParametersBuffer = Passes::Upload::addToGraph(
+            "LowFrequencyNoiseParameters"_hsv, *m_Graph, m_CloudShapeLowFrequencyNoiseParameters);
+        const Resource highFrequencyParametersBuffer = Passes::Upload::addToGraph(
+            "HighFrequencyNoiseParameters"_hsv, *m_Graph, m_CloudShapeHighFrequencyNoiseParameters);
+        
         auto& cloudShape = Passes::Clouds::ShapeNoise::addToGraph("CloudShapeNoise"_hsv, *m_Graph, {
             .LowFrequencyTextureSize = 128.0f,
             .HighFrequencyTextureSize = 32.0f,
             .LowFrequencyTexture = m_CloudShapeLowFrequency,
             .HighFrequencyTexture = m_CloudShapeHighFrequency,
-            .LowFrequencyNoiseParameters = &m_CloudShapeLowFrequencyNoiseParameters,
-            .HighFrequencyNoiseParameters = &m_CloudShapeHighFrequencyNoiseParameters
+            .LowFrequencyNoiseParameters = lowFrequencyParametersBuffer,
+            .HighFrequencyNoiseParameters = highFrequencyParametersBuffer
         });
         lowFrequencyNoiseResource = cloudShape.LowFrequencyTexture;
         highFrequencyNoiseResource = cloudShape.HighFrequencyTexture;

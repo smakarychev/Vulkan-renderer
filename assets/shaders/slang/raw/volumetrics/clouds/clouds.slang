@@ -62,7 +62,7 @@ float relativeHeight(float3 p, float3 earthCenter, float2 cloudMinMax) {
     return (toCenter - cloudMinMax.x) / (cloudMinMax.y - cloudMinMax.x);
 }
 
-float3 encodCurl(float3 noise) {
+float3 encodeCurl(float3 noise) {
     return (noise + 1.0f) * 0.5f;
 }
 

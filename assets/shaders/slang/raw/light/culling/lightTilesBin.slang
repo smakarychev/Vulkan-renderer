@@ -195,37 +195,6 @@ void binLightsTiles(
     }
 }
 
-bool isInsidePlane(const Plane plane, float3 position, float radius) {
-    // plane.w is always zero here
-    return dot(plane.plane.xyz, position) /*- plane.plane.w*/ < radius;
-}
-
-bool isInTileFrustum(const LightTile tile, float3 position, float radius, float near, float far) {
-    bool isInTile = true;
-    isInTile = isInTile && position.z - radius < -near;
-    isInTile = isInTile && position.z + radius > -far;
-    isInTile = isInTile && isInsidePlane(tile.planes[0], position, radius);
-    isInTile = isInTile && isInsidePlane(tile.planes[1], position, radius);
-    isInTile = isInTile && isInsidePlane(tile.planes[2], position, radius);
-    isInTile = isInTile && isInsidePlane(tile.planes[3], position, radius);
-    
-    return isInTile;
-}
-
-uint lightMask(float3 position, float radius, float depthAabbMin, float depthRangeInverse) {
-    const float depthMin = position.z + radius;
-    const float depthMax = position.z - radius;
-    
-    const uint depthMaskMin = uint(max(0.0f, min(31.0f, floor((depthMin - depthAabbMin) * depthRangeInverse))));
-    const uint depthMaskMax = uint(max(0.0f, min(31.0f, floor((depthMax - depthAabbMin) * depthRangeInverse))));
-    
-    uint mask = ~0;
-    mask = mask >> 31 - (depthMaskMax - depthMaskMin);
-    mask = mask << depthMaskMin;
-    
-    return mask;
-}
-
 struct VisualizeLightTilesSamplers {
     [ImmutableSampler(SamplerFlags.Nearest)]
     SamplerState sampler;
@@ -269,4 +238,35 @@ float4 visualizeLightTiles(
     
     const uint MAX_LIGHTS_TO_COLOR = 64;
     return float4(color.heatmap(saturate(float(lightCount) / MAX_LIGHTS_TO_COLOR)), 1.0f);
+}
+
+bool isInsidePlane(const Plane plane, float3 position, float radius) {
+    // plane.w is always zero here
+    return dot(plane.plane.xyz, position) /*- plane.plane.w*/ < radius;
+}
+
+bool isInTileFrustum(const LightTile tile, float3 position, float radius, float near, float far) {
+    bool isInTile = true;
+    isInTile = isInTile && position.z - radius < -near;
+    isInTile = isInTile && position.z + radius > -far;
+    isInTile = isInTile && isInsidePlane(tile.planes[0], position, radius);
+    isInTile = isInTile && isInsidePlane(tile.planes[1], position, radius);
+    isInTile = isInTile && isInsidePlane(tile.planes[2], position, radius);
+    isInTile = isInTile && isInsidePlane(tile.planes[3], position, radius);
+    
+    return isInTile;
+}
+
+uint lightMask(float3 position, float radius, float depthAabbMin, float depthRangeInverse) {
+    const float depthMin = position.z + radius;
+    const float depthMax = position.z - radius;
+    
+    const uint depthMaskMin = uint(max(0.0f, min(31.0f, floor((depthMin - depthAabbMin) * depthRangeInverse))));
+    const uint depthMaskMax = uint(max(0.0f, min(31.0f, floor((depthMax - depthAabbMin) * depthRangeInverse))));
+    
+    uint mask = ~0;
+    mask = mask >> 31 - (depthMaskMax - depthMaskMin);
+    mask = mask << depthMaskMin;
+    
+    return mask;
 }

@@ -16,6 +16,7 @@ struct Resources {
     StandardPbrMaterial standardPbrMaterial;
     CsmData csm;
     CloudsVPParameters cvp;
+    CloudsNoiseParameters cnp;
 }
 
 ParameterBlock<Resources> resources;

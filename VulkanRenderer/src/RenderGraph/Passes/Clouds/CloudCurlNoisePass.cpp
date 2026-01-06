@@ -3,21 +3,20 @@
 #include "CloudCurlNoisePass.h"
 
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/CloudCurlBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/CloudsMapCurlBindGroupRG.generated.h"
 
 Passes::Clouds::CurlNoise::PassData& Passes::Clouds::CurlNoise::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-    
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    using PassDataBind = PassDataWithBind<PassData, CloudsMapCurlBindGroupRG>;
+
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("Cloud.CurlNoise.Setup")
 
-            graph.SetShader("cloud-curl"_hsv);
+            passData.BindGroup = CloudsMapCurlBindGroupRG(graph);
 
             if (info.CloudCurlNoise.HasValue())
             {
@@ -34,24 +33,20 @@ Passes::Clouds::CurlNoise::PassData& Passes::Clouds::CurlNoise::addToGraph(Strin
                 });
             }
 
-            passData.CloudCurlNoise = graph.WriteImage(passData.CloudCurlNoise, Compute | Storage);
+            passData.CloudCurlNoise = passData.BindGroup.SetResourcesCurl(passData.CloudCurlNoise);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Cloud.CurlNoise")
             GPU_PROFILE_FRAME("Cloud.CurlNoise")
-            
+
             const glm::uvec2 resolution = graph.GetImageDescription(passData.CloudCurlNoise).Dimensions();
 
-            const Shader& shader = graph.GetShader();
-            CloudCurlShaderBindGroup bindGroup(shader);
-            bindGroup.SetCurlNoise(graph.GetImageBinding(passData.CloudCurlNoise));
-
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
-                .GroupSize = {8, 8, 1}
+                .GroupSize = passData.BindGroup.GetCloudCurlNoiseGroupSize()
             });
         });
 }

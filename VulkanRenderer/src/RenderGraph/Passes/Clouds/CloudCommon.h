@@ -1,19 +1,14 @@
 #pragma once
 
 #include "types.h"
+#include "RenderGraph/Passes/Generated/Types/CloudsNoiseParametersUniform.generated.h"
 
 namespace Passes::Clouds
 {
-    struct CloudsNoiseParameters
-    {
-        f32 PerlinCoverageMin{0.52f};
-        f32 PerlinCoverageMax{1.2f};
-        f32 WorleyCoverageMin{0.225f};
-        f32 WorleyCoverageMax{1.16f};
-        f32 PerlinWorleyFraction{0.80f};
-        f32 NoiseDensityBias{0.61f};
-    };
+struct CloudsNoiseParameters : gen::CloudsNoiseParameters
+{
+};
 
-    static constexpr f32 REPROJECTION_RELATIVE_SIZE = 0.25f;
-    static constexpr f32 REPROJECTION_RELATIVE_SIZE_INV = 1.0f / REPROJECTION_RELATIVE_SIZE;
+static constexpr f32 REPROJECTION_RELATIVE_SIZE = 0.25f;
+static constexpr f32 REPROJECTION_RELATIVE_SIZE_INV = 1.0f / REPROJECTION_RELATIVE_SIZE;
 }

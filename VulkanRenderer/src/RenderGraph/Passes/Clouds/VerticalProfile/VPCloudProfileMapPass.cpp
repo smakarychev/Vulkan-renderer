@@ -3,21 +3,21 @@
 #include "VPCloudProfileMapPass.h"
 
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/CloudVpProfileBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/CloudsMapProfileBindGroupRG.generated.h"
 
 Passes::Clouds::VP::ProfileMap::PassData& Passes::Clouds::VP::ProfileMap::addToGraph(StringId name,
     RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
+    using PassDataBind = PassDataWithBind<PassData, CloudsMapProfileBindGroupRG>;
     using enum ResourceAccessFlags;
 
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("VP.ProfileMap.Setup")
 
-            graph.SetShader("cloud-vp-profile"_hsv);
+            passData.BindGroup = CloudsMapProfileBindGroupRG(graph);
 
             if (info.ProfileMap.HasValue())
             {
@@ -34,24 +34,20 @@ Passes::Clouds::VP::ProfileMap::PassData& Passes::Clouds::VP::ProfileMap::addToG
                 });
             }
 
-            passData.ProfileMap = graph.WriteImage(passData.ProfileMap, Compute | Storage);
+            passData.ProfileMap = passData.BindGroup.SetResourcesProfile(passData.ProfileMap);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("VP.ProfileMap")
             GPU_PROFILE_FRAME("VP.ProfileMap")
             
             const glm::uvec2 resolution = graph.GetImageDescription(passData.ProfileMap).Dimensions();
 
-            const Shader& shader = graph.GetShader();
-            CloudVpProfileShaderBindGroup bindGroup(shader);
-            bindGroup.SetProfileMap(graph.GetImageBinding(passData.ProfileMap));
-
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
-                .GroupSize = {8, 8, 1}
+                .GroupSize = passData.BindGroup.GetCloudProfileNoiseGroupSize()
             });
         });
 }
