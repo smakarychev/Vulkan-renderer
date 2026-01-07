@@ -2,6 +2,14 @@ implementing volumetrics;
 
 import "core/materials/material";
 
+public struct AtmosphereLutsSamplingInfo {
+    public AtmosphereSettings atmosphere;
+    public Texture2D transmittanceLut;
+    public Texture2D skyviewLut;
+    public Texture3D aerialPerspectiveLut;
+    public SamplerState samplerEdge;
+}
+
 struct TransmittanceLutResources {
     RWTexture2D<float4> lut;
     ConstantBuffer<ViewInfo> view;
@@ -52,20 +60,13 @@ void transmittanceLutAtView(
     uniform ParameterBlock<TransmittanceAtViewSamplers> samplers,
     uniform ParameterBlock<TransmittanceAtViewResources> resources) {
     
-    const float3 pos = getViewPosition(resources.view[0].camera.position, resources.view[0].atmosphere.surface);
-    const float3 sunDir = -resources.view[0].shading.primaryDirectionalLightDirection;
-    const float r = length(pos);
-    const float3 up = pos / r;
-    
-    const float surfaceShadow = 
-        getVisibility(resources.view[0].atmosphere, pos, sunDir, float3(0.0f) + PLANET_RADIUS_OFFSET_KM * up);
-    
-    float3 transmittance = float3(0.0f);
-    const float mu = dot(up, sunDir);
-    const float2 transmittanceUv = transmittanceUvFromRMu(resources.view[0].atmosphere, r, dot(up, sunDir));
-    transmittance = surfaceShadow * resources.transmittanceLut.SampleLevel(samplers.sampler, transmittanceUv, 0.0f).rgb;
-    
-    resources.view[0].shading.atmosphereTransmittanceAtView = float4(transmittance, 1.0f);
+    const float3 position = getViewPosition(resources.view[0].camera.position, resources.view[0].atmosphere.surface);
+    const float3 lightDirection = -resources.view[0].shading.primaryDirectionalLightDirection;
+
+    resources.view[0].shading.atmosphereTransmittanceAtView =
+        float4(getAtmosphereTransmittance(
+            position, resources.view[0].atmosphere, lightDirection, resources.transmittanceLut, samplers.sampler), 
+            1.0f);
 }
 
 struct MultiscatteringLutSamplers {

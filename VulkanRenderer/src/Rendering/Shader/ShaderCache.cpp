@@ -31,7 +31,7 @@ void ShaderCache::Shutdown()
         std::views::filter([](const PipelineInfo& pipeline){ return pipeline.Pipeline.HasValue(); }))
         Device::Destroy(pipeline.Pipeline);
 
-    if (const auto res = m_FileWatcher.StopWatching(); !res.has_value())
+    if (const auto res = m_FileWatcher->StopWatching(); !res.has_value())
         LOG("Failed to stop file watcher for directory {}. Error: {}",
             *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), FileWatcher::ErrorDescription(res.error()));
 }
@@ -135,7 +135,8 @@ void ShaderCache::AddPersistentDescriptors(StringId name, Descriptors descriptor
 
 void ShaderCache::InitFileWatcher()
 {
-    if (const auto res = m_FileWatcher.Watch(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv)); !res.has_value())
+    m_FileWatcher = std::make_unique<FileWatcher>();
+    if (const auto res = m_FileWatcher->Watch(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv)); !res.has_value())
         LOG("Failed to init file watcher for directory {}. Error: {}",
             *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), FileWatcher::ErrorDescription(res.error()));
 
@@ -152,7 +153,7 @@ void ShaderCache::InitFileWatcher()
             m_ShadersToReload.emplace_back(filePath);
     });
     
-    if (const auto res = m_FileWatcher.Subscribe(m_FileWatcherHandler); !res.has_value())
+    if (const auto res = m_FileWatcher->Subscribe(m_FileWatcherHandler); !res.has_value())
         LOG("Failed to subscribe to file watcher events for directory {}. Error: {}",
             *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), FileWatcher::ErrorDescription(res.error()));
 }

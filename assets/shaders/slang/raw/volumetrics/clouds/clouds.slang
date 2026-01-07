@@ -2,13 +2,19 @@ implementing volumetrics;
 
 import "core/lib";
 
-static const float3 CLOUDS_SCATTERING_DEFAULT = float3(1.0f * 0.07f);
-static const float CLOUDS_EXTINCTION_DEFAULT = 0.07f;
 static const float3 CLOUDS_EARTH_CENTER_DEFAULT = float3(0.0f);
 static const float CLOUDS_EARTH_RADIUS_DEFAULT_M = AtmosphereSettings.EARTH_RADIUS_DEFAULT_KM * 1000.0f;
 static const float CLOUDS_MIN_RADIUS_DEFAULT_M = CLOUDS_EARTH_RADIUS_DEFAULT_M + 1500.0f;
 static const float CLOUDS_MAX_RADIUS_DEFAULT_M = CLOUDS_MIN_RADIUS_DEFAULT_M + 3500.0f;
 static const float CLOUDS_DEPTH_MAX = 65504.0f;
+static const uint CLOUDS_REPROJECTION_RES = 4;
+static const uint CLOUDS_REPROJECTION_RES_2D = 16;
+static const uint2 CLOUDS_REPROJECTION_OFFSETS[CLOUDS_REPROJECTION_RES_2D] = {
+    uint2(2,1), uint2(1,2), uint2(2,0), uint2(0,1),
+    uint2(2,3), uint2(3,2), uint2(3,1), uint2(0,3),
+    uint2(1,0), uint2(1,1), uint2(3,3), uint2(0,0),
+    uint2(2,2), uint2(1,3), uint2(3,0), uint2(0,2)
+};
 
 /// Returns intersection with cloud layer
 /// @param viewPosition position of camera on the surface of Earth which is result of `getViewPositionMeters`

@@ -84,6 +84,8 @@ public struct ShadingSettings {
     public uint transmittanceLut;
     public uint skyViewLut;
     public uint volumetricCloudShadow;
+    public uint blueNoise128;
+    uint[3] unused0;
 
     public uint directionalLightCount;
     public uint pointLightCount;

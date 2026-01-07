@@ -130,7 +130,7 @@ private:
     /* the fields below are used for hot-reloading */
     std::unordered_map<StringId, std::vector<ShaderNameWithOverrides>> m_ShaderNameToAllOverrides;
     StringUnorderedMap<std::vector<StringId>> m_PathToShaders;
-    FileWatcher m_FileWatcher;
+    std::unique_ptr<FileWatcher> m_FileWatcher;
     FileWatcherHandler m_FileWatcherHandler;
     std::mutex m_FileUpdateMutex;
     std::vector<std::filesystem::path> m_ShadersToReload;

@@ -2,11 +2,9 @@
 
 #include "VPCloudShadowPass.h"
 
-#include "ViewInfoGPU.h"
-#include "VPCloudPass.h"
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/Passes/Generated/CloudsVPShadowBindGroupRG.generated.h"
-#include "RenderGraph/Passes/Generated/CloudVpShadowBlurBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/CloudsVPShadowBlurBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Shadows/ShadowPassesUtils.h"
 #include "Scene/SceneLight.h"
 
@@ -15,49 +13,41 @@ namespace
 RG::Resource blurPass(StringId name, RG::Graph& renderGraph, RG::Resource shadow, bool isVerticalBlur)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     struct PassData
     {
-        Resource Shadow{};
         Resource Blurred{};
     };
+    using PassDataBind = PassDataWithBind<PassData, CloudsVPShadowBlurBindGroupRG>;
     
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur.Setup")
 
-            graph.SetShader("cloud-vp-shadow-blur"_hsv, ShaderDefines({
+            passData.BindGroup = CloudsVPShadowBlurBindGroupRG(graph, ShaderDefines({
                 ShaderDefine{"VERTICAL"_hsv, isVerticalBlur}
             }));
 
-            passData.Blurred = graph.Create("Shadow.Blurred"_hsv, RGImageDescription{
-                .Inference = RGImageInference::Full,
-                .Reference = shadow,
-            });
+            passData.Blurred = passData.BindGroup.SetResourcesShadowBlurred(graph.Create("Shadow.Blurred"_hsv,
+                RGImageDescription{
+                    .Inference = RGImageInference::Full,
+                    .Reference = shadow,
+            }));
 
-            passData.Shadow = graph.ReadImage(shadow, Compute | Sampled);
-            passData.Blurred = graph.WriteImage(passData.Blurred, Compute | Storage);
+            passData.BindGroup.SetResourcesShadow(shadow);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
             GPU_PROFILE_FRAME("VP.Cloud.ShadowBlur")
 
-            const glm::uvec2 resolution = graph.GetImageDescription(passData.Shadow).Dimensions();
-
-            const Shader& shader = graph.GetShader();
-            CloudVpShadowBlurShaderBindGroup bindGroup(shader);
-            bindGroup.SetShadow(graph.GetImageBinding(passData.Shadow));
-            bindGroup.SetShadowBlurred(graph.GetImageBinding(passData.Blurred));
+            const glm::uvec2 resolution = graph.GetImageDescription(passData.Blurred).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
-
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
-                .GroupSize = {8, 8, 1}
+                .GroupSize = passData.BindGroup.GetCloudsVPShadowBlurGroupSize()
             });
         }).Blurred;
 }

@@ -292,4 +292,9 @@ public float curlyAlligator(float3 p, float freq) {
 
     return alligator;
 }
+
+public float blueSample128(Texture2D blueNoise, uint2 coords, float frameNumber) {
+    return fract(blueNoise[coords.xy % 128].r + frameNumber * PHI_GOLDEN);
+}
+
 }

@@ -67,6 +67,8 @@ internal struct CloudsVPSamplingInfo {
     float2 cloudMapSizeInverse;
     float3 earthCenter;
     float2 cloudMinMax;
+    float shapeBlueNoise;
+    float lightBlueNoise;
 }
 
 /// Vertical profile cloud layer info

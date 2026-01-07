@@ -2,55 +2,44 @@
 
 #include "CloudComposePass.h"
 
-#include "RenderGraph/RGGraph.h"
-#include "RenderGraph/Passes/Generated/CloudComposeBindGroup.generated.h"
+#include "RenderGraph/Passes/Generated/CloudsComposeBindGroupRG.generated.h"
 
 Passes::Clouds::Compose::PassData& Passes::Clouds::Compose::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
+    using PassDataBind = PassDataWithBind<PassData, CloudsComposeBindGroupRG>;
     
-    return renderGraph.AddRenderPass<PassData>(name,
-        [&](Graph& graph, PassData& passData)
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
         {
             CPU_PROFILE_FRAME("Cloud.Compose.Setup")
 
-            graph.SetShader("cloud-compose"_hsv);
+            passData.BindGroup = CloudsComposeBindGroupRG(graph);
 
-            passData.ColorOut = graph.Create("Composed"_hsv, RGImageDescription{
+            passData.Color = passData.BindGroup.SetResourcesComposed(graph.Create("Composed"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d | RGImageInference::Format,
                 .Reference = info.SceneColor,
-            });
+            }));
 
-            passData.SceneColor = graph.ReadImage(info.SceneColor, Compute | Sampled);
-            passData.SceneDepth = graph.ReadImage(info.SceneDepth, Compute | Sampled);
-            passData.CloudColor = graph.ReadImage(info.CloudColor, Compute | Sampled);
-            passData.CloudDepth = graph.ReadImage(info.CloudDepth, Compute | Sampled);
-            passData.ColorOut = graph.WriteImage(passData.ColorOut, Compute | Storage);
-            passData.ViewInfo = graph.ReadBuffer(info.ViewInfo, Compute | Uniform);
+            passData.BindGroup.SetResourcesSceneColor(info.SceneColor);
+            passData.BindGroup.SetResourcesSceneDepth(info.SceneDepth);
+            passData.BindGroup.SetResourcesCloudColor(info.CloudColor);
+            passData.BindGroup.SetResourcesCloudDepth(info.CloudDepth);
+            passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Cloud.Compose")
             GPU_PROFILE_FRAME("Cloud.Compose")
             
-            const glm::uvec2 resolution = graph.GetImageDescription(passData.ColorOut).Dimensions();
-
-            const Shader& shader = graph.GetShader();
-            CloudComposeShaderBindGroup bindGroup(shader);
-            bindGroup.SetSceneColor(graph.GetImageBinding(passData.SceneColor));
-            bindGroup.SetSceneDepth(graph.GetImageBinding(passData.SceneDepth));
-            bindGroup.SetClouds(graph.GetImageBinding(passData.CloudColor));
-            bindGroup.SetCloudsDepth(graph.GetImageBinding(passData.CloudDepth));
-            bindGroup.SetCloudsComposed(graph.GetImageBinding(passData.ColorOut));
-            bindGroup.SetViewInfo(graph.GetBufferBinding(passData.ViewInfo));
+            const glm::uvec2 resolution = graph.GetImageDescription(passData.Color).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            bindGroup.Bind(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
-                .GroupSize = {8, 8, 1}
+                .GroupSize = passData.BindGroup.GetCloudCompositionGroupSize()
             });
         });
 }

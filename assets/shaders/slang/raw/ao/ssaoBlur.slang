@@ -34,10 +34,10 @@ struct SsaoBlur : IGaussianBlur<float> {
         resources.ssaoBlurred[coord] = val;
     }
     float2 imageSize() {
-        uint2 size;
+        float2 size;
         resources.ssao.GetDimensions(size.x, size.y);
 
-        return float2(size);
+        return size;
     }
 }
 

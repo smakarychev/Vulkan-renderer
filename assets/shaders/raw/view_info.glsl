@@ -93,6 +93,7 @@ struct ViewInfo {
     uint transmittance_lut;
     uint sky_view_lut;
     uint volumetric_cloud_shadow;
+    uint unused2[4];
     
     uint directional_light_count;
     uint point_light_count;

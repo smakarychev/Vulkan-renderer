@@ -210,6 +210,7 @@ private:
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeLowFrequencyNoiseParameters{};
     Passes::Clouds::CloudsNoiseParameters m_CloudShapeHighFrequencyNoiseParameters{};
     Passes::Clouds::VP::CloudParameters m_CloudParameters{};
+    RG::Resource m_CloudParametersResource{};
     bool m_CloudsReprojectionEnabled{true};
     CommonLight* m_SunLight{nullptr};
     

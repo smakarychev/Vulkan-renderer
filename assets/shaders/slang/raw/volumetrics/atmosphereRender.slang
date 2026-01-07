@@ -65,21 +65,7 @@ float4 atmosphereRender(FullScreenVSOutput input,
 
 #if ATMOSPHERE_PRIMARY_VIEW
     const float linearDepth = -Camera.linearizeReverseZInf(depth, resources.view.camera.near);
-    float slice = aerialPerspectiveKmToSlice(linearDepth * 1e-3f);
-    float weight = 1.0f;
-    
-    if (slice < 0.5f) {
-        // fade to 0 at 0 depth
-        weight = saturate(slice * 2.0f);
-        slice = 0.5f;
-    }
-    const float aerialSliceW = sqrt(slice / AERIAL_PERSPECTIVE_LUT_RES);
-
-    const float4 aerialPerspective =
-        weight *
-        resources.aerialPerspectiveLut.SampleLevel(samplers.sampler, float3(input.uv, aerialSliceW), 0);
-    
-    return aerialPerspective;
+    return getAerialPerspective(linearDepth, input.uv, resources.aerialPerspectiveLut, samplers.sampler);
 #endif // ATMOSPHERE_PRIMARY_VIEW
 
     return float4(L, 1.0f);

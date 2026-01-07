@@ -5,8 +5,10 @@ __include "atmosphereLuts";
 __include "atmosphereRender";
 __include "clouds/clouds";
 __include "clouds/cloudsMap";
+__include "clouds/cloudsPostProcess";
 __include "clouds/cloudsVPInfo";
 __include "clouds/cloudsVP";
+__include "shading";
 
 import "core/attributes";
 import "core/lib";
@@ -24,7 +26,8 @@ internal static const float SKY_VIEW_LUT_HEIGHT = 100.0f;
 internal static const float MULTISCATTERING_LUT_RES = 32.0f;
 internal static const float AERIAL_PERSPECTIVE_LUT_RES = 32.0f;
 
-internal static const float AERIAL_MM_PER_SLICE = 4.0f;
+internal static const float AERIAL_KM_PER_SLICE = 4.0f;
+internal static const float AERIAL_M_PER_SLICE = AERIAL_KM_PER_SLICE * 1e+3f;
 
 internal static const float MAX_DEPTH = 3.402823466e+38f;
 
@@ -45,14 +48,18 @@ internal float3 getViewPosition(float3 cameraPos, float surfaceRadius) {
     return cameraPos * 1e-3f + float3(0.0f, surfaceRadius + baseViewHeight, 0.0f);
 }
 
-internal float3 getViewPositionMeters(float3 cameraPos, float surfaceRadiusMeters) {
-    return cameraPos + float3(0.0f, surfaceRadiusMeters + DEFAULT_VIEW_HEIGHT_M, 0.0f);
-}
-
 internal float3 getWorldPosition(float3 viewPos, float surfaceRadius) {
     const float baseViewHeight = DEFAULT_VIEW_HEIGHT_M * 1e-3f;
     
     return (viewPos - float3(0.0f, surfaceRadius + baseViewHeight, 0.0f)) * 1e+3f;
+}
+
+internal float3 getViewPositionMeters(float3 cameraPos, float surfaceRadiusMeters) {
+    return cameraPos + float3(0.0f, surfaceRadiusMeters + DEFAULT_VIEW_HEIGHT_M, 0.0f);
+}
+
+internal float3 getWorldPositionMeters(float3 viewPos, float surfaceRadiusMeters) {
+    return viewPos - float3(0.0f, surfaceRadiusMeters + DEFAULT_VIEW_HEIGHT_M, 0.0f);
 }
 
 /// Rayleigh phase value
@@ -241,11 +248,15 @@ internal float3 getSunLuminance(float3 ro, float3 rd, float3 sunDir, float surfa
 }
 
 internal float aerialPerspectiveSliceToKm(float slice) {
-    return slice * AERIAL_MM_PER_SLICE;
+    return slice * AERIAL_KM_PER_SLICE;
 }
 
 internal float aerialPerspectiveKmToSlice(float km) {
-    return km / AERIAL_MM_PER_SLICE;
+    return km / AERIAL_KM_PER_SLICE;
+}
+
+internal float aerialPerspectiveMetersToSlice(float m) {
+    return m / AERIAL_M_PER_SLICE;
 }
 
 internal float3 expose(float3 color) {

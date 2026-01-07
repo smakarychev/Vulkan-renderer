@@ -551,6 +551,7 @@ void Renderer::UpdateGlobalRenderGraphResources() const
     primaryView.Shading.TransmittanceLut = m_TransmittanceLutBindlessIndex;
     primaryView.Shading.SkyViewLut = m_SkyViewLutBindlessIndex;
     primaryView.Shading.VolumetricCloudShadow = m_VolumetricShadowBindlessIndex;
+    primaryView.Shading.BlueNoise128 = m_BlueNoiseBindlessIndex;
     primaryView.Shading.MaxLightCullDistance =
         *CVars::Get().GetF32CVar("Renderer.Limits.MaxLightCullDistance"_hsv);
     primaryView.Shading.DirectionalLightCount = m_Scene.Lights().DirectionalLightCount();
@@ -1087,8 +1088,7 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
             RG::Resource{},
         .AtmosphereEnvironment = environment.Color,
         .IrradianceSH = m_SkyIrradianceSHResource,
-        .Light = &m_Scene.Lights(),
-        .CloudParameters = &m_CloudParameters,
+        .CloudParameters = m_CloudParametersResource,
         .CloudsRenderingMode = Passes::Clouds::VP::CloudsRenderingMode::FullResolution,
         .FaceIndices = m_FrameNumber == 0 ? Span<const u32>({0, 1, 2, 3, 4, 5}) : Span<const u32>({faceIndex})
     });
@@ -1137,16 +1137,18 @@ RG::Resource Renderer::RenderGraphAtmosphere(Passes::Atmosphere::LutPasses::Pass
         .CloudDepth = cloudsDepth
     });
     
-    Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, composed.ColorOut);
+    Passes::ImGuiTexture::addToGraph("Atmosphere.Atmosphere"_hsv, *m_Graph, composed.Color);
     Passes::ImGuiTexture3d::addToGraph("Atmosphere.AerialPerspective"_hsv, *m_Graph,
         aerialPerspective, Passes::ChannelComposition::RGBComposition());
 
-    return composed.ColorOut;
+    return composed.Color;
 }
 
 Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
 {
     using namespace RG;
+
+    m_CloudParametersResource = Passes::Upload::addToGraph("Upload.CloudParameters"_hsv, *m_Graph, m_CloudParameters);
 
     static bool isInitialized = false;
     if (!isInitialized)
@@ -1370,8 +1372,7 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
         .AerialPerspectiveLut = aerialPerspective,
         .IrradianceSH = renderAtmosphere ? m_SkyIrradianceSHResource :
             m_Graph->Import("IrradianceSH"_hsv, m_IrradianceSH),
-        .Light = &m_Scene.Lights(),
-        .CloudParameters = &m_CloudParameters,
+        .CloudParameters = m_CloudParametersResource,
         .CloudsRenderingMode = m_CloudsReprojectionEnabled ?
             Passes::Clouds::VP::CloudsRenderingMode::Reprojection :
             Passes::Clouds::VP::CloudsRenderingMode::FullResolution,
@@ -1411,20 +1412,20 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
                 m_Graph->Import("Clouds.ReprojectionFactor"_hsv,
                     m_CloudReprojectionFactor[m_CloudsAccumulationIndex]) :
                 RG::Resource{},
-            .CloudParameters = &m_CloudParameters,
+            .CloudParameters = m_CloudParametersResource,
         });
 
-        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Color"_hsv, *m_Graph, reprojection.ColorAccumulationOut);
-        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Depth"_hsv, *m_Graph, reprojection.DepthAccumulationOut);
-        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Factor"_hsv, *m_Graph, reprojection.ReprojectionFactorOut);
+        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Color"_hsv, *m_Graph, reprojection.ColorAccumulation);
+        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Depth"_hsv, *m_Graph, reprojection.DepthAccumulation);
+        Passes::ImGuiTexture::addToGraph("Clouds.Reprojection.Factor"_hsv, *m_Graph, reprojection.ReprojectionFactor);
 
         return {
-            .ColorPrevious = reprojection.ColorAccumulationIn,
-            .DepthPrevious = reprojection.DepthAccumulationIn,
-            .ReprojectionPrevious = reprojection.ReprojectionFactorIn,
-            .Color = reprojection.ColorAccumulationOut,
-            .Depth = reprojection.DepthAccumulationOut,
-            .Reprojection = reprojection.ReprojectionFactorOut
+            .ColorPrevious = reprojection.ColorAccumulationPrevious,
+            .DepthPrevious = reprojection.DepthAccumulationPrevious,
+            .ReprojectionPrevious = reprojection.ReprojectionFactorPrevious,
+            .Color = reprojection.ColorAccumulation,
+            .Depth = reprojection.DepthAccumulation,
+            .Reprojection = reprojection.ReprojectionFactor
         };
     }
     
@@ -1444,7 +1445,7 @@ Renderer::CloudShadowInfo Renderer::RenderGraphCloudShadows(const CloudMapsInfo&
         .CloudShapeLowFrequencyMap = cloudMaps.ShapeLowFrequency,
         .CloudShapeHighFrequencyMap = cloudMaps.ShapeHighFrequency, 
         .CloudCurlNoise = cloudMaps.CurlNoise, 
-        .CloudParameters = Passes::Upload::addToGraph("Upload.CloudParameters"_hsv, *m_Graph, m_CloudParameters),
+        .CloudParameters = m_CloudParametersResource,
         .Light = m_SunLight,
     });
 
