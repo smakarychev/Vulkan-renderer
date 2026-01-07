@@ -362,7 +362,7 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
 
     const float avgDepth = depthWeightedTransmittance / max(depthWeightedTransmittanceTotal, 1e-7f);
 
-    inScattering = color.tonemap(inScattering, 16.0f);
+    inScattering = expose(inScattering);
 
 #if CLOUDS_PRIMARY_VIEW
     const float4 aerialPerspective = getAerialPerspective(avgDepth, screenUv,
