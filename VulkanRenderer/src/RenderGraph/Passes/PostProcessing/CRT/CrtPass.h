@@ -1,17 +1,17 @@
 #pragma once
 
 #include "RenderGraph/RGResource.h"
-#include "RenderGraph/RGCommon.h"
 
 namespace Passes::Crt
 {
-    struct PassData
-    {
-        RG::Resource ColorIn;
-        RG::Resource ColorOut{};
-        RG::Resource Time{};
-        RG::Resource Settings{};
-    };
-    
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn, RG::Resource colorTarget);
+struct ExecutionInfo
+{
+    RG::Resource Color{};
+};
+struct PassData
+{
+    RG::Resource Color{};
+};
+
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

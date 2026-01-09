@@ -44,6 +44,7 @@
 #include "RenderGraph/Passes/Lights/LightTilesSetupPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
+#include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/ScenePrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
@@ -448,9 +449,13 @@ void Renderer::SetupRenderGraph()
     }
 
     auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithSky);
+    Resource finalColor = fxaa.AntiAliased;
+
+    if (CVars::Get().GetI32CVar("Postprocessing.CRT"_hsv).value_or(false))
+        finalColor = Passes::Crt::addToGraph("CRT"_hsv, *m_Graph, {.Color = finalColor}).Color;
 
     Passes::CopyTexture::addToGraph("Copy.MainColor"_hsv, *m_Graph, {
-        .TextureIn = fxaa.AntiAliased,
+        .TextureIn = finalColor,
         .TextureOut = backbuffer
     });
 

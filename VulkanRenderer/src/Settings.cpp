@@ -49,6 +49,11 @@ void Settings::initCvars()
     CVarF32 maxShadowDistance("Renderer.Limits.MaxShadowDistance"_hsv,
         "The maximum distance at which shadows are drawn, in meters", 4096);
 
+    /* postprocessing rendering settings */
+    CVarI32 crtFlag("Postprocessing.CRT"_hsv,
+        "Flag if renderer crt postprocessing effect is enabled "
+        "(possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
+
     /* render graph */
     CVarI32 renderGraphPoolMaxUnreferencedFrame("RG.UnreferencedResourcesLifetime"_hsv,
         "Number of frames unreferenced resource are kept in memory before being freed", 4);
