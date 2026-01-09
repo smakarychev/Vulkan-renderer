@@ -28,7 +28,6 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
                     continue;
 
                 const bool isPrimaryView =
-                    view.ViewInfo.IsViewInfoGPU() &&
                     enumHasAny(view.ViewInfo.VisibilityFlags(), VisibilityFlags::IsPrimaryView);
                 auto& hiz = HiZ::addToGraph(name.AddVersion(i), graph, {
                         .Depth = info.Depths[i],

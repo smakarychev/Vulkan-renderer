@@ -374,13 +374,7 @@ void Renderer::SetupRenderGraph()
         return true;
     });
 
-    m_OpaqueSetPrimaryView = {
-        .Name = "OpaquePrimary"_hsv,
-        .ViewInfo = m_Graph->GetGlobalResources().PrimaryViewInfo};
     
-    m_OpaqueSetPrimaryVisibility = m_PrimaryVisibility.AddVisibility(m_OpaqueSetPrimaryView);
-    m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
-        *m_Graph, m_PrimaryVisibility);
 
     bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     ImGui::Begin("RenderAtmosphere");
@@ -398,6 +392,17 @@ void Renderer::SetupRenderGraph()
         skyAtmosphereWithCloudsEnvironment = RenderGraphAtmosphereEnvironment(*atmosphereLuts, cloudMaps);
     }
 
+    m_OpaqueSetPrimaryView = {
+        .Name = "OpaquePrimary"_hsv,
+        .ViewInfo = SceneViewInfo(
+            m_Graph->GetGlobalResources().PrimaryViewInfoResource,
+            (VisibilityFlags)m_Graph->GetGlobalResources().PrimaryViewInfo.Camera.VisibilityFlags)
+    };
+    
+    m_OpaqueSetPrimaryVisibility = m_PrimaryVisibility.AddVisibility(m_OpaqueSetPrimaryView);
+    m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
+        *m_Graph, m_PrimaryVisibility);
+    
     bool useForwardPass = CVars::Get().GetI32CVar("Renderer.UseForwardShading"_hsv).value_or(false);
     ImGui::Begin("ForwardShading");
     ImGui::Checkbox("Enabled", &useForwardPass);
