@@ -4,14 +4,16 @@
 
 namespace Passes::SceneDirectionalShadow
 {
-    struct ExecutionInfo
-    {
-        SceneDrawPassExecutionInfo DrawInfo{};
-        const SceneGeometry* Geometry{nullptr};
-    };
-    struct PassData
-    {
-        SceneDrawPassResources Resources{};
-    };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
+struct ExecutionInfo
+{
+    SceneDrawPassExecutionInfo DrawInfo{};
+    const SceneGeometry* Geometry{nullptr};
+};
+
+struct PassData
+{
+    SceneDrawPassResources Resources{};
+};
+
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
