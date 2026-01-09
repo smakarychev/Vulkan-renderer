@@ -8,7 +8,6 @@
 Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph& renderGraph, Texture lut)
 {
     using namespace RG;
-
     using PassDataBind = PassDataWithBind<PassData, IntegrateBrdfLutBindGroupRG>;
     
     return renderGraph.AddRenderPass<PassDataBind>(name,

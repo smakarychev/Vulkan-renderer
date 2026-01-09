@@ -8,7 +8,7 @@ Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& rende
     RG::Resource textureOut, const glm::vec3& offset, f32 relativeSize, ImageFilter filter)
 {
     using namespace RG;
-    
+
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
@@ -21,7 +21,7 @@ Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& rende
         [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
         {
             GPU_PROFILE_FRAME("Texture blit")
-            
+
             auto&& [src, srcDescription] = graph.GetImageWithDescription(passData.TextureIn);
             auto&& [dst, dstDescription] = graph.GetImageWithDescription(passData.TextureOut);
 
@@ -33,7 +33,7 @@ Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& rende
             f32 height = relativeSize / srcAspect * dstAspect;
             glm::uvec3 top =
                 Images::getPixelCoordinates(dst, offset + glm::vec3{width, height, 1.0f}, ImageSizeType::Relative);
-            
+
             frameContext.CommandList.BlitImage({
                 .Source = src,
                 .Destination = dst,

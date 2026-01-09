@@ -30,7 +30,7 @@ RG::Resource imgui2dTexturePass(StringId name, RG::Graph& renderGraph, RG::Resou
 {
     using namespace RG;
     using enum ResourceAccessFlags;
-    
+
     struct PassDataPrivate
     {
         Resource Texture;
@@ -40,7 +40,8 @@ RG::Resource imgui2dTexturePass(StringId name, RG::Graph& renderGraph, RG::Resou
         [&](Graph& graph, PassDataPrivate& passData)
         {
             ImGui::Begin(name.AsString().c_str());
-            const glm::vec2 size = glm::max(glm::vec2(1.0f), getTextureWindowSize(graph.GetImageDescription(textureIn)));
+            const glm::vec2 size = glm::max(glm::vec2(1.0f),
+                getTextureWindowSize(graph.GetImageDescription(textureIn)));
             passData.Texture = graph.Create("ImguiSource"_hsv, ResourceCreationFlags::Volatile, {
                 .Width = size.x,
                 .Height = size.y,
@@ -79,7 +80,9 @@ RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGr
 
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
-    return imgui2dTexturePass(name, renderGraph, textureIn, [](){});
+    return imgui2dTexturePass(name, renderGraph, textureIn, []()
+    {
+    });
 }
 
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture,
@@ -105,7 +108,7 @@ RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& rend
 {
     using namespace RG;
     using enum ResourceAccessFlags;
-    
+
     struct PassData
     {
         Resource Texture{};
@@ -131,18 +134,21 @@ RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& rend
             auto&& [texture, description] = graph.GetImageWithDescription(passData.Texture);
 
             ASSERT(description.Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
-            
+
             ImGui::Begin(passData.Name.AsString().c_str());
             ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, (i32)description.LayersDepth - 1);
             const glm::vec2 size = getTextureWindowSize(description);
             const Sampler sampler = Device::CreateSampler({
-                .WrapMode = SamplerWrapMode::ClampEdge});
+                .WrapMode = SamplerWrapMode::ClampEdge
+            });
             ImGuiUI::Texture(ImageSubresource{
-                .Image = texture,
-                .Description = ImageSubresourceDescription{
-                    .ImageViewKind = ImageViewKind::Image2d,
-                    .LayerBase = (i8)context.Layer,
-                    .Layers = 1}},
+                    .Image = texture,
+                    .Description = ImageSubresourceDescription{
+                        .ImageViewKind = ImageViewKind::Image2d,
+                        .LayerBase = (i8)context.Layer,
+                        .Layers = 1
+                    }
+                },
                 sampler, ImageLayout::Readonly,
                 glm::uvec2(size));
             ImGui::End();
@@ -161,7 +167,7 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
 {
     using namespace RG;
     using enum ResourceAccessFlags;
-    
+
     struct Context
     {
         i32 Slice{0};
@@ -181,7 +187,7 @@ RG::Resource Passes::ImGuiTexture3d::addToGraph(StringId name, RG::Graph& render
             });
             graph.HasSideEffect();
         },
-        [=](const Resource& , FrameContext&, const Graph&)
+        [=](const Resource&, FrameContext&, const Graph&)
         {
         });
 }
@@ -198,7 +204,7 @@ RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& ren
 {
     using namespace RG;
     using enum ResourceAccessFlags;
-    
+
     struct Context
     {
         i32 Slice{0};
@@ -222,11 +228,13 @@ RG::Resource Passes::ImGuiArrayTexture::addToGraph(StringId name, RG::Graph& ren
             {
                 const Resource atlas = TextureArrayToAtlas::addToGraph(name.Concatenate(".ToAtlas"),
                     renderGraph, textureIn, channelComposition);
-                passData = imgui2dTexturePass(name, graph, atlas, [](){});
+                passData = imgui2dTexturePass(name, graph, atlas, []()
+                {
+                });
             }
             graph.HasSideEffect();
         },
-        [=](const Resource& , FrameContext&, const Graph&)
+        [=](const Resource&, FrameContext&, const Graph&)
         {
         });
 }

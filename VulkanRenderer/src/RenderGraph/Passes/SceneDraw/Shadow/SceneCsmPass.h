@@ -20,9 +20,10 @@ namespace Passes::SceneCsm
 struct CsmInfo : ::gen::CsmData
 {
 };
+
 struct ExecutionInfo
 {
-    const ScenePass* Pass{nullptr}; 
+    const ScenePass* Pass{nullptr};
     const SceneGeometry* Geometry{nullptr};
     SceneMultiviewVisibility* MultiviewVisibility{nullptr};
     /* pass will construct the suitable shadow camera based on main camera frustum */
@@ -35,11 +36,13 @@ struct ExecutionInfo
     bool StabilizeCascades{false};
     AABB GeometryBounds{};
 };
+
 struct PassData
 {
     std::vector<SceneDrawPassDescription> MetaPassDescriptions;
     RG::CsmData CsmData{};
 };
+
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 void mergeCsm(RG::Graph& renderGraph, PassData& passData, const ScenePass& scenePass,
     const SceneDrawPassViewAttachments& attachments);

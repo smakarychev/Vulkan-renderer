@@ -9,50 +9,52 @@
 
 namespace
 {
-    using PassData = Passes::EquirectangularToCubemap::PassData;
-    
-    PassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGraph,
-        RG::Resource equirectangular, Texture cubemap)
-    {
-        using namespace RG;
+using PassData = Passes::EquirectangularToCubemap::PassData;
 
-        using PassDataBind = PassDataWithBind<PassData, EquirectangularToCubemapBindGroupRG>;
-        
-        return renderGraph.AddRenderPass<PassDataBind>(name,
-            [&](Graph& graph, PassDataBind& passData)
+PassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGraph,
+    RG::Resource equirectangular, Texture cubemap)
+{
+    using namespace RG;
+
+    using PassDataBind = PassDataWithBind<PassData, EquirectangularToCubemapBindGroupRG>;
+
+    return renderGraph.AddRenderPass<PassDataBind>(name,
+        [&](Graph& graph, PassDataBind& passData)
+        {
+            CPU_PROFILE_FRAME("EquirectangularToCubemap.Setup")
+
+            passData.BindGroup = EquirectangularToCubemapBindGroupRG(graph);
+
+            passData.Cubemap = passData.BindGroup.SetResourcesCubemap(graph.Import("Cubemap"_hsv, cubemap));
+            passData.Equirectangular = passData.BindGroup.SetResourcesEquirectangular(equirectangular);
+        },
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        {
+            CPU_PROFILE_FRAME("EquirectangularToCubemap")
+            GPU_PROFILE_FRAME("EquirectangularToCubemap")
+
+            auto& cubemapDescription = graph.GetImageDescription(passData.Cubemap);
+
+            struct PushConstants
             {
-                CPU_PROFILE_FRAME("EquirectangularToCubemap.Setup")
+                glm::vec2 CubemapResolutionInverse{};
+            };
+            PushConstants pushConstants = {
+                .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width}
+            };
 
-                passData.BindGroup = EquirectangularToCubemapBindGroupRG(graph);
-                
-                passData.Cubemap = passData.BindGroup.SetResourcesCubemap(graph.Import("Cubemap"_hsv, cubemap));
-                passData.Equirectangular = passData.BindGroup.SetResourcesEquirectangular(equirectangular);
-            },
-            [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
-            {
-                CPU_PROFILE_FRAME("EquirectangularToCubemap")
-                GPU_PROFILE_FRAME("EquirectangularToCubemap")
-
-                auto& cubemapDescription = graph.GetImageDescription(passData.Cubemap);
-
-                struct PushConstants
-                {
-                    glm::vec2 CubemapResolutionInverse{};
-                };
-                PushConstants pushConstants = {
-                    .CubemapResolutionInverse = 1.0f / glm::vec2{(f32)cubemapDescription.Width}};
-                
-                auto& cmd = frameContext.CommandList;
-                passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
-                cmd.PushConstants({
-                	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
-                	.Data = {pushConstants}});
-                cmd.Dispatch({
-                    .Invocations = {cubemapDescription.Width, cubemapDescription.Width, 6},
-                    .GroupSize = passData.BindGroup.GetComputeMainGroupSize()
-                });
+            auto& cmd = frameContext.CommandList;
+            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            cmd.PushConstants({
+                .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
+                .Data = {pushConstants}
             });
-    }
+            cmd.Dispatch({
+                .Invocations = {cubemapDescription.Width, cubemapDescription.Width, 6},
+                .GroupSize = passData.BindGroup.GetComputeMainGroupSize()
+            });
+        });
+}
 }
 
 Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::addToGraph(StringId name,
@@ -73,7 +75,7 @@ Passes::EquirectangularToCubemap::PassData& Passes::EquirectangularToCubemap::ad
         {
             auto& convert = convertEquirectangularToCubemapPass(name.Concatenate(".Convert"), graph,
                 equirectangular, cubemap);
-            
+
             auto& mipmap = Mipmap::addToGraph(name.Concatenate(".Mipmap"), graph, convert.Cubemap);
             passData.Equirectangular = convert.Equirectangular;
             passData.Cubemap = mipmap.Texture;

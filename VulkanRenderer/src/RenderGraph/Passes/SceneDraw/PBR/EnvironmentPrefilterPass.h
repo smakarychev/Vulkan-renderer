@@ -3,16 +3,16 @@
 
 namespace Passes::EnvironmentPrefilter
 {
-    struct PassData
-    {
-        RG::Resource Cubemap{};
-        RG::Resource PrefilteredTexture{};
-    };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, Texture cubemap,
-        Texture prefiltered, bool realTime);
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
-        Texture prefiltered, bool realTime);
+struct PassData
+{
+    RG::Resource Cubemap{};
+    RG::Resource PrefilteredTexture{};
+};
 
-    TextureDescription getPrefilteredTextureDescription(u32 resolution);
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, Texture cubemap,
+    Texture prefiltered, bool realTime);
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource cubemap,
+    Texture prefiltered, bool realTime);
+
+TextureDescription getPrefilteredTextureDescription(u32 resolution);
 }
-

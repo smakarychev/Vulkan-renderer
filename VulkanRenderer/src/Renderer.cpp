@@ -67,7 +67,6 @@
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
-#include "RenderGraph/Passes/Utility/VisualizeDepthPass.h"
 #include "Rendering/Shader/ShaderCache.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"

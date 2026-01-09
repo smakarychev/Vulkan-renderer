@@ -3,10 +3,10 @@
 
 namespace Passes::Mipmap
 {
-    struct PassData
-    {
-        RG::Resource Texture{};
-    };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture);
-}
+struct PassData
+{
+    RG::Resource Texture{};
+};
 
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource texture);
+}

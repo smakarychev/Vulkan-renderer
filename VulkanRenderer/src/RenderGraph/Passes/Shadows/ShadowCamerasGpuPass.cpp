@@ -4,19 +4,13 @@
 
 #include "ViewInfoGPU.h"
 #include "cvars/CVarSystem.h"
-#include "RenderGraph/RGGraph.h"
-#include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/Passes/Generated/CreateShadowCamerasBindGroupRG.generated.h"
 #include "RenderGraph/Passes/SceneDraw/Shadow/SceneCsmPass.h"
-
-#include "Rendering/Shader/ShaderCache.h"
 
 Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     using PassDataBind = PassDataWithBind<PassData, CreateShadowCamerasBindGroupRG>;
 
     return renderGraph.AddRenderPass<PassDataBind>(name,
@@ -29,8 +23,8 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             const Resource csmData = graph.Create("CSM.Data"_hsv, RGBufferDescription{
                 .SizeBytes = sizeof(SceneCsm::CsmInfo)});
 
-            passData.ViewInfo = passData.BindGroup.SetResourcesView(info.View);
-            passData.DepthMinMax = passData.BindGroup.SetResourcesMinMax(info.DepthMinMax);
+            passData.BindGroup.SetResourcesView(info.View);
+            passData.BindGroup.SetResourcesMinMax(info.DepthMinMax);
             passData.CsmData = passData.BindGroup.SetResourcesCsm(csmData);
             for (u32 i = 0; i < passData.ShadowViews.size(); i++)
             {
