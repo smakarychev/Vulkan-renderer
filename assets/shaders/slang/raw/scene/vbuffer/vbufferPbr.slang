@@ -82,5 +82,5 @@ float4 main(FullScreenVSOutput input) {
 
     const float ao = resources.ssao.SampleLevel(samplers.linearSampler, input.uv, 0) * materialData.ao;
 
-    return float4(pbrShade(resources.view, shadingInfo, samplers.pbr, resources.pbr), 1.0f);
+    return float4(pbrShade(resources.view, shadingInfo, samplers.pbr, resources.pbr) + materialData.emissive, 1.0f);
 }

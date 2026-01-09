@@ -14,4 +14,5 @@ i32 main()
     Renderer* renderer = Renderer::Get();
     renderer->Init();
     renderer->Run();
+    renderer->Shutdown();
 }

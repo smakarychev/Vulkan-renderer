@@ -49,6 +49,8 @@ class Renderer
 {
 public:
     void Init();
+    void Shutdown();
+    
     static Renderer* Get(); 
     ~Renderer();
 
@@ -142,8 +144,6 @@ private:
     };
     CloudShadowInfo RenderGraphCloudShadows(const CloudMapsInfo& cloudMaps);
     
-    void Shutdown();
-
     RenderingInfo GetImGuiUIRenderingInfo();
 
     void OnWindowResize();

@@ -34,6 +34,8 @@ void ShaderCache::Shutdown()
     if (const auto res = m_FileWatcher->StopWatching(); !res.has_value())
         LOG("Failed to stop file watcher for directory {}. Error: {}",
             *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), FileWatcher::ErrorDescription(res.error()));
+
+    m_FileWatcher.reset();
 }
 
 void ShaderCache::OnFrameBegin(FrameContext& ctx)
