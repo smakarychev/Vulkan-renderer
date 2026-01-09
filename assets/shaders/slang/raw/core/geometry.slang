@@ -2,7 +2,7 @@ module geometry;
 
 import "attributes";
 
-public static uint BUCKETS_PER_SET = 64;
+public static const uint BUCKETS_PER_SET = 64;
 
 [StandaloneType("renderObject")]
 public struct RenderObject {
