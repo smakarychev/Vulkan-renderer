@@ -10,7 +10,6 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
     const ExecutionInfo& info)
 {
     using namespace RG;
-
     using PassDataBind = PassDataWithBind<PassData, SsaoBlurBindGroupRG>;
 
     return renderGraph.AddRenderPass<PassDataBind>(name,
@@ -22,8 +21,8 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
                 ShaderDefine{"VERTICAL"_hsv, info.BlurKind == SsaoBlurPassKind::Vertical}
             }));
 
-            passData.SsaoIn = passData.BindGroup.SetResourcesSsao(info.SsaoIn);
-            passData.SsaoOut= passData.BindGroup.SetResourcesSsaoBlurred(
+            passData.BindGroup.SetResourcesSsao(info.SsaoIn);
+            passData.Ssao = passData.BindGroup.SetResourcesSsaoBlurred(
                 RgUtils::ensureResource(info.SsaoOut, graph, "ColorOut"_hsv, RGImageDescription{
                     .Inference = RGImageInference::Size,
                     .Reference = info.SsaoIn,
@@ -35,7 +34,7 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
             CPU_PROFILE_FRAME("SSAO.Blur")
             GPU_PROFILE_FRAME("SSAO.Blur")
             
-            auto& ssaoInDescription = graph.GetImageDescription(passData.SsaoIn);
+            auto& ssaoInDescription = graph.GetImageDescription(passData.Ssao);
 
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());

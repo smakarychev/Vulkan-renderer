@@ -3,10 +3,10 @@
 
 namespace Passes::Fxaa
 {
-    struct PassData
-    {
-        RG::Resource ColorIn{};
-        RG::Resource AntiAliased{};
-    };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn);
+struct PassData
+{
+    RG::Resource AntiAliased{};
+};
+
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn);
 }

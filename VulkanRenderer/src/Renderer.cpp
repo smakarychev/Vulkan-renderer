@@ -945,18 +945,18 @@ RG::Resource Renderer::RenderGraphSSAO(StringId baseName, RG::Resource depth)
         .MaxSampleCount = 32});
 
     auto& ssaoBlurHorizontal = Passes::SsaoBlur::addToGraph(baseName.Concatenate("SSAO.Blur.Horizontal"), *m_Graph, {
-        .SsaoIn = ssao.SSAO,
+        .SsaoIn = ssao.Ssao,
         .SsaoOut = {},
         .BlurKind = SsaoBlurPassKind::Horizontal});
     auto& ssaoBlurVertical = Passes::SsaoBlur::addToGraph(baseName.Concatenate("SSAO.Blur.Vertical"), *m_Graph, {
-        .SsaoIn = ssaoBlurHorizontal.SsaoOut,
-        .SsaoOut = ssao.SSAO,
+        .SsaoIn = ssaoBlurHorizontal.Ssao,
+        .SsaoOut = ssao.Ssao,
         .BlurKind = SsaoBlurPassKind::Vertical});
 
-    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("SSAO.Visualize"), *m_Graph, ssaoBlurVertical.SsaoOut,
+    Passes::ImGuiTexture::addToGraph(baseName.Concatenate("SSAO.Visualize"), *m_Graph, ssaoBlurVertical.Ssao,
         Passes::ChannelComposition::RComposition());
 
-    return ssaoBlurVertical.SsaoOut;
+    return ssaoBlurVertical.Ssao;
 }
 
 Renderer::TileLightsInfo Renderer::RenderGraphCullLightsTiled(StringId baseName, RG::Resource depth)

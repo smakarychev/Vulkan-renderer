@@ -13,59 +13,64 @@
 
 namespace
 {
-    constexpr u32 MAX_SAMPLES_COUNT{256};
-    
-    std::pair<Texture, Buffer> generateSamples(u32 count)
+constexpr u32 MAX_SAMPLES_COUNT{256};
+
+std::pair<Texture, Buffer> generateSamples(u32 count)
+{
+    static constexpr u32 RANDOM_SIZE = 4;
+    std::vector<u32> pixels((u64)RANDOM_SIZE * (u64)RANDOM_SIZE);
+    for (u32& pixel : pixels)
     {
-        static constexpr u32 RANDOM_SIZE = 4;
-        std::vector<u32> pixels((u64)RANDOM_SIZE * (u64)RANDOM_SIZE);
-        for (u32& pixel : pixels)
-        {
-            glm::vec3 randomDir =  {
-                Random::Float(-1.0f, 1.0f),
-                Random::Float(-1.0f, 1.0f),
-                0.0f};
-            randomDir = glm::normalize(randomDir);
-            pixel = Images::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
-        }
-
-        Texture noise = Device::CreateImage({
-            .DataSource = Span<const std::byte>(pixels),
-            .Description = ImageDescription{
-                .Width = RANDOM_SIZE,
-                .Height = RANDOM_SIZE,
-                .Format = Format::RGBA8_SNORM,
-                .Usage = ImageUsage::Sampled | ImageUsage::Destination},
-            .CalculateMipmaps = false});
-
-        std::vector<glm::vec4> samples(count);
-        for (u32 i = 0; i < samples.size(); i++)
-        {
-            glm::vec3 sample = glm::vec3{
-                Random::Float(-1.0f, 1.0f),
-                Random::Float(-1.0f, 1.0f),
-                Random::Float(0.0f, 1.0f)};
-            sample = glm::normalize(sample);
-            sample *= Random::Float();
-            f32 scale = (f32)i / (f32)samples.size();
-            scale = Math::lerp(0.1f, 1.0f, scale * scale);
-            sample *= scale;
-            samples[i] = glm::vec4{sample, 1.0f};
-        }
-
-        Buffer samplesBuffer = Device::CreateBuffer({
-            .SizeBytes = samples.size() * sizeof(glm::vec4),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
-            .InitialData = samples});
-
-        return {noise, samplesBuffer};
+        glm::vec3 randomDir = {
+            Random::Float(-1.0f, 1.0f),
+            Random::Float(-1.0f, 1.0f),
+            0.0f
+        };
+        randomDir = glm::normalize(randomDir);
+        pixel = Images::toRGBA8SNorm(glm::vec4{randomDir, 1.0f});
     }
+
+    Texture noise = Device::CreateImage({
+        .DataSource = Span<const std::byte>(pixels),
+        .Description = ImageDescription{
+            .Width = RANDOM_SIZE,
+            .Height = RANDOM_SIZE,
+            .Format = Format::RGBA8_SNORM,
+            .Usage = ImageUsage::Sampled | ImageUsage::Destination
+        },
+        .CalculateMipmaps = false
+    });
+
+    std::vector<glm::vec4> samples(count);
+    for (u32 i = 0; i < samples.size(); i++)
+    {
+        glm::vec3 sample = glm::vec3{
+            Random::Float(-1.0f, 1.0f),
+            Random::Float(-1.0f, 1.0f),
+            Random::Float(0.0f, 1.0f)
+        };
+        sample = glm::normalize(sample);
+        sample *= Random::Float();
+        f32 scale = (f32)i / (f32)samples.size();
+        scale = Math::lerp(0.1f, 1.0f, scale * scale);
+        sample *= scale;
+        samples[i] = glm::vec4{sample, 1.0f};
+    }
+
+    Buffer samplesBuffer = Device::CreateBuffer({
+        .SizeBytes = samples.size() * sizeof(glm::vec4),
+        .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
+        .InitialData = samples
+    });
+
+    return {noise, samplesBuffer};
+}
 }
 
 Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-    
+
     struct SettingsUBO
     {
         f32 Power{1.0f};
@@ -95,7 +100,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             passData.BindGroup = SsaoBindGroupRG(graph, ShaderDefines({
                 ShaderDefine("MAX_SAMPLES"_hsv, MAX_SAMPLES_COUNT)
             }));
-            
+
             if (!graph.TryGetBlackboardValue<Samples>())
             {
                 auto&& [noise, samplesBuffer] = generateSamples(info.MaxSampleCount);
@@ -111,7 +116,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
                 graph.Create("Settings"_hsv, RGBufferDescription{.SizeBytes = sizeof(SettingsUBO)}));
             passData.Samples = passData.BindGroup.SetResourcesSamples(
                 graph.Import("Samples"_hsv, samples.SamplesBuffer));
-            passData.SSAO = passData.BindGroup.SetResourcesSsao(graph.Create("SSAO"_hsv, RGImageDescription{
+            passData.Ssao = passData.BindGroup.SetResourcesSsao(graph.Create("SSAO"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size2d,
                 .Reference = info.Depth,
                 .Format = Format::R8_UNORM
@@ -133,8 +138,8 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
             GPU_PROFILE_FRAME("SSAO")
 
             auto& noiseDescription = graph.GetImageDescription(passData.NoiseTexture);
-            auto& ssaoDescription = graph.GetImageDescription(passData.SSAO);
-            
+            auto& ssaoDescription = graph.GetImageDescription(passData.Ssao);
+
             struct PushConstants
             {
                 glm::vec2 SsaoSizeInverse;
@@ -146,7 +151,7 @@ Passes::Ssao::PassData& Passes::Ssao::addToGraph(StringId name, RG::Graph& rende
                 .SsaoSize = glm::vec2((f32)ssaoDescription.Width, (f32)ssaoDescription.Height),
                 .NoiseSizeInverse = 1.0f / glm::vec2((f32)noiseDescription.Width, (f32)noiseDescription.Height)
             };
-            
+
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({

@@ -6,7 +6,6 @@
 Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn)
 {
     using namespace RG;
-
     using PassDataBind = PassDataWithBind<PassData, FxaaBindGroupRG>;
 
     return renderGraph.AddRenderPass<PassDataBind>(name,
@@ -21,7 +20,7 @@ Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& rende
                 .Reference = colorIn,
                 .Format = Format::RGBA16_FLOAT});
 
-            passData.ColorIn = passData.BindGroup.SetResourcesColor(colorIn);
+            passData.BindGroup.SetResourcesColor(colorIn);
             passData.AntiAliased = passData.BindGroup.SetResourcesAntialiased(passData.AntiAliased);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
@@ -29,7 +28,7 @@ Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& rende
             CPU_PROFILE_FRAME("Fxaa.Luminance")
             GPU_PROFILE_FRAME("Fxaa.Luminance")
 
-            auto& description = graph.GetImageDescription(passData.ColorIn);
+            auto& description = graph.GetImageDescription(passData.AntiAliased);
             
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
