@@ -10,16 +10,6 @@
       "path": "scene/draw/depthPrepass.slang"
     }
   ],
-  "variants": [
-    {
-      "name": "noAlpha",
-      "defines": {"DEPTH_PREPASS_ALPHA_TEST": "0"}
-    },
-    {
-      "name": "alpha",
-      "defines": {"DEPTH_PREPASS_ALPHA_TEST": "1"}
-    }
-  ],
   "rasterizationInfo": {
     "depth": "D32_FLOAT",
     "alphaBlending": "None"

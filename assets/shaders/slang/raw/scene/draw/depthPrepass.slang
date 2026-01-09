@@ -39,18 +39,18 @@ VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID:
     VSOutput output;
     output.materialId = renderObject.materialId;
     output.position = mul(mul(float4(position, 1.0f), transform), resources.view.camera.viewProjection);
-#if DEPTH_PREPASS_ALPHA_TEST    
+#if ALPHA_TEST    
     output.uv = resources.ugb.uv(renderObject.uvIndex + command.vertexOffset + vertexID);
-#endif // DEPTH_PREPASS_ALPHA_TEST
+#endif // ALPHA_TEST
     
     return output;
 }
 
 [shader("pixel")]
 void pixelMain(VSOutput input) {
-#if DEPTH_PREPASS_ALPHA_TEST
+#if ALPHA_TEST
     const StandardPbrMaterial material = materials.materials[input.materialId];
     if (materials.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv).a < 0.5f)
         discard;
-#endif // DEPTH_PREPASS_ALPHA_TEST
+#endif // ALPHA_TEST
 }

@@ -15,11 +15,7 @@ Passes::SceneDepthPrepass::PassData& Passes::SceneDepthPrepass::addToGraph(Strin
         {
             CPU_PROFILE_FRAME("Scene.SceneDepthPrepass.Setup")
 
-            passData.BindGroup = SceneDrawDepthPrepassBindGroupRG(graph,
-                info.UseAlphaTest ?
-                    SceneDrawDepthPrepassBindGroupRG::Variants::Alpha :
-                    SceneDrawDepthPrepassBindGroupRG::Variants::NoAlpha,
-                *info.DrawInfo.BucketOverrides);
+            passData.BindGroup = SceneDrawDepthPrepassBindGroupRG(graph, *info.DrawInfo.BucketOverrides);
 
             passData.Resources.InitFrom(info.DrawInfo, graph);
             passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
