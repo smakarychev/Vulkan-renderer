@@ -44,7 +44,7 @@
 #include "RenderGraph/Passes/Lights/LightTilesSetupPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
-#include "RenderGraph/Passes/Scene/Visibility/PrepareVisibleMeshletInfoPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/ScenePrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"

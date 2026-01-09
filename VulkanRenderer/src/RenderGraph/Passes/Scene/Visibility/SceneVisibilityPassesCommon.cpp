@@ -3,7 +3,6 @@
 #include "SceneVisibilityPassesCommon.h"
 
 #include "RenderGraph/RGGraph.h"
-#include "Scene/SceneRenderObjectSet.h"
 
 SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
     RG::Graph& renderGraph, const SceneMultiviewVisibility& sceneMultiviewVisibility)

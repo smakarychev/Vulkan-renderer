@@ -1,11 +1,10 @@
 ﻿#pragma once
 
-#include "SceneAsset.h"
-#include "Math/Geometry.h"
+#include "core.h"
 #include "Math/Transform.h"
+#include "RenderGraph/Passes/Generated/Types/MeshletUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/RenderObjectUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/StandardPbrMaterialUniform.generated.h"
-#include "Rendering/Image/Image.h"
 
 enum class MaterialFlags : u16
 {
@@ -32,8 +31,4 @@ using RenderObjectTransform = Transform3d;
 
 struct RenderObjectGPU : gen::RenderObject {};
 
-struct MeshletGPU
-{
-    assetLib::SceneInfo::BoundingCone BoundingCone;
-    Sphere BoundingSphere;
-};
+struct MeshletGPU : gen::Meshlet {};

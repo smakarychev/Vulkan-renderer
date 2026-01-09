@@ -9,7 +9,6 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
     RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData&)

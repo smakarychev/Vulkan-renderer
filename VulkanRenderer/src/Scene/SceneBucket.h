@@ -1,6 +1,8 @@
 #pragma once
 
 #include "SceneGeometry.h"
+#include "RenderGraph/Passes/Generated/Types/DrawInfoUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/MeshletBucketInfoUniform.generated.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "Rendering/Shader/ShaderOverrides.h"
 #include "String/StringId.h"
@@ -18,11 +20,10 @@ struct SceneMeshletHandle
 using SceneBucketBits = u64;
 static constexpr u32 MAX_BUCKETS_PER_SET = std::numeric_limits<SceneBucketBits>::digits;
 
-struct SceneMeshletBucketInfo
+struct SceneMeshletBucketInfo : gen::MeshletBucketInfo
 {
-    u32 MeshletIndex{0};
-    SceneBucketBits Buckets{0};    
 };
+static_assert(sizeof(SceneMeshletBucketInfo::Buckets) == sizeof(SceneBucketBits));
 
 /* pass over filtered render objects of a scene */
 
@@ -37,9 +38,8 @@ struct SceneBucketCreateInfo
     ShaderOverrides ShaderOverrides{};
 };
 
-struct SceneBucketDrawInfo
+struct SceneBucketDrawInfo : gen::DrawInfo
 {
-    u32 Count{0};
 };
 
 class SceneBucket

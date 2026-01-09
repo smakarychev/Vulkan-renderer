@@ -350,10 +350,16 @@ SceneGeometry::AddCommandsResult SceneGeometry::AddCommands(SceneInstance instan
                 .FirstInstance = currentMeshletIndex + meshletIndex,
                 .RenderObject = (u32)renderObjectIndex + currentRenderObjectIndex
             }};
-            meshlets[meshletIndex] = {
-                .BoundingCone = meshlet.BoundingCone,
-                .BoundingSphere = {.Center = meshlet.BoundingSphere.Center, .Radius = meshlet.BoundingSphere.Radius}};
-
+            meshlets[meshletIndex] = {{
+                    .ConeX = meshlet.BoundingCone.AxisX,
+                    .ConeY = meshlet.BoundingCone.AxisY,
+                    .ConeZ = meshlet.BoundingCone.AxisZ,
+                    .ConeCutoff = meshlet.BoundingCone.Cutoff,
+                    .X = meshlet.BoundingSphere.Center.x,
+                    .Y = meshlet.BoundingSphere.Center.y,
+                    .Z = meshlet.BoundingSphere.Center.z,
+                    .R = meshlet.BoundingSphere.Radius,
+            }};
             meshletIndex++;
         }
     }

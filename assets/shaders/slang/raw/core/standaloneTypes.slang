@@ -10,6 +10,9 @@ import "volumetrics/volumetrics";
 struct Resources {
     ViewInfo view;
     RenderObject ro;
+    Meshlet mshlt;
+    DrawInfo di;
+    MeshletBucketInfo mbi;
     IndirectCommand ic;
     PointLight pl;
     DirectionalLight dl;
