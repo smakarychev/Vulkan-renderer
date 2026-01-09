@@ -1,0 +1,28 @@
+{
+  "name": "sceneDrawDepthPrepass",
+  "entryPoints": [
+    {
+      "name": "vertexMain",
+      "path": "scene/draw/depthPrepass.slang"
+    },
+    {
+      "name": "pixelMain",
+      "path": "scene/draw/depthPrepass.slang"
+    }
+  ],
+  "variants": [
+    {
+      "name": "noAlpha",
+      "defines": {"DEPTH_PREPASS_ALPHA_TEST": "0"}
+    },
+    {
+      "name": "alpha",
+      "defines": {"DEPTH_PREPASS_ALPHA_TEST": "1"}
+    }
+  ],
+  "rasterizationInfo": {
+    "depth": "D32_FLOAT",
+    "alphaBlending": "None"
+  },
+  "bindlessSetReference": "main_materials" 
+}

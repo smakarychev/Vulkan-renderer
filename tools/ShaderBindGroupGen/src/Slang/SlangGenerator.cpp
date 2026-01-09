@@ -869,6 +869,7 @@ struct Writer
                         type, signature.Set, signature.Set));
                 EndDivergenceCase(isDivergent);
             }
+            EndDivergenceSwitch(isDivergent);
         }
         Pop();
         WriteLine("}");
