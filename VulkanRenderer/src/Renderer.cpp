@@ -1119,7 +1119,6 @@ Renderer::AtmosphereEnvironmentInfo Renderer::RenderGraphAtmosphereEnvironment(
         "Sky.EnvironmentPrefilter"_hsv, *m_Graph, cloudsEnvironment.AtmosphereWithCloudsEnvironment, m_SkyPrefilterMap,
         true).PrefilteredTexture;
     
-    // todo: usual imgui treatment
     //Passes::ImGuiCubeTexture::addToGraph("Clouds.Env"_hsv, *m_Graph, cloudsEnv.ColorOut);
 
     Passes::ImGuiCubeTexture::addToGraph("Atmosphere.Environment.Lut"_hsv, *m_Graph,

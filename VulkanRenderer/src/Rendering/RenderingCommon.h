@@ -16,6 +16,3 @@ struct DepthBias
     f32 Constant{0.0f};
     f32 Slope{0.0f};
 };
-
-// todo: remove it as b32 exists
-using GpuBool = u32;

@@ -4,21 +4,6 @@
 
 #include "RenderGraph/RGUtils.h"
 
-void SceneDrawPassResources::CreateFrom(const SceneDrawPassExecutionInfo& info, RG::Graph& renderGraph)
-{
-    using namespace RG;
-    using enum ResourceAccessFlags;
-
-    MaxDrawCount = (u32)(renderGraph.GetBufferDescription(info.Draws).SizeBytes / sizeof(IndirectDrawCommand));
-
-    ViewInfo = renderGraph.ReadBuffer(info.ViewInfo, Vertex | Pixel | Uniform);
-
-    Draws = renderGraph.ReadBuffer(info.Draws, Vertex | Indirect);
-    DrawInfo = renderGraph.ReadBuffer(info.DrawInfo, Vertex | Indirect);
-            
-    Attachments = RgUtils::readWriteDrawAttachments(info.Attachments, renderGraph);
-}
-
 void SceneDrawPassResources::InitFrom(const SceneDrawPassExecutionInfo& info, RG::Graph& renderGraph)
 {
     using namespace RG;

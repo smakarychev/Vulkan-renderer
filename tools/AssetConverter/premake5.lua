@@ -18,7 +18,6 @@ project "AssetConverter"
 	    
         IncludeDir["stb"],		    
         IncludeDir["glm"],
-        IncludeDir["spirv_reflect"],	
         IncludeDir["meshoptimizer"],   
         IncludeDir["tinygltf"],    
         IncludeDir["mikktspace"],        
@@ -82,7 +81,6 @@ project "AssetConverterLib"
 
         IncludeDir["stb"],		    
         IncludeDir["glm"],
-        IncludeDir["spirv_reflect"],	
         IncludeDir["meshoptimizer"],    
         IncludeDir["tinygltf"],    
         IncludeDir["mikktspace"],    

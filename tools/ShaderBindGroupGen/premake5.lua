@@ -16,10 +16,8 @@ project "ShaderBindGroupGen"
         "%{wks.location}/tools/AssetLib/src",
         "%{wks.location}/tools/AssetConverter/src",
         
-        IncludeDir["spirv_reflect"],
         IncludeDir["nlohmann-json"],
         IncludeDir["glaze"],
-        IncludeDir["inja"],
         IncludeDir["glm"],
     }
 

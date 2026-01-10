@@ -48,8 +48,6 @@ using ShaderCacheAllocateResult = std::expected<Shader, ShaderCacheError>;
 
 class ShaderCache
 {
-    static constexpr std::string_view SHADER_EXTENSION = ".shader";
-    static constexpr std::string_view SHADER_HEADER_EXTENSION = ".glsl";
 public:
     void Init(bakers::Context& bakersCtx, const bakers::SlangBakeSettings& bakeSettings);
     void Shutdown();
@@ -64,12 +62,10 @@ public:
 private:
     void InitFileWatcher();
     void LoadShaderInfos();
-    void LoadSlangShaderInfo(const std::filesystem::path& path);
+    void LoadShaderInfo(const std::filesystem::path& path);
 
     void HandleModifications();
-    void HandleShaderModification(const std::filesystem::path& path);
     void HandleStageModification(const std::filesystem::path& path);
-    void HandleHeaderModification(const std::filesystem::path& path);
     void MarkOverridesToReload(StringId name);
 
     struct PipelineInfo
@@ -91,11 +87,6 @@ private:
     };
     std::optional<PipelineInfo> TryCreatePipeline(const ShaderNameWithOverrides& name, ShaderOverridesView& overrides,
         ShaderCacheAllocationType allocationHint);
-    std::optional<PipelineInfo> TryCreateSlangPipeline(const ShaderNameWithOverrides& name, ShaderOverridesView& overrides,
-        ShaderCacheAllocationType allocationHint);
-    const ShaderPipelineTemplate* GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
-        const ShaderOverridesView& overrides, std::vector<std::string>& stages,
-        const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);
     const ShaderPipelineTemplate* GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
         const ShaderOverridesView& overrides, const std::filesystem::path& path,
         const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides);

@@ -40,7 +40,6 @@ public:
     IoResult<assetlib::ShaderAsset> Bake(const assetlib::ShaderLoadInfo& loadInfo,
         const assetlib::ShaderLoadInfo::Variant& variant, const SlangBakeSettings& settings, const Context& ctx);
 private:
-    // todo: this is a temp name until there are conflicts with the old asset system
     static constexpr std::string_view POST_BAKE_EXTENSION = ".sl_shader";
 };
 }

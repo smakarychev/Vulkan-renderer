@@ -7,25 +7,25 @@ workspace "VulkanRenderer"
     architecture "x86_64"
     editandcontinue "Off"
     flags {
-		  "MultiProcessorCompile",
-	  }
+        "MultiProcessorCompile",
+	}
     startproject "VulkanRenderer"
 
     linkoptions { 
-      "/IGNORE:4221,4099,4006,4098",
+        "/IGNORE:4221,4099,4006,4098",
     }
 
     buildoptions {
-		  "/utf-8",
+        "/utf-8",
     }
 
     filter "configurations:Debug*"
-      runtime "Debug"
-      symbols "on"
-
-	  filter "configurations:Release*"
-      runtime "Release"
-      optimize "on"
+        runtime "Debug"
+        symbols "on"
+        
+        filter "configurations:Release*"
+        runtime "Release"
+        optimize "on"
 
     
 group "Dependencies"

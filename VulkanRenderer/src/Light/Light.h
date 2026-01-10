@@ -22,7 +22,6 @@ struct PointLight : gen::PointLight
     bool operator==(const PointLight& other) const;
 };
 
-// todo: remove me completely once fully slang
 struct LightsInfo
 {
     u32 DirectionalLightCount{};

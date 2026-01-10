@@ -33,9 +33,7 @@ public:
     };
     using DescriptorSets = std::array<DescriptorsInfo, MAX_DESCRIPTOR_SETS>;
 public:
-    static ShaderReflection ReflectFrom(const std::vector<std::string>& paths);
-    // todo: temp name, rename once only slang is left
-    static assetlib::io::IoResult<ShaderReflection> ReflectFromSlang(const std::filesystem::path& path);
+    static assetlib::io::IoResult<ShaderReflection> Reflect(const std::filesystem::path& path);
     ShaderReflection() = default;
     ShaderReflection(const ShaderReflection&) = delete;
     ShaderReflection& operator=(const ShaderReflection&) = delete;
@@ -45,9 +43,6 @@ public:
 
     static ShaderReflectionEntryPointsInfo GetEntryPointsInfo(const assetlib::ShaderHeader& shader);
 
-    // todo: delete once ready
-    static ShaderStage GetShaderStage(u32 shaderStage);
-    
     ShaderStage Stages() const { return m_ShaderStages; }
     const std::vector<SpecializationConstant>& SpecializationConstants() const { return m_SpecializationConstants; }
     const VertexInputDescription& VertexInputDescription() const { return m_VertexInputDescription; }

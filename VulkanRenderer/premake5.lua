@@ -12,7 +12,6 @@ local project_includes = {
     IncludeDir["GLFW"],			
     IncludeDir["glm"],			
     IncludeDir["vma"],	
-    IncludeDir["spirv_reflect"],	
     IncludeDir["tracy"],    
     IncludeDir["volk"],
     IncludeDir["tinygltf"],  

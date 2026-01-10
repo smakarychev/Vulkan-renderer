@@ -101,10 +101,6 @@ SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
         .SizeBytes = sizeof(PointLight),
         .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
         deletionQueue);
-    light.m_Buffers.LightsInfo = Device::CreateBuffer({
-        .SizeBytes = sizeof(LightsInfo),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Uniform | BufferUsage::Source},
-        deletionQueue);
 
     return light;
 }
@@ -139,12 +135,10 @@ void SceneLight::OnUpdate(FrameContext& ctx)
         }
     }
 
-    const LightsInfo lightsInfo = {
+    m_CachedLightsInfo = {
         .DirectionalLightCount = directionalLightIndex,
-        .PointLightCount = pointLightIndex};
-    if (m_CachedLightsInfo != lightsInfo)
-        ctx.ResourceUploader->UpdateBuffer(m_Buffers.LightsInfo, lightsInfo);
-    m_CachedLightsInfo = lightsInfo;
+        .PointLightCount = pointLightIndex
+    };
 }
 
 void SceneLight::UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx)

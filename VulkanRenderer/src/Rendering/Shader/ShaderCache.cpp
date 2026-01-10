@@ -68,8 +68,6 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, std::optional<Str
         
         if (std::filesystem::path(m_ShaderNameToPath.at(nameWithOverrides.Name)).extension().string() ==
             bakers::SHADER_ASSET_EXTENSION)
-            pipelineInfo = TryCreateSlangPipeline(nameWithOverrides, overrides, allocationType);
-        else
             pipelineInfo = TryCreatePipeline(nameWithOverrides, overrides, allocationType);
         if (pipelineInfo.has_value())
         {
@@ -171,37 +169,11 @@ void ShaderCache::LoadShaderInfos()
         auto& path = file.path();
 
         if (path.extension() == bakers::SHADER_ASSET_EXTENSION)
-        {
-            LoadSlangShaderInfo(path);
-            continue;
-        }
-
-        //todo: everything below me should go without a trace
-
-        if (path.extension() != SHADER_EXTENSION)
-            continue;
-
-        const nlohmann::json shader = nlohmann::json::parse(std::ifstream{path});
-        const StringId name = StringId::FromString(shader.at("name"));
-        m_ShaderNameToPath.emplace(name, fs::weakly_canonical(path).generic_string());
-
-        for (auto& stage : shader.at("shader_stages"))
-        {
-            const std::string& stagePath = fs::weakly_canonical(
-                *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + std::string(stage)).generic_string();
-            assetLib::File shaderFile;
-            assetLib::loadAssetFile(stagePath, shaderFile);
-            const assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
-            for (auto& include : shaderInfo.IncludedFiles)
-                m_PathToShaders[include].push_back(name);
-            m_PathToShaders[stagePath].push_back(name);
-            m_PathToShaders[shaderInfo.OriginalFile].push_back(name);
-        }
+            LoadShaderInfo(path);
     }
 }
 
-// todo: rename once ready
-void ShaderCache::LoadSlangShaderInfo(const std::filesystem::path& path)
+void ShaderCache::LoadShaderInfo(const std::filesystem::path& path)
 {
     auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
     if (!shaderLoadInfo.has_value())
@@ -233,31 +205,14 @@ void ShaderCache::HandleModifications()
     for (auto& file : m_ShadersToReload)
     {
         const std::string extension = file.extension().string();
-        if (extension == SHADER_EXTENSION)
-            HandleShaderModification(file);
-        else if (
-            ShaderStageConverter::WatchesExtension(extension) ||
-            bakers::SHADER_ASSET_RAW_EXTENSION == extension)
+        if (bakers::SHADER_ASSET_RAW_EXTENSION == extension)
             HandleStageModification(file);
-        else if (extension == SHADER_HEADER_EXTENSION)
-            HandleHeaderModification(file);
     }
     m_ShadersToReload.clear();
 }
 
-void ShaderCache::HandleShaderModification(const std::filesystem::path& path)
-{
-    const nlohmann::json shader = nlohmann::json::parse(std::ifstream{path});
-    MarkOverridesToReload(StringId::FromString(shader.at("name")));
-}
 
 void ShaderCache::HandleStageModification(const std::filesystem::path& path)
-{
-    for (const StringId name : m_PathToShaders[path.generic_string()])
-        MarkOverridesToReload(name);
-}
-
-void ShaderCache::HandleHeaderModification(const std::filesystem::path& path)
 {
     for (const StringId name : m_PathToShaders[path.generic_string()])
         MarkOverridesToReload(name);
@@ -271,152 +226,6 @@ void ShaderCache::MarkOverridesToReload(StringId name)
 
     for (auto& override : overrides->second)
         m_Pipelines.at(override).ShouldReload = true;
-}
-
-std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const ShaderNameWithOverrides& name,
-    ShaderOverridesView& overrides, ShaderCacheAllocationType allocationType)
-{
-    const std::string& path = m_ShaderNameToPath.at(name.Name);
-    std::ifstream in(path);
-    nlohmann::json json = nlohmann::json::parse(std::ifstream{path});
-
-    std::vector<std::string> stages;
-    stages.reserve(json["shader_stages"].size());
-    for (auto& stage : json["shader_stages"])
-        stages.push_back(*CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv) + std::string{stage});
-
-    StringId referencedBindlessSet = {};
-    std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> descriptorsLayoutsOverrides{};
-    if (json.contains("bindless"))
-    {
-        referencedBindlessSet = StringId::FromString(json.at("bindless").get<std::string>());
-        if (!m_PersistentDescriptors.contains(referencedBindlessSet))
-            return std::nullopt;
-        
-        descriptorsLayoutsOverrides[BINDLESS_DESCRIPTORS_INDEX] =
-            m_PersistentDescriptors.at(referencedBindlessSet).Layout;
-    }
-    
-    const ShaderPipelineTemplate* shaderTemplate =
-        GetShaderPipelineTemplate(name, overrides, stages, descriptorsLayoutsOverrides);
-    if (shaderTemplate == nullptr)
-        return std::nullopt;
-
-    auto createPipeline = [&]() -> Pipeline
-    {
-        std::vector<Format> colorFormats;
-        std::optional<Format> depthFormat;
-        DynamicStates dynamicStates = DynamicStates::Default;
-        AlphaBlending alphaBlending = AlphaBlending::Over;
-        DepthMode depthMode = DepthMode::ReadWrite;
-        DepthTest depthTest = DepthTest::GreaterOrEqual;
-        FaceCullMode cullMode = FaceCullMode::Back;
-        PrimitiveKind primitiveKind = PrimitiveKind::Triangle;
-        bool clampDepth = false;
-        
-        for (auto& dynamicState : json["dynamic_states"])
-        {
-            static const std::unordered_map<std::string, DynamicStates> NAME_TO_STATE_MAP = {
-                std::make_pair("viewport", DynamicStates::Viewport),
-                std::make_pair("scissor", DynamicStates::Scissor),
-                std::make_pair("depth_bias", DynamicStates::DepthBias),
-                std::make_pair("default", DynamicStates::Default),
-            };
-
-            auto it = NAME_TO_STATE_MAP.find(dynamicState);
-            if (it == NAME_TO_STATE_MAP.end())
-            {
-                LOG("Unrecognized dynamic state: {}", std::string{dynamicState});
-                continue;
-            }
-            dynamicStates |= it->second;
-        }
-
-        if (!shaderTemplate->IsComputeTemplate())
-        {
-            static const std::unordered_map<std::string, AlphaBlending> NAME_TO_BLENDING_MAP = {
-                std::make_pair("none", AlphaBlending::None),
-                std::make_pair("over", AlphaBlending::Over),
-            };
-
-            static const std::unordered_map<std::string, DepthMode> NAME_TO_DEPTH_MODE_MAP = {
-                std::make_pair("none",       DepthMode::None),
-                std::make_pair("read",       DepthMode::Read),
-                std::make_pair("read_write", DepthMode::ReadWrite),
-            };
-            
-            static const std::unordered_map<std::string, DepthTest> NAME_TO_DEPTH_TEST_MAP = {
-                std::make_pair("greater_or_equal",  DepthTest::GreaterOrEqual),
-                std::make_pair("equal",             DepthTest::Equal),
-            };
-
-            static const std::unordered_map<std::string, FaceCullMode> NAME_TO_CULL_MODE_MAP = {
-                std::make_pair("none",  FaceCullMode::None),
-                std::make_pair("front", FaceCullMode::Front),
-                std::make_pair("back",  FaceCullMode::Back),
-            };
-
-            static const std::unordered_map<std::string, PrimitiveKind> NAME_TO_PRIMITIVE_MAP = {
-                std::make_pair("triangle",  PrimitiveKind::Triangle),
-                std::make_pair("point",     PrimitiveKind::Point),
-            };
-
-            auto& rasterization = json["rasterization"];
-            
-            if (rasterization.contains("alpha_blending"))
-                alphaBlending = NAME_TO_BLENDING_MAP.at(rasterization["alpha_blending"]);
-            if (rasterization.contains("depth_mode"))
-                depthMode = NAME_TO_DEPTH_MODE_MAP.at(rasterization["depth_mode"]);
-            if (rasterization.contains("depth_test"))
-                depthTest = NAME_TO_DEPTH_TEST_MAP.at(rasterization["depth_test"]);
-            if (rasterization.contains("cull_mode"))
-                cullMode = NAME_TO_CULL_MODE_MAP.at(rasterization["cull_mode"]);
-            if (rasterization.contains("primitive_kind"))
-                primitiveKind = NAME_TO_PRIMITIVE_MAP.at(rasterization["primitive_kind"]);
-            if (rasterization.contains("depth_clamp"))
-                clampDepth = rasterization["depth_clamp"];
-
-            colorFormats.reserve(rasterization["colors"].size());
-            for (auto& color : rasterization["colors"])
-                colorFormats.push_back(FormatUtils::formatFromString(color));
-            if (rasterization.contains("depth"))
-                depthFormat = FormatUtils::formatFromString(rasterization["depth"]);
-        }
-
-        const Pipeline pipeline = Device::CreatePipeline({
-            .PipelineLayout = shaderTemplate->GetPipelineLayout(),
-            .Shaders = shaderTemplate->GetReflection().Shaders(),
-            .ShaderStages = shaderTemplate->GetShaderStages(),
-            .ShaderEntryPoints = shaderTemplate->GetEntryPoints(),
-            .ColorFormats = colorFormats,
-            .DepthFormat = depthFormat ? *depthFormat : Format::Undefined,
-            .DynamicStates = overrides.PipelineOverrides.DynamicStates.value_or(dynamicStates),
-            .DepthMode = overrides.PipelineOverrides.DepthMode.value_or(depthMode),
-            .DepthTest = overrides.PipelineOverrides.DepthTest.value_or(depthTest),
-            .CullMode = overrides.PipelineOverrides.CullMode.value_or(cullMode),
-            .AlphaBlending = overrides.PipelineOverrides.AlphaBlending.value_or(alphaBlending),
-            .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
-            .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
-            .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
-            .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
-            Device::DummyDeletionQueue());
-        Device::NamePipeline(pipeline, name.Name.AsStringView());
-
-        return pipeline;
-    };
-
-    PipelineInfo shader = {};
-    shader.PipelineTemplate = shaderTemplate;
-    shader.Layout = shaderTemplate->GetPipelineLayout();
-    shader.BindlessName = referencedBindlessSet;
-    shader.BindlessCount =
-        shaderTemplate->GetReflection().DescriptorSetsInfo()[BINDLESS_DESCRIPTORS_INDEX].HasBindless ?
-        json.value("bindless_count", 0u) : 0u;
-
-    if (enumHasAny(allocationType, ShaderCacheAllocationType::Pipeline))
-        shader.Pipeline = createPipeline();
-
-    return shader;
 }
 
 namespace 
@@ -527,8 +336,7 @@ constexpr PrimitiveKind primitiveKindModeFromAssetPrimitiveKind(assetlib::Shader
 }
 }
 
-// todo: rename once ready
-std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreateSlangPipeline(const ShaderNameWithOverrides& name,
+std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const ShaderNameWithOverrides& name,
     ShaderOverridesView& overrides, ShaderCacheAllocationType allocationType)
 {
     const std::string& path = m_ShaderNameToPath.at(name.Name);
@@ -625,56 +433,6 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreateSlangPipeline(con
 }
 
 const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
-    const ShaderOverridesView& overrides, std::vector<std::string>& stages,
-    const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides)
-{
-    ShaderStageConverter::Options options = {};
-    if (overrides.Defines.Hash != 0)
-    {
-        options.DefinesHash = overrides.Defines.Hash;
-        options.Defines.reserve(overrides.Defines.Defines.size());
-        for (auto& define : overrides.Defines.Defines)
-            options.Defines.emplace_back(define.Name.AsStringView(), define.Value);
-    }        
-
-    std::array<ShaderStage, MAX_PIPELINE_SHADER_COUNT> shaderStages{};
-    std::array<std::string, MAX_PIPELINE_SHADER_COUNT> shaderEntryPoints{};
-    for (auto&& [i, stage]: std::views::enumerate(stages))
-    {
-        assetLib::File shaderFile;
-        assetLib::loadAssetFile(stage, shaderFile);
-        assetLib::ShaderStageInfo shaderInfo = assetLib::readShaderStageInfo(shaderFile);
-        shaderStages[i] = ShaderReflection::GetShaderStage(shaderInfo.ShaderStages);
-        shaderEntryPoints[i] = "main";
-        
-        std::filesystem::path stagePath = stage;
-        stagePath.replace_filename(ShaderStageConverter::GetBakedFileName(shaderInfo.OriginalFile, options));
-        stagePath.replace_extension(ShaderStageConverter::POST_CONVERT_EXTENSION);
-        stage = stagePath.string();
-        if (ShaderStageConverter::NeedsConversion(
-            *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options))
-        {
-            const auto baked = ShaderStageConverter::Bake(
-                *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv), shaderInfo.OriginalFile, options);
-            if (!baked && !std::filesystem::exists(stage))
-                return nullptr;
-        }
-    }
-
-    const std::string shaderReflectionKey = AssetManager::GetShaderKey(stages);
-    ShaderReflection* reflection = AssetManager::AddShader(shaderReflectionKey, ShaderReflection::ReflectFrom(stages));
-
-    auto& pipelineTemplate = m_ShaderPipelineTemplates[name] = ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo{
-        .ShaderReflection = reflection,
-        .ShaderStages = Span(shaderStages.data(), stages.size()),
-        .ShaderEntryPoints = Span(shaderEntryPoints.data(), stages.size()),
-        .DescriptorLayoutOverrides = descriptorLayoutOverrides
-    });
-    
-    return &pipelineTemplate;
-}
-
-const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(const ShaderNameWithOverrides& name,
     const ShaderOverridesView& overrides, const std::filesystem::path& path,
     const std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS>& descriptorLayoutOverrides)
 {
@@ -694,7 +452,7 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(const Shade
     if (!baked)
         return nullptr;
 
-    auto shaderReflectionResult = ShaderReflection::ReflectFromSlang(baker.GetBakedPath(path, name.Variant, settings,
+    auto shaderReflectionResult = ShaderReflection::Reflect(baker.GetBakedPath(path, name.Variant, settings,
         *m_BakersCtx));
     if (!shaderReflectionResult.has_value())
         return nullptr;

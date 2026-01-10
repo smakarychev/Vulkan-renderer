@@ -53,8 +53,6 @@ public:
     {
         Buffer DirectionalLights{};
         Buffer PointLights{};
-        // todo: this should be removed in favour of one big 'View' UBO
-        Buffer LightsInfo{};
     };
 public:
     static SceneLight CreateEmpty(DeletionQueue& deletionQueue);
