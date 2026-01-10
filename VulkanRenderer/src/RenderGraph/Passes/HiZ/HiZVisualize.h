@@ -3,11 +3,16 @@
 
 namespace Passes::HiZVisualize
 {
-struct PassData
+
+struct ExecutionInfo
 {
-    RG::Resource HiZ{};
-    RG::Resource ColorOut{};
+    RG::Resource Hiz{};
 };
 
-PassData& addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource hiz);
+struct PassData
+{
+    RG::Resource Color{};
+};
+
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }

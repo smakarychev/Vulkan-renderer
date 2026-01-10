@@ -5,7 +5,7 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/IntegrateBrdfLutBindGroupRG.generated.h"
 
-Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph& renderGraph, Texture lut)
+Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<PassData, IntegrateBrdfLutBindGroupRG>;
@@ -17,7 +17,7 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
 
             passData.BindGroup = IntegrateBrdfLutBindGroupRG(graph);
 
-            passData.Lut = passData.BindGroup.SetResourcesBrdf(graph.Import("Lut"_hsv, lut));
+            passData.Lut = passData.BindGroup.SetResourcesBrdf(graph.Import("Lut"_hsv, info.Lut));
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
@@ -35,7 +35,8 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
             passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
             cmd.PushConstants({
             	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
-            	.Data = {pushConstants}});
+            	.Data = {pushConstants}
+            });
             cmd.Dispatch({
                 .Invocations = {BRDF_RESOLUTION, BRDF_RESOLUTION, 1},
                 .GroupSize = passData.BindGroup.GetComputeMainGroupSize()

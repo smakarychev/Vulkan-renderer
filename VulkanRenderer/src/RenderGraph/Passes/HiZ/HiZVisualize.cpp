@@ -7,7 +7,7 @@
 #include "Rendering/Shader/ShaderCache.h"
 
 Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph,
-    RG::Resource hiz)
+    const ExecutionInfo& info)
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<PassData, HizVisualizeBindGroupRG>;
@@ -25,13 +25,13 @@ Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, 
 
             passData.BindGroup = HizVisualizeBindGroupRG(graph);
 
-            passData.HiZ = passData.BindGroup.SetResourcesHiz(hiz);
-            passData.ColorOut = graph.Create("ColorOut"_hsv, RGImageDescription{
+            passData.Color = graph.Create("ColorOut"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size,
-                .Reference = hiz,
+                .Reference = info.Hiz,
                 .Format = passData.BindGroup.GetHizAttachmentFormat()
             });
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
+            passData.Color = graph.RenderTarget(passData.Color, {});
+            passData.BindGroup.SetResourcesHiz(info.Hiz);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {

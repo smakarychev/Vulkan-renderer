@@ -18,7 +18,7 @@ Passes::LightClustersCascadesVisualize::PassData& Passes::LightClustersCascadesV
 
             passData.BindGroup = LightClustersVisualizeCascadesBindGroupRG(graph);
             
-            passData.ColorOut = graph.Create("Color"_hsv,
+            passData.Color = graph.Create("Color"_hsv,
                 RGImageDescription{
                     .Inference = RGImageInference::Size,
                     .Reference = info.Depth,
@@ -26,7 +26,7 @@ Passes::LightClustersCascadesVisualize::PassData& Passes::LightClustersCascadesV
 
             passData.BindGroup.SetResourcesView(info.ViewInfo);
             passData.BindGroup.SetResourcesDepth(info.Depth);
-            passData.ColorOut = graph.RenderTarget(passData.ColorOut, {});
+            passData.Color = graph.RenderTarget(passData.Color, {});
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {

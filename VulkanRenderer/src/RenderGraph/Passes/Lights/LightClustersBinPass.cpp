@@ -122,7 +122,8 @@ PassDataCrateDispatch& createIndirectDispatch(StringId name, RG::Graph& renderGr
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.Dispatch({
-                .Invocations = {1, 1, 1}});
+                .Invocations = {1, 1, 1}
+            });
         });
 }
 

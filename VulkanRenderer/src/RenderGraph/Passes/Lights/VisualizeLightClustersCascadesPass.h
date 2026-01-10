@@ -10,8 +10,7 @@ struct ExecutionInfo
 };
 struct PassData
 {
-    RG::Resource Depth{};
-    RG::Resource ColorOut{};
+    RG::Resource Color{};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);

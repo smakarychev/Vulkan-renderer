@@ -20,23 +20,22 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
 
             passData.BindGroup = LightTilesBinBindGroupRG(graph);
 
-            passData.Depth = passData.BindGroup.SetResourcesDepth(info.Depth);
             passData.Tiles = passData.BindGroup.SetResourcesTiles(info.Tiles);
-            passData.PointLights = passData.BindGroup.SetResourcesPointLights(
+            passData.BindGroup.SetResourcesDepth(info.Depth);
+            passData.BindGroup.SetResourcesPointLights(
                 graph.Import("Light.PointLights"_hsv, info.Light->GetBuffers().PointLights));
             passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=, description = renderGraph.GetImageDescription(info.Depth)]
+        (const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Bin")
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
-            auto& depthDescription = graph.GetImageDescription(passData.Depth);
-
             auto& cmd = frameContext.CommandList;
             passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
             cmd.Dispatch({
-                .Invocations = {depthDescription.Width, depthDescription.Height, 1},
+                .Invocations = {description.Width, description.Height, 1},
                 .GroupSize = {LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y, 1}
             });
         });

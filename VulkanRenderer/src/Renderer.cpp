@@ -314,7 +314,7 @@ void Renderer::ExecuteSingleTimePasses()
     Passes::EnvironmentPrefilter::addToGraph(
         "Scene.EnvironmentPrefilter"_hsv, *m_Graph, cubemap, m_SkyboxPrefilterMap, false);
     Passes::BRDFLut::addToGraph(
-        "Scene.BRDFLut"_hsv, *m_Graph, m_BRDFLut);
+        "Scene.BRDFLut"_hsv, *m_Graph, {.Lut = m_BRDFLut});
 
     m_Graph->Compile(GetFrameContext());
     m_Graph->Execute(GetFrameContext());
@@ -454,7 +454,7 @@ void Renderer::SetupRenderGraph()
         colorWithSky = RenderGraphSkyBox(color, depth);
     }
 
-    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, colorWithSky);
+    auto& fxaa = Passes::Fxaa::addToGraph("FXAA"_hsv, *m_Graph, {.Color = colorWithSky});
     Resource finalColor = fxaa.AntiAliased;
 
     if (CVars::Get().GetI32CVar("Postprocessing.CRT"_hsv).value_or(false))

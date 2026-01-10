@@ -3,7 +3,7 @@
 #include "FxaaPass.h"
 #include "RenderGraph/Passes/Generated/FxaaBindGroupRG.generated.h"
 
-Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource colorIn)
+Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<PassData, FxaaBindGroupRG>;
@@ -17,10 +17,11 @@ Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& rende
             
             passData.AntiAliased = graph.Create("AntiAliased"_hsv, RGImageDescription{
                 .Inference = RGImageInference::Size,
-                .Reference = colorIn,
-                .Format = Format::RGBA16_FLOAT});
+                .Reference = info.Color,
+                .Format = Format::RGBA16_FLOAT
+            });
 
-            passData.BindGroup.SetResourcesColor(colorIn);
+            passData.BindGroup.SetResourcesColor(info.Color);
             passData.AntiAliased = passData.BindGroup.SetResourcesAntialiased(passData.AntiAliased);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
