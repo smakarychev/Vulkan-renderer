@@ -36,7 +36,6 @@
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudShadowPass.h"
 #include "RenderGraph/Passes/Extra/SlimeMold/SlimeMoldPass.h"
 #include "RenderGraph/Passes/SceneDraw/PBR/SceneForwardPbrPass.h"
-#include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 #include "RenderGraph/Passes/HiZ/HiZVisualize.h"
 #include "RenderGraph/Passes/Lights/LightClustersBinPass.h"
 #include "RenderGraph/Passes/Lights/LightClustersSetupPass.h"
@@ -337,9 +336,16 @@ void Renderer::SetupRenderGraph()
     UpdateGlobalRenderGraphResources();
 
     Resource backbuffer = m_Graph->GetBackbufferImage();
-    
-    MaterialsShaderBindGroup bindGroup(m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader());
-    bindGroup.SetMaterials({.Buffer = m_Scene.Geometry().Materials.Buffer});
+
+    Device::UpdateDescriptors(
+        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(BINDLESS_DESCRIPTORS_INDEX),
+        DescriptorSlotInfo{
+            .Slot = BINDLESS_DESCRIPTORS_MATERIAL_BINDING_INDEX,
+            .Type = DescriptorType::StorageBuffer
+        },
+        {.Buffer = m_Scene.Geometry().Materials.Buffer},
+        0
+    );
 
     Resource color = m_Graph->Create("Color"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
         .Inference = RGImageInference::Size2d,

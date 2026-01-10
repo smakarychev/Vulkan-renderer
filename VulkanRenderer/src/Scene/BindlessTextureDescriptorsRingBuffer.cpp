@@ -3,7 +3,6 @@
 #include "BindlessTextureDescriptorsRingBuffer.h"
 
 #include "Vulkan/Device.h"
-#include "RenderGraph/Passes/Generated/MaterialsBindGroup.generated.h"
 
 BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, const Shader& shader)
     : m_MaxBindlessCount(maxCount), m_MaterialsShader(shader)
@@ -30,12 +29,7 @@ bool BindlessTextureDescriptorsRingBuffer::WillOverflow() const
 
 u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
 {
-    MaterialsShaderBindGroup bindGroup(m_MaterialsShader);
-    bindGroup.SetTextures({
-            .Subresource = {.Image = texture},
-            .Layout = ImageLayout::Readonly
-        },
-        m_Tail);
+    UpdateDescriptor(texture, m_Tail);
 
     const u32 toReturn = m_Tail;
     if (toReturn >= m_Textures.size())
@@ -52,12 +46,7 @@ u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
 
 void BindlessTextureDescriptorsRingBuffer::SetTexture(u32 index, Texture texture)
 {
-    MaterialsShaderBindGroup bindGroup(m_MaterialsShader);
-    bindGroup.SetTextures({
-            .Subresource = {.Image = texture},
-            .Layout = ImageLayout::Readonly
-        },
-        index);
+    UpdateDescriptor(texture, index);
     m_Textures[index] = texture;
 }
 
@@ -74,5 +63,19 @@ u32 BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(Images::DefaultKind 
 u32 BindlessTextureDescriptorsRingBuffer::GetNextIndex(u32 index) const
 {
     return (index + 1) % m_MaxBindlessCount;
+}
+
+void BindlessTextureDescriptorsRingBuffer::UpdateDescriptor(Texture texture, u32 index) const
+{
+    Device::UpdateDescriptors(
+        m_MaterialsShader.Descriptors(BINDLESS_DESCRIPTORS_INDEX),
+        DescriptorSlotInfo{
+            .Slot = BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX,
+            .Type = DescriptorType::Image
+        },
+        {.Image = texture},
+        ImageLayout::Readonly,
+        index
+    );
 }
 

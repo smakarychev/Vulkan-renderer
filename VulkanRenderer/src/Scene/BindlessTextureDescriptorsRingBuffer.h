@@ -31,6 +31,7 @@ public:
     u32 GetDefaultTexture(Images::DefaultKind texture) const;
 private:
     u32 GetNextIndex(u32 index) const;
+    void UpdateDescriptor(Texture texture, u32 index) const;
 private:
     u32 m_Head{0};
     u32 m_Tail{0};
