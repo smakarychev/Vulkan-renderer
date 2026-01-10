@@ -16,6 +16,7 @@ public:
         f32 ContagionThreshold;
         u32 ContagionSteps;
     };
+
     struct Slime
     {
         glm::vec2 Position;
@@ -23,11 +24,12 @@ public:
         u32 TraitsIndex;
         u32 ContagionStepsLeft;
     };
+
 public:
     static SlimeMoldContext RandomIn(const glm::uvec2& bounds, u32 traitCount, u32 slimeCount,
         ResourceUploader& resourceUploader);
     static Traits RandomTrait();
-    
+
     const glm::uvec2& GetBounds() const { return m_Resolution; }
     const std::vector<Traits>& GetTraits() const { return m_Traits; }
     const std::vector<Slime>& GetSlime() const { return m_Slime; }
@@ -36,11 +38,16 @@ public:
 
     f32& GetDiffuseRate() { return m_DiffuseRate; }
     f32& GetDecayRate() { return m_DecayRate; }
+    f32 GetDiffuseRate() const { return m_DiffuseRate; }
+    f32 GetDecayRate() const { return m_DecayRate; }
 
     Buffer GetTraitsBuffer() const { return m_TraitsBuffer; }
     Buffer GetSlimeBuffer() const { return m_SlimeBuffer; }
 
     Texture GetSlimeMap() const { return m_SlimeMap; }
+
+    void SetCleared(bool value) { m_IsCleared = value; }
+    bool IsCleared() const { return m_IsCleared; }
 private:
     glm::uvec2 m_Resolution{};
     std::vector<Traits> m_Traits;
@@ -51,13 +58,16 @@ private:
     Buffer m_TraitsBuffer;
     Buffer m_SlimeBuffer;
     Texture m_SlimeMap;
+
+    bool m_IsCleared{false};
 };
 
 namespace Passes::SlimeMold
 {
-    struct PassData
-    {
-        RG::Resource ColorOut{};
-    };
-    PassData& addToGraph(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx);
+struct PassData
+{
+    RG::Resource ColorOut{};
+};
+
+PassData& addToGraph(StringId name, RG::Graph& renderGraph, SlimeMoldContext& ctx);
 }

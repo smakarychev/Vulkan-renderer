@@ -40,7 +40,6 @@ namespace Passes::SceneCsm
 struct PassData;
 }
 
-class SlimeMoldPass;
 class SlimeMoldContext;
 class Camera;
 class CameraController;
