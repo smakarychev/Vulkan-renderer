@@ -15,13 +15,9 @@ static_assert(MAX_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
 static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
 static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expected to be at index 2");
 
-static constexpr u32 BINDLESS_DESCRIPTORS_MATERIAL_BINDING_INDEX = 0;
-static_assert(BINDLESS_DESCRIPTORS_MATERIAL_BINDING_INDEX == 0,
-    "Bindless descriptors material bindings are expected to be at index 0");
-
-static constexpr u32 BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX = 1;
-static_assert(BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == 1,
-    "Bindless descriptors texture bindings are expected to be at index 1");
+static constexpr u32 BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX = 0;
+static_assert(BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == 0,
+    "Bindless descriptors texture bindings are expected to be at index 0");
 
 class DescriptorArenaAllocators;
 class ResourceUploader;

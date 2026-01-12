@@ -24,6 +24,7 @@ Passes::SceneDepthPrepass::PassData& Passes::SceneDepthPrepass::addToGraph(Strin
                 info.Geometry->RenderObjects.Buffer));
             passData.Resources.ViewInfo = passData.BindGroup.SetResourcesView(info.DrawInfo.ViewInfo);
             passData.BindGroup.SetResourcesCommands(graph.Import("Commands"_hsv, info.Geometry->Commands.Buffer));
+            passData.BindGroup.SetResourcesMaterials(graph.Import("Materials"_hsv, info.Geometry->Materials.Buffer));
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {

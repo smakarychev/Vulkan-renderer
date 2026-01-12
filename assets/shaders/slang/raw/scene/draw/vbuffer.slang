@@ -4,6 +4,7 @@ import "scene/vbuffer/vbuffer";
 import "core/attributes";
 import "core/geometry";
 import "core/materials/material";
+import "core/texturesHeap";
 import "core/viewInfo";
 import "core/ugb";
 
@@ -17,6 +18,7 @@ struct Resources {
     UGB ugb;
     StructuredBuffer<RenderObject> renderObjects;
     StructuredBuffer<IndirectCommand> commands;
+    StructuredBuffer<StandardPbrMaterial> materials;
 }
 
 struct VSOutput
@@ -29,7 +31,7 @@ struct VSOutput
 
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
-ParameterBlock<StandardPbrMaterials> materials;
+ParameterBlock<TextureHeap> textures;
 
 [shader("vertex")]
 VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_VertexID) {
@@ -50,10 +52,10 @@ VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID:
 [shader("pixel")]
 uint pixelMain(VSOutput input, uint primitiveID: SV_PrimitiveID) {
     const IndirectCommand command = resources.commands[input.commandId];
-    const StandardPbrMaterial material = materials.materials[input.materialId];
+    const StandardPbrMaterial material = resources.materials[input.materialId];
 
     float alpha = material.albedo.a;
-    alpha *= materials.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv).a;
+    alpha *= textures.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv).a;
 
     if (alpha < 0.5f)
         discard;

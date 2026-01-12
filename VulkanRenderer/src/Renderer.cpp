@@ -337,16 +337,6 @@ void Renderer::SetupRenderGraph()
 
     Resource backbuffer = m_Graph->GetBackbufferImage();
 
-    Device::UpdateDescriptors(
-        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(BINDLESS_DESCRIPTORS_INDEX),
-        DescriptorSlotInfo{
-            .Slot = BINDLESS_DESCRIPTORS_MATERIAL_BINDING_INDEX,
-            .Type = DescriptorType::StorageBuffer
-        },
-        {.Buffer = m_Scene.Geometry().Materials.Buffer},
-        0
-    );
-
     Resource color = m_Graph->Create("Color"_hsv, ResourceCreationFlags::AutoUpdate, RGImageDescription{
         .Inference = RGImageInference::Size2d,
         .Reference = backbuffer,

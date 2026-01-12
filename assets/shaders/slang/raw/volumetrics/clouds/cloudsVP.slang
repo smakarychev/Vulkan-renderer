@@ -34,7 +34,7 @@ void cloudsVPRender(
     uint2 dispatchThreadID: SV_DispatchThreadID,
     uniform ParameterBlock<CloudsVPRenderSamplers> samplers,
     uniform ParameterBlock<CloudsVPRenderResources> resources,
-    uniform ParameterBlock<StandardPbrMaterials> materials) {
+    uniform ParameterBlock<TextureHeap> textures) {
 
     uint2 coord = dispatchThreadID;
     uint2 outCoord = coord;
@@ -61,9 +61,9 @@ void cloudsVPRender(
     const float depth = resources.depthMinMax.SampleLevel(samplers.samplerMin, uv, MIN_MAX_DEPTH_MIPMAP).r;
     const float linearDepth = -Camera.linearizeReverseZInf(max(depth, 1e-12f), resources.view.camera.near);
     const float shapeBlueNoise = noise.blueSample128(
-        materials.textures[resources.view.shading.blueNoise128], coord, resources.view.frameNumber);
+        textures.textures[resources.view.shading.blueNoise128], coord, resources.view.frameNumber);
     const float lightBlueNoise = noise.blueSample128(
-        materials.textures[resources.view.shading.blueNoise128], coord + 1, resources.view.frameNumber);
+        textures.textures[resources.view.shading.blueNoise128], coord + 1, resources.view.frameNumber);
 #else // CLOUDS_PRIMARY_VIEW
     const float linearDepth = CLOUDS_MAX_RADIUS_DEFAULT_M;
     const float shapeBlueNoise = 0.0f;
@@ -89,8 +89,8 @@ void cloudsVPRender(
 
     AtmosphereLutsSamplingInfo atmosphere;
     atmosphere.atmosphere = resources.view.atmosphere;
-    atmosphere.transmittanceLut = materials.textures[resources.view.shading.transmittanceLut];
-    atmosphere.skyviewLut = materials.textures[resources.view.shading.skyViewLut];
+    atmosphere.transmittanceLut = textures.textures[resources.view.shading.transmittanceLut];
+    atmosphere.skyviewLut = textures.textures[resources.view.shading.skyViewLut];
 #if CLOUDS_PRIMARY_VIEW
     atmosphere.aerialPerspectiveLut = resources.aerialPerspectiveLut;
 #endif // CLOUDS_PRIMARY_VIEW

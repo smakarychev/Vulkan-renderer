@@ -4,6 +4,7 @@ import "core/attributes";
 import "core/geometry";
 import "core/ugb";
 import "core/materials/material";
+import "core/texturesHeap";
 import "core/viewInfo";
 
 import "vbuffer";
@@ -35,11 +36,12 @@ struct Resources {
     CsmResources csm;
     Texture2D<float> ssao;
     PbrShadingResources pbr;
+    StructuredBuffer<StandardPbrMaterial> materials;
 }
 
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
-ParameterBlock<StandardPbrMaterials> materials;
+ParameterBlock<TextureHeap> textures;
 
 [shader("pixel")]
 float4 main(FullScreenVSOutput input) {
@@ -51,8 +53,8 @@ float4 main(FullScreenVSOutput input) {
     VBufferGeometryData gData = VBufferGeometryData(visibility, resources.ugb, resources.view, input.position,
                                                     resources.commands, resources.renderObjects, resources.indices);
 
-    const StandardPbrMaterial material = materials.materials[gData.materialId];
-    VBufferStandardPbrMaterialData materialData = VBufferStandardPbrMaterialData(gData, material, materials.textures,
+    const StandardPbrMaterial material = resources.materials[gData.materialId];
+    VBufferStandardPbrMaterialData materialData = VBufferStandardPbrMaterialData(gData, material, textures.textures,
         samplers.linearSampler);
 
     PcfShadowSampler pcfShadowSampler;
@@ -60,7 +62,7 @@ float4 main(FullScreenVSOutput input) {
         resources.view.shading.primaryDirectionalLightDirection);
     float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, gData.position, gData.normal, gData.viewZ);
     CloudsShadow cloudsShadow = CloudsShadow(
-        resources.view, materials.textures[resources.view.shading.volumetricCloudShadow], samplers.blackSampler);
+        resources.view, textures.textures[resources.view.shading.volumetricCloudShadow], samplers.blackSampler);
     shadow *= 1.0f - cloudsShadow.sample(gData.position);
 
     PbrShadingInfo shadingInfo;

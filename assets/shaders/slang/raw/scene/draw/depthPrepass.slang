@@ -3,6 +3,7 @@ module depthPrepass;
 import "core/attributes";
 import "core/geometry";
 import "core/materials/material";
+import "core/texturesHeap";
 import "core/viewInfo";
 import "core/ugb";
 
@@ -16,6 +17,7 @@ struct Resources {
     UGB ugb;
     StructuredBuffer<RenderObject> renderObjects;
     StructuredBuffer<IndirectCommand> commands;
+    StructuredBuffer<StandardPbrMaterial> materials;
 }
 
 struct VSOutput
@@ -27,7 +29,7 @@ struct VSOutput
 
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
-ParameterBlock<StandardPbrMaterials> materials;
+ParameterBlock<TextureHeap> textures;
 
 [shader("vertex")]
 VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_VertexID) {
@@ -49,8 +51,8 @@ VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID:
 [shader("pixel")]
 void pixelMain(VSOutput input) {
 #if ALPHA_TEST
-    const StandardPbrMaterial material = materials.materials[input.materialId];
-    if (materials.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv).a < 0.5f)
+    const StandardPbrMaterial material = resources.materials[input.materialId];
+    if (textures.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv).a < 0.5f)
         discard;
 #endif // ALPHA_TEST
 }

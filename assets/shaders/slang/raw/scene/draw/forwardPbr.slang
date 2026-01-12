@@ -3,6 +3,7 @@ module forwardPbr;
 import "core/attributes";
 import "core/geometry";
 import "core/materials/material";
+import "core/texturesHeap";
 import "core/viewInfo";
 import "core/ugb";
 import "pbr/pbr";
@@ -26,6 +27,7 @@ struct Resources {
     CsmResources csm;
     Texture2D<float> ssao;
     PbrShadingResources pbr;
+    StructuredBuffer<StandardPbrMaterial> materials;
 }
 
 struct VSOutput
@@ -41,7 +43,7 @@ struct VSOutput
 
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
-ParameterBlock<StandardPbrMaterials> materials;
+ParameterBlock<TextureHeap> textures;
 
 [shader("vertex")]
 VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_VertexID) {
@@ -68,10 +70,10 @@ VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID:
 
 [shader("pixel")]
 float4 pixelMain(VSOutput input) {
-    const StandardPbrMaterial material = materials.materials[input.materialId];
+    const StandardPbrMaterial material = resources.materials[input.materialId];
 
     const float4 albedo = material.albedo * 
-        materials.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv);
+        textures.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv);
 #if ALPHA_TEST
     if (albedo.a < 0.5f)
         discard;
@@ -79,7 +81,7 @@ float4 pixelMain(VSOutput input) {
 
     const float2 screenUv = input.position.xy / resources.view.camera.resolution;
 
-    const float3 emissive = materials.textures[NonUniformResourceIndex(material.emissiveTexture)].Sample(
+    const float3 emissive = textures.textures[NonUniformResourceIndex(material.emissiveTexture)].Sample(
         samplers.sampler, input.uv).rgb;
 
     float3 normal = normalize(input.normal);
@@ -88,12 +90,12 @@ float4 pixelMain(VSOutput input) {
     tangent = normalize(tangent - dot(tangent, normal) * normal);
     const float3 bitangent = normalize(cross(normal, tangent) * input.tangent.w);
     float3 normalMap = 
-        materials.textures[NonUniformResourceIndex(material.normalTexture)].Sample(samplers.sampler, input.uv).rgb;
+        textures.textures[NonUniformResourceIndex(material.normalTexture)].Sample(samplers.sampler, input.uv).rgb;
     normalMap = normalize(normalMap * 2.0f - 1.0f);
     normal = tangent * normalMap.x + bitangent * normalMap.y + normal * normalMap.z;
 
     const float2 metallicRoughness = 
-        materials.textures[NonUniformResourceIndex(material.metallicRoughnessTexture)].Sample(
+        textures.textures[NonUniformResourceIndex(material.metallicRoughnessTexture)].Sample(
             samplers.sampler, input.uv).rg;
     const float metallic = metallicRoughness.r * material.metallic;
     const float roughness = metallicRoughness.g * material.roughness;
@@ -103,7 +105,7 @@ float4 pixelMain(VSOutput input) {
         resources.view.shading.primaryDirectionalLightDirection);
     float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, input.positionWs, flatNormal, input.viewZ);
     CloudsShadow cloudsShadow = CloudsShadow(
-        resources.view, materials.textures[resources.view.shading.volumetricCloudShadow], samplers.blackSampler);
+        resources.view, textures.textures[resources.view.shading.volumetricCloudShadow], samplers.blackSampler);
     shadow *= 1.0f - cloudsShadow.sample(input.positionWs);
 
     PbrShadingInfo shadingInfo;
@@ -124,7 +126,7 @@ float4 pixelMain(VSOutput input) {
     shadingInfo.directionalShadow = shadow;
 
     const float ao = resources.ssao.SampleLevel(samplers.sampler, screenUv, 0) *
-        materials.textures[NonUniformResourceIndex(material.ambientOcclusionTexture)].Sample(
+        textures.textures[NonUniformResourceIndex(material.ambientOcclusionTexture)].Sample(
             samplers.sampler, input.uv).r;
 
     return float4(pbrShade(resources.view, shadingInfo, samplers.pbr, resources.pbr) + emissive, 1.0f);

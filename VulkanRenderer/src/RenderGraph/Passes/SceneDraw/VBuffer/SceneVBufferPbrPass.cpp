@@ -40,6 +40,7 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
             passData.BindGroup.SetResourcesView(info.ViewInfo);
             passData.BindGroup.SetResourcesCommands(graph.Import("Commands"_hsv, info.Geometry->Commands.Buffer));
+            passData.BindGroup.SetResourcesMaterials(graph.Import("Materials"_hsv, info.Geometry->Materials.Buffer));
             passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer));
             passData.BindGroup.SetResourcesIndices(graph.Import("Indices"_hsv,
