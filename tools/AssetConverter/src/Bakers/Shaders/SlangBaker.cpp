@@ -927,13 +927,20 @@ private:
                 .Name = std::format("{}_{}",
                     blockInfo.Name, blockInfo.TypeLayout->getBindingRangeLeafVariable(bindingRangeIndex)->getName()),
                 .TypeLayout =
-                blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementTypeLayout(),
+                    blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementTypeLayout(),
                 .VariableLayout =
-                blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementVarLayout()
+                    blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementVarLayout()
             });
             break;
         case slang::BindingType::PushConstant:
             ReflectPushConstant(blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex));
+            ReflectParameterBlock({
+                .Name = blockInfo.Name,
+                .TypeLayout =
+                    blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementTypeLayout(),
+                .VariableLayout =
+                    blockInfo.TypeLayout->getBindingRangeLeafTypeLayout(bindingRangeIndex)->getElementVarLayout()
+            });
             break;
         default:
             break;
