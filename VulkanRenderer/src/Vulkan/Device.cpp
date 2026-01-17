@@ -1774,19 +1774,20 @@ void Device::SubmitCommandBuffers(Span<const CommandBuffer> cmds, QueueKind queu
 Buffer Device::CreateBuffer(BufferCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     VmaAllocationCreateFlags flags = 0;
-    if (enumHasAny(createInfo.Usage, BufferUsage::Mappable))
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
-    if (enumHasAny(createInfo.Usage, BufferUsage::MappableRandomAccess))
+    if (enumHasAny(createInfo.Description.Usage, BufferUsage::MappableRandomAccess))
         flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
 
     if (createInfo.PersistentMapping)
         flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
     
-    Buffer buffer = DeviceInternal::AllocateBuffer(createInfo, vulkanBufferUsageFromUsage(createInfo.Usage), flags);    
+    Buffer buffer = DeviceInternal::AllocateBuffer(createInfo,
+        vulkanBufferUsageFromUsage(createInfo.Description.Usage), flags);    
 
     if (!createInfo.InitialData.empty())
     {
-        if (enumHasAny(createInfo.Usage, BufferUsage::Mappable | BufferUsage::MappableRandomAccess))
+        if (enumHasAny(createInfo.Description.Usage, BufferUsage::Mappable | BufferUsage::MappableRandomAccess))
         {
             SetBufferData(buffer, createInfo.InitialData, 0);
         }
@@ -1820,8 +1821,10 @@ void Device::Destroy(Buffer buffer)
 Buffer Device::CreateStagingBuffer(u64 sizeBytes)
 {
     return CreateBuffer({
-        .SizeBytes = sizeBytes,
-        .Usage = BufferUsage::Staging | BufferUsage::Mappable,
+        .Description = {
+            .SizeBytes = sizeBytes,
+            .Usage = BufferUsage::Staging | BufferUsage::Mappable,
+        },
         .PersistentMapping = true},
         DummyDeletionQueue());
 }
@@ -1835,8 +1838,10 @@ void Device::ResizeBuffer(Buffer buffer, u64 newSize, RenderCommandList& cmdList
         return;
 
     const Buffer newBuffer = CreateBuffer({
-        .SizeBytes = newSize,
-        .Usage = description.Usage,
+        .Description = {
+            .SizeBytes = newSize,
+            .Usage = description.Usage,
+        },
         .PersistentMapping = resource.HostAddress != nullptr},
         *s_State.FrameDeletionQueue);
 
@@ -2043,8 +2048,10 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPa
     assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
 
     Buffer imageBuffer = CreateBuffer({
-        .SizeBytes = textureInfo.SizeBytes,
-        .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
+        .Description = {
+            .SizeBytes = textureInfo.SizeBytes,
+            .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
+        },
         .PersistentMapping = true},
         DummyDeletionQueue());
     DeviceResources::BufferResource& imageBufferResource = Resources()[imageBuffer];
@@ -2078,8 +2085,10 @@ Image Device::CreateImageFromPixels(ImageCreateInfo& createInfo, Span<const std:
     }
     
     Buffer imageBuffer = CreateBuffer({
-        .SizeBytes = pixels.size(),
-        .Usage = BufferUsage::Source | BufferUsage::Staging,
+        .Description = {
+            .SizeBytes = pixels.size(),
+            .Usage = BufferUsage::Source | BufferUsage::Staging,
+        },
         .InitialData = pixels},
         DummyDeletionQueue());
 
@@ -4722,7 +4731,7 @@ Buffer DeviceInternal::AllocateBuffer(const BufferCreateInfo& createInfo, VkBuff
 {
     VkBufferCreateInfo bufferCreateInfo = {};
     bufferCreateInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    bufferCreateInfo.size = createInfo.SizeBytes;
+    bufferCreateInfo.size = createInfo.Description.SizeBytes;
     bufferCreateInfo.usage = usage;
 
     VmaAllocationCreateInfo allocationCreateInfo = {};
@@ -4734,8 +4743,8 @@ Buffer DeviceInternal::AllocateBuffer(const BufferCreateInfo& createInfo, VkBuff
         &bufferResource.Buffer, &bufferResource.Allocation, nullptr),
         "Failed to create a buffer");
 
-    bufferResource.Description.SizeBytes = createInfo.SizeBytes;
-    bufferResource.Description.Usage = createInfo.Usage;
+    bufferResource.Description.SizeBytes = createInfo.Description.SizeBytes;
+    bufferResource.Description.Usage = createInfo.Description.Usage;
     if (createInfo.PersistentMapping)
         bufferResource.HostAddress = bufferResource.Allocation->GetMappedData();
 

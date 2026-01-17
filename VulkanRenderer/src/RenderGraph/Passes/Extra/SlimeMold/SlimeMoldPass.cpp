@@ -31,14 +31,18 @@ SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitC
         };
 
     ctx.m_TraitsBuffer = Device::CreateBuffer({
-        .SizeBytes = (u32)ctx.m_Traits.size() * sizeof(Traits),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
+        .Description = {
+            .SizeBytes = (u32)ctx.m_Traits.size() * sizeof(Traits),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
+        },
         .InitialData = ctx.m_Traits
     });
 
     ctx.m_SlimeBuffer = Device::CreateBuffer({
-        .SizeBytes = (u32)ctx.m_Slime.size() * sizeof(Slime),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
+        .Description = {
+            .SizeBytes = (u32)ctx.m_Slime.size() * sizeof(Slime),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage,
+        },
         .InitialData = ctx.m_Slime
     });
 

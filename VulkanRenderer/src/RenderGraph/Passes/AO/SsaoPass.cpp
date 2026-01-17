@@ -58,8 +58,10 @@ std::pair<Texture, Buffer> generateSamples(u32 count)
     }
 
     Buffer samplesBuffer = Device::CreateBuffer({
-        .SizeBytes = samples.size() * sizeof(glm::vec4),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
+        .Description {
+            .SizeBytes = samples.size() * sizeof(glm::vec4),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Mappable | BufferUsage::Uniform,
+        },
         .InitialData = samples
     });
 

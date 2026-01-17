@@ -10,13 +10,17 @@ SceneBucket::SceneBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue&
     : Filter(createInfo.Filter), ShaderOverrides(createInfo.ShaderOverrides), m_Name(createInfo.Name)
 {
     m_Draws.Buffer = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Pass.DrawCommands.SizeBytes"_hsv),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Indirect | BufferUsage::Source},
-        deletionQueue);
+        .Description = {
+            .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Pass.DrawCommands.SizeBytes"_hsv),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Indirect | BufferUsage::Source
+        },
+    }, deletionQueue);
     m_DrawInfo = Device::CreateBuffer({
-        .SizeBytes = sizeof(SceneBucketDrawInfo),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform | BufferUsage::Indirect},
-        deletionQueue);
+        .Description = {
+            .SizeBytes = sizeof(SceneBucketDrawInfo),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform | BufferUsage::Indirect
+        },
+    }, deletionQueue);
 }
 
 void SceneBucket::OnUpdate(FrameContext& ctx)

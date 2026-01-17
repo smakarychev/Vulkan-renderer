@@ -94,13 +94,17 @@ SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
     SceneLight light = {};
 
     light.m_Buffers.DirectionalLights = Device::CreateBuffer({
-        .SizeBytes = sizeof(DirectionalLight),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Uniform | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
+        .Description = {
+            .SizeBytes = sizeof(DirectionalLight),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Uniform | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, deletionQueue);
     light.m_Buffers.PointLights = Device::CreateBuffer({
-        .SizeBytes = sizeof(PointLight),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
+        .Description = {
+            .SizeBytes = sizeof(PointLight),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, deletionQueue);
 
     return light;
 }

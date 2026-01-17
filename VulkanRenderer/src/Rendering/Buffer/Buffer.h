@@ -4,14 +4,6 @@
 #include "BufferTraits.h"
 #include "Containers/Span.h"
 
-struct BufferCreateInfo
-{
-    u64 SizeBytes{0};
-    BufferUsage Usage{BufferUsage::None};
-    bool PersistentMapping{false};
-    Span<const std::byte> InitialData{};
-};
-
 struct BufferTag{};
 using Buffer = ResourceHandleType<BufferTag>;
 
@@ -34,4 +26,11 @@ struct BufferDescription
 {
     u64 SizeBytes{0};
     BufferUsage Usage{BufferUsage::None};
+};
+
+struct BufferCreateInfo
+{
+    BufferDescription Description{};
+    bool PersistentMapping{false};
+    Span<const std::byte> InitialData{};
 };

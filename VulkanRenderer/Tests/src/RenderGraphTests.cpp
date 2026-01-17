@@ -223,7 +223,7 @@ TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
     {
         Device::Init(DeviceCreateInfo::Default(nullptr, true));
         RG::Graph graph;
-        Buffer buffer = Device::CreateBuffer({.SizeBytes = 4, .Usage = BufferUsage::Ordinary | BufferUsage::Uniform});
+        Buffer buffer = Device::CreateBuffer({{.SizeBytes = 4, .Usage = BufferUsage::Ordinary | BufferUsage::Uniform}});
         RG::Resource bufferResource = graph.Import("MyBuffer"_hsv, buffer);
         REQUIRE(bufferResource.IsValid());
         REQUIRE(graph.GetBuffer(bufferResource).HasValue());
@@ -1475,8 +1475,11 @@ TEST_CASE("RenderGraph Passes", "[RenderGraph][Pass]")
     SECTION("Imported resources are not aliased")
     {
         Buffer physicalBuffer = Device::CreateBuffer({
-            .SizeBytes = 4,
-            .Usage = BufferUsage::Storage});
+            .Description = {
+                .SizeBytes = 4,
+                .Usage = BufferUsage::Storage
+            }
+        });
         RG::Resource buffer0 = renderGraph.Import("Buffer"_hsv, physicalBuffer);
         RG::Resource buffer1 = renderGraph.Create("BufferAliased"_hsv, RG::RGBufferDescription{
             .SizeBytes = 4});

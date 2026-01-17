@@ -89,11 +89,15 @@ const SceneRenderObjectSet& SceneMultiviewVisibility::ObjectSet() const
 void SceneMultiviewVisibility::CreateVisibilityBuffers()
 {
     m_Visibilities[m_ViewCount].Visibility.RenderObjectVisibility = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Buffer.SizeBytes"_hsv),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        Device::DummyDeletionQueue());
+        .Description = {
+            .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Buffer.SizeBytes"_hsv),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, Device::DummyDeletionQueue());
     m_Visibilities[m_ViewCount].Visibility.MeshletVisibility = Device::CreateBuffer({
-        .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Meshlet.Buffer.SizeBytes"_hsv),
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        Device::DummyDeletionQueue());
+        .Description = {
+            .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.Visibility.Meshlet.Buffer.SizeBytes"_hsv),
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, Device::DummyDeletionQueue());
 }

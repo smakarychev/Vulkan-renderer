@@ -1333,8 +1333,10 @@ namespace RG
 
         if (!target.HasValue())
             target = Device::CreateBuffer({
-                 .SizeBytes = buffer.Description.SizeBytes,
-                 .Usage = buffer.Description.Usage
+                .Description = {
+                    .SizeBytes = buffer.Description.SizeBytes,
+                    .Usage = buffer.Description.Usage,
+                },
              },
              deletionQueue);
 

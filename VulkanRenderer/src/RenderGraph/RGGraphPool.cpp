@@ -175,8 +175,10 @@ namespace RG
     {
         m_Buffers.push_back({
             .Resource = Device::CreateBuffer({
-                .SizeBytes = buffer.SizeBytes,
-                .Usage = buffer.Usage
+                .Description = {
+                    .SizeBytes = buffer.SizeBytes,
+                    .Usage = buffer.Usage
+                },
             }, Device::DummyDeletionQueue()),
             .Description = buffer,
             .Handle = resource,

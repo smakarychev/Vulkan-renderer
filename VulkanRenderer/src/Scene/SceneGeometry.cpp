@@ -232,34 +232,46 @@ SceneGeometry SceneGeometry::CreateEmpty(DeletionQueue& deletionQueue)
     SceneGeometry geometry = {};
     geometry.Attributes = Device::CreateBufferArena({
        .Buffer = Device::CreateBuffer({
-           .SizeBytes = DEFAULT_ATTRIBUTES_BUFFER_ARENA_SIZE_BYTES,
-           .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-           deletionQueue),
+           .Description = { 
+               .SizeBytes = DEFAULT_ATTRIBUTES_BUFFER_ARENA_SIZE_BYTES,
+               .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+           },
+        }, deletionQueue),
         .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES},
        deletionQueue);
     geometry.Indices = Device::CreateBufferArena({
         .Buffer = Device::CreateBuffer({
-            .SizeBytes = DEFAULT_INDICES_BUFFER_ARENA_SIZE_BYTES,
-            .Usage = BufferUsage::Ordinary | BufferUsage::Index | BufferUsage::Storage | BufferUsage::Source},
-            deletionQueue),
+            .Description = {
+                .SizeBytes = DEFAULT_INDICES_BUFFER_ARENA_SIZE_BYTES,
+                .Usage = BufferUsage::Ordinary | BufferUsage::Index | BufferUsage::Storage | BufferUsage::Source
+            },
+        }, deletionQueue),
         .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES},
         deletionQueue);
     geometry.RenderObjects.Buffer = Device::CreateBuffer({
-        .SizeBytes = DEFAULT_RENDER_OBJECTS_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
+        .Description = {
+            .SizeBytes = DEFAULT_RENDER_OBJECTS_BUFFER_SIZE_BYTES,
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, deletionQueue);
     geometry.Meshlets.Buffer = Device::CreateBuffer({
+        .Description = {
         .SizeBytes = DEFAULT_MESHLET_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
+        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, deletionQueue);
     geometry.Commands.Buffer = Device::CreateBuffer({
-        .SizeBytes = DEFAULT_COMMANDS_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
+        .Description = {
+            .SizeBytes = DEFAULT_COMMANDS_BUFFER_SIZE_BYTES,
+            .Usage = BufferUsage::Ordinary | BufferUsage::Indirect | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, deletionQueue);
     geometry.Materials.Buffer = Device::CreateBuffer({
-        .SizeBytes = DEFAULT_MATERIALS_BUFFER_SIZE_BYTES,
-        .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source},
-        deletionQueue);
+        .Description = {
+            .SizeBytes = DEFAULT_MATERIALS_BUFFER_SIZE_BYTES,
+            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+        },
+    }, deletionQueue);
 
     return geometry;
 }
