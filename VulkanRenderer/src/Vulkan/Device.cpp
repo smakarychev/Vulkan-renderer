@@ -39,63 +39,309 @@ namespace
     
     constexpr VkFormat vulkanFormatFromFormat(Format format)
     {
-        switch (format)
-        {
-        case Format::Undefined:            return VK_FORMAT_UNDEFINED;
-        case Format::R8_UNORM:             return VK_FORMAT_R8_UNORM; 
-        case Format::R8_SNORM:             return VK_FORMAT_R8_SNORM;
-        case Format::R8_UINT:              return VK_FORMAT_R8_UINT;
-        case Format::R8_SINT:              return VK_FORMAT_R8_SINT;
-        case Format::R8_SRGB:              return VK_FORMAT_R8_SRGB;
-        case Format::RG8_UNORM:            return VK_FORMAT_R8G8_UNORM;
-        case Format::RG8_SNORM:            return VK_FORMAT_R8G8_SNORM;
-        case Format::RG8_UINT:             return VK_FORMAT_R8G8_UINT;
-        case Format::RG8_SINT:             return VK_FORMAT_R8G8_SINT;
-        case Format::RG8_SRGB:             return VK_FORMAT_R8G8_SRGB;
-        case Format::RGBA8_UNORM:          return VK_FORMAT_R8G8B8A8_UNORM;
-        case Format::RGBA8_SNORM:          return VK_FORMAT_R8G8B8A8_SNORM;
-        case Format::RGBA8_UINT:           return VK_FORMAT_R8G8B8A8_UINT;
-        case Format::RGBA8_SINT:           return VK_FORMAT_R8G8B8A8_SINT;
-        case Format::RGBA8_SRGB:           return VK_FORMAT_R8G8B8A8_SRGB;
-        case Format::R16_UNORM:            return VK_FORMAT_R16_UNORM;
-        case Format::R16_SNORM:            return VK_FORMAT_R16_SNORM;
-        case Format::R16_UINT:             return VK_FORMAT_R16_UINT;
-        case Format::R16_SINT:             return VK_FORMAT_R16_SINT;
-        case Format::R16_FLOAT:            return VK_FORMAT_R16_SFLOAT;
-        case Format::RG16_UNORM:           return VK_FORMAT_R16G16_UNORM;
-        case Format::RG16_SNORM:           return VK_FORMAT_R16G16_SNORM;
-        case Format::RG16_UINT:            return VK_FORMAT_R16G16_UINT;
-        case Format::RG16_SINT:            return VK_FORMAT_R16G16_SINT;
-        case Format::RG16_FLOAT:           return VK_FORMAT_R16G16_SFLOAT;
-        case Format::RGBA16_UNORM:         return VK_FORMAT_R16G16B16A16_UNORM;
-        case Format::RGBA16_SNORM:         return VK_FORMAT_R16G16B16A16_SNORM;
-        case Format::RGBA16_UINT:          return VK_FORMAT_R16G16B16A16_UINT;
-        case Format::RGBA16_SINT:          return VK_FORMAT_R16G16B16A16_SINT;
-        case Format::RGBA16_FLOAT:         return VK_FORMAT_R16G16B16A16_SFLOAT;
-        case Format::R32_UINT:             return VK_FORMAT_R32_UINT;
-        case Format::R32_SINT:             return VK_FORMAT_R32_SINT;
-        case Format::R32_FLOAT:            return VK_FORMAT_R32_SFLOAT;
-        case Format::RG32_UINT:            return VK_FORMAT_R32G32_UINT;
-        case Format::RG32_SINT:            return VK_FORMAT_R32G32_SINT;
-        case Format::RG32_FLOAT:           return VK_FORMAT_R32G32_SFLOAT;
-        case Format::RGB32_UINT:           return VK_FORMAT_R32G32B32_UINT; 
-        case Format::RGB32_SINT:           return VK_FORMAT_R32G32B32_SINT;
-        case Format::RGB32_FLOAT:          return VK_FORMAT_R32G32B32_SFLOAT;
-        case Format::RGBA32_UINT:          return VK_FORMAT_R32G32B32A32_UINT;
-        case Format::RGBA32_SINT:          return VK_FORMAT_R32G32B32A32_SINT;
-        case Format::RGBA32_FLOAT:         return VK_FORMAT_R32G32B32A32_SFLOAT;
-        case Format::RGB10A2:              return VK_FORMAT_A2R10G10B10_SNORM_PACK32;
-        case Format::R11G11B10:            return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
-        case Format::D32_FLOAT:            return VK_FORMAT_D32_SFLOAT;
-        case Format::D24_UNORM_S8_UINT:    return VK_FORMAT_D24_UNORM_S8_UINT;
-        case Format::D32_FLOAT_S8_UINT:    return VK_FORMAT_D32_SFLOAT_S8_UINT;
-            
-        case Format::MaxVal:
-        default:
-            ASSERT(false, "Unsupported image format")
-            break;
-        }
-        std::unreachable();
+        static_assert((u32)Format::Undefined == VK_FORMAT_UNDEFINED);
+        static_assert((u32)Format::RG4_UNORM_PACK8 == VK_FORMAT_R4G4_UNORM_PACK8);
+        static_assert((u32)Format::RGBA4_UNORM_PACK16 == VK_FORMAT_R4G4B4A4_UNORM_PACK16);
+        static_assert((u32)Format::BGRA4_UNORM_PACK16 == VK_FORMAT_B4G4R4A4_UNORM_PACK16);
+        static_assert((u32)Format::R5G6B5_UNORM_PACK16 == VK_FORMAT_R5G6B5_UNORM_PACK16);
+        static_assert((u32)Format::B5G6R5_UNORM_PACK16 == VK_FORMAT_B5G6R5_UNORM_PACK16);
+        static_assert((u32)Format::RGB5A1_UNORM_PACK16 == VK_FORMAT_R5G5B5A1_UNORM_PACK16);
+        static_assert((u32)Format::BGR5A1_UNORM_PACK16 == VK_FORMAT_B5G5R5A1_UNORM_PACK16);
+        static_assert((u32)Format::A1RGB5_UNORM_PACK16 == VK_FORMAT_A1R5G5B5_UNORM_PACK16);
+        static_assert((u32)Format::R8_UNORM == VK_FORMAT_R8_UNORM);
+        static_assert((u32)Format::R8_SNORM == VK_FORMAT_R8_SNORM);
+        static_assert((u32)Format::R8_USCALED == VK_FORMAT_R8_USCALED);
+        static_assert((u32)Format::R8_SSCALED == VK_FORMAT_R8_SSCALED);
+        static_assert((u32)Format::R8_UINT == VK_FORMAT_R8_UINT);
+        static_assert((u32)Format::R8_SINT == VK_FORMAT_R8_SINT);
+        static_assert((u32)Format::R8_SRGB == VK_FORMAT_R8_SRGB);
+        static_assert((u32)Format::RG8_UNORM == VK_FORMAT_R8G8_UNORM);
+        static_assert((u32)Format::RG8_SNORM == VK_FORMAT_R8G8_SNORM);
+        static_assert((u32)Format::RG8_USCALED == VK_FORMAT_R8G8_USCALED);
+        static_assert((u32)Format::RG8_SSCALED == VK_FORMAT_R8G8_SSCALED);
+        static_assert((u32)Format::RG8_UINT == VK_FORMAT_R8G8_UINT);
+        static_assert((u32)Format::RG8_SINT == VK_FORMAT_R8G8_SINT);
+        static_assert((u32)Format::RG8_SRGB == VK_FORMAT_R8G8_SRGB);
+        static_assert((u32)Format::RGB8_UNORM == VK_FORMAT_R8G8B8_UNORM);
+        static_assert((u32)Format::RGB8_SNORM == VK_FORMAT_R8G8B8_SNORM);
+        static_assert((u32)Format::RGB8_USCALED == VK_FORMAT_R8G8B8_USCALED);
+        static_assert((u32)Format::RGB8_SSCALED == VK_FORMAT_R8G8B8_SSCALED);
+        static_assert((u32)Format::RGB8_UINT == VK_FORMAT_R8G8B8_UINT);
+        static_assert((u32)Format::RGB8_SINT == VK_FORMAT_R8G8B8_SINT);
+        static_assert((u32)Format::RGB8_SRGB == VK_FORMAT_R8G8B8_SRGB);
+        static_assert((u32)Format::BGR8_UNORM == VK_FORMAT_B8G8R8_UNORM);
+        static_assert((u32)Format::BGR8_SNORM == VK_FORMAT_B8G8R8_SNORM);
+        static_assert((u32)Format::BGR8_USCALED == VK_FORMAT_B8G8R8_USCALED);
+        static_assert((u32)Format::BGR8_SSCALED == VK_FORMAT_B8G8R8_SSCALED);
+        static_assert((u32)Format::BGR8_UINT == VK_FORMAT_B8G8R8_UINT);
+        static_assert((u32)Format::BGR8_SINT == VK_FORMAT_B8G8R8_SINT);
+        static_assert((u32)Format::BGR8_SRGB == VK_FORMAT_B8G8R8_SRGB);
+        static_assert((u32)Format::RGBA8_UNORM == VK_FORMAT_R8G8B8A8_UNORM);
+        static_assert((u32)Format::RGBA8_SNORM == VK_FORMAT_R8G8B8A8_SNORM);
+        static_assert((u32)Format::RGBA8_USCALED == VK_FORMAT_R8G8B8A8_USCALED);
+        static_assert((u32)Format::RGBA8_SSCALED == VK_FORMAT_R8G8B8A8_SSCALED);
+        static_assert((u32)Format::RGBA8_UINT == VK_FORMAT_R8G8B8A8_UINT);
+        static_assert((u32)Format::RGBA8_SINT == VK_FORMAT_R8G8B8A8_SINT);
+        static_assert((u32)Format::RGBA8_SRGB == VK_FORMAT_R8G8B8A8_SRGB);
+        static_assert((u32)Format::BGRA8_UNORM == VK_FORMAT_B8G8R8A8_UNORM);
+        static_assert((u32)Format::BGRA8_SNORM == VK_FORMAT_B8G8R8A8_SNORM);
+        static_assert((u32)Format::BGRA8_USCALED == VK_FORMAT_B8G8R8A8_USCALED);
+        static_assert((u32)Format::BGRA8_SSCALED == VK_FORMAT_B8G8R8A8_SSCALED);
+        static_assert((u32)Format::BGRA8_UINT == VK_FORMAT_B8G8R8A8_UINT);
+        static_assert((u32)Format::BGRA8_SINT == VK_FORMAT_B8G8R8A8_SINT);
+        static_assert((u32)Format::BGRA8_SRGB == VK_FORMAT_B8G8R8A8_SRGB);
+        static_assert((u32)Format::ABGR8_UNORM_PACK32 == VK_FORMAT_A8B8G8R8_UNORM_PACK32);
+        static_assert((u32)Format::ABGR8_SNORM_PACK32 == VK_FORMAT_A8B8G8R8_SNORM_PACK32);
+        static_assert((u32)Format::ABGR8_USCALED_PACK32 == VK_FORMAT_A8B8G8R8_USCALED_PACK32);
+        static_assert((u32)Format::ABGR8_SSCALED_PACK32 == VK_FORMAT_A8B8G8R8_SSCALED_PACK32);
+        static_assert((u32)Format::ABGR8_UINT_PACK32 == VK_FORMAT_A8B8G8R8_UINT_PACK32);
+        static_assert((u32)Format::ABGR8_SINT_PACK32 == VK_FORMAT_A8B8G8R8_SINT_PACK32);
+        static_assert((u32)Format::ABGR8_SRGB_PACK32 == VK_FORMAT_A8B8G8R8_SRGB_PACK32);
+        static_assert((u32)Format::A2RGB10_UNORM_PACK32 == VK_FORMAT_A2R10G10B10_UNORM_PACK32);
+        static_assert((u32)Format::A2RGB10_SNORM_PACK32 == VK_FORMAT_A2R10G10B10_SNORM_PACK32);
+        static_assert((u32)Format::A2RGB10_USCALED_PACK32 == VK_FORMAT_A2R10G10B10_USCALED_PACK32);
+        static_assert((u32)Format::A2RGB10_SSCALED_PACK32 == VK_FORMAT_A2R10G10B10_SSCALED_PACK32);
+        static_assert((u32)Format::A2RGB10_UINT_PACK32 == VK_FORMAT_A2R10G10B10_UINT_PACK32);
+        static_assert((u32)Format::A2RGB10_SINT_PACK32 == VK_FORMAT_A2R10G10B10_SINT_PACK32);
+        static_assert((u32)Format::A2BGR10_UNORM_PACK32 == VK_FORMAT_A2B10G10R10_UNORM_PACK32);
+        static_assert((u32)Format::A2BGR10_SNORM_PACK32 == VK_FORMAT_A2B10G10R10_SNORM_PACK32);
+        static_assert((u32)Format::A2BGR10_USCALED_PACK32 == VK_FORMAT_A2B10G10R10_USCALED_PACK32);
+        static_assert((u32)Format::A2BGR10_SSCALED_PACK32 == VK_FORMAT_A2B10G10R10_SSCALED_PACK32);
+        static_assert((u32)Format::A2BGR10_UINT_PACK32 == VK_FORMAT_A2B10G10R10_UINT_PACK32);
+        static_assert((u32)Format::A2BGR10_SINT_PACK32 == VK_FORMAT_A2B10G10R10_SINT_PACK32);
+        static_assert((u32)Format::R16_UNORM == VK_FORMAT_R16_UNORM);
+        static_assert((u32)Format::R16_SNORM == VK_FORMAT_R16_SNORM);
+        static_assert((u32)Format::R16_USCALED == VK_FORMAT_R16_USCALED);
+        static_assert((u32)Format::R16_SSCALED == VK_FORMAT_R16_SSCALED);
+        static_assert((u32)Format::R16_UINT == VK_FORMAT_R16_UINT);
+        static_assert((u32)Format::R16_SINT == VK_FORMAT_R16_SINT);
+        static_assert((u32)Format::R16_FLOAT == VK_FORMAT_R16_SFLOAT);
+        static_assert((u32)Format::RG16_UNORM == VK_FORMAT_R16G16_UNORM);
+        static_assert((u32)Format::RG16_SNORM == VK_FORMAT_R16G16_SNORM);
+        static_assert((u32)Format::RG16_USCALED == VK_FORMAT_R16G16_USCALED);
+        static_assert((u32)Format::RG16_SSCALED == VK_FORMAT_R16G16_SSCALED);
+        static_assert((u32)Format::RG16_UINT == VK_FORMAT_R16G16_UINT);
+        static_assert((u32)Format::RG16_SINT == VK_FORMAT_R16G16_SINT);
+        static_assert((u32)Format::RG16_FLOAT == VK_FORMAT_R16G16_SFLOAT);
+        static_assert((u32)Format::RGB16_UNORM == VK_FORMAT_R16G16B16_UNORM);
+        static_assert((u32)Format::RGB16_SNORM == VK_FORMAT_R16G16B16_SNORM);
+        static_assert((u32)Format::RGB16_USCALED == VK_FORMAT_R16G16B16_USCALED);
+        static_assert((u32)Format::RGB16_SSCALED == VK_FORMAT_R16G16B16_SSCALED);
+        static_assert((u32)Format::RGB16_UINT == VK_FORMAT_R16G16B16_UINT);
+        static_assert((u32)Format::RGB16_SINT == VK_FORMAT_R16G16B16_SINT);
+        static_assert((u32)Format::RGB16_FLOAT == VK_FORMAT_R16G16B16_SFLOAT);
+        static_assert((u32)Format::RGBA16_UNORM == VK_FORMAT_R16G16B16A16_UNORM);
+        static_assert((u32)Format::RGBA16_SNORM == VK_FORMAT_R16G16B16A16_SNORM);
+        static_assert((u32)Format::RGBA16_USCALED == VK_FORMAT_R16G16B16A16_USCALED);
+        static_assert((u32)Format::RGBA16_SSCALED == VK_FORMAT_R16G16B16A16_SSCALED);
+        static_assert((u32)Format::RGBA16_UINT == VK_FORMAT_R16G16B16A16_UINT);
+        static_assert((u32)Format::RGBA16_SINT == VK_FORMAT_R16G16B16A16_SINT);
+        static_assert((u32)Format::RGBA16_FLOAT == VK_FORMAT_R16G16B16A16_SFLOAT);
+        static_assert((u32)Format::R32_UINT == VK_FORMAT_R32_UINT);
+        static_assert((u32)Format::R32_SINT == VK_FORMAT_R32_SINT);
+        static_assert((u32)Format::R32_FLOAT == VK_FORMAT_R32_SFLOAT);
+        static_assert((u32)Format::RG32_UINT == VK_FORMAT_R32G32_UINT);
+        static_assert((u32)Format::RG32_SINT == VK_FORMAT_R32G32_SINT);
+        static_assert((u32)Format::RG32_FLOAT == VK_FORMAT_R32G32_SFLOAT);
+        static_assert((u32)Format::RGB32_UINT == VK_FORMAT_R32G32B32_UINT);
+        static_assert((u32)Format::RGB32_SINT == VK_FORMAT_R32G32B32_SINT);
+        static_assert((u32)Format::RGB32_FLOAT == VK_FORMAT_R32G32B32_SFLOAT);
+        static_assert((u32)Format::RGBA32_UINT == VK_FORMAT_R32G32B32A32_UINT);
+        static_assert((u32)Format::RGBA32_SINT == VK_FORMAT_R32G32B32A32_SINT);
+        static_assert((u32)Format::RGBA32_FLOAT == VK_FORMAT_R32G32B32A32_SFLOAT);
+        static_assert((u32)Format::R64_UINT == VK_FORMAT_R64_UINT);
+        static_assert((u32)Format::R64_SINT == VK_FORMAT_R64_SINT);
+        static_assert((u32)Format::R64_FLOAT == VK_FORMAT_R64_SFLOAT);
+        static_assert((u32)Format::RG64_UINT == VK_FORMAT_R64G64_UINT);
+        static_assert((u32)Format::RG64_SINT == VK_FORMAT_R64G64_SINT);
+        static_assert((u32)Format::RG64_FLOAT == VK_FORMAT_R64G64_SFLOAT);
+        static_assert((u32)Format::RGB64_UINT == VK_FORMAT_R64G64B64_UINT);
+        static_assert((u32)Format::RGB64_SINT == VK_FORMAT_R64G64B64_SINT);
+        static_assert((u32)Format::RGB64_FLOAT == VK_FORMAT_R64G64B64_SFLOAT);
+        static_assert((u32)Format::RGBA64_UINT == VK_FORMAT_R64G64B64A64_UINT);
+        static_assert((u32)Format::RGBA64_SINT == VK_FORMAT_R64G64B64A64_SINT);
+        static_assert((u32)Format::RGBA64_FLOAT == VK_FORMAT_R64G64B64A64_SFLOAT);
+        static_assert((u32)Format::B10G11R11_UFLOAT_PACK32 == VK_FORMAT_B10G11R11_UFLOAT_PACK32);
+        static_assert((u32)Format::E5BGR9_UFLOAT_PACK32 == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32);
+        static_assert((u32)Format::D16_UNORM == VK_FORMAT_D16_UNORM);
+        static_assert((u32)Format::X8_D24_UNORM_PACK32 == VK_FORMAT_X8_D24_UNORM_PACK32);
+        static_assert((u32)Format::D32_FLOAT == VK_FORMAT_D32_SFLOAT);
+        static_assert((u32)Format::S8_UINT == VK_FORMAT_S8_UINT);
+        static_assert((u32)Format::D16_UNORM_S8_UINT == VK_FORMAT_D16_UNORM_S8_UINT);
+        static_assert((u32)Format::D24_UNORM_S8_UINT == VK_FORMAT_D24_UNORM_S8_UINT);
+        static_assert((u32)Format::D32_FLOAT_S8_UINT == VK_FORMAT_D32_SFLOAT_S8_UINT);
+        static_assert((u32)Format::BC1_RGB_UNORM_BLOCK == VK_FORMAT_BC1_RGB_UNORM_BLOCK);
+        static_assert((u32)Format::BC1_RGB_SRGB_BLOCK == VK_FORMAT_BC1_RGB_SRGB_BLOCK);
+        static_assert((u32)Format::BC1_RGBA_UNORM_BLOCK == VK_FORMAT_BC1_RGBA_UNORM_BLOCK);
+        static_assert((u32)Format::BC1_RGBA_SRGB_BLOCK == VK_FORMAT_BC1_RGBA_SRGB_BLOCK);
+        static_assert((u32)Format::BC2_UNORM_BLOCK == VK_FORMAT_BC2_UNORM_BLOCK);
+        static_assert((u32)Format::BC2_SRGB_BLOCK == VK_FORMAT_BC2_SRGB_BLOCK);
+        static_assert((u32)Format::BC3_UNORM_BLOCK == VK_FORMAT_BC3_UNORM_BLOCK);
+        static_assert((u32)Format::BC3_SRGB_BLOCK == VK_FORMAT_BC3_SRGB_BLOCK);
+        static_assert((u32)Format::BC4_UNORM_BLOCK == VK_FORMAT_BC4_UNORM_BLOCK);
+        static_assert((u32)Format::BC4_SNORM_BLOCK == VK_FORMAT_BC4_SNORM_BLOCK);
+        static_assert((u32)Format::BC5_UNORM_BLOCK == VK_FORMAT_BC5_UNORM_BLOCK);
+        static_assert((u32)Format::BC5_SNORM_BLOCK == VK_FORMAT_BC5_SNORM_BLOCK);
+        static_assert((u32)Format::BC6H_UFLOAT_BLOCK == VK_FORMAT_BC6H_UFLOAT_BLOCK);
+        static_assert((u32)Format::BC6H_FLOAT_BLOCK == VK_FORMAT_BC6H_SFLOAT_BLOCK);
+        static_assert((u32)Format::BC7_UNORM_BLOCK == VK_FORMAT_BC7_UNORM_BLOCK);
+        static_assert((u32)Format::BC7_SRGB_BLOCK == VK_FORMAT_BC7_SRGB_BLOCK);
+        static_assert((u32)Format::ETC2_RGB8_UNORM_BLOCK == VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK);
+        static_assert((u32)Format::ETC2_RGB8_SRGB_BLOCK == VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK);
+        static_assert((u32)Format::ETC2_RGB8A1_UNORM_BLOCK == VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK);
+        static_assert((u32)Format::ETC2_RGB8A1_SRGB_BLOCK == VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK);
+        static_assert((u32)Format::ETC2_RGBA8_UNORM_BLOCK == VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK);
+        static_assert((u32)Format::ETC2_RGBA8_SRGB_BLOCK == VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK);
+        static_assert((u32)Format::EAC_R11_UNORM_BLOCK == VK_FORMAT_EAC_R11_UNORM_BLOCK);
+        static_assert((u32)Format::EAC_R11_SNORM_BLOCK == VK_FORMAT_EAC_R11_SNORM_BLOCK);
+        static_assert((u32)Format::EAC_R11G11_UNORM_BLOCK == VK_FORMAT_EAC_R11G11_UNORM_BLOCK);
+        static_assert((u32)Format::EAC_R11G11_SNORM_BLOCK == VK_FORMAT_EAC_R11G11_SNORM_BLOCK);
+        static_assert((u32)Format::ASTC_4x4_UNORM_BLOCK == VK_FORMAT_ASTC_4x4_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_4x4_SRGB_BLOCK == VK_FORMAT_ASTC_4x4_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_5x4_UNORM_BLOCK == VK_FORMAT_ASTC_5x4_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_5x4_SRGB_BLOCK == VK_FORMAT_ASTC_5x4_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_5x5_UNORM_BLOCK == VK_FORMAT_ASTC_5x5_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_5x5_SRGB_BLOCK == VK_FORMAT_ASTC_5x5_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_6x5_UNORM_BLOCK == VK_FORMAT_ASTC_6x5_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_6x5_SRGB_BLOCK == VK_FORMAT_ASTC_6x5_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_6x6_UNORM_BLOCK == VK_FORMAT_ASTC_6x6_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_6x6_SRGB_BLOCK == VK_FORMAT_ASTC_6x6_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_8x5_UNORM_BLOCK == VK_FORMAT_ASTC_8x5_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_8x5_SRGB_BLOCK == VK_FORMAT_ASTC_8x5_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_8x6_UNORM_BLOCK == VK_FORMAT_ASTC_8x6_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_8x6_SRGB_BLOCK == VK_FORMAT_ASTC_8x6_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_8x8_UNORM_BLOCK == VK_FORMAT_ASTC_8x8_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_8x8_SRGB_BLOCK == VK_FORMAT_ASTC_8x8_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_10x5_UNORM_BLOCK == VK_FORMAT_ASTC_10x5_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_10x5_SRGB_BLOCK == VK_FORMAT_ASTC_10x5_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_10x6_UNORM_BLOCK == VK_FORMAT_ASTC_10x6_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_10x6_SRGB_BLOCK == VK_FORMAT_ASTC_10x6_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_10x8_UNORM_BLOCK == VK_FORMAT_ASTC_10x8_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_10x8_SRGB_BLOCK == VK_FORMAT_ASTC_10x8_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_10x10_UNORM_BLOCK == VK_FORMAT_ASTC_10x10_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_10x10_SRGB_BLOCK == VK_FORMAT_ASTC_10x10_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_12x10_UNORM_BLOCK == VK_FORMAT_ASTC_12x10_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_12x10_SRGB_BLOCK == VK_FORMAT_ASTC_12x10_SRGB_BLOCK);
+        static_assert((u32)Format::ASTC_12x12_UNORM_BLOCK == VK_FORMAT_ASTC_12x12_UNORM_BLOCK);
+        static_assert((u32)Format::ASTC_12x12_SRGB_BLOCK == VK_FORMAT_ASTC_12x12_SRGB_BLOCK);
+        static_assert((u32)Format::GBGR8_422_UNORM == VK_FORMAT_G8B8G8R8_422_UNORM);
+        static_assert((u32)Format::B8G8RG8_422_UNORM == VK_FORMAT_B8G8R8G8_422_UNORM);
+        static_assert((u32)Format::G8_B8_R8_3PLANE_420_UNORM == VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM);
+        static_assert((u32)Format::G8_B8R8_2PLANE_420_UNORM == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM);
+        static_assert((u32)Format::G8_B8_R8_3PLANE_422_UNORM == VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM);
+        static_assert((u32)Format::G8_B8R8_2PLANE_422_UNORM == VK_FORMAT_G8_B8R8_2PLANE_422_UNORM);
+        static_assert((u32)Format::G8_B8_R8_3PLANE_444_UNORM == VK_FORMAT_G8_B8_R8_3PLANE_444_UNORM);
+        static_assert((u32)Format::R10X6_UNORM_PACK16 == VK_FORMAT_R10X6_UNORM_PACK16);
+        static_assert((u32)Format::R10X6G10X6_UNORM_2PACK16 == VK_FORMAT_R10X6G10X6_UNORM_2PACK16);
+        static_assert((u32)Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16 == VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16);
+        static_assert(
+            (u32)Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16 == VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16);
+        static_assert(
+            (u32)Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16 == VK_FORMAT_B10X6G10X6R10X6G10X6_422_UNORM_4PACK16);
+        static_assert(
+            (u32)Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16 ==
+            VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 ==
+            VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16 ==
+            VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16 ==
+            VK_FORMAT_G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16 ==
+            VK_FORMAT_G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16);
+        static_assert((u32)Format::R12X4_UNORM_PACK16 == VK_FORMAT_R12X4_UNORM_PACK16);
+        static_assert((u32)Format::R12X4G12X4_UNORM_2PACK16 == VK_FORMAT_R12X4G12X4_UNORM_2PACK16);
+        static_assert((u32)Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16 == VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16);
+        static_assert(
+            (u32)Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16 == VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16);
+        static_assert(
+            (u32)Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16 == VK_FORMAT_B12X4G12X4R12X4G12X4_422_UNORM_4PACK16);
+        static_assert(
+            (u32)Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16 ==
+            VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16 ==
+            VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16 ==
+            VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16 ==
+            VK_FORMAT_G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16 ==
+            VK_FORMAT_G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16);
+        static_assert((u32)Format::G16B16G16R16_422_UNORM == VK_FORMAT_G16B16G16R16_422_UNORM);
+        static_assert((u32)Format::B16G16RG16_422_UNORM == VK_FORMAT_B16G16R16G16_422_UNORM);
+        static_assert((u32)Format::G16_B16_R16_3PLANE_420_UNORM == VK_FORMAT_G16_B16_R16_3PLANE_420_UNORM);
+        static_assert((u32)Format::G16_B16R16_2PLANE_420_UNORM == VK_FORMAT_G16_B16R16_2PLANE_420_UNORM);
+        static_assert((u32)Format::G16_B16_R16_3PLANE_422_UNORM == VK_FORMAT_G16_B16_R16_3PLANE_422_UNORM);
+        static_assert((u32)Format::G16_B16R16_2PLANE_422_UNORM == VK_FORMAT_G16_B16R16_2PLANE_422_UNORM);
+        static_assert((u32)Format::G16_B16_R16_3PLANE_444_UNORM == VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM);
+        static_assert((u32)Format::G8_B8R8_2PLANE_444_UNORM == VK_FORMAT_G8_B8R8_2PLANE_444_UNORM);
+        static_assert(
+            (u32)Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16 ==
+            VK_FORMAT_G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16);
+        static_assert(
+            (u32)Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16 ==
+            VK_FORMAT_G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16);
+        static_assert((u32)Format::G16_B16R16_2PLANE_444_UNORM == VK_FORMAT_G16_B16R16_2PLANE_444_UNORM);
+        static_assert((u32)Format::A4RGB4_UNORM_PACK16 == VK_FORMAT_A4R4G4B4_UNORM_PACK16);
+        static_assert((u32)Format::A4B4G4R4_UNORM_PACK16 == VK_FORMAT_A4B4G4R4_UNORM_PACK16);
+        static_assert((u32)Format::ASTC_4x4_FLOAT_BLOCK == VK_FORMAT_ASTC_4x4_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_5x4_FLOAT_BLOCK == VK_FORMAT_ASTC_5x4_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_5x5_FLOAT_BLOCK == VK_FORMAT_ASTC_5x5_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_6x5_FLOAT_BLOCK == VK_FORMAT_ASTC_6x5_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_6x6_FLOAT_BLOCK == VK_FORMAT_ASTC_6x6_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_8x5_FLOAT_BLOCK == VK_FORMAT_ASTC_8x5_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_8x6_FLOAT_BLOCK == VK_FORMAT_ASTC_8x6_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_8x8_FLOAT_BLOCK == VK_FORMAT_ASTC_8x8_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_10x5_FLOAT_BLOCK == VK_FORMAT_ASTC_10x5_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_10x6_FLOAT_BLOCK == VK_FORMAT_ASTC_10x6_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_10x8_FLOAT_BLOCK == VK_FORMAT_ASTC_10x8_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_10x10_FLOAT_BLOCK == VK_FORMAT_ASTC_10x10_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_12x10_FLOAT_BLOCK == VK_FORMAT_ASTC_12x10_SFLOAT_BLOCK);
+        static_assert((u32)Format::ASTC_12x12_FLOAT_BLOCK == VK_FORMAT_ASTC_12x12_SFLOAT_BLOCK);
+        static_assert((u32)Format::A1BGR5_UNORM_PACK16 == VK_FORMAT_A1B5G5R5_UNORM_PACK16);
+        static_assert((u32)Format::A8_UNORM == VK_FORMAT_A8_UNORM);
+        static_assert((u32)Format::PVRTC1_2BPP_UNORM_BLOCK_IMG == VK_FORMAT_PVRTC1_2BPP_UNORM_BLOCK_IMG);
+        static_assert((u32)Format::PVRTC1_4BPP_UNORM_BLOCK_IMG == VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG);
+        static_assert((u32)Format::PVRTC2_2BPP_UNORM_BLOCK_IMG == VK_FORMAT_PVRTC2_2BPP_UNORM_BLOCK_IMG);
+        static_assert((u32)Format::PVRTC2_4BPP_UNORM_BLOCK_IMG == VK_FORMAT_PVRTC2_4BPP_UNORM_BLOCK_IMG);
+        static_assert((u32)Format::PVRTC1_2BPP_SRGB_BLOCK_IMG == VK_FORMAT_PVRTC1_2BPP_SRGB_BLOCK_IMG);
+        static_assert((u32)Format::PVRTC1_4BPP_SRGB_BLOCK_IMG == VK_FORMAT_PVRTC1_4BPP_SRGB_BLOCK_IMG);
+        static_assert((u32)Format::PVRTC2_2BPP_SRGB_BLOCK_IMG == VK_FORMAT_PVRTC2_2BPP_SRGB_BLOCK_IMG);
+        static_assert((u32)Format::PVRTC2_4BPP_SRGB_BLOCK_IMG == VK_FORMAT_PVRTC2_4BPP_SRGB_BLOCK_IMG);
+        static_assert((u32)Format::R8_BOOL_ARM == VK_FORMAT_R8_BOOL_ARM);
+        static_assert((u32)Format::RG16_SFIXED5_NV == VK_FORMAT_R16G16_SFIXED5_NV);
+        static_assert((u32)Format::R10X6_UINT_PACK16_ARM == VK_FORMAT_R10X6_UINT_PACK16_ARM);
+        static_assert((u32)Format::R10X6G10X6_UINT_2PACK16_ARM == VK_FORMAT_R10X6G10X6_UINT_2PACK16_ARM);
+        static_assert(
+            (u32)Format::R10X6G10X6B10X6A10X6_UINT_4PACK16_ARM == VK_FORMAT_R10X6G10X6B10X6A10X6_UINT_4PACK16_ARM);
+        static_assert((u32)Format::R12X4_UINT_PACK16_ARM == VK_FORMAT_R12X4_UINT_PACK16_ARM);
+        static_assert((u32)Format::R12X4G12X4_UINT_2PACK16_ARM == VK_FORMAT_R12X4G12X4_UINT_2PACK16_ARM);
+        static_assert(
+            (u32)Format::R12X4G12X4B12X4A12X4_UINT_4PACK16_ARM == VK_FORMAT_R12X4G12X4B12X4A12X4_UINT_4PACK16_ARM);
+        static_assert((u32)Format::R14X2_UINT_PACK16_ARM == VK_FORMAT_R14X2_UINT_PACK16_ARM);
+        static_assert((u32)Format::R14X2G14X2_UINT_2PACK16_ARM == VK_FORMAT_R14X2G14X2_UINT_2PACK16_ARM);
+        static_assert(
+            (u32)Format::R14X2G14X2B14X2A14X2_UINT_4PACK16_ARM == VK_FORMAT_R14X2G14X2B14X2A14X2_UINT_4PACK16_ARM);
+        static_assert((u32)Format::R14X2_UNORM_PACK16_ARM == VK_FORMAT_R14X2_UNORM_PACK16_ARM);
+        static_assert((u32)Format::R14X2G14X2_UNORM_2PACK16_ARM == VK_FORMAT_R14X2G14X2_UNORM_2PACK16_ARM);
+        static_assert(
+            (u32)Format::R14X2G14X2B14X2A14X2_UNORM_4PACK16_ARM == VK_FORMAT_R14X2G14X2B14X2A14X2_UNORM_4PACK16_ARM);
+        static_assert(
+            (u32)Format::G14X2_B14X2R14X2_2PLANE_420_UNORM_3PACK16_ARM ==
+            VK_FORMAT_G14X2_B14X2R14X2_2PLANE_420_UNORM_3PACK16_ARM);
+        static_assert(
+            (u32)Format::G14X2_B14X2R14X2_2PLANE_422_UNORM_3PACK16_ARM ==
+            VK_FORMAT_G14X2_B14X2R14X2_2PLANE_422_UNORM_3PACK16_ARM);
+
+        return (VkFormat)(u32)format;
     }
 
     constexpr VkBufferUsageFlags vulkanBufferUsageFromUsage(BufferUsage kind)
@@ -2052,8 +2298,8 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPa
             .SizeBytes = textureInfo.SizeBytes,
             .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
         },
-        .PersistentMapping = true},
-        DummyDeletionQueue());
+        .PersistentMapping = true
+    }, DummyDeletionQueue());
     DeviceResources::BufferResource& imageBufferResource = Resources()[imageBuffer];
     assetLib::unpackTexture(
         textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)imageBufferResource.HostAddress);
@@ -4304,10 +4550,12 @@ void Device::CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& c
     
     VkBufferImageCopy2 bufferImageCopy = {};
     bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
+    bufferImageCopy.bufferOffset = command.BufferOffset;
     bufferImageCopy.imageExtent = {
         .width = imageResource.Description.Width,
         .height = imageResource.Description.Height,
-        .depth =  imageResource.Description.GetDepth()};
+        .depth =  imageResource.Description.GetDepth()
+    };
     bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
     bufferImageCopy.imageSubresource.mipLevel = (u32)(i32)command.ImageSubresource.MipmapBase;
     bufferImageCopy.imageSubresource.baseArrayLayer = (u32)(i32)command.ImageSubresource.LayerBase;

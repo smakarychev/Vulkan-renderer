@@ -1360,8 +1360,7 @@ namespace RG
         if (!target.HasValue())
             target = Device::CreateImage({
                   .Description = image.Description
-               },
-               deletionQueue);
+               }, deletionQueue);
 
         image.Resource = target;
         Device::NameImage(image.Resource, image.Name.AsStringView());

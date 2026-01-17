@@ -1,8 +1,8 @@
 #pragma once
 
-#include <string>
-
-enum class Format
+namespace assetlib
+{
+enum class ImageFormat
 {
     Undefined = 0,
 
@@ -273,9 +273,4 @@ enum class Format
 
     MaxVal = 0x7FFFFFFF
 };
-
-namespace FormatUtils
-{
-std::string formatToString(Format format);
-Format formatFromString(std::string_view format);
 }

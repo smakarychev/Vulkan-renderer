@@ -271,10 +271,9 @@ void Renderer::ExecuteSingleTimePasses()
     static constexpr std::string_view SKYBOX_PATH = "../assets/textures/autumn_field_puresky_4k.tx";
     Texture equirectangular = Device::CreateImage({
         .DataSource = SKYBOX_PATH,
-        .Description = ImageDescription{
-            .Usage = ImageUsage::Sampled},
-        .CalculateMipmaps = false},
-        GetFrameContext().DeletionQueue);
+        .Description = ImageDescription{.Usage = ImageUsage::Sampled},
+        .CalculateMipmaps = false
+    }, GetFrameContext().DeletionQueue);
     const TextureDescription& equirectangularDescription = Device::GetImageDescription(equirectangular);
     m_SkyboxTexture = Device::CreateImage(ImageCreateInfo{
         .Description = ImageDescription{

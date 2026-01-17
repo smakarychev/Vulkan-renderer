@@ -1,9 +1,8 @@
 #pragma once
 
-#include "ShaderImageFormat.h"
-#include "Utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
 #include "v2/AssetLibV2.h"
+#include "v2/Format//ImageFormat.h"
 
 namespace assetlib
 {
@@ -27,7 +26,7 @@ enum class ShaderRasterizationAlphaBlending : u8 { None, Over };
 
 struct ShaderLoadRasterizationColor
 {
-    ShaderImageFormat Format{};
+    ImageFormat Format{};
     std::string Name{};
 };
 
@@ -43,7 +42,7 @@ struct ShaderLoadRasterizationInfo
     ShaderRasterizationPrimitiveKind PrimitiveKind{ShaderRasterizationPrimitiveKind::Triangle};
     ShaderRasterizationAlphaBlending AlphaBlending{ShaderRasterizationAlphaBlending::Over};
     std::vector<ShaderLoadRasterizationColor> Colors{};
-    std::optional<ShaderImageFormat> Depth{};
+    std::optional<ImageFormat> Depth{};
     bool ClampDepth{false};
 };
 

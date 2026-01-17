@@ -88,51 +88,69 @@ namespace Images
         s_DefaultImages[(u32)DefaultKind::White] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({white}),
-                .Description = description}),
-            .Color = white};
+                .Description = description
+            }),
+            .Color = white
+        };
 
         s_DefaultImages[(u32)DefaultKind::Black] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({black}),
-                .Description = description}),
-            .Color = black};
+                .Description = description
+            }),
+            .Color = black
+        };
         
         s_DefaultImages[(u32)DefaultKind::Red] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({red}),
-                .Description = description}),
-            .Color = red};
+                .Description = description
+            }),
+            .Color = red
+        };
         s_DefaultImages[(u32)DefaultKind::Green] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({green}),
-                .Description = description}),
-            .Color = green};
+                .Description = description
+            }),
+            .Color = green
+        };
         s_DefaultImages[(u32)DefaultKind::Blue] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({blue}),
-                .Description = description}),
-            .Color = blue};
+                .Description = description
+            }),
+            .Color = blue
+        };
 
         s_DefaultImages[(u32)DefaultKind::Cyan] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({cyan}),
-                .Description = description}),
-            .Color = cyan};
+                .Description = description
+            }),
+            .Color = cyan
+        };
         s_DefaultImages[(u32)DefaultKind::Yellow] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({yellow}),
-                .Description = description}),
-            .Color = yellow};
+                .Description = description
+            }),
+            .Color = yellow
+        };
         s_DefaultImages[(u32)DefaultKind::Magenta] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({magenta}),
-                .Description = description}),
-            .Color = magenta};
+                .Description = description
+            }),
+            .Color = magenta
+        };
         s_DefaultImages[(u32)DefaultKind::NormalMap] = ImageData{
             .Image = Device::CreateImage({
                 .DataSource = Span<const std::byte>({normal}),
-                .Description = description}),
-            .Color = normal};
+                .Description = description
+            }),
+            .Color = normal
+        };
     }
 
     Texture Default::Get(DefaultKind kind)

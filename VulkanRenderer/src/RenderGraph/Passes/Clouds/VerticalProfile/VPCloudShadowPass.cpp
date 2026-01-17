@@ -76,7 +76,7 @@ Passes::Clouds::VP::Shadow::PassData& renderShadowsPass(StringId name, RG::Graph
                 RGImageDescription{
                     .Width = (f32)CVars::Get().GetI32CVar("Clouds.ShadowMap.Size"_hsv).value_or(1),
                     .Height = (f32)CVars::Get().GetI32CVar("Clouds.ShadowMap.Size"_hsv).value_or(1),
-                    .Format = Format::R11G11B10,
+                    .Format = Format::B10G11R11_UFLOAT_PACK32,
             }));
             
             passData.BindGroup.SetResourcesView(graph.Upload(graph.Create("ViewInfo"_hsv, RGBufferDescription{

@@ -71,8 +71,9 @@ namespace
                 .Height = (u32)sceneImage.height,
                 .Mipmaps = Images::mipmapCount({(u32)sceneImage.width, (u32)sceneImage.height}),
                 .Format = textureFormat,
-                .Usage = ImageUsage::Sampled}},
-            deletionQueue);
+                .Usage = ImageUsage::Sampled
+            }
+        }, deletionQueue);
     }
 
     MaterialFlags materialToMaterialFlags(const tinygltf::Material& material)
