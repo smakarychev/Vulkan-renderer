@@ -44,7 +44,7 @@ PassData& convertEquirectangularToCubemapPass(StringId name, RG::Graph& renderGr
             };
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
                 .Data = {pushConstants}

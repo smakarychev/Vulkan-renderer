@@ -32,7 +32,7 @@ Passes::SceneVBuffer::PassData& Passes::SceneVBuffer::addToGraph(StringId name, 
             GPU_PROFILE_FRAME("Scene.VBufferUgb")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)
             });

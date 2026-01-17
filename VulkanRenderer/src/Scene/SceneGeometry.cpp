@@ -96,9 +96,9 @@ namespace
     {
         // todo: samplers ?
 
-        static constexpr u32 INVALID_TEXTURE = ~0lu;
+        static constexpr TextureHandle INVALID_TEXTURE = {~0lu};
         std::vector loadedTextures(sceneInfo.Scene.textures.size(), INVALID_TEXTURE);
-        auto processTexture = [&](const auto& texture, Format format, u32 fallback) -> u32 {
+        auto processTexture = [&](const auto& texture, Format format, TextureHandle fallback) -> TextureHandle {
             if (texture.index < 0)
                 return fallback;
             if (texture.texCoord > 0)

@@ -19,7 +19,7 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
 
             passData.Lut = passData.BindGroup.SetResourcesBrdf(graph.Import("Lut"_hsv, info.Lut));
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("BRDFLut")
             GPU_PROFILE_FRAME("BRDFLut")
@@ -32,7 +32,7 @@ Passes::BRDFLut::PassData& Passes::BRDFLut::addToGraph(StringId name, RG::Graph&
                 .BRDFResolutionInverse = 1.0f / glm::vec2((f32)BRDF_RESOLUTION)};
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
             	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
             	.Data = {pushConstants}

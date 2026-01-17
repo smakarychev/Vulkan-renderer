@@ -51,13 +51,13 @@ Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderG
             ImGui::End();
             graph.Upload(settings, settingsUbo);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("CRT")
             GPU_PROFILE_FRAME("CRT")
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.Draw({.VertexCount = 3});
         });
 }

@@ -15,9 +15,9 @@ static_assert(MAX_DESCRIPTOR_SETS == 3, "Must have exactly 3 sets");
 static constexpr u32 BINDLESS_DESCRIPTORS_INDEX = 2;
 static_assert(BINDLESS_DESCRIPTORS_INDEX == 2, "Bindless descriptors are expected to be at index 2");
 
-static constexpr u32 BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX = 0;
-static_assert(BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == 0,
-    "Bindless descriptors texture bindings are expected to be at index 0");
+static constexpr u32 BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX = 2;
+static_assert(BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == 2,
+    "Bindless descriptors texture bindings are expected to be at index 2");
 
 class DescriptorArenaAllocators;
 class ResourceUploader;
@@ -38,7 +38,6 @@ struct DescriptorBinding
 struct DescriptorsLayoutCreateInfo
 {
     Span<const DescriptorBinding> Bindings{};
-    Span<const DescriptorFlags> BindingFlags{};
     DescriptorLayoutFlags Flags{DescriptorLayoutFlags::None};
 };
 
@@ -64,7 +63,7 @@ enum class DescriptorAllocatorResidence
 
 struct DescriptorAllocatorAllocationBindings
 {
-    std::vector<DescriptorBinding> Bindings;
+    Span<const DescriptorBinding> Bindings;
     /* used to specify the count of bindless descriptors,
      * for each set only one descriptor can be bindless, and it is always the last one
      */
@@ -84,14 +83,17 @@ class DescriptorArenaAllocators
     FRIEND_INTERNAL
 public:
     DescriptorArenaAllocators() = default;
-    DescriptorArenaAllocators(Span<const DescriptorArenaAllocator> allocators);
+    DescriptorArenaAllocators(Span<const DescriptorArenaAllocator> transientAllocators,
+        DescriptorArenaAllocator persistentAllocator);
     
-    DescriptorArenaAllocator Get(u32 index) const;
-    void ResetNonBindless() const;
+    DescriptorArenaAllocator GetTransient(u32 index) const;
+    DescriptorArenaAllocator GetPersistent() const;
+    void ResetTransient() const;
     void Reset(u32 index) const;
 private:
-    std::array<DescriptorArenaAllocator, MAX_DESCRIPTOR_SETS> m_Allocators;
-    u32 m_AllocatorCount{0};
+    DescriptorArenaAllocator m_PersistentAllocator{};
+    std::array<DescriptorArenaAllocator, MAX_DESCRIPTOR_SETS> m_TransientAllocators;
+    u32 m_TransientDescriptorAllocators{0};
 };
 
 class DescriptorLayoutCache
@@ -105,7 +107,6 @@ public:
         auto operator<=>(const CacheKey&) const = default;
     private:
         std::vector<DescriptorBinding> m_Bindings{};
-        std::vector<DescriptorFlags> m_BindingFlags{};
         DescriptorLayoutFlags m_Flags{DescriptorLayoutFlags::None};
     };
 public:
@@ -122,3 +123,10 @@ private:
     
     static std::unordered_map<CacheKey, DescriptorsLayout, DescriptorsLayoutKeyHash> s_LayoutCache;
 };
+
+namespace descriptors
+{
+static constexpr auto BINDLESS_DESCRIPTORS_FLAGS = DescriptorFlags::VariableCount;
+static constexpr auto BINDLESS_DESCRIPTORS_LAYOUT_FLAGS = DescriptorLayoutFlags::UpdateAfterBind;
+u32 safeBindlessCountForDescriptorType(DescriptorType type);
+}

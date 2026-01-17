@@ -41,7 +41,6 @@ struct Resources {
 
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
-ParameterBlock<TextureHeap> textures;
 
 [shader("pixel")]
 float4 main(FullScreenVSOutput input) {
@@ -54,7 +53,7 @@ float4 main(FullScreenVSOutput input) {
                                                     resources.commands, resources.renderObjects, resources.indices);
 
     const StandardPbrMaterial material = resources.materials[gData.materialId];
-    VBufferStandardPbrMaterialData materialData = VBufferStandardPbrMaterialData(gData, material, textures.textures,
+    VBufferStandardPbrMaterialData materialData = VBufferStandardPbrMaterialData(gData, material, 
         samplers.linearSampler);
 
     PcfShadowSampler pcfShadowSampler;
@@ -62,7 +61,7 @@ float4 main(FullScreenVSOutput input) {
         resources.view.shading.primaryDirectionalLightDirection);
     float shadow = 1.0f - csmShadow.sample(pcfShadowSampler, gData.position, gData.normal, gData.viewZ);
     CloudsShadow cloudsShadow = CloudsShadow(
-        resources.view, textures.textures[resources.view.shading.volumetricCloudShadow], samplers.blackSampler);
+        resources.view, resources.view.shading.volumetricCloudShadow.desc, samplers.blackSampler);
     shadow *= 1.0f - cloudsShadow.sample(gData.position);
 
     PbrShadingInfo shadingInfo;

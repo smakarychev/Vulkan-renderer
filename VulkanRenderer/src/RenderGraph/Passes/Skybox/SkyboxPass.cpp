@@ -34,13 +34,13 @@ Passes::Skybox::PassData& Passes::Skybox::addToGraph(StringId name, RG::Graph& r
             passData.Color = graph.RenderTarget(passData.Color, {});
             passData.Depth = graph.DepthStencilTarget(info.Depth, {});
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Skybox")
             GPU_PROFILE_FRAME("Skybox")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
             	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
             	.Data = {info.LodBias}

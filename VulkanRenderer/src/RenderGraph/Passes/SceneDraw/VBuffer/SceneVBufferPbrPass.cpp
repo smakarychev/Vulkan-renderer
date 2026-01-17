@@ -73,13 +73,13 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
                 });
             passData.Color = graph.RenderTarget(color, {.OnLoad = AttachmentLoad::Clear});
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Pbr.Visibility")
             GPU_PROFILE_FRAME("Pbr.Visibility")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.Draw({.VertexCount = 3});
         });
 }

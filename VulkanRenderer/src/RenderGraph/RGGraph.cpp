@@ -353,7 +353,7 @@ namespace RG
         m_FrameAllocators = &m_ArenaAllocators[frameContext.FrameNumber];
         frameContext.CommandList.BindDescriptorArenaAllocators({.Allocators = m_FrameAllocators});
         if (frameContext.FrameNumberTick >= BUFFERED_FRAMES)
-            m_FrameAllocators->ResetNonBindless();
+            m_FrameAllocators->ResetTransient();
     }
 
     void Graph::Compile(FrameContext& frameContext)

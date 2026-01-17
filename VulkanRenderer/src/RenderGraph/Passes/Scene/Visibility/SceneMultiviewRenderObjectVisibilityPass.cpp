@@ -42,7 +42,7 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
                         resources.Hiz[i] = passData.BindGroup.SetResourcesHiz(resources.Hiz[i], i);
             }
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("RenderObjectVisibilityPass")
             GPU_PROFILE_FRAME("RenderObjectVisibilityPass")
@@ -54,7 +54,7 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             };
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 .Data = {PushConstants{

@@ -6,6 +6,9 @@
 
 namespace assetlib
 {
+static constexpr u32 SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX = 2;
+static constexpr u32 SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_BINDING_INDEX = 2;
+
 enum class ShaderStage : u8
 {
     None = 0,
@@ -42,14 +45,15 @@ enum class ShaderBindingAttributes : u64
 {
     None = 0,
     Bindless = BIT(0),
-    ImmutableSampler = BIT(1),
-    ImmutableSamplerNearest = BIT(2),
-    ImmutableSamplerClampEdge = BIT(3),
-    ImmutableSamplerClampBlack = BIT(4),
-    ImmutableSamplerClampWhite = BIT(5),
-    ImmutableSamplerShadow = BIT(6),
-    ImmutableSamplerReductionMin = BIT(7),
-    ImmutableSamplerReductionMax = BIT(8),
+    BindlessHandle = BIT(1),
+    ImmutableSampler = BIT(2),
+    ImmutableSamplerNearest = BIT(3),
+    ImmutableSamplerClampEdge = BIT(4),
+    ImmutableSamplerClampBlack = BIT(5),
+    ImmutableSamplerClampWhite = BIT(6),
+    ImmutableSamplerShadow = BIT(7),
+    ImmutableSamplerReductionMin = BIT(8),
+    ImmutableSamplerReductionMax = BIT(9),
 };
 
 struct ShaderBinding

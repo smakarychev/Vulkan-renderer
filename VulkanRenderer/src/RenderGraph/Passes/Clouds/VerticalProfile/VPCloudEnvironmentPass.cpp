@@ -118,7 +118,7 @@ RG::Resource blurComposePass(StringId name, RG::Graph& renderGraph, RG::Resource
             const glm::uvec2 resolution = graph.GetImageDescription(passData.Color).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
 
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},

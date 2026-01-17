@@ -42,7 +42,7 @@ Passes::Atmosphere::AerialPerspective::PassData& Passes::Atmosphere::AerialPersp
             auto& lutDescription = graph.GetImageDescription(passData.Lut);
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
 	            .Invocations = {lutDescription.Width, lutDescription.Height, lutDescription.GetDepth()},
 	            .GroupSize = passData.BindGroup.GetAerialPerspectiveLutGroupSize()

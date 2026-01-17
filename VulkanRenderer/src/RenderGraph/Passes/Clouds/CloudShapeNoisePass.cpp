@@ -42,13 +42,13 @@ RG::Resource& createShapeTexture(StringId name, RG::Graph& renderGraph, f32 text
             passData.Shape = passData.BindGroup.SetResourcesShape(passData.Shape);
             passData.BindGroup.SetResourcesParameters(noiseParameters);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Cloud.ShapeTexture")
             GPU_PROFILE_FRAME("Cloud.ShapeTexture")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {textureSize, textureSize, textureSize},
                 .GroupSize = passData.BindGroup.GetCloudShapeNoiseGroupSize()

@@ -19,13 +19,13 @@ Passes::AtmosphereLutTransmittanceAtView::PassData& Passes::AtmosphereLutTransmi
             passData.ViewInfo = passData.BindGroup.SetResourcesView(info.ViewInfo);
             passData.BindGroup.SetResourcesTransmittanceLut(info.TransmittanceLut);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Atmosphere.TransmittanceLutAtView")
             GPU_PROFILE_FRAME("Atmosphere.TransmittanceLutAtView")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {1, 1, 1}
             });

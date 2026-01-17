@@ -28,13 +28,13 @@ Passes::LightTilesSetup::PassData& Passes::LightTilesSetup::addToGraph(StringId 
             }));
             passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Setup")
             GPU_PROFILE_FRAME("Lights.Tiles.Setup")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             glm::uvec2 bins = glm::ceil(
                 glm::vec2{frameContext.Resolution} / glm::vec2{LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y});
             cmd.Dispatch({

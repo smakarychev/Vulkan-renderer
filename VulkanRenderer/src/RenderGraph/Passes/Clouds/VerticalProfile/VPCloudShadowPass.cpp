@@ -44,7 +44,7 @@ RG::Resource blurPass(StringId name, RG::Graph& renderGraph, RG::Resource shadow
             const glm::uvec2 resolution = graph.GetImageDescription(passData.Blurred).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
                 .GroupSize = passData.BindGroup.GetCloudsVPShadowBlurGroupSize()
@@ -97,7 +97,7 @@ Passes::Clouds::VP::Shadow::PassData& renderShadowsPass(StringId name, RG::Graph
             const glm::uvec2 resolution = graph.GetImageDescription(passData.Shadow).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
                 .GroupSize = passData.BindGroup.GetCloudsVPShadowGroupSize()

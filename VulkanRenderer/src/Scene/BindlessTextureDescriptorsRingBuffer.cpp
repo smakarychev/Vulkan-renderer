@@ -4,8 +4,8 @@
 
 #include "Vulkan/Device.h"
 
-BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, const Shader& shader)
-    : m_MaxBindlessCount(maxCount), m_MaterialsShader(shader)
+BindlessTextureDescriptorsRingBuffer::BindlessTextureDescriptorsRingBuffer(u32 maxCount, Descriptors descriptors)
+    : m_MaxBindlessCount(maxCount), m_Descriptors(descriptors)
 {
     for (u32 i = 0; i < m_DefaultTextures.size(); i++)
         m_DefaultTextures[i] = AddTexture(Images::Default::GetCopy(
@@ -27,7 +27,7 @@ bool BindlessTextureDescriptorsRingBuffer::WillOverflow() const
     return FreeSize() == 0;
 }
 
-u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
+TextureHandle BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
 {
     UpdateDescriptor(texture, m_Tail);
 
@@ -41,21 +41,21 @@ u32 BindlessTextureDescriptorsRingBuffer::AddTexture(Texture texture)
 
     m_Tail = GetNextIndex(m_Tail);
 
-    return toReturn;
+    return {toReturn};
 }
 
-void BindlessTextureDescriptorsRingBuffer::SetTexture(u32 index, Texture texture)
+void BindlessTextureDescriptorsRingBuffer::SetTexture(TextureHandle index, Texture texture)
 {
-    UpdateDescriptor(texture, index);
-    m_Textures[index] = texture;
+    UpdateDescriptor(texture, index.Handle);
+    m_Textures[index.Handle] = texture;
 }
 
-Texture BindlessTextureDescriptorsRingBuffer::GetTexture(u32 index) const
+Texture BindlessTextureDescriptorsRingBuffer::GetTexture(TextureHandle index) const
 {
-    return m_Textures[index];
+    return m_Textures[index.Handle];
 }
 
-u32 BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(Images::DefaultKind texture) const
+TextureHandle BindlessTextureDescriptorsRingBuffer::GetDefaultTexture(Images::DefaultKind texture) const
 {
     return m_DefaultTextures[(u32)texture];
 }
@@ -68,7 +68,7 @@ u32 BindlessTextureDescriptorsRingBuffer::GetNextIndex(u32 index) const
 void BindlessTextureDescriptorsRingBuffer::UpdateDescriptor(Texture texture, u32 index) const
 {
     Device::UpdateDescriptors(
-        m_MaterialsShader.Descriptors(BINDLESS_DESCRIPTORS_INDEX),
+        m_Descriptors,
         DescriptorSlotInfo{
             .Slot = BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX,
             .Type = DescriptorType::Image

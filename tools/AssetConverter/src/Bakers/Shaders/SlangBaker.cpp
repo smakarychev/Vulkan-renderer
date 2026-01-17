@@ -95,6 +95,13 @@ slang::ISession& getSession(const SlangBakeSettings& settings, const assetlib::S
             .name = slang::CompilerOptionName::GLSLForceScalarLayout,
             .value = {.kind = slang::CompilerOptionValueKind::Int, .intValue0 = 1}
         },
+        slang::CompilerOptionEntry{
+            .name = slang::CompilerOptionName::BindlessSpaceIndex,
+            .value = {
+                .kind = slang::CompilerOptionValueKind::Int,
+                .intValue0 = assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX
+            }
+        },
     };
 
     std::vector<slang::PreprocessorMacroDesc> macros(settings.Defines.size() + variant.Defines.size());
@@ -223,6 +230,8 @@ std::string createVariableName(const std::string& currentName, slang::VariableLa
 }
 
 constexpr std::string_view SHADER_ATTRIBUTE_BINDLESS = "Bindless";
+constexpr std::string_view SHADER_ATTRIBUTE_BINDLESS_HANDLE = "BindlessHandle";
+constexpr i32 SHADER_ATTRIBUTE_BINDLESS_RESOURCE_KIND_TEXTURE = 0;
 constexpr std::string_view SHADER_ATTRIBUTE_IMMUTABLE_SAMPLER = "ImmutableSampler";
 constexpr std::string_view SHADER_ATTRIBUTE_STANDALONE_TYPE = "StandaloneType";
 constexpr std::string_view SHADER_ATTRIBUTE_DEFAULT_VALUE = "DefaultValue";
@@ -696,7 +705,8 @@ private:
 class ShaderReflector
 {
 public:
-    ShaderReflector(const Context& ctx, const SlangBakeSettings& settings) : m_Ctx(&ctx), m_Settings(&settings) {}
+    ShaderReflector(const Context& ctx, const SlangBakeSettings& settings, bool usesTextureHeap)
+        : m_Ctx(&ctx), m_Settings(&settings), m_UsesTextureHeap(usesTextureHeap) {}
     IoResult<assetlib::ShaderHeader> Reflect(std::vector<slang::IModule*>& modules, slang::IComponentType* program,
         const std::vector<::Slang::ComPtr<slang::IMetadata>>& entryPointMetadata)
     {
@@ -715,6 +725,8 @@ public:
         for (auto& set : m_ShaderInfo.BindingSets)
             for (auto& binding : set.Bindings)
                 binding.ShaderStages = GetBindingStageUsage(set.Set, binding.Binding, layout, entryPointMetadata);
+
+        CreateBindlessResourceHeaps();
         
         assetlib::ShaderHeader shaderInfo = std::move(m_ShaderInfo);
         m_ShaderInfo = {};
@@ -961,6 +973,56 @@ private:
         };
     }
 
+    void CreateBindlessResourceHeaps()
+    {
+        static const std::string BINDLESS_TEXTURES_HEAP_DESCRIPTOR_NAME = "_textureHeap";
+
+        if (m_ShaderInfo.BindingSets.size() > assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX)
+        {
+            AddError(std::format(
+                "Invalid bindings configuration. "
+                "Set number {} has to be available for {}, but it is currently occupied",
+                assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX, BINDLESS_TEXTURES_HEAP_DESCRIPTOR_NAME));
+            return;
+        }
+        
+        assetlib::ShaderStage bindlessShaderStages = assetlib::ShaderStage::None;
+        bool hasExplicitBindlessAttribute = false;
+        for (auto& set : m_ShaderInfo.BindingSets)
+        {
+            hasExplicitBindlessAttribute = std::ranges::any_of(set.Bindings, [](auto& binding) {
+                return enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::Bindless);
+            });
+            if (hasExplicitBindlessAttribute)
+                break;
+        }
+
+        if (hasExplicitBindlessAttribute)
+        {
+            AddError("Invalid bindings configuration. Shader must not have explicit [Bindless] attribute");
+            return;
+        }
+
+        if (!m_UsesTextureHeap)
+            return;
+
+        assetlib::ShaderBindingSet textureHeap = {
+            .Set = assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX,
+            .Bindings = {
+                assetlib::ShaderBinding{
+                    .Name = BINDLESS_TEXTURES_HEAP_DESCRIPTOR_NAME,
+                    .ShaderStages = bindlessShaderStages,
+                    .Count = ~0u,
+                    .Binding = assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_BINDING_INDEX,
+                    .Type = assetlib::ShaderBindingType::Image,
+                    .Access = assetlib::ShaderBindingAccess::Read,
+                    .Attributes = assetlib::ShaderBindingAttributes::Bindless
+                }
+            },
+        };
+        m_ShaderInfo.BindingSets.push_back(std::move(textureHeap));
+    }
+
     static std::string GetBindingName(const ParameterBlockInfo& blockInfo, i32 rangeIndex)
     {
         slang::VariableReflection* variableReflection = blockInfo.TypeLayout->getBindingRangeLeafVariable(rangeIndex);
@@ -1041,6 +1103,51 @@ private:
             }
         }
 
+        attributes |= GetVariableTypeAttributesRecursive(variableReflection->getType());
+
+        return attributes;
+    }
+
+    static assetlib::ShaderBindingAttributes GetVariableTypeAttributesRecursive(slang::TypeReflection* type)
+    {
+        assetlib::ShaderBindingAttributes attributes = assetlib::ShaderBindingAttributes::None;
+        if (!type)
+            return attributes;
+
+        for (u32 i = 0; i < type->getUserAttributeCount(); i++)
+        {
+            slang::UserAttribute* attribute = type->getUserAttributeByIndex(i);
+            const std::string name = attribute->getName();
+            if (name == SHADER_ATTRIBUTE_BINDLESS_HANDLE)
+            {
+                i32 bindlessResourceKind = 0;
+                attribute->getArgumentValueInt(0, &bindlessResourceKind);
+
+                ASSERT(bindlessResourceKind == SHADER_ATTRIBUTE_BINDLESS_RESOURCE_KIND_TEXTURE,
+                    "Unhandled bindless resource type")
+
+                attributes |= assetlib::ShaderBindingAttributes::BindlessHandle;
+            }
+        }
+        
+        switch (type->getKind())
+        {
+        case slang::TypeReflection::Kind::Struct:
+            for (u32 i = 0; i < type->getFieldCount(); i++)
+                attributes |= GetVariableTypeAttributesRecursive(type->getFieldByIndex(i)->getType());
+            break;
+        case slang::TypeReflection::Kind::Resource:
+            attributes |= GetVariableTypeAttributesRecursive(type->getResourceResultType());
+            break;
+        case slang::TypeReflection::Kind::Array:
+        case slang::TypeReflection::Kind::ConstantBuffer:
+        case slang::TypeReflection::Kind::ShaderStorageBuffer:
+            attributes |= GetVariableTypeAttributesRecursive(type->getElementType());
+            break;
+        default:
+            break;
+        }
+
         return attributes;
     }
 
@@ -1070,7 +1177,7 @@ private:
         return glm::uvec3(group[0], group[1], group[2]);
     }
 
-    bool ValidateBindings(const std::vector<assetlib::ShaderBinding>& bindings) const
+    bool ValidateBindings(const std::vector<assetlib::ShaderBinding>& bindings)
     {
         const bool hasImmutableSampler = std::ranges::any_of(bindings, 
             [](const assetlib::ShaderBinding& binding) {
@@ -1083,14 +1190,18 @@ private:
 
         const bool isValidImmutableSamplers = !hasImmutableSampler || hasOnlyImmutableSamplers;
         if (!isValidImmutableSamplers)
-        {
-            IoError error = m_Error.value_or(IoError{});
-            error.Code = IoError::ErrorCode::GeneralError;
-            error.Message = "Invalid bindings configuration. "
-                            "If parameter group has immutable samplers, it must not have bindings of any other type";
-        }
+            AddError(
+                "Invalid bindings configuration. "
+                "If parameter group has immutable samplers, it must not have bindings of any other type");
 
         return isValidImmutableSamplers;
+    }
+
+    void AddError(std::string_view message)
+    {
+        if (!m_Error)
+            m_Error = IoError{.Code = IoError::ErrorCode::GeneralError, .Message = {}};
+        m_Error->Message += std::format("{}\n", message);
     }
 
     assetlib::ShaderHeader m_ShaderInfo{};
@@ -1100,6 +1211,7 @@ private:
     std::stack<ParameterBlockInfo> m_ParameterBlocksToReflect;
     const Context* m_Ctx{nullptr};
     const SlangBakeSettings* m_Settings{nullptr};
+    bool m_UsesTextureHeap{false};
     
     static constexpr i32 RELATIVE_SET_INDEX = 0;
 };
@@ -1337,16 +1449,30 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderLoadInfo& load
             (const char*)diagnosticsBlob->getBufferPointer())
     }
 
-    ShaderReflector reflector(ctx, settings);
+    // todo: this is a hack. There seems to be no way to determine if __slang_resource_heap exists, without
+    // examining the generated spirv
+    static constexpr auto BINDLESS_HEAP_MARKER = []() constexpr {
+        constexpr char marker[] = "__slang_resource_heap";
+        std::array<std::byte, sizeof(marker) - 1> array{};
+        for (u32 i = 0; i < array.size(); i++) {
+            array[i] = (std::byte)marker[i];
+        }
+        return array;
+    }();
     assetlib::ShaderAsset shaderAsset = {};
+    shaderAsset.Spirv.resize(spirvCode->getBufferSize());
+    memcpy(shaderAsset.Spirv.data(), spirvCode->getBufferPointer(), spirvCode->getBufferSize());
+
+    const bool usesTextureHeap =
+        std::ranges::search(shaderAsset.Spirv, BINDLESS_HEAP_MARKER).begin() != shaderAsset.Spirv.end();
+    
+    ShaderReflector reflector(ctx, settings, usesTextureHeap);
     auto reflectedHeader = reflector.Reflect(shaderModules, linkedProgram, entryPointMetadata);
     CHECK_RETURN_IO_ERROR(reflectedHeader.has_value(), IoError::ErrorCode::GeneralError,
            "Shader::Bake: failed to reflect shader: {}", reflectedHeader.error())
     shaderAsset.Header = std::move(*reflectedHeader);
     shaderAsset.Header.Name = loadInfo.Name;
-    shaderAsset.Spirv.resize(spirvCode->getBufferSize());
-    memcpy(shaderAsset.Spirv.data(), spirvCode->getBufferPointer(), spirvCode->getBufferSize());
-    
+
     return shaderAsset;
 }
 }

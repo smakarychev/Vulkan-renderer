@@ -29,13 +29,13 @@ Passes::Atmosphere::Render::PassData& Passes::Atmosphere::Render::addToGraph(Str
                 passData.BindGroup.SetResourcesDepth(info.DepthIn);
             }
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Atmosphere.Render")
             GPU_PROFILE_FRAME("Atmosphere.Render")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.Draw({.VertexCount = 3});
         });
 }

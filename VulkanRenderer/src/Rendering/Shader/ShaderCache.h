@@ -44,7 +44,14 @@ enum class ShaderCacheAllocationType : u8
 };
 CREATE_ENUM_FLAGS_OPERATORS(ShaderCacheAllocationType)
 
+struct ShaderTextureHeapAllocation
+{
+    Descriptors Descriptors{};
+    PipelineLayout PipelineLayout{};
+};
+
 using ShaderCacheAllocateResult = std::expected<Shader, ShaderCacheError>;
+using ShaderCacheTextureHeapResult = std::expected<ShaderTextureHeapAllocation, ShaderCacheError>;
 
 class ShaderCache
 {
@@ -52,13 +59,13 @@ public:
     void Init(bakers::Context& bakersCtx, const bakers::SlangBakeSettings& bakeSettings);
     void Shutdown();
     void OnFrameBegin(FrameContext& ctx);
-    
+
     ShaderCacheAllocateResult Allocate(StringId name, DescriptorArenaAllocators& allocators,
         ShaderCacheAllocationType allocationType = ShaderCacheAllocationType::Complete);
     ShaderCacheAllocateResult Allocate(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides,
         DescriptorArenaAllocators& allocators,
         ShaderCacheAllocationType allocationType = ShaderCacheAllocationType::Complete);
-    void AddPersistentDescriptors(StringId name, Descriptors descriptors, DescriptorsLayout descriptorsLayout);
+    ShaderCacheTextureHeapResult AllocateTextureHeap(DescriptorArenaAllocator persistentAllocator, u32 count);
 private:
     void InitFileWatcher();
     void LoadShaderInfos();
@@ -73,8 +80,7 @@ private:
         const ShaderPipelineTemplate* PipelineTemplate{nullptr};
         Pipeline Pipeline{};
         PipelineLayout Layout{};
-        StringId BindlessName{};
-        u32 BindlessCount{0};
+        bool HasTextureHeap{};
         bool ShouldReload{false};
     };
     struct ShaderNameWithOverrides
@@ -107,7 +113,7 @@ private:
         Descriptors Descriptors{};
         DescriptorsLayout Layout{};
     };
-    std::unordered_map<StringId, DescriptorsWithLayout> m_PersistentDescriptors;
+    DescriptorsWithLayout m_TextureHeap{};
     std::unordered_map<ShaderNameWithOverrides, PipelineInfo, ShaderNameWithOverridesHasher> m_Pipelines;
     std::unordered_map<ShaderNameWithOverrides, ShaderPipelineTemplate, ShaderNameWithOverridesHasher>
         m_ShaderPipelineTemplates;

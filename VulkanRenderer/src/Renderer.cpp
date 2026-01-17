@@ -116,7 +116,7 @@ void Renderer::Init()
             .UsedTypes = {DescriptorType::UniformBuffer, DescriptorType::StorageBuffer, DescriptorType::Image},
             .DescriptorCount = 8192 * 4});
 
-        allocators[i] = DescriptorArenaAllocators({samplerAllocator, resourceAllocator, m_PersistentMaterialAllocator});
+        allocators[i] = DescriptorArenaAllocators({samplerAllocator, resourceAllocator}, m_PersistentMaterialAllocator);
     }
     
     m_Graph = std::make_unique<RG::Graph>(allocators, m_ShaderCache);
@@ -126,10 +126,16 @@ void Renderer::Init()
 
 void Renderer::InitRenderGraph()
 {
+    static constexpr u32 TEXTURE_HEAP_SIZE = 1024;
+    auto textureHeap = m_ShaderCache.AllocateTextureHeap(
+        m_Graph->GetFrameAllocators().GetPersistent(),
+        TEXTURE_HEAP_SIZE);
+    ASSERT(textureHeap.has_value())
+    m_TextureHeap = textureHeap->Descriptors;
+    m_TextureHeapPipelineLayout = textureHeap->PipelineLayout;
+    
     m_BindlessTextureDescriptorsRingBuffer = std::make_unique<BindlessTextureDescriptorsRingBuffer>(
-        1024,
-        m_ShaderCache.Allocate("materials"_hsv,
-            m_Graph->GetFrameAllocators(), ShaderCacheAllocationType::Descriptors).value());
+        TEXTURE_HEAP_SIZE, m_TextureHeap);
     m_TransmittanceLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
         Images::Default::GetCopy(Images::DefaultKind::White, Device::DeletionQueue()));
     m_SkyViewLutBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
@@ -143,10 +149,6 @@ void Renderer::InitRenderGraph()
             .DataSource = "../assets/textures/blue_noise_128.tx",
             .Description = {.Usage = ImageUsage::Sampled | ImageUsage::Storage}
         }));
-
-    m_ShaderCache.AddPersistentDescriptors("main_materials"_hsv,
-        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().Descriptors(BINDLESS_DESCRIPTORS_INDEX),
-        m_BindlessTextureDescriptorsRingBuffer->GetMaterialsShader().DescriptorsLayout(BINDLESS_DESCRIPTORS_INDEX));
     
     /*m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
@@ -1359,8 +1361,6 @@ Renderer::CloudsInfo Renderer::RenderGraphClouds(const CloudMapsInfo& cloudMaps,
     ImGui::Checkbox("Reprojection", &m_CloudsReprojectionEnabled);
     
     ImGui::End();
-
-    m_CloudParameters.BlueNoiseBindlessIndex = m_BlueNoiseBindlessIndex;
 
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     

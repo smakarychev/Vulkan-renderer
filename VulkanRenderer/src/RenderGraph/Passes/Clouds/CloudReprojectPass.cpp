@@ -87,7 +87,7 @@ Passes::Clouds::Reproject::PassData& Passes::Clouds::Reproject::addToGraph(Strin
             const glm::uvec2 resolution = graph.GetImageDescription(passData.ColorAccumulation).Dimensions();
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
                 .GroupSize = passData.BindGroup.GetCloudReprojectionGroupSize()

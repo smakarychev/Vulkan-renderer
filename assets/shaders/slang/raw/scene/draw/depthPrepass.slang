@@ -29,7 +29,6 @@ struct VSOutput
 
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
-ParameterBlock<TextureHeap> textures;
 
 [shader("vertex")]
 VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_VertexID) {

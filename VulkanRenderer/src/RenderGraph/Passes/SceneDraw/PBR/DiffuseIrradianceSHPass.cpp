@@ -42,13 +42,13 @@ Passes::DiffuseIrradianceSH::PassData& addOffline(StringId name, RG::Graph& rend
             passData.DiffuseIrradiance = passData.BindGroup.SetResourcesIrradiance(irradianceSH);
             passData.CubemapTexture = passData.BindGroup.SetResourcesEnvironment(cubemap);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("DiffuseIrradianceSH.Offline")
             GPU_PROFILE_FRAME("DiffuseIrradianceSH.Offline")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 .Data = {0.0f}});
@@ -56,6 +56,7 @@ Passes::DiffuseIrradianceSH::PassData& addOffline(StringId name, RG::Graph& rend
                 .Invocations = {1, 1, 1}});
         });
 }
+
 Passes::DiffuseIrradianceSH::PassData& addRealtime(StringId name, RG::Graph& renderGraph,
     RG::Resource cubemap, RG::Resource irradianceSH)
 {
@@ -86,7 +87,7 @@ Passes::DiffuseIrradianceSH::PassData& addRealtime(StringId name, RG::Graph& ren
                 (f32)std::min(cubemapDescription.Mipmaps, (i8)realTimeMipmapsCount) - (f32)realTimeMipmapsCount;
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 .Data = {targetMipmap}});

@@ -283,7 +283,6 @@ struct BindDescriptorsGraphicsCommand
     : RenderCommandTyped<RenderCommandType::BindDescriptors, RenderCommandQueueType::Graphics>
 {
     Descriptors Descriptors{};
-    const DescriptorArenaAllocators* Allocators{nullptr};
     PipelineLayout PipelineLayout{};
     u32 Set{};
 };
@@ -291,7 +290,6 @@ struct BindDescriptorsComputeCommand
     : RenderCommandTyped<RenderCommandType::BindDescriptors, RenderCommandQueueType::Compute>
 {
     Descriptors Descriptors{};
-    const DescriptorArenaAllocators* Allocators{nullptr};
     PipelineLayout PipelineLayout{};
     u32 Set{};
 };

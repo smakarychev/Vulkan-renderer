@@ -57,7 +57,7 @@ BlitPassData& blitPass(StringId name, RG::Graph& renderGraph, const Passes::HiZ:
             const glm::uvec2 hizResolution = graph.GetImageDescription(passData.HiZ).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {hizResolution.x, hizResolution.y, 1},
                 .GroupSize = passData.BindGroup.GetBlitPassGroupSize()
@@ -121,14 +121,14 @@ Passes::HiZ::PassData& Passes::HiZ::addToGraph(StringId name, RG::Graph& renderG
                 passData.HiZ = blit.HiZ;
                 passData.DepthMinMax = blit.DepthMinMax;
             },
-            [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+            [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
             {
                 CPU_PROFILE_FRAME("HiZCombined")
                 GPU_PROFILE_FRAME("HiZCombined")
 
                 const u32 pushConstant = currentMipmap << MIPMAP_LEVEL_SHIFT | toBeProcessed;
                 auto& cmd = frameContext.CommandList;
-                passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+                passData.BindGroup.BindCompute(cmd);
                 cmd.PushConstants({
                     .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
                     .Data = {pushConstant}

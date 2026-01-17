@@ -32,7 +32,7 @@ Passes::Fxaa::PassData& Passes::Fxaa::addToGraph(StringId name, RG::Graph& rende
             auto& description = graph.GetImageDescription(passData.AntiAliased);
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
 				.Invocations = {description.Width, description.Height, 1},
 				.GroupSize = passData.BindGroup.GetMainGroupSize()

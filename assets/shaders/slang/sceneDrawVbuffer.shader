@@ -19,6 +19,5 @@
     ],
     "depth": "D32_FLOAT",
     "alphaBlending": "None"
-  },
-  "bindlessSetReference": "main_materials" 
+  }
 }

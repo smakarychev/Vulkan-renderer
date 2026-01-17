@@ -35,7 +35,7 @@ Passes::SceneFillIndirectDraw::PassData& Passes::SceneFillIndirectDraw::addToGra
             passData.BindGroup.SetResourcesMeshletInfos(info.MeshletInfos);
             passData.BindGroup.SetResourcesMeshletInfoCounts(info.MeshletInfoCount);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw")
             GPU_PROFILE_FRAME("Scene.SceneFillIndirectDraw")
@@ -49,7 +49,7 @@ Passes::SceneFillIndirectDraw::PassData& Passes::SceneFillIndirectDraw::addToGra
             }
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             /* todo: this can use indirect dispatch */
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 

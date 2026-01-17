@@ -15,6 +15,5 @@
       "name": "environmentView",
       "defines": {"CLOUDS_PRIMARY_VIEW": "0"}
     }
-  ],
-  "bindlessSetReference": "main_materials" 
+  ]
 }

@@ -88,23 +88,28 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, std::optional<Str
     shader.m_PipelineLayout = pipeline.Layout;
 
     const auto setPresence = pipeline.PipelineTemplate->GetSetPresence();
-    const bool referencesOtherBindlessSet = pipeline.BindlessName != StringId{};
-     for (u32 i = 0; i <= BINDLESS_DESCRIPTORS_INDEX; i++)
+    for (u32 i = 0; i < MAX_DESCRIPTOR_SETS; i++)
     {
         if (!setPresence[i])
             continue;
 
-        if (i == BINDLESS_DESCRIPTORS_INDEX && referencesOtherBindlessSet)
+        const auto& setInfo = pipeline.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i];
+        const bool setIsBindless = setInfo.HasBindless; 
+        const bool setIsTextureHeap = setIsBindless &&
+            setInfo.Descriptors.size() == 1 &&
+            setInfo.Descriptors.front().Type == DescriptorType::Image;
+        ASSERT(!setIsBindless || setIsTextureHeap, "Shader has bindless set that is not a texture heap")
+
+        if (setIsBindless)
             continue;
 
         const DescriptorsLayout descriptorsLayout = pipeline.PipelineTemplate->GetDescriptorsLayout(i);
         
         std::optional<Descriptors> descriptors = Device::AllocateDescriptors(
-            allocators.Get(i),
+            allocators.GetTransient(i),
             descriptorsLayout, {
                 .Bindings = pipeline.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i].Descriptors,
-                .BindlessCount = pipeline.PipelineTemplate->GetReflection().DescriptorSetsInfo()[i].HasBindless ?
-                    pipeline.BindlessCount : 0
+                .BindlessCount = 0
             });
         if (!descriptors.has_value())
             return std::unexpected(ShaderCacheError::FailedToAllocateDescriptors);
@@ -113,23 +118,59 @@ ShaderCacheAllocateResult ShaderCache::Allocate(StringId name, std::optional<Str
         shader.m_DescriptorLayouts[i] = descriptorsLayout;
     }
 
-    if (referencesOtherBindlessSet)
+    if (pipeline.HasTextureHeap)
     {
-        const DescriptorsWithLayout& referencedDescriptors = m_PersistentDescriptors.at(pipeline.BindlessName);
-        shader.m_Descriptors[BINDLESS_DESCRIPTORS_INDEX] = referencedDescriptors.Descriptors;
-        shader.m_DescriptorLayouts[BINDLESS_DESCRIPTORS_INDEX] = referencedDescriptors.Layout;
+        shader.m_Descriptors[BINDLESS_DESCRIPTORS_INDEX] = m_TextureHeap.Descriptors;
+        shader.m_DescriptorLayouts[BINDLESS_DESCRIPTORS_INDEX] = m_TextureHeap.Layout;
     }
     
     return shader;
 }
 
-void ShaderCache::AddPersistentDescriptors(StringId name, Descriptors descriptors, DescriptorsLayout descriptorsLayout)
+ShaderCacheTextureHeapResult ShaderCache::AllocateTextureHeap(DescriptorArenaAllocator persistentAllocator, u32 count)
 {
-    if (m_PersistentDescriptors.contains(name))
-        LOG("Warning: persistent descriptors with name '{}' were already added", name);
-    m_PersistentDescriptors[name] = {
-        .Descriptors = descriptors,
-        .Layout = descriptorsLayout
+    if (m_TextureHeap.Descriptors.HasValue())
+    {
+        LOG("Warning: texture heap is already added");
+        return std::unexpected(ShaderCacheError::FailedToAllocateDescriptors);
+    }
+
+    const DescriptorBinding descriptorBinding = {
+        .Binding = BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX,
+        .Type = DescriptorType::Image,
+        .Count = descriptors::safeBindlessCountForDescriptorType(DescriptorType::Image),
+        .Shaders = ShaderStage::Vertex | ShaderStage::Pixel | ShaderStage::Compute,
+        .Flags = descriptors::BINDLESS_DESCRIPTORS_FLAGS,
+    };
+    const DescriptorsLayout layout = Device::CreateDescriptorsLayout({
+        .Bindings = {descriptorBinding},
+        .Flags = descriptors::BINDLESS_DESCRIPTORS_LAYOUT_FLAGS
+    });
+
+    const auto allocation = Device::AllocateDescriptors(persistentAllocator, layout, {
+        .Bindings = {descriptorBinding},
+        .BindlessCount = count,
+    });
+
+    if (!allocation.has_value())
+        return std::unexpected(ShaderCacheError::FailedToAllocateDescriptors);
+
+    m_TextureHeap = {
+        .Descriptors = *allocation,
+        .Layout = layout
+    };
+
+    std::array<DescriptorsLayout, BINDLESS_DESCRIPTORS_INDEX + 1> descriptorSets;
+    std::ranges::fill(descriptorSets, Device::GetEmptyDescriptorsLayout());
+    descriptorSets[BINDLESS_DESCRIPTORS_INDEX] = layout;
+
+    const PipelineLayout pipelineLayout = Device::CreatePipelineLayout({
+        .DescriptorsLayouts = descriptorSets
+    });
+
+    return ShaderTextureHeapAllocation{
+        .Descriptors = *allocation,
+        .PipelineLayout = pipelineLayout
     };
 }
 
@@ -345,17 +386,8 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const Sh
     if (!shaderLoadInfo.has_value())
         return std::nullopt;
     
-    StringId referencedBindlessSet = {};
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> descriptorsLayoutsOverrides{};
-    if (shaderLoadInfo->BindlessSetReference.has_value())
-    {
-        referencedBindlessSet = StringId::FromString(*shaderLoadInfo->BindlessSetReference);
-        if (!m_PersistentDescriptors.contains(referencedBindlessSet))
-            return std::nullopt;
-        
-        descriptorsLayoutsOverrides[BINDLESS_DESCRIPTORS_INDEX] =
-            m_PersistentDescriptors.at(referencedBindlessSet).Layout;
-    }
+    descriptorsLayoutsOverrides[BINDLESS_DESCRIPTORS_INDEX] = m_TextureHeap.Layout;
 
     const ShaderPipelineTemplate* shaderTemplate =
         GetShaderPipelineTemplate(name, overrides, path, descriptorsLayoutsOverrides);
@@ -411,8 +443,8 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const Sh
             .PrimitiveKind = overrides.PipelineOverrides.PrimitiveKind.value_or(primitiveKind),
             .Specialization = overrides.Specializations.ToPipelineSpecializationsView(*shaderTemplate),
             .IsComputePipeline = shaderTemplate->IsComputeTemplate(),
-            .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)},
-            Device::DummyDeletionQueue());
+            .ClampDepth = overrides.PipelineOverrides.ClampDepth.value_or(clampDepth)
+        }, Device::DummyDeletionQueue());
         Device::NamePipeline(pipeline, name.Name.AsStringView());
 
         return pipeline;
@@ -421,10 +453,7 @@ std::optional<ShaderCache::PipelineInfo> ShaderCache::TryCreatePipeline(const Sh
     PipelineInfo shader = {};
     shader.PipelineTemplate = shaderTemplate;
     shader.Layout = shaderTemplate->GetPipelineLayout();
-    shader.BindlessName = referencedBindlessSet;
-    shader.BindlessCount =
-        shaderTemplate->GetReflection().DescriptorSetsInfo()[BINDLESS_DESCRIPTORS_INDEX].HasBindless ?
-        shaderLoadInfo->BindlessCount.value_or(0u) : 0u;
+    shader.HasTextureHeap = shaderTemplate->GetSetPresence()[BINDLESS_DESCRIPTORS_INDEX];
 
     if (enumHasAny(allocationType, ShaderCacheAllocationType::Pipeline))
         shader.Pipeline = createPipeline();
@@ -457,7 +486,7 @@ const ShaderPipelineTemplate* ShaderCache::GetShaderPipelineTemplate(const Shade
     if (!shaderReflectionResult.has_value())
         return nullptr;
 
-    ShaderReflectionEntryPointsInfo entryPointsInfo = ShaderReflection::GetEntryPointsInfo(baked->Header);
+    const ShaderReflectionEntryPointsInfo entryPointsInfo = ShaderReflection::GetEntryPointsInfo(baked->Header);
 
     ShaderReflection* reflection =
         AssetManager::AddShader(

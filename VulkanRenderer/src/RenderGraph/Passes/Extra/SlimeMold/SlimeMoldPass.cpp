@@ -182,7 +182,7 @@ UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderG
             ImGui::End();
             passData.Traits = graph.Upload(passData.Traits, ctx.GetTraits());
         },
-        [=, ctx=&ctx](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=, ctx=&ctx](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Slime.Update")
             GPU_PROFILE_FRAME("Slime.Update")
@@ -193,7 +193,7 @@ UpdateSlimeMapPassData& addUpdateSlimeMapStage(StringId name, RG::Graph& renderG
             u32 slimeCountDimension = (u32)std::sqrt((f32)slimeCount);
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
                 .Data = {pushConstants}
@@ -228,14 +228,14 @@ DiffuseSlimeMapPassData& addDiffuseSlimeMapStage(StringId name, RG::Graph& rende
             }));
             passData.SlimeMap = passData.BindGroup.SetResourcesSlimeMap(updateOutput.SlimeMap);
         },
-        [=, ctx=&ctx](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=, ctx=&ctx](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Slime.Diffuse")
             GPU_PROFILE_FRAME("Slime.Diffuse")
 
             PushConstants pushConstants = PushConstants::FromContext(*ctx, frameContext.FrameNumberTick);
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
                 .Data = {pushConstants}
@@ -296,14 +296,14 @@ GradientPassData& addGradientStage(StringId name, RG::Graph& renderGraph, SlimeM
             ImGui::End();
             graph.Upload(gradient, gradientUbo);
         },
-        [=, ctx=&ctx](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=, ctx=&ctx](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Gradient.Slime")
             GPU_PROFILE_FRAME("Gradient.Slime")
 
             PushConstants pushConstants = PushConstants::FromContext(*ctx, frameContext.FrameNumberTick);
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
                 .Data = {pushConstants}

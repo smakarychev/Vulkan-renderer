@@ -15,7 +15,7 @@ enum class DescriptorType
     Input
 };
 
-enum class DescriptorFlags
+enum class DescriptorFlags : u8
 {
     None = 0,
     
@@ -49,7 +49,7 @@ enum class DescriptorPoolFlags
 CREATE_ENUM_FLAGS_OPERATORS(DescriptorPoolFlags)
 
 
-enum class ShaderStage
+enum class ShaderStage : u8
 {
     None = 0,
     

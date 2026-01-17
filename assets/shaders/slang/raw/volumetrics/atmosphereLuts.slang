@@ -203,8 +203,7 @@ struct AerialPerspectiveLutResources {
 void aerialPerspectiveLut(
     uint3 dispatchThreadID: SV_DispatchThreadID,
     uniform ParameterBlock<AerialPerspectiveLutSamplers> samplers,
-    uniform ParameterBlock<AerialPerspectiveLutResources> resources,
-    uniform ParameterBlock<TextureHeap> textures) {
+    uniform ParameterBlock<AerialPerspectiveLutResources> resources) {
 
     const float2 uv = (float2(dispatchThreadID.xy) + 0.5f) / float2(AERIAL_PERSPECTIVE_LUT_RES);
     const float3 clip = float3(uv * 2.0f - 1.0f, 1.0f);
@@ -236,7 +235,7 @@ void aerialPerspectiveLut(
     scatteringInfo.transmittanceLut = resources.transmittanceLut;
     scatteringInfo.multiscatteringLut = resources.multiscatteringLut;
     scatteringInfo.csm = resources.csm;
-    scatteringInfo.cloudShadow = textures.textures[resources.view.shading.volumetricCloudShadow];
+    scatteringInfo.cloudShadow = resources.view.shading.volumetricCloudShadow.desc;
     scatteringInfo.view = resources.view;
     scatteringInfo.globalL = 
         resources.view.shading.primaryDirectionalLightColor.rgb * 

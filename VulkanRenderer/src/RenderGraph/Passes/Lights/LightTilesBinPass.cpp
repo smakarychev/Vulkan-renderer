@@ -27,13 +27,13 @@ Passes::LightTilesBin::PassData& Passes::LightTilesBin::addToGraph(StringId name
             passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
         [=, description = renderGraph.GetImageDescription(info.Depth)]
-        (const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        (const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Bin")
             GPU_PROFILE_FRAME("Lights.Tiles.Bin")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {description.Width, description.Height, 1},
                 .GroupSize = {LIGHT_TILE_SIZE_X, LIGHT_TILE_SIZE_Y, 1}

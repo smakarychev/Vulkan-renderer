@@ -22,8 +22,8 @@ struct PushConstantDescription
 
 struct PipelineLayoutCreateInfo
 {
-    Span<const PushConstantDescription> PushConstants;
-    Span<const DescriptorsLayout> DescriptorsLayouts;
+    Span<const PushConstantDescription> PushConstants{};
+    Span<const DescriptorsLayout> DescriptorsLayouts{};
 };
 
 struct PipelineLayoutTag{};

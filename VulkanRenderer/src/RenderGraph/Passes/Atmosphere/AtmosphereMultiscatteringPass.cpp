@@ -39,7 +39,7 @@ Passes::Atmosphere::Multiscattering::PassData& Passes::Atmosphere::Multiscatteri
             auto& lutDescription = graph.GetImageDescription(passData.Lut);
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
 				.Invocations = {lutDescription.Width, lutDescription.Height, 64},
 				.GroupSize = passData.BindGroup.GetMultiscatteringLutGroupSize()

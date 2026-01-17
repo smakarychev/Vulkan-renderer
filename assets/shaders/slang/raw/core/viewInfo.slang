@@ -2,6 +2,7 @@ module viewInfo;
 
 import "attributes";
 import "light/light";
+import "texturesHeap";
 
 public static const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
 public static const uint VIEW_CLAMP_DEPTH_BIT = 1;
@@ -81,10 +82,10 @@ public struct ShadingSettings {
     public bool softShadows;
     public float maxLightCullDistance;
     public float volumetricCloudShadowStrength; 
-    public uint transmittanceLut;
-    public uint skyViewLut;
-    public uint volumetricCloudShadow;
-    public uint blueNoise128;
+    public TextureHandle<Texture2D> transmittanceLut;
+    public TextureHandle<Texture2D> skyViewLut;
+    public TextureHandle<Texture2D> volumetricCloudShadow;
+    public TextureHandle<Texture2D> blueNoise128;
     uint[3] unused0;
 
     public uint directionalLightCount;

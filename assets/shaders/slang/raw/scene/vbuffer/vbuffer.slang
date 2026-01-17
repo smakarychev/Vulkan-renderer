@@ -255,23 +255,23 @@ public struct VBufferStandardPbrMaterialData {
     public float ao;
     public float3 normal;
 
-    public __init(const VBufferGeometryData geometryData, const StandardPbrMaterial material, Texture2D textures[],
+    public __init(const VBufferGeometryData geometryData, const StandardPbrMaterial material,
         SamplerState sampler) {
         albedo = material.albedo;
-        albedo *= textures[NonUniformResourceIndex(material.albedoTexture)].SampleGrad(
+        albedo *= nonuniform(material.albedoTexture.desc).SampleGrad(
             sampler, geometryData.uv, geometryData.uvDx, geometryData.uvDy);
 
-        emissive = textures[NonUniformResourceIndex(material.emissiveTexture)].SampleGrad(
+        emissive = nonuniform(material.emissiveTexture.desc).SampleGrad(
             sampler, geometryData.uv, geometryData.uvDx, geometryData.uvDy).rgb;
 
-        const float2 metallicRoughness = textures[NonUniformResourceIndex(material.metallicRoughnessTexture)].SampleGrad(
+        const float2 metallicRoughness = nonuniform(material.metallicRoughnessTexture.desc).SampleGrad(
             sampler, geometryData.uv, geometryData.uvDx, geometryData.uvDy).rg;
         metallic = metallicRoughness.r * material.metallic;
         roughness = metallicRoughness.g * material.roughness;
-        ao = textures[NonUniformResourceIndex(material.ambientOcclusionTexture)].SampleGrad(
+        ao = nonuniform(material.ambientOcclusionTexture.desc).SampleGrad(
             sampler, geometryData.uv, geometryData.uvDx, geometryData.uvDy).r;
         
-        normal = textures[NonUniformResourceIndex(material.normalTexture)].SampleGrad(
+        normal = nonuniform(material.normalTexture.desc).SampleGrad(
             sampler, geometryData.uv, geometryData.uvDx, geometryData.uvDy).rgb;
         normal = normalize(normal * 2.0f - 1.0f);
         normal = geometryData.tangent * normal.x + geometryData.bitangent * normal.y + geometryData.normal * normal.z;

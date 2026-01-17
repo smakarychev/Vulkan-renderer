@@ -45,7 +45,7 @@ Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, 
             ImGui::End();
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(),
                 .Data = {pushConstants}

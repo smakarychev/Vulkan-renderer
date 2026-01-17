@@ -37,7 +37,7 @@ Passes::SsaoBlur::PassData& Passes::SsaoBlur::addToGraph(StringId name, RG::Grap
             auto& ssaoInDescription = graph.GetImageDescription(passData.Ssao);
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
 				.Invocations = {ssaoInDescription.Width, ssaoInDescription.Height, 1},
 				.GroupSize = passData.BindGroup.GetMainGroupSize()

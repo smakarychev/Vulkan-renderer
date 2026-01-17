@@ -333,8 +333,6 @@ struct Writer
 
     std::stringstream Stream;
     u32 IndentLevel{0};
-    bool HasBindlessImages{false};
-    bool HasBindlessBuffers{false};
     CountInfo Counts{};
     std::optional<assetlib::io::IoError> Error;
 
@@ -440,15 +438,6 @@ struct Writer
         Counts.Images += signature.Count;
     }
 
-    void WriteBindlessImage(u32 set,
-        const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
-    {
-        HasBindlessImages = true;
-        const std::string line = std::format("m_ImageBindlessBindings.push_back(ImageBindingInfoRG{{{}}});",
-            GetBindingInfoContentString(set, signature, access));
-        WriteLine(line);
-    }
-
     void WriteOrdinaryBuffer(u32 set,
         const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
     {
@@ -457,15 +446,6 @@ struct Writer
         WriteLine(line);
         WriteLine("m_BufferCount += 1;");
         Counts.Buffers += signature.Count;
-    }
-
-    void WriteBindlessBuffer(u32 set,
-        const BindingsInfo::Signature& signature, const BindingsInfo::AccessVariant& access)
-    {
-        HasBindlessBuffers = true;
-        const std::string line = std::format("m_BufferBindlessBindings.push_back(BufferBindingInfoRG{{{}}});",
-            GetBindingInfoContentString(set, signature, access));
-        WriteLine(line);
     }
 
     bool OnlyMainVariant(const std::vector<std::string>& variants)
@@ -668,15 +648,13 @@ struct Writer
         {
             BeginDivergenceCase(isDivergent, access.Variants, variants);
 
-            bool success = WriteResourceAccess(signature, access);
+            const bool success = WriteResourceAccess(signature, access);
             if (success)
             {
-                if (enumHasAny(access.Attributes, assetlib::ShaderBindingAttributes::Bindless))
-                    isBuffer(access.Type) ?
-                        WriteBindlessBuffer(set, signature, access) : WriteBindlessImage(set, signature, access);
+                if (isBuffer(access.Type))
+                    WriteOrdinaryBuffer(set, signature, access);
                 else
-                    isBuffer(access.Type) ?
-                        WriteOrdinaryBuffer(set, signature, access) : WriteOrdinaryImage(set, signature, access);
+                    WriteOrdinaryImage(set, signature, access);
             }
 
             EndDivergenceCase(isDivergent);
@@ -696,6 +674,10 @@ struct Writer
     void WriteBindings(u32 set, const BindingsInfo& bindings,
         const std::vector<std::string>& variants)
     {
+        /* we don't need to generate explicit bindings for texture heap */
+        if (set == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX)
+            return;;
+        
         for (auto&& [signature, accessVariants] : bindings.Bindings)
         {
             const bool isValid = ValidateAccessVariants(bindings, signature);
@@ -720,6 +702,10 @@ struct Writer
     void WriteUniformBindings(u32 set, const UniformBindingsInfo& uniforms,
         const BindingsInfo& bindings, const std::vector<std::string>& variants)
     {
+        /* we don't need to generate explicit bindings for texture heap */
+        if (set == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX)
+            return;;
+        
         if (uniforms.Bindings.empty())
             return;
         
@@ -776,13 +762,6 @@ struct Writer
         Push();
     }
 
-    void BeginForEachLoop(std::string_view range)
-    {
-        WriteLine(std::format("for (auto& binding : {})", range));
-        WriteLine("{");
-        Push();
-    }
-
     void EndForLoop()
     {
         Pop();
@@ -801,7 +780,7 @@ struct Writer
         const std::vector<std::string>& variants, const std::string& type)
     {
         WriteLine(std::format(
-            "void Bind{}Descriptors(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators) const",
+            "void Bind{}Descriptors(RenderCommandList& cmdList) const",
             type));
         WriteLine("{");
         Push();
@@ -810,7 +789,7 @@ struct Writer
             BeginForLoop("m_SamplerCount");
             WriteLine("const auto& binding = m_SamplerBindings[i];");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = DescriptorType::Sampler}, sampler);");
+                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = DescriptorType::Sampler}, binding.Sampler);");
             EndForLoop();
         }
         if (Counts.Buffers > 0)
@@ -822,27 +801,10 @@ struct Writer
                 "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
             EndForLoop();
         }
-        if (HasBindlessBuffers)
-        {
-            BeginForEachLoop("m_BufferBindlessBindings");
-            WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
-                "Graph->GetBufferBinding(binding.Resource), binding.ArrayOffset);");
-            EndForLoop();
-        }
         if (Counts.Images > 0)
         {
             BeginForLoop("m_ImageCount");
             WriteLine("const auto& binding = m_ImageBindings[i];");
-            WriteLine("const auto& image = Graph->GetImageBinding(binding.Resource);");
-            WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
-                "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
-                "image.Subresource, image.Layout, binding.ArrayOffset);");
-            EndForLoop();
-        }
-        if (HasBindlessImages)
-        {
-            BeginForEachLoop("m_ImageBindlessBindings");
             WriteLine("const auto& image = Graph->GetImageBinding(binding.Resource);");
             WriteLine("Device::UpdateDescriptors(Shader->Descriptors(binding.Set), "
                 "DescriptorSlotInfo{.Slot = binding.Slot, .Type = binding.DescriptorType}, "
@@ -864,7 +826,7 @@ struct Writer
                 else
                     WriteLine(std::format(
                         "cmdList.BindDescriptors{}({{"
-                        ".Descriptors = Shader->Descriptors({}), .Allocators = &allocators, "
+                        ".Descriptors = Shader->Descriptors({}), "
                         ".PipelineLayout = Shader->GetLayout(), .Set = {}}});",
                         type, signature.Set, signature.Set));
                 EndDivergenceCase(isDivergent);
@@ -878,12 +840,12 @@ struct Writer
     void WriteBindPipelineType(const std::string& type)
     {
         WriteLine(std::format(
-            "void Bind{}(RenderCommandList& cmdList, const DescriptorArenaAllocators& allocators) const",
+            "void Bind{}(RenderCommandList& cmdList) const",
             type));
         WriteLine("{");
         Push();
         WriteLine(std::format("cmdList.BindPipeline{}({{.Pipeline = Shader->Pipeline()}});", type));
-        WriteLine(std::format("Bind{}Descriptors(cmdList, allocators);", type));
+        WriteLine(std::format("Bind{}Descriptors(cmdList);", type));
         Pop();
         WriteLine("}");
     }
@@ -905,10 +867,6 @@ struct Writer
             WriteLine(std::format("std::array<ImageBindingInfoRG, {}> m_ImageBindings{{}};", Counts.Images));
             WriteLine("u32 m_ImageCount{};");
         }
-        if (HasBindlessBuffers)
-            WriteLine("std::vector<BufferBindingInfoRG> m_BufferBindlessBindings{};");
-        if (HasBindlessImages)
-            WriteLine("std::vector<ImageBindingInfoRG> m_ImageBindlessBindings{};");
     }
 };
 }
@@ -1076,7 +1034,6 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
     for (auto& standaloneUniform : standaloneUniforms)
         writer.WriteLine(std::format("#include \"{}\"", standaloneUniform.string()));
     writer.WriteLine("#include <array>");
-    writer.WriteLine("#include <vector>");
     writer.WriteLine("");
     writer.WriteLine(std::format("struct {} : BindGroupBaseRG", generatedStructName));
     writer.WriteLine("{");

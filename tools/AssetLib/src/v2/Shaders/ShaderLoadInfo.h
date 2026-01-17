@@ -75,7 +75,6 @@ struct ShaderLoadInfo
 
     std::vector<EntryPoint> EntryPoints{};
     std::vector<Variant> Variants{};
-    std::optional<std::string> BindlessSetReference{std::nullopt};
     std::optional<u32> BindlessCount{std::nullopt};
     std::optional<ShaderLoadRasterizationInfo> RasterizationInfo{std::nullopt};
 };

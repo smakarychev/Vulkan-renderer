@@ -76,7 +76,7 @@ Passes::Clouds::VP::PassData& Passes::Clouds::VP::addToGraph(StringId name, RG::
             const glm::uvec2 resolution = graph.GetImageDescription(passData.ColorOut).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
                 .GroupSize = passData.BindGroup.GetCloudsVPRenderGroupSize()

@@ -59,12 +59,12 @@ namespace
         
             DescriptorLayoutFlags layoutFlags = DescriptorLayoutFlags::None;
             if (set.HasBindless)
-                layoutFlags |= DescriptorLayoutFlags::UpdateAfterBind;
+                layoutFlags |= descriptors::BINDLESS_DESCRIPTORS_LAYOUT_FLAGS;
             
-            DescriptorsLayout layout = Device::CreateDescriptorsLayout({
+            const DescriptorsLayout layout = Device::CreateDescriptorsLayout({
                 .Bindings = descriptorsFlags.Descriptors,
-                .BindingFlags = descriptorsFlags.Flags,
-                .Flags = layoutFlags});
+                .Flags = layoutFlags
+            });
             
             layouts[i] = layout;
         }
@@ -84,7 +84,8 @@ ShaderPipelineTemplate::ShaderPipelineTemplate(ShaderPipelineTemplateCreateInfo&
     
     m_PipelineLayout = Device::CreatePipelineLayout({
         .PushConstants = reflection.PushConstants(),
-        .DescriptorsLayouts = m_DescriptorsLayouts});
+        .DescriptorsLayouts = m_DescriptorsLayouts
+    });
 
     m_ShaderStageCount = (u32)createInfo.ShaderEntryPoints.size();
     std::ranges::copy(createInfo.ShaderEntryPoints, m_ShaderEntryPoints.begin());

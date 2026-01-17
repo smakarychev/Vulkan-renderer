@@ -35,13 +35,13 @@ Passes::LightTilesVisualize::PassData& Passes::LightTilesVisualize::addToGraph(
 
             passData.Color = graph.RenderTarget(passData.Color, {});
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Lights.Tiles.Visualize")
             GPU_PROFILE_FRAME("Lights.Tiles.Visualize")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.Draw({.VertexCount = 3});
         });
 }

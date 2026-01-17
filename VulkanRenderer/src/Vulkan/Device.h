@@ -144,7 +144,7 @@ public:
         DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(DescriptorArenaAllocator allocator);
     static std::optional<Descriptors> AllocateDescriptors(DescriptorArenaAllocator allocator,
-        DescriptorsLayout layout, const DescriptorAllocatorAllocationBindings& bindings);
+        DescriptorsLayout layout, DescriptorAllocatorAllocationBindings&& bindings);
     static void ResetDescriptorArenaAllocator(DescriptorArenaAllocator allocator);
     
     static void UpdateDescriptors(Descriptors descriptors, DescriptorSlotInfo slotInfo,

@@ -31,7 +31,6 @@ struct VSOutput
 
 ParameterBlock<Samplers> samplers;
 ParameterBlock<Resources> resources;
-ParameterBlock<TextureHeap> textures;
 
 [shader("vertex")]
 VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_VertexID) {
@@ -55,7 +54,7 @@ uint pixelMain(VSOutput input, uint primitiveID: SV_PrimitiveID) {
     const StandardPbrMaterial material = resources.materials[input.materialId];
 
     float alpha = material.albedo.a;
-    alpha *= textures.textures[NonUniformResourceIndex(material.albedoTexture)].Sample(samplers.sampler, input.uv).a;
+    alpha *= nonuniform(material.albedoTexture.desc).Sample(samplers.sampler, input.uv).a;
 
     if (alpha < 0.5f)
         discard;

@@ -216,6 +216,11 @@ struct UniformWriter
             Push();
             for (auto& field : structType.Fields)
                 WriteVariable(field, field.Type);
+
+            Stream << "\n";
+            WriteIndent();
+            Stream <<  std::format("auto operator<=>(const {}&) const = default;\n",
+                utils::canonicalizeName(structType.TypeName));
             Pop();
         }
         WriteIndent();

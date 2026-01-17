@@ -799,8 +799,8 @@ public:
     static std::vector<VkSemaphoreSubmitInfo> CreateVulkanSemaphoreSubmit(
         Span<const TimelineSemaphore> semaphores,
         Span<const u64> waitValues, Span<const PipelineStage> waitStages);
-    static void BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
-        PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint);
+    static void BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+        u32 firstSet, VkPipelineBindPoint bindPoint);
     static VkCommandBuffer GetProfilerCommandBuffer(ProfilerContext* context);
 };
 
@@ -2728,27 +2728,26 @@ void Device::Destroy(ShaderModule shaderModule)
 
 DescriptorsLayout Device::CreateDescriptorsLayout(DescriptorsLayoutCreateInfo&& createInfo)
 {
-    ASSERT(createInfo.BindingFlags.size() == createInfo.Bindings.size(),
-        "If any element of binding flags is set, every element has to be set")
-
     const DescriptorLayoutCache::CacheKey key = DescriptorLayoutCache::CreateCacheKey(createInfo);
     DescriptorsLayout cached = DescriptorLayoutCache::Find(key);
     if (cached.HasValue())
         return cached;
     
     std::vector<VkDescriptorBindingFlags> bindingFlags;
-    bindingFlags.reserve(createInfo.BindingFlags.size());
+    bindingFlags.reserve(createInfo.Bindings.size());
     
 #ifdef DESCRIPTOR_BUFFER
-    for (auto flag : createInfo.BindingFlags)
-        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(flag));
+    for (auto binding : createInfo.Bindings)
+        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(binding.Flags));
 #else
-    for (auto flag : createInfo.BindingFlags)
+    for (auto binding : createInfo.Bindings)
     {
-        if (enumHasAny(flag, DescriptorFlags::VariableCount))
-            flag |= DescriptorFlags::UpdateAfterBind |
+        DescriptorFlags flags = binding.Flags;
+        if (enumHasAny(flags, DescriptorFlags::VariableCount))
+            flags |= DescriptorFlags::UpdateAfterBind |
                     DescriptorFlags::UpdateUnusedPending;
-        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(flag | DescriptorFlags::PartiallyBound));
+        bindingFlags.push_back(vulkanDescriptorBindingFlagsFromDescriptorFlags(
+            flags | DescriptorFlags::PartiallyBound));
     }
 #endif
     
@@ -3030,7 +3029,7 @@ void Device::Destroy(DescriptorArenaAllocator allocator)
 }
 
 std::optional<Descriptors> Device::AllocateDescriptors(DescriptorArenaAllocator allocator, DescriptorsLayout layout,
-    const DescriptorAllocatorAllocationBindings& bindings)
+    DescriptorAllocatorAllocationBindings&& bindings)
 {
     const bool hasBindless = bindings.BindlessCount > 0;
     const DescriptorPoolFlags poolFlags = hasBindless ?
@@ -4545,13 +4544,13 @@ void Device::CompileCommand(CommandBuffer cmd, const BindImmutableSamplersComput
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsGraphicsCommand& command)
 {
-    DeviceInternal::BindDescriptors(cmd, *command.Allocators, command.PipelineLayout, command.Descriptors, command.Set,
+    DeviceInternal::BindDescriptors(cmd, command.PipelineLayout, command.Descriptors, command.Set,
         VK_PIPELINE_BIND_POINT_GRAPHICS);
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeCommand& command)
 {
-    DeviceInternal::BindDescriptors(cmd, *command.Allocators, command.PipelineLayout, command.Descriptors, command.Set,
+    DeviceInternal::BindDescriptors(cmd, command.PipelineLayout, command.Descriptors, command.Set,
         VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
@@ -4559,9 +4558,9 @@ void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorsComputeComma
 void Device::CompileCommand(CommandBuffer cmd, const BindDescriptorArenaAllocatorsCommand& command)
 {
     std::vector<VkDescriptorBufferBindingInfoEXT> descriptorBufferBindings;
-    descriptorBufferBindings.reserve(command.Allocators->m_Allocators.size());
+    descriptorBufferBindings.reserve(command.Allocators->m_TransientAllocators.size());
 
-    for (auto& allocator : command.Allocators->m_Allocators)
+    for (auto& allocator : command.Allocators->m_TransientAllocators)
     {
         const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource = Resources()[allocator];
         const u64 deviceAddress = allocatorResource.DeviceAddress;
@@ -4661,14 +4660,12 @@ void DeviceInternal::WriteDescriptor(Descriptors descriptors, DescriptorSlotInfo
     vkGetDescriptorEXT(Device::s_State.Device, &descriptorGetInfo, descriptorSizeBytes,
         (u8*)allocatorResource.MappedAddress + offsetBytes);
 }
-void DeviceInternal::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators& allocators,
-    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+    u32 firstSet, VkPipelineBindPoint bindPoint)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
     const DeviceResources::DescriptorArenaAllocatorResource& allocatorResource =
         Device::Resources()[descriptorsResource.Allocator];
-    ASSERT(allocators.Get(allocatorResource.DescriptorSet) == descriptorsResource.Allocator,
-        "Descriptors were not allocated by any of the provided allocators")
 
     u64 offset = descriptorsResource.Offsets.front();
     vkCmdSetDescriptorBufferOffsetsEXT(Device::Resources()[cmd].CommandBuffer, bindPoint,
@@ -4706,8 +4703,8 @@ u32 DeviceInternal::GetFreePoolIndexFromAllocator(DescriptorArenaAllocator alloc
 
     return index;
 }
-void DeviceInternal::BindDescriptors(CommandBuffer cmd, const DescriptorArenaAllocators&,
-    PipelineLayout pipelineLayout, Descriptors descriptors, u32 firstSet, VkPipelineBindPoint bindPoint)
+void DeviceInternal::BindDescriptors(CommandBuffer cmd, PipelineLayout pipelineLayout, Descriptors descriptors,
+    u32 firstSet, VkPipelineBindPoint bindPoint)
 {
     const DeviceResources::DescriptorsResource& descriptorsResource = Device::Resources()[descriptors];
     vkCmdBindDescriptorSets(Device::Resources()[cmd].CommandBuffer, bindPoint,

@@ -33,7 +33,7 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
                 passData.ShadowViews[i] = passData.BindGroup.SetResourcesShadowViews(passData.ShadowViews[i], i);
             }
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("ShadowCameras.GPU")
             GPU_PROFILE_FRAME("ShadowCameras.GPU")
@@ -53,7 +53,7 @@ Passes::ShadowCamerasGpu::PassData& Passes::ShadowCamerasGpu::addToGraph(StringI
             };
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
             	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
             	.Data = {pushConstant}});

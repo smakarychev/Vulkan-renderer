@@ -32,6 +32,5 @@
       }
     ],
     "depth": "D32_FLOAT"
-  },
-  "bindlessSetReference": "main_materials" 
+  }
 }

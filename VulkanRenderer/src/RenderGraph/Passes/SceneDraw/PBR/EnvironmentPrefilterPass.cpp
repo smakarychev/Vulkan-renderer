@@ -67,7 +67,7 @@ Passes::EnvironmentPrefilter::PassData& Passes::EnvironmentPrefilter::addToGraph
                     .Roughness = (f32)mipmap / (f32)prefilteredDescription.Mipmaps};
 
                 auto& cmd = frameContext.CommandList;
-                passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+                passData.BindGroup.BindCompute(cmd);
                 cmd.PushConstants({
                 	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 	.Data = {pushConstants}});

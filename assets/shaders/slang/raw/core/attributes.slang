@@ -1,14 +1,20 @@
 module attributes;
 
-[__AttributeUsage(_AttributeTargets.Var)]
-struct BindlessAttribute {}
+public enum BindlessHandleKind
+{
+    Texture = 0,
+}
 
+[__AttributeUsage(_AttributeTargets.Struct)]
+struct BindlessHandleAttribute {
+    BindlessHandleKind kind;
+}
 
 [Flags]
 public enum SamplerFlags
 {
     None = 0,
-    Linear = 2,
+    Linear = 4,
     Nearest,
     ClampEdge,
     ClampBlack,

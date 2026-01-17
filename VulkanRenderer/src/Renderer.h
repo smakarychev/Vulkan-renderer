@@ -170,6 +170,8 @@ private:
     std::unique_ptr<BindlessTextureDescriptorsRingBuffer> m_BindlessTextureDescriptorsRingBuffer;
 
     DescriptorArenaAllocator m_PersistentMaterialAllocator;
+    Descriptors m_TextureHeap{};
+    PipelineLayout m_TextureHeapPipelineLayout{};
 
     bakers::Context m_BakerCtx{};
     bakers::SlangBakeSettings m_SlangBakeSettings{};
@@ -232,10 +234,10 @@ private:
     Texture m_TransmittanceLut{};
     Texture m_SkyViewLut{};
     Texture m_VolumetricCloudShadow{};
-    u32 m_TransmittanceLutBindlessIndex{};
-    u32 m_SkyViewLutBindlessIndex{};
-    u32 m_BlueNoiseBindlessIndex{};
-    u32 m_VolumetricShadowBindlessIndex{};
+    TextureHandle m_TransmittanceLutBindlessIndex{};
+    TextureHandle m_SkyViewLutBindlessIndex{};
+    TextureHandle m_BlueNoiseBindlessIndex{};
+    TextureHandle m_VolumetricShadowBindlessIndex{};
     
     bool m_IsWindowResized{false};
     bool m_FrameEarlyExit{false};

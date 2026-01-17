@@ -72,7 +72,7 @@ Passes::SceneForwardPbr::PassData& Passes::SceneForwardPbr::addToGraph(StringId 
             GPU_PROFILE_FRAME("Scene.SceneForwardPbr")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.BindIndexU8Buffer({
                 .Buffer = Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Indices)
             });

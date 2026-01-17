@@ -43,13 +43,13 @@ RG::Resource Passes::Texture2dToTexture2d::addToGraph(StringId name, RG::Graph& 
             passData.Texture = passData.BindGroup.SetResourcesTexture(textureIn);
             passData.TextureOut = graph.RenderTarget(passData.TextureOut, {});
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Texture2dToTexture2d")
             GPU_PROFILE_FRAME("Texture2dToTexture2d")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.Draw({.VertexCount = 3});
         }).TextureOut;
 }
@@ -89,13 +89,13 @@ RG::Resource Passes::Texture3dToSlice::addToGraph(StringId name, RG::Graph& rend
             passData.Texture3d = passData.BindGroup.SetResourcesTexture(textureIn);
             passData.Slice = graph.RenderTarget(passData.Slice, {});
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Texture3dToSlice")
             GPU_PROFILE_FRAME("Texture3dToSlice")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 .Data = {sliceNormalized}});
@@ -141,13 +141,13 @@ RG::Resource Passes::TextureArrayToSlice::addToGraph(StringId name, RG::Graph& r
                 .ClearColor = {.F = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}
             });
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("TextureArrayToSlice")
             GPU_PROFILE_FRAME("TextureArrayToSlice")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.PushConstants({
             	.PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
             	.Data = {slice}});
@@ -198,7 +198,7 @@ RG::Resource Passes::TextureArrayToAtlas::addToGraph(StringId name, RG::Graph& r
             GPU_PROFILE_FRAME("TextureArrayToAtlas")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
 
             const ImageDescription& description = graph.GetImageDescription(passData.TextureArray);
             const f32 squareDimensions = (f32)std::floor(std::sqrt(description.LayersDepth));

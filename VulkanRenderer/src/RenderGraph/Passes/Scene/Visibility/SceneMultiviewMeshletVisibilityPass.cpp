@@ -50,7 +50,7 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
                     resources.MeshletInfoCounts[i], i);
             }
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("MeshletVisibilityPass")
             GPU_PROFILE_FRAME("MeshletVisibilityPass")
@@ -62,7 +62,7 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             };
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 .Data = {PushConstants{

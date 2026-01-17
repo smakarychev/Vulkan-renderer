@@ -55,7 +55,7 @@ PassDataIdentify& identifyActiveClusters(StringId name, RG::Graph& renderGraph,
             auto& depthDescription = graph.GetImageDescription(depth);
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {depthDescription.Width, depthDescription.Height, 1},
                 .GroupSize = passData.BindGroup.GetCompactIdentifyClustersGroupSize()
@@ -83,13 +83,13 @@ PassDataCompactPrepare& compactActiveClustersPrepare(StringId name, RG::Graph& r
             
             passData.BindGroup.SetResourcesVisibility(clusterVisibility);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Compact")
             GPU_PROFILE_FRAME("Lights.Clusters.Compact")
             
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y * LIGHT_CLUSTER_BINS_Z, 1},
                 .GroupSize = passData.BindGroup.GetCompactClustersGroupSize()
@@ -114,13 +114,13 @@ PassDataCrateDispatch& createIndirectDispatch(StringId name, RG::Graph& renderGr
 
             passData.BindGroup.SetResourcesActiveClustersCount(clusterCount);
         },
-        [=](const PassData& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassData& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.CreateDispatch")
             GPU_PROFILE_FRAME("Lights.Clusters.CreateDispatch")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {1, 1, 1}
             });
@@ -186,7 +186,7 @@ Passes::LightClustersBin::PassData& Passes::LightClustersBin::addToGraph(StringI
             GPU_PROFILE_FRAME("Lights.Clusters.Bin")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.DispatchIndirect({
                 .Buffer = graph.GetBuffer(passData.DispatchIndirect)
             });

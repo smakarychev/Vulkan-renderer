@@ -45,9 +45,6 @@ public struct CloudsVPParameters {
 
     [DefaultValue("-0.15f")]
     public float hGBackwardEccentricity;
-
-    [DefaultValue("~0u")]
-    public uint blueNoiseBindlessIndex;
 }
 
 public struct CloudsVPResources {

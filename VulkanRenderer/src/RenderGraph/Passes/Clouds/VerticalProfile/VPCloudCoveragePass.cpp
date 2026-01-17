@@ -44,7 +44,7 @@ Passes::Clouds::VP::Coverage::PassData& Passes::Clouds::VP::Coverage::addToGraph
             const glm::uvec2 resolution = graph.GetImageDescription(passData.CoverageMap).Dimensions();
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(cmd, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {resolution.x, resolution.y, 1},
                 .GroupSize = passData.BindGroup.GetCloudCoverageNoiseGroupSize()

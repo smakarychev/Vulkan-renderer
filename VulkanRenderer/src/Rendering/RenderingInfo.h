@@ -6,8 +6,6 @@
 
 #include <optional>
 
-class DeletionQueue;
-
 enum class RenderingAttachmentType : u8 {Color, DepthStencil};
 
 struct ColorClearValue

@@ -10,6 +10,9 @@
 
 #include "v2/Shaders/SlangShaderAsset.h"
 
+static_assert(BINDLESS_DESCRIPTORS_INDEX == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX);
+static_assert(BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_BINDING_INDEX);
+
 namespace
 {
 Sampler getImmutableSampler(ImageFilter filter, SamplerWrapMode wrapMode, SamplerBorderColor borderColor)
@@ -249,52 +252,30 @@ Sampler immutableSamplerFromAssetBindingAttributes(assetlib::ShaderBindingAttrib
     return immutableSampler;
 }
 
-constexpr u32 bindlessDescriptorCountForAssetBindingType(assetlib::ShaderBindingType type)
-{
-    /* divide max count by 2 to allow for non-bindless resources in pipeline */
-    switch (type)
-    {
-    case assetlib::ShaderBindingType::Sampler:
-    case assetlib::ShaderBindingType::Image:
-    case assetlib::ShaderBindingType::ImageStorage:
-        return Device::GetMaxIndexingImages() >> 1;
-    case assetlib::ShaderBindingType::UniformBuffer:
-        return Device::GetMaxIndexingUniformBuffers() >> 1;
-    case assetlib::ShaderBindingType::StorageBuffer:
-        return Device::GetMaxIndexingStorageBuffers() >> 1;
-    case assetlib::ShaderBindingType::UniformBufferDynamic:
-        return Device::GetMaxIndexingUniformBuffersDynamic() >> 1;
-    case assetlib::ShaderBindingType::StorageBufferDynamic:
-        return Device::GetMaxIndexingStorageBuffersDynamic() >> 1;
-    default:
-        ASSERT(false, "Unsupported descriptor bindless type")
-        return 0;
-    }
-}
-
 ShaderReflection::DescriptorSets descriptorSetsFromAssetBindingSets(const std::vector<assetlib::ShaderBindingSet>& sets)
 {
     ShaderReflection::DescriptorSets descriptorSets = {};
     
-    for (u32 i = 0; i < sets.size(); i++)
+    for (auto& set : sets)
     {
         bool hasBindless = false;
-        descriptorSets[i].Descriptors.reserve(sets[i].Bindings.size());
-        for (auto& binding : sets[i].Bindings)
+        descriptorSets[set.Set].Descriptors.reserve(set.Bindings.size());
+        for (auto& binding : set.Bindings)
         {
+            const DescriptorType type = descriptorTypeFromAssetBindingType(binding.Type);
             const bool bindingIsBindless = enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::Bindless);
             hasBindless |= bindingIsBindless;
-            descriptorSets[i].Descriptors.push_back({
+            descriptorSets[set.Set].Descriptors.push_back({
                 .Binding = binding.Binding,
-                .Type = descriptorTypeFromAssetBindingType(binding.Type),
-                .Count = bindingIsBindless ? bindlessDescriptorCountForAssetBindingType(binding.Type) : binding.Count,
+                .Type = type,
+                .Count = bindingIsBindless ? descriptors::safeBindlessCountForDescriptorType(type) : binding.Count,
                 .Shaders = shaderMultiStageFromAssetShaderMultiStage(binding.ShaderStages),
                 // todo: get rid of this, and just store attributes (store the entire shader asset in Reflection)
-                .Flags = bindingIsBindless ? DescriptorFlags::VariableCount : DescriptorFlags::None,
+                .Flags = bindingIsBindless ? descriptors::BINDLESS_DESCRIPTORS_FLAGS : DescriptorFlags::None,
                 .ImmutableSampler = immutableSamplerFromAssetBindingAttributes(binding.Attributes)
             });
         }
-        descriptorSets[i].HasBindless= hasBindless;
+        descriptorSets[set.Set].HasBindless = hasBindless;
     }
 
     return descriptorSets;

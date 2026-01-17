@@ -31,6 +31,5 @@
         "name": "color"
       }
     ]
-  },
-  "bindlessSetReference": "main_materials" 
+  }
 }

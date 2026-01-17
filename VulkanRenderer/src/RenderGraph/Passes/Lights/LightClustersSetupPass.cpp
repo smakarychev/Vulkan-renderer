@@ -24,13 +24,13 @@ Passes::LightClustersSetup::PassData& Passes::LightClustersSetup::addToGraph(Str
                 RGBufferDescription{.SizeBytes = LIGHT_CLUSTER_BINS * sizeof(u8)}));
             passData.BindGroup.SetResourcesView(info.ViewInfo);
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Setup")
             GPU_PROFILE_FRAME("Lights.Clusters.Setup")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindCompute(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindCompute(cmd);
             cmd.Dispatch({
                 .Invocations = {LIGHT_CLUSTER_BINS_X, LIGHT_CLUSTER_BINS_Y, LIGHT_CLUSTER_BINS_Z},
                 .GroupSize = passData.BindGroup.GetSetupClustersGroupSize()

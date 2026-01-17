@@ -28,13 +28,13 @@ Passes::LightClustersCascadesVisualize::PassData& Passes::LightClustersCascadesV
             passData.BindGroup.SetResourcesDepth(info.Depth);
             passData.Color = graph.RenderTarget(passData.Color, {});
         },
-        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
+        [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
             CPU_PROFILE_FRAME("Lights.Clusters.Visualize.Cascades")
             GPU_PROFILE_FRAME("Lights.Clusters.Visualize.Cascades")
 
             auto& cmd = frameContext.CommandList;
-            passData.BindGroup.BindGraphics(frameContext.CommandList, graph.GetFrameAllocators());
+            passData.BindGroup.BindGraphics(cmd);
             cmd.Draw({.VertexCount = 3});
         });
 }
