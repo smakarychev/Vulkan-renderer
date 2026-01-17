@@ -13,7 +13,6 @@ template <typename T>
 RG::Resource addToGraph(StringId name, RG::Graph& renderGraph, T&& data)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)

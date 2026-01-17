@@ -5,11 +5,6 @@
 #include "cvars/CVarSystem.h"
 #include "RenderGraph/Passes/Generated/AtmosphereLutMultiscatteringBindGroupRG.generated.h"
 
-namespace RG
-{
-    enum class ResourceAccessFlags;
-}
-
 Passes::Atmosphere::Multiscattering::PassData& Passes::Atmosphere::Multiscattering::addToGraph(StringId name,
     RG::Graph& renderGraph, const ExecutionInfo& info)
 {

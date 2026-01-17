@@ -21,7 +21,6 @@ Passes::DepthReductionReadback::PassData& Passes::DepthReductionReadback::addToG
     RG::Graph& renderGraph, const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
@@ -30,7 +29,7 @@ Passes::DepthReductionReadback::PassData& Passes::DepthReductionReadback::addToG
             
             graph.HasSideEffect();
             
-            passData.MinMaxDepth = graph.ReadBuffer(info.MinMaxDepthReduction, Readback);
+            passData.MinMaxDepth = graph.ReadBuffer(info.MinMaxDepthReduction, ResourceAccessFlags::Readback);
 
             const Buffer minMax = graph.GetBuffer(passData.MinMaxDepth);
             const void* address = Device::MapBuffer(minMax);

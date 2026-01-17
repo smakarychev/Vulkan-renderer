@@ -56,7 +56,6 @@ Passes::Clouds::VP::Shadow::PassData& renderShadowsPass(StringId name, RG::Graph
     const Passes::Clouds::VP::Shadow::ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
     using PassDataBind = PassDataWithBind<Passes::Clouds::VP::Shadow::PassData, CloudsVPShadowBindGroupRG>;
 
     return renderGraph.AddRenderPass<PassDataBind>(name,
@@ -110,7 +109,6 @@ Passes::Clouds::VP::Shadow::PassData& Passes::Clouds::VP::Shadow::addToGraph(Str
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)

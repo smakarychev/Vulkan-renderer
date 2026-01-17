@@ -10,7 +10,6 @@ Passes::Crt::PassData& Passes::Crt::addToGraph(StringId name, RG::Graph& renderG
 {
     using namespace RG;
     using PassDataBind = PassDataWithBind<PassData, CrtBindGroupRG>;
-    using enum ResourceAccessFlags;
 
     struct SettingsUBO
     {

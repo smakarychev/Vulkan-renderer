@@ -28,8 +28,6 @@ Passes::DiffuseIrradianceSH::PassData& addOffline(StringId name, RG::Graph& rend
     RG::Resource cubemap, RG::Resource irradianceSH)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     using PassDataBind = PassDataWithBind<Passes::DiffuseIrradianceSH::PassData, DiffuseIrradianceShOfflineBindGroupRG>;
 
     return renderGraph.AddRenderPass<PassDataBind>(name,
@@ -61,8 +59,6 @@ Passes::DiffuseIrradianceSH::PassData& addRealtime(StringId name, RG::Graph& ren
     RG::Resource cubemap, RG::Resource irradianceSH)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     using PassDataBind =
         PassDataWithBind<Passes::DiffuseIrradianceSH::PassData, DiffuseIrradianceShRealtimeBindGroupRG>;
 

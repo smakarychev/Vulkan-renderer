@@ -155,8 +155,6 @@ Passes::LightClustersBin::PassData& Passes::LightClustersBin::addToGraph(StringI
     const ExecutionInfo& info)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     struct PassDataBind : PassDataWithBind<PassData, LightClustersBinBindGroupRG>
     {
         Resource DispatchIndirect{};
@@ -172,7 +170,7 @@ Passes::LightClustersBin::PassData& Passes::LightClustersBin::addToGraph(StringI
             passData.BindGroup = LightClustersBinBindGroupRG(graph);
 
             passData.Clusters = passData.BindGroup.SetResourcesClusters(info.Clusters);
-            passData.DispatchIndirect = graph.ReadBuffer(compact.DispatchIndirect, Indirect);
+            passData.DispatchIndirect = graph.ReadBuffer(compact.DispatchIndirect, ResourceAccessFlags::Indirect);
 
             passData.BindGroup.SetResourcesActiveClusters(compact.ActiveClusters);
             passData.BindGroup.SetResourcesActiveClustersCount(compact.ActiveClustersCount);

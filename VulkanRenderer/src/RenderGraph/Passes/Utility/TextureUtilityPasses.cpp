@@ -13,14 +13,13 @@ RG::Resource Passes::Texture2dToTexture2d::addToGraph(StringId name, RG::Graph& 
     ChannelComposition channelComposition)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     struct PassData
     {
         Resource Texture{};
         Resource TextureOut{};
         Texture2dToTexture2dBindGroupRG BindGroup;
     };
+    
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
@@ -59,14 +58,13 @@ RG::Resource Passes::Texture3dToSlice::addToGraph(StringId name, RG::Graph& rend
     f32 sliceNormalized, ChannelComposition channelComposition)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     struct PassData
     {
         Resource Slice{};
         Resource Texture3d{};
         Texture3dToSliceBindGroupRG BindGroup;
     };
+    
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
         {
@@ -107,8 +105,6 @@ RG::Resource Passes::TextureArrayToSlice::addToGraph(StringId name, RG::Graph& r
     u32 slice, ChannelComposition channelComposition)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     struct PassData
     {
         Resource Slice{};
@@ -159,8 +155,6 @@ RG::Resource Passes::TextureArrayToAtlas::addToGraph(StringId name, RG::Graph& r
     ChannelComposition channelComposition)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
-
     struct PassData
     {
         Resource Atlas{};

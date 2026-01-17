@@ -320,7 +320,6 @@ Passes::SlimeMold::PassData& Passes::SlimeMold::addToGraph(StringId name, RG::Gr
     SlimeMoldContext& ctx)
 {
     using namespace RG;
-    using enum ResourceAccessFlags;
 
     return renderGraph.AddRenderPass<PassData>(name,
         [&](Graph& graph, PassData& passData)
