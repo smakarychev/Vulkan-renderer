@@ -1,6 +1,6 @@
 #pragma once
 
-#include "SlangShaderAsset.h"
+#include "ShaderAsset.h"
 
 #include <memory>
 #include <variant>

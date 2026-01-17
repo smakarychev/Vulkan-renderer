@@ -8,7 +8,7 @@
 #include "Utils/ContainterUtils.h"
 #include "Rendering/DeletionQueue.h"
 
-#include "v2/Shaders/SlangShaderAsset.h"
+#include "v2/Shaders/ShaderAsset.h"
 
 static_assert(BINDLESS_DESCRIPTORS_INDEX == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX);
 static_assert(BINDLESS_DESCRIPTORS_TEXTURE_BINDING_INDEX == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_BINDING_INDEX);

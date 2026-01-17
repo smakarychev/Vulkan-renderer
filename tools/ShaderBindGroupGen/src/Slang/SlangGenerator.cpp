@@ -3,7 +3,7 @@
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
 #include "Bakers/Shaders/SlangBaker.h"
-#include "v2/Shaders/SlangShaderAsset.h"
+#include "v2/Shaders/ShaderAsset.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
 
 #include <ranges>

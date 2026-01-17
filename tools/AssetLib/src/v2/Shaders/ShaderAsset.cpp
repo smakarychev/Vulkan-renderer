@@ -1,4 +1,4 @@
-#include "SlangShaderAsset.h"
+#include "ShaderAsset.h"
 
 #include "utils.h"
 #include "v2/AssetTypes.h"

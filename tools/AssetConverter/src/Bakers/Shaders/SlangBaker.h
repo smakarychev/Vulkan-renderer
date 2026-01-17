@@ -5,7 +5,7 @@
 #include "Containers/Result.h"
 #include "String/StringId.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
-#include "v2/Shaders/SlangShaderAsset.h"
+#include "v2/Shaders/ShaderAsset.h"
 
 namespace assetlib
 {

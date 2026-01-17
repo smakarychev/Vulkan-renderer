@@ -6,7 +6,7 @@
 #include "Utils/HashUtils.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
 #include "v2/Shaders/ShaderUniform.h"
-#include "v2/Shaders/SlangShaderAsset.h"
+#include "v2/Shaders/ShaderAsset.h"
 
 #include <fstream>
 #include <queue>
