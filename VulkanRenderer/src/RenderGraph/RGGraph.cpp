@@ -385,8 +385,6 @@ namespace RG
 
     void Graph::Execute(FrameContext& frameContext)
     {
-
-        
         for (u32 i = 0; i < m_Passes.size(); i++)
         {
             m_PassIndicesStack.push_back(i);
@@ -485,23 +483,26 @@ namespace RG
         if (!m_Backbuffer.IsValid())
             return;
         
-        /* transition backbuffer to the layout swapchain expects */
+        /* transition backbuffer to the ColorAttachment for imgui render */
         const auto& backbuffer = m_Images[m_Backbuffer.m_Index];
         const ImageSubresource backbufferSubresource = {
             .Image = backbuffer.Resource,
-            .Description = {.Mipmaps = 1, .Layers = 1}};
+            .Description = {.Mipmaps = 1, .Layers = 1}
+        };
         LayoutTransitionInfo backbufferTransition = {
             .ImageSubresource = backbufferSubresource,
             .SourceStage = PipelineStage::AllCommands,
-            .DestinationStage = PipelineStage::Bottom,
+            .DestinationStage = PipelineStage::ColorOutput,
             .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::ReadAll,
-            .DestinationAccess = PipelineAccess::None,
+            .DestinationAccess = PipelineAccess::WriteColorAttachment,
             .OldLayout = backbuffer.Layout,
-            .NewLayout = ImageLayout::Source};
+            .NewLayout = ImageLayout::ColorAttachment
+        };
         frameContext.CommandList.WaitOnBarrier({
             .DependencyInfo = Device::CreateDependencyInfo({
-                .LayoutTransitionInfo = backbufferTransition},
-                *m_FrameDeletionQueue)});
+                .LayoutTransitionInfo = backbufferTransition
+            }, *m_FrameDeletionQueue)
+        });
     }
 
     void Graph::Reset()

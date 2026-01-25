@@ -71,14 +71,30 @@
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 #include "String/StringId.h"
+#include "v2/Io/Compression/Lz4AssetCompressor.h"
+#include "v2/Io/Compression/RawAssetCompressor.h"
+#include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
+#include "v2/Io/IoInterface/SeparateAssetIoInterface.h"
 
 Renderer::Renderer() = default;
 
 void Renderer::Init()
 {
     StringIdRegistry::Init();
+
+    if (*CVars::Get().GetI32CVar("Assets.IoType"_hsv) == 0)
+        m_AssetIoInterface = std::make_shared<lux::assetlib::io::SeparateAssetIoInterface>();
+    else
+        m_AssetIoInterface = std::make_shared<lux::assetlib::io::CombinedAssetIoInterface>();
+    if (*CVars::Get().GetI32CVar("Assets.IoCompression"_hsv) == 0)
+        m_AssetCompressor = std::make_shared<lux::assetlib::io::Lz4AssetCompressor>();
+    else
+        m_AssetCompressor = std::make_shared<lux::assetlib::io::RawAssetCompressor>();
+
     m_BakerCtx = {
         .InitialDirectory = *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv),
+        .Io = m_AssetIoInterface.get(),
+        .Compressor = m_AssetCompressor.get()
     };
     m_SlangBakeSettings = {
         .IncludePaths = {"../assets/shaders/slang/raw"},
@@ -1602,11 +1618,14 @@ void Renderer::BeginFrame()
     GetFrameContext().CommandList.WaitOnBarrier({
         .DependencyInfo = Device::CreateDependencyInfo({
             .MemoryDependencyInfo = MemoryDependencyInfo{
-                .SourceStage = PipelineStage::AllCommands,
+                .SourceStage = PipelineStage::Host,
                 .DestinationStage = PipelineStage::AllCommands,
                 .SourceAccess = PipelineAccess::WriteAll | PipelineAccess::WriteHost,
-                .DestinationAccess = PipelineAccess::ReadAll}},
-            GetFrameContext().DeletionQueue)});
+                .DestinationAccess = PipelineAccess::ReadAll
+            }
+        },
+        GetFrameContext().DeletionQueue)
+    });
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
     m_Graph->OnFrameBegin(GetFrameContext());
@@ -1623,21 +1642,40 @@ RenderingInfo Renderer::GetImGuiUIRenderingInfo()
         .ColorAttachments = {Device::CreateRenderingAttachment({
             .Description = ColorAttachmentDescription{
                 .OnLoad = AttachmentLoad::Load,
-                .OnStore = AttachmentStore::Store},
+                .OnStore = AttachmentStore::Store
+            },
             .Image = swapchain.DrawImage,
-            .Layout = ImageLayout::General},
-            GetFrameContext().DeletionQueue)}},
-        GetFrameContext().DeletionQueue);
+            .Layout = ImageLayout::ColorAttachment
+        }, GetFrameContext().DeletionQueue)}
+    }, GetFrameContext().DeletionQueue);
 }
 
 void Renderer::EndFrame()
 {
     ImGuiUI::EndFrame(GetFrameContext().CommandList, GetImGuiUIRenderingInfo());
+    /* transition swapchain draw image to the layout swapchain expects */
+    GetFrameContext().CommandList.WaitOnBarrier({
+        .DependencyInfo = Device::CreateDependencyInfo({
+            .LayoutTransitionInfo = LayoutTransitionInfo{
+                .ImageSubresource = {
+                    .Image = Device::GetSwapchainDescription(m_Swapchain).DrawImage,
+                    .Description = {.Mipmaps = 1, .Layers = 1}
+                },
+                .SourceStage = PipelineStage::ColorOutput,
+                .DestinationStage = PipelineStage::Bottom,
+                .SourceAccess = PipelineAccess::WriteColorAttachment,
+                .DestinationAccess = PipelineAccess::None,
+                .OldLayout = ImageLayout::ColorAttachment,
+                .NewLayout = ImageLayout::Source
+            }
+        }, GetFrameContext().DeletionQueue)
+    });
 
     CommandBuffer cmd = GetFrameContext().Cmd;
     GetFrameContext().CommandList.PrepareSwapchainPresent({
         .Swapchain = m_Swapchain,
-        .ImageIndex = m_SwapchainImageIndex});
+        .ImageIndex = m_SwapchainImageIndex
+    });
     
     GPU_COLLECT_PROFILE_FRAMES()
     

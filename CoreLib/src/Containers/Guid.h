@@ -7,6 +7,8 @@
 #include <array>
 #include <format>
 
+namespace lux
+{
 class Guid
 {
     static constexpr u32 GUID_HEX_STRING_SIZE_BYTES = 36;
@@ -82,46 +84,50 @@ private:
             const char cNext = LUT[guid[stringI++]];
 
             if (c == ~0 || cNext == ~0)
-                byte = ~0;
-            else
-                byte = (char)(c << 4 | cNext);
+            {
+                parsed.fill(~0);
+                return parsed;
+            }
+            byte = (char)(c << 4 | cNext);
         }
 
         return parsed;
     }
     constexpr bool IsValid() const
     {
-        return std::ranges::all_of(m_Guid, [](auto c){ return c != ~0; });
+        return !std::ranges::all_of(m_Guid, [](auto c) { return c == ~0; });
     }
 private:
     std::array<char, GUID_SIZE_BYTES> m_Guid{};
 };
 
-consteval Guid operator""_guid(const char* string, size_t length) noexcept {
+consteval Guid operator""_guid(const char* string, size_t length) noexcept
+{
     return Guid(std::string_view(string, length));
+}
 }
 
 
 namespace std
 {
 template <>
-struct hash<Guid>
+struct hash<lux::Guid>
 {
-    usize operator()(const Guid guid) const noexcept
+    usize operator()(const lux::Guid guid) const noexcept
     {
-        return Hash::charBytes(guid.AsArray().data(), Guid::GUID_SIZE_BYTES);
+        return Hash::charBytes(guid.AsArray().data(), lux::Guid::GUID_SIZE_BYTES);
     }
 };
 
 template <>
-struct formatter<Guid>
+struct formatter<lux::Guid>
 {
     constexpr auto parse(format_parse_context& ctx)
     {
         return ctx.begin();
     }
 
-    auto format(Guid guid, format_context& ctx) const
+    auto format(lux::Guid guid, format_context& ctx) const
     {
         return format_to(ctx.out(), "{}", guid.AsString());
     }

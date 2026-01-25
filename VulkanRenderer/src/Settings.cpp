@@ -14,8 +14,16 @@ void Settings::initCvars()
     CVarString shadersPathFull("Path.Shaders.Full"_hsv, "Full path to shaders", 
         (std::filesystem::path(assetsPath.Get()) / shadersPath.Get()).generic_string());
 
+    // todo: i need enum type support
+    CVarI32 assetIoType("Assets.IoType"_hsv,
+        "Which type of asset io should be used "
+        "possible values are 0 (separate files, default) and 1 (combined files)", 0);
+    CVarI32 assetCompressionType("Assets.IoCompression"_hsv,
+        "Which type of asset compression should be used "
+        "possible values are 0 (lz4, default) and 1 (raw)", 0);
+
     CVarI32 shaderHotReloading("Renderer.Shaders.HotReload"_hsv,
-        "Flag if shader hot reloading is enabled (possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+        "Flag if shader hot reloading is enabled possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
 
     CVarI32 resourceUploaderStagingSize("Uploader.StagingSizeBytes"_hsv,
         "The size of staging buffer used to upload data, in bytes",
@@ -26,16 +34,16 @@ void Settings::initCvars()
 
     /* main rendering settings */
     CVarI32 depthPrepass("Renderer.DepthPrepass"_hsv,
-        "Flag if depth prepass enabled (possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+        "Flag if depth prepass enabled possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
     CVarI32 forwardShading("Renderer.UseForwardShading"_hsv,
         "Flag if renderer uses forward shading as main rendering pass "
-        "(possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
+        "possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
     CVarI32 gpuShadowCameras("Renderer.UseGpuShadowCameras"_hsv,
         "Flag if renderer create shadow cameras on gpu "
-        "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+        "possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
     CVarI32 atmosphereRendering("Renderer.Atmosphere"_hsv,
         "Flag if renderer should render sky as physically correct atmosphere "
-        "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+        "possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
     
     CVarI32 prefilterMapResolution("Renderer.IBL.PrefilterResolution"_hsv,
         "Resolution of environment prefilter map", 256);
@@ -52,7 +60,7 @@ void Settings::initCvars()
     /* postprocessing rendering settings */
     CVarI32 crtFlag("Postprocessing.CRT"_hsv,
         "Flag if renderer crt postprocessing effect is enabled "
-        "(possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
+        "possible values are 0 (disabled, default) and 1 (enabled)", (i32)false);
 
     /* render graph */
     CVarI32 renderGraphPoolMaxUnreferencedFrame("RG.UnreferencedResourcesLifetime"_hsv,
@@ -96,10 +104,10 @@ void Settings::initCvars()
     /* clouds */
     CVarI32 cloudUseExternalCoverageMap("Clouds.LoadCoverage"_hsv,
         "Flag if cloud coverage map should be loaded from disk "
-        "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)false);
+        "possible values are 0 (disabled) and 1 (enabled, default)", (i32)false);
     CVarI32 cloudUseExternalProfileMap("Clouds.LoadProfile"_hsv,
         "Flag if cloud profile map should be loaded from disk "
-        "(possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
+        "possible values are 0 (disabled) and 1 (enabled, default)", (i32)true);
     
     CVarI32 cloudMapSize("Clouds.CloudMap.Size"_hsv,
         "Size of the cloud map",

@@ -6,8 +6,8 @@
 #include <glaze/glaze.hpp>
 
 template <>
-struct glz::meta<assetlib::ImageFormat> : assetlib::reflection::CamelCase {
-    using enum assetlib::ImageFormat;
+struct glz::meta<lux::assetlib::ImageFormat> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::ImageFormat;
     static constexpr auto value = glz::enumerate(
         Undefined,
         RG4_UNORM_PACK8,

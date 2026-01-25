@@ -173,8 +173,10 @@ private:
     Descriptors m_TextureHeap{};
     PipelineLayout m_TextureHeapPipelineLayout{};
 
-    bakers::Context m_BakerCtx{};
-    bakers::SlangBakeSettings m_SlangBakeSettings{};
+    std::shared_ptr<lux::assetlib::io::AssetIoInterface> m_AssetIoInterface{};
+    std::shared_ptr<lux::assetlib::io::AssetCompressor> m_AssetCompressor{};
+    lux::bakers::Context m_BakerCtx{};
+    lux::bakers::SlangBakeSettings m_SlangBakeSettings{};
     ShaderCache m_ShaderCache;
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;

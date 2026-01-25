@@ -13,40 +13,40 @@ namespace
 template<class... Ts>
 struct Overload : Ts... { using Ts::operator()...; };
 
-std::string_view shaderScalarTypeToString(assetlib::ShaderScalarType type)
+std::string_view shaderScalarTypeToString(lux::assetlib::ShaderScalarType type)
 {
     switch (type)
     {
-    case assetlib::ShaderScalarType::Bool: return "b32";
-    case assetlib::ShaderScalarType::I32: return "i32";
-    case assetlib::ShaderScalarType::U32: return "u32";
-    case assetlib::ShaderScalarType::I64: return "i64";
-    case assetlib::ShaderScalarType::U64: return "u64";
-    case assetlib::ShaderScalarType::F32: return "f32";
-    case assetlib::ShaderScalarType::F64: return "f64";
-    case assetlib::ShaderScalarType::I8: return "i8";
-    case assetlib::ShaderScalarType::U8: return "u8";
-    case assetlib::ShaderScalarType::I16: return "i16";
-    case assetlib::ShaderScalarType::U16: return "u16";
+    case lux::assetlib::ShaderScalarType::Bool: return "b32";
+    case lux::assetlib::ShaderScalarType::I32: return "i32";
+    case lux::assetlib::ShaderScalarType::U32: return "u32";
+    case lux::assetlib::ShaderScalarType::I64: return "i64";
+    case lux::assetlib::ShaderScalarType::U64: return "u64";
+    case lux::assetlib::ShaderScalarType::F32: return "f32";
+    case lux::assetlib::ShaderScalarType::F64: return "f64";
+    case lux::assetlib::ShaderScalarType::I8: return "i8";
+    case lux::assetlib::ShaderScalarType::U8: return "u8";
+    case lux::assetlib::ShaderScalarType::I16: return "i16";
+    case lux::assetlib::ShaderScalarType::U16: return "u16";
     default:
         ASSERT(false, "Unsupported scalar type")
         return "none";
     }
 }
 
-std::string shaderVectorTypeToString(assetlib::ShaderScalarType scalar, u32 elements)
+std::string shaderVectorTypeToString(lux::assetlib::ShaderScalarType scalar, u32 elements)
 {
     switch (scalar)
     {
-    case assetlib::ShaderScalarType::Bool:
+    case lux::assetlib::ShaderScalarType::Bool:
         return std::format("glm::bvec{}", elements);
-    case assetlib::ShaderScalarType::I32:
+    case lux::assetlib::ShaderScalarType::I32:
         return std::format("glm::ivec{}", elements);
-    case assetlib::ShaderScalarType::U32:
+    case lux::assetlib::ShaderScalarType::U32:
         return std::format("glm::uvec{}", elements);
-    case assetlib::ShaderScalarType::F32:
+    case lux::assetlib::ShaderScalarType::F32:
         return std::format("glm::vec{}", elements);
-    case assetlib::ShaderScalarType::F64:
+    case lux::assetlib::ShaderScalarType::F64:
         return std::format("glm::dvec{}", elements);
     default:
         ASSERT(false, "Unsupported vector layout type {}", (u32)scalar)
@@ -54,17 +54,17 @@ std::string shaderVectorTypeToString(assetlib::ShaderScalarType scalar, u32 elem
     }
 }
 
-std::string shaderMatrixTypeToString(assetlib::ShaderScalarType scalar, u32 rows, u32 cols)
+std::string shaderMatrixTypeToString(lux::assetlib::ShaderScalarType scalar, u32 rows, u32 cols)
 {
     switch (scalar)
     {
-    case assetlib::ShaderScalarType::I32:
+    case lux::assetlib::ShaderScalarType::I32:
         return std::format("glm::imat{}x{}", cols, rows);
-    case assetlib::ShaderScalarType::U32:
+    case lux::assetlib::ShaderScalarType::U32:
         return std::format("glm::umat{}x{}", cols, rows);
-    case assetlib::ShaderScalarType::F32:
+    case lux::assetlib::ShaderScalarType::F32:
         return std::format("glm::mat{}x{}", cols, rows);
-    case assetlib::ShaderScalarType::F64:
+    case lux::assetlib::ShaderScalarType::F64:
         return std::format("glm::dmat{}x{}", cols, rows);
     default:
         ASSERT(false, "Unsupported matrix layout type {}", (u32)scalar)
@@ -80,7 +80,7 @@ struct UniformWriter
     std::stringstream Stream{};
     u32 IndentLevel{0};
     std::vector<std::string> TypeReferences;
-    std::unordered_map<assetlib::AssetId, std::string> EmbeddedStructs;
+    std::unordered_map<lux::assetlib::AssetId, std::string> EmbeddedStructs;
     std::string TypeName{};
     std::string ParameterName{};
     bool IsStandalone{false};
@@ -101,11 +101,11 @@ struct UniformWriter
     {
         Stream << std::string(IndentLevel, ' ');
     }
-    void WriteName(const assetlib::ShaderUniformVariable& variable)
+    void WriteName(const lux::assetlib::ShaderUniformVariable& variable)
     {
         Stream << std::format(" {}", utils::canonicalizeName(variable.Name));
     }
-    void WriteNameEOL(const assetlib::ShaderUniformVariable& variable)
+    void WriteNameEOL(const lux::assetlib::ShaderUniformVariable& variable)
     {
         WriteName(variable);
         if (variable.DefaultValue.has_value())
@@ -114,22 +114,22 @@ struct UniformWriter
             Stream << "{};\n";
     }
 
-    void WriteUniform(const assetlib::ShaderUniform& uniform)
+    void WriteUniform(const lux::assetlib::ShaderUniform& uniform)
     {
         WriteEmbeddedStructs(uniform);
         
-        const assetlib::ShaderUniformTypeVariant& rootType = uniform.Root.Type.Type;
-        ASSERT(std::holds_alternative<assetlib::ShaderUniformTypeStructReference>(rootType),
+        const lux::assetlib::ShaderUniformTypeVariant& rootType = uniform.Root.Type.Type;
+        ASSERT(std::holds_alternative<lux::assetlib::ShaderUniformTypeStructReference>(rootType),
             "It is expected that root variable of a uniform is always a struct")
         WriteVariable(uniform.Root, uniform.Root.Type);
 
-        const assetlib::ShaderUniformTypeStructReference& rootStruct =
-            std::get<assetlib::ShaderUniformTypeStructReference>(rootType);
+        const lux::assetlib::ShaderUniformTypeStructReference& rootStruct =
+            std::get<lux::assetlib::ShaderUniformTypeStructReference>(rootType);
         IsStandalone = !rootStruct.IsEmbedded;
         TypeName = utils::canonicalizeName(rootStruct.TypeName);
         ParameterName = utils::canonicalizeParameterName(rootStruct.TypeName);
     }
-    void WriteEmbeddedStructs(const assetlib::ShaderUniform& uniform)
+    void WriteEmbeddedStructs(const lux::assetlib::ShaderUniform& uniform)
     {
         EmbeddedStructs.clear();
         for (auto& embedded : uniform.EmbeddedStructs)
@@ -139,41 +139,42 @@ struct UniformWriter
             Stream.str("");
         }
     }
-    void WriteVariable(const assetlib::ShaderUniformVariable& variable, const assetlib::ShaderUniformType& type)
+    void WriteVariable(const lux::assetlib::ShaderUniformVariable& variable,
+        const lux::assetlib::ShaderUniformType& type)
     {
         WriteIndent();
         WriteType(variable, type);
         WriteNameEOL(variable);
     }
-    void WriteType(const assetlib::ShaderUniformVariable& variable, const assetlib::ShaderUniformType& type)
+    void WriteType(const lux::assetlib::ShaderUniformVariable& variable, const lux::assetlib::ShaderUniformType& type)
     {
         std::visit(Overload{
-            [this](const assetlib::ShaderUniformTypeScalar& scalar)
+            [this](const lux::assetlib::ShaderUniformTypeScalar& scalar)
             {
                 WriteScalarType(scalar);
             },
-            [this](const assetlib::ShaderUniformTypeVector& vector)
+            [this](const lux::assetlib::ShaderUniformTypeVector& vector)
             {
                 HasGlmDependency = true;
                 WriteVectorType(vector);
             },
-            [this](const assetlib::ShaderUniformTypeMatrix& matrix)
+            [this](const lux::assetlib::ShaderUniformTypeMatrix& matrix)
             {
                 HasGlmDependency = true;
                 WriteMatrixType(matrix);
             },
-            [&variable, this](const std::shared_ptr<assetlib::ShaderUniformTypeArray>& array)
+            [&variable, this](const std::shared_ptr<lux::assetlib::ShaderUniformTypeArray>& array)
             {
                 HasArrayDependency = true;
                 WriteArrayPrefix();
                 WriteType(variable, array->Element);
                 WriteArraySuffix(*array);
             },
-            [this](const std::shared_ptr<assetlib::ShaderUniformTypeStruct>& structType)
+            [this](const std::shared_ptr<lux::assetlib::ShaderUniformTypeStruct>& structType)
             {
                 WriteStructType(*structType);
             },
-            [this](const assetlib::ShaderUniformTypeStructReference& structReference)
+            [this](const lux::assetlib::ShaderUniformTypeStructReference& structReference)
             {
                 if (!structReference.IsEmbedded &&
                     std::ranges::find(TypeReferences, structReference.Target) == TypeReferences.end())
@@ -184,16 +185,16 @@ struct UniformWriter
             },
         }, type.Type);
     }
-    void WriteScalarType(const assetlib::ShaderUniformTypeScalar& scalar)
+    void WriteScalarType(const lux::assetlib::ShaderUniformTypeScalar& scalar)
     {
         Stream << shaderScalarTypeToString(scalar.Scalar);
     }
-    void WriteVectorType(const assetlib::ShaderUniformTypeVector& vector)
+    void WriteVectorType(const lux::assetlib::ShaderUniformTypeVector& vector)
     {
         ASSERT(vector.Elements > 1 && vector.Elements <= 4)
         Stream << shaderVectorTypeToString(vector.Scalar, vector.Elements);
     }
-    void WriteMatrixType(const assetlib::ShaderUniformTypeMatrix& matrix)
+    void WriteMatrixType(const lux::assetlib::ShaderUniformTypeMatrix& matrix)
     {
         ASSERT(matrix.Rows > 1 && matrix.Rows <= 4)
         ASSERT(matrix.Columns > 1 && matrix.Columns <= 4)
@@ -203,11 +204,11 @@ struct UniformWriter
     {
         Stream << "std::array<";
     }
-    void WriteArraySuffix(const assetlib::ShaderUniformTypeArray& array)
+    void WriteArraySuffix(const lux::assetlib::ShaderUniformTypeArray& array)
     {
         Stream << std::format(", {}>", array.Size);
     }
-    void WriteStructType(const assetlib::ShaderUniformTypeStruct& structType)
+    void WriteStructType(const lux::assetlib::ShaderUniformTypeStruct& structType)
     {
         WriteIndent();
         Stream << std::format("struct {}\n", utils::canonicalizeName(structType.TypeName));
@@ -249,7 +250,7 @@ std::string getIncludePathString(const std::filesystem::path& include, const std
 }
 }
 
-assetlib::io::IoResult<void> SlangUniformTypeGenerator::GenerateStandaloneUniforms(
+lux::assetlib::io::IoResult<void> SlangUniformTypeGenerator::GenerateStandaloneUniforms(
     const SlangUniformTypeGeneratorInitInfo& info)
 {
     m_TypeSearchPath = info.SearchPath;
@@ -267,7 +268,7 @@ assetlib::io::IoResult<void> SlangUniformTypeGenerator::GenerateStandaloneUnifor
 
         const fs::path& path = file.path();
         
-        if (path.extension() != assetlib::SHADER_UNIFORM_TYPE_EXTENSION)
+        if (path.extension() != lux::assetlib::SHADER_UNIFORM_TYPE_EXTENSION)
             continue;
 
         m_UniformTypesCache.emplace(path.filename().string(), FileInfo{
@@ -286,14 +287,14 @@ assetlib::io::IoResult<void> SlangUniformTypeGenerator::GenerateStandaloneUnifor
     return {};
 }
 
-assetlib::io::IoResult<SlangUniformTypeGeneratorResult> SlangUniformTypeGenerator::Generate(
+lux::assetlib::io::IoResult<SlangUniformTypeGeneratorResult> SlangUniformTypeGenerator::Generate(
     const std::string& uniform) const
 {
-    const auto result = assetlib::shader::unpackUniform(uniform);
+    const auto result = lux::assetlib::shader::unpackUniform(uniform);
     if (!result.has_value())
         return std::unexpected(result.error());
 
-    const assetlib::ShaderUniform& variable = *result;
+    const lux::assetlib::ShaderUniform& variable = *result;
     UniformWriter writer;
     writer.WriteUniform(variable);
 
@@ -311,11 +312,11 @@ assetlib::io::IoResult<SlangUniformTypeGeneratorResult> SlangUniformTypeGenerato
     };
 }
 
-assetlib::io::IoResult<void> SlangUniformTypeGenerator::WriteStandaloneUniformType(const std::filesystem::path& path,
-    const std::filesystem::path& outputPath) const
+lux::assetlib::io::IoResult<void> SlangUniformTypeGenerator::WriteStandaloneUniformType(
+    const std::filesystem::path& path, const std::filesystem::path& outputPath) const
 {
     std::ifstream in(path.string(), std::ios::binary | std::ios::ate);
-    ASSETLIB_CHECK_RETURN_IO_ERROR(in.good(), assetlib::io::IoError::ErrorCode::FailedToOpen,
+    ASSETLIB_CHECK_RETURN_IO_ERROR(in.good(), lux::assetlib::io::IoError::ErrorCode::FailedToOpen,
         "Failed to open uniform file: {}", path.string())
     const isize size = in.tellg();
     in.seekg(0, std::ios::beg);
@@ -323,7 +324,7 @@ assetlib::io::IoResult<void> SlangUniformTypeGenerator::WriteStandaloneUniformTy
     in.read(content.data(), size);
     in.close();
 
-    const auto unpackResult = assetlib::shader::unpackUniformStruct(content);
+    const auto unpackResult = lux::assetlib::shader::unpackUniformStruct(content);
     ASSETLIB_CHECK_RETURN_IO_ERROR(unpackResult.has_value(), unpackResult.error().Code,
         "Failed to open unpack uniform file: {} ({})", unpackResult.error().Message, path.string())
 
@@ -335,7 +336,7 @@ assetlib::io::IoResult<void> SlangUniformTypeGenerator::WriteStandaloneUniformTy
     for (auto& reference : writer.TypeReferences)
     {
         ASSETLIB_CHECK_RETURN_IO_ERROR(m_UniformTypesCache.contains(reference),
-            assetlib::io::IoError::ErrorCode::GeneralError,
+            lux::assetlib::io::IoError::ErrorCode::GeneralError,
             "Failed to write unpack uniform file, the referenced file not found: {} ({})", reference, path.string())
 
         content.append(

@@ -3,6 +3,7 @@
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
 #include "Bakers/Shaders/SlangBaker.h"
+#include "v2/Io/IoInterface/AssetIoInterface.h"
 #include "v2/Shaders/ShaderAsset.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
 
@@ -24,27 +25,30 @@ public:
             return Name == other.Name && Count == other.Count;
         }
     };
+
     struct SignatureHasher
     {
         u64 operator()(const Signature& signature) const
         {
             u64 hash = Hash::string(signature.Name);
             Hash::combine(hash, std::hash<u32>{}(signature.Count));
-            
+
             return hash;
         }
     };
+
     struct AccessVariant
     {
         std::vector<u32> Variants;
-        assetlib::ShaderStage ShaderStages{};
+        lux::assetlib::ShaderStage ShaderStages{};
         u32 Binding{0};
-        assetlib::ShaderBindingType Type{assetlib::ShaderBindingType::None};
-        assetlib::ShaderBindingAccess Access{assetlib::ShaderBindingAccess::Read};
-        assetlib::ShaderBindingAttributes Attributes{assetlib::ShaderBindingAttributes::None};
+        lux::assetlib::ShaderBindingType Type{lux::assetlib::ShaderBindingType::None};
+        lux::assetlib::ShaderBindingAccess Access{lux::assetlib::ShaderBindingAccess::Read};
+        lux::assetlib::ShaderBindingAttributes Attributes{lux::assetlib::ShaderBindingAttributes::None};
     };
 
     std::unordered_map<Signature, std::vector<AccessVariant>, SignatureHasher> Bindings;
+
 public:
     void AddAccessVariant(const Signature& signature, const AccessVariant& accessVariant)
     {
@@ -55,8 +59,9 @@ public:
             Bindings[signature] = {accessVariant};
             return;
         }
-        
-        const auto it = std::ranges::find_if(Bindings[signature], [accessVariant](auto& access) {
+
+        const auto it = std::ranges::find_if(Bindings[signature], [accessVariant](auto& access)
+        {
             return
                 access.ShaderStages == accessVariant.ShaderStages &&
                 access.Binding == accessVariant.Binding &&
@@ -69,18 +74,20 @@ public:
         else
             it->Variants.push_back(accessVariant.Variants.front());
     }
-    
+
     bool HasSamplers(const Signature& signature) const
     {
-        return std::ranges::any_of(Bindings.at(signature), [](auto& access) {
-            return access.Type == assetlib::ShaderBindingType::Sampler;
+        return std::ranges::any_of(Bindings.at(signature), [](auto& access)
+        {
+            return access.Type == lux::assetlib::ShaderBindingType::Sampler;
         });
     }
 
     bool OnlySamplers(const Signature& signature) const
     {
-        return std::ranges::all_of(Bindings.at(signature), [](auto& access) {
-            return access.Type == assetlib::ShaderBindingType::Sampler;
+        return std::ranges::all_of(Bindings.at(signature), [](auto& access)
+        {
+            return access.Type == lux::assetlib::ShaderBindingType::Sampler;
         });
     }
 };
@@ -107,6 +114,7 @@ struct UniformBindingsInfo
             return Type == other.Type && Parameter == other.Parameter && BindingSignature == other.BindingSignature;
         }
     };
+
     struct SignatureHasher
     {
         u64 operator()(const Signature& signature) const
@@ -114,12 +122,13 @@ struct UniformBindingsInfo
             u64 hash = Hash::string(signature.Type);
             Hash::combine(hash, Hash::string(signature.Parameter));
             Hash::combine(hash, BindingsInfo::SignatureHasher{}(signature.BindingSignature));
-            
+
             return hash;
         }
     };
 
     std::unordered_map<Signature, std::vector<u32>, SignatureHasher> Bindings;
+
 public:
     void Add(const Signature& signature, u32 variant)
     {
@@ -139,18 +148,20 @@ struct BindingSetsInfo
             return HasImmutableSamplers == other.HasImmutableSamplers && Set == other.Set;
         }
     };
+
     struct SignatureHasher
     {
         u64 operator()(const Signature& signature) const
         {
             u64 hash = std::hash<bool>{}(signature.HasImmutableSamplers);
             Hash::combine(hash, std::hash<u32>{}(signature.Set));
-            
+
             return hash;
         }
     };
 
     std::unordered_map<Signature, std::vector<u32>, SignatureHasher> Sets;
+
 public:
     void Add(const Signature& signature, u32 variant)
     {
@@ -158,32 +169,32 @@ public:
     }
 };
 
-std::string_view accessToString(assetlib::ShaderBindingAccess access)
+std::string_view accessToString(lux::assetlib::ShaderBindingAccess access)
 {
     switch (access)
     {
-    case assetlib::ShaderBindingAccess::Read: return "Read";
-    case assetlib::ShaderBindingAccess::Write: return "Write";
-    case assetlib::ShaderBindingAccess::ReadWrite: return "ReadWrite";
+    case lux::assetlib::ShaderBindingAccess::Read: return "Read";
+    case lux::assetlib::ShaderBindingAccess::Write: return "Write";
+    case lux::assetlib::ShaderBindingAccess::ReadWrite: return "ReadWrite";
     default:
         ASSERT(false)
         return "Read";
     }
 }
 
-std::string_view bindingTypeToString(assetlib::ShaderBindingType bindingType)
+std::string_view bindingTypeToString(lux::assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
-    case assetlib::ShaderBindingType::Image:
-    case assetlib::ShaderBindingType::ImageStorage:
+    case lux::assetlib::ShaderBindingType::Image:
+    case lux::assetlib::ShaderBindingType::ImageStorage:
         return "Image";
-    case assetlib::ShaderBindingType::TexelUniform:
-    case assetlib::ShaderBindingType::TexelStorage:
-    case assetlib::ShaderBindingType::UniformBuffer:
-    case assetlib::ShaderBindingType::UniformTexelBuffer:
-    case assetlib::ShaderBindingType::StorageBuffer:
-    case assetlib::ShaderBindingType::StorageTexelBuffer:
+    case lux::assetlib::ShaderBindingType::TexelUniform:
+    case lux::assetlib::ShaderBindingType::TexelStorage:
+    case lux::assetlib::ShaderBindingType::UniformBuffer:
+    case lux::assetlib::ShaderBindingType::UniformTexelBuffer:
+    case lux::assetlib::ShaderBindingType::StorageBuffer:
+    case lux::assetlib::ShaderBindingType::StorageTexelBuffer:
         return "Buffer";
     default:
         ASSERT(false)
@@ -191,34 +202,34 @@ std::string_view bindingTypeToString(assetlib::ShaderBindingType bindingType)
     }
 }
 
-std::string shaderStagesToGraphUsage(assetlib::ShaderStage stage)
+std::string shaderStagesToGraphUsage(lux::assetlib::ShaderStage stage)
 {
     std::string stages = {};
-    if (enumHasAny(stage, assetlib::ShaderStage::Vertex))
+    if (enumHasAny(stage, lux::assetlib::ShaderStage::Vertex))
         stages += "Vertex";
-    if (enumHasAny(stage, assetlib::ShaderStage::Pixel))
+    if (enumHasAny(stage, lux::assetlib::ShaderStage::Pixel))
         stages += stages.empty() ? "Pixel" : " | Pixel";
-    if (enumHasAny(stage, assetlib::ShaderStage::Compute))
+    if (enumHasAny(stage, lux::assetlib::ShaderStage::Compute))
         stages += stages.empty() ? "Compute" : " | Compute";
 
     return stages;
 }
 
-std::string bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType)
+std::string bindingTypeToGraphUsage(lux::assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
-    case assetlib::ShaderBindingType::Image:
-    case assetlib::ShaderBindingType::TexelUniform:
+    case lux::assetlib::ShaderBindingType::Image:
+    case lux::assetlib::ShaderBindingType::TexelUniform:
         return "Sampled";
-    case assetlib::ShaderBindingType::ImageStorage:
-    case assetlib::ShaderBindingType::TexelStorage:
+    case lux::assetlib::ShaderBindingType::ImageStorage:
+    case lux::assetlib::ShaderBindingType::TexelStorage:
         return "Storage";
-    case assetlib::ShaderBindingType::UniformBuffer:
+    case lux::assetlib::ShaderBindingType::UniformBuffer:
         return "Uniform";
-    case assetlib::ShaderBindingType::UniformTexelBuffer:
-    case assetlib::ShaderBindingType::StorageBuffer:
-    case assetlib::ShaderBindingType::StorageTexelBuffer:
+    case lux::assetlib::ShaderBindingType::UniformTexelBuffer:
+    case lux::assetlib::ShaderBindingType::StorageBuffer:
+    case lux::assetlib::ShaderBindingType::StorageTexelBuffer:
         return "Storage";
     default:
         ASSERT(false)
@@ -226,311 +237,335 @@ std::string bindingTypeToGraphUsage(assetlib::ShaderBindingType bindingType)
     }
 }
 
-bool isBuffer(assetlib::ShaderBindingType bindingType)
+bool isBuffer(lux::assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
-    case assetlib::ShaderBindingType::TexelUniform:
-    case assetlib::ShaderBindingType::TexelStorage:
-    case assetlib::ShaderBindingType::UniformBuffer:
-    case assetlib::ShaderBindingType::UniformTexelBuffer:
-    case assetlib::ShaderBindingType::StorageBuffer:
-    case assetlib::ShaderBindingType::StorageTexelBuffer:
+    case lux::assetlib::ShaderBindingType::TexelUniform:
+    case lux::assetlib::ShaderBindingType::TexelStorage:
+    case lux::assetlib::ShaderBindingType::UniformBuffer:
+    case lux::assetlib::ShaderBindingType::UniformTexelBuffer:
+    case lux::assetlib::ShaderBindingType::StorageBuffer:
+    case lux::assetlib::ShaderBindingType::StorageTexelBuffer:
         return true;
     default:
         return false;
     }
 }
 
-std::string_view bindingTypeToDescriptorTypeString(assetlib::ShaderBindingType bindingType)
+std::string_view bindingTypeToDescriptorTypeString(lux::assetlib::ShaderBindingType bindingType)
 {
     switch (bindingType)
     {
-    case assetlib::ShaderBindingType::Sampler: return "DescriptorType::Sampler";
-    case assetlib::ShaderBindingType::Image: return "DescriptorType::Image";
-    case assetlib::ShaderBindingType::ImageStorage: return "DescriptorType::ImageStorage";
-    case assetlib::ShaderBindingType::TexelUniform: return "DescriptorType::TexelUniform";
-    case assetlib::ShaderBindingType::TexelStorage: return "DescriptorType::TexelStorage";
-    case assetlib::ShaderBindingType::UniformBuffer: return "DescriptorType::UniformBuffer";
-    case assetlib::ShaderBindingType::StorageBuffer: return "DescriptorType::StorageBuffer";
-    case assetlib::ShaderBindingType::UniformBufferDynamic: return "DescriptorType::UniformBufferDynamic";
-    case assetlib::ShaderBindingType::StorageBufferDynamic: return "DescriptorType::StorageBufferDynamic";
-    case assetlib::ShaderBindingType::Input: return "DescriptorType::Input";
+    case lux::assetlib::ShaderBindingType::Sampler: return "DescriptorType::Sampler";
+    case lux::assetlib::ShaderBindingType::Image: return "DescriptorType::Image";
+    case lux::assetlib::ShaderBindingType::ImageStorage: return "DescriptorType::ImageStorage";
+    case lux::assetlib::ShaderBindingType::TexelUniform: return "DescriptorType::TexelUniform";
+    case lux::assetlib::ShaderBindingType::TexelStorage: return "DescriptorType::TexelStorage";
+    case lux::assetlib::ShaderBindingType::UniformBuffer: return "DescriptorType::UniformBuffer";
+    case lux::assetlib::ShaderBindingType::StorageBuffer: return "DescriptorType::StorageBuffer";
+    case lux::assetlib::ShaderBindingType::UniformBufferDynamic: return "DescriptorType::UniformBufferDynamic";
+    case lux::assetlib::ShaderBindingType::StorageBufferDynamic: return "DescriptorType::StorageBufferDynamic";
+    case lux::assetlib::ShaderBindingType::Input: return "DescriptorType::Input";
     default:
         ASSERT(false)
         return "";
     }
 }
 
-std::string_view formatFromImageFormat(assetlib::ImageFormat format)
+std::string_view formatFromImageFormat(lux::assetlib::ImageFormat format)
 {
     switch (format)
     {
-    case assetlib::ImageFormat::Undefined: return "Format::Undefined";
-    case assetlib::ImageFormat::RG4_UNORM_PACK8: return "Format::RG4_UNORM_PACK8";
-    case assetlib::ImageFormat::RGBA4_UNORM_PACK16: return "Format::RGBA4_UNORM_PACK16";
-    case assetlib::ImageFormat::BGRA4_UNORM_PACK16: return "Format::BGRA4_UNORM_PACK16";
-    case assetlib::ImageFormat::R5G6B5_UNORM_PACK16: return "Format::R5G6B5_UNORM_PACK16";
-    case assetlib::ImageFormat::B5G6R5_UNORM_PACK16: return "Format::B5G6R5_UNORM_PACK16";
-    case assetlib::ImageFormat::RGB5A1_UNORM_PACK16: return "Format::RGB5A1_UNORM_PACK16";
-    case assetlib::ImageFormat::BGR5A1_UNORM_PACK16: return "Format::BGR5A1_UNORM_PACK16";
-    case assetlib::ImageFormat::A1RGB5_UNORM_PACK16: return "Format::A1RGB5_UNORM_PACK16";
-    case assetlib::ImageFormat::R8_UNORM: return "Format::R8_UNORM";
-    case assetlib::ImageFormat::R8_SNORM: return "Format::R8_SNORM";
-    case assetlib::ImageFormat::R8_USCALED: return "Format::R8_USCALED";
-    case assetlib::ImageFormat::R8_SSCALED: return "Format::R8_SSCALED";
-    case assetlib::ImageFormat::R8_UINT: return "Format::R8_UINT";
-    case assetlib::ImageFormat::R8_SINT: return "Format::R8_SINT";
-    case assetlib::ImageFormat::R8_SRGB: return "Format::R8_SRGB";
-    case assetlib::ImageFormat::RG8_UNORM: return "Format::RG8_UNORM";
-    case assetlib::ImageFormat::RG8_SNORM: return "Format::RG8_SNORM";
-    case assetlib::ImageFormat::RG8_USCALED: return "Format::RG8_USCALED";
-    case assetlib::ImageFormat::RG8_SSCALED: return "Format::RG8_SSCALED";
-    case assetlib::ImageFormat::RG8_UINT: return "Format::RG8_UINT";
-    case assetlib::ImageFormat::RG8_SINT: return "Format::RG8_SINT";
-    case assetlib::ImageFormat::RG8_SRGB: return "Format::RG8_SRGB";
-    case assetlib::ImageFormat::RGB8_UNORM: return "Format::RGB8_UNORM";
-    case assetlib::ImageFormat::RGB8_SNORM: return "Format::RGB8_SNORM";
-    case assetlib::ImageFormat::RGB8_USCALED: return "Format::RGB8_USCALED";
-    case assetlib::ImageFormat::RGB8_SSCALED: return "Format::RGB8_SSCALED";
-    case assetlib::ImageFormat::RGB8_UINT: return "Format::RGB8_UINT";
-    case assetlib::ImageFormat::RGB8_SINT: return "Format::RGB8_SINT";
-    case assetlib::ImageFormat::RGB8_SRGB: return "Format::RGB8_SRGB";
-    case assetlib::ImageFormat::BGR8_UNORM: return "Format::BGR8_UNORM";
-    case assetlib::ImageFormat::BGR8_SNORM: return "Format::BGR8_SNORM";
-    case assetlib::ImageFormat::BGR8_USCALED: return "Format::BGR8_USCALED";
-    case assetlib::ImageFormat::BGR8_SSCALED: return "Format::BGR8_SSCALED";
-    case assetlib::ImageFormat::BGR8_UINT: return "Format::BGR8_UINT";
-    case assetlib::ImageFormat::BGR8_SINT: return "Format::BGR8_SINT";
-    case assetlib::ImageFormat::BGR8_SRGB: return "Format::BGR8_SRGB";
-    case assetlib::ImageFormat::RGBA8_UNORM: return "Format::RGBA8_UNORM";
-    case assetlib::ImageFormat::RGBA8_SNORM: return "Format::RGBA8_SNORM";
-    case assetlib::ImageFormat::RGBA8_USCALED: return "Format::RGBA8_USCALED";
-    case assetlib::ImageFormat::RGBA8_SSCALED: return "Format::RGBA8_SSCALED";
-    case assetlib::ImageFormat::RGBA8_UINT: return "Format::RGBA8_UINT";
-    case assetlib::ImageFormat::RGBA8_SINT: return "Format::RGBA8_SINT";
-    case assetlib::ImageFormat::RGBA8_SRGB: return "Format::RGBA8_SRGB";
-    case assetlib::ImageFormat::BGRA8_UNORM: return "Format::BGRA8_UNORM";
-    case assetlib::ImageFormat::BGRA8_SNORM: return "Format::BGRA8_SNORM";
-    case assetlib::ImageFormat::BGRA8_USCALED: return "Format::BGRA8_USCALED";
-    case assetlib::ImageFormat::BGRA8_SSCALED: return "Format::BGRA8_SSCALED";
-    case assetlib::ImageFormat::BGRA8_UINT: return "Format::BGRA8_UINT";
-    case assetlib::ImageFormat::BGRA8_SINT: return "Format::BGRA8_SINT";
-    case assetlib::ImageFormat::BGRA8_SRGB: return "Format::BGRA8_SRGB";
-    case assetlib::ImageFormat::ABGR8_UNORM_PACK32: return "Format::ABGR8_UNORM_PACK32";
-    case assetlib::ImageFormat::ABGR8_SNORM_PACK32: return "Format::ABGR8_SNORM_PACK32";
-    case assetlib::ImageFormat::ABGR8_USCALED_PACK32: return "Format::ABGR8_USCALED_PACK32";
-    case assetlib::ImageFormat::ABGR8_SSCALED_PACK32: return "Format::ABGR8_SSCALED_PACK32";
-    case assetlib::ImageFormat::ABGR8_UINT_PACK32: return "Format::ABGR8_UINT_PACK32";
-    case assetlib::ImageFormat::ABGR8_SINT_PACK32: return "Format::ABGR8_SINT_PACK32";
-    case assetlib::ImageFormat::ABGR8_SRGB_PACK32: return "Format::ABGR8_SRGB_PACK32";
-    case assetlib::ImageFormat::A2RGB10_UNORM_PACK32: return "Format::A2RGB10_UNORM_PACK32";
-    case assetlib::ImageFormat::A2RGB10_SNORM_PACK32: return "Format::A2RGB10_SNORM_PACK32";
-    case assetlib::ImageFormat::A2RGB10_USCALED_PACK32: return "Format::A2RGB10_USCALED_PACK32";
-    case assetlib::ImageFormat::A2RGB10_SSCALED_PACK32: return "Format::A2RGB10_SSCALED_PACK32";
-    case assetlib::ImageFormat::A2RGB10_UINT_PACK32: return "Format::A2RGB10_UINT_PACK32";
-    case assetlib::ImageFormat::A2RGB10_SINT_PACK32: return "Format::A2RGB10_SINT_PACK32";
-    case assetlib::ImageFormat::A2BGR10_UNORM_PACK32: return "Format::A2BGR10_UNORM_PACK32";
-    case assetlib::ImageFormat::A2BGR10_SNORM_PACK32: return "Format::A2BGR10_SNORM_PACK32";
-    case assetlib::ImageFormat::A2BGR10_USCALED_PACK32: return "Format::A2BGR10_USCALED_PACK32";
-    case assetlib::ImageFormat::A2BGR10_SSCALED_PACK32: return "Format::A2BGR10_SSCALED_PACK32";
-    case assetlib::ImageFormat::A2BGR10_UINT_PACK32: return "Format::A2BGR10_UINT_PACK32";
-    case assetlib::ImageFormat::A2BGR10_SINT_PACK32: return "Format::A2BGR10_SINT_PACK32";
-    case assetlib::ImageFormat::R16_UNORM: return "Format::R16_UNORM";
-    case assetlib::ImageFormat::R16_SNORM: return "Format::R16_SNORM";
-    case assetlib::ImageFormat::R16_USCALED: return "Format::R16_USCALED";
-    case assetlib::ImageFormat::R16_SSCALED: return "Format::R16_SSCALED";
-    case assetlib::ImageFormat::R16_UINT: return "Format::R16_UINT";
-    case assetlib::ImageFormat::R16_SINT: return "Format::R16_SINT";
-    case assetlib::ImageFormat::R16_FLOAT: return "Format::R16_FLOAT";
-    case assetlib::ImageFormat::RG16_UNORM: return "Format::RG16_UNORM";
-    case assetlib::ImageFormat::RG16_SNORM: return "Format::RG16_SNORM";
-    case assetlib::ImageFormat::RG16_USCALED: return "Format::RG16_USCALED";
-    case assetlib::ImageFormat::RG16_SSCALED: return "Format::RG16_SSCALED";
-    case assetlib::ImageFormat::RG16_UINT: return "Format::RG16_UINT";
-    case assetlib::ImageFormat::RG16_SINT: return "Format::RG16_SINT";
-    case assetlib::ImageFormat::RG16_FLOAT: return "Format::RG16_FLOAT";
-    case assetlib::ImageFormat::RGB16_UNORM: return "Format::RGB16_UNORM";
-    case assetlib::ImageFormat::RGB16_SNORM: return "Format::RGB16_SNORM";
-    case assetlib::ImageFormat::RGB16_USCALED: return "Format::RGB16_USCALED";
-    case assetlib::ImageFormat::RGB16_SSCALED: return "Format::RGB16_SSCALED";
-    case assetlib::ImageFormat::RGB16_UINT: return "Format::RGB16_UINT";
-    case assetlib::ImageFormat::RGB16_SINT: return "Format::RGB16_SINT";
-    case assetlib::ImageFormat::RGB16_FLOAT: return "Format::RGB16_FLOAT";
-    case assetlib::ImageFormat::RGBA16_UNORM: return "Format::RGBA16_UNORM";
-    case assetlib::ImageFormat::RGBA16_SNORM: return "Format::RGBA16_SNORM";
-    case assetlib::ImageFormat::RGBA16_USCALED: return "Format::RGBA16_USCALED";
-    case assetlib::ImageFormat::RGBA16_SSCALED: return "Format::RGBA16_SSCALED";
-    case assetlib::ImageFormat::RGBA16_UINT: return "Format::RGBA16_UINT";
-    case assetlib::ImageFormat::RGBA16_SINT: return "Format::RGBA16_SINT";
-    case assetlib::ImageFormat::RGBA16_FLOAT: return "Format::RGBA16_FLOAT";
-    case assetlib::ImageFormat::R32_UINT: return "Format::R32_UINT";
-    case assetlib::ImageFormat::R32_SINT: return "Format::R32_SINT";
-    case assetlib::ImageFormat::R32_FLOAT: return "Format::R32_FLOAT";
-    case assetlib::ImageFormat::RG32_UINT: return "Format::RG32_UINT";
-    case assetlib::ImageFormat::RG32_SINT: return "Format::RG32_SINT";
-    case assetlib::ImageFormat::RG32_FLOAT: return "Format::RG32_FLOAT";
-    case assetlib::ImageFormat::RGB32_UINT: return "Format::RGB32_UINT";
-    case assetlib::ImageFormat::RGB32_SINT: return "Format::RGB32_SINT";
-    case assetlib::ImageFormat::RGB32_FLOAT: return "Format::RGB32_FLOAT";
-    case assetlib::ImageFormat::RGBA32_UINT: return "Format::RGBA32_UINT";
-    case assetlib::ImageFormat::RGBA32_SINT: return "Format::RGBA32_SINT";
-    case assetlib::ImageFormat::RGBA32_FLOAT: return "Format::RGBA32_FLOAT";
-    case assetlib::ImageFormat::R64_UINT: return "Format::R64_UINT";
-    case assetlib::ImageFormat::R64_SINT: return "Format::R64_SINT";
-    case assetlib::ImageFormat::R64_FLOAT: return "Format::R64_FLOAT";
-    case assetlib::ImageFormat::RG64_UINT: return "Format::RG64_UINT";
-    case assetlib::ImageFormat::RG64_SINT: return "Format::RG64_SINT";
-    case assetlib::ImageFormat::RG64_FLOAT: return "Format::RG64_FLOAT";
-    case assetlib::ImageFormat::RGB64_UINT: return "Format::RGB64_UINT";
-    case assetlib::ImageFormat::RGB64_SINT: return "Format::RGB64_SINT";
-    case assetlib::ImageFormat::RGB64_FLOAT: return "Format::RGB64_FLOAT";
-    case assetlib::ImageFormat::RGBA64_UINT: return "Format::RGBA64_UINT";
-    case assetlib::ImageFormat::RGBA64_SINT: return "Format::RGBA64_SINT";
-    case assetlib::ImageFormat::RGBA64_FLOAT: return "Format::RGBA64_FLOAT";
-    case assetlib::ImageFormat::B10G11R11_UFLOAT_PACK32: return "Format::B10G11R11_UFLOAT_PACK32";
-    case assetlib::ImageFormat::E5BGR9_UFLOAT_PACK32: return "Format::E5BGR9_UFLOAT_PACK32";
-    case assetlib::ImageFormat::D16_UNORM: return "Format::D16_UNORM";
-    case assetlib::ImageFormat::X8_D24_UNORM_PACK32: return "Format::X8_D24_UNORM_PACK32";
-    case assetlib::ImageFormat::D32_FLOAT: return "Format::D32_FLOAT";
-    case assetlib::ImageFormat::S8_UINT: return "Format::S8_UINT";
-    case assetlib::ImageFormat::D16_UNORM_S8_UINT: return "Format::D16_UNORM_S8_UINT";
-    case assetlib::ImageFormat::D24_UNORM_S8_UINT: return "Format::D24_UNORM_S8_UINT";
-    case assetlib::ImageFormat::D32_FLOAT_S8_UINT: return "Format::D32_FLOAT_S8_UINT";
-    case assetlib::ImageFormat::BC1_RGB_UNORM_BLOCK: return "Format::BC1_RGB_UNORM_BLOCK";
-    case assetlib::ImageFormat::BC1_RGB_SRGB_BLOCK: return "Format::BC1_RGB_SRGB_BLOCK";
-    case assetlib::ImageFormat::BC1_RGBA_UNORM_BLOCK: return "Format::BC1_RGBA_UNORM_BLOCK";
-    case assetlib::ImageFormat::BC1_RGBA_SRGB_BLOCK: return "Format::BC1_RGBA_SRGB_BLOCK";
-    case assetlib::ImageFormat::BC2_UNORM_BLOCK: return "Format::BC2_UNORM_BLOCK";
-    case assetlib::ImageFormat::BC2_SRGB_BLOCK: return "Format::BC2_SRGB_BLOCK";
-    case assetlib::ImageFormat::BC3_UNORM_BLOCK: return "Format::BC3_UNORM_BLOCK";
-    case assetlib::ImageFormat::BC3_SRGB_BLOCK: return "Format::BC3_SRGB_BLOCK";
-    case assetlib::ImageFormat::BC4_UNORM_BLOCK: return "Format::BC4_UNORM_BLOCK";
-    case assetlib::ImageFormat::BC4_SNORM_BLOCK: return "Format::BC4_SNORM_BLOCK";
-    case assetlib::ImageFormat::BC5_UNORM_BLOCK: return "Format::BC5_UNORM_BLOCK";
-    case assetlib::ImageFormat::BC5_SNORM_BLOCK: return "Format::BC5_SNORM_BLOCK";
-    case assetlib::ImageFormat::BC6H_UFLOAT_BLOCK: return "Format::BC6H_UFLOAT_BLOCK";
-    case assetlib::ImageFormat::BC6H_FLOAT_BLOCK: return "Format::BC6H_FLOAT_BLOCK";
-    case assetlib::ImageFormat::BC7_UNORM_BLOCK: return "Format::BC7_UNORM_BLOCK";
-    case assetlib::ImageFormat::BC7_SRGB_BLOCK: return "Format::BC7_SRGB_BLOCK";
-    case assetlib::ImageFormat::ETC2_RGB8_UNORM_BLOCK: return "Format::ETC2_RGB8_UNORM_BLOCK";
-    case assetlib::ImageFormat::ETC2_RGB8_SRGB_BLOCK: return "Format::ETC2_RGB8_SRGB_BLOCK";
-    case assetlib::ImageFormat::ETC2_RGB8A1_UNORM_BLOCK: return "Format::ETC2_RGB8A1_UNORM_BLOCK";
-    case assetlib::ImageFormat::ETC2_RGB8A1_SRGB_BLOCK: return "Format::ETC2_RGB8A1_SRGB_BLOCK";
-    case assetlib::ImageFormat::ETC2_RGBA8_UNORM_BLOCK: return "Format::ETC2_RGBA8_UNORM_BLOCK";
-    case assetlib::ImageFormat::ETC2_RGBA8_SRGB_BLOCK: return "Format::ETC2_RGBA8_SRGB_BLOCK";
-    case assetlib::ImageFormat::EAC_R11_UNORM_BLOCK: return "Format::EAC_R11_UNORM_BLOCK";
-    case assetlib::ImageFormat::EAC_R11_SNORM_BLOCK: return "Format::EAC_R11_SNORM_BLOCK";
-    case assetlib::ImageFormat::EAC_R11G11_UNORM_BLOCK: return "Format::EAC_R11G11_UNORM_BLOCK";
-    case assetlib::ImageFormat::EAC_R11G11_SNORM_BLOCK: return "Format::EAC_R11G11_SNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_4x4_UNORM_BLOCK: return "Format::ASTC_4x4_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_4x4_SRGB_BLOCK: return "Format::ASTC_4x4_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_5x4_UNORM_BLOCK: return "Format::ASTC_5x4_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_5x4_SRGB_BLOCK: return "Format::ASTC_5x4_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_5x5_UNORM_BLOCK: return "Format::ASTC_5x5_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_5x5_SRGB_BLOCK: return "Format::ASTC_5x5_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_6x5_UNORM_BLOCK: return "Format::ASTC_6x5_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_6x5_SRGB_BLOCK: return "Format::ASTC_6x5_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_6x6_UNORM_BLOCK: return "Format::ASTC_6x6_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_6x6_SRGB_BLOCK: return "Format::ASTC_6x6_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x5_UNORM_BLOCK: return "Format::ASTC_8x5_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x5_SRGB_BLOCK: return "Format::ASTC_8x5_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x6_UNORM_BLOCK: return "Format::ASTC_8x6_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x6_SRGB_BLOCK: return "Format::ASTC_8x6_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x8_UNORM_BLOCK: return "Format::ASTC_8x8_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x8_SRGB_BLOCK: return "Format::ASTC_8x8_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x5_UNORM_BLOCK: return "Format::ASTC_10x5_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x5_SRGB_BLOCK: return "Format::ASTC_10x5_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x6_UNORM_BLOCK: return "Format::ASTC_10x6_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x6_SRGB_BLOCK: return "Format::ASTC_10x6_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x8_UNORM_BLOCK: return "Format::ASTC_10x8_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x8_SRGB_BLOCK: return "Format::ASTC_10x8_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x10_UNORM_BLOCK: return "Format::ASTC_10x10_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x10_SRGB_BLOCK: return "Format::ASTC_10x10_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_12x10_UNORM_BLOCK: return "Format::ASTC_12x10_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_12x10_SRGB_BLOCK: return "Format::ASTC_12x10_SRGB_BLOCK";
-    case assetlib::ImageFormat::ASTC_12x12_UNORM_BLOCK: return "Format::ASTC_12x12_UNORM_BLOCK";
-    case assetlib::ImageFormat::ASTC_12x12_SRGB_BLOCK: return "Format::ASTC_12x12_SRGB_BLOCK";
-    case assetlib::ImageFormat::GBGR8_422_UNORM: return "Format::GBGR8_422_UNORM";
-    case assetlib::ImageFormat::B8G8RG8_422_UNORM: return "Format::B8G8RG8_422_UNORM";
-    case assetlib::ImageFormat::G8_B8_R8_3PLANE_420_UNORM: return "Format::G8_B8_R8_3PLANE_420_UNORM";
-    case assetlib::ImageFormat::G8_B8R8_2PLANE_420_UNORM: return "Format::G8_B8R8_2PLANE_420_UNORM";
-    case assetlib::ImageFormat::G8_B8_R8_3PLANE_422_UNORM: return "Format::G8_B8_R8_3PLANE_422_UNORM";
-    case assetlib::ImageFormat::G8_B8R8_2PLANE_422_UNORM: return "Format::G8_B8R8_2PLANE_422_UNORM";
-    case assetlib::ImageFormat::G8_B8_R8_3PLANE_444_UNORM: return "Format::G8_B8_R8_3PLANE_444_UNORM";
-    case assetlib::ImageFormat::R10X6_UNORM_PACK16: return "Format::R10X6_UNORM_PACK16";
-    case assetlib::ImageFormat::R10X6G10X6_UNORM_2PACK16: return "Format::R10X6G10X6_UNORM_2PACK16";
-    case assetlib::ImageFormat::R10X6G10X6B10X6A10X6_UNORM_4PACK16: return "Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16";
-    case assetlib::ImageFormat::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16: return "Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16";
-    case assetlib::ImageFormat::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16: return "Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16";
-    case assetlib::ImageFormat::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16: return "Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16";
-    case assetlib::ImageFormat::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16: return "Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16";
-    case assetlib::ImageFormat::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16: return "Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16";
-    case assetlib::ImageFormat::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16: return "Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16";
-    case assetlib::ImageFormat::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16: return "Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16";
-    case assetlib::ImageFormat::R12X4_UNORM_PACK16: return "Format::R12X4_UNORM_PACK16";
-    case assetlib::ImageFormat::R12X4G12X4_UNORM_2PACK16: return "Format::R12X4G12X4_UNORM_2PACK16";
-    case assetlib::ImageFormat::R12X4G12X4B12X4A12X4_UNORM_4PACK16: return "Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16";
-    case assetlib::ImageFormat::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16: return "Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16";
-    case assetlib::ImageFormat::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16: return "Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16";
-    case assetlib::ImageFormat::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16: return "Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16";
-    case assetlib::ImageFormat::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16: return "Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16";
-    case assetlib::ImageFormat::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16: return "Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16";
-    case assetlib::ImageFormat::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16: return "Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16";
-    case assetlib::ImageFormat::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16: return "Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16";
-    case assetlib::ImageFormat::G16B16G16R16_422_UNORM: return "Format::G16B16G16R16_422_UNORM";
-    case assetlib::ImageFormat::B16G16RG16_422_UNORM: return "Format::B16G16RG16_422_UNORM";
-    case assetlib::ImageFormat::G16_B16_R16_3PLANE_420_UNORM: return "Format::G16_B16_R16_3PLANE_420_UNORM";
-    case assetlib::ImageFormat::G16_B16R16_2PLANE_420_UNORM: return "Format::G16_B16R16_2PLANE_420_UNORM";
-    case assetlib::ImageFormat::G16_B16_R16_3PLANE_422_UNORM: return "Format::G16_B16_R16_3PLANE_422_UNORM";
-    case assetlib::ImageFormat::G16_B16R16_2PLANE_422_UNORM: return "Format::G16_B16R16_2PLANE_422_UNORM";
-    case assetlib::ImageFormat::G16_B16_R16_3PLANE_444_UNORM: return "Format::G16_B16_R16_3PLANE_444_UNORM";
-    case assetlib::ImageFormat::G8_B8R8_2PLANE_444_UNORM: return "Format::G8_B8R8_2PLANE_444_UNORM";
-    case assetlib::ImageFormat::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16: return "Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16";
-    case assetlib::ImageFormat::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16: return "Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16";
-    case assetlib::ImageFormat::G16_B16R16_2PLANE_444_UNORM: return "Format::G16_B16R16_2PLANE_444_UNORM";
-    case assetlib::ImageFormat::A4RGB4_UNORM_PACK16: return "Format::A4RGB4_UNORM_PACK16";
-    case assetlib::ImageFormat::A4B4G4R4_UNORM_PACK16: return "Format::A4B4G4R4_UNORM_PACK16";
-    case assetlib::ImageFormat::ASTC_4x4_FLOAT_BLOCK: return "Format::ASTC_4x4_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_5x4_FLOAT_BLOCK: return "Format::ASTC_5x4_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_5x5_FLOAT_BLOCK: return "Format::ASTC_5x5_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_6x5_FLOAT_BLOCK: return "Format::ASTC_6x5_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_6x6_FLOAT_BLOCK: return "Format::ASTC_6x6_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x5_FLOAT_BLOCK: return "Format::ASTC_8x5_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x6_FLOAT_BLOCK: return "Format::ASTC_8x6_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_8x8_FLOAT_BLOCK: return "Format::ASTC_8x8_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x5_FLOAT_BLOCK: return "Format::ASTC_10x5_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x6_FLOAT_BLOCK: return "Format::ASTC_10x6_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x8_FLOAT_BLOCK: return "Format::ASTC_10x8_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_10x10_FLOAT_BLOCK: return "Format::ASTC_10x10_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_12x10_FLOAT_BLOCK: return "Format::ASTC_12x10_FLOAT_BLOCK";
-    case assetlib::ImageFormat::ASTC_12x12_FLOAT_BLOCK: return "Format::ASTC_12x12_FLOAT_BLOCK";
-    case assetlib::ImageFormat::A1BGR5_UNORM_PACK16: return "Format::A1BGR5_UNORM_PACK16";
-    case assetlib::ImageFormat::A8_UNORM: return "Format::A8_UNORM";
-    case assetlib::ImageFormat::PVRTC1_2BPP_UNORM_BLOCK_IMG: return "Format::PVRTC1_2BPP_UNORM_BLOCK_IMG";
-    case assetlib::ImageFormat::PVRTC1_4BPP_UNORM_BLOCK_IMG: return "Format::PVRTC1_4BPP_UNORM_BLOCK_IMG";
-    case assetlib::ImageFormat::PVRTC2_2BPP_UNORM_BLOCK_IMG: return "Format::PVRTC2_2BPP_UNORM_BLOCK_IMG";
-    case assetlib::ImageFormat::PVRTC2_4BPP_UNORM_BLOCK_IMG: return "Format::PVRTC2_4BPP_UNORM_BLOCK_IMG";
-    case assetlib::ImageFormat::PVRTC1_2BPP_SRGB_BLOCK_IMG: return "Format::PVRTC1_2BPP_SRGB_BLOCK_IMG";
-    case assetlib::ImageFormat::PVRTC1_4BPP_SRGB_BLOCK_IMG: return "Format::PVRTC1_4BPP_SRGB_BLOCK_IMG";
-    case assetlib::ImageFormat::PVRTC2_2BPP_SRGB_BLOCK_IMG: return "Format::PVRTC2_2BPP_SRGB_BLOCK_IMG";
-    case assetlib::ImageFormat::PVRTC2_4BPP_SRGB_BLOCK_IMG: return "Format::PVRTC2_4BPP_SRGB_BLOCK_IMG";
-    case assetlib::ImageFormat::R8_BOOL_ARM: return "Format::R8_BOOL_ARM";
-    case assetlib::ImageFormat::RG16_SFIXED5_NV: return "Format::RG16_SFIXED5_NV";
-    case assetlib::ImageFormat::R10X6_UINT_PACK16_ARM: return "Format::R10X6_UINT_PACK16_ARM";
-    case assetlib::ImageFormat::R10X6G10X6_UINT_2PACK16_ARM: return "Format::R10X6G10X6_UINT_2PACK16_ARM";
-    case assetlib::ImageFormat::R10X6G10X6B10X6A10X6_UINT_4PACK16_ARM: return "Format::R10X6G10X6B10X6A10X6_UINT_4PACK16_ARM";
-    case assetlib::ImageFormat::R12X4_UINT_PACK16_ARM: return "Format::R12X4_UINT_PACK16_ARM";
-    case assetlib::ImageFormat::R12X4G12X4_UINT_2PACK16_ARM: return "Format::R12X4G12X4_UINT_2PACK16_ARM";
-    case assetlib::ImageFormat::R12X4G12X4B12X4A12X4_UINT_4PACK16_ARM: return "Format::R12X4G12X4B12X4A12X4_UINT_4PACK16_ARM";
-    case assetlib::ImageFormat::R14X2_UINT_PACK16_ARM: return "Format::R14X2_UINT_PACK16_ARM";
-    case assetlib::ImageFormat::R14X2G14X2_UINT_2PACK16_ARM: return "Format::R14X2G14X2_UINT_2PACK16_ARM";
-    case assetlib::ImageFormat::R14X2G14X2B14X2A14X2_UINT_4PACK16_ARM: return "Format::R14X2G14X2B14X2A14X2_UINT_4PACK16_ARM";
-    case assetlib::ImageFormat::R14X2_UNORM_PACK16_ARM: return "Format::R14X2_UNORM_PACK16_ARM";
-    case assetlib::ImageFormat::R14X2G14X2_UNORM_2PACK16_ARM: return "Format::R14X2G14X2_UNORM_2PACK16_ARM";
-    case assetlib::ImageFormat::R14X2G14X2B14X2A14X2_UNORM_4PACK16_ARM: return "Format::R14X2G14X2B14X2A14X2_UNORM_4PACK16_ARM";
-    case assetlib::ImageFormat::G14X2_B14X2R14X2_2PLANE_420_UNORM_3PACK16_ARM: return "Format::G14X2_B14X2R14X2_2PLANE_420_UNORM_3PACK16_ARM";
-    case assetlib::ImageFormat::G14X2_B14X2R14X2_2PLANE_422_UNORM_3PACK16_ARM: return "Format::G14X2_B14X2R14X2_2PLANE_422_UNORM_3PACK16_ARM";
+    case lux::assetlib::ImageFormat::Undefined: return "Format::Undefined";
+    case lux::assetlib::ImageFormat::RG4_UNORM_PACK8: return "Format::RG4_UNORM_PACK8";
+    case lux::assetlib::ImageFormat::RGBA4_UNORM_PACK16: return "Format::RGBA4_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::BGRA4_UNORM_PACK16: return "Format::BGRA4_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::R5G6B5_UNORM_PACK16: return "Format::R5G6B5_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::B5G6R5_UNORM_PACK16: return "Format::B5G6R5_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::RGB5A1_UNORM_PACK16: return "Format::RGB5A1_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::BGR5A1_UNORM_PACK16: return "Format::BGR5A1_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::A1RGB5_UNORM_PACK16: return "Format::A1RGB5_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::R8_UNORM: return "Format::R8_UNORM";
+    case lux::assetlib::ImageFormat::R8_SNORM: return "Format::R8_SNORM";
+    case lux::assetlib::ImageFormat::R8_USCALED: return "Format::R8_USCALED";
+    case lux::assetlib::ImageFormat::R8_SSCALED: return "Format::R8_SSCALED";
+    case lux::assetlib::ImageFormat::R8_UINT: return "Format::R8_UINT";
+    case lux::assetlib::ImageFormat::R8_SINT: return "Format::R8_SINT";
+    case lux::assetlib::ImageFormat::R8_SRGB: return "Format::R8_SRGB";
+    case lux::assetlib::ImageFormat::RG8_UNORM: return "Format::RG8_UNORM";
+    case lux::assetlib::ImageFormat::RG8_SNORM: return "Format::RG8_SNORM";
+    case lux::assetlib::ImageFormat::RG8_USCALED: return "Format::RG8_USCALED";
+    case lux::assetlib::ImageFormat::RG8_SSCALED: return "Format::RG8_SSCALED";
+    case lux::assetlib::ImageFormat::RG8_UINT: return "Format::RG8_UINT";
+    case lux::assetlib::ImageFormat::RG8_SINT: return "Format::RG8_SINT";
+    case lux::assetlib::ImageFormat::RG8_SRGB: return "Format::RG8_SRGB";
+    case lux::assetlib::ImageFormat::RGB8_UNORM: return "Format::RGB8_UNORM";
+    case lux::assetlib::ImageFormat::RGB8_SNORM: return "Format::RGB8_SNORM";
+    case lux::assetlib::ImageFormat::RGB8_USCALED: return "Format::RGB8_USCALED";
+    case lux::assetlib::ImageFormat::RGB8_SSCALED: return "Format::RGB8_SSCALED";
+    case lux::assetlib::ImageFormat::RGB8_UINT: return "Format::RGB8_UINT";
+    case lux::assetlib::ImageFormat::RGB8_SINT: return "Format::RGB8_SINT";
+    case lux::assetlib::ImageFormat::RGB8_SRGB: return "Format::RGB8_SRGB";
+    case lux::assetlib::ImageFormat::BGR8_UNORM: return "Format::BGR8_UNORM";
+    case lux::assetlib::ImageFormat::BGR8_SNORM: return "Format::BGR8_SNORM";
+    case lux::assetlib::ImageFormat::BGR8_USCALED: return "Format::BGR8_USCALED";
+    case lux::assetlib::ImageFormat::BGR8_SSCALED: return "Format::BGR8_SSCALED";
+    case lux::assetlib::ImageFormat::BGR8_UINT: return "Format::BGR8_UINT";
+    case lux::assetlib::ImageFormat::BGR8_SINT: return "Format::BGR8_SINT";
+    case lux::assetlib::ImageFormat::BGR8_SRGB: return "Format::BGR8_SRGB";
+    case lux::assetlib::ImageFormat::RGBA8_UNORM: return "Format::RGBA8_UNORM";
+    case lux::assetlib::ImageFormat::RGBA8_SNORM: return "Format::RGBA8_SNORM";
+    case lux::assetlib::ImageFormat::RGBA8_USCALED: return "Format::RGBA8_USCALED";
+    case lux::assetlib::ImageFormat::RGBA8_SSCALED: return "Format::RGBA8_SSCALED";
+    case lux::assetlib::ImageFormat::RGBA8_UINT: return "Format::RGBA8_UINT";
+    case lux::assetlib::ImageFormat::RGBA8_SINT: return "Format::RGBA8_SINT";
+    case lux::assetlib::ImageFormat::RGBA8_SRGB: return "Format::RGBA8_SRGB";
+    case lux::assetlib::ImageFormat::BGRA8_UNORM: return "Format::BGRA8_UNORM";
+    case lux::assetlib::ImageFormat::BGRA8_SNORM: return "Format::BGRA8_SNORM";
+    case lux::assetlib::ImageFormat::BGRA8_USCALED: return "Format::BGRA8_USCALED";
+    case lux::assetlib::ImageFormat::BGRA8_SSCALED: return "Format::BGRA8_SSCALED";
+    case lux::assetlib::ImageFormat::BGRA8_UINT: return "Format::BGRA8_UINT";
+    case lux::assetlib::ImageFormat::BGRA8_SINT: return "Format::BGRA8_SINT";
+    case lux::assetlib::ImageFormat::BGRA8_SRGB: return "Format::BGRA8_SRGB";
+    case lux::assetlib::ImageFormat::ABGR8_UNORM_PACK32: return "Format::ABGR8_UNORM_PACK32";
+    case lux::assetlib::ImageFormat::ABGR8_SNORM_PACK32: return "Format::ABGR8_SNORM_PACK32";
+    case lux::assetlib::ImageFormat::ABGR8_USCALED_PACK32: return "Format::ABGR8_USCALED_PACK32";
+    case lux::assetlib::ImageFormat::ABGR8_SSCALED_PACK32: return "Format::ABGR8_SSCALED_PACK32";
+    case lux::assetlib::ImageFormat::ABGR8_UINT_PACK32: return "Format::ABGR8_UINT_PACK32";
+    case lux::assetlib::ImageFormat::ABGR8_SINT_PACK32: return "Format::ABGR8_SINT_PACK32";
+    case lux::assetlib::ImageFormat::ABGR8_SRGB_PACK32: return "Format::ABGR8_SRGB_PACK32";
+    case lux::assetlib::ImageFormat::A2RGB10_UNORM_PACK32: return "Format::A2RGB10_UNORM_PACK32";
+    case lux::assetlib::ImageFormat::A2RGB10_SNORM_PACK32: return "Format::A2RGB10_SNORM_PACK32";
+    case lux::assetlib::ImageFormat::A2RGB10_USCALED_PACK32: return "Format::A2RGB10_USCALED_PACK32";
+    case lux::assetlib::ImageFormat::A2RGB10_SSCALED_PACK32: return "Format::A2RGB10_SSCALED_PACK32";
+    case lux::assetlib::ImageFormat::A2RGB10_UINT_PACK32: return "Format::A2RGB10_UINT_PACK32";
+    case lux::assetlib::ImageFormat::A2RGB10_SINT_PACK32: return "Format::A2RGB10_SINT_PACK32";
+    case lux::assetlib::ImageFormat::A2BGR10_UNORM_PACK32: return "Format::A2BGR10_UNORM_PACK32";
+    case lux::assetlib::ImageFormat::A2BGR10_SNORM_PACK32: return "Format::A2BGR10_SNORM_PACK32";
+    case lux::assetlib::ImageFormat::A2BGR10_USCALED_PACK32: return "Format::A2BGR10_USCALED_PACK32";
+    case lux::assetlib::ImageFormat::A2BGR10_SSCALED_PACK32: return "Format::A2BGR10_SSCALED_PACK32";
+    case lux::assetlib::ImageFormat::A2BGR10_UINT_PACK32: return "Format::A2BGR10_UINT_PACK32";
+    case lux::assetlib::ImageFormat::A2BGR10_SINT_PACK32: return "Format::A2BGR10_SINT_PACK32";
+    case lux::assetlib::ImageFormat::R16_UNORM: return "Format::R16_UNORM";
+    case lux::assetlib::ImageFormat::R16_SNORM: return "Format::R16_SNORM";
+    case lux::assetlib::ImageFormat::R16_USCALED: return "Format::R16_USCALED";
+    case lux::assetlib::ImageFormat::R16_SSCALED: return "Format::R16_SSCALED";
+    case lux::assetlib::ImageFormat::R16_UINT: return "Format::R16_UINT";
+    case lux::assetlib::ImageFormat::R16_SINT: return "Format::R16_SINT";
+    case lux::assetlib::ImageFormat::R16_FLOAT: return "Format::R16_FLOAT";
+    case lux::assetlib::ImageFormat::RG16_UNORM: return "Format::RG16_UNORM";
+    case lux::assetlib::ImageFormat::RG16_SNORM: return "Format::RG16_SNORM";
+    case lux::assetlib::ImageFormat::RG16_USCALED: return "Format::RG16_USCALED";
+    case lux::assetlib::ImageFormat::RG16_SSCALED: return "Format::RG16_SSCALED";
+    case lux::assetlib::ImageFormat::RG16_UINT: return "Format::RG16_UINT";
+    case lux::assetlib::ImageFormat::RG16_SINT: return "Format::RG16_SINT";
+    case lux::assetlib::ImageFormat::RG16_FLOAT: return "Format::RG16_FLOAT";
+    case lux::assetlib::ImageFormat::RGB16_UNORM: return "Format::RGB16_UNORM";
+    case lux::assetlib::ImageFormat::RGB16_SNORM: return "Format::RGB16_SNORM";
+    case lux::assetlib::ImageFormat::RGB16_USCALED: return "Format::RGB16_USCALED";
+    case lux::assetlib::ImageFormat::RGB16_SSCALED: return "Format::RGB16_SSCALED";
+    case lux::assetlib::ImageFormat::RGB16_UINT: return "Format::RGB16_UINT";
+    case lux::assetlib::ImageFormat::RGB16_SINT: return "Format::RGB16_SINT";
+    case lux::assetlib::ImageFormat::RGB16_FLOAT: return "Format::RGB16_FLOAT";
+    case lux::assetlib::ImageFormat::RGBA16_UNORM: return "Format::RGBA16_UNORM";
+    case lux::assetlib::ImageFormat::RGBA16_SNORM: return "Format::RGBA16_SNORM";
+    case lux::assetlib::ImageFormat::RGBA16_USCALED: return "Format::RGBA16_USCALED";
+    case lux::assetlib::ImageFormat::RGBA16_SSCALED: return "Format::RGBA16_SSCALED";
+    case lux::assetlib::ImageFormat::RGBA16_UINT: return "Format::RGBA16_UINT";
+    case lux::assetlib::ImageFormat::RGBA16_SINT: return "Format::RGBA16_SINT";
+    case lux::assetlib::ImageFormat::RGBA16_FLOAT: return "Format::RGBA16_FLOAT";
+    case lux::assetlib::ImageFormat::R32_UINT: return "Format::R32_UINT";
+    case lux::assetlib::ImageFormat::R32_SINT: return "Format::R32_SINT";
+    case lux::assetlib::ImageFormat::R32_FLOAT: return "Format::R32_FLOAT";
+    case lux::assetlib::ImageFormat::RG32_UINT: return "Format::RG32_UINT";
+    case lux::assetlib::ImageFormat::RG32_SINT: return "Format::RG32_SINT";
+    case lux::assetlib::ImageFormat::RG32_FLOAT: return "Format::RG32_FLOAT";
+    case lux::assetlib::ImageFormat::RGB32_UINT: return "Format::RGB32_UINT";
+    case lux::assetlib::ImageFormat::RGB32_SINT: return "Format::RGB32_SINT";
+    case lux::assetlib::ImageFormat::RGB32_FLOAT: return "Format::RGB32_FLOAT";
+    case lux::assetlib::ImageFormat::RGBA32_UINT: return "Format::RGBA32_UINT";
+    case lux::assetlib::ImageFormat::RGBA32_SINT: return "Format::RGBA32_SINT";
+    case lux::assetlib::ImageFormat::RGBA32_FLOAT: return "Format::RGBA32_FLOAT";
+    case lux::assetlib::ImageFormat::R64_UINT: return "Format::R64_UINT";
+    case lux::assetlib::ImageFormat::R64_SINT: return "Format::R64_SINT";
+    case lux::assetlib::ImageFormat::R64_FLOAT: return "Format::R64_FLOAT";
+    case lux::assetlib::ImageFormat::RG64_UINT: return "Format::RG64_UINT";
+    case lux::assetlib::ImageFormat::RG64_SINT: return "Format::RG64_SINT";
+    case lux::assetlib::ImageFormat::RG64_FLOAT: return "Format::RG64_FLOAT";
+    case lux::assetlib::ImageFormat::RGB64_UINT: return "Format::RGB64_UINT";
+    case lux::assetlib::ImageFormat::RGB64_SINT: return "Format::RGB64_SINT";
+    case lux::assetlib::ImageFormat::RGB64_FLOAT: return "Format::RGB64_FLOAT";
+    case lux::assetlib::ImageFormat::RGBA64_UINT: return "Format::RGBA64_UINT";
+    case lux::assetlib::ImageFormat::RGBA64_SINT: return "Format::RGBA64_SINT";
+    case lux::assetlib::ImageFormat::RGBA64_FLOAT: return "Format::RGBA64_FLOAT";
+    case lux::assetlib::ImageFormat::B10G11R11_UFLOAT_PACK32: return "Format::B10G11R11_UFLOAT_PACK32";
+    case lux::assetlib::ImageFormat::E5BGR9_UFLOAT_PACK32: return "Format::E5BGR9_UFLOAT_PACK32";
+    case lux::assetlib::ImageFormat::D16_UNORM: return "Format::D16_UNORM";
+    case lux::assetlib::ImageFormat::X8_D24_UNORM_PACK32: return "Format::X8_D24_UNORM_PACK32";
+    case lux::assetlib::ImageFormat::D32_FLOAT: return "Format::D32_FLOAT";
+    case lux::assetlib::ImageFormat::S8_UINT: return "Format::S8_UINT";
+    case lux::assetlib::ImageFormat::D16_UNORM_S8_UINT: return "Format::D16_UNORM_S8_UINT";
+    case lux::assetlib::ImageFormat::D24_UNORM_S8_UINT: return "Format::D24_UNORM_S8_UINT";
+    case lux::assetlib::ImageFormat::D32_FLOAT_S8_UINT: return "Format::D32_FLOAT_S8_UINT";
+    case lux::assetlib::ImageFormat::BC1_RGB_UNORM_BLOCK: return "Format::BC1_RGB_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC1_RGB_SRGB_BLOCK: return "Format::BC1_RGB_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::BC1_RGBA_UNORM_BLOCK: return "Format::BC1_RGBA_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC1_RGBA_SRGB_BLOCK: return "Format::BC1_RGBA_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::BC2_UNORM_BLOCK: return "Format::BC2_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC2_SRGB_BLOCK: return "Format::BC2_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::BC3_UNORM_BLOCK: return "Format::BC3_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC3_SRGB_BLOCK: return "Format::BC3_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::BC4_UNORM_BLOCK: return "Format::BC4_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC4_SNORM_BLOCK: return "Format::BC4_SNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC5_UNORM_BLOCK: return "Format::BC5_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC5_SNORM_BLOCK: return "Format::BC5_SNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC6H_UFLOAT_BLOCK: return "Format::BC6H_UFLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::BC6H_FLOAT_BLOCK: return "Format::BC6H_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::BC7_UNORM_BLOCK: return "Format::BC7_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::BC7_SRGB_BLOCK: return "Format::BC7_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ETC2_RGB8_UNORM_BLOCK: return "Format::ETC2_RGB8_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ETC2_RGB8_SRGB_BLOCK: return "Format::ETC2_RGB8_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ETC2_RGB8A1_UNORM_BLOCK: return "Format::ETC2_RGB8A1_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ETC2_RGB8A1_SRGB_BLOCK: return "Format::ETC2_RGB8A1_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ETC2_RGBA8_UNORM_BLOCK: return "Format::ETC2_RGBA8_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ETC2_RGBA8_SRGB_BLOCK: return "Format::ETC2_RGBA8_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::EAC_R11_UNORM_BLOCK: return "Format::EAC_R11_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::EAC_R11_SNORM_BLOCK: return "Format::EAC_R11_SNORM_BLOCK";
+    case lux::assetlib::ImageFormat::EAC_R11G11_UNORM_BLOCK: return "Format::EAC_R11G11_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::EAC_R11G11_SNORM_BLOCK: return "Format::EAC_R11G11_SNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_4x4_UNORM_BLOCK: return "Format::ASTC_4x4_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_4x4_SRGB_BLOCK: return "Format::ASTC_4x4_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_5x4_UNORM_BLOCK: return "Format::ASTC_5x4_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_5x4_SRGB_BLOCK: return "Format::ASTC_5x4_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_5x5_UNORM_BLOCK: return "Format::ASTC_5x5_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_5x5_SRGB_BLOCK: return "Format::ASTC_5x5_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_6x5_UNORM_BLOCK: return "Format::ASTC_6x5_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_6x5_SRGB_BLOCK: return "Format::ASTC_6x5_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_6x6_UNORM_BLOCK: return "Format::ASTC_6x6_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_6x6_SRGB_BLOCK: return "Format::ASTC_6x6_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x5_UNORM_BLOCK: return "Format::ASTC_8x5_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x5_SRGB_BLOCK: return "Format::ASTC_8x5_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x6_UNORM_BLOCK: return "Format::ASTC_8x6_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x6_SRGB_BLOCK: return "Format::ASTC_8x6_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x8_UNORM_BLOCK: return "Format::ASTC_8x8_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x8_SRGB_BLOCK: return "Format::ASTC_8x8_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x5_UNORM_BLOCK: return "Format::ASTC_10x5_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x5_SRGB_BLOCK: return "Format::ASTC_10x5_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x6_UNORM_BLOCK: return "Format::ASTC_10x6_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x6_SRGB_BLOCK: return "Format::ASTC_10x6_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x8_UNORM_BLOCK: return "Format::ASTC_10x8_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x8_SRGB_BLOCK: return "Format::ASTC_10x8_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x10_UNORM_BLOCK: return "Format::ASTC_10x10_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x10_SRGB_BLOCK: return "Format::ASTC_10x10_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_12x10_UNORM_BLOCK: return "Format::ASTC_12x10_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_12x10_SRGB_BLOCK: return "Format::ASTC_12x10_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_12x12_UNORM_BLOCK: return "Format::ASTC_12x12_UNORM_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_12x12_SRGB_BLOCK: return "Format::ASTC_12x12_SRGB_BLOCK";
+    case lux::assetlib::ImageFormat::GBGR8_422_UNORM: return "Format::GBGR8_422_UNORM";
+    case lux::assetlib::ImageFormat::B8G8RG8_422_UNORM: return "Format::B8G8RG8_422_UNORM";
+    case lux::assetlib::ImageFormat::G8_B8_R8_3PLANE_420_UNORM: return "Format::G8_B8_R8_3PLANE_420_UNORM";
+    case lux::assetlib::ImageFormat::G8_B8R8_2PLANE_420_UNORM: return "Format::G8_B8R8_2PLANE_420_UNORM";
+    case lux::assetlib::ImageFormat::G8_B8_R8_3PLANE_422_UNORM: return "Format::G8_B8_R8_3PLANE_422_UNORM";
+    case lux::assetlib::ImageFormat::G8_B8R8_2PLANE_422_UNORM: return "Format::G8_B8R8_2PLANE_422_UNORM";
+    case lux::assetlib::ImageFormat::G8_B8_R8_3PLANE_444_UNORM: return "Format::G8_B8_R8_3PLANE_444_UNORM";
+    case lux::assetlib::ImageFormat::R10X6_UNORM_PACK16: return "Format::R10X6_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::R10X6G10X6_UNORM_2PACK16: return "Format::R10X6G10X6_UNORM_2PACK16";
+    case lux::assetlib::ImageFormat::R10X6G10X6B10X6A10X6_UNORM_4PACK16: return
+            "Format::R10X6G10X6B10X6A10X6_UNORM_4PACK16";
+    case lux::assetlib::ImageFormat::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16: return
+            "Format::G10X6B10X6G10X6R10X6_422_UNORM_4PACK16";
+    case lux::assetlib::ImageFormat::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16: return
+            "Format::B10X6G10X6R10X6G10X6_422_UNORM_4PACK16";
+    case lux::assetlib::ImageFormat::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16: return
+            "Format::G10X6_B10X6_R10X6_3PLANE_420_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16: return
+            "Format::G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16: return
+            "Format::G10X6_B10X6_R10X6_3PLANE_422_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16: return
+            "Format::G10X6_B10X6R10X6_2PLANE_422_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16: return
+            "Format::G10X6_B10X6_R10X6_3PLANE_444_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::R12X4_UNORM_PACK16: return "Format::R12X4_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::R12X4G12X4_UNORM_2PACK16: return "Format::R12X4G12X4_UNORM_2PACK16";
+    case lux::assetlib::ImageFormat::R12X4G12X4B12X4A12X4_UNORM_4PACK16: return
+            "Format::R12X4G12X4B12X4A12X4_UNORM_4PACK16";
+    case lux::assetlib::ImageFormat::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16: return
+            "Format::G12X4B12X4G12X4R12X4_422_UNORM_4PACK16";
+    case lux::assetlib::ImageFormat::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16: return
+            "Format::B12X4G12X4R12X4G12X4_422_UNORM_4PACK16";
+    case lux::assetlib::ImageFormat::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16: return
+            "Format::G12X4_B12X4_R12X4_3PLANE_420_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16: return
+            "Format::G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16: return
+            "Format::G12X4_B12X4_R12X4_3PLANE_422_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16: return
+            "Format::G12X4_B12X4R12X4_2PLANE_422_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16: return
+            "Format::G12X4_B12X4_R12X4_3PLANE_444_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G16B16G16R16_422_UNORM: return "Format::G16B16G16R16_422_UNORM";
+    case lux::assetlib::ImageFormat::B16G16RG16_422_UNORM: return "Format::B16G16RG16_422_UNORM";
+    case lux::assetlib::ImageFormat::G16_B16_R16_3PLANE_420_UNORM: return "Format::G16_B16_R16_3PLANE_420_UNORM";
+    case lux::assetlib::ImageFormat::G16_B16R16_2PLANE_420_UNORM: return "Format::G16_B16R16_2PLANE_420_UNORM";
+    case lux::assetlib::ImageFormat::G16_B16_R16_3PLANE_422_UNORM: return "Format::G16_B16_R16_3PLANE_422_UNORM";
+    case lux::assetlib::ImageFormat::G16_B16R16_2PLANE_422_UNORM: return "Format::G16_B16R16_2PLANE_422_UNORM";
+    case lux::assetlib::ImageFormat::G16_B16_R16_3PLANE_444_UNORM: return "Format::G16_B16_R16_3PLANE_444_UNORM";
+    case lux::assetlib::ImageFormat::G8_B8R8_2PLANE_444_UNORM: return "Format::G8_B8R8_2PLANE_444_UNORM";
+    case lux::assetlib::ImageFormat::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16: return
+            "Format::G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16: return
+            "Format::G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16";
+    case lux::assetlib::ImageFormat::G16_B16R16_2PLANE_444_UNORM: return "Format::G16_B16R16_2PLANE_444_UNORM";
+    case lux::assetlib::ImageFormat::A4RGB4_UNORM_PACK16: return "Format::A4RGB4_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::A4B4G4R4_UNORM_PACK16: return "Format::A4B4G4R4_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::ASTC_4x4_FLOAT_BLOCK: return "Format::ASTC_4x4_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_5x4_FLOAT_BLOCK: return "Format::ASTC_5x4_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_5x5_FLOAT_BLOCK: return "Format::ASTC_5x5_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_6x5_FLOAT_BLOCK: return "Format::ASTC_6x5_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_6x6_FLOAT_BLOCK: return "Format::ASTC_6x6_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x5_FLOAT_BLOCK: return "Format::ASTC_8x5_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x6_FLOAT_BLOCK: return "Format::ASTC_8x6_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_8x8_FLOAT_BLOCK: return "Format::ASTC_8x8_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x5_FLOAT_BLOCK: return "Format::ASTC_10x5_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x6_FLOAT_BLOCK: return "Format::ASTC_10x6_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x8_FLOAT_BLOCK: return "Format::ASTC_10x8_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_10x10_FLOAT_BLOCK: return "Format::ASTC_10x10_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_12x10_FLOAT_BLOCK: return "Format::ASTC_12x10_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::ASTC_12x12_FLOAT_BLOCK: return "Format::ASTC_12x12_FLOAT_BLOCK";
+    case lux::assetlib::ImageFormat::A1BGR5_UNORM_PACK16: return "Format::A1BGR5_UNORM_PACK16";
+    case lux::assetlib::ImageFormat::A8_UNORM: return "Format::A8_UNORM";
+    case lux::assetlib::ImageFormat::PVRTC1_2BPP_UNORM_BLOCK_IMG: return "Format::PVRTC1_2BPP_UNORM_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::PVRTC1_4BPP_UNORM_BLOCK_IMG: return "Format::PVRTC1_4BPP_UNORM_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::PVRTC2_2BPP_UNORM_BLOCK_IMG: return "Format::PVRTC2_2BPP_UNORM_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::PVRTC2_4BPP_UNORM_BLOCK_IMG: return "Format::PVRTC2_4BPP_UNORM_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::PVRTC1_2BPP_SRGB_BLOCK_IMG: return "Format::PVRTC1_2BPP_SRGB_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::PVRTC1_4BPP_SRGB_BLOCK_IMG: return "Format::PVRTC1_4BPP_SRGB_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::PVRTC2_2BPP_SRGB_BLOCK_IMG: return "Format::PVRTC2_2BPP_SRGB_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::PVRTC2_4BPP_SRGB_BLOCK_IMG: return "Format::PVRTC2_4BPP_SRGB_BLOCK_IMG";
+    case lux::assetlib::ImageFormat::R8_BOOL_ARM: return "Format::R8_BOOL_ARM";
+    case lux::assetlib::ImageFormat::RG16_SFIXED5_NV: return "Format::RG16_SFIXED5_NV";
+    case lux::assetlib::ImageFormat::R10X6_UINT_PACK16_ARM: return "Format::R10X6_UINT_PACK16_ARM";
+    case lux::assetlib::ImageFormat::R10X6G10X6_UINT_2PACK16_ARM: return "Format::R10X6G10X6_UINT_2PACK16_ARM";
+    case lux::assetlib::ImageFormat::R10X6G10X6B10X6A10X6_UINT_4PACK16_ARM: return
+            "Format::R10X6G10X6B10X6A10X6_UINT_4PACK16_ARM";
+    case lux::assetlib::ImageFormat::R12X4_UINT_PACK16_ARM: return "Format::R12X4_UINT_PACK16_ARM";
+    case lux::assetlib::ImageFormat::R12X4G12X4_UINT_2PACK16_ARM: return "Format::R12X4G12X4_UINT_2PACK16_ARM";
+    case lux::assetlib::ImageFormat::R12X4G12X4B12X4A12X4_UINT_4PACK16_ARM: return
+            "Format::R12X4G12X4B12X4A12X4_UINT_4PACK16_ARM";
+    case lux::assetlib::ImageFormat::R14X2_UINT_PACK16_ARM: return "Format::R14X2_UINT_PACK16_ARM";
+    case lux::assetlib::ImageFormat::R14X2G14X2_UINT_2PACK16_ARM: return "Format::R14X2G14X2_UINT_2PACK16_ARM";
+    case lux::assetlib::ImageFormat::R14X2G14X2B14X2A14X2_UINT_4PACK16_ARM: return
+            "Format::R14X2G14X2B14X2A14X2_UINT_4PACK16_ARM";
+    case lux::assetlib::ImageFormat::R14X2_UNORM_PACK16_ARM: return "Format::R14X2_UNORM_PACK16_ARM";
+    case lux::assetlib::ImageFormat::R14X2G14X2_UNORM_2PACK16_ARM: return "Format::R14X2G14X2_UNORM_2PACK16_ARM";
+    case lux::assetlib::ImageFormat::R14X2G14X2B14X2A14X2_UNORM_4PACK16_ARM: return
+            "Format::R14X2G14X2B14X2A14X2_UNORM_4PACK16_ARM";
+    case lux::assetlib::ImageFormat::G14X2_B14X2R14X2_2PLANE_420_UNORM_3PACK16_ARM: return
+            "Format::G14X2_B14X2R14X2_2PLANE_420_UNORM_3PACK16_ARM";
+    case lux::assetlib::ImageFormat::G14X2_B14X2R14X2_2PLANE_422_UNORM_3PACK16_ARM: return
+            "Format::G14X2_B14X2R14X2_2PLANE_422_UNORM_3PACK16_ARM";
     default:
         ASSERT(false)
         return "Format::Undefined";
@@ -551,7 +586,7 @@ struct Writer
     std::stringstream Stream;
     u32 IndentLevel{0};
     CountInfo Counts{};
-    std::optional<assetlib::io::IoError> Error;
+    std::optional<lux::assetlib::io::IoError> Error;
 
     void Push()
     {
@@ -578,7 +613,7 @@ struct Writer
     void AddError(const std::string& message)
     {
         if (!Error.has_value())
-            Error = {.Code = assetlib::io::IoError::ErrorCode::GeneralError, .Message = {}};
+            Error = {.Code = lux::assetlib::io::IoError::ErrorCode::GeneralError, .Message = {}};
         Error->Message.append(message).append("\n");
     }
 
@@ -669,7 +704,7 @@ struct Writer
     {
         return
             variants.empty() ||
-            variants.size() == 1 && variants.front() == assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME;
+            variants.size() == 1 && variants.front() == lux::assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME;
     }
 
     void WriteVariantsEnum(const std::vector<std::string>& variants)
@@ -684,12 +719,12 @@ struct Writer
         Pop();
         WriteLine("};");
     }
-    
+
     void WriteConstructor(std::string_view structName, std::string_view shaderName,
         const std::vector<std::string>& variants)
     {
         WriteLine(std::format("{}() = default;", structName));
-        
+
         if (OnlyMainVariant(variants))
         {
             WriteLine(std::format("{}(RG::Graph& graph)", structName));
@@ -737,7 +772,7 @@ struct Writer
         Pop();
         WriteLine("}");
     }
-    
+
     void WriteVariantEnumField(const std::vector<std::string>& variants)
     {
         if (OnlyMainVariant(variants))
@@ -776,7 +811,7 @@ struct Writer
             Push();
         }
     }
-    
+
     void EndDivergenceSwitch(bool isDivergent)
     {
         if (isDivergent)
@@ -800,6 +835,7 @@ struct Writer
             Push();
         }
     }
+
     void EndDivergenceCase(bool isDivergent)
     {
         if (isDivergent)
@@ -821,10 +857,11 @@ struct Writer
 
         const bool isImmutableAcrossDivergence =
             !isDivergent && enumHasAny(accesses.front().Attributes,
-                assetlib::ShaderBindingAttributes::ImmutableSampler) ||
-            std::ranges::all_of(accesses, [](auto& access) {
-                return enumHasAny(access.Attributes,assetlib::ShaderBindingAttributes::ImmutableSampler);
-        });
+                lux::assetlib::ShaderBindingAttributes::ImmutableSampler) ||
+            std::ranges::all_of(accesses, [](auto& access)
+            {
+                return enumHasAny(access.Attributes, lux::assetlib::ShaderBindingAttributes::ImmutableSampler);
+            });
 
         if (isImmutableAcrossDivergence)
             return;
@@ -850,7 +887,7 @@ struct Writer
             EndDivergenceCase(isDivergent);
         }
         EndDivergenceSwitch(isDivergent);
-        
+
         Pop();
         WriteLine("}");
         Counts.Samplers += signature.Count;
@@ -878,7 +915,7 @@ struct Writer
         }
         EndDivergenceSwitch(isDivergent);
     }
-        
+
     void WriteResourceBindings(u32 set, const BindingsInfo::Signature& signature,
         const std::vector<BindingsInfo::AccessVariant>& accesses, const std::vector<std::string>& variants,
         bool isDivergent)
@@ -892,9 +929,9 @@ struct Writer
         const std::vector<std::string>& variants)
     {
         /* we don't need to generate explicit bindings for texture heap */
-        if (set == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX)
+        if (set == lux::assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX)
             return;
-        
+
         for (auto&& [signature, accessVariants] : bindings.Bindings)
         {
             const bool isValid = ValidateAccessVariants(bindings, signature);
@@ -920,12 +957,12 @@ struct Writer
         const BindingsInfo& bindings, const std::vector<std::string>& variants)
     {
         /* we don't need to generate explicit bindings for texture heap */
-        if (set == assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX)
+        if (set == lux::assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX)
             return;
-        
+
         if (uniforms.Bindings.empty())
             return;
-        
+
         if (uniforms.Bindings.size() > 1)
         {
             AddError("Divergent uniforms are not supported");
@@ -949,7 +986,7 @@ struct Writer
         }
     }
 
-    void WriteRasterizationInfo(const assetlib::ShaderLoadRasterizationInfo& rasterization)
+    void WriteRasterizationInfo(const lux::assetlib::ShaderLoadRasterizationInfo& rasterization)
     {
         for (auto& color : rasterization.Colors)
             WriteLine(std::format("static Format Get{}AttachmentFormat() {{ return {}; }}",
@@ -959,16 +996,16 @@ struct Writer
                 formatFromImageFormat(*rasterization.Depth)));
     }
 
-    void WriteGroupSizeInfo(const std::vector<assetlib::ShaderEntryPoint>& entryPoints)
+    void WriteGroupSizeInfo(const std::vector<lux::assetlib::ShaderEntryPoint>& entryPoints)
     {
         for (auto& entry : entryPoints)
         {
-            if (entry.ShaderStage != assetlib::ShaderStage::Compute)
+            if (entry.ShaderStage != lux::assetlib::ShaderStage::Compute)
                 continue;
 
             WriteLine(std::format("static glm::uvec3 Get{}GroupSize() {{ return glm::uvec3{{{}, {}, {}}}; }}",
-               utils::canonicalizeName(entry.Name),
-               entry.ThreadGroupSize.x, entry.ThreadGroupSize.y, entry.ThreadGroupSize.z));
+                utils::canonicalizeName(entry.Name),
+                entry.ThreadGroupSize.x, entry.ThreadGroupSize.y, entry.ThreadGroupSize.z));
         }
     }
 
@@ -1066,7 +1103,7 @@ struct Writer
         Pop();
         WriteLine("}");
     }
-    
+
     void WriteResourceContainers()
     {
         if (Counts.Samplers > 0)
@@ -1089,8 +1126,8 @@ struct Writer
 }
 
 SlangGenerator::SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator,
-    const std::filesystem::path& shadersDirectory)
-    : m_UniformTypeGenerator(&uniformTypeGenerator), m_ShadersDirectory(shadersDirectory)
+    const std::filesystem::path& shadersDirectory, lux::assetlib::io::AssetIoInterface& io)
+    : m_UniformTypeGenerator(&uniformTypeGenerator), m_ShadersDirectory(shadersDirectory), m_Io(&io)
 {
 }
 
@@ -1145,55 +1182,58 @@ std::filesystem::path SlangGenerator::GetCommonFilePath(const std::filesystem::p
     return generationPath / GENERATED_COMMON_FILE_NAME;
 }
 
-assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std::filesystem::path& path) const
+lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std::filesystem::path& path) const
 {
-    auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
+    auto shaderLoadInfo = lux::assetlib::shader::readLoadInfo(path);
     if (!shaderLoadInfo.has_value())
         return std::unexpected(shaderLoadInfo.error());
 
     std::vector<std::string> variants;
     std::unordered_set<std::filesystem::path> standaloneUniforms;
-    std::unordered_map<assetlib::AssetId, std::string> embeddedStructs;
+    std::unordered_map<lux::assetlib::AssetId, std::string> embeddedStructs;
 
     std::vector<BindingSetsInfo> bindingsSetsInfoPerSet;
     std::vector<BindingsInfo> bindingsInfoPerSet;
     std::vector<UniformBindingsInfo> uniformBindingsInfoPerSet;
-    std::vector<assetlib::ShaderEntryPoint> entryPoints;
-    
+    std::vector<lux::assetlib::ShaderEntryPoint> entryPoints;
+
     for (auto& variant : shaderLoadInfo->Variants)
     {
         const u32 variantIndex = (u32)variants.size();
         variants.push_back(variant.Name);
-        
+
         const std::filesystem::path bakedPath =
-        bakers::Slang::GetBakedPath(path, StringId::FromString(variant.Name), {},
-            {.InitialDirectory = m_ShadersDirectory});
-        auto assetFileResult = assetlib::io::loadAssetFileHeader(bakedPath);
+            lux::bakers::Slang::GetBakedPath(path, StringId::FromString(variant.Name), {},
+                {.InitialDirectory = m_ShadersDirectory});
+
+        auto assetFileResult = m_Io->ReadHeader(bakedPath);
         if (!assetFileResult.has_value())
             return std::unexpected(assetFileResult.error());
 
-        auto shaderUnpack = assetlib::shader::unpackHeader(*assetFileResult);
+        auto shaderUnpack = lux::assetlib::shader::readHeader(*assetFileResult);
         if (!shaderUnpack.has_value())
             return std::unexpected(shaderUnpack.error());
 
-        const assetlib::ShaderHeader& shader = *shaderUnpack;
+        const lux::assetlib::ShaderHeader& shader = *shaderUnpack;
 
         if (entryPoints.empty())
             entryPoints = shader.EntryPoints;
-        
+
         for (auto& set : shader.BindingSets)
         {
             if (set.Set >= bindingsSetsInfoPerSet.size())
                 bindingsSetsInfoPerSet.resize(set.Set + 1);
             bindingsSetsInfoPerSet[set.Set].Add(
                 {
-                    .HasImmutableSamplers = std::ranges::any_of(set.Bindings, [](const assetlib::ShaderBinding& binding)
+                    .HasImmutableSamplers = std::ranges::any_of(set.Bindings,
+                        [](const lux::assetlib::ShaderBinding& binding)
                         {
-                            return enumHasAny(binding.Attributes, assetlib::ShaderBindingAttributes::ImmutableSampler);
+                            return enumHasAny(binding.Attributes,
+                                lux::assetlib::ShaderBindingAttributes::ImmutableSampler);
                         }),
                     .Set = set.Set
                 }, variantIndex);
-            
+
             if (set.Set >= bindingsInfoPerSet.size())
                 bindingsInfoPerSet.resize(set.Set + 1);
             for (auto& binding : set.Bindings)
@@ -1208,9 +1248,9 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
                         .Binding = binding.Binding,
                         .Type = binding.Type,
                         .Access = binding.Access,
-                        .Attributes = binding.Attributes 
+                        .Attributes = binding.Attributes
                     });
-            
+
             if (set.UniformType.empty())
                 continue;
             auto uniformResult = m_UniformTypeGenerator->Generate(set.UniformType);
@@ -1233,14 +1273,14 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
                     .Type = uniform.TypeName,
                     .Parameter = uniform.ParameterName,
                     .BindingSignature =
-                        {
-                            .Name = set.Bindings.front().Name,
-                            .Count = set.Bindings.front().Count
-                        }
+                    {
+                        .Name = set.Bindings.front().Name,
+                        .Count = set.Bindings.front().Count
+                    }
                 }, variantIndex);
         }
     }
-    
+
     std::string generatedStructName = std::format("{}BindGroupRG", utils::canonicalizeName(shaderLoadInfo->Name));
     std::string generatedFileName = std::format("{}.generated.h", generatedStructName);
 
@@ -1266,20 +1306,20 @@ assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const std:
     if (shaderLoadInfo->RasterizationInfo.has_value())
         writer.WriteRasterizationInfo(*shaderLoadInfo->RasterizationInfo);
     writer.WriteGroupSizeInfo(entryPoints);
-    
+
     bool hasGraphics = false;
     bool hasCompute = false;
     for (auto& entry : entryPoints)
     {
-        hasGraphics = hasGraphics || entry.ShaderStage != assetlib::ShaderStage::Compute;
-        hasCompute = hasCompute || entry.ShaderStage == assetlib::ShaderStage::Compute;
+        hasGraphics = hasGraphics || entry.ShaderStage != lux::assetlib::ShaderStage::Compute;
+        hasCompute = hasCompute || entry.ShaderStage == lux::assetlib::ShaderStage::Compute;
     }
 
     if (hasGraphics)
         writer.WriteBindPipelineType("Graphics");
     if (hasCompute)
         writer.WriteBindPipelineType("Compute");
-    
+
     writer.WriteBeginPrivate();
     if (hasGraphics)
         writer.WriteBindDescriptorsType(bindingsSetsInfoPerSet, variants, "Graphics");

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Containers/Guid.h"
+
 #include <glaze/glaze.hpp>
 #include <glm/glm.hpp>
 
@@ -23,11 +25,21 @@ struct glz::meta<glm::vec<4, T, Q>>
 };
 
 template <>
-struct glz::meta<assetlib::AssetId>
+struct glz::meta<lux::Guid>
 {
-	static constexpr auto ReadId = [](assetlib::AssetId& id, const std::string& input) { 
+	static constexpr auto ReadId = [](lux::Guid& guid, const std::string& input) {
+		guid = lux::Guid::FromString(input); 
+	};
+	static constexpr auto WriteId = [](auto& guid) -> auto { return std::format("{}", guid); };
+	static constexpr auto value = glz::custom<ReadId, WriteId>;
+};
+
+template <>
+struct glz::meta<lux::assetlib::AssetId>
+{
+	static constexpr auto ReadId = [](lux::assetlib::AssetId& id, const std::string& input) { 
 		id.FromU64(std::stoull(input)); 
 	};
    	static constexpr auto WriteId = [](auto& id) -> auto { return std::to_string(id.AsU64()); };
-   	static constexpr auto value = glz::object("id", glz::custom<ReadId, WriteId>);
+   	static constexpr auto value = glz::custom<ReadId, WriteId>;
 };

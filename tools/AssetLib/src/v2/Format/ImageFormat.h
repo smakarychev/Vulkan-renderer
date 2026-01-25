@@ -1,6 +1,6 @@
 #pragma once
 
-namespace assetlib
+namespace lux::assetlib
 {
 enum class ImageFormat
 {

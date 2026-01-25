@@ -4,8 +4,17 @@
 #include "Bakers/BakersDispatcher.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "Platform/PlatformUtils.h"
+#include "v2/Io/AssetIoRegistry.h"
+#include "v2/Io/IoInterface/AssetIoInterface.h"
+#include "v2/Io/Compression/AssetCompressor.h"
+#include "v2/Io/Compression/Lz4AssetCompressor.h"
+#include "v2/Io/Compression/RawAssetCompressor.h"
+#include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
+#include "v2/Io/IoInterface/SeparateAssetIoInterface.h"
+#include "v2/Reflection/AssetLibReflectionUtility.inl"
 
 #include <filesystem>
+#include <memory>
 #include <glaze/glaze.hpp>
 
 namespace fs = std::filesystem;
@@ -14,16 +23,22 @@ struct ShaderBakerSettings
 {
     std::filesystem::path IncludeDirectory{};
     std::string ShadersDirectoryName{"shaders/"};
+    std::string IoInterfaceName{};
+    std::string IoCompressorName{};
 };
 
 struct Config
 {
     std::filesystem::path InitialDirectory{};
     std::optional<ShaderBakerSettings> ShaderBakerSettings{std::nullopt};
+    std::string IoInterfaceName;
+    std::optional<lux::Guid> IoInterfaceGuid;
+    std::string IoCompressorName;
+    std::optional<lux::Guid> IoCompressorGuid;
 };
 
-template <> struct ::glz::meta<ShaderBakerSettings> : assetlib::reflection::CamelCase {}; 
-template <> struct ::glz::meta<Config> : assetlib::reflection::CamelCase {};
+template <> struct ::glz::meta<ShaderBakerSettings> : lux::assetlib::reflection::CamelCase {}; 
+template <> struct ::glz::meta<Config> : lux::assetlib::reflection::CamelCase {};
 
 std::optional<Config> readConfig(const std::filesystem::path& path)
 {
@@ -48,6 +63,7 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
 
 i32 main(i32 argc, char** argv)
 {
+    using namespace lux::assetlib::io;
     fs::current_path(platform::getExecutablePath().parent_path());
     const fs::path configPath = "config.json";
     if (!fs::exists(configPath))
@@ -62,22 +78,88 @@ i32 main(i32 argc, char** argv)
 
     StringIdRegistry::Init();
 
+    AssetIoRegistry<AssetIoInterface> ioInterfaceRegistry;
+    AssetIoRegistry<AssetCompressor> ioCompressorRegistry;
+
+    ioInterfaceRegistry.Register(
+        SeparateAssetIoInterface::GetNameStatic(),
+        SeparateAssetIoInterface::GetGuidStatic(),
+        [](void*) { return std::make_shared<SeparateAssetIoInterface>(); });
+    ioInterfaceRegistry.Register(
+        CombinedAssetIoInterface::GetNameStatic(),
+        CombinedAssetIoInterface::GetGuidStatic(),
+        [](void*) { return std::make_shared<CombinedAssetIoInterface>(); });
+    
+    ioCompressorRegistry.Register(
+        RawAssetCompressor::GetNameStatic(),
+        RawAssetCompressor::GetGuidStatic(),
+        [](void*) { return std::make_shared<RawAssetCompressor>(); });
+    ioCompressorRegistry.Register(
+        Lz4AssetCompressor::GetNameStatic(),
+        Lz4AssetCompressor::GetGuidStatic(),
+        [](void*) { return std::make_shared<Lz4AssetCompressor>(); });
+
+    std::shared_ptr<AssetIoInterface> io;
+    if (config->IoInterfaceGuid.has_value())
+    {
+        io = ioInterfaceRegistry.Create(config->IoInterfaceName, *config->IoInterfaceGuid).value_or(nullptr);
+    }
+    else
+    {
+        auto createResult = ioInterfaceRegistry.Create(config->IoInterfaceName);
+        if (!createResult.has_value())
+        {
+            if (createResult.error() == AssetIoRegistryCreateError::Ambiguous)
+                LOG("Ambiguous io interface name, guid is necessary");
+        }
+        io = createResult.value_or(nullptr);
+    }
+    std::shared_ptr<AssetCompressor> compressor;
+    if (config->IoCompressorGuid.has_value())
+    {
+        compressor = ioCompressorRegistry.Create(config->IoCompressorName, *config->IoCompressorGuid).value_or(nullptr);
+    }
+    else
+    {
+        auto createResult = ioCompressorRegistry.Create(config->IoCompressorName);
+        if (!createResult.has_value())
+        {
+            if (createResult.error() == AssetIoRegistryCreateError::Ambiguous)
+                LOG("Ambiguous io compressor name, guid is necessary");
+        }
+        compressor = createResult.value_or(nullptr);
+    }
+    
     auto shaderBakerSettings = config->ShaderBakerSettings.value_or(ShaderBakerSettings{});
-    bakers::Context bakerContext{
+    lux::bakers::Context bakerContext{
         .InitialDirectory = config->InitialDirectory / shaderBakerSettings.ShadersDirectoryName,
+        .Io = io.get(),
+        .Compressor = compressor.get()
     };
-    bakers::SlangBakeSettings shaderBakeSettings{
+    lux::bakers::SlangBakeSettings shaderBakeSettings{
         .IncludePaths = {shaderBakerSettings.IncludeDirectory.string()},
     };
+
+    if (!bakerContext.Io)
+    {
+        LOG("Error: io context is not set");
+        return 1;
+    }
+    if (!bakerContext.Compressor)
+    {
+        LOG("Error: io compressor is not set");
+        return 1;
+    }
+    
     for (const auto& file : fs::recursive_directory_iterator(config->InitialDirectory))
     {
         if (file.is_directory())
             continue;
 
-        bakers::BakersDispatcher dispatcher(file);
+        lux::bakers::BakersDispatcher dispatcher(file);
         
-        dispatcher.Dispatch({bakers::SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
-            bakers::Slang baker;
+        dispatcher.Dispatch({lux::bakers::SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
+            lux::bakers::Slang baker;
             auto baked = baker.BakeVariantsToFile(path, shaderBakeSettings, bakerContext);
             if (!baked)
                 LOG("Failed to bake file: {} ({})", baked.error(), path.string());

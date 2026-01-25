@@ -2,5 +2,7 @@
   "initialDirectory": "../../../assets",
   "shaderBakerSettings": {
     "includeDirectory": "../../../assets/shaders/slang/raw"
-  }
+  },
+  "ioInterfaceName" : "Separate",
+  "ioCompressorName" : "Lz4"
 }

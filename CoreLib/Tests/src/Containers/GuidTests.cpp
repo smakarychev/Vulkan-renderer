@@ -7,6 +7,8 @@
 
 // NOLINTBEGIN
 
+using namespace lux;
+
 TEST_CASE("Guid", "[Containers][Guid]")
 {
     SECTION("Can create from string literal at compiletime")
@@ -24,6 +26,12 @@ TEST_CASE("Guid", "[Containers][Guid]")
     SECTION("Can cast to string")
     {
         std::string guidString = "76b96176-0b26-476f-a049-fcc20e9bbf11";
+        Guid guid = Guid::FromString(guidString);
+        REQUIRE(guid.AsString() == guidString);
+    }
+    SECTION("Guid with 0xff byte is ok")
+    {
+        std::string guidString = "1dc6c11f-8401-4d3a-9f04-0bfff98d0e6f";
         Guid guid = Guid::FromString(guidString);
         REQUIRE(guid.AsString() == guidString);
     }

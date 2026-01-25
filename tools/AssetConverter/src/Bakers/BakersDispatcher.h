@@ -3,7 +3,7 @@
 
 #include <filesystem>
 
-namespace bakers
+namespace lux::bakers
 {
 class BakersDispatcher
 {

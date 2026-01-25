@@ -5,10 +5,13 @@ import "core/texturesHeap";
 
 public struct AtmosphereLutsSamplingInfo {
     public AtmosphereSettings atmosphere;
-    public Texture2D transmittanceLut;
-    public Texture2D skyviewLut;
-    public Texture3D aerialPerspectiveLut;
+    public Texture2D transmittanceLut = {};
+    public Texture2D skyviewLut = {};
+    public Texture3D aerialPerspectiveLut = {};
     public SamplerState samplerEdge;
+    
+    public __init() {
+    }
 }
 
 struct TransmittanceLutResources {

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "v2/AssetLibV2.h"
+#include "v2/Io/AssetIo.h"
 
 #include <filesystem>
 #include <string>
@@ -15,7 +15,7 @@ struct SlangUniformTypeGeneratorInitInfo
 
 struct SlangUniformTypeGeneratorResult
 {
-    std::unordered_map<assetlib::AssetId, std::string> EmbeddedStructs{};
+    std::unordered_map<lux::assetlib::AssetId, std::string> EmbeddedStructs{};
     std::string TypeName{};
     std::string ParameterName{};
     std::vector<std::filesystem::path> Includes;
@@ -25,10 +25,10 @@ struct SlangUniformTypeGeneratorResult
 class SlangUniformTypeGenerator
 {
 public:
-    assetlib::io::IoResult<void> GenerateStandaloneUniforms(const SlangUniformTypeGeneratorInitInfo& info);
-    assetlib::io::IoResult<SlangUniformTypeGeneratorResult> Generate(const std::string& uniform) const;
+    lux::assetlib::io::IoResult<void> GenerateStandaloneUniforms(const SlangUniformTypeGeneratorInitInfo& info);
+    lux::assetlib::io::IoResult<SlangUniformTypeGeneratorResult> Generate(const std::string& uniform) const;
 private:
-    assetlib::io::IoResult<void> WriteStandaloneUniformType(const std::filesystem::path& path,
+    lux::assetlib::io::IoResult<void> WriteStandaloneUniformType(const std::filesystem::path& path,
         const std::filesystem::path& outputPath) const;
 private:
     std::filesystem::path m_TypeSearchPath{};

@@ -7,44 +7,44 @@
 #include <glaze/glaze.hpp>
 
 template <>
-struct glz::meta<assetlib::ShaderRasterizationDynamicState> : assetlib::reflection::CamelCase {
-    using enum assetlib::ShaderRasterizationDynamicState;
+struct glz::meta<lux::assetlib::ShaderRasterizationDynamicState> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::ShaderRasterizationDynamicState;
     static constexpr auto value = glz::enumerate(None, Viewport, Scissor, DepthBias);
 };
 template <>
-struct glz::meta<assetlib::ShaderRasterizationDepthMode> : assetlib::reflection::CamelCase {
-    using enum assetlib::ShaderRasterizationDepthMode;
+struct glz::meta<lux::assetlib::ShaderRasterizationDepthMode> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::ShaderRasterizationDepthMode;
     static constexpr auto value = glz::enumerate(Read, ReadWrite, None);
 };
 template <>
-struct glz::meta<assetlib::ShaderRasterizationDepthTest> : assetlib::reflection::CamelCase {
-    using enum assetlib::ShaderRasterizationDepthTest;
+struct glz::meta<lux::assetlib::ShaderRasterizationDepthTest> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::ShaderRasterizationDepthTest;
     static constexpr auto value = glz::enumerate(GreaterOrEqual, Equal);
 };
 template <>
-struct glz::meta<assetlib::ShaderRasterizationFaceCullMode> : assetlib::reflection::CamelCase {
-    using enum assetlib::ShaderRasterizationFaceCullMode;
+struct glz::meta<lux::assetlib::ShaderRasterizationFaceCullMode> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::ShaderRasterizationFaceCullMode;
     static constexpr auto value = glz::enumerate(Front, Back, None);
 };
 template <>
-struct glz::meta<assetlib::ShaderRasterizationPrimitiveKind> : assetlib::reflection::CamelCase {
-    using enum assetlib::ShaderRasterizationPrimitiveKind;
+struct glz::meta<lux::assetlib::ShaderRasterizationPrimitiveKind> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::ShaderRasterizationPrimitiveKind;
     static constexpr auto value = glz::enumerate(Triangle, Point);
 };
 template <>
-struct glz::meta<assetlib::ShaderRasterizationAlphaBlending> : assetlib::reflection::CamelCase {
-    using enum assetlib::ShaderRasterizationAlphaBlending;
+struct glz::meta<lux::assetlib::ShaderRasterizationAlphaBlending> : lux::assetlib::reflection::CamelCase {
+    using enum lux::assetlib::ShaderRasterizationAlphaBlending;
     static constexpr auto value = glz::enumerate(None, Over);
 };
-template <> struct glz::meta<assetlib::ShaderLoadRasterizationColor> : assetlib::reflection::CamelCase {}; 
-template <> struct glz::meta<assetlib::ShaderLoadRasterizationInfo> : assetlib::reflection::CamelCase {}; 
-template <> struct glz::meta<assetlib::ShaderLoadInfo::EntryPoint> : assetlib::reflection::CamelCase {};
-template <> struct glz::meta<assetlib::ShaderLoadInfo::Variant> : assetlib::reflection::CamelCase {};
-template <> struct glz::meta<assetlib::ShaderLoadInfo> : assetlib::reflection::CamelCase {};
+template <> struct glz::meta<lux::assetlib::ShaderLoadRasterizationColor> : lux::assetlib::reflection::CamelCase {}; 
+template <> struct glz::meta<lux::assetlib::ShaderLoadRasterizationInfo> : lux::assetlib::reflection::CamelCase {}; 
+template <> struct glz::meta<lux::assetlib::ShaderLoadInfo::EntryPoint> : lux::assetlib::reflection::CamelCase {};
+template <> struct glz::meta<lux::assetlib::ShaderLoadInfo::Variant> : lux::assetlib::reflection::CamelCase {};
+template <> struct glz::meta<lux::assetlib::ShaderLoadInfo> : lux::assetlib::reflection::CamelCase {};
 
 namespace 
 {
-void calculateShaderVariantHashes(assetlib::ShaderLoadInfo& shaderLoadInfo)
+void calculateShaderVariantHashes(lux::assetlib::ShaderLoadInfo& shaderLoadInfo)
 {
     for (auto& variant : shaderLoadInfo.Variants)
     {
@@ -55,7 +55,7 @@ void calculateShaderVariantHashes(assetlib::ShaderLoadInfo& shaderLoadInfo)
 }
 }
 
-namespace assetlib::shader
+namespace lux::assetlib::shader
 {
 io::IoResult<ShaderLoadInfo> readLoadInfo(const std::filesystem::path& path)
 {

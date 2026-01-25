@@ -3807,6 +3807,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
                 descriptorIndexingFeatures.runtimeDescriptorArray == VK_TRUE &&
                 shaderFeatures.shaderDrawParameters == VK_TRUE &&
                 deviceVulkan11Features.storageBuffer16BitAccess == VK_TRUE &&
+                deviceVulkan11Features.uniformAndStorageBuffer16BitAccess == VK_TRUE &&
                 deviceVulkan12Features.samplerFilterMinmax == VK_TRUE &&
                 deviceVulkan12Features.drawIndirectCount == VK_TRUE &&
                 deviceVulkan12Features.subgroupBroadcastDynamicId == VK_TRUE &&
@@ -3909,6 +3910,7 @@ void Device::CreateDevice(const DeviceCreateInfo& createInfo)
     vulkan11Features.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
     vulkan11Features.shaderDrawParameters = VK_TRUE;
     vulkan11Features.storageBuffer16BitAccess = VK_TRUE;
+    vulkan11Features.uniformAndStorageBuffer16BitAccess = VK_TRUE;
     
     VkPhysicalDeviceFeatures deviceFeatures = {};
     deviceFeatures.samplerAnisotropy = VK_TRUE;

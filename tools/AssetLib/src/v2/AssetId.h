@@ -5,7 +5,7 @@
 
 #include <format>
 
-namespace assetlib
+namespace lux::assetlib
 {
 class AssetId
 {
@@ -32,22 +32,22 @@ private:
 namespace std
 {
 template <>
-struct hash<assetlib::AssetId>
+struct hash<lux::assetlib::AssetId>
 {
-    usize operator()(const assetlib::AssetId id) const noexcept
+    usize operator()(const lux::assetlib::AssetId id) const noexcept
     {
         return std::hash<u64>{}(id.AsU64());
     }
 };
     
 template <>
-struct formatter<assetlib::AssetId> {
+struct formatter<lux::assetlib::AssetId> {
     constexpr auto parse(format_parse_context& ctx)
     {
         return ctx.begin();
     }
 
-    auto format(assetlib::AssetId id, format_context& ctx) const
+    auto format(lux::assetlib::AssetId id, format_context& ctx) const
     {
         return format_to(ctx.out(), "{}", id.AsU64());
     }

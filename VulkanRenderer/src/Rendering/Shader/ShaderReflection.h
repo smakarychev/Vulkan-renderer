@@ -3,9 +3,19 @@
 #include "ShaderModule.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
-#include "v2/AssetLibV2.h"
+#include "v2/Io/AssetIo.h"
 
-namespace assetlib
+namespace lux::assetlib::io
+{
+class AssetCompressor;
+}
+
+namespace lux::assetlib::io
+{
+class AssetIoInterface;
+}
+
+namespace lux::assetlib
 {
 struct ShaderHeader;
 }
@@ -33,7 +43,8 @@ public:
     };
     using DescriptorSets = std::array<DescriptorsInfo, MAX_DESCRIPTOR_SETS>;
 public:
-    static assetlib::io::IoResult<ShaderReflection> Reflect(const std::filesystem::path& path);
+    static lux::assetlib::io::IoResult<ShaderReflection> Reflect(const std::filesystem::path& path,
+        lux::assetlib::io::AssetIoInterface& io, lux::assetlib::io::AssetCompressor& compressor);
     ShaderReflection() = default;
     ShaderReflection(const ShaderReflection&) = delete;
     ShaderReflection& operator=(const ShaderReflection&) = delete;
@@ -41,7 +52,7 @@ public:
     ShaderReflection& operator=(ShaderReflection&& other) noexcept;
     ~ShaderReflection();
 
-    static ShaderReflectionEntryPointsInfo GetEntryPointsInfo(const assetlib::ShaderHeader& shader);
+    static ShaderReflectionEntryPointsInfo GetEntryPointsInfo(const lux::assetlib::ShaderHeader& shader);
 
     ShaderStage Stages() const { return m_ShaderStages; }
     const std::vector<SpecializationConstant>& SpecializationConstants() const { return m_SpecializationConstants; }

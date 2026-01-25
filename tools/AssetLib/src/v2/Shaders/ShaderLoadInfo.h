@@ -1,10 +1,10 @@
 #pragma once
 
 #include "Utils/HashUtils.h"
-#include "v2/AssetLibV2.h"
-#include "v2/Format//ImageFormat.h"
+#include "v2/Format/ImageFormat.h"
+#include "v2/Io/AssetIo.h"
 
-namespace assetlib
+namespace lux::assetlib
 {
 enum class ShaderRasterizationDynamicState : u8
 {

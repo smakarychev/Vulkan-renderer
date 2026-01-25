@@ -4,6 +4,8 @@
 #include "Bakers/BakersUtils.h"
 #include "Utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
+#include "v2/Io/Compression/AssetCompressor.h"
+#include "v2/Io/IoInterface/AssetIoInterface.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
 #include "v2/Shaders/ShaderUniform.h"
 #include "v2/Shaders/ShaderAsset.h"
@@ -22,7 +24,7 @@
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
     if (!(x)) { return std::unexpected(IoError{.Code = error, .Message = std::format(__VA_ARGS__)}); }
 
-namespace bakers
+namespace lux::bakers
 {
 namespace
 {
@@ -1235,26 +1237,12 @@ AssetPaths convertPathsToDefineAwarePaths(const AssetPaths& paths, u64 definesHa
 
 IoResult<assetlib::ShaderAsset> loadShaderAsset(const std::filesystem::path& path, const Context& ctx)
 {
-    IoResult<assetlib::AssetFileAndBinary> assetFileRead;
-    if (ctx.IoType == assetlib::AssetFileIoType::Combined)
-        assetFileRead = assetlib::io::loadAssetFileCombined(path);
-    else
-        assetFileRead = assetlib::io::loadAssetFile(path);
+    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(path);
+    assetFileRead = ctx.Io->ReadHeader(path);
     if (!assetFileRead.has_value())
         return std::unexpected(assetFileRead.error());
 
-    auto unpackedHeader = assetlib::shader::unpackHeader(assetFileRead->File);
-    if (!unpackedHeader.has_value())
-        return std::unexpected(unpackedHeader.error());
-
-    auto unpackedBinary = assetlib::shader::unpackBinary(assetFileRead->File, assetFileRead->Binary);
-    if (!unpackedBinary.has_value())
-        return std::unexpected(unpackedBinary.error());
-
-    return assetlib::ShaderAsset{
-        .Header = std::move(*unpackedHeader),
-        .Spirv = std::move(*unpackedBinary),
-    };
+    return assetlib::shader::readShader(*assetFileRead, *ctx.Io, *ctx.Compressor);
 }
 
 bool requiresBaking(const std::filesystem::path& path, const std::filesystem::path& bakedPath, const Context& ctx)
@@ -1267,15 +1255,12 @@ bool requiresBaking(const std::filesystem::path& path, const std::filesystem::pa
     if (lastBaked < fs::last_write_time(path))
         return true;
 
-    IoResult<assetlib::AssetFile> assetFileRead;
-    if (ctx.IoType == assetlib::AssetFileIoType::Combined)
-        assetFileRead = assetlib::io::loadAssetFileCombinedHeader(bakedPath);
-    else
-        assetFileRead = assetlib::io::loadAssetFileHeader(bakedPath);
+    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(path);
+    assetFileRead = ctx.Io->ReadHeader(path);
     if (!assetFileRead.has_value())
         return true;
 
-    const auto unpackHeader = assetlib::shader::unpackHeader(*assetFileRead);
+    const auto unpackHeader = assetlib::shader::readHeader(*assetFileRead);
     if (!unpackHeader.has_value())
         return true;
 
@@ -1341,7 +1326,7 @@ IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& p
         "Cannot find specified variant in shader: {} ({})", variant.AsStringView(), path.string())
 
     const AssetPaths paths = convertPathsToDefineAwarePaths(
-        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, ctx.IoType),
+        getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, *ctx.Io),
         getShaderVariantDefinesHash(*shaderVariant, settings.DefinesHash));
     if (!requiresBaking(path, paths.HeaderPath, ctx))
         return loadShaderAsset(paths.HeaderPath, ctx);
@@ -1349,37 +1334,32 @@ IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& p
     auto baked = Bake(*loadInfo, *shaderVariant, settings, ctx);
     CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
 
-    auto shaderHeader = assetlib::shader::packHeader(baked->Header);
-    if (!shaderHeader.has_value())
-        return std::unexpected(shaderHeader.error());
-    
-    const std::vector<std::byte> spirv = assetlib::shader::packBinary(baked->Spirv, ctx.CompressionMode);
-    
-    assetlib::AssetFile assetFile = {};
+    auto packedShader = assetlib::shader::pack(*baked, *ctx.Compressor);
+    if (!packedShader.has_value())
+        return std::unexpected(packedShader.error());
+
+    assetlib::AssetFile assetFile = {
+        .Metadata = std::move(packedShader->Metadata),
+        .AssetSpecificInfo = std::move(packedShader->AssetSpecificInfo)
+    };
     assetFile.IoInfo = {
+        .OriginalFile = std::filesystem::weakly_canonical(path).generic_string(),
         .HeaderFile = std::filesystem::weakly_canonical(paths.HeaderPath).generic_string(),
         .BinaryFile = std::filesystem::weakly_canonical(paths.BinaryPath).generic_string(),
         .BinarySizeBytes = baked->Spirv.size(),
-        .BinarySizeBytesCompressed = spirv.size(),
-        .CompressionMode = ctx.CompressionMode,
+        .BinarySizeBytesCompressed = packedShader->PackedBinaries.size(),
+        .BinarySizeBytesChunksCompressed = std::move(packedShader->PackedBinarySizeBytesChunks),
+        .CompressionMode = ctx.Compressor->GetName(),
+        .CompressionGuid = ctx.Compressor->GetGuid()
     };
-    assetFile.Metadata = assetlib::shader::generateMetadata(std::filesystem::weakly_canonical(path).generic_string());
-    assetFile.AssetSpecificInfo = std::move(*shaderHeader);    
 
-    IoResult<void> saveResult = {};
-    switch (ctx.IoType)
-    {
-    case assetlib::AssetFileIoType::Separate:
-        saveResult = assetlib::io::saveAssetFile(assetFile, spirv);
-        break;
-    case assetlib::AssetFileIoType::Combined:
-        saveResult = assetlib::io::saveAssetFileCombined(assetFile, spirv);
-        break;
-    default:
-        return std::unexpected(IoError{IoError::ErrorCode::GeneralError, "Unknown io type"});
-    }
-    if (!saveResult.has_value())
-        return std::unexpected(saveResult.error());
+    IoResult<void> saveResult = ctx.Io->WriteHeader(assetFile);
+    CHECK_RETURN_IO_ERROR(saveResult.has_value(), saveResult.error().Code, "{} ({})",
+        saveResult.error().Message, path.string())
+
+    IoResult<u64> binarySaveResult = ctx.Io->WriteBinaryChunk(assetFile, packedShader->PackedBinaries);
+    CHECK_RETURN_IO_ERROR(binarySaveResult.has_value(), binarySaveResult.error().Code, "{} ({})",
+        binarySaveResult.error().Message, path.string())
 
     return baked;
 }

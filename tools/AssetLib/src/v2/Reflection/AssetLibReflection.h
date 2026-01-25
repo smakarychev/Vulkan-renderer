@@ -3,7 +3,7 @@
 #include <initializer_list>
 #include <string>
 
-namespace assetlib::reflection
+namespace lux::assetlib::reflection
 {
 struct Dummy final {};
 using MakeReflectable = std::initializer_list<Dummy>;

@@ -3,7 +3,12 @@
 
 #include <filesystem>
 
-namespace bakers
+namespace lux::assetlib::io
+{
+class AssetIoInterface;
+}
+
+namespace lux::bakers
 {
 struct Context;
 struct AssetPaths
@@ -13,5 +18,5 @@ struct AssetPaths
 };
 std::filesystem::path getPostBakePath(const std::filesystem::path& path, const Context& ctx);
 AssetPaths getPostBakePaths(const std::filesystem::path& path, const Context& ctx, std::string_view postBakeExtension,
-    assetlib::AssetFileIoType ioType);
+    const assetlib::io::AssetIoInterface& io);
 }

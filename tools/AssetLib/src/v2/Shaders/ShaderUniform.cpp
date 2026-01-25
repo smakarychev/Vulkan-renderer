@@ -4,29 +4,29 @@
 #include "v2/Reflection/AssetLibReflectionUtility.inl"
 
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeScalar> : assetlib::reflection::CamelCase {};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeScalar> : lux::assetlib::reflection::CamelCase {};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeArray> : assetlib::reflection::CamelCase {};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeArray> : lux::assetlib::reflection::CamelCase {};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeVector> : assetlib::reflection::CamelCase {};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeVector> : lux::assetlib::reflection::CamelCase {};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeMatrix> : assetlib::reflection::CamelCase {};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeMatrix> : lux::assetlib::reflection::CamelCase {};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeVariant> : assetlib::reflection::CamelCase {};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeVariant> : lux::assetlib::reflection::CamelCase {};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformType> : assetlib::reflection::CamelCase {};
+struct ::glz::meta<lux::assetlib::ShaderUniformType> : lux::assetlib::reflection::CamelCase {};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformVariable> : assetlib::reflection::CamelCase{};
+struct ::glz::meta<lux::assetlib::ShaderUniformVariable> : lux::assetlib::reflection::CamelCase{};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeStruct> : assetlib::reflection::CamelCase{};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeStruct> : lux::assetlib::reflection::CamelCase{};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeEmbeddedStruct> : assetlib::reflection::CamelCase{};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeEmbeddedStruct> : lux::assetlib::reflection::CamelCase{};
 template <>
-struct ::glz::meta<assetlib::ShaderUniformTypeStructReference> : assetlib::reflection::CamelCase{};
+struct ::glz::meta<lux::assetlib::ShaderUniformTypeStructReference> : lux::assetlib::reflection::CamelCase{};
 template <>
-struct ::glz::meta<assetlib::ShaderUniform> : assetlib::reflection::CamelCase{};
+struct ::glz::meta<lux::assetlib::ShaderUniform> : lux::assetlib::reflection::CamelCase{};
 
-namespace assetlib::shader
+namespace lux::assetlib::shader
 {
 io::IoResult<std::string> packUniformStruct(const ShaderUniformTypeStruct& uniformStruct)
 {

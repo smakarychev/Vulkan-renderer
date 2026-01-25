@@ -9,7 +9,7 @@
 
 #include <mutex>
 
-namespace bakers
+namespace lux::bakers
 {
 struct SlangBakeSettings;
 struct Context;
@@ -56,7 +56,7 @@ using ShaderCacheTextureHeapResult = std::expected<ShaderTextureHeapAllocation, 
 class ShaderCache
 {
 public:
-    void Init(bakers::Context& bakersCtx, const bakers::SlangBakeSettings& bakeSettings);
+    void Init(lux::bakers::Context& bakersCtx, const lux::bakers::SlangBakeSettings& bakeSettings);
     void Shutdown();
     void OnFrameBegin(FrameContext& ctx);
 
@@ -121,8 +121,8 @@ private:
     // todo: why is that a sting and not a std::filesystem::path?
     std::unordered_map<StringId, std::string> m_ShaderNameToPath;
 
-    bakers::Context* m_BakersCtx{nullptr};
-    const bakers::SlangBakeSettings* m_BakeSettings{nullptr};
+    lux::bakers::Context* m_BakersCtx{nullptr};
+    const lux::bakers::SlangBakeSettings* m_BakeSettings{nullptr};
 
     /* the fields below are used for hot-reloading */
     std::unordered_map<StringId, std::vector<ShaderNameWithOverrides>> m_ShaderNameToAllOverrides;

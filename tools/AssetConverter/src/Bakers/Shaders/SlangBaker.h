@@ -3,16 +3,17 @@
 #include "Bakers/BakerContext.h"
 #include "types.h"
 #include "Containers/Result.h"
+#include "Containers/Span.h"
 #include "String/StringId.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
 #include "v2/Shaders/ShaderAsset.h"
 
-namespace assetlib
+namespace lux::assetlib
 {
 struct ShaderLoadInfo;
 }
 
-namespace bakers
+namespace lux::bakers
 {
 struct SlangBakeSettings
 {

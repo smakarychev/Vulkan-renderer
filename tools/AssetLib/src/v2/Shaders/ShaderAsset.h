@@ -1,11 +1,17 @@
 #pragma once
 #include "core.h"
-#include "v2/AssetLibV2.h"
+#include "v2/Io/AssetIo.h"
 
 #include <glm/glm.hpp>
 
-namespace assetlib
+namespace lux::assetlib
 {
+namespace io
+{
+class AssetIoInterface;
+class AssetCompressor;
+}
+
 static constexpr u32 SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX = 2;
 static constexpr u32 SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_BINDING_INDEX = 2;
 
@@ -147,15 +153,15 @@ struct ShaderAsset
 
 namespace shader
 {
-AssetMetadata generateMetadata(std::string_view fileName);
+io::IoResult<ShaderHeader> readHeader(const AssetFile& assetFile);
+io::IoResult<std::vector<std::byte>> readSpirv(const ShaderHeader& header, const AssetFile& assetFile,
+    io::AssetIoInterface& io, io::AssetCompressor& compressor);
+io::IoResult<ShaderAsset> readShader(const AssetFile& assetFile,
+    io::AssetIoInterface& io, io::AssetCompressor& compressor);
 
-io::IoResult<ShaderHeader> unpackHeader(const AssetFile& assetFile);
-io::IoResult<AssetBinary> unpackBinary(const AssetFile& assetFile, const AssetBinary& assetBinary);
-
-io::IoResult<AssetCustomHeaderType> packHeader(const ShaderHeader& shaderHeader);
-AssetBinary packBinary(AssetBinary& spirv, CompressionMode compressionMode);
+io::IoResult<AssetPacked> pack(const ShaderAsset& shader, io::AssetCompressor& compressor);
 }
 }
 
-CREATE_ENUM_FLAGS_OPERATORS(assetlib::ShaderStage);
-CREATE_ENUM_FLAGS_OPERATORS(assetlib::ShaderBindingAttributes);
+CREATE_ENUM_FLAGS_OPERATORS(lux::assetlib::ShaderStage);
+CREATE_ENUM_FLAGS_OPERATORS(lux::assetlib::ShaderBindingAttributes);

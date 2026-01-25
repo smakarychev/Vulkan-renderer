@@ -86,7 +86,7 @@ void cloudsVPRender(
     clouds.shapeBlueNoise = shapeBlueNoise;
     clouds.lightBlueNoise = lightBlueNoise;
 
-    AtmosphereLutsSamplingInfo atmosphere;
+    AtmosphereLutsSamplingInfo atmosphere = {};
     atmosphere.atmosphere = resources.view.atmosphere;
     atmosphere.transmittanceLut = resources.view.shading.transmittanceLut.desc;
     atmosphere.skyviewLut = resources.view.shading.transmittanceLut.desc;

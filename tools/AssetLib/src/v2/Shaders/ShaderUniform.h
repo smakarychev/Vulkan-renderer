@@ -5,7 +5,7 @@
 #include <memory>
 #include <variant>
 
-namespace assetlib
+namespace lux::assetlib
 {
 
 static constexpr std::string_view SHADER_UNIFORM_TYPE_EXTENSION = ".type";
