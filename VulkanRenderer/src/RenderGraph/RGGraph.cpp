@@ -798,7 +798,7 @@ namespace RG
     {
         if (access.IsSplitOrMerge())
             return {};
-        if (access.Access == PipelineAccess::None)
+        if (access.Stage == PipelineStage::None)
             return std::unexpected(std::format("Stage is not inferrable for {}", base.Name));
         if (access.Access == PipelineAccess::None)
             return std::unexpected(std::format("Access is not inferrable for {}", base.Name));
