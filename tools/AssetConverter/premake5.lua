@@ -38,19 +38,11 @@ project "AssetConverter"
 
     filter "configurations:Debug*"
         links {
-            "shadercd.lib",
-            "shaderc_combinedd.lib", 
-            "shaderc_sharedd.lib", 
-            "shaderc_utild.lib",
             "slangd.lib",
         }
 
     filter "configurations:Release*"
         links {
-            "shaderc.lib",
-            "shaderc_combined.lib", 
-            "shaderc_shared.lib", 
-            "shaderc_util.lib",
             "slang.lib",
         }
         postbuildcommands { 
@@ -101,18 +93,10 @@ project "AssetConverterLib"
 
     filter "configurations:Debug*"
         links {
-            "shadercd.lib",
-            "shaderc_combinedd.lib", 
-            "shaderc_sharedd.lib", 
-            "shaderc_utild.lib",
             "slangd.lib",
         }
 
     filter "configurations:Release*"
         links {
-            "shaderc.lib",
-            "shaderc_combined.lib", 
-            "shaderc_shared.lib", 
-            "shaderc_util.lib",
             "slang.lib",
         }
