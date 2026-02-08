@@ -52,44 +52,6 @@ local project_release_descriptor_buffer_defines = {
     "DESCRIPTOR_BUFFER",
 }
 
-project "VulkanRenderer"
-    kind "ConsoleApp"
-    language "C++"
-    cppdialect "C++20"
-    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
-    
-    files (project_files)
-    includedirs (project_includes)
-    libdirs (project_libdirs)
-    links (project_links)
-    defines (project_defines)
-
-    pchheader "rendererpch.h"
-    pchsource "src/rendererpch.cpp"
-
-    prebuildcommands {
-        "\
-        if not exist %{tools_bindir}/AssetConverter/AssetConverter.exe (\
-            msbuild %{wks.location}tools/AssetConverter/AssetConverter /p:Configuration=Release /p:Platform=x64) \
-        if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
-            msbuild %{wks.location}tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
-        cmd.exe /c %{tools_bindir}AssetConverter/AssetConverter.exe %{wks.location}/assets/shaders > nul \
-        cmd.exe /c %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
-        :: this is unholy \
-        cd %{wks.location} \
-        %{wks.location}build.bat"
-    }
-
-    filter "configurations:Debug"
-        defines (project_debug_defines)
-    
-    filter "configurations:Debug_DescriptorBuffer"
-        defines (project_debug_descriptor_buffer_defines)
-
-    filter "configurations:Release_DescriptorBuffer"
-        defines (project_release_descriptor_buffer_defines)
-        
 project "VulkanRendererLib"
     kind "StaticLib"
     language "C++"
@@ -107,6 +69,45 @@ project "VulkanRendererLib"
 
     pchheader "rendererpch.h"
     pchsource "src/rendererpch.cpp"
+
+    filter "configurations:Debug"
+        defines (project_debug_defines)
+    
+    filter "configurations:Debug_DescriptorBuffer"
+        defines (project_debug_descriptor_buffer_defines)
+
+    filter "configurations:Release_DescriptorBuffer"
+        defines (project_release_descriptor_buffer_defines)
+
+project "VulkanRenderer"
+    kind "ConsoleApp"
+    language "C++"
+    cppdialect "C++20"
+    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
+    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    
+    files { "src/main.cpp", "src/rendererpch.cpp"}
+    includedirs (project_includes)
+    links {
+        "VulkanRendererLib"
+    }
+    defines (project_defines)
+
+    pchheader "rendererpch.h"
+    pchsource "src/rendererpch.cpp"
+
+    prebuildcommands {
+        "\
+        if not exist %{tools_bindir}/AssetConverter/AssetConverter.exe (\
+            msbuild %{wks.location}tools/AssetConverter/AssetConverter /p:Configuration=Release /p:Platform=x64) \
+        if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
+            msbuild %{wks.location}tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
+        cmd.exe /c %{tools_bindir}AssetConverter/AssetConverter.exe %{wks.location}/assets/shaders > nul \
+        cmd.exe /c %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
+        :: this is unholy \
+        cd %{wks.location} \
+        %{wks.location}build.bat"
+    }
 
     filter "configurations:Debug"
         defines (project_debug_defines)
