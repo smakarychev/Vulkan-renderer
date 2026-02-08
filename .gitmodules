@@ -25,3 +25,6 @@
 [submodule "vendor/glaze"]
 	path = vendor/glaze
 	url = https://github.com/stephenberry/glaze.git
+[submodule "vendor/libktx"]
+	path = vendor/libktx
+	url = https://github.com/smakarychev/KTX-Software

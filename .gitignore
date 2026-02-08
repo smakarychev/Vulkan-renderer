@@ -28,3 +28,6 @@ vendor/*/bin
 **/Tests/bin
 **/Tests/bin-int
 assets/shaders/**/*.type
+assets/baked
+*.meta
+assets/uniform_types

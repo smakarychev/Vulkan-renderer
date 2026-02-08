@@ -1,6 +1,7 @@
 {
-  "shadersPath": "E:/Repos/C++/Gamedev/vulkan-renderer/assets/shaders",
-  "generationPath": "E:/Repos/C++/Gamedev/vulkan-renderer/VulkanRenderer/src/RenderGraph/Passes/Generated/",
-  "uniformSearchPath": "E:/Repos/C++/Gamedev/vulkan-renderer/assets/shaders/uniform_types",
+  "initialDirectory": "../../../assets",
+  "shadersPath": "../../../assets/shaders",
+  "generationPath": "../../../VulkanRenderer/src/RenderGraph/Passes/Generated/",
+  "uniformSearchPath": "../../../assets/shaders/uniform_types",
   "ioInterfaceName" : "Separate"
 }

@@ -2,6 +2,7 @@
 #include "Bakers/BakerContext.h"
 #include "Bakers/Bakers.h"
 #include "Bakers/BakersDispatcher.h"
+#include "Bakers/Images/ImageBaker.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "Platform/PlatformUtils.h"
 #include "v2/Io/AssetIoRegistry.h"
@@ -132,13 +133,14 @@ i32 main(i32 argc, char** argv)
     
     auto shaderBakerSettings = config->ShaderBakerSettings.value_or(ShaderBakerSettings{});
     lux::bakers::Context bakerContext{
-        .InitialDirectory = config->InitialDirectory / shaderBakerSettings.ShadersDirectoryName,
+        .InitialDirectory = config->InitialDirectory,
         .Io = io.get(),
         .Compressor = compressor.get()
     };
     lux::bakers::SlangBakeSettings shaderBakeSettings{
         .IncludePaths = {shaderBakerSettings.IncludeDirectory.string()},
     };
+    lux::bakers::ImageBakeSettings imageBakeSettings{};
 
     if (!bakerContext.Io)
     {
@@ -160,11 +162,25 @@ i32 main(i32 argc, char** argv)
         
         dispatcher.Dispatch({lux::bakers::SHADER_ASSET_EXTENSION}, [&](const fs::path& path) {
             lux::bakers::Slang baker;
+            if (!baker.ShouldBake(path, shaderBakeSettings, bakerContext))
+                return;
+            
             auto baked = baker.BakeVariantsToFile(path, shaderBakeSettings, bakerContext);
             if (!baked)
-                LOG("Failed to bake file: {} ({})", baked.error(), path.string());
+                LOG("Failed to bake shader file: {} ({})", baked.error(), path.string());
             else
                 LOG("Baked shader file: {}", path.string());
+        });
+        dispatcher.Dispatch({".jpeg", ".jpg", ".png", ".hdr"}, [&](const fs::path& path) {
+            lux::bakers::ImageBaker baker;
+            if (!baker.ShouldBake(path, imageBakeSettings, bakerContext))
+                return;
+            
+            auto baked = baker.BakeToFile(path, imageBakeSettings, bakerContext);
+            if (!baked)
+                LOG("Failed to bake image file: {} ({})", baked.error(), path.string());
+            else
+                LOG("Baked image file: {}", path.string());
         });
     }
     

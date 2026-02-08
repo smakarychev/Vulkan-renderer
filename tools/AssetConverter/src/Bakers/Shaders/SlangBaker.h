@@ -28,7 +28,7 @@ class Slang
 {
 public:
     static constexpr auto MAIN_VARIANT = HashedStringView(assetlib::ShaderLoadInfo::SHADER_VARIANT_MAIN_NAME);
-    
+public:
     static std::filesystem::path GetBakedPath(const std::filesystem::path& originalFile, StringId variant,
         const SlangBakeSettings& settings, const Context& ctx);
 
@@ -40,6 +40,9 @@ public:
 
     IoResult<assetlib::ShaderAsset> Bake(const assetlib::ShaderLoadInfo& loadInfo,
         const assetlib::ShaderLoadInfo::Variant& variant, const SlangBakeSettings& settings, const Context& ctx);
+
+    bool ShouldBake(const std::filesystem::path& path, const SlangBakeSettings& settings,
+        const Context& ctx);
 private:
     static constexpr std::string_view POST_BAKE_EXTENSION = ".sl_shader";
 };

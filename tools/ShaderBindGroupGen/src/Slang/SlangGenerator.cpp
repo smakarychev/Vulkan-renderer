@@ -1126,8 +1126,8 @@ struct Writer
 }
 
 SlangGenerator::SlangGenerator(SlangUniformTypeGenerator& uniformTypeGenerator,
-    const std::filesystem::path& shadersDirectory, lux::assetlib::io::AssetIoInterface& io)
-    : m_UniformTypeGenerator(&uniformTypeGenerator), m_ShadersDirectory(shadersDirectory), m_Io(&io)
+    const std::filesystem::path& initialDirectory, lux::assetlib::io::AssetIoInterface& io)
+    : m_UniformTypeGenerator(&uniformTypeGenerator), m_InitialDirectory(initialDirectory), m_Io(&io)
 {
 }
 
@@ -1204,7 +1204,7 @@ lux::assetlib::io::IoResult<SlangGeneratorResult> SlangGenerator::Generate(const
 
         const std::filesystem::path bakedPath =
             lux::bakers::Slang::GetBakedPath(path, StringId::FromString(variant.Name), {},
-                {.InitialDirectory = m_ShadersDirectory});
+                {.InitialDirectory = m_InitialDirectory});
 
         auto assetFileResult = m_Io->ReadHeader(bakedPath);
         if (!assetFileResult.has_value())

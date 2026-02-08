@@ -19,6 +19,7 @@ namespace fs = std::filesystem;
 
 struct Config
 {
+    std::filesystem::path InitialDirectory{};
     std::filesystem::path ShadersPath{};
     std::filesystem::path GenerationPath{};
     std::filesystem::path UniformSearchPath{};
@@ -109,7 +110,7 @@ i32 main()
         LOG("SlangUniformTypeGenerator error: {}", generationResult.error());
     }
     
-    SlangGenerator generator(uniformTypeGenerator, config->ShadersPath, *io);
+    SlangGenerator generator(uniformTypeGenerator, config->InitialDirectory, *io);
     {
         std::string commonFile = generator.GenerateCommonFile();
         const std::filesystem::path commonFilePath = generator.GetCommonFilePath(config->GenerationPath);

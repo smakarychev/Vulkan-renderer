@@ -22,7 +22,7 @@
 #include <slang/slang-com-ptr.h>
 
 #define CHECK_RETURN_IO_ERROR(x, error, ...) \
-    if (!(x)) { return std::unexpected(IoError{.Code = error, .Message = std::format(__VA_ARGS__)}); }
+    ASSETLIB_CHECK_RETURN_IO_ERROR(x, error, __VA_ARGS__)
 
 namespace lux::bakers
 {
@@ -1255,8 +1255,7 @@ bool requiresBaking(const std::filesystem::path& path, const std::filesystem::pa
     if (lastBaked < fs::last_write_time(path))
         return true;
 
-    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(path);
-    assetFileRead = ctx.Io->ReadHeader(path);
+    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(bakedPath);
     if (!assetFileRead.has_value())
         return true;
 
@@ -1454,6 +1453,28 @@ IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderLoadInfo& load
     shaderAsset.Header.Name = loadInfo.Name;
 
     return shaderAsset;
+}
+
+bool Slang::ShouldBake(const std::filesystem::path& path, const SlangBakeSettings& settings, const Context& ctx)
+{
+    const auto loadInfo = assetlib::shader::readLoadInfo(path);
+    if (!loadInfo.has_value())
+        return true;
+
+    for (auto& variant : loadInfo->Variants)
+    {
+        const auto shaderVariant = findShaderVariant(*loadInfo, StringId::FromString(variant.Name));
+        if (!shaderVariant.has_value())
+            return true;
+
+        const AssetPaths paths = convertPathsToDefineAwarePaths(
+            getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, *ctx.Io),
+            getShaderVariantDefinesHash(*shaderVariant, settings.DefinesHash));
+        if (requiresBaking(path, paths.HeaderPath, ctx))
+            return true;
+    }
+
+    return false;
 }
 }
 

@@ -8,12 +8,8 @@ namespace lux::bakers
 {
 namespace 
 {
-constexpr std::string_view RAW_ASSETS_DIRECTORY_NAME = "raw";
 constexpr std::string_view BAKED_ASSETS_DIRECTORY_NAME = "baked";
 }
-/* this function reflects input path around "raw" directory, if such is present.
- * e.g. `some/raw/path/resource.ext` turns into `some/baked/path/resource.ext`
- */
 std::filesystem::path getPostBakePath(const std::filesystem::path& path, const Context& ctx)
 {
     std::filesystem::path processedPath = path.filename();
@@ -21,16 +17,11 @@ std::filesystem::path getPostBakePath(const std::filesystem::path& path, const C
     std::filesystem::path currentPath = path.parent_path();
     while (!std::filesystem::equivalent(currentPath, ctx.InitialDirectory))
     {
-        if (currentPath.filename() == RAW_ASSETS_DIRECTORY_NAME)
-            break;
         processedPath = currentPath.filename() / processedPath;
         currentPath = currentPath.parent_path();
     }
 
-    if (currentPath.filename() == RAW_ASSETS_DIRECTORY_NAME)
-        processedPath = currentPath.parent_path() / BAKED_ASSETS_DIRECTORY_NAME / processedPath;
-    else
-        processedPath = path.parent_path() / BAKED_ASSETS_DIRECTORY_NAME / processedPath;
+    processedPath = currentPath / BAKED_ASSETS_DIRECTORY_NAME / processedPath;
 
     return processedPath;
 }

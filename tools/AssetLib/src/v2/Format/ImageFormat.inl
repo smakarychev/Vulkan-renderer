@@ -257,7 +257,6 @@ struct glz::meta<lux::assetlib::ImageFormat> : lux::assetlib::reflection::CamelC
         PVRTC1_2BPP_SRGB_BLOCK_IMG,
         PVRTC1_4BPP_SRGB_BLOCK_IMG,
         PVRTC2_2BPP_SRGB_BLOCK_IMG,
-        PVRTC2_4BPP_SRGB_BLOCK_IMG,
-        R8_BOOL_ARM
+        PVRTC2_4BPP_SRGB_BLOCK_IMG
     );
 };
