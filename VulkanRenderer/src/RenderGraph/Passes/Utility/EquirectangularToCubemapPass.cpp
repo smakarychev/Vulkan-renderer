@@ -5,7 +5,6 @@
 #include "MipMapPass.h"
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/EquirectangularToCubemapBindGroupRG.generated.h"
-#include "Rendering/Shader/ShaderCache.h"
 
 namespace
 {

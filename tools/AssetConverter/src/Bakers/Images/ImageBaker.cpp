@@ -105,16 +105,6 @@ ImageLoadInfoRead readImageLoadInfo(const std::filesystem::path& path, const Ima
     return createAndWriteImageLoadInfo(path, settings);
 }
 
-IoResult<assetlib::ImageAsset> loadImageAsset(const std::filesystem::path& path, const Context& ctx)
-{
-    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(path);
-    assetFileRead = ctx.Io->ReadHeader(path);
-    if (!assetFileRead.has_value())
-        return std::unexpected(assetFileRead.error());
-
-    return assetlib::image::readImage(*assetFileRead, *ctx.Io, *ctx.Compressor);
-}
-
 bool requiresBaking(const assetlib::ImageLoadInfo& imageLoadInfo, const std::filesystem::path& path,
     const std::filesystem::path& bakedPath, const Context& ctx)
 {
@@ -150,7 +140,7 @@ std::filesystem::path ImageBaker::GetBakedPath(const std::filesystem::path& orig
     return path;
 }
 
-IoResult<assetlib::ImageAsset> ImageBaker::BakeToFile(const std::filesystem::path& path,
+IoResult<std::filesystem::path> ImageBaker::BakeToFile(const std::filesystem::path& path,
     const ImageBakeSettings& settings, const Context& ctx)
 {
     const auto&& [loadInfo, loadInfoPath] = readImageLoadInfo(path, settings);
@@ -159,7 +149,7 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeToFile(const std::filesystem::pat
 
     const AssetPaths paths = getPostBakePaths(loadInfoPath, ctx, POST_BAKE_EXTENSION, *ctx.Io);
     if (!requiresBaking(*loadInfo, loadInfoPath, paths.HeaderPath, ctx))
-        return loadImageAsset(paths.HeaderPath, ctx);
+        return paths.HeaderPath;
     
     auto baked = Bake(*loadInfo, settings, ctx);
     CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
@@ -196,7 +186,7 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeToFile(const std::filesystem::pat
     CHECK_RETURN_IO_ERROR(binarySaveResult.has_value(), binarySaveResult.error().Code, "{} ({})",
         binarySaveResult.error().Message, path.string())
 
-    return baked;
+    return paths.HeaderPath;
 }
 
 IoResult<assetlib::ImageAsset> ImageBaker::Bake(const assetlib::ImageLoadInfo& loadInfo,

@@ -16,7 +16,7 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             CPU_PROFILE_FRAME("RenderObjectVisibilityPass.Setup")
 
             passData.BindGroup = SceneRenderObjectVisibilityBindGroupRG(graph, ShaderSpecializations(
-                    ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}));
+                ShaderSpecialization{"REOCCLUSION"_hsv, info.Stage == SceneVisibilityStage::Reocclusion}));
             
             auto& multiview = *info.MultiviewVisibility;
             

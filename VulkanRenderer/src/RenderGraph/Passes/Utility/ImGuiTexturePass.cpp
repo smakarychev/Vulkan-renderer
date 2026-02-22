@@ -7,7 +7,6 @@
 #include "imgui/imgui.h"
 #include "Imgui/ImguiUI.h"
 #include "RenderGraph/RGGraph.h"
-#include "Rendering/Shader/ShaderCache.h"
 
 namespace
 {

@@ -5,7 +5,6 @@
 #include "RenderGraph/RGGraph.h"
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShOfflineBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Generated/DiffuseIrradianceShRealtimeBindGroupRG.generated.h"
-#include "Rendering/Shader/ShaderCache.h"
 
 Passes::DiffuseIrradianceSH::PassData& Passes::DiffuseIrradianceSH::addToGraph(StringId name, RG::Graph& renderGraph,
     Texture cubemap, Buffer irradianceSH, bool realTime)

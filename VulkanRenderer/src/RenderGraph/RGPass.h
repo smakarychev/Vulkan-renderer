@@ -1,8 +1,8 @@
 ﻿#pragma once
 
 #include "RGAccess.h"
+#include "Assets/Shaders/ShaderAssetManager.h"
 #include "Rendering/Synchronization.h"
-#include "Rendering/Shader/ShaderCache.h"
 #include "String/StringId.h"
 
 struct FrameContext;
@@ -117,7 +117,7 @@ private:
     DepthStencilTargetAccess m_DepthStencilTargetAccess{};
 
     PassFlags m_Flags{PassFlags::Cullable};
-    Shader m_Shader{};
+    lux::Shader m_Shader{};
 
     StringId m_Name;
 };

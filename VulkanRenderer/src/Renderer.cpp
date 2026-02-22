@@ -7,6 +7,8 @@
 #include "AssetManager.h"
 #include "ViewInfoGPU.h"
 #include "Converters.h"
+#include "Assets/AssetSystem.h"
+#include "Assets/Shaders/ShaderAssetManager.h"
 #include "Core/Input.h"
 #include "cvars/CVarSystem.h"
 
@@ -67,10 +69,10 @@
 #include "RenderGraph/Passes/Utility/ImGuiTexturePass.h"
 #include "RenderGraph/Passes/Utility/MipMapPass.h"
 #include "RenderGraph/Passes/Utility/UploadPass.h"
-#include "Rendering/Shader/ShaderCache.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 #include "String/StringId.h"
+#include "v2/Images/ImageAsset.h"
 #include "v2/Io/Compression/Lz4AssetCompressor.h"
 #include "v2/Io/Compression/RawAssetCompressor.h"
 #include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
@@ -99,8 +101,18 @@ void Renderer::Init()
     m_SlangBakeSettings = {
         .IncludePaths = {"../assets/shaders/slang/raw"},
         .UniformReflectionDirectoryName = "uniform_types",
+        .EnableHotReloading = true,
     };
-    m_ShaderCache.Init(m_BakerCtx, m_SlangBakeSettings);
+
+    m_AssetSystem.Init(*m_AssetIoInterface, *m_AssetCompressor);
+    m_AssetSystem.SetAssetsDirectory(*CVars::Get().GetStringCVar("Path.Assets"_hsv));
+    m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>(m_AssetSystem);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::shader::getMetadata().Type, *m_ShaderAssetManager);
+    m_ShaderAssetManager->Init(m_SlangBakeSettings);
+
+    m_AssetSystem.ScanAssetsDirectory();
+    
+
     
     InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
@@ -135,7 +147,7 @@ void Renderer::Init()
         allocators[i] = DescriptorArenaAllocators({samplerAllocator, resourceAllocator}, m_PersistentMaterialAllocator);
     }
     
-    m_Graph = std::make_unique<RG::Graph>(allocators, m_ShaderCache);
+    m_Graph = std::make_unique<RG::Graph>(allocators, *m_ShaderAssetManager);
     m_MermaidExporter = std::make_unique<RG::RGMermaidExporter>();
     InitRenderGraph();
 }
@@ -143,7 +155,7 @@ void Renderer::Init()
 void Renderer::InitRenderGraph()
 {
     static constexpr u32 TEXTURE_HEAP_SIZE = 1024;
-    auto textureHeap = m_ShaderCache.AllocateTextureHeap(
+    auto textureHeap = m_ShaderAssetManager->AllocateTextureHeap(
         m_Graph->GetFrameAllocators().GetPersistent(),
         TEXTURE_HEAP_SIZE);
     ASSERT(textureHeap.has_value())
@@ -1486,11 +1498,6 @@ Renderer* Renderer::Get()
     return &renderer;
 }
 
-Renderer::~Renderer()
-{
-    Shutdown();
-}
-
 void Renderer::Run()
 {
     while(!glfwWindowShouldClose(m_Window))
@@ -1629,7 +1636,7 @@ void Renderer::BeginFrame()
     
     m_ResourceUploader.BeginFrame(GetFrameContext());
     m_Graph->OnFrameBegin(GetFrameContext());
-    m_ShaderCache.OnFrameBegin(GetFrameContext());
+    m_ShaderAssetManager->OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().CommandList, GetFrameContext().FrameNumber);
 }
 
@@ -1765,7 +1772,10 @@ void Renderer::Shutdown()
     m_PrimaryVisibility.Shutdown();
     
     m_ResourceUploader.Shutdown();
-    m_ShaderCache.Shutdown();
+    m_ShaderAssetManager->Shutdown();
+
+    m_AssetSystem.Shutdown();
+    
     for (auto& ctx : m_FrameContexts)
         ctx.DeletionQueue.Flush();
     ProfilerContext::Get()->Shutdown();

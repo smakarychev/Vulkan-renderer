@@ -13,10 +13,6 @@ class AssetManager
 public:
     static void Shutdown();
     
-    static std::string GetShaderKey(const std::vector<std::string>& paths);
-    static ShaderReflection* GetShader(std::string_view name);
-    static ShaderReflection* AddShader(std::string_view name, ShaderReflection&& shader);
-
     static Image GetImage(std::string_view name);
     static void AddImage(std::string_view, Image image);
 
@@ -24,7 +20,6 @@ public:
     static SceneInfo* AddSceneInfo(std::string_view name, SceneInfo&& sceneInfo);
     
 private:
-    static StringUnorderedMap<ShaderReflection> s_Shaders;
     static StringUnorderedMap<Image> s_Images;
     
     static StringUnorderedMap<SceneInfo> s_Scenes;

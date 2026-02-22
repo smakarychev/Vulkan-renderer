@@ -11,9 +11,7 @@ class DescriptorLayoutCache;
 
 struct ShaderPipelineTemplateCreateInfo
 {
-    ShaderReflection* ShaderReflection{nullptr};
-    Span<const ShaderStage> ShaderStages{};
-    Span<const std::string> ShaderEntryPoints{};
+    ShaderReflection ShaderReflection;
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> DescriptorLayoutOverrides{};
 };
 
@@ -30,15 +28,22 @@ public:
 
     bool IsComputeTemplate() const;
 
-    const ShaderReflection& GetReflection() const { return *m_ShaderReflection; }
+    const ShaderReflection& GetReflection() const { return m_ShaderReflection; }
 
-    Span<const ShaderStage> GetShaderStages() const { return Span(m_ShaderStages.data(), m_ShaderStageCount); }
-    Span<const std::string> GetEntryPoints() const { return Span(m_ShaderEntryPoints.data(), m_ShaderStageCount); }
+    Span<const ShaderStage> GetShaderStages() const
+    {
+        const auto& entryPoints = m_ShaderReflection.GetEntryPointsInfo();
+
+        return {entryPoints.Stages.data(), entryPoints.Count};
+    }
+    Span<const std::string> GetEntryPoints() const
+    {
+        const auto& entryPoints = m_ShaderReflection.GetEntryPointsInfo();
+
+        return {entryPoints.Names.data(), entryPoints.Count};
+    }
 private:
-    ShaderReflection* m_ShaderReflection{nullptr};
+    ShaderReflection m_ShaderReflection{};
     PipelineLayout m_PipelineLayout;
     std::array<DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorsLayouts;
-    std::array<ShaderStage, MAX_PIPELINE_SHADER_COUNT> m_ShaderStages;
-    std::array<std::string, MAX_PIPELINE_SHADER_COUNT> m_ShaderEntryPoints;
-    u32 m_ShaderStageCount{0};
 };

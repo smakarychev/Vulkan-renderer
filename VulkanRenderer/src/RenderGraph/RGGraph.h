@@ -6,6 +6,11 @@
 #include "RGBlackboard.h"
 #include "RGResourceUploader.h"
 
+namespace lux
+{
+class ShaderAssetManager;
+}
+
 namespace RG
 {
 class Pass;
@@ -17,7 +22,7 @@ class Graph
 public:
     Graph() = default;
     Graph(const std::array<DescriptorArenaAllocators, BUFFERED_FRAMES>& descriptorAllocators,
-        ShaderCache& shaderCache);
+        lux::ShaderAssetManager& shaderAssetManager);
     Graph(Graph&) = delete;
     Graph& operator=(Graph&) = delete;
     Graph(Graph&&) = delete;
@@ -25,7 +30,6 @@ public:
     ~Graph() = default;
 
     void SetDescriptorAllocators(const std::array<DescriptorArenaAllocators, BUFFERED_FRAMES>& descriptorAllocators);
-    void SetShaderCache(ShaderCache& shaderCache);
     void SetWatcher(GraphWatcher& watcher);
     void RemoveWatcher();
 
@@ -100,11 +104,12 @@ public:
     template <typename Value>
     Value& GetOrCreateBlackboardValue(u64 hash) const;
 
-    const Shader& SetShader(StringId name) const;
-    const Shader& SetShader(StringId name, StringId variant) const;
-    const Shader& SetShader(StringId name, ShaderOverridesView&& overrides) const;
-    const Shader& SetShader(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides) const;
-    const Shader& GetShader() const;
+    const lux::Shader& SetShader(StringId name) const;
+    const lux::Shader& SetShader(StringId name, StringId variant) const;
+    const lux::Shader& SetShader(StringId name, ShaderOverridesView&& overrides) const;
+    const lux::Shader& SetShader(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides) const;
+    const lux::Shader& HandleShaderError(StringId name) const;
+    const lux::Shader& GetShader() const;
 
 private:
     ::BufferDescription CreateBufferDescription(const RGBufferDescription& description) const;
@@ -163,7 +168,7 @@ private:
 
     std::array<DescriptorArenaAllocators, BUFFERED_FRAMES> m_ArenaAllocators;
     DescriptorArenaAllocators* m_FrameAllocators{&m_ArenaAllocators[0]};
-    ShaderCache* m_ShaderCache{nullptr};
+    lux::ShaderAssetManager* m_ShaderAssetManager{nullptr};
     mutable Blackboard m_Blackboard;
 };
 

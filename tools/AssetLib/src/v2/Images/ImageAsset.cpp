@@ -21,19 +21,6 @@ template <> struct ::glz::meta<lux::assetlib::ImageHeader> : lux::assetlib::refl
 
 namespace lux::assetlib::image
 {
-namespace 
-{
-constexpr u32 IMAGE_ASSET_VERSION = 1;
-AssetMetadata generateMetadata()
-{
-    return {
-        .Type = "66c40884-12d6-4f3f-a801-34d585c692a3"_guid,
-        .TypeName = "image",
-        .Version = IMAGE_ASSET_VERSION,
-    };
-}
-}
-
 io::IoResult<ImageHeader> readHeader(const AssetFile& assetFile)
 {
     const auto result = glz::read_json<ImageHeader>(assetFile.AssetSpecificInfo);
@@ -118,10 +105,21 @@ io::IoResult<AssetPacked> pack(const ImageAsset& image, io::AssetCompressor& com
     }
 
     return AssetPacked{
-        .Metadata = generateMetadata(),
+        .Metadata = getMetadata(),
         .AssetSpecificInfo = std::move(*header),
         .PackedBinaries = std::move(imageData),
         .PackedBinarySizeBytesChunks = std::move(packedImageDataBinarySizeBytesChunks)
+    };
+}
+
+AssetMetadata getMetadata()
+{
+    static constexpr u32 IMAGE_ASSET_VERSION = 1;
+    
+    return {
+        .Type = "66c40884-12d6-4f3f-a801-34d585c692a3"_guid,
+        .TypeName = "image",
+        .Version = IMAGE_ASSET_VERSION,
     };
 }
 }

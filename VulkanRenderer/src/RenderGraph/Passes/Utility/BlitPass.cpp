@@ -2,6 +2,7 @@
 
 #include "BlitPass.h"
 
+#include "FrameContext.h"
 #include "Rendering/Image/ImageUtility.h"
 
 Passes::Blit::PassData& Passes::Blit::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn,

@@ -1135,9 +1135,10 @@ std::string SlangGenerator::GenerateCommonFile() const
 {
     std::string commonFile = std::string(utils::getPreamble()).append("\n");
     commonFile += R"(
-#include "Rendering/Shader/ShaderCache.h"
+#include "Assets/Shaders/ShaderAssetManager.h"
 #include "RenderGraph/RGGraph.h"
 #include "Rendering/Commands/RenderCommandList.h"
+#include "FrameContext.h"
 
 struct BindGroupBaseRG
 {
@@ -1159,13 +1160,13 @@ struct BindGroupBaseRG
     using ImageBindingInfoRG = BindingInfoRG;
 
     BindGroupBaseRG() = default;
-    BindGroupBaseRG(RG::Graph& graph, const Shader& shader)
+    BindGroupBaseRG(RG::Graph& graph, const ::lux::Shader& shader)
         : Graph(&graph), Shader(&shader) {}
     BindGroupBaseRG(RG::Graph& graph)
         : Graph(&graph) {}
 
     RG::Graph* Graph{nullptr};
-    const ::Shader* Shader{nullptr};
+    const ::lux::Shader* Shader{nullptr};
 };
 )";
 

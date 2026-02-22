@@ -26,20 +26,6 @@ template <> struct ::glz::meta<lux::assetlib::ShaderHeader> : lux::assetlib::ref
 
 namespace lux::assetlib::shader
 {
-namespace 
-{
-constexpr u32 SHADER_ASSET_VERSION = 1;
-AssetMetadata generateMetadata()
-{
-    return {
-        .Type = "fb8f866d-d436-48d3-beef-2cd3dca6e0c8"_guid,
-        .TypeName = "shader",
-        .Version = SHADER_ASSET_VERSION,
-    };
-}
-}
-
-
 io::IoResult<ShaderHeader> readHeader(const AssetFile& assetFile)
 {
     const auto result = glz::read_json<ShaderHeader>(assetFile.AssetSpecificInfo);
@@ -89,10 +75,21 @@ io::IoResult<AssetPacked> pack(const ShaderAsset& shader, io::AssetCompressor& c
     const u64 spirvSize = spirv.size();
 
     return AssetPacked{
-        .Metadata = generateMetadata(),
+        .Metadata = getMetadata(),
         .AssetSpecificInfo = std::move(*header),
         .PackedBinaries = std::move(spirv),
         .PackedBinarySizeBytesChunks = {spirvSize}
+    };
+}
+
+AssetMetadata getMetadata()
+{
+    static constexpr u32 SHADER_ASSET_VERSION = 1;
+    
+    return {
+        .Type = "fb8f866d-d436-48d3-beef-2cd3dca6e0c8"_guid,
+        .TypeName = "shader",
+        .Version = SHADER_ASSET_VERSION,
     };
 }
 }

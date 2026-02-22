@@ -160,6 +160,8 @@ io::IoResult<ShaderAsset> readShader(const AssetFile& assetFile,
     io::AssetIoInterface& io, io::AssetCompressor& compressor);
 
 io::IoResult<AssetPacked> pack(const ShaderAsset& shader, io::AssetCompressor& compressor);
+
+AssetMetadata getMetadata();
 }
 }
 

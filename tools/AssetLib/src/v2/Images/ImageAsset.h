@@ -59,5 +59,7 @@ io::IoResult<ImageAsset> readImage(const AssetFile& assetFile,
     io::AssetIoInterface& io, io::AssetCompressor& compressor);
 
 io::IoResult<AssetPacked> pack(const ImageAsset& image, io::AssetCompressor& compressor);
+
+AssetMetadata getMetadata();
 }
 }

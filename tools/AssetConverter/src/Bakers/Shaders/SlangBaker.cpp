@@ -1235,16 +1235,6 @@ AssetPaths convertPathsToDefineAwarePaths(const AssetPaths& paths, u64 definesHa
     return converted;
 }
 
-IoResult<assetlib::ShaderAsset> loadShaderAsset(const std::filesystem::path& path, const Context& ctx)
-{
-    IoResult<assetlib::AssetFile> assetFileRead = ctx.Io->ReadHeader(path);
-    assetFileRead = ctx.Io->ReadHeader(path);
-    if (!assetFileRead.has_value())
-        return std::unexpected(assetFileRead.error());
-
-    return assetlib::shader::readShader(*assetFileRead, *ctx.Io, *ctx.Compressor);
-}
-
 bool requiresBaking(const std::filesystem::path& path, const std::filesystem::path& bakedPath, const Context& ctx)
 {
     namespace fs = std::filesystem;
@@ -1313,7 +1303,7 @@ IoResult<void> Slang::BakeVariantsToFile(const std::filesystem::path& path, cons
     return {};
 }
 
-IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& path, StringId variant,
+IoResult<std::filesystem::path> Slang::BakeToFile(const std::filesystem::path& path, StringId variant,
     const SlangBakeSettings& settings, const Context& ctx)
 {
     const auto loadInfo = assetlib::shader::readLoadInfo(path);
@@ -1328,7 +1318,7 @@ IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& p
         getPostBakePaths(path, ctx, POST_BAKE_EXTENSION, *ctx.Io),
         getShaderVariantDefinesHash(*shaderVariant, settings.DefinesHash));
     if (!requiresBaking(path, paths.HeaderPath, ctx))
-        return loadShaderAsset(paths.HeaderPath, ctx);
+        return paths.HeaderPath;
     
     auto baked = Bake(*loadInfo, *shaderVariant, settings, ctx);
     CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
@@ -1360,7 +1350,7 @@ IoResult<assetlib::ShaderAsset> Slang::BakeToFile(const std::filesystem::path& p
     CHECK_RETURN_IO_ERROR(binarySaveResult.has_value(), binarySaveResult.error().Code, "{} ({})",
         binarySaveResult.error().Message, path.string())
 
-    return baked;
+    return paths.HeaderPath;
 }
 
 IoResult<assetlib::ShaderAsset> Slang::Bake(const assetlib::ShaderLoadInfo& loadInfo,

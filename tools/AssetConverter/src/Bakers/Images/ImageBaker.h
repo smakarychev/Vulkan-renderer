@@ -31,7 +31,7 @@ public:
     static std::filesystem::path GetBakedPath(const std::filesystem::path& originalFile,
         const ImageBakeSettings& settings, const Context& ctx);
 
-    IoResult<assetlib::ImageAsset> BakeToFile(const std::filesystem::path& path,
+    IoResult<std::filesystem::path> BakeToFile(const std::filesystem::path& path,
         const ImageBakeSettings& settings, const Context& ctx);
 
     IoResult<assetlib::ImageAsset> Bake(const assetlib::ImageLoadInfo& loadInfo,

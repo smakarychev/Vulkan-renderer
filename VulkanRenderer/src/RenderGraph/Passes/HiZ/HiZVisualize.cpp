@@ -4,7 +4,6 @@
 
 #include "imgui/imgui.h"
 #include "RenderGraph/Passes/Generated/HizVisualizeBindGroupRG.generated.h"
-#include "Rendering/Shader/ShaderCache.h"
 
 Passes::HiZVisualize::PassData& Passes::HiZVisualize::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)

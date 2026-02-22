@@ -20,13 +20,6 @@ namespace lux::assetlib
 struct ShaderHeader;
 }
 
-struct ShaderReflectionEntryPointsInfo
-{
-    std::array<ShaderStage, MAX_PIPELINE_SHADER_COUNT> Stages;
-    std::array<std::string, MAX_PIPELINE_SHADER_COUNT> Names;
-    u32 Count{0};
-};
-
 class ShaderReflection
 {
 public:
@@ -42,6 +35,12 @@ public:
         std::vector<DescriptorBinding> Descriptors{};
     };
     using DescriptorSets = std::array<DescriptorsInfo, MAX_DESCRIPTOR_SETS>;
+    struct EntryPointsInfo
+    {
+        std::array<ShaderStage, MAX_PIPELINE_SHADER_COUNT> Stages;
+        std::array<std::string, MAX_PIPELINE_SHADER_COUNT> Names;
+        u32 Count{0};
+    };
 public:
     static lux::assetlib::io::IoResult<ShaderReflection> Reflect(const std::filesystem::path& path,
         lux::assetlib::io::AssetIoInterface& io, lux::assetlib::io::AssetCompressor& compressor);
@@ -52,8 +51,6 @@ public:
     ShaderReflection& operator=(ShaderReflection&& other) noexcept;
     ~ShaderReflection();
 
-    static ShaderReflectionEntryPointsInfo GetEntryPointsInfo(const lux::assetlib::ShaderHeader& shader);
-
     ShaderStage Stages() const { return m_ShaderStages; }
     const std::vector<SpecializationConstant>& SpecializationConstants() const { return m_SpecializationConstants; }
     const VertexInputDescription& VertexInputDescription() const { return m_VertexInputDescription; }
@@ -62,6 +59,7 @@ public:
     {
         return m_DescriptorSets;
     }
+    const EntryPointsInfo& GetEntryPointsInfo() const { return m_EntryPointsInfo; }
     const std::vector<ShaderModule>& Shaders() const { return m_Modules; }
 private:
     // todo: remove it and just store the asset?
@@ -70,5 +68,6 @@ private:
     ::VertexInputDescription m_VertexInputDescription{};
     std::vector<PushConstantDescription> m_PushConstants{};
     DescriptorSets m_DescriptorSets{};
+    EntryPointsInfo m_EntryPointsInfo;
     std::vector<ShaderModule> m_Modules;
 };

@@ -2,6 +2,6 @@
   "initialDirectory": "../../../assets",
   "shadersPath": "../../../assets/shaders",
   "generationPath": "../../../VulkanRenderer/src/RenderGraph/Passes/Generated/",
-  "uniformSearchPath": "../../../assets/shaders/uniform_types",
+  "uniformSearchPath": "../../../assets/uniform_types",
   "ioInterfaceName" : "Separate"
 }

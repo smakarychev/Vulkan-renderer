@@ -335,6 +335,14 @@ lux::assetlib::io::IoResult<ShaderReflection> ShaderReflection::Reflect(const st
 
     shaderReflection.m_DescriptorSets = descriptorSetsFromAssetBindingSets(header.BindingSets);
 
+    shaderReflection.m_EntryPointsInfo.Count = (u32)header.EntryPoints.size();
+    for (u32 i = 0; i < header.EntryPoints.size(); i++)
+    {
+        shaderReflection.m_EntryPointsInfo.Stages[i] =
+            shaderStageFromAssetShaderStage(header.EntryPoints[i].ShaderStage);
+        shaderReflection.m_EntryPointsInfo.Names[i] = header.EntryPoints[i].Name;
+    }
+
     return shaderReflection;
 }
 
@@ -348,6 +356,7 @@ ShaderReflection::ShaderReflection(ShaderReflection&& other) noexcept
     m_PushConstants = std::move(other.m_PushConstants);
     m_DescriptorSets = std::move(other.m_DescriptorSets);
     m_Modules = std::move(other.m_Modules);
+    m_EntryPointsInfo = std::move(other.m_EntryPointsInfo);
 }
 
 ShaderReflection& ShaderReflection::operator=(ShaderReflection&& other) noexcept
@@ -363,6 +372,7 @@ ShaderReflection& ShaderReflection::operator=(ShaderReflection&& other) noexcept
     m_PushConstants = std::move(other.m_PushConstants);
     m_DescriptorSets = std::move(other.m_DescriptorSets);
     m_Modules = std::move(other.m_Modules);
+    m_EntryPointsInfo = std::move(other.m_EntryPointsInfo);
 
     return *this;
 }
@@ -371,17 +381,4 @@ ShaderReflection::~ShaderReflection()
 {
     for (auto module : m_Modules)
         Device::DeletionQueue().Enqueue(module);
-}
-
-ShaderReflectionEntryPointsInfo ShaderReflection::GetEntryPointsInfo(const lux::assetlib::ShaderHeader& shader)
-{
-    ShaderReflectionEntryPointsInfo info = {};
-    info.Count = (u32)shader.EntryPoints.size();
-    for (u32 i = 0; i < shader.EntryPoints.size(); i++)
-    {
-        info.Stages[i] = shaderStageFromAssetShaderStage(shader.EntryPoints[i].ShaderStage);
-        info.Names[i] = shader.EntryPoints[i].Name;
-    }
-
-    return info;
 }

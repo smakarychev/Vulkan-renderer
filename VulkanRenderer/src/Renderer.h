@@ -9,6 +9,7 @@
 #include "Core/Camera.h"
 #include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
+#include "Assets/AssetSystem.h"
 #include "Bakers/BakerContext.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
@@ -18,12 +19,16 @@
 #include "RenderGraph/Visualization/RGMermaidExporter.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Swapchain.h"
-#include "Rendering/Shader/ShaderCache.h"
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
+
+namespace lux
+{
+class ShaderAssetManager;
+}
 
 namespace Passes::SceneMetaDraw
 {
@@ -51,7 +56,6 @@ public:
     void Shutdown();
     
     static Renderer* Get(); 
-    ~Renderer();
 
     void Run();
     void OnRender();
@@ -177,7 +181,10 @@ private:
     std::shared_ptr<lux::assetlib::io::AssetCompressor> m_AssetCompressor{};
     lux::bakers::Context m_BakerCtx{};
     lux::bakers::SlangBakeSettings m_SlangBakeSettings{};
-    ShaderCache m_ShaderCache;
+
+    lux::AssetSystem m_AssetSystem;
+    std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
+    
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;
     RG::Resource m_Ssao{};
