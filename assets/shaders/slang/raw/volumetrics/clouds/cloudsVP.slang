@@ -378,7 +378,6 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
         float4(inScattering, transmittance),
         transmittance > 0.99f ? CLOUDS_DEPTH_MAX : avgDepth
     );
-
 }
 
 float3 cloudsShadow(float2 uv, float3 ro, float3 rd, const CloudsVPSamplingInfo clouds) {
