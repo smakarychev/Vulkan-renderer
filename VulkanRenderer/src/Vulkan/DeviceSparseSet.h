@@ -37,6 +37,7 @@ private:
     std::vector<Handle> m_FreeElements;
     HandleSparseSet m_SparseSet;
     OnSwapCallback m_SwapCallback = [](T&, T&){};
+    mutable std::mutex m_Mutex;
 };
 
 template <typename T>
@@ -44,7 +45,8 @@ template <typename ... Args>
 constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>::Add(Args&&... args)
 {
     Handle handle = {};
-    
+
+    std::lock_guard lock(m_Mutex);
     if (!m_FreeElements.empty())
     {
         handle = m_FreeElements.back();
@@ -64,6 +66,7 @@ constexpr GenerationalResourceHandle<typename T::ObjectType> DeviceSparseSet<T>:
 template <typename T>
 constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T::ObjectType> handle)
 {
+    
     auto&& [gen, index] = Traits::Decompose(handle);
     auto popCallback = [this, gen, index]()
     {
@@ -77,12 +80,15 @@ constexpr void DeviceSparseSet<T>::Remove(GenerationalResourceHandle<typename T:
         m_SwapCallback(resourceA, resourceB);
         std::swap(resourceA, resourceB);
     };
+
+    std::lock_guard lock(m_Mutex);
     m_SparseSet.Pop(handle, popCallback, swapCallback);
 }
 
 template <typename T>
 constexpr const T& DeviceSparseSet<T>::operator[](GenerationalResourceHandle<typename T::ObjectType> handle) const
 {
+    std::lock_guard lock(m_Mutex);
     u32 index = m_SparseSet.GetIndexOf(handle);
     
     return m_Resources[index];
