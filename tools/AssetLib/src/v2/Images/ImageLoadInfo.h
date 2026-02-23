@@ -9,6 +9,7 @@ struct ImageLoadInfo
 {
     std::string ImagePath{};
     bool PregeneratedMipmaps{true};
+    bool RuntimeMipmaps{true};
     bool IsCubemap{false};
     ImageFormat BakedFormat{ImageFormat::RGBA8_SRGB};
 };

@@ -37,6 +37,7 @@ struct ImageHeader
     u32 Depth{0};
     u32 Layers{0};
     u32 Mipmaps{0};
+    bool GenerateMipmaps{false};
     std::vector<ImageMipmapSizes> LayerSizes{};
 };
 

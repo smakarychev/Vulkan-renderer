@@ -5,9 +5,13 @@
 #include "Rendering/FormatTraits.h"
 #include "Containers/Span.h"
 
-#include <string_view>
 #include <variant>
 #include <glm/glm.hpp>
+
+namespace lux::assetlib
+{
+struct ImageAsset;
+}
 
 struct ImageTag{};
 using Image = ResourceHandleType<ImageTag>;
@@ -64,6 +68,7 @@ struct ImageDescription
     glm::uvec3 Dimensions() const { return {Width, Height, GetDepth()}; }
     f32 AspectRatio() const { return (f32)Width / (f32)Height; }
     u32 GetDepth() const;
+    u32 GetDepth(i8 mip) const;
     i8 GetLayers() const;
 };
 using TextureDescription = ImageDescription;
@@ -73,9 +78,7 @@ enum class ImageSizeType
     Absolute, Relative,
 };
 
-// todo: once assets ready, change string_view to asset-handle
-using ImageAssetPath = std::string_view;
-using ImageDataSource = std::variant<ImageAssetPath, Span<const std::byte>, Image>;
+using ImageDataSource = std::variant<Span<const std::byte>, lux::assetlib::ImageAsset*, Image>;
 
 struct ImageCreateInfo
 {

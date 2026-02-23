@@ -28,7 +28,7 @@ enum class ImageKind : u8
 {
     Image2d,
     Image3d,
-    Cubemap,
+    ImageCubemap,
     Image2dArray,
 };
 
@@ -45,7 +45,7 @@ static_assert((u8)ImageViewKind::Image2d == (u8)ImageKind::Image2d,
     "Enum values of image kind and image view kind have to match");
 static_assert((u8)ImageViewKind::Image3d == (u8)ImageKind::Image3d,
     "Enum values of image kind and image view kind have to match");
-static_assert((u8)ImageViewKind::Cubemap == (u8)ImageKind::Cubemap,
+static_assert((u8)ImageViewKind::Cubemap == (u8)ImageKind::ImageCubemap,
     "Enum values of image kind and image view kind have to match");
 static_assert((u8)ImageViewKind::Image2dArray == (u8)ImageKind::Image2dArray,
     "Enum values of image kind and image view kind have to match");

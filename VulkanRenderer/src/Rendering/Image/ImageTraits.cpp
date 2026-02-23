@@ -12,7 +12,7 @@ namespace ImageTraits
             return "Image2d";
         case ImageKind::Image3d:
             return "Image3d";
-        case ImageKind::Cubemap:
+        case ImageKind::ImageCubemap:
             return "Cubemap";
         case ImageKind::Image2dArray:
             return "Image2dArray";

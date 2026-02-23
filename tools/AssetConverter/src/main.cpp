@@ -171,7 +171,7 @@ i32 main(i32 argc, char** argv)
             else
                 LOG("Baked shader file: {}", path.string());
         });
-        dispatcher.Dispatch({".jpeg", ".jpg", ".png", ".hdr"}, [&](const fs::path& path) {
+        dispatcher.Dispatch(lux::bakers::IMAGE_ASSET_RAW_EXTENSIONS, [&](const fs::path& path) {
             lux::bakers::ImageBaker baker;
             if (!baker.ShouldBake(path, imageBakeSettings, bakerContext))
                 return;

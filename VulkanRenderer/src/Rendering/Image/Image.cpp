@@ -8,6 +8,12 @@ u32 ImageDescription::GetDepth() const
     return is3dImage ? LayersDepth : 1;
 }
 
+u32 ImageDescription::GetDepth(i8 mip) const
+{
+    const bool is3dImage = Kind == ImageKind::Image3d;
+    return is3dImage ? LayersDepth >> mip : 1;
+}
+
 i8 ImageDescription::GetLayers() const
 {
     const bool is3dImage = Kind == ImageKind::Image3d;

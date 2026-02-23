@@ -79,9 +79,7 @@ RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGr
 
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, RG::Resource textureIn)
 {
-    return imgui2dTexturePass(name, renderGraph, textureIn, []()
-    {
-    });
+    return imgui2dTexturePass(name, renderGraph, textureIn, [](){});
 }
 
 RG::Resource Passes::ImGuiTexture::addToGraph(StringId name, RG::Graph& renderGraph, Texture texture,
@@ -132,7 +130,7 @@ RG::Resource Passes::ImGuiCubeTexture::addToGraph(StringId name, RG::Graph& rend
             Context& context = graph.GetOrCreateBlackboardValue<Context>();
             auto&& [texture, description] = graph.GetImageWithDescription(passData.Texture);
 
-            ASSERT(description.Kind == ImageKind::Cubemap, "Only cubemap textures are supported")
+            ASSERT(description.Kind == ImageKind::ImageCubemap, "Only cubemap textures are supported")
 
             ImGui::Begin(passData.Name.AsString().c_str());
             ImGui::DragInt("Layer", (i32*)&context.Layer, 0.05f, 0, (i32)description.LayersDepth - 1);

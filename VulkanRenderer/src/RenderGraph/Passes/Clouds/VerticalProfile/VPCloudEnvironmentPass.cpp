@@ -35,7 +35,7 @@ Passes::Clouds::VP::Environment::PassData& renderPass(StringId name, RG::Graph& 
                     .LayersDepth = 6,
                     .Mipmaps = Images::mipmapCount({environmentSize, environmentSize}),
                     .Format = Format::RGBA16_FLOAT,
-                    .Kind = ImageKind::Cubemap
+                    .Kind = ImageKind::ImageCubemap
                 });
 
             std::array<Resource, 6> faces{};

@@ -17,7 +17,6 @@
 
 #include "AssetManager.h"
 #include "FrameContext.h"
-#include "TextureAsset.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Core/ProfilerContext.h"
 #include "Rendering/FormatTraits.h"
@@ -26,8 +25,8 @@
 #include "Imgui/ImguiUI.h"
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Commands/RenderCommands.h"
-#include "Rendering/Image/ImageUtility.h"
 #include "utils/CoreUtils.h"
+#include "v2/Images/ImageAsset.h"
 
 namespace
 {
@@ -434,7 +433,7 @@ namespace
         switch (kind)
         {
         case ImageKind::Image2d:
-        case ImageKind::Cubemap:
+        case ImageKind::ImageCubemap:
         case ImageKind::Image2dArray:
             return VK_IMAGE_TYPE_2D;
         case ImageKind::Image3d:
@@ -449,7 +448,7 @@ namespace
     constexpr VkImageCreateFlags vulkanImageFlagsFromImageKind(ImageKind kind)
     {
         VkImageCreateFlags flags = 0;
-        if (kind == ImageKind::Cubemap)
+        if (kind == ImageKind::ImageCubemap)
             flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
 
         return flags;
@@ -463,7 +462,7 @@ namespace
             return VK_IMAGE_VIEW_TYPE_2D;
         case ImageKind::Image3d:
             return VK_IMAGE_VIEW_TYPE_3D;
-        case ImageKind::Cubemap:
+        case ImageKind::ImageCubemap:
             return VK_IMAGE_VIEW_TYPE_CUBE;
         case ImageKind::Image2dArray:
             return VK_IMAGE_VIEW_TYPE_2D_ARRAY;
@@ -2240,34 +2239,12 @@ void Device::BufferArenaFree(BufferArena arena, const BufferSuballocation& subal
     vmaVirtualFree(Resources()[arena].VirtualBlock, (VmaVirtualAllocation)suballocation.Handle);
 }
 
-namespace
-{
-    constexpr Format formatFromAssetFormat(assetLib::TextureFormat format)
-    {
-        switch (format)
-        {
-        case assetLib::TextureFormat::Unknown:
-            return Format::Undefined;
-        case assetLib::TextureFormat::SRGBA8:
-            return Format::RGBA8_SRGB;
-        case assetLib::TextureFormat::RGBA8:
-            return Format::RGBA8_UNORM;
-        case assetLib::TextureFormat::RGBA32:
-            return Format::RGBA32_FLOAT;
-        default:
-            ASSERT(false, "Unsupported image format")
-            break;
-        }
-        std::unreachable();
-    }
-}
-
 Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
 {
     Image image = {};
 
-    if (std::holds_alternative<ImageAssetPath>(createInfo.DataSource))
-        image = CreateImageFromAssetFile(createInfo, std::get<ImageAssetPath>(createInfo.DataSource));
+    if (std::holds_alternative<lux::assetlib::ImageAsset*>(createInfo.DataSource))
+        image = CreateImageFromAssetFile(createInfo, std::get<lux::assetlib::ImageAsset*>(createInfo.DataSource));
     else if (std::holds_alternative<Span<const std::byte>>(createInfo.DataSource))
         image = CreateImageFromPixels(createInfo, std::get<Span<const std::byte>>(createInfo.DataSource));
     
@@ -2277,46 +2254,105 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
     return image;
 }
 
-Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, ImageAssetPath assetPath)
+Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, lux::assetlib::ImageAsset* asset)
 {
-    {
-        // todo: invert this: asset manager should call the device, not the other way around
-        Image image = AssetManager::GetImage(assetPath);
-        if (image.HasValue())
-        {
-            createInfo.Description.Usage |= ImageUsage::NoDeallocation;
-            return image;
-        }
-    }
-
-    assetLib::File textureFile;
-    assetLib::loadAssetFile(assetPath, textureFile);
-    assetLib::TextureInfo textureInfo = assetLib::readTextureInfo(textureFile);
-
-    Buffer imageBuffer = CreateBuffer({
+    u64 totalSizeBytes = 0;
+    for (auto& layer : asset->Header.LayerSizes)
+        for (const u64 mip : layer.Sizes)
+            totalSizeBytes += mip;
+    
+    const Buffer imageBuffer = CreateBuffer({
         .Description = {
-            .SizeBytes = textureInfo.SizeBytes,
+            .SizeBytes = totalSizeBytes,
             .Usage = BufferUsage::Source | BufferUsage::StagingRandomAccess,
         },
         .PersistentMapping = true
     }, DummyDeletionQueue());
-    DeviceResources::BufferResource& imageBufferResource = Resources()[imageBuffer];
-    assetLib::unpackTexture(
-        textureInfo, textureFile.Blob.data(), textureFile.Blob.size(), (u8*)imageBufferResource.HostAddress);
-                    
-    createInfo.Description.Format = formatFromAssetFormat(textureInfo.Format);
-    createInfo.Description.Width = textureInfo.Dimensions.Width;
-    createInfo.Description.Height = textureInfo.Dimensions.Height;
-    createInfo.Description.Mipmaps = Images::mipmapCount({
-        textureInfo.Dimensions.Width, textureInfo.Dimensions.Height});
-    // todo: not always correct, should reflect in in asset file
-    createInfo.Description.Kind = ImageKind::Image2d;
-    createInfo.Description.LayersDepth = 1;
+    const DeviceResources::BufferResource& imageBufferResource = Resources()[imageBuffer];
 
-    Image image = CreateImageFromBuffer(createInfo, imageBuffer);
-    AssetManager::AddImage(assetPath, image);
+    const Image image = AllocateImage(createInfo);
+    CreateViews(ImageSubresource{.Image = image}, createInfo.Description.AdditionalViews);
+    
+    ImageSubresource imageSubresource = {
+        .Image = image,
+        .Description = {.Mipmaps = (i8)asset->Header.Mipmaps, .Layers = (i8)asset->Header.Layers}
+    };
+
+    ImmediateSubmit([&](RenderCommandList& cmdList)
+    {
+        ::DeletionQueue deletionQueue = {};
+
+        cmdList.WaitOnBarrier({
+            .DependencyInfo = CreateDependencyInfo({
+                .LayoutTransitionInfo = LayoutTransitionInfo{
+                    .ImageSubresource = imageSubresource,
+                    .SourceStage = PipelineStage::AllTransfer,
+                    .DestinationStage = PipelineStage::AllTransfer,
+                    .SourceAccess = PipelineAccess::None,
+                    .DestinationAccess = PipelineAccess::WriteTransfer,
+                    .OldLayout = ImageLayout::Undefined,
+                    .NewLayout = ImageLayout::Destination
+                }
+            }, deletionQueue)
+        });
+
+        i8 mipsToCopy = createInfo.CalculateMipmaps ? (i8)1 : (i8)asset->Header.Mipmaps;
+        u64 mipOffset = 0;
+        u64 offset = 0;
+        for (i8 mipIndex = 0; mipIndex < mipsToCopy; mipIndex++)
+        {
+            u64 mipSize = 0;
+            mipOffset = offset;
+            for (i8 layerIndex = 0; layerIndex < (i8)asset->Header.Layers; layerIndex++)
+            {
+                const u64 size = asset->Header.LayerSizes[layerIndex].Sizes[mipIndex];
+                std::memcpy(
+                    (std::byte*)imageBufferResource.HostAddress + offset,
+                    asset->Layers[layerIndex].MipmapImageData[mipIndex].data(),
+                    size
+                );
+                offset += size;
+                mipSize += size;
+            }
+
+            cmdList.CopyBufferToImage({
+                .Buffer = imageBuffer,
+                .Image = image,
+                .SizeBytes = mipSize,
+                .BufferOffset = mipOffset,
+                .ImageSubresource = {
+                    .MipmapBase = mipIndex,
+                    .Mipmaps = 1,
+                    .Layers = createInfo.Description.GetLayers()
+                }
+            });
+        }
+
+        ImageLayout currentLayout = ImageLayout::Destination;
+        if (createInfo.CalculateMipmaps)
+        {
+            CreateMipmaps(image, cmdList, currentLayout);
+            currentLayout = ImageLayout::Source;
+            imageSubresource.Description.Mipmaps = createInfo.Description.Mipmaps;
+        }
+
+        cmdList.WaitOnBarrier({
+            .DependencyInfo = CreateDependencyInfo({
+                .LayoutTransitionInfo = LayoutTransitionInfo{
+                    .ImageSubresource = imageSubresource,
+                    .SourceStage = PipelineStage::AllTransfer,
+                    .DestinationStage = PipelineStage::AllTransfer,
+                    .SourceAccess = PipelineAccess::None,
+                    .DestinationAccess = PipelineAccess::WriteTransfer,
+                    .OldLayout = currentLayout,
+                    .NewLayout = ImageLayout::Readonly
+                }
+            }, deletionQueue)
+        });
+    });
+
     Destroy(imageBuffer);
-
+    
     return image;
 }
 
@@ -2364,15 +2400,19 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
                     .SourceAccess = PipelineAccess::None,
                     .DestinationAccess = PipelineAccess::WriteTransfer,
                     .OldLayout = ImageLayout::Undefined,
-                    .NewLayout = ImageLayout::Destination}},
-            deletionQueue)});
+                    .NewLayout = ImageLayout::Destination
+                }
+            }, deletionQueue)
+        });
 
         cmdList.CopyBufferToImage({
             .Buffer = buffer,
             .Image = image,
             .ImageSubresource = {
                 .Mipmaps = 1,
-                .Layers = createInfo.Description.GetLayers()}});
+                .Layers = createInfo.Description.GetLayers()
+            }
+        });
 
         ImageLayout currentLayout = ImageLayout::Destination;
         if (createInfo.CalculateMipmaps)
@@ -2391,8 +2431,10 @@ Image Device::CreateImageFromBuffer(ImageCreateInfo& createInfo, Buffer buffer)
                     .SourceAccess = PipelineAccess::None,
                     .DestinationAccess = PipelineAccess::WriteTransfer,
                     .OldLayout = currentLayout,
-                    .NewLayout = ImageLayout::Readonly}},
-            deletionQueue)});
+                    .NewLayout = ImageLayout::Readonly
+                }
+            }, deletionQueue)
+        });
     });
     
     return image;
@@ -2492,13 +2534,13 @@ Span<const ImageSubresourceDescription> Device::GetAdditionalImageViews(Image im
 
 void Device::PreprocessCreateInfo(ImageCreateInfo& createInfo)
 {
-    if (std::holds_alternative<ImageAssetPath>(createInfo.DataSource))
+    if (std::holds_alternative<lux::assetlib::ImageAsset*>(createInfo.DataSource))
         createInfo.Description.Usage |= ImageUsage::Destination;
     
     if (createInfo.Description.Mipmaps > 1)
         createInfo.Description.Usage |= ImageUsage::Destination | ImageUsage::Source;
 
-    if (createInfo.Description.Kind == ImageKind::Cubemap)
+    if (createInfo.Description.Kind == ImageKind::ImageCubemap)
         createInfo.Description.LayersDepth = 6;
     
     if (enumHasAny(createInfo.Description.Usage, ImageUsage::Readback))
@@ -4398,10 +4440,12 @@ void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentComm
     
     ImageSubresource drawSubresource = {
         .Image = swapchainResource.Description.DrawImage,
-        .Description = {.Mipmaps = 1, .Layers = 1}};
+        .Description = {.Mipmaps = 1, .Layers = 1}
+    };
     ImageSubresource presentSubresource = {
         .Image = swapchainResource.Description.ColorImages[command.ImageIndex],
-        .Description = {.Mipmaps = 1, .Layers = 1}};
+        .Description = {.Mipmaps = 1, .Layers = 1}
+    };
     ::DeletionQueue deletionQueue = {};
 
     LayoutTransitionInfo presentToDestinationTransitionInfo = {
@@ -4420,30 +4464,35 @@ void Device::CompileCommand(CommandBuffer cmd, const PrepareSwapchainPresentComm
 
     CompileCommand(cmd, WaitOnBarrierCommand{
         .DependencyInfo = CreateDependencyInfo({
-        .LayoutTransitionInfo = presentToDestinationTransitionInfo}, deletionQueue)});
+        .LayoutTransitionInfo = presentToDestinationTransitionInfo}, deletionQueue)
+    });
 
     ImageSubregion sourceSubregion = {
         .Mipmap = (u32)drawSubresource.Description.MipmapBase,
         .LayerBase = (u32)drawSubresource.Description.LayerBase,
         .Layers = (u32)drawSubresource.Description.Layers,
-        .Top = GetImageDescription(swapchainResource.Description.DrawImage).Dimensions()};
+        .Top = GetImageDescription(swapchainResource.Description.DrawImage).Dimensions()
+    };
     
     ImageSubregion destinationSubregion = {
         .Mipmap = (u32)presentSubresource.Description.MipmapBase,
         .LayerBase = (u32)presentSubresource.Description.LayerBase,
         .Layers = (u32)presentSubresource.Description.Layers,
-        .Top = GetImageDescription(swapchainResource.Description.ColorImages[command.ImageIndex]).Dimensions()};
+        .Top = GetImageDescription(swapchainResource.Description.ColorImages[command.ImageIndex]).Dimensions()
+    };
 
     CompileCommand(cmd, BlitImageCommand{
         .Source = swapchainResource.Description.DrawImage,
         .Destination = swapchainResource.Description.ColorImages[command.ImageIndex],
         .Filter = ImageFilter::Linear,
         .SourceSubregion = sourceSubregion,
-        .DestinationSubregion = destinationSubregion});
+        .DestinationSubregion = destinationSubregion
+    });
 
     CompileCommand(cmd, WaitOnBarrierCommand{
         .DependencyInfo = CreateDependencyInfo({
-            .LayoutTransitionInfo = destinationToPresentTransitionInfo}, deletionQueue)});
+            .LayoutTransitionInfo = destinationToPresentTransitionInfo}, deletionQueue)
+    });
 }
 
 void Device::CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& command)
@@ -4455,7 +4504,8 @@ void Device::CompileCommand(CommandBuffer cmd, const BeginRenderingCommand& comm
     renderingInfoVulkan.layerCount = 1;
     renderingInfoVulkan.renderArea = VkRect2D{
         .offset = {},
-        .extent = {renderingInfoResource.RenderArea.x, renderingInfoResource.RenderArea.y}};
+        .extent = {renderingInfoResource.RenderArea.x, renderingInfoResource.RenderArea.y}
+    };
     renderingInfoVulkan.colorAttachmentCount = (u32)Resources()[command.RenderingInfo].ColorAttachments.size();
     renderingInfoVulkan.pColorAttachments = Resources()[command.RenderingInfo].ColorAttachments.data();
     if (Resources()[command.RenderingInfo].DepthAttachment.has_value())
@@ -4480,7 +4530,8 @@ void Device::CompileCommand(CommandBuffer cmd, const ImGuiEndCommand& command)
 {
     ImGui::Render();
     CompileCommand(cmd, BeginRenderingCommand{
-        .RenderingInfo = command.RenderingInfo});
+        .RenderingInfo = command.RenderingInfo
+    });
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), Resources()[cmd].CommandBuffer);
     CompileCommand(cmd, EndRenderingCommand{});
 }
@@ -4554,9 +4605,9 @@ void Device::CompileCommand(CommandBuffer cmd, const CopyBufferToImageCommand& c
     bufferImageCopy.sType = VK_STRUCTURE_TYPE_BUFFER_IMAGE_COPY_2;
     bufferImageCopy.bufferOffset = command.BufferOffset;
     bufferImageCopy.imageExtent = {
-        .width = imageResource.Description.Width,
-        .height = imageResource.Description.Height,
-        .depth =  imageResource.Description.GetDepth()
+        .width = imageResource.Description.Width >> command.ImageSubresource.MipmapBase,
+        .height = imageResource.Description.Height >> command.ImageSubresource.MipmapBase,
+        .depth =  imageResource.Description.GetDepth(command.ImageSubresource.MipmapBase)
     };
     bufferImageCopy.imageSubresource.aspectMask = vulkanImageAspectFromImageUsage(imageResource.Description.Usage);
     bufferImageCopy.imageSubresource.mipLevel = (u32)(i32)command.ImageSubresource.MipmapBase;

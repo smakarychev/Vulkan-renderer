@@ -101,7 +101,7 @@ TextureDescription Passes::EnvironmentPrefilter::getPrefilteredTextureDescriptio
         .LayersDepth = 6,
         .Mipmaps = mipmapCount,
         .Format = Format::RGBA16_FLOAT,
-        .Kind = ImageKind::Cubemap,
+        .Kind = ImageKind::ImageCubemap,
         .Usage = ImageUsage::Sampled | ImageUsage::Storage,
         .AdditionalViews = additionalViews
     };

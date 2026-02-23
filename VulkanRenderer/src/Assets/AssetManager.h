@@ -34,6 +34,7 @@ public:
     virtual void OnFileModified(const std::filesystem::path& path) = 0;
     
     virtual AssetHandleBase Load(const AssetLoadParameters& parameters) = 0;
+    virtual void Unload(AssetHandleBase handle) = 0;
 protected:
     AssetSystem* m_AssetSystem{nullptr};
 };
@@ -74,6 +75,12 @@ struct ResourceAssetTraitsGetOptional : ResourceAssetTraits
     template <typename Resource>    
     using GetType = std::optional<Resource>;  
 };
+    
+struct ResourceAssetTraitsGetValue : ResourceAssetTraits
+{  
+    template <typename Resource>    
+    using GetType = Resource;  
+};
 
 template <typename Resource, typename ResourceAssetTraits, typename ManagerTraits = ResourceAssetManagerTraits>
 class ResourceAssetManager : public AssetManager
@@ -93,6 +100,16 @@ public:
         return GetAsset(handle);
     }
 
+    AssetHandle<Resource> LoadResource(const ResourceAssetLoadParameters<Resource>& parameters)
+    {
+        return (AssetHandle<Resource>)Load((const AssetLoadParameters&)parameters);
+    }
+
+    void UnloadResource(AssetHandle<Resource> handle)
+    {
+        return Unload(handle);
+    }
+private:
     AssetHandleBase Load(const AssetLoadParameters& parameters) final
     {
         Lock lock(m_ResourceAccessMutex);
@@ -100,12 +117,15 @@ public:
         return LoadAsset((const ResourceAssetLoadParameters<Resource>&)parameters);
     }
 
-    AssetHandle<Resource> LoadResource(const ResourceAssetLoadParameters<Resource>& parameters)
+    void Unload(AssetHandleBase handle) final
     {
-        return (AssetHandle<Resource>)Load((const AssetLoadParameters&)parameters);
+        Lock lock(m_ResourceAccessMutex);
+        
+        return UnloadAsset((AssetHandle<Resource>)handle);
     }
 protected:
     virtual AssetHandle<Resource> LoadAsset(const ResourceAssetLoadParameters<Resource>& parameters) = 0;
+    virtual void UnloadAsset(AssetHandle<Resource> handle) = 0;
     virtual GetType GetAsset(AssetHandle<Resource> handle) const = 0;
 protected:
     mutable Mutex m_ResourceAccessMutex;

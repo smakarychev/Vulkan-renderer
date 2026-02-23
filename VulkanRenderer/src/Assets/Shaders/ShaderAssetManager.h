@@ -34,6 +34,7 @@ private:
     std::array<::Descriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
     std::array<::DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorLayouts;
 };
+static_assert(std::is_trivially_destructible_v<Shader>);
 
 template <>
 struct ResourceAssetLoadParameters<Shader>
@@ -78,9 +79,10 @@ public:
     ShaderCacheTextureHeapResult AllocateTextureHeap(DescriptorArenaAllocator persistentAllocator, u32 count);
 protected:
     ShaderHandle LoadAsset(const ShaderLoadParameters& parameters) override;
+    void UnloadAsset(ShaderHandle handle) override;
     GetType GetAsset(ShaderHandle handle) const override;
 private:
-    void LoadShaderInfo(const std::filesystem::path& path, AssetIdResolver& resolver);
+    bool LoadShaderInfo(const std::filesystem::path& path, AssetIdResolver& resolver);
     void OnBakedFileModified(const std::filesystem::path& path);
     void OnRawFileModified(const std::filesystem::path& path);
     
@@ -139,9 +141,8 @@ private:
     /* for hot-reloading */
     bakers::Context m_Context{};
     const bakers::SlangBakeSettings* m_BakeSettings{nullptr};
-    StringUnorderedMap<std::vector<StringId>> m_PathToShaders;
-    std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToPath;
-
+    StringUnorderedMap<std::vector<StringId>> m_RawPathToShaders;
+    std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToBakedPath;
     StringUnorderedMap<ShaderNameWithOverrides> m_BakedPathToShaderName;
     struct RebakeInfo
     {

@@ -10,7 +10,9 @@
 #include "RenderGraph/RGGraph.h"
 #include "FrameContext.h"
 #include "Assets/AssetSystem.h"
+#include "Assets/Images/ImageAssetManager.h"
 #include "Bakers/BakerContext.h"
+#include "Bakers/Images/ImageBaker.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudPass.h"
@@ -24,6 +26,11 @@
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
+
+namespace lux
+{
+class ImageAssetManager;
+}
 
 namespace lux
 {
@@ -181,9 +188,11 @@ private:
     std::shared_ptr<lux::assetlib::io::AssetCompressor> m_AssetCompressor{};
     lux::bakers::Context m_BakerCtx{};
     lux::bakers::SlangBakeSettings m_SlangBakeSettings{};
+    lux::bakers::ImageBakeSettings m_ImageBakeSettings{};
 
     lux::AssetSystem m_AssetSystem;
     std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
+    std::unique_ptr<lux::ImageAssetManager> m_ImageAssetManager;
     
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;
@@ -202,6 +211,8 @@ private:
     RG::Resource m_SkyIrradianceSHResource{};
     Texture m_SkyPrefilterMap{};
     RG::Resource m_SkyPrefilterMapResource{};
+
+    lux::ImageHandle m_MipsTest{};
     
     Texture m_SkyAtmosphereWithCloudsEnvironment{};
     Texture m_CloudsEnvironment{};

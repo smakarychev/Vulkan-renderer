@@ -31,7 +31,7 @@ Passes::Atmosphere::Environment::PassData& Passes::Atmosphere::Environment::addT
                     .LayersDepth = 6,
                     .Mipmaps = Images::mipmapCount({environmentSize, environmentSize}),
                     .Format = Format::RGBA16_FLOAT,
-                    .Kind = ImageKind::Cubemap
+                    .Kind = ImageKind::ImageCubemap
                 });
 
             std::array<Resource, 6> faces{};

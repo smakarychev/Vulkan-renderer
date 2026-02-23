@@ -17,7 +17,6 @@ public:
             {
                 ConverterDispatcher dispatcher(path, file);
                 dispatcher.Dispatch<SceneConverter>(SceneConverter::GetWatchedExtensions());
-                dispatcher.Dispatch<TextureConverter>(TextureConverter::GetWatchedExtensions());
             }
         }
     }

@@ -1,7 +1,6 @@
 ﻿#include "Converters.h"
 
 #include "AssetLib.h"
-#include "TextureAsset.h"
 #include "SceneAsset.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -82,71 +81,6 @@ namespace
 
         return false;
     }
-}
-
-bool TextureConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,
-    const std::filesystem::path& path)
-{
-    return needsConversion(initialDirectoryPath, path, [](std::filesystem::path& converted)
-    {
-        converted.replace_extension(TextureConverter::POST_CONVERT_EXTENSION);
-    });
-}
-
-void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath,
-    const std::filesystem::path& path)
-{
-    Convert(initialDirectoryPath, path, assetLib::TextureFormat::SRGBA8);
-}
-
-void TextureConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path,
-    assetLib::TextureFormat format)
-{
-    std::cout << std::format("Converting texture file {}\n", path.string());
-    
-    auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
-        [](const std::filesystem::path& processedPath)
-        {
-            AssetPaths paths;
-            paths.AssetPath = paths.BlobPath = processedPath;
-            paths.AssetPath.replace_extension(POST_CONVERT_EXTENSION);
-            paths.BlobPath.replace_extension(BLOB_EXTENSION);
-
-            return paths;
-        });
-
-    i32 width, height, channels;
-    stbi_set_flip_vertically_on_load(true);
-    u8* pixels{nullptr};
-    u64 sizeBytes{0};
-    if (path.extension() == ".hdr")
-    {
-        pixels = (u8*)stbi_loadf(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);    
-        format = assetLib::TextureFormat::RGBA32;
-        sizeBytes = 16llu * width * height; 
-    }
-    else
-    {
-        pixels = stbi_load(path.string().c_str(), &width, &height, &channels, STBI_rgb_alpha);
-        sizeBytes = 4llu * width * height; 
-    }
-
-    assetLib::TextureInfo textureInfo = {};
-    textureInfo.Format = format;
-    textureInfo.Dimensions = {.Width = (u32)width, .Height = (u32)height, .Depth = 1};
-    textureInfo.SizeBytes = sizeBytes; 
-    textureInfo.CompressionMode = assetLib::CompressionMode::LZ4;
-    textureInfo.OriginalFile = std::filesystem::weakly_canonical(path).generic_string();
-    textureInfo.BlobFile = std::filesystem::weakly_canonical(blobPath).generic_string();
-    
-    assetLib::File textureFile = assetLib::packTexture(textureInfo, pixels);
-        
-    assetLib::saveAssetFile(assetPath.string(), blobPath.string(), textureFile);
-
-    stbi_image_free(pixels);
-
-    std::cout << std::format("Texture file {} converted to {} (blob at {})\n",
-        path.string(), assetPath.string(), blobPath.string());
 }
 
 bool SceneConverter::NeedsConversion(const std::filesystem::path& initialDirectoryPath,

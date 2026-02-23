@@ -17,10 +17,6 @@ namespace lux::bakers
 {
 namespace 
 {
-constexpr std::string_view HDR_EXTENSION = ".hdr";
-constexpr std::string_view JPG_EXTENSION = ".jpg";
-constexpr std::string_view JPEG_EXTENSION = ".jpeg";
-
 struct ImageLoadInfoRead
 {
     IoResult<assetlib::ImageLoadInfo> LoadInfo;
@@ -49,10 +45,11 @@ ImageLoadInfoRead createAndWriteImageLoadInfo(const std::filesystem::path& path,
 {
     auto loadInfoPath = path;
     loadInfoPath.replace_extension(ImageBaker::IMAGE_LOAD_INFO_EXTENSION);
+    
     if (std::filesystem::exists(loadInfoPath))
         return {.LoadInfo = assetlib::image::readLoadInfo(loadInfoPath), .LoadInfoPath = loadInfoPath};
 
-    assetlib::ImageFormat format = path.extension() == HDR_EXTENSION ?
+    assetlib::ImageFormat format = path.extension() == IMAGE_ASSET_RAW_HDR_EXTENSION ?
         assetlib::ImageFormat::RGBA32_FLOAT : assetlib::ImageFormat::RGBA8_SRGB;
     if (settings.BakedFormat != assetlib::ImageFormat::Undefined)
     {
@@ -66,9 +63,9 @@ ImageLoadInfoRead createAndWriteImageLoadInfo(const std::filesystem::path& path,
     const assetlib::ImageLoadInfo imageLoadInfo = {
         .ImagePath = std::filesystem::weakly_canonical(path).generic_string(),
         .PregeneratedMipmaps =
-            path.extension() != HDR_EXTENSION &&
-            path.extension() != JPG_EXTENSION &&
-            path.extension() != JPEG_EXTENSION,
+            path.extension() != IMAGE_ASSET_RAW_HDR_EXTENSION &&
+            path.extension() != IMAGE_ASSET_RAW_JPG_EXTENSION &&
+            path.extension() != IMAGE_ASSET_RAW_JPEG_EXTENSION,
         .BakedFormat = format
     };
 
@@ -193,9 +190,10 @@ IoResult<assetlib::ImageAsset> ImageBaker::Bake(const assetlib::ImageLoadInfo& l
     const ImageBakeSettings&, const Context&)
 {
     const std::filesystem::path imagePath = loadInfo.ImagePath;
-    if (imagePath.extension() == HDR_EXTENSION)
+    if (imagePath.extension() == IMAGE_ASSET_RAW_HDR_EXTENSION)
         return BakeHDR(loadInfo);
-    if (imagePath.extension() == JPG_EXTENSION || imagePath.extension() == JPEG_EXTENSION)
+    if (imagePath.extension() == IMAGE_ASSET_RAW_JPG_EXTENSION ||
+        imagePath.extension() == IMAGE_ASSET_RAW_JPEG_EXTENSION)
         return BakeLDRJpg(loadInfo);
     return BakeLDRKtx(loadInfo);
 }
@@ -514,6 +512,7 @@ IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageLoadInfo
             .Height = (u32)height,
             .Layers = 1,
             .Mipmaps = 1,
+            .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
             .LayerSizes = {assetlib::ImageMipmapSizes{.Sizes = {(u32)sizeBytes}}}
         },
         .Layers = {assetlib::ImageAsset::LayerImageData{.MipmapImageData = {std::move(imageData)}}}
@@ -539,6 +538,7 @@ IoResult<assetlib::ImageAsset> readUncompressedLdr(const assetlib::ImageLoadInfo
             .Height = (u32)height,
             .Layers = 1,
             .Mipmaps = 1,
+            .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
             .LayerSizes = {assetlib::ImageMipmapSizes{.Sizes = {(u32)sizeBytes}}}
         },
         .Layers = {assetlib::ImageAsset::LayerImageData{.MipmapImageData = {std::move(imageData)}}}
@@ -588,6 +588,7 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageLoadI
             .Depth = texture->baseDepth,
             .Layers = texture->numFaces,
             .Mipmaps = texture->numLevels,
+            .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
         }
     };
     imageAsset.Header.LayerSizes.resize(texture->numFaces);

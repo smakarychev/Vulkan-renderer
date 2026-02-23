@@ -70,7 +70,8 @@ namespace Images
             .Height = 1,
             .Format = Format::RGBA8_SNORM,
             .Kind = ImageKind::Image2d,
-            .Usage = ImageUsage::Sampled | ImageUsage::Source | ImageUsage::Destination};
+            .Usage = ImageUsage::Sampled | ImageUsage::Source | ImageUsage::Destination
+        };
         
         u32 miniFloatOne = 0b0'1111'111;
         u32 miniFloatOneHalf = 0b0'0111'111;

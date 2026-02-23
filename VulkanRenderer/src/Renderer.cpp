@@ -8,6 +8,7 @@
 #include "ViewInfoGPU.h"
 #include "Converters.h"
 #include "Assets/AssetSystem.h"
+#include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
 #include "Core/Input.h"
 #include "cvars/CVarSystem.h"
@@ -94,7 +95,7 @@ void Renderer::Init()
         m_AssetCompressor = std::make_shared<lux::assetlib::io::RawAssetCompressor>();
 
     m_BakerCtx = {
-        .InitialDirectory = *CVars::Get().GetStringCVar("Path.Shaders.Full"_hsv),
+        .InitialDirectory = *CVars::Get().GetStringCVar("Path.Assets"_hsv),
         .Io = m_AssetIoInterface.get(),
         .Compressor = m_AssetCompressor.get()
     };
@@ -103,16 +104,20 @@ void Renderer::Init()
         .UniformReflectionDirectoryName = "uniform_types",
         .EnableHotReloading = true,
     };
+    m_ImageBakeSettings = {};
 
     m_AssetSystem.Init(*m_AssetIoInterface, *m_AssetCompressor);
     m_AssetSystem.SetAssetsDirectory(*CVars::Get().GetStringCVar("Path.Assets"_hsv));
+
     m_ShaderAssetManager = std::make_unique<lux::ShaderAssetManager>(m_AssetSystem);
     m_AssetSystem.RegisterAssetManager(lux::assetlib::shader::getMetadata().Type, *m_ShaderAssetManager);
     m_ShaderAssetManager->Init(m_SlangBakeSettings);
 
-    m_AssetSystem.ScanAssetsDirectory();
-    
+    m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>(m_AssetSystem);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::image::getMetadata().Type, *m_ImageAssetManager);
+    m_ImageAssetManager->Init(m_ImageBakeSettings);
 
+    m_AssetSystem.ScanAssetsDirectory();
     
     InitRenderingStructures();
     Device::BeginFrame(GetFrameContext());
@@ -173,10 +178,9 @@ void Renderer::InitRenderGraph()
 
     // todo: this is currently a rgb image, which is wasteful, I need to provide format hints to image converter
     m_BlueNoiseBindlessIndex = m_BindlessTextureDescriptorsRingBuffer->AddTexture(
-        Device::CreateImage({
-            .DataSource = "../assets/textures/blue_noise_128.tx",
-            .Description = {.Usage = ImageUsage::Sampled | ImageUsage::Storage}
-        }));
+        m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
+            {.Path = "../assets/baked/textures/blue_noise_128.tex"})
+    ));
     
     /*m_SlimeMoldContext = std::make_shared<SlimeMoldContext>(
         SlimeMoldContext::RandomIn(Device::GetSwapchainDescription(m_Swapchain).SwapchainResolution,
@@ -296,22 +300,22 @@ void Renderer::InitRenderGraph()
 
 void Renderer::ExecuteSingleTimePasses()
 {
-    static constexpr std::string_view SKYBOX_PATH = "../assets/textures/autumn_field_puresky_4k.tx";
-    Texture equirectangular = Device::CreateImage({
-        .DataSource = SKYBOX_PATH,
-        .Description = ImageDescription{.Usage = ImageUsage::Sampled},
-        .CalculateMipmaps = false
-    }, GetFrameContext().DeletionQueue);
-    const TextureDescription& equirectangularDescription = Device::GetImageDescription(equirectangular);
+    static constexpr std::string_view SKYBOX_PATH = "../assets/baked/textures/autumn_field_puresky_4k.tex";
+    const lux::ImageHandle equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
+    
+    const TextureDescription& equirectangularDescription =
+        Device::GetImageDescription(m_ImageAssetManager->Get(equirectangular));
     m_SkyboxTexture = Device::CreateImage(ImageCreateInfo{
         .Description = ImageDescription{
             .Width = equirectangularDescription.Width / 2,
             .Height = equirectangularDescription.Width / 2,
             .Mipmaps = Images::mipmapCount(glm::uvec2{equirectangularDescription.Width / 2}),
             .Format = Format::RGBA16_FLOAT,
-            .Kind = ImageKind::Cubemap,
+            .Kind = ImageKind::ImageCubemap,
             .Usage = ImageUsage::Sampled | ImageUsage::Storage},
         .CalculateMipmaps = false});
+
+    m_MipsTest = m_ImageAssetManager->LoadResource({.Path = "../assets/baked/textures/texture.tex"});
     
     m_SkyboxPrefilterMap = Device::CreateImage({
         .Description = Passes::EnvironmentPrefilter::getPrefilteredTextureDescription(
@@ -341,7 +345,7 @@ void Renderer::ExecuteSingleTimePasses()
     m_Graph->Reset();
 
     RG::Resource cubemap = Passes::EquirectangularToCubemap::addToGraph("Scene.Skybox"_hsv, *m_Graph,
-        equirectangular, m_SkyboxTexture).Cubemap;
+        m_ImageAssetManager->Get(equirectangular), m_SkyboxTexture).Cubemap;
     Passes::DiffuseIrradianceSH::addToGraph(
         "Scene.DiffuseIrradianceSH"_hsv, *m_Graph, cubemap, m_IrradianceSH, false);
     Passes::EnvironmentPrefilter::addToGraph(
@@ -351,6 +355,8 @@ void Renderer::ExecuteSingleTimePasses()
 
     m_Graph->Compile(GetFrameContext());
     m_Graph->Execute(GetFrameContext());
+
+    m_ImageAssetManager->UnloadResource(equirectangular);
 }
 
 void Renderer::SetupRenderSlimePasses()
@@ -497,6 +503,8 @@ void Renderer::SetupRenderGraph()
         metaUgb->DrawPassViewAttachments.GetMinMaxDepthReduction(m_OpaqueSetPrimaryView.Name),
         m_MinMaxDepthReductionsNextFrame[GetFrameContext().FrameNumber],
         Device::DeletionQueue());
+
+    Passes::ImGuiTexture::addToGraph("TTTTT"_hsv, *m_Graph, m_ImageAssetManager->Get(m_MipsTest));
 
     if (renderAtmosphere)
     {
@@ -1235,10 +1243,9 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     if (loadCoverage)
     {
         if (!m_CloudCoverage.HasValue())
-            m_CloudCoverage = Device::CreateImage({
-               .DataSource = "../assets/textures/clouds/coverage.tx",
-               .Description = {.Usage = ImageUsage::Sampled},
-           });
+            m_CloudCoverage = m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
+                {.Path = "../assets/baked/textures/clouds/coverage.tex"})
+            );
        cloudCoverageResource = m_Graph->Import("CloudCoverage.Loaded"_hsv, m_CloudCoverage, ImageLayout::Readonly);
     }
     else
@@ -1264,10 +1271,9 @@ Renderer::CloudMapsInfo Renderer::RenderGraphGetCloudMaps()
     if (loadProfile)
     {
         if (!m_CloudProfileMap.HasValue())
-            m_CloudProfileMap = Device::CreateImage({
-                .DataSource = "../assets/textures/clouds/profile.tx",
-                .Description = {.Usage = ImageUsage::Sampled},
-            });
+            m_CloudProfileMap = m_ImageAssetManager->Get(m_ImageAssetManager->LoadResource(
+                {.Path = "../assets/baked/textures/clouds/profile.tex"})
+            );
         cloudProfileMapResource = m_Graph->Import("CloudProfileMap.Loaded"_hsv,
             m_CloudProfileMap, ImageLayout::Readonly);
     }
@@ -1637,6 +1643,7 @@ void Renderer::BeginFrame()
     m_ResourceUploader.BeginFrame(GetFrameContext());
     m_Graph->OnFrameBegin(GetFrameContext());
     m_ShaderAssetManager->OnFrameBegin(GetFrameContext());
+    m_ImageAssetManager->OnFrameBegin(GetFrameContext());
     ImGuiUI::BeginFrame(GetFrameContext().CommandList, GetFrameContext().FrameNumber);
 }
 
@@ -1773,6 +1780,7 @@ void Renderer::Shutdown()
     
     m_ResourceUploader.Shutdown();
     m_ShaderAssetManager->Shutdown();
+    m_ImageAssetManager->Shutdown();
 
     m_AssetSystem.Shutdown();
     

@@ -52,6 +52,11 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
         REQUIRE(index != index2);
         list.Remove(index);
         REQUIRE(list.Add(1) == index);
+
+        list.Remove(index);
+        list.Remove(index2);
+        REQUIRE(list.Add(1) == index2);
+        REQUIRE(list.Add(1) == index);
     }
     SECTION("Can get by index")
     {
