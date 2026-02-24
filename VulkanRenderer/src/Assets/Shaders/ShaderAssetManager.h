@@ -34,7 +34,6 @@ private:
     std::array<::Descriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
     std::array<::DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorLayouts;
 };
-static_assert(std::is_trivially_destructible_v<Shader>);
 
 template <>
 struct ResourceAssetLoadParameters<Shader>
