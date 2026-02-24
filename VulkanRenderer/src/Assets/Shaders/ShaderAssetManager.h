@@ -142,7 +142,7 @@ private:
     bakers::Context m_Context{};
     const bakers::SlangBakeSettings* m_BakeSettings{nullptr};
     StringUnorderedMap<std::vector<StringId>> m_RawPathToShaders;
-    std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToBakedPath;
+    std::unordered_map<StringId, std::filesystem::path> m_ShaderNameToRawPath;
     StringUnorderedMap<ShaderNameWithOverrides> m_BakedPathToShaderName;
     struct RebakeInfo
     {

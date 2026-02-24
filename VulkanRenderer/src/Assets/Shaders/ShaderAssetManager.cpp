@@ -208,7 +208,7 @@ bool ShaderAssetManager::LoadShaderInfo(const std::filesystem::path& path, Asset
         return false;
 
     const StringId name = StringId::FromString(shaderLoadInfo->Name);
-    m_ShaderNameToBakedPath.emplace(name, weakly_canonical(path).generic_string());
+    m_ShaderNameToRawPath.emplace(name, weakly_canonical(path).generic_string());
 
     for (auto& variant : shaderLoadInfo->Variants)
     {
@@ -258,7 +258,7 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
 
     for (const StringId name : m_RawPathToShaders[path.generic_string()])
     {
-        const std::filesystem::path& shaderPath = m_ShaderNameToBakedPath[name];
+        const std::filesystem::path& shaderPath = m_ShaderNameToRawPath[name];
         if (!m_RawPathToRebakeInfos.contains(shaderPath.string()))
             continue;
 
@@ -303,7 +303,7 @@ Result<std::filesystem::path, AssetManager::IoError> ShaderAssetManager::Bake(co
         .IncludePaths = m_BakeSettings->IncludePaths,
         .EnableHotReloading = (bool)CVars::Get().GetI32CVar("Renderer.Shaders.HotReload"_hsv).value_or(true)
     };
-    const std::filesystem::path& path = m_ShaderNameToBakedPath.at(parameters.Name);
+    const std::filesystem::path& path = m_ShaderNameToRawPath.at(parameters.Name);
 
     StringId variant = parameters.Variant.value_or(bakers::Slang::MAIN_VARIANT);
     
@@ -328,7 +328,7 @@ Result<std::filesystem::path, AssetManager::IoError> ShaderAssetManager::Bake(co
 std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::TryCreatePipeline(
     const ShaderLoadParameters& parameters, const ShaderNameWithOverrides& name)
 {
-    const std::filesystem::path& path = m_ShaderNameToBakedPath.at(parameters.Name);
+    const std::filesystem::path& path = m_ShaderNameToRawPath.at(parameters.Name);
 
     const auto shaderLoadInfo = assetlib::shader::readLoadInfo(path);
     if (!shaderLoadInfo.has_value())
