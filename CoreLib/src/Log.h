@@ -45,6 +45,12 @@ public:
         Fatal(std::format(fmt, std::forward<Ts>(args)...));
     }
     
+    static void Trace() { Trace(""); }
+    static void Info() { Info(""); }
+    static void Warn() { Warn(""); }
+    static void Error() { Error(""); }
+    static void Fatal() { Fatal(""); }
+    
     static void Trace(const std::string& string);
     static void Info(const std::string& string);
     static void Warn(const std::string& string);

@@ -1553,7 +1553,7 @@ void Renderer::OnUpdate()
                     Random::Float(0.0f, (f32)std::numbers::pi), glm::normalize(Random::Float3(0.0f, 1.0f))),
                 .Scale = glm::vec3{0.5f},}},
             GetFrameContext());
-        LOG("Meshes: {}\tMeshlets: {}\tTriangles: {}",
+        LUX_LOG_TRACE("Meshes: {}\tMeshlets: {}\tTriangles: {}",
             m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
     }
 }

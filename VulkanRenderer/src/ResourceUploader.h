@@ -95,7 +95,7 @@ template <typename T>
 void ResourceUploader::UpdateBuffer(Buffer buffer, T&& data, u64 bufferOffset)
 {
     if constexpr(std::is_pointer_v<T>)
-        LOG("Warning: passing a pointer to `UpdateBuffer`");
+        LUX_LOG_WARN("Passing a pointer to `UpdateBuffer`");
     
     auto&& [address, sizeBytes] = UploadUtils::getAddressAndSize(std::forward<T>(data));
         

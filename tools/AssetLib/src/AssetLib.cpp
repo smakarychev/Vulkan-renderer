@@ -26,7 +26,7 @@ namespace assetLib
         std::ifstream jsonIn(assetPath.data(), std::ios::ate);
         if (!jsonIn.is_open())
         {
-            LOG("AssetLib error: failed to open file {}", assetPath);
+            LUX_LOG_ERROR("AssetLib error: failed to open file {}", assetPath);
             return false;
         }
 

@@ -104,7 +104,7 @@ namespace
                 return fallback;
             if (texture.texCoord > 0)
             {
-                LOG("Warning skipping texture {}, as it uses uv set other that 0", texture.index);  
+                LUX_LOG_WARN("Skipping texture {}, as it uses uv set other that 0", texture.index);  
                 return fallback;
             }
             if (loadedTextures[texture.index] == INVALID_TEXTURE)

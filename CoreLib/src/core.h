@@ -1,34 +1,15 @@
 ﻿#pragma once
 
+#include "Log.h"
+
 #include <format>
 #include <iostream>
 #include <stacktrace>
 
-class Logger
-{
-public:
-    template <typename ... Types>
-    static void Log(const std::format_string<Types...> formatString, Types&&... args)
-    {
-        std::cout << std::format(formatString, std::forward<Types>(args)...);
-        std::cout << "\n";
-    }
-    static void Log(const std::string& message)
-    {
-        std::cout << message << "\n";
-    }
-    static void Log()
-    {
-        
-    }
-};
-
-#define LOG(...) Logger::Log(__VA_ARGS__)
-
 #ifdef NDEBUG
 #define ASSERT(x, ...) ((void)0)
 #else
-#define ASSERT(x, ...) if(x) {} else { LOG("Assertion failed"); LOG(__VA_ARGS__); LOG("{}", std::stacktrace::current()); __debugbreak(); }
+#define ASSERT(x, ...) if(x) {} else { LUX_LOG_ERROR("Assertion failed"); LUX_LOG_ERROR(__VA_ARGS__); LUX_LOG_ERROR("{}", std::stacktrace::current()); __debugbreak(); }
 #endif
 
 #define BIT(x) (1 << (x))

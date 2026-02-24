@@ -64,7 +64,7 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
     m_FileWatcher = std::make_unique<FileWatcher>();
     if (const auto res = m_FileWatcher->Watch(path); !res.has_value())
     {
-        LOG("Failed to init file watcher for directory {}. Error: {}",
+        LUX_LOG_ERROR("Failed to init file watcher for directory {}. Error: {}",
             path.string(), FileWatcher::ErrorDescription(res.error()));
         return;
     }
@@ -85,7 +85,7 @@ void AssetSystem::InitFileWatcher(const std::filesystem::path& path)
     });
 
     if (const auto res = m_FileWatcher->Subscribe(m_FileWatcherHandler); !res.has_value())
-        LOG("Failed to subscribe to file watcher events for directory {}. Error: {}",
+        LUX_LOG_ERROR("Failed to subscribe to file watcher events for directory {}. Error: {}",
         path.string(), FileWatcher::ErrorDescription(res.error()));
 }
 }

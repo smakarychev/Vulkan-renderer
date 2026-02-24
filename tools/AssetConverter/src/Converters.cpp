@@ -478,7 +478,7 @@ namespace
 
 void SceneConverter::Convert(const std::filesystem::path& initialDirectoryPath, const std::filesystem::path& path)
 {
-    LOG("Converting scene file {}\n", path.string());
+    LUX_LOG_INFO("Converting scene file {}\n", path.string());
     
     auto&& [assetPath, blobPath] = getAssetsPath(initialDirectoryPath, path,
         [](const std::filesystem::path& processedPath)
@@ -503,9 +503,9 @@ void SceneConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
     success = success && loader.LoadImagesData(&gltf, &errors, &warnings, path.parent_path().string());
     
     if (!errors.empty())
-        LOG("ERROR: {} ({})", errors, path.string());
+        LUX_LOG_ERROR("{} ({})", errors, path.string());
     if (!warnings.empty())
-        LOG("WARNING: {} ({})", warnings, path.string());
+        LUX_LOG_WARN("{} ({})", warnings, path.string());
     if (!success)
         return;
     if (gltf.scenes.empty())
@@ -528,6 +528,5 @@ void SceneConverter::Convert(const std::filesystem::path& initialDirectoryPath, 
 
     ctx.Finalize();
 
-    LOG("Scene file {} converted to {} (blob at {})\n",
-        path.string(), assetPath.string(), blobPath.string());
+    LUX_LOG_INFO("Scene file {} converted to {} (blob at {})\n", path.string(), assetPath.string(), blobPath.string());
 }

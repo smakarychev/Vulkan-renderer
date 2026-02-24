@@ -1,4 +1,5 @@
 ﻿#include "AssetConverter.h"
+#include "Log.h"
 #include "Bakers/BakerContext.h"
 #include "Bakers/Bakers.h"
 #include "Bakers/BakersDispatcher.h"
@@ -55,7 +56,7 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
     Config config = {};
     if (const auto error = glz::read_json(config, buffer))
     {
-        LOG("Failed to read config file: {} ({})", glz::format_error(error, buffer), path.string());
+        LUX_LOG_ERROR("Failed to read config file: {} ({})", glz::format_error(error, buffer), path.string());
         return std::nullopt;
     }
 
@@ -65,11 +66,12 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
 i32 main(i32 argc, char** argv)
 {
     using namespace lux::assetlib::io;
+    lux::Logger::Init({});
     fs::current_path(platform::getExecutablePath().parent_path());
     const fs::path configPath = "config.json";
     if (!fs::exists(configPath))
     {
-        LOG("Failed to find config file: {}", configPath.string());
+        LUX_LOG_ERROR("Failed to find config file: {}", configPath.string());
         return 1;
     }
 
@@ -111,7 +113,7 @@ i32 main(i32 argc, char** argv)
         if (!createResult.has_value())
         {
             if (createResult.error() == AssetIoRegistryCreateError::Ambiguous)
-                LOG("Ambiguous io interface name, guid is necessary");
+                LUX_LOG_ERROR("Ambiguous io interface name, guid is necessary");
         }
         io = createResult.value_or(nullptr);
     }
@@ -126,7 +128,7 @@ i32 main(i32 argc, char** argv)
         if (!createResult.has_value())
         {
             if (createResult.error() == AssetIoRegistryCreateError::Ambiguous)
-                LOG("Ambiguous io compressor name, guid is necessary");
+                LUX_LOG_ERROR("Ambiguous io compressor name, guid is necessary");
         }
         compressor = createResult.value_or(nullptr);
     }
@@ -144,12 +146,12 @@ i32 main(i32 argc, char** argv)
 
     if (!bakerContext.Io)
     {
-        LOG("Error: io context is not set");
+        LUX_LOG_ERROR("io context is not set");
         return 1;
     }
     if (!bakerContext.Compressor)
     {
-        LOG("Error: io compressor is not set");
+        LUX_LOG_ERROR("io compressor is not set");
         return 1;
     }
     
@@ -167,9 +169,9 @@ i32 main(i32 argc, char** argv)
             
             auto baked = baker.BakeVariantsToFile(path, shaderBakeSettings, bakerContext);
             if (!baked)
-                LOG("Failed to bake shader file: {} ({})", baked.error(), path.string());
+                LUX_LOG_ERROR("Failed to bake shader file: {} ({})", baked.error(), path.string());
             else
-                LOG("Baked shader file: {}", path.string());
+                LUX_LOG_INFO("Baked shader file: {}", path.string());
         });
         dispatcher.Dispatch(lux::bakers::IMAGE_ASSET_RAW_EXTENSIONS, [&](const fs::path& path) {
             lux::bakers::ImageBaker baker;
@@ -178,15 +180,15 @@ i32 main(i32 argc, char** argv)
             
             auto baked = baker.BakeToFile(path, imageBakeSettings, bakerContext);
             if (!baked)
-                LOG("Failed to bake image file: {} ({})", baked.error(), path.string());
+                LUX_LOG_ERROR("Failed to bake image file: {} ({})", baked.error(), path.string());
             else
-                LOG("Baked image file: {}", path.string());
+                LUX_LOG_INFO("Baked image file: {}", path.string());
         });
     }
     
     if (argc < 2)
     {
-        LOG("Usage: AssetConverter <directory>");
+        LUX_LOG_INFO("Usage: AssetConverter <directory>");
         return 1;
     }
 

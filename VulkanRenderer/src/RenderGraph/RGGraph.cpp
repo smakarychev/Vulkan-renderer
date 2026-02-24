@@ -8,8 +8,8 @@
 #include "RGGraphWatcher.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
 
-#define RG_CHECK_RETURN(x, ...) if (!(x)) { LOG(__VA_ARGS__); return {}; }
-#define RG_CHECK_RETURN_VOID(x, ...) if (!(x)) { LOG(__VA_ARGS__); return; }
+#define RG_CHECK_RETURN(x, ...) if (!(x)) { LUX_LOG_ERROR(__VA_ARGS__); return {}; }
+#define RG_CHECK_RETURN_VOID(x, ...) if (!(x)) { LUX_LOG_ERROR(__VA_ARGS__); return; }
 
 namespace RG
 {
@@ -753,7 +753,7 @@ namespace RG
                 auto& resource = resources[access.Resource.m_Index];
                 if (const auto res = ValidateAccess(access, resource); !res.has_value())
                 {
-                    LOG("Invalid access detected for pass {}. The pass will be skipped, reason: {}",
+                    LUX_LOG_ERROR("Invalid access detected for pass {}. The pass will be skipped, reason: {}",
                         m_Passes[access.PassIndex]->Name(), res.error());
                     m_Passes[access.PassIndex]->m_Flags |= PassFlags::Disabled;
                     continue;
@@ -815,12 +815,12 @@ namespace RG
         for (auto& buffer : m_Buffers)
             if (buffer.IsImported)
                 if (!enumHasAll(Device::GetBufferDescription(buffer.Resource).Usage, buffer.Description.Usage))
-                    LOG("Warning: imported buffer was created with flags"
+                    LUX_LOG_WARN("Imported buffer was created with flags"
                         " that are incompatible with the in-frame usage of this resource: {}", buffer.Name);
         for (auto& image : m_Images)
             if (image.IsImported)
                 if (!enumHasAll(Device::GetImageDescription(image.Resource).Usage, image.Description.Usage))
-                    LOG("Warning: imported image was created with flags"
+                    LUX_LOG_WARN("Imported image was created with flags"
                         " that are incompatible with the in-frame usage of this resource: {}", image.Name);
     }
 
@@ -1052,7 +1052,7 @@ namespace RG
     void Graph::ChangeSubresourceImageLayout(std::vector<ImageResourceAccessConflict>& conflicts,
         ResourceAccessConflict& baseConflict, ImageResource& image, u32 subresourceIndex, ImageLayout newLayout)
     {
-        ASSERT(image.State == ImageResourceState::Split);
+        ASSERT(image.State == ImageResourceState::Split)
         
         baseConflict.Type = AccessConflictType::Layout;
         ImageResourceAccessConflict layoutConflict = {
@@ -1191,7 +1191,7 @@ namespace RG
             auto& buffer = m_Buffers[resource.m_Index];
             if (!buffer.Resource.HasValue())
             {
-                LOG("Warning: buffer marked for export was not claimed: {} ({})", resource, buffer.Name);
+                LUX_LOG_WARN("Buffer marked for export was not claimed: {} ({})", resource, buffer.Name);
                 buffer.Resource =
                     m_ResourcesPool.Allocate(resource, buffer.Description, 0, (u32)m_Passes.size()).Resource;
             }
@@ -1201,7 +1201,7 @@ namespace RG
             auto& image = m_Images[resource.m_Index];
             if (!image.Resource.HasValue())
             {
-                LOG("Warning: image marked for export was not claimed: {} ({})", resource, image.Name);
+                LUX_LOG_WARN("Image marked for export was not claimed: {} ({})", resource, image.Name);
                 image.Resource =
                     m_ResourcesPool.Allocate(resource, image.Description, 0, (u32)m_Passes.size()).Resource;
             }
@@ -1324,7 +1324,7 @@ namespace RG
         auto& buffer = m_Buffers[exported.m_Index];
         if (buffer.Resource.HasValue() && buffer.Resource != target)
         {
-            LOG("Warning: buffer to be claimed was already allocated: {} ({})", exported, buffer.Name);
+            LUX_LOG_WARN("Buffer to be claimed was already allocated: {} ({})", exported, buffer.Name);
             target = buffer.Resource;
             return;
         }
@@ -1350,7 +1350,7 @@ namespace RG
         auto& image = m_Images[exported.m_Index];
         if (image.Resource.HasValue() && image.Resource != target)
         {
-            LOG("Warning: image to be claimed was already allocated: {} ({})", exported, image.Name);
+            LUX_LOG_WARN("Image to be claimed was already allocated: {} ({})", exported, image.Name);
             target = image.Resource;
             return;
         }
@@ -1687,7 +1687,7 @@ namespace RG
     const lux::Shader& Graph::HandleShaderError(StringId name) const
     {
         static constexpr lux::Shader DUMMY = {};
-        LOG("Error while setting shader {}. Pass will be disabled", name);
+        LUX_LOG_ERROR("Error while setting shader {}. Pass will be disabled", name);
         CurrentPass().m_Flags |= PassFlags::Disabled;
         return DUMMY;
     }

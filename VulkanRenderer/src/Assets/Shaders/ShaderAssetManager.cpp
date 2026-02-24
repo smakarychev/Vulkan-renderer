@@ -108,7 +108,7 @@ ShaderCacheTextureHeapResult ShaderAssetManager::AllocateTextureHeap(DescriptorA
 {
     if (m_TextureHeap.Descriptors.HasValue())
     {
-        LOG("Warning: texture heap is already added");
+        LUX_LOG_WARN("Texture heap is already added");
         return std::unexpected(ShaderAssetManagerError::FailedToAllocateDescriptors);
     }
 
@@ -277,7 +277,7 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
                     m_Context);
                 if (!bakedPath)
                 {
-                    LOG("Warning: Bake request failed {} ({})", bakedPath.error(), shaderPath.string());
+                    LUX_LOG_WARN("Bake request failed {} ({})", bakedPath.error(), shaderPath.string());
                     return;
                 }
                 

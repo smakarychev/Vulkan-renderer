@@ -43,7 +43,7 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
     Config config = {};
     if (const auto error = glz::read_json(config, buffer))
     {
-        LOG("Failed to read config file: {} ({})", glz::format_error(error, buffer), path.string());
+        LUX_LOG_ERROR("Failed to read config file: {} ({})", glz::format_error(error, buffer), path.string());
         return std::nullopt;
     }
 
@@ -53,11 +53,12 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
 i32 main()
 {
     using namespace lux::assetlib::io;
+    lux::Logger::Init({});
     fs::current_path(platform::getExecutablePath().parent_path());
     const fs::path configPath = "config.json";
     if (!fs::exists(configPath))
     {
-        LOG("Failed to find config file: {}", configPath.string());
+        LUX_LOG_ERROR("Failed to find config file: {}", configPath.string());
         return 1;
     }
 
@@ -87,14 +88,14 @@ i32 main()
         if (!createResult.has_value())
         {
             if (createResult.error() == AssetIoRegistryCreateError::Ambiguous)
-                LOG("Ambiguous io interface name, guid is necessary");
+                LUX_LOG_ERROR("Ambiguous io interface name, guid is necessary");
         }
         io = createResult.value_or(nullptr);
     }
 
     if (!io)
     {
-        LOG("Error: io context is not set");
+        LUX_LOG_ERROR("Error: io context is not set");
         return 1;
     }
 
@@ -107,7 +108,7 @@ i32 main()
 
     if (!generationResult.has_value())
     {
-        LOG("SlangUniformTypeGenerator error: {}", generationResult.error());
+        LUX_LOG_ERROR("SlangUniformTypeGenerator error: {}", generationResult.error());
     }
     
     SlangGenerator generator(uniformTypeGenerator, config->InitialDirectory, *io);
@@ -133,7 +134,7 @@ i32 main()
         const IoResult<SlangGeneratorResult> generated = generator.Generate(file.path());
         if (!generated.has_value())
         {
-            LOG("Failed to generate bind group: {} ({})", generated.error(), file.path().string());
+            LUX_LOG_ERROR("Failed to generate bind group: {} ({})", generated.error(), file.path().string());
             continue;
         }
 
@@ -144,9 +145,9 @@ i32 main()
         {
             std::ofstream out(generatedPath, std::ios::binary);
             out.write(generated->Generated.c_str(), (isize)generated->Generated.size());
-            LOG("Generated bind group for {}", file.path().string());
+            LUX_LOG_INFO("Generated bind group for {}", file.path().string());
         }
         else
-            LOG("Skipped generating bind group for {}. No changes detected", file.path().string());
+            LUX_LOG_INFO("Skipped generating bind group for {}. No changes detected", file.path().string());
     }
 }

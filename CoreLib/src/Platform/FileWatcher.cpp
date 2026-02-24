@@ -184,7 +184,7 @@ FileWatcher::~FileWatcher()
     if (res.error() == FileWatcherError::NotWatchingDirectory)
         return;
 
-    LOG("Unexpected error in FileWatcher::~FileWatcher() ({})", (u8)res.error());
+    LUX_LOG_ERROR("Unexpected error in FileWatcher::~FileWatcher() ({})", (u8)res.error());
 }
 
 FileWatcherResult<FileWatcherWatchError> FileWatcher::Watch(const std::filesystem::path& path,

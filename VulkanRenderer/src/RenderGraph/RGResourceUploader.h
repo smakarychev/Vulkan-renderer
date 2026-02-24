@@ -39,7 +39,7 @@ namespace RG
     void ResourceUploader::UpdateBuffer(const Pass& pass, Resource buffer, T&& data, u64 bufferOffset)
     {
         if constexpr(std::is_pointer_v<T>)
-            LOG("Warning: passing a pointer to `UpdateBuffer`");
+            LUX_LOG_WARN("Passing a pointer to `UpdateBuffer`");
 
         auto& upload = m_Uploads[&pass];
         

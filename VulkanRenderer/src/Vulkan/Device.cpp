@@ -1016,11 +1016,7 @@ namespace
     void deviceCheck(VkResult res, std::string_view message)
     {
         if (res != VK_SUCCESS)
-        {
-            LOG("Device check failed with result {}: {}", vkResultToString(res), message.data());
-            LOG("{}", std::stacktrace::current());
-            abort();
-        }
+            LUX_LOG_FATAL("Device check failed with result {}: {}", vkResultToString(res), message.data());
     }
 }
 
@@ -2631,7 +2627,7 @@ ImageViewHandle Device::GetImageViewHandle(Image image, ImageSubresourceDescript
     if (it != description.AdditionalViews.end())
         return ImageViewHandle{u32(it - description.AdditionalViews.begin()) + 1};
     
-    LOG("ERROR: Image does not have such view subresource, returning default view");
+    LUX_LOG_ERROR("Image does not have such view subresource, returning default view");
     return ImageViewHandle{};   
 }
 
@@ -3676,7 +3672,7 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
             {
                 return std::strcmp(req, avail.extensionName) == 0;
             },
-            [](const char* req) { LOG("Unsupported instance extension: {}\n", req); });
+            [](const char* req) { LUX_LOG_ERROR("Unsupported instance extension: {}\n", req); });
     };
 #ifdef VULKAN_VAL_LAYERS
     auto checkInstanceValidationLayers = [](const DeviceCreateInfo& createInfo)
@@ -3688,7 +3684,7 @@ void Device::CreateInstance(const DeviceCreateInfo& createInfo)
 
         return utils::checkArrayContainsSubArray(createInfo.InstanceValidationLayers, availableLayers,
             [](const char* req, const VkLayerProperties& avail) { return std::strcmp(req, avail.layerName) == 0; },
-            [](const char* req) { LOG("Unsupported validation layer: {}\n", req); });
+            [](const char* req) { LUX_LOG_ERROR("Unsupported validation layer: {}\n", req); });
     };
 #endif
     
@@ -3726,7 +3722,7 @@ void Device::CreateSurface(const DeviceCreateInfo& createInfo)
 {
     if (createInfo.Window == nullptr)
     {
-        LOG("Running Vulkan without swapchain: window pointer is unset");
+        LUX_LOG_WARN("Running Vulkan without swapchain: window pointer is unset");
         return;
     }
 
@@ -3788,7 +3784,7 @@ void Device::ChooseGPU(const DeviceCreateInfo& createInfo)
                 {
                     return std::strcmp(req, avail.extensionName) == 0;
                 },
-                [](const char* req) { LOG("Unsupported device extension: {}\n", req); });
+                [](const char* req) { LUX_LOG_ERROR("Unsupported device extension: {}\n", req); });
         };
 
         auto checkGPUFeatures = [](VkPhysicalDevice gpu)
@@ -4044,7 +4040,7 @@ namespace
         VkDebugUtilsMessageTypeFlagsEXT messageType, const VkDebugUtilsMessengerCallbackDataEXT* callbackData,
         void* userData)
     {
-        LOG("VALIDATION LAYER: {}", callbackData->pMessage);
+        LUX_LOG_ERROR("VALIDATION LAYER: {}", callbackData->pMessage);
         return VK_FALSE;
     }
 }

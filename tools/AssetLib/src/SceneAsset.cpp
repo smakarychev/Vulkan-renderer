@@ -49,9 +49,9 @@ namespace assetLib
         std::string warnings;
         bool success = loader.LoadASCIIFromFile(&gltf, &errors, &warnings, path.string());
         if (!errors.empty())
-            LOG("ERROR: {} ({})", errors, path.string());
+            LUX_LOG_ERROR("{} ({})", errors, path.string());
         if (!warnings.empty())
-            LOG("WARNING: {} ({})", warnings, path.string());
+            LUX_LOG_WARN("{} ({})", warnings, path.string());
         if (!success)
             return std::nullopt;
 
@@ -70,9 +70,9 @@ namespace assetLib
         bool success = loader.LoadBuffersData(&gltf, &errors, &warnings, path.parent_path().string());
         success = success && loader.LoadImagesData(&gltf, &errors, &warnings, path.parent_path().string());
         if (!errors.empty())
-            LOG("ERROR: {} ({})", errors, path.string());
+            LUX_LOG_ERROR("{} ({})", errors, path.string());
         if (!warnings.empty())
-            LOG("WARNING: {} ({})", warnings, path.string());
+            LUX_LOG_WARN("{} ({})", warnings, path.string());
 
         return success;
     }

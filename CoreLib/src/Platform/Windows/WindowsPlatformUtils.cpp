@@ -108,7 +108,7 @@ void runSubProcess(const std::filesystem::path& executablePath, const std::vecto
 
             if (!lineTail.empty() && (!unfinishedLine || lines.size() > 1))
             {
-                LOG("{}: {}", executablePath.stem().string(), lineTail + std::string{lines.front()});
+                LUX_LOG_TRACE("{}: {}", executablePath.stem().string(), lineTail + std::string{lines.front()});
                 lineTail = {};
                 lines.erase(lines.begin());
             }
@@ -120,7 +120,7 @@ void runSubProcess(const std::filesystem::path& executablePath, const std::vecto
             }
 
             for (auto& line : lines)
-                LOG("{}: {}", executablePath.stem().string(), line);
+                LUX_LOG_TRACE("{}: {}", executablePath.stem().string(), line);
         }
 
         WaitForSingleObject(pi.hProcess, INFINITE);

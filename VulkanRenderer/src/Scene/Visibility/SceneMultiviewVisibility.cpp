@@ -45,7 +45,7 @@ SceneVisibilityHandle SceneMultiviewVisibility::AddVisibility(const SceneView& v
 {
     if (m_ViewCount >= MAX_VIEWS)
     {
-        LOG("Multiview visibility cannot take more than {} views", MAX_VIEWS);
+        LUX_LOG_ERROR("Multiview visibility cannot take more than {} views", MAX_VIEWS);
         return {SceneVisibilityHandle::INVALID};
     }
 

@@ -125,7 +125,7 @@ void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
             auto bakedPath = baker.BakeToFile(loadPath, *m_BakeSettings, m_Context);
             if (!bakedPath)
             {
-                LOG("Warning: Bake request failed {} ({})", bakedPath.error(), loadPath.string());
+                LUX_LOG_WARN("Bake request failed {} ({})", bakedPath.error(), loadPath.string());
                 return;
             }
 
