@@ -152,9 +152,9 @@ IoResult<std::filesystem::path> ImageBaker::BakeToFile(const std::filesystem::pa
     CHECK_RETURN_IO_ERROR(baked.has_value(), baked.error().Code, "{} ({})", baked.error().Message, path.string())
 
     u64 binarySizeBytes = 0;
-    for (auto& layerSize : baked->Header.LayerSizes)
-        for (u32 mip = 0; mip < baked->Header.Mipmaps; mip++)
-            binarySizeBytes += layerSize.Sizes[mip];
+    for (auto& mip : baked->Header.MipmapSizes)
+        for (u32 layer = 0; layer < baked->Header.Layers; layer++)
+            binarySizeBytes += mip[layer];
     
     auto packedImage = assetlib::image::pack(*baked, *ctx.Compressor);
     if (!packedImage.has_value())
@@ -513,9 +513,9 @@ IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageLoadInfo
             .Layers = 1,
             .Mipmaps = 1,
             .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
-            .LayerSizes = {assetlib::ImageMipmapSizes{.Sizes = {(u32)sizeBytes}}}
+            .MipmapSizes = {{{(u32)sizeBytes}}}
         },
-        .Layers = {assetlib::ImageAsset::LayerImageData{.MipmapImageData = {std::move(imageData)}}}
+        .MipmapsImageData = {{{std::move(imageData)}}}
     };
 }
 
@@ -539,9 +539,9 @@ IoResult<assetlib::ImageAsset> readUncompressedLdr(const assetlib::ImageLoadInfo
             .Layers = 1,
             .Mipmaps = 1,
             .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
-            .LayerSizes = {assetlib::ImageMipmapSizes{.Sizes = {(u32)sizeBytes}}}
+            .MipmapSizes = {{{(u32)sizeBytes}}}
         },
-        .Layers = {assetlib::ImageAsset::LayerImageData{.MipmapImageData = {std::move(imageData)}}}
+        .MipmapsImageData = {{{std::move(imageData)}}}
     };
 }
 }
@@ -591,10 +591,12 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageLoadI
             .GenerateMipmaps = loadInfo.RuntimeMipmaps && !loadInfo.PregeneratedMipmaps,
         }
     };
-    imageAsset.Header.LayerSizes.resize(texture->numFaces);
-    imageAsset.Layers.resize(texture->numFaces);
-    for (auto& layer : imageAsset.Layers)
-        layer.MipmapImageData.resize(texture->numLevels);
+    imageAsset.Header.MipmapSizes.resize(texture->numLevels);
+    imageAsset.MipmapsImageData.resize(texture->numLevels);
+    for (auto& mip : imageAsset.Header.MipmapSizes)
+        mip.resize(texture->numFaces);
+    for (auto& mip : imageAsset.MipmapsImageData)
+        mip.resize(texture->numFaces);
     
     const KTX_error_code error = ktxTexture2_IterateLevels(texture.handle(), [](
         i32 mip, i32 level,
@@ -602,9 +604,8 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageLoadI
         u64 pixelsSizeBytes, void* pixels, void* userdata) -> KTX_error_code {
 
         assetlib::ImageAsset& image = *(assetlib::ImageAsset*)userdata;
-        image.Header.LayerSizes[level].Sizes[mip] = (u32)pixelsSizeBytes;
-        image.Layers[level].MipmapImageData[mip] =
-            std::vector((std::byte*)pixels, (std::byte*)pixels + pixelsSizeBytes);
+        image.Header.MipmapSizes[mip][level] = (u32)pixelsSizeBytes;
+        image.MipmapsImageData[mip][level] = std::vector((std::byte*)pixels, (std::byte*)pixels + pixelsSizeBytes);
         
         return KTX_SUCCESS;
     }, &imageAsset);

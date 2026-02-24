@@ -2257,9 +2257,9 @@ Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletio
 Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, lux::assetlib::ImageAsset* asset)
 {
     u64 totalSizeBytes = 0;
-    for (auto& layer : asset->Header.LayerSizes)
-        for (const u64 mip : layer.Sizes)
-            totalSizeBytes += mip;
+    for (auto& mip : asset->Header.MipmapSizes)
+        for (const u64 layerSize : mip)
+            totalSizeBytes += layerSize;
     
     const Buffer imageBuffer = CreateBuffer({
         .Description = {
@@ -2299,16 +2299,16 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, lux::assetli
         i8 mipsToCopy = createInfo.CalculateMipmaps ? (i8)1 : (i8)asset->Header.Mipmaps;
         u64 mipOffset = 0;
         u64 offset = 0;
-        for (i8 mipIndex = 0; mipIndex < mipsToCopy; mipIndex++)
+        for (i8 mip = 0; mip < mipsToCopy; mip++)
         {
             u64 mipSize = 0;
             mipOffset = offset;
-            for (i8 layerIndex = 0; layerIndex < (i8)asset->Header.Layers; layerIndex++)
+            for (i8 layer = 0; layer < (i8)asset->Header.Layers; layer++)
             {
-                const u64 size = asset->Header.LayerSizes[layerIndex].Sizes[mipIndex];
+                const u64 size = asset->Header.MipmapSizes[mip][layer];
                 std::memcpy(
                     (std::byte*)imageBufferResource.HostAddress + offset,
-                    asset->Layers[layerIndex].MipmapImageData[mipIndex].data(),
+                    asset->MipmapsImageData[mip][layer].data(),
                     size
                 );
                 offset += size;
@@ -2321,7 +2321,7 @@ Image Device::CreateImageFromAssetFile(ImageCreateInfo& createInfo, lux::assetli
                 .SizeBytes = mipSize,
                 .BufferOffset = mipOffset,
                 .ImageSubresource = {
-                    .MipmapBase = mipIndex,
+                    .MipmapBase = mip,
                     .Mipmaps = 1,
                     .Layers = createInfo.Description.GetLayers()
                 }

@@ -16,7 +16,6 @@ struct glz::meta<lux::assetlib::ImageFilter> : lux::assetlib::reflection::CamelC
     using enum lux::assetlib::ImageFilter;
     static constexpr auto value = glz::enumerate(Linear, Nearest);
 };
-template <> struct ::glz::meta<lux::assetlib::ImageMipmapSizes> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::ImageHeader> : lux::assetlib::reflection::CamelCase {};
 
 namespace lux::assetlib::image
@@ -38,18 +37,18 @@ io::IoResult<std::vector<std::byte>> readImageData(const ImageHeader& header, co
     ASSETLIB_CHECK_RETURN_IO_ERROR(header.Layers > layer, io::IoError::ErrorCode::GeneralError,
         "Assetlib: Failed to read: specified layer is not available {} (total {})", layer, header.Layers)
 
-    const u32 imageDataCompressedSizeIndex = layer * header.Mipmaps + mipmap;
-    u64 mipMapOffset = 0;
+    const u32 imageDataCompressedSizeIndex = mipmap * header.Layers + layer;
+    u64 dataOffset = 0;
     for (u32 i = 0; i < imageDataCompressedSizeIndex; i++)
-        mipMapOffset += assetFile.IoInfo.BinarySizeBytesChunksCompressed[i];
-    u64 mipMapSize = assetFile.IoInfo.BinarySizeBytesChunksCompressed[imageDataCompressedSizeIndex];
+        dataOffset += assetFile.IoInfo.BinarySizeBytesChunksCompressed[i];
+    u64 dataSize = assetFile.IoInfo.BinarySizeBytesChunksCompressed[imageDataCompressedSizeIndex];
     
-    std::vector<std::byte> imageData(mipMapSize);
-    auto result = io.ReadBinaryChunk(assetFile, imageData.data(), mipMapOffset, imageData.size());
+    std::vector<std::byte> imageData(dataSize);
+    auto result = io.ReadBinaryChunk(assetFile, imageData.data(), dataOffset, imageData.size());
     ASSETLIB_CHECK_RETURN_IO_ERROR(result.has_value(), io::IoError::ErrorCode::FailedToLoad,
         "Assetlib: Failed to read: {} ({})", result.error(), assetFile.IoInfo.BinaryFile.string())
 
-    imageData = compressor.Decompress(imageData, header.LayerSizes[layer].Sizes[mipmap]);
+    imageData = compressor.Decompress(imageData, header.MipmapSizes[mipmap][layer]);
 
     return imageData;
 }
@@ -64,19 +63,19 @@ io::IoResult<ImageAsset> readImage(const AssetFile& assetFile, io::AssetIoInterf
     ImageAsset asset = {
         .Header = std::move(*header)
     };
-    asset.Layers.resize(header->Layers);
-    for (auto& layer : asset.Layers)
-        layer.MipmapImageData.resize(header->Mipmaps);
+    asset.MipmapsImageData.resize(header->Mipmaps);
+    for (auto& mip : asset.MipmapsImageData)
+        mip.resize(header->Layers);
     
-    for (u32 layer = 0; layer < header->Layers; layer++)
+    for (u32 mip = 0; mip < header->Mipmaps; mip++)
     {
-        for (u32 mip = 0; mip < header->Mipmaps; mip++)
+        for (u32 layer = 0; layer < header->Layers; layer++)
         {
             auto binary = readImageData(asset.Header, assetFile, mip, layer, io, compressor);
             ASSETLIB_CHECK_RETURN_IO_ERROR(binary.has_value(), io::IoError::ErrorCode::FailedToLoad,
                 "Assetlib: Failed to read: {} ({})", binary.error(), assetFile.IoInfo.BinaryFile.string())
             
-            asset.Layers[layer].MipmapImageData[mip] = std::move(*binary);
+            asset.MipmapsImageData[mip][layer] = std::move(*binary);
         }
     }
 
@@ -92,12 +91,12 @@ io::IoResult<AssetPacked> pack(const ImageAsset& image, io::AssetCompressor& com
     std::vector<u64> packedImageDataBinarySizeBytesChunks((u64)image.Header.Mipmaps * image.Header.Layers);
     std::vector<std::byte> imageData;
 
-    for (u32 layer = 0; layer < image.Header.Layers; layer++)
+    for (u32 mip = 0; mip < image.Header.Mipmaps; mip++)
     {
-        for (u32 mip = 0; mip < image.Header.Mipmaps; mip++)
+        for (u32 layer = 0; layer < image.Header.Layers; layer++)
         {
-            const u32 flatIndex = layer * image.Header.Mipmaps + mip;
-            auto compressed = compressor.Compress(image.Layers[layer].MipmapImageData[mip]);
+            const u32 flatIndex = mip * image.Header.Layers + layer;
+            auto compressed = compressor.Compress(image.MipmapsImageData[mip][layer]);
             packedImageDataBinarySizeBytesChunks[flatIndex] = compressed.size();
             
             imageData.append_range(std::move(compressed));

@@ -22,11 +22,6 @@ enum class ImageFilter : u8
 {
     Linear, Nearest
 };
-struct ImageMipmapSizes
-{
-    static constexpr u32 MAX_MIPMAPS = 32;
-    std::array<u32, MAX_MIPMAPS> Sizes{};
-};
 struct ImageHeader
 {
     ImageFormat Format{ImageFormat::Undefined};
@@ -38,17 +33,15 @@ struct ImageHeader
     u32 Layers{0};
     u32 Mipmaps{0};
     bool GenerateMipmaps{false};
-    std::vector<ImageMipmapSizes> LayerSizes{};
-};
 
+    using ImageLayerSizes = std::vector<u32>;
+    std::vector<ImageLayerSizes> MipmapSizes{};
+};
 struct ImageAsset
 {
-    struct LayerImageData
-    {
-        std::vector<std::vector<std::byte>> MipmapImageData;
-    };
+    using LayerImageData = std::vector<std::vector<std::byte>>;
     ImageHeader Header{};
-    std::vector<LayerImageData> Layers{};
+    std::vector<LayerImageData> MipmapsImageData{};
 };
 
 namespace image
