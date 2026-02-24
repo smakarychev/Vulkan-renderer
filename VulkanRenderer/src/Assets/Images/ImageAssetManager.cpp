@@ -6,7 +6,6 @@
 #include "Assets/AssetSystem.h"
 #include "Assets/Enums/ConvertAssetEnums.h"
 #include "Bakers/Images/ImageBaker.h"
-#include "Bakers/Shaders/SlangBaker.h"
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Image/ImageUtility.h"
 #include "v2/Io/IoInterface/AssetIoInterface.h"
@@ -84,6 +83,9 @@ ImageHandle ImageAssetManager::LoadAsset(const ImageLoadParameters& parameters)
     const u32 imageIndex = m_Images.add(image);
     const ImageHandle handle(imageIndex, 0);
     m_ImagesMap.emplace(path, handle);
+    if (m_HandlesToPaths.size() <= handle.Index())
+        m_HandlesToPaths.resize(handle.Index() + 1);
+    m_HandlesToPaths[handle.Index()] = path;
 
     return handle;
 }
