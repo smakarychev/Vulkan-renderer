@@ -101,6 +101,8 @@ void ImageAssetManager::UnloadAsset(ImageHandle handle)
     if (path.empty())
         return;
 
+    LUX_LOG_INFO("Unloading image: {}", path.string());
+
     m_FrameDeletionQueue->Enqueue(GetAsset(handle));
     m_ImagesMap.erase(path);
     m_HandlesToPaths[handle.Index()] = std::filesystem::path{};
@@ -122,13 +124,15 @@ void ImageAssetManager::OnRawFileModified(const std::filesystem::path& path)
         .BakeFn = [this, loadPath]()
         {
             bakers::ImageBaker baker;
+
+            LUX_LOG_INFO("Baking image file: {}", loadPath.string());
             auto bakedPath = baker.BakeToFile(loadPath, *m_BakeSettings, m_Context);
             if (!bakedPath)
             {
                 LUX_LOG_WARN("Bake request failed {} ({})", bakedPath.error(), loadPath.string());
                 return;
             }
-
+            
             OnBakedFileModified(*bakedPath);
         }
     });
@@ -150,6 +154,8 @@ void ImageAssetManager::OnBakedFileModified(const std::filesystem::path& path)
 
 Image ImageAssetManager::DoLoad(const ImageLoadParameters& parameters) const
 {
+    LUX_LOG_INFO("Loading image: {}", parameters.Path.string());
+    
     const auto assetFile = m_Context.Io->ReadHeader(parameters.Path);
     if (!assetFile.has_value())
         return {};

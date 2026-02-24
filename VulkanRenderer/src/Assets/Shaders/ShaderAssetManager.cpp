@@ -264,9 +264,10 @@ void ShaderAssetManager::OnRawFileModified(const std::filesystem::path& path)
 
         for (auto& rebakeInfo : m_RawPathToRebakeInfos[shaderPath.string()])
         {
-            m_AssetSystem->AddBakeRequest({.BakeFn = [this, shaderPath, &rebakeInfo]() {
+            m_AssetSystem->AddBakeRequest({.BakeFn = [this, shaderPath, name, &rebakeInfo]() {
                 bakers::Slang baker;
                 
+                LUX_LOG_INFO("Baking shader: {} {} {}", name, rebakeInfo.Variant, shaderPath.string());
                 auto bakedPath = baker.BakeToFile(shaderPath, rebakeInfo.Variant, {
                         .Defines = rebakeInfo.Defines,
                         .DefinesHash = rebakeInfo.DefinesHash,
@@ -304,9 +305,8 @@ Result<std::filesystem::path, AssetManager::IoError> ShaderAssetManager::Bake(co
         .EnableHotReloading = (bool)CVars::Get().GetI32CVar("Renderer.Shaders.HotReload"_hsv).value_or(true)
     };
     const std::filesystem::path& path = m_ShaderNameToRawPath.at(parameters.Name);
-
     StringId variant = parameters.Variant.value_or(bakers::Slang::MAIN_VARIANT);
-    
+
     auto bakedPath = baker.BakeToFile(path, variant, settings, m_Context); 
     if (!bakedPath.has_value())
         return bakedPath;
@@ -344,6 +344,8 @@ std::optional<ShaderAssetManager::PipelineInfo> ShaderAssetManager::TryCreatePip
 
     auto createPipeline = [&]() -> Pipeline
     {
+        LUX_LOG_INFO("Creating shader pipeline: {} {} {}", name.Name, name.Variant, path.string());
+        
         std::vector<Format> colorFormats;
         std::optional<Format> depthFormat;
         DynamicStates dynamicStates = DynamicStates::Default;

@@ -14,6 +14,8 @@ const AssetIdResolver::AssetInfo* AssetIdResolver::Resolve(assetlib::AssetId id)
 
 void AssetIdResolver::RegisterId(assetlib::AssetId id, const AssetInfo& assetInfo)
 {
+    LUX_LOG_TRACE("Asset id registered: {} {} {}", id, assetInfo.AssetType, assetInfo.Path.string());
+    
     m_AssetInfos[id] = assetInfo;
 }
 }
