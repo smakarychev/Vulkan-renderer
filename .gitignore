@@ -31,3 +31,4 @@ assets/shaders/**/*.type
 assets/baked
 *.meta
 assets/uniform_types
+Logs

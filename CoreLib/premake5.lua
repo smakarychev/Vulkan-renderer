@@ -14,6 +14,7 @@ project "CoreLib"
         "src",
         IncludeDir["glm"],
         IncludeDir["efsw"],
+        IncludeDir["spdlog"], 
     }
 
     links {

@@ -17,6 +17,7 @@ IncludeDir["catch2"]	    = "%{wks.location}/vendor/catch2/src"
 IncludeDir["ktx"]	        = "%{wks.location}/vendor/libktx/lib/include"
 IncludeDir["toolsktx"]	    = "%{wks.location}/vendor/libktx/tools"
 IncludeDir["utilsktx"]	    = "%{wks.location}/vendor/libktx/utils"
+IncludeDir["spdlog"]	    = "%{wks.location}/vendor/spdlog/include"
 
 IncludeDir["CoreLib"]	    = "%{wks.location}/CoreLib/src"
 IncludeDir["Renderer"]	    = "%{wks.location}/VulkanRenderer/src"

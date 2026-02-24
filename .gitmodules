@@ -28,3 +28,6 @@
 [submodule "vendor/libktx"]
 	path = vendor/libktx
 	url = https://github.com/smakarychev/KTX-Software
+[submodule "vendor/spdlog"]
+	path = vendor/spdlog
+	url = https://github.com/gabime/spdlog.git
