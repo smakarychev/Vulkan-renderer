@@ -1,4 +1,6 @@
 ﻿#pragma once
+#include "types.h"
+
 #include <filesystem>
 
 namespace lux
@@ -18,31 +20,31 @@ public:
     template<typename ...Ts>
     static void Trace(std::format_string<Ts...> fmt, Ts&&... args)
     {
-        Trace(std::format(fmt, std::forward<Ts>(args)...));
+        Trace(GetLogLine(fmt, std::forward<Ts>(args)...));
     }
     
     template<typename ...Ts>
     static void Info(std::format_string<Ts...> fmt, Ts&&... args)
     {
-        Info(std::format(fmt, std::forward<Ts>(args)...));
+        Info(GetLogLine(fmt, std::forward<Ts>(args)...));
     }
 
     template<typename ...Ts>
     static void Warn(std::format_string<Ts...> fmt, Ts&&... args)
     {
-        Warn(std::format(fmt, std::forward<Ts>(args)...));
+        Warn(GetLogLine(fmt, std::forward<Ts>(args)...));
     }
     
     template<typename ...Ts>
     static void Error(std::format_string<Ts...> fmt, Ts&&... args)
     {
-        Error(std::format(fmt, std::forward<Ts>(args)...));
+        Error(GetLogLine(fmt, std::forward<Ts>(args)...));
     }
     
     template<typename ...Ts>
     static void Fatal(std::format_string<Ts...> fmt, Ts&&... args)
     {
-        Fatal(std::format(fmt, std::forward<Ts>(args)...));
+        Fatal(GetLogLine(fmt, std::forward<Ts>(args)...));
     }
     
     static void Trace() { Trace(""); }
@@ -51,11 +53,24 @@ public:
     static void Error() { Error(""); }
     static void Fatal() { Fatal(""); }
     
-    static void Trace(const std::string& string);
-    static void Info(const std::string& string);
-    static void Warn(const std::string& string);
-    static void Error(const std::string& string);
-    static void Fatal(const std::string& string);
+    static void Trace(std::string_view string);
+    static void Info(std::string_view string);
+    static void Warn(std::string_view string);
+    static void Error(std::string_view string);
+    static void Fatal(std::string_view string);
+private:
+    template<typename ...Ts>
+    static std::string_view GetLogLine(std::format_string<Ts...> fmt, Ts&&... args)
+    {
+        static constexpr u32 MAX_SIZE = 1024;
+        thread_local std::string buffer(MAX_SIZE, 0);
+        buffer.clear();
+
+        auto&& [out, _] = std::format_to_n(std::back_inserter(buffer), MAX_SIZE - 1, fmt, std::forward<Ts>(args)...);
+        *out = '\0';
+
+        return buffer;
+    }
 };
 }
 

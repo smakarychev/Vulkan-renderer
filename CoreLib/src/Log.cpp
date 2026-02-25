@@ -22,31 +22,31 @@ void Logger::Init(const LoggerSettings& settings)
     sinks.push_back(std::make_shared<spdlog::sinks::stdout_color_sink_mt>());
 
     g_Logger = std::make_unique<spdlog::logger>(settings.LoggerName, begin(sinks), end(sinks));
-    g_Logger->set_pattern("%^%Y-%m-%d %T [%L:%t] %n: %v%$");
+    g_Logger->set_pattern("%^%Y-%m-%d %T [%L:%t] %n:%$ %v");
     g_Logger->set_level(spdlog::level::trace);
 }
 
-void Logger::Trace(const std::string& string)
+void Logger::Trace(std::string_view string)
 {
     g_Logger->trace(string);
 }
 
-void Logger::Info(const std::string& string)
+void Logger::Info(std::string_view string)
 {
     g_Logger->info(string);
 }
 
-void Logger::Warn(const std::string& string)
+void Logger::Warn(std::string_view string)
 {
     g_Logger->warn(string);
 }
 
-void Logger::Error(const std::string& string)
+void Logger::Error(std::string_view string)
 {
     g_Logger->error(string);
 }
 
-void Logger::Fatal(const std::string& string)
+void Logger::Fatal(std::string_view string)
 {
     g_Logger->error("FATAL ERROR OCCURRED");
     g_Logger->error(string);
