@@ -9,6 +9,7 @@ namespace lux::assetlib
 {
 class AssetId
 {
+    static constexpr u64 INVALID = 0llu;
 public:
     AssetId();
     AssetId(reflection::MakeReflectable) {}
@@ -19,11 +20,15 @@ public:
     AssetId& operator=(AssetId&&) noexcept = default;
     ~AssetId() = default;
 
+    static constexpr AssetId CreateEmpty() { return AssetId(INVALID); }
+
     auto operator<=>(const AssetId&) const = default;
     
     void Generate();
     constexpr u64 AsU64() const { return m_Id; }
     constexpr void FromU64(u64 value) { m_Id = value; }
+
+    constexpr bool HasValue() const { return m_Id != INVALID; }
 private:
     u64 m_Id{};
 };

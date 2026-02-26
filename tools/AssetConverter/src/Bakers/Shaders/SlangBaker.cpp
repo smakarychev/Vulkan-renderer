@@ -1327,6 +1327,10 @@ IoResult<std::filesystem::path> Slang::BakeToFile(const std::filesystem::path& p
     if (!packedShader.has_value())
         return std::unexpected(packedShader.error());
 
+    auto existingAssetId = getBakedAssetId(paths.HeaderPath, *ctx.Io);
+    if (existingAssetId.HasValue())
+        packedShader->Metadata.AssetId = existingAssetId;
+    
     assetlib::AssetFile assetFile = {
         .Metadata = std::move(packedShader->Metadata),
         .AssetSpecificInfo = std::move(packedShader->AssetSpecificInfo)

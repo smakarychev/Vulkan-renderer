@@ -41,4 +41,16 @@ AssetPaths getPostBakePaths(const std::filesystem::path& path, const Context& ct
         .BinaryPath = std::move(binaryPath),
     };
 }
+
+assetlib::AssetId getBakedAssetId(const std::filesystem::path& bakedPath, assetlib::io::AssetIoInterface& io)
+{
+    if (!std::filesystem::exists(bakedPath))
+        return assetlib::AssetId::CreateEmpty();
+
+    IoResult<assetlib::AssetFile> assetFileRead = io.ReadHeader(bakedPath);
+    if (!assetFileRead.has_value())
+        return assetlib::AssetId::CreateEmpty();
+
+    return assetFileRead->Metadata.AssetId;
+}
 }

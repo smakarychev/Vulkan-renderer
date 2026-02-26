@@ -160,6 +160,10 @@ IoResult<std::filesystem::path> ImageBaker::BakeToFile(const std::filesystem::pa
     if (!packedImage.has_value())
         return std::unexpected(packedImage.error());
 
+    auto existingAssetId = getBakedAssetId(paths.HeaderPath, *ctx.Io);
+    if (existingAssetId.HasValue())
+        packedImage->Metadata.AssetId = existingAssetId;
+
     assetlib::AssetFile assetFile = {
         .Metadata = std::move(packedImage->Metadata),
         .AssetSpecificInfo = std::move(packedImage->AssetSpecificInfo)
