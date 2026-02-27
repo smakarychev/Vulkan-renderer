@@ -117,7 +117,7 @@ private:
     DepthStencilTargetAccess m_DepthStencilTargetAccess{};
 
     PassFlags m_Flags{PassFlags::Cullable};
-    lux::Shader m_Shader{};
+    lux::ShaderAsset m_Shader{};
 
     StringId m_Name;
 };

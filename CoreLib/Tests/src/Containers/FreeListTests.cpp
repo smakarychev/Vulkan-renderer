@@ -20,49 +20,49 @@ TEST_CASE("FreeList", "[Containers][FreeList]")
     {
         lux::FreeList<u32> list;
         REQUIRE(list.Size() == 0);
-        list.Add(1);
+        list.Insert(1);
         REQUIRE(list.Size() == 1);
-        list.Add(2);
+        list.Insert(2);
         REQUIRE(list.Size() == 2);
     }
     SECTION("Can remove elements")
     {
         lux::FreeList<u32> list;
         REQUIRE(list.Size() == 0);
-        const u32 index = list.Add(1);
+        const u32 index = list.Insert(1);
         REQUIRE(list.Size() == 1);
-        list.Remove(index);
+        list.Erase(index);
         REQUIRE(list.Size() == 0);
     }
     SECTION("Remove does not change capacity")
     {
         lux::FreeList<u32> list;
         REQUIRE(list.Size() == 0);
-        const u32 index = list.Add(1);
+        const u32 index = list.Insert(1);
         REQUIRE(list.Capacity() == 1);
-        list.Remove(index);
+        list.Erase(index);
         REQUIRE(list.Capacity() == 1);
     }
     SECTION("Can reuse index after remove")
     {
         lux::FreeList<u32> list;
         REQUIRE(list.Size() == 0);
-        u32 index = list.Add(1);
-        u32 index2 = list.Add(1);
+        u32 index = list.Insert(1);
+        u32 index2 = list.Insert(1);
         REQUIRE(index != index2);
-        list.Remove(index);
-        REQUIRE(list.Add(1) == index);
+        list.Erase(index);
+        REQUIRE(list.Insert(1) == index);
 
-        list.Remove(index);
-        list.Remove(index2);
-        REQUIRE(list.Add(1) == index2);
-        REQUIRE(list.Add(1) == index);
+        list.Erase(index);
+        list.Erase(index2);
+        REQUIRE(list.Insert(1) == index2);
+        REQUIRE(list.Insert(1) == index);
     }
     SECTION("Can get by index")
     {
         lux::FreeList<u32> list;
         REQUIRE(list.Size() == 0);
-        u32 index = list.Add(13);
+        u32 index = list.Insert(13);
         REQUIRE(list[index] == 13);
     }
 }

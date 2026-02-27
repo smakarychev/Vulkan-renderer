@@ -1,9 +1,9 @@
 ﻿#pragma once
 
+#include "ShaderAsset.h"
 #include "Assets/AssetManager.h"
 #include "Bakers/BakerContext.h"
 #include "Bakers/Shaders/SlangBaker.h"
-#include "Rendering/Pipeline.h"
 #include "Rendering/Shader/ShaderOverrides.h"
 #include "Rendering/Shader/ShaderReflection.h"
 #include "Rendering/Shader/ShaderPipelineTemplate.h"
@@ -20,29 +20,14 @@ namespace bakers
 struct SlangBakeSettings;
 }
 
-class Shader
-{
-    friend class ShaderAssetManager;
-public:
-    Pipeline Pipeline() const { return m_Pipeline; }
-    PipelineLayout GetLayout() const { return m_PipelineLayout; }
-    const ::Descriptors& Descriptors(u32 index) const { return m_Descriptors[index]; }
-    const ::DescriptorsLayout& DescriptorsLayout(u32 index) const { return m_DescriptorLayouts[index]; }
-private:
-    ::Pipeline m_Pipeline{};
-    PipelineLayout m_PipelineLayout{};
-    std::array<::Descriptors, MAX_DESCRIPTOR_SETS> m_Descriptors;
-    std::array<::DescriptorsLayout, MAX_DESCRIPTOR_SETS> m_DescriptorLayouts;
-};
-
 template <>
-struct ResourceAssetLoadParameters<Shader>
+struct ResourceAssetLoadParameters<ShaderAsset>
 {
     StringId Name{};
     std::optional<StringId> Variant{};
     ShaderOverridesView* Overrides{nullptr};
 };
-using ShaderLoadParameters = ResourceAssetLoadParameters<Shader>;
+using ShaderLoadParameters = ResourceAssetLoadParameters<ShaderAsset>;
 
 enum class ShaderAssetManagerError : u8
 {
@@ -59,9 +44,8 @@ struct ShaderTextureHeapAllocation
 using ShaderCacheAllocateResult = std::expected<void, ShaderAssetManagerError>;
 using ShaderCacheTextureHeapResult = std::expected<ShaderTextureHeapAllocation, ShaderAssetManagerError>;
 
-using ShaderHandle = AssetHandle<Shader>;
 
-class ShaderAssetManager final : public ResourceAssetManager<Shader, ResourceAssetTraitsGetOptional>
+class ShaderAssetManager final : public ResourceAssetManager<ShaderAsset, ResourceAssetTraitsGetOptional>
 {
 public:
     LUX_ASSET_MANAGER(ShaderAssetManager, "23ae71e5-8829-4643-a424-eb74e730d368"_guid)

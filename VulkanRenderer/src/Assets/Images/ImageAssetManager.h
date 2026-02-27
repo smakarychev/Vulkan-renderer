@@ -1,8 +1,8 @@
 ﻿#pragma once
+#include "ImageAsset.h"
 #include "Assets/AssetManager.h"
+#include "Assets/Common/AssetFreeListMap.h"
 #include "Bakers/BakerContext.h"
-#include "Containers/FreeList.h"
-#include "Rendering/Image/Image.h"
 #include "String/StringHeterogeneousHasher.h"
 
 struct FrameContext;
@@ -15,16 +15,14 @@ struct ImageBakeSettings;
 }
 
 template <>
-struct ResourceAssetLoadParameters<Image>
+struct ResourceAssetLoadParameters<ImageAsset>
 {
     std::filesystem::path Path{};
 };
 
-using ImageLoadParameters = ResourceAssetLoadParameters<Image>;
+using ImageLoadParameters = ResourceAssetLoadParameters<ImageAsset>;
 
-using ImageHandle = AssetHandle<Image>;
-
-class ImageAssetManager final : public ResourceAssetManager<Image, ResourceAssetTraitsGetValue>
+class ImageAssetManager final : public ResourceAssetManager<ImageAsset, ResourceAssetTraitsGetValue>
 {
 public:
     LUX_ASSET_MANAGER(ImageAssetManager, "7fbed3b1-ca4c-4d90-a678-ec202cf04ea3"_guid)
@@ -46,14 +44,12 @@ protected:
 private:
     void OnRawFileModified(const std::filesystem::path& path);
     void OnBakedFileModified(const std::filesystem::path& path);
-    Image DoLoad(const ImageLoadParameters& parameters) const;
+    ImageAsset DoLoad(const ImageLoadParameters& parameters) const;
 
 private:
     // todo: alternative is to make ImageHandle equivalent to Image (since both are handles)
     // todo: this will require support from Device to swap things (already exists in method `ResizeBuffer`)
-    FreeList<Image> m_Images;
-    std::unordered_map<std::filesystem::path, ImageHandle> m_ImagesMap;
-    std::vector<std::filesystem::path> m_HandlesToPaths;
+    AssetFreeListMap<ImageAsset> m_Images;
 
     /* for hot-reloading */
     bakers::Context m_Context{};

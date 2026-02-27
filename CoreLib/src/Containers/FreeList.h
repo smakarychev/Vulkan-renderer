@@ -15,11 +15,11 @@ public:
     ~FreeList();
     
     template <typename ... Args>
-    constexpr u32 Add(Args&&... args);
+    constexpr u32 Insert(Args&&... args);
     template <typename ... Args>
-    constexpr u32 add(Args&&... args) { return Add(std::forward<Args>(args)...); }
-    constexpr void Remove(u32 index);
-    constexpr void remove(u32 index) { Remove(index); }
+    constexpr u32 insert(Args&&... args) { return Insert(std::forward<Args>(args)...); }
+    constexpr void Erase(u32 index);
+    constexpr void erase(u32 index) { Erase(index); }
 
     // size of elements array, including the deleted ones
     constexpr u32 Capacity() const { return u32(m_DataCurrent - m_DataStart); }
@@ -52,7 +52,7 @@ FreeList<T>::~FreeList()
 
 template <typename T>
 template <typename ... Args>
-constexpr u32 FreeList<T>::Add(Args&&... args)
+constexpr u32 FreeList<T>::Insert(Args&&... args)
 {
     u32 index;  
     if (m_FirstFree != NO_FREE)
@@ -73,7 +73,7 @@ constexpr u32 FreeList<T>::Add(Args&&... args)
 }
 
 template <typename T>
-constexpr void FreeList<T>::Remove(u32 index)
+constexpr void FreeList<T>::Erase(u32 index)
 {
     ASSERT(index < Capacity(), "Element handle out of bounds")
 

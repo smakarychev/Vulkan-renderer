@@ -1649,22 +1649,22 @@ namespace RG
         return m_Blackboard.Get<GlobalResources>();
     }
 
-    const lux::Shader& Graph::SetShader(StringId name) const
+    const lux::ShaderAsset& Graph::SetShader(StringId name) const
     {
         return SetShader(name, std::nullopt, {});
     }
 
-    const lux::Shader& Graph::SetShader(StringId name, StringId variant) const
+    const lux::ShaderAsset& Graph::SetShader(StringId name, StringId variant) const
     {
         return SetShader(name, variant, {});
     }
 
-    const lux::Shader& Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
+    const lux::ShaderAsset& Graph::SetShader(StringId name, ShaderOverridesView&& overrides) const
     {
         return SetShader(name, std::nullopt, std::move(overrides));
     }
 
-    const lux::Shader& Graph::SetShader(StringId name, std::optional<StringId> variant,
+    const lux::ShaderAsset& Graph::SetShader(StringId name, std::optional<StringId> variant,
         ShaderOverridesView&& overrides) const
     {
         const lux::ShaderHandle shaderHandle = m_ShaderAssetManager->LoadResource({
@@ -1684,15 +1684,15 @@ namespace RG
         return GetShader();
     }
 
-    const lux::Shader& Graph::HandleShaderError(StringId name) const
+    const lux::ShaderAsset& Graph::HandleShaderError(StringId name) const
     {
-        static constexpr lux::Shader DUMMY = {};
+        static constexpr lux::ShaderAsset DUMMY = {};
         LUX_LOG_ERROR("Error while setting shader {}. Pass will be disabled", name);
         CurrentPass().m_Flags |= PassFlags::Disabled;
         return DUMMY;
     }
 
-    const lux::Shader& Graph::GetShader() const
+    const lux::ShaderAsset& Graph::GetShader() const
     {
         return CurrentPass().m_Shader;
     }

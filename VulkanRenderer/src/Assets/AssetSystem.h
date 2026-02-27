@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "AssetBakery.h"
 #include "AssetIdResolver.h"
+#include "AssetManager.h"
 #include "Platform/FileWatcher.h"
 
 namespace lux
@@ -23,6 +24,10 @@ public:
     void SetAssetsDirectory(const std::filesystem::path& path);
     void ScanAssetsDirectory();
 
+    template <typename ResourceAssetManager>
+    requires std::is_base_of_v<AssetManager, ResourceAssetManager>
+    ResourceAssetManager* GetAssetManagerFor(assetlib::AssetType type);
+    
     const AssetIdResolver::AssetInfo* Resolve(assetlib::AssetId id) const;
     bool AddBakeRequest(AssetBakeRequest&& request);
 
@@ -44,4 +49,17 @@ private:
 
     AssetBakery m_Bakery;
 };
+
+template <typename ResourceAssetManager> requires std::is_base_of_v<AssetManager, ResourceAssetManager>
+ResourceAssetManager* AssetSystem::GetAssetManagerFor(assetlib::AssetType type)
+{
+    auto it = m_Managers.find(type);
+    if (it == m_Managers.end())
+        return nullptr;
+
+    if (it->second->GetGuid() != ResourceAssetManager::GetGuidStatic())
+        return nullptr;
+
+    return (ResourceAssetManager*)it->second;
+}
 }

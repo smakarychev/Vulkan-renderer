@@ -62,7 +62,7 @@ void ImageAssetManager::Init(const bakers::ImageBakeSettings& bakeSettings)
 
 void ImageAssetManager::Shutdown()
 {
-    for (ImageHandle handle : m_ImagesMap | std::views::values |
+    for (ImageHandle handle : m_Images | std::views::values |
          std::views::filter([this](const ImageHandle handle) { return GetAsset(handle).HasValue(); }))
         Device::Destroy(GetAsset(handle));
 }
@@ -75,38 +75,25 @@ void ImageAssetManager::OnFrameBegin(FrameContext& ctx)
 ImageHandle ImageAssetManager::LoadAsset(const ImageLoadParameters& parameters)
 {
     const std::filesystem::path path = weakly_canonical(parameters.Path).generic_string();
-    auto it = m_ImagesMap.find(path);
-    if (it != m_ImagesMap.end())
-        return it->second;
+    const ImageHandle cached = m_Images.Find(path);
+    if (cached.IsValid())
+        return cached;
 
-    const Image image = DoLoad(parameters);
-    const u32 imageIndex = m_Images.add(image);
-    const ImageHandle handle(imageIndex, 0);
-    m_ImagesMap.emplace(path, handle);
-    if (m_HandlesToPaths.size() <= handle.Index())
-        m_HandlesToPaths.resize(handle.Index() + 1);
-    m_HandlesToPaths[handle.Index()] = path;
-
-    return handle;
+    return m_Images.Add(DoLoad(parameters), path);
 }
 
 void ImageAssetManager::UnloadAsset(ImageHandle handle)
 {
     ASSERT(m_FrameDeletionQueue)
 
-    if (handle.Index() >= m_HandlesToPaths.size())
+    const std::filesystem::path* path = m_Images.Find(handle);
+    if (path == nullptr)
         return;
 
-    const auto& path = m_HandlesToPaths[handle.Index()];
-    if (path.empty())
-        return;
-
-    LUX_LOG_INFO("Unloading image: {}", path.string());
+    LUX_LOG_INFO("Unloading image: {}", path->string());
 
     m_FrameDeletionQueue->Enqueue(GetAsset(handle));
-    m_ImagesMap.erase(path);
-    m_HandlesToPaths[handle.Index()] = std::filesystem::path{};
-    m_Images.remove(handle.Index());
+    m_Images.Erase(handle, *path);
 }
 
 Image ImageAssetManager::GetAsset(ImageHandle handle) const
@@ -142,17 +129,17 @@ void ImageAssetManager::OnBakedFileModified(const std::filesystem::path& path)
 {
     Lock lock(m_ResourceAccessMutex);
 
-    auto it = m_ImagesMap.find(weakly_canonical(path).generic_string());
-    if (it == m_ImagesMap.end())
+    const ImageHandle cached = m_Images.Find(weakly_canonical(path).generic_string());
+    if (!cached.IsValid())
         return;
 
-    m_FrameDeletionQueue->Enqueue(GetAsset(it->second));
-    const Image newImage = DoLoad({.Path = path});
+    m_FrameDeletionQueue->Enqueue(GetAsset(cached));
+    const ImageAsset newImage = DoLoad({.Path = path});
     if (newImage.HasValue())
-        m_Images[it->second.Index()] = newImage;
+        m_Images[cached.Index()] = newImage;
 }
 
-Image ImageAssetManager::DoLoad(const ImageLoadParameters& parameters) const
+ImageAsset ImageAssetManager::DoLoad(const ImageLoadParameters& parameters) const
 {
     LUX_LOG_INFO("Loading image: {}", parameters.Path.string());
     

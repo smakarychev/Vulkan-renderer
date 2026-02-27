@@ -1,7 +1,6 @@
 ﻿#include "rendererpch.h"
 #include "AssetSystem.h"
 
-#include "AssetManager.h"
 #include "cvars/CVarSystem.h"
 #include "Platform/FileWatcher.h"
 #include "v2/Io/IoInterface/AssetIoInterface.h"

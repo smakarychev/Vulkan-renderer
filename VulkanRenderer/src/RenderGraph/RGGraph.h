@@ -104,12 +104,12 @@ public:
     template <typename Value>
     Value& GetOrCreateBlackboardValue(u64 hash) const;
 
-    const lux::Shader& SetShader(StringId name) const;
-    const lux::Shader& SetShader(StringId name, StringId variant) const;
-    const lux::Shader& SetShader(StringId name, ShaderOverridesView&& overrides) const;
-    const lux::Shader& SetShader(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides) const;
-    const lux::Shader& HandleShaderError(StringId name) const;
-    const lux::Shader& GetShader() const;
+    const lux::ShaderAsset& SetShader(StringId name) const;
+    const lux::ShaderAsset& SetShader(StringId name, StringId variant) const;
+    const lux::ShaderAsset& SetShader(StringId name, ShaderOverridesView&& overrides) const;
+    const lux::ShaderAsset& SetShader(StringId name, std::optional<StringId> variant, ShaderOverridesView&& overrides) const;
+    const lux::ShaderAsset& HandleShaderError(StringId name) const;
+    const lux::ShaderAsset& GetShader() const;
 
 private:
     ::BufferDescription CreateBufferDescription(const RGBufferDescription& description) const;

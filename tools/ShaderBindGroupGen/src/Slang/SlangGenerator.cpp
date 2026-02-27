@@ -1160,13 +1160,13 @@ struct BindGroupBaseRG
     using ImageBindingInfoRG = BindingInfoRG;
 
     BindGroupBaseRG() = default;
-    BindGroupBaseRG(RG::Graph& graph, const ::lux::Shader& shader)
+    BindGroupBaseRG(RG::Graph& graph, const ::lux::ShaderAsset& shader)
         : Graph(&graph), Shader(&shader) {}
     BindGroupBaseRG(RG::Graph& graph)
         : Graph(&graph) {}
 
     RG::Graph* Graph{nullptr};
-    const ::lux::Shader* Shader{nullptr};
+    const ::lux::ShaderAsset* Shader{nullptr};
 };
 )";
 

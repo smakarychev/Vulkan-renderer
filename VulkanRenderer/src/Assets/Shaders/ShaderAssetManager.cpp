@@ -192,7 +192,7 @@ ShaderAssetManager::GetType ShaderAssetManager::GetAsset(ShaderHandle handle) co
 {
     const auto& pipelineInfo = m_Pipelines[handle.Index()];
     
-    Shader shader = {};
+    ShaderAsset shader = {};
     shader.m_Pipeline = pipelineInfo.Pipeline;
     shader.m_PipelineLayout = pipelineInfo.Layout;
     shader.m_Descriptors = pipelineInfo.Descriptors;
