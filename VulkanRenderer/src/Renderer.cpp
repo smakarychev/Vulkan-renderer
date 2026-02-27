@@ -9,6 +9,8 @@
 #include "Converters.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
+#include "Assets/Materials/MaterialAsset.h"
+#include "Assets/Materials/MaterialAssetManager.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
 #include "Core/Input.h"
 #include "cvars/CVarSystem.h"
@@ -78,6 +80,7 @@
 #include "v2/Io/Compression/RawAssetCompressor.h"
 #include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
 #include "v2/Io/IoInterface/SeparateAssetIoInterface.h"
+#include "v2/Materials/MaterialAsset.h"
 
 Renderer::Renderer() = default;
 
@@ -116,6 +119,9 @@ void Renderer::Init()
     m_ImageAssetManager = std::make_unique<lux::ImageAssetManager>(m_AssetSystem);
     m_AssetSystem.RegisterAssetManager(lux::assetlib::image::getMetadata().Type, *m_ImageAssetManager);
     m_ImageAssetManager->Init(m_ImageBakeSettings);
+
+    m_MaterialAssetManager = std::make_unique<lux::MaterialAssetManager>(m_AssetSystem);
+    m_AssetSystem.RegisterAssetManager(lux::assetlib::material::getMetadata().Type, *m_MaterialAssetManager);
 
     m_AssetSystem.ScanAssetsDirectory();
     

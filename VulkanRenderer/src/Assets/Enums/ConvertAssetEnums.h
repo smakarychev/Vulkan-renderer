@@ -1,11 +1,13 @@
 ﻿#pragma once
 
 #include "types.h"
+#include "Assets/Materials/MaterialAsset.h"
 #include "Rendering/FormatTraits.h"
 #include "Rendering/Pipeline.h"
 #include "v2/Format/ImageFormat.h"
 #include "v2/Images/ImageAsset.h"
 #include "v2/Shaders/ShaderLoadInfo.h"
+#include "v2/Materials/MaterialAsset.h"
 
 namespace lux
 {
@@ -417,4 +419,13 @@ constexpr PrimitiveKind primitiveKindModeFromAssetPrimitiveKind(
 
     return (PrimitiveKind)primitive;
 }
+
+constexpr MaterialAlphaMode materialAlphaModeFromAssetAlphaMode(assetlib::MaterialAlphaMode alphaMode)
+{
+    static_assert((u8)MaterialAlphaMode::Opaque == (u8)assetlib::MaterialAlphaMode::Opaque);
+    static_assert((u8)MaterialAlphaMode::Mask == (u8)assetlib::MaterialAlphaMode::Mask);
+    static_assert((u8)MaterialAlphaMode::Translucent == (u8)assetlib::MaterialAlphaMode::Translucent);
+
+    return (MaterialAlphaMode)(alphaMode);
+} 
 }

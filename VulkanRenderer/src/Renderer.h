@@ -29,6 +29,7 @@
 
 namespace lux
 {
+class MaterialAssetManager;
 class ImageAssetManager;
 }
 
@@ -193,6 +194,7 @@ private:
     lux::AssetSystem m_AssetSystem;
     std::unique_ptr<lux::ShaderAssetManager> m_ShaderAssetManager;
     std::unique_ptr<lux::ImageAssetManager> m_ImageAssetManager;
+    std::unique_ptr<lux::MaterialAssetManager> m_MaterialAssetManager;
     
     std::unique_ptr<RG::Graph> m_Graph;
     std::unique_ptr<RG::RGMermaidExporter> m_MermaidExporter;
