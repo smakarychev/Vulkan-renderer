@@ -61,7 +61,7 @@ IoResult<u64> CombinedAssetIoInterface::WriteBinaryChunk(const AssetFile& file,
     ASSETLIB_CHECK_RETURN_IO_ERROR(out.good(), IoError::ErrorCode::FailedToOpen,
         "Assetlib: Failed to open file: {}", path.string())
     ASSETLIB_CHECK_RETURN_IO_ERROR(out.tellp() > 0, IoError::ErrorCode::GeneralError,
-        "AssetLib: File header is not written")
+        "Assetlib: File header is not written")
 
     out.write((const char*)binaryDataChunk.data(), (isize)binaryDataChunk.size());
 

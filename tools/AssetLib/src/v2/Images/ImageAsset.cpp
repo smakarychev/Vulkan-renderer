@@ -3,7 +3,7 @@
 #include "utils.h"
 #include "v2/Io/Compression/AssetCompressor.h"
 #include "v2/Io/IoInterface/AssetIoInterface.h"
-#include "v2/Reflection/AssetLibReflectionUtility.inl"
+#include "v2/Reflection/AssetlibReflectionUtility.inl"
 #include "v2/Format/ImageFormat.inl"
 
 template <>

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "types.h"
-#include "Reflection/AssetLibReflection.h"
+#include "Reflection/AssetlibReflection.h"
 
 #include <format>
 

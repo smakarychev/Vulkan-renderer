@@ -4,7 +4,7 @@
 #include "v2/Io/Compression/AssetCompressor.h"
 #include "v2/Io/IoInterface/AssetIoInterface.h"
 
-#include "v2/Reflection/AssetLibReflectionUtility.inl"
+#include "v2/Reflection/AssetlibReflectionUtility.inl"
 
 template <> struct ::glz::meta<lux::assetlib::ShaderBinding> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::ShaderBindingSet> : lux::assetlib::reflection::CamelCase {

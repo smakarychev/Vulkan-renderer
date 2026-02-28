@@ -13,7 +13,7 @@
 #include "v2/Io/Compression/RawAssetCompressor.h"
 #include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
 #include "v2/Io/IoInterface/SeparateAssetIoInterface.h"
-#include "v2/Reflection/AssetLibReflectionUtility.inl"
+#include "v2/Reflection/AssetlibReflectionUtility.inl"
 
 #include <filesystem>
 #include <memory>

@@ -11,7 +11,7 @@
 #include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
 #include "v2/Io/IoInterface/SeparateAssetIoInterface.h"
 #include "v2/Io/AssetIoRegistry.h"
-#include "v2/Reflection/AssetLibReflectionUtility.inl"
+#include "v2/Reflection/AssetlibReflectionUtility.inl"
 
 #include <glaze/glaze.hpp>
 

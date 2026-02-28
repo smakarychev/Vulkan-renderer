@@ -1,7 +1,7 @@
 #include "ShaderUniform.h"
 
 #include <glaze/json/write.hpp>
-#include "v2/Reflection/AssetLibReflectionUtility.inl"
+#include "v2/Reflection/AssetlibReflectionUtility.inl"
 
 template <>
 struct ::glz::meta<lux::assetlib::ShaderUniformTypeScalar> : lux::assetlib::reflection::CamelCase {};
