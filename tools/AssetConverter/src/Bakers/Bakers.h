@@ -14,9 +14,9 @@ static constexpr std::string_view IMAGE_ASSET_RAW_JPEG_EXTENSION = ".jpeg";
 static constexpr std::string_view IMAGE_ASSET_RAW_PNG_EXTENSION = ".png";
 static constexpr std::string_view IMAGE_ASSET_RAW_HDR_EXTENSION = ".hdr";
 static constexpr std::array IMAGE_ASSET_RAW_EXTENSIONS = {
-    (std::string_view)IMAGE_ASSET_RAW_JPG_EXTENSION,
-    (std::string_view)IMAGE_ASSET_RAW_JPEG_EXTENSION,
-    (std::string_view)IMAGE_ASSET_RAW_PNG_EXTENSION,
-    (std::string_view)IMAGE_ASSET_RAW_HDR_EXTENSION
+    IMAGE_ASSET_RAW_JPG_EXTENSION,
+    IMAGE_ASSET_RAW_JPEG_EXTENSION,
+    IMAGE_ASSET_RAW_PNG_EXTENSION,
+    IMAGE_ASSET_RAW_HDR_EXTENSION,
 };
 }
