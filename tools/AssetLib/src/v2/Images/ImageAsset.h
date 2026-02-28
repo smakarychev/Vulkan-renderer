@@ -18,15 +18,10 @@ enum class ImageKind : u8
     ImageCubemap,
     Image2dArray,
 };
-enum class ImageFilter : u8
-{
-    Linear, Nearest
-};
 struct ImageHeader
 {
     ImageFormat Format{ImageFormat::Undefined};
     ImageKind Kind{ImageKind::Image2d};
-    ImageFilter Filter{ImageFilter::Linear};
     u32 Width{0};
     u32 Height{0};
     u32 Depth{0};

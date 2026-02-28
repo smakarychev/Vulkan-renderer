@@ -511,7 +511,6 @@ IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageLoadInfo
         .Header = {
             .Format = loadInfo.BakedFormat,
             .Kind = loadInfo.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
-            .Filter = assetlib::ImageFilter::Linear,
             .Width = (u32)width,
             .Height = (u32)height,
             .Layers = 1,
@@ -537,7 +536,6 @@ IoResult<assetlib::ImageAsset> readUncompressedLdr(const assetlib::ImageLoadInfo
         .Header = {
             .Format = loadInfo.BakedFormat,
             .Kind = loadInfo.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
-            .Filter = assetlib::ImageFilter::Linear,
             .Width = (u32)width,
             .Height = (u32)height,
             .Layers = 1,
@@ -586,7 +584,6 @@ IoResult<assetlib::ImageAsset> ImageBaker::BakeLDRKtx(const assetlib::ImageLoadI
         .Header = {
             .Format = loadInfo.BakedFormat,
             .Kind = loadInfo.IsCubemap ? assetlib::ImageKind::ImageCubemap : assetlib::ImageKind::Image2d,
-            .Filter = assetlib::ImageFilter::Linear,
             .Width = texture->baseWidth,
             .Height = texture->baseHeight,
             .Depth = texture->baseDepth,

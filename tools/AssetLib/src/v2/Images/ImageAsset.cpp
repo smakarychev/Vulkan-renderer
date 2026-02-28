@@ -11,11 +11,6 @@ struct glz::meta<lux::assetlib::ImageKind> : lux::assetlib::reflection::CamelCas
     using enum lux::assetlib::ImageKind;
     static constexpr auto value = glz::enumerate(Image2d, Image3d, ImageCubemap, Image2dArray);
 };
-template <>
-struct glz::meta<lux::assetlib::ImageFilter> : lux::assetlib::reflection::CamelCase {
-    using enum lux::assetlib::ImageFilter;
-    static constexpr auto value = glz::enumerate(Linear, Nearest);
-};
 template <> struct ::glz::meta<lux::assetlib::ImageHeader> : lux::assetlib::reflection::CamelCase {};
 
 namespace lux::assetlib::image
@@ -41,7 +36,7 @@ io::IoResult<std::vector<std::byte>> readImageData(const ImageHeader& header, co
     u64 dataOffset = 0;
     for (u32 i = 0; i < imageDataCompressedSizeIndex; i++)
         dataOffset += assetFile.IoInfo.BinarySizeBytesChunksCompressed[i];
-    u64 dataSize = assetFile.IoInfo.BinarySizeBytesChunksCompressed[imageDataCompressedSizeIndex];
+    const u64 dataSize = assetFile.IoInfo.BinarySizeBytesChunksCompressed[imageDataCompressedSizeIndex];
     
     std::vector<std::byte> imageData(dataSize);
     auto result = io.ReadBinaryChunk(assetFile, imageData.data(), dataOffset, imageData.size());
