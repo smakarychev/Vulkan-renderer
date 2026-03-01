@@ -63,6 +63,7 @@ public:
 
 TEST_CASE("RenderGraphResource Creation", "[RenderGraph][Resource]")
 {
+    lux::Logger::Init({});
     SECTION("Is invalid by default")
     {
         RG::Resource resource = {};

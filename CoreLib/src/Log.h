@@ -9,7 +9,7 @@ namespace lux
 struct LoggerSettings
 {
     std::string LoggerName = "RENDERER";
-    std::optional<std::filesystem::path> LogFile;
+    std::optional<std::filesystem::path> LogFile{std::nullopt};
 };
 
 class Logger

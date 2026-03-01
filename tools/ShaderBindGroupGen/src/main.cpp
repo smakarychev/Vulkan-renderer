@@ -53,7 +53,7 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
 i32 main()
 {
     using namespace lux::assetlib::io;
-    lux::Logger::Init({});
+    lux::Logger::Init({.LoggerName = "BIND_GROUP_GEN"});
     fs::current_path(platform::getExecutablePath().parent_path());
     const fs::path configPath = "config.json";
     if (!fs::exists(configPath))

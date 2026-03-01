@@ -66,7 +66,7 @@ std::optional<Config> readConfig(const std::filesystem::path& path)
 i32 main(i32 argc, char** argv)
 {
     using namespace lux::assetlib::io;
-    lux::Logger::Init({});
+    lux::Logger::Init({.LoggerName = "ASSET_BAKER"});
     fs::current_path(platform::getExecutablePath().parent_path());
     const fs::path configPath = "config.json";
     if (!fs::exists(configPath))
