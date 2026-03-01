@@ -14,9 +14,7 @@ local project_includes = {
     IncludeDir["vma"],	
     IncludeDir["tracy"],    
     IncludeDir["volk"],
-    IncludeDir["tinygltf"],  
     IncludeDir["imgui"],
-    IncludeDir["nlohmann-json"],
     "$(VULKAN_SDK)/Include",
 }
 
@@ -76,7 +74,7 @@ project "VulkanRendererLib"
             msbuild %{wks.location}tools/AssetConverter/AssetConverter /p:Configuration=Release /p:Platform=x64) \
         if not exist %{tools_bindir}/ShaderBindGroupGen/ShaderBindGroupGen.exe ( \
             msbuild %{wks.location}tools/ShaderBindGroupGen /p:Configuration=Release /p:Platform=x64) \
-        cmd.exe /c %{tools_bindir}AssetConverter/AssetConverter.exe %{wks.location}/assets/shaders > nul \
+        cmd.exe /c %{tools_bindir}AssetConverter/AssetConverter.exe > nul \
         cmd.exe /c %{tools_bindir}ShaderBindGroupGen/ShaderBindGroupGen.exe %{wks.location}/assets/shaders %{prj.location}src/RenderGraph/Passes/Generated/ \
         :: this is unholy \
         cd %{wks.location} \

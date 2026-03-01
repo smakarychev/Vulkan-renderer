@@ -6,6 +6,11 @@
 
 #include <vector>
 
+namespace lux::assetlib
+{
+struct SceneAsset;
+}
+
 struct FrameContext;
 struct Transform3d;
 
@@ -39,7 +44,7 @@ struct SceneHierarchyNode
 
 struct SceneHierarchyInfo
 {
-    static SceneHierarchyInfo FromAsset(assetLib::SceneInfo& sceneInfo);
+    static SceneHierarchyInfo FromAsset(const lux::assetlib::SceneAsset& scene);
     
     std::vector<SceneHierarchyNode> Nodes;
     u16 MaxDepth{0};

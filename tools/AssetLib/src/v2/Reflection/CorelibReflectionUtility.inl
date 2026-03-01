@@ -1,6 +1,7 @@
 ﻿#pragma once
 
 #include "Math/Transform.h"
+#include "Math/Geometry.h"
 
 #include <glaze/glaze.hpp>
 #include <glm/glm.hpp>
@@ -42,3 +43,7 @@ struct glz::meta<lux::Guid>
 
 template <>
 struct glz::meta<Transform3d> : lux::assetlib::reflection::CamelCase {};
+template <>
+struct glz::meta<Sphere> : lux::assetlib::reflection::CamelCase {};
+template <>
+struct glz::meta<AABB> : lux::assetlib::reflection::CamelCase {};

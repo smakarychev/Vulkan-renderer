@@ -7,6 +7,7 @@
 #include <fstream>
 #include <glaze/glaze.hpp>
 #include <ktx.h>
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 #include <ktx/command_create.h>
 
@@ -500,7 +501,6 @@ VkFormat vkFormatFromImageFormat(assetlib::ImageFormat format)
 IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageLoadInfo& loadInfo)
 {
     i32 width, height, channels;
-    stbi_set_flip_vertically_on_load(true);
     u8* pixels{nullptr};
     pixels = (u8*)stbi_loadf(loadInfo.ImagePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     const u64 sizeBytes = (u64)width * (u64)height * 4llu * sizeof(f32);
@@ -525,7 +525,6 @@ IoResult<assetlib::ImageAsset> readUncompressedHdr(const assetlib::ImageLoadInfo
 IoResult<assetlib::ImageAsset> readUncompressedLdr(const assetlib::ImageLoadInfo& loadInfo)
 {
     i32 width, height, channels;
-    stbi_set_flip_vertically_on_load(true);
     u8* pixels{nullptr};
     pixels = (u8*)stbi_load(loadInfo.ImagePath.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     const u64 sizeBytes = (u64)width * (u64)height * 4llu;

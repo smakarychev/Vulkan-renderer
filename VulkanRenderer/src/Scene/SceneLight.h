@@ -1,12 +1,17 @@
 #pragma once
 
-#include "SceneAsset.h"
 #include "SceneInstance.h"
+#include "Assets/AssetSystem.h"
 #include "Light/Light.h"
 #include "Rendering/Buffer/Buffer.h"
 
 #include <vector>
 #include <glm/glm.hpp>
+
+namespace lux::assetlib
+{
+struct SceneAsset;
+}
 
 struct ShadingSettings;
 struct FrameContext;
@@ -39,7 +44,7 @@ struct CommonLight
 
 struct SceneLightInfo
 {
-    static SceneLightInfo FromAsset(assetLib::SceneInfo& sceneInfo);
+    static SceneLightInfo FromAsset(lux::assetlib::SceneAsset& scene);
     void AddLight(const DirectionalLight& light);
     void AddLight(const PointLight& light);
     

@@ -3,23 +3,32 @@
 #include "Scene.h"
 
 #include "AssetManager.h"
-#include "SceneAsset.h"
+#include "v2/Io/IoInterface/AssetIoInterface.h"
 #include "Vulkan/Device.h"
 
 SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,
-    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue)
+    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
+    lux::AssetSystem& assetSystem,
+    lux::ImageAssetManager& imageAssetManager,
+    lux::MaterialAssetManager& materialAssetManager)
 {
     if (SceneInfo* cached = AssetManager::GetSceneInfo(assetPath))
         return cached;
     
     SceneInfo scene = {};
 
-    assetLib::SceneInfo sceneInfo = *assetLib::readSceneHeader(assetPath);
-    assetLib::readSceneBinary(sceneInfo);
+    const auto assetFile = assetSystem.GetIo().ReadHeader(assetPath);
+    if (!assetFile.has_value())
+        return nullptr;
 
-    scene.m_Geometry = SceneGeometryInfo::FromAsset(sceneInfo, texturesRingBuffer, deletionQueue);
-    scene.m_Lights = SceneLightInfo::FromAsset(sceneInfo);
-    scene.m_Hierarchy = SceneHierarchyInfo::FromAsset(sceneInfo);
+    auto sceneAsset = lux::assetlib::scene::readScene(*assetFile, assetSystem.GetIo(), assetSystem.GetCompressor());
+    if (!sceneAsset.has_value())
+        return nullptr;
+
+    scene.m_Geometry = SceneGeometryInfo::FromAsset(*sceneAsset, texturesRingBuffer, deletionQueue, assetSystem,
+        imageAssetManager, materialAssetManager);
+    scene.m_Lights = SceneLightInfo::FromAsset(*sceneAsset);
+    scene.m_Hierarchy = SceneHierarchyInfo::FromAsset(*sceneAsset);
 
     return AssetManager::AddSceneInfo(assetPath, std::move(scene));
 }

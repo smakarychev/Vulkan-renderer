@@ -1,9 +1,9 @@
-﻿#include "AssetConverter.h"
-#include "Log.h"
+﻿#include "Log.h"
 #include "Bakers/BakerContext.h"
 #include "Bakers/Bakers.h"
 #include "Bakers/BakersDispatcher.h"
 #include "Bakers/Images/ImageBaker.h"
+#include "Bakers/Scenes/SceneBaker.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "Platform/PlatformUtils.h"
 #include "v2/Io/AssetIoRegistry.h"
@@ -143,6 +143,7 @@ i32 main(i32 argc, char** argv)
         .IncludePaths = {shaderBakerSettings.IncludeDirectory.string()},
     };
     lux::bakers::ImageBakeSettings imageBakeSettings{};
+    lux::bakers::SceneBakeSettings sceneBakeSettings{};
 
     if (!bakerContext.Io)
     {
@@ -173,6 +174,17 @@ i32 main(i32 argc, char** argv)
             else
                 LUX_LOG_INFO("Baked shader file: {}", path.string());
         });
+        dispatcher.Dispatch({lux::bakers::SCENE_ASSET_RAW_EXTENSIONS}, [&](const fs::path& path) {
+            lux::bakers::SceneBaker baker;
+            if (!baker.ShouldBake(path, sceneBakeSettings, bakerContext))
+                return;
+            
+            auto baked = baker.BakeToFile(path, sceneBakeSettings, bakerContext);
+            if (!baked)
+                LUX_LOG_ERROR("Failed to bake scene file: {} ({})", baked.error(), path.string());
+            else
+                LUX_LOG_INFO("Baked scene file: {}", path.string());
+        });
         dispatcher.Dispatch(lux::bakers::IMAGE_ASSET_RAW_EXTENSIONS, [&](const fs::path& path) {
             lux::bakers::ImageBaker baker;
             if (!baker.ShouldBake(path, imageBakeSettings, bakerContext))
@@ -185,12 +197,4 @@ i32 main(i32 argc, char** argv)
                 LUX_LOG_INFO("Baked image file: {}", path.string());
         });
     }
-    
-    if (argc < 2)
-    {
-        LUX_LOG_INFO("Usage: AssetConverter <directory>");
-        return 1;
-    }
-
-    AssetConverter::BakeDirectory(std::filesystem::weakly_canonical(argv[1]));
 }

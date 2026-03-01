@@ -14,6 +14,7 @@ class ResourceHandle
     FRIEND_INTERNAL
     template <typename U>
     friend class DeviceFreelist;
+    friend struct std::hash<ResourceHandle>;
 public:
     friend auto constexpr operator<=>(const ResourceHandle& a, const ResourceHandle& b) = default;
 
@@ -31,6 +32,18 @@ private:
     static constexpr UnderlyingType NON_HANDLE = std::numeric_limits<UnderlyingType>::max();
     UnderlyingType m_Id{NON_HANDLE};
 };
+
+namespace std
+{
+template <typename T>
+struct hash<ResourceHandle<T>>
+{
+    usize operator()(ResourceHandle<T> handle) const noexcept
+    {
+        return std::hash<u64>{}(handle.m_Id);
+    }
+};
+}
 
 template <typename T>
 class GenerationalResourceHandle;
@@ -53,6 +66,8 @@ class GenerationalResourceHandle
 {
     FRIEND_INTERNAL
     friend struct SparseSetGenerationTraits<GenerationalResourceHandle>;
+    friend struct std::hash<GenerationalResourceHandle>;
+    
     using Traits = SparseSetGenerationTraits<GenerationalResourceHandle>;
 public:
     friend auto constexpr operator<=>(const GenerationalResourceHandle& a,
@@ -72,6 +87,18 @@ private:
     static constexpr UnderlyingType NON_HANDLE = std::numeric_limits<UnderlyingType>::max();
     UnderlyingType m_Id{NON_HANDLE};
 };
+
+namespace std
+{
+template <typename T>
+struct hash<GenerationalResourceHandle<T>>
+{
+    usize operator()(GenerationalResourceHandle<T> handle) const noexcept
+    {
+        return std::hash<u64>{}(handle.m_Id);
+    }
+};
+}
 
 template <typename T>
 constexpr std::pair<u32, u32> SparseSetGenerationTraits<GenerationalResourceHandle<T>>::Decompose(

@@ -25,7 +25,7 @@ io::IoResult<MaterialAsset> readMaterial(const AssetFile& assetFile)
     return *result;
 }
 
-io::IoResult<AssetPacked> pack(const AssetFile& material)
+io::IoResult<AssetPacked> pack(const MaterialAsset& material)
 {
     auto header = glz::write_json(material);
     ASSETLIB_CHECK_RETURN_IO_ERROR(header.has_value(), io::IoError::ErrorCode::GeneralError,

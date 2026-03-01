@@ -6,10 +6,21 @@
 
 #include "RenderHandleArray.h"
 #include "RenderObject.h"
-#include "SceneAsset.h"
 #include "SceneInstance.h"
 #include "Math/Geometry.h"
 #include "Rendering/Buffer/PushBuffer.h"
+#include "v2/Scenes/SceneAsset.h"
+
+namespace lux
+{
+class ImageAssetManager;
+class AssetSystem;
+}
+
+namespace lux
+{
+class MaterialAssetManager;
+}
 
 struct FrameContext;
 class BindlessTextureDescriptorsRingBuffer;
@@ -27,10 +38,13 @@ struct SceneRenderObject
 
 struct SceneGeometryInfo
 {
-    static SceneGeometryInfo FromAsset(assetLib::SceneInfo& sceneInfo,
-        BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue);
+    static SceneGeometryInfo FromAsset(lux::assetlib::SceneAsset& scene,
+        BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
+        lux::AssetSystem& assetSystem,
+        lux::ImageAssetManager& imageAssetManager,
+        lux::MaterialAssetManager& materialAssetManager);
     
-    std::vector<assetLib::SceneInfo::IndexType> Indices;
+    std::vector<lux::assetlib::SceneAssetIndexType> Indices;
     std::vector<glm::vec3> Positions;
     std::vector<glm::vec3> Normals;
     std::vector<glm::vec4> Tangents;
@@ -38,7 +52,7 @@ struct SceneGeometryInfo
 
     std::vector<SceneRenderObject> RenderObjects;
     std::vector<MaterialGPU> Materials;
-    std::vector<assetLib::SceneInfo::Meshlet> Meshlets;
+    std::vector<lux::assetlib::SceneAssetMeshlet> Meshlets;
     
     std::vector<Material> MaterialsCpu;
 };
@@ -58,7 +72,7 @@ public:
 public:
     struct SceneInfoOffsets
     {
-        std::array<u32, (u32)assetLib::SceneInfo::BufferViewType::MaxVal> ElementOffsets;
+        std::array<u32, (u32)lux::assetlib::SceneAssetBufferViewType::MaxVal> ElementOffsets;
         u32 MaterialOffset{0};
     };
 public:

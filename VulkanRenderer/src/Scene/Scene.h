@@ -1,7 +1,5 @@
 #pragma once
 
-#include "RenderObject.h"
-#include "SceneAsset.h"
 #include "SceneGeometry.h"
 #include "SceneHierarchy.h"
 #include "SceneLight.h"
@@ -24,7 +22,10 @@ class SceneInfo
     friend class SceneRenderObjectSet;
 public:
     static SceneInfo* LoadFromAsset(std::string_view assetPath,
-        BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue);
+    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
+    lux::AssetSystem& assetSystem,
+    lux::ImageAssetManager& imageAssetManager,
+    lux::MaterialAssetManager& materialAssetManager);
     
     void AddLight(const DirectionalLight& light);
     void AddLight(const PointLight& light);

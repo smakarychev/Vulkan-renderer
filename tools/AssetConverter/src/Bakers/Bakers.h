@@ -19,4 +19,14 @@ static constexpr std::array IMAGE_ASSET_RAW_EXTENSIONS = {
     IMAGE_ASSET_RAW_PNG_EXTENSION,
     IMAGE_ASSET_RAW_HDR_EXTENSION,
 };
+
+static constexpr std::string_view MATERIAL_ASSET_EXTENSION = ".mat";
+
+static constexpr std::string_view SCENE_ASSET_EXTENSION = ".scene";
+static constexpr std::string_view SCENE_ASSET_RAW_GLTF_EXTENSION = ".gltf";
+static constexpr std::string_view SCENE_ASSET_RAW_GLB_EXTENSION = ".glb";
+static constexpr std::array SCENE_ASSET_RAW_EXTENSIONS = {
+    SCENE_ASSET_RAW_GLTF_EXTENSION,
+    SCENE_ASSET_RAW_GLB_EXTENSION,
+};
 }

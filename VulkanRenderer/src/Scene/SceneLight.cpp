@@ -8,21 +8,19 @@
 #include "ViewInfoGPU.h"
 #include "Light/Light.h"
 #include "Rendering/Buffer/BufferUtility.h"
+#include "v2/Scenes/SceneAsset.h"
 #include "Vulkan/Device.h"
 
 namespace
 {
-    LightType lightTypeFromString(const std::string& lightType)
-    {
-        if (lightType == "directional")
-            return LightType::Directional;
-        if (lightType == "point")
-            return LightType::Point;
-        if (lightType == "spot")
-            return LightType::Spot;
+LightType lightTypeAssetLightType(lux::assetlib::SceneAssetLightType lightType)
+{
+    static_assert((u32)lux::assetlib::SceneAssetLightType::Directional == (u32)LightType::Directional);
+    static_assert((u32)lux::assetlib::SceneAssetLightType::Point == (u32)LightType::Point);
+    static_assert((u32)lux::assetlib::SceneAssetLightType::Spot == (u32)LightType::Spot);
 
-        std::unreachable();
-    }
+    return (LightType)lightType;
+}
 }
 
 Transform3d CommonLight::GetTransform() const
@@ -48,21 +46,22 @@ Transform3d CommonLight::GetTransform() const
     std::unreachable();
 }
 
-SceneLightInfo SceneLightInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
+SceneLightInfo SceneLightInfo::FromAsset(lux::assetlib::SceneAsset& scene)
 {
     SceneLightInfo sceneLightInfo = {};
-    sceneLightInfo.Lights.reserve(sceneInfo.Scene.lights.size());
+    sceneLightInfo.Lights.reserve(scene.Header.Lights.size());
 
-    for (auto& light : sceneInfo.Scene.lights)
+    for (auto& light : scene.Header.Lights)
         sceneLightInfo.Lights.push_back({
-            .Type = lightTypeFromString(light.type),
+            .Type = lightTypeAssetLightType(light.Type),
             /* this value is irrelevant, because the transform will be set by SceneHierarchy */
             .PositionDirection = glm::vec3{0.0},
-            .Color = *(glm::dvec3*)light.color.data(),
-            .Intensity = (f32)light.intensity,
-            .Radius = light.range > 0 ? (f32)light.range : std::numeric_limits<f32>::infinity(),
+            .Color = light.Color,
+            .Intensity = light.Intensity,
+            .Radius = light.Range,
             // todo:
-            .SpotLightData = {}});
+            .SpotLightData = {}
+        });
 
     return sceneLightInfo;
 }

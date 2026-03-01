@@ -6,7 +6,6 @@
 
 #include "AssetManager.h"
 #include "ViewInfoGPU.h"
-#include "Converters.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Assets/Materials/MaterialAsset.h"
@@ -257,9 +256,10 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/death_valley/scene.scene", 
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/death_valley/scene.scene", 
             //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/huge_plane/scene.scene", 
-            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue());
+            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
+            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager);
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
                 .Position = glm::vec3{1500.0f, -500.0f, -7.0f},
@@ -308,6 +308,8 @@ void Renderer::ExecuteSingleTimePasses()
 {
     static constexpr std::string_view SKYBOX_PATH = "../assets/baked/textures/autumn_field_puresky_4k.tex";
     const lux::ImageHandle equirectangular = m_ImageAssetManager->LoadResource({.Path = SKYBOX_PATH});
+
+    const lux::MaterialHandle materialHandle = m_MaterialAssetManager->LoadResource({.Path = "../assets/baked/textures/materialTest.mat"});
     
     const TextureDescription& equirectangularDescription =
         Device::GetImageDescription(m_ImageAssetManager->Get(equirectangular));

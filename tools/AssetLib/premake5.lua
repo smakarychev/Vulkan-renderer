@@ -14,11 +14,9 @@ project "AssetLib"
         "src",
         "%{wks.location}/CoreLib/src",
         IncludeDir["lz4"],
-        IncludeDir["nlohmann-json"],
         IncludeDir["glaze"],
         IncludeDir["glm"],
         IncludeDir["volk"],
-        IncludeDir["tinygltf"],  
         "$(VULKAN_SDK)/Include",
     }
 

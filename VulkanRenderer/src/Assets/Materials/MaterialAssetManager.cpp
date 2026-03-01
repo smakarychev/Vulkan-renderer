@@ -4,6 +4,7 @@
 #include "Assets/AssetSystem.h"
 #include "Assets/Enums/ConvertAssetEnums.h"
 #include "Assets/Images/ImageAssetManager.h"
+#include "Bakers/Bakers.h"
 #include "v2/Materials/MaterialAsset.h"
 #include "v2/Images/ImageAsset.h"
 #include "v2/Io/IoInterface/AssetIoInterface.h"
@@ -12,12 +13,12 @@ namespace lux
 {
 namespace 
 {
-constexpr std::string_view MATERIAL_ASSET_EXTENSION = ".mat";
+
 }
 
 bool MaterialAssetManager::AddManaged(const std::filesystem::path& path, AssetIdResolver& resolver)
 {
-    if (path.extension() != MATERIAL_ASSET_EXTENSION)
+    if (path.extension() != bakers::MATERIAL_ASSET_EXTENSION)
         return false;
 
     auto assetFile = m_AssetSystem->GetIo().ReadHeader(path);
@@ -43,7 +44,7 @@ bool MaterialAssetManager::Bakes(const std::filesystem::path& path)
 
 void MaterialAssetManager::OnFileModified(const std::filesystem::path& path)
 {
-    if (path.extension() != MATERIAL_ASSET_EXTENSION)
+    if (path.extension() != bakers::MATERIAL_ASSET_EXTENSION)
         return;
 
     Lock lock(m_ResourceAccessMutex);

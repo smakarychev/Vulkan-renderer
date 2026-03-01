@@ -5,7 +5,6 @@
 
 #include <optional>
 #include <string>
-#include <vector>
 #include <glm/glm.hpp>
 
 namespace lux::assetlib
@@ -45,7 +44,7 @@ namespace material
 {
 io::IoResult<MaterialAsset> readMaterial(const AssetFile& assetFile);
 
-io::IoResult<AssetPacked> pack(const AssetFile& material);
+io::IoResult<AssetPacked> pack(const MaterialAsset& material);
 
 AssetMetadata getMetadata();
 }

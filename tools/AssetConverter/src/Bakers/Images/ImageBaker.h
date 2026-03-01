@@ -43,7 +43,6 @@ private:
     IoResult<assetlib::ImageAsset> BakeLDRKtx(const assetlib::ImageLoadInfo& loadInfo);
     IoResult<assetlib::ImageAsset> BakeLDRJpg(const assetlib::ImageLoadInfo& loadInfo);
 private:
-    // todo: rename to .tx once ready
     static constexpr std::string_view POST_BAKE_EXTENSION = IMAGE_ASSET_EXTENSION;
 };
 }

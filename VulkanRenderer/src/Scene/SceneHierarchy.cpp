@@ -4,17 +4,16 @@
 
 #include "ResourceUploader.h"
 #include "Scene.h"
-#include "SceneAsset.h"
 #include "FrameContext.h"
 
-SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
+SceneHierarchyInfo SceneHierarchyInfo::FromAsset(const lux::assetlib::SceneAsset& scene)
 {
     SceneHierarchyInfo sceneHierarchy = {};
 
-    const u32 sceneIndex = sceneInfo.Scene.defaultScene > 0 ? (u32)sceneInfo.Scene.defaultScene : 0;
-    auto& scene = sceneInfo.Scene.scenes[sceneIndex];
+    const u32 sceneIndex = scene.Header.DefaultSubscene;
+    auto& subscene = scene.Header.Subscenes[sceneIndex];
     
-    auto& nodes = sceneInfo.Scene.nodes;
+    auto& nodes = scene.Header.Nodes;
     sceneHierarchy.Nodes.reserve(nodes.size());
 
     struct NodeInfo
@@ -24,7 +23,7 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
         u16 Depth{0};
     };
     std::queue<NodeInfo> nodesToProcess;
-    for (auto& node : scene.nodes)
+    for (auto& node : subscene.Nodes)
         nodesToProcess.push({.NodeIndex = (u32)node});
 
     while (!nodesToProcess.empty())
@@ -36,9 +35,9 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
 
         auto& node = nodes[nodeIndex];
         SceneHierarchyNodeType type = SceneHierarchyNodeType::Dummy;
-        if (node.mesh >= 0)
+        if (node.Mesh != lux::assetlib::SCENE_UNSET_INDEX)
             type = SceneHierarchyNodeType::Mesh;
-        else if (node.light >= 0)
+        else if (node.Light != lux::assetlib::SCENE_UNSET_INDEX)
             type = SceneHierarchyNodeType::Light;
 
         const u32 thisNodeNewIndex = (u32)sceneHierarchy.Nodes.size();
@@ -46,10 +45,10 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
         switch (type)
         {
         case SceneHierarchyNodeType::Mesh:
-            payloadIndex = node.mesh;
+            payloadIndex = node.Mesh;
             break;
         case SceneHierarchyNodeType::Light:
-            payloadIndex = node.light;
+            payloadIndex = node.Light;
             break;
         case SceneHierarchyNodeType::Dummy:
         default:
@@ -60,14 +59,16 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(assetLib::SceneInfo& sceneInfo)
             .Type = type,
             .Depth = depth,
             .Parent = parent,
-            .LocalTransform = assetLib::getTransform(node),
-            .PayloadIndex = payloadIndex});
+            .LocalTransform = node.Transform,
+            .PayloadIndex = payloadIndex
+        });
 
-        for (u32 childNode : nodes[nodeIndex].children)
+        for (u32 childNode : nodes[nodeIndex].Children)
             nodesToProcess.push({
                 .ParentIndex = thisNodeNewIndex,
                 .NodeIndex = childNode,
-                .Depth = (u16)(depth + 1)});
+                .Depth = (u16)(depth + 1)
+            });
     }
     
     return sceneHierarchy;
