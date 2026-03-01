@@ -1,7 +1,7 @@
 project "CoreLibTests"
     kind "ConsoleApp"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
@@ -12,6 +12,9 @@ project "CoreLibTests"
 
     includedirs {
         "src",
+    }
+
+    externalincludedirs {
         IncludeDir["CoreLib"],
         IncludeDir["catch2"],
         IncludeDir["glm"],

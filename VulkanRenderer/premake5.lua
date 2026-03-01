@@ -9,6 +9,9 @@ local project_includes = {
     "%{wks.location}/CoreLib/src",
     "%{wks.location}/tools/AssetLib/src",
     "%{wks.location}/tools/AssetConverter/src",
+}
+
+local external_includes = {
     IncludeDir["GLFW"],			
     IncludeDir["glm"],			
     IncludeDir["vma"],	
@@ -53,7 +56,7 @@ local project_release_descriptor_buffer_defines = {
 project "VulkanRendererLib"
     kind "StaticLib"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
@@ -61,6 +64,7 @@ project "VulkanRendererLib"
     removefiles { "src/main.cpp" }
     
     includedirs (project_includes)
+    externalincludedirs (external_includes) 
     libdirs (project_libdirs)
     links (project_links)
     defines (project_defines)
@@ -93,12 +97,13 @@ project "VulkanRendererLib"
 project "VulkanRenderer"
     kind "ConsoleApp"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
     targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
     files { "src/main.cpp", "src/rendererpch.cpp"}
     includedirs (project_includes)
+    externalincludedirs (external_includes)  
     links {
         "VulkanRendererLib"
     }

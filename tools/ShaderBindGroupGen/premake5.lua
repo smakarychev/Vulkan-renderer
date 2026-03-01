@@ -1,7 +1,7 @@
 project "ShaderBindGroupGen"
     kind "ConsoleApp"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
@@ -15,7 +15,9 @@ project "ShaderBindGroupGen"
         "%{wks.location}/CoreLib/src",
         "%{wks.location}/tools/AssetLib/src",
         "%{wks.location}/tools/AssetConverter/src",
-        
+    }
+    
+    externalincludedirs {
         IncludeDir["nlohmann-json"],
         IncludeDir["glaze"],
         IncludeDir["glm"],

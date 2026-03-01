@@ -6,9 +6,8 @@ workspace "VulkanRenderer"
     configurations { "Debug", "Release", "Debug_DescriptorBuffer", "Release_DescriptorBuffer" }
     architecture "x86_64"
     editandcontinue "Off"
-    flags {
-        "MultiProcessorCompile",
-	}
+    multiprocessorcompile "On"
+    externalwarnings "Off"
     startproject "VulkanRenderer"
 
     linkoptions { 

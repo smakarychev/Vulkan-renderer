@@ -1,7 +1,7 @@
 project "CoreLib"
     kind "StaticLib"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
@@ -12,6 +12,9 @@ project "CoreLib"
 
     includedirs {
         "src",
+    }
+    
+    externalincludedirs {
         IncludeDir["glm"],
         IncludeDir["efsw"],
         IncludeDir["spdlog"], 

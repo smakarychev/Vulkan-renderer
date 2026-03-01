@@ -61,7 +61,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
     {
         bool called = false;
         fs::path toCreate = testDir / "temp";
-        watcher.Watch(testDir);
+        REQUIRE(watcher.Watch(testDir).has_value());
         FileWatcherHandler handler([&called, &toCreate](const FileWatcherEvent& file)
         {
             if (called)
@@ -72,7 +72,8 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
         });
         if (fs::exists(toCreate))
             fs::remove_all(toCreate);
-        watcher.Subscribe(handler);
+        
+        REQUIRE(watcher.Subscribe(handler).has_value());
         fs::create_directory(testDir / "temp");
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         REQUIRE(called);
@@ -81,7 +82,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
     {
         bool called = false;
         fs::path existing = testDir / "temp";
-        watcher.Watch(testDir);
+        REQUIRE(watcher.Watch(testDir).has_value());
         FileWatcherHandler handler([&called, &existing](const FileWatcherEvent& file)
         {
             if (called)
@@ -92,7 +93,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
         });
         if (!fs::exists(existing))
             fs::create_directory(existing);
-        watcher.Subscribe(handler);
+        REQUIRE(watcher.Subscribe(handler).has_value());
         fs::remove_all(testDir / "temp");
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
         REQUIRE(called);
@@ -101,7 +102,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
     {
         bool called = false;
         fs::path existing = testDir / "text.txt";
-        watcher.Watch(testDir);
+        REQUIRE(watcher.Watch(testDir).has_value());
         FileWatcherHandler handler([&called, &existing](const FileWatcherEvent& file)
         {
             if (called)
@@ -114,7 +115,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
             std::ofstream out(existing);
             out << "t";
         }
-        watcher.Subscribe(handler);
+        REQUIRE(watcher.Subscribe(handler).has_value());
         {
             std::ofstream out(existing);
             out << "t";
@@ -127,7 +128,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
         bool called = false;
         fs::path existing = testDir / "temp";
         fs::path renamed = testDir / "temp2";
-        watcher.Watch(testDir);
+        REQUIRE(watcher.Watch(testDir).has_value());
         FileWatcherHandler handler([&called, &existing, &renamed](const FileWatcherEvent& file)
         {
             if (called)
@@ -140,7 +141,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
             fs::create_directory(existing);
         if (fs::exists(renamed))
             fs::remove_all(renamed);
-        watcher.Subscribe(handler);
+        REQUIRE(watcher.Subscribe(handler).has_value());
         fs::rename(existing, testDir / "temp2");
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
         REQUIRE(called);
@@ -149,7 +150,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
     {
         u32 timesCalled = 0;
         fs::path existing = testDir / "text.txt";
-        watcher.Watch(testDir);
+        REQUIRE(watcher.Watch(testDir).has_value());
         FileWatcherHandler handler([&timesCalled, &existing](const FileWatcherEvent& file)
         {
             if (file.Action == FileWatcherEvent::ActionType::Modify && file.Name == existing)
@@ -160,7 +161,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
             out << "t";
         }
         
-        watcher.Subscribe(handler);
+        REQUIRE(watcher.Subscribe(handler).has_value());
         for (u32 i = 0; i < 1'000; i++)
         {
             std::ofstream out(existing, std::ios::app);
@@ -175,7 +176,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
         u32 timesCalledB = 0;
         fs::path existingA = testDir / "text.txt";
         fs::path existingB = testDir / "text2.txt";
-        watcher.Watch(testDir);
+        REQUIRE(watcher.Watch(testDir).has_value());
         FileWatcherHandler handler([&timesCalledA, &timesCalledB, &existingA, &existingB]
             (const FileWatcherEvent& file)
         {
@@ -191,7 +192,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
             outB << "t";
         }
         
-        watcher.Subscribe(handler);
+        REQUIRE(watcher.Subscribe(handler).has_value());
         for (u32 i = 0; i < 1'000; i++)
         {
             std::ofstream outA(existingA, std::ios::app);
@@ -207,7 +208,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
     {
         u32 timesCalled = 0;
         fs::path existing = testDir / "text.txt";
-        watcher.Watch(testDir);
+        REQUIRE(watcher.Watch(testDir).has_value());
         FileWatcherHandler handler([&timesCalled, &existing](const FileWatcherEvent& file)
         {
             if (file.Action == FileWatcherEvent::ActionType::Modify && file.Name == existing)
@@ -218,7 +219,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
             out << "t";
         }
         
-        watcher.Subscribe(handler);
+        REQUIRE(watcher.Subscribe(handler).has_value());
         {
             std::ofstream out(existing, std::ios::app);
             out << "t" << std::endl;
@@ -250,7 +251,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
         bool called = false;
         fs::path existing = testDir / "text.txt";
 
-        watcher.Watch(testDir, {.DebounceDuration = std::chrono::milliseconds(5)});
+        REQUIRE(watcher.Watch(testDir, {.DebounceDuration = std::chrono::milliseconds(5)}).has_value());
         {
             FileWatcherHandler handler([&called, &existing](const FileWatcherEvent& file)
             {
@@ -258,7 +259,7 @@ TEST_CASE("Filewatcher", "[Platform][FileWatcher]")
                 std::this_thread::sleep_for(std::chrono::milliseconds(500));
             });
 
-            watcher.Subscribe(handler);
+            REQUIRE(watcher.Subscribe(handler).has_value());
             {
                 std::ofstream out(existing);
                 out << "t";

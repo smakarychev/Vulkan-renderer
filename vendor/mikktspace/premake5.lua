@@ -1,10 +1,11 @@
 project "mikktspace"
     kind "StaticLib"
-        language "C"
-        targetdir ("bin/" .. outputdir .. "/%{prj.name}")
-        objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
-        
-        files
-        {
-            "src/**",
-        }
+    language "C"
+    warnings "Off"  
+    targetdir ("bin/" .. outputdir .. "/%{prj.name}")
+    objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
+    
+    files
+    {
+        "src/**",
+    }

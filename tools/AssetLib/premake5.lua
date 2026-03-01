@@ -1,7 +1,7 @@
 project "AssetLib"
     kind "StaticLib"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
@@ -13,6 +13,9 @@ project "AssetLib"
     includedirs {
         "src",
         "%{wks.location}/CoreLib/src",
+    }
+    
+    externalincludedirs {
         IncludeDir["lz4"],
         IncludeDir["glaze"],
         IncludeDir["glm"],

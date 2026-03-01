@@ -5,10 +5,12 @@ local project_files = {
 
 local include_dirs = {
     "src",
-    "$(VULKAN_SDK)/Include",
     "%{wks.location}/CoreLib/src",
     "%{wks.location}/tools/AssetLib/src",
-    
+}
+
+local external_includes = {
+    "$(VULKAN_SDK)/Include",
     IncludeDir["stb"],		    
     IncludeDir["glm"],
     IncludeDir["meshoptimizer"],   
@@ -47,7 +49,7 @@ local project_defines = {
 project "AssetConverter"
     kind "ConsoleApp"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     defines (project_defines) 
@@ -55,6 +57,7 @@ project "AssetConverter"
 	files (project_files)
  	
     includedirs (include_dirs)
+    externalincludedirs (external_includes) 
     libdirs {
 		"$(VULKAN_SDK)/Lib",
 	}
@@ -78,7 +81,7 @@ project "AssetConverter"
 project "AssetConverterLib"
     kind "StaticLib"
     language "C++"
-    cppdialect "C++20"
+    cppdialect "C++latest"
 	targetdir ("bin/" .. outputdir .. "/%{prj.name}")
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     defines (project_defines) 
@@ -89,6 +92,7 @@ project "AssetConverterLib"
     }
 
     includedirs (include_dirs)
+    externalincludedirs (external_includes) 
 
     libdirs {
 		"$(VULKAN_SDK)/Lib",
