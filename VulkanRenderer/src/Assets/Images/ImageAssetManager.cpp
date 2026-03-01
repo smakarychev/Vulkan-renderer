@@ -8,7 +8,7 @@
 #include "Bakers/Images/ImageBaker.h"
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Image/ImageUtility.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
+#include "Io/IoInterface/AssetIoInterface.h"
 #include "Vulkan/Device.h"
 
 namespace lux

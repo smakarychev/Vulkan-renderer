@@ -4,11 +4,11 @@
 #include "Bakers/BakersUtils.h"
 #include "Utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
-#include "v2/Io/Compression/AssetCompressor.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
-#include "v2/Shaders/ShaderLoadInfo.h"
-#include "v2/Shaders/ShaderUniform.h"
-#include "v2/Shaders/ShaderAsset.h"
+#include "Io/Compression/AssetCompressor.h"
+#include "Io/IoInterface/AssetIoInterface.h"
+#include "Shaders/ShaderLoadInfo.h"
+#include "Shaders/ShaderUniform.h"
+#include "Shaders/ShaderAsset.h"
 
 #include <fstream>
 #include <queue>

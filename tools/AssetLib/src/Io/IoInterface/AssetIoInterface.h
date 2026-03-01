@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include "Containers/Span.h"
-#include "v2/Io/AssetIo.h"
+#include "Io/AssetIo.h"
 
 namespace lux::assetlib::io
 {

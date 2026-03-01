@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "AssetHandle.h"
 #include "Containers/Guid.h"
-#include "v2/Io/AssetIo.h"
+#include "Io/AssetIo.h"
 
 #include <mutex>
 

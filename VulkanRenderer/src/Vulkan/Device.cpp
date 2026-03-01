@@ -26,7 +26,7 @@
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "utils/CoreUtils.h"
-#include "v2/Images/ImageAsset.h"
+#include "Images/ImageAsset.h"
 
 namespace
 {

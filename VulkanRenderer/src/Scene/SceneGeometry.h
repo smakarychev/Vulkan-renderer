@@ -9,7 +9,7 @@
 #include "SceneInstance.h"
 #include "Math/Geometry.h"
 #include "Rendering/Buffer/PushBuffer.h"
-#include "v2/Scenes/SceneAsset.h"
+#include "Scenes/SceneAsset.h"
 
 namespace lux
 {

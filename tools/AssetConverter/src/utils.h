@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include "v2/Scenes/SceneAsset.h"
+#include "Scenes/SceneAsset.h"
 
 namespace utils
 {

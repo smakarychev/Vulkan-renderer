@@ -2,7 +2,7 @@
 #include "core.h"
 #include "Math/Geometry.h"
 #include "Math/Transform.h"
-#include "v2/Io/AssetIo.h"
+#include "Io/AssetIo.h"
 
 #include <glm/glm.hpp>
 

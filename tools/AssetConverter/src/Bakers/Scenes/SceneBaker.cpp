@@ -4,9 +4,9 @@
 #include "utils.h"
 #include "Bakers/BakersUtils.h"
 #include "Bakers/Images/ImageBaker.h"
-#include "v2/Io/Compression/AssetCompressor.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
-#include "v2/Materials/MaterialAsset.h"
+#include "Io/Compression/AssetCompressor.h"
+#include "Io/IoInterface/AssetIoInterface.h"
+#include "Materials/MaterialAsset.h"
 
 #define TINYGLTF_NO_EXTERNAL_IMAGE
 #define TINYGLTF_NO_STB_IMAGE

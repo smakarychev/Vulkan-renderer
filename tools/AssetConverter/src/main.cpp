@@ -6,14 +6,14 @@
 #include "Bakers/Scenes/SceneBaker.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "Platform/PlatformUtils.h"
-#include "v2/Io/AssetIoRegistry.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
-#include "v2/Io/Compression/AssetCompressor.h"
-#include "v2/Io/Compression/Lz4AssetCompressor.h"
-#include "v2/Io/Compression/RawAssetCompressor.h"
-#include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
-#include "v2/Io/IoInterface/SeparateAssetIoInterface.h"
-#include "v2/Reflection/AssetlibReflectionUtility.inl"
+#include "Io/AssetIoRegistry.h"
+#include "Io/IoInterface/AssetIoInterface.h"
+#include "Io/Compression/AssetCompressor.h"
+#include "Io/Compression/Lz4AssetCompressor.h"
+#include "Io/Compression/RawAssetCompressor.h"
+#include "Io/IoInterface/CombinedAssetIoInterface.h"
+#include "Io/IoInterface/SeparateAssetIoInterface.h"
+#include "Reflection/AssetlibReflectionUtility.inl"
 
 #include <filesystem>
 #include <memory>

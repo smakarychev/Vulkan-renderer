@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include "types.h"
-#include "v2/AssetId.h"
-#include "v2/Io/AssetIo.h"
+#include "AssetId.h"
+#include "Io/AssetIo.h"
 
 #include <optional>
 #include <string>

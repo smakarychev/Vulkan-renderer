@@ -1,10 +1,10 @@
 ﻿#include "ImageAsset.h"
 
 #include "utils.h"
-#include "v2/Io/Compression/AssetCompressor.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
-#include "v2/Reflection/AssetlibReflectionUtility.inl"
-#include "v2/Format/ImageFormat.inl"
+#include "Io/Compression/AssetCompressor.h"
+#include "Io/IoInterface/AssetIoInterface.h"
+#include "Reflection/AssetlibReflectionUtility.inl"
+#include "Format/ImageFormat.inl"
 
 template <>
 struct glz::meta<lux::assetlib::ImageKind> : lux::assetlib::reflection::CamelCase {

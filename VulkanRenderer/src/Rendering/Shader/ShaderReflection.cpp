@@ -7,9 +7,9 @@
 #include "Vulkan/Device.h"
 #include "Utils/ContainterUtils.h"
 #include "Rendering/DeletionQueue.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
+#include "Io/IoInterface/AssetIoInterface.h"
 
-#include "v2/Shaders/ShaderAsset.h"
+#include "Shaders/ShaderAsset.h"
 
 static_assert(BINDLESS_DESCRIPTORS_INDEX == lux::assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX);
 static_assert(

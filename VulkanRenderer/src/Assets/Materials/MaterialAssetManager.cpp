@@ -5,9 +5,9 @@
 #include "Assets/Enums/ConvertAssetEnums.h"
 #include "Assets/Images/ImageAssetManager.h"
 #include "Bakers/Bakers.h"
-#include "v2/Materials/MaterialAsset.h"
-#include "v2/Images/ImageAsset.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
+#include "Materials/MaterialAsset.h"
+#include "Images/ImageAsset.h"
+#include "Io/IoInterface/AssetIoInterface.h"
 
 namespace lux
 {

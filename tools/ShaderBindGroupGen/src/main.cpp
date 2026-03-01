@@ -8,10 +8,10 @@
 #include "Slang/SlangUniformTypeGenerator.h"
 #include "utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
-#include "v2/Io/IoInterface/CombinedAssetIoInterface.h"
-#include "v2/Io/IoInterface/SeparateAssetIoInterface.h"
-#include "v2/Io/AssetIoRegistry.h"
-#include "v2/Reflection/AssetlibReflectionUtility.inl"
+#include "Io/IoInterface/CombinedAssetIoInterface.h"
+#include "Io/IoInterface/SeparateAssetIoInterface.h"
+#include "Io/AssetIoRegistry.h"
+#include "Reflection/AssetlibReflectionUtility.inl"
 
 #include <glaze/glaze.hpp>
 

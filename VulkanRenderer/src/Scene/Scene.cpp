@@ -3,7 +3,7 @@
 #include "Scene.h"
 
 #include "AssetManager.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
+#include "Io/IoInterface/AssetIoInterface.h"
 #include "Vulkan/Device.h"
 
 SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,

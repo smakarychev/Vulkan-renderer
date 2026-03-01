@@ -2,7 +2,7 @@
 
 #include "types.h"
 #include "Containers/Span.h"
-#include "v2/Assetlib.h"
+#include "Assetlib.h"
 
 #include <vector>
 

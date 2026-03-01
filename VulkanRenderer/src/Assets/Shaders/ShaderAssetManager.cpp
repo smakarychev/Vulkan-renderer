@@ -7,7 +7,7 @@
 #include "Bakers/Bakers.h"
 #include "Bakers/Shaders/SlangBaker.h"
 #include "cvars/CVarSystem.h"
-#include "v2/Io/IoInterface/AssetIoInterface.h"
+#include "Io/IoInterface/AssetIoInterface.h"
 #include "Vulkan/Device.h"
 
 namespace lux
