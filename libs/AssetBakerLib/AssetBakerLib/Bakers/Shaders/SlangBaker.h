@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Bakers/BakerContext.h"
+#include <AssetBakerLib/Bakers/BakerContext.h>
 #include "types.h"
 #include "Containers/Result.h"
 #include "Containers/Span.h"

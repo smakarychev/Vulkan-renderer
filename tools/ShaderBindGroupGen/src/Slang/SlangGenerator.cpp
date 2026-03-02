@@ -2,7 +2,7 @@
 
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
-#include "Bakers/Shaders/SlangBaker.h"
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 #include "Io/IoInterface/AssetIoInterface.h"
 #include "Shaders/ShaderAsset.h"
 #include "Shaders/ShaderLoadInfo.h"

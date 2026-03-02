@@ -1,6 +1,6 @@
 ﻿#include "ImageBaker.h"
 
-#include "Bakers/BakersUtils.h"
+#include <AssetBakerLib/Bakers/BakersUtils.h>
 #include "Io/Compression/AssetCompressor.h"
 #include "Io/IoInterface/AssetIoInterface.h"
 

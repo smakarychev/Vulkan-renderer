@@ -2,7 +2,7 @@
 #include "ImageAsset.h"
 #include "Assets/AssetManager.h"
 #include "Assets/Common/AssetFreeListMap.h"
-#include "Bakers/BakerContext.h"
+#include <AssetBakerLib/Bakers/BakerContext.h>
 #include "String/StringHeterogeneousHasher.h"
 
 struct FrameContext;

@@ -5,7 +5,7 @@
 #include "Assets/AssetIdResolver.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Enums/ConvertAssetEnums.h"
-#include "Bakers/Images/ImageBaker.h"
+#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Image/ImageUtility.h"
 #include "Io/IoInterface/AssetIoInterface.h"

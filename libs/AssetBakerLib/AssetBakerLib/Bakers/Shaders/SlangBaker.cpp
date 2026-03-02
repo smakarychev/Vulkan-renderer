@@ -1,7 +1,7 @@
 #include "SlangBaker.h"
 
 #include "core.h"
-#include "Bakers/BakersUtils.h"
+#include <AssetBakerLib/Bakers/BakersUtils.h>
 #include "Utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
 #include "Io/Compression/AssetCompressor.h"

@@ -1,10 +1,10 @@
 ﻿#include "Log.h"
-#include "Bakers/BakerContext.h"
-#include "Bakers/Bakers.h"
-#include "Bakers/BakersDispatcher.h"
-#include "Bakers/Images/ImageBaker.h"
-#include "Bakers/Scenes/SceneBaker.h"
-#include "Bakers/Shaders/SlangBaker.h"
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetBakerLib/Bakers/Bakers.h>
+#include <AssetBakerLib/Bakers/BakersDispatcher.h>
+#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
+#include <AssetBakerLib/Bakers/Scenes/SceneBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 #include "Platform/PlatformUtils.h"
 #include "Io/AssetIoRegistry.h"
 #include "Io/IoInterface/AssetIoInterface.h"

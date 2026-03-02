@@ -1,7 +1,7 @@
 #include "types.h"
 #include "core.h"
 
-#include "Bakers/Bakers.h"
+#include <AssetBakerLib/Bakers/Bakers.h>
 
 #include "Platform/PlatformUtils.h"
 #include "Slang/SlangGenerator.h"

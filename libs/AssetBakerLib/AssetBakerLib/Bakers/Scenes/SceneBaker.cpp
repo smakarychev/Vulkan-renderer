@@ -1,9 +1,9 @@
 ﻿#include "SceneBaker.h"
 
 #include "mikktspace.h"
-#include "utils.h"
-#include "Bakers/BakersUtils.h"
-#include "Bakers/Images/ImageBaker.h"
+#include <AssetBakerLib/utils.h>
+#include <AssetBakerLib/Bakers/BakersUtils.h>
+#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
 #include "Io/Compression/AssetCompressor.h"
 #include "Io/IoInterface/AssetIoInterface.h"
 #include "Materials/MaterialAsset.h"

@@ -9,12 +9,12 @@ project "AssetBakerLib"
     }
 
 	files {
-        "src/**.h",
-        "src/**.cpp",
+        "AssetBakerLib/**.h",
+        "AssetBakerLib/**.cpp",
     }
 
     includedirs {
-        "src",
+        "./",
         IncludeDir["CoreLib"],
         IncludeDir["AssetLib"]
     }

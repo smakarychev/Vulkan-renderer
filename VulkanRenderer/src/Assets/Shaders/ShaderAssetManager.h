@@ -2,8 +2,8 @@
 
 #include "ShaderAsset.h"
 #include "Assets/AssetManager.h"
-#include "Bakers/BakerContext.h"
-#include "Bakers/Shaders/SlangBaker.h"
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 #include "Rendering/Shader/ShaderOverrides.h"
 #include "Rendering/Shader/ShaderReflection.h"
 #include "Rendering/Shader/ShaderPipelineTemplate.h"

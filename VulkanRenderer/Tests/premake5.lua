@@ -12,10 +12,10 @@ project "RendererTests"
 
     includedirs {
         "src",
-        "%{wks.location}/Libs/AssetLib/src",
-        "%{wks.location}/Libs/AssetBakerLib/src",
         IncludeDir["Renderer"],
         IncludeDir["CoreLib"],
+        IncludeDir["AssetLib"],
+        IncludeDir["AssetBakerLib"],
         IncludeDir["glm"],
         IncludeDir["catch2"],
         IncludeDir["imgui"],

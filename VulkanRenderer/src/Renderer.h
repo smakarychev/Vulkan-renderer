@@ -11,9 +11,9 @@
 #include "FrameContext.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
-#include "Bakers/BakerContext.h"
-#include "Bakers/Images/ImageBaker.h"
-#include "Bakers/Shaders/SlangBaker.h"
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"

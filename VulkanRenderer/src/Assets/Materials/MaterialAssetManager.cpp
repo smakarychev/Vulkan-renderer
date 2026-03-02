@@ -4,7 +4,7 @@
 #include "Assets/AssetSystem.h"
 #include "Assets/Enums/ConvertAssetEnums.h"
 #include "Assets/Images/ImageAssetManager.h"
-#include "Bakers/Bakers.h"
+#include <AssetBakerLib/Bakers/Bakers.h>
 #include "Materials/MaterialAsset.h"
 #include "Images/ImageAsset.h"
 #include "Io/IoInterface/AssetIoInterface.h"
