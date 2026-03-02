@@ -1,9 +1,7 @@
 #pragma once
 
-#include "types.h"
 #include "Rendering/CommandBuffer.h"
 #include "Rendering/DeletionQueue.h"
-#include "Rendering/Swapchain.h"
 #include "Rendering/Commands/RenderCommandList.h"
 
 class ResourceUploader;

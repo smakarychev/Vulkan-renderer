@@ -1,8 +1,8 @@
 ﻿#pragma once
 
-#include "types.h"
-#include "Containers/Result.h"
 #include <AssetLib/Assetlib.h>
+#include <CoreLib/types.h>
+#include <CoreLib/Containers/Result.h>
 
 #include <format>
 

@@ -1,11 +1,12 @@
 #pragma once
 
 #include "Light/Light.h"
-#include "Math/Geometry.h"
 #include "RenderGraph/RGDrawResources.h"
 #include "RenderGraph/RGResource.h"
 #include "RenderGraph/Passes/Generated/Types/CsmDataUniform.generated.h"
 #include "Scene/ScenePass.h"
+
+#include <CoreLib/Math/Geometry.h>
 
 class SceneDrawPassViewAttachments;
 struct SceneDrawPassDescription;

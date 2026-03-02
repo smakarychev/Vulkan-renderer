@@ -1,7 +1,7 @@
-#include "catch2/catch_test_macros.hpp"
+#include <catch2/catch_test_macros.hpp>
 
-#include "types.h"
-#include "Utils/ContainterUtils.h"
+#include <CoreLib/types.h>
+#include <CoreLib/Utils/ContainterUtils.h>
 
 #include <unordered_set>
 

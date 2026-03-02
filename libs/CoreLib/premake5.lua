@@ -6,12 +6,12 @@ project "CoreLib"
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
     files {
-        "src/**.h",
-        "src/**.cpp",
+        "CoreLib/**.h",
+        "CoreLib/**.cpp",
     }
 
     includedirs {
-        "src",
+        "./",
     }
     
     externalincludedirs {

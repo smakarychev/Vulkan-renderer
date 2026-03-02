@@ -3,11 +3,13 @@
 #include "SlimeMoldPass.h"
 
 #include "FrameContext.h"
-#include "imgui/imgui.h"
 #include "ResourceUploader.h"
-#include "Math/Random.h"
 #include "RenderGraph/Passes/Generated/SlimeMoldBindGroupRG.generated.h"
 #include "RenderGraph/Passes/Utility/CopyTexturePass.h"
+
+#include <CoreLib/Math/Random.h>
+
+#include <imgui/imgui.h>
 
 SlimeMoldContext SlimeMoldContext::RandomIn(const glm::uvec2& bounds, u32 traitCount, u32 slimeCount,
     ResourceUploader& resourceUploader)

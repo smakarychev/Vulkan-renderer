@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Containers/DenseSetPaged.h"
-#include "Containers/SparseSet.h"
-
 #include "Rendering/ResourceHandle.h"
+
+#include <CoreLib/Containers/DenseSetPaged.h>
+#include <CoreLib/Containers/SparseSet.h>
 
 template <typename T>
 class DeviceSparseSet

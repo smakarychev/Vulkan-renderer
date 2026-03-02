@@ -11,9 +11,6 @@
 #include "FrameContext.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Images/ImageAssetManager.h"
-#include <AssetBakerLib/Bakers/BakerContext.h>
-#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 #include "RenderGraph/Passes/Clouds/CloudCommon.h"
 #include "RenderGraph/Passes/Clouds/VerticalProfile/VPCloudPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityPassesCommon.h"
@@ -26,6 +23,10 @@
 #include "Scene/ScenePass.h"
 #include "Scene/SceneRenderObjectSet.h"
 #include "Scene/Visibility/SceneMultiviewVisibility.h"
+
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 
 namespace lux
 {

@@ -5,11 +5,12 @@
 #include "AssetManager.h"
 #include "ShaderPipelineTemplate.h"
 #include "Vulkan/Device.h"
-#include "Utils/ContainterUtils.h"
 #include "Rendering/DeletionQueue.h"
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 
 #include <AssetLib/Shaders/ShaderAsset.h>
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <CoreLib/Utils/ContainterUtils.h>
+
 
 static_assert(BINDLESS_DESCRIPTORS_INDEX == lux::assetlib::SHADER_TEXTURE_HEAP_DESCRIPTOR_SET_INDEX);
 static_assert(

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Containers/Guid.h"
+#include <CoreLib/Containers/Guid.h>
 
 #include "CorelibReflectionUtility.inl"
 

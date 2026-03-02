@@ -8,8 +8,9 @@
 #include "ViewInfoGPU.h"
 #include "Light/Light.h"
 #include "Rendering/Buffer/BufferUtility.h"
-#include <AssetLib/Scenes/SceneAsset.h>
 #include "Vulkan/Device.h"
+
+#include <AssetLib/Scenes/SceneAsset.h>
 
 namespace
 {

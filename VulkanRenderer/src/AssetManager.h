@@ -1,9 +1,11 @@
 ﻿#pragma once
-#include <string>
-#include <unordered_map>
 
 #include "Rendering/Image/Image.h"
-#include "String/StringHeterogeneousHasher.h"
+
+#include <CoreLib/String/StringHeterogeneousHasher.h>
+
+#include <unordered_map>
+#include <string>
 
 class SceneInfo;
 class ShaderReflection;

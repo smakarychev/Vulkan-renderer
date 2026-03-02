@@ -1,8 +1,9 @@
 #pragma once
 
-#include "types.h"
 #include "ImageTraits.h"
 #include "Rendering/ResourceHandle.h"
+
+#include <CoreLib/types.h>
 
 #include <optional>
 #include <unordered_map>

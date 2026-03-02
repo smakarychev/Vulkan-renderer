@@ -1,10 +1,11 @@
 ﻿#pragma once
 
+#include "Image/Image.h"
+
+#include <CoreLib/types.h>
+
 #include <vector>
 #include <glm/vec2.hpp>
-
-#include "Image/Image.h"
-#include "types.h"
 
 static constexpr u32 INVALID_SWAPCHAIN_IMAGE = std::numeric_limits<u32>::max();
 

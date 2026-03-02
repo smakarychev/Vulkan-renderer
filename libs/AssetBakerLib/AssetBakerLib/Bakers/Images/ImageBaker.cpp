@@ -1,8 +1,8 @@
 ﻿#include "ImageBaker.h"
 
-#include <AssetBakerLib/Bakers/BakersUtils.h>
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetBakerLib/Bakers/BakersUtils.h>
 
 #include <fstream>
 #include <glaze/glaze.hpp>

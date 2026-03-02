@@ -3,7 +3,8 @@
 #include "ImageTraits.h"
 #include "Sampler.h"
 #include "Rendering/FormatTraits.h"
-#include "Containers/Span.h"
+
+#include <CoreLib/Containers/Span.h>
 
 #include <variant>
 #include <glm/glm.hpp>

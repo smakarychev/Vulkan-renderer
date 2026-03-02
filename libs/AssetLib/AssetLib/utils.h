@@ -1,8 +1,7 @@
 ﻿#pragma once
 
-#include "types.h"
-#include "Containers/Span.h"
-#include "Assetlib.h"
+#include <CoreLib/types.h>
+#include <CoreLib/Containers/Span.h>
 
 #include <vector>
 

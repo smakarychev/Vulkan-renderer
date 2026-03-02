@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ImageFormat.h"
+
 #include <AssetLib/Reflection/AssetlibReflection.h>
 
 #include <glaze/glaze.hpp>

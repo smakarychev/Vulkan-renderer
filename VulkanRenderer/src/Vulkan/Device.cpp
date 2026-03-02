@@ -2,7 +2,6 @@
 
 #include "Device.h"
 
-#include "core.h"
 
 #define VOLK_IMPLEMENTATION
 #include <volk.h>
@@ -20,13 +19,14 @@
 #include "Rendering/Buffer/Buffer.h"
 #include "Core/ProfilerContext.h"
 #include "Rendering/FormatTraits.h"
-#include "Utils/ContainterUtils.h"
-
 #include "Imgui/ImguiUI.h"
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Commands/RenderCommands.h"
-#include "utils/CoreUtils.h"
+
 #include <AssetLib/Images/ImageAsset.h>
+#include <CoreLib/core.h>
+#include <CoreLib/Utils/ContainterUtils.h>
+#include <CoreLib/Utils/CoreUtils.h>
 
 namespace
 {

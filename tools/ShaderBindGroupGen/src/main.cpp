@@ -1,17 +1,18 @@
-#include "types.h"
-#include "core.h"
 
-#include <AssetBakerLib/Bakers/Bakers.h>
-
-#include "Platform/PlatformUtils.h"
 #include "Slang/SlangGenerator.h"
 #include "Slang/SlangUniformTypeGenerator.h"
-#include "utils/HashFileUtils.h"
-#include "Utils/HashUtils.h"
+
 #include <AssetLib/Io/IoInterface/CombinedAssetIoInterface.h>
 #include <AssetLib/Io/IoInterface/SeparateAssetIoInterface.h>
 #include <AssetLib/Io/AssetIoRegistry.h>
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
+#include <AssetBakerLib/Bakers/Bakers.h>
+
+#include <CoreLib/core.h>
+#include <CoreLib/types.h>
+#include <CoreLib/Platform/PlatformUtils.h>
+#include <CoreLib/utils/HashFileUtils.h>
+#include <CoreLib/Utils/HashUtils.h>
 
 #include <glaze/glaze.hpp>
 

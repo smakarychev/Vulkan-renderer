@@ -1,14 +1,15 @@
 ﻿#pragma once
 
-#include "ShaderAsset.h"
 #include "Assets/AssetManager.h"
-#include <AssetBakerLib/Bakers/BakerContext.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include "ShaderAsset.h"
 #include "Rendering/Shader/ShaderOverrides.h"
 #include "Rendering/Shader/ShaderReflection.h"
 #include "Rendering/Shader/ShaderPipelineTemplate.h"
-#include "String/StringHeterogeneousHasher.h"
-#include "String/StringId.h"
+
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <CoreLib/String/StringHeterogeneousHasher.h>
+#include <CoreLib/String/StringId.h>
 
 struct FrameContext;
 

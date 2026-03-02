@@ -5,7 +5,8 @@
 #include "RenderGraph/Passes/Generated/Types/MeshletBucketInfoUniform.generated.h"
 #include "Rendering/Commands/RenderCommands.h"
 #include "Rendering/Shader/ShaderOverrides.h"
-#include "String/StringId.h"
+
+#include <CoreLib/String/StringId.h>
 
 struct SceneRenderObjectHandle
 {

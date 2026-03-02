@@ -1,6 +1,6 @@
 #include "catch2/catch_test_macros.hpp"
 
-#include "Containers/Span.h"
+#include <CoreLib/Containers/Span.h>
 
 // NOLINTBEGIN
 

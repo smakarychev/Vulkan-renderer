@@ -1,14 +1,14 @@
 #include "SlangBaker.h"
 
-#include "core.h"
-#include <AssetBakerLib/Bakers/BakersUtils.h>
-#include "Utils/HashFileUtils.h"
-#include "Utils/HashUtils.h"
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
 #include <AssetLib/Shaders/ShaderUniform.h>
 #include <AssetLib/Shaders/ShaderAsset.h>
+#include <AssetBakerLib/Bakers/BakersUtils.h>
+#include <CoreLib/core.h>
+#include <CoreLib/Utils/HashFileUtils.h>
+#include <CoreLib/Utils/HashUtils.h>
 
 #include <fstream>
 #include <queue>

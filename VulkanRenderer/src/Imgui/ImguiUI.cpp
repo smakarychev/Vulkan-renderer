@@ -1,12 +1,11 @@
 #include "rendererpch.h"
 
 #include "ImguiUI.h"
-
-#include "types.h"
-
 #include "Vulkan/Device.h"
-
 #include "Rendering/Commands/RenderCommandList.h"
+
+#include <CoreLib/types.h>
+
 
 u32 ImGuiUI::s_FrameNumber{0};
 std::array<std::vector<ImTextureID>, BUFFERED_FRAMES> ImGuiUI::s_Textures{};

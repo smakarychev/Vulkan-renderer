@@ -1,9 +1,10 @@
 #pragma once
 
-#include <vector>
-
 #include "Settings.h"
-#include "types.h"
+
+#include <CoreLib/types.h>
+
+#include <vector>
 
 class Camera;
 class SceneLight;

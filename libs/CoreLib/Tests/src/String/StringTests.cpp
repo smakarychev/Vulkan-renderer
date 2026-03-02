@@ -1,7 +1,7 @@
-#include "catch2/catch_test_macros.hpp"
+#include <catch2/catch_test_macros.hpp>
 
-#include "String/HashedStringView.h"
-#include "String/StringHeterogeneousHasher.h"
+#include <CoreLib/String/HashedStringView.h>
+#include <CoreLib/String/StringHeterogeneousHasher.h>
 
 // NOLINTBEGIN
 

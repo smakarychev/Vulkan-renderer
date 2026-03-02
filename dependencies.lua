@@ -19,7 +19,7 @@ IncludeDir["toolsktx"]	    = "%{wks.location}/vendor/libktx/tools"
 IncludeDir["utilsktx"]	    = "%{wks.location}/vendor/libktx/utils"
 IncludeDir["spdlog"]	    = "%{wks.location}/vendor/spdlog/include"
 
-IncludeDir["CoreLib"]	    = "%{wks.location}/Libs/CoreLib/src"
+IncludeDir["CoreLib"]	    = "%{wks.location}/Libs/CoreLib"
 IncludeDir["AssetLib"]	    = "%{wks.location}/Libs/AssetLib"
 IncludeDir["AssetBakerLib"]	= "%{wks.location}/Libs/AssetBakerLib"
 IncludeDir["Renderer"]	    = "%{wks.location}/VulkanRenderer/src"

@@ -1,14 +1,13 @@
 #pragma once
 
-#include "core.h"
-#include "types.h"
-
-#include <glm/glm.hpp>
-
 #include "RenderGraph/Passes/Generated/Types/AtmosphereSettingsUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/CameraUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/ShadingSettingsUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/ViewInfoUniform.generated.h"
+
+#include <CoreLib/core.h>
+
+#include <glm/glm.hpp>
 
 class Camera;
 

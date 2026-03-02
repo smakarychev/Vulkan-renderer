@@ -1,5 +1,5 @@
 #pragma once
-#include "core.h"
+#include <CoreLib/core.h>
 
 enum class DescriptorType
 {

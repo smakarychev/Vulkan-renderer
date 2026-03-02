@@ -1,7 +1,8 @@
 ﻿#pragma once
 #include "AssetHandle.h"
-#include "Containers/Guid.h"
+
 #include <AssetLib/Io/AssetIo.h>
+#include <CoreLib/Containers/Guid.h>
 
 #include <mutex>
 

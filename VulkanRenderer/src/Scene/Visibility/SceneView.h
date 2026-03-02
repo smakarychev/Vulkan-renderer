@@ -1,7 +1,8 @@
 #pragma once
 
 #include "ViewInfoGPU.h"
-#include "String/StringId.h"
+
+#include <CoreLib/String/StringId.h>
 
 class SceneViewInfo
 {

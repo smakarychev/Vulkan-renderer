@@ -1,10 +1,10 @@
 ﻿#pragma once
 
+#include <CoreLib/types.h>
+#include <CoreLib/String/StringId.h>
+
 #include <optional>
 #include <string_view>
-
-#include "types.h"
-#include "String/StringId.h"
 
 struct CVarParameter;
 

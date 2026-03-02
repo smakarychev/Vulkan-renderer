@@ -1,8 +1,8 @@
 #include "ShaderLoadInfo.h"
 
 #include <AssetLib/Format/ImageFormat.inl>
-#include "Utils/HashFileUtils.h"
-#include "Utils/HashUtils.h"
+#include <CoreLib/Utils/HashFileUtils.h>
+#include <CoreLib/Utils/HashUtils.h>
 
 #include <glaze/glaze.hpp>
 

@@ -1,8 +1,9 @@
 ﻿#pragma once
 
-#include "Containers/Traits.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Vulkan/Device.h"
+
+#include <CoreLib/Containers/Traits.h>
 
 #include <vector>
 

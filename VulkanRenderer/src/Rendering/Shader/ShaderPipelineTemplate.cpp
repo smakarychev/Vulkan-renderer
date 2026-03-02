@@ -1,12 +1,12 @@
 ﻿#include "rendererpch.h"
 
 #include "ShaderPipelineTemplate.h"
-
-#include "core.h"
 #include "cvars/CVarSystem.h"
 #include "Vulkan/Device.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
+
+#include <CoreLib/core.h>
 
 namespace
 {

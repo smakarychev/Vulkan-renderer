@@ -1,8 +1,9 @@
 #pragma once
 #include "RenderHandle.h"
-#include "types.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Image/ImageUtility.h"
+
+#include <CoreLib/types.h>
 
 /* This class manages a descriptor set for bindless textures.
  * The max number of textures is fixed on creation,

@@ -1,7 +1,8 @@
 #pragma once
 
 #include "SceneBucket.h"
-#include "String/StringId.h"
+
+#include <CoreLib/String/StringId.h>
 
 struct ScenePassCreateInfo
 {

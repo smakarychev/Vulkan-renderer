@@ -2,7 +2,8 @@
 #include "AssetBakery.h"
 #include "AssetIdResolver.h"
 #include "AssetManager.h"
-#include "Platform/FileWatcher.h"
+
+#include <CoreLib/Platform/FileWatcher.h>
 
 namespace lux
 {

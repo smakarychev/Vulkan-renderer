@@ -4,8 +4,9 @@
 
 #include "Descriptors.h"
 #include "DescriptorsTraits.h"
-#include "Containers/Span.h"
 #include "Shader/ShaderModule.h"
+
+#include <CoreLib/Containers/Span.h>
 
 #include <vector>
 

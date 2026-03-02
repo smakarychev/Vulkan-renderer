@@ -1,7 +1,7 @@
 #pragma once
 
-#include "core.h"
-#include "types.h"
+#include <CoreLib/core.h>
+#include <CoreLib/types.h>
 
 enum class ImageLayout : u8
 {

@@ -1,5 +1,5 @@
 ﻿#pragma once
-#include "types.h"
+#include <CoreLib/types.h>
 
 using KeyCode = u16;
 

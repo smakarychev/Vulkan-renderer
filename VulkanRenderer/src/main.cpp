@@ -1,9 +1,10 @@
 ﻿#include "rendererpch.h"
 
-#include "Log.h"
 #include "Renderer.h"
 #include "cvars/CVarSystem.h"
-#include "Platform/PlatformUtils.h"
+
+#include <CoreLib/Platform/PlatformUtils.h>
+#include <CoreLib/Log.h>
 
 i32 main()
 {

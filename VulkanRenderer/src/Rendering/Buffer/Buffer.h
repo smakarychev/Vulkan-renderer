@@ -2,7 +2,8 @@
 
 #include "Rendering/ResourceHandle.h"
 #include "BufferTraits.h"
-#include "Containers/Span.h"
+
+#include <CoreLib/Containers/Span.h>
 
 struct BufferTag{};
 using Buffer = ResourceHandleType<BufferTag>;

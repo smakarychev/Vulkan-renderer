@@ -1,6 +1,5 @@
 #pragma once
 
-#include "types.h"
 #include "RenderGraph/Passes/Generated/Types/CloudsNoiseParametersUniform.generated.h"
 
 namespace Passes::Clouds

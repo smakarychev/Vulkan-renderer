@@ -1,6 +1,6 @@
-#include "types.h"
+#include <catch2/catch_session.hpp>
 
-#include "catch2/catch_session.hpp"
+#include <CoreLib/types.h>
 
 i32 main(i32 argc, char** argv)
 {

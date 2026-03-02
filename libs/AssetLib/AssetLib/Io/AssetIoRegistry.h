@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "Containers/Guid.h"
-#include "Containers/Result.h"
+#include <CoreLib/Containers/Guid.h>
+#include <CoreLib/Containers/Result.h>
 
 #include <concepts>
 #include <functional>

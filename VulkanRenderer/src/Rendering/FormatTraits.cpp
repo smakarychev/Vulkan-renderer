@@ -2,7 +2,7 @@
 
 #include "FormatTraits.h"
 
-#include "String/StringHeterogeneousHasher.h"
+#include <CoreLib/String/StringHeterogeneousHasher.h>
 
 namespace FormatUtils
 {

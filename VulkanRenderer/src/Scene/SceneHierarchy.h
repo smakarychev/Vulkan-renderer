@@ -1,8 +1,9 @@
 #pragma once
 
-#include "types.h"
 #include "SceneInstance.h"
-#include "Math/Transform.h"
+
+#include <CoreLib/types.h>
+#include <CoreLib/Math/Transform.h>
 
 #include <vector>
 

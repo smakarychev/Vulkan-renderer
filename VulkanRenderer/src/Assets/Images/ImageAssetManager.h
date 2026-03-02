@@ -1,9 +1,11 @@
 ﻿#pragma once
+
 #include "ImageAsset.h"
 #include "Assets/AssetManager.h"
 #include "Assets/Common/AssetFreeListMap.h"
+
 #include <AssetBakerLib/Bakers/BakerContext.h>
-#include "String/StringHeterogeneousHasher.h"
+#include <CoreLib/String/StringHeterogeneousHasher.h>
 
 struct FrameContext;
 

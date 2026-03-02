@@ -1,7 +1,8 @@
 #pragma once
 
-#include "Containers/Span.h"
 #include "Rendering/ResourceHandle.h"
+
+#include <CoreLib/Containers/Span.h>
 
 struct ShaderModuleCreateInfo
 {

@@ -2,7 +2,7 @@
 
 #include "CVarSystem.h"
 
-#include "types.h"
+#include <CoreLib/types.h>
 
 enum class CVarType : u8
 {

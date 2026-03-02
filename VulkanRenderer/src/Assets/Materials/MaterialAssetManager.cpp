@@ -4,10 +4,11 @@
 #include "Assets/AssetSystem.h"
 #include "Assets/Enums/ConvertAssetEnums.h"
 #include "Assets/Images/ImageAssetManager.h"
-#include <AssetBakerLib/Bakers/Bakers.h>
+
 #include <AssetLib/Materials/MaterialAsset.h>
 #include <AssetLib/Images/ImageAsset.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetBakerLib/Bakers/Bakers.h>
 
 namespace lux
 {

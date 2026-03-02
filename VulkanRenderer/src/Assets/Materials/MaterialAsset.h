@@ -1,7 +1,9 @@
 ﻿#pragma once
+
 #include "Assets/AssetHandle.h"
 #include "Assets/Images/ImageAsset.h"
-#include "String/StringId.h"
+
+#include <CoreLib/String/StringId.h>
 
 namespace lux
 {

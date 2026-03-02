@@ -1,12 +1,12 @@
 #pragma once
 
-#include <AssetBakerLib/Bakers/BakerContext.h>
-#include "types.h"
-#include "Containers/Result.h"
-#include "Containers/Span.h"
-#include "String/StringId.h"
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
 #include <AssetLib/Shaders/ShaderAsset.h>
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <CoreLib/types.h>
+#include <CoreLib/Containers/Result.h>
+#include <CoreLib/Containers/Span.h>
+#include <CoreLib/String/StringId.h>
 
 namespace lux::assetlib
 {

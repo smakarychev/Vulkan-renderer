@@ -3,7 +3,8 @@
 #include "RGAccess.h"
 #include "Assets/Shaders/ShaderAssetManager.h"
 #include "Rendering/Synchronization.h"
-#include "String/StringId.h"
+
+#include <CoreLib/String/StringId.h>
 
 struct FrameContext;
 

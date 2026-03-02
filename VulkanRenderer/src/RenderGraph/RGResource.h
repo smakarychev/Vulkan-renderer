@@ -1,9 +1,10 @@
 #pragma once
 
-#include "types.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Rendering/Image/Image.h"
-#include "String/StringId.h"
+
+#include <CoreLib/types.h>
+#include <CoreLib/String/StringId.h>
 
 namespace RG
 {

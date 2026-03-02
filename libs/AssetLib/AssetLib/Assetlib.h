@@ -1,8 +1,8 @@
 #pragma once
 
-#include "types.h"
 #include "AssetId.h"
-#include "Containers/Guid.h"
+#include <CoreLib/types.h>
+#include <CoreLib/Containers/Guid.h>
 
 #include <string>
 #include <filesystem>

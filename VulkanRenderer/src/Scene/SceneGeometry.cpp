@@ -12,6 +12,7 @@
 #include "Assets/Materials/MaterialAssetManager.h"
 #include "Rendering/Buffer/BufferUtility.h"
 #include "Rendering/Image/ImageUtility.h"
+
 #include <AssetLib/Materials/MaterialAsset.h>
 
 namespace

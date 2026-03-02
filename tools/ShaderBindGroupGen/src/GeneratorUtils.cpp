@@ -69,7 +69,7 @@ std::string_view getPreamble()
     return ""
            "/* This file was automatically generated */\n\n"
            "#pragma once\n\n"
-           "#include \"types.h\"";    
+           "#include <CoreLib/types.h>";    
 }
 
 std::string getIncludeString(const std::string& includePathString)

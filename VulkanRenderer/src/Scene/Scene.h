@@ -3,12 +3,8 @@
 #include "SceneGeometry.h"
 #include "SceneHierarchy.h"
 #include "SceneLight.h"
-#include "Signals/Signal.h"
 
-namespace assetLib
-{
-    struct SceneInfo;
-}
+#include <CoreLib/Signals/Signal.h>
 
 class BindlessTextureDescriptorsRingBuffer;
 

@@ -1,12 +1,4 @@
-﻿#include "Log.h"
-#include <AssetBakerLib/Bakers/BakerContext.h>
-#include <AssetBakerLib/Bakers/Bakers.h>
-#include <AssetBakerLib/Bakers/BakersDispatcher.h>
-#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
-#include <AssetBakerLib/Bakers/Scenes/SceneBaker.h>
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
-#include "Platform/PlatformUtils.h"
-#include <AssetLib/Io/AssetIoRegistry.h>
+﻿#include <AssetLib/Io/AssetIoRegistry.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/Compression/Lz4AssetCompressor.h>
@@ -14,6 +6,14 @@
 #include <AssetLib/Io/IoInterface/CombinedAssetIoInterface.h>
 #include <AssetLib/Io/IoInterface/SeparateAssetIoInterface.h>
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetBakerLib/Bakers/Bakers.h>
+#include <AssetBakerLib/Bakers/BakersDispatcher.h>
+#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
+#include <AssetBakerLib/Bakers/Scenes/SceneBaker.h>
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+#include <CoreLib/Log.h>
+#include <CoreLib/Platform/PlatformUtils.h>
 
 #include <filesystem>
 #include <memory>

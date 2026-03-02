@@ -1,8 +1,8 @@
 ﻿#pragma once
-#include "core.h"
-#include "Math/Geometry.h"
-#include "Math/Transform.h"
 #include <AssetLib/Io/AssetIo.h>
+#include <CoreLib/core.h>
+#include <CoreLib/Math/Geometry.h>
+#include <CoreLib/Math/Transform.h>
 
 #include <glm/glm.hpp>
 

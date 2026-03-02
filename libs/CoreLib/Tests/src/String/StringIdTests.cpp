@@ -1,7 +1,7 @@
-#include "catch2/catch_test_macros.hpp"
+#include <catch2/catch_test_macros.hpp>
 
-#include "String/StringId.h"
-#include "String/HashedStringView.h"
+#include <CoreLib/String/StringId.h>
+#include <CoreLib/String/HashedStringView.h>
 
 // NOLINTBEGIN
 

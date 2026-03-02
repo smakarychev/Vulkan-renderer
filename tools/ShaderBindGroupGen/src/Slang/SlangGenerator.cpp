@@ -2,10 +2,11 @@
 
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
-#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
+
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include <AssetLib/Shaders/ShaderAsset.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
+#include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
 
 #include <ranges>
 #include <unordered_set>

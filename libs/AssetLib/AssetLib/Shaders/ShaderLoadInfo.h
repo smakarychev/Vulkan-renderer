@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Utils/HashUtils.h"
 #include <AssetLib/Format/ImageFormat.h>
 #include <AssetLib/Io/AssetIo.h>
+#include <CoreLib/Utils/HashUtils.h>
 
 namespace lux::assetlib
 {

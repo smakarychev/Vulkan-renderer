@@ -1,6 +1,6 @@
 ﻿#include "catch2/catch_test_macros.hpp"
 
-#include "Containers/Guid.h"
+#include <CoreLib/Containers/Guid.h>
 
 #include <unordered_map>
 #include <unordered_set>

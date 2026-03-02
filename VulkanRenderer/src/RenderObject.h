@@ -1,10 +1,11 @@
 ﻿#pragma once
 
-#include "core.h"
-#include "Math/Transform.h"
 #include "RenderGraph/Passes/Generated/Types/MeshletUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/RenderObjectUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/StandardPbrMaterialUniform.generated.h"
+
+#include <CoreLib/core.h>
+#include <CoreLib/Math/Transform.h>
 
 enum class MaterialFlags : u16
 {

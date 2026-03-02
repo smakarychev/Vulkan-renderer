@@ -3,7 +3,6 @@
 #include <AssetLib/utils.h>
 #include <AssetLib/Io/Compression/AssetCompressor.h>
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
-
 #include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
 
 template <> struct ::glz::meta<lux::assetlib::ShaderBinding> : lux::assetlib::reflection::CamelCase {};

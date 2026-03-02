@@ -1,10 +1,9 @@
 #pragma once
 
-#include "types.h"
-
-#include "core.h"
-
 #include "Rendering/ResourceHandle.h"
+
+#include <CoreLib/types.h>
+#include <CoreLib/core.h>
 
 /* this struct should not be used as a general data structure,
  * it works only for pod objects or for

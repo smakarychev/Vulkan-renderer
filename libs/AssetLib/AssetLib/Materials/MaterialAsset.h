@@ -1,7 +1,7 @@
 ﻿#pragma once
-#include "types.h"
 #include <AssetLib/AssetId.h>
 #include <AssetLib/Io/AssetIo.h>
+#include <CoreLib/types.h>
 
 #include <optional>
 #include <string>

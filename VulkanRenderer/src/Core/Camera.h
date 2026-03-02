@@ -1,13 +1,12 @@
 ﻿#pragma once
 
-#include <memory>
-
-#include "types.h"
+#include <CoreLib/types.h>
+#include <CoreLib/Math/Geometry.h>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
-#include "Math/Geometry.h"
+#include <memory>
 
 struct FrustumPlanes
 {

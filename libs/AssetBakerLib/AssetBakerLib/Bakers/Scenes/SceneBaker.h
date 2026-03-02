@@ -1,8 +1,8 @@
 ﻿#pragma once
 
+#include <AssetLib/Scenes/SceneAsset.h>
 #include <AssetBakerLib/Bakers/BakerContext.h>
 #include <AssetBakerLib/Bakers/Bakers.h>
-#include <AssetLib/Scenes/SceneAsset.h>
 
 namespace lux::bakers
 {

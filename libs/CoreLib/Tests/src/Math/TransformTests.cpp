@@ -1,12 +1,12 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/matrix_decompose.hpp>
 
-#include "types.h"
-#include "catch2/catch_test_macros.hpp"
-#include "catch2/matchers/catch_matchers.hpp"
-#include "catch2/matchers/catch_matchers_floating_point.hpp"
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
-#include "Math/Transform.h"
+#include <CoreLib/types.h>
+#include <CoreLib/Math/Transform.h>
 
 // NOLINTBEGIN
 

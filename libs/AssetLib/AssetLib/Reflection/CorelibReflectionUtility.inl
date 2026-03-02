@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "Math/Transform.h"
-#include "Math/Geometry.h"
+#include <CoreLib/Math/Transform.h>
+#include <CoreLib/Math/Geometry.h>
 
 #include <glaze/glaze.hpp>
 #include <glm/glm.hpp>

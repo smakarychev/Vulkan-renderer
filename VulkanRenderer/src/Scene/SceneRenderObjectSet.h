@@ -2,7 +2,8 @@
 
 #include "Scene.h"
 #include "ScenePass.h"
-#include "String/StringId.h"
+
+#include <CoreLib/String/StringId.h>
 
 class SceneInfo;
 

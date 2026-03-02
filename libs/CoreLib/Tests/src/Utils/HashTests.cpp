@@ -1,6 +1,7 @@
-#include "catch2/catch_test_macros.hpp"
-#include "utils/HashUtils.h"
-#include "utils/HashFileUtils.h"
+#include <catch2/catch_test_macros.hpp>
+
+#include <CoreLib/utils/HashUtils.h>
+#include <CoreLib/utils/HashFileUtils.h>
 
 #include <filesystem>
 #include <fstream>

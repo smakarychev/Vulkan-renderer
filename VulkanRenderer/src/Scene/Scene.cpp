@@ -3,8 +3,9 @@
 #include "Scene.h"
 
 #include "AssetManager.h"
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include "Vulkan/Device.h"
+
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 
 SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,
     BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,

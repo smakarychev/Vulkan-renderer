@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "Assets/AssetHandle.h"
-#include "Containers/FreeList.h"
+
+#include <CoreLib/Containers/FreeList.h>
 
 namespace lux
 {

@@ -3,7 +3,7 @@
 #include <limits>
 
 #include "RenderingCommon.h"
-#include "Containers/SparseSetGenerationTraits.h"
+#include <CoreLib/Containers/SparseSetGenerationTraits.h>
 
 template <typename T>
 class DeviceFreelist;

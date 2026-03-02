@@ -1,7 +1,8 @@
 ﻿#pragma once
 
-#include "types.h"
 #include "RGResource.h"
+
+#include <CoreLib/types.h>
 
 #include <memory>
 #include <vector>

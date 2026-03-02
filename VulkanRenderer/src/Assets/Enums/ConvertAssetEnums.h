@@ -1,13 +1,14 @@
 ﻿#pragma once
 
-#include "types.h"
 #include "Assets/Materials/MaterialAsset.h"
 #include "Rendering/FormatTraits.h"
 #include "Rendering/Pipeline.h"
+
 #include <AssetLib/Format/ImageFormat.h>
 #include <AssetLib/Images/ImageAsset.h>
 #include <AssetLib/Shaders/ShaderLoadInfo.h>
 #include <AssetLib/Materials/MaterialAsset.h>
+#include <CoreLib/types.h>
 
 namespace lux
 {

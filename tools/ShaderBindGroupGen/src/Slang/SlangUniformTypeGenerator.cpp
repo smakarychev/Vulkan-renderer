@@ -1,9 +1,10 @@
 #include "SlangUniformTypeGenerator.h"
 
 #include "GeneratorUtils.h"
-#include "Utils/HashFileUtils.h"
-#include "Utils/HashUtils.h"
+
 #include <AssetLib/Shaders/ShaderUniform.h>
+#include <CoreLib/Utils/HashFileUtils.h>
+#include <CoreLib/Utils/HashUtils.h>
 
 #include <fstream>
 #include <ranges>

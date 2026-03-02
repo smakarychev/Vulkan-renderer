@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "Containers/Span.h"
-#include "Containers/Guid.h"
+#include <CoreLib/Containers/Span.h>
+#include <CoreLib/Containers/Guid.h>
 
 #include <string>
 

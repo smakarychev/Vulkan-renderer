@@ -2,8 +2,9 @@
 #include "AssetSystem.h"
 
 #include "cvars/CVarSystem.h"
-#include "Platform/FileWatcher.h"
+
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <CoreLib/Platform/FileWatcher.h>
 
 #include <utility>
 

@@ -2,14 +2,15 @@
 
 #include "Rendering/Buffer/BufferArena.h"
 
-#include <glm/glm.hpp>
-
 #include "RenderHandleArray.h"
 #include "RenderObject.h"
 #include "SceneInstance.h"
-#include "Math/Geometry.h"
 #include "Rendering/Buffer/PushBuffer.h"
+
 #include <AssetLib/Scenes/SceneAsset.h>
+#include <CoreLib/Math/Geometry.h>
+
+#include <glm/glm.hpp>
 
 namespace lux
 {

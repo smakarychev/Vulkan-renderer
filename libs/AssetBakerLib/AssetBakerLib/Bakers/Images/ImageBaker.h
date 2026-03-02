@@ -1,9 +1,9 @@
 ﻿#pragma once
 
-#include <AssetBakerLib/Bakers/BakerContext.h>
-#include <AssetBakerLib/Bakers/Bakers.h>
 #include <AssetLib/Images/ImageAsset.h>
 #include <AssetLib/Images/ImageLoadInfo.h>
+#include <AssetBakerLib/Bakers/BakerContext.h>
+#include <AssetBakerLib/Bakers/Bakers.h>
 
 namespace lux::bakers
 {

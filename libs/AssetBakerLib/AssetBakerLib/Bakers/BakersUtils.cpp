@@ -1,7 +1,7 @@
 #include "BakersUtils.h"
 
 #include "BakerContext.h"
-#include "core.h"
+
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 
 namespace lux::bakers

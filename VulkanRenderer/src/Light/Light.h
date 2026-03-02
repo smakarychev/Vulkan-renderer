@@ -1,14 +1,14 @@
 #pragma once
 
-#include "types.h"
+#include "Settings.h"
+#include "RenderGraph/Passes/Generated/Types/DirectionalLightUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/PointLightUniform.generated.h"
+
+#include <CoreLib/types.h>
+#include <CoreLib/Math/Geometry.h>
 
 #include <glm/glm.hpp>
 #include <array>
-
-#include "Settings.h"
-#include "Math/Geometry.h"
-#include "RenderGraph/Passes/Generated/Types/DirectionalLightUniform.generated.h"
-#include "RenderGraph/Passes/Generated/Types/PointLightUniform.generated.h"
 
 struct DirectionalLight : gen::DirectionalLight
 {

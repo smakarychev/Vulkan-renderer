@@ -1,6 +1,5 @@
 #pragma once
 
-#include "types.h"
 #include "RenderGraph/Passes/Generated/Types/TextureHandleUniform.generated.h"
 
 #include <limits>

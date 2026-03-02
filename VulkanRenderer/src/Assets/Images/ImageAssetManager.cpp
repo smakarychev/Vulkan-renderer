@@ -5,11 +5,12 @@
 #include "Assets/AssetIdResolver.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Enums/ConvertAssetEnums.h"
-#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
 #include "Rendering/DeletionQueue.h"
 #include "Rendering/Image/ImageUtility.h"
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 #include "Vulkan/Device.h"
+
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetBakerLib/Bakers/Images/ImageBaker.h>
 
 namespace lux
 {

@@ -4,11 +4,12 @@
 #include "FrameContext.h"
 #include "Assets/AssetSystem.h"
 #include "Assets/Enums/ConvertAssetEnums.h"
+#include "cvars/CVarSystem.h"
+#include "Vulkan/Device.h"
+
 #include <AssetBakerLib/Bakers/Bakers.h>
 #include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
-#include "cvars/CVarSystem.h"
 #include <AssetLib/Io/IoInterface/AssetIoInterface.h>
-#include "Vulkan/Device.h"
 
 namespace lux
 {
