@@ -39,7 +39,7 @@ include "vendor/tracy"
 include "vendor/libktx"
 
 group "Tools"
-include "tools/AssetConverter"
+include "tools/AssetBaker"
 include "tools/ShaderBindGroupGen"
 
 group ""

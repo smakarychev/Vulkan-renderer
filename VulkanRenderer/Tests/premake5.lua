@@ -13,7 +13,7 @@ project "RendererTests"
     includedirs {
         "src",
         "%{wks.location}/AssetLib/src",
-        "%{wks.location}/tools/AssetConverter/src",
+        "%{wks.location}/tools/AssetBaker/src",
         IncludeDir["Renderer"],
         IncludeDir["CoreLib"],
         IncludeDir["glm"],

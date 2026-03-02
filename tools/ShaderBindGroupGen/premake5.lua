@@ -14,7 +14,7 @@ project "ShaderBindGroupGen"
         "src",
         "%{wks.location}/CoreLib/src",
         "%{wks.location}/AssetLib/src",
-        "%{wks.location}/tools/AssetConverter/src",
+        "%{wks.location}/tools/AssetBaker/src",
     }
     
     externalincludedirs {
@@ -26,7 +26,7 @@ project "ShaderBindGroupGen"
     links {
         "CoreLib",
         "AssetLib",
-        "AssetConverterLib",
+        "AssetBakerLib",
     }
 
 	filter "configurations:Release*"

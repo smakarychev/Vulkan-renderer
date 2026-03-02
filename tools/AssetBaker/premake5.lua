@@ -6,7 +6,7 @@ local project_files = {
 local include_dirs = {
     "src",
     "%{wks.location}/CoreLib/src",
-    "%{wks.location}/tools/AssetLib/src",
+    "%{wks.location}/AssetLib/src",
 }
 
 local external_includes = {
@@ -46,7 +46,7 @@ local project_defines = {
     "KHRONOS_STATIC"
 }
 
-project "AssetConverter"
+project "AssetBaker"
     kind "ConsoleApp"
     language "C++"
     cppdialect "C++latest"
@@ -78,7 +78,7 @@ project "AssetConverter"
             "{COPYDIR} %{prj.location.directory}resources/* %{tools_bindir}%{prj.name}/ > nul" 
         }
     
-project "AssetConverterLib"
+project "AssetBakerLib"
     kind "StaticLib"
     language "C++"
     cppdialect "C++latest"
