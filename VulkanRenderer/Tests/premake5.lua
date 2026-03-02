@@ -12,7 +12,7 @@ project "RendererTests"
 
     includedirs {
         "src",
-        "%{wks.location}/tools/AssetLib/src",
+        "%{wks.location}/AssetLib/src",
         "%{wks.location}/tools/AssetConverter/src",
         IncludeDir["Renderer"],
         IncludeDir["CoreLib"],

@@ -7,7 +7,7 @@ local project_files = {
 local project_includes = {
     "src",
     "%{wks.location}/CoreLib/src",
-    "%{wks.location}/tools/AssetLib/src",
+    "%{wks.location}/AssetLib/src",
     "%{wks.location}/tools/AssetConverter/src",
 }
 

@@ -13,7 +13,7 @@ project "ShaderBindGroupGen"
     includedirs {
         "src",
         "%{wks.location}/CoreLib/src",
-        "%{wks.location}/tools/AssetLib/src",
+        "%{wks.location}/AssetLib/src",
         "%{wks.location}/tools/AssetConverter/src",
     }
     

@@ -39,11 +39,11 @@ include "vendor/tracy"
 include "vendor/libktx"
 
 group "Tools"
-include "tools/AssetLib"
 include "tools/AssetConverter"
 include "tools/ShaderBindGroupGen"
 
 group ""
+include "AssetLib"
 include "CoreLib"
 include "VulkanRenderer"
 
