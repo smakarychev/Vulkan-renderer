@@ -15,8 +15,8 @@ project "AssetBakerLib"
 
     includedirs {
         "src",
-        "%{wks.location}/CoreLib/src",
-        "%{wks.location}/AssetLib/src",
+        IncludeDir["CoreLib"],
+        IncludeDir["AssetLib"]
     }
     externalincludedirs {
         "$(VULKAN_SDK)/Include",

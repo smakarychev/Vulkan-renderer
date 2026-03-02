@@ -12,9 +12,9 @@ project "AssetBaker"
  	
     includedirs {
         "src",
-        "%{wks.location}/CoreLib/src",
-        "%{wks.location}/AssetLib/src",
-        "%{wks.location}/AssetBakerLib/src",
+        IncludeDir["CoreLib"], 
+        IncludeDir["AssetLib"], 
+        IncludeDir["AssetBakerLib"], 
     }
     externalincludedirs {
         IncludeDir["glaze"],

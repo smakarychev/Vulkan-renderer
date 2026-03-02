@@ -6,9 +6,9 @@ local project_files = {
 
 local project_includes = {
     "src",
-    "%{wks.location}/CoreLib/src",
-    "%{wks.location}/AssetLib/src",
-    "%{wks.location}/AssetBakerLib/src",
+    IncludeDir["CoreLib"], 
+    IncludeDir["AssetLib"], 
+    IncludeDir["AssetBakerLib"], 
 }
 
 local external_includes = {

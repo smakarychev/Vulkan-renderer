@@ -32,3 +32,5 @@ assets/baked
 *.meta
 assets/uniform_types
 logs
+libs/**/bin
+libs/**/bin-int

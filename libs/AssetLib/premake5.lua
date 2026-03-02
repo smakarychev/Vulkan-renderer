@@ -12,7 +12,7 @@ project "AssetLib"
 
     includedirs {
         "src",
-        "%{wks.location}/CoreLib/src",
+        IncludeDir["CoreLib"],
     }
     
     externalincludedirs {
