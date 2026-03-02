@@ -7,7 +7,7 @@
 
 i32 main()
 {
-    lux::Logger::Init({.LogFile = "../Logs/log.txt"});
+    lux::Logger::Init({.LogFile = "../logs/log.txt"});
     Settings::initCvars();
     
     platform::runSubProcess("../tools/bin/AssetBaker/AssetBaker.exe",
