@@ -44,6 +44,7 @@ include "tools/ShaderBindGroupGen"
 
 group ""
 include "AssetLib"
+include "AssetBakerLib"
 include "CoreLib"
 include "VulkanRenderer"
 

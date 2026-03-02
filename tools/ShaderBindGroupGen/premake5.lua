@@ -14,7 +14,7 @@ project "ShaderBindGroupGen"
         "src",
         "%{wks.location}/CoreLib/src",
         "%{wks.location}/AssetLib/src",
-        "%{wks.location}/tools/AssetBaker/src",
+        "%{wks.location}/AssetBakerLib/src",
     }
     
     externalincludedirs {

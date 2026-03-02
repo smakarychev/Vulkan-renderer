@@ -8,7 +8,7 @@ local project_includes = {
     "src",
     "%{wks.location}/CoreLib/src",
     "%{wks.location}/AssetLib/src",
-    "%{wks.location}/tools/AssetBaker/src",
+    "%{wks.location}/AssetBakerLib/src",
 }
 
 local external_includes = {
