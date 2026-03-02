@@ -1,6 +1,6 @@
 #include "ShaderLoadInfo.h"
 
-#include "Format/ImageFormat.inl"
+#include <AssetLib/Format/ImageFormat.inl>
 #include "Utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
 

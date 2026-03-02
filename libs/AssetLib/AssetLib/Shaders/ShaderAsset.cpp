@@ -1,10 +1,10 @@
 #include "ShaderAsset.h"
 
-#include "utils.h"
-#include "Io/Compression/AssetCompressor.h"
-#include "Io/IoInterface/AssetIoInterface.h"
+#include <AssetLib/utils.h>
+#include <AssetLib/Io/Compression/AssetCompressor.h>
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 
-#include "Reflection/AssetlibReflectionUtility.inl"
+#include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
 
 template <> struct ::glz::meta<lux::assetlib::ShaderBinding> : lux::assetlib::reflection::CamelCase {};
 template <> struct ::glz::meta<lux::assetlib::ShaderBindingSet> : lux::assetlib::reflection::CamelCase {

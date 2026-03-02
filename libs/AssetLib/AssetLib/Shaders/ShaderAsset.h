@@ -1,6 +1,6 @@
 #pragma once
 #include "core.h"
-#include "Io/AssetIo.h"
+#include <AssetLib/Io/AssetIo.h>
 
 #include <glm/glm.hpp>
 

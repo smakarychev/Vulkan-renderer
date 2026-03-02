@@ -3,7 +3,7 @@
 #include "ShaderModule.h"
 #include "Rendering/Descriptors.h"
 #include "Rendering/Pipeline.h"
-#include "Io/AssetIo.h"
+#include <AssetLib/Io/AssetIo.h>
 
 namespace lux::assetlib::io
 {

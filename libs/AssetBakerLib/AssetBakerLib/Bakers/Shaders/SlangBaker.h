@@ -5,8 +5,8 @@
 #include "Containers/Result.h"
 #include "Containers/Span.h"
 #include "String/StringId.h"
-#include "Shaders/ShaderLoadInfo.h"
-#include "Shaders/ShaderAsset.h"
+#include <AssetLib/Shaders/ShaderLoadInfo.h>
+#include <AssetLib/Shaders/ShaderAsset.h>
 
 namespace lux::assetlib
 {

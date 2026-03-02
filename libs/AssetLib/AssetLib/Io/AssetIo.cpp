@@ -1,6 +1,6 @@
 ﻿#include "AssetIo.h"
 
-#include "Reflection/AssetlibReflectionUtility.inl"
+#include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
 
 template <> struct ::glz::meta<lux::assetlib::AssetFileIoInfo> : lux::assetlib::reflection::CamelCase {}; 
 template <> struct ::glz::meta<lux::assetlib::AssetMetadata> : lux::assetlib::reflection::CamelCase {};

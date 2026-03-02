@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Io/AssetIo.h"
+#include <AssetLib/Io/AssetIo.h>
 
 namespace lux::assetlib::io
 {

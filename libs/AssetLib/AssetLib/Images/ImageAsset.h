@@ -1,7 +1,7 @@
 ﻿#pragma once
 
-#include "Format/ImageFormat.h"
-#include "Io/AssetIo.h"
+#include <AssetLib/Format/ImageFormat.h>
+#include <AssetLib/Io/AssetIo.h>
 
 namespace lux::assetlib
 {

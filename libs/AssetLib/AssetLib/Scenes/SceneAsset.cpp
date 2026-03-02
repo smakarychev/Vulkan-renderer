@@ -1,8 +1,8 @@
 ﻿#include "SceneAsset.h"
 
-#include "Io/Compression/AssetCompressor.h"
-#include "Io/IoInterface/AssetIoInterface.h"
-#include "Reflection/AssetlibReflectionUtility.inl"
+#include <AssetLib/Io/Compression/AssetCompressor.h>
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
 
 template <>
 struct glz::meta<lux::assetlib::SceneAssetAccessorComponentType> : lux::assetlib::reflection::CamelCase {

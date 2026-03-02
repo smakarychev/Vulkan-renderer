@@ -4,11 +4,11 @@
 #include <AssetBakerLib/Bakers/BakersUtils.h>
 #include "Utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
-#include "Io/Compression/AssetCompressor.h"
-#include "Io/IoInterface/AssetIoInterface.h"
-#include "Shaders/ShaderLoadInfo.h"
-#include "Shaders/ShaderUniform.h"
-#include "Shaders/ShaderAsset.h"
+#include <AssetLib/Io/Compression/AssetCompressor.h>
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetLib/Shaders/ShaderLoadInfo.h>
+#include <AssetLib/Shaders/ShaderUniform.h>
+#include <AssetLib/Shaders/ShaderAsset.h>
 
 #include <fstream>
 #include <queue>

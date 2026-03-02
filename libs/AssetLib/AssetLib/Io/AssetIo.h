@@ -2,7 +2,7 @@
 
 #include "types.h"
 #include "Containers/Result.h"
-#include "Assetlib.h"
+#include <AssetLib/Assetlib.h>
 
 #include <format>
 

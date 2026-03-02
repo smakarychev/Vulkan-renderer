@@ -74,12 +74,12 @@
 #include "Scene/BindlessTextureDescriptorsRingBuffer.h"
 #include "Scene/Scene.h"
 #include "String/StringId.h"
-#include "Images/ImageAsset.h"
-#include "Io/Compression/Lz4AssetCompressor.h"
-#include "Io/Compression/RawAssetCompressor.h"
-#include "Io/IoInterface/CombinedAssetIoInterface.h"
-#include "Io/IoInterface/SeparateAssetIoInterface.h"
-#include "Materials/MaterialAsset.h"
+#include <AssetLib/Images/ImageAsset.h>
+#include <AssetLib/Io/Compression/Lz4AssetCompressor.h>
+#include <AssetLib/Io/Compression/RawAssetCompressor.h>
+#include <AssetLib/Io/IoInterface/CombinedAssetIoInterface.h>
+#include <AssetLib/Io/IoInterface/SeparateAssetIoInterface.h>
+#include <AssetLib/Materials/MaterialAsset.h>
 
 Renderer::Renderer() = default;
 

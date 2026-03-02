@@ -6,12 +6,12 @@ project "AssetLib"
     objdir ("bin-int/" .. outputdir .. "/%{prj.name}")
     
     files {
-        "src/**.h",
-        "src/**.cpp",
+        "AssetLib/**.h",
+        "AssetLib/**.cpp",
     }
 
     includedirs {
-        "src",
+        "./",
         IncludeDir["CoreLib"],
     }
     

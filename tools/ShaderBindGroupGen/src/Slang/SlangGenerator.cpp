@@ -3,9 +3,9 @@
 #include "GeneratorUtils.h"
 #include "SlangUniformTypeGenerator.h"
 #include <AssetBakerLib/Bakers/Shaders/SlangBaker.h>
-#include "Io/IoInterface/AssetIoInterface.h"
-#include "Shaders/ShaderAsset.h"
-#include "Shaders/ShaderLoadInfo.h"
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
+#include <AssetLib/Shaders/ShaderAsset.h>
+#include <AssetLib/Shaders/ShaderLoadInfo.h>
 
 #include <ranges>
 #include <unordered_set>

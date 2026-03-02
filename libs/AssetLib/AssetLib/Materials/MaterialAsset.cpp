@@ -1,6 +1,6 @@
 ﻿#include "MaterialAsset.h"
 
-#include "Reflection/AssetlibReflectionUtility.inl"
+#include <AssetLib/Reflection/AssetlibReflectionUtility.inl>
 
 template <>
 struct glz::meta<lux::assetlib::MaterialAlphaMode> : lux::assetlib::reflection::CamelCase

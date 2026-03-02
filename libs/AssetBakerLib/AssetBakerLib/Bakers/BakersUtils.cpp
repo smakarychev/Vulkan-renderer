@@ -2,7 +2,7 @@
 
 #include "BakerContext.h"
 #include "core.h"
-#include "Io/IoInterface/AssetIoInterface.h"
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 
 namespace lux::bakers
 {

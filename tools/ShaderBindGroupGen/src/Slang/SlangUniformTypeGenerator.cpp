@@ -3,7 +3,7 @@
 #include "GeneratorUtils.h"
 #include "Utils/HashFileUtils.h"
 #include "Utils/HashUtils.h"
-#include "Shaders/ShaderUniform.h"
+#include <AssetLib/Shaders/ShaderUniform.h>
 
 #include <fstream>
 #include <ranges>

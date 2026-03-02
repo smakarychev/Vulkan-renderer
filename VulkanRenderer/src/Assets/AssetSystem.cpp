@@ -3,7 +3,7 @@
 
 #include "cvars/CVarSystem.h"
 #include "Platform/FileWatcher.h"
-#include "Io/IoInterface/AssetIoInterface.h"
+#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
 
 #include <utility>
 

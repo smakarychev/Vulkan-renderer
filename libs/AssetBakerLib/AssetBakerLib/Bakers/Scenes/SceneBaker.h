@@ -2,7 +2,7 @@
 
 #include <AssetBakerLib/Bakers/BakerContext.h>
 #include <AssetBakerLib/Bakers/Bakers.h>
-#include "Scenes/SceneAsset.h"
+#include <AssetLib/Scenes/SceneAsset.h>
 
 namespace lux::bakers
 {

@@ -2,8 +2,8 @@
 
 #include <AssetBakerLib/Bakers/BakerContext.h>
 #include <AssetBakerLib/Bakers/Bakers.h>
-#include "Images/ImageAsset.h"
-#include "Images/ImageLoadInfo.h"
+#include <AssetLib/Images/ImageAsset.h>
+#include <AssetLib/Images/ImageLoadInfo.h>
 
 namespace lux::bakers
 {

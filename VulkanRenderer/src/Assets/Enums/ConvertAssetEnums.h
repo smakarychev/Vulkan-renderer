@@ -4,10 +4,10 @@
 #include "Assets/Materials/MaterialAsset.h"
 #include "Rendering/FormatTraits.h"
 #include "Rendering/Pipeline.h"
-#include "Format/ImageFormat.h"
-#include "Images/ImageAsset.h"
-#include "Shaders/ShaderLoadInfo.h"
-#include "Materials/MaterialAsset.h"
+#include <AssetLib/Format/ImageFormat.h>
+#include <AssetLib/Images/ImageAsset.h>
+#include <AssetLib/Shaders/ShaderLoadInfo.h>
+#include <AssetLib/Materials/MaterialAsset.h>
 
 namespace lux
 {

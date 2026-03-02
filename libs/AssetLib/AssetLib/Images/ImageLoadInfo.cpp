@@ -1,6 +1,6 @@
 ﻿#include "ImageLoadInfo.h"
 
-#include "Format/ImageFormat.inl"
+#include <AssetLib/Format/ImageFormat.inl>
 template <> struct glz::meta<lux::assetlib::ImageLoadInfo> : lux::assetlib::reflection::CamelCase {};
 
 namespace lux::assetlib::image
