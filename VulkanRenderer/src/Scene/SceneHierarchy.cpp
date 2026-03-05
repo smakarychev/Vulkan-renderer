@@ -76,20 +76,14 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(const lux::assetlib::SceneAsset
 
 void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransform)
 {
-    ASSERT(instance.m_InstanceId == (u32)m_InstancesData.size(), "Every instance must have its hierarchy added")
-    
     const SceneHierarchyInfo& instanceHierarchy = instance.m_SceneInfo->m_Hierarchy; 
 
-    const InstanceData instanceData = {
-        .FirstNode = (u32)m_Info.Nodes.size(),
-        .NodeCount = (u32)instanceHierarchy.Nodes.size(),
-        .FirstRenderObject = m_InstancesData.empty() ?
-            0 : m_InstancesData.back().FirstRenderObject + m_InstancesData.back().RenderObjectCount,
-        .RenderObjectCount = (u32)instance.m_SceneInfo->m_Geometry.RenderObjects.size(),
-        .FirstLight = m_InstancesData.empty() ?
-            0 : m_InstancesData.back().FirstLight + m_InstancesData.back().LightCount,
-        .LightCount = (u32)instance.m_SceneInfo->m_Lights.Lights.size()};
-    m_InstancesData.push_back(instanceData);
+    const u32 firstNode = (u32)m_Info.Nodes.size();
+    const u32 firstRenderObject = m_LastRenderObject;
+    const u32 firstLight = m_LastLight;
+
+    m_LastLight += (u32)instance.m_SceneInfo->m_Lights.Lights.size();
+    m_LastRenderObject += (u32)instance.m_SceneInfo->m_Geometry.RenderObjects.size();
 
     for (auto& node : instanceHierarchy.Nodes)
     {
@@ -98,10 +92,10 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
         switch (node.Type)
         {
         case SceneHierarchyNodeType::Mesh:
-            payloadIndex += instanceData.FirstRenderObject;
+            payloadIndex += firstRenderObject;
             break;
         case SceneHierarchyNodeType::Light:
-            payloadIndex += instanceData.FirstLight;
+            payloadIndex += firstLight;
             break;
         case SceneHierarchyNodeType::Dummy:
         default:
@@ -110,11 +104,12 @@ void SceneHierarchy::Add(SceneInstance instance, const Transform3d& baseTransfor
         m_Info.Nodes.push_back({
             .Type = node.Type,
             .Depth = node.Depth,
-            .Parent = isTopLevel ? SceneHierarchyHandle::INVALID : node.Parent + instanceData.FirstNode,
+            .Parent = isTopLevel ? SceneHierarchyHandle::INVALID : node.Parent + firstNode,
             .LocalTransform = isTopLevel ?
                 baseTransform.Combine(node.LocalTransform) :
                 node.LocalTransform,
-            .PayloadIndex = payloadIndex});
+            .PayloadIndex = payloadIndex
+        });
     }
     
     m_Info.MaxDepth = std::max(m_Info.MaxDepth, instanceHierarchy.MaxDepth);

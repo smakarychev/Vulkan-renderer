@@ -58,16 +58,7 @@ public:
     void Add(SceneInstance instance, const Transform3d& baseTransform);
     void OnUpdate(Scene& scene, FrameContext& ctx);
 private:
-    struct InstanceData
-    {
-        u32 FirstNode{0};
-        u32 NodeCount{0};
-        u32 FirstRenderObject{0};
-        u32 RenderObjectCount{0};
-        u32 FirstLight{0};
-        u32 LightCount{0};
-    };
-private:
+    u32 m_LastRenderObject{0};
+    u32 m_LastLight{0};
     SceneHierarchyInfo m_Info{};
-    std::vector<InstanceData> m_InstancesData;
 };
