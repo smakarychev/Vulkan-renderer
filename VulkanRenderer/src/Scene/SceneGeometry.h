@@ -26,37 +26,7 @@ class MaterialAssetManager;
 struct FrameContext;
 class BindlessTextureDescriptorsRingBuffer;
 
-struct SceneRenderObject
-{
-    u32 Material{};
-    u32 FirstIndex{};
-    u32 FirstVertex{};
-    u32 FirstMeshlet{};
-    u32 MeshletCount{};
-    AABB BoundingBox{};
-    Sphere BoundingSphere{};
-};
 
-struct SceneGeometryInfo
-{
-    static SceneGeometryInfo FromAsset(lux::assetlib::SceneAsset& scene,
-        BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
-        lux::AssetSystem& assetSystem,
-        lux::ImageAssetManager& imageAssetManager,
-        lux::MaterialAssetManager& materialAssetManager);
-    
-    std::vector<lux::assetlib::SceneAssetIndexType> Indices;
-    std::vector<glm::vec3> Positions;
-    std::vector<glm::vec3> Normals;
-    std::vector<glm::vec4> Tangents;
-    std::vector<glm::vec2> UVs;
-
-    std::vector<SceneRenderObject> RenderObjects;
-    std::vector<MaterialGPU> Materials;
-    std::vector<lux::assetlib::SceneAssetMeshlet> Meshlets;
-    
-    std::vector<Material> MaterialsCpu;
-};
 
 class SceneGeometry
 {
@@ -70,6 +40,8 @@ public:
     static SceneGeometry CreateEmpty(DeletionQueue& deletionQueue);
     void Add(SceneInstance instance, FrameContext& ctx);
     AddCommandsResult AddCommands(SceneInstance instance, FrameContext& ctx);
+
+    void SetScene(Scene& scene) { m_Scene = &scene; }
 public:
     struct SceneInfoOffsets
     {
@@ -88,6 +60,7 @@ public:
     RenderHandleArray<Material> MaterialsCpu;
 private:
     std::unordered_map<const SceneInfo*, SceneInfoOffsets> m_SceneInfoOffsets{};
+    Scene* m_Scene{nullptr};
 
     // todo: to cvars? (upd: yes, please do)
     /* these values were revealed to me in a dream */

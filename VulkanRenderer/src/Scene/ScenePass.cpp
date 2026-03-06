@@ -3,7 +3,7 @@
 #include "ScenePass.h"
 
 #include "ResourceUploader.h"
-#include "Vulkan/Device.h"
+#include "SceneInfo.h"
 
 ScenePass::ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList, DeletionQueue& deletionQueue)
     : m_BucketList(&bucketList), m_Name(createInfo.Name)

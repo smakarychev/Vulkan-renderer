@@ -17,163 +17,6 @@
 
 namespace
 {
-template <typename T>
-void copyToVector(std::vector<T>& vec, std::byte* data, u64 sizeBytes)
-{
-    ASSERT(sizeBytes % sizeof(T) == 0, "Data size in bytes is not a multiple of element size")
-    ASSERT((u64)data % alignof(T) == 0, "Data is not aligned properly")
-
-    vec.resize(sizeBytes / sizeof(T));
-    memcpy(vec.data(), data, sizeBytes);
-}
-
-void loadBuffers(SceneGeometryInfo& geometry, lux::assetlib::SceneAsset& scene)
-{
-    using enum lux::assetlib::SceneAssetBufferViewType;
-    ASSERT(scene.Header.Buffers.size() == 1, "Multiple sub-scenes are not supported")
-    auto& sceneBuffer = scene.BuffersData[0];
-    std::byte* bufferData = sceneBuffer.data();
-    auto& views = scene.Header.BufferViews;
-
-    copyToVector(geometry.Indices,
-        bufferData + views[(u32)Index].OffsetBytes, views[(u32)Index].LengthBytes);
-    copyToVector(geometry.Positions,
-        bufferData + views[(u32)Position].OffsetBytes, views[(u32)Position].LengthBytes);
-    copyToVector(geometry.Normals,
-        bufferData + views[(u32)Normal].OffsetBytes, views[(u32)Normal].LengthBytes);
-    copyToVector(geometry.Tangents,
-        bufferData + views[(u32)Tangent].OffsetBytes, views[(u32)Tangent].LengthBytes);
-    copyToVector(geometry.UVs,
-        bufferData + views[(u32)Uv].OffsetBytes, views[(u32)Uv].LengthBytes);
-    copyToVector(geometry.Meshlets,
-        bufferData + views[(u32)Meshlet].OffsetBytes, views[(u32)Meshlet].LengthBytes);
-}
-
-MaterialFlags materialToMaterialFlags(const lux::MaterialAsset& material)
-{
-    MaterialFlags materialFlags = MaterialFlags::None;
-    if (material.AlphaMode == lux::MaterialAlphaMode::Opaque)
-        materialFlags |= MaterialFlags::Opaque;
-    else if (material.AlphaMode == lux::MaterialAlphaMode::Mask)
-        materialFlags |= MaterialFlags::AlphaMask;
-    else if (material.AlphaMode == lux::MaterialAlphaMode::Translucent)
-        materialFlags |= MaterialFlags::Translucent;
-
-    if (material.DoubleSided)
-        materialFlags |= MaterialFlags::TwoSided;
-
-    return materialFlags;
-}
-
-void loadMaterials(SceneGeometryInfo& geometry, lux::assetlib::SceneAsset& scene,
-    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
-    lux::AssetSystem& assetSystem,
-    lux::ImageAssetManager& imageAssetManager,
-    lux::MaterialAssetManager& materialAssetManager)
-{
-    static constexpr TextureHandle INVALID_TEXTURE = {~0lu};
-    std::unordered_map<lux::ImageAsset, TextureHandle> loadedTextures;
-
-    auto get = [&](lux::ImageHandle image) -> Image{
-        return image.IsValid() ? imageAssetManager.Get(image) : Image{};
-    };
-
-    auto processTexture = [&](const lux::assetlib::SceneAssetTextureSample& sample,
-        lux::ImageAsset image, TextureHandle fallback) -> TextureHandle
-    {
-        if (!image.HasValue())
-            return fallback;
-        if (sample.UvIndex > 0)
-        {
-            LUX_LOG_WARN("Skipping texture {}, as it uses uv set other than 0", sample.UvIndex);
-            return fallback;
-        }
-        
-        if (!loadedTextures.contains(image))
-            loadedTextures[image] = texturesRingBuffer.AddTexture(image);
-
-        return loadedTextures[image];
-    };
-    geometry.Materials.reserve(scene.Header.Materials.size());
-    geometry.MaterialsCpu.reserve(scene.Header.Materials.size());
-    for (auto& material : scene.Header.Materials)
-    {
-        auto* materialAssetInfo = assetSystem.Resolve(material.MaterialAsset);
-        if (!materialAssetInfo)
-            continue;
-        
-        auto materialHandle = materialAssetManager.LoadResource({.Path = materialAssetInfo->Path});
-        if (!materialHandle.IsValid())
-            continue;
-
-        auto* materialAsset = materialAssetManager.Get(materialHandle);
-        if (!materialAsset)
-            continue;
-        
-        geometry.Materials.push_back({
-            {
-                .Albedo = materialAsset->BaseColor,
-                .Metallic = materialAsset->Metallic,
-                .Roughness = materialAsset->Roughness,
-                .AlbedoTexture = processTexture(
-                // Todo: images are already resolved!! 
-                    material.BaseColorSample, get(materialAsset->BaseColorTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
-                .NormalTexture = processTexture(
-                    material.NormalSample, get(materialAsset->NormalTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::NormalMap)),
-                .MetallicRoughnessTexture = processTexture(
-                    material.MetallicRoughnessSample, get(materialAsset->MetallicRoughnessTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
-                .AmbientOcclusionTexture = processTexture(
-                    material.OcclusionSample, get(materialAsset->OcclusionTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::White)),
-                .EmissiveTexture = processTexture(
-                    material.EmissiveSample, get(materialAsset->EmissiveTexture),
-                    texturesRingBuffer.GetDefaultTexture(Images::DefaultKind::Black))
-            }
-        });
-
-        geometry.MaterialsCpu.push_back({
-            .Flags = materialToMaterialFlags(*materialAsset)
-        });
-    }
-}
-
-void loadRenderObjects(SceneGeometryInfo& geometry, lux::assetlib::SceneAsset& scene)
-{
-    geometry.RenderObjects.reserve(scene.Header.Meshes.size());
-    for (auto& meshInfo : scene.Header.Meshes)
-    {
-        ASSERT(meshInfo.Primitives.size() < 2, "Render objects with more that 1 primitives are not supported")
-        for (auto& primitive : meshInfo.Primitives)
-        {
-            const u32 firstIndex = (u32)(scene.Header.Accessors[primitive.IndicesAccessor].OffsetBytes /
-                sizeof(lux::assetlib::SceneAssetIndexType));
-            const u32 firstVertex = (u32)(
-                scene.Header.Accessors[primitive.FindAttribute(
-                    lux::assetlib::SceneAssetPrimitive::ATTRIBUTE_POSITION_NAME)->Accessor].OffsetBytes /
-                sizeof(glm::vec3));
-            const u32 firstMeshlet = (u32)(
-                scene.Header.Accessors[primitive.FindAttribute(
-                    lux::assetlib::SceneAssetPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].OffsetBytes /
-                sizeof(lux::assetlib::SceneAssetMeshlet));
-            const u32 meshletsCount = scene.Header.Accessors[primitive.FindAttribute(
-                lux::assetlib::SceneAssetPrimitive::ATTRIBUTE_MESHLET_NAME)->Accessor].Count;
-
-            geometry.RenderObjects.push_back({
-                .Material = primitive.Material,
-                .FirstIndex = firstIndex,
-                .FirstVertex = firstVertex,
-                .FirstMeshlet = firstMeshlet,
-                .MeshletCount = meshletsCount,
-                .BoundingBox = primitive.BoundingBox,
-                .BoundingSphere = primitive.BoundingSphere
-            });
-        }
-    }
-}
-
 void growBufferArena(BufferArena arena, u64 newMinSize, RenderCommandList& cmdList)
 {
     static constexpr f32 GROWTH_RATE = 1.5;
@@ -211,20 +54,6 @@ void writeSuballocation(BufferArena arena, const std::vector<T>& data,
     offsets.ElementOffsets[(u32)bufferType] = (u32)(suballocation.Description.Offset / sizeof(T));
     ctx.ResourceUploader->UpdateBuffer(suballocation.Buffer, data, suballocation.Description.Offset);
 }
-}
-
-SceneGeometryInfo SceneGeometryInfo::FromAsset(lux::assetlib::SceneAsset& scene,
-    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
-    lux::AssetSystem& assetSystem,
-    lux::ImageAssetManager& imageAssetManager,
-    lux::MaterialAssetManager& materialAssetManager)
-{
-    SceneGeometryInfo geometryInfo = {};
-    loadBuffers(geometryInfo, scene);
-    loadMaterials(geometryInfo, scene, texturesRingBuffer, deletionQueue, assetSystem, imageAssetManager, materialAssetManager);
-    loadRenderObjects(geometryInfo, scene);
-
-    return geometryInfo;
 }
 
 SceneGeometry SceneGeometry::CreateEmpty(DeletionQueue& deletionQueue)
@@ -368,7 +197,7 @@ SceneGeometry::AddCommandsResult SceneGeometry::AddCommands(SceneInstance instan
                     .IndexCount = meshlet.IndexCount,
                     .InstanceCount = 1,
                     .FirstIndex = meshlet.FirstIndex + sceneInfoOffsets.ElementOffsets[(u32)Index] +
-                    renderObjectFirstIndex,
+                        renderObjectFirstIndex,
                     .VertexOffset = (i32)meshlet.FirstVertex,
                     .FirstInstance = currentMeshletIndex + meshletIndex,
                     .RenderObject = (u32)renderObjectIndex + currentRenderObjectIndex

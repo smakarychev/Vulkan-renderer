@@ -1545,8 +1545,7 @@ void Renderer::OnUpdate()
     m_CameraController->OnUpdate(1.0f / 60.0f);
 
     LightFrustumCuller::CullDepthSort(m_Scene.Lights(), *GetFrameContext().PrimaryCamera);
-    m_Scene.Hierarchy().OnUpdate(m_Scene, GetFrameContext());
-    m_Scene.Lights().OnUpdate(GetFrameContext());
+    m_Scene.OnUpdate(GetFrameContext());
     m_OpaqueSet.OnUpdate(GetFrameContext());
 
     m_ShadowMultiviewVisibility.OnUpdate(GetFrameContext());

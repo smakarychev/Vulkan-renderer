@@ -6,23 +6,10 @@
 #include "ResourceUploader.h"
 #include "Scene.h"
 #include "ViewInfoGPU.h"
-#include "Light/Light.h"
 #include "Rendering/Buffer/BufferUtility.h"
 #include "Vulkan/Device.h"
 
 #include <AssetLib/Scenes/SceneAsset.h>
-
-namespace
-{
-LightType lightTypeAssetLightType(lux::assetlib::SceneAssetLightType lightType)
-{
-    static_assert((u32)lux::assetlib::SceneAssetLightType::Directional == (u32)LightType::Directional);
-    static_assert((u32)lux::assetlib::SceneAssetLightType::Point == (u32)LightType::Point);
-    static_assert((u32)lux::assetlib::SceneAssetLightType::Spot == (u32)LightType::Spot);
-
-    return (LightType)lightType;
-}
-}
 
 Transform3d CommonLight::GetTransform() const
 {
@@ -45,48 +32,6 @@ Transform3d CommonLight::GetTransform() const
     }
     
     std::unreachable();
-}
-
-SceneLightInfo SceneLightInfo::FromAsset(lux::assetlib::SceneAsset& scene)
-{
-    SceneLightInfo sceneLightInfo = {};
-    sceneLightInfo.Lights.reserve(scene.Header.Lights.size());
-
-    for (auto& light : scene.Header.Lights)
-        sceneLightInfo.Lights.push_back({
-            .Type = lightTypeAssetLightType(light.Type),
-            /* this value is irrelevant, because the transform will be set by SceneHierarchy */
-            .PositionDirection = glm::vec3{0.0},
-            .Color = light.Color,
-            .Intensity = light.Intensity,
-            .Radius = light.Range,
-            // todo:
-            .SpotLightData = {}
-        });
-
-    return sceneLightInfo;
-}
-
-void SceneLightInfo::AddLight(const DirectionalLight& light)
-{
-    Lights.push_back({
-        .Type = LightType::Directional,
-        .PositionDirection = light.Direction,
-        .Color = light.Color,
-        .Intensity = light.Intensity,
-        .Radius = light.Radius,
-    });
-}
-
-void SceneLightInfo::AddLight(const PointLight& light)
-{
-    Lights.push_back({
-        .Type = LightType::Point,
-        .PositionDirection = light.Position,
-        .Color = light.Color,
-        .Intensity = light.Intensity,
-        .Radius = light.Radius,
-    });
 }
 
 SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)

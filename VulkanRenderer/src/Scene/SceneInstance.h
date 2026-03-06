@@ -7,7 +7,6 @@ class SceneInfo;
 class SceneInstance
 {
     friend class Scene;
-    friend class SceneHierarchy;
     friend class SceneLight;
     friend class SceneGeometry;
     u32 m_InstanceId{0};

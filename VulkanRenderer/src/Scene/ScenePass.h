@@ -4,6 +4,8 @@
 
 #include <CoreLib/String/StringId.h>
 
+struct SceneGeometryInfo;
+
 struct ScenePassCreateInfo
 {
     StringId Name{};

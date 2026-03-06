@@ -1,35 +1,12 @@
 #pragma once
 
 #include "SceneGeometry.h"
-#include "SceneHierarchy.h"
 #include "SceneLight.h"
 
 #include <CoreLib/Signals/Signal.h>
 
 class BindlessTextureDescriptorsRingBuffer;
 
-/* used to instantiate a scene */
-class SceneInfo
-{
-    friend class Scene;
-    friend class SceneGeometry;
-    friend class SceneLight;
-    friend class SceneHierarchy;
-    friend class SceneRenderObjectSet;
-public:
-    static SceneInfo* LoadFromAsset(std::string_view assetPath,
-    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
-    lux::AssetSystem& assetSystem,
-    lux::ImageAssetManager& imageAssetManager,
-    lux::MaterialAssetManager& materialAssetManager);
-    
-    void AddLight(const DirectionalLight& light);
-    void AddLight(const PointLight& light);
-private:
-    SceneGeometryInfo m_Geometry{};
-    SceneLightInfo m_Lights{};
-    SceneHierarchyInfo m_Hierarchy{};
-};
 
 struct SceneInstantiationData
 {
@@ -53,13 +30,13 @@ public:
     const SceneLight& Lights() const { return m_Lights; }
     SceneLight& Lights() { return m_Lights; }
 
-    const SceneHierarchy& Hierarchy() const { return m_Hierarchy; }
-    SceneHierarchy& Hierarchy() { return m_Hierarchy; }
-
     Signal<NewInstanceData>& GetInstanceAddedSignal() { return m_InstanceAddedSignal; }
     
     SceneInstance Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
         FrameContext& ctx);
+    void Delete(SceneInstance instance);
+
+    void OnUpdate(FrameContext& ctx);
     
     template <typename Fn>
     requires requires (Fn fn, CommonLight& light, Transform3d& localTransform)
@@ -67,17 +44,27 @@ public:
         { fn(light, localTransform) } -> std::same_as<bool>;
     }
     void IterateLights(LightType lightType, Fn&& callback);
+
+    bool SceneInstanceIsAlive(const SceneInstance& instance) { return m_InstancesStatus[instance.m_InstanceId]; }
 private:
     SceneInstance RegisterSceneInstance(const SceneInfo& sceneInfo);
+    void AddToHierarchy(SceneInstance instance, const Transform3d& baseTransform);
+    void UpdateHierarchy(FrameContext& ctx);
 private:
     SceneGeometry m_Geometry{};
     SceneLight m_Lights{};
-    SceneHierarchy m_Hierarchy{};
+    
+    u32 m_LastRenderObject{0};
+    u32 m_LastLight{0};
+    
+    SceneHierarchyInfo m_HierarchyInfo{};
     
     std::unordered_map<const SceneInfo*, u32> m_SceneInstancesMap{};
     u32 m_ActiveInstances{0};
 
     Signal<NewInstanceData> m_InstanceAddedSignal{};
+
+    std::vector<bool> m_InstancesStatus;
 };
 
 template <typename Fn>
@@ -87,7 +74,7 @@ requires requires (Fn fn, CommonLight& light, Transform3d& localTransform)
 }
 void Scene::IterateLights(LightType lightType, Fn&& callback)
 {
-    for (auto& node : m_Hierarchy.m_Info.Nodes)
+    for (auto& node : m_HierarchyInfo.Nodes)
     {
         if (node.Type != SceneHierarchyNodeType::Light)
             continue;

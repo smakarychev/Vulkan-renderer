@@ -2,65 +2,8 @@
 
 #include "Scene.h"
 
-#include "AssetManager.h"
-#include "Vulkan/Device.h"
-
-#include <AssetLib/Io/IoInterface/AssetIoInterface.h>
-
-SceneInfo* SceneInfo::LoadFromAsset(std::string_view assetPath,
-    BindlessTextureDescriptorsRingBuffer& texturesRingBuffer, DeletionQueue& deletionQueue,
-    lux::AssetSystem& assetSystem,
-    lux::ImageAssetManager& imageAssetManager,
-    lux::MaterialAssetManager& materialAssetManager)
-{
-    if (SceneInfo* cached = AssetManager::GetSceneInfo(assetPath))
-        return cached;
-    
-    SceneInfo scene = {};
-
-    const auto assetFile = assetSystem.GetIo().ReadHeader(assetPath);
-    if (!assetFile.has_value())
-        return nullptr;
-
-    auto sceneAsset = lux::assetlib::scene::readScene(*assetFile, assetSystem.GetIo(), assetSystem.GetCompressor());
-    if (!sceneAsset.has_value())
-        return nullptr;
-
-    scene.m_Geometry = SceneGeometryInfo::FromAsset(*sceneAsset, texturesRingBuffer, deletionQueue, assetSystem,
-        imageAssetManager, materialAssetManager);
-    scene.m_Lights = SceneLightInfo::FromAsset(*sceneAsset);
-    scene.m_Hierarchy = SceneHierarchyInfo::FromAsset(*sceneAsset);
-
-    return AssetManager::AddSceneInfo(assetPath, std::move(scene));
-}
-
-void SceneInfo::AddLight(const DirectionalLight& light)
-{
-    const u32 lightIndex = (u32)m_Lights.Lights.size();
-    m_Lights.AddLight(light);
-
-    m_Hierarchy.Nodes.push_back(SceneHierarchyNode{
-        .Type = SceneHierarchyNodeType::Light,
-        .Depth = 0,
-        .Parent = {SceneHierarchyHandle::INVALID},
-        .LocalTransform = m_Lights.Lights.back().GetTransform(),
-        .PayloadIndex = lightIndex
-    });
-}
-
-void SceneInfo::AddLight(const PointLight& light)
-{
-    const u32 lightIndex = (u32)m_Lights.Lights.size();
-    m_Lights.AddLight(light);
-
-    m_Hierarchy.Nodes.push_back(SceneHierarchyNode{
-        .Type = SceneHierarchyNodeType::Light,
-        .Depth = 0,
-        .Parent = {SceneHierarchyHandle::INVALID},
-        .LocalTransform = m_Lights.Lights.back().GetTransform(),
-        .PayloadIndex = lightIndex
-    });
-}
+#include "FrameContext.h"
+#include "ResourceUploader.h"
 
 Scene Scene::CreateEmpty(DeletionQueue& deletionQueue)
 {
@@ -80,14 +23,31 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
         m_Geometry.Add(instance, ctx);
     SceneGeometry::AddCommandsResult addCommandsResult = m_Geometry.AddCommands(instance, ctx);
     m_Lights.Add(instance);
-    m_Hierarchy.Add(instance, instantiationData.Transform);
+    AddToHierarchy(instance, instantiationData.Transform);
 
     m_InstanceAddedSignal.Emit({
         .SceneInfo = &sceneInfo,
         .RenderObjectsOffset = addCommandsResult.FirstRenderObject,
-        .MeshletsOffset = addCommandsResult.FirstMeshlet});
+        .MeshletsOffset = addCommandsResult.FirstMeshlet
+    });
     
     return instance;
+}
+
+void Scene::Delete(SceneInstance instance)
+{
+    /*
+     * - Find commands and meshlets referenced by the instance
+     * - Delete these commands, shift alive commands and meshlets to the freed space
+     * - If this was the last instance of `SceneInfo`:
+     *  - Free geometry suballocations of this scene info 
+     */
+}
+
+void Scene::OnUpdate(FrameContext& ctx)
+{
+    UpdateHierarchy(ctx);
+    m_Lights.OnUpdate(ctx);
 }
 
 SceneInstance Scene::RegisterSceneInstance(const SceneInfo& sceneInfo)
@@ -100,4 +60,101 @@ SceneInstance Scene::RegisterSceneInstance(const SceneInfo& sceneInfo)
     m_ActiveInstances++;
     
     return instance;
+}
+
+void Scene::AddToHierarchy(SceneInstance instance, const Transform3d& baseTransform)
+{
+    const SceneHierarchyInfo& instanceHierarchy = instance.m_SceneInfo->m_Hierarchy; 
+
+    const u32 firstNode = (u32)m_HierarchyInfo.Nodes.size();
+    const u32 firstRenderObject = m_LastRenderObject;
+    const u32 firstLight = m_LastLight;
+
+    m_LastLight += (u32)instance.m_SceneInfo->m_Lights.Lights.size();
+    m_LastRenderObject += (u32)instance.m_SceneInfo->m_Geometry.RenderObjects.size();
+
+    for (auto& node : instanceHierarchy.Nodes)
+    {
+        const bool isTopLevel = node.Parent == SceneHierarchyHandle::INVALID;
+        u32 payloadIndex = node.PayloadIndex;
+        switch (node.Type)
+        {
+        case SceneHierarchyNodeType::Mesh:
+            payloadIndex += firstRenderObject;
+            break;
+        case SceneHierarchyNodeType::Light:
+            payloadIndex += firstLight;
+            break;
+        case SceneHierarchyNodeType::Dummy:
+        default:
+            break;
+        }
+        m_HierarchyInfo.Nodes.push_back({
+            .Type = node.Type,
+            .Depth = node.Depth,
+            .Parent = isTopLevel ? SceneHierarchyHandle::INVALID : node.Parent + firstNode,
+            .LocalTransform = isTopLevel ?
+                baseTransform.Combine(node.LocalTransform) :
+                node.LocalTransform,
+            .PayloadIndex = payloadIndex
+        });
+    }
+    
+    m_HierarchyInfo.MaxDepth = std::max(m_HierarchyInfo.MaxDepth, instanceHierarchy.MaxDepth);
+}
+
+namespace
+{
+void updateRenderObject(Buffer renderObjects, u32 renderObjectIndex, const glm::mat4& transform,
+    ResourceUploader& uploader)
+{
+    uploader.UpdateBuffer(
+        renderObjects,
+        transform,
+        renderObjectIndex * sizeof(RenderObjectGPU) + offsetof(RenderObjectGPU, Transform));
+}
+
+void updateLight(CommonLight& light, const glm::mat4& transform)
+{
+    switch (light.Type)
+    {
+    case LightType::Directional:
+        light.PositionDirection = glm::normalize(transform * glm::vec4(0.0f, 0.0f, -1.0f, 0.0f));
+        break;
+    case LightType::Point:
+        light.PositionDirection = transform * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+        break;
+    case LightType::Spot:
+        ASSERT(false, "Spot light is not implemented")
+        break;
+    }
+}
+}
+
+void Scene::UpdateHierarchy(FrameContext& ctx)
+{
+    auto& nodes = m_HierarchyInfo.Nodes;
+    std::vector<glm::mat4> transforms(nodes.size());
+
+    for (u32 i = 0; i < nodes.size(); i++)
+        transforms[i] = nodes[i].Parent == SceneHierarchyHandle::INVALID ?
+            nodes[i].LocalTransform.ToMatrix() :
+            transforms[nodes[i].Parent.Handle] * nodes[i].LocalTransform.ToMatrix();
+
+    for (auto&& [i, node] : std::views::enumerate(nodes))
+    {
+        switch (node.Type)
+        {
+        case SceneHierarchyNodeType::Mesh:
+            updateRenderObject(Geometry().RenderObjects.Buffer, node.PayloadIndex, transforms[i],
+                *ctx.ResourceUploader);
+            break;
+        case SceneHierarchyNodeType::Light:
+            updateLight(Lights().Get(node.PayloadIndex), transforms[i]);
+            break;
+        case SceneHierarchyNodeType::Dummy:
+        default:
+            break;
+        }
+    }
 }

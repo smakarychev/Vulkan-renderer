@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SceneGeometry.h"
+#include "SceneInfo.h"
 #include "RenderGraph/Passes/Generated/Types/DrawInfoUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/MeshletBucketInfoUniform.generated.h"
 #include "Rendering/Commands/RenderCommands.h"

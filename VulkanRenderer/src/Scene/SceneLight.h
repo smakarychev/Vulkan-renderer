@@ -1,60 +1,13 @@
 #pragma once
 
-#include "SceneInstance.h"
-#include "Assets/AssetSystem.h"
+#include "SceneInfo.h"
 #include "Light/Light.h"
-#include "Rendering/Buffer/Buffer.h"
 
-#include <CoreLib/Math/Transform.h>
-
-#include <vector>
-#include <glm/glm.hpp>
-
-namespace lux::assetlib
-{
-struct SceneAsset;
-}
-
-struct ShadingSettings;
 struct FrameContext;
-
-enum class LightType : u8
-{
-    Directional, Point, Spot
-};
-
-struct SpotLightData
-{
-    /* quantized */
-    u16 InnerAngle{};
-    u16 OuterAngle{};
-
-    auto operator<=>(const SpotLightData&) const = default;
-};
-
-struct CommonLight
-{
-    LightType Type{LightType::Point};
-    glm::vec3 PositionDirection{0.0f};
-    glm::vec3 Color{1.0f};
-    f32 Intensity{1.0f};
-    f32 Radius{1.0f};
-    SpotLightData SpotLightData{};
-
-    Transform3d GetTransform() const;
-};
-
-struct SceneLightInfo
-{
-    static SceneLightInfo FromAsset(lux::assetlib::SceneAsset& scene);
-    void AddLight(const DirectionalLight& light);
-    void AddLight(const PointLight& light);
-    
-    std::vector<CommonLight> Lights;
-};
 
 class SceneLight
 {
+    friend class Scene;
 public:
     struct Buffers
     {
@@ -64,7 +17,8 @@ public:
 public:
     static SceneLight CreateEmpty(DeletionQueue& deletionQueue);
     void Add(SceneInstance instance);
-    void OnUpdate(FrameContext& ctx);
+    
+    void SetScene(Scene& scene) { m_Scene = &scene; }
 
     void SetVisibleLights(const std::vector<u32>& visibleLights) { m_VisibleLights = visibleLights; }
 
@@ -77,6 +31,7 @@ public:
     u32 DirectionalLightCount() const { return m_CachedLightsInfo.DirectionalLightCount; }
     u32 PointLightCount() const { return m_CachedLightsInfo.PointLightCount; }
 private:
+    void OnUpdate(FrameContext& ctx);
     void UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
     void UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
 private:
@@ -87,5 +42,7 @@ private:
     LightsInfo m_CachedLightsInfo{};
     
     Buffers m_Buffers{};
+    
+    Scene* m_Scene{nullptr};
 };
 
