@@ -41,11 +41,3 @@ static constexpr u32 LIGHT_TILE_SIZE_Y = 16;
 static constexpr u32 LIGHT_TILE_BINS_Z = 8096;
 static_assert(LIGHT_TILE_SIZE_X >= 8 && LIGHT_TILE_SIZE_Y >= 8,
     "Shaders assume that light tile size is at least 8 pixels in each dimension");
-
-// todo: I actually have cvar for that
-static constexpr u32 VIEW_MAX_LIGHTS = 1024;
-static constexpr u32 BIN_BIT_SIZE = 32;
-static constexpr u32 BIN_COUNT = VIEW_MAX_LIGHTS / BIN_BIT_SIZE;
-
-// todo: cvar
-static constexpr bool LIGHT_CULLING = true;

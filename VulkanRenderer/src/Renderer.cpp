@@ -338,12 +338,12 @@ void Renderer::ExecuteSingleTimePasses()
     
     m_IrradianceSH = Device::CreateBuffer({
         .Description = {
-            .SizeBytes = sizeof(SH9Irradiance),
+            .SizeBytes = sizeof(SH2Irradiance),
             .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform,
         }});
     m_SkyIrradianceSH = Device::CreateBuffer({
         .Description = {
-            .SizeBytes = sizeof(SH9Irradiance),
+            .SizeBytes = sizeof(SH2Irradiance),
             .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Uniform
         }});
 

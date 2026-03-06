@@ -242,7 +242,7 @@ float4 visualizeLightTiles(
 
 bool isInsidePlane(const Plane plane, float3 position, float radius) {
     // plane.w is always zero here
-    return dot(plane.plane.xyz, position) /*- plane.plane.w*/ < radius;
+    return dot(plane.planeComponents.xyz, position) /*- plane.planeComponents.w*/ < radius;
 }
 
 bool isInTileFrustum(const LightTile tile, float3 position, float radius, float near, float far) {

@@ -80,27 +80,30 @@ internal static const uint BIN_BIT_SIZE_LOG = 5;
 public static const uint BIN_BIT_SIZE = 1 << BIN_BIT_SIZE_LOG;
 public static const uint BIN_COUNT = VIEW_MAX_LIGHTS / BIN_BIT_SIZE;
 
+[StandaloneType("lightCluster")]
 public struct LightCluster {
     internal float4 min;
     internal float4 max;
     public uint bins[BIN_COUNT];
 };
 
+[StandaloneType("lightPlane")]
 public struct Plane {
     /// xyz components for normal, w for offset
-    float4 plane;
+    float4 planeComponents;
 
     /// Constructs plane by three points
     internal __init(float3 a, float3 b, float3 c) {
         const float3 v0 = b - a;
         const float3 v1 = c - a;
         
-        plane.xyz = normalize(cross(v0, v1));
+        planeComponents.xyz = normalize(cross(v0, v1));
         // plane.w is always zero here because it is a subfrustum plane in view space
-        plane.w = 0;
+        planeComponents.w = 0;
     }
 };
 
+[StandaloneType("lightTile")]
 public struct LightTile {
     /// tile is 4 planes, near and far are computed separately
     internal Plane planes[4];

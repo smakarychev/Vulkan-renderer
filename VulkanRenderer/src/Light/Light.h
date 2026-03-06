@@ -1,14 +1,11 @@
 #pragma once
 
-#include "Settings.h"
 #include "RenderGraph/Passes/Generated/Types/DirectionalLightUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/PointLightUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/LightClusterUniform.generated.h"
+#include "RenderGraph/Passes/Generated/Types/LightTileUniform.generated.h"
 
 #include <CoreLib/types.h>
-#include <CoreLib/Math/Geometry.h>
-
-#include <glm/glm.hpp>
-#include <array>
 
 struct DirectionalLight : gen::DirectionalLight
 {
@@ -30,15 +27,5 @@ struct LightsInfo
     auto operator<=>(const LightsInfo& other) const = default;
 };
 
-struct LightCluster
-{
-    glm::vec4 Min;
-    glm::vec4 Max;
-    std::array<u32, BIN_COUNT> Bins;
-};
-
-struct LightTile
-{
-    std::array<Plane, 4> Planes;
-    std::array<u32, BIN_COUNT> Bins;
-};
+struct LightCluster : gen::LightCluster{};
+struct LightTile : gen::LightTile{};

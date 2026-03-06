@@ -5,6 +5,8 @@
 #include "Light/Light.h"
 #include "Rendering/Buffer/Buffer.h"
 
+#include <CoreLib/Math/Transform.h>
+
 #include <vector>
 #include <glm/glm.hpp>
 

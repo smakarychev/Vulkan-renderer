@@ -141,6 +141,7 @@ public struct SH2RGB {
 };
 
 /// Represents second order spherical harmonics storing irradiance
+[StandaloneType("sh2Irradiance")]
 public struct SH2Irradiance {
     float4 ar;
     float4 ag;
