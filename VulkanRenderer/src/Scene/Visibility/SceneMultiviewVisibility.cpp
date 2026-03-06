@@ -10,7 +10,7 @@
 
 void SceneMultiviewVisibility::SceneVisibility::OnUpdate(FrameContext& ctx, const SceneRenderObjectSet& set)
 {
-    /* this buffer is managed entirely by gpu, here we only have to make sure that is has enough size */
+    /* these buffers are managed entirely by gpu, here we only have to make sure they have enough size */
     Buffers::grow(RenderObjectVisibility, set.RenderObjectCount() / sizeof(SceneVisibilityBucket),
         ctx.CommandList);
     Buffers::grow(MeshletVisibility, set.MeshletCount() / sizeof(SceneVisibilityBucket), ctx.CommandList);
