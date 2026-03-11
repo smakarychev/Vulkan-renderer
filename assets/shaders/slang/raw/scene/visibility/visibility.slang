@@ -73,6 +73,10 @@ public bool isFrustumVisible(float3 sphereOrigin, float radius, const Camera cam
 
 public bool isOcclusionVisible(float3 sphereOrigin, float radius, const Camera camera, SamplerState samplerHiz,
     Texture2D hiz) {
+
+    if (!camera.isOcclusionCulled())
+        return true;
+
     if (sphereOrigin.z + radius >= -camera.frustumNear)
         return true;
 
@@ -105,6 +109,9 @@ public bool isOcclusionVisible(float3 sphereOrigin, float radius, const Camera c
 
 public bool isOcclusionVisibleOrthographic(float3 sphereOrigin, float radius, const Camera camera, SamplerState samplerHiz,
     Texture2D hiz) {
+
+    if (!camera.isOcclusionCulled())
+        return true;
 
     if (sphereOrigin.z + radius >= -camera.frustumNear)
         return true;

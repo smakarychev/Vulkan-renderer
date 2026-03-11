@@ -6,11 +6,13 @@ import "texturesHeap";
 
 public static const uint VIEW_IS_ORTHOGRAPHIC_BIT = 0;
 public static const uint VIEW_CLAMP_DEPTH_BIT = 1;
+public static const uint VIEW_VISIBILITY_OCCLUSION_CULL_BIT = 2;
 
 [StandaloneType("camera")]
 public struct Camera {
     public bool isOrthographic() { return ((viewFlags >> VIEW_IS_ORTHOGRAPHIC_BIT) & 1u) == 1; }
     public bool isDepthClamped() { return ((viewFlags >> VIEW_CLAMP_DEPTH_BIT) & 1u) == 1; }
+    public bool isOcclusionCulled() { return ((visibilityFlags >> VIEW_VISIBILITY_OCCLUSION_CULL_BIT) & 1u) == 1; }
 
     public float3 screenToView(float3 screen) {
         const float2 ndc = screen.xy / resolution;
