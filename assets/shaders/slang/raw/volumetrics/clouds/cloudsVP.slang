@@ -86,7 +86,7 @@ void cloudsVPRender(
     clouds.shapeBlueNoise = shapeBlueNoise;
     clouds.lightBlueNoise = lightBlueNoise;
 
-    AtmosphereLutsSamplingInfo atmosphere = {};
+    AtmosphereLutsSamplingInfo atmosphere;
     atmosphere.atmosphere = resources.view.atmosphere;
     atmosphere.transmittanceLut = resources.view.shading.transmittanceLut.desc;
     atmosphere.skyviewLut = resources.view.shading.transmittanceLut.desc;
@@ -369,8 +369,7 @@ CloudsRenderInfo renderClouds(float2 screenUv, float3 ro, float3 rd, float maxDe
     inScattering = (1.0f - aerialPerspective.a) * inScattering + aerialPerspective.rgb * (1.0f - transmittance);
 #endif // CLOUDS_PRIMARY_VIEW
 
-    HeightFogShadingParameters fogParameters = HeightFogShadingParameters();
-    fogParameters.atmosphere = atmosphere;
+    HeightFogShadingParameters fogParameters = HeightFogShadingParameters(atmosphere);
     const float4 fog = getHeightFog(fogParameters, avgDepth, ro, rd, lightDirection, l0);
     inScattering = lerp(inScattering, fog.rgb * (1.0f - transmittance), fog.a);
 

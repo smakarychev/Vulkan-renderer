@@ -53,6 +53,10 @@ public struct HeightFogShadingParameters {
     public float fogEnd = 500.0f;
     public float fogDensity = 5e-4f;
     public AtmosphereLutsSamplingInfo atmosphere;
+
+    public __init(const AtmosphereLutsSamplingInfo atmosphere) {
+        this.atmosphere = atmosphere;
+    }
 }
 
 public float4 getHeightFog(const HeightFogShadingParameters parameters, float depth, float3 ro, float3 rd,
