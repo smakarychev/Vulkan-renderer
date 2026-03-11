@@ -257,15 +257,15 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/death_valley/scene.scene", 
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/real_cube/scene.scene", 
             //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/huge_plane/scene.scene", 
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
             m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager);
         SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
             .Transform = {
-                .Position = glm::vec3{1500.0f, -500.0f, -7.0f},
+                //.Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
-                .Scale = glm::vec3{750.0f},
+                //.Scale = glm::vec3{750.0f},
                 //.Scale = glm::vec3{1.0f},
                 }},
             ctx);
@@ -575,6 +575,12 @@ void Renderer::SetupRenderGraph()
                 m_CloudsEnvironment, Device::DeletionQueue());
         }
     }
+
+    m_Graph->MarkImageForExport(
+        m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)]);
+    m_Graph->ClaimImage(
+        m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)],
+        m_PrimaryHizPrevious, Device::DeletionQueue());
 
     std::swap(m_CloudsAccumulationIndex, m_CloudsAccumulationIndexPrev);
     

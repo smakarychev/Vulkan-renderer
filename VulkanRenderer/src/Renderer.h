@@ -254,6 +254,8 @@ private:
     SceneVisibilityPassesResources m_ShadowMultiviewVisibilityResources{};
     SceneVisibilityPassesResources m_PrimaryVisibilityResources{};
 
+    Texture m_PrimaryHizPrevious{};
+
     Texture m_TransmittanceLut{};
     Texture m_SkyViewLut{};
     Texture m_VolumetricCloudShadow{};
