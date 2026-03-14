@@ -35,11 +35,16 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             {
                 resources.InitViews(multiview, graph);
             }
-            else
+
+            for (u32 i = 0; i < resources.VisibilityCount; i++)
             {
-                for (u32 i = 0; i < resources.VisibilityCount; i++)
-                    if (enumHasAny(multiview.View({i}).ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull))
-                        resources.Hiz[i] = passData.BindGroup.SetResourcesHiz(resources.Hiz[i], i);
+                if (!enumHasAny(multiview.View({i}).ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull))
+                    continue;
+                    
+                if (info.Stage == SceneVisibilityStage::Reocclusion)
+                    resources.Hiz[i] = passData.BindGroup.SetResourcesHiz(resources.Hiz[i], i);
+                else
+                    resources.HizPrevious[i] = passData.BindGroup.SetResourcesHizPrevious(resources.HizPrevious[i], i);
             }
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)

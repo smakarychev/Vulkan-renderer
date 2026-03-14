@@ -444,8 +444,13 @@ void Renderer::SetupRenderGraph()
     };
     
     m_OpaqueSetPrimaryVisibility = m_PrimaryVisibility.AddVisibility(m_OpaqueSetPrimaryView);
+    const u32 primaryVisibilityIndex = m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility);
     m_PrimaryVisibilityResources = SceneVisibilityPassesResources::FromSceneMultiviewVisibility(
         *m_Graph, m_PrimaryVisibility);
+    m_PrimaryVisibilityResources.HizPrevious[primaryVisibilityIndex] = m_PrimaryHizPrevious.HasValue() ?
+        m_Graph->Import("PrimaryHiz.Previous"_hsv, m_PrimaryHizPrevious, ImageLayout::Readonly) :
+        m_Graph->Import("PrimaryHiz.Dummy"_hsv,
+            Images::Default::GetCopy(Images::DefaultKind::White, GetFrameContext().DeletionQueue));
     
     bool useForwardPass = CVars::Get().GetI32CVar("Renderer.UseForwardShading"_hsv).value_or(false);
     ImGui::Begin("ForwardShading");
@@ -466,7 +471,7 @@ void Renderer::SetupRenderGraph()
         BufferUsage::Readback);
 
     Resource minMaxDepth =
-        m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)];
+        m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex];
 
     CloudShadowInfo cloudShadow = {};
     Resource colorWithSky{};
@@ -577,9 +582,9 @@ void Renderer::SetupRenderGraph()
     }
 
     m_Graph->MarkImageForExport(
-        m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)]);
+        m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex]);
     m_Graph->ClaimImage(
-        m_PrimaryVisibilityResources.Hiz[m_PrimaryVisibility.VisibilityHandleToIndex(m_OpaqueSetPrimaryVisibility)],
+        m_PrimaryVisibilityResources.Hiz[primaryVisibilityIndex],
         m_PrimaryHizPrevious, Device::DeletionQueue());
 
     std::swap(m_CloudsAccumulationIndex, m_CloudsAccumulationIndexPrev);

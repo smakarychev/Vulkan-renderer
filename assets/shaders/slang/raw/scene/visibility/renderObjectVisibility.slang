@@ -13,6 +13,7 @@ struct RenderObjectVisibilitySamplers {
 
 struct RenderObjectVisibilityResources {
     Texture2D hiz[MAX_VISIBILITY_VIEWS];
+    Texture2D hizPrevious[MAX_VISIBILITY_VIEWS];
     ConstantBuffer<ViewInfo> views[MAX_VISIBILITY_VIEWS];
     StructuredBuffer<RenderObject> objects;
     RWStructuredBuffer<VisibilityBucketBits> objectsVisibility[MAX_VISIBILITY_VIEWS];

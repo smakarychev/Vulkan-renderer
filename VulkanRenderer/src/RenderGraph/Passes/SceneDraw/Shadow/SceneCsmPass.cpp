@@ -165,7 +165,7 @@ Passes::SceneCsm::PassData& Passes::SceneCsm::addToGraph(StringId name, RG::Grap
                 };
 
                 SceneViewInfo sceneViewInfo = {};
-                VisibilityFlags visibilityFlags = VisibilityFlags::ClampDepth | VisibilityFlags::OcclusionCull;
+                VisibilityFlags visibilityFlags = VisibilityFlags::ClampDepth;
                 if (!info.CreateCamerasInGpu)
                 {
                     ViewInfoGPU viewInfo = ViewInfoGPU::Default();

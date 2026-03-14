@@ -30,10 +30,10 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
                 const bool isPrimaryView =
                     enumHasAny(view.ViewInfo.VisibilityFlags(), VisibilityFlags::IsPrimaryView);
                 auto& hiz = HiZ::addToGraph(name.AddVersion(i), graph, {
-                        .Depth = info.Depths[i],
-                        .ReductionMode = isPrimaryView ? ::HiZ::ReductionMode::MinMax : ::HiZ::ReductionMode::Min,
-                        .CalculateMinMaxDepthBuffer = isPrimaryView
-                    });
+                    .Depth = info.Depths[i],
+                    .ReductionMode = isPrimaryView ? ::HiZ::ReductionMode::MinMax : ::HiZ::ReductionMode::Min,
+                    .CalculateMinMaxDepthBuffer = isPrimaryView
+                });
                 
                 info.Resources->Hiz[i] = hiz.HiZ;
                 info.Resources->MinMaxDepthReductions[i] = hiz.DepthMinMax;

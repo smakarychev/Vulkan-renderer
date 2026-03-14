@@ -15,6 +15,7 @@ struct SceneVisibilityPassesResources
     RG::Resource MeshletHandles{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Views{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Hiz{};
+    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> HizPrevious{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MinMaxDepthReductions{};
 
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> RenderObjectVisibility{};
