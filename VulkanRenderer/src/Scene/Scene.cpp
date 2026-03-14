@@ -72,6 +72,7 @@ void Scene::AddToHierarchy(SceneInstance instance, const Transform3d& baseTransf
 
     m_LastLight += (u32)instance.m_SceneInfo->m_Lights.Lights.size();
     m_LastRenderObject += (u32)instance.m_SceneInfo->m_Geometry.RenderObjects.size();
+    m_RenderObjectPreviousTransforms.resize(m_LastRenderObject);
 
     for (auto& node : instanceHierarchy.Nodes)
     {
@@ -105,12 +106,12 @@ void Scene::AddToHierarchy(SceneInstance instance, const Transform3d& baseTransf
 
 namespace
 {
-void updateRenderObject(Buffer renderObjects, u32 renderObjectIndex, const glm::mat4& transform,
-    ResourceUploader& uploader)
+void updateRenderObject(Buffer renderObjects, u32 renderObjectIndex,
+    const glm::mat4& previousTransform, const glm::mat4& transform, ResourceUploader& uploader)
 {
     uploader.UpdateBuffer(
         renderObjects,
-        transform,
+        Span<const glm::mat4>{transform, previousTransform},
         renderObjectIndex * sizeof(RenderObjectGPU) + offsetof(RenderObjectGPU, Transform));
 }
 
@@ -146,8 +147,12 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
         switch (node.Type)
         {
         case SceneHierarchyNodeType::Mesh:
-            updateRenderObject(Geometry().RenderObjects.Buffer, node.PayloadIndex, transforms[i],
-                *ctx.ResourceUploader);
+            {
+                auto& previousTransform = m_RenderObjectPreviousTransforms[node.PayloadIndex];
+                updateRenderObject(Geometry().RenderObjects.Buffer, node.PayloadIndex,
+                    previousTransform, transforms[i], *ctx.ResourceUploader);
+                m_RenderObjectPreviousTransforms[node.PayloadIndex] = transforms[i];
+            }
             break;
         case SceneHierarchyNodeType::Light:
             updateLight(Lights().Get(node.PayloadIndex), transforms[i]);

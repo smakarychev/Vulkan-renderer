@@ -4,6 +4,7 @@
 
 #include "RenderHandleArray.h"
 #include "RenderObject.h"
+#include "SceneInfo.h"
 #include "SceneInstance.h"
 #include "Rendering/Buffer/PushBuffer.h"
 

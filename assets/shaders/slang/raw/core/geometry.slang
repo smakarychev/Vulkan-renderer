@@ -7,6 +7,7 @@ public static const uint BUCKETS_PER_SET = 64;
 [StandaloneType("renderObject")]
 public struct RenderObject {
     public float4x4 transform;
+    public float4x4 previousTransform;
     public float4 boundingSphere;
     public uint materialId;
     public uint positionIndex;

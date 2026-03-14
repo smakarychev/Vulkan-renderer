@@ -58,6 +58,8 @@ private:
     u32 m_LastLight{0};
     
     SceneHierarchyInfo m_HierarchyInfo{};
+    std::vector<glm::mat4> m_RenderObjectPreviousTransforms;
+    
     
     std::unordered_map<const SceneInfo*, u32> m_SceneInstancesMap{};
     u32 m_ActiveInstances{0};
