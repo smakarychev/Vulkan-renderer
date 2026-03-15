@@ -54,3 +54,9 @@ public struct IndirectDispatchCommand {
     public uint y;
     public uint z;
 };
+
+public IndirectDispatchCommand createIndirectDispatches(uint3 invocations, uint3 groupSize) {
+    const uint3 xyz = (invocations + groupSize - 1) / groupSize;
+
+    return IndirectDispatchCommand(xyz.x, xyz.y, xyz.z);
+}
