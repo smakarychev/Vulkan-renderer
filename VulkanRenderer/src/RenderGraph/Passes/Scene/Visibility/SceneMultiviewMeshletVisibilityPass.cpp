@@ -22,12 +22,17 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;
-            resources.ReferenceCommands = passData.BindGroup.SetResourcesCommands(resources.ReferenceCommands);
+            resources.Meshlets = passData.BindGroup.SetResourcesMeshletsUgb(resources.Meshlets);
             resources.RenderObjects = passData.BindGroup.SetResourcesObjects(resources.RenderObjects);
-            resources.RenderObjectBuckets = passData.BindGroup.SetResourcesObjectBuckets(resources.RenderObjectBuckets);
-            resources.Meshlets = passData.BindGroup.SetResourcesMeshlets(resources.Meshlets);
-            resources.MeshletHandles = passData.BindGroup.SetResourcesMeshletsHandles(resources.MeshletHandles);
-            resources.ResetMeshletCounts(graph);
+            
+            resources.ExpandedMeshlets =
+                passData.BindGroup.SetResourcesExpandedMeshlets(resources.ExpandedMeshlets);
+            resources.VisibleMeshletsData =
+                passData.BindGroup.SetResourcesVisibleMeshlets(resources.VisibleMeshletsData);
+            resources.OccludedMeshletsData =
+                passData.BindGroup.SetResourcesOccludedMeshlets(resources.OccludedMeshletsData);
+            resources.VisibilityCountData = passData.BindGroup.SetResourcesVisibilityCountData(
+                resources.VisibilityCountData);
             
             for (u32 i = 0; i < resources.VisibilityCount; i++)
             {
@@ -41,18 +46,7 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             }
 
             for (u32 i = 0; i < resources.VisibilityCount; i++)
-            {
                 resources.Views[i] = passData.BindGroup.SetResourcesViews(resources.Views[i], i);
-                
-                resources.RenderObjectVisibility[i] = passData.BindGroup.SetResourcesObjectsVisibility(
-                    resources.RenderObjectVisibility[i], i);
-                resources.MeshletVisibility[i] = passData.BindGroup.SetResourcesMeshletsVisibilty(
-                    resources.MeshletVisibility[i], i);
-                resources.MeshletBucketInfos[i] = passData.BindGroup.SetResourcesMeshletInfos(
-                    resources.MeshletBucketInfos[i], i);
-                resources.MeshletInfoCounts[i] = passData.BindGroup.SetResourcesMeshletInfoCounts(
-                    resources.MeshletInfoCounts[i], i);
-            }
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph&)
         {
@@ -61,7 +55,6 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
 
             struct PushConstants
             {
-                u32 MeshletCount{0};
                 u32 ViewCount{0};
             };
             
@@ -70,7 +63,6 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             cmd.PushConstants({
                 .PipelineLayout = passData.BindGroup.Shader->GetLayout(), 
                 .Data = {PushConstants{
-                    .MeshletCount = passData.Resources->MeshletCount,
                     .ViewCount = passData.Resources->VisibilityCount}
                 }
             });

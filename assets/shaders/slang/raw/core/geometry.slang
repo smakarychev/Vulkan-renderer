@@ -14,10 +14,22 @@ public struct RenderObject {
     public uint normalIndex;
     public uint tangentIndex;
     public uint uvIndex;
+    public uint indexIndex;
+    public uint meshletIndex;
+    public uint meshletBoundsIndex;
+    public uint meshletCount;
 }
 
 [StandaloneType("meshlet")]
 public struct Meshlet {
+    public uint firstIndex;
+    public uint indexCount;
+    public uint firstVertex;
+    public uint vertexCount;
+}
+
+[StandaloneType("meshletBounds")]
+public struct MeshletBounds {
     public int8_t coneX;
     public int8_t coneY;
     public int8_t coneZ;

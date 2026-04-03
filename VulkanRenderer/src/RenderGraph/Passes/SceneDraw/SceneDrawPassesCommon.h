@@ -16,6 +16,7 @@ struct SceneDrawPassExecutionInfo
     RG::Resource DrawInfo{};
     glm::uvec2 Resolution{};
     RG::Resource ViewInfo{};
+    RG::Resource VisibleMeshlets{};
     RG::DrawAttachments Attachments{};
     ShaderOverrides* BucketOverrides{nullptr};
 };
@@ -24,6 +25,7 @@ struct SceneDrawPassResources
     RG::Resource Draws{};
     RG::Resource DrawInfo{};
     RG::Resource ViewInfo{};
+    RG::Resource VisibleMeshlets{};
     RG::DrawAttachmentResources Attachments{};
     u32 MaxDrawCount{0};
 

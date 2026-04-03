@@ -36,11 +36,13 @@ private:
     void UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
 private:
     std::vector<CommonLight> m_Lights;
+    std::vector<SceneInstance> m_LightToInstance;
+    
     std::vector<u32> m_VisibleLights;
     std::vector<DirectionalLight> m_CachedDirectionalLights;
     std::vector<PointLight> m_CachedPointLights;
     LightsInfo m_CachedLightsInfo{};
-    
+
     Buffers m_Buffers{};
     
     Scene* m_Scene{nullptr};

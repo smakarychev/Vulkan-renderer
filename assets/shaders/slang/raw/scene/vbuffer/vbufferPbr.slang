@@ -14,6 +14,7 @@ import "pbr/pbr";
 import "light/light";
 import "light/culling/lightCulling";
 import "shadow/shadow";
+import "scene/visibility/visibility";
 
 struct Samplers {
     VBufferSamplers vbufferSamplers;
@@ -30,8 +31,9 @@ struct Resources {
     VBufferResources vbufferResources;
     UGB ugb;
     ConstantBuffer<ViewInfo> view;
-    StructuredBuffer<IndirectCommand> commands;
+    UGBMeshlets meshlets;
     StructuredBuffer<RenderObject> renderObjects;
+    StructuredBuffer<SceneVisibilityElement> visibleMeshlets;
     StructuredBuffer<uint8_t> indices;
     CsmResources csm;
     Texture2D<float> ssao;
@@ -49,8 +51,13 @@ float4 main(FullScreenVSOutput input) {
     if (!visibility.isValid())
         return float4(0.0f, 0.0f, 0.0f, 1.0f);
 
-    VBufferGeometryData gData = VBufferGeometryData(visibility, resources.ugb, resources.view, input.position,
-                                                    resources.commands, resources.renderObjects, resources.indices);
+    const SceneVisibilityElement element = resources.visibleMeshlets[visibility.instance];
+    const RenderObject renderObject = resources.renderObjects[element.renderObjectId];
+    const Meshlet meshlet = resources.meshlets.meshlet(renderObject.meshletIndex + element.meshletId);
+
+    VBufferGeometryData gData = VBufferGeometryData(
+        visibility, resources.ugb, resources.view, input.position,
+        meshlet, renderObject, resources.indices);
 
     const StandardPbrMaterial material = resources.materials[gData.materialId];
     VBufferStandardPbrMaterialData materialData = VBufferStandardPbrMaterialData(gData, material, 

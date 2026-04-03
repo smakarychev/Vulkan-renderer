@@ -6,7 +6,6 @@
 #include "ResourceUploader.h"
 #include "cvars/CVarSystem.h"
 #include "Rendering/Buffer/BufferUtility.h"
-#include "Vulkan/Device.h"
 
 void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bucketList,
     Span<const ScenePassCreateInfo> passes, DeletionQueue& deletionQueue)
@@ -16,7 +15,7 @@ void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bu
     m_Name = name;
     m_Passes.reserve(passes.size());
     for (auto& pass : passes)
-        m_Passes.emplace_back(pass, bucketList, deletionQueue);
+        m_Passes.emplace_back(pass, bucketList);
     m_BucketCount = bucketList.Count() - m_FirstBucket;
     
     m_NewInstanceHandler = SignalHandler<InstanceData>([this](const InstanceData& instanceData)
@@ -28,13 +27,6 @@ void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bu
     m_RenderObjects.Buffer = Device::CreateBuffer({
         .Description = {
             .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.Buffer.SizeBytes"_hsv),
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
-        },
-    }, deletionQueue);
-    
-    m_Meshlets.Buffer = Device::CreateBuffer({
-        .Description = {
-            .SizeBytes = (u64)*CVars::Get().GetI32CVar("Scene.RenderObjectSet.MeshletBuffer.SizeBytes"_hsv),
             .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
         },
     }, deletionQueue);
@@ -50,18 +42,12 @@ void SceneRenderObjectSet::Init(StringId name, Scene& scene, SceneBucketList& bu
 void SceneRenderObjectSet::OnUpdate(FrameContext& ctx)
 {
     const u32 newRenderObjects = (u32)m_RenderObjectsCpu.size() - m_RenderObjects.Offset;
-    const u32 newMeshlets = (u32)m_MeshletsCpu.size() - m_Meshlets.Offset;
     PushBuffers::push<BufferAsymptoticGrowthPolicy>(m_RenderObjects,
         Span<SceneRenderObjectHandle>(m_RenderObjectsCpu).subspan(m_RenderObjects.Offset, newRenderObjects),
-        ctx.CommandList, *ctx.ResourceUploader);
-    PushBuffers::push<BufferAsymptoticGrowthPolicy>(m_Meshlets,
-        Span<SceneMeshletHandle>(m_MeshletsCpu).subspan(m_Meshlets.Offset, newMeshlets),
         ctx.CommandList, *ctx.ResourceUploader);
     PushBuffers::push<BufferAsymptoticGrowthPolicy>(m_BucketBits,
         Span<SceneBucketBits>(m_BucketBitsCpu).subspan(m_BucketBits.Offset, newRenderObjects),
         ctx.CommandList, *ctx.ResourceUploader);
-    for (auto& pass : m_Passes)
-        pass.OnUpdate(ctx);
 }
 
 const ScenePass& SceneRenderObjectSet::FindPass(StringId name) const
@@ -101,18 +87,12 @@ void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
         if (bucketBits != 0)
         {
             auto& renderObject = geometry.RenderObjects[renderObjectIndex];
-            const SceneRenderObjectHandle globalHandle = {
-                .Index = handle.Index + instanceData.RenderObjectsOffset};
+            const SceneRenderObjectHandle globalHandle = {.Index = handle.Index + instanceData.RenderObjectsOffset};
             m_RenderObjectsCpu.push_back(globalHandle);
             m_BucketBitsCpu.push_back(bucketBits);
             m_MeshletCount += renderObject.MeshletCount;
             for (u32 meshletIndex = 0; meshletIndex < renderObject.MeshletCount; meshletIndex++)
-            {
-                const SceneMeshletHandle globalMeshletHandle = {
-                    .Index = renderObject.FirstMeshlet + meshletIndex + instanceData.MeshletsOffset};
-                m_MeshletsCpu.push_back(globalMeshletHandle);
                 m_TriangleCount += geometry.Meshlets[renderObject.FirstMeshlet + meshletIndex].IndexCount / 3;
-            }
         }
     }
 }

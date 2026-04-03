@@ -1,21 +1,20 @@
-#pragma once
-
+﻿#pragma once
 #include "SceneVisibilityPassesCommon.h"
-#include "RenderGraph/RGPass.h"
+#include "RenderGraph/RGResource.h"
 
-namespace Passes::SceneMultiviewVisibilityHiz
+namespace Passes::SceneVisibilityExpandMeshlets
 {
 struct ExecutionInfo
 {
-    ::SceneMultiviewVisibility* MultiviewVisibility{nullptr};
     SceneVisibilityPassesResources* Resources{nullptr};
     SceneVisibilityStage Stage{SceneVisibilityStage::Cull};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Depths{};
 };
-
 struct PassData
 {
+    SceneVisibilityPassesResources* Resources{nullptr};
 };
 
 PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo& info);
 }
+
+

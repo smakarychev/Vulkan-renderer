@@ -7,13 +7,17 @@ import "light/culling/lightCulling";
 import "materials/material";
 import "shadow/shadow";
 import "volumetrics/volumetrics";
+import "scene/visibility/visibility";
 
 struct Resources {
     ViewInfo view;
+    SceneVisibilityCountData svcd;
     RenderObject ro;
     Meshlet mshlt;
+    MeshletBounds mshltbnds;
     DrawInfo di;
     MeshletBucketInfo mbi;
+    SceneVisibilityElement sve;
     IndirectCommand ic;
     SH2Irradiance sh2i;
     PointLight pl;

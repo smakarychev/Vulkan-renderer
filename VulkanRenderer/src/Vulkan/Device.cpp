@@ -18,6 +18,7 @@
 #include "FrameContext.h"
 #include "Rendering/Buffer/Buffer.h"
 #include "Core/ProfilerContext.h"
+#include "CoreLib/Utils/MemoryUtils.h"
 #include "Rendering/FormatTraits.h"
 #include "Imgui/ImguiUI.h"
 #include "Rendering/DeletionQueue.h"
@@ -2201,8 +2202,8 @@ u64 Device::GetBufferArenaSizeBytesPhysical(BufferArena arena)
 BufferSuballocationResult Device::BufferArenaSuballocate(BufferArena arena, u64 sizeBytes, u32 alignment)
 {
     VmaVirtualAllocationCreateInfo allocationCreateInfo = {};
-    allocationCreateInfo.size = sizeBytes;
-    allocationCreateInfo.alignment = alignment;
+    allocationCreateInfo.size = sizeBytes + alignment;
+    allocationCreateInfo.alignment = 0;
     // todo: is this ok flag to use?
     allocationCreateInfo.flags = VMA_VIRTUAL_ALLOCATION_CREATE_STRATEGY_MIN_MEMORY_BIT;
 
@@ -2221,6 +2222,8 @@ BufferSuballocationResult Device::BufferArenaSuballocate(BufferArena arena, u64 
         vmaVirtualFree(bufferArenaResource.VirtualBlock, allocation);
         return std::unexpected(BufferSuballocationError::OutOfPhysicalMemory);
     }
+
+    allocationInfo.offset = lux::mem::alignAddress(allocationInfo.offset, (u16)alignment);
     
     return BufferSuballocation{
         .Buffer = bufferArenaResource.Buffer,

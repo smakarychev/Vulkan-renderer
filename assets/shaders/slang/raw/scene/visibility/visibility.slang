@@ -1,8 +1,31 @@
 module visibility;
 
+import "core/attributes";
 import "core/viewInfo";
 
-public static const uint MAX_VISIBILITY_VIEWS = 64;
+public static const uint MAX_VISIBILITY_VIEWS = 32;
+
+[StandaloneType("sceneVisibilityCountData")]
+public struct SceneVisibilityCountData {
+    public uint visibleRenderObjects;
+    public uint visibleRenderObjectsSecondStage;
+    public uint occludedRenderObjects;
+
+    public uint visibleMeshlets;
+    public uint visibleMeshletsSecondStage;
+    public uint occludedMeshlets;
+
+    public uint expandedMeshletsCount;
+    public uint expandedMeshletsCountSecondStage;
+}
+
+
+[StandaloneType("sceneVisibilityElement")]
+public struct SceneVisibilityElement {
+    public uint renderObjectId;
+    public uint meshletId;
+    public uint viewMask;
+}
 
 public struct VisibilityBucketBits
 {
@@ -164,26 +187,77 @@ public bool isOcclusionTriangleVisible(float4 aabb, float z, const Camera camera
     return depth <= z;
 }
 
-public bool isVisible(const ViewInfo view, float3 origin, float radius) {
-    bool visible = true;
-    if (view.camera.isOrthographic())
-        visible = visible && isFrustumVisibleOrthographic(origin, radius, view.camera);        
-    else
-        visible = visible && isFrustumVisible(origin, radius, view.camera);
-
-    return visible;
+public enum VisibilityResult {
+    NotVisible,
+    Visible,
+    // this state means that we have to check again at the second stage of occlusion culling
+    MaybeVisible,
 }
 
-public bool isReocclusionVisible(const ViewInfo view, SamplerState sampler, Texture2D hiz, float3 origin, float radius) {
-    bool visible = true;
-    if (view.camera.isOrthographic())
-        visible = visible &&
-            isFrustumVisibleOrthographic(origin, radius, view.camera) &&
-            isOcclusionVisibleOrthographic(origin, radius, view.camera, sampler, hiz);
-    else
-        visible = visible &&
-            isFrustumVisible(origin, radius, view.camera) &&
-            isOcclusionVisible(origin, radius, view.camera, sampler, hiz);        
+public VisibilityResult isVisibleOcclusionFirstStageOrthographic(const ViewInfo view, SamplerState sampler, 
+    Texture2D hiz, float3 origin, float radius, float3 originPrevious, float radiusPrevious) {
 
-    return visible;
+    if (!isFrustumVisibleOrthographic(origin, radius, view.camera))
+        return VisibilityResult.NotVisible;
+
+    if (!isFrustumVisibleOrthographic(originPrevious, radiusPrevious, view.previousCamera))
+        return VisibilityResult.MaybeVisible;
+
+    if (!isOcclusionVisibleOrthographic(originPrevious, radiusPrevious, view.previousCamera, sampler, hiz))
+        return VisibilityResult.MaybeVisible;
+
+    return VisibilityResult.Visible;
+}
+
+public VisibilityResult isVisibleOcclusionFirstStagePerspective(const ViewInfo view, SamplerState sampler, 
+    Texture2D hiz, float3 origin, float radius, float3 originPrevious, float radiusPrevious) {
+
+    if (!isFrustumVisible(origin, radius, view.camera))
+        return VisibilityResult.NotVisible;
+
+    if (!isFrustumVisible(originPrevious, radiusPrevious, view.previousCamera))
+        return VisibilityResult.MaybeVisible;
+
+    if (!isOcclusionVisible(originPrevious, radiusPrevious, view.previousCamera, sampler, hiz))
+        return VisibilityResult.MaybeVisible;
+
+    return VisibilityResult.Visible;
+}
+
+public VisibilityResult isVisibleOcclusionFirstStage(const ViewInfo view, SamplerState sampler, Texture2D hiz, 
+    float3 origin, float radius, float3 originPrevious, float radiusPrevious) {
+
+    if (view.camera.isOrthographic())
+        return isVisibleOcclusionFirstStageOrthographic(view, sampler, hiz, origin, radius, 
+            originPrevious, radiusPrevious);
+    
+    return isVisibleOcclusionFirstStagePerspective(view, sampler, hiz, origin, radius, 
+        originPrevious, radiusPrevious);
+}
+
+public VisibilityResult isVisibleOcclusionSecondStageOrthographic(const ViewInfo view, SamplerState sampler, 
+    Texture2D hiz, float3 origin, float radius) {
+
+    if (!isOcclusionVisibleOrthographic(origin, radius, view.camera, sampler, hiz))
+        return VisibilityResult.NotVisible;
+
+    return VisibilityResult.Visible;
+}
+
+public VisibilityResult isVisibleOcclusionSecondStagePerspective(const ViewInfo view, SamplerState sampler, 
+    Texture2D hiz, float3 origin, float radius) {
+
+    if (!isOcclusionVisible(origin, radius, view.camera, sampler, hiz))
+        return VisibilityResult.NotVisible;
+
+    return VisibilityResult.Visible;
+}
+
+public VisibilityResult isVisibleOcclusionSecondStage(const ViewInfo view, SamplerState sampler, Texture2D hiz, 
+    float3 origin, float radius) {
+
+    if (view.camera.isOrthographic())
+        return isVisibleOcclusionSecondStageOrthographic(view, sampler, hiz, origin, radius);
+    
+    return isVisibleOcclusionSecondStagePerspective(view, sampler, hiz, origin, radius);
 }

@@ -23,19 +23,21 @@ Passes::SceneMultiviewRenderObjectVisibility::PassData& Passes::SceneMultiviewRe
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;
             resources.RenderObjects = passData.BindGroup.SetResourcesObjects(resources.RenderObjects);
-            
-            for (u32 i = 0; i < resources.VisibilityCount; i++)
-            {
-                resources.Views[i] = passData.BindGroup.SetResourcesViews(resources.Views[i], i);
-                resources.RenderObjectVisibility[i] =
-                    passData.BindGroup.SetResourcesObjectsVisibility(resources.RenderObjectVisibility[i], i);
-            }
+            resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
 
             if (info.Stage != SceneVisibilityStage::Reocclusion)
-            {
-                resources.InitViews(multiview, graph);
-            }
+                resources.Init(multiview, graph);
 
+            resources.VisibleRenderObjectsData = passData.BindGroup.SetResourcesVisibleRenderObjects(
+                resources.VisibleRenderObjectsData);
+            resources.OccludedRenderObjectsData = passData.BindGroup.SetResourcesOccludedRenderObjects(
+                resources.OccludedRenderObjectsData);
+            resources.VisibilityCountData = passData.BindGroup.SetResourcesVisibilityCountData(
+                resources.VisibilityCountData);
+            
+            for (u32 i = 0; i < resources.VisibilityCount; i++)
+                resources.Views[i] = passData.BindGroup.SetResourcesViews(resources.Views[i], i);
+            
             for (u32 i = 0; i < resources.VisibilityCount; i++)
             {
                 if (!enumHasAny(multiview.View({i}).ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull))

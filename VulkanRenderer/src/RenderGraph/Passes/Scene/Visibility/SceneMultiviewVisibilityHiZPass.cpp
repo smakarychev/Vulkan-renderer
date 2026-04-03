@@ -22,8 +22,7 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
                 auto& view = info.MultiviewVisibility->View({i});
                 const bool requireHiZ =
                     info.Depths[i].IsValid() &&
-                    enumHasAny(view.ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull) &&
-                    !info.Resources->Hiz[i].IsValid();
+                    enumHasAny(view.ViewInfo.VisibilityFlags(), VisibilityFlags::OcclusionCull);
                 if (!requireHiZ)
                     continue;
 
@@ -32,7 +31,7 @@ Passes::SceneMultiviewVisibilityHiz::PassData& Passes::SceneMultiviewVisibilityH
                 auto& hiz = HiZ::addToGraph(name.AddVersion(i), graph, {
                     .Depth = info.Depths[i],
                     .ReductionMode = isPrimaryView ? ::HiZ::ReductionMode::MinMax : ::HiZ::ReductionMode::Min,
-                    .CalculateMinMaxDepthBuffer = isPrimaryView
+                    .CalculateMinMaxDepthBuffer = isPrimaryView && info.Stage == SceneVisibilityStage::Reocclusion
                 });
                 
                 info.Resources->Hiz[i] = hiz.HiZ;

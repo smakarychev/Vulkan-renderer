@@ -7,7 +7,6 @@
 
 class BindlessTextureDescriptorsRingBuffer;
 
-
 struct SceneInstantiationData
 {
     Transform3d Transform{};
@@ -20,7 +19,6 @@ public:
     {
         const SceneInfo* SceneInfo{nullptr};
         u32 RenderObjectsOffset{0};
-        u32 MeshletsOffset{0};
     };
 public:
     static Scene CreateEmpty(DeletionQueue& deletionQueue);

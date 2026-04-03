@@ -17,13 +17,12 @@ class ScenePass
     friend class SceneRenderObjectSet;
 public:
     using FilterFn = SceneBucket::FilterFn;
-    ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList, DeletionQueue& deletionQueue);
+    ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList);
 
     StringId Name() const { return m_Name; }
     
-    void AddBuckets(Span<const SceneBucketCreateInfo> buckets, DeletionQueue& deletionQueue);
+    void AddBuckets(Span<const SceneBucketCreateInfo> buckets);
     SceneBucketHandle Filter(const SceneGeometryInfo& geometry, SceneRenderObjectHandle renderObject);
-    void OnUpdate(FrameContext& ctx);
 
     u32 BucketCount() const { return (u32)m_BucketHandles.size(); }
     const std::vector<SceneBucketHandle>& BucketHandles() const { return m_BucketHandles; }

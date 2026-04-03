@@ -6,8 +6,10 @@ import "core/materials/material";
 import "core/texturesHeap";
 import "core/viewInfo";
 import "core/ugb";
+
 import "pbr/pbr";
 import "shadow/shadow";
+import "scene/visibility/visibility";
 
 struct Samplers {
     [ImmutableSampler(SamplerFlags.Linear)]
@@ -22,8 +24,9 @@ struct Samplers {
 struct Resources {
     ConstantBuffer<ViewInfo> view;
     UGB ugb;
+    UGBMeshlets meshlets;
     StructuredBuffer<RenderObject> renderObjects;
-    StructuredBuffer<IndirectCommand> commands;
+    StructuredBuffer<SceneVisibilityElement> visibleMeshlets;
     CsmResources csm;
     Texture2D<float> ssao;
     PbrShadingResources pbr;
@@ -46,10 +49,11 @@ ParameterBlock<Resources> resources;
 
 [shader("vertex")]
 VSOutput vertexMain(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_VertexID) {
-    const IndirectCommand command = resources.commands[baseInstance];
-    const RenderObject renderObject = resources.renderObjects[command.renderObject];
+    const SceneVisibilityElement element = resources.visibleMeshlets[baseInstance];
+    const RenderObject renderObject = resources.renderObjects[element.renderObjectId];
+    const Meshlet meshlet = resources.meshlets.meshlet(renderObject.meshletIndex + element.meshletId);
     const float4x4 transform = renderObject.transform;
-    const uint vertexOffset = command.vertexOffset + vertexID;
+    const uint vertexOffset = meshlet.firstVertex + vertexID;
     const float3 position = resources.ugb.position(renderObject.positionIndex + vertexOffset);
 
     const float4 positionWs = mul(float4(position, 1.0f), transform);

@@ -3,6 +3,7 @@ module meshletVisibility;
 import "core/attributes";
 import "core/geometry";
 import "core/viewInfo";
+import "core/ugb";
 
 import "visibility";
 
@@ -15,15 +16,14 @@ struct MeshletVisibilityResources {
     Texture2D hiz[MAX_VISIBILITY_VIEWS];
     Texture2D hizPrevious[MAX_VISIBILITY_VIEWS];
     ConstantBuffer<ViewInfo> views[MAX_VISIBILITY_VIEWS];
-    StructuredBuffer<IndirectCommand> commands;
     StructuredBuffer<RenderObject> objects;
-    StructuredBuffer<uint64_t> objectBuckets;
-    StructuredBuffer<Meshlet> meshlets;
-    StructuredBuffer<uint> meshletsHandles;
-    StructuredBuffer<VisibilityBucketBits> objectsVisibility[MAX_VISIBILITY_VIEWS];
-    RWStructuredBuffer<MeshletBucketInfo> meshletInfos[MAX_VISIBILITY_VIEWS];
-    RWStructuredBuffer<uint> meshletInfoCounts[MAX_VISIBILITY_VIEWS];
-    RWStructuredBuffer<VisibilityBucketBits> meshletsVisibilty[MAX_VISIBILITY_VIEWS];
+
+    UGBMeshlets meshlets;
+    
+    StructuredBuffer<SceneVisibilityElement> expandedMeshlets;
+    RWStructuredBuffer<SceneVisibilityElement> visibleMeshlets;
+    RWStructuredBuffer<SceneVisibilityElement> occludedMeshlets;
+    RWStructuredBuffer<SceneVisibilityCountData> visibilityCountData;
 }
 
 [SpecializationConstant] const bool REOCCLUSION = false;
@@ -32,92 +32,194 @@ struct MeshletVisibilityResources {
 ParameterBlock<MeshletVisibilitySamplers> samplers;
 ParameterBlock<MeshletVisibilityResources> resources;
 
-[shader("compute")]
-[numthreads(64, 1, 1)]
-void meshletVisibility(
-    uint dispatchThreadID: SV_DispatchThreadID,
-    uniform uint handleCount,
+void visibilityFirstStage(
+    uint renderObjectId,
+    uint meshletId,
+    uint viewMask,
     uniform uint viewCount) {
 
-    if (dispatchThreadID >= handleCount)
-        return;
-
-    const uint meshletId = resources.meshletsHandles[dispatchThreadID];
-    const uint renderObjectId = resources.commands[meshletId].renderObject;
-    const Meshlet meshlet = resources.meshlets[meshletId];
-
-    const VisibilityBucketIndex renderObjectBucketIndex = VisibilityBucketIndex(renderObjectId);
-    const VisibilityBucketIndex meshletBucketIndex = VisibilityBucketIndex(meshletId);
+    const RenderObject object = resources.objects[renderObjectId];
+    const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundsIndex + meshletId);
 
     const float4 originWorld = mul(float4(
         meshlet.x,
         meshlet.y,
-        meshlet.z, 1.0f), resources.objects[renderObjectId].transform);
-    const float scale = extractScale(resources.objects[renderObjectId].transform);
+        meshlet.z, 1.0f), object.transform);
+    const float scale = extractScale(object.transform);
     const float radius = meshlet.r * scale;
 
+    const float4 originWorldPrevious = mul(float4(
+        meshlet.x,
+        meshlet.y,
+        meshlet.z, 1.0f), object.previousTransform);
+    const float scalePrevious = extractScale(object.previousTransform);
+    const float radiusPrevious = meshlet.r * scalePrevious;
+
+    uint visibleMask = 0;
+    uint occludedMask = 0;
+
     for (uint i = 0; i < viewCount; i++) {
+        // todo: scalarize?
+        if ((viewMask & (1u << i)) == 0)
+            continue;
+
         const ViewInfo view = resources.views[i];
 
-        float3 originView = mul(originWorld, view.camera.view).xyz;
+        float3 originView = float3(mul(originWorld, view.camera.view).xyz);
+        float3 originViewPrevious = float3(mul(originWorld, view.previousCamera.view).xyz);
+        if (view.camera.isDepthClamped()) {
+            originView.z = min(originView.z, -view.camera.frustumNear);
+            originViewPrevious.z = min(originViewPrevious.z, -view.camera.frustumNear);
+        }
+
+        const VisibilityResult visibility = isVisibleOcclusionFirstStage(
+            view, samplers.samplerHiz, resources.hizPrevious[i], originView, radius, originViewPrevious, radiusPrevious);
+
+        if (visibility == VisibilityResult.Visible)
+            visibleMask |= 1 << i;
+        else if (visibility == VisibilityResult.MaybeVisible) 
+            occludedMask |= 1 << i;
+    }
+
+    compact<true>(
+        renderObjectId,
+        meshletId,
+        visibleMask, occludedMask,
+        resources.visibleMeshlets,
+        resources.occludedMeshlets,
+        resources.visibilityCountData);
+}
+
+
+void visibilitySecondStage(
+    uint renderObjectId,
+    uint meshletId,
+    uint occludedMask,
+    uniform uint viewCount) {
+
+    const RenderObject object = resources.objects[renderObjectId];
+    const MeshletBounds meshlet = resources.meshlets.bounds(object.meshletBoundsIndex + meshletId);
+
+    const float4 originWorld = mul(float4(
+        meshlet.x,
+        meshlet.y,
+        meshlet.z, 1.0f), object.transform);
+    const float scale = extractScale(object.transform);
+    const float radius = meshlet.r * scale;
+
+    const float4 originWorldPrevious = mul(float4(
+        meshlet.x,
+        meshlet.y,
+        meshlet.z, 1.0f), object.previousTransform);
+    const float scalePrevious = extractScale(object.previousTransform);
+    const float radiusPrevious = meshlet.r * scalePrevious;
+
+    uint visibleMask = 0;
+
+    for (uint i = 0; i < viewCount; i++) {
+        if ((occludedMask & (1u << i)) == 0)
+            continue;
+
+        const ViewInfo view = resources.views[i];
+
+        float3 originView = float3(mul(originWorld, view.camera.view).xyz);
         if (view.camera.isDepthClamped())
             originView.z = min(originView.z, -view.camera.frustumNear);
 
-        const bool isRenderObjectVisible = resources.objectsVisibility[i][renderObjectBucketIndex.bucket].isVisible(
-            renderObjectBucketIndex.bitHigh,
-            renderObjectBucketIndex.bitLow);
-        const bool isLastFrameVisible = resources.meshletsVisibilty[i][meshletBucketIndex.bucket].isVisible(
-            meshletBucketIndex.bitHigh,
-            meshletBucketIndex.bitLow);
+        const VisibilityResult visibility = isVisibleOcclusionSecondStage(
+            view, samplers.samplerHiz, resources.hiz[i], originView, radius);
 
-        bool visible = false;
-
-        if (SINGLE_PASS) {
-            // this is for order-independent translucency rendering
-            visible = isRenderObjectVisible && 
-                isReocclusionVisible(view, samplers.samplerHiz, resources.hiz[i], originView, radius);
-        }
-        else if (!REOCCLUSION) {
-            visible = isRenderObjectVisible && isLastFrameVisible && isVisible(view, originView, radius);
-        }
-        else {
-            visible = isRenderObjectVisible && 
-                isReocclusionVisible(view, samplers.samplerHiz, resources.hiz[i], originView, radius);
-
-            const uint4 visibleBallot = WaveActiveBallot(visible);
-            if (WaveIsFirstLane()) {
-                if (WaveGetLaneCount() == 64) {
-                    resources.meshletsVisibilty[i][meshletBucketIndex.bucket].visibility[0] = visibleBallot.r;
-                    resources.meshletsVisibilty[i][meshletBucketIndex.bucket].visibility[1] = visibleBallot.g;
-                } else if (WaveGetLaneCount() == 32)  {
-                    /*uint waveIndex =  dispatchThreadID / 32; */
-                    uint waveIndex = dispatchThreadID >> 5;
-                    resources.meshletsVisibilty[i][meshletBucketIndex.bucket].visibility[waveIndex] = visibleBallot.r;  
-                }
-            }
-
-            visible = visible && !isLastFrameVisible;
-        }
-
-        compact(meshletId, resources.objectBuckets[renderObjectId], visible,
-            resources.meshletInfos[i], resources.meshletInfoCounts[i]);
+        if (visibility == VisibilityResult.Visible)
+            visibleMask |= 1 << i;
     }
+    
+    compact<false>(
+        renderObjectId,
+        meshletId,
+        visibleMask, 0,
+        resources.visibleMeshlets,
+        resources.occludedMeshlets,
+        resources.visibilityCountData);
 }
 
-void compact(uint meshletId, uint64_t buckets, bool visible,
-    RWStructuredBuffer<MeshletBucketInfo> meshletInfo, RWStructuredBuffer<uint> meshletInfoCount) {
 
-    const uint totalVisibleCount = WaveActiveCountBits(visible);
+[shader("compute")]
+[numthreads(64, 1, 1)]
+void meshletVisibility(
+    uint dispatchThreadID: SV_DispatchThreadID,
+    uniform uint viewCount) {
+
+    uint expandedCount = 0;
+    if (REOCCLUSION)
+        expandedCount = resources.visibilityCountData[0].expandedMeshletsCountSecondStage;
+    else
+        expandedCount = resources.visibilityCountData[0].expandedMeshletsCount;
+    if (dispatchThreadID >= expandedCount)
+        return;
+
+    const SceneVisibilityElement meshletVisiblityElement = resources.expandedMeshlets[dispatchThreadID];
+    if (REOCCLUSION)
+        visibilitySecondStage(
+            meshletVisiblityElement.renderObjectId,
+            meshletVisiblityElement.meshletId, 
+            meshletVisiblityElement.viewMask, 
+            viewCount);
+    else
+        visibilityFirstStage(
+            meshletVisiblityElement.renderObjectId,
+            meshletVisiblityElement.meshletId, 
+            meshletVisiblityElement.viewMask, 
+            viewCount);
+}
+
+inline void compact<let isFirstStage : bool>(
+    uint renderObjectId,
+    uint meshletId,
+    uint visibleMask, uint occludedMask,
+    RWStructuredBuffer<SceneVisibilityElement> visibleMeshlets,
+    RWStructuredBuffer<SceneVisibilityElement> occludedMeshlets,
+    RWStructuredBuffer<SceneVisibilityCountData> visibilityCountData) {
+
+    const bool anyVisible = visibleMask != 0llu;
+    const bool anyOccluded = occludedMask != 0llu;
+
+    const uint totalVisibleCount = WaveActiveCountBits(anyVisible);
     uint compactedBufferIndexBase;
-    if (WaveIsFirstLane())
-        InterlockedAdd(meshletInfoCount[0], totalVisibleCount, compactedBufferIndexBase);
-    compactedBufferIndexBase = WaveReadLaneFirst(compactedBufferIndexBase);
+    uint compactedOccludedBufferIndexBase;
 
-    const uint compactedBufferOffset = WavePrefixCountBits(visible);
+    if (isFirstStage) {
+        const uint totalOccludedCount = WaveActiveCountBits(anyOccluded);
+        if (WaveIsFirstLane()) {
+            InterlockedAdd(visibilityCountData[0].visibleMeshlets, totalVisibleCount, compactedBufferIndexBase);
+            InterlockedAdd(visibilityCountData[0].occludedMeshlets, totalOccludedCount, 
+                compactedOccludedBufferIndexBase);
+        }
+    } else {
+        if (WaveIsFirstLane()) {
+            InterlockedAdd(visibilityCountData[0].visibleMeshletsSecondStage, totalVisibleCount,
+                           compactedBufferIndexBase);
+            compactedBufferIndexBase += visibilityCountData[0].visibleMeshlets;
+        }
+    }
+
+    compactedBufferIndexBase = WaveReadLaneFirst(compactedBufferIndexBase);
+    compactedOccludedBufferIndexBase = WaveReadLaneFirst(compactedOccludedBufferIndexBase);
+    
+    const uint compactedBufferOffset = WavePrefixCountBits(anyVisible);
     const uint compactedBufferIndex = compactedBufferIndexBase + compactedBufferOffset;
 
-    if (visible) {
-        MeshletBucketInfo info = MeshletBucketInfo(meshletId, buckets);
-        meshletInfo[compactedBufferIndex] = info;
+    if (anyVisible) {
+        visibleMeshlets[compactedBufferIndex] = SceneVisibilityElement(renderObjectId, meshletId, visibleMask);
+    }
+
+    if (isFirstStage) {
+        compactedOccludedBufferIndexBase = WaveReadLaneFirst(compactedOccludedBufferIndexBase);
+
+        const uint compactedBufferOffset = WavePrefixCountBits(anyOccluded);
+        const uint compactedBufferIndex = compactedOccludedBufferIndexBase + compactedBufferOffset;
+
+        if (anyOccluded) {
+            occludedMeshlets[compactedBufferIndex] = SceneVisibilityElement(renderObjectId, meshletId, occludedMask);
+        }
     }
 }

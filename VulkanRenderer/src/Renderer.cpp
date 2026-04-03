@@ -47,7 +47,6 @@
 #include "RenderGraph/Passes/Lights/VisualizeLightClustersPass.h"
 #include "RenderGraph/Passes/Lights/VisualizeLightTiles.h"
 #include "RenderGraph/Passes/PostProcessing/CRT/CrtPass.h"
-#include "RenderGraph/Passes/Scene/Visibility/ScenePrepareVisibleMeshletInfoPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
@@ -257,7 +256,8 @@ void Renderer::InitRenderGraph()
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
         m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/real_cube/scene.scene", 
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/flight_helmet/FlightHelmet.scene", 
+            //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/sphere_big/scene.scene", 
             //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/huge_plane/scene.scene", 
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
             m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager);
@@ -901,12 +901,14 @@ SceneDrawPassDescription Renderer::RenderGraphVBufferDescription(RG::Resource vb
     };
 }
 
-RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource viewInfo, RG::CsmData csmData)
+RG::Resource Renderer::RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource visibleMeshlets, RG::Resource viewInfo,
+    RG::CsmData csmData)
 {
     const bool renderAtmosphere = CVars::Get().GetI32CVar("Renderer.Atmosphere"_hsv).value_or(false);
     
     auto& pbr = Passes::SceneVBufferPbr::addToGraph("VBufferPbr"_hsv, *m_Graph, {
         .Geometry = &m_Scene.Geometry(),
+        .VisibleMeshlets = visibleMeshlets,
         .VisibilityTexture = vbuffer,
         .ViewInfo = viewInfo,
         .Light = &m_Scene.Lights(),
@@ -979,7 +981,8 @@ Passes::SceneMetaDraw::PassData& Renderer::RenderGraphVBuffer(RG::Resource& vbuf
     depth = meta.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Depth->Resource;
     vbuffer = meta.DrawPassViewAttachments.Get(m_OpaqueSetPrimaryView.Name, vbufferPass.Name()).Colors[0].Resource;
     RenderGraphOnFrameDepthGenerated("VBufferDepth"_hsv, depth);
-    color = RenderGraphVBufferPbr(vbuffer, m_Graph->GetGlobalResources().PrimaryViewInfoResource, m_CsmData);
+    color = RenderGraphVBufferPbr(vbuffer, m_PrimaryVisibilityResources.VisibleMeshletsData,
+        m_Graph->GetGlobalResources().PrimaryViewInfoResource, m_CsmData);
 
     return meta;
 }
@@ -1793,9 +1796,6 @@ void Renderer::Shutdown()
     Device::Destroy(m_Swapchain);
 
     m_Graph.reset();
-    
-    m_ShadowMultiviewVisibility.Shutdown();
-    m_PrimaryVisibility.Shutdown();
     
     m_ResourceUploader.Shutdown();
     m_ShaderAssetManager->Shutdown();

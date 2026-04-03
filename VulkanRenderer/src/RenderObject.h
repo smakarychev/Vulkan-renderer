@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include "RenderGraph/Passes/Generated/Types/MeshletBoundsUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/MeshletUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/RenderObjectUniform.generated.h"
 #include "RenderGraph/Passes/Generated/Types/StandardPbrMaterialUniform.generated.h"
@@ -31,5 +32,7 @@ struct MaterialGPU : gen::StandardPbrMaterial
 using RenderObjectTransform = Transform3d;
 
 struct RenderObjectGPU : gen::RenderObject {};
+
+struct MeshletBoundsGPU : gen::MeshletBounds {};
 
 struct MeshletGPU : gen::Meshlet {};

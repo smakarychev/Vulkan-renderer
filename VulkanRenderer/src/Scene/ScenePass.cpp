@@ -5,16 +5,16 @@
 #include "ResourceUploader.h"
 #include "SceneInfo.h"
 
-ScenePass::ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList, DeletionQueue& deletionQueue)
+ScenePass::ScenePass(const ScenePassCreateInfo& createInfo, SceneBucketList& bucketList)
     : m_BucketList(&bucketList), m_Name(createInfo.Name)
 {
-    AddBuckets(createInfo.BucketCreateInfos, deletionQueue);
+    AddBuckets(createInfo.BucketCreateInfos);
 }
 
-void ScenePass::AddBuckets(Span<const SceneBucketCreateInfo> buckets, DeletionQueue& deletionQueue)
+void ScenePass::AddBuckets(Span<const SceneBucketCreateInfo> buckets)
 {
     for (auto& createInfo : buckets)
-        m_BucketHandles.push_back(m_BucketList->CreateBucket(createInfo, deletionQueue));
+        m_BucketHandles.push_back(m_BucketList->CreateBucket(createInfo));
 
     const SceneBucketHandle minHandle = std::ranges::min(m_BucketHandles);    
     const SceneBucketHandle maxHandle = std::ranges::max(m_BucketHandles);
@@ -35,17 +35,7 @@ SceneBucketHandle ScenePass::Filter(const SceneGeometryInfo& geometry, SceneRend
         bucketToAssignTo = bucketHandle;
     }
 
-    if (bucketToAssignTo != INVALID_SCENE_BUCKET)
-        m_BucketList->GetBucket(bucketToAssignTo).AllocateRenderObjectDrawCommand(
-            geometry.RenderObjects[renderObject.Index].MeshletCount);
-
     return bucketToAssignTo;
-}
-
-void ScenePass::OnUpdate(FrameContext& ctx)
-{
-    for (SceneBucketHandle bucketHandle : m_BucketHandles)
-        m_BucketList->GetBucket(bucketHandle).OnUpdate(ctx);
 }
 
 const SceneBucket& ScenePass::FindBucket(StringId name) const

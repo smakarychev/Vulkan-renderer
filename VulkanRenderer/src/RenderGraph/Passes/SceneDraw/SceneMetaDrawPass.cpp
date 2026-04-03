@@ -2,12 +2,13 @@
 
 #include "SceneMetaDrawPass.h"
 
-#include "SceneFillIndirectDrawPass.h"
 #include "RenderGraph/RGGraph.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewCreateDrawCommandsPass.h"
 #include "Scene/SceneRenderObjectSet.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewMeshletVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewRenderObjectVisibilityPass.h"
 #include "RenderGraph/Passes/Scene/Visibility/SceneMultiviewVisibilityHiZPass.h"
+#include "RenderGraph/Passes/Scene/Visibility/SceneVisibilityExpandMeshletsPass.h"
 
 Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name, RG::Graph& renderGraph,
     const ExecutionInfo& info)
@@ -22,27 +23,11 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
         {
             CPU_PROFILE_FRAME("SceneMetaDraw")
 
+            const u32 bucketCount = info.MultiviewVisibility->ObjectSet().BucketCount();
             std::array<Resource, SceneMultiviewVisibility::MAX_VIEWS> passDepths{};
-            std::array<Resource, MAX_BUCKETS_PER_SET> draws{};
-            std::array<Resource, MAX_BUCKETS_PER_SET> drawInfos{};
-            u32 maxBucketIndex = 0;
 
             auto drawWithVisibility = [&](u32 visibilityIndex, bool reocclusion)
             {
-                auto& fillIndirectDraws = SceneFillIndirectDraw::addToGraph(
-                    StringId("{}.FillSceneIndirectDraws.{}.{}", name, visibilityIndex, reocclusion ? "Reocclusion" : ""),
-                    graph, {
-                        .Geometry = &info.MultiviewVisibility->ObjectSet().Geometry(),
-                        .Draws = draws,
-                        .DrawInfos = drawInfos,
-                        .BucketCount = maxBucketIndex + 1,
-                        .MeshletInfos = info.Resources->MeshletBucketInfos[visibilityIndex],
-                        .MeshletInfoCount = info.Resources->MeshletInfoCounts[visibilityIndex]
-                    });
-
-                draws = fillIndirectDraws.Draws;
-                drawInfos = fillIndirectDraws.DrawInfos;
-
                 for (auto& pass : info.DrawPasses)
                 {
                     if (info.MultiviewVisibility->VisibilityHandleToIndex(pass.Visibility) != visibilityIndex)
@@ -73,15 +58,17 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     {
                         const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
                         auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
-                                    
+                        u32 drawIndex = visibilityIndex * bucketCount + bucketIndex;
+                        
                         attachmentResources = pass.DrawPassInit(
                             StringId("{}.{}.{}.{}.{}",
                                 name, pass.SceneView.Name, pass.Pass->Name(), bucket.Name(),
                                 reocclusion ? "Reocclusion" : ""),
                             graph, {
-                                .Draws = draws[bucketIndex],
-                                .DrawInfo = drawInfos[bucketIndex],
+                                .Draws = info.Resources->Draws[drawIndex],
+                                .DrawInfo = info.Resources->DrawInfos[drawIndex],
                                 .ViewInfo = info.Resources->Views[visibilityIndex],
+                                .VisibleMeshlets = info.Resources->VisibleMeshletsData,
                                 .Attachments = inputAttachments,
                                 .BucketOverrides = &bucket.ShaderOverrides
                             });
@@ -105,21 +92,14 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
             
             for (auto& viewPass : info.DrawPasses)
                 passData.DrawPassViewAttachments.Add(viewPass.SceneView.Name, viewPass.Pass->Name(), viewPass.Attachments);
-            
+
+            u64 bucketsMask = 0;
             for (auto& pass : info.DrawPasses)
             {
                 for (auto& bucketHandle : pass.Pass->BucketHandles())
                 {
                     const u32 bucketIndex = info.MultiviewVisibility->ObjectSet().BucketHandleToIndex(bucketHandle);
-                    auto& bucket = pass.Pass->BucketFromHandle(bucketHandle);
-
-                    draws[bucketIndex] = graph.Import(
-                        StringId("Draw"_hsv).AddVersion(bucketIndex),
-                        bucket.Draws());
-                    drawInfos[bucketIndex] = graph.Import(
-                        StringId("DrawInfo"_hsv).AddVersion(bucketIndex),
-                        bucket.DrawInfo());
-                    maxBucketIndex = std::max(maxBucketIndex, bucketIndex);
+                    bucketsMask |= (u64)1 << bucketIndex;
                 }
             }
         
@@ -130,6 +110,12 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     .Resources = info.Resources,
                     .Stage = SceneVisibilityStage::Cull
                 });
+            SceneVisibilityExpandMeshlets::addToGraph(
+                name.Concatenate(".ExpandMeshlets"),
+                graph, {
+                    .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Cull,
+                });
             SceneMultiviewMeshletVisibility::addToGraph(
                 name.Concatenate("SceneMeshletVisibility"),
                 graph, {
@@ -138,6 +124,14 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                     .Stage = SceneVisibilityStage::Cull
                 });
 
+            SceneMultiviewCreateDrawCommands::addToGraph(
+                name.Concatenate("CreateDrawCommands"),
+                graph, {
+                    .MultiviewVisibility = info.MultiviewVisibility,
+                    .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Cull,
+                    .BucketsMask = bucketsMask
+                });
             for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
                 visibilityIndex++)
                 drawWithVisibility(visibilityIndex, /*reocclusion*/false);
@@ -147,6 +141,51 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                 graph, {
                     .MultiviewVisibility = info.MultiviewVisibility,
                     .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Cull,
+                    .Depths = passDepths
+                });
+            
+            SceneMultiviewRenderObjectVisibility::addToGraph(
+                name.Concatenate("SceneROReocclusion"),
+                graph, {
+                    .MultiviewVisibility = info.MultiviewVisibility,
+                    .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Reocclusion
+                });
+            SceneVisibilityExpandMeshlets::addToGraph(
+                name.Concatenate(".ExpandMeshletsReocclusion"),
+                graph, {
+                    .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Reocclusion,
+                });
+            SceneMultiviewMeshletVisibility::addToGraph(
+                name.Concatenate("SceneMeshletReocclusion"),
+                graph, {
+                    .MultiviewVisibility = info.MultiviewVisibility,
+                    .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Reocclusion
+                });
+            
+            SceneMultiviewCreateDrawCommands::addToGraph(
+                name.Concatenate("CreateDrawCommandsReocclusion"),
+                graph, {
+                    .MultiviewVisibility = info.MultiviewVisibility,
+                    .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Reocclusion,
+                    .BucketsMask = bucketsMask
+                });
+
+            for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
+                visibilityIndex++)
+                drawWithVisibility(visibilityIndex, /*reocclusion*/true);
+
+            
+            SceneMultiviewVisibilityHiz::addToGraph(
+                name.Concatenate("HizMultiviewReocclusion"),
+                graph, {
+                    .MultiviewVisibility = info.MultiviewVisibility,
+                    .Resources = info.Resources,
+                    .Stage = SceneVisibilityStage::Reocclusion,
                     .Depths = passDepths
                 });
             for (auto& pass : info.DrawPasses)
@@ -158,24 +197,6 @@ Passes::SceneMetaDraw::PassData& Passes::SceneMetaDraw::addToGraph(StringId name
                         info.Resources->MinMaxDepthReductions[visibilityIndex]);
             }
 
-            SceneMultiviewRenderObjectVisibility::addToGraph(
-                name.Concatenate("SceneROReocclusion"),
-                graph, {
-                    .MultiviewVisibility = info.MultiviewVisibility,
-                    .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Reocclusion
-                });
-            SceneMultiviewMeshletVisibility::addToGraph(
-                name.Concatenate("SceneMeshletReocclusion"),
-                graph, {
-                    .MultiviewVisibility = info.MultiviewVisibility,
-                    .Resources = info.Resources,
-                    .Stage = SceneVisibilityStage::Reocclusion
-                });
-
-            for (u32 visibilityIndex = 0; visibilityIndex < info.MultiviewVisibility->VisibilityCount();
-                visibilityIndex++)
-                drawWithVisibility(visibilityIndex, /*reocclusion*/true);
         },
         [=](const PassData&, FrameContext&, const Graph&)
         {

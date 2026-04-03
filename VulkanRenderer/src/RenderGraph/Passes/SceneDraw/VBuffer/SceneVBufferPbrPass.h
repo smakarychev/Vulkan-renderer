@@ -10,6 +10,7 @@ namespace Passes::SceneVBufferPbr
 struct ExecutionInfo
 {
     const SceneGeometry* Geometry{nullptr};
+    RG::Resource VisibleMeshlets{};
     RG::Resource VisibilityTexture{};
     RG::Resource ViewInfo{};
     const SceneLight* Light{nullptr};

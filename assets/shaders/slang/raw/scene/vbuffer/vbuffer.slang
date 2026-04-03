@@ -62,16 +62,13 @@ public struct VBufferGeometryData {
     }
 
     public __init(const VBufferVisibility visibility, const UGB ugb, const ViewInfo view, float2 screenPosition,
-        StructuredBuffer<IndirectCommand> commands, StructuredBuffer<RenderObject> objects,
-        StructuredBuffer<uint8_t> indices) {
+        const Meshlet meshlet, const RenderObject renderObject, StructuredBuffer<uint8_t> indices) {
 
-        const IndirectCommand command = commands[visibility.instance];
-        const RenderObject renderObject = objects[command.renderObject];
-
+        const uint firstIndex = renderObject.indexIndex + meshlet.firstIndex;
         const uint3 indices = uint3(
-            command.vertexOffset + uint(indices[command.firstIndex + visibility.triangle * 3 + 0]),
-            command.vertexOffset + uint(indices[command.firstIndex + visibility.triangle * 3 + 1]),
-            command.vertexOffset + uint(indices[command.firstIndex + visibility.triangle * 3 + 2])
+            meshlet.firstVertex + uint(indices[firstIndex + visibility.triangle * 3 + 0]),
+            meshlet.firstVertex + uint(indices[firstIndex + visibility.triangle * 3 + 1]),
+            meshlet.firstVertex + uint(indices[firstIndex + visibility.triangle * 3 + 2])
         );
 
         float3x4 positions = float3x4(

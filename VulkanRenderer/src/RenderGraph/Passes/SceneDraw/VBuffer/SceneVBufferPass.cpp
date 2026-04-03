@@ -22,9 +22,12 @@ Passes::SceneVBuffer::PassData& Passes::SceneVBuffer::addToGraph(StringId name, 
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
             passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer));
-            passData.Resources.ViewInfo = passData.BindGroup.SetResourcesView(info.DrawInfo.ViewInfo);
-            passData.BindGroup.SetResourcesCommands(graph.Import("Commands"_hsv, info.Geometry->Commands.Buffer));
+            passData.BindGroup.SetResourcesMeshletsUgb(graph.Import("Meshlets"_hsv,
+                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Meshlets)));
+            passData.Resources.VisibleMeshlets =
+                passData.BindGroup.SetResourcesVisibleMeshlets(passData.Resources.VisibleMeshlets);
             passData.BindGroup.SetResourcesMaterials(graph.Import("Materials"_hsv, info.Geometry->Materials.Buffer));
+            passData.Resources.ViewInfo = passData.BindGroup.SetResourcesView(info.DrawInfo.ViewInfo);
         },
         [=](const PassDataBind& passData, FrameContext& frameContext, const Graph& graph)
         {

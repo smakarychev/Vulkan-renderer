@@ -1,5 +1,7 @@
 module ugb;
 
+import "geometry";
+
 /// Represents Unified Geometry Buffer
 public struct UGB {
     ByteAddressBuffer ugb;
@@ -30,5 +32,26 @@ public struct UGB {
 
     private ValueT loadAtIndex<ValueT>(uint index) {
         return ugb.LoadAligned<ValueT>(index * sizeof(ValueT), sizeof(ValueT));
+    }
+}
+
+/// Represents Unified Geometry Buffer
+public struct UGBMeshlets {
+    ByteAddressBuffer meshletsUgb;
+
+    /// Read meshlet bounds data from ugb at a given index
+    /// @param index element index of meshlet bounds data
+    public MeshletBounds bounds(uint index) {
+        return loadAtIndex<MeshletBounds>(index);
+    }
+    
+    /// Read meshlets data from ugb at a given index
+    /// @param index element index of meshlet data
+    public Meshlet meshlet(uint index) {
+        return loadAtIndex<Meshlet>(index);
+    }
+
+    private ValueT loadAtIndex<ValueT>(uint index) {
+        return meshletsUgb.LoadAligned<ValueT>(index * sizeof(ValueT), sizeof(ValueT));
     }
 }

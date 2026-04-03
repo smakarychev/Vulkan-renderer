@@ -21,14 +21,13 @@ SceneInstance Scene::Instantiate(const SceneInfo& sceneInfo, const SceneInstanti
     const SceneInstance instance = RegisterSceneInstance(sceneInfo);
     if (m_SceneInstancesMap[&sceneInfo] == 1)
         m_Geometry.Add(instance, ctx);
-    SceneGeometry::AddCommandsResult addCommandsResult = m_Geometry.AddCommands(instance, ctx);
+    SceneGeometry::AddRenderObjectsResult addCommandsResult = m_Geometry.AddRenderObjects(instance, ctx);
     m_Lights.Add(instance);
     AddToHierarchy(instance, instantiationData.Transform);
 
     m_InstanceAddedSignal.Emit({
         .SceneInfo = &sceneInfo,
         .RenderObjectsOffset = addCommandsResult.FirstRenderObject,
-        .MeshletsOffset = addCommandsResult.FirstMeshlet
     });
     
     return instance;

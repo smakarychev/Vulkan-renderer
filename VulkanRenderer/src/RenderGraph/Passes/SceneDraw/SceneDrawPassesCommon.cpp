@@ -12,6 +12,7 @@ void SceneDrawPassResources::InitFrom(const SceneDrawPassExecutionInfo& info, RG
     MaxDrawCount = (u32)(renderGraph.GetBufferDescription(info.Draws).SizeBytes / sizeof(IndirectDrawCommand));
     Draws = renderGraph.ReadBuffer(info.Draws, Vertex | Indirect);
     DrawInfo = renderGraph.ReadBuffer(info.DrawInfo, Vertex | Indirect);
+    VisibleMeshlets = renderGraph.ReadBuffer(info.VisibleMeshlets, Vertex | Pixel);
     Attachments = RgUtils::readWriteDrawAttachments(info.Attachments, renderGraph);
 }
 

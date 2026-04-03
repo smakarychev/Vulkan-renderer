@@ -7,21 +7,25 @@ enum class SceneVisibilityStage {Cull, Reocclusion, Single};
 
 struct SceneVisibilityPassesResources
 {
-    RG::Resource ReferenceCommands{};
-    RG::Resource RenderObjects{};
     RG::Resource Meshlets{};
+    RG::Resource RenderObjects{};
     RG::Resource RenderObjectBuckets{};
     RG::Resource RenderObjectHandles{};
-    RG::Resource MeshletHandles{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Views{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> Hiz{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> HizPrevious{};
     std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MinMaxDepthReductions{};
 
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> RenderObjectVisibility{};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MeshletVisibility{};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MeshletBucketInfos{};
-    std::array<RG::Resource, SceneMultiviewVisibility::MAX_VIEWS> MeshletInfoCounts{};
+    static constexpr u32 MAX_DRAW_COMMAND_BUFFERS = MAX_BUCKETS_PER_SET * 2;
+    std::array<RG::Resource, MAX_DRAW_COMMAND_BUFFERS> Draws{};
+    std::array<RG::Resource, MAX_DRAW_COMMAND_BUFFERS> DrawInfos{};
+    
+    RG::Resource VisibleRenderObjectsData{};
+    RG::Resource OccludedRenderObjectsData{};
+    RG::Resource VisibleMeshletsData{};
+    RG::Resource OccludedMeshletsData{};
+    RG::Resource ExpandedMeshlets{};
+    RG::Resource VisibilityCountData{};
     
     u32 VisibilityCount{0};
     u32 RenderObjectCount{0};
@@ -31,7 +35,5 @@ struct SceneVisibilityPassesResources
         RG::Graph& renderGraph,
         const SceneMultiviewVisibility& sceneMultiviewVisibility);
 
-    void InitViews(const SceneMultiviewVisibility& sceneMultiviewVisibility,
-        RG::Graph& renderGraph);
-    void ResetMeshletCounts(RG::Graph& renderGraph);
+    void Init(const SceneMultiviewVisibility& sceneMultiviewVisibility, RG::Graph& renderGraph);
 };

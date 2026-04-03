@@ -49,27 +49,16 @@ class SceneBucket
     friend class SceneBucketList;
     friend class ScenePass;
 public:
-    SceneBucket(const SceneBucketCreateInfo& createInfo, DeletionQueue& deletionQueue);
+    SceneBucket(const SceneBucketCreateInfo& createInfo);
     
     SceneBucketHandle Handle() const { return m_Id; }
     StringId Name() const { return m_Name; }
-
-    Buffer Draws() const { return m_Draws.Buffer; }
-    Buffer DrawInfo() const { return m_DrawInfo; }
 public:
     using FilterFn = SceneBucketCreateInfo::FilterFn;
     FilterFn Filter{};
     mutable ShaderOverrides ShaderOverrides{};
 private:
-    void OnUpdate(FrameContext& ctx);
-    void AllocateRenderObjectDrawCommand(u32 meshletCount);
-private:
     SceneBucketHandle m_Id{~0lu};
-
-    u32 m_DrawCount{0};
-    PushBufferTyped<IndirectDrawCommand> m_Draws{};
-    Buffer m_DrawInfo{};
-    
     StringId m_Name{};
 };
 
@@ -79,7 +68,7 @@ public:
     using FilterFn = SceneBucket::FilterFn;
     void Init(const Scene& scene);
 
-    SceneBucketHandle CreateBucket(const SceneBucketCreateInfo&  createInfo, DeletionQueue& deletionQueue);
+    SceneBucketHandle CreateBucket(const SceneBucketCreateInfo& createInfo);
 
     const SceneBucket& GetBucket(SceneBucketHandle handle) const { return m_Buckets[handle]; }
     SceneBucket& GetBucket(SceneBucketHandle handle) { return m_Buckets[handle]; }

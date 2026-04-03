@@ -92,7 +92,8 @@ private:
 
     SceneDrawPassDescription RenderGraphVBufferDescription(RG::Resource vbuffer, RG::Resource depth,
         const ScenePass& scenePass);
-    RG::Resource RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource viewInfo, RG::CsmData csmData);
+    RG::Resource RenderGraphVBufferPbr(RG::Resource vbuffer, RG::Resource visibleMeshlets, RG::Resource viewInfo,
+        RG::CsmData csmData);
 
     Passes::SceneMetaDraw::PassData& RenderGraphForwardPass(RG::Resource& color, RG::Resource& depth);
     Passes::SceneMetaDraw::PassData& RenderGraphVBuffer(RG::Resource& vbuffer, RG::Resource& color,

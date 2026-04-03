@@ -27,7 +27,6 @@ public:
     
     Buffer BucketBits() const { return m_BucketBits.Buffer; }
     Buffer RenderObjectHandles() const { return m_RenderObjects.Buffer; }
-    Buffer MeshletHandles() const { return m_Meshlets.Buffer; }
 
     const SceneGeometry& Geometry() const { return m_Scene->Geometry(); }
 
@@ -39,7 +38,6 @@ private:
     void OnNewSceneInstance(const InstanceData& instanceData);
 private:
     PushBufferTyped<SceneRenderObjectHandle> m_RenderObjects{};
-    PushBufferTyped<SceneMeshletHandle> m_Meshlets{};
     PushBufferTyped<SceneBucketBits> m_BucketBits{};
     SceneBucketHandle m_FirstBucket{INVALID_SCENE_BUCKET};
     u32 m_BucketCount{0};
@@ -50,7 +48,6 @@ private:
 
     SignalHandler<InstanceData> m_NewInstanceHandler;
     std::vector<SceneRenderObjectHandle> m_RenderObjectsCpu;
-    std::vector<SceneMeshletHandle> m_MeshletsCpu;
     std::vector<SceneBucketBits> m_BucketBitsCpu;
     std::vector<ScenePass> m_Passes;
 

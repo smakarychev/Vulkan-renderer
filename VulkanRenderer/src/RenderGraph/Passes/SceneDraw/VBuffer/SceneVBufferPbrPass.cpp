@@ -38,8 +38,10 @@ Passes::SceneVBufferPbr::PassData& Passes::SceneVBufferPbr::addToGraph(StringId 
             passData.BindGroup.SetResourcesVbuffer(info.VisibilityTexture);
             passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
+            passData.BindGroup.SetResourcesMeshletsUgb(graph.Import("Meshlets"_hsv,
+                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Meshlets)));
+            passData.BindGroup.SetResourcesVisibleMeshlets(info.VisibleMeshlets);
             passData.BindGroup.SetResourcesView(info.ViewInfo);
-            passData.BindGroup.SetResourcesCommands(graph.Import("Commands"_hsv, info.Geometry->Commands.Buffer));
             passData.BindGroup.SetResourcesMaterials(graph.Import("Materials"_hsv, info.Geometry->Materials.Buffer));
             passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
                 info.Geometry->RenderObjects.Buffer));
