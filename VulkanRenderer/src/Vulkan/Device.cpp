@@ -2223,7 +2223,8 @@ BufferSuballocationResult Device::BufferArenaSuballocate(BufferArena arena, u64 
         return std::unexpected(BufferSuballocationError::OutOfPhysicalMemory);
     }
 
-    allocationInfo.offset = lux::mem::alignAddress(allocationInfo.offset, (u16)alignment);
+    if (alignment != 0)
+        allocationInfo.offset = lux::mem::alignAddress(allocationInfo.offset, (u16)alignment);
     
     return BufferSuballocation{
         .Buffer = bufferArenaResource.Buffer,

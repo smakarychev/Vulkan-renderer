@@ -148,7 +148,7 @@ void Scene::UpdateHierarchy(FrameContext& ctx)
         case SceneHierarchyNodeType::Mesh:
             {
                 auto& previousTransform = m_RenderObjectPreviousTransforms[node.PayloadIndex];
-                updateRenderObject(Geometry().RenderObjects.Buffer, node.PayloadIndex,
+                updateRenderObject(Device::GetBufferArenaUnderlyingBuffer(Geometry().RenderObjects), node.PayloadIndex,
                     previousTransform, transforms[i], *ctx.ResourceUploader);
                 m_RenderObjectPreviousTransforms[node.PayloadIndex] = transforms[i];
             }

@@ -21,7 +21,7 @@ Passes::SceneVBuffer::PassData& Passes::SceneVBuffer::addToGraph(StringId name, 
             passData.BindGroup.SetResourcesUgb(graph.Import("UGB"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Attributes)));
             passData.BindGroup.SetResourcesRenderObjects(graph.Import("Objects"_hsv,
-                info.Geometry->RenderObjects.Buffer));
+                Device::GetBufferArenaUnderlyingBuffer(info.Geometry->RenderObjects)));
             passData.BindGroup.SetResourcesMeshletsUgb(graph.Import("Meshlets"_hsv,
                 Device::GetBufferArenaUnderlyingBuffer(info.Geometry->Meshlets)));
             passData.Resources.VisibleMeshlets =

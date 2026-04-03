@@ -17,7 +17,8 @@ SceneVisibilityPassesResources SceneVisibilityPassesResources::FromSceneMultivie
 
     resources.Meshlets = renderGraph.Import("Meshlets"_hsv,
         Device::GetBufferArenaUnderlyingBuffer(set.Geometry().Meshlets));
-    resources.RenderObjects = renderGraph.Import("RenderObjects"_hsv, set.Geometry().RenderObjects.Buffer);
+    resources.RenderObjects = renderGraph.Import("RenderObjects"_hsv,
+        Device::GetBufferArenaUnderlyingBuffer(set.Geometry().RenderObjects));
     resources.RenderObjectBuckets = renderGraph.Import("RenderObjectBuckets"_hsv, set.BucketBits());
     resources.RenderObjectHandles = renderGraph.Import("RenderObjectHandles"_hsv, set.RenderObjectHandles());
 

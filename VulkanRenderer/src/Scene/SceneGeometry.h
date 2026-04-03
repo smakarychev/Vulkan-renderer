@@ -9,9 +9,6 @@
 #include "Rendering/Buffer/PushBuffer.h"
 
 #include <AssetLib/Scenes/SceneAsset.h>
-#include <CoreLib/Math/Geometry.h>
-
-#include <glm/glm.hpp>
 
 namespace lux
 {
@@ -69,7 +66,7 @@ public:
     BufferArena Indices{};
     BufferArena Attributes{};
     BufferArena Meshlets{};
-    PushBuffer RenderObjects{};
+    BufferArena RenderObjects{};
     PushBuffer Materials{};
 
     RenderHandleArray<Material> MaterialsCpu;
@@ -83,6 +80,6 @@ private:
     static constexpr u64 DEFAULT_ATTRIBUTES_BUFFER_ARENA_SIZE_BYTES = 16llu * 1024 * 1024;
     static constexpr u64 DEFAULT_INDICES_BUFFER_ARENA_SIZE_BYTES = 4llu * 1024 * 1024;
     static constexpr u64 DEFAULT_MESHLETS_BUFFER_ARENA_SIZE_BYTES = 4llu * 1024 * 1024;
-    static constexpr u64 DEFAULT_RENDER_OBJECTS_BUFFER_SIZE_BYTES = 1llu * 1024 * 1024;
+    static constexpr u64 DEFAULT_RENDER_OBJECTS_BUFFER_ARENA_SIZE_BYTES = 1llu * 1024 * 1024;
     static constexpr u64 DEFAULT_MATERIALS_BUFFER_SIZE_BYTES = 1llu * 512 * 1024;
 };

@@ -87,12 +87,16 @@ SceneGeometry SceneGeometry::CreateEmpty(DeletionQueue& deletionQueue)
             .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES
         },
         deletionQueue);
-    geometry.RenderObjects.Buffer = Device::CreateBuffer({
-        .Description = {
-            .SizeBytes = DEFAULT_RENDER_OBJECTS_BUFFER_SIZE_BYTES,
-            .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+    geometry.RenderObjects = Device::CreateBufferArena({
+            .Buffer = Device::CreateBuffer({
+                .Description = {
+                    .SizeBytes = DEFAULT_RENDER_OBJECTS_BUFFER_ARENA_SIZE_BYTES,
+                    .Usage = BufferUsage::Ordinary | BufferUsage::Storage | BufferUsage::Source
+                },
+            }, deletionQueue),
+            .VirtualSizeBytes = DEFAULT_ARENA_VIRTUAL_SIZE_BYTES
         },
-    }, deletionQueue);
+        deletionQueue);
     geometry.Materials.Buffer = Device::CreateBuffer({
         .Description = {
             .SizeBytes = DEFAULT_MATERIALS_BUFFER_SIZE_BYTES,
@@ -155,20 +159,24 @@ void SceneGeometry::Add(SceneInstance instance, FrameContext& ctx)
 SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(SceneInstance instance, FrameContext& ctx)
 {
     auto& sceneInfo = *instance.m_SceneInfo;
+    if (sceneInfo.m_Geometry.RenderObjects.empty())
+        return {.FirstRenderObject = 0};
+        
     const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&sceneInfo];
 
     const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU);
-    PushBuffers::grow<BufferAsymptoticGrowthPolicy>(RenderObjects, renderObjectsSizeBytes, ctx.CommandList);
-
+    const BufferSuballocation suballocation = suballocateResizeIfFailed(RenderObjects,
+        renderObjectsSizeBytes, 0, ctx.CommandList);
+    const u32 currentRenderObjectIndex = (u32)(suballocation.Description.Offset / sizeof(RenderObjectGPU));
+    
     RenderObjectGPU* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU>({
-        .Buffer = RenderObjects.Buffer,
+        .Buffer = Device::GetBufferArenaUnderlyingBuffer(RenderObjects),
         .Description = {
             .SizeBytes = renderObjectsSizeBytes,
-            .Offset = RenderObjects.Offset
+            .Offset = suballocation.Description.Offset
         }
     });
 
-    const u32 currentRenderObjectIndex = (u32)(RenderObjects.Offset / sizeof(RenderObjectGPU));
     for (auto&& [renderObjectIndex, renderObject] : std::views::enumerate(sceneInfo.m_Geometry.RenderObjects))
     {
         using enum SceneInfoOffsetType;
@@ -194,8 +202,6 @@ SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(SceneInsta
             }
         };
     }
-
-    RenderObjects.Offset += renderObjectsSizeBytes;
 
     return {
         .FirstRenderObject = currentRenderObjectIndex,
