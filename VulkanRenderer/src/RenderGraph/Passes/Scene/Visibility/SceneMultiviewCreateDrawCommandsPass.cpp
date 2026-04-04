@@ -71,6 +71,7 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
             auto& resources = *passData.Resources;
             resources.Meshlets = passData.BindGroup.SetResourcesMeshletsUgb(resources.Meshlets);
             resources.RenderObjects = passData.BindGroup.SetResourcesObjects(resources.RenderObjects);
+            resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
             resources.RenderObjectBuckets =
                 passData.BindGroup.SetResourcesRenderObjectBuckets(resources.RenderObjectBuckets);
             resources.VisibleMeshletsData =

@@ -30,10 +30,10 @@ ParameterBlock<RenderObjectVisibilitySamplers> samplers;
 ParameterBlock<RenderObjectVisibilityResources> resources;
 
 void visibilityFirstStage(
-    uint renderObjectId,
+    uint renderObjectHandle,
     uniform uint viewCount) {
 
-    const RenderObject object = resources.objects[renderObjectId];
+    const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
 
     const float4 originWorld = mul(float4(
         object.boundingSphere.x,
@@ -71,7 +71,7 @@ void visibilityFirstStage(
     }
 
     compact<true>(
-        renderObjectId,
+        renderObjectHandle,
         visibleMask, occludedMask,
         resources.visibleRenderObjects,
         resources.occludedRenderObjects,
@@ -80,11 +80,11 @@ void visibilityFirstStage(
 
 
 void visibilitySecondStage(
-    uint renderObjectId,
+    uint renderObjectHandle,
     uint occludedMask,
     uniform uint viewCount) {
 
-    const RenderObject object = resources.objects[renderObjectId];
+    const RenderObject object = resources.objects[resources.objectHandles[renderObjectHandle]];
 
     const float4 originWorld = mul(float4(
         object.boundingSphere.x,
@@ -113,7 +113,7 @@ void visibilitySecondStage(
     }
     
     compact<false>(
-        renderObjectId,
+        renderObjectHandle,
         visibleMask, 0,
         resources.visibleRenderObjects,
         resources.occludedRenderObjects,
@@ -136,19 +136,17 @@ void renderObjectVisibility(
     if (dispatchThreadID >= maxRenderObjectIndex)
         return;
 
-    const uint objectHandle = resources.objectHandles[dispatchThreadID];
-
     if (REOCCLUSION) {
         const SceneVisibilityElement objectVisibility = resources.occludedRenderObjects[dispatchThreadID];
-        visibilitySecondStage(objectVisibility.renderObjectId, objectVisibility.viewMask, viewCount);
+        visibilitySecondStage(objectVisibility.renderObjectHandle, objectVisibility.viewMask, viewCount);
     }
     else {
-        visibilityFirstStage(objectHandle, viewCount);
+        visibilityFirstStage(dispatchThreadID, viewCount);
     }
 }
 
 inline void compact<let isFirstStage : bool>(
-    uint renderObjectId,
+    uint renderObjectHandle,
     uint visibleMask, uint occludedMask,
     RWStructuredBuffer<SceneVisibilityElement> visibleRenderObjects,
     RWStructuredBuffer<SceneVisibilityElement> occludedRenderObjects,
@@ -183,7 +181,7 @@ inline void compact<let isFirstStage : bool>(
     const uint compactedBufferIndex = compactedBufferIndexBase + compactedBufferOffset;
 
     if (anyVisible) {
-        visibleRenderObjects[compactedBufferIndex] = SceneVisibilityElement(renderObjectId, ~0u, visibleMask);
+        visibleRenderObjects[compactedBufferIndex] = SceneVisibilityElement(renderObjectHandle, ~0u, visibleMask);
     }
 
     if (isFirstStage) {
@@ -193,7 +191,7 @@ inline void compact<let isFirstStage : bool>(
         const uint compactedBufferIndex = compactedOccludedBufferIndexBase + compactedBufferOffset;
 
         if (anyOccluded) {
-            occludedRenderObjects[compactedBufferIndex] = SceneVisibilityElement(renderObjectId, ~0u, occludedMask);
+            occludedRenderObjects[compactedBufferIndex] = SceneVisibilityElement(renderObjectHandle, ~0u, occludedMask);
         }
     }
 }

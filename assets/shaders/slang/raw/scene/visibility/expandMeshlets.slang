@@ -31,6 +31,7 @@ void createIndirectMeshletDispatches(
 
 struct ExpandMeshletsResources {
     StructuredBuffer<RenderObject> renderObjects;
+    StructuredBuffer<uint32_t> objectHandles;
     StructuredBuffer<SceneVisibilityElement> visibleRenderObjects;
     RWStructuredBuffer<SceneVisibilityCountData> visibilityCountData;
     RWStructuredBuffer<SceneVisibilityElement> expandedMeshlets;
@@ -59,7 +60,8 @@ void expandMeshlets(
         renderObjectIndex += resources.visibilityCountData[0].visibleRenderObjects;
 
     const SceneVisibilityElement renderObjectElement = resources.visibleRenderObjects[renderObjectIndex];
-    const RenderObject renderObject = resources.renderObjects[renderObjectElement.renderObjectId];
+    const uint renderObjectId = resources.objectHandles[renderObjectElement.renderObjectHandle];
+    const RenderObject renderObject = resources.renderObjects[renderObjectId];
 
     if (groupThreadId == 0) {
          if (REOCCLUSION)
@@ -73,5 +75,5 @@ void expandMeshlets(
 
     for (uint i = groupThreadId; i < renderObject.meshletCount; i += EXPAND_MESHLETS_DISPATCHES)
         resources.expandedMeshlets[sMeshletOffset + i] = 
-            SceneVisibilityElement(renderObjectElement.renderObjectId, i, renderObjectElement.viewMask);
+            SceneVisibilityElement(renderObjectElement.renderObjectHandle, i, renderObjectElement.viewMask);
 }

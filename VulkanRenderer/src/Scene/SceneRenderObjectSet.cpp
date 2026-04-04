@@ -70,9 +70,6 @@ const ScenePass* SceneRenderObjectSet::TryFindPass(StringId name) const
 void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
 {
     const SceneGeometryInfo& geometry = instanceData.SceneInfo->m_Geometry;
-    if (m_BucketBitsCpu.size() < instanceData.RenderObjectsOffset + geometry.RenderObjects.size())
-        m_BucketBitsCpu.resize(instanceData.RenderObjectsOffset + geometry.RenderObjects.size() + 1, 0);
-
     for (u32 renderObjectIndex = 0; renderObjectIndex < geometry.RenderObjects.size(); renderObjectIndex++)
     {
         const SceneRenderObjectHandle handle = {.Index = renderObjectIndex};
@@ -92,7 +89,7 @@ void SceneRenderObjectSet::OnNewSceneInstance(const InstanceData& instanceData)
             auto& renderObject = geometry.RenderObjects[renderObjectIndex];
             const SceneRenderObjectHandle globalHandle = {.Index = handle.Index + instanceData.RenderObjectsOffset};
             m_RenderObjectsCpu.push_back(globalHandle);
-            m_BucketBitsCpu[globalHandle.Index] = bucketBits;
+            m_BucketBitsCpu.push_back(bucketBits);
             m_MeshletCount += renderObject.MeshletCount;
             for (u32 meshletIndex = 0; meshletIndex < renderObject.MeshletCount; meshletIndex++)
                 m_TriangleCount += geometry.Meshlets[renderObject.FirstMeshlet + meshletIndex].IndexCount / 3;

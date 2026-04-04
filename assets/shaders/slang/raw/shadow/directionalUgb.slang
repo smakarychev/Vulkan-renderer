@@ -11,7 +11,7 @@ struct Resources {
     UGB ugb;
     UGBMeshlets meshlets;
     StructuredBuffer<RenderObject> renderObjects;
-    StructuredBuffer<SceneVisibilityElement> visibleMeshlets;
+    StructuredBuffer<SceneDrawElement> visibleMeshlets;
 }
 
 struct VSOutput
@@ -23,7 +23,7 @@ ParameterBlock<Resources> resources;
 
 [shader("vertex")]
 VSOutput main(uint baseInstance : SV_StartInstanceLocation, uint vertexID: SV_VertexID) {
-    const SceneVisibilityElement element = resources.visibleMeshlets[baseInstance];
+    const SceneDrawElement element = resources.visibleMeshlets[baseInstance];
     const RenderObject renderObject = resources.renderObjects[element.renderObjectId];
     const Meshlet meshlet = resources.meshlets.meshlet(renderObject.meshletIndex + element.meshletId);
     const float4x4 transform = renderObject.transform;

@@ -35,9 +35,10 @@ void createDrawCommandsDispatches(
 struct Resources {
     UGBMeshlets meshlets;
     StructuredBuffer<RenderObject> objects;
+    StructuredBuffer<uint32_t> objectHandles;
     StructuredBuffer<uint64_t> renderObjectBuckets;
     RWStructuredBuffer<SceneVisibilityElement> visibleMeshlets;
-    RWStructuredBuffer<SceneVisibilityCountData> visibilityCountData;
+    StructuredBuffer<SceneVisibilityCountData> visibilityCountData;
     RWStructuredBuffer<IndirectCommand> drawCommands[MAX_COMMAND_BUFFERS];
     RWStructuredBuffer<DrawInfo> drawInfos[MAX_COMMAND_BUFFERS];
 }
@@ -66,8 +67,9 @@ void createDrawCommands(
         meshletId += resources.visibilityCountData[0].visibleMeshlets;
 
     const SceneVisibilityElement meshletElement = resources.visibleMeshlets[meshletId];
-    const RenderObject object = resources.objects[meshletElement.renderObjectId];
-    const uint64_t objectBuckets = resources.renderObjectBuckets[meshletElement.renderObjectId];
+    const uint renderObjectId = resources.objectHandles[meshletElement.renderObjectHandle];
+    const RenderObject object = resources.objects[renderObjectId];
+    const uint64_t objectBuckets = resources.renderObjectBuckets[meshletElement.renderObjectHandle];
     const Meshlet meshlet = resources.meshlets.meshlet(object.meshletIndex + meshletElement.meshletId);
 
     uint64_t buckets = WaveActiveBitOr(objectBuckets & availableBucketsMask);
@@ -75,16 +77,18 @@ void createDrawCommands(
     while (views > 0) {
         int viewBit = firstbitlow(views);
 
-        writeView(viewBit * bucketCount, views, viewBit, buckets, objectBuckets, meshletId, meshletElement, meshlet, 
+        writeView(viewBit * bucketCount, views, viewBit, buckets, objectBuckets, renderObjectId, meshletId, meshlet, 
             object, resources);
 
         views = views & ~(1u << viewBit);
     }
+
+    // change renderObjectHandle (which is Set-specific) to renderObjectId (which is Geometry-specific)
+    resources.visibleMeshlets[meshletId].renderObjectHandle = renderObjectId;
 }
 
 void writeView(uint viewOffset, const uint views, const int viewBit, uint64_t buckets, uint64_t objectBuckets,
-    uint meshletId,
-    const SceneVisibilityElement element, const Meshlet meshlet, const RenderObject object,
+    uint renderObjectId, uint meshletId, const Meshlet meshlet, const RenderObject object,
     uniform ParameterBlock<Resources> resources) {
 
     const uint bit = 1u << viewBit;
@@ -97,14 +101,13 @@ void writeView(uint viewOffset, const uint views, const int viewBit, uint64_t bu
     while (buckets > 0) {
         int bucketBit = firstbitlow(uint(buckets));
         bucketBit = bucketBit != -1 ? bucketBit : firstbitlow(uint(buckets >> 32)) + 32;
-        buckets = compact(viewOffset, hasView, bucketBit, buckets, objectBuckets, meshletId, element, meshlet, 
+        buckets = compact(viewOffset, hasView, bucketBit, buckets, objectBuckets, renderObjectId, meshletId, meshlet, 
             object, resources);
     }
 }
 
 uint64_t compact(uint viewOffset, bool hasView, int bucketBit, uint64_t buckets, uint64_t objectBuckets,
-    uint meshletId,
-    const SceneVisibilityElement element, const Meshlet meshlet, const RenderObject object,
+    uint renderObjectId, uint meshletId, const Meshlet meshlet, const RenderObject object,
     uniform ParameterBlock<Resources> resources) {
 
     const uint64_t bit = uint64_t(1) << bucketBit;
@@ -120,7 +123,7 @@ uint64_t compact(uint viewOffset, bool hasView, int bucketBit, uint64_t buckets,
         const uint drawIndexOffset = WavePrefixCountBits(hasBucket);
         resources.drawCommands[viewOffset + bucketBit][firstDrawIndex + drawIndexOffset] = IndirectCommand(
             meshlet.indexCount, 1, object.indexIndex + meshlet.firstIndex, meshlet.firstVertex,
-            meshletId, element.renderObjectId
+            meshletId, renderObjectId
         );
     }
 

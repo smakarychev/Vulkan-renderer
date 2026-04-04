@@ -24,6 +24,7 @@ Passes::SceneMultiviewMeshletVisibility::PassData& Passes::SceneMultiviewMeshlet
             auto& resources = *passData.Resources;
             resources.Meshlets = passData.BindGroup.SetResourcesMeshletsUgb(resources.Meshlets);
             resources.RenderObjects = passData.BindGroup.SetResourcesObjects(resources.RenderObjects);
+            resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
             
             resources.ExpandedMeshlets =
                 passData.BindGroup.SetResourcesExpandedMeshlets(resources.ExpandedMeshlets);

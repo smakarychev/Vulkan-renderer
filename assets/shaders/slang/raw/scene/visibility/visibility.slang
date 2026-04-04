@@ -22,6 +22,13 @@ public struct SceneVisibilityCountData {
 
 [StandaloneType("sceneVisibilityElement")]
 public struct SceneVisibilityElement {
+    public uint renderObjectHandle;
+    public uint meshletId;
+    public uint viewMask;
+}
+
+/// Same as `SceneVisibilityElement`, but is used in draw passes
+public struct SceneDrawElement {
     public uint renderObjectId;
     public uint meshletId;
     public uint viewMask;

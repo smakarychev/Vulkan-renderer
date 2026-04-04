@@ -33,7 +33,7 @@ struct Resources {
     ConstantBuffer<ViewInfo> view;
     UGBMeshlets meshlets;
     StructuredBuffer<RenderObject> renderObjects;
-    StructuredBuffer<SceneVisibilityElement> visibleMeshlets;
+    StructuredBuffer<SceneDrawElement> visibleMeshlets;
     StructuredBuffer<uint8_t> indices;
     CsmResources csm;
     Texture2D<float> ssao;
@@ -51,7 +51,7 @@ float4 main(FullScreenVSOutput input) {
     if (!visibility.isValid())
         return float4(0.0f, 0.0f, 0.0f, 1.0f);
 
-    const SceneVisibilityElement element = resources.visibleMeshlets[visibility.instance];
+    const SceneDrawElement element = resources.visibleMeshlets[visibility.instance];
     const RenderObject renderObject = resources.renderObjects[element.renderObjectId];
     const Meshlet meshlet = resources.meshlets.meshlet(renderObject.meshletIndex + element.meshletId);
 

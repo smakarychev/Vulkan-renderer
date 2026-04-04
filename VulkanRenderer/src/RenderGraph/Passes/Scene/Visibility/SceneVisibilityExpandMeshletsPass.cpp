@@ -68,7 +68,8 @@ PassData& addToGraph(StringId name, RG::Graph& renderGraph, const ExecutionInfo&
             passData.Resources = info.Resources;
             auto& resources = *passData.Resources;
             
-            passData.BindGroup.SetResourcesRenderObjects(resources.RenderObjects);
+            resources.RenderObjects = passData.BindGroup.SetResourcesRenderObjects(resources.RenderObjects);
+            resources.RenderObjectHandles = passData.BindGroup.SetResourcesObjectHandles(resources.RenderObjectHandles);
             passData.BindGroup.SetResourcesVisibleRenderObjects(resources.VisibleRenderObjectsData);
             resources.ExpandedMeshlets =
                 passData.BindGroup.SetResourcesExpandedMeshlets(resources.ExpandedMeshlets);
