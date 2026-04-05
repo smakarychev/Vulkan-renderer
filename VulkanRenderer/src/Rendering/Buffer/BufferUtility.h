@@ -72,7 +72,6 @@ namespace PushBuffers
             return;
         grow<PushBufferGrowthPolicy>(pushBuffer, (u32)data.size(), cmdList);
         uploader.UpdateBuffer(pushBuffer.Buffer, std::forward<Range<T>>(data), pushBuffer.Offset * sizeof(T));
-        pushBuffer.Offset += (u32)data.size();
     }
 
     template <typename PushBufferGrowthPolicy = PushBufferMinimalGrowthPolicy>
