@@ -17,8 +17,12 @@ class Scene
 public:
     struct NewInstanceData
     {
-        const SceneInfo* SceneInfo{nullptr};
+        SceneInstance Instance{};
         u32 RenderObjectsOffset{0};
+    };
+    struct DeletedInstanceData
+    {
+        SceneInstance Instance{};
     };
 public:
     static Scene CreateEmpty(DeletionQueue& deletionQueue);
@@ -29,9 +33,9 @@ public:
     SceneLight& Lights() { return m_Lights; }
 
     Signal<NewInstanceData>& GetInstanceAddedSignal() { return m_InstanceAddedSignal; }
+    Signal<DeletedInstanceData>& GetInstanceDeletedSignal() { return m_InstanceDeletedSignal; }
     
-    SceneInstance Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData,
-        FrameContext& ctx);
+    SceneInstance Instantiate(const SceneInfo& sceneInfo, const SceneInstantiationData& instantiationData);
     void Delete(SceneInstance instance);
 
     void OnUpdate(FrameContext& ctx);
@@ -43,28 +47,35 @@ public:
     }
     void IterateLights(LightType lightType, Fn&& callback);
 
-    bool SceneInstanceIsAlive(const SceneInstance& instance) { return m_InstancesStatus[instance.m_InstanceId]; }
+    bool SceneInstanceIsAlive(const SceneInstance& instance) { return m_InstanceIsAlive[instance.m_InstanceId]; }
 private:
     SceneInstance RegisterSceneInstance(const SceneInfo& sceneInfo);
-    void AddToHierarchy(SceneInstance instance, const Transform3d& baseTransform);
+    NewInstanceData AddToHierarchy(SceneInstance instance, const Transform3d& baseTransform, FrameContext& ctx);
+    void Spawn(FrameContext& ctx);
+    void Sweep();
     void UpdateHierarchy(FrameContext& ctx);
 private:
     SceneGeometry m_Geometry{};
     SceneLight m_Lights{};
     
-    u32 m_LastRenderObject{0};
-    u32 m_LastLight{0};
-    
     SceneHierarchyInfo m_HierarchyInfo{};
     std::vector<glm::mat4> m_RenderObjectPreviousTransforms;
-    
-    
+
     std::unordered_map<const SceneInfo*, u32> m_SceneInstancesMap{};
-    u32 m_ActiveInstances{0};
+    lux::FreeList<u32> m_ActiveInstancesIndices;
+    u32 m_MaxRenderObjectIndex{0};
 
     Signal<NewInstanceData> m_InstanceAddedSignal{};
+    Signal<DeletedInstanceData> m_InstanceDeletedSignal{};
 
-    std::vector<bool> m_InstancesStatus;
+    std::vector<bool> m_InstanceIsAlive;
+    struct InstantiationInfo
+    {
+        SceneInstance Instance{};
+        SceneInstantiationData InstantiationData{};
+    };
+    std::vector<InstantiationInfo> m_NewInstances;
+    std::vector<SceneInstance> m_DeletedInstances;
 };
 
 template <typename Fn>

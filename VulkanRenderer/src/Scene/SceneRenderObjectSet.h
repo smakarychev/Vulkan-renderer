@@ -34,8 +34,10 @@ public:
     const ScenePass* TryFindPass(StringId name) const;
     
 private:
-    using InstanceData = Scene::NewInstanceData;
-    void OnNewSceneInstance(const InstanceData& instanceData);
+    using NewInstanceData = Scene::NewInstanceData;
+    using DeletedInstanceData = Scene::DeletedInstanceData;
+    void OnNewSceneInstance(const NewInstanceData& instanceData);
+    void OnDeletedSceneInstance(const DeletedInstanceData& instanceData);
 private:
     PushBufferTyped<SceneRenderObjectHandle> m_RenderObjects{};
     PushBufferTyped<SceneBucketBits> m_BucketBits{};
@@ -46,10 +48,19 @@ private:
 
     const Scene* m_Scene{nullptr};
 
-    SignalHandler<InstanceData> m_NewInstanceHandler;
+    SignalHandler<NewInstanceData> m_NewInstanceHandler;
+    SignalHandler<DeletedInstanceData> m_DeletedInstanceHandler;
     std::vector<SceneRenderObjectHandle> m_RenderObjectsCpu;
     std::vector<SceneBucketBits> m_BucketBitsCpu;
     std::vector<ScenePass> m_Passes;
+    struct SceneInstanceInfo
+    {
+        u32 FirstRenderObject{};
+        u32 RenderObjectCount{};
+        u32 MeshletCount{};
+        u32 TriangleCount{};
+    };
+    std::unordered_map<u32, SceneInstanceInfo> m_InstancesInfo;
 
     StringId m_Name{};
 };

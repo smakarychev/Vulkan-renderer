@@ -54,11 +54,14 @@ SceneLight SceneLight::CreateEmpty(DeletionQueue& deletionQueue)
     return light;
 }
 
-void SceneLight::Add(SceneInstance instance)
+u32 SceneLight::Add(CommonLight light)
 {
-    const SceneLightInfo& lightInfo = instance.m_SceneInfo->m_Lights;
-    for (auto& light : lightInfo.Lights)
-        m_Lights.push_back(light);
+    return m_Lights.insert(light);
+}
+
+void SceneLight::Delete(u32 light)
+{
+    m_Lights.erase(light);
 }
 
 void SceneLight::OnUpdate(FrameContext& ctx)

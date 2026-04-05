@@ -255,23 +255,23 @@ void Renderer::InitRenderGraph()
     {
         FrameContext ctx = GetFrameContext();
         ctx.CommandList = cmdList;
-        m_TestScene = SceneInfo::LoadFromAsset(
-            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/flight_helmet/FlightHelmet.scene", 
-            //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/sphere_big/scene.scene", 
-            //*CVars::Get().GetStringCVar("Path.Assets"_hsv) + "models/huge_plane/scene.scene", 
+        m_Scenes.push_back(SceneInfo::LoadFromAsset(
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/flight_helmet/FlightHelmet.scene",
             *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
-            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager);
-        SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
+            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
+        m_Scenes.push_back(SceneInfo::LoadFromAsset(
+            *CVars::Get().GetStringCVar("Path.Assets"_hsv) + "baked/models/dragon/scene.scene",
+            *m_BindlessTextureDescriptorsRingBuffer, Device::DeletionQueue(),
+            m_AssetSystem, *m_ImageAssetManager, *m_MaterialAssetManager));
+        SceneInstance instance = m_Scene.Instantiate(*m_Scenes.front(), {
             .Transform = {
                 //.Position = glm::vec3{1500.0f, -500.0f, -7.0f},
                 .Orientation = glm::angleAxis(glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)),
                 //.Scale = glm::vec3{750.0f},
                 //.Scale = glm::vec3{1.0f},
-                }},
-            ctx);
+                }});
 
-        SceneInfo lights = {};
-        lights.AddLight({{
+        m_Lights.AddLight({{
             .Direction = glm::normalize(glm::vec3(0.3f, -1.0f, 0.1f)),
             .Color = glm::vec3(1.0f, 1.0f, 1.0f),
             .Intensity = 2.5f,
@@ -282,7 +282,7 @@ void Renderer::InitRenderGraph()
             const auto pos =
                 glm::vec3{Random::Float(-5.0f, 5.0f), Random::Float(0.0f, 2.0f), Random::Float(-5.0f, 5.0f)};
             const float rad = Random::Float(0.5f, 8.6f);
-            lights.AddLight({{
+            m_Lights.AddLight({{
                 //.Position = glm::vec3{Random::Float(-39.0f, 39.0f), Random::Float(0.0f, 4.0f), Random::Float(-19.0f, 19.0f)},
                 .Position = pos,
                 .Color = Random::Float3(0.0f, 1.0f),
@@ -297,7 +297,7 @@ void Renderer::InitRenderGraph()
                 }},
                 ctx);*/
         }
-        m_Scene.Instantiate(lights, {}, ctx);
+        m_Scene.Instantiate(m_Lights, {});
 
         ctx.ResourceUploader->SubmitUpload(ctx);
     });
@@ -1552,6 +1552,32 @@ void Renderer::Run()
     }
 }
 
+namespace 
+{
+SceneInstance spawnRandomScene(Scene& scene, const std::vector<SceneInfo*>& scenes, const Camera& camera)
+{
+    if (scenes.empty())
+        return {};
+    
+    u32 sceneIndex = Random::UInt32(0u, (u32)scenes.size() - 1);
+    SceneInfo* sceneInfo = scenes[sceneIndex];
+    
+    glm::vec3 position = camera.GetPosition() +
+        camera.GetForward() * 15.0f +
+        camera.GetRight() * Random::Float(-2.0f, 2.0f) +
+        camera.GetUp() * Random::Float(-2.0f, 2.0f);
+    
+    return scene.Instantiate(*sceneInfo, {
+        .Transform = {
+            .Position = position,
+            .Orientation = glm::angleAxis(
+                Random::Float(0.0f, (f32)std::numbers::pi), glm::normalize(Random::Float3(0.0f, 1.0f))),
+            .Scale = glm::vec3{0.5f},
+        }
+    });
+}
+}
+
 void Renderer::OnUpdate()
 {
     CPU_PROFILE_FRAME("On update")
@@ -1565,18 +1591,33 @@ void Renderer::OnUpdate()
     m_ShadowMultiviewVisibility.OnUpdate(GetFrameContext());
     m_PrimaryVisibility.OnUpdate(GetFrameContext());
 
-    if (Input::GetKey(Key::Space))
+    struct InstanceWithLife
     {
-        glm::vec3 position = m_Camera->GetPosition() + m_Camera->GetForward() * 15.0f;
-        SceneInstance instance = m_Scene.Instantiate(*m_TestScene, {
-            .Transform = {
-                .Position = position,
-                .Orientation = glm::angleAxis(
-                    Random::Float(0.0f, (f32)std::numbers::pi), glm::normalize(Random::Float3(0.0f, 1.0f))),
-                .Scale = glm::vec3{0.5f},}},
-            GetFrameContext());
+        SceneInstance Instance;
+        i32 LifeTimeMs{2000};
+    };
+    static std::vector<InstanceWithLife> instances;
+
+    static auto lastTime = std::chrono::steady_clock::now();
+    auto now = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastTime).count();
+    if (elapsed > 10)
+    {
+        instances.push_back({spawnRandomScene(m_Scene, m_Scenes, *m_Camera)});
         LUX_LOG_TRACE("Meshes: {}\tMeshlets: {}\tTriangles: {}",
             m_OpaqueSet.RenderObjectCount(), m_OpaqueSet.MeshletCount(), m_OpaqueSet.TriangleCount());
+        lastTime = now;
+    }
+    for (i32 i = (i32)instances.size() - 1; i >= 0; i--)
+    {
+        auto& instanceInfo = instances[i];
+        instanceInfo.LifeTimeMs -= (i32)elapsed;
+        if (instanceInfo.LifeTimeMs <= 0)
+        {
+            m_Scene.Delete(instanceInfo.Instance);
+            std::swap(instances[i], instances.back());
+            instances.pop_back();
+        }
     }
 }
 

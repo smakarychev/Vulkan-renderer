@@ -165,15 +165,17 @@ SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(SceneInsta
     const SceneInfoOffsets& sceneInfoOffsets = m_SceneInfoOffsets[&sceneInfo];
 
     const u64 renderObjectsSizeBytes = sceneInfo.m_Geometry.RenderObjects.size() * sizeof(RenderObjectGPU);
-    const BufferSuballocation suballocation = suballocateResizeIfFailed(RenderObjects,
+
+    SceneInstanceInfo instanceInfo = {};
+    instanceInfo.RenderObjectsSuballocation = suballocateResizeIfFailed(RenderObjects,
         renderObjectsSizeBytes, 0, ctx.CommandList);
-    const u32 currentRenderObjectIndex = (u32)(suballocation.Description.Offset / sizeof(RenderObjectGPU));
+    m_InstancesInfo.emplace(instance.m_InstanceId, instanceInfo);
     
     RenderObjectGPU* renderObjects = ctx.ResourceUploader->MapBuffer<RenderObjectGPU>({
         .Buffer = Device::GetBufferArenaUnderlyingBuffer(RenderObjects),
         .Description = {
             .SizeBytes = renderObjectsSizeBytes,
-            .Offset = suballocation.Description.Offset
+            .Offset = instanceInfo.RenderObjectsSuballocation.Description.Offset
         }
     });
 
@@ -204,6 +206,14 @@ SceneGeometry::AddRenderObjectsResult SceneGeometry::AddRenderObjects(SceneInsta
     }
 
     return {
-        .FirstRenderObject = currentRenderObjectIndex,
+        .FirstRenderObject =
+            (u32)(instanceInfo.RenderObjectsSuballocation.Description.Offset / sizeof(RenderObjectGPU)),
     };
+}
+
+void SceneGeometry::DeleteRenderObjects(SceneInstance instance)
+{
+    auto& instanceInfo = m_InstancesInfo.at(instance.m_InstanceId);
+    Device::BufferArenaFree(RenderObjects, instanceInfo.RenderObjectsSuballocation.Handle);
+    m_InstancesInfo.erase(instance.m_InstanceId);
 }

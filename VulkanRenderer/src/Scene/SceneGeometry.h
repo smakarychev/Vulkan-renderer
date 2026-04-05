@@ -24,8 +24,6 @@ class MaterialAssetManager;
 struct FrameContext;
 class BindlessTextureDescriptorsRingBuffer;
 
-
-
 class SceneGeometry
 {
 public:
@@ -37,6 +35,7 @@ public:
     static SceneGeometry CreateEmpty(DeletionQueue& deletionQueue);
     void Add(SceneInstance instance, FrameContext& ctx);
     AddRenderObjectsResult AddRenderObjects(SceneInstance instance, FrameContext& ctx);
+    void DeleteRenderObjects(SceneInstance instance);
 
     void SetScene(Scene& scene) { m_Scene = &scene; }
 public:
@@ -73,6 +72,12 @@ public:
 private:
     std::unordered_map<const SceneInfo*, SceneInfoOffsets> m_SceneInfoOffsets{};
     Scene* m_Scene{nullptr};
+
+    struct SceneInstanceInfo
+    {
+        BufferSuballocation RenderObjectsSuballocation{};
+    };
+    std::unordered_map<u32, SceneInstanceInfo> m_InstancesInfo;
 
     // todo: to cvars? (upd: yes, please do)
     /* these values were revealed to me in a dream */

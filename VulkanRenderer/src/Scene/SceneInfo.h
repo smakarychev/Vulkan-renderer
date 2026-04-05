@@ -72,6 +72,7 @@ struct SceneHierarchyNode
     SceneHierarchyHandle Parent{};
     Transform3d LocalTransform{};
     u32 PayloadIndex{0};
+    SceneInstance Instance{};
 };
 
 struct SceneHierarchyInfo
@@ -104,6 +105,7 @@ struct CommonLight
     f32 Intensity{1.0f};
     f32 Radius{1.0f};
     SpotLightData SpotLightData{};
+    bool IsDeleted{false};
 
     Transform3d GetTransform() const;
 };

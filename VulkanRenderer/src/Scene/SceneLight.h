@@ -3,6 +3,8 @@
 #include "SceneInfo.h"
 #include "Light/Light.h"
 
+#include <CoreLib/Containers/FreeList.h>
+
 struct FrameContext;
 
 class SceneLight
@@ -16,13 +18,14 @@ public:
     };
 public:
     static SceneLight CreateEmpty(DeletionQueue& deletionQueue);
-    void Add(SceneInstance instance);
+    u32 Add(CommonLight light);
+    void Delete(u32 light);
     
     void SetScene(Scene& scene) { m_Scene = &scene; }
 
     void SetVisibleLights(const std::vector<u32>& visibleLights) { m_VisibleLights = visibleLights; }
 
-    u32 Count() const { return (u32)m_Lights.size(); }
+    u32 Count() const { return m_Lights.size(); }
     CommonLight& Get(u32 index) { return m_Lights[index]; }
     const CommonLight& Get(u32 index) const { return m_Lights[index]; }
     const Buffers& GetBuffers() const { return m_Buffers; }
@@ -35,8 +38,7 @@ private:
     void UpdateDirectionalLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
     void UpdatePointLight(CommonLight& light, u32 lightIndex, FrameContext& ctx);
 private:
-    std::vector<CommonLight> m_Lights;
-    std::vector<SceneInstance> m_LightToInstance;
+    lux::FreeList<CommonLight> m_Lights;
     
     std::vector<u32> m_VisibleLights;
     std::vector<DirectionalLight> m_CachedDirectionalLights;
