@@ -102,7 +102,7 @@ public:
     static u64 GetBufferArenaSizeBytesPhysical(BufferArena arena);
     static BufferSuballocationResult BufferArenaSuballocate(BufferArena arena, u64 sizeBytes,
         u32 alignment = 8);
-    static void BufferArenaFree(BufferArena arena, const BufferSuballocation& suballocation);
+    static void BufferArenaFree(BufferArena arena, BufferSuballocationHandle suballocation);
     
     static Image CreateImage(ImageCreateInfo&& createInfo, DeletionQueue& deletionQueue = DeletionQueue());
     static void Destroy(Image image);

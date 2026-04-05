@@ -2234,9 +2234,9 @@ BufferSuballocationResult Device::BufferArenaSuballocate(BufferArena arena, u64 
         .Handle = (u64)allocation};
 }
 
-void Device::BufferArenaFree(BufferArena arena, const BufferSuballocation& suballocation)
+void Device::BufferArenaFree(BufferArena arena, BufferSuballocationHandle suballocation)
 {
-    vmaVirtualFree(Resources()[arena].VirtualBlock, (VmaVirtualAllocation)suballocation.Handle);
+    vmaVirtualFree(Resources()[arena].VirtualBlock, (VmaVirtualAllocation)suballocation);
 }
 
 Image Device::CreateImage(ImageCreateInfo&& createInfo, ::DeletionQueue& deletionQueue)
