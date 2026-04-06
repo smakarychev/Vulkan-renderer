@@ -200,10 +200,18 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(const lux::assetlib::SceneAsset
 
     const u32 sceneIndex = scene.Header.DefaultSubscene;
     auto& subscene = scene.Header.Subscenes[sceneIndex];
+    /* if scene has many top-level nodes, we need to add dummy parent, to ensure that scene as a whole has transform */
+    const bool needDummyParentNode = subscene.Nodes.size() > 1;
     
     auto& nodes = scene.Header.Nodes;
-    sceneHierarchy.Nodes.reserve(nodes.size());
-
+    sceneHierarchy.Nodes.reserve(nodes.size() + (u32)needDummyParentNode);
+    if (needDummyParentNode)
+        sceneHierarchy.Nodes.push_back({
+            .Type = SceneHierarchyNodeType::Dummy,
+            .Depth = 0,
+            .Parent = SceneHierarchyHandle::INVALID
+        });
+    
     struct NodeInfo
     {
         u32 ParentIndex{SceneHierarchyHandle::INVALID};
@@ -212,7 +220,11 @@ SceneHierarchyInfo SceneHierarchyInfo::FromAsset(const lux::assetlib::SceneAsset
     };
     std::queue<NodeInfo> nodesToProcess;
     for (auto& node : subscene.Nodes)
-        nodesToProcess.push({.NodeIndex = (u32)node});
+        nodesToProcess.push({
+            .ParentIndex = needDummyParentNode ? 0 : SceneHierarchyHandle::INVALID,
+            .NodeIndex = (u32)node,
+            .Depth = needDummyParentNode ? (u16)1 : (u16)0
+        });
 
     while (!nodesToProcess.empty())
     {
